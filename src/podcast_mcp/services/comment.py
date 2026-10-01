@@ -16,7 +16,7 @@ from podcast_mcp.edits.comments import (
     set_action_item_done,
     update_comment,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 
 
 class CommentService:

@@ -47,6 +47,7 @@ from podcast_mcp.gui.routes.waveform import (
     waveform_call,
 )
 from podcast_mcp.gui.schemas import DocumentCommandRequest, ShareActionDoneRequest
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.cross_process_sync import cross_process_lease
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.payloads import (
@@ -112,7 +113,6 @@ from podcast_mcp.services.share import (
     share_upload_media,
 )
 from podcast_mcp.services.share_auth.access import access_required
-from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 
 router = APIRouter()

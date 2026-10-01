@@ -6,7 +6,7 @@ from typing import Any
 from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline import PipelineService, format_export_qc_lines
 
 
@@ -237,7 +237,7 @@ def bounce_audio_tool(
     for all non-muted mixable tracks. ``formats_json`` is a JSON array of extensions
     (e.g. ``["wav","mp3"]``); default wav only.
     """
-    from podcast_mcp.services import BounceRequest, BounceService
+    from podcast_mcp.services.bounce import BounceRequest, BounceService
 
     ws = ProjectWorkspace.open(project_path)
     track_ids: list[str] | None = None

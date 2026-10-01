@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools import guest as guest_tools_pkg
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services import ProjectWorkspace, ReviewService
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync.capabilities import (
     document_command_types_for_caps,
 )
@@ -20,6 +20,7 @@ from podcast_mcp.services.remote_mcp.allowlist import (
     tools_for_capabilities,
 )
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
+from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.share import ShareService
 
 

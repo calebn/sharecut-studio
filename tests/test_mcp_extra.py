@@ -103,7 +103,7 @@ def test_mcp_pipeline_run_only_step(tmp_path, sample_wav):
 
 
 def test_mcp_pipeline_run_reports_export_qc_verdict(tmp_path):
-    from podcast_mcp.services import PipelineRunResult
+    from podcast_mcp.services.pipeline import PipelineRunResult
 
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     fake = PipelineRunResult(

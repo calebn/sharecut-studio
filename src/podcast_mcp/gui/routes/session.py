@@ -11,7 +11,7 @@ from podcast_mcp.gui.jobs import session_file_meta
 from podcast_mcp.gui.routes.deps import peer_host, require_authz, resolve_project
 from podcast_mcp.gui.schemas import SessionCommandRequest, ViewerSessionSnapshot
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.remote_mcp.limits import ws_roster_request_allowed
 from podcast_mcp.services.session_sync.commands import SyncCommand, retry_command_id
 from podcast_mcp.services.session_sync.log import ClientSequenceConflictError

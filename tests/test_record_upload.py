@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 import podcast_mcp.gui.routes.record_upload_http as upload_http
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.commands import RecordCommand
 from podcast_mcp.services.record.service import (
     RecordSessionService,

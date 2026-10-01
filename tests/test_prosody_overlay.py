@@ -9,8 +9,8 @@ import pytest
 from podcast_mcp.edits.prosody_profile import prosody_overlay
 from podcast_mcp.engines.prosody import ProsodyParams
 from podcast_mcp.models import Clip, load_project, save_project
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.play import PlayService
-from podcast_mcp.services.workspace import ProjectWorkspace
 from prosody_helpers import seed_prosody_profile, single_track_prosody_project
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from podcast_mcp.services.fanout_hub import FanoutHub
+from podcast_mcp.services.app.fanout_hub import FanoutHub
 
 
 def _tick(loop: asyncio.AbstractEventLoop) -> None:

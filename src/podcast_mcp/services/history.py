@@ -10,7 +10,7 @@ from podcast_mcp.history.summary import format_history_group_title, summarize_di
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.render import render_preview_result, rerender_preview
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 
 
 def _group_history_entries(entries: list) -> list[dict]:

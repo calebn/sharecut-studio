@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from podcast_mcp.mcp.serialize import to_json
-from podcast_mcp.services import AlignAcceptService, ProjectWorkspace
+from podcast_mcp.services.align_accept import AlignAcceptService
+from podcast_mcp.services.app import ProjectWorkspace
 
 
 def align_status_tool(project_path: str) -> str:

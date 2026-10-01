@@ -50,6 +50,7 @@ from podcast_mcp.engines.transcript_gated_play import (
 from podcast_mcp.models import EpisodeProject, Track, TrackRole
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.render import rerender_preview
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.boundary import (
     BoundaryAudioWindow,
     BoundaryAudition,
@@ -62,7 +63,6 @@ from podcast_mcp.services.boundary import (
 )
 from podcast_mcp.services.session_sync.viewer import publish_agent_play
 from podcast_mcp.services.waveform import schedule_stem_waveforms
-from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.process import run

@@ -13,17 +13,15 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.services import (
-    ClipService,
-    EditService,
-    EpisodeService,
-    HistoryService,
-    PipelineService,
-    ProjectWorkspace,
-    SpeakerService,
-    TranscriptPrecorrectService,
-    TranscriptService,
-)
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.clip import ClipService
+from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.episode import EpisodeService
+from podcast_mcp.services.history import HistoryService
+from podcast_mcp.services.pipeline import PipelineService
+from podcast_mcp.services.speaker import SpeakerService
+from podcast_mcp.services.transcript import TranscriptService
+from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
 
 
 def test_edit_service_list_applied_and_render_status(minimal_project):

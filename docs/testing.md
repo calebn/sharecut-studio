@@ -1403,13 +1403,15 @@ hold this sequenced endpoint and suppress the document socket hello, so they exe
 
 ## Service context boundaries
 
-`tests/test_service_boundaries.py` scans production imports for the migrated
-`services/support/` and `services/pipeline/` contexts. Adapters and sibling
-services use each declared facade. Both contexts reject adapter dependencies;
-support uses only the pipeline public facade, and pipeline uses the existing
-workspace service. Synthetic nested and relative imports verify the guard.
-Focused pipeline tests live in `test_pipeline_config.py`,
-`test_pipeline_run_result.py`, and `test_bootstrap_gui.py`; support tests live in
-`test_diagnostics.py`, `test_distribution_config.py`, and `test_setup_cli.py`.
-`test_import_order.py` checks cold imports and configuration CLI commands in
-fresh processes, including with the optional HTTP client unavailable.
+`tests/test_service_boundaries.py` scans production imports for the
+`services/app/`, `services/pipeline/`, and `services/support/` contexts. Callers
+use their declared facades. The check rejects external imports of context
+internals and service imports from `gui.routes`; app GUI launch may use the
+neutral `gui.bind` and `gui.static_assets` modules. Synthetic nested and
+relative imports verify the guard. Focused pipeline tests live in
+`test_pipeline_config.py`, `test_pipeline_run_result.py`, and
+`test_bootstrap_gui.py`; support tests live in `test_diagnostics.py`,
+`test_distribution_config.py`, and `test_setup_cli.py`.
+`test_import_order.py` checks app and session-sync cold imports, lazy export
+identity, and CLI commands in fresh processes with the optional HTTP client
+unavailable.

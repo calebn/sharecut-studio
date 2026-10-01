@@ -14,6 +14,7 @@ from typing import Literal
 import pytest
 
 from podcast_mcp.models import load_project
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.session_control import SessionControlService
 from podcast_mcp.services.session_sync import log as session_sync_log
 from podcast_mcp.services.session_sync.commands import SyncCommand
@@ -36,7 +37,6 @@ from podcast_mcp.services.session_sync.viewer import (
     publish_agent_play,
     publish_viewer_snapshot,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
 from sync_helpers import _foreign_session_write, receive_host_plane
 
 
@@ -206,7 +206,7 @@ def test_cli_seeks_from_separate_processes_are_not_deduped(minimal_project) -> N
     script = (
         "import json, sys; "
         "from podcast_mcp.services.session_control import SessionControlService; "
-        "from podcast_mcp.services.workspace import ProjectWorkspace; "
+        "from podcast_mcp.services.app.workspace import ProjectWorkspace; "
         "state = SessionControlService(ProjectWorkspace.open(sys.argv[1])).seek(float(sys.argv[2])); "
         "print(json.dumps({'server_seq': state['server_seq'], "
         "'playhead_sec': state['playhead_sec']}))"
@@ -435,8 +435,8 @@ def test_seek_without_region_applies(minimal_project) -> None:
 
 
 def test_agent_seek_with_selection(minimal_project) -> None:
+    from podcast_mcp.services.app.workspace import ProjectWorkspace
     from podcast_mcp.services.session_control import SessionControlService
-    from podcast_mcp.services.workspace import ProjectWorkspace
 
     ws = ProjectWorkspace.open(minimal_project)
     snap = SessionControlService(ws).seek(

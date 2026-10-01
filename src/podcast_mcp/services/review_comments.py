@@ -4,8 +4,8 @@ from typing import Any
 from uuid import uuid4
 
 from podcast_mcp.edits.comments import comments_for_view
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync.projection_delta import list_delta
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 COMMENTS_SANITY_S = 30.0
 

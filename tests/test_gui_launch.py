@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from podcast_mcp.services.gui_launch import (
+from podcast_mcp.services.app.gui_launch import (
     PACKAGED_CLI_ENV,
     PACKAGED_CLI_GUI_REFUSAL,
     ensure_viewer,
@@ -38,8 +38,8 @@ def test_ensure_viewer_reuses_healthy_server(tmp_path: Path) -> None:
     proj = tmp_path / "episode.project.json"
     proj.write_text("{}", encoding="utf-8")
     with (
-        patch("podcast_mcp.services.gui_launch.is_viewer_up", return_value=True),
-        patch("podcast_mcp.services.gui_launch.webbrowser.open", return_value=True) as open_b,
+        patch("podcast_mcp.services.app.gui_launch.is_viewer_up", return_value=True),
+        patch("podcast_mcp.services.app.gui_launch.webbrowser.open", return_value=True) as open_b,
     ):
         result = ensure_viewer(proj, open_browser=True)
     assert result.ok is True
@@ -52,8 +52,8 @@ def test_ensure_viewer_port_busy_without_health(tmp_path: Path) -> None:
     proj = tmp_path / "episode.project.json"
     proj.write_text("{}", encoding="utf-8")
     with (
-        patch("podcast_mcp.services.gui_launch.is_viewer_up", return_value=False),
-        patch("podcast_mcp.services.gui_launch._port_in_use", return_value=True),
+        patch("podcast_mcp.services.app.gui_launch.is_viewer_up", return_value=False),
+        patch("podcast_mcp.services.app.gui_launch._port_in_use", return_value=True),
     ):
         result = ensure_viewer(proj, open_browser=False)
     assert result.ok is False
@@ -64,8 +64,8 @@ def test_ensure_viewer_missing_uvicorn(tmp_path: Path) -> None:
     proj = tmp_path / "episode.project.json"
     proj.write_text("{}", encoding="utf-8")
     with (
-        patch("podcast_mcp.services.gui_launch.is_viewer_up", return_value=False),
-        patch("podcast_mcp.services.gui_launch._port_in_use", return_value=False),
+        patch("podcast_mcp.services.app.gui_launch.is_viewer_up", return_value=False),
+        patch("podcast_mcp.services.app.gui_launch._port_in_use", return_value=False),
         patch("podcast_mcp.gui.bind.gui_server_deps_available", return_value=False),
     ):
         result = ensure_viewer(proj, open_browser=False)
@@ -88,13 +88,13 @@ def test_ensure_viewer_starts_subprocess(tmp_path: Path) -> None:
 
     with (
         patch(
-            "podcast_mcp.services.gui_launch.is_viewer_up",
+            "podcast_mcp.services.app.gui_launch.is_viewer_up",
             side_effect=fake_health,
         ),
-        patch("podcast_mcp.services.gui_launch._port_in_use", return_value=False),
-        patch("podcast_mcp.services.gui_launch.popen", return_value=proc) as popen,
-        patch("podcast_mcp.services.gui_launch.webbrowser.open", return_value=True),
-        patch("podcast_mcp.services.gui_launch.time.sleep"),
+        patch("podcast_mcp.services.app.gui_launch._port_in_use", return_value=False),
+        patch("podcast_mcp.services.app.gui_launch.popen", return_value=proc) as popen,
+        patch("podcast_mcp.services.app.gui_launch.webbrowser.open", return_value=True),
+        patch("podcast_mcp.services.app.gui_launch.time.sleep"),
     ):
         result = ensure_viewer(proj, open_browser=True, wait_sec=2.0)
 
@@ -114,10 +114,10 @@ def test_ensure_viewer_process_exits_early(tmp_path: Path) -> None:
     proc.poll.return_value = 1
 
     with (
-        patch("podcast_mcp.services.gui_launch.is_viewer_up", return_value=False),
-        patch("podcast_mcp.services.gui_launch._port_in_use", return_value=False),
-        patch("podcast_mcp.services.gui_launch.popen", return_value=proc),
-        patch("podcast_mcp.services.gui_launch.time.sleep"),
+        patch("podcast_mcp.services.app.gui_launch.is_viewer_up", return_value=False),
+        patch("podcast_mcp.services.app.gui_launch._port_in_use", return_value=False),
+        patch("podcast_mcp.services.app.gui_launch.popen", return_value=proc),
+        patch("podcast_mcp.services.app.gui_launch.time.sleep"),
     ):
         result = ensure_viewer(proj, open_browser=False, wait_sec=1.0)
     assert result.ok is False
@@ -126,7 +126,7 @@ def test_ensure_viewer_process_exits_early(tmp_path: Path) -> None:
 
 def test_is_viewer_up_false_on_error() -> None:
     with patch(
-        "podcast_mcp.services.gui_launch.urllib.request.urlopen",
+        "podcast_mcp.services.app.gui_launch.urllib.request.urlopen",
         side_effect=OSError("down"),
     ):
         assert is_viewer_up("127.0.0.1", 9) is False
@@ -153,7 +153,7 @@ def test_is_viewer_up_sends_boot_token() -> None:
 
     with (
         patch.dict("os.environ", {"PODCAST_SIDECAR_BOOT_TOKEN": "secret-token"}),
-        patch("podcast_mcp.services.gui_launch.urllib.request.urlopen", fake_urlopen),
+        patch("podcast_mcp.services.app.gui_launch.urllib.request.urlopen", fake_urlopen),
     ):
         assert is_viewer_up("127.0.0.1", 18765) is True
     req = seen[0]
@@ -214,7 +214,7 @@ def test_ensure_viewer_refuses_under_packaged_cli(
     proj = tmp_path / "episode.project.json"
     proj.write_text("{}", encoding="utf-8")
     monkeypatch.setenv(PACKAGED_CLI_ENV, "1")
-    with patch("podcast_mcp.services.gui_launch.popen") as spawn:
+    with patch("podcast_mcp.services.app.gui_launch.popen") as spawn:
         result = ensure_viewer(proj, open_browser=False)
     assert result.ok is False
     assert result.error == PACKAGED_CLI_GUI_REFUSAL

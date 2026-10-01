@@ -40,7 +40,8 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.services import EditService, ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.history import HistoryService
 
 

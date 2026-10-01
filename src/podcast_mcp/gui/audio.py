@@ -16,8 +16,8 @@ from starlette.background import BackgroundTask
 
 from podcast_mcp.gui.background import release_background
 from podcast_mcp.gui.pinned_file_response import PinnedFileResponse
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.play import PlayService, TransportPath
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def resolve_viewer_audio(

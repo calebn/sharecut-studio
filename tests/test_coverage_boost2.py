@@ -9,20 +9,20 @@ from uuid import uuid4
 
 # patch is used throughout
 from podcast_mcp.project_store import ProjectStore
+from podcast_mcp.services.app.gui_launch import (
+    GuiLaunchResult,
+    _port_in_use,
+    ensure_viewer,
+    is_viewer_up,
+)
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.comment import CommentService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import (
     DocumentSyncService,
     notify_comments_changed,
 )
-from podcast_mcp.services.gui_launch import (
-    GuiLaunchResult,
-    _port_in_use,
-    ensure_viewer,
-    is_viewer_up,
-)
 from podcast_mcp.services.speaker import SpeakerService
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def test_gui_launch_result_to_json():
@@ -42,7 +42,7 @@ def test_is_viewer_up_false_paths():
     import urllib.error
 
     with patch(
-        "podcast_mcp.services.gui_launch.urllib.request.urlopen",
+        "podcast_mcp.services.app.gui_launch.urllib.request.urlopen",
         side_effect=urllib.error.URLError("down"),
     ):
         assert is_viewer_up("127.0.0.1", 1) is False
@@ -60,7 +60,7 @@ def test_is_viewer_up_false_paths():
             return b"{}"
 
     with patch(
-        "podcast_mcp.services.gui_launch.urllib.request.urlopen",
+        "podcast_mcp.services.app.gui_launch.urllib.request.urlopen",
         return_value=BadResp(),
     ):
         assert is_viewer_up("127.0.0.1", 1) is False
@@ -78,7 +78,7 @@ def test_is_viewer_up_false_paths():
             return b"not-json"
 
     with patch(
-        "podcast_mcp.services.gui_launch.urllib.request.urlopen",
+        "podcast_mcp.services.app.gui_launch.urllib.request.urlopen",
         return_value=OkBadJson(),
     ):
         assert is_viewer_up("127.0.0.1", 1) is False
@@ -95,9 +95,9 @@ def test_ensure_viewer_process_exits(tmp_path: Path):
     proc.pid = 9
     proc.poll.return_value = 1
     with (
-        patch("podcast_mcp.services.gui_launch.is_viewer_up", return_value=False),
-        patch("podcast_mcp.services.gui_launch._port_in_use", return_value=False),
-        patch("podcast_mcp.services.gui_launch.popen", return_value=proc),
+        patch("podcast_mcp.services.app.gui_launch.is_viewer_up", return_value=False),
+        patch("podcast_mcp.services.app.gui_launch._port_in_use", return_value=False),
+        patch("podcast_mcp.services.app.gui_launch.popen", return_value=proc),
     ):
         result = ensure_viewer(proj, open_browser=False, wait_sec=0.5)
     assert result.ok is False
@@ -111,10 +111,10 @@ def test_ensure_viewer_timeout(tmp_path: Path):
     proc.pid = 10
     proc.poll.return_value = None
     with (
-        patch("podcast_mcp.services.gui_launch.is_viewer_up", return_value=False),
-        patch("podcast_mcp.services.gui_launch._port_in_use", return_value=False),
-        patch("podcast_mcp.services.gui_launch.popen", return_value=proc),
-        patch("podcast_mcp.services.gui_launch.time.sleep"),
+        patch("podcast_mcp.services.app.gui_launch.is_viewer_up", return_value=False),
+        patch("podcast_mcp.services.app.gui_launch._port_in_use", return_value=False),
+        patch("podcast_mcp.services.app.gui_launch.popen", return_value=proc),
+        patch("podcast_mcp.services.app.gui_launch.time.sleep"),
     ):
         result = ensure_viewer(proj, open_browser=False, wait_sec=0.01)
     assert result.ok is False
@@ -125,12 +125,12 @@ def test_ensure_viewer_hint_when_dist_missing(tmp_path: Path):
     proj = tmp_path / "episode.project.json"
     proj.write_text("{}", encoding="utf-8")
     with (
-        patch("podcast_mcp.services.gui_launch.is_viewer_up", return_value=True),
+        patch("podcast_mcp.services.app.gui_launch.is_viewer_up", return_value=True),
         patch(
-            "podcast_mcp.services.gui_launch.resolve_gui_static_root",
+            "podcast_mcp.services.app.gui_launch.resolve_gui_static_root",
             return_value=tmp_path / "nodist",
         ),
-        patch("podcast_mcp.services.gui_launch.webbrowser.open", return_value=False),
+        patch("podcast_mcp.services.app.gui_launch.webbrowser.open", return_value=False),
     ):
         result = ensure_viewer(proj, open_browser=True)
     assert result.ok is True

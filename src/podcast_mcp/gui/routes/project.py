@@ -26,7 +26,9 @@ from podcast_mcp.gui.routes.deps import (
 )
 from podcast_mcp.project_io import require_episode_project_file
 from podcast_mcp.project_merge import ProjectMergeConflict
-from podcast_mcp.services import HistoryService, PlayService, ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.history import HistoryService
+from podcast_mcp.services.play import PlayService
 from podcast_mcp.services.session_sync.authz import is_loopback_host
 
 _AUDIO_BUSY_DETAIL = (

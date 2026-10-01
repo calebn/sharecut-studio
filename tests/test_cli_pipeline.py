@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 from podcast_mcp.cli.main import app
 from podcast_mcp.models import PipelineStepLog
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES
-from podcast_mcp.services import PipelineRunResult
+from podcast_mcp.services.pipeline import PipelineRunResult
 
 runner = CliRunner()
 

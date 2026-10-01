@@ -5,8 +5,8 @@ from __future__ import annotations
 from contextvars import ContextVar
 from dataclasses import dataclass
 
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.share import open_share_workspace, share_allows_mcp
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 _current: ContextVar[RemoteMcpContext | None] = ContextVar("remote_mcp_context", default=None)
 

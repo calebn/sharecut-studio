@@ -18,7 +18,7 @@ New behavior belongs in the right layer:
 
 Guest / share-token remote MCP: `services/remote_mcp/` (context, allowlist, protocol) + thin `mcp/tools/guest/` re-exports and `gui/routes/remote_mcp.py`. Tools wrap `ShareService` / `DocumentSyncService` — do not fork domain logic or accept arbitrary `project_path` from clients. Local host MCP (full tool surface, pinned episode) is the official SDK Streamable HTTP app mounted at `/mcp` on loopback binds — do not copy the guest JSON-RPC bridge.
 
-Do not duplicate project load/save or history snapshot logic in CLI, MCP, or GUI. Use [`ProjectWorkspace`](../src/podcast_mcp/services/workspace.py) and [`run_mutation`](../src/podcast_mcp/history/session.py). GUI audio/pipeline must call `PlayService` / `PipelineService` (same as CLI), not reimplement artifact paths. Agent ↔ DAW transport uses [`SessionSyncService`](../src/podcast_mcp/services/session_sync/service.py) (typed commands + log); see [session-sync.md](session-sync.md). Facades: [`SessionControlService`](../src/podcast_mcp/services/session_control.py). Keep `ffmpeg` subprocesses inside [`FFmpegEngine`](../src/podcast_mcp/engines/ffmpeg.py) so a later in-process mobile backend can swap in ([cross-platform-byok.md](cross-platform-byok.md) § Interim).
+Do not duplicate project load/save or history snapshot logic in CLI, MCP, or GUI. Use [`ProjectWorkspace`](../src/podcast_mcp/services/app/workspace.py) and [`run_mutation`](../src/podcast_mcp/history/session.py). GUI audio/pipeline must call `PlayService` / `PipelineService` (same as CLI), not reimplement artifact paths. Agent ↔ DAW transport uses [`SessionSyncService`](../src/podcast_mcp/services/session_sync/service.py) (typed commands + log); see [session-sync.md](session-sync.md). Facades: [`SessionControlService`](../src/podcast_mcp/services/session_control.py). Keep `ffmpeg` subprocesses inside [`FFmpegEngine`](../src/podcast_mcp/engines/ffmpeg.py) so a later in-process mobile backend can swap in ([cross-platform-byok.md](cross-platform-byok.md) § Interim).
 
 For play adapters, translate once into `PlayRequest` and keep playback decisions in `PlayService`. CLI flags and MCP tool names may change with the contract; update their callers, skills, and docs in the same change. Pass transcript-query playback booleans by keyword. `util.process.run` intentionally keeps `subprocess.run` meanings for `check`, `capture_output`, and `text`, while rejecting shell strings.
 
@@ -26,6 +26,8 @@ Use [`util.hashing.sha256_file`](../src/podcast_mcp/util/hashing.py) for streame
 Use [`util.workspace_paths.resolve_within`](../src/podcast_mcp/util/workspace_paths.py) for path containment. Keep caller-specific path syntax and error messages at the call site; the utility resolves symlinks and rejects escapes from the allowed root.
 
 ### Service context imports
+
+Import `ProjectWorkspace`, `FanoutHub`, and GUI launch symbols from `podcast_mcp.services.app`. Import session host-binding auth from `podcast_mcp.services.session_sync`. The root `podcast_mcp.services` package has no aggregate exports. Use the owning context for pipeline and support symbols, and direct modules for remaining services. Service code must not import `gui.routes`; GUI launch uses only the neutral `gui.bind` and `gui.static_assets` helpers.
 
 Runtime diagnostics, configuration checks, diagnostic bundles, and report
 submission belong in `services/support/`. Pipeline execution, configuration,

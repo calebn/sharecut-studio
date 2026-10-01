@@ -15,7 +15,7 @@ from podcast_mcp.engines.speaker_id import (
     score_window,
     speaker_doctor,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.transcript_context import context_lock, load_transcript_context
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress, resolve_progress_task
 

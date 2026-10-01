@@ -14,7 +14,8 @@ from podcast_mcp.edits import review_versions
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import load_project
 from podcast_mcp.project_store import ProjectStore
-from podcast_mcp.services import CommentService, ProjectWorkspace, ReviewService
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.comment import CommentService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import (
@@ -22,6 +23,7 @@ from podcast_mcp.services.document_sync.service import (
     document_server_seq,
     notify_document_changed,
 )
+from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.session_sync.log import SyncStore
 from podcast_mcp.util import project_state
 from podcast_mcp.util.project_state import (
@@ -52,7 +54,7 @@ def _fake_mp3(self, wav, mp3, *, bitrate_kbps):
 
 
 def _child_failed_publish(project_path, publishing, may_clean, cleaned) -> None:
-    from podcast_mcp.services import review as review_service
+    import podcast_mcp.services.review as review_service
 
     review_versions.FFmpegEngine.export_mp3 = _fake_mp3
 

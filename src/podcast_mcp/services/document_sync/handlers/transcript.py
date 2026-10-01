@@ -6,8 +6,8 @@ from collections.abc import Callable
 from typing import Any
 
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 Handler = Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
 

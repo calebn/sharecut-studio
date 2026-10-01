@@ -12,7 +12,7 @@ from podcast_mcp.edits.transcript_precorrect import run_precorrect_transcript
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.project_io import resolve_project_path
 from podcast_mcp.project_store import ProjectStore, TranscriptVocabularyState
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.transcript_context import (
     DEFAULT_PROMPT_PRIMER,
     VOCABULARY_MAX_ENTRIES,

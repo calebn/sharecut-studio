@@ -590,7 +590,8 @@ def test_render_status_reports_duration_mismatch(tmp_path, sample_wav) -> None:
 
 
 def test_history_diff_empty_and_out_of_range(minimal_project):
-    from podcast_mcp.services import HistoryService, ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.history import HistoryService
 
     ws = ProjectWorkspace.open(minimal_project)
     svc = HistoryService(ws)

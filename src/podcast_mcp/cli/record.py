@@ -7,10 +7,10 @@ from typing import Any
 
 import typer
 
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.control import RecordControlService
 from podcast_mcp.services.record.landing import RecordLandingError
 from podcast_mcp.services.record.reducer import RecordStateError
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 record_app = typer.Typer(help="Host control of a live recording room.")
 

@@ -12,7 +12,7 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
-from podcast_mcp.services.fanout_hub import FanoutHub
+from podcast_mcp.services.app import FanoutHub
 
 JOB_EVENT_QUEUE_MAX = 256
 JOB_EVENT_KEEPALIVE_SEC = 1.0

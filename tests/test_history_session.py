@@ -20,7 +20,7 @@ from podcast_mcp.models import EditDecision, EditDecisionType, load_project
 from podcast_mcp.models.history import ProjectHistory
 from podcast_mcp.project_io import open_project
 from podcast_mcp.project_store import ProjectStore, history_index_path, history_snapshot_ids
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.util.project_state import (
     project_commit_lock,
     project_state_lock,

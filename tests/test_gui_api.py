@@ -28,7 +28,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.services import PipelineRunResult
+from podcast_mcp.services.pipeline import PipelineRunResult
 from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError
 
 
@@ -1459,7 +1459,7 @@ def test_api_project_pick(tmp_path, monkeypatch) -> None:
 
     from podcast_mcp.gui.host_file_dialog import HostPickResult
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services import ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
 
     monkeypatch.setattr(
         "podcast_mcp.gui.routes.project.peer_host",
@@ -2951,7 +2951,10 @@ def test_api_transcript_vocabulary_busy_lock_is_project_busy_503(
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services import TranscriptContextBusyError, TranscriptPrecorrectService
+    from podcast_mcp.services.transcript_precorrect import (
+        TranscriptContextBusyError,
+        TranscriptPrecorrectService,
+    )
     from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
 
     def busy(self, **kwargs):
@@ -3296,7 +3299,7 @@ def test_meta_routes_survive_a_symlink_loop_under_artifacts(minimal_project) -> 
 
 def test_resolve_viewer_audio_premix(tmp_path) -> None:
     from podcast_mcp.gui.audio import resolve_viewer_audio, resolve_viewer_transport
-    from podcast_mcp.services import ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
 
     ws = ProjectWorkspace.create(tmp_path, name="a")
     premix = ws.project.artifacts_dir() / "premix.wav"
@@ -3309,7 +3312,7 @@ def test_resolve_viewer_audio_premix(tmp_path) -> None:
 
 def test_resolve_viewer_audio_missing_premix(tmp_path) -> None:
     from podcast_mcp.gui.audio import resolve_viewer_audio
-    from podcast_mcp.services import ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
 
     ws = ProjectWorkspace.create(tmp_path, name="a")
     with pytest.raises(FileNotFoundError):
@@ -3370,7 +3373,7 @@ def test_api_history_diff_bad_index(minimal_project) -> None:
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services import ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
 
     ws = ProjectWorkspace.open(minimal_project)
     ws.record_snapshot("one", force=True)
@@ -3501,7 +3504,7 @@ def test_cli_gui_background_delegates(minimal_project) -> None:
     from typer.testing import CliRunner
 
     from podcast_mcp.cli.main import app
-    from podcast_mcp.services.gui_launch import GuiLaunchResult
+    from podcast_mcp.services.app.gui_launch import GuiLaunchResult
 
     launched = GuiLaunchResult(
         ok=True,
@@ -3556,7 +3559,7 @@ def test_cli_gui_home_with_session_token() -> None:
     with (
         patch("podcast_mcp.gui.bind.run_gui_server"),
         patch(
-            "podcast_mcp.gui.routes.deps.ensure_non_loopback_session_auth",
+            "podcast_mcp.services.session_sync.ensure_non_loopback_session_auth",
             return_value="tok",
         ),
     ):
@@ -3592,7 +3595,7 @@ def test_cli_gui_non_loopback_session_token(minimal_project) -> None:
     with (
         patch("podcast_mcp.gui.bind.run_gui_server"),
         patch(
-            "podcast_mcp.gui.routes.deps.ensure_non_loopback_session_auth",
+            "podcast_mcp.services.session_sync.ensure_non_loopback_session_auth",
             return_value="tok",
         ),
     ):
@@ -4146,7 +4149,7 @@ def test_api_transcript_vocabulary_busy_lock_returns_503(minimal_project, monkey
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services import TranscriptContextBusyError
+    from podcast_mcp.services.transcript_precorrect import TranscriptContextBusyError
 
     def busy(self, **_kwargs):
         raise TranscriptContextBusyError("Transcript context is busy; retry")

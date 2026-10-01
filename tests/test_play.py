@@ -17,8 +17,8 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.play import PlayRequest, PlayService
-from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.time_parse import parse_time_sec
 
 runner = CliRunner()
@@ -34,7 +34,7 @@ def _pin_cache_last_used(monkeypatch, ages_sec: dict[Path, float]) -> None:
     """
     import time
 
-    from podcast_mcp.services import play as play_module
+    import podcast_mcp.services.play as play_module
 
     real = play_module._cache_last_used
     now = time.time()
@@ -70,7 +70,7 @@ def test_follow_transcript_cli_help_describes_conservative_audio_behavior() -> N
 def test_play_cache_eviction_keeps_recent_and_skips_other_files(
     minimal_project, tmp_workspace, monkeypatch
 ) -> None:
-    from podcast_mcp.services import play as play_module
+    import podcast_mcp.services.play as play_module
 
     ws = ProjectWorkspace.open(minimal_project)
     service = PlayService(ws)
@@ -92,7 +92,7 @@ def test_play_cache_eviction_keeps_recent_and_skips_other_files(
 
 
 def test_play_cache_burst_has_hard_file_cap(minimal_project, monkeypatch) -> None:
-    from podcast_mcp.services import play as play_module
+    import podcast_mcp.services.play as play_module
 
     service = PlayService(ProjectWorkspace.open(minimal_project))
     cache = service.project.artifacts_dir() / "play_cache"
@@ -108,7 +108,7 @@ def test_play_cache_burst_has_hard_file_cap(minimal_project, monkeypatch) -> Non
 
 
 def test_play_cache_retains_current_ab_inputs(minimal_project, monkeypatch) -> None:
-    from podcast_mcp.services import play as play_module
+    import podcast_mcp.services.play as play_module
 
     service = PlayService(ProjectWorkspace.open(minimal_project))
     cache = service.project.artifacts_dir() / "play_cache"
@@ -127,7 +127,7 @@ def test_play_cache_retains_current_ab_inputs(minimal_project, monkeypatch) -> N
 
 
 def test_play_cache_recent_outputs_survive_hard_file_pressure(minimal_project, monkeypatch) -> None:
-    from podcast_mcp.services import play as play_module
+    import podcast_mcp.services.play as play_module
 
     service = PlayService(ProjectWorkspace.open(minimal_project))
     cache = service.project.artifacts_dir() / "play_cache"
@@ -145,7 +145,7 @@ def test_play_serves_cached_wav_and_refreshes_its_retention(
 ) -> None:
     import time
 
-    from podcast_mcp.services import play as play_module
+    import podcast_mcp.services.play as play_module
 
     service = PlayService(ProjectWorkspace.open(minimal_project))
     premix = service.project.artifacts_dir() / "premix.wav"
@@ -173,7 +173,7 @@ def test_play_cache_eviction_waits_for_concurrent_serve(minimal_project, monkeyp
     import threading
     import time
 
-    from podcast_mcp.services import play as play_module
+    import podcast_mcp.services.play as play_module
 
     service = PlayService(ProjectWorkspace.open(minimal_project))
     cache = service.project.artifacts_dir() / "play_cache"

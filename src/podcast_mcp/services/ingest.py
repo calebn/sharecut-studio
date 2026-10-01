@@ -40,8 +40,8 @@ from podcast_mcp.models import (
     TrackRole,
     workspace_artifacts_dir,
 )
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.waveform import schedule_track_waveforms
-from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.workspace_paths import resolve_under_workspace, resolve_within
 

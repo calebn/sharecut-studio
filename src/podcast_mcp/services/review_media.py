@@ -15,7 +15,7 @@ from podcast_mcp.edits.review_versions import (
     version_mp3_path,
 )
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.object_store import (
     ObjectStoreClient,

@@ -60,7 +60,8 @@ def main() -> int:
 
     os.environ["PODCAST_SHARE_REGISTRY"] = str(args.registry.resolve())
 
-    from podcast_mcp.services import ProjectWorkspace, ReviewService
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.review import ReviewService
     from podcast_mcp.services.share import ShareService
 
     ws = ProjectWorkspace.open(args.project)

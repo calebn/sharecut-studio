@@ -396,7 +396,8 @@ def test_label_window_dry_run(tmp_path, sample_wav) -> None:
 
 
 def test_speaker_service_segment_enroll_label_and_count(tmp_path, sample_wav) -> None:
-    from podcast_mcp.services import ProjectWorkspace, SpeakerService
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.speaker import SpeakerService
 
     proj = _two_track_project(tmp_path, sample_wav)
     path = tmp_path / "episode.project.json"
@@ -912,7 +913,8 @@ def test_compare_window_with_track_filter(tmp_path, sample_wav) -> None:
 
 
 def test_set_expected_speaker_count_persists(minimal_project) -> None:
-    from podcast_mcp.services import ProjectWorkspace, SpeakerService
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.speaker import SpeakerService
     from podcast_mcp.transcript_context import load_transcript_context
 
     ws = ProjectWorkspace.open(minimal_project)

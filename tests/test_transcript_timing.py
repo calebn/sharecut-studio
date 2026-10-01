@@ -8,7 +8,9 @@ import pytest
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError, WordTimingTarget
 from podcast_mcp.engines.play_audit import track_render_hash
 from podcast_mcp.models import Clip, MediaAsset, SourceRecording, Track, Transcript, TranscriptWord
-from podcast_mcp.services import EditService, HistoryService, ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.edit import EditService
+from podcast_mcp.services.history import HistoryService
 
 
 def workspace(path):

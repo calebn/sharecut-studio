@@ -205,7 +205,7 @@ def create_app(
 ) -> FastAPI:
     import os
 
-    from podcast_mcp.gui.routes.deps import is_bind_loopback
+    from podcast_mcp.services.session_sync import is_bind_loopback
 
     jobs = shared_job_manager(reset=True)
     register_progress_sink(gui_sse_progress_sink)

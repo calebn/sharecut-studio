@@ -550,7 +550,7 @@ def test_scoped_override_preserves_per_clip_manual_lock_on_other_phrase_after_re
     tmp_path: Path,
 ) -> None:
     from podcast_mcp.models import SpeakerIngestAlignment
-    from podcast_mcp.services import ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
 
     p = _two_phrase_episode(tmp_path)
     p.meta.ingest_alignment = {"direct:clip-direct": SpeakerIngestAlignment(align_method="manual")}
@@ -643,7 +643,8 @@ def test_retained_copy_without_matching_direct_phrase_is_explicitly_unresolved(
 def test_default_gate_preview_reports_unresolved_direct_phrase_without_mutation(
     tmp_path: Path, case: str
 ) -> None:
-    from podcast_mcp.services import EditService, ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.edit import EditService
 
     p = _episode(tmp_path)
     reason = _remove_matching_direct_phrase(p, case)
@@ -662,7 +663,8 @@ def test_default_gate_preview_reports_unresolved_direct_phrase_without_mutation(
 def test_default_gate_preview_accepts_supported_implicit_full_media_timeline(
     tmp_path: Path,
 ) -> None:
-    from podcast_mcp.services import EditService, ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.edit import EditService
 
     p = _episode(tmp_path)
     p.clips = []
@@ -1096,7 +1098,7 @@ def test_declined_primary_phrase_remains_protected_after_same_file_pin_and_reope
     tmp_path: Path, legacy_choice: bool, absolute_source_path: bool
 ) -> None:
     from podcast_mcp.edits.timeline_ops import move_clips
-    from podcast_mcp.services import ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
 
     p = _episode(tmp_path)
     api = _api()

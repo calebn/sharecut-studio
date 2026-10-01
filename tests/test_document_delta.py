@@ -353,7 +353,7 @@ def test_certificate_is_checked_after_waiting_for_project_ownership(minimal_proj
 
     with ThreadPoolExecutor(max_workers=1) as pool:
         with project_commit_lock(svc.project):
-            with patch("podcast_mcp.services.workspace.project_commit_lock", observed_lock):
+            with patch("podcast_mcp.services.app.workspace.project_commit_lock", observed_lock):
                 future = pool.submit(svc.document_snapshot)
                 assert waiting.wait(timeout=2)
                 rewrite_in_place(minimal_project, "test_episode", "next_episode")
@@ -379,7 +379,7 @@ def test_uncertified_raw_write_during_projection_is_reloaded_on_recovery(minimal
 
 
 def test_open_does_not_certify_a_write_that_raced_the_initial_load(minimal_project):
-    from podcast_mcp.services.workspace import ProjectWorkspace
+    from podcast_mcp.services.app.workspace import ProjectWorkspace
 
     original = ProjectWorkspace.open
 

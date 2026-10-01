@@ -528,7 +528,7 @@ def test_sse_wrap_events_stay_off_pipeline_when_agent_has_listeners() -> None:
 
 def _patch_fake_pipeline(monkeypatch, proj: Path, export_qc: dict) -> None:
     """Route MCP pipeline_run and the Studio job manager to a fake PipelineService."""
-    from podcast_mcp.services import PipelineRunResult
+    from podcast_mcp.services.pipeline import PipelineRunResult
 
     class FakeWs:
         path = proj

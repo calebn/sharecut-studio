@@ -8,7 +8,8 @@ from filelock import Timeout
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.services import HistoryService, PipelineService
+from podcast_mcp.services.history import HistoryService
+from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError
 
 runner = CliRunner()
@@ -165,7 +166,7 @@ def test_transcribe_command_warns_when_nothing_transcribed(tmp_path):
 
 
 def test_transcribe_command_empty_project_reports_zero(tmp_path):
-    from podcast_mcp.services import ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
 
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])

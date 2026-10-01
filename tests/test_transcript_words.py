@@ -16,7 +16,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.models.words_revision import words_revision
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.history import HistoryService
 
 

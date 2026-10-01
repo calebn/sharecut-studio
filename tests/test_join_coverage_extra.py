@@ -503,8 +503,8 @@ def test_edit_join_label_and_train(minimal_project: Path, sample_wav: Path) -> N
         Transcript,
         TranscriptWord,
     )
+    from podcast_mcp.services.app.workspace import ProjectWorkspace
     from podcast_mcp.services.edit import EditService
-    from podcast_mcp.services.workspace import ProjectWorkspace
 
     project = load_project(minimal_project)
     raw = project.workspace_path() / "raw"

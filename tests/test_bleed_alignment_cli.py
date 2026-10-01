@@ -5,7 +5,7 @@ import json
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from test_bleed_alignment_surfaces import _workspace
 
 

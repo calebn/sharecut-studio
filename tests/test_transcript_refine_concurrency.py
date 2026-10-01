@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import threading
 
-from podcast_mcp.services import ProjectWorkspace, transcript_refine
+import podcast_mcp.services.transcript_refine as transcript_refine
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.transcript_refine import TranscriptRefineService

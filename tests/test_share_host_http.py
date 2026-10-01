@@ -10,8 +10,9 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
-from podcast_mcp.services import ProjectWorkspace, ReviewService, ShareService
-from podcast_mcp.services.share import present_share
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.review import ReviewService
+from podcast_mcp.services.share import ShareService, present_share
 
 
 def _seed_premix(minimal_project, sample_wav):

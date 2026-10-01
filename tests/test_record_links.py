@@ -20,8 +20,9 @@ from podcast_mcp.edits.share_registry import (
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_record_room_tool, revoke_record_room_tool
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services import ProjectWorkspace, ReviewService
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record_share import lookup_record_share, record_bootstrap
+from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.share import (
     ShareService,
     lookup_share,

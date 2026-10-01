@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.comment import CommentService
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 Handler = Callable[[ProjectWorkspace, dict[str, Any]], dict[str, Any]]
 

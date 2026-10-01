@@ -7,13 +7,14 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
-from podcast_mcp.services import ProjectWorkspace, ReviewService
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.policy import (
     StructuralMutationMode,
     resolve_structural_mode,
 )
+from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.share import ShareService
 
 
@@ -185,7 +186,7 @@ def test_share_audio_permission_and_redirect_errors(
     from pathlib import Path
     from unittest.mock import MagicMock
 
-    from podcast_mcp.services import share as share_mod
+    import podcast_mcp.services.share as share_mod
 
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",
@@ -240,7 +241,7 @@ def test_open_share_auto_revokes_missing_version(
     import logging
     from pathlib import Path
 
-    from podcast_mcp.services import share as share_mod
+    import podcast_mcp.services.share as share_mod
 
     monkeypatch.setattr(
         "podcast_mcp.services.proxy_media.load_object_store_config",

@@ -10,13 +10,12 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.engines.ffmpeg import _concat_list_entry
 from podcast_mcp.gui.routes.deps import (
-    ensure_non_loopback_session_auth,
-    is_bind_loopback,
     require_authz,
     require_host,
 )
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.services.gui_launch import viewer_url
+from podcast_mcp.services.app import viewer_url
+from podcast_mcp.services.session_sync import ensure_non_loopback_session_auth, is_bind_loopback
 from podcast_mcp.services.session_sync.authz import (
     HOST_ROLE_RELAYED_REASON,
     authorize_client,

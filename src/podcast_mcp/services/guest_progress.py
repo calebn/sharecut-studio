@@ -12,7 +12,7 @@ import threading
 import time
 from typing import Any
 
-from podcast_mcp.services.fanout_hub import FanoutHub
+from podcast_mcp.services.app import FanoutHub
 from podcast_mcp.util.progress import (
     PROGRESS_LAZY_CHIP_SEC,
     PROGRESS_UPDATE_MIN_INTERVAL_SEC,

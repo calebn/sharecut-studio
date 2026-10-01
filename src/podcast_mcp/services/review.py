@@ -22,7 +22,7 @@ from podcast_mcp.edits.review_versions import (
 )
 from podcast_mcp.models import load_project
 from podcast_mcp.project_store import history_index_path
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.project_state import project_commit_lock, project_state_lock
 

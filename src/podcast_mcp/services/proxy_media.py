@@ -15,8 +15,8 @@ from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import proxy_render_hash
 from podcast_mcp.engines.timeline_render import render_source_with_chain
 from podcast_mcp.models import EpisodeProject, TrackProxy
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.review_media import presign_ttl_seconds
-from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.object_store import (
     ObjectStoreClient,

@@ -14,7 +14,7 @@ from podcast_mcp.export.audio import specs_from_extensions, write_audio_formats
 from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.models import Track, TrackRole
 from podcast_mcp.pipeline.helpers import ffmpeg
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
 

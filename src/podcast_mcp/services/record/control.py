@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.commands import RecordCommand
 from podcast_mcp.services.record.landing import RecordLandingService
 from podcast_mcp.services.record.service import RecordSessionService, next_record_client_seq
 from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 class RecordControlService:

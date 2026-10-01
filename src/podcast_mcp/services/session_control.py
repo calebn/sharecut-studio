@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.session_sync.commands import (
     GUEST_CLIENT_ID_PREFIX,
     normalize_presence_playhead,
 )
 from podcast_mcp.services.session_sync.service import SessionSyncService
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 _VALID_MODES = frozenset({"mix", "fx", "raw"})
 

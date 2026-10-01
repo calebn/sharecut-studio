@@ -18,7 +18,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.proxy_media import (
     _purge_stale_proxy_dirs,
     chunk_count_for,
@@ -316,7 +316,7 @@ def test_upload_missing_chunk_raises(minimal_project, monkeypatch):
 
 
 def test_delete_skips_when_active_share(minimal_project, monkeypatch, tmp_workspace, sample_wav):
-    from podcast_mcp.services import ReviewService
+    from podcast_mcp.services.review import ReviewService
     from podcast_mcp.services.share import ShareService
 
     monkeypatch.setattr(

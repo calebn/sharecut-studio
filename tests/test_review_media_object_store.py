@@ -13,7 +13,8 @@ from podcast_mcp.edits.review_versions import get_version
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.runtime_config import RuntimeConfigError
-from podcast_mcp.services import ProjectWorkspace, ReviewService
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.review_media import (
     media_type_for_path,
     presign_ttl_seconds,

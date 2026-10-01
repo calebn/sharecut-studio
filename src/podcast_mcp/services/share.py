@@ -43,6 +43,7 @@ from podcast_mcp.edits.share_registry import (
 )
 from podcast_mcp.engines.play_audit import premix_path
 from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.comment import CommentService
 from podcast_mcp.services.document_sync.projection_types import parse_view_projection
 from podcast_mcp.services.document_sync.service import (
@@ -54,7 +55,6 @@ from podcast_mcp.services.review_media import (
     review_guest_audio_path,
     upload_review_version_to_object_store,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
 from podcast_mcp.util.atomic_render import render_atomic
 
 log = logging.getLogger(__name__)

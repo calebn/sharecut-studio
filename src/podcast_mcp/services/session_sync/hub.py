@@ -9,7 +9,7 @@ from collections import deque
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from podcast_mcp.services.fanout_hub import FanoutHub
+from podcast_mcp.services.app import FanoutHub
 from podcast_mcp.services.session_sync.presence_delta import (
     PRESENCE_DELTA,
     PRESENCE_RESYNC,

@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import (
     DocumentCommand,
     DocumentCommandType,
 )
 from podcast_mcp.services.document_sync.payloads import validate_payload
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def submit_host_document_command(

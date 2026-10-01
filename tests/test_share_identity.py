@@ -11,7 +11,8 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
-from podcast_mcp.services import ProjectWorkspace, ReviewService
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.share import ShareService
 from podcast_mcp.services.share_auth.access import access_required, normalize_general_access
 from podcast_mcp.services.share_auth.oauth_credentials import (

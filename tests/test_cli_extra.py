@@ -20,7 +20,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
-from podcast_mcp.services import HistoryRerenderError
+from podcast_mcp.services.history import HistoryRerenderError
 
 runner = CliRunner()
 
@@ -475,7 +475,8 @@ def test_transcript_correct_expected_text_guard(tmp_path):
 
 def test_transcript_context_set_marks_existing_transcript_stale(tmp_path):
     from podcast_mcp.models import Transcript
-    from podcast_mcp.services import ProjectWorkspace, TranscriptPrecorrectService
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
 
     project = _init_project(tmp_path)
     proj = load_project(project)
@@ -502,7 +503,7 @@ def test_transcript_context_set_reports_prompt_limit_without_traceback(tmp_path)
 
 
 def test_transcript_context_set_reports_busy_lock(tmp_path, monkeypatch):
-    from podcast_mcp.services import TranscriptContextBusyError
+    from podcast_mcp.services.transcript_precorrect import TranscriptContextBusyError
 
     project = _init_project(tmp_path)
 
@@ -523,7 +524,7 @@ def test_transcript_context_set_reports_busy_lock(tmp_path, monkeypatch):
 
 def test_pipeline_run_force_sets_run_only_overwrite(tmp_path, sample_wav):
     project = _init_project(tmp_path)
-    from podcast_mcp.services import PipelineRunResult
+    from podcast_mcp.services.pipeline import PipelineRunResult
 
     with patch(
         "podcast_mcp.cli.pipeline.PipelineService.run",
@@ -538,7 +539,7 @@ def test_pipeline_run_force_sets_run_only_overwrite(tmp_path, sample_wav):
 
 def test_pipeline_run_retime_words_sets_run_only_flag(tmp_path, sample_wav):
     project = _init_project(tmp_path)
-    from podcast_mcp.services import PipelineRunResult
+    from podcast_mcp.services.pipeline import PipelineRunResult
 
     with patch(
         "podcast_mcp.cli.pipeline.PipelineService.run",

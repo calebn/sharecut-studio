@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from podcast_mcp.distribution import runtime_distribution_metadata
 from podcast_mcp.gui.jobs import PipelineJobManager
 from podcast_mcp.gui.routes.deps import require_host, resolve_project
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.support import (
     MAX_BUNDLE_BYTES,
     DiagnosticsService,
@@ -26,7 +27,6 @@ from podcast_mcp.services.support import (
     resolve_bundle_file,
     submit_bundle,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 router = APIRouter()
 log = logging.getLogger(__name__)

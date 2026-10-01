@@ -39,7 +39,7 @@ from podcast_mcp.project_store import (
     history_snapshot_ids,
     read_history_index,
 )
-from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import document_db_path, document_server_seq
@@ -373,7 +373,7 @@ def _submit_then_die_at(project_path: str, point: str, marker: str, reached=None
 
 
 def _submit_waiting_on_the_lock(project_path: str, locking, results) -> None:
-    from podcast_mcp.services import workspace
+    import podcast_mcp.services.app.workspace as workspace
     from podcast_mcp.util import project_state
 
     # Bounded: a lock the killed writer kept would surface as filelock.Timeout (the

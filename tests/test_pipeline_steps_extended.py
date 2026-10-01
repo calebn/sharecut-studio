@@ -30,7 +30,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.pipeline import steps
 from podcast_mcp.pipeline.runner import PipelineRunner
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.util.project_state import project_state_lock
 
 

@@ -18,6 +18,7 @@ from podcast_mcp.models import (
     TranscriptWord,
     load_project,
 )
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.boundary import (
     RollBoundaryTarget,
     TrimBoundaryTarget,
@@ -31,7 +32,6 @@ from podcast_mcp.services.document_sync.payloads import (
 )
 from podcast_mcp.services.document_sync.service import DocumentSyncService
 from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def _project(path: Path) -> ProjectWorkspace:

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
+import podcast_mcp.services.waveform as svc
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -15,7 +16,6 @@ from podcast_mcp.models import (
     Track,
     save_project,
 )
-from podcast_mcp.services import waveform as svc
 
 SR = 8000
 

@@ -13,8 +13,8 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.play import PlayService
-from podcast_mcp.services.workspace import ProjectWorkspace
 from prosody_helpers import seed_prosody_profile, single_track_prosody_project
 
 

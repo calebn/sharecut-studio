@@ -11,8 +11,8 @@ from podcast_mcp.edits.track_media import (
 )
 from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.models import FADER_MAX_DB, FADER_MIN_DB, Track, TrackRole
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.waveform import schedule_track_waveforms
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 class EpisodeService:

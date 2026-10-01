@@ -16,7 +16,7 @@ from podcast_mcp.clips import (
 from podcast_mcp.config import load_defaults
 from podcast_mcp.engines.waveform_media import ensure_project_waveforms
 from podcast_mcp.models import SocialClipCandidate
-from podcast_mcp.services.workspace import ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
 
 
 class ClipService:

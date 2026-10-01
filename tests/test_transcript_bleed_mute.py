@@ -320,7 +320,8 @@ def test_apply_transcript_bleed_mute_window_scoped_intervals(
 
 
 def test_bleed_mute_history_records_gate_flag(tmp_path: Path, sample_wav: Path) -> None:
-    from podcast_mcp.services import EditService, ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.edit import EditService
     from podcast_mcp.services.history import HistoryService
 
     project = _project_with_stem(tmp_path, sample_wav)

@@ -13,8 +13,8 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, TypeVar
 
+from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import after_agent_mutation
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 F = TypeVar("F", bound=Callable[..., Any])
 

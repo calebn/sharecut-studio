@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from mcp.server import MCPServer
 
-from podcast_mcp.services.gui_launch import ensure_viewer
+from podcast_mcp.services.app import ensure_viewer
 
 
 def open_gui_tool(

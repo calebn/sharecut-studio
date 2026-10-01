@@ -24,8 +24,8 @@ def main(argv: list[str] | None = None) -> None:
     if not gui_server_deps_available():
         raise SystemExit("GUI dependencies missing. Install with: uv sync --extra gui")
 
-    from podcast_mcp.gui.routes.deps import ensure_non_loopback_session_auth
     from podcast_mcp.gui.server import create_app
+    from podcast_mcp.services.session_sync import ensure_non_loopback_session_auth
 
     ensure_non_loopback_session_auth(args.host)
     served = args.project.resolve() if args.project is not None else None

@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.media_store import (
     gui_media_chunk_max_bytes,
     safe_audio_filename,
@@ -18,7 +19,6 @@ from podcast_mcp.services.media_store import (
     write_complete_upload,
     write_upload_chunk,
 )
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def test_safe_audio_filename_rejects_exe():
@@ -38,7 +38,7 @@ def test_rewrite_share_html_edge_cases():
 
 def test_sweep_pending_oserror_branches(minimal_project, monkeypatch, tmp_path):
     """OSError on upload entries is skipped (no global Path.stat patch — that flakes under xdist)."""
-    from podcast_mcp.services import media_store as ms
+    import podcast_mcp.services.media_store as ms
 
     ws = ProjectWorkspace.open(minimal_project)
     root = ws.project.workspace_path()
@@ -174,7 +174,7 @@ def test_chunk_rejects_duplicate_index(minimal_project, sample_wav):
 
 def test_chunk_assemble_streams_via_from_parts(minimal_project, sample_wav, monkeypatch):
     """Multi-chunk complete path must stream parts (not b"".join into RAM)."""
-    from podcast_mcp.services import media_store as ms
+    import podcast_mcp.services.media_store as ms
 
     calls: list[int] = []
     real = ms.write_complete_upload_from_parts

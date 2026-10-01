@@ -85,7 +85,7 @@ Models                   models/  (EpisodeProject, snapshots)
    `clips_ops.py` owns trim, roll, and move geometry. `timeline_ops.py` calls those domain mutations and adds transcript rebuilding, applied-edit records, and change summaries for service adapters; it does not independently calculate the same geometry.
 5. **Clips** (`podcast_mcp.clips`) — Social clip candidates and WAV export.
 6. **Pipeline** (`podcast_mcp.pipeline`) — Registered steps, runner with `--from` / `--only`.
-7. **Services** (`podcast_mcp.services`) — Shared orchestration for CLI, MCP, and GUI; history-wrapped mutations. Owner golden-ear A/B harness: `services/golden_ear.py` (script `scripts/golden_ear_harness.py`). Waveform pyramids (host `/api/waveform/*`, guest `/daw/waveform/*`) go through `services/waveform.py` (media index LRU, status, tiles, PCM windows, GC); the media refs and build hooks it re-exports live in `engines/waveform_media.py` so the pipeline never imports services. In-process WS fan-out uses [`fanout_hub.py`](../src/podcast_mcp/services/fanout_hub.py) (`SessionHub` and the guest progress hub are separate instances); each subscriber queue is fed on the event loop it subscribed with, so one key may mix loops. Studio job SSE streams (pipeline slot, agent, bootstrap) use a third, job-id-keyed `FanoutHub` instance in [`gui/job_events.py`](../src/podcast_mcp/gui/job_events.py): one bounded drop-oldest queue per subscriber. `podcast doctor` checks live in `services/support/doctor.py`; sanitized bug-report zips are `DiagnosticsService` (`services/support/diagnostics.py`) — CLI `podcast doctor --bundle` and host Help; explicit Help consent forwards a registered bundle through `services/support/report_submission.py` to the public relay intake. Mode-specific configuration diagnostics live in `services/support/config_check.py`.
+7. **Services** (`podcast_mcp.services`) — Shared orchestration for CLI, MCP, and GUI; history-wrapped mutations. Owner golden-ear A/B harness: `services/golden_ear.py` (script `scripts/golden_ear_harness.py`). Waveform pyramids (host `/api/waveform/*`, guest `/daw/waveform/*`) go through `services/waveform.py` (media index LRU, status, tiles, PCM windows, GC); the media refs and build hooks it re-exports live in `engines/waveform_media.py` so the pipeline never imports services. In-process WS fan-out uses [`fanout_hub.py`](../src/podcast_mcp/services/app/fanout_hub.py) (`SessionHub` and the guest progress hub are separate instances); each subscriber queue is fed on the event loop it subscribed with, so one key may mix loops. Studio job SSE streams (pipeline slot, agent, bootstrap) use a third, job-id-keyed `FanoutHub` instance in [`gui/job_events.py`](../src/podcast_mcp/gui/job_events.py): one bounded drop-oldest queue per subscriber. `podcast doctor` checks live in `services/support/doctor.py`; sanitized bug-report zips are `DiagnosticsService` (`services/support/diagnostics.py`) — CLI `podcast doctor --bundle` and host Help; explicit Help consent forwards a registered bundle through `services/support/report_submission.py` to the public relay intake. Mode-specific configuration diagnostics live in `services/support/config_check.py`.
 8. **CLI** (`podcast_mcp.cli`) — Typer commands in `main.py`, `episode.py`, `edit.py`, `clips.py`, `comment.py`, `pipeline.py`, `history.py`.
 9. **MCP** (`podcast_mcp.mcp`) — Tool registration in `server.py`; handlers in `mcp/tools/`.
 10. **GUI** (`podcast_mcp.gui`) — DAW viewer HTTP/WS adapter (`server.py` + `routes/`); must call services (e.g. `PlayService`, `PipelineService`, `BounceService`, `CommentService`, `SessionSyncService`, bootstrap via `services.pipeline`, diagnostics via `services/support/diagnostics.py`), not duplicate path/render logic. Host MCP over Streamable HTTP is the same `MCPServer` as stdio, mounted at `/mcp` on loopback binds via [`gui/host_mcp.py`](../src/podcast_mcp/gui/host_mcp.py) (`streamable_http_app()`). **ProjectView seam:** `ViewProjection` / `parse_view_projection` live in `services/document_sync/projection_types.py` so services can name projections without importing `gui/`. Construction and dump stay in `gui/assembler.py` (`build_project_view`, `dump_project_projection`; assembler re-exports the types as the compatibility path). Services dump via a lazy assembler callback — keep dump next to construction rather than forking a second assembler in `services/`. Agent ↔ DAW transport: [session-sync.md](session-sync.md) — `services/session_sync/service.py` is the sync authority; `services/session_sync/viewer.py` adapts viewer blobs / agent play into typed commands. `services/cross_process_sync.py` bridges other processes' journal writes into the in-process hub while a socket watches the workspace (#695). Timeline comments: [timeline-comments.md](timeline-comments.md). Share/auth/guest routes mount only via **Sharecut Studio Extensions** ([extensions.md](extensions.md)). Lightweight stem/range bounce: `BounceService` → `export/bounces/`; mastered deliverables stay on `PipelineService.export_audio`. Both share encode/copy via `export.audio.write_audio_formats` (distinct intents; same writer). Optional native host: Tauri under `gui/desktop/` ([desktop-packaging.md](desktop-packaging.md); frozen sidecar via `PODCAST_GUI_DIST`). Deferred iOS/Android hosts and in-app BYOK agent: [cross-platform-byok.md](cross-platform-byok.md) (keep ffmpeg calls inside `FFmpegEngine`).
@@ -139,17 +139,20 @@ working configuration, Analyze, and component bootstrap. Adapters and sibling
 services import each context's declared symbols from
 `podcast_mcp.services.support` or `podcast_mcp.services.pipeline`; focused tests
 may import implementation modules. The pipeline context depends on the existing
-`services/workspace.py` service, and support reads pipeline component status
+`services.app` facade for `ProjectWorkspace`, and support reads pipeline component status
 through the public facade. Neither context imports CLI, MCP, or GUI modules.
-Both facades resolve explicit typed exports on demand through
+The app, pipeline, support, and session-sync facades resolve explicit typed exports on demand through
 `util/lazy_exports.py`, preserving local configuration commands without an
 optional report HTTP client.
 
 `tests/test_service_boundaries.py` scans production Python imports, including
-nested and relative imports. It rejects external imports of context internals
-and adapter dependencies within either context. The existing projection guards
-remain in `tests/test_import_direction.py`; these checks do not claim to prohibit
-every service-to-GUI import elsewhere.
+nested and relative imports. It rejects external imports of app, pipeline, and
+support internals. App services may import only the session-sync facade for
+host binding auth; GUI launch may use the neutral GUI bind and static-assets
+modules. All services are barred from `gui.routes` imports. The root
+`services` package exports no service classes; callers use their owning facade
+or a direct sibling module. The projection guard remains in
+`tests/test_import_direction.py`.
 
 ## Data flow
 

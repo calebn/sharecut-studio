@@ -14,11 +14,11 @@ from podcast_mcp.cli.main import app
 from podcast_mcp.edits.clips_ops import trim_clip_edge
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
+from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.boundary import TrimBoundaryTarget, boundary_context
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import DocumentSyncService
 from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.workspace import ProjectWorkspace
 
 
 def _two_clips_with_cutaway(ws: ProjectWorkspace) -> None:
@@ -146,7 +146,8 @@ def test_trim_clip_edge_tool_restores_a_clipped_onset_and_ripples(minimal_projec
 
 
 def test_trim_clip_edge_tool_is_undoable(minimal_project: Path) -> None:
-    from podcast_mcp.services import HistoryService, ProjectWorkspace
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.history import HistoryService
 
     path = _spliced_project(minimal_project)
     mcp_timeline.trim_clip_edge_tool(str(path), "c0", "out", 9.5)

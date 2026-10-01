@@ -11,7 +11,8 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.services import EditService, ProjectWorkspace
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.edit import EditService
 
 
 def _ws_with_audio(tmp_path, sample_wav) -> ProjectWorkspace:
