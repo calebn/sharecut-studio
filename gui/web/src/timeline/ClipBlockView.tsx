@@ -1,6 +1,7 @@
 import type {
   ButtonHTMLAttributes,
   PointerEventHandler,
+  FocusEvent as ReactFocusEvent,
   KeyboardEvent as ReactKeyboardEvent,
   ReactNode,
   PointerEvent as ReactPointerEvent,
@@ -123,7 +124,10 @@ export interface ClipBlockViewProps {
   onHandlePointerMove?: PointerEventHandler<HTMLButtonElement>;
   onHandlePointerUp?: PointerEventHandler<HTMLButtonElement>;
   onHandlePointerCancel?: PointerEventHandler<HTMLButtonElement>;
-  onHandleFocus?: (handle: ClipHandle) => void;
+  onHandleFocus?: (
+    handle: ClipHandle,
+    event: ReactFocusEvent<HTMLButtonElement>,
+  ) => void;
   onHandleBlur?: (handle: ClipHandle) => void;
   onHandleKeyDown?: (
     handle: ClipHandle,
@@ -256,7 +260,7 @@ export function ClipBlockView({
           title={fadeTip}
           aria-label={`${fadeTip} · in ${fadeInMs} ms. Arrow keys adjust; Shift takes larger steps; Escape cancels. Inspector also sets the length.`}
           onPointerDown={(e) => onHandlePointerDown?.("fade-in", e)}
-          onFocus={() => onHandleFocus?.("fade-in")}
+          onFocus={(e) => onHandleFocus?.("fade-in", e)}
           onBlur={() => onHandleBlur?.("fade-in")}
           onKeyDown={(e) => onHandleKeyDown?.("fade-in", e)}
           onKeyUp={(e) => onHandleKeyUp?.("fade-in", e)}
@@ -274,7 +278,7 @@ export function ClipBlockView({
           title={fadeTip}
           aria-label={`${fadeTip} · out ${fadeOutMs} ms. Arrow keys adjust; Shift takes larger steps; Escape cancels. Inspector also sets the length.`}
           onPointerDown={(e) => onHandlePointerDown?.("fade-out", e)}
-          onFocus={() => onHandleFocus?.("fade-out")}
+          onFocus={(e) => onHandleFocus?.("fade-out", e)}
           onBlur={() => onHandleBlur?.("fade-out")}
           onKeyDown={(e) => onHandleKeyDown?.("fade-out", e)}
           onKeyUp={(e) => onHandleKeyUp?.("fade-out", e)}
@@ -303,7 +307,7 @@ export function ClipBlockView({
             title={`${trimTip} · start`}
             aria-label={`${trimTip} · start. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
             onPointerDown={(e) => onHandlePointerDown?.("trim-in", e)}
-            onFocus={() => onHandleFocus?.("trim-in")}
+            onFocus={(e) => onHandleFocus?.("trim-in", e)}
             onBlur={() => onHandleBlur?.("trim-in")}
             onKeyDown={(e) => onHandleKeyDown?.("trim-in", e)}
             onKeyUp={(e) => onHandleKeyUp?.("trim-in", e)}
@@ -318,7 +322,7 @@ export function ClipBlockView({
             title={`${trimTip} · end`}
             aria-label={`${trimTip} · end. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
             onPointerDown={(e) => onHandlePointerDown?.("trim-out", e)}
-            onFocus={() => onHandleFocus?.("trim-out")}
+            onFocus={(e) => onHandleFocus?.("trim-out", e)}
             onBlur={() => onHandleBlur?.("trim-out")}
             onKeyDown={(e) => onHandleKeyDown?.("trim-out", e)}
             onKeyUp={(e) => onHandleKeyUp?.("trim-out", e)}

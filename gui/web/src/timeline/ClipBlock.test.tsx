@@ -428,6 +428,73 @@ describe("ClipBlock waveform", () => {
       expect(setClipFade).not.toHaveBeenCalled();
     });
 
+    it("restores keyboard ownership when a same-path epoch changes under the focused handle", async () => {
+      const row = { ...clip, fade_in_ms: 20 };
+      const view = renderWithKeymap(row);
+      const handle = view.container.querySelector(
+        "button.fade-corner.in",
+      ) as HTMLElement;
+      handle.focus();
+      useDawStore.setState((state) => ({
+        projectEpoch: state.projectEpoch + 1,
+      }));
+      view.rerender(
+        <>
+          <KeymapHarness />
+          <ClipBlock {...base} clip={row} />
+        </>,
+      );
+      expect(document.activeElement).toBe(handle);
+
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+      expect(
+        view.container.querySelector(".fade-readout.in")?.textContent,
+      ).toBe("21 ms");
+      fireEvent.keyUp(handle, { key: "ArrowRight" });
+      await waitFor(() =>
+        expect(setClipFade).toHaveBeenCalledWith(
+          "/tmp/clip-handle.project.json",
+          "c1",
+          21,
+          0,
+        ),
+      );
+      expect(useDawStore.getState().playheadSec).toBe(0);
+    });
+
+    it("routes arrows to the playhead when the focused fade handle is removed", async () => {
+      const previous = { ...clip, id: "previous", source_end: 2 };
+      const row = {
+        ...clip,
+        fade_in_ms: 20,
+        join_left_clip_id: "previous",
+        join_in_mode: "fade",
+      };
+      const view = renderWithKeymap(row, { prevClip: previous });
+      const handle = view.container.querySelector(
+        "button.fade-corner.in",
+      ) as HTMLElement;
+      handle.focus();
+      expect(document.activeElement).toBe(handle);
+      view.rerender(
+        <>
+          <KeymapHarness />
+          <ClipBlock
+            {...base}
+            clip={{ ...row, join_in_mode: "cut" }}
+            prevClip={previous}
+          />
+        </>,
+      );
+      expect(view.container.querySelector("button.fade-corner.in")).toBeNull();
+
+      useDawStore.getState().setPlayheadSec(1);
+      fireEvent.keyDown(document.body, { key: "ArrowRight" });
+      fireEvent.keyUp(document.body, { key: "ArrowRight" });
+      await waitFor(() => expect(useDawStore.getState().playheadSec).toBe(2));
+      expect(setClipFade).not.toHaveBeenCalled();
+    });
+
     it("keeps the clip mutation lock through a pending fade write", async () => {
       let resolveFade!: () => void;
       vi.mocked(setClipFade).mockImplementationOnce(
