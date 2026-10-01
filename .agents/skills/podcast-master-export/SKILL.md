@@ -67,7 +67,7 @@ pipeline) and before telling the user the episode is ready.** If `ok` is `false`
 - A `master_qc` issue — see the loudness QC section above.
 - Unmapped transcript words in `timebase.issues` — wrong clock or cut-away words. (Whisper's zero-length words are not unmapped: they appear as `timebase.tracks.<id>.zero_length_words` with a warning and do not flip `ok`; this includes one stamped exactly where a cut begins.)
 - Inverted words in `timebase.issues` (`timebase.tracks.<id>.inverted_words`) — a word ends more than 20 ms before it starts: corrupt timing from a bad merge or manual edit, not Whisper output. Fix the word's times.
-- A stacked-clip issue in `timebase.issues` (`timebase.stacked_clips`) means two clips read the same source and overlap on the timeline. This applies on one lane for every role and across two dialogue lanes. Each row pairs `track_ids[i]` with `clip_ids[i]`; delete or trim one clip, or re-run `align_tracks` (#520).
+- A stacked-clip issue in `timebase.issues` (`timebase.stacked_clips`) means two clips read the same source and overlap by more than 50 ms on the timeline. This applies on one lane for every role and across two dialogue lanes. Each row pairs `track_ids[i]` with `clip_ids[i]`; delete or trim one clip, or re-run `align_tracks` (#520).
 - An `alignment` issue - a clip sits more than the align threshold off the reference clock, an `unconfirmed_hold` candidate is still pending, or the align artifact is unreadable, and no person accepted the alignment (after a stale accept, only clips that moved more than the threshold since `align done` count). Use `podcast-align-audio`: listen, nudge, `align done`.
 
 Plain source/timeline **drift** after edits is expected; it appears under `warnings` /

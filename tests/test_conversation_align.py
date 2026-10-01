@@ -803,7 +803,7 @@ def test_snapshot_restore_clip_geometry(tmp_path: Path) -> None:
     proj = _project(tmp_path, [("host", 10.0, [TranscriptWord(text="hi", start=0.0, end=0.2)])])
     snap = snapshot_clip_geometry(proj)
     proj.clips[0].timeline_start = 9.0
-    restore_clip_geometry(proj, [*snap, ("missing", 0.0, 1.0, 0.0)])
+    restore_clip_geometry(proj, [*snap, ("host", "missing", 0.0, 1.0, 0.0)])
     assert proj.clips[0].timeline_start == 0.0
 
 
@@ -1637,6 +1637,54 @@ def test_apply_alignment_rejects_only_new_cross_lane_pair(
     assert updated == (1 if should_skip else 2)
     assert (result.plans[1].skipped_reason is not None) is should_skip
     assert ("Guest" in (proj.meta.ingest_alignment or {})) is not should_skip
+
+
+def test_alignment_rollback_distinguishes_clip_ids_reused_on_other_lanes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    proj = _two_track_project(
+        tmp_path,
+        "reused_clip_ids",
+        [
+            Clip(id="a", track_id="host", source_start=0, source_end=10, timeline_start=0),
+            Clip(
+                id="b",
+                track_id="guest",
+                source_id="host_source",
+                source_start=20,
+                source_end=30,
+                timeline_start=20,
+            ),
+            Clip(id="a", track_id="music", source_start=0, source_end=10, timeline_start=0),
+            Clip(id="b", track_id="music", source_start=0, source_end=10, timeline_start=0),
+        ],
+    )
+    proj.tracks.append(
+        Track(
+            id="music",
+            label="Music",
+            role=TrackRole.MUSIC,
+            media=MediaAsset(path="raw/music.wav", duration_sec=10),
+        )
+    )
+    proj.sources.append(SourceRecording(id="host_source", path="raw/host.wav", duration_sec=100))
+    monkeypatch.setattr(
+        "podcast_mcp.edits.conversation_align.slip_clip_to_shift",
+        lambda clip, target_shift, *, media_duration: (20.0, 30.0, 0.0),
+    )
+    result = AlignResult(
+        reference_track_id="host",
+        plans=[
+            *_host_ref("a"),
+            ClipAlignPlan(track_id="guest", clip_id="b", offset_sec=2, method="bleed"),
+        ],
+    )
+    assert apply_alignment_plans(proj, result) == 1
+    assert next(c for c in proj.clips if c.track_id == "guest").timeline_start == 20
+    assert result.plans[1].skipped_reason is not None
+    assert [(s.track_ids, s.clip_ids) for s in same_source_timeline_overlaps(proj)] == [
+        (("music", "music"), ("a", "b"))
+    ]
 
 
 def test_whole_file_single_clip_keeps_legacy_geometry(tmp_path: Path) -> None:

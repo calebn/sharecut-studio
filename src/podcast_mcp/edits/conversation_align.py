@@ -1712,7 +1712,8 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
         if skip is None:
             snap = snapshot_clip_geometry(project, clips)
             stacks_before = {
-                tuple(sorted(s.clip_ids)) for s in same_source_timeline_overlaps(project)
+                tuple(sorted(zip(s.track_ids, s.clip_ids, strict=True)))
+                for s in same_source_timeline_overlaps(project)
             }
             for clip, _plan, geom in staged:
                 assert geom is not None
@@ -1720,7 +1721,7 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
             new_stacks = [
                 s
                 for s in same_source_timeline_overlaps(project)
-                if tuple(sorted(s.clip_ids)) not in stacks_before
+                if tuple(sorted(zip(s.track_ids, s.clip_ids, strict=True))) not in stacks_before
             ]
             if new_stacks:
                 restore_clip_geometry(project, snap)
@@ -1820,18 +1821,18 @@ def write_alignment_artifact(project: EpisodeProject, result: AlignResult) -> Pa
 
 def snapshot_clip_geometry(
     project: EpisodeProject, clips: Iterable[Clip] | None = None
-) -> list[tuple[str, float, float, float]]:
+) -> list[tuple[str, str, float, float, float]]:
     source = clips if clips is not None else project.clips
-    return [(c.id, c.source_start, c.source_end, c.timeline_start) for c in source]
+    return [(c.track_id, c.id, c.source_start, c.source_end, c.timeline_start) for c in source]
 
 
 def restore_clip_geometry(
     project: EpisodeProject,
-    snap: list[tuple[str, float, float, float]],
+    snap: list[tuple[str, str, float, float, float]],
 ) -> None:
-    by_id = {c.id: c for c in project.clips}
-    for cid, source_start, source_end, timeline_start in snap:
-        clip = by_id.get(cid)
+    by_id = {(c.track_id, c.id): c for c in project.clips}
+    for track_id, cid, source_start, source_end, timeline_start in snap:
+        clip = by_id.get((track_id, cid))
         if clip is None:
             continue
         clip.source_start = source_start
