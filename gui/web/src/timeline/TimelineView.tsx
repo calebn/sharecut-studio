@@ -11,7 +11,6 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { useShallow } from "zustand/react/shallow";
 import { shallow } from "zustand/shallow";
 import { runPointerCommand } from "../commands/pointer";
 import { seekTransport } from "../commands/seek";
@@ -37,6 +36,8 @@ import { useProsodyOverlayViews } from "../prosody/useProsodyOverlay";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
+import type { DawState } from "../state/types";
+import { pickDaw, useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
 import type { ProsodyOverlayTrack } from "../types/prosody";
 import { useResizeObserver } from "../ui/useResizeObserver";
@@ -111,6 +112,58 @@ type Props = {
   headerSlot?: ReactNode;
 };
 
+const selectTimelineViewFields = pickDaw(
+  "projectPath",
+  "zoomPxPerSec",
+  "setScrollLeft",
+  "setPlayheadSec",
+  "selection",
+  "setSelection",
+  "userZoomed",
+  "applyAnchoredZoom",
+  "setTimelineFocused",
+  "layers",
+  "fitToWindow",
+  "sessionRegion",
+  "lastAgentQuery",
+  "commentMode",
+  "setCommentDraft",
+  "setActiveTab",
+  "isPlaying",
+  "toolMode",
+  "selectedTrackIds",
+  "selectedClipIds",
+  "selectClip",
+  "guestMode",
+  "shareCapabilities",
+  "highlightStaleRender",
+  "followingClientId",
+  "stopFollow",
+  "setBladeHoverSec",
+  "setTimelineViewportWidth",
+  "laneHeightMode",
+  "laneHeightPx",
+);
+
+const selectTimelineProject = (s: DawState) => {
+  const p = s.project;
+  if (!p) {
+    return null;
+  }
+  return {
+    tracks: p.tracks,
+    clips: p.clips,
+    timeline_duration_sec: p.timeline_duration_sec,
+    comments: p.comments,
+    envelopes: p.envelopes,
+    applied_edits: p.applied_edits,
+    pending_edits: p.pending_edits,
+    chapters: p.chapters,
+    social_clips: p.social_clips,
+    render_status: p.render_status,
+  };
+};
+
 export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   // Before a project loads this view provides no metrics, so its skeleton and
   // any header column beside or inside it read the same ambient defaults.
@@ -146,66 +199,14 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     setTimelineViewportWidth,
     laneHeightMode,
     laneHeightPx,
-  } = useDawStore(
-    useShallow((s) => ({
-      projectPath: s.projectPath,
-      zoomPxPerSec: s.zoomPxPerSec,
-      setScrollLeft: s.setScrollLeft,
-      setPlayheadSec: s.setPlayheadSec,
-      selection: s.selection,
-      setSelection: s.setSelection,
-      userZoomed: s.userZoomed,
-      applyAnchoredZoom: s.applyAnchoredZoom,
-      setTimelineFocused: s.setTimelineFocused,
-      layers: s.layers,
-      fitToWindow: s.fitToWindow,
-      sessionRegion: s.sessionRegion,
-      lastAgentQuery: s.lastAgentQuery,
-      commentMode: s.commentMode,
-      setCommentDraft: s.setCommentDraft,
-      setActiveTab: s.setActiveTab,
-      isPlaying: s.isPlaying,
-      toolMode: s.toolMode,
-      selectedTrackIds: s.selectedTrackIds,
-      selectedClipIds: s.selectedClipIds,
-      selectClip: s.selectClip,
-      guestMode: s.guestMode,
-      shareCapabilities: s.shareCapabilities,
-      highlightStaleRender: s.highlightStaleRender,
-      followingClientId: s.followingClientId,
-      stopFollow: s.stopFollow,
-      setBladeHoverSec: s.setBladeHoverSec,
-      setTimelineViewportWidth: s.setTimelineViewportWidth,
-      laneHeightMode: s.laneHeightMode,
-      laneHeightPx: s.laneHeightPx,
-    })),
-  );
+  } = useDaw(selectTimelineViewFields);
   const followColorIndex = useDawStore(selectFollowColorIndex);
   const waveformBackend = useSyncExternalStore(
     subscribeRasterBackend,
     getRasterBackend,
     () => "none",
   );
-  const project = useDawStore(
-    useShallow((s) => {
-      const p = s.project;
-      if (!p) {
-        return null;
-      }
-      return {
-        tracks: p.tracks,
-        clips: p.clips,
-        timeline_duration_sec: p.timeline_duration_sec,
-        comments: p.comments,
-        envelopes: p.envelopes,
-        applied_edits: p.applied_edits,
-        pending_edits: p.pending_edits,
-        chapters: p.chapters,
-        social_clips: p.social_clips,
-        render_status: p.render_status,
-      };
-    }),
-  );
+  const project = useDaw(selectTimelineProject);
   // `aligned` draws lane geometry; `latest` feeds the status summary so it does not blank and
   // re-announce after every clip edit.
   const { aligned: prosody, latest: prosodyLatest } = useProsodyOverlayViews(

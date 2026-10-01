@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { audioUrl } from "../api";
 import { bindPlaybackClock } from "../audio/playbackClock";
 import { useDawStore } from "../state/dawStore";
-import { useDaw } from "../state/useDaw";
+import { pickDaw, useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import {
@@ -24,6 +24,32 @@ import {
   sourcePointToTimeline,
   timelinePointToSource,
 } from "../utils/timebase";
+
+const selectAudioTransportFields = pickDaw(
+  "project",
+  "projectPath",
+  "projectEpoch",
+  "playheadSec",
+  "playheadSeekRevision",
+  "setPlayheadSec",
+  "isPlaying",
+  "sourcePreview",
+  "updateSourcePreview",
+  "setIsPlaying",
+  "auditionMode",
+  "viewerMute",
+  "soloTracks",
+  "playUntilSec",
+  "setPlayUntilSec",
+  "playSkipStartSec",
+  "playSkipEndSec",
+  "playAbFollowup",
+  "auditionEpoch",
+  "continueAudition",
+  "clearSessionRegion",
+  "setAudioError",
+  "playbackRate",
+);
 
 function rawSourceSec(
   project: ProjectView,
@@ -173,31 +199,7 @@ export function useAudioTransport(enabled = true): void {
     clearSessionRegion,
     setAudioError,
     playbackRate,
-  } = useDaw((s) => ({
-    project: s.project,
-    projectPath: s.projectPath,
-    projectEpoch: s.projectEpoch,
-    playheadSec: s.playheadSec,
-    playheadSeekRevision: s.playheadSeekRevision,
-    setPlayheadSec: s.setPlayheadSec,
-    isPlaying: s.isPlaying,
-    sourcePreview: s.sourcePreview,
-    updateSourcePreview: s.updateSourcePreview,
-    setIsPlaying: s.setIsPlaying,
-    auditionMode: s.auditionMode,
-    viewerMute: s.viewerMute,
-    soloTracks: s.soloTracks,
-    playUntilSec: s.playUntilSec,
-    setPlayUntilSec: s.setPlayUntilSec,
-    playSkipStartSec: s.playSkipStartSec,
-    playSkipEndSec: s.playSkipEndSec,
-    playAbFollowup: s.playAbFollowup,
-    auditionEpoch: s.auditionEpoch,
-    continueAudition: s.continueAudition,
-    clearSessionRegion: s.clearSessionRegion,
-    setAudioError: s.setAudioError,
-    playbackRate: s.playbackRate,
-  }));
+  } = useDaw(selectAudioTransportFields);
 
   const isPlaying = preview ? preview.playing : timelineIsPlaying;
   const previewRef = useRef(preview);
