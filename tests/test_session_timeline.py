@@ -874,7 +874,10 @@ def test_timebase_qc_parked_dialogue_copy(tmp_path, parked_start, expected_pairs
         assert "('guest', 'host')" in report["issues"][0]
 
 
-def test_source_stacks_keep_same_lane_all_roles_and_exempt_cross_lane_music(tmp_path) -> None:
+@pytest.mark.parametrize("role", [TrackRole.MUSIC, TrackRole.SFX, TrackRole.INTRO, TrackRole.OUTRO])
+def test_source_stacks_keep_same_lane_all_roles_and_exempt_cross_lane_other_roles(
+    tmp_path, role: TrackRole
+) -> None:
     p = _project(
         tmp_path,
         [
@@ -886,7 +889,7 @@ def test_source_stacks_keep_same_lane_all_roles_and_exempt_cross_lane_music(tmp_
     p.tracks.append(
         Track(
             id="music",
-            role=TrackRole.MUSIC,
+            role=role,
             label="Music",
             media=MediaAsset(path="raw/host.wav", duration_sec=10),
         )
@@ -896,3 +899,47 @@ def test_source_stacks_keep_same_lane_all_roles_and_exempt_cross_lane_music(tmp_
     report = timebase_qc_report(p)
     assert report["tracks"]["music"]["stacked_clips"] == 1
     assert report["tracks"]["host"].get("stacked_clips", 0) == 0
+
+
+def test_source_stacks_use_lane_media_for_missing_source_id(tmp_path) -> None:
+    p = _project(
+        tmp_path,
+        [
+            Clip(id="host", track_id="host", source_start=0, source_end=1, timeline_start=0),
+            Clip(
+                id="guest",
+                track_id="guest",
+                source_id="missing",
+                source_start=0,
+                source_end=1,
+                timeline_start=0,
+            ),
+        ],
+    )
+    p.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            media=MediaAsset(path="raw/host.wav", duration_sec=1),
+        )
+    )
+    assert [(s.media, s.track_ids, s.clip_ids) for s in same_source_timeline_overlaps(p)] == [
+        ("raw/host.wav", ("guest", "host"), ("guest", "host"))
+    ]
+    p.tracks[1].media.path = "raw/guest.wav"
+    assert same_source_timeline_overlaps(p) == []
+
+
+@pytest.mark.parametrize("end,stacked", [(0.05, False), (0.06, True)])
+def test_source_stack_strict_50ms_tolerance(tmp_path, end: float, stacked: bool) -> None:
+    p = _project(
+        tmp_path,
+        [
+            Clip(id="short", track_id="host", source_start=0, source_end=end, timeline_start=0),
+            Clip(id="long", track_id="host", source_start=0, source_end=1, timeline_start=0),
+        ],
+    )
+    stacks = same_source_timeline_overlaps(p)
+    assert [(s.clip_ids, s.overlap_sec) for s in stacks] == (
+        [(("long", "short"), 0.06)] if stacked else []
+    )

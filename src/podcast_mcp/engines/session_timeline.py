@@ -19,9 +19,10 @@ from dataclasses import asdict, dataclass
 from functools import lru_cache
 from typing import Any, Protocol
 
-from podcast_mcp.models import Clip, EpisodeProject, TrackRole
+from podcast_mcp.models import Clip, EpisodeProject
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex, merge_intervals
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
+from podcast_mcp.util.tracks import dialogue_track_ids
 
 DEFAULT_MERGE_GAP_SEC = 0.15
 
@@ -372,12 +373,12 @@ def same_source_timeline_overlaps(
     Checks ``clips`` (default: every project clip); empty clips are ignored.
     """
     groups: dict[str, list[Clip]] = {}
-    clip_order: dict[str, tuple[float, str, str]] = {}
-    tracks = {track.id: track for track in project.tracks}
+    clip_order: dict[tuple[str, str], tuple[float, str, str]] = {}
+    dialogue_ids = set(dialogue_track_ids(project))
     for clip in project.clips if clips is None else clips:
         if clip.timeline_end <= clip.timeline_start + _EPS:
             continue
-        clip_order[clip.id] = (clip.timeline_start, clip.track_id, clip.id)
+        clip_order[(clip.track_id, clip.id)] = (clip.timeline_start, clip.track_id, clip.id)
         groups.setdefault(clip_media_key(project, clip), []).append(clip)
 
     stacks: list[SourceStack] = []
@@ -390,10 +391,7 @@ def same_source_timeline_overlaps(
                     continue
                 b = ordered[j]
                 if a.track_id != b.track_id and not (
-                    tracks.get(a.track_id) is not None
-                    and tracks.get(b.track_id) is not None
-                    and tracks[a.track_id].role == TrackRole.DIALOGUE
-                    and tracks[b.track_id].role == TrackRole.DIALOGUE
+                    a.track_id in dialogue_ids and b.track_id in dialogue_ids
                 ):
                     continue
                 overlap = min(a.timeline_end, b.timeline_end) - b.timeline_start
@@ -406,7 +404,13 @@ def same_source_timeline_overlaps(
                             overlap_sec=round(overlap, 3),
                         )
                     )
-    return sorted(stacks, key=lambda s: (clip_order[s.clip_ids[0]], clip_order[s.clip_ids[1]]))
+    return sorted(
+        stacks,
+        key=lambda s: (
+            clip_order[(s.track_ids[0], s.clip_ids[0])],
+            clip_order[(s.track_ids[1], s.clip_ids[1])],
+        ),
+    )
 
 
 class SessionTimeline:
