@@ -349,6 +349,8 @@ def _source_duration(project: EpisodeProject, clip: Clip) -> float | None:
 
 
 def _same_recording(project: EpisodeProject, first: Clip, second: Clip) -> bool:
+    if first.track_id == second.track_id and first.source_id == second.source_id:
+        return True
     return recording_audio_path(project, first.track_id, first.source_id) == recording_audio_path(
         project, second.track_id, second.source_id
     )
