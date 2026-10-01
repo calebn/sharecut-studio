@@ -6,6 +6,7 @@ import pytest
 
 from podcast_mcp.edits.clips_ops import roll_clip_join
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
+from podcast_mcp.services.boundary import RollBoundaryTarget, boundary_context
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import DocumentSyncService
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -171,6 +172,9 @@ def test_roll_cannot_eat_past_short_left_clip(minimal_project):
 def test_document_roll_clip_join(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _three_clips(ws)
+    revision = boundary_context(
+        ws.project, RollBoundaryTarget(left_clip_id="c1", right_clip_id="c2")
+    ).token
     svc = DocumentSyncService.open(minimal_project)
     out = svc.submit(
         DocumentCommand(
@@ -179,6 +183,7 @@ def test_document_roll_clip_join(minimal_project):
                 "left_clip_id": "c1",
                 "right_clip_id": "c2",
                 "delta_sec": 1.0,
+                "expected_token": revision,
             },
             client_id="c1",
             role="viewer",

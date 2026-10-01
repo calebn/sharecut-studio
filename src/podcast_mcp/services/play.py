@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
+import math
 import os
 import platform
 import re
+import secrets
 import shutil
+import threading
 import time
 import wave
+from collections import OrderedDict
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +25,7 @@ from podcast_mcp.edits.pending_preview import (
     PendingPreviewWindow,
     resolve_pending_preview,
 )
+from podcast_mcp.edits.timeline_ops import roll_clip_join, trim_clip_edge
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV, FFmpegEngine
 from podcast_mcp.engines.play_audit import (
@@ -40,9 +46,19 @@ from podcast_mcp.engines.transcript_gated_play import (
     transcript_gate_fingerprint,
     word_intervals,
 )
-from podcast_mcp.models import Track, TrackRole
+from podcast_mcp.models import EpisodeProject, Track, TrackRole
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.render import rerender_preview
+from podcast_mcp.services.boundary import (
+    BoundaryAudioWindow,
+    BoundaryAudition,
+    RollBoundaryEdit,
+    RollBoundaryTarget,
+    TrimBoundaryEdit,
+    TrimBoundaryTarget,
+    assert_boundary_token,
+    boundary_context,
+)
 from podcast_mcp.services.session_sync.viewer import publish_agent_play
 from podcast_mcp.services.waveform import schedule_stem_waveforms
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -72,6 +88,22 @@ _PLAY_CACHE_LOCK_TIMEOUT_SEC = 30.0
 # premix rerender and transport stem builds wait this long for the render lock, then
 # play a segment render or the premix/stem already on disk instead of rebuilding.
 _PLAY_RENDER_LOCK_TIMEOUT_SEC = 2.0
+_BOUNDARY_CATALOG_MAX = 128
+_BOUNDARY_CATALOG_TTL_SEC = 10 * 60
+_boundary_catalog_lock = threading.Lock()
+
+
+@dataclass(frozen=True)
+class _BoundaryAudioEntry:
+    project_path: Path
+    target: TrimBoundaryTarget | RollBoundaryTarget
+    token: str
+    current_path: Path
+    proposed_path: Path
+    expires_at: float
+
+
+_boundary_catalog: OrderedDict[str, _BoundaryAudioEntry] = OrderedDict()
 
 
 def _wav_peak_abs(path: Path) -> float | None:
@@ -190,6 +222,16 @@ class PlayService:
         self.project = workspace.project
         self._defaults = load_defaults()
 
+    @staticmethod
+    def issued_boundary_project(opaque_id: str) -> Path:
+        """Resolve an issued audition capability without accepting a client path."""
+        with _boundary_catalog_lock:
+            entry = _boundary_catalog.get(opaque_id)
+            if entry is None or entry.expires_at < time.monotonic():
+                _boundary_catalog.pop(opaque_id, None)
+                raise FileNotFoundError("boundary audition expired; listen again")
+            return entry.project_path
+
     def _play_cache_dir(self, *protected: Path) -> Path:
         """Keep old generated auditions bounded without touching active outputs."""
         out_dir = self.project.artifacts_dir() / "play_cache"
@@ -242,6 +284,191 @@ class PlayService:
         out_dir = self.project.artifacts_dir() / "play_cache"
         with hold_shared_file_lock(out_dir / ".cache.lock", timeout=_PLAY_CACHE_LOCK_TIMEOUT_SEC):
             self._refresh_cache_access(path, out_dir)
+
+    def _boundary_window(
+        self, project: EpisodeProject, track_id: str, seam_sec: float, pad_sec: float
+    ) -> tuple[float, float]:
+        track_clips = [c for c in project.clips if c.track_id == track_id]
+        if not track_clips:
+            raise ValueError("boundary track has no clips to audition")
+        track_end = max(c.timeline_end for c in track_clips)
+        start = max(0.0, seam_sec - pad_sec)
+        end = min(track_end, seam_sec + pad_sec)
+        if end - start < 0.02:
+            raise ValueError("boundary has too little audio to audition")
+        return start, end
+
+    def _boundary_render(
+        self,
+        project: EpisodeProject,
+        track_id: str,
+        token: str,
+        state: str,
+        start: float,
+        end: float,
+    ) -> Path:
+        """Exact-key, atomic segment and output-gain render in the bounded play cache."""
+        track = project.track_by_id(track_id)
+        if track is None:
+            raise ValueError(f"unknown track {track_id!r}")
+        ceiling = mix_peak_ceiling_db(self._defaults)
+        identity = {
+            "project": str(self.ws.path.resolve()),
+            "token": token,
+            "state": state,
+            "track": track_render_hash(project, track_id),
+            "fader_db": track.fader_db,
+            "start": start,
+            "end": end,
+            "defaults": self._defaults,
+            "mix_semantics": MIX_SEMANTICS_REV,
+            "ceiling_db": ceiling,
+        }
+        raw = json.dumps(identity, sort_keys=True, separators=(",", ":"), default=str)
+        digest = hashlib.sha256(raw.encode()).hexdigest()
+        cache = self.project.artifacts_dir() / "play_cache"
+        segment = cache / f"boundary_{digest}_segment.wav"
+        output = cache / f"boundary_{digest}_mix.wav"
+        self._play_cache_dir(segment, output)
+        if not segment.is_file():
+            render_atomic(
+                segment,
+                lambda tmp: render_track_segment(
+                    project, track_id, start, end, tmp, self._defaults
+                ),
+            )
+        if not output.is_file():
+            render_atomic(
+                output,
+                lambda tmp: FFmpegEngine().mix_tracks(
+                    [(segment, float(track.fader_db))], tmp, peak_ceiling_db=ceiling
+                ),
+            )
+        self._mark_play_cache_used(output)
+        return output
+
+    def audition_boundary(
+        self,
+        target: TrimBoundaryTarget | RollBoundaryTarget,
+        edit: TrimBoundaryEdit | RollBoundaryEdit,
+        expected_token: str,
+        *,
+        pad_sec: float = 0.75,
+    ) -> BoundaryAudition:
+        """Hear saved and proposed affected-track windows without publishing a project."""
+        if not math.isfinite(pad_sec) or not 0.1 <= pad_sec <= 2.0:
+            raise ValueError("pad_sec must be between 0.1 and 2 seconds")
+        if isinstance(target, TrimBoundaryTarget):
+            if not isinstance(edit, TrimBoundaryEdit) or (
+                target.clip_id != edit.clip_id or target.edge != edit.edge
+            ):
+                raise ValueError("edit does not match boundary target")
+        elif not isinstance(edit, RollBoundaryEdit) or (
+            target.left_clip_id != edit.left_clip_id or target.right_clip_id != edit.right_clip_id
+        ):
+            raise ValueError("edit does not match boundary target")
+
+        with self.ws.transaction() as saved:
+            current_context = assert_boundary_token(saved, target, expected_token)
+            current = snapshot_project(saved)
+        proposed = current.model_copy(deep=True)
+        if isinstance(edit, TrimBoundaryEdit):
+            trim_clip_edge(proposed, edit.clip_id, edit.edge, edit.source_sec, mode=edit.mode)
+            actual_sec = next(c for c in proposed.clips if c.id == edit.clip_id)
+            actual_edit: TrimBoundaryEdit | RollBoundaryEdit = edit.model_copy(
+                update={
+                    "source_sec": (
+                        actual_sec.source_start if edit.edge == "in" else actual_sec.source_end
+                    )
+                }
+            )
+        else:
+            left_before = next(c for c in current.clips if c.id == edit.left_clip_id)
+            roll_clip_join(proposed, edit.left_clip_id, edit.right_clip_id, edit.delta_sec)
+            left_after = next(c for c in proposed.clips if c.id == edit.left_clip_id)
+            actual_edit = edit.model_copy(
+                update={"delta_sec": left_after.source_end - left_before.source_end}
+            )
+        proposed_context = boundary_context(proposed, target)
+        track_id = current_context.track_id
+        current_seam = current_context.current.timeline_sec
+        proposed_seam = proposed_context.current.timeline_sec
+        # A cropped crossfade needs enough right-hand content for its actual blend
+        # duration to match the full track. Refuse unusually long fades rather than
+        # silently producing a misleading seam.
+        involved = [c for c in current.clips if c.id in {g.id for g in current_context.geometry}]
+        max_fade = max((max(c.fade_in_ms, c.fade_out_ms) / 1000 for c in involved), default=0)
+        required_pad = max(pad_sec, 2 * max_fade + 0.01)
+        if required_pad > 4.0:
+            raise ValueError("join fade is too long for a bounded boundary audition")
+        current_start, current_end = self._boundary_window(
+            current, track_id, current_seam, required_pad
+        )
+        proposed_start, proposed_end = self._boundary_window(
+            proposed, track_id, proposed_seam, required_pad
+        )
+        with render_lock(self.project, timeout=_PLAY_RENDER_LOCK_TIMEOUT_SEC):
+            current_path = self._boundary_render(
+                current, track_id, expected_token, "current", current_start, current_end
+            )
+            proposed_path = self._boundary_render(
+                proposed, track_id, expected_token, "proposed", proposed_start, proposed_end
+            )
+        with self.ws.transaction() as saved:
+            assert_boundary_token(saved, target, expected_token)
+            opaque_id = secrets.token_urlsafe(18)
+            entry = _BoundaryAudioEntry(
+                project_path=self.ws.path.resolve(),
+                target=target,
+                token=expected_token,
+                current_path=current_path,
+                proposed_path=proposed_path,
+                expires_at=time.monotonic() + _BOUNDARY_CATALOG_TTL_SEC,
+            )
+            with _boundary_catalog_lock:
+                _boundary_catalog[opaque_id] = entry
+                while len(_boundary_catalog) > _BOUNDARY_CATALOG_MAX:
+                    _boundary_catalog.popitem(last=False)
+
+        def window(
+            path: Path, start: float, end: float, seam: float, side: str
+        ) -> BoundaryAudioWindow:
+            with wave.open(str(path), "rb") as wav:
+                duration = wav.getnframes() / wav.getframerate()
+            return BoundaryAudioWindow(
+                url=f"/api/boundary/audition/{opaque_id}/{side}?expected_token={expected_token}",
+                window_start_sec=start,
+                window_end_sec=end,
+                duration_sec=duration,
+                seam_offset_sec=seam - start,
+            )
+
+        return BoundaryAudition(
+            token=expected_token,
+            actual_edit=actual_edit,
+            current=window(current_path, current_start, current_end, current_seam, "current"),
+            proposed=window(proposed_path, proposed_start, proposed_end, proposed_seam, "proposed"),
+        )
+
+    def boundary_audio_path(self, opaque_id: str, side: str, expected_token: str) -> Path:
+        """Resolve one issued, unexpired cache file after host and token checks."""
+        if side not in {"current", "proposed"}:
+            raise ValueError("unknown boundary audition side")
+        with _boundary_catalog_lock:
+            entry = _boundary_catalog.get(opaque_id)
+            if entry is None or entry.expires_at < time.monotonic():
+                _boundary_catalog.pop(opaque_id, None)
+                raise FileNotFoundError("boundary audition expired; listen again")
+        if entry.project_path != self.ws.path.resolve() or entry.token != expected_token:
+            raise FileNotFoundError("boundary audition is unavailable")
+        with self.ws.transaction() as saved:
+            assert_boundary_token(saved, entry.target, expected_token)
+        path = entry.current_path if side == "current" else entry.proposed_path
+        cache = (self.project.artifacts_dir() / "play_cache").resolve()
+        if path.is_symlink() or path.parent.resolve() != cache or not path.is_file():
+            raise FileNotFoundError("boundary audition expired; listen again")
+        self._mark_play_cache_used(path)
+        return path
 
     def resolve_transport_path(
         self,

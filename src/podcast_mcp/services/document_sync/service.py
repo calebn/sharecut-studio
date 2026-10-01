@@ -780,6 +780,11 @@ class DocumentSyncService:
                     )
                 self.project = self.ws.project
             raise
+        if result.get("unchanged") is True:
+            # The command may be acknowledged in the journal, but no project write
+            # occurred. Do not let this in-memory marker leak into a later save.
+            self.ws.project.document_sync.last_command = previous
+            return result
         log_if_saved_command_dropped(self.ws.project, command.command_id)
         return result
 

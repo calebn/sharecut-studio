@@ -14,6 +14,7 @@ from podcast_mcp.cli.main import app
 from podcast_mcp.edits.clips_ops import trim_clip_edge
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
+from podcast_mcp.services.boundary import TrimBoundaryTarget, boundary_context
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import DocumentSyncService
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -84,6 +85,7 @@ def test_trim_clip_edge_in_restores_cutaway(minimal_project):
 def test_document_trim_clip_edge(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _two_clips_with_cutaway(ws)
+    revision = boundary_context(ws.project, TrimBoundaryTarget(clip_id="c1", edge="out")).token
     svc = DocumentSyncService.open(minimal_project)
     out = svc.submit(
         DocumentCommand(
@@ -93,6 +95,7 @@ def test_document_trim_clip_edge(minimal_project):
                 "edge": "out",
                 "source_sec": 10.0,
                 "mode": "ripple",
+                "expected_token": revision,
             },
             client_id="c1",
             role="viewer",
@@ -155,6 +158,7 @@ def test_cli_trim_clip(tmp_path: Path) -> None:
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
     with patch("podcast_mcp.cli.edit.EditService") as service:
+        service.return_value.boundary_context.return_value.token = "current-revision"
         service.return_value.trim_clip_edge.return_value = {"operation": "trim_clip_edge"}
         result = runner.invoke(
             app,
@@ -174,7 +178,7 @@ def test_cli_trim_clip(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["operation"] == "trim_clip_edge"
     service.return_value.trim_clip_edge.assert_called_once_with(
-        "c1", "in", 1575.55, all_tracks=False
+        "c1", "in", 1575.55, all_tracks=False, expected_token="current-revision"
     )
 
 
@@ -248,6 +252,7 @@ def test_cli_trim_clip_all_tracks(tmp_path: Path) -> None:
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
     with patch("podcast_mcp.cli.edit.EditService") as service:
+        service.return_value.boundary_context.return_value.token = "current-revision"
         service.return_value.trim_clip_edge.return_value = {"operation": "trim_clip_edge"}
         result = runner.invoke(
             app,
@@ -267,7 +272,7 @@ def test_cli_trim_clip_all_tracks(tmp_path: Path) -> None:
         )
     assert result.exit_code == 0, result.output
     service.return_value.trim_clip_edge.assert_called_once_with(
-        "c1", "in", 1575.55, all_tracks=True
+        "c1", "in", 1575.55, all_tracks=True, expected_token="current-revision"
     )
 
 

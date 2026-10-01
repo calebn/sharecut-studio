@@ -40,6 +40,7 @@ using MCP; REST `/comments*` remains for ReviewApp-style clients.
 | `GET` | `…/daw/audio` | `play` | Whitelist: premix, stem, processed, review |
 | `GET` | `…/daw/audition-context` | `play + view` | Windowed captions + PNG URLs (agent hear channel v1) |
 | `GET` | `…/daw/audition-context-image` | `play + view` | Waveform or spectrogram of a timeline window |
+| `POST` | `…/daw/boundary/context` | `edit` | Source-safe trim/roll limits and revision for a visible boundary |
 | `POST` | `…/daw/document/command` | `view + command allowlist` | Typed body — see Document commands |
 | `GET` | `…/daw/document/state` | `view` | Atomic sanitized document state with sequence and opaque basis token |
 | `POST` | `…/daw/media/upload` | `edit` | Chunked audio into host raw/ |

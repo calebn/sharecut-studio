@@ -29,6 +29,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services import EditService, HistoryService, ProjectWorkspace
+from podcast_mcp.services.boundary import TrimBoundaryTarget
 
 
 def _episode(path, *, word: TranscriptWord | None = None):
@@ -216,9 +217,12 @@ def test_history_undo_redo_restores_archive_and_active_words(minimal_project):
     assert cut.transcripts[0].words == []
     assert [w.word.text for w in cut.transcripts[0].archived_words] == ["cut"]
     (join,) = map_edit_boundaries(cut)
-    EditService(ProjectWorkspace.open(minimal_project)).trim_clip_edge(
-        join["right_clip_id"], "in", 5
-    )
+    workspace = ProjectWorkspace.open(minimal_project)
+    service = EditService(workspace)
+    revision = service.boundary_context(
+        TrimBoundaryTarget(clip_id=join["right_clip_id"], edge="in")
+    ).token
+    service.trim_clip_edge(join["right_clip_id"], "in", 5, expected_token=revision)
     assert [w.text for w in load_project(minimal_project).transcripts[0].words] == ["cut"]
     HistoryService(ProjectWorkspace.open(minimal_project)).undo(rerender=False)
     undone = load_project(minimal_project)

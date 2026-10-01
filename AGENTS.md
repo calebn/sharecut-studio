@@ -8,6 +8,10 @@ All changes to this repo must follow **SOLID** and **DRY**, include **tests as y
 - [docs/contributing.md](docs/contributing.md) — where new code goes; no duplicated I/O in adapters
 - [docs/ui-philosophy.md](docs/ui-philosophy.md) — binding trust-first beta UI principles; distinguish requirements from shipped behavior
 
+## Beta interfaces
+
+The product is in beta and has no users. Breaking changes are allowed; backward compatibility is not a requirement. Migrate all current callers, tests, and docs to the new contract, then delete obsolete implementations. Do not retain compatibility-only overloads, aliases, fallbacks, or migration code for old APIs or project formats. Preserve distinct paths only when they serve a current product workflow.
+
 ## Git workflow
 
 Ship via **feature branch → PR → `main`**. Do not commit or push directly to `main` unless the user explicitly overrides.

@@ -2,12 +2,24 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from podcast_mcp.edits.clips_ops import roll_join_limits, trim_edge_limits
-from podcast_mcp.models import Clip, MediaAsset, SourceRecording, Track, TrackRole, load_project
+from podcast_mcp.models import (
+    ArchivedTranscriptWord,
+    Clip,
+    MediaAsset,
+    SourceRecording,
+    Track,
+    TrackRole,
+    Transcript,
+    TranscriptWord,
+    load_project,
+)
 from podcast_mcp.services.boundary import (
     RollBoundaryTarget,
     TrimBoundaryTarget,
@@ -15,6 +27,10 @@ from podcast_mcp.services.boundary import (
 )
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.errors import DocumentConflictError
+from podcast_mcp.services.document_sync.payloads import (
+    RollClipJoinPayload,
+    TrimClipEdgePayload,
+)
 from podcast_mcp.services.document_sync.service import DocumentSyncService
 from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.workspace import ProjectWorkspace
@@ -89,6 +105,10 @@ def test_visible_geometry_and_stale_apply_leave_history_untouched(
     )
     with pytest.raises(DocumentConflictError):
         boundary_context(ws.project, target, expected_geometry=[])
+    missing = ws.project.model_copy(deep=True)
+    missing.clips = [clip for clip in missing.clips if clip.id != "right"]
+    with pytest.raises(DocumentConflictError):
+        boundary_context(missing, target, expected_geometry=original.geometry)
     service = EditService(ws)
     history_before = len(ws.project.history.entries)
     assert service.roll_clip_join("left", "right", 0, expected_token=original.token)["unchanged"]
@@ -113,8 +133,35 @@ def test_token_changes_for_same_path_media_replacement(
     media.parent.mkdir(parents=True, exist_ok=True)
     media.write_bytes(b"one")
     first = boundary_context(ws.project, target).token
-    media.write_bytes(b"longer replacement")
+    before = media.stat()
+    media.write_bytes(b"two")
+    os.utime(media, ns=(before.st_atime_ns, before.st_mtime_ns))
+    assert media.stat().st_size == before.st_size
+    assert media.stat().st_mtime_ns == before.st_mtime_ns
     assert boundary_context(ws.project, target).token != first
+
+
+def test_archived_word_change_invalidates_proposed_preview(minimal_project: Path) -> None:
+    ws = _project(minimal_project)
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            archived_words=[
+                ArchivedTranscriptWord(
+                    ordinal=0,
+                    word=TranscriptWord(text="restored", start=5.1, end=5.3),
+                )
+            ],
+        )
+    ]
+    ws.save()
+    target = TrimBoundaryTarget(clip_id="left", edge="out")
+    first = boundary_context(ws.project, target).token
+    ws.project.transcripts[0].archived_words[0].word.ignored = True
+    ws.save()
+    assert boundary_context(ws.project, target).token != first
+    with pytest.raises(DocumentConflictError):
+        EditService(ws).trim_clip_edge("left", "out", 5.2, expected_token=first)
 
 
 def test_document_noop_apply_does_not_add_history(minimal_project: Path) -> None:
@@ -122,6 +169,7 @@ def test_document_noop_apply_does_not_add_history(minimal_project: Path) -> None
     target = TrimBoundaryTarget(clip_id="left", edge="out")
     token = boundary_context(ws.project, target).token
     before = len(load_project(minimal_project).history.entries)
+    project_before = minimal_project.read_bytes()
     result = DocumentSyncService.open(minimal_project).submit(
         DocumentCommand(
             type="TrimClipEdge",
@@ -138,3 +186,26 @@ def test_document_noop_apply_does_not_add_history(minimal_project: Path) -> None
     )
     assert result["ok"]
     assert len(load_project(minimal_project).history.entries) == before
+    assert minimal_project.read_bytes() == project_before
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), -float("inf")])
+def test_boundary_commands_refuse_nonfinite_positions(minimal_project: Path, bad: float) -> None:
+    with pytest.raises(ValidationError):
+        TrimClipEdgePayload(clip_id="c", edge="out", source_sec=bad, expected_token="revision")
+    with pytest.raises(ValidationError):
+        RollClipJoinPayload(
+            left_clip_id="a", right_clip_id="b", delta_sec=bad, expected_token="revision"
+        )
+    service = EditService(_project(minimal_project))
+    with pytest.raises(ValueError, match="finite"):
+        service.trim_clip_edge("left", "out", bad, expected_token="invalid")
+    with pytest.raises(ValueError, match="finite"):
+        service.roll_clip_join("left", "right", bad, expected_token="invalid")
+
+
+def test_boundary_commands_require_revision() -> None:
+    with pytest.raises(ValidationError):
+        TrimClipEdgePayload(clip_id="c", edge="out", source_sec=1.0)
+    with pytest.raises(ValidationError):
+        RollClipJoinPayload(left_clip_id="a", right_clip_id="b", delta_sec=0.1)

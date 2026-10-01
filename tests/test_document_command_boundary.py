@@ -97,6 +97,28 @@ def test_host_http_rejects_invalid_document_payload(minimal_project):
     assert any("ids" in str(item) or "decision_ids" in str(item) for item in detail)
 
 
+@pytest.mark.parametrize(
+    ("kind", "payload"),
+    [
+        ("TrimClipEdge", {"clip_id": "c", "edge": "out", "source_sec": 1.0}),
+        ("RollClipJoin", {"left_clip_id": "a", "right_clip_id": "b", "delta_sec": 0.1}),
+    ],
+)
+def test_boundary_http_requires_preview_revision(minimal_project, kind, payload):
+    client = TestClient(create_app())
+    response = client.post(
+        f"/api/document/command?path={quote(str(minimal_project))}",
+        json={
+            "type": kind,
+            "payload": payload,
+            "client_id": "boundary-test",
+            "client_seq": 1,
+        },
+    )
+    assert response.status_code == 422
+    assert "expected_token" in response.text
+
+
 def test_host_http_rejects_stale_envelope_without_overwriting_peer(minimal_project):
     client = TestClient(create_app())
     url = f"/api/document/command?path={quote(str(minimal_project))}"

@@ -470,7 +470,9 @@ A track whose words are **all** suppressed produces no utterance in `combined.js
 
 **Transcript display is non-destructive:** displaying or hiding retained cut-away (`mappable === false`) utterances does not alter on-disk `combined.json` or its source clocks. The DAW hides them by default and can show them dimmed (non-seekable); export already omits unmapped lines. Follow/active/seek use **timeline spans only** (no fallback to source `start`/`end`).
 
-Boundary word previews combine active cutaway words with `Transcript.archived_words` retained by cuts. Adjacent clips must resolve to the same source transcript; a join between unrelated recordings does not borrow same-timestamp words. All cutaway preview references carry their source identity and a negative `word_index`, which is not an active transcript mutation target. A roll or trim that restores the complete word span returns that word and its metadata to the active transcript before rebuilding combined text. Partial words remain archived. Older cuts with no stored archive still require History recovery. Drag word chips currently include partial source overlap; active text requires the full word span. Precision-boundary limits use each clip's selected recording duration and compare neighboring source positions only when their resolved media paths match, including an explicit source that aliases primary media. A recording with no known duration cannot expand past its current out-point. A preview token covers the selected track's render state and selected media revisions; a stale Apply conflicts before history or project changes. See [episode-format-v2.md](episode-format-v2.md#transcripts-canonical-in-project-file).
+Boundary word previews combine active cutaway words with `Transcript.archived_words` retained by cuts. Adjacent clips must resolve to the same source transcript; a join between unrelated recordings does not borrow same-timestamp words. All cutaway preview references carry their source identity and a negative `word_index`, which is not an active transcript mutation target. A roll or trim that restores the complete word span returns that word and its metadata to the active transcript before rebuilding combined text. Partial words remain archived. Older cuts with no stored archive still require History recovery. Precision-boundary limits use each clip's selected recording duration and compare neighboring source positions only when their resolved media paths match, including an explicit source that aliases primary media. A recording with no known duration cannot expand past its current out-point. A preview token covers the selected track's render state, selected media revisions, and source transcript metadata that a proposed expansion might restore. A stale Apply conflicts before history or project changes. See [episode-format-v2.md](episode-format-v2.md#transcripts-canonical-in-project-file).
+
+The host `POST /api/boundary/context` and edit-share `POST /api/review/{token}/daw/boundary/context` accept a typed trim or roll target plus the clip geometry the editor displays. They return finite legal bounds and reject a changed visible clip with 409. Only the host can use `POST /api/boundary/audition`: it checks that context token, copies the saved project, applies the existing timeline operation to the copy, and has `PlayService` render separate current and proposed windows for the affected track. These WAVs include that track's edits, selected recordings, joins, fades, FX, staging gain and fader; they are labelled as track audio rather than the full episode mix. A bounded `artifacts/play_cache/` entry holds each exact-geometry render. A host-authorized `GET /api/boundary/audition/{id}/{side}` serves only issued entries with HTTP Range support and rechecks the preview token. Rendered drafts do not write the project, history, document journal, stems or premix. Every `TrimClipEdge` and `RollClipJoin` command requires `expected_token`, checked within the workspace transaction before mutation or history. Quick drags obtain it from context using their captured visible geometry; CLI and MCP trim obtain it within their project transaction. An unchanged precision Apply leaves the saved project and history untouched, though its document command receives a normal journal acknowledgment.
 
 **Applied edits:** legacy `editorial.edit_log` rows missing `timeline_*` are remapped for the view from source clocks (first `track_ids` entry) in the assembler — view-only; the on-disk edit log is not rewritten. The lane's applied-edit ticks do not use `timeline_*` at all (#527): they come from `params.per_track_source` (`ripple_delete`/`punch_delete`/`approve_edits`/`apply_prefix_edits`), `params.split_source_by_track` (`split_clips_at`/`approve_split`), or the record's own `source_start`/`source_end`, projected through the track's current clips.
 
@@ -550,12 +552,22 @@ readable text roles rather than reducing the opacity of the entire surface. See 
 [GUI surface audit](gui-surface-audit.md) for tested states and limitations.
 
 Transcript edit-boundary gestures freeze the starting source bounds and button
-rectangle. The glyph retains its inline size and translates by the clamped delta.
+rectangle. The glyph retains its inline size and follows the clamped horizontal
+drag; limit feedback and the committed value use that source-safe delta.
 A bounded body portal displays roll/trim intent, precise delta, restored-word
 side, legal limits, and cancellation instructions without changing transcript
 flow. Focus departure, ancestor scroll, or resize cancels stale placement.
-Pointer up commits once. Pointer cancellation, lost capture, window blur, Escape,
-and unmount discard the preview and release capture, listeners, and drag locks.
+Dragging past the activation threshold commits on pointer up; a tap or native
+keyboard activation opens the host-only precision dialog instead. It edits a
+signed offset with 10 ms and 1 ms nudges and shows source positions, legal
+bounds, and full versus partial archived-word restoration. Its **Listen current**
+and **Listen proposed** controls play separately rendered windows of the affected
+track through the existing transport. Changing the draft or closing the dialog
+stops that local audio. Apply carries the audition revision so an intervening
+change conflicts before save; an offline command is labelled queued for sync.
+Cancel and an unchanged Apply create no project history. Pointer cancellation,
+lost capture, window blur, Escape, and unmount discard a drag preview and
+release capture, listeners, and drag locks.
 Pending commits block another gesture on that handle and show saving feedback.
 Rejected commits show a scrollable alert with Dismiss and focus restoration.
 Focused component tests, live-project touch and geometry tests, and word-bearing

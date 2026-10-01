@@ -970,6 +970,81 @@
         "title": "ApproveEditsPayload",
         "type": "object"
       },
+      "BoundaryContextInput": {
+        "properties": {
+          "expected_geometry": {
+            "items": {
+              "$ref": "#/components/schemas/ClipGeometry"
+            },
+            "title": "Expected Geometry",
+            "type": "array"
+          },
+          "target": {
+            "discriminator": {
+              "mapping": {
+                "roll": "#/components/schemas/RollBoundaryTarget",
+                "trim": "#/components/schemas/TrimBoundaryTarget"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TrimBoundaryTarget"
+              },
+              {
+                "$ref": "#/components/schemas/RollBoundaryTarget"
+              }
+            ],
+            "title": "Target"
+          }
+        },
+        "required": [
+          "target",
+          "expected_geometry"
+        ],
+        "title": "BoundaryContextInput",
+        "type": "object"
+      },
+      "ClipGeometry": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "source_end": {
+            "title": "Source End",
+            "type": "number"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          },
+          "source_start": {
+            "title": "Source Start",
+            "type": "number"
+          },
+          "timeline_start": {
+            "title": "Timeline Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "source_start",
+          "source_end",
+          "timeline_start",
+          "source_id"
+        ],
+        "title": "ClipGeometry",
+        "type": "object"
+      },
       "ClipJoinMode": {
         "description": "How an incoming clip meets the previous clip at render time.",
         "enum": [
@@ -3260,6 +3335,30 @@
         "title": "RippleDeleteRangePayload",
         "type": "object"
       },
+      "RollBoundaryTarget": {
+        "properties": {
+          "kind": {
+            "const": "roll",
+            "default": "roll",
+            "title": "Kind",
+            "type": "string"
+          },
+          "left_clip_id": {
+            "title": "Left Clip Id",
+            "type": "string"
+          },
+          "right_clip_id": {
+            "title": "Right Clip Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "left_clip_id",
+          "right_clip_id"
+        ],
+        "title": "RollBoundaryTarget",
+        "type": "object"
+      },
       "RollClipJoinCommand": {
         "properties": {
           "causation_id": {
@@ -3357,15 +3456,9 @@
             "type": "number"
           },
           "expected_token": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expected Token"
+            "minLength": 1,
+            "title": "Expected Token",
+            "type": "string"
           },
           "left_clip_id": {
             "title": "Left Clip Id",
@@ -3379,7 +3472,8 @@
         "required": [
           "left_clip_id",
           "right_clip_id",
-          "delta_sec"
+          "delta_sec",
+          "expected_token"
         ],
         "title": "RollClipJoinPayload",
         "type": "object"
@@ -5421,6 +5515,34 @@
         "title": "SuggestPendingEditPayload",
         "type": "object"
       },
+      "TrimBoundaryTarget": {
+        "properties": {
+          "clip_id": {
+            "title": "Clip Id",
+            "type": "string"
+          },
+          "edge": {
+            "enum": [
+              "in",
+              "out"
+            ],
+            "title": "Edge",
+            "type": "string"
+          },
+          "kind": {
+            "const": "trim",
+            "default": "trim",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "clip_id",
+          "edge"
+        ],
+        "title": "TrimBoundaryTarget",
+        "type": "object"
+      },
       "TrimClipEdgeCommand": {
         "properties": {
           "causation_id": {
@@ -5526,15 +5648,9 @@
             "type": "string"
           },
           "expected_token": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expected Token"
+            "minLength": 1,
+            "title": "Expected Token",
+            "type": "string"
           },
           "mode": {
             "const": "ripple",
@@ -5550,7 +5666,8 @@
         "required": [
           "clip_id",
           "edge",
-          "source_sec"
+          "source_sec",
+          "expected_token"
         ],
         "title": "TrimClipEdgePayload",
         "type": "object"
@@ -7082,6 +7199,55 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/boundary/context": {
+      "post": {
+        "description": "Resolve a guarded quick-edit revision for an edit-capable share.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BoundaryContextInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
               }
             },
             "description": "Successful Response"

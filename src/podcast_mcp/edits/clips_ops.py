@@ -400,6 +400,8 @@ def trim_clip_edge(
     """
     if mode != "ripple":
         raise ValueError(f"unsupported trim mode: {mode!r}")
+    if not math.isfinite(source_sec):
+        raise ValueError("source_sec must be finite")
     if edge not in ("in", "out"):
         raise ValueError(f"edge must be 'in' or 'out', got {edge!r}")
 
@@ -534,6 +536,8 @@ def roll_clip_join(
     unchanged so later clips do not ripple. Cutaway gap size is preserved when
     both edges move equally.
     """
+    if not math.isfinite(delta_sec):
+        raise ValueError("delta_sec must be finite")
     left, right, _, _ = neighbour_clips(project, left_clip_id, right_clip_id)
 
     lo, hi = roll_join_limits(project, left_clip_id, right_clip_id)
