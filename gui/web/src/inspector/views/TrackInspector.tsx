@@ -19,6 +19,8 @@ import {
   DefinitionList,
   FieldRow,
   InspectorSeekFooterView,
+  Menu,
+  MenuItem,
 } from "../../ui";
 import { GUESTS_HEAR_FULL_MIX } from "../../utils/auditionModes";
 import { formatEffectParams } from "../../utils/effectParams";
@@ -58,6 +60,7 @@ export function TrackInspector({
   const [label, setLabel] = useState(track.label);
   const [speaker, setSpeaker] = useState(track.speaker ?? "");
   const [role, setRole] = useState(track.role);
+  const [trackMenuOpen, setTrackMenuOpen] = useState(false);
 
   useEffect(() => {
     setLabel(track.label);
@@ -135,13 +138,23 @@ export function TrackInspector({
       </div>
       {editable ? (
         <div className="modifier-footer-actions">
-          <Button
-            disabled={busy}
-            title="Apply the recommended fade at every join on this track"
-            onClick={() => void smoothJoins()}
+          <Menu
+            open={trackMenuOpen}
+            onOpenChange={setTrackMenuOpen}
+            label="Track actions"
+            trigger={(props) => <Button {...props}>Track actions</Button>}
           >
-            Smooth all joins on this track
-          </Button>
+            <MenuItem
+              disabled={busy}
+              title="Apply the recommended fade at every join on this track"
+              onSelect={() => {
+                setTrackMenuOpen(false);
+                void smoothJoins();
+              }}
+            >
+              Smooth all joins
+            </MenuItem>
+          </Menu>
         </div>
       ) : null}
       {mayIngest ? (

@@ -103,7 +103,7 @@ test.describe("Sharecut Studio mobile smoke", () => {
       expect(lane.size[0], lane.name).toBeGreaterThanOrEqual(44);
       expect(lane.size[1], lane.name).toBeGreaterThanOrEqual(44);
       await expect(
-        page.locator(".clip-label-track", { hasText: lane.name }).first(),
+        page.locator(".clip-label", { hasText: lane.name }).first(),
       ).toBeVisible();
     }
     const edges = new Set(lanes.map((lane) => lane.edge));
@@ -134,6 +134,16 @@ test.describe("Sharecut Studio mobile smoke", () => {
     await expect(
       sheet.getByRole("button", { name: "Move track up" }),
     ).toHaveCount(0);
+    const trackActions = sheet.getByRole("button", { name: "Track actions" });
+    await trackActions.scrollIntoViewIfNeeded();
+    const triggerBox = await trackActions.boundingBox();
+    expect(triggerBox?.height).toBeGreaterThanOrEqual(44);
+    await trackActions.click();
+    const smooth = page.getByRole("menuitem", { name: "Smooth all joins" });
+    await smooth.scrollIntoViewIfNeeded();
+    await expect(smooth).toBeVisible();
+    const smoothBox = await smooth.boundingBox();
+    expect(smoothBox?.height).toBeGreaterThanOrEqual(44);
     await expectPageAxeClean(page);
   });
 

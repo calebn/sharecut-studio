@@ -70,6 +70,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const [previewMode, setPreviewMode] = useState<PreviewMode>(
     skipOk ? "suggested" : "current",
   );
+  const [snapToSilence, setSnapToSilence] = useState(true);
   const [startStr, setStartStr] = useState(formatTimeMs(edit.source_start));
   const [endStr, setEndStr] = useState(formatTimeMs(edit.source_end));
   const [tracksStr, setTracksStr] = useState(
@@ -104,6 +105,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     setEndStr(formatTimeMs(edit.source_end));
     setTracksStr((edit.track_ids ?? [edit.track_id]).join(", "));
     setAskBody("");
+    setSnapToSilence(true);
     setPreviewMode(
       canSuggestSkip({
         type: edit.type,
@@ -172,7 +174,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
         edit.id,
         start,
         end,
-        !isSplit,
+        !isSplit && snapToSilence,
         isSplit ? trackIds : undefined,
       );
     });
@@ -330,12 +332,23 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 <span id={timeHintId} className="ui-field-hint">
                   m:ss.mmm or seconds
                 </span>
+                <label className="pending-snap-option">
+                  <input
+                    type="checkbox"
+                    checked={snapToSilence}
+                    disabled={busy}
+                    onChange={(event) =>
+                      setSnapToSilence(event.currentTarget.checked)
+                    }
+                  />
+                  Snap to silence
+                </label>
                 <Button
                   className="pending-source-time-apply"
                   disabled={busy}
                   onClick={() => void applyNudge()}
                 >
-                  Snap &amp; apply
+                  Apply timing
                 </Button>
               </FieldRow>
             ) : (

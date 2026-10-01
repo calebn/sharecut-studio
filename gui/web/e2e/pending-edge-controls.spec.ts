@@ -224,6 +224,18 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
   ).toBeVisible();
+  const snapOption = page.getByLabel("Snap to silence");
+  await expect(snapOption).toBeVisible();
+  await expect(snapOption).toBeChecked();
+  const snapOptionGeometry = await page
+    .locator(".pending-snap-option")
+    .evaluate((node) => ({
+      clientWidth: node.clientWidth,
+      scrollWidth: node.scrollWidth,
+    }));
+  expect(snapOptionGeometry.scrollWidth).toBeLessThanOrEqual(
+    snapOptionGeometry.clientWidth,
+  );
   await expect(page.locator(".pending-actionbar")).toBeVisible();
   const editTiming = page
     .locator(".pending-actionbar")
@@ -239,7 +251,7 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   await expect(sourceStart).toBeFocused();
   expect((await sourceStart.boundingBox())?.height).toBeGreaterThanOrEqual(44);
   expect(
-    (await page.getByRole("button", { name: "Snap & apply" }).boundingBox())
+    (await page.getByRole("button", { name: "Apply timing" }).boundingBox())
       ?.height,
   ).toBeGreaterThanOrEqual(44);
   await dragRegion.first().hover();

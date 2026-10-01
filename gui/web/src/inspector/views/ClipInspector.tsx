@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { setClipFade, setClipJoin } from "../../api";
 import { capabilityTooltip } from "../../capabilities/copy";
 import { execute } from "../../commands/execute";
-import { clampClipFades, maxFadeMs } from "../../edit/fadeLimits";
+import { clampFadeMs, edgeFadeMaxMs, maxFadeMs } from "../../edit/fadeLimits";
 import {
   clipIdsBeforeCut,
   cutFadeHint,
@@ -24,34 +24,67 @@ import {
   FieldRow,
   InspectorSeekFooter,
 } from "../../ui";
+import { errorMessage } from "../../utils/apiError";
 import { formatTime } from "../../utils/time";
 import { ModifierInspector } from "../ModifierInspector";
 
+type FadePair = { inMs: number; outMs: number };
+type FadeCapture = {
+  projectPath: string;
+  projectEpoch: number;
+  clipId: string;
+  trackId: string;
+  sourceStart: number;
+  sourceEnd: number;
+  fadeInMs: number;
+  fadeOutMs: number;
+  fadeMaxMs: number | null;
+  edge: "in" | "out";
+};
+type FadeGesture =
+  | { kind: "idle" }
+  | { kind: "preview"; capture: FadeCapture; pair: FadePair }
+  | {
+      kind: "committing";
+      capture: FadeCapture;
+      pair: FadePair;
+      operation: number;
+    };
+
+const IDLE_FADE_GESTURE: FadeGesture = { kind: "idle" };
+const isFadeAdjustmentKey = (key: string) =>
+  [
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "Home",
+    "End",
+    "PageUp",
+    "PageDown",
+  ].includes(key);
+
 export function ClipInspector({ clip }: { clip: ClipRow }) {
-  const { projectPath, guestMode, shareCapabilities } = useDaw((s) => ({
-    projectPath: s.projectPath,
-    guestMode: s.guestMode,
-    shareCapabilities: s.shareCapabilities,
-  }));
+  const { projectPath, projectEpoch, guestMode, shareCapabilities } = useDaw(
+    (s) => ({
+      projectPath: s.projectPath,
+      projectEpoch: s.projectEpoch,
+      guestMode: s.guestMode,
+      shareCapabilities: s.shareCapabilities,
+    }),
+  );
   const { busy, error, setError, run } = useProjectMutation();
-  const [fadeInStr, setFadeInStr] = useState(String(clip.fade_in_ms));
-  const [fadeOutStr, setFadeOutStr] = useState(String(clip.fade_out_ms));
+  const [fadeGesture, setFadeGesture] =
+    useState<FadeGesture>(IDLE_FADE_GESTURE);
+  const fadeGestureRef = useRef<FadeGesture>(IDLE_FADE_GESTURE);
+  const operationRef = useRef(0);
+  const [fadeError, setFadeError] = useState<string | null>(null);
   const [joinLengthStr, setJoinLengthStr] = useState("");
-  const [clamped, setClamped] = useState<{
-    inMs: number;
-    outMs: number;
-  } | null>(null);
 
-  useEffect(() => {
-    setFadeInStr(String(clip.fade_in_ms));
-    setFadeOutStr(String(clip.fade_out_ms));
-    setError(null);
-  }, [clip.id, clip.fade_in_ms, clip.fade_out_ms, setError]);
-
-  useEffect(() => {
-    setClamped(null);
-    setJoinLengthStr("");
-  }, [clip.id]);
+  const changeFadeGesture = (next: FadeGesture) => {
+    fadeGestureRef.current = next;
+    setFadeGesture(next);
+  };
 
   // undefined: the clip's track is not in the view yet (cap unknown);
   // null: the track is uncapped.
@@ -59,17 +92,57 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
     const track = s.project?.tracks.find((t) => t.id === clip.track_id);
     return track === undefined ? undefined : (track.fade_max_ms ?? null);
   });
+  useEffect(() => {
+    const active = fadeGestureRef.current;
+    if (active.kind === "committing") {
+      const capture = active.capture;
+      const state = useDawStore.getState();
+      const sameEditorIdentity =
+        state.projectPath === capture.projectPath &&
+        state.projectEpoch === capture.projectEpoch &&
+        clip.id === capture.clipId &&
+        clip.track_id === capture.trackId &&
+        clip.source_start === capture.sourceStart &&
+        clip.source_end === capture.sourceEnd;
+      if (!sameEditorIdentity) {
+        operationRef.current += 1;
+        changeFadeGesture(IDLE_FADE_GESTURE);
+      }
+    } else if (
+      active.kind === "preview" &&
+      (active.capture.projectPath !== projectPath ||
+        active.capture.projectEpoch !== projectEpoch ||
+        active.capture.clipId !== clip.id ||
+        active.capture.trackId !== clip.track_id ||
+        active.capture.sourceStart !== clip.source_start ||
+        active.capture.sourceEnd !== clip.source_end ||
+        active.capture.fadeInMs !== clip.fade_in_ms ||
+        active.capture.fadeOutMs !== clip.fade_out_ms ||
+        active.capture.fadeMaxMs !== (trackFadeMaxMs ?? null))
+    ) {
+      changeFadeGesture(IDLE_FADE_GESTURE);
+    }
+    setFadeError(null);
+    setError(null);
+  }, [
+    projectPath,
+    projectEpoch,
+    clip.id,
+    clip.track_id,
+    clip.source_start,
+    clip.source_end,
+    clip.fade_in_ms,
+    clip.fade_out_ms,
+    trackFadeMaxMs,
+    setError,
+  ]);
+
+  useEffect(() => {
+    setJoinLengthStr("");
+  }, [clip.id]);
   const capKnown = trackFadeMaxMs !== undefined;
   const clipSec = clip.source_end - clip.source_start;
   const fadeLimitMs = maxFadeMs(clipSec, trackFadeMaxMs);
-  // Shown while the saved lengths are the ones it describes.
-  const clampNotice =
-    clamped &&
-    clamped.inMs === clip.fade_in_ms &&
-    clamped.outMs === clip.fade_out_ms
-      ? `Clamped to ${clamped.inMs} ms in / ${clamped.outMs} ms out`
-      : null;
-
   const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const canStructural = canSuggestStructural(
     projectPath,
@@ -85,41 +158,160 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
       clip.id,
     ),
   );
-  const commitFades = async () => {
-    // An edge at a cut join is disabled: send its stored value unchanged
-    // (the pair clamp below still keeps the two fades inside the clip).
-    const fadeIn = cutIn ? clip.fade_in_ms : Number.parseInt(fadeInStr, 10);
-    const fadeOut = cutOut ? clip.fade_out_ms : Number.parseInt(fadeOutStr, 10);
+  const currentClip = (capture: FadeCapture) => {
+    const state = useDawStore.getState();
+    const stored = state.project?.clips.tracks[capture.trackId]?.find(
+      (row) => row.id === capture.clipId,
+    );
+    const track = state.project?.tracks.find(
+      (row) => row.id === capture.trackId,
+    );
+    return { state, stored, track };
+  };
+  const identityIsCurrent = (capture: FadeCapture) => {
+    const { state, stored, track } = currentClip(capture);
+    return (
+      state.projectPath === capture.projectPath &&
+      state.projectEpoch === capture.projectEpoch &&
+      stored?.track_id === capture.trackId &&
+      stored.source_start === capture.sourceStart &&
+      stored.source_end === capture.sourceEnd &&
+      (track?.fade_max_ms ?? null) === capture.fadeMaxMs
+    );
+  };
+  const savedPairIsCurrent = (capture: FadeCapture) => {
+    const { stored } = currentClip(capture);
+    return (
+      identityIsCurrent(capture) &&
+      stored?.fade_in_ms === capture.fadeInMs &&
+      stored.fade_out_ms === capture.fadeOutMs
+    );
+  };
+  const visibleFadePair =
+    fadeGesture.kind === "preview"
+      ? fadeGesture.pair
+      : fadeGesture.kind === "committing" &&
+          savedPairIsCurrent(fadeGesture.capture)
+        ? fadeGesture.pair
+        : { inMs: clip.fade_in_ms, outMs: clip.fade_out_ms };
+  const isFadeBusy = fadeGesture.kind === "committing";
+  const clipMutationBusy = busy || isFadeBusy;
+
+  const beginFadeGesture = (edge: FadeCapture["edge"]) => {
     if (
-      !Number.isFinite(fadeIn) ||
-      !Number.isFinite(fadeOut) ||
-      fadeIn < 0 ||
-      fadeOut < 0
+      !editable ||
+      !capKnown ||
+      busy ||
+      fadeGestureRef.current.kind !== "idle"
+    )
+      return;
+    const state = useDawStore.getState();
+    const stored = state.project?.clips.tracks[clip.track_id]?.find(
+      (row) => row.id === clip.id,
+    );
+    if (
+      !stored ||
+      stored.source_start !== clip.source_start ||
+      stored.source_end !== clip.source_end ||
+      stored.fade_in_ms !== clip.fade_in_ms ||
+      stored.fade_out_ms !== clip.fade_out_ms
     ) {
-      setError("Fade times must be non-negative integers (ms)");
       return;
     }
-    if (!capKnown) {
+    const capture: FadeCapture = {
+      projectPath: state.projectPath,
+      projectEpoch: state.projectEpoch,
+      clipId: clip.id,
+      trackId: clip.track_id,
+      sourceStart: clip.source_start,
+      sourceEnd: clip.source_end,
+      fadeInMs: clip.fade_in_ms,
+      fadeOutMs: clip.fade_out_ms,
+      fadeMaxMs: trackFadeMaxMs,
+      edge,
+    };
+    changeFadeGesture({ kind: "preview", capture, pair: visibleFadePair });
+  };
+  const previewFadeValue = (edge: FadeCapture["edge"], rawValue: number) => {
+    const active = fadeGestureRef.current;
+    if (active.kind !== "preview" || active.capture.edge !== edge) return;
+    const max = edgeFadeMaxMs(
+      clipSec,
+      trackFadeMaxMs,
+      edge === "in" ? active.pair.outMs : active.pair.inMs,
+    );
+    const value = clampFadeMs(rawValue, max);
+    const pair =
+      edge === "in"
+        ? { ...active.pair, inMs: value }
+        : { ...active.pair, outMs: value };
+    changeFadeGesture({ ...active, pair });
+  };
+  const cancelFadeGesture = () => {
+    const active = fadeGestureRef.current;
+    if (active.kind !== "preview") return;
+    if (identityIsCurrent(active.capture)) {
+      setFadeError(null);
+    }
+    changeFadeGesture(IDLE_FADE_GESTURE);
+  };
+  const commitFadeGesture = async (edge?: FadeCapture["edge"]) => {
+    const active = fadeGestureRef.current;
+    if (active.kind !== "preview" || (edge && active.capture.edge !== edge)) {
       return;
     }
-    const next = clampClipFades(fadeIn, fadeOut, clipSec, trackFadeMaxMs);
-    setClamped(null);
-    const saved = await run(async () => {
-      await setClipFade(projectPath, clip.id, next.inMs, next.outMs);
-      return true;
-    });
-    if (!saved) {
-      // Keep the typed values next to the error; nothing was stored.
+    const { capture, pair } = active;
+    if (pair.inMs === capture.fadeInMs && pair.outMs === capture.fadeOutMs) {
+      changeFadeGesture(IDLE_FADE_GESTURE);
       return;
     }
-    // Show what the server stored: the reset effect only reruns when the
-    // clip's committed lengths change.
-    setFadeInStr(String(next.inMs));
-    setFadeOutStr(String(next.outMs));
-    if (next.inMs !== fadeIn || next.outMs !== fadeOut) {
-      setClamped(next);
+    if (!savedPairIsCurrent(capture)) {
+      cancelFadeGesture();
+      return;
+    }
+    const operation = ++operationRef.current;
+    changeFadeGesture({ kind: "committing", capture, pair, operation });
+    setFadeError(null);
+    try {
+      await setClipFade(
+        capture.projectPath,
+        capture.clipId,
+        pair.inMs,
+        pair.outMs,
+      );
+      const currentGesture = fadeGestureRef.current;
+      if (
+        currentGesture.kind === "committing" &&
+        currentGesture.operation === operation
+      ) {
+        changeFadeGesture(IDLE_FADE_GESTURE);
+      }
+    } catch (error) {
+      const currentGesture = fadeGestureRef.current;
+      if (
+        currentGesture.kind === "committing" &&
+        currentGesture.operation === operation
+      ) {
+        if (savedPairIsCurrent(capture)) {
+          setFadeError(errorMessage(error));
+        }
+        changeFadeGesture(IDLE_FADE_GESTURE);
+      }
     }
   };
+  const startKeyFade = (edge: FadeCapture["edge"], key: string) => {
+    if (!isFadeAdjustmentKey(key)) {
+      return;
+    }
+    if (fadeGestureRef.current.kind === "idle") beginFadeGesture(edge);
+  };
+
+  useEffect(
+    () => () => {
+      fadeGestureRef.current = IDLE_FADE_GESTURE;
+    },
+    [],
+  );
 
   const leftClipId = clip.join_left_clip_id ?? null;
   const fadeHint = cutFadeHint(cutIn, cutOut);
@@ -127,7 +319,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
 
   // Empty length lets the server pick the mode's default; a typed length is used once.
   const commitJoin = async (mode: string, lengthStr: string) => {
-    if (leftClipId === null) {
+    if (clipMutationBusy || leftClipId === null) {
       return;
     }
     const trimmed = lengthStr.trim();
@@ -153,6 +345,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
   };
 
   const runDelete = async (ripple: boolean) => {
+    if (clipMutationBusy) return;
     await run(async () => {
       const result = await execute(
         ripple ? "edit.rippleDelete" : "edit.delete",
@@ -170,6 +363,14 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
   };
 
   const joinSec = clip.timeline_start;
+  const trackIdentity = useDawStore((state) =>
+    state.project?.tracks.find((track) => track.id === clip.track_id),
+  );
+  const speakerLabel =
+    trackIdentity?.speaker?.trim() ||
+    trackIdentity?.label?.trim() ||
+    trackIdentity?.id ||
+    clip.track_id;
 
   const primaryActions = [];
   if (canStructural) {
@@ -177,13 +378,13 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
       {
         label: "Delete",
         variant: "danger" as const,
-        disabled: busy,
+        disabled: clipMutationBusy,
         onClick: () => void runDelete(false),
       },
       {
         label: "Ripple delete",
         variant: "danger" as const,
-        disabled: busy,
+        disabled: clipMutationBusy,
         onClick: () => void runDelete(true),
       },
     );
@@ -192,10 +393,10 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
   return (
     <ModifierInspector
       badge="Clip"
-      title="Clip"
+      title={`${speakerLabel} clip`}
       subtitle={clip.id}
       primaryActions={primaryActions.length ? primaryActions : undefined}
-      error={error}
+      error={error ?? fadeError}
       footer={
         <InspectorSeekFooter
           seekSec={joinSec}
@@ -217,43 +418,80 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
         </DefItem>
         <DefItem label="Fades">
           {editable ? (
-            <FieldRow>
-              <input
-                type="number"
-                min={0}
-                max={capKnown ? fadeLimitMs : undefined}
-                step={1}
-                value={fadeInStr}
-                disabled={busy || cutIn}
-                aria-label="Fade in ms"
-                onChange={(e) => setFadeInStr(e.target.value)}
-              />
-              <span>ms in /</span>
-              <input
-                type="number"
-                min={0}
-                max={capKnown ? fadeLimitMs : undefined}
-                step={1}
-                value={fadeOutStr}
-                disabled={busy || cutOut}
-                aria-label="Fade out ms"
-                onChange={(e) => setFadeOutStr(e.target.value)}
-              />
-              <span>ms out</span>
+            <div className="clip-fade-controls">
+              {(["in", "out"] as const).map((edge) => {
+                const incoming = edge === "in";
+                const fadeKey = incoming ? "inMs" : "outMs";
+                const oppositeKey = incoming ? "outMs" : "inMs";
+                const edgeCut = incoming ? cutIn : cutOut;
+                const edgeValue = visibleFadePair[fadeKey];
+                const activePreview =
+                  fadeGesture.kind === "preview" &&
+                  fadeGesture.capture.edge !== edge;
+                return (
+                  <label className="clip-fade-control" key={edge}>
+                    <span>{incoming ? "In" : "Out"}</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={edgeFadeMaxMs(
+                        clipSec,
+                        trackFadeMaxMs,
+                        visibleFadePair[oppositeKey],
+                      )}
+                      step={1}
+                      value={edgeValue}
+                      disabled={
+                        clipMutationBusy ||
+                        activePreview ||
+                        !capKnown ||
+                        edgeCut
+                      }
+                      aria-label={`Fade ${edge} ms`}
+                      onPointerDown={() => beginFadeGesture(edge)}
+                      onPointerUp={() => void commitFadeGesture(edge)}
+                      onPointerCancel={cancelFadeGesture}
+                      onLostPointerCapture={cancelFadeGesture}
+                      onBlur={() => {
+                        if (fadeGestureRef.current.kind === "preview") {
+                          void commitFadeGesture(edge);
+                        }
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          cancelFadeGesture();
+                        } else {
+                          startKeyFade(edge, event.key);
+                        }
+                      }}
+                      onKeyUp={(event) => {
+                        if (isFadeAdjustmentKey(event.key)) {
+                          void commitFadeGesture(edge);
+                        }
+                      }}
+                      onChange={(event) => {
+                        if (fadeGestureRef.current.kind === "idle") {
+                          beginFadeGesture(edge);
+                        }
+                        previewFadeValue(
+                          edge,
+                          Number(event.currentTarget.value),
+                        );
+                      }}
+                    />
+                    <output>{edgeValue} ms</output>
+                  </label>
+                );
+              })}
               {capKnown ? (
                 <span className="ui-field-hint" role="status">
-                  {[fadeHint, clampNotice ?? `max ${fadeLimitMs} ms`]
+                  {[fadeHint, `max ${fadeLimitMs} ms`]
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
               ) : null}
-              <Button
-                disabled={busy || !capKnown || (cutIn && cutOut)}
-                onClick={() => void commitFades()}
-              >
-                Apply fades
-              </Button>
-            </FieldRow>
+            </div>
           ) : (
             <>
               in {clip.fade_in_ms} ms / out {clip.fade_out_ms} ms
@@ -261,13 +499,13 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
           )}
         </DefItem>
         {leftClipId !== null ? (
-          <DefItem label="Join">
+          <DefItem label="Incoming transition">
             {editable ? (
               <FieldRow>
                 <select
                   value={clip.join_in_mode}
-                  disabled={busy}
-                  aria-label="Join mode"
+                  disabled={clipMutationBusy}
+                  aria-label="Incoming transition"
                   title={capabilityTooltip("daw.edit.setClipJoin")}
                   onChange={(e) =>
                     void commitJoin(e.target.value, joinLengthStr)
@@ -287,18 +525,18 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
                       step={1}
                       value={joinLengthStr}
                       placeholder="default"
-                      disabled={busy}
-                      aria-label="Join length ms"
+                      disabled={clipMutationBusy}
+                      aria-label="Transition length ms"
                       onChange={(e) => setJoinLengthStr(e.target.value)}
                     />
                     <span>ms</span>
                     <Button
-                      disabled={busy || joinLengthStr.trim() === ""}
+                      disabled={clipMutationBusy || joinLengthStr.trim() === ""}
                       onClick={() =>
                         void commitJoin(clip.join_in_mode, joinLengthStr)
                       }
                     >
-                      Apply length
+                      Apply transition length
                     </Button>
                   </>
                 )}
@@ -306,6 +544,9 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
             ) : (
               joinModeLabel(clip.join_in_mode)
             )}
+            <span className="ui-field-hint" role="status">
+              Controls the incoming join from the previous clip into this one.
+            </span>
             {joinNote ? (
               <span className="ui-field-hint" role="status">
                 {joinNote}

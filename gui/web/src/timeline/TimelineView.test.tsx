@@ -687,7 +687,7 @@ describe("TimelineView lane fit", () => {
       );
       const lane = (id: string) =>
         container.querySelector(`.lane-row[data-track-id="${id}"]`) as Element;
-      const hit = getByRole("button", { name: "Select clip c1" });
+      const hit = getByRole("button", { name: /^Select clip c1,/ });
 
       document.elementFromPoint = () => lane("guest");
       fireEvent.pointerDown(hit, { pointerId: 1, clientX: 100, clientY: 10 });
@@ -736,7 +736,7 @@ describe("TimelineView lane fit", () => {
       );
       const lane = (id: string) =>
         container.querySelector(`.lane-row[data-track-id="${id}"]`) as Element;
-      const hit = getByRole("button", { name: "Select clip c1" });
+      const hit = getByRole("button", { name: /^Select clip c1,/ });
 
       document.elementFromPoint = () => lane("guest");
       fireEvent.pointerDown(hit, { pointerId: 1, clientX: 100, clientY: 10 });
@@ -910,7 +910,7 @@ describe("TimelineView render isolation", () => {
     // overlay slices keep every other track's slice by reference too.
     expect(renders.lanes).toEqual(["host"]);
     const block = screen
-      .getByRole("button", { name: "Select clip host-2" })
+      .getByRole("button", { name: /^Select clip host-2,/ })
       .closest(".clip-block");
     expect(block?.querySelector(".clip-fade-line")).not.toBeNull();
     // The snapshot path built new objects instead of mutating the old ones.

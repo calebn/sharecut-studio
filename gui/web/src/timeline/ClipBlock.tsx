@@ -57,6 +57,8 @@ export interface ClipBlockProps {
   /** Track name; shown on the clip label only where the header rail is too
    *  narrow to name the lane (phone). */
   trackLabel?: string;
+  /** Speaker identity from the clip's origin track, for labels and names. */
+  trackSpeaker?: string;
   zoomPxPerSec: number;
   /** The server's edge-fade cap for this track (TrackView.fade_max_ms). */
   fadeMaxMs?: number | null;
@@ -157,6 +159,7 @@ export function ClipBlockLive({
   trackId,
   role,
   trackLabel,
+  trackSpeaker,
   zoomPxPerSec,
   fadeMaxMs = null,
   color,
@@ -702,6 +705,7 @@ export function ClipBlockLive({
       clip={clip}
       role={role}
       trackLabel={trackLabel}
+      trackSpeaker={trackSpeaker}
       zoomPxPerSec={zoomPxPerSec}
       color={color}
       selected={selected}

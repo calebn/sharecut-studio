@@ -45,6 +45,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "timeline/EnvelopeOverlayView.tsx",
   // Escape cancels only this region's active pointer gesture.
   "timeline/PendingEditOverlayView.tsx",
+  // Clip range keys update a local paired preview; Escape cancels that preview.
+  "inspector/views/ClipInspector.tsx",
   "inspector/views/TranscriptWordInspector.tsx",
   "transcript/InlineWordEditor.tsx",
   "transcript/TranscriptWordbar.tsx",

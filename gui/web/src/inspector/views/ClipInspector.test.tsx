@@ -1,4 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipFade, setClipJoin } from "../../api";
@@ -27,78 +33,124 @@ const clip: ClipRow = {
   source_id: null,
 };
 
-async function applyFades(value: string) {
-  const user = userEvent.setup();
-  const input = screen.getByLabelText("Fade in ms");
-  await user.clear(input);
-  await user.type(input, value);
-  await user.click(screen.getByRole("button", { name: "Apply fades" }));
+function hydrateClipProject(
+  track: ReturnType<typeof sampleTrack>,
+  savedClip: ClipRow = clip,
+) {
+  useDawStore.getState().hydrate(
+    "/tmp/ep.json",
+    minimalProject({
+      tracks: [track],
+      clips: { tracks: { [savedClip.track_id]: [savedClip] }, clip_count: 1 },
+    }),
+  );
+}
+
+async function dragFade(edge: "in" | "out", value: number) {
+  const input = screen.getByLabelText(`Fade ${edge} ms`);
+  fireEvent.pointerDown(input, { pointerId: 1 });
+  fireEvent.change(input, { target: { value: String(value) } });
+  fireEvent.pointerUp(input, { pointerId: 1 });
+  await waitFor(() => expect(setClipFade).toHaveBeenCalled());
 }
 
 describe("ClipInspector fades", () => {
   beforeEach(() => {
-    vi.mocked(setClipFade).mockClear();
+    vi.mocked(setClipFade).mockReset().mockResolvedValue(undefined);
   });
 
   it("clamps to the dialogue track's cap and has no axe violations", async () => {
-    useDawStore
-      .getState()
-      .hydrate(
-        "/tmp/ep.json",
-        minimalProject({ tracks: [sampleTrack({ fade_max_ms: 40 })] }),
-      );
+    hydrateClipProject(sampleTrack({ fade_max_ms: 40 }));
     const { container } = render(<ClipInspector clip={clip} />);
     expect(screen.getByLabelText("Fade in ms")).toHaveAttribute("max", "40");
     expect(screen.getByText("max 40 ms")).toBeInTheDocument();
-    await applyFades("500");
+    await dragFade("in", 40);
     expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 40, 0);
     await expectNoA11yViolations(container);
   });
 
   it("clamps an uncapped track to the clip length", async () => {
-    useDawStore.getState().hydrate(
-      "/tmp/ep.json",
-      minimalProject({
-        tracks: [sampleTrack({ role: "music", fade_max_ms: null })],
-      }),
+    const shortClip = { ...clip, source_end: 0.2 };
+    hydrateClipProject(
+      sampleTrack({ role: "music", fade_max_ms: null }),
+      shortClip,
     );
-    render(<ClipInspector clip={{ ...clip, source_end: 0.2 }} />);
-    await applyFades("500");
+    render(<ClipInspector clip={shortClip} />);
+    await dragFade("in", 200);
     expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 200, 0);
   });
 
-  it("keeps both fades inside the clip", async () => {
-    useDawStore.getState().hydrate(
-      "/tmp/ep.json",
-      minimalProject({
-        tracks: [sampleTrack({ role: "music", fade_max_ms: null })],
-      }),
+  it("previews a fade edge, commits one pair, and preserves the stationary edge", async () => {
+    const shortClip = { ...clip, source_end: 0.2, fade_out_ms: 30 };
+    hydrateClipProject(
+      sampleTrack({ role: "music", fade_max_ms: null }),
+      shortClip,
     );
-    const user = userEvent.setup();
-    render(<ClipInspector clip={{ ...clip, source_end: 0.2 }} />);
+    render(<ClipInspector clip={shortClip} />);
     const fadeIn = screen.getByLabelText("Fade in ms");
-    await user.clear(fadeIn);
-    await user.type(fadeIn, "150");
-    const fadeOut = screen.getByLabelText("Fade out ms");
-    await user.clear(fadeOut);
-    await user.type(fadeOut, "150");
-    await user.click(screen.getByRole("button", { name: "Apply fades" }));
-    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 150, 50);
+    fireEvent.pointerDown(fadeIn, { pointerId: 1 });
+    fireEvent.change(fadeIn, { target: { value: "150" } });
+    expect(fadeIn).toHaveValue("150");
+    expect(screen.getByLabelText("Fade out ms")).toHaveValue("30");
+    expect(setClipFade).not.toHaveBeenCalled();
+    fireEvent.pointerUp(fadeIn, { pointerId: 1 });
+    await waitFor(() => {
+      expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 150, 30);
+    });
+  });
+
+  it("keeps an in-flight fade owner while showing a fresh same-clip pair", async () => {
+    hydrateClipProject(sampleTrack());
+    let resolveSave: (() => void) | undefined;
+    vi.mocked(setClipFade).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    const view = render(<ClipInspector clip={clip} />);
+    const fadeIn = screen.getByLabelText("Fade in ms");
+    fireEvent.pointerDown(fadeIn, { pointerId: 1 });
+    fireEvent.change(fadeIn, { target: { value: "20" } });
+    fireEvent.pointerUp(fadeIn, { pointerId: 1 });
+    await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(1));
+    expect(fadeIn).toBeDisabled();
+
+    const freshClip = { ...clip, fade_in_ms: 7, fade_out_ms: 4 };
+    const project = useDawStore.getState().project;
+    if (!project) throw new Error("expected hydrated project");
+    useDawStore.setState({
+      project: {
+        ...project,
+        clips: {
+          ...project.clips,
+          tracks: { ...project.clips.tracks, host: [freshClip] },
+        },
+      },
+    });
+    view.rerender(<ClipInspector clip={freshClip} />);
+    expect(screen.getByLabelText("Fade in ms")).toHaveValue("7");
+    expect(screen.getByLabelText("Fade out ms")).toHaveValue("4");
+    expect(screen.getByLabelText("Fade in ms")).toBeDisabled();
+    fireEvent.pointerDown(screen.getByLabelText("Fade out ms"), {
+      pointerId: 2,
+    });
+    expect(setClipFade).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolveSave?.());
+    await waitFor(() => {
+      expect(screen.getByLabelText("Fade in ms")).toBeEnabled();
+    });
+    expect(screen.getByLabelText("Fade in ms")).toHaveValue("7");
   });
 
   it("keeps the typed value when the save fails", async () => {
-    useDawStore
-      .getState()
-      .hydrate(
-        "/tmp/ep.json",
-        minimalProject({ tracks: [sampleTrack({ fade_max_ms: 40 })] }),
-      );
+    hydrateClipProject(sampleTrack({ fade_max_ms: 40 }));
     vi.mocked(setClipFade).mockRejectedValueOnce(new Error("boom"));
     render(<ClipInspector clip={clip} />);
-    await applyFades("500");
+    await dragFade("in", 40);
     expect(await screen.findByRole("alert")).toHaveTextContent("boom");
-    expect(screen.getByLabelText("Fade in ms")).toHaveValue(500);
-    expect(screen.queryByText(/^Clamped/)).toBeNull();
+    expect(screen.getByLabelText("Fade in ms")).toHaveValue("0");
   });
 
   it("waits for the clip's track before offering Apply", () => {
@@ -110,25 +162,102 @@ describe("ClipInspector fades", () => {
       );
     render(<ClipInspector clip={clip} />);
     expect(screen.queryByText(/^max /)).toBeNull();
-    expect(screen.getByRole("button", { name: "Apply fades" })).toBeDisabled();
-    expect(screen.getByLabelText("Fade in ms")).not.toHaveAttribute("max");
+    expect(screen.getByLabelText("Fade in ms")).toBeDisabled();
   });
 
-  it("says when it clamped an entry", async () => {
+  it("cancels a pointer-cancelled preview and skips unchanged clicks", () => {
+    hydrateClipProject(sampleTrack());
+    render(<ClipInspector clip={clip} />);
+    const fadeIn = screen.getByLabelText("Fade in ms");
+    fireEvent.pointerDown(fadeIn, { pointerId: 1 });
+    fireEvent.change(fadeIn, { target: { value: "20" } });
+    fireEvent.pointerCancel(fadeIn, { pointerId: 1 });
+    expect(fadeIn).toHaveValue("0");
+    fireEvent.pointerDown(fadeIn, { pointerId: 2 });
+    fireEvent.pointerUp(fadeIn, { pointerId: 2 });
+    expect(setClipFade).not.toHaveBeenCalled();
+  });
+
+  it("commits a keyboard range adjustment on key release", async () => {
+    hydrateClipProject(sampleTrack());
+    render(<ClipInspector clip={clip} />);
+    const fadeIn = screen.getByLabelText("Fade in ms");
+    fireEvent.keyDown(fadeIn, { key: "ArrowRight" });
+    fireEvent.change(fadeIn, { target: { value: "1" } });
+    expect(setClipFade).not.toHaveBeenCalled();
+    fireEvent.keyUp(fadeIn, { key: "ArrowRight" });
+    await waitFor(() => {
+      expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 1, 0);
+    });
+  });
+
+  it("ignores a key release unrelated to the active range adjustment", async () => {
+    hydrateClipProject(sampleTrack());
+    render(<ClipInspector clip={clip} />);
+    const fadeIn = screen.getByLabelText("Fade in ms");
+    fireEvent.keyDown(fadeIn, { key: "ArrowRight" });
+    fireEvent.change(fadeIn, { target: { value: "1" } });
+    fireEvent.keyUp(fadeIn, { key: "Tab" });
+    expect(setClipFade).not.toHaveBeenCalled();
+    fireEvent.keyUp(fadeIn, { key: "ArrowRight" });
+    await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(1));
+  });
+
+  it("ignores a rejected write after switching projects", async () => {
+    hydrateClipProject(sampleTrack());
+    let rejectSave: ((reason: Error) => void) | undefined;
+    vi.mocked(setClipFade).mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSave = reject;
+        }),
+    );
+    const view = render(<ClipInspector clip={clip} />);
+    const fadeIn = screen.getByLabelText("Fade in ms");
+    fireEvent.pointerDown(fadeIn, { pointerId: 1 });
+    fireEvent.change(fadeIn, { target: { value: "20" } });
+    fireEvent.pointerUp(fadeIn, { pointerId: 1 });
+    await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(1));
+
     useDawStore
       .getState()
-      .hydrate(
-        "/tmp/ep.json",
-        minimalProject({ tracks: [sampleTrack({ fade_max_ms: 40 })] }),
-      );
-    const { rerender } = render(<ClipInspector clip={clip} />);
-    await applyFades("500");
-    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c1", 40, 0);
-    rerender(<ClipInspector clip={{ ...clip, fade_in_ms: 40 }} />);
-    expect(
-      screen.getByText("Clamped to 40 ms in / 0 ms out"),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText("Fade in ms")).toHaveValue(40);
+      .hydrate("/tmp/other.json", minimalProject({ tracks: [sampleTrack()] }));
+    view.rerender(<ClipInspector clip={clip} />);
+    await act(async () => rejectSave?.(new Error("old project failed")));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByLabelText("Fade in ms")).toBeEnabled();
+    expect(screen.getByLabelText("Fade in ms")).toHaveValue("0");
+  });
+
+  it("cancels a keyboard preview with Escape", () => {
+    hydrateClipProject(sampleTrack());
+    render(<ClipInspector clip={clip} />);
+    const fadeIn = screen.getByLabelText("Fade in ms");
+    fireEvent.keyDown(fadeIn, { key: "ArrowRight" });
+    fireEvent.change(fadeIn, { target: { value: "1" } });
+    fireEvent.keyDown(fadeIn, { key: "Escape" });
+    expect(fadeIn).toHaveValue("0");
+    expect(setClipFade).not.toHaveBeenCalled();
+  });
+
+  it("commits an ordinary blur once and ignores a completion after project switch", async () => {
+    hydrateClipProject(sampleTrack());
+    render(<ClipInspector clip={clip} />);
+    const fadeIn = screen.getByLabelText("Fade in ms");
+    fireEvent.pointerDown(fadeIn, { pointerId: 1 });
+    fireEvent.change(fadeIn, { target: { value: "20" } });
+    fireEvent.blur(fadeIn);
+    fireEvent.pointerUp(fadeIn, { pointerId: 1 });
+    await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(1));
+
+    vi.mocked(setClipFade).mockClear();
+    fireEvent.pointerDown(fadeIn, { pointerId: 2 });
+    fireEvent.change(fadeIn, { target: { value: "30" } });
+    useDawStore
+      .getState()
+      .hydrate("/tmp/other.json", minimalProject({ tracks: [sampleTrack()] }));
+    fireEvent.pointerUp(fadeIn, { pointerId: 2 });
+    expect(setClipFade).not.toHaveBeenCalled();
   });
 
   it("no longer offers a track-wide fade button", () => {
@@ -141,6 +270,12 @@ describe("ClipInspector fades", () => {
         name: /recommended fades|smooth all joins/i,
       }),
     ).toBeNull();
+  });
+
+  it("uses the track speaker as the clip inspector identity", () => {
+    hydrateClipProject(sampleTrack({ label: "Host track", speaker: "Avery" }));
+    render(<ClipInspector clip={clip} />);
+    expect(screen.getByRole("heading", { name: "Avery clip" })).toBeVisible();
   });
 });
 
@@ -185,15 +320,17 @@ describe("ClipInspector join", () => {
 
   it("hides the join control on a track's first clip", () => {
     render(<ClipInspector clip={{ ...clip, join_left_clip_id: null }} />);
-    expect(screen.queryByLabelText("Join mode")).toBeNull();
+    expect(screen.queryByLabelText("Incoming transition")).toBeNull();
   });
 
   it("sets mode and fades together with the typed length", async () => {
     const user = userEvent.setup();
     const { container } = render(<ClipInspector clip={second} />);
-    expect(screen.getByRole("button", { name: "Apply length" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Apply transition length" }),
+    ).toBeDisabled();
     await user.selectOptions(
-      screen.getByLabelText("Join mode"),
+      screen.getByLabelText("Incoming transition"),
       "Crossfade (overlap both clips)",
     );
     expect(setClipJoin).toHaveBeenLastCalledWith(
@@ -203,8 +340,10 @@ describe("ClipInspector join", () => {
       "crossfade",
       null,
     );
-    await user.type(screen.getByLabelText("Join length ms"), "30");
-    await user.click(screen.getByRole("button", { name: "Apply length" }));
+    await user.type(screen.getByLabelText("Transition length ms"), "30");
+    await user.click(
+      screen.getByRole("button", { name: "Apply transition length" }),
+    );
     expect(setClipJoin).toHaveBeenLastCalledWith(
       "/tmp/ep.json",
       "c1",
@@ -212,30 +351,79 @@ describe("ClipInspector join", () => {
       "fade",
       30,
     );
-    expect(screen.getByRole("button", { name: "Apply length" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Apply transition length" }),
+    ).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Seek join" }).className,
     ).not.toMatch(/link/);
     await expectNoA11yViolations(container);
   });
 
+  it("blocks other clip mutations until a fade save settles", async () => {
+    const user = userEvent.setup();
+    hydrateCutAfter(null, second);
+    let resolveSave: (() => void) | undefined;
+    vi.mocked(setClipFade).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    render(<ClipInspector clip={second} />);
+    await user.type(screen.getByLabelText("Transition length ms"), "25");
+    const fadeIn = screen.getByLabelText("Fade in ms");
+    fireEvent.pointerDown(fadeIn, { pointerId: 1 });
+    fireEvent.change(fadeIn, { target: { value: "1" } });
+    fireEvent.pointerUp(fadeIn, { pointerId: 1 });
+    await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByLabelText("Incoming transition")).toBeDisabled();
+    expect(screen.getByLabelText("Transition length ms")).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Apply transition length" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Ripple delete" }),
+    ).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Incoming transition"), {
+      target: { value: "crossfade" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Apply transition length" }),
+    );
+    expect(setClipJoin).not.toHaveBeenCalled();
+
+    await act(async () => resolveSave?.());
+    await waitFor(() => {
+      expect(screen.getByLabelText("Incoming transition")).toBeEnabled();
+    });
+    expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled();
+  });
+
   it("rejects a zero crossfade length without calling the server", async () => {
     const user = userEvent.setup();
     render(<ClipInspector clip={{ ...second, join_in_mode: "crossfade" }} />);
-    expect(screen.getByLabelText("Join length ms")).toHaveAttribute("min", "1");
-    await user.type(screen.getByLabelText("Join length ms"), "0");
-    await user.click(screen.getByRole("button", { name: "Apply length" }));
+    expect(screen.getByLabelText("Transition length ms")).toHaveAttribute(
+      "min",
+      "1",
+    );
+    await user.type(screen.getByLabelText("Transition length ms"), "0");
+    await user.click(
+      screen.getByRole("button", { name: "Apply transition length" }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent("at least 1 ms");
     expect(setClipJoin).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Join length ms")).toHaveValue(null);
+    expect(screen.getByLabelText("Transition length ms")).toHaveValue(null);
   });
 
   it("rejects a typed 0 when switching to crossfade", async () => {
     const user = userEvent.setup();
     render(<ClipInspector clip={second} />);
-    await user.type(screen.getByLabelText("Join length ms"), "0");
+    await user.type(screen.getByLabelText("Transition length ms"), "0");
     await user.selectOptions(
-      screen.getByLabelText("Join mode"),
+      screen.getByLabelText("Incoming transition"),
       "Crossfade (overlap both clips)",
     );
     expect(await screen.findByRole("alert")).toHaveTextContent("at least 1 ms");
@@ -259,9 +447,8 @@ describe("ClipInspector join", () => {
     render(<ClipInspector clip={{ ...second, join_in_mode: "cut" }} />);
     expect(screen.getByLabelText("Fade in ms")).toBeDisabled();
     expect(screen.getByLabelText("Fade out ms")).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Apply fades" })).toBeEnabled();
     expect(screen.getByText(/Fade in ignored/)).toBeInTheDocument();
-    expect(screen.queryByLabelText("Join length ms")).toBeNull();
+    expect(screen.queryByLabelText("Transition length ms")).toBeNull();
     expect(screen.getByText(/hard cut/)).toBeInTheDocument();
   });
 
@@ -278,7 +465,7 @@ describe("ClipInspector join", () => {
     );
     expect(screen.getByLabelText("Fade in ms")).toBeEnabled();
     expect(screen.queryByText(/Fade in ignored/)).toBeNull();
-    expect(screen.queryByLabelText("Join mode")).toBeNull();
+    expect(screen.queryByLabelText("Incoming transition")).toBeNull();
   });
 
   it("disables the fade-out when the next join is a cut", () => {
@@ -303,18 +490,14 @@ describe("ClipInspector join", () => {
     expect(screen.getByText(/Fade out ignored/)).toBeInTheDocument();
   });
 
-  it("shows the clamp notice next to the cut hint", async () => {
+  it("shows the fade cap next to the cut hint", async () => {
     hydrateCutAfter(40, second);
-    const { rerender } = render(<ClipInspector clip={second} />);
+    render(<ClipInspector clip={second} />);
     expect(
       screen.getByText(/Fade out ignored.* · max 40 ms/),
     ).toBeInTheDocument();
-    await applyFades("100");
+    await dragFade("in", 40);
     expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 40, 0);
-    rerender(<ClipInspector clip={{ ...second, fade_in_ms: 40 }} />);
-    expect(
-      screen.getByText(/Fade out ignored.* · Clamped to 40 ms/),
-    ).toBeInTheDocument();
   });
 
   it("sends the ignored fade-out unchanged", async () => {
@@ -322,25 +505,26 @@ describe("ClipInspector join", () => {
     hydrateCutAfter(null, left);
     vi.mocked(setClipFade).mockClear();
     render(<ClipInspector clip={left} />);
-    await applyFades("20");
+    await dragFade("in", 20);
     expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 20, 30);
   });
 
-  it("trims the ignored fade-out only so the fades fit the clip", async () => {
+  it("preserves the stationary fade while the available edge range shrinks", async () => {
     const left = { ...second, source_end: 0.05, fade_out_ms: 30 };
     hydrateCutAfter(null, left);
     vi.mocked(setClipFade).mockClear();
     render(<ClipInspector clip={left} />);
-    await applyFades("40");
-    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 40, 10);
+    expect(screen.getByLabelText("Fade in ms")).toHaveAttribute("max", "20");
+    await dragFade("in", 20);
+    expect(setClipFade).toHaveBeenCalledWith("/tmp/ep.json", "c2", 20, 30);
   });
 
   it("uses a typed length once, then the mode default", async () => {
     const user = userEvent.setup();
     render(<ClipInspector clip={second} />);
-    await user.type(screen.getByLabelText("Join length ms"), "40");
+    await user.type(screen.getByLabelText("Transition length ms"), "40");
     await user.selectOptions(
-      screen.getByLabelText("Join mode"),
+      screen.getByLabelText("Incoming transition"),
       "Crossfade (overlap both clips)",
     );
     expect(setClipJoin).toHaveBeenLastCalledWith(
@@ -350,9 +534,9 @@ describe("ClipInspector join", () => {
       "crossfade",
       40,
     );
-    expect(screen.getByLabelText("Join length ms")).toHaveValue(null);
+    expect(screen.getByLabelText("Transition length ms")).toHaveValue(null);
     await user.selectOptions(
-      screen.getByLabelText("Join mode"),
+      screen.getByLabelText("Incoming transition"),
       "Cut (no fade)",
     );
     expect(setClipJoin).toHaveBeenLastCalledWith(
@@ -367,8 +551,10 @@ describe("ClipInspector join", () => {
   it("rejects a bad length without calling the server", async () => {
     const user = userEvent.setup();
     render(<ClipInspector clip={second} />);
-    await user.type(screen.getByLabelText("Join length ms"), "-5");
-    await user.click(screen.getByRole("button", { name: "Apply length" }));
+    await user.type(screen.getByLabelText("Transition length ms"), "-5");
+    await user.click(
+      screen.getByRole("button", { name: "Apply transition length" }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "non-negative integer",
     );

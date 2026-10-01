@@ -433,7 +433,7 @@ describe("PendingEditInspector", () => {
       const user = userEvent.setup();
       const precise = { ...guestCut, source_start: 0.1234, source_end: 2.3804 };
       render(<PendingEditInspector edit={precise} />);
-      await user.click(screen.getByRole("button", { name: /Snap & apply/ }));
+      await user.click(screen.getByRole("button", { name: /Apply timing/ }));
       let args = updatePendingEdit.mock.calls[0] as unknown[];
       expect(args[2]).toBe(0.1234);
       expect(args[3]).toBe(2.3804);
@@ -444,7 +444,7 @@ describe("PendingEditInspector", () => {
       );
       await user.clear(start);
       await user.type(start, "0:00.200");
-      await user.click(screen.getByRole("button", { name: /Snap & apply/ }));
+      await user.click(screen.getByRole("button", { name: /Apply timing/ }));
       args = updatePendingEdit.mock.calls[1] as unknown[];
       expect(args[2] as number).toBeCloseTo(0.2, 9);
       expect(args[3]).toBe(2.3804);
@@ -483,7 +483,7 @@ describe("PendingEditInspector", () => {
       const end = screen.getByLabelText("Source end");
       await user.clear(end);
       await user.type(end, "0:02.380");
-      await user.click(screen.getByRole("button", { name: /Snap & apply/ }));
+      await user.click(screen.getByRole("button", { name: /Apply timing/ }));
       expect(updatePendingEdit).toHaveBeenCalledTimes(1);
       const args = updatePendingEdit.mock.calls[0] as unknown[];
       expect(args.slice(0, 2)).toEqual(["/tmp/p.json", "ed1"]);
@@ -493,13 +493,31 @@ describe("PendingEditInspector", () => {
       expect(args[5]).toBeUndefined();
     });
 
+    it("keeps Snap to silence separate from review and sends the chosen value", async () => {
+      const user = userEvent.setup();
+      render(<PendingEditInspector edit={guestCut} />);
+      const snap = screen.getByRole("checkbox", { name: "Snap to silence" });
+      expect(snap).toBeChecked();
+      expect(screen.getByRole("button", { name: "Approve" })).toBeVisible();
+      await user.click(snap);
+      await user.click(screen.getByRole("button", { name: "Apply timing" }));
+      expect(updatePendingEdit).toHaveBeenCalledWith(
+        "/tmp/p.json",
+        guestCut.id,
+        guestCut.source_start,
+        guestCut.source_end,
+        false,
+        undefined,
+      );
+    });
+
     it("rejects a malformed time", async () => {
       const user = userEvent.setup();
       render(<PendingEditInspector edit={guestCut} />);
       const end = screen.getByLabelText("Source end");
       await user.clear(end);
       await user.type(end, "1:75");
-      await user.click(screen.getByRole("button", { name: /Snap & apply/ }));
+      await user.click(screen.getByRole("button", { name: /Apply timing/ }));
       expect(
         await screen.findByText("Times must be m:ss.mmm or seconds"),
       ).toBeInTheDocument();

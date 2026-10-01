@@ -7,7 +7,7 @@ import type {
 import { capabilityTooltip } from "../capabilities/copy";
 import { isCrossfadeJoin, isCutJoin } from "../edit/joinRender";
 import type { ClipRow } from "../types/project";
-import { formatDurationCompact } from "../utils/time";
+import { formatDurationLabel } from "../utils/time";
 import type { ClipBlockGeometry } from "./clipBlockGeometry";
 import { FadeCurves } from "./FadeCurves";
 
@@ -51,15 +51,19 @@ function RegionSpans({
   );
 }
 
-function clipLabel(role: string, durationSec: number, width: number): string {
+function clipLabel(
+  speaker: string,
+  durationSec: number,
+  width: number,
+): string {
   if (width < 24) {
     return "";
   }
-  const dur = formatDurationCompact(durationSec);
+  const duration = formatDurationLabel(durationSec);
   if (width < 60) {
-    return dur;
+    return speaker;
   }
-  return `${role} · ${dur}`;
+  return `${speaker} · ${duration}`;
 }
 
 const NO_TICKS: readonly number[] = [];
@@ -83,6 +87,8 @@ export type ClipHitHandlers = Pick<
 export interface ClipBlockViewProps {
   clip: ClipRow;
   role: string;
+  /** Speaker identity from the clip's origin track; falls back to its label. */
+  trackSpeaker?: string;
   /** Track name on the clip label where the header rail is too narrow (phone). */
   trackLabel?: string;
   zoomPxPerSec: number;
@@ -120,6 +126,7 @@ export interface ClipBlockViewProps {
 export function ClipBlockView({
   clip,
   role,
+  trackSpeaker,
   trackLabel,
   zoomPxPerSec,
   color,
@@ -157,7 +164,10 @@ export function ClipBlockView({
     trimDragging,
   } = geometry;
 
-  const label = clipLabel(role, durationSec, width);
+  const speaker = trackSpeaker?.trim() || trackLabel?.trim() || role;
+  const durationLabel = formatDurationLabel(durationSec);
+  const accessibleLabel = `Select clip ${clip.id}, ${speaker}, ${durationLabel}`;
+  const label = clipLabel(speaker, durationSec, width);
   const trimTip = capabilityTooltip("daw.edit.trimClipEdge");
   const rollTip = capabilityTooltip("daw.edit.rollClipJoin");
   const fadeTip = capabilityTooltip("daw.edit.setClipFade");
@@ -174,15 +184,15 @@ export function ClipBlockView({
       aria-hidden={!interactive}
       title={
         canMove && !bladeMode && interactive
-          ? `${clip.id} · ${role} (${clip.timeline_start.toFixed(3)}–${(clip.timeline_start + (clip.source_end - clip.source_start)).toFixed(3)}s) · ${moveTip}`
-          : `${clip.id} · ${role} (${clip.timeline_start.toFixed(3)}–${(clip.timeline_start + (clip.source_end - clip.source_start)).toFixed(3)}s)`
+          ? `${accessibleLabel} · ${moveTip}`
+          : accessibleLabel
       }
     >
       {interactive ? (
         <button
           type="button"
           className={`clip-hit${canMove && !bladeMode ? " clip-hit-moveable" : ""}`}
-          aria-label={`Select clip ${clip.id}`}
+          aria-label={accessibleLabel}
           aria-pressed={selected}
           {...hitHandlers}
         />
@@ -306,14 +316,7 @@ export function ClipBlockView({
         sourceEnd={sourceEnd}
         zoomPxPerSec={zoomPxPerSec}
       />
-      {label && (
-        <span className="clip-label">
-          {trackLabel ? (
-            <span className="clip-label-track">{trackLabel}</span>
-          ) : null}
-          {label}
-        </span>
-      )}
+      {label && <span className="clip-label">{label}</span>}
     </div>
   );
 }

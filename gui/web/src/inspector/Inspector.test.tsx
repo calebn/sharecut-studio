@@ -74,7 +74,9 @@ describe("Inspector clip lookup", () => {
       document.querySelector('[data-presence-anchor="inspector"]'),
     ).toBeTruthy();
     expect(screen.queryByText("Clip not found")).toBeNull();
-    expect(screen.getByRole("heading", { name: "Clip" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "guest clip" }),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("c1").length).toBeGreaterThan(0);
     expect(screen.getByText(/0\.200–0\.800 s/)).toBeInTheDocument();
   });

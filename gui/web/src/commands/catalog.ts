@@ -558,7 +558,8 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Set clip fade",
     when: "canApplyPass12",
     paletteRunnable: false,
-    notes: "Pointer fade handles on clip blocks",
+    notes:
+      "Pointer fade handles on clip blocks and paired sliders in Clip inspector",
   },
   "edit.setClipJoin": {
     id: "edit.setClipJoin",
@@ -567,7 +568,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "canApplyPass12",
     paletteRunnable: false,
     notes:
-      "Join badge popover on the timeline; Join mode select and Apply length in the clip inspector",
+      "Join badge popover on the timeline; Incoming transition select and Apply transition length in the clip inspector",
   },
   "edit.moveClips": {
     id: "edit.moveClips",

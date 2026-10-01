@@ -11,11 +11,13 @@ At the bottom of the screen you'll see four tabs. Each one is designed for a spe
 | Mode | What it's for |
 |------|---------------|
 | **Listen** | Review the episode. Play, scrub through, read and leave comments. |
-| **Timeline** | Edit audio. See the waveforms, split clips, adjust fades. |
+| **Timeline** | Edit audio. See the waveforms, split clips, and adjust fades and joins. |
 | **Text** | Read the transcript. Choose Correct to edit a word or ignore it, or Select to suggest a cut or ignore/restore a range. |
 | **More** | Comments, history, impact, tighten suggestions, pipeline, and Gestures. |
 
-You won't see everything at once, and that's intentional. Each screen shows what you need for the task at hand.
+You won't see everything at once, and that's intentional. Each screen shows what you need for the task at hand. Timeline clip labels lead with the speaker name when one is set, then show a readable duration such as "Avery · 17m 26s"; narrow labels clip visually while their accessible names keep the full identity.
+
+Select a clip to open its inspector sheet. The two fade sliders preview while you move and save together on release, key release, or leaving the control. The opposite edge stays fixed, and the controls clamp to the track cap and clip length. The selected track's **Track actions** menu holds **Smooth all joins**. Pending timing keeps **Snap to silence** as a separate checked option; turn it off to apply the exact times you entered.
 
 In Timeline, the time ruler and marker rows stay visible when you scroll through
 tracks. They move with the waveforms when you pan horizontally; the playhead

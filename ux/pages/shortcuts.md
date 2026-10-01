@@ -155,8 +155,8 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Show cut away | `view.showCutAway` | Always (when not typing in an input) |  |
 | Trim clip edge | `edit.trimClipEdge` | Host or shared edit mode | Pointer trim handles on clip blocks (start / end) |
 | Roll clip join | `edit.rollClipJoin` | Host or shared edit mode | Join diamond + transcript boundary roll both edges |
-| Set clip fade | `edit.setClipFade` | Host or shared edit mode | Pointer fade handles on clip blocks |
-| Set clip join | `edit.setClipJoin` | Host or shared edit mode | Join badge popover on the timeline; Join mode select and Apply length in the clip inspector |
+| Set clip fade | `edit.setClipFade` | Host or shared edit mode | Pointer fade handles on clip blocks and paired sliders in Clip inspector |
+| Set clip join | `edit.setClipJoin` | Host or shared edit mode | Join badge popover on the timeline; Incoming transition select and Apply transition length in the clip inspector |
 | Move clips | `edit.moveClips` | Host or shared edit mode | Args: { clips: non-empty list } — pointer body drag on clip blocks (one clip or a multi-selection; not MoveSegment) |
 | Add chapter at playhead | `edit.addChapter` | Loaded host project | Chapter titled from the playhead time (AddChapter); turns the Markers layer on. Host only. |
 | Switch editor tab | `view.setTab` | Project loaded | Args: { tab: DawTab } |

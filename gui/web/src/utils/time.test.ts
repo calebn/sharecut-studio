@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   clampToSession,
+  formatDurationLabel,
   formatRulerTime,
   formatTime,
   formatTimecodeCompact,
@@ -55,6 +56,15 @@ describe("transportTimecode", () => {
 describe("formatTime", () => {
   it("pads hours when forced", () => {
     expect(formatTime(65, { forceHours: true })).toBe("00:01:05.000");
+  });
+});
+
+describe("formatDurationLabel", () => {
+  it("uses rounded human duration units instead of timecode punctuation", () => {
+    expect(formatDurationLabel(1046)).toBe("17m 26s");
+    expect(formatDurationLabel(59.6)).toBe("1m 0s");
+    expect(formatDurationLabel(5.4)).toBe("5s");
+    expect(formatDurationLabel(3723)).toBe("1h 2m 3s");
   });
 });
 
