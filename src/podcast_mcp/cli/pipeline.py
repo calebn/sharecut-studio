@@ -9,7 +9,8 @@ import typer
 
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.timed import timed_command
-from podcast_mcp.services import PipelineRunResult, PipelineService, ProjectWorkspace
+from podcast_mcp.services import ProjectWorkspace
+from podcast_mcp.services.pipeline import PipelineRunResult, PipelineService
 
 pipeline_app = typer.Typer(help="Run processing pipeline.")
 
