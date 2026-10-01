@@ -25,9 +25,24 @@ For play adapters, translate once into `PlayRequest` and keep playback decisions
 Use [`util.hashing.sha256_file`](../src/podcast_mcp/util/hashing.py) for streamed full-file SHA-256 digests. Apply any shortened cache-key representation at its caller. Pinned model snapshots declare a `util.model_manifest` `FileManifest` (every downloaded file with its sha256) and verify it with `manifest_mismatch`; do not add a one-file pin.
 Use [`util.workspace_paths.resolve_within`](../src/podcast_mcp/util/workspace_paths.py) for path containment. Keep caller-specific path syntax and error messages at the call site; the utility resolves symlinks and rejects escapes from the allowed root.
 
+### Service context imports
+
+Runtime diagnostics, configuration checks, diagnostic bundles, and report
+submission belong in `services/support/`. Import its declared symbols from
+`podcast_mcp.services.support` in adapters and sibling services. Import its
+implementation modules only within support or in focused tests.
+
+The support boundary test rejects adapter dependencies and service dependencies
+other than the existing bootstrap status reader. When another context migrates,
+move all callers and patch targets together, delete the old paths, and extend
+`tests/test_service_boundaries.py` with its declared facade and dependency rules.
+Keep each context migration in its own PR. Use `Part of #572` until the final
+migration closes the issue.
+
 ## Beta interfaces
 
 Sharecut Studio is in beta and has no users. Breaking changes are allowed. Prefer one clear contract over backward compatibility: update every current caller, test, and affected document, then delete the obsolete API or implementation. Do not add compatibility-only overloads, aliases, fallbacks, or migrations for old clients or project formats. Keep separate paths when they serve distinct current workflows, such as immediate editing and draft audition.
+
 
 ## Adding a feature
 

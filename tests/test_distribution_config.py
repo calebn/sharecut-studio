@@ -19,7 +19,7 @@ from podcast_mcp.distribution import (
     runtime_distribution_metadata,
     tauri_distribution_overlay,
 )
-from podcast_mcp.services.config_check import ConfigMode, run_config_checks
+from podcast_mcp.services.support.config_check import ConfigMode, run_config_checks
 
 ROOT = Path(__file__).resolve().parents[1]
 

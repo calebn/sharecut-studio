@@ -13,8 +13,8 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.setup_cmd import setup_app
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.services import diagnostics as diagnostics_mod
-from podcast_mcp.services.diagnostics import (
+from podcast_mcp.services.support import diagnostics as diagnostics_mod
+from podcast_mcp.services.support.diagnostics import (
     MAX_BUNDLE_BYTES,
     DiagnosticsService,
     bundle_filename,
@@ -23,7 +23,7 @@ from podcast_mcp.services.diagnostics import (
     resolve_bundle_file,
     sidecar_log_candidates,
 )
-from podcast_mcp.services.doctor import (
+from podcast_mcp.services.support.doctor import (
     DoctorCheck,
     DoctorReport,
     ffmpeg_probe_info,
@@ -34,15 +34,15 @@ from podcast_mcp.services.doctor import (
 
 def _stub_health(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.run_doctor_checks",
+        "podcast_mcp.services.support.diagnostics.run_doctor_checks",
         lambda _p=None: DoctorReport(),
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.component_status",
+        "podcast_mcp.services.support.diagnostics.component_status",
         lambda: {"ready": True, "components": {}},
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.ffmpeg_probe_info",
+        "podcast_mcp.services.support.diagnostics.ffmpeg_probe_info",
         lambda: {
             "ffmpeg": {
                 "ok": True,
@@ -102,13 +102,13 @@ def test_build_bundle_contents_and_doctor_reuse(
     spy = MagicMock(
         return_value=DoctorReport(checks=[DoctorCheck("ok", "ffmpeg (system): ffmpeg 7")])
     )
-    monkeypatch.setattr("podcast_mcp.services.diagnostics.run_doctor_checks", spy)
+    monkeypatch.setattr("podcast_mcp.services.support.diagnostics.run_doctor_checks", spy)
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.component_status",
+        "podcast_mcp.services.support.diagnostics.component_status",
         lambda: {"ready": True, "components": {}},
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.ffmpeg_probe_info",
+        "podcast_mcp.services.support.diagnostics.ffmpeg_probe_info",
         lambda: {
             "ffmpeg": {
                 "ok": True,
@@ -152,15 +152,15 @@ def test_build_bundle_contents_and_doctor_reuse(
 
 def test_build_bundle_size_bound(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.run_doctor_checks",
+        "podcast_mcp.services.support.diagnostics.run_doctor_checks",
         lambda _p=None: DoctorReport(),
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.component_status",
+        "podcast_mcp.services.support.diagnostics.component_status",
         lambda: {"ready": True, "components": {}},
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.ffmpeg_probe_info",
+        "podcast_mcp.services.support.diagnostics.ffmpeg_probe_info",
         lambda: {
             "ffmpeg": {
                 "ok": True,
@@ -173,7 +173,7 @@ def test_build_bundle_size_bound(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     )
     huge = "x" * (MAX_BUNDLE_BYTES + 2_000_000)
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics._collect_logs",
+        "podcast_mcp.services.support.diagnostics._collect_logs",
         lambda **_k: {"sidecar.log": huge},
     )
     report = DiagnosticsService().build_bundle(None, out_dir=tmp_path)
@@ -184,15 +184,15 @@ def test_build_bundle_size_bound(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 
 def test_doctor_cli_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.run_doctor_checks",
+        "podcast_mcp.services.support.diagnostics.run_doctor_checks",
         lambda _p=None: DoctorReport(),
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.component_status",
+        "podcast_mcp.services.support.diagnostics.component_status",
         lambda: {"ready": True, "components": {}},
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.ffmpeg_probe_info",
+        "podcast_mcp.services.support.diagnostics.ffmpeg_probe_info",
         lambda: {
             "ffmpeg": {
                 "ok": True,
@@ -220,15 +220,15 @@ def test_diagnostics_routes_host_only(tmp_path: Path, monkeypatch: pytest.Monkey
     from podcast_mcp.gui.server import create_app
 
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.run_doctor_checks",
+        "podcast_mcp.services.support.diagnostics.run_doctor_checks",
         lambda _p=None: DoctorReport(),
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.component_status",
+        "podcast_mcp.services.support.diagnostics.component_status",
         lambda: {"ready": True, "components": {}},
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.ffmpeg_probe_info",
+        "podcast_mcp.services.support.diagnostics.ffmpeg_probe_info",
         lambda: {
             "ffmpeg": {
                 "ok": True,
@@ -244,7 +244,7 @@ def test_diagnostics_routes_host_only(tmp_path: Path, monkeypatch: pytest.Monkey
         lambda: tmp_path,
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.default_bundle_dir",
+        "podcast_mcp.services.support.diagnostics.default_bundle_dir",
         lambda: tmp_path,
     )
     client = TestClient(create_app())
@@ -389,7 +389,7 @@ def test_build_bundle_logs_jobs_and_env(tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setenv("PODCAST_GUI_DIST", str(dist))
     monkeypatch.setenv("PODCAST_BATCH", "1")
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.shutil.disk_usage",
+        "podcast_mcp.services.support.diagnostics.shutil.disk_usage",
         MagicMock(side_effect=OSError("disk")),
     )
     out = tmp_path / "out"
@@ -453,11 +453,11 @@ def test_collect_logs_skips_forbidden_and_glob_errors(
             return [wav, forbidden, ok]
 
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.state_log_dirs",
+        "podcast_mcp.services.support.diagnostics.state_log_dirs",
         lambda: [BoomDir(), FakeDir()],
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.sidecar_log_candidates",
+        "podcast_mcp.services.support.diagnostics.sidecar_log_candidates",
         lambda: [],
     )
     logs = diagnostics_mod._collect_logs(
@@ -482,11 +482,11 @@ def test_collect_logs_resolve_oserror_and_duplicate(
 
     monkeypatch.setattr(Path, "resolve", boom)
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.sidecar_log_candidates",
+        "podcast_mcp.services.support.diagnostics.sidecar_log_candidates",
         lambda: [sidecar, sidecar],
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.state_log_dirs",
+        "podcast_mcp.services.support.diagnostics.state_log_dirs",
         lambda: [tmp_path],
     )
     logs = diagnostics_mod._collect_logs(
@@ -514,7 +514,7 @@ def test_build_bundle_skips_unsafe_zip_names_and_size_cap(
 ) -> None:
     _stub_health(monkeypatch)
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics._collect_logs",
+        "podcast_mcp.services.support.diagnostics._collect_logs",
         lambda **_k: {"../escape.log": "nope", "ok.log": "yes"},
     )
     report = DiagnosticsService().build_bundle(None, out_dir=tmp_path, include_logs=True)
@@ -610,7 +610,7 @@ def test_bundle_registry_uses_one_locked_initializer(tmp_path: Path) -> None:
 def test_report_status_accepts_actionable_publication_states(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from podcast_mcp.services import report_submission
+    from podcast_mcp.services.support import report_submission
 
     monkeypatch.setenv("PODCAST_REPORT_RELAY_URL", "https://relay.example.test")
 
@@ -708,7 +708,7 @@ def test_diagnostics_routes_meta_errors_and_served_project(
         lambda: tmp_path,
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.default_bundle_dir",
+        "podcast_mcp.services.support.diagnostics.default_bundle_dir",
         lambda: tmp_path,
     )
     app = create_app(served_project=Path(minimal_project))
@@ -801,11 +801,11 @@ def test_report_json_scrubs_non_home_cache(tmp_path: Path, monkeypatch: pytest.M
     cache.mkdir(parents=True)
     monkeypatch.setenv("PODCAST_MCP_CACHE", str(cache))
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.run_doctor_checks",
+        "podcast_mcp.services.support.diagnostics.run_doctor_checks",
         lambda _p=None: DoctorReport(checks=[DoctorCheck("ok", f"cache writable: {cache}")]),
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.component_status",
+        "podcast_mcp.services.support.diagnostics.component_status",
         lambda: {
             "ready": True,
             "components": {
@@ -815,7 +815,7 @@ def test_report_json_scrubs_non_home_cache(tmp_path: Path, monkeypatch: pytest.M
         },
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.ffmpeg_probe_info",
+        "podcast_mcp.services.support.diagnostics.ffmpeg_probe_info",
         lambda: {
             "ffmpeg": {"ok": True, "version": "ffmpeg", "path": "ffmpeg", "source": "system"},
             "ffprobe": {"ok": True, "version": "ffprobe", "path": "ffprobe"},
@@ -848,7 +848,9 @@ def test_build_bundle_prefers_parent_progress(
 
         yield Task()
 
-    monkeypatch.setattr("podcast_mcp.services.diagnostics.resolve_progress_task", fake_resolve)
+    monkeypatch.setattr(
+        "podcast_mcp.services.support.diagnostics.resolve_progress_task", fake_resolve
+    )
     DiagnosticsService().build_bundle(None, out_dir=tmp_path, include_logs=False)
     assert seen.get("prefer_parent") is True
 
@@ -861,7 +863,7 @@ def test_build_bundle_cleans_temp_zip_on_write_error(
     def boom(*_a: object, **_k: object):
         raise OSError("disk")
 
-    monkeypatch.setattr("podcast_mcp.services.diagnostics.zipfile.ZipFile", boom)
+    monkeypatch.setattr("podcast_mcp.services.support.diagnostics.zipfile.ZipFile", boom)
     with pytest.raises(OSError, match="disk"):
         DiagnosticsService().build_bundle(None, out_dir=tmp_path, include_logs=False)
     assert not list(tmp_path.glob("*.zip"))
@@ -879,11 +881,11 @@ def test_collect_logs_skips_symlink_to_forbidden(
     ok = logs / "app.log"
     ok.write_text("ok\n", encoding="utf-8")
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.state_log_dirs",
+        "podcast_mcp.services.support.diagnostics.state_log_dirs",
         lambda: [logs],
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.sidecar_log_candidates",
+        "podcast_mcp.services.support.diagnostics.sidecar_log_candidates",
         lambda: [],
     )
     collected = diagnostics_mod._collect_logs(
@@ -910,7 +912,7 @@ def test_http_bundle_ignores_client_out_dir(
         lambda: dest,
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.diagnostics.default_bundle_dir",
+        "podcast_mcp.services.support.diagnostics.default_bundle_dir",
         lambda: dest,
     )
     client = TestClient(create_app())
@@ -925,7 +927,7 @@ def test_submit_registered_bundle_requires_host_and_consent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.diagnostics import bundle_filename
+    from podcast_mcp.services.support.diagnostics import bundle_filename
 
     client = TestClient(create_app())
     name = bundle_filename()
@@ -954,7 +956,7 @@ def test_submit_registered_bundle_and_status(
     import zipfile
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.diagnostics import bundle_filename
+    from podcast_mcp.services.support.diagnostics import bundle_filename
 
     app = create_app()
     client = TestClient(app)

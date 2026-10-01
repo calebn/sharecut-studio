@@ -21,6 +21,10 @@ import pytest
 # calculation onto Clip.timeline_end (models/episode.py), which has no
 # dependency on edits/ at all -- see models/episode.py::Clip.timeline_end.
 COLD_IMPORT_TARGETS = [
+    "podcast_mcp.services.support",
+    "podcast_mcp.cli.setup_cmd",
+    "podcast_mcp.cli.config_cmd",
+    "podcast_mcp.gui.routes.diagnostics",
     "podcast_mcp.engines.audio_audit",
     "podcast_mcp.engines.timeline_render",
     "podcast_mcp.engines.timemap",

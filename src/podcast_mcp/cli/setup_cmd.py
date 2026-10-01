@@ -98,11 +98,15 @@ def doctor(
     ),
 ) -> None:
     """Health check for FFmpeg, cache, and package import."""
-    from podcast_mcp.services.doctor import echo_doctor_report, run_doctor_checks
+    from podcast_mcp.services.support import (
+        DiagnosticsService,
+        default_bundle_dir,
+        echo_doctor_report,
+        run_doctor_checks,
+    )
 
     if bundle:
         from podcast_mcp.project_io import open_project
-        from podcast_mcp.services.diagnostics import DiagnosticsService, default_bundle_dir
 
         ep = None
         if project is not None:
