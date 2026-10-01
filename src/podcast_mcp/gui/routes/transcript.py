@@ -14,12 +14,12 @@ from podcast_mcp.gui.schemas import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.transcript_precorrect import (
+from podcast_mcp.services.media import (
     TranscriptContextBusyError,
     TranscriptPrecorrectService,
+    TranscriptRefineService,
     VocabularyConflictError,
 )
-from podcast_mcp.services.transcript_refine import TranscriptRefineService
 from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
 
 router = APIRouter()

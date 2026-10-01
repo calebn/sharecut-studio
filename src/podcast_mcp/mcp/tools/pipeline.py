@@ -237,7 +237,7 @@ def bounce_audio_tool(
     for all non-muted mixable tracks. ``formats_json`` is a JSON array of extensions
     (e.g. ``["wav","mp3"]``); default wav only.
     """
-    from podcast_mcp.services.bounce import BounceRequest, BounceService
+    from podcast_mcp.services.media import BounceRequest, BounceService
 
     ws = ProjectWorkspace.open(project_path)
     track_ids: list[str] | None = None

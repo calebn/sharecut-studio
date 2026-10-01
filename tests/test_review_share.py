@@ -432,7 +432,7 @@ def test_share_create_proxy_ensure_failure_swallowed(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ensure_and_upload_all_proxies",
+        "podcast_mcp.services.media.ensure_and_upload_all_proxies",
         MagicMock(side_effect=RuntimeError("proxy boom")),
     )
     ws = _seed_premix(minimal_project, sample_wav)
@@ -448,7 +448,7 @@ def test_share_revoke_proxy_cleanup_failure_swallowed(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: None,
     )
     ws = _seed_premix(minimal_project, sample_wav)
@@ -458,7 +458,7 @@ def test_share_revoke_proxy_cleanup_failure_swallowed(
         capabilities=["play", "view"],
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.delete_all_proxies_if_unused",
+        "podcast_mcp.services.media.delete_all_proxies_if_unused",
         MagicMock(side_effect=RuntimeError("cleanup boom")),
     )
     out = ShareService(ws).revoke(share["token"])
@@ -1369,7 +1369,7 @@ def _seed_track_for_proxy(ws):
 
 def test_proxy_manifest_local_fallback(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: None,
     )
     ws = _seed_premix(minimal_project, sample_wav)
@@ -1430,19 +1430,19 @@ def test_proxy_manifest_presigned(minimal_project, sample_wav, tmp_workspace, mo
             return None
 
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: cfg,
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ObjectStoreClient",
+        "podcast_mcp.services.media.proxy_media.ObjectStoreClient",
         lambda _cfg: _Fake(),
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.load_object_store_config",
+        "podcast_mcp.services.media.review_media.load_object_store_config",
         lambda config_path=None: cfg,
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.ObjectStoreClient",
+        "podcast_mcp.services.media.review_media.ObjectStoreClient",
         lambda _cfg: _Fake(),
     )
     ws = _seed_premix(minimal_project, sample_wav)
@@ -1461,7 +1461,7 @@ def test_proxy_manifest_presigned(minimal_project, sample_wav, tmp_workspace, mo
 
 def test_proxy_chunk_unknown_404(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: None,
     )
     ws = _seed_premix(minimal_project, sample_wav)
@@ -1480,11 +1480,11 @@ def test_proxy_manifest_lazy_ensure_failure(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: None,
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ensure_and_upload_all_proxies",
+        "podcast_mcp.services.media.ensure_and_upload_all_proxies",
         lambda _ws: None,
     )
     ws = _seed_premix(minimal_project, sample_wav)
@@ -1495,7 +1495,7 @@ def test_proxy_manifest_lazy_ensure_failure(
         capabilities=["play", "view"],
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ensure_track_proxy",
+        "podcast_mcp.services.media.ensure_track_proxy",
         MagicMock(side_effect=RuntimeError("lazy fail")),
     )
     client = TestClient(create_app())
@@ -1508,7 +1508,7 @@ def test_share_proxy_manifest_play_denied(monkeypatch, minimal_project, sample_w
     import podcast_mcp.services.share as share_mod
 
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: None,
     )
     ws = _seed_premix(minimal_project, sample_wav)

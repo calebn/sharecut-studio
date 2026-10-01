@@ -19,7 +19,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.proxy_media import (
+from podcast_mcp.services.media.proxy_media import (
     _purge_stale_proxy_dirs,
     chunk_count_for,
     chunk_window,
@@ -115,7 +115,7 @@ def test_proxy_render_hash_changes_with_chain(minimal_project):
 
 
 def test_ensure_track_proxy_creates_chunks(minimal_project, monkeypatch):
-    import podcast_mcp.services.proxy_media as pm
+    import podcast_mcp.services.media.proxy_media as pm
 
     monkeypatch.setattr(pm, "CHUNK_SEC", 0.5)
     ws = _seed_track(minimal_project)
@@ -147,7 +147,7 @@ def test_upload_and_presign_proxy(minimal_project, monkeypatch):
         secret_access_key="s",
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ObjectStoreClient",
+        "podcast_mcp.services.media.proxy_media.ObjectStoreClient",
         lambda _cfg: fake,
     )
     prefix = upload_track_proxy_to_object_store(ws, track_id, object_store=cfg)
@@ -162,7 +162,7 @@ def test_upload_and_presign_proxy(minimal_project, monkeypatch):
 
 
 def test_proxy_upload_reads_pinned_chunk_after_path_swap(minimal_project, monkeypatch):
-    import podcast_mcp.services.proxy_media as proxy_media
+    import podcast_mcp.services.media.proxy_media as proxy_media
 
     ws = _seed_track(minimal_project)
     proxy = ensure_track_proxy(ws, "host")
@@ -188,7 +188,7 @@ def test_proxy_upload_reads_pinned_chunk_after_path_swap(minimal_project, monkey
 
 
 def test_proxy_upload_reads_chunks_on_pinned_media_fallback(minimal_project, monkeypatch, request):
-    import podcast_mcp.services.proxy_media as proxy_media
+    import podcast_mcp.services.media.proxy_media as proxy_media
 
     ws = _seed_track(minimal_project)
     proxy = ensure_track_proxy(ws, "host")
@@ -217,7 +217,7 @@ def test_delete_proxy_when_no_shares(minimal_project, monkeypatch, tmp_workspace
         secret_access_key="s",
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ObjectStoreClient",
+        "podcast_mcp.services.media.proxy_media.ObjectStoreClient",
         lambda _cfg: fake,
     )
     upload_track_proxy_to_object_store(ws, track_id, object_store=cfg)
@@ -233,7 +233,7 @@ def test_proxy_chunk_key_format():
 
 def test_purge_stale_and_missing_paths(minimal_project, monkeypatch):
     ws = _seed_track(minimal_project)
-    monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
+    monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
     proxy = ensure_track_proxy(ws, "host")
     stale = proxy_dir(ws, "host", "oldhash")
     stale.mkdir(parents=True)
@@ -246,7 +246,7 @@ def test_purge_stale_and_missing_paths(minimal_project, monkeypatch):
 def test_upload_no_object_store_config(minimal_project, monkeypatch):
     ws = _seed_track(minimal_project)
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: None,
     )
     assert upload_track_proxy_to_object_store(ws, "host") is None
@@ -255,7 +255,7 @@ def test_upload_no_object_store_config(minimal_project, monkeypatch):
 
 def test_presign_requires_prefix(minimal_project, monkeypatch):
     ws = _seed_track(minimal_project)
-    monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
+    monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
     ensure_track_proxy(ws, "host")
     cfg = ObjectStoreConfig(
         endpoint_url="https://s3.example.test",
@@ -269,7 +269,7 @@ def test_presign_requires_prefix(minimal_project, monkeypatch):
 
 def test_presign_no_client_after_prefix(minimal_project, monkeypatch):
     ws = _seed_track(minimal_project)
-    monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
+    monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
     ensure_track_proxy(ws, "host")
 
     def mutate(p):
@@ -281,7 +281,7 @@ def test_presign_no_client_after_prefix(minimal_project, monkeypatch):
 
     ws.mutate("before", "after", mutate)
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: None,
     )
     assert presigned_proxy_urls(ws.project, "host") is None
@@ -289,14 +289,14 @@ def test_presign_no_client_after_prefix(minimal_project, monkeypatch):
 
 def test_upload_missing_chunk_raises(minimal_project, monkeypatch):
     ws = _seed_track(minimal_project)
-    monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
+    monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
     proxy = ensure_track_proxy(ws, "host")
     out = proxy_dir(ws, "host", proxy.hash)
     for f in out.glob("*.mp3"):
         f.unlink()
     # Avoid re-render; exercise the missing-file branch inside upload.
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ensure_track_proxy",
+        "podcast_mcp.services.media.proxy_media.ensure_track_proxy",
         lambda _ws, _tid: proxy,
     )
     fake = MagicMock()
@@ -308,7 +308,7 @@ def test_upload_missing_chunk_raises(minimal_project, monkeypatch):
         secret_access_key="s",
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ObjectStoreClient",
+        "podcast_mcp.services.media.proxy_media.ObjectStoreClient",
         lambda _cfg: fake,
     )
     with pytest.raises(FileNotFoundError, match="missing proxy chunk"):
@@ -320,7 +320,7 @@ def test_delete_skips_when_active_share(minimal_project, monkeypatch, tmp_worksp
     from podcast_mcp.services.share import ShareService
 
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: None,
     )
     ws = _seed_track(minimal_project)
@@ -332,7 +332,7 @@ def test_delete_skips_when_active_share(minimal_project, monkeypatch, tmp_worksp
         review_version_id=ver["id"],
         capabilities=["view", "play"],
     )
-    monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
+    monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
     ensure_track_proxy(ws, "host")
 
     def mutate(p):
@@ -352,7 +352,7 @@ def test_delete_skips_when_active_share(minimal_project, monkeypatch, tmp_worksp
         secret_access_key="s",
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ObjectStoreClient",
+        "podcast_mcp.services.media.proxy_media.ObjectStoreClient",
         lambda _cfg: fake,
     )
     assert delete_proxy_objects_if_unused(ws, "host", object_store=cfg) is False
@@ -361,7 +361,7 @@ def test_delete_skips_when_active_share(minimal_project, monkeypatch, tmp_worksp
 
 def test_delete_no_prefix_or_client(minimal_project, monkeypatch):
     ws = _seed_track(minimal_project)
-    monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
+    monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
     ensure_track_proxy(ws, "host")
     cfg = ObjectStoreConfig(
         endpoint_url="https://s3.example.test",
@@ -381,7 +381,7 @@ def test_delete_no_prefix_or_client(minimal_project, monkeypatch):
 
     ws.mutate("before", "after", mutate)
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: None,
     )
     assert delete_proxy_objects_if_unused(ws, "host") is False
@@ -389,7 +389,7 @@ def test_delete_no_prefix_or_client(minimal_project, monkeypatch):
 
 def test_delete_object_failure(minimal_project, monkeypatch, tmp_workspace):
     ws = _seed_track(minimal_project)
-    monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
+    monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
     ensure_track_proxy(ws, "host")
 
     def mutate(p):
@@ -410,7 +410,7 @@ def test_delete_object_failure(minimal_project, monkeypatch, tmp_workspace):
         secret_access_key="s",
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ObjectStoreClient",
+        "podcast_mcp.services.media.proxy_media.ObjectStoreClient",
         lambda _cfg: fake,
     )
     assert delete_proxy_objects_if_unused(ws, "host", object_store=cfg) is False
@@ -418,7 +418,7 @@ def test_delete_object_failure(minimal_project, monkeypatch, tmp_workspace):
 
 def test_ensure_and_upload_all_and_delete_all(minimal_project, monkeypatch, tmp_workspace):
     ws = _seed_track(minimal_project)
-    monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
+    monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
     fake = MagicMock()
     fake.upload_fileobj = MagicMock()
     fake.delete_object = MagicMock()
@@ -430,11 +430,11 @@ def test_ensure_and_upload_all_and_delete_all(minimal_project, monkeypatch, tmp_
         secret_access_key="s",
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ObjectStoreClient",
+        "podcast_mcp.services.media.proxy_media.ObjectStoreClient",
         lambda _cfg: fake,
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: cfg,
     )
     ensure_and_upload_all_proxies(ws)
@@ -447,12 +447,12 @@ def test_ensure_and_upload_all_and_delete_all(minimal_project, monkeypatch, tmp_
 def test_ensure_upload_all_swallows_errors(minimal_project, monkeypatch):
     ws = _seed_track(minimal_project)
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ensure_track_proxy",
+        "podcast_mcp.services.media.proxy_media.ensure_track_proxy",
         MagicMock(side_effect=RuntimeError("nope")),
     )
     ensure_and_upload_all_proxies(ws)
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.delete_proxy_objects_if_unused",
+        "podcast_mcp.services.media.proxy_media.delete_proxy_objects_if_unused",
         MagicMock(side_effect=RuntimeError("nope")),
     )
     delete_all_proxies_if_unused(ws)
@@ -462,7 +462,7 @@ def test_local_proxy_chunk_path_errors(minimal_project, monkeypatch):
     ws = _seed_track(minimal_project)
     with pytest.raises(KeyError, match="proxy not available"):
         local_proxy_chunk_path(ws, "host", 0)
-    monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
+    monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
     proxy = ensure_track_proxy(ws, "host")
     with pytest.raises(KeyError, match="chunk not found"):
         local_proxy_chunk_path(ws, "host", proxy.chunk_count + 5)
@@ -474,7 +474,7 @@ def test_local_proxy_chunk_path_errors(minimal_project, monkeypatch):
 
 def test_delete_mutate_failure_still_returns_true(minimal_project, monkeypatch, tmp_workspace):
     ws = _seed_track(minimal_project)
-    monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
+    monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
     ensure_track_proxy(ws, "host")
 
     def mutate(p):
@@ -495,7 +495,7 @@ def test_delete_mutate_failure_still_returns_true(minimal_project, monkeypatch, 
         secret_access_key="s",
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ObjectStoreClient",
+        "podcast_mcp.services.media.proxy_media.ObjectStoreClient",
         lambda _cfg: fake,
     )
     monkeypatch.setattr(
@@ -509,7 +509,7 @@ def test_delete_mutate_failure_still_returns_true(minimal_project, monkeypatch, 
 
 def test_object_store_client_from_config_object(minimal_project, monkeypatch):
     ws = _seed_track(minimal_project)
-    monkeypatch.setattr("podcast_mcp.services.proxy_media.CHUNK_SEC", 0.5)
+    monkeypatch.setattr("podcast_mcp.services.media.proxy_media.CHUNK_SEC", 0.5)
     fake = MagicMock()
     fake.upload_fileobj = MagicMock()
     cfg = ObjectStoreConfig(
@@ -520,7 +520,7 @@ def test_object_store_client_from_config_object(minimal_project, monkeypatch):
         secret_access_key="s",
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.ObjectStoreClient",
+        "podcast_mcp.services.media.proxy_media.ObjectStoreClient",
         lambda _cfg: fake,
     )
     prefix = upload_track_proxy_to_object_store(ws, "host", object_store=cfg)

@@ -706,7 +706,7 @@ def test_mcp_speaker_gate_track_tool(tmp_path, sample_wav) -> None:
     ]
     save_project(proj, path)
     with patch(
-        "podcast_mcp.services.speaker.label_track_home_speaker",
+        "podcast_mcp.services.media.speaker.label_track_home_speaker",
         return_value={"dry_run": True, "words_would_suppress": 0},
     ):
         out = json.loads(mcp_speaker.speaker_gate_track_tool(str(path), dry_run=True))

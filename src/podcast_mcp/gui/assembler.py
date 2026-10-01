@@ -24,7 +24,7 @@ from podcast_mcp.services.document_sync.projection_types import (
 )
 from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.history import HistoryService
-from podcast_mcp.services.transcript import TranscriptService
+from podcast_mcp.services.media import TranscriptService
 
 __all__ = [
     "VIEW_PROJECTION_QUERY_DESCRIPTION",

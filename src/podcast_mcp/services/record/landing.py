@@ -33,7 +33,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import after_agent_mutation
-from podcast_mcp.services.media_store import unique_raw_path
+from podcast_mcp.services.media import schedule_track_waveforms, unique_raw_path
 from podcast_mcp.services.record.landing_math import (
     clip_timeline_s,
     duration_error_ms,
@@ -76,7 +76,6 @@ from podcast_mcp.services.record.upload import (
     parse_upload_index,
     record_artifacts_dir,
 )
-from podcast_mcp.services.waveform import schedule_track_waveforms
 from podcast_mcp.util.atomic_json import copy_file_atomic
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import sha256_file

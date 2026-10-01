@@ -57,6 +57,7 @@ from podcast_mcp.services.document_sync.payloads import (
 from podcast_mcp.services.document_sync.service import document_hub_key
 from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.guest_progress import guest_progress_hub
+from podcast_mcp.services.media import media_type_for_path
 from podcast_mcp.services.remote_mcp.limits import (
     get_host_limiters,
     host_rate_limit_enabled,
@@ -68,7 +69,6 @@ from podcast_mcp.services.review_comments import (
     ReviewCommentsReplica,
     review_comments_locked,
 )
-from podcast_mcp.services.review_media import media_type_for_path
 from podcast_mcp.services.session_sync.authz import authorize_share_token
 from podcast_mcp.services.session_sync.commands import (
     GUEST_CLIENT_ID_PREFIX,
@@ -596,7 +596,7 @@ async def post_daw_media_upload(
     total_chunks: int = Query(1, ge=1),
 ):
     """Guest ``edit`` only: chunked upload into host ``raw/`` (then SetTrackMedia)."""
-    from podcast_mcp.services.media_store import gui_media_chunk_max_bytes
+    from podcast_mcp.services.media import gui_media_chunk_max_bytes
     from podcast_mcp.util.body_limits import (
         BodyTooLarge,
         payload_too_large_response,

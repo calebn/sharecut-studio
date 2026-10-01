@@ -14,12 +14,12 @@ from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.export.transcript import CaptionLimits, resolve_caption_limits
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.edit import EditService
-from podcast_mcp.services.transcript import TranscriptService
-from podcast_mcp.services.transcript_precorrect import (
+from podcast_mcp.services.media import (
     TranscriptContextBusyError,
     TranscriptPrecorrectService,
+    TranscriptRefineService,
+    TranscriptService,
 )
-from podcast_mcp.services.transcript_refine import TranscriptRefineService
 from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
 
 transcript_app = typer.Typer(help="Transcript correction and export.")

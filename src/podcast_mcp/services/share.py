@@ -50,7 +50,7 @@ from podcast_mcp.services.document_sync.service import (
     document_poll_meta,
     notify_comments_changed,
 )
-from podcast_mcp.services.review_media import (
+from podcast_mcp.services.media import (
     delete_object_store_object_if_unused,
     review_guest_audio_path,
     upload_review_version_to_object_store,
@@ -174,7 +174,7 @@ class ShareService:
             )
         if has_capability(row.get("capabilities"), CAP_VIEW):
             try:
-                from podcast_mcp.services.proxy_media import ensure_and_upload_all_proxies
+                from podcast_mcp.services.media import ensure_and_upload_all_proxies
 
                 ensure_and_upload_all_proxies(self.ws)
             except Exception:
@@ -362,7 +362,7 @@ class ShareService:
                 )
         if kind != SHARE_KIND_RECORD:
             try:
-                from podcast_mcp.services.proxy_media import delete_all_proxies_if_unused
+                from podcast_mcp.services.media import delete_all_proxies_if_unused
 
                 delete_all_proxies_if_unused(self.ws)
             except Exception:
@@ -734,7 +734,7 @@ def share_daw_waveform_status(token: str) -> dict[str, Any]:
     media that predates the eager hooks. The build pool dedupes by (slug, key), so
     a guest can cause at most one build per missing ref.
     """
-    from podcast_mcp.services.waveform import waveform_status
+    from podcast_mcp.services.media import waveform_status
 
     _row, ws = require_share_cap(token, CAP_VIEW)
     return waveform_status(ws.path, "raw")
@@ -747,7 +747,7 @@ def share_daw_waveform_tiles(
 
     There is deliberately no guest PCM window: raw samples never go to guests.
     """
-    from podcast_mcp.services.waveform import live_key, media_index, tile_bytes
+    from podcast_mcp.services.media import live_key, media_index, tile_bytes
 
     _row, ws = require_share_cap(token, CAP_VIEW)
     if not ref.startswith(_GUEST_WAVEFORM_REFS):
@@ -785,7 +785,7 @@ def share_daw_waveform_snap(
 def share_proxy_manifest(token: str) -> dict[str, Any]:
     """Per-track proxy chunk URLs for guest Sharecut Studio (object storage or local fallback)."""
     from podcast_mcp.engines.play_audit import proxy_render_hash
-    from podcast_mcp.services.proxy_media import (
+    from podcast_mcp.services.media import (
         ensure_track_proxy,
         presigned_proxy_urls,
     )
@@ -835,7 +835,7 @@ def share_proxy_chunk_path(
     *,
     proxy_hash: str | None = None,
 ) -> Path:
-    from podcast_mcp.services.proxy_media import (
+    from podcast_mcp.services.media import (
         ensure_track_proxy,
         local_proxy_chunk_path,
     )
@@ -1237,7 +1237,7 @@ def share_upload_media(
     total_chunks: int = 1,
 ) -> dict[str, Any]:
     """Chunked upload into host ``raw/`` (requires ``edit``)."""
-    from podcast_mcp.services.media_store import write_upload_chunk
+    from podcast_mcp.services.media import write_upload_chunk
 
     _row, ws = require_share_cap(token, CAP_EDIT)
     return write_upload_chunk(
@@ -1259,7 +1259,7 @@ def share_audio_path(token: str) -> Path:
 
 def resolve_share_audio_redirect(token: str) -> str | None:
     """Ensure object storage upload (lazy) and return a presigned URL when available."""
-    from podcast_mcp.services.review_media import (
+    from podcast_mcp.services.media import (
         presigned_review_audio_url,
         upload_review_version_to_object_store,
     )

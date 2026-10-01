@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import threading
 
-import podcast_mcp.services.transcript_refine as transcript_refine
+import podcast_mcp.services.media.transcript_refine as transcript_refine
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
-from podcast_mcp.services.transcript_refine import TranscriptRefineService
+from podcast_mcp.services.media.transcript_refine import TranscriptRefineService
 
 
 def test_waive_does_not_overwrite_interleaved_document_command(

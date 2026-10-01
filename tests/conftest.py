@@ -168,7 +168,7 @@ def _isolate_host_object_store(
 
     monkeypatch.setattr(object_store_util, "load_object_store_config", _load)
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.load_object_store_config",
+        "podcast_mcp.services.media.review_media.load_object_store_config",
         _load,
     )
 

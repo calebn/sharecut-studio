@@ -13,7 +13,7 @@ from podcast_mcp.engines.ffmpeg import AudioProbe
 from podcast_mcp.ingest.import_folder import derive_speaker_label, scan_recorder_folder
 from podcast_mcp.ingest.manifest import IngestManifest
 from podcast_mcp.mcp import server as mcp_server
-from podcast_mcp.services.ingest import IngestService, _unique_speaker_name
+from podcast_mcp.services.media.ingest import IngestService, _unique_speaker_name
 
 
 def _write_wav(

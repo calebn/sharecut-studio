@@ -100,7 +100,7 @@ def test_render_share_spa_html_uses_episode_name(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.load_object_store_config",
+        "podcast_mcp.services.media.review_media.load_object_store_config",
         lambda config_path=None: None,
     )
     proj = load_project(minimal_project)
@@ -183,7 +183,7 @@ def test_share_audio_url_requires_play_and_https_object_store(monkeypatch):
     )
 
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.presigned_review_audio_url",
+        "podcast_mcp.services.media.presigned_review_audio_url",
         lambda *a, **k: "https://object-store.example.test/a.mp3",
     )
     assert (
@@ -197,7 +197,7 @@ def test_share_audio_url_requires_play_and_https_object_store(monkeypatch):
     )
 
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.presigned_review_audio_url",
+        "podcast_mcp.services.media.presigned_review_audio_url",
         lambda *a, **k: "http://insecure.example/a.mp3",
     )
     assert (
@@ -211,7 +211,7 @@ def test_share_audio_url_requires_play_and_https_object_store(monkeypatch):
     )
 
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.presigned_review_audio_url",
+        "podcast_mcp.services.media.presigned_review_audio_url",
         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")),
     )
     assert (
@@ -229,7 +229,7 @@ def test_render_share_spa_html_empty_label_and_audio_type(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.load_object_store_config",
+        "podcast_mcp.services.media.review_media.load_object_store_config",
         lambda config_path=None: None,
     )
     proj = load_project(minimal_project)
@@ -250,7 +250,7 @@ def test_render_share_spa_html_empty_label_and_audio_type(
         capabilities=["play", "comment"],
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.media_type_for_path",
+        "podcast_mcp.services.media.media_type_for_path",
         lambda path: "audio/wav",
     )
     html = render_share_spa_html(
@@ -262,7 +262,7 @@ def test_render_share_spa_html_empty_label_and_audio_type(
     assert "og:audio" in html
 
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.review_guest_audio_path",
+        "podcast_mcp.services.media.review_guest_audio_path",
         lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError()),
     )
     html2 = render_share_spa_html(

@@ -10,6 +10,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 _SUPPORT = "podcast_mcp.services.support"
 _PIPELINE = "podcast_mcp.services.pipeline"
 _APP = "podcast_mcp.services.app"
+_MEDIA = "podcast_mcp.services.media"
 _SESSION_SYNC = "podcast_mcp.services.session_sync"
 _ADAPTERS = ("podcast_mcp.gui", "podcast_mcp.cli", "podcast_mcp.mcp")
 
@@ -68,6 +69,8 @@ def _violations(source: str, module: str, internals: dict[str, set[str]]) -> set
                 allowed.add(_APP)
             elif owner == _APP:
                 allowed.add(_SESSION_SYNC)
+            elif owner == _MEDIA:
+                allowed.update({_APP, _PIPELINE})
             if not any(_in(target, name) for name in allowed):
                 violations.add(".".join(target.split(".")[:3]))
         if owner == _APP and target.startswith(_SESSION_SYNC + "."):
@@ -127,6 +130,20 @@ def _violations(source: str, module: str, internals: dict[str, set[str]]) -> set
         ),
         ("from .doctor import DoctorReport", _SUPPORT + ".config_check", set()),
         (
+            "from podcast_mcp.services.media.waveform import tile_bytes",
+            "podcast_mcp.gui.routes.waveform",
+            {_MEDIA + ".waveform"},
+        ),
+        ("from .media import waveform", "podcast_mcp.services.play", {_MEDIA + ".waveform"}),
+        ("import podcast_mcp.cli.main", _MEDIA + ".ingest", {"podcast_mcp.cli.main"}),
+        ("from podcast_mcp.services.app import ProjectWorkspace", _MEDIA + ".ingest", set()),
+        (
+            "from podcast_mcp.services.pipeline import asr_options_for",
+            _MEDIA + ".transcript",
+            set(),
+        ),
+        ("from .waveform import tile_bytes", _MEDIA + ".ingest", set()),
+        (
             "from podcast_mcp.services.app.workspace import ProjectWorkspace",
             _PIPELINE + ".service",
             {_APP + ".workspace"},
@@ -177,6 +194,18 @@ def test_boundary_guard_checks_nested_relative_and_facade_imports(
                 _SUPPORT: {"doctor"},
                 _PIPELINE: {"config", "bootstrap", "service"},
                 _APP: {"workspace", "fanout_hub", "gui_launch"},
+                _MEDIA: {
+                    "bounce",
+                    "ingest",
+                    "media_store",
+                    "proxy_media",
+                    "review_media",
+                    "speaker",
+                    "transcript",
+                    "transcript_precorrect",
+                    "transcript_refine",
+                    "waveform",
+                },
             },
         )
         == expected
@@ -189,6 +218,7 @@ def test_service_contexts_use_public_facades_and_have_no_adapter_dependencies() 
         _SUPPORT: services / "support",
         _PIPELINE: services / "pipeline",
         _APP: services / "app",
+        _MEDIA: services / "media",
     }
     internals = {
         context: {path.stem for path in directory.glob("*.py") if path.stem != "__init__"}
@@ -216,5 +246,15 @@ def test_migrated_modules_have_no_legacy_paths() -> None:
         "workspace",
         "fanout_hub",
         "gui_launch",
+        "bounce",
+        "ingest",
+        "media_store",
+        "proxy_media",
+        "review_media",
+        "speaker",
+        "transcript",
+        "transcript_precorrect",
+        "transcript_refine",
+        "waveform",
     ):
         assert not (services / f"{name}.py").exists()

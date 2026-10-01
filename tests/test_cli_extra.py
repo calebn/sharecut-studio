@@ -476,7 +476,7 @@ def test_transcript_correct_expected_text_guard(tmp_path):
 def test_transcript_context_set_marks_existing_transcript_stale(tmp_path):
     from podcast_mcp.models import Transcript
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
     project = _init_project(tmp_path)
     proj = load_project(project)
@@ -503,7 +503,7 @@ def test_transcript_context_set_reports_prompt_limit_without_traceback(tmp_path)
 
 
 def test_transcript_context_set_reports_busy_lock(tmp_path, monkeypatch):
-    from podcast_mcp.services.transcript_precorrect import TranscriptContextBusyError
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptContextBusyError
 
     project = _init_project(tmp_path)
 
@@ -511,7 +511,7 @@ def test_transcript_context_set_reports_busy_lock(tmp_path, monkeypatch):
         raise TranscriptContextBusyError("Transcript context is busy; retry")
 
     monkeypatch.setattr(
-        "podcast_mcp.services.transcript_precorrect.TranscriptPrecorrectService.update_context",
+        "podcast_mcp.services.media.transcript_precorrect.TranscriptPrecorrectService.update_context",
         busy,
     )
     result = runner.invoke(

@@ -22,7 +22,7 @@ from podcast_mcp.services.document_sync.service import (
     DocumentSyncService,
     notify_comments_changed,
 )
-from podcast_mcp.services.speaker import SpeakerService
+from podcast_mcp.services.media.speaker import SpeakerService
 
 
 def test_gui_launch_result_to_json():
@@ -170,15 +170,15 @@ def test_speaker_service_mocked(minimal_project):
 
     with (
         patch(
-            "podcast_mcp.services.speaker.load_transcript_context",
+            "podcast_mcp.services.media.speaker.load_transcript_context",
             return_value=mock_ctx,
         ),
         patch(
-            "podcast_mcp.services.speaker.resolve_speaker_backend",
+            "podcast_mcp.services.media.speaker.resolve_speaker_backend",
             return_value=mock_backend,
         ),
         patch(
-            "podcast_mcp.services.speaker.enroll_track",
+            "podcast_mcp.services.media.speaker.enroll_track",
             return_value=MagicMock(),
         ),
     ):
@@ -188,14 +188,14 @@ def test_speaker_service_mocked(minimal_project):
 
     with (
         patch(
-            "podcast_mcp.services.speaker.load_transcript_context",
+            "podcast_mcp.services.media.speaker.load_transcript_context",
             return_value=mock_ctx,
         ),
         patch(
-            "podcast_mcp.services.speaker.resolve_speaker_backend",
+            "podcast_mcp.services.media.speaker.resolve_speaker_backend",
             return_value=mock_backend,
         ),
-        patch("podcast_mcp.services.speaker.score_window", return_value=None),
+        patch("podcast_mcp.services.media.speaker.score_window", return_value=None),
     ):
         assert svc.score("host", 0.0, 1.0)["error"]
 
@@ -210,15 +210,15 @@ def test_speaker_service_mocked(minimal_project):
 
     with (
         patch(
-            "podcast_mcp.services.speaker.load_transcript_context",
+            "podcast_mcp.services.media.speaker.load_transcript_context",
             return_value=mock_ctx,
         ),
         patch(
-            "podcast_mcp.services.speaker.resolve_speaker_backend",
+            "podcast_mcp.services.media.speaker.resolve_speaker_backend",
             return_value=mock_backend,
         ),
         patch(
-            "podcast_mcp.services.speaker.score_window",
+            "podcast_mcp.services.media.speaker.score_window",
             side_effect=[wa, wb],
         ),
     ):
@@ -228,15 +228,15 @@ def test_speaker_service_mocked(minimal_project):
 
     with (
         patch(
-            "podcast_mcp.services.speaker.load_transcript_context",
+            "podcast_mcp.services.media.speaker.load_transcript_context",
             return_value=mock_ctx,
         ),
         patch(
-            "podcast_mcp.services.speaker.resolve_speaker_backend",
+            "podcast_mcp.services.media.speaker.resolve_speaker_backend",
             return_value=mock_backend,
         ),
         patch(
-            "podcast_mcp.services.speaker.score_window",
+            "podcast_mcp.services.media.speaker.score_window",
             side_effect=[None, wb],
         ),
     ):
@@ -244,11 +244,11 @@ def test_speaker_service_mocked(minimal_project):
 
     with (
         patch(
-            "podcast_mcp.services.speaker.load_transcript_context",
+            "podcast_mcp.services.media.speaker.load_transcript_context",
             return_value=mock_ctx,
         ),
         patch(
-            "podcast_mcp.services.speaker.run_speaker_attribution",
+            "podcast_mcp.services.media.speaker.run_speaker_attribution",
             return_value={"ok": True},
         ),
     ):

@@ -61,8 +61,8 @@ from podcast_mcp.services.boundary import (
     assert_boundary_token,
     boundary_context,
 )
+from podcast_mcp.services.media import schedule_stem_waveforms
 from podcast_mcp.services.session_sync.viewer import publish_agent_play
-from podcast_mcp.services.waveform import schedule_stem_waveforms
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.process import run

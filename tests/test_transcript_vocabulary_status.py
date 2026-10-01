@@ -11,7 +11,7 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Transcript, TranscriptWord, load_project, save_project
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 from podcast_mcp.transcript_context import TranscriptContext
 
 

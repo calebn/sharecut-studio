@@ -199,7 +199,7 @@ def track_media_refs(project: EpisodeProject, track: Track, *, sources: bool = T
 def current_key(entry: MediaEntry) -> str:
     """Pyramid key of *entry*'s media as it is on disk now (``OSError`` if it is gone).
 
-    Request handlers call ``services.waveform.live_key`` instead: it turns a missing
+    Request handlers call ``services.media.waveform.live_key`` instead: it turns a missing
     file into ``LookupError`` (404), where a bare ``OSError`` would become a 500.
     """
     st = entry.abs_path.stat()

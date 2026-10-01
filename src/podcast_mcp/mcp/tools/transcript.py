@@ -4,9 +4,11 @@ from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.transcript import TranscriptService
-from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
-from podcast_mcp.services.transcript_refine import TranscriptRefineService
+from podcast_mcp.services.media import (
+    TranscriptPrecorrectService,
+    TranscriptRefineService,
+    TranscriptService,
+)
 from podcast_mcp.util.progress import resolve_progress
 
 

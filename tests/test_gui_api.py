@@ -2404,11 +2404,11 @@ def test_api_export_bounce(minimal_project, monkeypatch) -> None:
     from podcast_mcp.gui.server import create_app
 
     monkeypatch.setattr(
-        "podcast_mcp.services.bounce.BounceService.validate",
+        "podcast_mcp.services.media.bounce.BounceService.validate",
         lambda self, req=None: [],
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.bounce.BounceService.bounce",
+        "podcast_mcp.services.media.bounce.BounceService.bounce",
         lambda self, req=None, **_k: [self.ws.project.export_dir() / "bounces" / "x.wav"],
     )
     client = TestClient(create_app())
@@ -2443,7 +2443,7 @@ def test_api_export_bounce_conflict_when_pipeline_running(minimal_project, monke
     from podcast_mcp.gui.server import create_app
 
     monkeypatch.setattr(
-        "podcast_mcp.services.bounce.BounceService.bounce",
+        "podcast_mcp.services.media.bounce.BounceService.bounce",
         lambda self, req=None, **_k: [self.ws.project.export_dir() / "bounces" / "x.wav"],
     )
     app = create_app()
@@ -2951,7 +2951,7 @@ def test_api_transcript_vocabulary_busy_lock_is_project_busy_503(
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.transcript_precorrect import (
+    from podcast_mcp.services.media.transcript_precorrect import (
         TranscriptContextBusyError,
         TranscriptPrecorrectService,
     )
@@ -3039,7 +3039,7 @@ def test_api_transcript_refine_waive_records_user_source(minimal_project, monkey
         return {"status": "waived", "reason": reason, "source": source}
 
     monkeypatch.setattr(
-        "podcast_mcp.services.transcript_refine.TranscriptRefineService.waive",
+        "podcast_mcp.services.media.transcript_refine.TranscriptRefineService.waive",
         waive,
     )
     client = TestClient(create_app())
@@ -4149,13 +4149,13 @@ def test_api_transcript_vocabulary_busy_lock_returns_503(minimal_project, monkey
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
-    from podcast_mcp.services.transcript_precorrect import TranscriptContextBusyError
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptContextBusyError
 
     def busy(self, **_kwargs):
         raise TranscriptContextBusyError("Transcript context is busy; retry")
 
     monkeypatch.setattr(
-        "podcast_mcp.services.transcript_precorrect.TranscriptPrecorrectService.set_vocabulary",
+        "podcast_mcp.services.media.transcript_precorrect.TranscriptPrecorrectService.set_vocabulary",
         busy,
     )
     client = TestClient(create_app())

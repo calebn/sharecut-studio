@@ -18,10 +18,10 @@ from podcast_mcp.services.clip import ClipService
 from podcast_mcp.services.edit import EditService
 from podcast_mcp.services.episode import EpisodeService
 from podcast_mcp.services.history import HistoryService
+from podcast_mcp.services.media.speaker import SpeakerService
+from podcast_mcp.services.media.transcript import TranscriptService
+from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 from podcast_mcp.services.pipeline import PipelineService
-from podcast_mcp.services.speaker import SpeakerService
-from podcast_mcp.services.transcript import TranscriptService
-from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
 
 
 def test_edit_service_list_applied_and_render_status(minimal_project):
@@ -241,10 +241,10 @@ def test_transcript_service_resolves_model_for_standalone_transcribe(minimal_pro
     ws = ProjectWorkspace.open(minimal_project)
     with (
         patch(
-            "podcast_mcp.services.transcript.resolve_whisper_model",
+            "podcast_mcp.services.media.transcript.resolve_whisper_model",
             return_value="base.en",
         ) as resolve,
-        patch("podcast_mcp.services.transcript.TranscriptionEngine") as engine,
+        patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as engine,
     ):
         TranscriptService(ws, model="base.en")
 
@@ -268,7 +268,7 @@ def test_transcript_service_transcribe_fails_when_alignment_is_forced_without_th
         svc = TranscriptService(ws)
         with (
             patch(
-                "podcast_mcp.services.transcript.run_transcribe_plan",
+                "podcast_mcp.services.media.transcript.run_transcribe_plan",
                 side_effect=AssertionError("ASR must not start"),
             ),
             pytest.raises(WordAlignerMissingError) as excinfo,
@@ -294,7 +294,7 @@ def test_transcript_service_transcribe_fails_when_the_forced_model_cannot_load(
         svc = TranscriptService(ws)
         with (
             patch(
-                "podcast_mcp.services.transcript.run_transcribe_plan",
+                "podcast_mcp.services.media.transcript.run_transcribe_plan",
                 side_effect=AssertionError("ASR must not start"),
             ),
             pytest.raises(WordAlignerMissingError) as excinfo,
@@ -314,9 +314,13 @@ def test_transcript_service_transcribe_uses_working_set_asr_options(minimal_proj
     try:
         svc = TranscriptService(ws)
         with (
-            patch("podcast_mcp.services.transcript.dialogue_transcribe_jobs", return_value=[]),
-            patch("podcast_mcp.services.transcript.plan_transcription"),
-            patch("podcast_mcp.services.transcript.run_transcribe_plan", return_value=[]) as run,
+            patch(
+                "podcast_mcp.services.media.transcript.dialogue_transcribe_jobs", return_value=[]
+            ),
+            patch("podcast_mcp.services.media.transcript.plan_transcription"),
+            patch(
+                "podcast_mcp.services.media.transcript.run_transcribe_plan", return_value=[]
+            ) as run,
         ):
             svc.transcribe()
         make_engine = run.call_args.args[2]
@@ -356,7 +360,7 @@ def test_transcript_service_export_subtitles(minimal_project):
 
 def test_transcript_service_export_subtitles_builds_missing_combined(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
-    with patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.merge_transcripts.return_value = CombinedTranscript(utterances=[])
         out = TranscriptService(ws).export_subtitles("srt")
 
@@ -380,7 +384,7 @@ def test_transcript_service_transcribe_all_and_combined_get(minimal_project):
     _host_dialogue(ws)
     from podcast_mcp.models import Transcript, TranscriptWord
 
-    with patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(
                 track_id="host",
@@ -401,7 +405,7 @@ def test_transcript_service_applies_saved_vocabulary(minimal_project):
     TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one").save(
         ws.project.workspace_path()
     )
-    with patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
@@ -421,7 +425,7 @@ def test_transcript_service_single_track_stamps_vocabulary_revision(minimal_proj
     TranscriptContext(terms=["Kaczynski"], vocabulary_revision="revision-one").save(
         ws.project.workspace_path()
     )
-    with patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
@@ -450,7 +454,7 @@ def test_transcript_service_single_track_returns_only_processed_id(minimal_proje
     ws.project.transcripts = [Transcript(track_id="guest", words=[])]
     _host_dialogue(ws)
 
-    with patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls:
+    with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as eng_cls:
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
@@ -475,7 +479,7 @@ def test_transcript_service_keeps_other_sources_and_warns_on_edited(minimal_proj
     ]
     ws.save()
     with (
-        patch("podcast_mcp.services.transcript.TranscriptionEngine") as eng_cls,
+        patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as eng_cls,
         caplog.at_level("WARNING"),
     ):
         eng_cls.return_value.transcribe_all_dialogue.return_value = [
@@ -506,7 +510,7 @@ def test_transcript_service_export_markdown_and_vtt(minimal_project):
     )
     ws.project.transcripts = []
     with patch(
-        "podcast_mcp.services.transcript.TranscriptionEngine.merge_transcripts",
+        "podcast_mcp.services.media.transcript.TranscriptionEngine.merge_transcripts",
         return_value=combined,
     ):
         path = TranscriptService(ws).export_markdown()
@@ -568,7 +572,7 @@ def test_speaker_service_doctor_and_profiles(minimal_project):
 
 def test_speaker_service_score_error(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
-    with patch("podcast_mcp.services.speaker.score_window", return_value=None):
+    with patch("podcast_mcp.services.media.speaker.score_window", return_value=None):
         result = SpeakerService(ws).score("host", 0.0, 1.0)
     assert result["error"] == "could not score window"
 
@@ -900,7 +904,7 @@ def test_transcript_service_uses_pipeline_language(minimal_project, language):
     store = config_store()
     store.put(ws.path, config={"transcribe": {"language": language}})
     try:
-        with patch("podcast_mcp.services.transcript.TranscriptionEngine") as engine:
+        with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as engine:
             engine.return_value.transcribe_all_dialogue.return_value = [
                 Transcript(track_id="host", words=[])
             ]
@@ -915,7 +919,7 @@ def test_transcript_service_uses_pipeline_language(minimal_project, language):
 def test_transcript_service_defaults_to_english(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _host_dialogue(ws)
-    with patch("podcast_mcp.services.transcript.TranscriptionEngine") as engine:
+    with patch("podcast_mcp.services.media.transcript.TranscriptionEngine") as engine:
         engine.return_value.transcribe_all_dialogue.return_value = [
             Transcript(track_id="host", words=[])
         ]
