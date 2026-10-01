@@ -80,6 +80,10 @@ export interface PendingEditView {
   reason: string | null;
   source_start: number;
   source_end: number;
+  /** Timeline clock of the stored source start, or null when clipped. */
+  source_start_timeline: number | null;
+  /** Timeline clock of the stored source end, or null when clipped. */
+  source_end_timeline: number | null;
   timeline_start: number | null;
   timeline_end: number | null;
   timeline_spans: TimelineSpan[];

@@ -38,6 +38,8 @@ function project() {
         reason: "filler:um",
         source_start: 1,
         source_end: 2,
+        source_start_timeline: 1,
+        source_end_timeline: 2,
         timeline_start: 1,
         timeline_end: 2,
         timeline_spans: [{ start: 1, end: 2 }],
@@ -75,6 +77,45 @@ describe("ImpactPanel transcript refine recovery", () => {
     expect(
       screen.getByRole("button", { name: /filler:um · host/ }),
     ).toHaveAttribute("data-pending-id", "e1");
+  });
+
+  it("lists and selects non-review pending edits while bulk remains review-required-only", async () => {
+    const user = userEvent.setup();
+    const pendingProject = project();
+    pendingProject.pending_edits.push({
+      ...pendingProject.pending_edits[0]!,
+      id: "tiny-manual",
+      source_start: 0.1,
+      source_end: 0.2,
+      source_start_timeline: 0.1,
+      source_end_timeline: 0.2,
+      timeline_start: 0.1,
+      timeline_end: 0.2,
+      timeline_spans: [{ start: 0.1, end: 0.2 }],
+      reason: "manual:short",
+      review_required: false,
+    });
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={pendingProject}>
+        <ImpactPanel />
+      </DawProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: /filler:um · host/ }),
+    ).toBeInTheDocument();
+    const tinyEdit = screen.getByRole("button", {
+      name: "manual:short · host",
+    });
+    expect(tinyEdit).toHaveAttribute("data-pending-id", "tiny-manual");
+    await user.click(tinyEdit);
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "pending",
+      id: "tiny-manual",
+      trackId: "host",
+    });
+    expect(
+      screen.getByRole("button", { name: /Approve all review-required \(1\)/ }),
+    ).toBeInTheDocument();
   });
 
   it("says a bulk approval that is still sending is not done yet", async () => {

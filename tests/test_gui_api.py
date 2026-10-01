@@ -100,6 +100,8 @@ def test_map_pending_edits_mappable() -> None:
     assert rows[0]["mappable"] is True
     assert rows[0]["timeline_start"] == pytest.approx(1.0)
     assert rows[0]["timeline_end"] == pytest.approx(2.0)
+    assert rows[0]["source_start_timeline"] == pytest.approx(1.0)
+    assert rows[0]["source_end_timeline"] == pytest.approx(2.0)
     assert rows[0]["scope"] == "session"
     assert rows[0]["can_skip"] is True
     assert rows[0]["skip_reason"] is None
@@ -119,10 +121,126 @@ def test_map_pending_edits_unmappable() -> None:
     rows = map_pending_edits_to_timeline(p, [decision])
     assert rows[0]["mappable"] is False
     assert rows[0]["timeline_start"] is None
+    assert rows[0]["source_start_timeline"] is None
+    assert rows[0]["source_end_timeline"] is None
     assert rows[0]["can_skip"] is False
     assert rows[0]["skip_reason"] is not None
     assert "not on the current timeline" in rows[0]["skip_reason"]
     assert rows[0]["join_risk"] is None
+
+
+def test_map_pending_cut_endpoints_across_ripple_gap() -> None:
+    p = EpisodeProject.create("ripple", "/tmp/ripple")
+    p.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=12.0),
+        )
+    ]
+    p.timeline.clips = [
+        Clip(
+            id="before",
+            track_id="host",
+            source_start=0.0,
+            source_end=4.0,
+            timeline_start=0.0,
+        ),
+        Clip(
+            id="after",
+            track_id="host",
+            source_start=8.0,
+            source_end=12.0,
+            timeline_start=7.0,
+        ),
+    ]
+    row = map_pending_edits_to_timeline(
+        p,
+        [
+            EditDecision(
+                id="ripple-cut",
+                track_id="host",
+                type=EditDecisionType.REMOVE,
+                start=2.0,
+                end=10.0,
+                reason="test",
+            )
+        ],
+    )[0]
+    assert row["timeline_spans"] == [
+        {"start": pytest.approx(2.0), "end": pytest.approx(4.0)},
+        {"start": pytest.approx(7.0), "end": pytest.approx(9.0)},
+    ]
+    assert row["source_start_timeline"] == pytest.approx(2.0)
+    assert row["source_end_timeline"] == pytest.approx(9.0)
+
+
+def test_map_pending_cut_nulls_clipped_endpoints_and_split_points() -> None:
+    p = _minimal()
+    clipped = EditDecision(
+        id="clipped",
+        track_id="host",
+        type=EditDecisionType.REMOVE,
+        start=1.0,
+        end=11.0,
+        reason="test",
+    )
+    split = EditDecision(
+        id="split",
+        track_id="host",
+        type=EditDecisionType.SPLIT,
+        start=2.0,
+        end=2.0,
+        reason="test",
+    )
+    clipped_row, split_row = map_pending_edits_to_timeline(p, [clipped, split])
+    assert clipped_row["timeline_spans"] == [
+        {"start": pytest.approx(1.0), "end": pytest.approx(10.0)}
+    ]
+    assert clipped_row["source_start_timeline"] == pytest.approx(1.0)
+    assert clipped_row["source_end_timeline"] is None
+    assert split_row["source_start_timeline"] is None
+    assert split_row["source_end_timeline"] is None
+
+
+def test_map_pending_cut_endpoint_uses_session_earliest_repeated_placement() -> None:
+    p = _minimal()
+    p.timeline.clips = [
+        Clip(
+            id="first",
+            track_id="host",
+            source_start=0.0,
+            source_end=5.0,
+            timeline_start=2.0,
+        ),
+        Clip(
+            id="second",
+            track_id="host",
+            source_start=0.0,
+            source_end=5.0,
+            timeline_start=8.0,
+        ),
+    ]
+    row = map_pending_edits_to_timeline(
+        p,
+        [
+            EditDecision(
+                id="repeated",
+                track_id="host",
+                type=EditDecisionType.REMOVE,
+                start=1.0,
+                end=4.0,
+                reason="test",
+            )
+        ],
+    )[0]
+    assert row["timeline_spans"] == [
+        {"start": pytest.approx(3.0), "end": pytest.approx(6.0)},
+        {"start": pytest.approx(9.0), "end": pytest.approx(12.0)},
+    ]
+    assert row["source_start_timeline"] == pytest.approx(3.0)
+    assert row["source_end_timeline"] == pytest.approx(6.0)
 
 
 def test_map_pending_edits_join_risk_from_reason() -> None:

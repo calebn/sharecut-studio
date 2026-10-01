@@ -11,6 +11,7 @@ from podcast_mcp.engines.session_timeline import SessionTimeline, word_source_sp
 from podcast_mcp.engines.utterance_runs import utterance_runs, utterance_speaker, utterance_text
 from podcast_mcp.models import AppliedEditRecord, Clip, EditDecision, EpisodeProject
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
+from podcast_mcp.util.timebase import SourceSec
 
 TIGHTEN_REASON_PREFIXES = ("filler:", "pause:", "repetition:", "restart:")
 
@@ -56,6 +57,8 @@ def map_pending_edits_to_timeline(
         track_ids = list(decision.track_ids) if decision.track_ids else [decision.track_id]
         timeline_start: float | None
         timeline_end: float | None
+        source_start_timeline: float | None
+        source_end_timeline: float | None
         if type_val == "split" or decision.timebase == "timeline":
             at = float(decision.start)
             mappable = True
@@ -67,12 +70,20 @@ def map_pending_edits_to_timeline(
             timeline_spans = [{"start": timeline_start, "end": max(timeline_end, at)}]
             source_start = at
             source_end = at
+            source_start_timeline = None
+            source_end_timeline = None
         else:
             mappable, timeline_spans, timeline_start, timeline_end = map_source_span_fields(
                 timeline, decision.track_id, decision.start, decision.end
             )
             source_start = decision.start
             source_end = decision.end
+            start_point = timeline.source_to_timeline(
+                decision.track_id, SourceSec(float(source_start))
+            )
+            end_point = timeline.source_to_timeline(decision.track_id, SourceSec(float(source_end)))
+            source_start_timeline = float(start_point) if start_point is not None else None
+            source_end_timeline = float(end_point) if end_point is not None else None
         preview = preview_window_for_edit(project, decision)
         rows.append(
             {
@@ -85,6 +96,8 @@ def map_pending_edits_to_timeline(
                 "source_end": source_end,
                 "timeline_start": timeline_start,
                 "timeline_end": timeline_end,
+                "source_start_timeline": source_start_timeline,
+                "source_end_timeline": source_end_timeline,
                 "timeline_spans": timeline_spans,
                 "mappable": mappable,
                 "can_skip": preview.can_skip,

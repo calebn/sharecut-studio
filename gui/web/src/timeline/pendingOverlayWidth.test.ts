@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   pendingOverlayWidthPx,
-  SPAN_OVERLAY_MIN_WIDTH_PX,
   SPLIT_OVERLAY_WIDTH_PX,
 } from "./pendingOverlayWidth";
 
@@ -14,6 +13,6 @@ describe("pendingOverlayWidthPx", () => {
 
   it("sizes mute and remove spans from their timeline width", () => {
     expect(pendingOverlayWidthPx("mute", 40)).toBe(40);
-    expect(pendingOverlayWidthPx("remove", 1)).toBe(SPAN_OVERLAY_MIN_WIDTH_PX);
+    expect(pendingOverlayWidthPx("remove", 1)).toBe(1);
   });
 });

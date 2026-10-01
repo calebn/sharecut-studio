@@ -43,6 +43,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "transcript/EditBoundaryMarkView.tsx",
   "timeline/TimeRulerView.tsx",
   "timeline/EnvelopeOverlayView.tsx",
+  // Escape cancels only this region's active pointer gesture.
+  "timeline/PendingEditOverlayView.tsx",
   "inspector/views/TranscriptWordInspector.tsx",
   "transcript/InlineWordEditor.tsx",
   "transcript/TranscriptWordbar.tsx",

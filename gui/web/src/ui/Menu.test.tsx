@@ -34,6 +34,7 @@ function SheetWithMenu() {
       <BottomSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
+        backgroundPolicy="interactive"
         title="Inspector"
       >
         <p>Sheet body</p>

@@ -5,10 +5,12 @@ import { CloseButton } from "./CloseButton";
 import { useDialogModal } from "./useDialogModal";
 
 export type BottomSheetSize = "half" | "full";
+export type BottomSheetBackgroundPolicy = "interactive" | "dismiss";
 
 type Props = {
   open: boolean;
   onClose: () => void;
+  backgroundPolicy: BottomSheetBackgroundPolicy;
   title?: string;
   size?: BottomSheetSize;
   children: ReactNode;
@@ -25,6 +27,7 @@ type Props = {
 export function BottomSheet({
   open,
   onClose,
+  backgroundPolicy,
   title,
   size = "half",
   children,
@@ -55,12 +58,19 @@ export function BottomSheet({
 
   return createPortal(
     <div className="bottom-sheet-root" role="presentation">
-      <button
-        type="button"
-        className="bottom-sheet-scrim"
-        aria-label="Dismiss"
-        onClick={dismiss}
-      />
+      {backgroundPolicy === "interactive" ? (
+        <div
+          className="bottom-sheet-scrim bottom-sheet-scrim--interactive"
+          aria-hidden="true"
+        />
+      ) : (
+        <button
+          type="button"
+          className="bottom-sheet-scrim"
+          aria-label="Dismiss"
+          onClick={dismiss}
+        />
+      )}
       <div
         ref={panelRef}
         className={`bottom-sheet${isFull ? " bottom-sheet--full" : " bottom-sheet--half"}`}

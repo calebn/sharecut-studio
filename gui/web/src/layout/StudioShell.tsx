@@ -305,6 +305,7 @@ export function StudioShellView({
       <StatusBar guestShare={guestShare} />
       {useSheetInspector ? (
         <BottomSheet
+          backgroundPolicy="interactive"
           open={sheetOpen}
           onClose={() => {
             setSelection(null);

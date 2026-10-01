@@ -1,6 +1,9 @@
 import { useCallback } from "react";
-import { updatePendingEdit } from "../api";
+import { approveEdits, rejectEdits, updatePendingEdit } from "../api";
+import { canApplyPass12, canSuggestOrNudge } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
+import { EMPTY_OBJ } from "../utils/empty";
 import {
   PendingEditOverlayView,
   type PendingEditOverlayViewProps,
@@ -8,16 +11,117 @@ import {
 
 type PendingEditOverlayProps = Omit<
   PendingEditOverlayViewProps,
-  "onCommitSpan"
+  | "clipsByTrack"
+  | "projectPath"
+  | "canAdjust"
+  | "canApply"
+  | "onCommitSpan"
+  | "onReviewAction"
 >;
 
-/** Live wiring: commits a handle drag through UpdatePendingEdit (snap on). */
 export function PendingEditOverlay(props: PendingEditOverlayProps) {
-  const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
-  const onCommitSpan = useCallback(
-    (editId: string, sourceStart: number, sourceEnd: number) =>
-      updatePendingEdit(projectPath, editId, sourceStart, sourceEnd, true),
-    [projectPath],
+  const { projectPath, guestMode, shareCapabilities } = useDaw((state) => ({
+    projectPath: state.projectPath,
+    guestMode: state.guestMode,
+    shareCapabilities: state.shareCapabilities,
+  }));
+  const clipsByTrack = useDawStore(
+    (state) => state.project?.clips.tracks ?? EMPTY_OBJ,
   );
-  return <PendingEditOverlayView {...props} onCommitSpan={onCommitSpan} />;
+  const canAdjust = canSuggestOrNudge(
+    projectPath,
+    guestMode,
+    shareCapabilities,
+  );
+  const canApply = canApplyPass12(projectPath, guestMode, shareCapabilities);
+  const onCommitSpan = useCallback<PendingEditOverlayViewProps["onCommitSpan"]>(
+    async (
+      capturedPath,
+      capturedEpoch,
+      editId,
+      expectedSourceStart,
+      expectedSourceEnd,
+      sourceStart,
+      sourceEnd,
+    ) => {
+      const state = useDawStore.getState();
+      if (
+        state.projectPath !== capturedPath ||
+        state.projectEpoch !== capturedEpoch ||
+        !canSuggestOrNudge(
+          state.projectPath,
+          state.guestMode,
+          state.shareCapabilities,
+        )
+      ) {
+        return;
+      }
+      const current = state.project?.pending_edits.find(
+        (edit) => edit.id === editId,
+      );
+      if (
+        !current ||
+        current.source_start !== expectedSourceStart ||
+        current.source_end !== expectedSourceEnd
+      ) {
+        return;
+      }
+      await updatePendingEdit(
+        capturedPath,
+        editId,
+        sourceStart,
+        sourceEnd,
+        false,
+      );
+    },
+    [],
+  );
+  const onReviewAction = useCallback<
+    PendingEditOverlayViewProps["onReviewAction"]
+  >(async (capturedPath, capturedEpoch, editId, action) => {
+    const state = useDawStore.getState();
+    if (
+      state.projectPath !== capturedPath ||
+      state.projectEpoch !== capturedEpoch ||
+      state.selection?.kind !== "pending" ||
+      state.selection.id !== editId ||
+      !canApplyPass12(
+        state.projectPath,
+        state.guestMode,
+        state.shareCapabilities,
+      )
+    ) {
+      throw new Error(
+        "You do not have permission to review this pending edit.",
+      );
+    }
+    const result =
+      action === "approve"
+        ? approveEdits(capturedPath, [editId])
+        : rejectEdits(capturedPath, [editId]);
+    const outcome = await result;
+    const after = useDawStore.getState();
+    if (
+      after.projectPath === capturedPath &&
+      after.projectEpoch === capturedEpoch &&
+      after.selection?.kind === "pending" &&
+      after.selection.id === editId &&
+      !outcome.queued &&
+      !after.project?.pending_edits.some((edit) => edit.id === editId)
+    ) {
+      after.setSelection(null);
+    }
+    return outcome;
+  }, []);
+  return (
+    <PendingEditOverlayView
+      {...props}
+      projectPath={projectPath}
+      clipsByTrack={clipsByTrack}
+      canAdjust={canAdjust}
+      canApply={canApply}
+      onCommitSpan={onCommitSpan}
+      onReviewAction={onReviewAction}
+    />
+  );
 }

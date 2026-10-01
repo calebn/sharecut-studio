@@ -542,6 +542,7 @@ export function MobileShellView({
         ))}
       </nav>
       <BottomSheet
+        backgroundPolicy="interactive"
         open={
           selection != null &&
           (mobileMode === "timeline" ||
@@ -549,7 +550,10 @@ export function MobileShellView({
             (mobileMode === "text" && selection.kind === "transcriptWord") ||
             (mobileMode === "more" &&
               moreDestination === "comments" &&
-              selection.kind === "comment"))
+              selection.kind === "comment") ||
+            (mobileMode === "more" &&
+              moreDestination === "impact" &&
+              selection.kind === "pending"))
         }
         onClose={closeSheet}
         title="Inspector"

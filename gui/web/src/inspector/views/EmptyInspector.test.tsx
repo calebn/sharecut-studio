@@ -63,6 +63,8 @@ describe("EmptyInspector", () => {
       reason: "filler",
       source_start: 0,
       source_end: 1,
+      source_start_timeline: null,
+      source_end_timeline: null,
       timeline_start: null,
       timeline_end: null,
       timeline_spans: [],

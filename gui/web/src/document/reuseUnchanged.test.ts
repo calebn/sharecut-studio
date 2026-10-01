@@ -208,6 +208,18 @@ describe("reuseUnchanged", () => {
       review_required: false,
       applied: false,
       ...extra,
+      source_start_timeline:
+        extra.source_start_timeline === undefined
+          ? extra.timeline_start === undefined
+            ? 0
+            : extra.timeline_start
+          : extra.source_start_timeline,
+      source_end_timeline:
+        extra.source_end_timeline === undefined
+          ? extra.timeline_end === undefined
+            ? 1
+            : extra.timeline_end
+          : extra.source_end_timeline,
     };
   }
 

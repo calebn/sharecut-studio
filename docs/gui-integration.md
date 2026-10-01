@@ -381,9 +381,25 @@ Passes 0–8: History Undo/Redo, pending Approve/Reject (bulk + nudge), applied 
    share a source edge go to the record's stored `timeline_*`. Every server
    `operation` has an explicit case (pinned by `tests/test_gui_readiness.py`).
    Ticks carry no hover title (the layer is `pointer-events: none`); labels live
-   in Impact. The layer clips to the canvas,
-   so a tick can never widen the scroll range. Pending `remove` stays hatched and
-   `mute` solid (toggle)  
+   in Impact. The layer clips to the canvas, so a tick can never widen the
+   scroll range. Pending `remove` regions stay hatched and `mute` regions stay
+   solid (toggle). Each pending region fills its lane, while the minimum hit
+   target stays inside the canvas and the visible hatch remains on its true
+   timeline range. Only a source edit's true outer endpoints are
+   keyboard-focusable drag handles; each moving edge snaps to current waveform
+   ticks and clamps inside its matching source clip while preserving the other
+   edge. Timeline commits use the exact displayed bounds. A clipped or
+   ambiguous source endpoint disables that affected edge; another eligible
+   outer edge remains adjustable. Selection exposes Approve/Reject beside the
+   region; narrow labels and actions are anchored in a viewport overlay so they
+   do not widen timeline scroll or cover the handles. The action panel stays
+   above sticky track headers and below sheets. It scrolls when its contents
+   exceed the free space above or below the region, and hides when neither side
+   has room; the inspector remains available. Tiny unselected regions
+   show their floating label on hover or keyboard focus, preventing dense cuts
+   from stacking unreadable chips. Floating surfaces remeasure after timeline
+   movement, zoom, and viewport resize. Changing projects or the underlying
+   source clip placement cancels an uncommitted drag.
 4. **Markers** — chapter diamonds, each with its title beside it (cut short to the room before the next chapter, hidden when there is none; full title on hover), + social clip regions above lanes (toggle)
 5. **Prosody** (host only, off by default; View › Layers, #719) — per-segment bands from the `analyze_prosody` cache (tinted where energy falls), a stepped energy contour from the three stored energy thirds (scaled per track), phrase-boundary ticks (height = boundary strength; the segment end dashed) and a dot per prominent word. `pointer-events: none`. A `stale` profile draws dimmed with a lane label; `missing` / `unavailable` show only the label. Lane labels are plain text; one sr-only `role="status"` in the timeline summarises the non-fresh lanes ("Prosody: no profile on 2 tracks"). No pitch contour: the profile stores per-segment F0 statistics only. Data: `GET /api/project/prosody`, fetched once per project change, pipeline or host-MCP agent job start/end, or when the layer is turned back on (the way to pick up an `analyze_prosody` run from another process, e.g. a terminal `podcast pipeline run`; cross-process job adopt is on the ROADMAP) and shared with the transcript (`prosody/useProsodyOverlay.ts`); after a clip edit the timeline hides the layer until the refetch lands (the payload is tied to the clip layout it was mapped against), while the transcript keeps its word emphasis
 

@@ -20,6 +20,14 @@ function pending(overrides: Partial<PendingEditView>): PendingEditView {
     review_required: false,
     applied: false,
     ...overrides,
+    source_start_timeline:
+      overrides.source_start_timeline === undefined
+        ? (overrides.timeline_start ?? null)
+        : overrides.source_start_timeline,
+    source_end_timeline:
+      overrides.source_end_timeline === undefined
+        ? (overrides.timeline_end ?? null)
+        : overrides.source_end_timeline,
   };
 }
 

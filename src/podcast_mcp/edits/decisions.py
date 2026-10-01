@@ -371,6 +371,9 @@ def update_pending_edit(
         edit.boundary_mode = opt.mode
         edit.cut_confidence = opt.confidence
     else:
+        if start != edit.start or end != edit.end:
+            edit.boundary_mode = None
+            edit.cut_confidence = None
         edit.start = start
         edit.end = end
     return edit

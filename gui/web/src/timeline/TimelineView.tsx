@@ -626,6 +626,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       canvasSec,
     );
     void execute("transport.seek", { sec }, { skipWhen: true });
+    setSelection(null);
     if (bladeMode) {
       void execute("edit.bladeCut", { atTime: sec }, { skipWhen: true });
     }
@@ -887,6 +888,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                   hidePlayhead={fixedPlayhead}
                   onSeek={(sec) => {
                     void execute("transport.seek", { sec }, { skipWhen: true });
+                    setSelection(null);
                     if (toolMode === "blade" && !commentMode) {
                       void execute(
                         "edit.bladeCut",

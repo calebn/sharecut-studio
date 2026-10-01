@@ -173,6 +173,27 @@ def test_update_pending_edit_without_snap():
     assert updated.end == 2.5
 
 
+def test_manual_pending_edit_range_clears_optimizer_assessment():
+    proj = _project_with_clip()
+    proj.edit_decisions = [
+        EditDecision(
+            id="p1",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=1.0,
+            end=2.0,
+            boundary_mode="waveform_only",
+            cut_confidence=0.8,
+            reason="nudge",
+            applied=False,
+        )
+    ]
+    updated = update_pending_edit(proj, "p1", start=1.2, end=2.5, snap=False)
+    assert (updated.start, updated.end) == (1.2, 2.5)
+    assert updated.boundary_mode is None
+    assert updated.cut_confidence is None
+
+
 def test_update_pending_edit_with_snap_passthrough(monkeypatch):
     proj = _project_with_clip()
     proj.edit_decisions = [

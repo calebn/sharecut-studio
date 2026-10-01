@@ -11,6 +11,7 @@ import {
   ApiError,
   TRANSCRIPT_REFINE_REQUIRED_CODE,
 } from "../../utils/apiError";
+import { pendingEditTimingFieldId } from "../../utils/pendingEditTimingField";
 import { PendingEditInspector } from "./PendingEditInspector";
 
 const createComment = vi.fn();
@@ -47,6 +48,8 @@ const sessionCut: PendingEditView = {
   reason: "tangent",
   source_start: 10,
   source_end: 12,
+  source_start_timeline: 10,
+  source_end_timeline: 12,
   timeline_start: 10,
   timeline_end: 12,
   timeline_spans: [{ start: 10, end: 12 }],
@@ -404,6 +407,8 @@ describe("PendingEditInspector", () => {
       source_end: 1.999999,
       timeline_start: 0,
       timeline_end: 1.999999,
+      source_start_timeline: 0,
+      source_end_timeline: 1.999999,
       timeline_spans: [{ start: 0, end: 1.999999 }],
       crossfade_ms: 10,
     };
@@ -433,6 +438,10 @@ describe("PendingEditInspector", () => {
       expect(args[2]).toBe(0.1234);
       expect(args[3]).toBe(2.3804);
       const start = screen.getByLabelText("Source start");
+      expect(start).toHaveAttribute(
+        "id",
+        pendingEditTimingFieldId(guestCut.id, "start"),
+      );
       await user.clear(start);
       await user.type(start, "0:00.200");
       await user.click(screen.getByRole("button", { name: /Snap & apply/ }));
