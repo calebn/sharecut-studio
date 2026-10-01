@@ -34,6 +34,7 @@ import {
   pendingReasonLabel,
   pendingTypeLabel,
 } from "../../utils/pendingEditLabels";
+import { pendingEditTimingFieldId } from "../../utils/pendingEditTimingField";
 import {
   canSuggestSkip,
   type PreviewMode,
@@ -302,6 +303,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
             {canNudge ? (
               <FieldRow>
                 <input
+                  id={pendingEditTimingFieldId(edit.id, "start")}
+                  className="pending-source-time-field"
                   type="text"
                   spellCheck={false}
                   placeholder="m:ss.mmm"
@@ -313,6 +316,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 />
                 <span>–</span>
                 <input
+                  id={pendingEditTimingFieldId(edit.id, "end")}
+                  className="pending-source-time-field"
                   type="text"
                   spellCheck={false}
                   placeholder="m:ss.mmm"
@@ -325,7 +330,11 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 <span id={timeHintId} className="ui-field-hint">
                   m:ss.mmm or seconds
                 </span>
-                <Button disabled={busy} onClick={() => void applyNudge()}>
+                <Button
+                  className="pending-source-time-apply"
+                  disabled={busy}
+                  onClick={() => void applyNudge()}
+                >
                   Snap &amp; apply
                 </Button>
               </FieldRow>

@@ -142,27 +142,30 @@ export function ImpactPanel() {
               Reject all review-required
             </Button>
           </div>
-          <ul className="impact-pending-list">
-            {reviewRequired.map((e) => (
-              <li key={e.id}>
-                <Button
-                  variant="link"
-                  data-pending-id={e.id}
-                  onClick={() =>
-                    setSelection({
-                      kind: "pending",
-                      id: e.id,
-                      trackId: e.track_id,
-                    })
-                  }
-                >
-                  {e.reason ?? e.type} · {e.track_id}
-                </Button>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
+      {project.pending_edits.length > 0 ? (
+        <ul className="impact-pending-list" aria-label="Pending edits">
+          {project.pending_edits.map((edit) => (
+            <li key={edit.id}>
+              <Button
+                className="impact-pending-select"
+                variant="link"
+                data-pending-id={edit.id}
+                onClick={() =>
+                  setSelection({
+                    kind: "pending",
+                    id: edit.id,
+                    trackId: edit.track_id,
+                  })
+                }
+              >
+                {edit.reason ?? edit.type} · {edit.track_id}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <InlineError
         message={
           error && errorCode === TRANSCRIPT_REFINE_REQUIRED_CODE

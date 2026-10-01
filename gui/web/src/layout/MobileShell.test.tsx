@@ -361,6 +361,8 @@ describe("MobileShell", () => {
           reason: null,
           source_start: 1,
           source_end: 2,
+          source_start_timeline: 1,
+          source_end_timeline: 2,
           timeline_start: 1,
           timeline_end: 2,
           timeline_spans: [{ start: 1, end: 2 }],
@@ -393,6 +395,60 @@ describe("MobileShell", () => {
       id: "ed1",
       trackId: "host",
     });
+  });
+
+  it("opens the phone inspector when Impact selects a pending edit", async () => {
+    const user = userEvent.setup();
+    const project = minimalProject({
+      pending_edits: [
+        {
+          id: "ed-impact",
+          track_id: "host",
+          type: "remove",
+          reason: "guest:suggest",
+          source_start: 1,
+          source_end: 2,
+          source_start_timeline: 1,
+          source_end_timeline: 2,
+          timeline_start: 1,
+          timeline_end: 2,
+          timeline_spans: [{ start: 1, end: 2 }],
+          mappable: true,
+          crossfade_ms: null,
+          boundary_mode: null,
+          cut_confidence: null,
+          review_required: false,
+          applied: false,
+        },
+      ],
+      edit_impact: {
+        pending_review_count: 0,
+        total_removed_sec: 0,
+        by_track_sec: {},
+      },
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+    useDawStore.getState().setShellBreakpoint("phone");
+    useDawStore.getState().setMobileMode("listen");
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <MobileShell />
+      </DawProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(screen.getByRole("button", { name: "Impact" }));
+    await user.click(
+      screen.getByRole("button", { name: "guest:suggest · host" }),
+    );
+
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "pending",
+      id: "ed-impact",
+      trackId: "host",
+    });
+    expect(screen.getByRole("dialog", { name: "Inspector" })).toBeTruthy();
+    expect(screen.getByLabelText("Source start")).toBeTruthy();
   });
 
   it("phone pipeline chip shows a truncated headline without fake units", async () => {

@@ -1,25 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
-import { loadWaveformSnap } from "../api";
+import { useCallback } from "react";
 import { canApplyPass12, canSuggestStructural } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
-import { uniqueTicks } from "../timeline/snapOverlay";
 import type { ClipRow } from "../types/project";
+import { useWaveformSnapTicks } from "./useWaveformSnapTicks";
 
 const FOCUS_EPS_SEC = 1e-6;
-/** Snap ticks come from ±this many seconds around the focus. */
-const SNAP_WINDOW_SEC = 1;
-/**
- * Ticks are fetched around the focus snapped to this grid, so a moving trim
- * edge or blade hover restarts the debounce only when it crosses a step.
- */
-const FETCH_STEP_SEC = SNAP_WINDOW_SEC / 2;
-const DEBOUNCE_MS = 80;
-
-/** Ticks with the project, track and source window they were loaded for. */
-type SnapState = { key: string; lo: number; hi: number; ticks: number[] };
-
-const NO_TICKS: number[] = [];
-const NO_STATE: SnapState = { key: "", lo: 0, hi: -1, ticks: NO_TICKS };
 
 /**
  * Inaudible-cut snap ticks (source seconds) near where an edit would land on
@@ -77,53 +62,10 @@ export function useSnapTicks(opts: {
       : sourceStart +
         (focusTl - tl0) *
           ((sourceEnd - sourceStart) / Math.max(1e-9, tl1 - tl0)));
-  const [state, setState] = useState<SnapState>(NO_STATE);
-  const active = enabled && canSnap && Boolean(projectPath) && srcFocus != null;
-  // Fetch around the focus on a coarse grid. The ±1 s window still covers
-  // it, and the debounce restarting on every pointer move neither holds off
-  // a trim drag nor refetches for a resting blade hover.
-  const center =
-    srcFocus == null
-      ? null
-      : Math.round(srcFocus / FETCH_STEP_SEC) * FETCH_STEP_SEC;
-  const stateKey = `${projectPath}\n${trackId}`;
-
-  useEffect(() => {
-    if (!active || center == null) {
-      return;
-    }
-    const ac = new AbortController();
-    const lo = center - SNAP_WINDOW_SEC;
-    const hi = center + SNAP_WINDOW_SEC;
-    const timer = window.setTimeout(() => {
-      loadWaveformSnap(projectPath, trackId, lo, hi, false, ac.signal, center)
-        .then((payload) => {
-          if (!ac.signal.aborted && payload) {
-            setState({
-              key: stateKey,
-              lo,
-              hi,
-              ticks: uniqueTicks(payload.ticks),
-            });
-          }
-        })
-        .catch(() => {
-          // Aborted or offline: a focus outside the loaded window shows none.
-        });
-    }, DEBOUNCE_MS);
-    return () => {
-      ac.abort();
-      window.clearTimeout(timer);
-    };
-  }, [active, center, projectPath, stateKey, trackId]);
-
-  // Only ticks loaded for this project, track and a window holding the focus:
-  // a new focus never shows another window's (or track's) ticks.
-  const fresh =
-    active &&
-    srcFocus != null &&
-    state.key === stateKey &&
-    srcFocus >= state.lo &&
-    srcFocus <= state.hi;
-  return fresh ? state.ticks : NO_TICKS;
+  return useWaveformSnapTicks(
+    projectPath,
+    trackId,
+    srcFocus,
+    enabled && canSnap,
+  ).ticks;
 }

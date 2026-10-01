@@ -71,6 +71,7 @@ export function EditingToolRailView({
       </div>
       {bladeAllowed ? (
         <BottomSheet
+          backgroundPolicy="dismiss"
           open={bladeConfirmSec != null}
           onClose={onCancelCut}
           title="Confirm blade cut"

@@ -948,6 +948,8 @@ describe("TimelineView render isolation", () => {
         reason: null,
         source_start: 1,
         source_end: 2,
+        source_start_timeline: 1,
+        source_end_timeline: 2,
         timeline_start: 1,
         timeline_end: 2,
         timeline_spans: [{ start: 1, end: 2 }],

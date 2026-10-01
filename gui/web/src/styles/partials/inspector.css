@@ -99,6 +99,18 @@
   inline-size: 100%;
 }
 
+@media (pointer: coarse) {
+  .pending-source-time-field,
+  .pending-source-time-apply {
+    min-block-size: var(--touch-min);
+  }
+}
+
+html[data-shell="phone"] .pending-source-time-field,
+html[data-shell="phone"] .pending-source-time-apply {
+  min-block-size: var(--touch-min);
+}
+
 .modifier-error {
   flex: 0 1 auto;
   min-height: 2.75rem;

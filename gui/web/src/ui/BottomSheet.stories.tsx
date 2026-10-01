@@ -21,11 +21,22 @@ const meta: Meta<typeof BottomSheet> = {
 export default meta;
 type Story = StoryObj<typeof BottomSheet>;
 
-function DemoSheet({ title }: { title?: string }) {
+function DemoSheet({
+  title,
+  backgroundPolicy,
+}: {
+  title?: string;
+  backgroundPolicy: "interactive" | "dismiss";
+}) {
   return (
     <DialogLauncher label="Open sheet" initiallyOpen={false}>
       {(open, close) => (
-        <BottomSheet open={open} onClose={close} title={title}>
+        <BottomSheet
+          open={open}
+          onClose={close}
+          backgroundPolicy={backgroundPolicy}
+          title={title}
+        >
           <p style={{ color: "var(--color-text-secondary)" }}>
             Sheet content goes here — quick actions or the tablet/phone
             inspector.
@@ -38,7 +49,8 @@ function DemoSheet({ title }: { title?: string }) {
 }
 
 export const Default: Story = {
-  render: () => <DemoSheet title="Inspector" />,
+  args: { backgroundPolicy: "interactive" },
+  render: () => <DemoSheet title="Inspector" backgroundPolicy="interactive" />,
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
     await openDialogByLauncher(canvasElement, {
@@ -48,4 +60,12 @@ export const Default: Story = {
   },
 };
 
-export const Untitled: Story = { render: () => <DemoSheet /> };
+export const DismissOutside: Story = {
+  render: () => (
+    <DemoSheet title="Confirm blade cut" backgroundPolicy="dismiss" />
+  ),
+};
+
+export const Untitled: Story = {
+  render: () => <DemoSheet backgroundPolicy="interactive" />,
+};

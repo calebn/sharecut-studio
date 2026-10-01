@@ -1,7 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fireEvent, fn, userEvent, within } from "storybook/test";
+import { act } from "react";
+import {
+  expect,
+  fireEvent,
+  fn,
+  userEvent,
+  waitFor,
+  within,
+} from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
-import { pendingEditView } from "../test/fixtures";
+import { useDawStore } from "../state/dawStore";
+import { clipRow, minimalProject, pendingEditView } from "../test/fixtures";
 import { PendingEditOverlayView } from "./PendingEditOverlayView";
 import { timelineLaneStoryDecorator } from "./timelineLaneStoryDecorator";
 
@@ -21,6 +30,8 @@ const mute = pendingEditView({
   source_end: 5.5,
   timeline_start: 4.5,
   timeline_end: 5.5,
+  source_start_timeline: 4.5,
+  source_end_timeline: 5.5,
   timeline_spans: [{ start: 4.5, end: 5.5 }],
 });
 const split = pendingEditView({
@@ -30,6 +41,8 @@ const split = pendingEditView({
   source_end: 7,
   timeline_start: 7,
   timeline_end: 7,
+  source_start_timeline: null,
+  source_end_timeline: null,
   timeline_spans: [{ start: 7, end: 7 }],
 });
 
@@ -46,9 +59,15 @@ const meta: Meta<typeof PendingEditOverlayView> = {
     edits: [remove, mute, split],
     trackId: "mira-voice",
     zoomPxPerSec: 40,
+    timelineWidthPx: 10000,
     selectedId: null,
+    projectPath: "/tmp/story.project.json",
+    clipsByTrack: {},
+    canAdjust: true,
+    canApply: true,
     onSelect: fn(),
     onCommitSpan: fn(),
+    onReviewAction: fn(async () => ({ queued: false })),
   },
 };
 
@@ -68,7 +87,7 @@ export const Kinds: Story = {
     ).toHaveLength(1);
     await expect(
       canvasElement.querySelector(".pending-overlay.remove"),
-    ).toHaveStyle({ left: "80px" });
+    ).toHaveStyle({ left: "100px" });
   },
 };
 
@@ -77,7 +96,7 @@ export const Selected: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const button = canvas.getByRole("button", {
-      name: "Pending mute edit",
+      name: "Pending mute edit, Mute 1.0s · suggested",
     });
     await expect(button).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(button);
@@ -86,19 +105,84 @@ export const Selected: Story = {
 };
 
 export const DragEndHandle: Story = {
-  args: { edits: [remove] },
+  args: {
+    edits: [remove],
+    clipsByTrack: { "mira-voice": [clipRow()] },
+    selectedId: "pending-remove",
+  },
   play: async ({ canvasElement, args }) => {
-    const handle = canvasElement.querySelector(
-      ".pending-handle.end",
-    ) as HTMLElement;
-    void fireEvent.pointerDown(handle, { clientX: 100, pointerId: 1 });
-    void fireEvent.pointerMove(handle, { clientX: 140, pointerId: 1 });
-    void fireEvent.pointerUp(handle, { clientX: 140, pointerId: 1 });
-    await expect(args.onCommitSpan).toHaveBeenCalledWith(
-      "pending-remove",
-      2,
-      4,
-    );
+    const path = "/tmp/story.project.json";
+    const previousFetch = globalThis.fetch;
+    const previousState = useDawStore.getState();
+    const snapFetch = fn();
+    globalThis.fetch = async (input, init) => {
+      const requestUrl =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      if (requestUrl.includes("/api/waveform-snap")) {
+        snapFetch(requestUrl);
+        return new Response(JSON.stringify({ ticks: [] }), { status: 200 });
+      }
+      return previousFetch(input, init);
+    };
+    await act(async () => {
+      useDawStore.getState().hydrate(
+        path,
+        minimalProject({
+          pending_edits: [remove],
+          clips: {
+            tracks: { "mira-voice": [clipRow()] },
+            clip_count: 1,
+          },
+        }),
+      );
+    });
+    let handle: HTMLElement | null = null;
+    let originalCapture: PropertyDescriptor | undefined;
+    try {
+      handle = canvasElement.querySelector(
+        ".pending-handle.end",
+      ) as HTMLElement;
+      originalCapture = Object.getOwnPropertyDescriptor(
+        handle,
+        "setPointerCapture",
+      );
+      const capture = fn();
+      Object.defineProperty(handle, "setPointerCapture", {
+        configurable: true,
+        value: capture,
+      });
+      await fireEvent.pointerDown(handle, { clientX: 120, pointerId: 1 });
+      await expect(capture).toHaveBeenCalledWith(1);
+      await expect(args.onSelect).toHaveBeenCalledWith("pending-remove");
+      await fireEvent.pointerMove(handle, { clientX: 160, pointerId: 1 });
+      await fireEvent.pointerUp(handle, { clientX: 160, pointerId: 1 });
+      await waitFor(() => expect(snapFetch).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(args.onCommitSpan).toHaveBeenCalledWith(
+          path,
+          useDawStore.getState().projectEpoch,
+          "pending-remove",
+          2,
+          3,
+          2,
+          4,
+        ),
+      );
+    } finally {
+      if (handle) {
+        if (originalCapture) {
+          Object.defineProperty(handle, "setPointerCapture", originalCapture);
+        } else {
+          Reflect.deleteProperty(handle, "setPointerCapture");
+        }
+      }
+      globalThis.fetch = previousFetch;
+      useDawStore.setState(previousState);
+    }
   },
 };
 

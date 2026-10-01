@@ -80,9 +80,10 @@ literals. Never force layout geometry (`width`, `min-height`) onto `--space-*`.
 
 **Radius** — `--radius-<size>` (`xs`/`sm`/`md`/`lg`/`xl`).
 
-**Elevation** — `--shadow-<role>`, `--z-<role>` (`--z-sheet`,
-`--z-timeline-chrome` for pinned ruler and marker rows above lane markers and
-below the playhead, `--z-playhead`).
+**Elevation** — `--shadow-<role>`, `--z-<role>` (`--z-timeline-popover` for
+timeline action panels above sticky track headers and below sheets,
+`--z-sheet`, `--z-timeline-chrome` for pinned ruler and marker rows above lane
+markers and below the playhead, `--z-playhead`).
 
 **Motion** — `--motion-press` (80ms), `--motion-hover` (150ms),
 `--motion-toggle` (200ms), `--motion-panel` (200ms), and `--motion-state`

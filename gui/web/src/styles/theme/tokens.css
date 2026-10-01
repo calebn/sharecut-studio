@@ -77,6 +77,8 @@
   --z-timeline-chrome: 9;
   --z-playhead: 10;
   --z-track-header: 12;
+  /* Timeline action popovers sit above sticky headers and below sheets. */
+  --z-timeline-popover: 20;
   --z-sheet: 40;
   /* Mode nav / bottom tabs above sheet scrim so one tap switches views. */
   --z-shell-chrome: 50;

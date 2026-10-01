@@ -384,6 +384,7 @@ export function TrackLaneView({
               trackId={track.id}
               zoomPxPerSec={zoomPxPerSec}
               selectedId={selection?.kind === "pending" ? selection.id : null}
+              timelineWidthPx={width}
               onSelect={selectPending}
             />
           </>

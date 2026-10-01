@@ -21,11 +21,22 @@ In Timeline, the time ruler and marker rows stay visible when you scroll through
 tracks. They move with the waveforms when you pan horizontally; the playhead
 stays centered.
 
+Pending edit regions fill their lane. Select one to reveal its label and review
+actions above or below the lane; they stay clear of the edge controls, and a
+narrow region does not make the timeline wider. In a dense set of cuts, point
+to or keyboard-focus one small region to see its label without labels stacking
+over each other.
+On the matching track, you can drag a cut's outer start or end edge while the
+other edge stays in place. The moving edge follows nearby waveform ticks and
+stays inside its source clip. Audition manually adjusted cuts before approval.
+
 ## Selecting things
 
 In Timeline, tap a clip or track header to open its inspector in a bottom sheet.
 Selecting a word in Text can open a word sheet. The Listen comment list seeks to
 the comment; use **More → Comments** for comment actions.
+
+An inspector stays open while the timeline remains interactive behind it. Fine pointers can drag pending-cut edges. On touch, selected cuts show 44px edge targets only when the drawn region is at least 44px wide and the lane fits both targets; otherwise choose **Edit timing** in the selected action card to focus Source start in the inspector. The Impact panel lists every pending edit for selection. Tap the ruler to seek; a blank ruler tap also clears the current selection. Confirmation sheets keep their outside-dismiss scrim, and Close or Escape dismisses either sheet type.
 
 The selection sheet groups actions in this order:
 
@@ -33,8 +44,9 @@ The selection sheet groups actions in this order:
 2. **You might also want…** — related commands when available
 3. **More** — available clip Cut or track Move up/down actions, or a message when none are available
 
-Tap outside the sheet or Close to dismiss it. Audition modes and export controls
-are in the compact transport Menu on Timeline, Text, or More.
+Use Close or Escape to dismiss an inspector sheet. Tap outside a confirmation
+sheet to dismiss it. Audition modes and export controls are in the compact
+transport Menu on Timeline, Text, or More.
 
 ## Gestures
 

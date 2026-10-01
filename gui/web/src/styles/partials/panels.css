@@ -17,6 +17,18 @@
   font-size: var(--font-size-small);
 }
 
+@media (pointer: coarse) {
+  .impact-pending-select {
+    min-inline-size: var(--touch-min);
+    min-block-size: var(--touch-min);
+  }
+}
+
+html[data-shell="phone"] .impact-pending-select {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+}
+
 /* Scroll container for the comments list; `.undo-toast-region` (ui.css)
    is position: sticky against it. Keep overflow here. */
 .comments-panel {

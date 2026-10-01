@@ -107,6 +107,18 @@ function pending(overrides: Partial<PendingEditView> = {}): PendingEditView {
     review_required: false,
     applied: false,
     ...overrides,
+    source_start_timeline:
+      overrides.source_start_timeline === undefined
+        ? overrides.timeline_start === undefined
+          ? 1
+          : overrides.timeline_start
+        : overrides.source_start_timeline,
+    source_end_timeline:
+      overrides.source_end_timeline === undefined
+        ? overrides.timeline_end === undefined
+          ? 1.2
+          : overrides.timeline_end
+        : overrides.source_end_timeline,
   };
 }
 

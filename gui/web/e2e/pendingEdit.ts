@@ -1,5 +1,4 @@
 import { expect, type Page } from "@playwright/test";
-import { e2eProjectPath } from "./env";
 
 /**
  * Suggest a 0–2 s cut on the first dialogue track through the document plane
@@ -11,8 +10,11 @@ import { e2eProjectPath } from "./env";
  * behind. Pick the row by the id from this spec's own response instead of the
  * last `guest:suggest` row.
  */
-export async function openSuggestedPendingEdit(page: Page): Promise<void> {
-  await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+export async function openSuggestedPendingEdit(
+  page: Page,
+  projectPath: string,
+): Promise<void> {
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     /aligned dialogue/i,
   );
@@ -43,7 +45,7 @@ export async function openSuggestedPendingEdit(page: Page): Promise<void> {
       command?: { payload?: { result?: { id?: string } } };
     };
     return res.ok ? body.command?.payload?.result?.id : undefined;
-  }, e2eProjectPath);
+  }, projectPath);
   expect(editId, "SuggestPendingEdit returned the new edit id").toBeTruthy();
   const panels = page.getByLabel("Editor panels");
   await panels.getByRole("button", { name: "Impact" }).click();

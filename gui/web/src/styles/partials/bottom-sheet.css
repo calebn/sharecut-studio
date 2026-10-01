@@ -34,6 +34,10 @@ html[data-shell="tablet"][data-layout="timeline"] .bottom-sheet-root {
   pointer-events: auto;
 }
 
+.bottom-sheet-scrim--interactive {
+  pointer-events: none;
+}
+
 .bottom-sheet {
   position: relative;
   pointer-events: auto;

@@ -136,6 +136,8 @@ export function pendingEditView(
     reason: "guest:suggest",
     source_start: 2,
     source_end: 3,
+    source_start_timeline: 2,
+    source_end_timeline: 3,
     timeline_start: 2,
     timeline_end: 3,
     timeline_spans: [{ start: 2, end: 3 }],

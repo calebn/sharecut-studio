@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { e2eProjectPath } from "./env";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 
 test("host can waive a blocked approval in the browser", async ({ page }) => {
@@ -30,8 +31,11 @@ test("host can waive a blocked approval in the browser", async ({ page }) => {
       body: "{}",
     });
   });
-  await openSuggestedPendingEdit(page);
-  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await openSuggestedPendingEdit(page, e2eProjectPath);
+  const inspector = page
+    .locator(".modifier-inspector")
+    .filter({ has: page.getByRole("heading", { name: "Pending edit" }) });
+  await inspector.getByRole("button", { name: "Approve", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Waive with reason" }),
   ).toBeVisible();

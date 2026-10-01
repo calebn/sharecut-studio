@@ -111,7 +111,6 @@
   bottom: 0;
   left: -1px;
   right: -1px;
-  z-index: 1;
   pointer-events: none;
 }
 
@@ -510,13 +509,42 @@ button.join-diamond {
   /* stylelint-enable meowtec/no-px */
   pointer-events: auto;
   cursor: pointer;
-  z-index: 3;
+  z-index: var(--z-overlay);
+  min-width: 0.75rem;
+  transform: translateX(-50%);
+}
+
+.pending-overlay::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  box-sizing: border-box;
+  left: calc(
+    50% -
+    var(--pending-region-width) /
+    2 +
+    var(--pending-region-offset, 0rem)
+  );
+  width: var(--pending-region-width);
+  border: 1px solid var(--danger);
+  background: var(--pending-edit-stripe);
+  pointer-events: none;
+}
+
+.pending-overlay.mute::before {
+  border-color: var(--accent);
+  background: var(--pending-mute);
+}
+
+.pending-overlay.split::before {
+  border-color: var(--warning);
+  background: var(--warning);
 }
 
 .pending-hit {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: var(--z-clip);
   margin: 0;
   padding: 0;
   border: 0;
@@ -524,27 +552,15 @@ button.join-diamond {
   cursor: pointer;
 }
 
-.pending-overlay.remove {
-  background: var(--pending-edit-stripe);
-  border: 1px solid var(--danger);
-}
-
-.pending-overlay.mute {
-  background: var(--pending-mute);
-  border: 1px solid var(--accent);
-}
-
 .pending-overlay.split {
-  background: var(--warning);
-  border: 1px solid var(--warning);
-  min-width: 0.125rem;
+  min-width: 0.75rem;
 }
 
-.pending-overlay.selected {
+.pending-overlay.selected::before {
   outline: var(--focus-ring-width) solid var(--danger);
 }
 
-.pending-overlay.mute.selected {
+.pending-overlay.mute.selected::before {
   outline-color: var(--accent);
 }
 
@@ -552,22 +568,147 @@ button.join-diamond {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 0.5rem;
+  width: calc(
+    var(--pending-handle-half-width, 0.25rem) +
+    var(--pending-handle-half-width, 0.25rem)
+  );
   cursor: ew-resize;
-  z-index: 4;
+  z-index: var(--z-handle);
+  margin: 0;
+  padding: 0;
+  border: 0;
   background: transparent;
+  touch-action: none;
 }
 
 .pending-handle.start {
-  left: 0;
+  left: calc(
+    50% -
+    var(--pending-region-width) /
+    2 -
+    var(--pending-handle-half-width, 0.25rem) +
+    var(--pending-region-offset, 0rem) +
+    var(--pending-handle-start-offset, 0rem)
+  );
 }
 
 .pending-handle.end {
-  right: 0;
+  right: calc(
+    50% -
+    var(--pending-region-width) /
+    2 -
+    var(--pending-handle-half-width, 0.25rem) -
+    var(--pending-region-offset, 0rem) -
+    var(--pending-handle-end-offset, 0rem)
+  );
 }
 
 .pending-overlay.selected .pending-handle {
   background: var(--color-overlay-white-35);
+}
+
+.pending-overlay[data-coarse-pointer="true"] .pending-handle {
+  display: none;
+}
+
+.pending-overlay.selected[data-coarse-pointer="true"][data-coarse-handles="ready"]
+  .pending-handle {
+  display: block;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  top: 0;
+  bottom: auto;
+}
+
+.pending-overlay.selected[data-coarse-pointer="true"][data-coarse-handles="ready"]
+  .pending-handle.end {
+  top: auto;
+  bottom: 0;
+}
+
+.pending-label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: var(--z-bubble);
+  inline-size: max-content;
+  max-inline-size: 14rem;
+  padding: var(--space-1) var(--space-3);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-overlay);
+  color: var(--color-text-on-overlay);
+  font-size: var(--font-size-caption);
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+}
+
+.pending-label--floating {
+  position: fixed;
+  z-index: var(--z-menu);
+  pointer-events: none;
+}
+
+.pending-actionbar {
+  position: fixed;
+  z-index: var(--z-timeline-popover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  inline-size: 15rem;
+  max-inline-size: calc(100vw - 1rem);
+  max-block-size: var(--pending-actionbar-max-height, calc(100dvh - 1rem));
+  overflow-y: auto;
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-overlay);
+  color: var(--color-text-on-overlay);
+  box-shadow: var(--shadow-floating);
+}
+
+.pending-actionbar[data-coarse-pointer="true"] .pending-timing-action {
+  min-inline-size: var(--touch-min);
+  inline-size: 100%;
+  min-block-size: var(--touch-min);
+}
+
+.pending-actionbar .pending-label {
+  position: static;
+  max-inline-size: 100%;
+  border: 0;
+  padding: 0;
+  transform: none;
+}
+
+.pending-actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.pending-actions > .ui-control {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+@media (pointer: coarse) {
+  .pending-actions > .ui-control {
+    min-block-size: var(--touch-min);
+  }
+}
+
+html[data-shell="phone"] .pending-actions > .ui-control {
+  min-block-size: var(--touch-min);
+}
+
+.pending-actionbar [role="status"],
+.pending-actionbar [role="alert"] {
+  font-size: var(--font-size-caption);
+  overflow-wrap: anywhere;
 }
 
 /* Applied seams/edges (#527): projected through current clips; the layer is
