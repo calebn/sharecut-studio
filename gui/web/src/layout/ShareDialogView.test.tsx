@@ -58,6 +58,7 @@ function baseProps(): Parameters<typeof ShareDialogView>[0] {
     onCopy: vi.fn(),
     onRevoke: vi.fn(),
     onEndRoom: vi.fn(),
+    onReplaceRecordInvite: vi.fn(),
     onOpenRoomPanel: vi.fn(),
   };
 }
@@ -72,6 +73,11 @@ describe("ShareDialogView", () => {
     expect(screen.getByText("Guest link")).toBeInTheDocument();
     expect(screen.getByText("Producer link")).toBeInTheDocument();
     expect(screen.getByText(/Commenter · Share mix/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Producer links let your producer listen and comment without being recorded. New record links have no expiry. A replacement keeps the original expiry.",
+      ),
+    ).toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
 
@@ -169,6 +175,44 @@ describe("ShareDialogView", () => {
       screen.getByRole("button", { name: "Copied guest link" }),
     ).toBeInTheDocument();
     unmount();
+  });
+
+  it("marks a closed record invite and offers source-bound replacement", async () => {
+    const user = userEvent.setup();
+    const closedGuest = hostShareRow({
+      token: "closed-guest",
+      kind: "record",
+      record_role: "guest",
+      session_id: "sample-room",
+      invite_closed: true,
+    });
+    const closedProducer = hostShareRow({
+      token: "closed-producer",
+      kind: "record",
+      record_role: "producer",
+      session_id: "sample-room",
+      invite_closed: true,
+    });
+    const props = baseProps();
+    props.rows = [closedGuest, closedProducer];
+    render(<ShareDialogView {...props} />);
+    expect(
+      screen.getByText("Guest invite closed to new guests"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Copy guest link" }),
+    ).toBeDisabled();
+    await user.click(
+      screen.getByRole("button", { name: "Replace guest invite" }),
+    );
+    expect(props.onReplaceRecordInvite).toHaveBeenCalledWith("closed-guest");
+    expect(
+      screen.getByRole("button", { name: "Copy producer link" }),
+    ).toBeDisabled();
+    await user.click(
+      screen.getByRole("button", { name: "Replace producer invite" }),
+    );
+    expect(props.onReplaceRecordInvite).toHaveBeenCalledWith("closed-producer");
   });
 
   it("disables every action while busy", () => {

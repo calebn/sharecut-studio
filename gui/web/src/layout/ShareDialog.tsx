@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   createHostRecordRoom,
   createHostShare,
   listHostShares,
+  replaceHostRecordInvite,
   revokeHostRoom,
   revokeHostShare,
 } from "../api";
@@ -17,13 +24,18 @@ import { type ShareCopiedKey, shareCopyKey } from "./shareCopyKey";
 
 const COPIED_MS = 2000;
 
-type BusyOp = "create" | "refresh" | "revoke" | "record" | "end-room";
-type ShareCreateRequest = {
+type DialogScope = {
   projectPath: string;
+  projectEpoch: number;
+  generation: number;
+};
+type ShareCreateRequest = {
+  scope: DialogScope;
   role: ShareRole;
   withMcp: boolean;
-  dialogGeneration: number;
-  projectEpoch: number;
+};
+type BusyOwner = {
+  scope: DialogScope;
 };
 
 async function copyText(text: string): Promise<void> {
@@ -62,8 +74,9 @@ export function ShareDialog() {
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadGen = useRef(0);
   const dialogGen = useRef(0);
-  const busyOp = useRef<BusyOp | null>(null);
+  const busyOwner = useRef<BusyOwner | null>(null);
   const staleCreateRequest = useRef<ShareCreateRequest | null>(null);
+  const scopeRef = useRef({ projectPath, projectEpoch, shareDialogOpen });
 
   const clearCopiedTimer = useCallback(() => {
     if (copiedTimer.current) {
@@ -89,80 +102,138 @@ export function ShareDialog() {
     [announceStatus],
   );
 
-  const load = useCallback(async () => {
-    const gen = ++loadGen.current;
-    try {
-      const data = await listHostShares(projectPath);
-      if (gen !== loadGen.current) {
+  const captureScope = useCallback(
+    (): DialogScope => ({
+      projectPath,
+      projectEpoch,
+      generation: dialogGen.current,
+    }),
+    [projectPath, projectEpoch],
+  );
+
+  const isCurrentScope = useCallback((scope: DialogScope): boolean => {
+    const state = useDawStore.getState();
+    const current = scopeRef.current;
+    return (
+      scope.generation === dialogGen.current &&
+      scope.projectPath === current.projectPath &&
+      scope.projectEpoch === current.projectEpoch &&
+      current.shareDialogOpen &&
+      scope.projectPath === state.projectPath &&
+      scope.projectEpoch === state.projectEpoch &&
+      state.shareDialogOpen &&
+      state.project !== null
+    );
+  }, []);
+
+  const beginOperation = useCallback(
+    (scope: DialogScope) => {
+      if (!isCurrentScope(scope) || busyOwner.current !== null) {
+        return null;
+      }
+      const owner: BusyOwner = { scope };
+      busyOwner.current = owner;
+      setBusy(true);
+      setError(null);
+      setStatus(null);
+      return owner;
+    },
+    [isCurrentScope],
+  );
+
+  const finishOperation = useCallback(
+    (owner: BusyOwner) => {
+      if (busyOwner.current !== owner) {
         return;
       }
-      setRows(data.shares);
-    } catch (err) {
-      if (gen !== loadGen.current) {
+      busyOwner.current = null;
+      if (isCurrentScope(owner.scope)) {
+        setBusy(false);
+      }
+    },
+    [isCurrentScope],
+  );
+
+  const load = useCallback(
+    async (scope: DialogScope) => {
+      if (!isCurrentScope(scope)) {
         return;
       }
-      throw err;
+      const gen = ++loadGen.current;
+      try {
+        const data = await listHostShares(scope.projectPath);
+        if (gen !== loadGen.current || !isCurrentScope(scope)) {
+          return;
+        }
+        setRows(data.shares);
+      } catch (err) {
+        if (gen === loadGen.current && isCurrentScope(scope)) {
+          setError(errorMessage(err));
+        }
+      }
+    },
+    [isCurrentScope],
+  );
+
+  useLayoutEffect(() => {
+    const previous = scopeRef.current;
+    if (
+      previous.projectPath === projectPath &&
+      previous.projectEpoch === projectEpoch &&
+      previous.shareDialogOpen === shareDialogOpen
+    ) {
+      return;
     }
-  }, [projectPath]);
+    dialogGen.current += 1;
+    loadGen.current += 1;
+    busyOwner.current = null;
+    staleCreateRequest.current = null;
+    setRows([]);
+    setBusy(false);
+    setError(null);
+    setStatus(null);
+    setCreateRecovery({ kind: "idle" });
+    clearCopiedTimer();
+    setCopiedKey(null);
+    scopeRef.current = { projectPath, projectEpoch, shareDialogOpen };
+  }, [projectPath, projectEpoch, shareDialogOpen, clearCopiedTimer]);
 
   useEffect(() => {
     return () => {
       clearCopiedTimer();
+      dialogGen.current += 1;
+      loadGen.current += 1;
+      busyOwner.current = null;
     };
   }, [clearCopiedTimer]);
 
   useEffect(() => {
     if (!shareDialogOpen) {
-      loadGen.current += 1;
-      dialogGen.current += 1;
-      busyOp.current = null;
-      staleCreateRequest.current = null;
-      setCreateRecovery({ kind: "idle" });
       return;
     }
-    dialogGen.current += 1;
-    busyOp.current = null;
-    staleCreateRequest.current = null;
     setRole("commenter");
     setWithMcp(false);
     setError(null);
     setStatus(null);
-    setBusy(false);
-    clearCopiedTimer();
-    setCopiedKey(null);
     setCreateRecovery({ kind: "idle" });
-    void load().catch((err: unknown) => {
-      setError(errorMessage(err));
-    });
-  }, [shareDialogOpen, projectEpoch, load, clearCopiedTimer]);
-
-  function captureCreateRequest(): ShareCreateRequest {
-    return {
-      projectPath,
-      role,
-      withMcp,
-      dialogGeneration: dialogGen.current,
-      projectEpoch,
-    };
-  }
-
-  function isCurrentRequest(request: ShareCreateRequest): boolean {
-    const current = useDawStore.getState();
-    return (
-      request.dialogGeneration === dialogGen.current &&
-      request.projectEpoch === current.projectEpoch &&
-      request.projectPath === current.projectPath &&
-      current.shareDialogOpen
-    );
-  }
+    const scope = captureScope();
+    void load(scope);
+  }, [
+    shareDialogOpen,
+    projectPath,
+    projectEpoch,
+    captureScope,
+    load,
+    isCurrentScope,
+  ]);
 
   async function createShare(request: ShareCreateRequest): Promise<void> {
     try {
-      const share = await createHostShare(request.projectPath, {
+      const share = await createHostShare(request.scope.projectPath, {
         role: request.role,
         with_mcp: request.withMcp,
       });
-      if (!isCurrentRequest(request)) {
+      if (!isCurrentScope(request.scope)) {
         return;
       }
       staleCreateRequest.current = null;
@@ -170,13 +241,13 @@ export function ShareDialog() {
       if (share.url) {
         try {
           await copyText(share.url);
-          if (!isCurrentRequest(request)) {
+          if (!isCurrentScope(request.scope)) {
             return;
           }
           markCopied(shareCopyKey("link", share.token));
           announce("Share link created and copied");
         } catch (err) {
-          if (!isCurrentRequest(request)) {
+          if (!isCurrentScope(request.scope)) {
             return;
           }
           announce("Share link created");
@@ -185,9 +256,9 @@ export function ShareDialog() {
       } else {
         announce("Share link created");
       }
-      await load();
+      await load(request.scope);
     } catch (err) {
-      if (!isCurrentRequest(request)) {
+      if (!isCurrentScope(request.scope)) {
         return;
       }
       if (err instanceof ApiError && err.code === "stale_mix") {
@@ -213,51 +284,48 @@ export function ShareDialog() {
   }
 
   async function onCreate() {
-    if (busyOp.current) {
+    const request: ShareCreateRequest = {
+      scope: captureScope(),
+      role,
+      withMcp,
+    };
+    const owner = beginOperation(request.scope);
+    if (!owner) {
       return;
     }
-    const op: BusyOp = "create";
-    const request = captureCreateRequest();
-    busyOp.current = op;
-    setBusy(true);
-    setError(null);
-    setStatus(null);
     staleCreateRequest.current = null;
     setCreateRecovery({ kind: "idle" });
     try {
       await createShare(request);
     } finally {
-      if (busyOp.current === op && isCurrentRequest(request)) {
-        busyOp.current = null;
-        setBusy(false);
-      }
+      finishOperation(owner);
     }
   }
 
   async function onRefreshMix() {
-    if (busyOp.current || createRecovery.kind !== "stale_mix") {
+    if (createRecovery.kind !== "stale_mix") {
       return;
     }
-    const op: BusyOp = "refresh";
     const { message } = createRecovery;
     const staleRequest = staleCreateRequest.current;
-    if (!staleRequest || !isCurrentRequest(staleRequest)) {
+    if (!staleRequest || !isCurrentScope(staleRequest.scope)) {
       return;
     }
     const retryRequest = staleRequest;
-    busyOp.current = op;
-    setBusy(true);
-    setError(null);
+    const owner = beginOperation(retryRequest.scope);
+    if (!owner) {
+      return;
+    }
     setCreateRecovery({ kind: "refreshing" });
     try {
-      if (!isCurrentRequest(retryRequest)) {
+      if (!isCurrentScope(retryRequest.scope)) {
         return;
       }
       let result: ExecuteResult;
       try {
         result = await execute("render.refreshMix");
       } catch (err) {
-        if (isCurrentRequest(retryRequest)) {
+        if (isCurrentScope(retryRequest.scope)) {
           setCreateRecovery({
             kind: "stale_mix",
             message,
@@ -266,7 +334,7 @@ export function ShareDialog() {
         }
         return;
       }
-      if (!isCurrentRequest(retryRequest)) {
+      if (!isCurrentScope(retryRequest.scope)) {
         return;
       }
       if (result.status !== "ok") {
@@ -283,51 +351,98 @@ export function ShareDialog() {
       setCreateRecovery({ kind: "retrying" });
       await createShare(retryRequest);
     } finally {
-      if (busyOp.current === op && isCurrentRequest(retryRequest)) {
-        busyOp.current = null;
-        setBusy(false);
-      }
+      finishOperation(owner);
     }
   }
 
   async function onCreateRecord() {
-    if (busyOp.current) {
+    const scope = captureScope();
+    const owner = beginOperation(scope);
+    if (!owner) {
       return;
     }
-    const op: BusyOp = "record";
-    busyOp.current = op;
-    const gen = dialogGen.current;
-    setBusy(true);
-    setError(null);
-    setStatus(null);
     try {
-      const room = await createHostRecordRoom(projectPath);
-      if (gen !== dialogGen.current) {
+      const room = await createHostRecordRoom(scope.projectPath);
+      if (!isCurrentScope(scope)) {
         return;
       }
       if (room.guest.url) {
         try {
           await copyText(room.guest.url);
+          if (!isCurrentScope(scope)) {
+            return;
+          }
           markCopied(shareCopyKey("link", room.guest.token));
           announce("Record links created and guest link copied");
         } catch (err) {
+          if (!isCurrentScope(scope)) {
+            return;
+          }
           announce("Record links created");
           setError(errorMessage(err));
         }
       } else {
         announce("Record links created");
       }
-      await load();
+      if (isCurrentScope(scope)) {
+        await load(scope);
+      }
     } catch (err) {
-      if (gen !== dialogGen.current) {
+      if (isCurrentScope(scope)) {
+        setError(errorMessage(err));
+      }
+    } finally {
+      finishOperation(owner);
+    }
+  }
+
+  async function onReplaceRecordInvite(sourceToken: string) {
+    const scope = captureScope();
+    const owner = beginOperation(scope);
+    if (!owner) {
+      return;
+    }
+    try {
+      const share = await replaceHostRecordInvite(
+        scope.projectPath,
+        sourceToken,
+      );
+      if (!isCurrentScope(scope)) {
         return;
       }
-      setError(errorMessage(err));
-    } finally {
-      if (busyOp.current === op && gen === dialogGen.current) {
-        busyOp.current = null;
-        setBusy(false);
+      if (share.url) {
+        try {
+          await copyText(share.url);
+          if (!isCurrentScope(scope)) {
+            return;
+          }
+          markCopied(shareCopyKey("link", share.token));
+          announce(
+            `${share.record_role === "producer" ? "Producer" : "Guest"} link replaced and copied`,
+          );
+        } catch (err) {
+          if (!isCurrentScope(scope)) {
+            return;
+          }
+          announce("Record invite replaced");
+          setError(errorMessage(err));
+        }
+      } else {
+        if (!isCurrentScope(scope)) {
+          return;
+        }
+        announce("Record invite replaced");
       }
+      if (!isCurrentScope(scope)) {
+        return;
+      }
+      await load(scope);
+    } catch (err) {
+      if (isCurrentScope(scope)) {
+        setError(errorMessage(err));
+      }
+    } finally {
+      finishOperation(owner);
     }
   }
 
@@ -337,16 +452,22 @@ export function ShareDialog() {
     label: string,
     text: string | null,
   ) {
-    if (!text) {
+    const scope = captureScope();
+    if (!text || !isCurrentScope(scope)) {
       return;
     }
     setError(null);
     try {
       await copyText(text);
+      if (!isCurrentScope(scope)) {
+        return;
+      }
       markCopied(shareCopyKey(kind, token));
       announce(`${label} copied`);
     } catch (err) {
-      setError(errorMessage(err));
+      if (isCurrentScope(scope)) {
+        setError(errorMessage(err));
+      }
     }
   }
 
@@ -354,29 +475,28 @@ export function ShareDialog() {
     if (!window.confirm(`Stop sharing ${token}?`)) {
       return;
     }
-    const op: BusyOp = "revoke";
-    busyOp.current = op;
-    setBusy(true);
-    setError(null);
-    setStatus(null);
+    const scope = captureScope();
+    const owner = beginOperation(scope);
+    if (!owner) {
+      return;
+    }
     try {
-      await revokeHostShare(projectPath, token);
-      announce("Share link stopped");
-      await load();
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      if (busyOp.current === op) {
-        busyOp.current = null;
-        setBusy(false);
+      await revokeHostShare(scope.projectPath, token);
+      if (!isCurrentScope(scope)) {
+        return;
       }
+      announce("Share link stopped");
+      await load(scope);
+    } catch (err) {
+      if (isCurrentScope(scope)) {
+        setError(errorMessage(err));
+      }
+    } finally {
+      finishOperation(owner);
     }
   }
 
   async function onEndRoom(sessionId: string) {
-    if (busyOp.current) {
-      return;
-    }
     if (
       !window.confirm(
         "End this record room? Both guest and producer links will stop working.",
@@ -384,22 +504,24 @@ export function ShareDialog() {
     ) {
       return;
     }
-    const op: BusyOp = "end-room";
-    busyOp.current = op;
-    setBusy(true);
-    setError(null);
-    setStatus(null);
+    const scope = captureScope();
+    const owner = beginOperation(scope);
+    if (!owner) {
+      return;
+    }
     try {
-      await revokeHostRoom(projectPath, sessionId);
-      announce("Record room ended");
-      await load();
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      if (busyOp.current === op) {
-        busyOp.current = null;
-        setBusy(false);
+      await revokeHostRoom(scope.projectPath, sessionId);
+      if (!isCurrentScope(scope)) {
+        return;
       }
+      announce("Record room ended");
+      await load(scope);
+    } catch (err) {
+      if (isCurrentScope(scope)) {
+        setError(errorMessage(err));
+      }
+    } finally {
+      finishOperation(owner);
     }
   }
 
@@ -425,6 +547,7 @@ export function ShareDialog() {
       }
       onRevoke={(token) => void onRevoke(token)}
       onEndRoom={(sessionId) => void onEndRoom(sessionId)}
+      onReplaceRecordInvite={(token) => void onReplaceRecordInvite(token)}
       onOpenRoomPanel={() => {
         setShareDialogOpen(false);
         void execute("record.openPanel");

@@ -229,6 +229,10 @@ class RecordRoomRevokeRequest(BaseModel):
     path: str
 
 
+class RecordInviteReplaceRequest(BaseModel):
+    path: str
+
+
 class TranscriptReplacementPreviewRequest(TranscriptReplacementOptions):
     path: str
 

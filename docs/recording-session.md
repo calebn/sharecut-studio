@@ -814,10 +814,15 @@ link) stops minting new participant identities for that room. `Join` without a
 valid lease gets `invite_closed`. The server then closes that socket with 4403, the close code every client already treats as terminal; the browser keeps the "Invite link closed" screen because the Error frame arrives first. The token keeps working for every participant
 it already minted who still holds a valid lease: reconnect, reload, heartbeat,
 signal, upload and keeper recovery. New people need a fresh link for the same
-role the removed participant joined through:
+role the removed participant joined through. The host Record panel calls out
+removals and its **Copy links…** action opens Share. The room list marks the
+closed guest or producer invite, disables copying that old link, and offers
+**Replace guest invite** or **Replace producer invite**. Replacement is bound
+to the source token and keeps its room, role, and expiry; the server checks the
+current host project and room before minting. The returned link is copied and
+the room list reloads. The CLI remains available:
 `podcast review share --kind record --session-id <id> --role guest` (or
-`--role producer` when a producer was removed). The Share dialog still lists the
-room's original links, including a closed one; mint the replacement with the CLI.
+`--role producer` when a producer was removed).
 The rule is
 derived from `participants[].removed` (never cleared within a room) and
 `record_participants.token_hash` (kept by `revoke()`), both in `sync.db`, and is

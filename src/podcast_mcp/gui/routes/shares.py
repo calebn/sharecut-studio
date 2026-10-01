@@ -9,6 +9,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request
 from podcast_mcp.edits.review_versions import StaleMixError
 from podcast_mcp.gui.routes.deps import require_host, resolve_project
 from podcast_mcp.gui.schemas import (
+    RecordInviteReplaceRequest,
     RecordRoomCreateRequest,
     RecordRoomRevokeRequest,
     ShareCreateRequest,
@@ -113,6 +114,29 @@ def create_host_record_room(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"room": room}
+
+
+@router.post("/api/shares/record/{source_token}/replace")
+def replace_host_record_invite(
+    source_token: str,
+    body: RecordInviteReplaceRequest,
+    request: Request,
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> dict[str, Any]:
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    project_path = resolve_project(body.path, request)
+    ws = ProjectWorkspace.open(project_path)
+    try:
+        share = ShareService(ws).replace_closed_record_invite(
+            source_token,
+            public_base_url=_origin(request),
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RecordStateError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"share": share}
 
 
 @router.post("/api/shares/rooms/{session_id}/revoke")

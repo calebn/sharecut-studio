@@ -42,6 +42,7 @@ def test_present_share_adds_host_fields() -> None:
     assert row["mcp_url"] == "https://share.example/mcp/cool-name-slug/mcp"
     assert row["review_version_label"] == "Guest v1"
     assert row["usable"] is True
+    assert row["invite_closed"] is None
     assert "project_workspace" not in row
 
 
@@ -69,6 +70,7 @@ def test_host_shares_http_list_create_revoke(
     share = created.json()["share"]
     assert share["docs_role"] == "commenter"
     assert share["usable"] is True
+    assert share["invite_closed"] is None
     assert "/r/" in share["url"]
     assert share["mcp_url"] is None
     assert share["review_version_label"] == "Share mix"

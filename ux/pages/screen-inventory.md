@@ -101,16 +101,20 @@ their first line. Errors appear above the right-aligned Bounce action.
 
 | | |
 |--|--|
-| **Purpose** | Mint, copy, and revoke public review share links for the open episode |
+| **Purpose** | Manage public review links and record-room guest / producer invites for the open episode |
 | **Open** | Menu → Project → **Share…** (`share.manage`; collaboration extension slot `share.ui.menu`) |
-| **Primary actions** | Role (viewer / commenter / editor) · Allow agent (MCP) · **Create link** · Copy link (button reads **Copied** briefly) · Stop sharing |
-| **Data shown** | Live coolname, Docs-like role, review mix label, last used; MCP URL when `mcp` is granted |
+| **Primary actions** | Role (viewer / commenter / editor) · Allow agent (MCP) · **Create link** · **Create record links** · Copy / stop review links · Copy guest / producer links · Replace a closed record invite · End room |
+| **Data shown** | Live coolname, Docs-like role, review mix label, last used; record room role and invite closure state; MCP URL when `mcp` is granted |
 | **Empty / error** | Quiet “No live review links.” / “No live record rooms.” text (no field-like box). Create publishes a **Share mix** review version if none exists (needs premix/mastered). A stale preview gets a friendly alert and **Refresh mix**; after a successful render, Create retries once. A stale master explains that a new master is needed and does not offer preview refresh. |
-| **Out of scope** | Restricted ACL / invites; expiry picker; in-place role edit (rotate = new link + stop old); guest connect-an-agent UI |
+| **Out of scope** | Restricted ACL; expiry picker; in-place review-role edit (rotate = new link + stop old); guest share-token MCP UI |
 
 The dialog caps to `90dvh` with a single `.command-palette-body` scroller so **Record rooms** and other lower sections stay reachable on phone and short laptop viewports. Header (title + Close) stays pinned.
 
-Guests never see this dialog (`canManageProjects` is false on `share:{token}`).
+When a participant is removed, the Record panel directs the host to **Copy
+links…**. Share marks the affected role's invite closed to new guests, disables
+copying its old link, and offers a same-room, same-role replacement. Existing
+leases remain valid. Guests never see this dialog (`canManageProjects` is false
+on `share:{token}`).
 
 Storybook `Templates/ShareDialog` previews the production `ShareDialogView`
 with fictional links. The live `ShareDialog` keeps the API calls, clipboard,

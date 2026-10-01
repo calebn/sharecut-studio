@@ -103,6 +103,7 @@ def present_share(
     *,
     public_base_url: str | None = None,
     version_label: str | None = None,
+    invite_closed: bool | None = None,
 ) -> dict[str, Any]:
     """Add host-facing url / role fields to a sidecar or create row."""
     base = (public_base_url or _DEFAULT_SHARE_ORIGIN).rstrip("/")
@@ -125,6 +126,7 @@ def present_share(
             else None
         ),
         "usable": share_is_usable(row),
+        "invite_closed": invite_closed,
     }
     presented.pop("project_workspace", None)
     if version_label is not None:
@@ -209,9 +211,22 @@ class ShareService:
                     row,
                     public_base_url=public_base_url,
                     version_label=label,
+                    invite_closed=(self._invite_closed(row) if kind == SHARE_KIND_RECORD else None),
                 )
             )
         return presented
+
+    def _invite_closed(self, row: dict[str, Any]) -> bool:
+        from podcast_mcp.services.record import RecordSessionService
+
+        token = str(row.get("token") or "")
+        session_id = str(row.get("session_id") or "")
+        if not token or not session_id:
+            return False
+        return RecordSessionService(
+            self.ws.project,
+            session_id=session_id,
+        ).invite_closed(token)
 
     def create_for_host(
         self,
@@ -265,7 +280,63 @@ class ShareService:
             session_id=session_id,
         )
         register_share_globally(row)
-        return present_share(row, public_base_url=public_base_url)
+        return present_share(
+            row,
+            public_base_url=public_base_url,
+            invite_closed=False,
+        )
+
+    def replace_closed_record_invite(
+        self,
+        source_token: str,
+        *,
+        public_base_url: str | None = None,
+    ) -> dict[str, Any]:
+        """Mint a same-room, same-role invite only after its source was closed by removal."""
+        from podcast_mcp.services.record import RecordSessionService, RecordStateError
+
+        source = next(
+            (row for row in list_shares(self.ws.project) if row.get("token") == source_token),
+            None,
+        )
+        if (
+            source is None
+            or str(source.get("kind") or SHARE_KIND_REVIEW) != SHARE_KIND_RECORD
+            or not share_is_usable(source)
+        ):
+            raise KeyError("record invite not found or no longer usable")
+        try:
+            active = lookup_share(source_token, kind=SHARE_KIND_RECORD)
+        except KeyError:
+            raise KeyError("record invite not found or no longer usable") from None
+
+        workspace = Path(self.ws.project.workspace_dir).resolve()
+        try:
+            source_workspace = Path(str(source.get("project_workspace") or "")).resolve()
+            active_workspace = Path(str(active.get("project_workspace") or "")).resolve()
+        except OSError:
+            raise KeyError("record invite not found or no longer usable") from None
+        role = str(source.get("role") or "")
+        session_id = str(source.get("session_id") or "")
+        if (
+            source_workspace != workspace
+            or active_workspace != workspace
+            or active.get("role") != role
+            or active.get("session_id") != session_id
+            or role not in {"guest", "producer"}
+            or not session_id
+        ):
+            raise KeyError("record invite not found or no longer usable")
+
+        record = RecordSessionService(self.ws.project, session_id=session_id)
+        if not record.invite_closed(source_token):
+            raise RecordStateError("record invite is not closed")
+        return self.create_record_token(
+            role=role,
+            session_id=session_id,
+            public_base_url=public_base_url,
+            expires_at=source.get("expires_at"),
+        )
 
     def create_record_room(
         self,
