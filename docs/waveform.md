@@ -255,7 +255,7 @@ a ref whose path escapes is skipped. A cross-lane clip that pins another lane's
 file through `source_id` gets its own `source:` ref, whose key matches the
 `track:` ref of the same file, so its pyramid is hard-linked instead of rebuilt.
 
-[`services/waveform.py`](../src/podcast_mcp/services/waveform.py) adds:
+[`services/media/waveform.py`](../src/podcast_mcp/services/media/waveform.py) adds:
 
 - **`media_index(project_path)`:** the refs of one project, cached in an LRU
   of 16 keyed by the project JSON's `file_revision`. Each entry also stores a

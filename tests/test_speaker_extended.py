@@ -32,7 +32,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.speaker import SpeakerService
+from podcast_mcp.services.media.speaker import SpeakerService
 from podcast_mcp.transcript_context import SpeakerIdConfig, TranscriptContext
 
 
@@ -129,17 +129,17 @@ def test_speaker_service_compare_and_attribute(tmp_path, sample_wav):
         margin=0.5,
     )
     with (
-        patch("podcast_mcp.services.speaker.load_transcript_context", return_value=ctx),
+        patch("podcast_mcp.services.media.speaker.load_transcript_context", return_value=ctx),
         patch(
-            "podcast_mcp.services.speaker.resolve_speaker_backend",
+            "podcast_mcp.services.media.speaker.resolve_speaker_backend",
             return_value=MockSpeakerBackend(),
         ),
     ):
-        with patch("podcast_mcp.services.speaker.score_window", return_value=score):
+        with patch("podcast_mcp.services.media.speaker.score_window", return_value=score):
             compare = SpeakerService(ws).compare_pair("host", 0.0, 1.0, "host", 1.0, 2.0)
         assert compare["same_speaker_likely"] is True
         with patch(
-            "podcast_mcp.services.speaker.run_speaker_attribution",
+            "podcast_mcp.services.media.speaker.run_speaker_attribution",
             return_value={"applied": 0},
         ):
             dry = SpeakerService(ws).attribute(dry_run=True)

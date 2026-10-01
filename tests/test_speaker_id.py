@@ -397,7 +397,7 @@ def test_label_window_dry_run(tmp_path, sample_wav) -> None:
 
 def test_speaker_service_segment_enroll_label_and_count(tmp_path, sample_wav) -> None:
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.speaker import SpeakerService
+    from podcast_mcp.services.media.speaker import SpeakerService
 
     proj = _two_track_project(tmp_path, sample_wav)
     path = tmp_path / "episode.project.json"
@@ -407,11 +407,11 @@ def test_speaker_service_segment_enroll_label_and_count(tmp_path, sample_wav) ->
     ctx = TranscriptContext()
 
     with patch(
-        "podcast_mcp.services.speaker.load_transcript_context",
+        "podcast_mcp.services.media.speaker.load_transcript_context",
         return_value=ctx,
     ):
         with patch(
-            "podcast_mcp.services.speaker.enroll_segment",
+            "podcast_mcp.services.media.speaker.enroll_segment",
             return_value=SpeakerProfile(
                 speaker_id="person_a",
                 track_id="host",
@@ -432,14 +432,14 @@ def test_speaker_service_segment_enroll_label_and_count(tmp_path, sample_wav) ->
         assert saved["expected_speaker_count"] == 2
 
         with patch(
-            "podcast_mcp.services.speaker.compare_window",
+            "podcast_mcp.services.media.speaker.compare_window",
             return_value={"tracks": []},
         ):
             cmp = svc.compare_window(1.0, 1.5)
         assert "tracks" in cmp
 
         with patch(
-            "podcast_mcp.services.speaker.label_window",
+            "podcast_mcp.services.media.speaker.label_window",
             return_value={"labeled": 1, "role": "own"},
         ):
             labeled = svc.label("host", 1.0, 1.5, dry_run=True)
@@ -447,7 +447,7 @@ def test_speaker_service_segment_enroll_label_and_count(tmp_path, sample_wav) ->
 
         with (
             patch(
-                "podcast_mcp.services.speaker.run_speaker_attribution",
+                "podcast_mcp.services.media.speaker.run_speaker_attribution",
                 return_value={"ok": True},
             ),
             patch.object(ws, "mutate", return_value={"ok": True}),
@@ -914,7 +914,7 @@ def test_compare_window_with_track_filter(tmp_path, sample_wav) -> None:
 
 def test_set_expected_speaker_count_persists(minimal_project) -> None:
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.speaker import SpeakerService
+    from podcast_mcp.services.media.speaker import SpeakerService
     from podcast_mcp.transcript_context import load_transcript_context
 
     ws = ProjectWorkspace.open(minimal_project)

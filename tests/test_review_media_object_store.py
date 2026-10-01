@@ -14,13 +14,13 @@ from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.runtime_config import RuntimeConfigError
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.review_media import (
+from podcast_mcp.services.media.review_media import (
     media_type_for_path,
     presign_ttl_seconds,
     review_guest_audio_path,
     upload_review_version_to_object_store,
 )
+from podcast_mcp.services.review import ReviewService
 from podcast_mcp.services.share import ShareService
 from podcast_mcp.util.object_store import (
     ObjectStoreClient,
@@ -150,7 +150,7 @@ def test_share_audio_mp3_without_object_store(
     ):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.load_object_store_config",
+        "podcast_mcp.services.media.review_media.load_object_store_config",
         lambda config_path=None: None,
     )
     ws = _seed_premix(minimal_project, sample_wav)
@@ -174,11 +174,11 @@ def test_share_audio_redirects_when_object_store_uploaded(
         secret_access_key="s",
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.load_object_store_config",
+        "podcast_mcp.services.media.review_media.load_object_store_config",
         lambda config_path=None: cfg,
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.ObjectStoreClient",
+        "podcast_mcp.services.media.review_media.ObjectStoreClient",
         lambda _cfg: fake,
     )
     ws = _seed_premix(minimal_project, sample_wav)
@@ -206,11 +206,11 @@ def test_revoke_deletes_object_store_object_when_unused(
         secret_access_key="s",
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.load_object_store_config",
+        "podcast_mcp.services.media.review_media.load_object_store_config",
         lambda config_path=None: cfg,
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.ObjectStoreClient",
+        "podcast_mcp.services.media.review_media.ObjectStoreClient",
         lambda _cfg: fake,
     )
     ws = _seed_premix(minimal_project, sample_wav)
@@ -234,7 +234,7 @@ def test_upload_idempotent(minimal_project, sample_wav, monkeypatch, request, fa
         secret_access_key="s",
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.ObjectStoreClient",
+        "podcast_mcp.services.media.review_media.ObjectStoreClient",
         lambda _cfg: fake,
     )
     ws = _seed_premix(minimal_project, sample_wav)
@@ -392,7 +392,7 @@ def test_object_store_client_requires_boto3(monkeypatch):
 
 
 def test_ensure_version_mp3_encodes_legacy(minimal_project, sample_wav):
-    from podcast_mcp.services.review_media import ensure_version_mp3
+    from podcast_mcp.services.media.review_media import ensure_version_mp3
 
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="legacy-encode")
@@ -414,7 +414,7 @@ def test_ensure_version_mp3_encodes_legacy(minimal_project, sample_wav):
 def test_delete_object_store_skips_when_other_share_active(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    from podcast_mcp.services.review_media import delete_object_store_object_if_unused
+    from podcast_mcp.services.media.review_media import delete_object_store_object_if_unused
 
     fake = _FakeObjectStore()
     cfg = ObjectStoreConfig(
@@ -425,11 +425,11 @@ def test_delete_object_store_skips_when_other_share_active(
         secret_access_key="s",
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.load_object_store_config",
+        "podcast_mcp.services.media.review_media.load_object_store_config",
         lambda config_path=None: cfg,
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.ObjectStoreClient",
+        "podcast_mcp.services.media.review_media.ObjectStoreClient",
         lambda _cfg: fake,
     )
     ws = _seed_premix(minimal_project, sample_wav)
@@ -453,7 +453,7 @@ def test_presign_ttl_invalid_and_naive():
 
 def test_upload_returns_none_without_object_store(minimal_project, sample_wav, monkeypatch):
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.load_object_store_config",
+        "podcast_mcp.services.media.review_media.load_object_store_config",
         lambda config_path=None: None,
     )
     ws = _seed_premix(minimal_project, sample_wav)
@@ -481,7 +481,7 @@ def test_legacy_version_without_mp3_falls_back_to_wav(minimal_project, sample_wa
 def test_presign_and_delete_client_variants(
     minimal_project, sample_wav, monkeypatch, tmp_workspace
 ):
-    from podcast_mcp.services.review_media import (
+    from podcast_mcp.services.media.review_media import (
         delete_object_store_object_if_unused,
         presigned_review_audio_url,
         upload_review_version_to_object_store,
@@ -504,11 +504,11 @@ def test_presign_and_delete_client_variants(
     url2 = presigned_review_audio_url(ws.project, ver["id"], object_store=cfg)
     assert url2
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.load_object_store_config",
+        "podcast_mcp.services.media.review_media.load_object_store_config",
         lambda config_path=None: cfg,
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.ObjectStoreClient",
+        "podcast_mcp.services.media.review_media.ObjectStoreClient",
         lambda _cfg: fake,
     )
     url3 = presigned_review_audio_url(ws.project, ver["id"])

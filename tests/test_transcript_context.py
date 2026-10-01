@@ -16,7 +16,7 @@ from podcast_mcp.transcript_context import (
 def test_vocabulary_edit_marks_existing_transcript_stale(minimal_project: Path) -> None:
     from podcast_mcp.models import Transcript
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.transcripts = [Transcript(track_id="host", words=[])]
@@ -34,7 +34,7 @@ def test_vocabulary_edit_marks_existing_transcript_stale(minimal_project: Path) 
 
 def test_vocabulary_rejects_terms_outside_whisper_prompt(minimal_project: Path) -> None:
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
     svc = TranscriptPrecorrectService(ProjectWorkspace.open(minimal_project))
     with pytest.raises(ValueError, match="prompt limit"):
@@ -49,7 +49,7 @@ def test_vocabulary_save_allowed_below_primer_length_when_it_fits(
 ) -> None:
     """A limit under the primer's 27 chars must not reject every save (#804 item 3)."""
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
     ws = ProjectWorkspace.open(minimal_project)
     TranscriptContext(transcribe={"initial_prompt_max_chars": 10}).save(ws.project.workspace_path())
@@ -64,7 +64,7 @@ def test_vocabulary_save_allowed_with_empty_vocabulary_below_primer_length(
     minimal_project: Path,
 ) -> None:
     """An empty vocabulary always fits (nothing to truncate) regardless of the limit."""
-    from podcast_mcp.services.transcript_precorrect import _ensure_prompt_covers_vocabulary
+    from podcast_mcp.services.media.transcript_precorrect import _ensure_prompt_covers_vocabulary
 
     ctx = TranscriptContext(transcribe={"initial_prompt_max_chars": 5})
     _ensure_prompt_covers_vocabulary(ctx)  # must not raise
@@ -74,7 +74,7 @@ def test_vocabulary_save_still_rejected_when_it_actually_overflows_a_low_limit(
     minimal_project: Path,
 ) -> None:
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
     ws = ProjectWorkspace.open(minimal_project)
     TranscriptContext(transcribe={"initial_prompt_max_chars": 5}).save(ws.project.workspace_path())
@@ -87,7 +87,7 @@ def test_vocabulary_save_still_rejected_when_it_actually_overflows_a_low_limit(
 
 def test_context_update_merges_latest_vocabulary(minimal_project: Path) -> None:
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
     first = TranscriptPrecorrectService(ProjectWorkspace.open(minimal_project))
     second = TranscriptPrecorrectService(ProjectWorkspace.open(minimal_project))
@@ -306,7 +306,7 @@ def test_vocabulary_needs_retranscription_only_for_mismatched_transcripts(
 ) -> None:
     from podcast_mcp.models import Transcript
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.transcripts = []
@@ -324,7 +324,7 @@ def test_vocabulary_needs_retranscription_only_for_mismatched_transcripts(
 def test_vocabulary_lists_edited_tracks_once(minimal_project: Path) -> None:
     from podcast_mcp.models import Transcript
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
     ws = ProjectWorkspace.open(minimal_project)
     ws.project.transcripts = [
@@ -337,7 +337,7 @@ def test_vocabulary_lists_edited_tracks_once(minimal_project: Path) -> None:
 
 def test_vocabulary_save_rejects_stale_base_revision(minimal_project: Path) -> None:
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import (
+    from podcast_mcp.services.media.transcript_precorrect import (
         TranscriptPrecorrectService,
         VocabularyConflictError,
     )
@@ -371,7 +371,7 @@ def test_initial_prompt_primed_even_without_vocabulary() -> None:
 
 def test_vocabulary_saves_long_lists_when_prompting_disabled(minimal_project: Path) -> None:
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
     ws = ProjectWorkspace.open(minimal_project)
     TranscriptContext(transcribe={"initial_prompt": False}).save(ws.project.workspace_path())
@@ -385,7 +385,7 @@ def test_vocabulary_saves_long_lists_when_prompting_disabled(minimal_project: Pa
 
 def test_context_update_dedupes_without_new_revision(minimal_project: Path) -> None:
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
     svc = TranscriptPrecorrectService(ProjectWorkspace.open(minimal_project))
     svc.update_context(terms=["A"])
@@ -397,7 +397,7 @@ def test_context_update_dedupes_without_new_revision(minimal_project: Path) -> N
 
 def test_context_update_validates_entry_length(minimal_project: Path) -> None:
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
     svc = TranscriptPrecorrectService(ProjectWorkspace.open(minimal_project))
     with pytest.raises(ValueError, match="Vocabulary allows up to"):
@@ -469,7 +469,7 @@ def test_context_service_wraps_busy_lock(minimal_project, monkeypatch, method):
 
     from filelock import Timeout
 
-    import podcast_mcp.services.transcript_precorrect as module
+    import podcast_mcp.services.media.transcript_precorrect as module
     from podcast_mcp.services.app.workspace import ProjectWorkspace
     from podcast_mcp.util.project_state import TRANSCRIPT_CONTEXT_BUSY_MESSAGE
 
@@ -494,7 +494,7 @@ def test_context_service_wraps_busy_lock(minimal_project, monkeypatch, method):
 
 def test_context_vocabulary_removal_merges_then_adds_then_removes(minimal_project):
     from podcast_mcp.services.app.workspace import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
     svc = TranscriptPrecorrectService(ProjectWorkspace.open(minimal_project))
     svc.update_context(terms=["Old"], guest_names=["Ada"])

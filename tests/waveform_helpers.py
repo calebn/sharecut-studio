@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-import podcast_mcp.services.waveform as svc
+import podcast_mcp.services.media.waveform as svc
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,

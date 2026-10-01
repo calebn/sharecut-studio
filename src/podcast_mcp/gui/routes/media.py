@@ -7,7 +7,7 @@ from filelock import Timeout
 
 from podcast_mcp.gui.routes.deps import project_busy_from_timeout, require_host, resolve_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.media_store import (
+from podcast_mcp.services.media import (
     gui_media_chunk_max_bytes,
     gui_media_max_bytes,
     write_upload_chunk,

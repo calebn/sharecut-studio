@@ -17,7 +17,7 @@ from podcast_mcp.gui.job_events import (
     publish_job_event,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.bounce import BounceRequest, BounceService
+from podcast_mcp.services.media import BounceRequest, BounceService
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util.progress import (
     PROGRESS_LAZY_CHIP_SEC,

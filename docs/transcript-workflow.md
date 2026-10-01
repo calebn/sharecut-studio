@@ -7,7 +7,9 @@ facade for execution and working configuration. Its implementation modules live
 in `services/pipeline/`; transcript processing remains in the domain engines and
 edits called by the pipeline. Episode workspaces used by transcript CLI and MCP
 commands come from `podcast_mcp.services.app`; callers import their service from
-its owning package rather than the root services namespace.
+its owning package rather than the root services namespace. Transcript service
+classes are exported by `podcast_mcp.services.media`; processing and export
+behavior are unchanged by that package boundary.
 
 Deep dives: [transcript-reconcile.md](transcript-reconcile.md), [transcript-precorrect.md](transcript-precorrect.md).
 

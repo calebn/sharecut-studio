@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 
-/** Where BounceService writes (`services/bounce.py`: `project.export_dir() / "bounces"`). */
+/** Where BounceService writes (`services/media/bounce.py`: `project.export_dir() / "bounces"`). */
 export function bounceDir(projectPath: string): string {
   return path.join(path.dirname(projectPath), "export", "bounces");
 }

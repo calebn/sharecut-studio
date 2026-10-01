@@ -234,7 +234,7 @@
           "src/podcast_mcp/services/session_sync/sqlite.py",
           "src/podcast_mcp/services/session_sync/log.py",
           "src/podcast_mcp/services/share_auth/store.py",
-          "src/podcast_mcp/services/media_store.py",
+          "src/podcast_mcp/services/media/media_store.py",
           "src/podcast_mcp/edits/share_registry.py"
         ]
       }
@@ -371,16 +371,16 @@
     {
       "id": "bounce-stem-range-export",
       "when": "Bounce / stem range export (GUI + MCP)",
-      "update": "`docs/gui-integration.md`, `docs/daw-editing.md`, `.agents/skills/podcast-bounce-export/`, `services/bounce.py`",
+      "update": "`docs/gui-integration.md`, `docs/daw-editing.md`, `.agents/skills/podcast-bounce-export/`, `services/media/bounce.py`",
       "docs": [
         "docs/gui-integration.md",
         "docs/daw-editing.md",
         ".agents/skills/podcast-bounce-export/",
-        "src/podcast_mcp/services/bounce.py"
+        "src/podcast_mcp/services/media/bounce.py"
       ],
       "advisory": {
         "include": [
-          "src/podcast_mcp/services/bounce.py",
+          "src/podcast_mcp/services/media/bounce.py",
           "src/podcast_mcp/gui/routes/export_routes.py",
           "src/podcast_mcp/export/names.py",
           "gui/web/src/layout/BounceDialog*",
@@ -402,7 +402,7 @@
         "include": [
           "src/podcast_mcp/engines/waveform_pyramid.py",
           "src/podcast_mcp/engines/waveform_media.py",
-          "src/podcast_mcp/services/waveform.py",
+          "src/podcast_mcp/services/media/waveform.py",
           "src/podcast_mcp/gui/routes/waveform.py",
           "src/podcast_mcp/util/timeline_zoom.py",
           "src/podcast_mcp/util/timeline-zoom.json",
@@ -460,7 +460,7 @@
           "src/podcast_mcp/ingest/",
           "src/podcast_mcp/engines/align.py",
           "src/podcast_mcp/engines/alignment_audit.py",
-          "src/podcast_mcp/services/ingest.py",
+          "src/podcast_mcp/services/media/ingest.py",
           "src/podcast_mcp/services/align_accept.py",
           "src/podcast_mcp/edits/align_accept_status.py",
           "src/podcast_mcp/edits/conversation_align.py",

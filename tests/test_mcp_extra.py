@@ -291,7 +291,7 @@ def test_mcp_bounce_audio_tool(tmp_path, sample_wav, monkeypatch):
     path = mcp_server.episode_create(str(ws))
     mcp_server.track_add(path, "host", str(sample_wav), role="dialogue")
     monkeypatch.setattr(
-        "podcast_mcp.services.bounce.BounceService.bounce",
+        "podcast_mcp.services.media.bounce.BounceService.bounce",
         lambda self, req=None, **_k: [self.ws.project.export_dir() / "bounces" / "b.wav"],
     )
     out = json.loads(

@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-import podcast_mcp.services.waveform as svc
+import podcast_mcp.services.media.waveform as svc
 from podcast_mcp.engines.waveform_pyramid import (
     PcmSource,
     pyramid_path,

@@ -870,7 +870,7 @@ async def test_plain_runtime_error_stays_generic(minimal_project):
 
 
 def test_transcript_vocabulary_parity_roundtrip_and_conflict(tmp_path):
-    from podcast_mcp.services.transcript_precorrect import VocabularyConflictError
+    from podcast_mcp.services.media.transcript_precorrect import VocabularyConflictError
 
     path = mcp_server.episode_create(str(tmp_path / "vocab"), name="Vocabulary")
     base = json.loads(mcp_server.get_transcript_vocabulary_tool(path))
@@ -915,7 +915,7 @@ def test_transcript_vocabulary_parity_registered_schema_requires_revision():
 
 def test_transcript_vocabulary_parity_rejects_overflow_and_preserves_context(tmp_path):
     from podcast_mcp.services.app import ProjectWorkspace
-    from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
+    from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 
     path = mcp_server.episode_create(str(tmp_path / "vocab-limits"), name="Vocabulary")
     svc = TranscriptPrecorrectService(ProjectWorkspace.open(path))

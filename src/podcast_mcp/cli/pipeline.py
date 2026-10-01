@@ -264,7 +264,7 @@ def bounce_cmd(
         help="Comma-separated extensions, e.g. wav,mp3",
     ),
 ) -> None:
-    from podcast_mcp.services.bounce import BounceRequest, BounceService
+    from podcast_mcp.services.media import BounceRequest, BounceService
 
     ws = ProjectWorkspace.open(project)
     track_ids = [t.strip() for t in tracks.split(",") if t.strip()] if tracks else None

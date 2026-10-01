@@ -79,7 +79,7 @@ Update documentation **in the same change** when behavior, layout, or workflows 
 | Join continuity / splice QA | `docs/inaudible-cuts.md` § Join continuity, `edits/join_continuity.py`, `edits/join_cost_spectral.py`, optional `joinqc` extra, `tighten.join_continuity_gate`, skills above |
 | Clip join modes (`join_in_mode`, fade vs crossfade render) | `docs/inaudible-cuts.md`, `docs/filler-cut-quality.md`, `docs/nl-editing.md`, `schemas/episode.project.schema.json`, `.agents/defaults/pipeline.yaml` → `render`, affected skills above |
 | Audio diagnostics (spectrogram/astats/hum) or mastering loudness QC | `docs/audio-engineering.md`, `.agents/skills/podcast-audio-cleanup/`, `.agents/skills/podcast-master-export/` |
-| Bounce / stem range export (GUI + MCP) | `docs/gui-integration.md`, `docs/daw-editing.md`, `.agents/skills/podcast-bounce-export/`, `services/bounce.py` |
+| Bounce / stem range export (GUI + MCP) | `docs/gui-integration.md`, `docs/daw-editing.md`, `.agents/skills/podcast-bounce-export/`, `services/media/bounce.py` |
 | Waveform pyramid / renderer / tiles | `docs/waveform.md`, `contracts/timeline-zoom.json`, `docs/gui-integration.md` § Waveforms, `docs/persistence.md` |
 | FFmpeg/model bootstrap, native binary resolution, or new `bootstrap` components | `docs/setup.md`, `README.md`, `ROADMAP.md`, `.agents/skills/podcast-setup/`, `util/binaries.py`/`util/model_assets.py` docstrings |
 | Raw multitrack → per-speaker tracks | `docs/multitrack-ingest.md`, `.agents/skills/podcast-align-audio/`, `.agents/skills/podcast-ingest-align/` |

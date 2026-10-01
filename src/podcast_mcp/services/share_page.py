@@ -130,7 +130,7 @@ def share_audio_url_for_preview(
     if not vid:
         return api_url
     try:
-        from podcast_mcp.services.review_media import presigned_review_audio_url
+        from podcast_mcp.services.media import presigned_review_audio_url
 
         signed = presigned_review_audio_url(
             project,
@@ -186,7 +186,7 @@ def render_share_spa_html(
             )
         if audio_url:
             try:
-                from podcast_mcp.services.review_media import (
+                from podcast_mcp.services.media import (
                     media_type_for_path,
                     review_guest_audio_path,
                 )

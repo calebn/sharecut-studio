@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from filelock import Timeout as FileLockTimeout
 
-import podcast_mcp.services.waveform as svc
+import podcast_mcp.services.media.waveform as svc
 from podcast_mcp.engines import waveform_media as wm
 from podcast_mcp.engines import waveform_pyramid as wm_pyramid
 from podcast_mcp.engines.waveform_pyramid import (
@@ -25,7 +25,7 @@ from podcast_mcp.engines.waveform_pyramid import (
     write_synthetic_pyramid,
 )
 from podcast_mcp.models import MediaAsset, Track, load_project, save_project
-from podcast_mcp.services.waveform import (
+from podcast_mcp.services.media.waveform import (
     MediaEntry,
     StaleWaveformKeyError,
     current_key,

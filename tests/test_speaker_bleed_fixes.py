@@ -37,7 +37,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.speaker import SpeakerService
+from podcast_mcp.services.media.speaker import SpeakerService
 
 
 def _project(tmp_path: Path, sample_wav: Path) -> EpisodeProject:
@@ -251,7 +251,7 @@ def test_gate_track_service_dry_run(tmp_path, sample_wav) -> None:
     _project(tmp_path, sample_wav)
     ws = ProjectWorkspace.open(tmp_path / "episode.project.json")
     with patch(
-        "podcast_mcp.services.speaker.label_track_home_speaker",
+        "podcast_mcp.services.media.speaker.label_track_home_speaker",
         return_value={"dry_run": True, "words_would_suppress": 2, "words_suppressed": 0},
     ):
         out = SpeakerService(ws).gate_track(dry_run=True)
@@ -276,7 +276,7 @@ def test_gate_track_service_apply_mutates(tmp_path, sample_wav) -> None:
     with (
         patch.object(ws, "mutate", side_effect=_run_mutate),
         patch(
-            "podcast_mcp.services.speaker.label_track_home_speaker",
+            "podcast_mcp.services.media.speaker.label_track_home_speaker",
             return_value={"dry_run": False, "words_suppressed": 1},
         ),
     ):
@@ -294,7 +294,7 @@ def test_attribute_apply_mutates(tmp_path, sample_wav) -> None:
     with (
         patch.object(ws, "mutate", side_effect=_run_mutate),
         patch(
-            "podcast_mcp.services.speaker.run_speaker_attribution",
+            "podcast_mcp.services.media.speaker.run_speaker_attribution",
             return_value={"attributions_changed": 2},
         ),
     ):
@@ -323,7 +323,7 @@ def test_score_returns_error_when_unscorable(tmp_path, sample_wav) -> None:
     ws = ProjectWorkspace.open(tmp_path / "episode.project.json")
     (proj.workspace_path() / "raw" / "host.wav").unlink()
     with patch(
-        "podcast_mcp.services.speaker.score_window",
+        "podcast_mcp.services.media.speaker.score_window",
         return_value=None,
     ):
         out = SpeakerService(ws).score("host", 0.0, 1.0)
@@ -518,7 +518,7 @@ def test_compare_pair_error_when_unscorable(tmp_path, sample_wav) -> None:
     _project(tmp_path, sample_wav)
     ws = ProjectWorkspace.open(tmp_path / "episode.project.json")
     with patch(
-        "podcast_mcp.services.speaker.score_window",
+        "podcast_mcp.services.media.speaker.score_window",
         return_value=None,
     ):
         out = SpeakerService(ws).compare_pair("host", 0.0, 1.0, "guest", 0.0, 1.0)
@@ -546,7 +546,7 @@ def test_enroll_service_skips_tracks_without_transcript(tmp_path, sample_wav) ->
     save_project(proj, path)
     ws = ProjectWorkspace.open(path)
     with patch(
-        "podcast_mcp.services.speaker.enroll_track",
+        "podcast_mcp.services.media.speaker.enroll_track",
         side_effect=lambda p, tid, *_a, **_k: (
             SpeakerProfile(
                 speaker_id=tid,

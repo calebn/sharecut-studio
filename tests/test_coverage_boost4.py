@@ -24,8 +24,8 @@ from podcast_mcp.edits.review_versions import (
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.media.transcript_precorrect import TranscriptPrecorrectService
 from podcast_mcp.services.review import ReviewService
-from podcast_mcp.services.transcript_precorrect import TranscriptPrecorrectService
 
 runner = CliRunner()
 
@@ -126,7 +126,7 @@ def test_history_cli(minimal_project):
 def test_precorrect_mutate_path(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     svc = TranscriptPrecorrectService(ws)
-    with patch("podcast_mcp.services.transcript_precorrect.run_precorrect_transcript") as run:
+    with patch("podcast_mcp.services.media.transcript_precorrect.run_precorrect_transcript") as run:
         result = type("R", (), {"to_dict": lambda self: {"n": 1}})()
         run.return_value = result
         out = svc.precorrect(dry_run=True)

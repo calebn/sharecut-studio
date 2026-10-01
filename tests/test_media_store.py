@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.media_store import (
+from podcast_mcp.services.media.media_store import (
     gui_media_chunk_max_bytes,
     safe_audio_filename,
     unique_raw_path,
@@ -38,7 +38,7 @@ def test_rewrite_share_html_edge_cases():
 
 def test_sweep_pending_oserror_branches(minimal_project, monkeypatch, tmp_path):
     """OSError on upload entries is skipped (no global Path.stat patch — that flakes under xdist)."""
-    import podcast_mcp.services.media_store as ms
+    import podcast_mcp.services.media.media_store as ms
 
     ws = ProjectWorkspace.open(minimal_project)
     root = ws.project.workspace_path()
@@ -66,7 +66,7 @@ def test_sweep_pending_oserror_branches(minimal_project, monkeypatch, tmp_path):
 
 
 def test_sweep_stale_uploads_and_quota(minimal_project, monkeypatch, tmp_path):
-    from podcast_mcp.services.media_store import (
+    from podcast_mcp.services.media.media_store import (
         pending_upload_bytes,
         sweep_stale_uploads,
         uploads_dir,
@@ -92,7 +92,7 @@ def test_sweep_stale_uploads_and_quota(minimal_project, monkeypatch, tmp_path):
     assert not part.exists()
 
     monkeypatch.setattr(
-        "podcast_mcp.services.media_store._PENDING_UPLOAD_QUOTA",
+        "podcast_mcp.services.media.media_store._PENDING_UPLOAD_QUOTA",
         10,
     )
     write_upload_chunk(
@@ -174,7 +174,7 @@ def test_chunk_rejects_duplicate_index(minimal_project, sample_wav):
 
 def test_chunk_assemble_streams_via_from_parts(minimal_project, sample_wav, monkeypatch):
     """Multi-chunk complete path must stream parts (not b"".join into RAM)."""
-    import podcast_mcp.services.media_store as ms
+    import podcast_mcp.services.media.media_store as ms
 
     calls: list[int] = []
     real = ms.write_complete_upload_from_parts
@@ -397,7 +397,7 @@ def test_write_complete_rejects_zero_duration(minimal_project, sample_wav, monke
     from types import SimpleNamespace
 
     monkeypatch.setattr(
-        "podcast_mcp.services.media_store.FFmpegEngine.probe",
+        "podcast_mcp.services.media.media_store.FFmpegEngine.probe",
         lambda self, path, untrusted=False: SimpleNamespace(duration_sec=0),
     )
     ws = ProjectWorkspace.open(minimal_project)
@@ -552,7 +552,7 @@ def test_guest_media_upload_maps_probe_errors(
         raise RuntimeError("ffprobe exploded")
 
     monkeypatch.setattr(
-        "podcast_mcp.services.media_store.write_upload_chunk",
+        "podcast_mcp.services.media.write_upload_chunk",
         boom,
     )
     res = client.post(
@@ -577,7 +577,7 @@ def test_guest_media_upload_maps_lock_timeout_to_project_busy(
         raise Timeout("/artifacts/episode.project.json.lock")
 
     monkeypatch.setattr(
-        "podcast_mcp.services.media_store.write_upload_chunk",
+        "podcast_mcp.services.media.write_upload_chunk",
         boom,
     )
     res = client.post(

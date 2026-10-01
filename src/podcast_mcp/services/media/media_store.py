@@ -68,6 +68,21 @@ def unique_raw_path(workspace_dir: Path, filename: str) -> Path:
         i += 1
 
 
+def ensure_audio_in_workspace(workspace_dir: Path, audio: Path) -> tuple[Path, str]:
+    """Return ``(absolute_file, relative_store_path)``, copying into ``raw/`` if needed."""
+    resolved = audio.expanduser().resolve()
+    if not resolved.is_file():
+        raise FileNotFoundError(f"audio file not found: {resolved}")
+    ws = workspace_dir.expanduser().resolve()
+    if resolved.is_relative_to(ws):
+        rel = str(resolved.relative_to(ws)).replace("\\", "/")
+        return resolved, rel
+    dest = unique_raw_path(ws, resolved.name)
+    dest.write_bytes(resolved.read_bytes())
+    rel = str(dest.relative_to(ws)).replace("\\", "/")
+    return dest, rel
+
+
 def _uploads_root(workspace_dir: Path) -> Path:
     return workspace_artifacts_dir(workspace_dir) / ".uploads"
 

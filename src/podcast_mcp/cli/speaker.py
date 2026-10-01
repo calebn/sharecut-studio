@@ -8,7 +8,7 @@ import typer
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.speaker import SpeakerService
+from podcast_mcp.services.media import SpeakerService
 
 speaker_app = typer.Typer(help="Speaker enrollment and attribution.")
 

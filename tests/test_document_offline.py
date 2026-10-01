@@ -70,7 +70,7 @@ def test_structural_mode_propose_from_edit_cap(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: None,
     )
     proj = load_project(minimal_project)
@@ -189,7 +189,7 @@ def test_share_audio_permission_and_redirect_errors(
     import podcast_mcp.services.share as share_mod
 
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: None,
     )
     proj = load_project(minimal_project)
@@ -223,11 +223,11 @@ def test_share_audio_permission_and_redirect_errors(
         share_mod.share_daw_audio_path(token, kind="stem", track_id="nope")
 
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.upload_review_version_to_object_store",
+        "podcast_mcp.services.media.upload_review_version_to_object_store",
         MagicMock(side_effect=RuntimeError("upload fail")),
     )
     monkeypatch.setattr(
-        "podcast_mcp.services.review_media.presigned_review_audio_url",
+        "podcast_mcp.services.media.presigned_review_audio_url",
         lambda *_a, **_k: None,
     )
     assert share_mod.resolve_share_audio_redirect(token) is None
@@ -244,7 +244,7 @@ def test_open_share_auto_revokes_missing_version(
     import podcast_mcp.services.share as share_mod
 
     monkeypatch.setattr(
-        "podcast_mcp.services.proxy_media.load_object_store_config",
+        "podcast_mcp.services.media.proxy_media.load_object_store_config",
         lambda config_path=None: None,
     )
     proj = load_project(minimal_project)

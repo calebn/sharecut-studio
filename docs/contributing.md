@@ -27,7 +27,7 @@ Use [`util.workspace_paths.resolve_within`](../src/podcast_mcp/util/workspace_pa
 
 ### Service context imports
 
-Import `ProjectWorkspace`, `FanoutHub`, and GUI launch symbols from `podcast_mcp.services.app`. Import session host-binding auth from `podcast_mcp.services.session_sync`. The root `podcast_mcp.services` package has no aggregate exports. Use the owning context for pipeline and support symbols, and direct modules for remaining services. Service code must not import `gui.routes`; GUI launch uses only the neutral `gui.bind` and `gui.static_assets` helpers.
+Import `ProjectWorkspace`, `FanoutHub`, and GUI launch symbols from `podcast_mcp.services.app`. Import session host-binding auth from `podcast_mcp.services.session_sync`. The root `podcast_mcp.services` package has no aggregate exports. Use the owning context for pipeline, support, and media symbols, and direct modules for remaining services. Service code must not import `gui.routes`; GUI launch uses only the neutral `gui.bind` and `gui.static_assets` helpers.
 
 Runtime diagnostics, configuration checks, diagnostic bundles, and report
 submission belong in `services/support/`. Pipeline execution, configuration,
@@ -36,7 +36,12 @@ symbols from `podcast_mcp.services.support` or `podcast_mcp.services.pipeline`
 in adapters and sibling services. Import implementation modules only within
 their owning context or in focused tests. Support reads pipeline component
 status through the pipeline facade; pipeline may use the existing workspace
-service. Both contexts reject adapter dependencies.
+service. These contexts reject adapter dependencies. Media services may use the app
+workspace and pipeline ASR options through public facades. Import media operations
+from `podcast_mcp.services.media`; implementation modules under `services/media/`
+are private to that context and focused tests. Source copying belongs to
+`media_store.ensure_audio_in_workspace`, called through the facade by
+`EpisodeService`, rather than the domain `edits.track_media` module.
 
 When another context migrates, move all callers and patch targets together,
 delete the old paths, and extend `tests/test_service_boundaries.py` with its

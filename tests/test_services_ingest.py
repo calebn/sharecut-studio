@@ -13,7 +13,7 @@ from podcast_mcp.ingest.consolidate import ConsolidateResult, SpeakerAlignment
 from podcast_mcp.ingest.manifest import IngestManifest
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project
 from podcast_mcp.services.app.workspace import ProjectWorkspace
-from podcast_mcp.services.ingest import (
+from podcast_mcp.services.media.ingest import (
     IngestService,
     SuggestCandidate,
     SuggestResult,
@@ -148,7 +148,7 @@ def test_consolidate_to_dialogue_tracks_delegates(tmp_path: Path, sample_wav: Pa
         cross_speaker_offsets={},
     )
     with patch(
-        "podcast_mcp.services.ingest.consolidate_speakers",
+        "podcast_mcp.services.media.ingest.consolidate_speakers",
         return_value=fake,
     ) as consolidate:
         result = IngestService(ws).consolidate_to_dialogue_tracks(
@@ -182,15 +182,15 @@ def test_verify_alignment_status(
     )
     with (
         patch(
-            "podcast_mcp.services.ingest.vad_speech_intervals",
+            "podcast_mcp.services.media.ingest.vad_speech_intervals",
             return_value=intervals,
         ),
         patch(
-            "podcast_mcp.services.ingest.simultaneous_speech_sec",
+            "podcast_mcp.services.media.ingest.simultaneous_speech_sec",
             return_value=overlap,
         ),
         patch(
-            "podcast_mcp.services.ingest.render_comparison_waveforms",
+            "podcast_mcp.services.media.ingest.render_comparison_waveforms",
             return_value=wf,
         ),
     ):
@@ -216,11 +216,11 @@ def test_verify_alignment_no_waveforms_and_requires_two_tracks(
     ws = _two_track_workspace(minimal_project, sample_wav)
     with (
         patch(
-            "podcast_mcp.services.ingest.vad_speech_intervals",
+            "podcast_mcp.services.media.ingest.vad_speech_intervals",
             return_value=[],
         ),
         patch(
-            "podcast_mcp.services.ingest.simultaneous_speech_sec",
+            "podcast_mcp.services.media.ingest.simultaneous_speech_sec",
             return_value=0.0,
         ),
     ):
@@ -240,8 +240,8 @@ def test_verify_alignment_still_checks_a_track_muted_in_the_mix(
     ws = _two_track_workspace(minimal_project, sample_wav)
     ws.project.tracks[1].muted = True
     with (
-        patch("podcast_mcp.services.ingest.vad_speech_intervals", return_value=[]),
-        patch("podcast_mcp.services.ingest.simultaneous_speech_sec", return_value=0.0),
+        patch("podcast_mcp.services.media.ingest.vad_speech_intervals", return_value=[]),
+        patch("podcast_mcp.services.media.ingest.simultaneous_speech_sec", return_value=0.0),
     ):
         result = IngestService(ws).verify_alignment(
             write_waveforms=False,
@@ -280,7 +280,7 @@ def test_apply_consolidated_tracks(minimal_project: Path, sample_wav: Path) -> N
     probe = AudioProbe(duration_sec=2.0, sample_rate=48000, channels=1)
     with (
         patch("podcast_mcp.edits.track_media.FFmpegEngine") as eng_cls,
-        patch("podcast_mcp.services.ingest.schedule_track_waveforms") as waveforms,
+        patch("podcast_mcp.services.media.ingest.schedule_track_waveforms") as waveforms,
     ):
         eng_cls.return_value.probe.return_value = probe
         track_ids = IngestService(ws).apply_consolidated_tracks(result).track_ids
@@ -359,19 +359,19 @@ def test_suggest_alignment_for_manifest(tmp_path: Path, sample_wav: Path) -> Non
     )
     with (
         patch(
-            "podcast_mcp.services.ingest.sweep_session_starts",
+            "podcast_mcp.services.media.ingest.sweep_session_starts",
             return_value=scored,
         ),
         patch(
-            "podcast_mcp.services.ingest.sweep_content_offset",
+            "podcast_mcp.services.media.ingest.sweep_content_offset",
             side_effect=[0.25, 0.25],
         ),
         patch(
-            "podcast_mcp.services.ingest.render_comparison_waveforms",
+            "podcast_mcp.services.media.ingest.render_comparison_waveforms",
             return_value=wf,
         ),
         patch(
-            "podcast_mcp.services.ingest.check_drift",
+            "podcast_mcp.services.media.ingest.check_drift",
             return_value=drift,
         ),
     ):
@@ -397,13 +397,13 @@ def test_suggest_alignment_for_manifest_no_waveforms(
 ) -> None:
     audio_dir, manifest = _ingest_manifest(tmp_path, sample_wav)
     with (
-        patch("podcast_mcp.services.ingest.sweep_session_starts", return_value=[]),
+        patch("podcast_mcp.services.media.ingest.sweep_session_starts", return_value=[]),
         patch(
-            "podcast_mcp.services.ingest.sweep_content_offset",
+            "podcast_mcp.services.media.ingest.sweep_content_offset",
             return_value=0.0,
         ),
         patch(
-            "podcast_mcp.services.ingest.check_drift",
+            "podcast_mcp.services.media.ingest.check_drift",
             return_value=DriftReport(0.0, 0.0, 0.0, None),
         ),
     ):
@@ -450,17 +450,17 @@ def test_suggest_alignment_scores_all_non_reference_guests(
 
     with (
         patch(
-            "podcast_mcp.services.ingest.sweep_session_starts",
+            "podcast_mcp.services.media.ingest.sweep_session_starts",
             side_effect=lambda ref, guest, candidates, **kw: (
                 scored_a if Path(guest).name == "audra.wav" else scored_b
             ),
         ),
         patch(
-            "podcast_mcp.services.ingest.sweep_content_offset",
+            "podcast_mcp.services.media.ingest.sweep_content_offset",
             return_value=0.0,
         ),
         patch(
-            "podcast_mcp.services.ingest.check_drift",
+            "podcast_mcp.services.media.ingest.check_drift",
             return_value=DriftReport(0.0, 0.0, 0.0, None),
         ),
     ):
@@ -500,15 +500,15 @@ def test_verify_alignment_absolute_media_paths(
     )
     with (
         patch(
-            "podcast_mcp.services.ingest.vad_speech_intervals",
+            "podcast_mcp.services.media.ingest.vad_speech_intervals",
             return_value=[(0.0, 1.0)],
         ),
         patch(
-            "podcast_mcp.services.ingest.simultaneous_speech_sec",
+            "podcast_mcp.services.media.ingest.simultaneous_speech_sec",
             return_value=0.0,
         ),
         patch(
-            "podcast_mcp.services.ingest.render_comparison_waveforms",
+            "podcast_mcp.services.media.ingest.render_comparison_waveforms",
             return_value=wf,
         ),
     ):
@@ -713,7 +713,7 @@ def test_apply_multi_source_only_primary_placed(minimal_project: Path, sample_wa
 
 def test_timeline_vad_reads_through_clips(minimal_project: Path, sample_wav: Path) -> None:
     from podcast_mcp.models import Clip
-    from podcast_mcp.services.ingest import _timeline_vad_intervals, _waveform_file_start
+    from podcast_mcp.services.media.ingest import _timeline_vad_intervals, _waveform_file_start
 
     ws = _two_track_workspace(minimal_project, sample_wav)
     proj = ws.project
@@ -727,7 +727,7 @@ def test_timeline_vad_reads_through_clips(minimal_project: Path, sample_wav: Pat
         calls.append((start_sec, duration_sec))
         return [(start_sec + 1.0, start_sec + 2.0)]
 
-    with patch("podcast_mcp.services.ingest.vad_speech_intervals", fake_vad):
+    with patch("podcast_mcp.services.media.ingest.vad_speech_intervals", fake_vad):
         iv = _timeline_vad_intervals(proj, guest, window_start_sec=0.0, window_end_sec=5.0)
     assert calls == [(4.0, 5.0)]
     assert iv == [(1.0, 2.0)]
@@ -737,11 +737,13 @@ def test_timeline_vad_reads_through_clips(minimal_project: Path, sample_wav: Pat
 def test_timeline_vad_without_clips_reads_track_media(
     minimal_project: Path, sample_wav: Path
 ) -> None:
-    from podcast_mcp.services.ingest import _timeline_vad_intervals, _waveform_file_start
+    from podcast_mcp.services.media.ingest import _timeline_vad_intervals, _waveform_file_start
 
     ws = _two_track_workspace(minimal_project, sample_wav)
     host = ws.project.timeline.tracks[0]
-    with patch("podcast_mcp.services.ingest.vad_speech_intervals", return_value=[(0.0, 1.0)]) as v:
+    with patch(
+        "podcast_mcp.services.media.ingest.vad_speech_intervals", return_value=[(0.0, 1.0)]
+    ) as v:
         iv = _timeline_vad_intervals(ws.project, host, window_start_sec=1.0, window_end_sec=3.0)
     assert iv == [(0.0, 1.0)]
     assert v.call_args.kwargs == {"start_sec": 1.0, "duration_sec": 2.0}
@@ -751,7 +753,7 @@ def test_timeline_vad_without_clips_reads_track_media(
 def test_timeline_vad_rejects_media_outside_workspace(
     minimal_project: Path, sample_wav: Path
 ) -> None:
-    from podcast_mcp.services.ingest import _timeline_vad_intervals
+    from podcast_mcp.services.media.ingest import _timeline_vad_intervals
 
     ws = _two_track_workspace(minimal_project, sample_wav)
     host = ws.project.timeline.tracks[0]
@@ -764,7 +766,7 @@ def test_timeline_vad_and_waveform_for_late_placed_clip(
     minimal_project: Path, sample_wav: Path
 ) -> None:
     from podcast_mcp.models import Clip
-    from podcast_mcp.services.ingest import _timeline_vad_intervals, _waveform_file_start
+    from podcast_mcp.services.media.ingest import _timeline_vad_intervals, _waveform_file_start
 
     ws = _two_track_workspace(minimal_project, sample_wav)
     proj = ws.project
@@ -778,7 +780,7 @@ def test_timeline_vad_and_waveform_for_late_placed_clip(
         calls.append((start_sec, duration_sec))
         return [(start_sec + 1.0, start_sec + 2.0)]
 
-    with patch("podcast_mcp.services.ingest.vad_speech_intervals", fake_vad):
+    with patch("podcast_mcp.services.media.ingest.vad_speech_intervals", fake_vad):
         iv = _timeline_vad_intervals(proj, guest, window_start_sec=0.0, window_end_sec=5.0)
     assert calls == [(0.0, 2.0)]
     assert iv == [(4.0, 5.0)]

@@ -8,7 +8,7 @@ import typer
 from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.episode import EpisodeService
-from podcast_mcp.services.transcript import TranscriptService
+from podcast_mcp.services.media import TranscriptService
 from podcast_mcp.whisper_models import WHISPER_MODEL_IDS
 
 episode_app = typer.Typer(help="Manage episode projects.")

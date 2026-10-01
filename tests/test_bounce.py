@@ -9,7 +9,7 @@ import pytest
 
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, save_project
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.bounce import BounceRequest, BounceService, _slug
+from podcast_mcp.services.media.bounce import BounceRequest, BounceService, _slug
 
 
 def _seed_bounce_project(
@@ -86,7 +86,7 @@ def test_bounce_all_tracks_wav(minimal_project, sample_wav):
     ws = _seed_bounce_project(minimal_project, sample_wav, clip_end_sec=2.0)
     eng = _ffmpeg_mock(mix_duration=2.0)
 
-    with patch("podcast_mcp.services.bounce.ffmpeg", return_value=eng):
+    with patch("podcast_mcp.services.media.bounce.ffmpeg", return_value=eng):
         paths = BounceService(ws).bounce(BounceRequest(formats=["wav"]))
 
     assert len(paths) == 1
@@ -114,7 +114,7 @@ def test_bounce_clamps_unscoped_to_clip_extent_when_mix_longer(minimal_project, 
     ws = ProjectWorkspace.open(minimal_project)
     eng = _ffmpeg_mock(mix_duration=10.0)
 
-    with patch("podcast_mcp.services.bounce.ffmpeg", return_value=eng):
+    with patch("podcast_mcp.services.media.bounce.ffmpeg", return_value=eng):
         paths = BounceService(ws).bounce(BounceRequest(formats=["wav"]))
 
     assert paths[0].read_bytes() == b"RIFFTRIM"
@@ -128,7 +128,7 @@ def test_bounce_renders_private_stems_not_shared_artifacts(minimal_project, samp
     shared_dir.mkdir(parents=True, exist_ok=True)
     (shared_dir / "host.wav").write_bytes(b"SHARED-OLD")
 
-    with patch("podcast_mcp.services.bounce.ffmpeg", return_value=eng):
+    with patch("podcast_mcp.services.media.bounce.ffmpeg", return_value=eng):
         BounceService(ws).bounce(BounceRequest(formats=["wav"]))
 
     assert (shared_dir / "host.wav").read_bytes() == b"SHARED-OLD"
@@ -150,7 +150,7 @@ def test_bounce_selected_tracks_and_range(minimal_project, sample_wav):
 
     eng.mix_tracks.side_effect = _mix
 
-    with patch("podcast_mcp.services.bounce.ffmpeg", return_value=eng):
+    with patch("podcast_mcp.services.media.bounce.ffmpeg", return_value=eng):
         paths = BounceService(ws).bounce(
             BounceRequest(track_ids=["guest"], start_s=1.0, end_s=2.5, formats=["wav"])
         )
@@ -178,7 +178,7 @@ def test_bounce_wav_and_mp3_via_shared_writer(minimal_project, sample_wav):
     eng = _ffmpeg_mock(mix_duration=2.0)
     eng.export_audio.side_effect = lambda *a, **k: Path(a[1]).write_bytes(b"MP3")
 
-    with patch("podcast_mcp.services.bounce.ffmpeg", return_value=eng):
+    with patch("podcast_mcp.services.media.bounce.ffmpeg", return_value=eng):
         paths = BounceService(ws).bounce(BounceRequest(formats=["wav", "mp3"]))
 
     assert {p.suffix for p in paths} == {".wav", ".mp3"}
@@ -201,7 +201,7 @@ def test_bounce_cleans_temp_mix_when_trim_fails(minimal_project, sample_wav):
     eng.mix_tracks.side_effect = _mix
     eng.extract_segment.side_effect = RuntimeError("ffmpeg trim failed")
 
-    with patch("podcast_mcp.services.bounce.ffmpeg", return_value=eng):
+    with patch("podcast_mcp.services.media.bounce.ffmpeg", return_value=eng):
         with pytest.raises(RuntimeError, match="trim failed"):
             BounceService(ws).bounce(
                 BounceRequest(track_ids=["guest"], start_s=1.0, end_s=2.5, formats=["wav"])
@@ -218,7 +218,7 @@ def test_bounce_defaults_and_skips_muted_tracks(minimal_project, sample_wav):
     ws = ProjectWorkspace.open(minimal_project)
     eng = _ffmpeg_mock(mix_duration=2.0)
 
-    with patch("podcast_mcp.services.bounce.ffmpeg", return_value=eng):
+    with patch("podcast_mcp.services.media.bounce.ffmpeg", return_value=eng):
         paths = BounceService(ws).bounce()
 
     assert len(paths) == 1
@@ -243,7 +243,7 @@ def test_bounce_start_only_uses_clip_extent_or_probe(minimal_project, sample_wav
     ws = ProjectWorkspace.open(minimal_project)
     eng = _ffmpeg_mock(mix_duration=4.0)
 
-    with patch("podcast_mcp.services.bounce.ffmpeg", return_value=eng):
+    with patch("podcast_mcp.services.media.bounce.ffmpeg", return_value=eng):
         paths = BounceService(ws).bounce(BounceRequest(start_s=1.0, formats=["wav"]))
 
     assert paths[0].read_bytes() == b"RIFFTRIM"
@@ -257,7 +257,7 @@ def test_bounce_rejects_probe_range_when_end_not_after_start(minimal_project, sa
     ws = ProjectWorkspace.open(minimal_project)
     eng = _ffmpeg_mock(mix_duration=1.0)
 
-    with patch("podcast_mcp.services.bounce.ffmpeg", return_value=eng):
+    with patch("podcast_mcp.services.media.bounce.ffmpeg", return_value=eng):
         with pytest.raises(ValueError, match="end_s must be greater"):
             BounceService(ws).bounce(BounceRequest(start_s=1.0, formats=["wav"]))
 
@@ -273,7 +273,7 @@ def test_bounce_cancel_check_stops_before_encode(minimal_project, sample_wav):
         cancelled["n"] += 1
         return cancelled["n"] > 1
 
-    with patch("podcast_mcp.services.bounce.ffmpeg", return_value=eng):
+    with patch("podcast_mcp.services.media.bounce.ffmpeg", return_value=eng):
         with pytest.raises(CancelledProgress, match="Bounce cancelled"):
             BounceService(ws).bounce(
                 BounceRequest(formats=["wav"]),
@@ -296,7 +296,7 @@ def test_bounce_cleans_private_stem_dir(minimal_project, sample_wav):
 
     eng.render_dialogue_track.side_effect = _render
 
-    with patch("podcast_mcp.services.bounce.ffmpeg", return_value=eng):
+    with patch("podcast_mcp.services.media.bounce.ffmpeg", return_value=eng):
         BounceService(ws).bounce(BounceRequest(formats=["wav"]))
 
     assert stem_dirs
@@ -304,7 +304,7 @@ def test_bounce_cleans_private_stem_dir(minimal_project, sample_wav):
 
 
 def test_slug_falls_back_when_parts_empty():
-    from podcast_mcp.services.bounce import _slug
+    from podcast_mcp.services.media.bounce import _slug
 
     assert _slug([]) == "bounce"
     assert _slug(["", "!!!"]) == "bounce"

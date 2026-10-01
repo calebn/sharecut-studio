@@ -19,7 +19,7 @@ from filelock import Timeout
 from starlette.background import BackgroundTask
 
 from podcast_mcp.gui.routes.deps import project_busy_from_timeout, require_host, resolve_project
-from podcast_mcp.services.waveform import (
+from podcast_mcp.services.media import (
     StaleWaveformKeyError,
     WaveformBusyError,
     pcm_block,

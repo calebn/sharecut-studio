@@ -207,7 +207,7 @@ def _pyramids(workspace: Path) -> dict[str, Path]:
 
 def test_large_project_fixture_extra_tracks_and_synthetic_waveforms(tmp_path):
     from podcast_mcp.engines.waveform_pyramid import read_bins, read_meta
-    from podcast_mcp.services.waveform import media_index, waveform_status
+    from podcast_mcp.services.media.waveform import media_index, waveform_status
 
     project_path = _load_fixture_builder().build_project(
         tmp_path / "wide", duration=30, clip_count=30, utterance_count=10, track_count=3

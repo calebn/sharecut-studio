@@ -6,13 +6,12 @@ from pathlib import Path
 from podcast_mcp.edits.track_ids import slug_track_id
 from podcast_mcp.edits.track_media import (
     apply_full_span_media,
-    ensure_audio_in_workspace,
     refresh_timeline_duration,
 )
 from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.models import FADER_MAX_DB, FADER_MIN_DB, Track, TrackRole
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.waveform import schedule_track_waveforms
+from podcast_mcp.services.media import ensure_audio_in_workspace, schedule_track_waveforms
 
 
 class EpisodeService:

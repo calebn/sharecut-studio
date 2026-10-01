@@ -375,7 +375,7 @@ def test_play_cli_dry_run(minimal_project, sample_wav):
 
 
 def test_transcript_precorrect_service(minimal_project):
-    from podcast_mcp.services.transcript_precorrect import (
+    from podcast_mcp.services.media.transcript_precorrect import (
         TranscriptPrecorrectService,
     )
     from podcast_mcp.transcript_context import TranscriptContext

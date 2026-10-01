@@ -25,7 +25,7 @@ from podcast_mcp.models import (
     load_project,
     save_project,
 )
-from podcast_mcp.services.ingest import AppliedConsolidation, VerifyResult
+from podcast_mcp.services.media.ingest import AppliedConsolidation, VerifyResult
 
 runner = CliRunner()
 

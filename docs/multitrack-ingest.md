@@ -2,6 +2,10 @@
 
 Raw recordings often arrive as **several files** in one folder. The episode workspace should end up with **one dialogue track per speaker** (typically two tracks total).
 
+CLI and MCP ingest commands call `IngestService` through the public
+`podcast_mcp.services.media` facade. The implementation lives in
+`services/media/ingest.py`; recorder-folder scanning remains in `ingest/`.
+
 **Remote recordings:** each file has its own **start/stop** and **duration**. Ingest maps them to one **session timeline** — not the same file timestamp on every recorder.
 
 **Two clocks:** transcript word times stay in each track's **source-media seconds**; the edited/deliverable audio runs on **timeline seconds**. `timeline.clips` bridge the two and `engines/session_timeline.py` (`SessionTimeline`) is the only place that maps between them. See [episode-format-v2.md § Timebase invariant](episode-format-v2.md#timebase-invariant).

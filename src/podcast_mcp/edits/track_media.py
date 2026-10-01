@@ -66,23 +66,6 @@ def apply_full_span_media(
     return media
 
 
-def ensure_audio_in_workspace(workspace_dir: Path, audio: Path) -> tuple[Path, str]:
-    """Return ``(absolute_file, relative_store_path)``, copying into ``raw/`` if needed."""
-    from podcast_mcp.services.media_store import unique_raw_path
-
-    resolved = audio.expanduser().resolve()
-    if not resolved.is_file():
-        raise FileNotFoundError(f"audio file not found: {resolved}")
-    ws = workspace_dir.expanduser().resolve()
-    if resolved.is_relative_to(ws):
-        rel = str(resolved.relative_to(ws)).replace("\\", "/")
-        return resolved, rel
-    dest = unique_raw_path(ws, resolved.name)
-    dest.write_bytes(resolved.read_bytes())
-    rel = str(dest.relative_to(ws)).replace("\\", "/")
-    return dest, rel
-
-
 def resolve_workspace_raw_audio(workspace_dir: Path, rel_path: str) -> Path:
     """Resolve *rel_path* to a file under workspace ``raw/``.
 

@@ -9,7 +9,6 @@ import pytest
 from podcast_mcp.edits.track_media import (
     apply_full_span_media,
     clip_media_duration,
-    ensure_audio_in_workspace,
     media_asset_from_path,
     resolve_workspace_raw_audio,
 )
@@ -24,6 +23,7 @@ from podcast_mcp.models import (
     load_project,
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
+from podcast_mcp.services.media import ensure_audio_in_workspace
 
 
 def test_media_asset_from_path(sample_wav):
