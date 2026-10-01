@@ -13,6 +13,7 @@ from podcast_mcp.util.rate_limit import (
     env_flag,
     env_float,
     env_int,
+    is_review_audio_path,
     rate_limit_detail,
 )
 
@@ -193,19 +194,12 @@ def classify_mcp_rpc(method: str | None, tool_name: str | None = None) -> str:
     return "read"
 
 
-# Keep in step with podcast_relay.limits.is_audio_path (test_rate_limit pins agreement).
 def classify_review_request(http_method: str, path: str) -> str:
     """Return ``read``, ``mutate``, or ``audio`` for a review-share route."""
     method = http_method.upper()
-    p = path.lower()  # same case folding as podcast_relay.limits.is_audio_path
     if method == "POST":
         return "mutate"
-    if (
-        "/audio" in p
-        or "/pending-preview" in p
-        or "/audition-context" in p
-        or "/daw/waveform/tiles/" in p
-    ):
+    if is_review_audio_path(path):
         return "audio"
     return "read"
 

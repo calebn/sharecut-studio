@@ -9,6 +9,7 @@ from podcast_mcp.util.rate_limit import (
     env_flag,
     env_float,
     env_int,
+    is_review_audio_path,
     rate_limit_detail,
 )
 
@@ -120,18 +121,6 @@ def is_presence_ws_text(text: str) -> bool:
     )
 
 
-# Keep in step with remote_mcp.limits.classify_review_request (test_rate_limit pins agreement).
-def is_audio_path(path_suffix: str) -> bool:
-    p = path_suffix.lower().split("?", 1)[0]
-    return (
-        p.endswith("/audio")
-        or "/daw/audio" in p
-        or "/daw/pending-preview" in p
-        or "/daw/audition-context" in p
-        or "/daw/waveform/tiles/" in p
-    )
-
-
 def check_register(host_token: str) -> RateLimitDecision:
     if not relay_rate_limit_enabled():
         return RateLimitDecision(allowed=True, bucket="relay_register")
@@ -147,7 +136,7 @@ def check_proxy_rpm(
     """RPM checks only (no concurrency). Audio paths skip RPM."""
     if not relay_rate_limit_enabled():
         return RateLimitDecision(allowed=True, bucket="relay_token")
-    if is_audio_path(path_suffix):
+    if is_review_audio_path(path_suffix):
         return RateLimitDecision(allowed=True, bucket="relay_audio")
     lim = get_relay_limiters()
     tok = lim.token_http.allow(token)
@@ -161,7 +150,6 @@ __all__ = [
     "check_proxy_rpm",
     "check_register",
     "get_relay_limiters",
-    "is_audio_path",
     "is_presence_ws_text",
     "rate_limit_detail",
     "relay_rate_limit_enabled",

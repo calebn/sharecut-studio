@@ -30,6 +30,7 @@ from podcast_mcp.util.body_limits import (
     relay_ws_max_size,
 )
 from podcast_mcp.util.proxy_paths import proxy_path_is_safe
+from podcast_mcp.util.rate_limit import is_review_audio_path
 from podcast_mcp.util.ws_delivery import SerializedWsWriter, WsFrameQueue, ws_close_details
 from podcast_mcp.util.ws_delivery import TextWsStream as GuestWsStream
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
@@ -37,7 +38,6 @@ from podcast_relay.limits import (
     check_proxy_rpm,
     check_register,
     get_relay_limiters,
-    is_audio_path,
     is_presence_ws_text,
     rate_limit_detail,
     relay_rate_limit_enabled,
@@ -571,7 +571,7 @@ def create_relay_app() -> FastAPI:
 
         if relay_rate_limit_enabled():
             lim = get_relay_limiters()
-            if is_audio_path(path_suffix):
+            if is_review_audio_path(path_suffix):
                 d = lim.audio_concurrent.try_enter(token)
                 if not d.allowed:
                     return JSONResponse(
