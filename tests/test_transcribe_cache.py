@@ -301,7 +301,7 @@ def test_pipeline_and_transcript_service_share_default_language_cache(
     from podcast_mcp.config import load_defaults
     from podcast_mcp.pipeline.steps import transcribe_tracks
     from podcast_mcp.services import ProjectWorkspace, TranscriptService
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     project, _audio = _host_project(minimal_project, sample_wav, tmp_workspace)
     defaults = load_defaults()

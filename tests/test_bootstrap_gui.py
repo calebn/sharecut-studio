@@ -17,7 +17,7 @@ def _isolate_bootstrap_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
 
 def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None:
     from podcast_mcp import config
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
 
     monkeypatch.setattr(config, "cache_dir", lambda: tmp_path / "cache")
     monkeypatch.setattr(config, "whisper_cache_dir", lambda: tmp_path / "cache" / "whisper")
@@ -58,7 +58,7 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
 
 
 def test_word_aligner_component_ok_has_no_hint(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
 
     monkeypatch.setattr(boot, "word_aligner_problem", lambda *a, **k: None)
     component = boot.word_aligner_component()
@@ -68,7 +68,7 @@ def test_word_aligner_component_ok_has_no_hint(monkeypatch) -> None:
 
 
 def test_word_aligner_component_reports_unexpected_errors(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
 
     def raise_runtime_error(*a, **k):
         raise RuntimeError("boom")
@@ -80,7 +80,7 @@ def test_word_aligner_component_reports_unexpected_errors(monkeypatch) -> None:
 
 
 def test_whisper_component_reports_unexpected_errors(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
 
     def raise_runtime_error(*a, **k):
         raise RuntimeError("boom")
@@ -95,7 +95,7 @@ def test_whisper_component_reports_unexpected_errors(monkeypatch) -> None:
 
 
 def test_whisper_component_missing_has_download_hint(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
     from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
     monkeypatch.setattr(boot, "whisper_model_problem", lambda m, **k: WhisperWeightsMissingError(m))
@@ -108,7 +108,7 @@ def test_whisper_component_missing_has_download_hint(monkeypatch) -> None:
 
 
 def test_run_bootstrap_word_aligner_downloads_when_missing(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
     from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
     monkeypatch.setattr(
@@ -127,7 +127,7 @@ def test_run_bootstrap_word_aligner_downloads_when_missing(monkeypatch) -> None:
 
 
 def test_run_bootstrap_word_aligner_skips_when_cached(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
 
     monkeypatch.setattr(boot, "word_aligner_problem", lambda *a, **k: None)
 
@@ -145,7 +145,7 @@ def test_run_bootstrap_word_aligner_skips_when_cached(monkeypatch) -> None:
 
 
 def test_run_bootstrap_word_aligner_reports_download_error(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
     from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
     monkeypatch.setattr(
@@ -161,7 +161,7 @@ def test_run_bootstrap_word_aligner_reports_download_error(monkeypatch) -> None:
 
 
 def test_run_bootstrap_default_never_pulls_word_aligner(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
 
     monkeypatch.setattr(boot, "_run_ffmpeg", lambda *, force=False: {"ok": True})
     monkeypatch.setattr(boot, "_run_whisper", lambda model, *, force=False: {"ok": True})
@@ -202,14 +202,14 @@ def test_gui_bootstrap_run_accepts_word_aligner(monkeypatch) -> None:
 
 
 def test_run_bootstrap_rejects_torch_extras() -> None:
-    from podcast_mcp.services.bootstrap import run_bootstrap
+    from podcast_mcp.services.pipeline.bootstrap import run_bootstrap
 
     with pytest.raises(ValueError, match="unsupported"):
         run_bootstrap(["speaker"])
 
 
 def test_run_bootstrap_ffmpeg_skip_when_on_path(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
 
     monkeypatch.setattr(boot.shutil, "which", lambda name: f"/usr/bin/{name}")
     out = boot.run_bootstrap(["ffmpeg"])
@@ -218,7 +218,7 @@ def test_run_bootstrap_ffmpeg_skip_when_on_path(monkeypatch) -> None:
 
 
 def test_whisper_component_requires_matching_model(tmp_path: Path, monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
 
     cache = tmp_path / "whisper"
     cache.mkdir()
@@ -236,7 +236,7 @@ def test_whisper_component_requires_matching_model(tmp_path: Path, monkeypatch) 
 
 def test_whisper_component_large_v3_does_not_match_turbo(tmp_path: Path, monkeypatch) -> None:
     from model_pin_helpers import plant_pinned_whisper
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
 
     cache = tmp_path / "whisper"
     plant_pinned_whisper(cache, "large-v3-turbo", monkeypatch)
@@ -495,7 +495,7 @@ def test_gui_bootstrap_job_error_result(monkeypatch) -> None:
 
 
 def test_run_bootstrap_whisper_forwards_model(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
 
     seen: dict[str, object] = {}
 
@@ -578,7 +578,7 @@ def test_run_bootstrap_word_aligner_refetches_a_pin_mismatch_without_force(
     tmp_path: Path, monkeypatch
 ) -> None:
     from model_pin_helpers import pin_word_aligner_to_fake_snapshot
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
     from podcast_mcp.util.model_manifest import clear_manifest_memo
 
     clear_manifest_memo()
@@ -604,7 +604,7 @@ def test_run_bootstrap_whisper_refetches_a_pin_mismatch_without_force(
     tmp_path: Path, monkeypatch
 ) -> None:
     from model_pin_helpers import plant_pinned_whisper
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
     from podcast_mcp.util.model_manifest import clear_manifest_memo
 
     clear_manifest_memo()
@@ -629,7 +629,7 @@ def test_run_bootstrap_whisper_refetches_a_pin_mismatch_without_force(
 
 
 def test_component_status_whisper_pin_mismatch(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
     from podcast_mcp.whisper_models import WhisperPinMismatchError
 
     monkeypatch.setattr(
@@ -650,7 +650,7 @@ def test_component_status_whisper_pin_mismatch(monkeypatch) -> None:
 
 
 def test_status_components_poll_memoised(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
 
     seen: list[bool] = []
 
@@ -665,7 +665,7 @@ def test_status_components_poll_memoised(monkeypatch) -> None:
 
 
 def test_word_aligner_component_flags_a_pin_mismatch(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
     from podcast_mcp.word_aligner_models import WordAlignerPinMismatchError
 
     monkeypatch.setattr(

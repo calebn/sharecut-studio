@@ -1142,7 +1142,7 @@ def share_audition_context_info(
 ) -> dict[str, Any]:
     """Guest-safe windowed hear context: captions + relative PNG URLs."""
     from podcast_mcp.edits.audition_context import build_audition_context
-    from podcast_mcp.services.pipeline_config import prosody_params_for
+    from podcast_mcp.services.pipeline import prosody_params_for
     from podcast_mcp.util.tracks import dialogue_track_ids
 
     _, ws = _require_pending_preview_caps(token)

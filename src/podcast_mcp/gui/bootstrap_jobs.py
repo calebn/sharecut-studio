@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from podcast_mcp.gui.job_events import LIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES, publish_job_event
-from podcast_mcp.services.bootstrap import run_bootstrap
+from podcast_mcp.services.pipeline import run_bootstrap
 from podcast_mcp.util.progress import ProgressEvent
 from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL, resolve_whisper_model
 

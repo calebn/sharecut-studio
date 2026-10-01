@@ -20,7 +20,7 @@ _SET_HELP = (
 
 
 def _overrides(assignments: list[str] | None) -> dict[str, Any]:
-    from podcast_mcp.services.pipeline_config import parse_config_assignments
+    from podcast_mcp.services.pipeline import parse_config_assignments
 
     try:
         return parse_config_assignments(assignments or [])
@@ -68,7 +68,7 @@ def pipeline_run(
     assignments: list[str] | None = typer.Option(None, "--set", help=_SET_HELP),
 ) -> None:
     from podcast_mcp.pipeline.meta import set_by_path
-    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.services.pipeline import transcribe_run_config
 
     overrides = _overrides(assignments)
     if realign:
@@ -108,7 +108,7 @@ def _echo_run_report(result: PipelineRunResult) -> None:
 def pipeline_list(
     as_json: bool = typer.Option(False, "--json", help="Emit step states as JSON"),
 ) -> None:
-    from podcast_mcp.services.pipeline_config import pipeline_step_states
+    from podcast_mcp.services.pipeline import pipeline_step_states
 
     rows = pipeline_step_states()
     if as_json:
@@ -135,7 +135,7 @@ def pipeline_config_cmd(
 ) -> None:
     """Show the effective pipeline config: defaults + --set, params, and step states."""
     from podcast_mcp.pipeline.meta import PARAM_FIELDS
-    from podcast_mcp.services.pipeline_config import (
+    from podcast_mcp.services.pipeline import (
         config_assignment_paths,
         merge_pipeline_config,
         pipeline_step_states,
@@ -171,7 +171,7 @@ def pipeline_analyze_cmd(
 ) -> None:
     """Run heuristic Analyze against the effective config and print reasons + a patch preview."""
     from podcast_mcp.services import ProjectWorkspace
-    from podcast_mcp.services.pipeline_config import merge_pipeline_config, suggest_pipeline_tuning
+    from podcast_mcp.services.pipeline import merge_pipeline_config, suggest_pipeline_tuning
 
     overrides = _overrides(assignments)
     base = merge_pipeline_config(overrides)
@@ -186,7 +186,7 @@ def pipeline_analyze_cmd(
 
 
 def _echo_analyze_report(result: dict[str, Any], project: Path, overrides: dict[str, Any]) -> None:
-    from podcast_mcp.services.pipeline_config import config_assignments
+    from podcast_mcp.services.pipeline import config_assignments
     from podcast_mcp.util.dicts import deep_merge
 
     reasons = result.get("reasons") or []

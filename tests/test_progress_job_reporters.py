@@ -74,7 +74,7 @@ def test_bootstrap_progress_reporter_fail_and_cancel() -> None:
 
 
 def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
-    from podcast_mcp.services import bootstrap as boot
+    from podcast_mcp.services.pipeline import bootstrap as boot
 
     monkeypatch.setattr(boot.shutil, "which", lambda _n: None)
     monkeypatch.setattr(boot, "resolve_ffmpeg", lambda: "ffmpeg")

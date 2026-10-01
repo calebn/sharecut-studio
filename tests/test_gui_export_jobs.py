@@ -227,7 +227,7 @@ def test_start_analyze_runs_working_set_and_takes_slot(minimal_project, monkeypa
         return {"reasons": [], "patches": {}, "applied": apply}
 
     monkeypatch.setattr(
-        "podcast_mcp.services.pipeline_config.analyze_working_set",
+        "podcast_mcp.services.pipeline.analyze_working_set",
         fake_analyze_working_set,
     )
 

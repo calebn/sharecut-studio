@@ -1713,7 +1713,7 @@ def test_discourse_config_defaults_round_trip():
         DEFAULT_DISCOURSE_PAUSE_SEC,
     )
     from podcast_mcp.pipeline.meta import param_fields_payload
-    from podcast_mcp.services.pipeline_config import merge_pipeline_config
+    from podcast_mcp.services.pipeline.config import merge_pipeline_config
 
     tighten = load_defaults()["tighten"]
     assert tighten["discourse_markers"] == list(DEFAULT_DISCOURSE_MARKERS)

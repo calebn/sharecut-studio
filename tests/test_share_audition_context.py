@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.services import ProjectWorkspace, ReviewService
-from podcast_mcp.services.pipeline_config import config_store
+from podcast_mcp.services.pipeline.config import config_store
 from podcast_mcp.services.remote_mcp.allowlist import ALL_GUEST_TOOLS, tools_for_capabilities
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 from podcast_mcp.services.share import (

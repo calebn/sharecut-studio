@@ -551,7 +551,7 @@ def _patch_fake_pipeline(monkeypatch, proj: Path, export_qc: dict) -> None:
     monkeypatch.setattr("podcast_mcp.gui.jobs.ProjectWorkspace.open", FakeWs.open)
     monkeypatch.setattr("podcast_mcp.gui.jobs.PipelineService", lambda _ws: FakeSvc())
     monkeypatch.setattr(
-        "podcast_mcp.services.pipeline_config.config_store",
+        "podcast_mcp.services.pipeline.config.config_store",
         lambda: type(
             "Store",
             (),

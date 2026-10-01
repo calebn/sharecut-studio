@@ -16,7 +16,7 @@ from podcast_mcp.gui.schemas import (
     RenderPreviewRequest,
 )
 from podcast_mcp.pipeline import STEP_NAMES
-from podcast_mcp.services.pipeline_config import (
+from podcast_mcp.services.pipeline import (
     build_config_payload,
     config_store,
     ensure_whisper_cached_for_run,

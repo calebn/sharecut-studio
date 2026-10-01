@@ -1,5 +1,6 @@
-from importlib import import_module
 from typing import TYPE_CHECKING
+
+from podcast_mcp.util.lazy_exports import resolve_export
 
 if TYPE_CHECKING:
     from podcast_mcp.services.support.config_check import run_config_checks
@@ -65,10 +66,4 @@ _MODULE_BY_NAME = {
 
 
 def __getattr__(name: str) -> object:
-    try:
-        module = _MODULE_BY_NAME[name]
-    except KeyError:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from None
-    value = getattr(import_module(f"{__name__}.{module}"), name)
-    globals()[name] = value
-    return value
+    return resolve_export(name, package=__name__, namespace=globals(), modules=_MODULE_BY_NAME)

@@ -17,7 +17,7 @@ class TranscriptService:
         self._engine = TranscriptionEngine(resolve_whisper_model(requested=model))
 
     def transcribe(self, track_id: str | None = None) -> list[str]:
-        from podcast_mcp.services.pipeline_config import asr_options_for
+        from podcast_mcp.services.pipeline import asr_options_for
 
         # Same transcribe.* settings as pipeline_run (staged working set, else defaults).
         self._engine.options = asr_options_for(self.ws.path)

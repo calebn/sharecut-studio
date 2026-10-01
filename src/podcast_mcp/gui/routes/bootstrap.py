@@ -11,7 +11,7 @@ from podcast_mcp.gui.bootstrap_jobs import BootstrapJobManager, shared_bootstrap
 from podcast_mcp.gui.routes.deps import require_host
 from podcast_mcp.gui.routes.sse_common import job_events_response
 from podcast_mcp.gui.schemas import BootstrapCancelRequest, BootstrapRunRequest
-from podcast_mcp.services.bootstrap import component_status
+from podcast_mcp.services.pipeline import component_status
 from podcast_mcp.whisper_models import resolve_whisper_model
 
 router = APIRouter()

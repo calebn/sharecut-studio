@@ -14,7 +14,7 @@ from podcast_mcp.pipeline.meta import (
     step_noop_reason,
 )
 from podcast_mcp.pipeline.runner import ORDERED_STEP_NAMES, PipelineRunner
-from podcast_mcp.services.pipeline_config import (
+from podcast_mcp.services.pipeline.config import (
     asr_options_for,
     build_config_payload,
     config_assignment_paths,
@@ -239,7 +239,7 @@ def test_config_put_syncs_focus_without_enabled_list(tmp_path) -> None:
 
 
 def test_config_put_preserves_focus_uncheck_when_flag_unchanged(tmp_path) -> None:
-    from podcast_mcp.services.pipeline_config import FOCUS_STEPS
+    from podcast_mcp.services.pipeline.config import FOCUS_STEPS
 
     proj = tmp_path / "ep3.project.json"
     proj.write_text("{}", encoding="utf-8")
@@ -285,7 +285,7 @@ def test_apply_enable_toggle_enable_and_disable(tmp_path) -> None:
 
 
 def test_component_status_shape() -> None:
-    from podcast_mcp.services.pipeline_config import component_status
+    from podcast_mcp.services.pipeline.config import component_status
 
     status = component_status()
     assert "ffmpeg" in status
@@ -297,8 +297,8 @@ def test_component_status_shape() -> None:
 
 
 def test_component_status_word_aligner_missing_hint(monkeypatch) -> None:
-    from podcast_mcp.services import bootstrap as boot
-    from podcast_mcp.services.pipeline_config import component_status
+    from podcast_mcp.services.pipeline import bootstrap as boot
+    from podcast_mcp.services.pipeline.config import component_status
     from podcast_mcp.word_aligner_models import WordAlignerMissingError
 
     monkeypatch.setattr(
@@ -311,7 +311,7 @@ def test_component_status_word_aligner_missing_hint(monkeypatch) -> None:
 
 def test_component_status_whisper_requires_cached_weights(tmp_path, monkeypatch) -> None:
     from model_pin_helpers import plant_pinned_whisper
-    from podcast_mcp.services import pipeline_config as pc
+    from podcast_mcp.services.pipeline import config as pc
 
     cache = tmp_path / "whisper-cache"
     cache.mkdir()
@@ -329,7 +329,7 @@ def test_component_status_whisper_requires_cached_weights(tmp_path, monkeypatch)
 
 def test_component_status_whisper_pin_mismatch(tmp_path, monkeypatch) -> None:
     from model_pin_helpers import plant_pinned_whisper
-    from podcast_mcp.services import pipeline_config as pc
+    from podcast_mcp.services.pipeline import config as pc
 
     cache = tmp_path / "whisper-cache"
     cache.mkdir()
@@ -348,7 +348,7 @@ def test_component_status_whisper_pin_mismatch(tmp_path, monkeypatch) -> None:
 
 
 def test_build_config_payload_includes_whisper_models(tmp_path, monkeypatch) -> None:
-    from podcast_mcp.services import pipeline_config as pc
+    from podcast_mcp.services.pipeline import config as pc
 
     cache = tmp_path / "whisper-cache"
     cache.mkdir()
@@ -372,7 +372,7 @@ def test_build_config_payload_includes_whisper_models(tmp_path, monkeypatch) -> 
 def test_build_config_payload_reports_the_resolved_forced_alignment(tmp_path, monkeypatch) -> None:
     """#780: the Precise word boundaries toggle follows the installed model, not the raw value."""
     from model_pin_helpers import plant_pinned_word_aligner
-    from podcast_mcp.services import pipeline_config as pc
+    from podcast_mcp.services.pipeline import config as pc
 
     proj = tmp_path / "ep.project.json"
     proj.write_text("{}", encoding="utf-8")
@@ -423,7 +423,7 @@ def test_apply_patches_keeps_a_concurrent_edit(tmp_path) -> None:
 
 
 def test_analyze_working_set_apply_keeps_edit_made_during_scan(tmp_path, monkeypatch) -> None:
-    from podcast_mcp.services import pipeline_config as pc
+    from podcast_mcp.services.pipeline import config as pc
 
     proj = tmp_path / "ep-race.project.json"
     proj.write_text("{}", encoding="utf-8")
@@ -658,7 +658,7 @@ def test_deep_merge_skips_underscore_keys() -> None:
 
 
 def test_component_status_error_branches(monkeypatch) -> None:
-    from podcast_mcp.services import pipeline_config as pc
+    from podcast_mcp.services.pipeline import config as pc
 
     def boom_ffmpeg():
         raise RuntimeError("no ffmpeg")
@@ -1037,7 +1037,7 @@ def test_align_module_constants_match_yaml() -> None:
 
 def test_transcribe_overwrite_param_and_run_only_helper() -> None:
     from podcast_mcp.pipeline.meta import PARAM_FIELDS
-    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.services.pipeline.config import transcribe_run_config
 
     field = next(f for f in PARAM_FIELDS if f.path == "transcribe.overwrite")
     assert field.type == "boolean" and field.group == "advanced"
@@ -1058,7 +1058,7 @@ def test_transcribe_overwrite_param_and_run_only_helper() -> None:
 
 
 def test_transcribe_run_config_retime_words() -> None:
-    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.services.pipeline.config import transcribe_run_config
 
     retimed = transcribe_run_config(None, force=False, retime_words=True)
     assert retimed["transcribe"]["retime_words"] is True
@@ -1301,7 +1301,7 @@ def test_tighten_gate_agrees_when_enabled_key_missing():
 
 def test_dialogue_silence_scan_cancels_between_tracks(monkeypatch, tmp_path) -> None:
     from podcast_mcp.models import EpisodeProject, MediaAsset, Track, TrackRole
-    from podcast_mcp.services import pipeline_config as pc
+    from podcast_mcp.services.pipeline import config as pc
     from podcast_mcp.util.progress import CancelledProgress
 
     host_wav = tmp_path / "host.wav"
@@ -1362,7 +1362,7 @@ def test_analyze_cleanup_cancels_before_track_work(monkeypatch) -> None:
 
 
 def test_analyze_working_set_cancel_skips_apply(tmp_path, monkeypatch) -> None:
-    from podcast_mcp.services import pipeline_config as pc
+    from podcast_mcp.services.pipeline import config as pc
     from podcast_mcp.util.progress import CancelledProgress
 
     proj = tmp_path / "ep-cancel.project.json"

@@ -28,16 +28,18 @@ Use [`util.workspace_paths.resolve_within`](../src/podcast_mcp/util/workspace_pa
 ### Service context imports
 
 Runtime diagnostics, configuration checks, diagnostic bundles, and report
-submission belong in `services/support/`. Import its declared symbols from
-`podcast_mcp.services.support` in adapters and sibling services. Import its
-implementation modules only within support or in focused tests.
+submission belong in `services/support/`. Pipeline execution, configuration,
+Analyze, and component bootstrap belong in `services/pipeline/`. Import declared
+symbols from `podcast_mcp.services.support` or `podcast_mcp.services.pipeline`
+in adapters and sibling services. Import implementation modules only within
+their owning context or in focused tests. Support reads pipeline component
+status through the pipeline facade; pipeline may use the existing workspace
+service. Both contexts reject adapter dependencies.
 
-The support boundary test rejects adapter dependencies and service dependencies
-other than the existing bootstrap status reader. When another context migrates,
-move all callers and patch targets together, delete the old paths, and extend
-`tests/test_service_boundaries.py` with its declared facade and dependency rules.
-Keep each context migration in its own PR. Use `Part of #572` until the final
-migration closes the issue.
+When another context migrates, move all callers and patch targets together,
+delete the old paths, and extend `tests/test_service_boundaries.py` with its
+declared facade and dependency rules. Keep each context migration in its own
+PR. Use `Part of #572` until the final migration closes the issue.
 
 ## Beta interfaces
 

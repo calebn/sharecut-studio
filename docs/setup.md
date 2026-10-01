@@ -577,6 +577,8 @@ one-line message only replaces `ValueError` / `RuntimeError`.
 The CLI and host Help share diagnostics-bundle creation through
 `podcast_mcp.services.support`. Host Help also uses its report-submission
 services. Their implementation is under `src/podcast_mcp/services/support/`.
+Pipeline execution, configuration, and component bootstrap use the public
+`podcast_mcp.services.pipeline` facade.
 
 If Sharecut Studio or `podcast` misbehaves, create a **sanitized diagnostics zip** on your machine. Nothing is uploaded when the zip is created, and there is **no telemetry**. Home and Studio Help can preview the files and submit the zip with a description after explicit consent when `PODCAST_REPORT_RELAY_URL` points to a configured relay. The description and ZIP link become public; the relay keeps the ZIP for 30 days. Self-hosted installations can keep using Open support and attach the local zip manually.
 

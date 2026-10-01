@@ -892,7 +892,7 @@ def test_audition_context_prosody_stale_when_params_differ(minimal_project, tmp_
 
 def test_audition_context_prosody_unstaged_trusts_stored_params(minimal_project, tmp_workspace):
     from podcast_mcp.engines.prosody import ProsodyParams
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     proj = single_track_prosody_project(minimal_project)
     assert config_store().peek(minimal_project) is None
@@ -908,7 +908,7 @@ def test_audition_context_prosody_unstaged_trusts_stored_params(minimal_project,
 
 def test_audition_context_prosody_config_read_keeps_stored_params(minimal_project, tmp_workspace):
     from podcast_mcp.engines.prosody import ProsodyParams
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     proj = single_track_prosody_project(minimal_project)
     seed_prosody_profile(
@@ -926,7 +926,7 @@ def test_audition_context_prosody_config_read_keeps_stored_params(minimal_projec
 
 
 def test_play_service_audition_context_uses_staged_prosody_params(minimal_project, tmp_workspace):
-    from podcast_mcp.services.pipeline_config import config_store
+    from podcast_mcp.services.pipeline.config import config_store
 
     proj = single_track_prosody_project(minimal_project)
     seed_prosody_profile(proj)  # computed with the shipped defaults

@@ -204,7 +204,7 @@ def test_render_preview_renders_the_saved_project(minimal_project):
         seen.append(project.track_by_id("guest").muted)
         return {"ok": True, "path": None, "edit_count": 0}
 
-    with patch("podcast_mcp.services.pipeline.rerender_preview", fake):
+    with patch("podcast_mcp.services.pipeline.service.rerender_preview", fake):
         PipelineService(ws).render_preview()
     assert seen == [True]
     assert load_project(minimal_project).track_by_id("guest").muted is True
@@ -275,9 +275,9 @@ def test_export_audio_keeps_an_edit_saved_during_export(minimal_project, tmp_pat
         return tmp_path / "mastered.wav"
 
     with (
-        patch("podcast_mcp.services.pipeline.pipeline_steps.ensure_current_master", master),
+        patch("podcast_mcp.services.pipeline.service.pipeline_steps.ensure_current_master", master),
         patch("podcast_mcp.export.audio.export_episode_audio", return_value=[]),
-        patch("podcast_mcp.services.pipeline.ffmpeg", return_value=MagicMock()),
+        patch("podcast_mcp.services.pipeline.service.ffmpeg", return_value=MagicMock()),
     ):
         PipelineService(ws).export_audio([{"ext": "mp3"}])
     assert load_project(minimal_project).track_by_id("host").fader_db == -6.0
@@ -300,11 +300,11 @@ def test_export_audio_checkpoints_inside_the_render_lock(minimal_project, tmp_pa
     seen = _record_checkpoint_lock(monkeypatch)
     with (
         patch(
-            "podcast_mcp.services.pipeline.pipeline_steps.ensure_current_master",
+            "podcast_mcp.services.pipeline.service.pipeline_steps.ensure_current_master",
             return_value=tmp_path / "mastered.wav",
         ),
         patch("podcast_mcp.export.audio.export_episode_audio", return_value=[]),
-        patch("podcast_mcp.services.pipeline.ffmpeg", return_value=MagicMock()),
+        patch("podcast_mcp.services.pipeline.service.ffmpeg", return_value=MagicMock()),
     ):
         PipelineService(ws).export_audio([{"ext": "mp3"}])
     assert seen == [True]
@@ -313,7 +313,7 @@ def test_export_audio_checkpoints_inside_the_render_lock(minimal_project, tmp_pa
 def test_render_final_checkpoints_inside_the_render_lock(minimal_project, monkeypatch):
     ws = _two_tracks(minimal_project)
     seen = _record_checkpoint_lock(monkeypatch)
-    with patch("podcast_mcp.services.pipeline.PipelineRunner") as runner:
+    with patch("podcast_mcp.services.pipeline.service.PipelineRunner") as runner:
         PipelineService(ws).render_final()
     assert seen == [True]
     runner.return_value.run.assert_called_once()
@@ -770,7 +770,7 @@ def test_transcribe_step_conflicts_with_a_correction_saved_during_asr(minimal_pr
     from podcast_mcp.engines import TranscriptionEngine
     from podcast_mcp.models import Transcript, TranscriptWord
     from podcast_mcp.services import EditService
-    from podcast_mcp.services.pipeline_config import transcribe_run_config
+    from podcast_mcp.services.pipeline.config import transcribe_run_config
 
     ws = _two_tracks(minimal_project)
     ws.project.transcripts = [
@@ -785,7 +785,7 @@ def test_transcribe_step_conflicts_with_a_correction_saved_during_asr(minimal_pr
 
     monkeypatch.setattr(TranscriptionEngine, "transcribe_file", asr_while_studio_corrects)
     monkeypatch.setattr(
-        "podcast_mcp.services.pipeline_config.ensure_whisper_cached_for_run", lambda **_: None
+        "podcast_mcp.services.pipeline.config.ensure_whisper_cached_for_run", lambda **_: None
     )
     monkeypatch.delenv("PODCAST_BATCH", raising=False)
     with pytest.raises(ProjectMergeConflict):

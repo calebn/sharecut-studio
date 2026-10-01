@@ -255,7 +255,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     ``word-aligner`` is an opt-in download (``opt_in: true``); the Precise word boundaries
     toggle follows ``build_config_payload()["forced_alignment"]`` for its effective state.
     """
-    from podcast_mcp.services.bootstrap import whisper_component, word_aligner_component
+    from podcast_mcp.services.pipeline.bootstrap import whisper_component, word_aligner_component
     from podcast_mcp.whisper_models import resolve_whisper_model
 
     out: dict[str, Any] = {}
