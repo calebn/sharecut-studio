@@ -52,3 +52,26 @@ def test_module_imports_cleanly_as_first_import_in_fresh_process(module: str):
         f"cold import of {module!r} failed (likely a circular import "
         f"reintroduced):\n{result.stderr}"
     )
+
+
+def test_local_config_cli_does_not_require_gui_http_client() -> None:
+    script = """
+import sys
+sys.modules['httpx'] = None
+from typer.testing import CliRunner
+from podcast_mcp.cli.main import app
+result = CliRunner().invoke(app, ['config', 'check', '--mode', 'local'])
+print(result.stdout, end='')
+assert 'podcast_mcp.services.support.diagnostics' not in sys.modules
+assert 'podcast_mcp.services.support.report_submission' not in sys.modules
+raise SystemExit(result.exit_code)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == (
+        "[ok] local mode needs no relay, object store, account, or CDN\n"
+        "[ok] distribution profile: not required for local mode\n"
+        "Configuration is valid for local mode.\n"
+    )
