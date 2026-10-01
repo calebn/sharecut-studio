@@ -444,7 +444,9 @@ before matching `/audio`, `/pending-preview`, `/audition-context`, or
 `/daw/waveform/tiles/` as substrings. This preserves image variants and the host's
 broad `/audio` rule rather than requiring `/audio` at the path end. Query values
 cannot make a read path audio. Waveform status remains a read request, and host
-`POST` requests take mutation precedence.
+`POST` requests take mutation precedence. Guest audio slots stay held through
+response streaming. A file that disappears before pinning returns 404 and releases
+its slot immediately; response setup failures release the slot as well.
 
 Guest WS fanout (host→guest) is unlimited; only inbound guest→host text frames hit
 `PODCAST_RELAY_WS_MSG_RPM`. Responses: HTTP **429** + `Retry-After`; WS close

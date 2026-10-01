@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -24,7 +25,6 @@ from podcast_mcp.edits.share_capabilities import CAP_EDIT, CAP_VIEW
 from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pinned_audio_response
-from podcast_mcp.gui.background import release_background
 from podcast_mcp.gui.routes.boundary import BoundaryContextInput
 from podcast_mcp.gui.routes.deps import project_busy_from_timeout, project_busy_http_error
 from podcast_mcp.gui.routes.guest_ws_common import (
@@ -141,8 +141,8 @@ def _rate_limit(token: str, kind: str) -> None:
     rate_limit_share(token, kind)
 
 
-def _audio_slot(token: str) -> BackgroundTask | None:
-    """Take an audio concurrency slot; the returned task releases it after the response.
+def _audio_slot(token: str) -> Callable[[], None] | None:
+    """Take an audio concurrency slot and return its release callback.
 
     Raises 429 when the share is at its audio concurrency cap.
     """
@@ -156,13 +156,18 @@ def _audio_slot(token: str) -> BackgroundTask | None:
             detail=rate_limit_detail(decision),
             headers={"Retry-After": decision.retry_after_header},
         )
-    return BackgroundTask(lim.audio_concurrent.exit, token)
+    return lambda: lim.audio_concurrent.exit(token)
 
 
 def _audio_file_response(token: str, path, **kwargs: Any):
     """Pin authorized media before returning; hold the slot until streaming ends."""
     cache_audio = kwargs.pop("cache_audio", False)
-    return pinned_audio_response(path, cache=cache_audio, background=_audio_slot(token), **kwargs)
+    try:
+        return pinned_audio_response(
+            path, cache=cache_audio, on_release=_audio_slot(token), **kwargs
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="not found") from exc
 
 
 def _map_share_exc(exc: Exception) -> HTTPException:
@@ -292,9 +297,10 @@ def get_daw_waveform_tiles(
                 token, ref=ref, key=key, level=level, start=start, count=count
             )
         except BaseException:
-            release_background(slot)
+            if slot is not None:
+                slot()
             raise
-        return binary_response(body, background=slot)
+        return binary_response(body, background=BackgroundTask(slot) if slot is not None else None)
 
     return waveform_call(run, fallback=_map_share_exc)
 

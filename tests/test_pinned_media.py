@@ -12,7 +12,6 @@ from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
 from podcast_mcp.gui.audio import audio_file_response
-from podcast_mcp.gui.background import release_background
 from podcast_mcp.gui.pinned_file_response import PinnedFileResponse
 from podcast_mcp.util import pinned_media
 from podcast_mcp.util.pinned_media import open_pinned_media
@@ -305,7 +304,7 @@ def test_close_waits_for_an_in_flight_read(tmp_path: Path) -> None:
         response._read_at(0, 1)
 
 
-def test_pinned_audio_response_releases_background_when_nothing_streams(
+def test_pinned_audio_response_releases_callback_when_nothing_streams(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from starlette.requests import Request
@@ -322,13 +321,13 @@ def test_pinned_audio_response_releases_background_when_nothing_streams(
         {"type": "http", "method": "GET", "headers": [(b"if-none-match", etag.encode())]}
     )
     response = audio.pinned_audio_response(
-        media, request=request, background=BackgroundTask(released.append, "304")
+        media, request=request, on_release=lambda: released.append("304")
     )
     assert response.status_code == 304
     assert released == ["304"]
     with pytest.raises(FileNotFoundError):
         audio.pinned_audio_response(
-            tmp_path / "missing.wav", background=BackgroundTask(released.append, "missing")
+            tmp_path / "missing.wav", on_release=lambda: released.append("missing")
         )
     assert released == ["304", "missing"]
 
@@ -337,7 +336,7 @@ def test_pinned_audio_response_releases_background_when_nothing_streams(
 
     monkeypatch.setattr(audio, "audio_cache_headers", broken_headers)
     with pytest.raises(RuntimeError):
-        audio.pinned_audio_response(media, background=BackgroundTask(released.append, "error"))
+        audio.pinned_audio_response(media, on_release=lambda: released.append("error"))
     assert released == ["304", "missing", "error"]
 
 
@@ -392,8 +391,25 @@ def test_pinned_response_overrides_match_starlette_signatures(hook: str) -> None
     assert list(ours) == list(upstream)
 
 
-def test_release_background_runs_a_task_and_ignores_none() -> None:
+def test_pinned_audio_response_releases_callback_once_after_stream(tmp_path: Path) -> None:
+    import anyio
+
+    from podcast_mcp.gui.audio import pinned_audio_response
+
+    media = tmp_path / "mix.wav"
+    media.write_bytes(b"audio")
     ran: list[str] = []
-    release_background(None)
-    release_background(BackgroundTask(ran.append, "slot"))
+    response = pinned_audio_response(media, on_release=lambda: ran.append("slot"))
+    sent = []
+
+    async def send(event):
+        sent.append(event)
+
+    anyio.run(
+        response,
+        {"type": "http", "method": "GET", "headers": []},
+        lambda: None,
+        send,
+    )
+    assert b"".join(event.get("body", b"") for event in sent) == b"audio"
     assert ran == ["slot"]

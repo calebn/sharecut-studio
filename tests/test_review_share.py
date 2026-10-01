@@ -2132,6 +2132,46 @@ def test_guest_waveform_tiles_take_the_slot_before_work(minimal_project, sample_
     assert order == ["slot", "work", "exit"]
 
 
+def test_guest_audio_file_route_releases_slot_once_on_success_and_pin_failure(
+    minimal_project, sample_wav, monkeypatch
+):
+    from podcast_mcp.gui.routes import review_share
+    from podcast_mcp.services.remote_mcp import limits
+
+    client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
+    limiter = limits.get_host_limiters().audio_concurrent
+    allowed = limits.RateLimitDecision(allowed=True, bucket="host_audio")
+    exits: list[str] = []
+    monkeypatch.setattr(review_share, "host_rate_limit_enabled", lambda: True)
+    monkeypatch.setattr(limiter, "try_enter", lambda _token: allowed)
+    monkeypatch.setattr(limiter, "exit", exits.append)
+
+    response = client.get(f"/api/review/{token}/audio")
+    assert response.status_code == 200
+    assert response.content
+    assert exits == [token]
+
+    monkeypatch.setattr(
+        review_share, "share_audio_path", lambda _token: sample_wav.with_name("missing.mp3")
+    )
+    missing = client.get(f"/api/review/{token}/audio")
+    assert missing.status_code == 404
+    assert exits == [token, token]
+
+
+def test_guest_audio_slot_is_not_acquired_when_host_rate_limits_are_disabled(monkeypatch):
+    from podcast_mcp.gui.routes import review_share
+
+    monkeypatch.setattr(review_share, "host_rate_limit_enabled", lambda: False)
+    monkeypatch.setattr(
+        review_share,
+        "get_host_limiters",
+        lambda: pytest.fail("disabled host limits must not access the limiter"),
+    )
+
+    assert review_share._audio_slot("token") is None
+
+
 def test_guest_waveform_tiles_openapi_is_octet_stream():
     from podcast_mcp.gui.server import create_app
 
