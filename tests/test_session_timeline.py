@@ -833,3 +833,30 @@ def test_timebase_qc_report_flags_stacked_clips(tmp_path) -> None:
     assert any("stacked copies" in i for i in report["issues"])
     assert report["tracks"]["guest"]["stacked_clips"] == 1
     assert len(report["stacked_clips"]) == 1
+
+
+@pytest.mark.parametrize("parked_start,expected_pairs", [(0.0, 1), (10.0, 0), (9.97, 0)])
+def test_timebase_qc_parked_dialogue_copy(tmp_path, parked_start, expected_pairs) -> None:
+    p = _project(
+        tmp_path,
+        [
+            Clip(id="original", track_id="host", source_start=0, source_end=10, timeline_start=0),
+            Clip(
+                id="parked",
+                track_id="guest",
+                source_id="host_source",
+                source_start=0,
+                source_end=10,
+                timeline_start=parked_start,
+            ),
+        ],
+    )
+    p.tracks.append(
+        Track(id="guest", label="Guest", media=MediaAsset(path="raw/guest.wav", duration_sec=300))
+    )
+    p.sources = [SourceRecording(id="host_source", path="raw/host.wav", duration_sec=300)]
+    report = timebase_qc_report(p)
+    assert report["ok"] is (expected_pairs == 0)
+    assert len(report["stacked_clips"]) == expected_pairs
+    for track_id in ("host", "guest"):
+        assert report["tracks"][track_id].get("stacked_clips", 0) == expected_pairs
