@@ -94,9 +94,9 @@ test("rolling a cut boundary restores an archived transcript word through histor
     await page.mouse.up();
     const roll = await rollResponse;
     expect(roll.ok()).toBe(true);
+    applied += 1;
     expect(rolls).toHaveLength(1);
     expect(rolls[0]?.delta_sec).toBeCloseTo(1.5, 1);
-    applied += 1;
 
     await page.reload();
     const rolledResponse = await page.request.get(
