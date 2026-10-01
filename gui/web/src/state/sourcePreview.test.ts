@@ -4,9 +4,12 @@ import { useDawStore } from "./dawStore";
 
 const request = {
   ownerId: "wordbar",
-  trackId: "host",
-  sourceId: "extra",
-  cacheKey: "asset",
+  media: {
+    kind: "raw" as const,
+    trackId: "host",
+    sourceId: "extra",
+    cacheKey: "asset",
+  },
   startSec: 1,
   endSec: 2,
 };
@@ -41,7 +44,10 @@ describe("local source preview ownership", () => {
     if (!old) throw new Error("preview missing");
     s.releaseSourcePreview(request.ownerId);
     s.beginSourcePreview({ ...request, startSec: 3, endSec: 4 });
-    s.updateSourcePreview(old.ownerId, old.generation, 1.5, true, "old error");
+    s.updateSourcePreview(old.ownerId, old.generation, 1.5, true, {
+      kind: "unavailable",
+      message: "old error",
+    });
     expect(useDawStore.getState().sourcePreview?.playing).toBe(true);
     expect(useDawStore.getState().sourcePreviewError).toBeNull();
     s.beginSourcePreview({ ...request, ownerId: "new" });

@@ -31,6 +31,14 @@ vi.mock("../api", async (importOriginal) => ({
   loadWaveformSnap: vi.fn(async () => ({ ticks: [0.5] })),
 }));
 
+const { loadBoundaryContext } = vi.hoisted(() => ({
+  loadBoundaryContext: vi.fn(),
+}));
+vi.mock("../api/boundary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api/boundary")>()),
+  loadBoundaryContext,
+}));
+
 // The layer is tested in WaveformLayer.test.tsx; here, what the clip gives it.
 vi.mock("./WaveformLayer", () => ({
   WaveformLayer: (p: LayerProps) => {
@@ -55,6 +63,7 @@ const clip: ClipRow = {
 describe("ClipBlock waveform", () => {
   beforeEach(() => {
     layers.push([]);
+    loadBoundaryContext.mockResolvedValue({ token: "boundary-token" });
     HTMLElement.prototype.setPointerCapture = vi.fn();
     HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
       setTransform: vi.fn(),
@@ -456,7 +465,39 @@ describe("ClipBlock waveform", () => {
           "c1",
           "out",
           expect.any(Number),
+          "ripple",
+          "boundary-token",
         ),
+      );
+    });
+
+    it("preflights a trim with geometry captured at pointer down", async () => {
+      const view = render(<ClipBlock {...base} />);
+      const handle = view.container.querySelector(
+        ".trim-handle.out",
+      ) as HTMLElement;
+      fireEvent.pointerDown(handle, { clientX: 100, pointerId: 5 });
+      fireEvent.pointerMove(handle, { clientX: 150, pointerId: 5 });
+      view.rerender(
+        <ClipBlock
+          {...base}
+          clip={{ ...clip, source_end: 3, timeline_end: 3 }}
+        />,
+      );
+      fireEvent.pointerUp(handle, { clientX: 150, pointerId: 5 });
+      await waitFor(() => expect(loadBoundaryContext).toHaveBeenCalled());
+      expect(loadBoundaryContext).toHaveBeenCalledWith(
+        expect.any(String),
+        { kind: "trim", clip_id: "c1", edge: "out" },
+        [
+          {
+            id: "c1",
+            source_start: 0,
+            source_end: 2,
+            timeline_start: 0,
+            source_id: null,
+          },
+        ],
       );
     });
 

@@ -12,6 +12,15 @@ export function isTypingTarget(el: EventTarget | null): boolean {
   );
 }
 
+/** Let Space/Enter activate a focused native button before the DAW keymap. */
+export function isButtonActivation(e: KeyboardEvent): boolean {
+  return (
+    e.target instanceof HTMLButtonElement &&
+    !hasCommandModifier(e) &&
+    (e.key === " " || e.key === "Enter")
+  );
+}
+
 /**
  * True when Mod (Meta/Ctrl) or Alt is held, i.e. the key is part of a chord.
  * Shift is not a command modifier: Shift+key is still a bare key here.

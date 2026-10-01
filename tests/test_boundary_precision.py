@@ -1,5 +1,3 @@
-"""Precision boundaries share source-safe limits and a stale-save guard."""
-
 from __future__ import annotations
 
 import os
@@ -113,7 +111,6 @@ def test_visible_geometry_and_stale_apply_leave_history_untouched(
     history_before = len(ws.project.history.entries)
     assert service.roll_clip_join("left", "right", 0, expected_token=original.token)["unchanged"]
     assert len(load_project(minimal_project).history.entries) == history_before
-    # A different edit lands after the editor opened. Apply validates after reload.
     other = ProjectWorkspace.open(minimal_project)
     other.project.clips[0].source_end = 5.25
     other.save()

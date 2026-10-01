@@ -203,10 +203,14 @@ export function useAudioTransport(enabled = true): void {
   const previewRef = useRef(preview);
   previewRef.current = preview;
   const previewUrl = preview
-    ? audioUrl(projectPath, "raw", preview.trackId, {
-        ...(preview.sourceId !== null ? { sourceId: preview.sourceId } : {}),
-        cacheKey: preview.cacheKey,
-      })
+    ? preview.media.kind === "rendered"
+      ? preview.media.url
+      : audioUrl(projectPath, "raw", preview.media.trackId, {
+          ...(preview.media.sourceId !== null
+            ? { sourceId: preview.media.sourceId }
+            : {}),
+          cacheKey: preview.media.cacheKey,
+        })
     : null;
   const previewUrlRef = useRef(previewUrl);
   previewUrlRef.current = previewUrl;
@@ -291,7 +295,10 @@ export function useAudioTransport(enabled = true): void {
               source.generation,
               source.startSec,
               true,
-              "The recording could not be loaded.",
+              {
+                kind: "unavailable",
+                message: "The recording could not be loaded.",
+              },
             );
           } else {
             if (source) return;
@@ -556,8 +563,12 @@ export function useAudioTransport(enabled = true): void {
               startAt,
               true,
               blocked
-                ? "Browser blocked playback. Select Play word to try again."
-                : msg,
+                ? {
+                    kind: "blocked",
+                    message:
+                      "Browser blocked playback. Select the audio control again to try.",
+                  }
+                : { kind: "unavailable", message: msg },
             );
             return;
           }

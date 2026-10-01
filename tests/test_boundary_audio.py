@@ -41,9 +41,15 @@ from podcast_mcp.services.share import ShareService
 from podcast_mcp.services.workspace import ProjectWorkspace
 
 
-def _tone(path: Path, frequency: float) -> None:
+def _tone(path: Path, frequency: float, *, loud_prefix: bool = False) -> None:
     rate = 48_000
-    samples = [int(11_000 * math.sin(2 * math.pi * frequency * n / rate)) for n in range(2 * rate)]
+    samples = [
+        int(
+            (30_000 if loud_prefix and n < rate // 4 else 11_000)
+            * math.sin(2 * math.pi * frequency * n / rate)
+        )
+        for n in range(2 * rate)
+    ]
     with wave.open(str(path), "wb") as wav:
         wav.setnchannels(1)
         wav.setsampwidth(2)
@@ -57,10 +63,10 @@ def _samples(path: Path) -> tuple[int, ...]:
     return struct.unpack(f"<{len(raw) // 2}h", raw)
 
 
-def _project(path: Path) -> ProjectWorkspace:
+def _project(path: Path, *, loud_outside: bool = False, fader_db: float = -3) -> ProjectWorkspace:
     ws = ProjectWorkspace.open(path)
     raw = ws.project.workspace_path() / "raw"
-    _tone(raw / "host.wav", 443)
+    _tone(raw / "host.wav", 443, loud_prefix=loud_outside)
     _tone(raw / "other.wav", 659)
     ws.project.tracks = [
         Track(
@@ -68,7 +74,8 @@ def _project(path: Path) -> ProjectWorkspace:
             label="Host",
             role=TrackRole.DIALOGUE,
             media=MediaAsset(path="raw/host.wav", duration_sec=2),
-            fader_db=-3,
+            gain_db=2,
+            fader_db=fader_db,
         )
     ]
     ws.project.sources = [SourceRecording(id="other", path="raw/other.wav", duration_sec=2)]
@@ -85,7 +92,7 @@ def _project(path: Path) -> ProjectWorkspace:
             source_start=0,
             source_end=1.2,
             timeline_start=0,
-            fade_out_ms=150,
+            fade_out_ms=700,
         ),
         Clip(
             id="right",
@@ -94,7 +101,7 @@ def _project(path: Path) -> ProjectWorkspace:
             source_start=0.2,
             source_end=1.4,
             timeline_start=1.2,
-            fade_in_ms=150,
+            fade_in_ms=700,
             join_in_mode=ClipJoinMode.CROSSFADE,
         ),
     ]
@@ -113,7 +120,7 @@ def _full_track_samples(project, out: Path) -> tuple[int, ...]:
     defaults = load_defaults()
     render_track_from_timeline(project, track, stem, defaults)
     FFmpegEngine().mix_tracks(
-        [(stem, track.fader_db)], out, peak_ceiling_db=mix_peak_ceiling_db(defaults)
+        [(stem, track.output_gain_db)], out, peak_ceiling_db=mix_peak_ceiling_db(defaults)
     )
     return _samples(out)
 
@@ -138,6 +145,7 @@ def test_boundary_audio_is_real_unsaved_crossfade_and_stale_safe(minimal_project
     assert pair.current.seam_offset_sec == pytest.approx(0.75)
     assert pair.proposed.seam_offset_sec == pytest.approx(0.75)
     assert current.is_file() and proposed.is_file()
+    assert not list((ws.project.artifacts_dir() / "play_cache").glob("boundary_full_*.wav"))
     a, b = _samples(current), _samples(proposed)
     around = slice(30_000, 42_000)
     assert sum(abs(x - y) for x, y in zip(a[around], b[around], strict=True)) > 100_000
@@ -161,7 +169,6 @@ def test_boundary_audio_is_real_unsaved_crossfade_and_stale_safe(minimal_project
     assert minimal_project.read_bytes() == project_before
     assert (history_index.read_bytes() if history_index.is_file() else None) == history_before
 
-    # A saved edit after render invalidates both issued URLs before any Range response.
     other = ProjectWorkspace.open(minimal_project)
     other.project.clips[0].source_end = 1.25
     other.save()
@@ -176,6 +183,24 @@ def test_boundary_cache_distinguishes_sub_centisecond_windows(minimal_project: P
     first = service._boundary_render(ws.project, "host", token, "current", 0.4500, 1.9500)
     second = service._boundary_render(ws.project, "host", token, "current", 0.4505, 1.9505)
     assert first != second
+
+
+def test_outside_window_peak_controls_the_heard_seam_gain(minimal_project: Path) -> None:
+    ws = _project(minimal_project, loud_outside=True, fader_db=6)
+    target = RollBoundaryTarget(left_clip_id="left", right_clip_id="right")
+    token = boundary_context(ws.project, target).token
+    pair = PlayService(ws).audition_boundary(
+        target,
+        RollBoundaryEdit(left_clip_id="left", right_clip_id="right", delta_sec=0.1),
+        token,
+    )
+    heard = _samples(PlayService(ws).boundary_audio_path(_id(pair.current.url), "current", token))
+    full = _full_track_samples(ws.project, ws.project.artifacts_dir() / "loud_full.wav")
+    seam = round(pair.current.seam_offset_sec * 48_000)
+    offset = round(pair.current.window_start_sec * 48_000)
+    heard_window = heard[seam - 4_000 : seam + 4_000]
+    full_window = full[offset + seam - 4_000 : offset + seam + 4_000]
+    assert max(abs(a - b) for a, b in zip(heard_window, full_window, strict=True)) < 100
 
 
 def test_edit_landing_during_render_cannot_issue_stale_audio(

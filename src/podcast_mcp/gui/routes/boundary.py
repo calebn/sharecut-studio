@@ -1,5 +1,3 @@
-"""Host-only precision boundary context, draft audition, and Range media."""
-
 from __future__ import annotations
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request

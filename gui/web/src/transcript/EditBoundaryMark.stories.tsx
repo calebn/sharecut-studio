@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fireEvent, fn, waitFor, within } from "storybook/test";
 import { capabilityTooltip } from "../capabilities/copy";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
+import { useDawStore } from "../state/dawStore";
 import { clipRow } from "../test/fixtures";
 import type { EditBoundaryView } from "../types/project";
 import { EditBoundaryMarkView } from "./EditBoundaryMarkView";
@@ -17,9 +18,30 @@ const boundary: EditBoundaryView = {
   cutaway_source_end: 25,
   has_cutaway: true,
   cutaway_word_ids: [
-    { track_id: "host", word_index: 3, text: "before", start: 20.1, end: 20.5 },
-    { track_id: "host", word_index: 4, text: "we", start: 20.6, end: 20.8 },
-    { track_id: "host", word_index: 5, text: "begin", start: 20.9, end: 21.2 },
+    {
+      track_id: "host",
+      source_id: null,
+      word_index: 3,
+      text: "before",
+      start: 20.1,
+      end: 20.5,
+    },
+    {
+      track_id: "host",
+      source_id: null,
+      word_index: 4,
+      text: "we",
+      start: 20.6,
+      end: 20.8,
+    },
+    {
+      track_id: "host",
+      source_id: null,
+      word_index: 5,
+      text: "begin",
+      start: 20.9,
+      end: 21.2,
+    },
   ],
 };
 
@@ -84,7 +106,7 @@ export const RollJoin: Story = {
 };
 
 export const RollDragPreview: Story = {
-  play: async ({ canvasElement, args }) => {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement.ownerDocument.body);
     const mark = canvasElement.querySelector(
       "button[data-boundary-id]",
@@ -98,8 +120,10 @@ export const RollDragPreview: Story = {
     await expect(
       canvasElement.ownerDocument.querySelector(".edit-boundary-delta"),
     ).toHaveTextContent("+1.00s");
-    void fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
-    await waitFor(() => expect(args.onRoll).toHaveBeenCalled());
+    void fireEvent.pointerCancel(window, { pointerId: 1, clientX: 180 });
+    await waitFor(() =>
+      expect(mark).not.toHaveAttribute("aria-grabbed", "true"),
+    );
   },
 };
 
@@ -116,6 +140,15 @@ export const TrimEdge: Story = {
       "aria-label",
       TRANSCRIPT_EDIT_BOUNDARY_TIP,
     );
+  },
+};
+
+export const HostOnlyPrecisionEdit: Story = {
+  args: { canEdit: false },
+  play: async ({ canvasElement }) => {
+    const mark = within(canvasElement).getByRole("button");
+    await expect(mark).toBeDisabled();
+    await expect(mark).toHaveAccessibleName(/available to editors/i);
   },
 };
 
@@ -139,15 +172,52 @@ export const LongFailure: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement.ownerDocument.body);
     const mark = within(canvasElement).getByRole("button");
-    await fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
-    await fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
-    await waitFor(() =>
-      expect(canvas.getByRole("alert")).toHaveTextContent(
-        "Detailed server failure",
-      ),
-    );
-    await expect(
-      canvas.getByRole("button", { name: "Dismiss boundary error" }),
-    ).toBeVisible();
+    const previousFetch = globalThis.fetch;
+    const previousProjectPath = useDawStore.getState().projectPath;
+    useDawStore.setState({ projectPath: "/tmp/story-project" });
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          target: {
+            kind: "roll",
+            left_clip_id: "left",
+            right_clip_id: "right",
+          },
+          token: "story-token",
+          track_id: "host",
+          geometry: [left, right].map(
+            ({ id, source_start, source_end, timeline_start, source_id }) => ({
+              id,
+              source_start,
+              source_end,
+              timeline_start,
+              source_id,
+            }),
+          ),
+          current: { source_sec: 20, timeline_sec: 10 },
+          limits: {
+            min: -1,
+            max: 1,
+            fine_step_sec: 0.001,
+            regular_step_sec: 0.01,
+          },
+        }),
+        { status: 200 },
+      );
+    try {
+      await fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+      await fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+      await waitFor(() =>
+        expect(canvas.getByRole("alert")).toHaveTextContent(
+          "Detailed server failure",
+        ),
+      );
+      await expect(
+        canvas.getByRole("button", { name: "Dismiss boundary error" }),
+      ).toBeVisible();
+    } finally {
+      globalThis.fetch = previousFetch;
+      useDawStore.setState({ projectPath: previousProjectPath });
+    }
   },
 };

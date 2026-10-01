@@ -17,6 +17,19 @@ export {
   submitDiagnosticsReport,
   waitForBootstrapJob,
 } from "./api/bootstrapDiagnostics";
+export type {
+  BoundaryAudioWindow,
+  BoundaryAudition,
+  BoundaryContext,
+  BoundaryEdit,
+  BoundaryGeometryClip,
+  BoundaryTarget,
+} from "./api/boundary";
+export {
+  auditionBoundary,
+  boundaryAudioUrl,
+  loadBoundaryContext,
+} from "./api/boundary";
 export {
   addCommentReply,
   createComment,

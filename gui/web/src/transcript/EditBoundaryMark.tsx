@@ -1,6 +1,10 @@
+import { useMemo } from "react";
 import { rollClipJoin, trimClipEdge } from "../api";
+import type { BoundaryGeometryClip, BoundaryTarget } from "../api/boundary";
 import { rollNeighborBounds } from "../edit/clipEdgePreview";
+import { canApplyPass12, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { useDaw } from "../state/useDaw";
 import type { ClipRow, EditBoundaryView } from "../types/project";
 import { EditBoundaryMarkView } from "./EditBoundaryMarkView";
 
@@ -15,17 +19,58 @@ type Props = {
  * drag starts (not on every project update).
  */
 export function EditBoundaryMark({ boundary, leftClip, rightClip }: Props) {
-  const projectPath = useDawStore((s) => s.projectPath);
+  const { projectPath, guestMode, shareCapabilities } = useDaw((s) => ({
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+  }));
+  const canQuickEdit = canApplyPass12(
+    projectPath,
+    guestMode,
+    shareCapabilities,
+  );
+  const canOpenPrecision = !guestMode && !isShareProjectKey(projectPath);
+  const target = useMemo<BoundaryTarget | null>(() => {
+    if (leftClip && rightClip)
+      return {
+        kind: "roll",
+        left_clip_id: leftClip.id,
+        right_clip_id: rightClip.id,
+      };
+    const clip = leftClip ?? rightClip;
+    if (!clip) return null;
+    return { kind: "trim", clip_id: clip.id, edge: leftClip ? "out" : "in" };
+  }, [leftClip, rightClip]);
+  const expectedGeometry = useMemo<BoundaryGeometryClip[]>(
+    () =>
+      [leftClip, rightClip]
+        .filter((clip): clip is ClipRow => clip !== null)
+        .map(({ id, source_start, source_end, timeline_start, source_id }) => ({
+          id,
+          source_start,
+          source_end,
+          timeline_start,
+          source_id,
+        })),
+    [leftClip, rightClip],
+  );
   return (
     <EditBoundaryMarkView
+      projectPath={projectPath}
       boundary={boundary}
       leftClip={leftClip}
       rightClip={rightClip}
       getRollBounds={() =>
         rollNeighborBounds(useDawStore.getState().project, leftClip, rightClip)
       }
-      onRoll={(l, r, d) => rollClipJoin(projectPath, l, r, d)}
-      onTrim={(id, edge, sec) => trimClipEdge(projectPath, id, edge, sec)}
+      onRoll={(l, r, d, token) => rollClipJoin(projectPath, l, r, d, token)}
+      onTrim={(id, edge, sec, mode, token) =>
+        trimClipEdge(projectPath, id, edge, sec, mode, token)
+      }
+      target={target ?? undefined}
+      expectedGeometry={expectedGeometry}
+      canEdit={canQuickEdit}
+      canOpenPrecision={canOpenPrecision}
     />
   );
 }

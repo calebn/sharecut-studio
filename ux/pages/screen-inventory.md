@@ -219,13 +219,18 @@ Follow playhead keeps overlapping speakers highlighted in transcript order.
 Backward seeks update the active words through the same time-indexed lookup.
 
 Annotate boundary handles keep a fixed size during a roll or trim. A floating
-preview shows the time change, restored-word side, and legal limits. Escape or
-an interrupted gesture discards the preview. Saving blocks another drag on that
-handle; a failed save displays an error. Boundary audition and alternatives to
-dragging remain part of the editor interaction review in issue #878. New ripple cuts retain the removed source words for boundary previews. Expanding
-far enough to restore a complete word brings its text and suppression choices
-back with the audio. Partial words remain archived. Existing older cuts without
-a word archive require History recovery.
+preview shows the time change, restored-word side, and legal limits. The glyph
+follows the pointer; hold Shift for fine motion of 1 ms per CSS pixel without
+jumping when Shift changes. Escape or an interrupted gesture discards the
+preview. Saving blocks another drag on that handle; a failed save displays an
+error. Tap or use Enter/Space to open the host precision dialog for a signed
+offset, 10 ms or 1 ms nudges, and separate current/proposed affected-track audio.
+It distinguishes fully restored words from partial spans, keeps an unchanged or
+cancelled draft out of history, and reports an offline Apply as queued. New
+ripple cuts retain the removed source words for boundary previews. Expanding far
+enough to restore a complete word brings its text and suppression choices back
+with the audio. Partial words remain archived. Existing older cuts without a
+word archive require History recovery.
 
 Keyboard word actions: in Navigate mode, Enter on a focused timed word seeks
 through its native button action. F2 opens inline correction for a hydrated

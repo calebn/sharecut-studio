@@ -61,7 +61,7 @@ function SourceProgress({
           }
         />
       )}
-      {error && <InlineError message={error} role="alert" />}
+      {error && <InlineError message={error.message} role="alert" />}
     </>
   );
 }
@@ -201,9 +201,12 @@ function TimingEditor({
     if (!(end > start)) return;
     useDawStore.getState().beginSourcePreview({
       ownerId,
-      trackId: context.target.track_id,
-      sourceId: context.target.source_id,
-      cacheKey: context.media.cache_key,
+      media: {
+        kind: "raw",
+        trackId: context.target.track_id,
+        sourceId: context.target.source_id,
+        cacheKey: context.media.cache_key,
+      },
       startSec: start,
       endSec: end,
     });

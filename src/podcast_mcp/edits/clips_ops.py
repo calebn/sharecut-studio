@@ -337,7 +337,6 @@ _MIN_CLIP_SPAN_SEC = 0.05
 
 
 def _source_duration(project: EpisodeProject, clip: Clip) -> float | None:
-    """Duration on this clip's recording clock, when the recording declares one."""
     if clip.source_id is not None:
         source = project.source_by_id(clip.source_id)
         if source is None:
@@ -350,7 +349,6 @@ def _source_duration(project: EpisodeProject, clip: Clip) -> float | None:
 
 
 def _same_recording(project: EpisodeProject, first: Clip, second: Clip) -> bool:
-    """An explicit source may alias the primary recording or another source ID."""
     return recording_audio_path(project, first.track_id, first.source_id) == recording_audio_path(
         project, second.track_id, second.source_id
     )
@@ -370,7 +368,6 @@ def trim_edge_limits(project: EpisodeProject, clip: Clip, edge: str) -> tuple[fl
     nxt = track_clips[idx + 1] if idx + 1 < len(track_clips) else None
     if edge == "out":
         duration = _source_duration(project, clip)
-        # Unknown recording length cannot authorize an expansion beyond decoded content.
         hi = duration if duration is not None else clip.source_end
         if nxt is not None and _same_recording(project, clip, nxt):
             hi = min(hi, float(nxt.source_start))

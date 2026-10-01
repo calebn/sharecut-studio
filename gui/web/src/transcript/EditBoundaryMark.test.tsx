@@ -1,4 +1,5 @@
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
@@ -12,6 +13,14 @@ vi.mock("../api", () => ({
   trimClipEdge: vi.fn(async () => undefined),
   rollClipJoin: vi.fn(async () => undefined),
 }));
+
+const { loadBoundaryContext } = vi.hoisted(() => ({
+  loadBoundaryContext: vi.fn(),
+}));
+vi.mock("../api/boundary", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/boundary")>();
+  return { ...actual, loadBoundaryContext };
+});
 
 import * as api from "../api";
 
@@ -42,6 +51,7 @@ const boundary: EditBoundaryView = {
   cutaway_word_ids: [
     {
       track_id: "host",
+      source_id: null,
       word_index: 3,
       text: "ghostly",
       start: 20.1,
@@ -49,6 +59,7 @@ const boundary: EditBoundaryView = {
     },
     {
       track_id: "host",
+      source_id: null,
       word_index: 4,
       text: "words",
       start: 20.7,
@@ -57,10 +68,23 @@ const boundary: EditBoundaryView = {
   ],
 };
 
+beforeEach(() => {
+  loadBoundaryContext.mockReset();
+  loadBoundaryContext.mockResolvedValue({ token: "boundary-token" });
+});
+
 describe("EditBoundaryMark", () => {
   beforeEach(() => {
     vi.mocked(api.trimClipEdge).mockClear();
     vi.mocked(api.rollClipJoin).mockClear();
+    loadBoundaryContext.mockResolvedValue({
+      target: { kind: "roll", left_clip_id: "left", right_clip_id: "right" },
+      token: "a".repeat(64),
+      track_id: "host",
+      geometry: [],
+      current: { source_sec: 20, timeline_sec: 10 },
+      limits: { min: -1, max: 1, fine_step_sec: 0.001, regular_step_sec: 0.01 },
+    });
     const left = clip({ id: "left", source_end: 20 });
     const right = clip({
       id: "right",
@@ -110,8 +134,9 @@ describe("EditBoundaryMark", () => {
     const mark = getByRole("button");
 
     fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
-    expect(mark.className).toContain("dragging");
+    expect(mark.className).not.toContain("dragging");
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
+    expect(mark.className).toContain("dragging");
     expect(document.querySelector(".edit-ghost-words")?.textContent).toContain(
       "ghostly",
     );
@@ -128,6 +153,7 @@ describe("EditBoundaryMark", () => {
       "left",
       "right",
       expect.any(Number),
+      "a".repeat(64),
     );
     expect(api.trimClipEdge).not.toHaveBeenCalled();
     const delta = vi.mocked(api.rollClipJoin).mock.calls[0]?.[3];
@@ -163,6 +189,112 @@ describe("EditBoundaryMark", () => {
     expect(api.trimClipEdge).not.toHaveBeenCalled();
     expect(api.rollClipJoin).not.toHaveBeenCalled();
   });
+
+  it("opens the precision dialog on a tap and keeps a drag on the quick edit path", async () => {
+    const left = clip({ id: "left", source_end: 20 });
+    const right = clip({
+      id: "right",
+      source_start: 25,
+      source_end: 40,
+      timeline_start: 10,
+    });
+    const { getByRole, unmount } = render(
+      <EditBoundaryMark
+        boundary={boundary}
+        leftClip={left}
+        rightClip={right}
+      />,
+    );
+    const mark = getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 100 });
+    fireEvent.click(mark);
+    expect(
+      await screen.findByRole("dialog", { name: "Adjust boundary" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(mark).toHaveFocus());
+    unmount();
+
+    const second = render(
+      <EditBoundaryMark
+        boundary={boundary}
+        leftClip={left}
+        rightClip={right}
+      />,
+    );
+    const dragMark = second.getByRole("button");
+    fireEvent.pointerDown(dragMark, { pointerId: 2, clientX: 100 });
+    fireEvent.pointerMove(window, { pointerId: 2, clientX: 180 });
+    fireEvent.pointerUp(window, { pointerId: 2, clientX: 180 });
+    expect(
+      screen.queryByRole("dialog", { name: "Adjust boundary" }),
+    ).not.toBeInTheDocument();
+    await waitFor(() => expect(api.rollClipJoin).toHaveBeenCalled());
+  });
+
+  it("allows authorized guest quick drags while keeping precision host-only", async () => {
+    useDawStore.setState({
+      projectPath: "share:edit-token",
+      guestMode: "edit",
+      shareCapabilities: ["edit"],
+    });
+    const left = clip({ id: "left", source_end: 20 });
+    const right = clip({
+      id: "right",
+      source_start: 25,
+      source_end: 40,
+      timeline_start: 10,
+      timeline_end: 25,
+    });
+    const view = render(
+      <EditBoundaryMark
+        boundary={boundary}
+        leftClip={left}
+        rightClip={right}
+      />,
+    );
+    const mark = view.getByRole("button");
+    expect(mark).toBeEnabled();
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+    await waitFor(() => expect(api.rollClipJoin).toHaveBeenCalled());
+    expect(loadBoundaryContext).toHaveBeenCalledWith(
+      "share:edit-token",
+      { kind: "roll", left_clip_id: "left", right_clip_id: "right" },
+      expect.any(Array),
+    );
+    fireEvent.click(mark);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    useDawStore.setState({
+      projectPath: "/tmp/ep",
+      guestMode: null,
+      shareCapabilities: null,
+    });
+  });
+
+  it.each(["{Enter}", " "])(
+    "opens the precision dialog with native keyboard activation %s",
+    async (key) => {
+      const user = userEvent.setup();
+      const left = clip({ id: "left", source_end: 20 });
+      const right = clip({ id: "right", source_start: 25, timeline_start: 10 });
+      render(
+        <EditBoundaryMark
+          boundary={boundary}
+          leftClip={left}
+          rightClip={right}
+        />,
+      );
+      const mark = screen.getByRole("button");
+      mark.focus();
+      await user.keyboard(key);
+      expect(
+        await screen.findByRole("dialog", { name: "Adjust boundary" }),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("clamps a roll to the project as it is at drag start", async () => {
     const left = clip({ id: "left", source_end: 20 });
@@ -236,15 +368,20 @@ describe("EditBoundaryMarkView", () => {
     );
     const mark = getByRole("button");
     fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
-    expect(mark).toHaveAttribute("aria-grabbed", "true");
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
+    expect(mark).toHaveAttribute("aria-grabbed", "true");
     expect(
       getByRole("group", { name: "Preview restored words" }),
     ).toHaveTextContent("ghostly");
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
     await waitFor(() => expect(onRoll).toHaveBeenCalled());
     expect(mark).toHaveAttribute("aria-grabbed", "false");
-    expect(onRoll).toHaveBeenCalledWith("left", "right", expect.any(Number));
+    expect(onRoll).toHaveBeenCalledWith(
+      "left",
+      "right",
+      expect.any(Number),
+      "boundary-token",
+    );
     const delta = onRoll.mock.calls[0]?.[2];
     expect(delta).toBeGreaterThan(0);
     expect(onTrim).not.toHaveBeenCalled();
@@ -292,9 +429,70 @@ describe("EditBoundaryMarkView", () => {
     fireEvent.pointerDown(getByRole("button"), { pointerId: 1, clientX: 100 });
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
     await waitFor(() => expect(onTrim).toHaveBeenCalled());
-    expect(onTrim).toHaveBeenCalledWith("left", "out", expect.any(Number));
+    expect(onTrim).toHaveBeenCalledWith(
+      "left",
+      "out",
+      expect.any(Number),
+      "ripple",
+      "boundary-token",
+    );
     const value = onTrim.mock.calls[0]?.[2];
     expect(value).toBeGreaterThan(20);
+  });
+
+  it("preflights a quick drag with the geometry captured at pointer down", async () => {
+    const priorProjectPath = useDawStore.getState().projectPath;
+    useDawStore.setState({ projectPath: "/tmp/captured-project" });
+    const left = clip({ id: "left", source_end: 20 });
+    const right = clip({
+      id: "right",
+      source_start: 25,
+      source_end: 40,
+      timeline_start: 10,
+      timeline_end: 25,
+    });
+    const props = {
+      projectPath: "/tmp/captured-project",
+      boundary,
+      leftClip: left,
+      rightClip: right,
+      getRollBounds,
+      onRoll: vi.fn(),
+      onTrim: vi.fn(),
+    };
+    const view = render(<EditBoundaryMarkView {...props} />);
+    const mark = view.getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
+    view.rerender(
+      <EditBoundaryMarkView
+        {...props}
+        rightClip={{ ...right, source_start: 26 }}
+      />,
+    );
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+    await waitFor(() => expect(loadBoundaryContext).toHaveBeenCalled());
+    expect(loadBoundaryContext).toHaveBeenCalledWith(
+      "/tmp/captured-project",
+      { kind: "roll", left_clip_id: "left", right_clip_id: "right" },
+      [
+        {
+          id: "left",
+          source_start: 10,
+          source_end: 20,
+          timeline_start: 0,
+          source_id: null,
+        },
+        {
+          id: "right",
+          source_start: 25,
+          source_end: 40,
+          timeline_start: 10,
+          source_id: null,
+        },
+      ],
+    );
+    useDawStore.setState({ projectPath: priorProjectPath });
   });
 
   it("passes axe at rest", async () => {
@@ -340,6 +538,7 @@ describe("EditBoundaryMarkView", () => {
     );
     const mark = getByRole("button");
     fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
     expect(mark).toHaveAttribute("aria-grabbed", "true");
     // docs/design-system.md (Templates/EditBoundaryMark): if an axe upgrade
     // turns this into a violation, replace aria-grabbed with a drag message.
@@ -450,6 +649,7 @@ describe("EditBoundaryMarkView", () => {
     );
     const mark = getByRole("button");
     fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
     fireEvent.pointerDown(mark, { pointerId: 2, clientX: 300 });
     fireEvent.pointerUp(window, { pointerId: 2, clientX: 300 });
     expect(mark).toHaveAttribute("aria-grabbed", "true");
@@ -550,7 +750,7 @@ describe("boundary gesture lifecycle", () => {
     expect(getByRole("status")).toHaveTextContent("Saving boundary edit");
     fireEvent.pointerDown(mark, { pointerId: 2, clientX: 100 });
     fireEvent.pointerUp(window, { pointerId: 2, clientX: 180 });
-    expect(onTrim).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onTrim).toHaveBeenCalledTimes(1));
     rejectSave(new Error("offline"));
     await waitFor(() =>
       expect(getByRole("alert")).toHaveTextContent("offline"),
@@ -590,7 +790,7 @@ describe("boundary gesture lifecycle", () => {
     expect(mark).toHaveFocus();
   });
 
-  it("trims a right edge inward with frozen source math", () => {
+  it("trims a right edge inward with frozen source math", async () => {
     const onTrim = vi.fn();
     const view = render(
       <EditBoundaryMarkView
@@ -611,10 +811,18 @@ describe("boundary gesture lifecycle", () => {
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 20 });
     expect(view.getByRole("status")).toHaveTextContent("Trim in -1.00s");
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 20 });
-    expect(onTrim).toHaveBeenCalledWith("right", "in", 24);
+    await waitFor(() =>
+      expect(onTrim).toHaveBeenCalledWith(
+        "right",
+        "in",
+        24,
+        "ripple",
+        "boundary-token",
+      ),
+    );
   });
 
-  it("freezes legal movement and reports the reached limit", () => {
+  it("freezes legal movement and reports the reached limit", async () => {
     const onRoll = vi.fn();
     const bounds = () => ({
       prevSourceEnd: 0,
@@ -634,23 +842,113 @@ describe("boundary gesture lifecycle", () => {
     const mark = view.getByRole("button");
     fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
-    expect(mark.style.transform).toBe("translateX(2.5rem)");
+    expect(mark.style.transform).toBe("translateX(5rem)");
     expect(view.getByRole("status")).toHaveTextContent(
       "+0.50s · Limit reached",
     );
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 300 });
-    expect(mark.style.transform).toBe("translateX(2.5rem)");
+    expect(mark.style.transform).toBe("translateX(12.5rem)");
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 300 });
-    expect(onRoll).toHaveBeenCalledWith("left", "right", 0.5);
+    await waitFor(() =>
+      expect(onRoll).toHaveBeenCalledWith(
+        "left",
+        "right",
+        0.5,
+        "boundary-token",
+      ),
+    );
   });
 
-  it("no-ops at the original position and commits only once", () => {
+  it("uses fine Shift motion mid-gesture while the mark stays under the pointer", async () => {
+    useDawStore.setState({ projectPath: "/tmp/fine-drag" });
+    const onRoll = vi.fn();
+    const view = render(
+      <EditBoundaryMarkView
+        projectPath="/tmp/fine-drag"
+        boundary={boundary}
+        leftClip={clip({ id: "left", source_end: 20 })}
+        rightClip={clip({ id: "right", source_start: 25, source_end: 40 })}
+        getRollBounds={() => ({
+          prevSourceEnd: 0,
+          nextSourceStart: 80,
+          mediaEnd: 80,
+        })}
+        onRoll={onRoll}
+        onTrim={vi.fn()}
+      />,
+    );
+    const mark = view.getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(window, {
+      pointerId: 1,
+      clientX: 106,
+      shiftKey: false,
+    });
+    fireEvent.pointerMove(window, {
+      pointerId: 1,
+      clientX: 107,
+      shiftKey: true,
+    });
+    expect(view.getByRole("status")).toHaveTextContent(
+      "Roll join +0.076s · Fine drag",
+    );
+    expect(mark.style.transform).toBe("translateX(0.4375rem)");
+    fireEvent.pointerUp(window, {
+      pointerId: 1,
+      clientX: 107,
+      shiftKey: true,
+    });
+    await waitFor(() => expect(onRoll).toHaveBeenCalled());
+    expect(onRoll.mock.calls[0]?.[2]).toBeCloseTo(0.076, 9);
+    useDawStore.setState({ projectPath: "/tmp/ep" });
+  });
+
+  it("keeps raw pointer tracking while fine semantic motion reaches its bound", async () => {
+    useDawStore.setState({ projectPath: "/tmp/fine-bound" });
+    const onRoll = vi.fn();
+    const view = render(
+      <EditBoundaryMarkView
+        projectPath="/tmp/fine-bound"
+        boundary={boundary}
+        leftClip={clip({ id: "left", source_end: 20 })}
+        rightClip={clip({ id: "right", source_start: 25, source_end: 40 })}
+        getRollBounds={() => ({
+          prevSourceEnd: 0,
+          nextSourceStart: 30,
+          mediaEnd: 20.1,
+        })}
+        onRoll={onRoll}
+        onTrim={vi.fn()}
+      />,
+    );
+    const mark = view.getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(window, {
+      pointerId: 1,
+      clientX: 300,
+      shiftKey: true,
+    });
+    expect(view.getByRole("status")).toHaveTextContent(
+      "Roll join +0.100s · Limit reached",
+    );
+    expect(mark.style.transform).toBe("translateX(12.5rem)");
+    fireEvent.pointerUp(window, {
+      pointerId: 1,
+      clientX: 300,
+      shiftKey: true,
+    });
+    await waitFor(() => expect(onRoll).toHaveBeenCalled());
+    expect(onRoll.mock.calls[0]?.[2]).toBeCloseTo(0.1, 9);
+    useDawStore.setState({ projectPath: "/tmp/ep" });
+  });
+
+  it("no-ops at the original position and commits only once", async () => {
     const { mark, onTrim } = setup();
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 100 });
     expect(onTrim).not.toHaveBeenCalled();
     fireEvent.pointerDown(mark, { pointerId: 3, clientX: 100 });
     fireEvent.pointerUp(window, { pointerId: 3, clientX: 180 });
     fireEvent.pointerUp(window, { pointerId: 3, clientX: 180 });
-    expect(onTrim).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onTrim).toHaveBeenCalledTimes(1));
   });
 });

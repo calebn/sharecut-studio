@@ -102,16 +102,38 @@ export type PlayAbFollowup = {
   gapSec: number;
 };
 
-export type SourcePreviewRequest = {
+type SourcePreviewBase = {
   ownerId: string;
   projectEpoch: number;
-  trackId: string;
-  sourceId: string | null;
-  cacheKey: string;
   startSec: number;
   endSec: number;
   generation: number;
   playing: boolean;
+};
+
+export type SourcePreviewRequest = SourcePreviewBase &
+  (
+    | {
+        media: {
+          kind: "raw";
+          trackId: string;
+          sourceId: string | null;
+          cacheKey: string;
+        };
+      }
+    | { media: { kind: "rendered"; url: string } }
+  );
+
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
+  ? Omit<T, K>
+  : never;
+export type SourcePreviewStartRequest = DistributiveOmit<
+  SourcePreviewRequest,
+  "generation" | "playing" | "projectEpoch"
+>;
+export type SourcePreviewError = {
+  kind: "blocked" | "unavailable";
+  message: string;
 };
 
 /** Public DAW API — same shape as the former Context value. */
@@ -119,7 +141,7 @@ export interface DawState {
   sourcePreview: SourcePreviewRequest | null;
   sourcePreviewGeneration: number;
   sourcePreviewPositionSec: number | null;
-  sourcePreviewError: string | null;
+  sourcePreviewError: SourcePreviewError | null;
 
   project: ProjectView | null;
   projectPath: string;
@@ -315,18 +337,13 @@ export interface DawState {
   setPipelineJob: (job: PipelineJobSnapshot | null) => void;
   setActivityJob: (job: PipelineJobSnapshot | null) => void;
   setActivityRunningCount: (count: number) => void;
-  beginSourcePreview: (
-    request: Omit<
-      SourcePreviewRequest,
-      "generation" | "playing" | "projectEpoch"
-    >,
-  ) => void;
+  beginSourcePreview: (request: SourcePreviewStartRequest) => void;
   updateSourcePreview: (
     ownerId: string,
     generation: number,
     positionSec: number,
     stopped?: boolean,
-    error?: string,
+    error?: SourcePreviewError,
   ) => void;
   releaseSourcePreview: (ownerId: string) => void;
   setIsPlaying: (playing: boolean) => void;
