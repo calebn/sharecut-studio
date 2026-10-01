@@ -5,7 +5,7 @@ import json
 import math
 from pathlib import Path
 
-from podcast_mcp.models.episode import EpisodeProject
+from podcast_mcp.models.episode import EpisodeProject, Track
 from podcast_mcp.util.project_state import file_revision
 
 BALANCE_SEMANTICS_REVISION = 1
@@ -50,3 +50,12 @@ def balance_basis_digest(project: EpisodeProject, track_id: str) -> str | None:
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
     return hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def balance_status(project: EpisodeProject, track: Track) -> dict[str, bool | float | None]:
+    basis = track.balance_basis
+    return {
+        "stale": None if basis is None else balance_basis_digest(project, track.id) != basis.digest,
+        "speech_gated": None if basis is None else basis.speech_gated,
+        "measured_lufs": None if basis is None else basis.measured_lufs,
+    }

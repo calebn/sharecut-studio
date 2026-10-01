@@ -91,7 +91,9 @@ sound effects, or a selected media change, rebuilds that track's stem before rem
 separately from `pass`: `pass` is the measured loudness verdict, while `stale: true`
 means the premix, master, or exported WAV has a known freshness problem. An explicit
 unrelated file reports `stale: null`; `stale: false` does not prove that an exported
-file's bytes match the master. Run Export to refresh stale audio.
+file's bytes match the master. For tracked project audio, also inspect the `balance` map;
+re-run `balance_tracks` when a dialogue entry's `stale` value is true. Run Export to refresh
+stale audio.
 
 Same `PipelineService.export_audio` / `render_final` path as Sharecut Studio **⋯ → Export deliverables…** / `Mod+Shift+E` and the Pipeline tab’s `export_deliverables` step.
 

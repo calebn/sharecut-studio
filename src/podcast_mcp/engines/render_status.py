@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from podcast_mcp.engines.balance import balance_basis_digest
+from podcast_mcp.engines.balance import balance_status
 from podcast_mcp.engines.play_audit import (
     STEM_DURATION_TOLERANCE_SEC,
     expected_stem_duration_sec,
@@ -43,14 +43,15 @@ def render_status_report(project: EpisodeProject) -> dict:
             "duration_mismatch": exists and not duration_ok,
         }
         track = project.track_by_id(tid)
-        basis = track.balance_basis if track is not None else None
-        entry.update(
-            balance_stale=(
-                None if basis is None else balance_basis_digest(project, tid) != basis.digest
-            ),
-            balance_ungated=(None if basis is None else not basis.speech_gated),
-            balance_measured_lufs=(None if basis is None else basis.measured_lufs),
-        )
+        if track is not None:
+            balance = balance_status(project, track)
+            entry.update(
+                balance_stale=balance["stale"],
+                balance_ungated=(
+                    None if balance["speech_gated"] is None else not balance["speech_gated"]
+                ),
+                balance_measured_lufs=balance["measured_lufs"],
+            )
         tracks[tid] = entry
 
     premix = premix_path(project)

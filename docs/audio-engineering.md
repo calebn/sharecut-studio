@@ -132,7 +132,9 @@ exact kept speech intervals, and measurement semantics revision. Render status r
 flag as unknown before the first successful measurement, false when the basis still matches,
 and true when it differs. Re-run `balance_tracks` after changing those inputs. The flag does
 not compare the requested LUFS target because a target supplied only for one run is not
-persisted.
+persisted. `check_loudness_tool` includes the same per-dialogue-track state in its `balance`
+map when it measures tracked project audio, so an agent can spot a stale balance while
+checking a premix or export.
 
 ## Two-pass loudness + mastering QC
 
