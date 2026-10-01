@@ -3503,6 +3503,18 @@
           "title": "Delta Sec",
           "type": "number"
         },
+        "expected_token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Token"
+        },
         "left_clip_id": {
           "title": "Left Clip Id",
           "type": "string"
@@ -5659,6 +5671,18 @@
           ],
           "title": "Edge",
           "type": "string"
+        },
+        "expected_token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Token"
         },
         "mode": {
           "const": "ripple",

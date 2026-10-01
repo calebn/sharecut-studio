@@ -133,12 +133,14 @@ class TrimClipEdgePayload(BaseModel):
     edge: Literal["in", "out"]
     source_sec: float
     mode: Literal["ripple"] = "ripple"
+    expected_token: str | None = None
 
 
 class RollClipJoinPayload(BaseModel):
     left_clip_id: str
     right_clip_id: str
     delta_sec: float
+    expected_token: str | None = None
 
 
 class SetJoinModePayload(BaseModel):

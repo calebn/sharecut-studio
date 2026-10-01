@@ -14,6 +14,7 @@ from podcast_mcp.engines.session_timeline import (
     clip_timeline_point_to_source,
 )
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, SourceRecording
+from podcast_mcp.util.tracks import recording_audio_path
 
 JOIN_GAP_TOLERANCE_SEC = 0.05
 """Largest timeline gap (seconds) between neighbouring clips still treated as a join."""
@@ -335,6 +336,26 @@ def update_timeline_duration(project: EpisodeProject) -> None:
 _MIN_CLIP_SPAN_SEC = 0.05
 
 
+def _source_duration(project: EpisodeProject, clip: Clip) -> float | None:
+    """Duration on this clip's recording clock, when the recording declares one."""
+    if clip.source_id is not None:
+        source = project.source_by_id(clip.source_id)
+        if source is None:
+            raise ValueError(f"unknown source recording {clip.source_id!r}")
+        return float(source.duration_sec) if source.duration_sec is not None else None
+    track = project.track_by_id(clip.track_id)
+    if track is None or track.media is None or track.media.duration_sec is None:
+        return None
+    return float(track.media.duration_sec)
+
+
+def _same_recording(project: EpisodeProject, first: Clip, second: Clip) -> bool:
+    """An explicit source may alias the primary recording or another source ID."""
+    return recording_audio_path(project, first.track_id, first.source_id) == recording_audio_path(
+        project, second.track_id, second.source_id
+    )
+
+
 def trim_edge_limits(project: EpisodeProject, clip: Clip, edge: str) -> tuple[float, float]:
     """Source range ``(lo, hi)`` a clip's ``in`` or ``out`` edge may move to.
 
@@ -348,14 +369,17 @@ def trim_edge_limits(project: EpisodeProject, clip: Clip, edge: str) -> tuple[fl
     prev = previous_clip(track_clips, clip.id)
     nxt = track_clips[idx + 1] if idx + 1 < len(track_clips) else None
     if edge == "out":
-        hi = float("inf")
-        track = project.track_by_id(clip.track_id)
-        if track is not None and track.media is not None and track.media.duration_sec is not None:
-            hi = float(track.media.duration_sec)
-        if nxt is not None:
+        duration = _source_duration(project, clip)
+        # Unknown recording length cannot authorize an expansion beyond decoded content.
+        hi = duration if duration is not None else clip.source_end
+        if nxt is not None and _same_recording(project, clip, nxt):
             hi = min(hi, float(nxt.source_start))
         return clip.source_start + _MIN_CLIP_SPAN_SEC, hi
-    lo = 0.0 if prev is None else max(0.0, float(prev.source_end))
+    lo = (
+        max(0.0, float(prev.source_end))
+        if prev is not None and _same_recording(project, clip, prev)
+        else 0.0
+    )
     return lo, clip.source_end - _MIN_CLIP_SPAN_SEC
 
 
@@ -510,35 +534,10 @@ def roll_clip_join(
     unchanged so later clips do not ripple. Cutaway gap size is preserved when
     both edges move equally.
     """
-    left, right, track_clips, left_idx = neighbour_clips(project, left_clip_id, right_clip_id)
+    left, right, _, _ = neighbour_clips(project, left_clip_id, right_clip_id)
 
-    prev = track_clips[left_idx - 1] if left_idx > 0 else None
-    nxt = track_clips[left_idx + 2] if left_idx + 2 < len(track_clips) else None
-
-    track = project.track_by_id(left.track_id)
-    media_end = float("inf")
-    if track is not None and track.media is not None and track.media.duration_sec is not None:
-        media_end = float(track.media.duration_sec)
-
-    # Max grow left / shrink right (positive delta = join later): limited by
-    # left room into media and right clip remaining duration (cannot roll past
-    # the right clip's usable content).
-    max_pos = min(
-        media_end - left.source_end,
-        right.source_end - right.source_start - _MIN_CLIP_SPAN_SEC,
-    )
-    if nxt is not None:
-        max_pos = min(max_pos, float(nxt.source_start) - right.source_start)
-    # Max shrink left / grow right (negative delta = join earlier): limited by
-    # left clip remaining duration and how far right.source_start can move back
-    # into unused source (cutaway / after previous clip).
-    max_neg = min(
-        left.source_end - left.source_start - _MIN_CLIP_SPAN_SEC,
-        right.source_start - (float(prev.source_end) if prev is not None else 0.0),
-    )
-    max_pos = max(0.0, max_pos)
-    max_neg = max(0.0, max_neg)
-    delta = min(max(float(delta_sec), -max_neg), max_pos)
+    lo, hi = roll_join_limits(project, left_clip_id, right_clip_id)
+    delta = min(max(float(delta_sec), lo), hi)
     if abs(delta) < 1e-12:
         return left, right
 
@@ -553,6 +552,30 @@ def roll_clip_join(
     )
     update_timeline_duration(project)
     return left, right
+
+
+def roll_join_limits(
+    project: EpisodeProject, left_clip_id: str, right_clip_id: str
+) -> tuple[float, float]:
+    """Legal source-clock delta for a roll, shared by UI context and mutation."""
+    left, right, track_clips, left_idx = neighbour_clips(project, left_clip_id, right_clip_id)
+    prev = track_clips[left_idx - 1] if left_idx > 0 else None
+    nxt = track_clips[left_idx + 2] if left_idx + 2 < len(track_clips) else None
+    left_duration = _source_duration(project, left)
+    left_room = (left_duration - left.source_end) if left_duration is not None else 0.0
+    max_pos = min(left_room, right.source_end - right.source_start - _MIN_CLIP_SPAN_SEC)
+    if nxt is not None and _same_recording(project, right, nxt):
+        max_pos = min(max_pos, float(nxt.source_start) - right.source_start)
+    right_floor = (
+        float(prev.source_end)
+        if prev is not None and _same_recording(project, right, prev)
+        else 0.0
+    )
+    max_neg = min(
+        left.source_end - left.source_start - _MIN_CLIP_SPAN_SEC,
+        right.source_start - right_floor,
+    )
+    return -max(0.0, max_neg), max(0.0, max_pos)
 
 
 def pin_clip_source_id(project: EpisodeProject, clip: Clip) -> None:
