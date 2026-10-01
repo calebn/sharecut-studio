@@ -22,6 +22,7 @@ from podcast_mcp.models import (
     MediaAsset,
     SourceRecording,
     Track,
+    TrackRole,
     Transcript,
     TranscriptWord,
 )
@@ -739,6 +740,7 @@ def test_same_source_overlaps_flags_stacked_split_copies(tmp_path) -> None:
     stacks = same_source_timeline_overlaps(p)
     assert len(stacks) == 1
     assert stacks[0].clip_ids == ("c1", "c2")
+    assert stacks[0].track_ids == ("guest", "guest")
     assert stacks[0].overlap_sec == pytest.approx(100.0)
 
 
@@ -860,3 +862,37 @@ def test_timebase_qc_parked_dialogue_copy(tmp_path, parked_start, expected_pairs
     assert len(report["stacked_clips"]) == expected_pairs
     for track_id in ("host", "guest"):
         assert report["tracks"][track_id].get("stacked_clips", 0) == expected_pairs
+    if expected_pairs:
+        assert report["stacked_clips"] == [
+            {
+                "track_ids": ("guest", "host"),
+                "media": "raw/host.wav",
+                "clip_ids": ("parked", "original"),
+                "overlap_sec": 10.0,
+            }
+        ]
+        assert "('guest', 'host')" in report["issues"][0]
+
+
+def test_source_stacks_keep_same_lane_all_roles_and_exempt_cross_lane_music(tmp_path) -> None:
+    p = _project(
+        tmp_path,
+        [
+            Clip(id="a", track_id="host", source_start=0, source_end=10, timeline_start=0),
+            Clip(id="b", track_id="music", source_start=0, source_end=10, timeline_start=0),
+            Clip(id="c", track_id="music", source_start=0, source_end=10, timeline_start=0),
+        ],
+    )
+    p.tracks.append(
+        Track(
+            id="music",
+            role=TrackRole.MUSIC,
+            label="Music",
+            media=MediaAsset(path="raw/host.wav", duration_sec=10),
+        )
+    )
+    stacks = same_source_timeline_overlaps(p)
+    assert [(s.track_ids, s.clip_ids) for s in stacks] == [(("music", "music"), ("b", "c"))]
+    report = timebase_qc_report(p)
+    assert report["tracks"]["music"]["stacked_clips"] == 1
+    assert report["tracks"]["host"].get("stacked_clips", 0) == 0

@@ -19,7 +19,7 @@ from dataclasses import asdict, dataclass
 from functools import lru_cache
 from typing import Any, Protocol
 
-from podcast_mcp.models import Clip, EpisodeProject
+from podcast_mcp.models import Clip, EpisodeProject, TrackRole
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex, merge_intervals
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 
@@ -351,9 +351,9 @@ def clip_media_key(project: EpisodeProject, clip: Clip) -> str:
 
 @dataclass(frozen=True)
 class SourceStack:
-    """Two clips on one lane that read the same media file and overlap on the timeline."""
+    """Two overlapping clips that read the same media file."""
 
-    track_id: str
+    track_ids: tuple[str, str]
     media: str
     clip_ids: tuple[str, str]
     overlap_sec: float
@@ -365,39 +365,48 @@ def same_source_timeline_overlaps(
     clips: Iterable[Clip] | None = None,
     tolerance_sec: float = SAME_SOURCE_OVERLAP_TOLERANCE_SEC,
 ) -> list[SourceStack]:
-    """Clip pairs on the same lane, reading the same media, whose timeline spans overlap.
+    """Clip pairs reading the same media whose timeline spans overlap.
 
     Flags stacked whole-file copies of a split track (see #520): two clips that would
-    play the same audio at the same time. Checks ``clips`` (default: every project clip);
-    empty (zero-length) clips are ignored.
+    play the same audio at the same time. Cross-lane pairs require two dialogue tracks.
+    Checks ``clips`` (default: every project clip); empty clips are ignored.
     """
-    groups: dict[tuple[str, str], list[Clip]] = {}
+    groups: dict[str, list[Clip]] = {}
+    clip_order: dict[str, tuple[float, str, str]] = {}
+    tracks = {track.id: track for track in project.tracks}
     for clip in project.clips if clips is None else clips:
         if clip.timeline_end <= clip.timeline_start + _EPS:
             continue
-        key = (clip.track_id, clip_media_key(project, clip))
-        groups.setdefault(key, []).append(clip)
+        clip_order[clip.id] = (clip.timeline_start, clip.track_id, clip.id)
+        groups.setdefault(clip_media_key(project, clip), []).append(clip)
 
     stacks: list[SourceStack] = []
-    for (track_id, media), members in groups.items():
-        ordered = sorted(members, key=lambda c: (c.timeline_start, c.id))
+    for media, members in groups.items():
+        ordered = sorted(members, key=lambda c: (c.timeline_start, c.track_id, c.id))
         index = HalfOpenIntervalIndex.build((c.timeline_start, c.timeline_end) for c in ordered)
         for i, a in enumerate(ordered):
             for j in index.overlapping_ordinals(a.timeline_start, a.timeline_end):
                 if j <= i:
                     continue
                 b = ordered[j]
+                if a.track_id != b.track_id and not (
+                    tracks.get(a.track_id) is not None
+                    and tracks.get(b.track_id) is not None
+                    and tracks[a.track_id].role == TrackRole.DIALOGUE
+                    and tracks[b.track_id].role == TrackRole.DIALOGUE
+                ):
+                    continue
                 overlap = min(a.timeline_end, b.timeline_end) - b.timeline_start
                 if overlap > tolerance_sec:
                     stacks.append(
                         SourceStack(
-                            track_id=track_id,
+                            track_ids=(a.track_id, b.track_id),
                             media=media,
                             clip_ids=(a.id, b.id),
                             overlap_sec=round(overlap, 3),
                         )
                     )
-    return stacks
+    return sorted(stacks, key=lambda s: (clip_order[s.clip_ids[0]], clip_order[s.clip_ids[1]]))
 
 
 class SessionTimeline:
@@ -814,11 +823,13 @@ def timebase_qc_report(project: EpisodeProject) -> dict[str, Any]:
 
     stacks = same_source_timeline_overlaps(project)
     for stack in stacks:
-        tinfo = tracks.setdefault(stack.track_id, {"max_drift_sec": st.max_drift(stack.track_id)})
-        tinfo["stacked_clips"] = int(tinfo.get("stacked_clips", 0)) + 1
+        for track_id in set(stack.track_ids):
+            tinfo = tracks.setdefault(track_id, {"max_drift_sec": st.max_drift(track_id)})
+            tinfo["stacked_clips"] = int(tinfo.get("stacked_clips", 0)) + 1
         a, b = stack.clip_ids
         issues.append(
-            f"Track {stack.track_id!r}: clips {a!r} and {b!r} overlap {stack.overlap_sec:.2f}s "
+            f"Tracks {stack.track_ids!r}: clips {a!r} and {b!r} overlap "
+            f"{stack.overlap_sec:.2f}s "
             "on the timeline while reading the same source (stacked copies play twice)"
         )
 

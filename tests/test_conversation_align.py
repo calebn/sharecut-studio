@@ -42,6 +42,7 @@ from podcast_mcp.models import (
     EpisodeProject,
     MediaAsset,
     ProjectMeta,
+    SourceRecording,
     SpeakerIngestAlignment,
     Track,
     TrackRole,
@@ -1597,6 +1598,45 @@ def test_apply_invariant_reverts_stacking_geometry(tmp_path: Path, monkeypatch) 
         p.skipped_reason is not None and "stack" in p.skipped_reason for p in guest_plans
     )
     assert same_source_timeline_overlaps(proj) == []
+
+
+@pytest.mark.parametrize("guest_start,should_skip", [(20.0, True), (0.0, False)])
+def test_apply_alignment_rejects_only_new_cross_lane_pair(
+    tmp_path: Path, monkeypatch, guest_start: float, should_skip: bool
+) -> None:
+    proj = _two_track_project(
+        tmp_path,
+        "parked_copy",
+        [
+            Clip(id="host_a", track_id="host", source_start=0, source_end=10, timeline_start=0),
+            Clip(
+                id="parked",
+                track_id="guest",
+                source_id="host_source",
+                source_start=20,
+                source_end=30,
+                timeline_start=guest_start,
+            ),
+        ],
+    )
+    proj.sources.append(SourceRecording(id="host_source", path="raw/host.wav", duration_sec=100))
+    monkeypatch.setattr(
+        "podcast_mcp.edits.conversation_align.slip_clip_to_shift",
+        lambda clip, target_shift, *, media_duration: (20.0, 30.0, 0.0),
+    )
+    result = AlignResult(
+        reference_track_id="host",
+        plans=[
+            *_host_ref("host_a"),
+            ClipAlignPlan(track_id="guest", clip_id="parked", offset_sec=2, method="bleed"),
+        ],
+    )
+    updated = apply_alignment_plans(proj, result)
+    parked = next(c for c in proj.clips if c.id == "parked")
+    assert parked.timeline_start == (guest_start if should_skip else 0.0)
+    assert updated == (1 if should_skip else 2)
+    assert (result.plans[1].skipped_reason is not None) is should_skip
+    assert ("Guest" in (proj.meta.ingest_alignment or {})) is not should_skip
 
 
 def test_whole_file_single_clip_keeps_legacy_geometry(tmp_path: Path) -> None:
