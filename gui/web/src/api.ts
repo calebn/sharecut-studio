@@ -133,6 +133,7 @@ export {
   listHostShares,
   loadHostRecordState,
   postHostRecordCommand,
+  replaceHostRecordInvite,
   revokeHostRoom,
   revokeHostShare,
 } from "./api/sharesRecord";

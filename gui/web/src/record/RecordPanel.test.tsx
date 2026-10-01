@@ -270,6 +270,30 @@ describe("RecordPanel", () => {
     expect(screen.getByRole("dialog", { name: "Record room" })).toBeVisible();
   });
 
+  it("guides the host to replace a removed participant's invite", async () => {
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      participants: [
+        recordParticipant({
+          participant_id: "p_g",
+          role: "guest",
+          removed: true,
+        }),
+      ],
+    });
+    const { baseElement: container } = render(
+      <RecordPanel micStatus="denied" />,
+    );
+    expect(
+      screen.getByText(
+        /A removed participant’s invite is closed to new participants/,
+      ),
+    ).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Copy links…" }));
+    expect(useDawStore.getState().shareDialogOpen).toBe(true);
+    await expectNoA11yViolations(container);
+  });
+
   it("releases the mic-loss hold after Stop", () => {
     useRecordHostStore
       .getState()

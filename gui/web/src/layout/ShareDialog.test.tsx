@@ -6,6 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -30,6 +31,7 @@ vi.mock("../commands/execute", async (importOriginal) => {
         : actual.execute(...args),
   };
 });
+const replaceHostRecordInvite = vi.fn();
 
 vi.mock("../api", () => ({
   listHostShares: (...args: unknown[]) => listHostShares(...args),
@@ -37,6 +39,8 @@ vi.mock("../api", () => ({
   revokeHostShare: (...args: unknown[]) => revokeHostShare(...args),
   createHostRecordRoom: (...args: unknown[]) => createHostRecordRoom(...args),
   revokeHostRoom: (...args: unknown[]) => revokeHostRoom(...args),
+  replaceHostRecordInvite: (...args: unknown[]) =>
+    replaceHostRecordInvite(...args),
 }));
 
 const projectStub = {
@@ -52,6 +56,7 @@ const liveRow: HostShareRow = {
   docs_role: "commenter",
   mcp_url: null,
   usable: true,
+  invite_closed: null,
   review_version_label: "Share mix",
   last_used_at: "2026-09-05T12:00:00Z",
 };
@@ -71,6 +76,16 @@ function listed(shares: HostShareRow[] = []) {
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
+
 describe("ShareDialog", () => {
   beforeEach(() => {
     listHostShares.mockReset();
@@ -79,6 +94,7 @@ describe("ShareDialog", () => {
     createHostRecordRoom.mockReset();
     revokeHostRoom.mockReset();
     execute.mockReset().mockResolvedValue({ status: "ok" });
+    replaceHostRecordInvite.mockReset();
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
@@ -104,6 +120,45 @@ describe("ShareDialog", () => {
     ).toBeTruthy();
     expect(await screen.findByText("No live review links.")).toBeTruthy();
     await expectNoA11yViolations(container);
+  });
+
+  it("loads the current scope after StrictMode effect replay", async () => {
+    listHostShares.mockResolvedValue(listed([liveRow]));
+    useDawStore.setState({ shareDialogOpen: true });
+    render(
+      <StrictMode>
+        <ShareDialog />
+      </StrictMode>,
+    );
+
+    expect(await screen.findByText("fantastic-acoustic-whale")).toBeTruthy();
+    expect(listHostShares).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a current list error", async () => {
+    listHostShares.mockRejectedValue(new Error("List failed"));
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+
+    expect(await screen.findByText("List failed")).toBeTruthy();
+  });
+
+  it("suppresses a list error from an obsolete project generation", async () => {
+    const oldLoad = deferred<ReturnType<typeof listed>>();
+    listHostShares.mockReturnValueOnce(oldLoad.promise);
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+
+    await waitFor(() => expect(listHostShares).toHaveBeenCalledTimes(1));
+    act(() => useDawStore.setState({ projectEpoch: 2 }));
+    expect(await screen.findByText("No live review links.")).toBeTruthy();
+    await act(async () => {
+      oldLoad.reject(new Error("Obsolete list failed"));
+      await oldLoad.promise.catch(() => undefined);
+    });
+
+    expect(screen.queryByText("Obsolete list failed")).toBeNull();
+    expect(screen.getByText("No live review links.")).toBeTruthy();
   });
 
   it("creates a link, copies it, and lists the live row", async () => {
@@ -133,6 +188,25 @@ describe("ShareDialog", () => {
     expect(useDawStore.getState().statusAnnouncement).toMatch(
       /Share link created/,
     );
+  });
+
+  it("ignores a create completion after the dialog unmounts", async () => {
+    const user = userEvent.setup();
+    const create = deferred<HostShareRow>();
+    createHostShare.mockReturnValue(create.promise);
+    useDawStore.setState({ shareDialogOpen: true });
+    const view = render(<ShareDialog />);
+    await screen.findByText("No live review links.");
+    await user.click(screen.getByRole("button", { name: "Create link" }));
+    view.unmount();
+
+    await act(async () => {
+      create.resolve(liveRow);
+      await create.promise;
+    });
+
+    expect(useDawStore.getState().statusAnnouncement).toBe("");
+    expect(listHostShares).toHaveBeenCalledTimes(1);
   });
 
   it("waits for Refresh to succeed, then retries the captured create once", async () => {
@@ -551,6 +625,7 @@ describe("ShareDialog", () => {
       session_id: "sess1",
       mcp_url: null,
       usable: true,
+      invite_closed: false,
     };
     const producerRow: HostShareRow = {
       ...guestRow,
@@ -620,6 +695,7 @@ describe("ShareDialog", () => {
       session_id: "sess1",
       mcp_url: null,
       usable: true,
+      invite_closed: false,
     };
     const producerRow: HostShareRow = {
       ...guestRow,
@@ -674,6 +750,7 @@ describe("ShareDialog", () => {
       session_id: "sess1",
       mcp_url: null,
       usable: true,
+      invite_closed: false,
     };
     const producerRow: HostShareRow = {
       ...guestRow,
@@ -689,5 +766,164 @@ describe("ShareDialog", () => {
     );
     expect(useDawStore.getState().shareDialogOpen).toBe(false);
     expect(useDawStore.getState().recordPanelOpen).toBe(true);
+  });
+
+  it("replaces a closed guest invite, copies the new link, and refreshes rows", async () => {
+    const closedGuest: HostShareRow = {
+      token: "closed-guest-token",
+      url: "http://127.0.0.1:8765/rec/closed-guest-token",
+      kind: "record",
+      docs_role: null,
+      record_role: "guest",
+      session_id: "sess1",
+      mcp_url: null,
+      usable: true,
+      invite_closed: true,
+    };
+    const replacement: HostShareRow = {
+      ...closedGuest,
+      token: "replacement-guest-token",
+      url: "http://127.0.0.1:8765/rec/replacement-guest-token",
+      invite_closed: false,
+    };
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    listHostShares
+      .mockResolvedValueOnce(listed([closedGuest]))
+      .mockResolvedValue(listed([closedGuest, replacement]));
+    replaceHostRecordInvite.mockResolvedValue(replacement);
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Replace guest invite" }),
+    );
+
+    await waitFor(() => {
+      expect(replaceHostRecordInvite).toHaveBeenCalledWith(
+        "/tmp/ep.project.json",
+        "closed-guest-token",
+      );
+      expect(writeText).toHaveBeenCalledWith(replacement.url);
+    });
+    expect(await screen.findByText("replacement-guest-token")).toBeTruthy();
+    expect(
+      await screen.findByRole("button", { name: "Copied guest link" }),
+    ).toBeTruthy();
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Guest link replaced and copied",
+    );
+  });
+
+  it("ignores a replacement clipboard completion after project epoch change", async () => {
+    const closedGuest: HostShareRow = {
+      token: "closed-guest-token",
+      url: "http://127.0.0.1:8765/rec/closed-guest-token",
+      kind: "record",
+      docs_role: null,
+      record_role: "guest",
+      session_id: "sess1",
+      mcp_url: null,
+      usable: true,
+      invite_closed: true,
+    };
+    const replacement = {
+      ...closedGuest,
+      token: "replacement-guest-token",
+      url: "http://127.0.0.1:8765/rec/replacement-guest-token",
+      invite_closed: false,
+    };
+    const otherProject = { ...liveRow, token: "other-project-share" };
+    const clipboard = deferred<void>();
+    const writeText = vi.fn(() => clipboard.promise);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    listHostShares
+      .mockResolvedValueOnce(listed([closedGuest]))
+      .mockResolvedValueOnce(listed([otherProject]));
+    replaceHostRecordInvite.mockResolvedValue(replacement);
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Replace guest invite" }),
+    );
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(replacement.url),
+    );
+
+    act(() => {
+      useDawStore.setState((state) => ({
+        projectEpoch: state.projectEpoch + 1,
+      }));
+    });
+    expect(await screen.findByText("other-project-share")).toBeTruthy();
+    await act(async () => {
+      clipboard.resolve();
+      await clipboard.promise;
+    });
+
+    expect(screen.queryByText("replacement-guest-token")).toBeNull();
+    expect(listHostShares).toHaveBeenCalledTimes(2);
+    expect(useDawStore.getState().statusAnnouncement).not.toContain(
+      "replaced and copied",
+    );
+  });
+
+  it("ignores a replacement clipboard completion after close and reopen", async () => {
+    const closedGuest: HostShareRow = {
+      token: "closed-guest-token",
+      url: "http://127.0.0.1:8765/rec/closed-guest-token",
+      kind: "record",
+      docs_role: null,
+      record_role: "guest",
+      session_id: "sess1",
+      mcp_url: null,
+      usable: true,
+      invite_closed: true,
+    };
+    const replacement = {
+      ...closedGuest,
+      token: "replacement-guest-token",
+      url: "http://127.0.0.1:8765/rec/replacement-guest-token",
+      invite_closed: false,
+    };
+    const reopenedRow = { ...liveRow, token: "reopened-project-share" };
+    const clipboard = deferred<void>();
+    const writeText = vi.fn(() => clipboard.promise);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    listHostShares
+      .mockResolvedValueOnce(listed([closedGuest]))
+      .mockResolvedValueOnce(listed([reopenedRow]));
+    replaceHostRecordInvite.mockResolvedValue(replacement);
+    useDawStore.setState({ shareDialogOpen: true });
+    render(<ShareDialog />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Replace guest invite" }),
+    );
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(replacement.url),
+    );
+
+    act(() => useDawStore.getState().setShareDialogOpen(false));
+    act(() => useDawStore.getState().setShareDialogOpen(true));
+    expect(await screen.findByText("reopened-project-share")).toBeTruthy();
+    await act(async () => {
+      clipboard.resolve();
+      await clipboard.promise;
+    });
+
+    expect(screen.queryByText("replacement-guest-token")).toBeNull();
+    expect(listHostShares).toHaveBeenCalledTimes(2);
+    expect(useDawStore.getState().statusAnnouncement).not.toContain(
+      "replaced and copied",
+    );
   });
 });

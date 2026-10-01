@@ -118,6 +118,10 @@ share the link, an unaffected guest who loses their lease also needs the
 replacement. Re-invite by minting a replacement for the same role with
 `podcast review share --kind record --session-id <id> --role guest` (or
 `--role producer`).
+The host Share dialog also identifies closed record invites, prevents copying
+them for new participants, and replaces one from its source token. The new link
+keeps the same room, role, and expiry; established leases on the old token keep
+working.
 See [recording-session.md](recording-session.md).
 
 A second share **kind** (`review` | `record`) lives on the same coolname

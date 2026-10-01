@@ -147,6 +147,8 @@ export function RecordPanel({
   const host = snapshot?.participants.find(
     (person) => person.participant_id === "p_host",
   );
+  const hasRemovedParticipant =
+    snapshot?.participants.some((person) => person.removed) ?? false;
   // Raw socket state on purpose: live comments send now or queue for upsert on
   // reconnect, including before the first connect. `dropped` (below) is only for
   // the "Reconnecting…" copy, which must not show before the first connect.
@@ -437,6 +439,15 @@ export function RecordPanel({
             <p className="record-warn">{transportError}</p>
           ) : null}
         </div>
+        {snapshot ? (
+          hasRemovedParticipant ? (
+            <p className="record-warn">
+              A removed participant’s invite is closed to new participants. Use
+              Copy links… to replace that role’s link; existing recording access
+              remains available to participants who still hold a valid lease.
+            </p>
+          ) : null
+        ) : null}
         {snapshot ? (
           <Roster participants={snapshot.participants} />
         ) : (

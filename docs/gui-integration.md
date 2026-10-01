@@ -347,9 +347,10 @@ The **Precise word boundaries** checkbox (`transcribe.forced_alignment.enabled`)
 | `POST /api/pipeline/render-preview` | Body `{ path }` — background `PipelineService.render_preview` (same job queue; 409 if busy) |
 | `POST /api/export/bounce` | Body `{ path, track_ids?, start_s?, end_s?, formats? }` — starts a `kind=bounce` job (`BounceService` → `export/bounces/`); returns `{ job_id, job }` immediately (400 on validation; 409 if a pipeline-slot job is running). Paths are on the terminal snapshot `result.paths`. Host GUI seeds Activity chrome from `job` then follows that job's own SSE stream (each subscriber has its own queue). Cancel between bounce phases is cooperative; a cancel that lands after files are written keeps `result.paths` on the cancelled snapshot. `BounceDialog` runs it through `runAnnouncedJob` (`state/runAnnouncedJob.ts`): `expectJobResult` before seeding the chip, then `announceJobResult` on success, so `useJobStatusAnnouncement` (desktop `StatusBar` and phone `MobileShellView`) speaks "Bounced N file(s)…" instead of the generic Activity "ok" headline, never both (#704). Closing the dialog aborts only the follow: the server bounce keeps running, unannounced. |
 | `POST /api/export/deliverables` | Body `{ path, formats? }` — `kind=export` job via `PipelineService.export_audio`; `{ job_id, job }`; `result.paths` on the terminal snapshot. Guest render path is unchanged. `export.deliverables` (`commands/host.ts`) announces its "Exported N file(s)…" result through the same `runAnnouncedJob`, and follows the job with a project-scoped abort signal (`state/projectScopedSignal.ts`), so a project switch stops following it, even while the start POST is still in flight (the old project's job is then never seeded onto the new project's chip). The server job is not cancelled: it keeps running unannounced and may still write files to the old project's `export/`. |
-| `GET /api/shares?path=` | Host share list (presented rows + review versions). Online extension. |
+| `GET /api/shares?path=` | Host share list with review versions and record invite closure (`invite_closed`, null for review links). Collaboration extension. |
 | `POST /api/shares` | Body `{ path, role?, with_mcp?, review_version_id? }` — mint a link share (`ShareService.create_for_host`; publishes a review mix if none exists) |
 | `POST /api/shares/{token}/revoke` | Body `{ path }` — revoke + cooldown (`ShareService.revoke`) |
+| `POST /api/shares/record/{source_token}/replace` | Host-only body `{ path }`; replace a closed, usable record invite in its original room with the same role and expiry (`ShareService.replace_closed_record_invite`). Existing participant leases remain valid. |
 | `GET /api/pipeline/events?job_id=` | SSE stream of progress + per-step timings |
 
 The vocabulary editor shows the draft Whisper prompt character budget before Save. It strips and deduplicates the show title, terms, and guest names, then joins them with `, `. The count includes the punctuation primer when the configured limit can hold it. Smaller limits count vocabulary alone, matching the domain fallback. Counts use Unicode code points. Save is disabled above the limit and describes how to shorten the list. Disabled prompting leaves vocabulary available for refinement. Successful refreshes clear load and transient save errors, including busy responses. Validation and conflict messages remain visible.
@@ -465,9 +466,10 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit session width) require *
 | `PATCH /api/comments/{id}` | Resolve or update body |
 | `POST /api/comments/{id}/actions/{action_id}/done` | Check/uncheck action item with `by` |
 | `DELETE /api/comments/{id}?path=` | Remove comment |
-| `GET /api/shares?path=` | Host share list (collaboration extension) |
+| `GET /api/shares?path=` | Host share list, including record invite closure (collaboration extension) |
 | `POST /api/shares` | Mint a link share (`ShareService.create_for_host`) |
 | `POST /api/shares/{token}/revoke` | Revoke a live share |
+| `POST /api/shares/record/{source_token}/replace` | Replace a closed record invite in the same room with its original role and expiry; host-only. |
 | `GET /api/record/state?path=` | Host record-room snapshot (404 if no room) |
 | `POST /api/record/command` | Host record command (`Start` / `Pause` / `Resume` / `Stop`) |
 | `GET /api/record/upload?path=` | Host keeper ACK status for **all** participants |

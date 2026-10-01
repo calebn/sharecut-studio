@@ -74,6 +74,7 @@ export type ShareDialogViewProps = {
   ) => void;
   onRevoke: (token: string) => void;
   onEndRoom: (sessionId: string) => void;
+  onReplaceRecordInvite: (sourceToken: string) => void;
   onOpenRoomPanel: () => void;
 };
 
@@ -108,6 +109,7 @@ export function ShareDialogView(props: ShareDialogViewProps) {
     onCopy,
     onRevoke,
     onEndRoom,
+    onReplaceRecordInvite,
     onOpenRoomPanel,
   } = props;
   const roleId = useId();
@@ -193,9 +195,9 @@ export function ShareDialogView(props: ShareDialogViewProps) {
             Record session
           </h3>
           <p className="share-dialog-note">
-            Producer link is for a silent third party (monitor in a later
-            build). Share it only with your producer. These GUI links do not
-            expire; use CLI <code>--expires-at</code> when you need a deadline.
+            Producer links let your producer listen and comment without being
+            recorded. New record links have no expiry. A replacement keeps the
+            original expiry.
           </p>
           <div className="share-dialog-actions">
             <Button type="button" disabled={busy} onClick={onCreateRecord}>
@@ -283,7 +285,11 @@ export function ShareDialogView(props: ShareDialogViewProps) {
                         <div key={guest?.token ?? `guest-missing-${index}`}>
                           <div className="share-dialog-row-main">
                             <span className="share-dialog-token">
-                              {guest ? "Guest link" : "Guest link (missing)"}
+                              {guest
+                                ? guest.invite_closed
+                                  ? "Guest invite closed to new guests"
+                                  : "Guest link"
+                                : "Guest link (missing)"}
                             </span>
                             <span className="share-dialog-meta">
                               {guest?.token ?? room.sessionId}
@@ -292,7 +298,9 @@ export function ShareDialogView(props: ShareDialogViewProps) {
                           <div className="share-dialog-row-actions">
                             <Button
                               type="button"
-                              disabled={busy || !guest?.url}
+                              disabled={
+                                busy || !guest?.url || !!guest?.invite_closed
+                              }
                               onClick={() =>
                                 onCopy(
                                   "link",
@@ -310,6 +318,17 @@ export function ShareDialogView(props: ShareDialogViewProps) {
                                 ? "Copied guest link"
                                 : "Copy guest link"}
                             </Button>
+                            {guest?.invite_closed ? (
+                              <Button
+                                type="button"
+                                disabled={busy}
+                                onClick={() =>
+                                  onReplaceRecordInvite(guest.token)
+                                }
+                              >
+                                Replace guest invite
+                              </Button>
+                            ) : null}
                           </div>
                         </div>
                       ),
@@ -321,7 +340,9 @@ export function ShareDialogView(props: ShareDialogViewProps) {
                       <div key={producer?.token ?? `producer-missing-${index}`}>
                         <div className="share-dialog-row-main">
                           <span className="share-dialog-token">
-                            Producer link
+                            {producer?.invite_closed
+                              ? "Producer invite closed to new producers"
+                              : "Producer link"}
                           </span>
                           <span className="share-dialog-meta">
                             {producer?.token ?? "missing"}
@@ -330,7 +351,11 @@ export function ShareDialogView(props: ShareDialogViewProps) {
                         <div className="share-dialog-row-actions">
                           <Button
                             type="button"
-                            disabled={busy || !producer?.url}
+                            disabled={
+                              busy ||
+                              !producer?.url ||
+                              !!producer?.invite_closed
+                            }
                             onClick={() =>
                               onCopy(
                                 "link",
@@ -348,6 +373,17 @@ export function ShareDialogView(props: ShareDialogViewProps) {
                               ? "Copied producer link"
                               : "Copy producer link"}
                           </Button>
+                          {producer?.invite_closed ? (
+                            <Button
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                onReplaceRecordInvite(producer.token)
+                              }
+                            >
+                              Replace producer invite
+                            </Button>
+                          ) : null}
                           {index === 0 ? (
                             <>
                               <Button

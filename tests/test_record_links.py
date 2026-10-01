@@ -19,7 +19,7 @@ from podcast_mcp.edits.share_registry import (
 )
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_record_room_tool, revoke_record_room_tool
-from podcast_mcp.models import load_project, save_project
+from podcast_mcp.models import EpisodeProject, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.record_share import lookup_record_share, record_bootstrap
 from podcast_mcp.services.collaboration.review import ReviewService
@@ -29,6 +29,8 @@ from podcast_mcp.services.collaboration.share import (
     open_share_workspace,
     present_share,
 )
+from podcast_mcp.services.record import RecordSessionService, RecordStateError
+from podcast_mcp.services.record.commands import RecordCommand
 
 
 def _seed_premix(minimal_project, sample_wav):
@@ -63,6 +65,8 @@ def test_create_record_room_mints_two_tokens_same_session(
     assert room["producer"]["capabilities"] == ["monitor", "comment"]
     assert room["guest"]["session_id"] == room["session_id"]
     assert room["producer"]["session_id"] == room["session_id"]
+    assert room["guest"]["invite_closed"] is False
+    assert room["producer"]["invite_closed"] is False
     sidecar = {row["token"]: row for row in list_shares(ws.project)}
     for tok in (room["guest"]["token"], room["producer"]["token"]):
         assert sidecar[tok]["kind"] == "record"
@@ -292,6 +296,169 @@ def test_host_record_room_http(minimal_project, sample_wav, tmp_workspace, monke
     )
     assert ended.status_code == 200
     assert len(ended.json()["revoked"]) == 2
+
+
+def _close_record_invite(ws, token: str, session_id: str, role: str) -> tuple[str, str]:
+    record = RecordSessionService(ws.project, session_id=session_id)
+    capabilities = lookup_share(token, kind="record")["capabilities"]
+    echo, _snapshot = record.join(
+        token=token,
+        role=role,
+        display_name="Removed participant",
+        client_id="invite-replacement-test",
+        connection_id=f"invite-replacement-{role}",
+        capabilities=capabilities,
+    )
+    survivor_connection_id = f"invite-replacement-survivor-{role}"
+    survivor, _snapshot = record.join(
+        token=token,
+        role=role,
+        display_name="Continuing participant",
+        client_id="invite-replacement-survivor",
+        connection_id=survivor_connection_id,
+        capabilities=capabilities,
+    )
+    removal = RecordCommand.parse(
+        command_type="RemoveParticipant",
+        payload={"participant_id": echo["participant_id"]},
+        client_id="host-test",
+        role="host",
+        participant_id="p_host",
+        client_seq=1,
+    )
+    record.submit(removal, capabilities=["join", "monitor"])
+    record.disconnect(
+        survivor["participant_id"],
+        connection_id=survivor_connection_id,
+    )
+    resumed_connection_id = f"invite-replacement-resume-{role}"
+    resumed, _snapshot = record.join(
+        token=token,
+        role=role,
+        display_name="Continuing participant",
+        participant_id=survivor["participant_id"],
+        lease=survivor["lease"],
+        client_id="invite-replacement-resume",
+        connection_id=resumed_connection_id,
+        capabilities=capabilities,
+    )
+    assert resumed["participant_id"] == survivor["participant_id"]
+    record.disconnect(survivor["participant_id"], connection_id=resumed_connection_id)
+    return survivor["participant_id"], survivor["lease"]
+
+
+@pytest.mark.parametrize("role", ["guest", "producer"])
+def test_replace_closed_record_invite_preserves_room_role_and_expiry(
+    role, minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    expiry = "2099-02-03T04:05:06Z"
+    original = ShareService(ws).create_record_token(
+        role=role,
+        session_id=room["session_id"],
+        expires_at=expiry,
+    )
+    survivor_id, survivor_lease = _close_record_invite(
+        ws, original["token"], room["session_id"], role
+    )
+
+    listed = {row["token"]: row for row in ShareService(ws).list_presented()}
+    assert listed[original["token"]]["invite_closed"] is True
+    replacement = ShareService(ws).replace_closed_record_invite(original["token"])
+
+    record = RecordSessionService(ws.project, session_id=room["session_id"])
+    resumed, _snapshot = record.join(
+        token=original["token"],
+        role=role,
+        display_name="Continuing participant",
+        participant_id=survivor_id,
+        lease=survivor_lease,
+        client_id="invite-replacement-after-mint",
+        connection_id=f"invite-replacement-after-mint-{role}",
+        capabilities=lookup_share(original["token"], kind="record")["capabilities"],
+    )
+    assert resumed["participant_id"] == survivor_id
+    assert resumed["lease"] == survivor_lease
+
+    assert replacement["token"] != original["token"]
+    assert replacement["record_role"] == role
+    assert replacement["session_id"] == room["session_id"]
+    assert replacement["invite_closed"] is False
+    assert replacement["expires_at"] == expiry
+    assert (
+        lookup_share(replacement["token"], kind="record")["capabilities"]
+        == original["capabilities"]
+    )
+
+
+def test_replace_closed_record_invite_requires_closed_usable_record_source(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, tmp_path
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    other_workspace = tmp_path / "other_workspace"
+    other_workspace.mkdir()
+    other_project = EpisodeProject.create("other_episode", str(other_workspace))
+    other_project.ensure_dirs()
+    other_path = save_project(other_project)
+    with pytest.raises(KeyError, match="not found"):
+        ShareService(ProjectWorkspace.open(other_path)).replace_closed_record_invite(
+            room["guest"]["token"]
+        )
+
+    with pytest.raises(RecordStateError, match="not closed"):
+        ShareService(ws).replace_closed_record_invite(room["guest"]["token"])
+
+    review = ShareService(ws).create_for_host(role="viewer")
+    with pytest.raises(KeyError, match="not found"):
+        ShareService(ws).replace_closed_record_invite(review["token"])
+
+    _close_record_invite(ws, room["guest"]["token"], room["session_id"], "guest")
+    ShareService(ws).revoke(room["guest"]["token"])
+    with pytest.raises(KeyError, match="not found"):
+        ShareService(ws).replace_closed_record_invite(room["guest"]["token"])
+
+    expired = ShareService(ws).create_record_token(
+        role="guest",
+        session_id=room["session_id"],
+        expires_at="2000-01-01T00:00:00Z",
+    )
+    with pytest.raises(KeyError, match="not found"):
+        ShareService(ws).replace_closed_record_invite(expired["token"])
+
+
+def test_host_can_replace_closed_record_invite_over_http(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    client = TestClient(create_app(served_project=Path(ws.path)))
+
+    endpoint = f"/api/shares/record/{room['guest']['token']}/replace"
+    body = {"path": str(ws.path)}
+    relayed_response = client.post(
+        endpoint,
+        json=body,
+        headers={"x-sharecut-relayed": "1"},
+    )
+    assert relayed_response.status_code == 403
+    wrong_project = client.post(
+        endpoint,
+        json={"path": str(ws.path.parent / "raw" / "host.wav")},
+    )
+    assert wrong_project.status_code == 403
+    open_response = client.post(endpoint, json=body)
+    assert open_response.status_code == 409
+
+    _close_record_invite(ws, room["guest"]["token"], room["session_id"], "guest")
+    response = client.post(endpoint, json=body)
+
+    assert response.status_code == 200, response.text
+    replacement = response.json()["share"]
+    assert replacement["record_role"] == "guest"
+    assert replacement["session_id"] == room["session_id"]
+    assert replacement["invite_closed"] is False
 
 
 def test_cli_share_kind_record_mints_room(minimal_project, sample_wav, tmp_workspace, monkeypatch):

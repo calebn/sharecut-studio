@@ -92,6 +92,28 @@ export async function createHostRecordRoom(
   return data.room;
 }
 
+export async function replaceHostRecordInvite(
+  projectPath: string,
+  sourceToken: string,
+): Promise<HostShareRow> {
+  if (isShareProjectKey(projectPath)) {
+    throw new Error("Share management is not available for shared guests");
+  }
+  const res = await hostFetch(
+    `/api/shares/record/${encodeURIComponent(sourceToken)}/replace`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: projectPath }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(await readApiError(res));
+  }
+  const data = (await res.json()) as { share: HostShareRow };
+  return data.share;
+}
+
 export async function loadHostRecordState(
   projectPath: string,
 ): Promise<import("../record/types").RecordSnapshot | null> {

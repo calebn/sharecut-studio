@@ -279,6 +279,7 @@ export function hostShareRow(
     docs_role: "commenter",
     mcp_url: null,
     usable: true,
+    invite_closed: overrides.kind === "record" ? false : null,
     review_version_label: "Share mix",
     last_used_at: null,
     ...overrides,

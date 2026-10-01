@@ -295,6 +295,10 @@ flowchart TD
    same link was removed; then the guest sees "Invite link closed" and needs a
    fresh link from the host. The Join lease check and host removal
    use one room decision so removal cannot look like ordinary lease expiry.
+   The host Record panel points to Share through **Copy links…**. There the
+   closed guest or producer invite cannot be copied for newcomers; **Replace
+   guest invite** / **Replace producer invite** mints and copies a link for the
+   same room and role. Existing valid leases on the old link continue working.
 9. In the native desktop app, a host or recorded guest who closes the window
    during REC, PAUSED, or finalizing sees a role-specific confirmation. The
    host warning says closing stops the session for everyone; the guest warning

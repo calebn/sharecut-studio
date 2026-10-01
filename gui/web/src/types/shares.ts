@@ -12,6 +12,7 @@ export type HostShareRow = {
   guest_mode?: string | null;
   mcp_url: string | null;
   usable: boolean;
+  invite_closed: boolean | null;
   revoked?: boolean;
   capabilities?: string[];
   review_version_id?: string;
