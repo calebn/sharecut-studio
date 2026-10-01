@@ -35,6 +35,24 @@ def env_int(name: str, default: int) -> int:
     return int(env_float(name, float(default)))
 
 
+def is_review_audio_path(path: str) -> bool:
+    """Classify review audio routes after removing query and case differences.
+
+    The markers intentionally match as substrings to preserve existing guest routes,
+    including image variants such as ``pending-preview-image``.
+    """
+    normalized = path.partition("?")[0].casefold()
+    return any(
+        marker in normalized
+        for marker in (
+            "/audio",
+            "/pending-preview",
+            "/audition-context",
+            "/daw/waveform/tiles/",
+        )
+    )
+
+
 @dataclass(frozen=True)
 class RateLimitDecision:
     allowed: bool

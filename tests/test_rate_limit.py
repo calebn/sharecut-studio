@@ -19,13 +19,13 @@ from podcast_mcp.util.rate_limit import (
     RateLimitDecision,
     TokenBucket,
     env_flag,
+    is_review_audio_path,
     rate_limit_detail,
 )
 from podcast_relay.limits import (
     check_proxy_rpm,
     check_register,
     get_relay_limiters,
-    is_audio_path,
     reset_relay_limiters_for_tests,
 )
 
@@ -102,12 +102,17 @@ def test_classify_mcp_and_review():
     assert classify_review_request("GET", "/api/review/t/daw/audition-context-image") == "audio"
     assert classify_review_request("GET", "/api/review/t/daw/waveform/tiles/abc") == "audio"
     assert classify_review_request("GET", "/api/review/t/DAW/Waveform/Tiles/abc") == "audio"
+    assert classify_review_request("POST", "/api/review/t/daw/audio") == "mutate"
     assert classify_review_request("GET", "/api/review/t/daw/waveform/status") == "read"
 
 
-def test_host_and_relay_audio_classifiers_agree_on_guest_routes():
+def test_host_and_relay_audio_classifiers_agree_on_guest_routes(monkeypatch):
     from podcast_mcp.gui.routes import review_share
 
+    monkeypatch.setenv("PODCAST_RELAY_RATE_LIMIT", "1")
+    monkeypatch.setenv("PODCAST_RELAY_TOKEN_BURST", "1000")
+    monkeypatch.setenv("PODCAST_RELAY_IP_BURST", "1000")
+    reset_relay_limiters_for_tests()
     checked = 0
     for route in review_share.router.routes:
         path = getattr(route, "path", "")
@@ -116,25 +121,59 @@ def test_host_and_relay_audio_classifiers_agree_on_guest_routes():
             continue
         concrete = re.sub(r"\{[^}]+\}", "x", path)
         host_audio = classify_review_request("GET", concrete) == "audio"
-        assert is_audio_path(concrete.lstrip("/")) == host_audio, concrete
-        upper = concrete.upper()
-        assert (classify_review_request("GET", upper) == "audio") == host_audio, upper
-        assert is_audio_path(upper.lstrip("/")) == host_audio, upper
+        relay_audio = (
+            check_proxy_rpm(
+                token=f"route-{checked}",
+                client_ip=f"192.0.2.{checked + 1}",
+                path_suffix=concrete.lstrip("/"),
+            ).bucket
+            == "relay_audio"
+        )
+        assert relay_audio == host_audio, concrete
+        upper_with_query = f"{concrete.upper()}?next=/audio"
+        assert (classify_review_request("GET", upper_with_query) == "audio") == host_audio
+        relay_query = check_proxy_rpm(
+            token=f"query-{checked}",
+            client_ip=f"198.51.100.{checked + 1}",
+            path_suffix=upper_with_query.lstrip("/"),
+        )
+        assert (relay_query.bucket == "relay_audio") == host_audio, upper_with_query
         checked += 1
     assert checked >= 10
 
 
-def test_is_audio_path():
-    assert is_audio_path("api/review/tok/audio")
-    assert is_audio_path("api/review/tok/daw/audio")
-    assert is_audio_path("api/review/tok/daw/pending-preview")
-    assert is_audio_path("api/review/tok/daw/pending-preview-image")
-    assert is_audio_path("api/review/tok/daw/audition-context")
-    assert is_audio_path("api/review/tok/daw/audition-context-image")
-    assert is_audio_path("api/review/tok/daw/waveform/tiles/0123456789abcdef0123?ref=track:a")
-    assert not is_audio_path("api/review/tok/daw/waveform/status")
-    assert not is_audio_path("api/review/tok/daw/meta")
-    assert not is_audio_path("mcp/tok/mcp")
+def test_review_audio_path_classifier_preserves_broad_route_markers():
+    assert is_review_audio_path("api/review/tok/audio?kind=stem")
+    assert is_review_audio_path("api/review/tok/daw/audio")
+    assert is_review_audio_path("api/review/tok/daw/pending-preview")
+    assert is_review_audio_path("api/review/tok/daw/pending-preview-image")
+    assert is_review_audio_path("api/review/tok/daw/audition-context")
+    assert is_review_audio_path("api/review/tok/daw/audition-context-image")
+    assert is_review_audio_path("api/review/tok/daw/waveform/tiles/abc?ref=track:a")
+    assert is_review_audio_path("api/review/tok/daw/audio-export")
+    assert not is_review_audio_path("api/review/tok/daw/waveform/status")
+    assert not is_review_audio_path("api/review/tok/daw/meta")
+    assert not is_review_audio_path("mcp/tok/mcp")
+
+
+def test_audio_classification_strips_query_and_keeps_substring_matching(monkeypatch):
+    audio_path = "/api/review/tok/audio-export"
+    assert is_review_audio_path(audio_path)
+    assert classify_review_request("GET", audio_path) == "audio"
+
+    monkeypatch.setenv("PODCAST_RELAY_RATE_LIMIT", "1")
+    reset_relay_limiters_for_tests()
+    audio = check_proxy_rpm(
+        token="audio", client_ip="203.0.113.1", path_suffix="api/review/tok/audio-export"
+    )
+    assert audio.bucket == "relay_audio"
+
+    path = "/api/review/tok/daw/meta?next=/audio"
+    assert not is_review_audio_path(path)
+    assert classify_review_request("GET", path) == "read"
+    read = check_proxy_rpm(token="read", client_ip="203.0.113.2", path_suffix=path.lstrip("/"))
+    assert read.allowed and read.bucket == "relay_ip"
+    reset_relay_limiters_for_tests()
 
 
 def test_relay_rpm_with_tiny_budget(monkeypatch):

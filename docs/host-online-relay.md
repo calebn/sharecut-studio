@@ -438,7 +438,17 @@ Generous defaults (tighten via env if you see abuse). Philosophy: false 429s hur
 | Host | Audio concurrent | 8 | share token |
 | Host | Guest WS concurrent | 8 | share token |
 
-Audio paths skip RPM (concurrency only); guest waveform tiles (`…/daw/waveform/tiles/`) count as audio on both the relay (`is_audio_path`) and the host (`classify_review_request`), while `…/daw/waveform/status` stays in the read class. Guest WS fanout (host→guest) is unlimited; only inbound guest→host text frames hit `PODCAST_RELAY_WS_MSG_RPM`. Responses: HTTP **429** + `Retry-After`; WS close **4429**; MCP JSON-RPC error **`-32029`**.
+Audio paths skip RPM and use concurrency limits. The host and relay use
+`util.rate_limit.is_review_audio_path`, which strips the query and case-folds
+before matching `/audio`, `/pending-preview`, `/audition-context`, or
+`/daw/waveform/tiles/` as substrings. This preserves image variants and the host's
+broad `/audio` rule rather than requiring `/audio` at the path end. Query values
+cannot make a read path audio. Waveform status remains a read request, and host
+`POST` requests take mutation precedence.
+
+Guest WS fanout (host→guest) is unlimited; only inbound guest→host text frames hit
+`PODCAST_RELAY_WS_MSG_RPM`. Responses: HTTP **429** + `Retry-After`; WS close
+**4429**; MCP JSON-RPC error **`-32029`**.
 
 | Env | Role |
 |-----|------|
