@@ -1566,6 +1566,38 @@ def test_loudness_reports_artifact_freshness_without_rendering(minimal_project, 
     assert all(path.read_bytes() == sample_wav.read_bytes() for path in paths if path.exists())
 
 
+def test_loudness_report_includes_dialogue_balance_freshness(minimal_project, sample_wav) -> None:
+    from podcast_mcp.engines.balance import balance_basis_digest
+    from podcast_mcp.models import ProcessingChain, ProcessingEffect
+    from podcast_mcp.models.episode import BalanceBasis
+
+    ws = _dialogue_workspace(minimal_project, sample_wav)
+    project = ws.project
+    host = project.track_by_id("host")
+    premix = premix_path(project)
+    premix.parent.mkdir(parents=True, exist_ok=True)
+    premix.write_bytes(sample_wav.read_bytes())
+    service = EditService(ws)
+
+    with patch("podcast_mcp.services.document.edit.check_loudness", return_value={"pass": True}):
+        assert service.check_loudness(str(premix))["balance"]["host"]["stale"] is None
+
+        digest = balance_basis_digest(project, "host")
+        assert digest is not None
+        host.balance_basis = BalanceBasis(
+            digest=digest,
+            measured_lufs=-23.0,
+            speech_gated=True,
+        )
+        current = service.check_loudness(str(premix))["balance"]["host"]
+        assert current == {"stale": False, "speech_gated": True, "measured_lufs": -23.0}
+
+        project.processing_chains.append(
+            ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="highpass")])
+        )
+        assert service.check_loudness(str(premix))["balance"]["host"]["stale"] is True
+
+
 def test_edit_check_loudness_missing_file_raises(minimal_project) -> None:
     ws = ProjectWorkspace.open(minimal_project)
     with pytest.raises(FileNotFoundError, match="no audio to measure"):

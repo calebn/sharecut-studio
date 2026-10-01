@@ -1472,11 +1472,13 @@ class EditService:
         return [c.model_dump() for c in list_chapters(self.ws.project)]
 
     def check_loudness(self, audio_path: str | None = None) -> dict:
-        """Measure audio and report known project-artifact freshness without rendering.
+        """Measure audio and report known project freshness without rendering.
 
         An explicit unrelated file has no project freshness claim (``stale=None``).
-        The loudness ``pass`` remains the measured level verdict, independent of age.
+        Tracked project audio also reports each dialogue track's balance status. The
+        loudness ``pass`` remains the measured level verdict, independent of age.
         """
+        from podcast_mcp.engines.balance import balance_status
         from podcast_mcp.engines.play_audit import (
             mastered_is_fresh,
             mastered_path,
@@ -1520,6 +1522,11 @@ class EditService:
             report.update(stale=None, stale_reason="untracked_audio")
             return report
         report.update(stale=reason is not None, stale_reason=reason)
+        report["balance"] = {
+            track.id: balance_status(project, track)
+            for track in project.tracks
+            if track.role.value == "dialogue" and track.media is not None
+        }
         return report
 
     def add_effect(

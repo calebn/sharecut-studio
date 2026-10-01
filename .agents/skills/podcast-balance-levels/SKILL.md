@@ -17,12 +17,14 @@ From `.agents/defaults/pipeline.yaml`:
 
 ## Workflow
 
-Render status reports whether the saved balance measurement is stale. It compares the
-primary media file revision, ordered FX chain, exact speech intervals kept by the track's
-own-media clips, and measurement semantics revision. It ignores gain and mix controls,
-transcript wording, timeline-only clip placement, and render state. A missing status means
-the track has not been measured. The report does not compare the requested LUFS target;
-per-run target overrides are not saved.
+Render status and `check_loudness_tool` on tracked project audio report whether the saved
+balance measurement is stale. The `check_loudness_tool` result includes a per-dialogue-track
+`balance` map; re-run this step for tracks where `balance[track_id].stale` is true. The
+status compares the primary media file revision, ordered FX chain, exact speech intervals
+kept by the track's own-media clips, and measurement semantics revision. It ignores gain
+and mix controls, transcript wording, timeline-only clip placement, and render state. A
+missing status means the track has not been measured. The report does not compare the
+requested LUFS target; per-run target overrides are not saved.
 
 ```bash
 podcast pipeline run --project episode.project.json --only balance_tracks
