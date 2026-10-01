@@ -424,6 +424,11 @@ The beta user stories come from `ux/pages/brief.md`, `ux/pages/screen-inventory.
 | US-8 | #11 | Partial | `gui/web/src/shareMode.test.ts`, `tests/test_share_pending_preview.py` | Two-browser suggest/approve |
 | US-9 | #8 | Partial | `gui/web/src/panels/PipelinePanel.test.tsx`, `gui/web/e2e/pipeline-warning-layout.spec.ts`, `tests/test_pipeline_run_result.py`, `tests/test_gui_export_jobs.py`, `tests/test_bounce.py` | A mid-run Cancel |
 
+The record-lobby touch-target check holds guest room-sync frames to verify the
+connecting view has no controls, then waits for **Allow microphone** before
+measuring control heights. This makes the assertion deterministic across room
+sync timing.
+
 ### GUI surface regressions
 
 `gui/web/e2e/gui-surfaces.spec.ts` checks five editor panels and chapter inspectors

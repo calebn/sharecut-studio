@@ -212,6 +212,25 @@ test.describe("record lobby", () => {
           await expect(host.getByText("No one has joined")).toBeVisible();
 
           await markSharecutE2e(guest);
+          const heldRoomFrames: Array<string | Buffer> = [];
+          let roomFramesReleased = false;
+          let releaseRoomFrames: () => void = () => {};
+          await guest.routeWebSocket(/\/api\/rec\/[^/]+\/ws/, (socket) => {
+            const server = socket.connectToServer();
+            socket.onMessage((message) => server.send(message));
+            server.onMessage((message) => {
+              if (roomFramesReleased) {
+                socket.send(message);
+              } else {
+                heldRoomFrames.push(message);
+              }
+            });
+            releaseRoomFrames = () => {
+              roomFramesReleased = true;
+              for (const message of heldRoomFrames) socket.send(message);
+              heldRoomFrames.length = 0;
+            };
+          });
           await guest.addInitScript(() => {
             Object.defineProperty(window, "__gumCalled", {
               value: false,
@@ -231,6 +250,16 @@ test.describe("record lobby", () => {
           await openRecordLink(guest, room.guest.token);
           await expect(
             guest.getByRole("heading", { name: "Join the recording" }),
+          ).toBeVisible();
+          await expect(
+            guest.getByText("Connecting to the room…"),
+          ).toBeVisible();
+          await expect(guest.locator(".record-shell .ui-control")).toHaveCount(
+            0,
+          );
+          releaseRoomFrames();
+          await expect(
+            guest.getByRole("button", { name: "Allow microphone" }),
           ).toBeVisible();
           const readingControls = await guest
             .locator(".record-shell .ui-control")
