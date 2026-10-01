@@ -336,7 +336,7 @@ def list_applied_edits_tool(
 
 
 def render_status_tool(project_path: str) -> str:
-    """Report render freshness: whether mix stems are stale relative to edits."""
+    """Report stem freshness and whether dialogue balance measurements are stale."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).render_status())
 

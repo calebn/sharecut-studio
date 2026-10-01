@@ -6,6 +6,7 @@ import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject, sampleTrack } from "../test/fixtures";
+import type { TrackView } from "../types/project";
 import { TrackFader } from "./TrackFader";
 
 vi.mock("../commands/execute", () => ({
@@ -15,9 +16,13 @@ vi.mock("../commands/execute", () => ({
 const host = sampleTrack({ gain_db: -2, fader_db: -3 });
 
 function renderFader(
-  opts: { projectPath?: string; shareCapabilities?: string[] | null } = {},
+  opts: {
+    projectPath?: string;
+    shareCapabilities?: string[] | null;
+    track?: TrackView;
+  } = {},
 ) {
-  const project = minimalProject({ tracks: [host] });
+  const project = minimalProject({ tracks: [opts.track ?? host] });
   const view = render(
     <DawProvider
       projectPath={opts.projectPath ?? "/tmp/p.json"}
@@ -46,7 +51,22 @@ describe("TrackFader (#386)", () => {
     expect(slider).toHaveValue("-3");
     expect(slider).toHaveAttribute("aria-valuetext", "−3.0 dB");
     expect(screen.getByText(/plays at −5\.0 dB/)).toBeInTheDocument();
+    expect(screen.getByText("Balance not measured")).toBeInTheDocument();
     await expectNoA11yViolations(container);
+  });
+
+  it("shows a current or stale measurement beside staging gain", () => {
+    renderFader({
+      track: sampleTrack({
+        gain_db: -2,
+        balance_stale: true,
+        balance_ungated: true,
+        balance_measured_lufs: -24.5,
+      }),
+    });
+    expect(
+      screen.getByText("Balance stale · -24.5 LUFS · ungated"),
+    ).toBeInTheDocument();
   });
 
   it("moves locally while dragging and commits once on change", () => {

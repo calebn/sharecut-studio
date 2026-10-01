@@ -126,8 +126,13 @@ transcript or under 3 s of speech it falls back to ungated BS.1770 and reports `
 A track whose loudness can't be measured (ffmpeg error, no momentary blocks), or whose clips keep none of its words, keeps its
 `gain_db` and is listed as `not measured, gain kept` in the summary. Gains are applied only
 after every track is measured, so a cancel changes nothing. `gain_db` reflects the FX chain
-at measurement time: re-run `balance_tracks` after adding, removing, bypassing or retuning
-effects; nothing yet flags a stale balance.
+at measurement time. The track stores a `balance_basis` record with the measured LUFS,
+whether speech gating succeeded, and a digest of the media file revision, ordered FX chain,
+exact kept speech intervals, and measurement semantics revision. Render status reports the
+flag as unknown before the first successful measurement, false when the basis still matches,
+and true when it differs. Re-run `balance_tracks` after changing those inputs. The flag does
+not compare the requested LUFS target because a target supplied only for one run is not
+persisted.
 
 ## Two-pass loudness + mastering QC
 

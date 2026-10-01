@@ -28,6 +28,7 @@ from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.timeline_ops import ripple_delete
 from podcast_mcp.engines import play_audit
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, _rms_for_track_at_timeline
+from podcast_mcp.engines.balance import balance_basis_digest
 from podcast_mcp.engines.ffmpeg import LoudnormResult
 from podcast_mcp.engines.play_audit import (
     mastered_is_fresh,
@@ -51,11 +52,16 @@ from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.history.summary import format_history_group_title
 from podcast_mcp.mcp.server import track_set_mute_tool, track_set_volume_tool
 from podcast_mcp.models import (
+    AutomationEnvelope,
     Clip,
     EpisodeProject,
     MediaAsset,
+    ProcessingChain,
+    ProcessingEffect,
     Track,
     TrackRole,
+    Transcript,
+    TranscriptWord,
     load_project,
     save_project,
 )
@@ -394,6 +400,121 @@ def test_balance_never_touches_the_fader(minimal_project: Path) -> None:
     host = ws.project.track_by_id("host")
     assert host.gain_db == 6.0
     assert host.fader_db == -4.0
+    assert host.balance_basis is not None
+    assert host.balance_basis.measured_lufs == -26.0
+    assert render_status_report(ws.project)["tracks"]["host"]["balance_stale"] is False
+
+
+def test_balance_basis_tracks_measured_inputs_only(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    host = ws.project.track_by_id("host")
+    initial = balance_basis_digest(ws.project, "host")
+    host.gain_db = 4.0
+    host.fader_db = -3.0
+    host.muted = True
+    ws.project.automation_envelopes.append(AutomationEnvelope(track_id="host"))
+    assert balance_basis_digest(ws.project, "host") == initial
+    media_path = ws.project.workspace_path() / "raw" / "host.wav"
+    media_path.write_bytes(media_path.read_bytes() + b"revision")
+    assert balance_basis_digest(ws.project, "host") != initial
+    initial = balance_basis_digest(ws.project, "host")
+    ws.project.processing_chains.append(
+        ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="highpass")])
+    )
+    assert balance_basis_digest(ws.project, "host") != initial
+
+
+def test_balance_basis_changes_when_kept_source_speech_changes(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    ws.project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="first", start=1.0, end=1.5),
+                TranscriptWord(text="second", start=3.0, end=3.5),
+            ],
+        )
+    ]
+    ws.project.timeline.clips = [
+        Clip(id="first", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0),
+        Clip(id="second", track_id="host", source_start=3.0, source_end=4.0, timeline_start=3.0),
+    ]
+    initial = balance_basis_digest(ws.project, "host")
+    ws.project.timeline.clips[1].timeline_start = 8.0
+    ws.project.transcripts[0].words[0].text = "rewritten"
+    assert balance_basis_digest(ws.project, "host") == initial
+    ws.project.timeline.clips[1].source_end = 3.25
+    assert balance_basis_digest(ws.project, "host") != initial
+
+
+def test_balance_stale_status_does_not_invalidate_render_or_mix(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    eng = MagicMock()
+    eng.measure_loudness_blocks.return_value = [(0.1 * i, -26.0) for i in range(1, 60)]
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.balance_tracks(ws.project, {"balance": {"dialogue_lufs": -20.0}})
+    _fake_premix(ws)
+    write_premix_hash(ws.project, mix_gains(ws.project))
+    host = ws.project.track_by_id("host")
+    host.balance_basis.measured_lufs = -25.0
+    report = render_status_report(ws.project)
+    assert report["tracks"]["host"]["balance_stale"] is False
+    assert report["tracks"]["host"]["balance_measured_lufs"] == -25.0
+    assert report["needs_rerender"] is False
+
+
+def test_effect_change_marks_balance_stale_until_rebalanced(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    eng = MagicMock()
+    eng.measure_loudness_blocks.return_value = [(0.1 * i, -26.0) for i in range(1, 60)]
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.balance_tracks(ws.project, {"balance": {"dialogue_lufs": -20.0}})
+        assert render_status_report(ws.project)["tracks"]["host"]["balance_stale"] is False
+        ws.project.processing_chains.append(
+            ProcessingChain(track_id="host", effects=[ProcessingEffect(effect="highpass")])
+        )
+        assert render_status_report(ws.project)["tracks"]["host"]["balance_stale"] is True
+        steps.balance_tracks(ws.project, {"balance": {"dialogue_lufs": -20.0}})
+    assert render_status_report(ws.project)["tracks"]["host"]["balance_stale"] is False
+
+
+def test_unmeasured_balance_leaves_prior_basis_and_gain(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    host = ws.project.track_by_id("host")
+    host.gain_db = 3.0
+    from podcast_mcp.models.episode import BalanceBasis
+
+    previous_basis = BalanceBasis(digest="previous", measured_lufs=-19.0, speech_gated=True)
+    host.balance_basis = previous_basis
+    eng = MagicMock()
+    eng.measure_loudness_blocks.return_value = []
+    with patch.object(steps, "ffmpeg", return_value=eng):
+        steps.balance_tracks(ws.project, {"balance": {"dialogue_lufs": -20.0}})
+    assert host.gain_db == 3.0
+    assert host.balance_basis == previous_basis
+    assert render_status_report(ws.project)["tracks"]["host"]["balance_stale"] is True
+
+
+def test_cancelled_balance_keeps_gain_and_provenance(minimal_project: Path) -> None:
+    ws = _two_tracks(minimal_project)
+    host = ws.project.track_by_id("host")
+    from podcast_mcp.models.episode import BalanceBasis
+
+    previous_basis = BalanceBasis(digest="previous", measured_lufs=-19.0, speech_gated=True)
+    host.gain_db = 3.0
+    host.balance_basis = previous_basis
+    eng = MagicMock()
+    eng.measure_loudness_blocks.side_effect = [
+        [(0.1 * i, -26.0) for i in range(1, 60)],
+        RuntimeError("cancelled"),
+    ]
+    with (
+        patch.object(steps, "ffmpeg", return_value=eng),
+        pytest.raises(RuntimeError, match="cancelled"),
+    ):
+        steps.balance_tracks(ws.project, {"balance": {"dialogue_lufs": -20.0}})
+    assert host.gain_db == 3.0
+    assert host.balance_basis == previous_basis
 
 
 def test_a_peak_ceiling_change_stales_the_premix(minimal_project: Path) -> None:
@@ -568,6 +689,40 @@ def test_render_status_keeps_reporting_a_muted_track(minimal_project: Path) -> N
     ws = _two_tracks(minimal_project)
     EpisodeService(ws).set_track_mute("guest", True)
     assert set(render_status_report(ws.project)["tracks"]) == {"host", "guest"}
+
+
+def test_gui_track_view_carries_balance_status(minimal_project: Path) -> None:
+    from podcast_mcp.engines.balance import balance_basis_digest
+    from podcast_mcp.gui.assembler import build_track_views
+    from podcast_mcp.models.episode import BalanceBasis
+
+    ws = _two_tracks(minimal_project)
+    host = ws.project.track_by_id("host")
+    host.balance_basis = BalanceBasis(
+        digest=balance_basis_digest(ws.project, "host") or "missing",
+        measured_lufs=-23.5,
+        speech_gated=False,
+    )
+    view = {track.id: track for track in build_track_views(ws)}["host"]
+    assert view.balance_stale is False
+    assert view.balance_ungated is True
+    assert view.balance_measured_lufs == -23.5
+
+
+def test_render_status_tool_returns_balance_status(minimal_project: Path) -> None:
+    from podcast_mcp.engines.balance import balance_basis_digest
+    from podcast_mcp.mcp.tools.timeline import render_status_tool
+    from podcast_mcp.models.episode import BalanceBasis
+
+    ws = _two_tracks(minimal_project)
+    host = ws.project.track_by_id("host")
+    digest = balance_basis_digest(ws.project, "host")
+    assert digest is not None
+    host.balance_basis = BalanceBasis(digest=digest, measured_lufs=-22.0, speech_gated=True)
+    save_project(ws.project, minimal_project)
+    tracks = json.loads(render_status_tool(str(minimal_project)))["tracks"]
+    assert tracks["host"]["balance_stale"] is False
+    assert tracks["host"]["balance_measured_lufs"] == -22.0
 
 
 def test_a_muted_stem_newer_than_the_premix_doesnt_stale_it(minimal_project: Path) -> None:

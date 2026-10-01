@@ -88,6 +88,19 @@ export function TrackFader({ track }: { track: TrackView }) {
           trackOutputGainDb({ gain_db: track.gain_db, fader_db: value }),
         )}
       </p>
+      {track.role === "dialogue" ? (
+        <p className="track-fader-note">
+          Balance{" "}
+          {track.balance_stale == null
+            ? "not measured"
+            : track.balance_stale
+              ? "stale"
+              : "current"}
+          {track.balance_measured_lufs == null
+            ? ""
+            : ` · ${track.balance_measured_lufs.toFixed(1)} LUFS${track.balance_ungated ? " · ungated" : ""}`}
+        </p>
+      ) : null}
     </div>
   );
 }

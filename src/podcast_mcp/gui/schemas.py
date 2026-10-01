@@ -136,6 +136,9 @@ class TrackView(BaseModel):
     role: str
     speaker: str | None = None
     gain_db: float = 0.0
+    balance_stale: bool | None = None
+    balance_ungated: bool | None = None
+    balance_measured_lufs: float | None = None
     fader_db: float = 0.0
     muted: bool = False
     duration_sec: float | None = None
