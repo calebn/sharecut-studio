@@ -943,3 +943,30 @@ def test_source_stack_strict_50ms_tolerance(tmp_path, end: float, stacked: bool)
     assert [(s.clip_ids, s.overlap_sec) for s in stacks] == (
         [(("long", "short"), 0.06)] if stacked else []
     )
+
+
+@pytest.mark.parametrize("overlap_sec,stacked", [(0.049, False), (0.05, False), (0.051, True)])
+def test_cross_lane_stack_tolerance_at_nonzero_timeline_position(
+    tmp_path, overlap_sec: float, stacked: bool
+) -> None:
+    p = _project(
+        tmp_path,
+        [
+            Clip(id="host", track_id="host", source_start=0, source_end=10, timeline_start=0),
+            Clip(
+                id="guest",
+                track_id="guest",
+                source_start=0,
+                source_end=10,
+                timeline_start=10 - overlap_sec,
+            ),
+        ],
+    )
+    p.tracks.append(
+        Track(id="guest", label="Guest", media=MediaAsset(path="raw/host.wav", duration_sec=10))
+    )
+    report = timebase_qc_report(p)
+    assert report["ok"] is not stacked
+    assert [(row["track_ids"], row["clip_ids"]) for row in report["stacked_clips"]] == (
+        [(("host", "guest"), ("host", "guest"))] if stacked else []
+    )

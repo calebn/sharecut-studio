@@ -395,7 +395,7 @@ def same_source_timeline_overlaps(
                 ):
                     continue
                 overlap = min(a.timeline_end, b.timeline_end) - b.timeline_start
-                if overlap > tolerance_sec:
+                if overlap > tolerance_sec + _EPS:
                     stacks.append(
                         SourceStack(
                             track_ids=(a.track_id, b.track_id),
