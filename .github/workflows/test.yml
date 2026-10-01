@@ -18,13 +18,19 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            uv.lock
 
       - uses: actions/setup-node@v7 # tests run workflow JS predicates under node
         with:
           node-version: "24"
 
       - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        uses: ./.github/actions/setup-ffmpeg
+        with:
+          save-cache: "true"
 
       - name: Install package and dev deps
         run: |
@@ -134,9 +140,13 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            uv.lock
 
       - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        uses: ./.github/actions/setup-ffmpeg
 
       - uses: actions/setup-node@v7
         with:

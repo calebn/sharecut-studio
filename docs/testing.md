@@ -142,6 +142,37 @@ The `pytest` job's final step, on pull requests only, runs `scripts/docs_sync.py
 
 The `pytest` job also runs `actions/setup-node`, so tests that run workflow JavaScript under `node` (for example the docs-lens predicate test in `tests/test_issue_pipeline_workflow.py`) always run in CI. Locally they skip when `node` is not on `PATH`. With `CI` set they fail instead of skipping.
 
+### CI dependency downloads
+
+The `pytest` and browser matrix jobs use `.github/actions/setup-ffmpeg` to install
+Ubuntu's FFmpeg without recommended packages. Every job refreshes signed APT
+metadata, resolves a fresh SHA256 archive manifest, and installs FFmpeg even on a
+cache hit. `scripts/ci_ffmpeg_cache.py` removes unexpected files, symlinks, and
+archives with the wrong size or SHA256 before installation. Missing archives use
+APT's normal download path. Setup fails if APT, `ffmpeg`, or `ffprobe` fails.
+
+The cache holds only `.deb` downloads. The fresh manifest stays outside the cached
+directory. The exact key includes the Ubuntu release, architecture, runner image,
+action and helper content, and each archive's URI, filename, size, and SHA256.
+There is no fallback key. Cache restore and save failures are advisory.
+Only `pytest` publishes a complete verified archive set, before tests, on pull
+requests and pushes to `main`. Sets larger than 150 MiB are not saved. The job
+summary reports the exact hit, verified restored count, planned count and bytes,
+and setup time.
+
+Python jobs cache pip downloads with `actions/setup-python`. Both `pyproject.toml`
+and `uv.lock` invalidate that cache. The editable pip install commands still run
+and keep their existing resolver behavior. Pip does not use `uv.lock` as a lockfile.
+Browser engines, browser system dependencies, virtual environments, and installed
+Node packages are not cached by this change. Playwright still installs Chromium
+and WebKit with `--with-deps` for both existing suites.
+
+Run the archive boundary and workflow checks with
+`.venv/bin/python -m pytest -q --no-cov tests/test_ci_dependency_cache.py tests/test_browser_acceptance_matrix.py`.
+A cold and warm run on fresh hosted runners must use the same archive key. The
+warm install must report `Need to get 0 B`, and all existing required checks must
+pass before accepting a performance improvement.
+
 ## Fast inner loop
 
 The audio-audit cache regression tests use deterministic decoder-call counts
