@@ -323,7 +323,37 @@ def test_service_publish_keeps_media_when_history_was_not_rolled_back(
 
     assert (art / "review" / "new-version").exists()
     assert load_project(minimal_project).review.versions == []
-    assert "Review history changed during failed publication" in caplog.text
+    assert "Keeping review version media after failed publication (kept)" in caplog.text
+
+
+@requires_safe_failed_cleanup
+def test_service_publish_keeps_media_when_commit_landing_is_unknown(
+    minimal_project, sample_wav, monkeypatch, caplog
+):
+    from podcast_mcp.history import rollback as rollback_mod
+
+    project = load_project(minimal_project)
+    art = Path(project.workspace_dir) / "artifacts"
+    art.mkdir(parents=True, exist_ok=True)
+    (art / "premix.wav").write_bytes(sample_wav.read_bytes())
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "unknown-version")
+    monkeypatch.setattr(
+        review_versions.FFmpegEngine,
+        "export_mp3",
+        lambda self, wav, mp3, *, bitrate_kbps: mp3.write_bytes(b"encoded"),
+    )
+    monkeypatch.setattr(rollback_mod, "commit_landed", lambda *_a, **_k: None)
+
+    def fail_commit(self, project):
+        raise RuntimeError("commit failed")
+
+    monkeypatch.setattr(ProjectStore, "commit", fail_commit)
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(RuntimeError, match="commit failed"):
+            ReviewService(ProjectWorkspace.open(minimal_project)).publish(label="new")
+
+    assert (art / "review" / "unknown-version").exists()
+    assert "Keeping review version media after failed publication (unknown)" in caplog.text
 
 
 @requires_safe_failed_cleanup
@@ -1869,22 +1899,18 @@ def test_attach_version_appends_and_optionally_activates(minimal_project, sample
 
 
 @requires_safe_failed_cleanup
-def test_publish_removes_staged_media_when_history_read_fails(
-    minimal_project, sample_wav, monkeypatch
-):
-    import podcast_mcp.services.collaboration.review as review_service
+def test_publish_repairs_a_corrupt_history_index(minimal_project, sample_wav, monkeypatch):
+    from podcast_mcp.project_store import history_index_path
 
-    _, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    project, _art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    ws = ProjectWorkspace.open(minimal_project)
+    history_index_path(project).write_text("{broken", encoding="utf-8")
 
-    def unreadable(path):
-        raise ValueError(f"corrupt JSON sidecar: {path}")
+    version = ReviewService(ws).publish(label="x")
 
-    monkeypatch.setattr(review_service, "load_json_object", unreadable)
-    with pytest.raises(ValueError, match="corrupt JSON sidecar"):
-        ReviewService(ProjectWorkspace.open(minimal_project)).publish(label="x")
-    review_root = art / "review"
-    assert not review_root.exists() or not any(review_root.iterdir())
-    assert load_project(minimal_project).review.versions == []
+    saved = load_project(minimal_project)
+    assert [item.id for item in saved.review.versions] == [version["id"]]
+    assert load_json_object(history_index_path(saved)) == saved.history.model_dump(mode="json")
 
 
 def test_discard_created_version_logs_and_never_raises(tmp_path, monkeypatch, caplog):
@@ -1935,3 +1961,33 @@ def test_publish_keeps_committed_media_when_lock_release_fails(
     assert (art / "review" / "committed" / "mix.wav").is_file()
     assert (art / "review" / "committed" / "mix.mp3").is_file()
     assert [v.id for v in load_project(minimal_project).review.versions] == ["committed"]
+
+
+@requires_safe_failed_cleanup
+def test_publish_keeps_media_after_a_late_failure_and_undo(
+    minimal_project, sample_wav, monkeypatch
+):
+    from contextlib import contextmanager
+
+    _, art = _premix_project(minimal_project, sample_wav, monkeypatch)
+    ws = ProjectWorkspace.open(minimal_project)
+    original_transaction = ws.transaction
+    monkeypatch.setattr(review_versions, "_new_id", lambda: "redo-version")
+
+    @contextmanager
+    def fail_after_committed_transaction():
+        with original_transaction() as project:
+            yield project
+        HistoryManager(ws.path).undo(ws.project)
+        raise OSError("transaction exit failed")
+
+    monkeypatch.setattr(ws, "transaction", fail_after_committed_transaction)
+    with pytest.raises(OSError, match="transaction exit failed"):
+        ReviewService(ws).publish(label="redo candidate")
+
+    saved = load_project(minimal_project)
+    assert saved.review.versions == []
+    assert saved.history.can_redo()
+    assert (art / "review" / "redo-version" / "mix.wav").is_file()
+    HistoryManager(ws.path).redo(saved)
+    assert [version.id for version in saved.review.versions] == ["redo-version"]

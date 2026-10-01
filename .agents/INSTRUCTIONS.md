@@ -30,4 +30,10 @@ All episode state changes must be **undoable** and must **never overwrite `raw/`
 
 Canonical implementation: [`run_mutation`](../src/podcast_mcp/history/session.py) (snapshot before → change → snapshot after → `ProjectStore.commit`).
 
+History failure recovery uses the shared `HistoryCheckpoint`. Mutation callers can
+consume `RollbackOutcome` through `on_failure`; external artifacts may be deleted
+only on `restored`. A merged save uses `LOCKED_CALL` while holding the commit lock
+through capture and rollback. Pipeline progress alone does not create an undo
+snapshot; `render_last_completed_step` remains stored and restorable.
+
 Contributor detail: [docs/contributing.md § History](../docs/contributing.md#history). User/operator detail: [docs/history.md](../docs/history.md), skill [podcast-history](skills/podcast-history/SKILL.md).

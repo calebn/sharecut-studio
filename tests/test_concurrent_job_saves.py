@@ -10,13 +10,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import podcast_mcp.services.app.workspace as workspace_mod
 import podcast_mcp.services.document.history as history_service_mod
 from podcast_mcp import project_merge as project_merge_mod
 from podcast_mcp import project_store as project_store_mod
 from podcast_mcp.engines.play_audit import premix_is_stale, write_stem_hash
 from podcast_mcp.gui.jobs import _gui_fail_message
 from podcast_mcp.history import HistoryManager
+from podcast_mcp.history import rollback as rollback_mod
 from podcast_mcp.history.manager import snapshot_from_project
 from podcast_mcp.models import MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory
@@ -165,6 +165,46 @@ def test_pipeline_step_keeps_a_volume_saved_mid_step(minimal_project, monkeypatc
     labels = [e.label for e in saved.history.entries]
     assert {"before pipeline run", "after merge_transcript", MERGED_HISTORY_LABEL} <= set(labels)
     assert load_json_object(history_index_path(saved)) == saved.history.model_dump(mode="json")
+
+
+def test_pipeline_history_records_only_editable_state_changes(minimal_project):
+    ws = _two_tracks(minimal_project)
+    ws.record_snapshot("initial", force=True)
+    index_path = history_index_path(ws.project)
+    assert len(history_snapshot_ids(index_path)) == 1
+
+    for step in ("focus_from_transcript", "tighten_from_transcript"):
+        PipelineService(ws).run(
+            only_step=step,
+            config={"focus": {"auto_apply": False}, "tighten": {"enabled": False}},
+        )
+        assert len(history_snapshot_ids(index_path)) == 1
+        assert load_project(minimal_project).last_completed_step == step
+
+    tracks_dir = ws.project.artifacts_dir() / "tracks"
+    tracks_dir.mkdir(parents=True, exist_ok=True)
+    rendered = {track.id: str(tracks_dir / f"{track.id}.wav") for track in ws.project.tracks}
+    for path in rendered.values():
+        Path(path).write_bytes(b"RIFF")
+    (ws.project.artifacts_dir() / "track_outputs.json").write_text(json.dumps(rendered))
+
+    engine = MagicMock()
+
+    def mix(_inputs, out, **_kwargs):
+        out.write_bytes(b"RIFFMIX")
+        return out
+
+    engine.mix_tracks.side_effect = mix
+    with patch.object(steps, "ffmpeg", return_value=engine):
+        PipelineService(ws).run(only_step="mix_with_music")
+    assert len(history_snapshot_ids(index_path)) == 1
+    assert load_project(minimal_project).last_completed_step == "mix_with_music"
+
+    PipelineService(ws).run(only_step="clean_audio")
+    assert len(history_snapshot_ids(index_path)) == 2
+
+    PipelineService(ws).run(only_step="clean_audio")
+    assert len(history_snapshot_ids(index_path)) == 2
 
 
 def test_pipeline_mix_keeps_a_mid_mix_volume_and_reports_the_premix_stale(minimal_project):
@@ -456,7 +496,7 @@ def test_save_merged_raises_the_commit_error_when_rollback_fails(minimal_project
         raise OSError("rollback failed")
 
     monkeypatch.setattr(ws._store, "commit", commit_boom)
-    monkeypatch.setattr(workspace_mod, "rollback_history", rollback_boom)
+    monkeypatch.setattr(rollback_mod, "rollback_history", rollback_boom)
     with pytest.raises(OSError, match="disk full"):
         ws.save_merged(history_label="after step")
     assert "after step" not in [e.label for e in ws.project.history.entries]
@@ -1008,3 +1048,28 @@ def test_a_published_step_shares_no_mutable_state_with_its_copy(minimal_project,
     assert ws.project.track_by_id("host").gain_db == 3.0
     kept["work"].track_by_id("host").gain_db = 9.0
     assert ws.project.track_by_id("host").gain_db == 3.0
+
+
+def test_failed_noop_merge_preserves_a_preexisting_adopted_snapshot(minimal_project, monkeypatch):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.checkpoint()
+    other = ProjectWorkspace.open(minimal_project)
+    other.record_snapshot("other writer baseline", force=True)
+    index_path = history_index_path(ws.project)
+    index_before = load_json_object(index_path)
+    snapshots_before = history_snapshot_ids(index_path)
+
+    def fail_commit(_project):
+        raise OSError("commit failed")
+
+    monkeypatch.setattr(ws._store, "commit", fail_commit)
+    with pytest.raises(OSError, match="commit failed"):
+        ws.save_merged(history_label="after unchanged step")
+
+    assert load_json_object(index_path) == index_before
+    assert history_snapshot_ids(index_path) == snapshots_before
+    assert snapshots_before
+    saved = ProjectStore(minimal_project).load()
+    assert [entry.label for entry in saved.history.entries] == ["other writer baseline"]
+    HistoryManager(minimal_project).record(saved, "same state")
+    assert len(saved.history.entries) == 1

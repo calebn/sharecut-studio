@@ -207,6 +207,53 @@ def test_record_skips_unchanged_snapshot(minimal_project):
     assert mgr.status(proj).total == 1
 
 
+def test_record_skips_progress_cursor_only_change_and_saves_canonical_cursor(minimal_project):
+    proj = load_project(minimal_project)
+    mgr = HistoryManager(minimal_project)
+    first = mgr.record(proj, "initial", force=True)
+    proj.render.last_completed_step = "focus_from_transcript"
+
+    second = mgr.record(proj, "after skipped step")
+    assert second.id == first.id
+    assert mgr.status(proj).total == 1
+
+    save_project(proj, minimal_project)
+    saved = ProjectStore(minimal_project).load()
+    assert saved.render.last_completed_step == "focus_from_transcript"
+    assert match_history_to_project(saved, saved.history) is HistoryMatch.MATCHES
+
+
+def test_undo_restores_progress_cursor_captured_with_an_edit(minimal_project):
+    proj = load_project(minimal_project)
+    mgr = HistoryManager(minimal_project)
+    proj.render.last_completed_step = "before edit"
+    mgr.record(proj, "before edit", force=True)
+    save_project(proj, minimal_project)
+
+    proj = load_project(minimal_project)
+    proj.render.last_completed_step = "after edit"
+    proj.comments.append(
+        TimelineComment(
+            id="edit",
+            body="edited",
+            author="a",
+            created_at="2026-01-01T00:00:00+00:00",
+            timeline_start=1.0,
+        )
+    )
+    mgr.record(proj, "after edit")
+    save_project(proj, minimal_project)
+
+    restored = load_project(minimal_project)
+    mgr.undo(restored)
+    assert restored.comments == []
+    assert restored.render.last_completed_step == "before edit"
+
+    mgr.redo(restored)
+    assert len(restored.comments) == 1
+    assert restored.render.last_completed_step == "after edit"
+
+
 def test_record_truncates_redo_branch(minimal_project):
     proj = load_project(minimal_project)
     mgr = HistoryManager(minimal_project)

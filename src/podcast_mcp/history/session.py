@@ -23,6 +23,7 @@ from podcast_mcp.history.manager import (
     snapshot_from_project,
 )
 from podcast_mcp.history.rollback import (
+    RollbackOutcome,
     rolled_back_on_failure,
     take_history_checkpoint,
 )
@@ -70,6 +71,7 @@ def run_mutation(
     *,
     operation: str | None = None,
     params: dict | None = None,
+    on_failure: Callable[[RollbackOutcome], None] | None = None,
 ) -> T:
     with project_state_lock(project):
         return _run_mutation_locked(
@@ -80,6 +82,7 @@ def run_mutation(
             mutate,
             operation=operation,
             params=params,
+            on_failure=on_failure,
         )
 
 
@@ -92,6 +95,7 @@ def _run_mutation_locked(
     *,
     operation: str | None,
     params: dict | None,
+    on_failure: Callable[[RollbackOutcome], None] | None,
 ) -> T:
     store = ProjectStore(path)
     mgr = HistoryManager(path)
@@ -101,12 +105,15 @@ def _run_mutation_locked(
     pre_mutate = _PreMutateState.capture(project)
     with project_commit_lock(project):
         checkpoint = take_history_checkpoint(store, project)
-        with rolled_back_on_failure(project, checkpoint):
+        with rolled_back_on_failure(project, checkpoint, on_failure=on_failure):
             mgr.record(project, label_before, snapshot=pre_mutate.editable)
     checkpoint.own_indexes.append(project.history.model_dump(mode="json"))
     # Memory follows the file: the mutated state is kept only if the commit replaced it.
     with rolled_back_on_failure(
-        project, checkpoint, on_not_landed=lambda: pre_mutate.restore(project)
+        project,
+        checkpoint,
+        on_not_landed=lambda: pre_mutate.restore(project),
+        on_failure=on_failure,
     ):
         result = mutate(project)
         _record_audio_changes(

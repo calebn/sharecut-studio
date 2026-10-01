@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.history import HistoryManager
 from podcast_mcp.models import EpisodeProject, save_project
 from podcast_mcp.models.history import HistoryEntry, ProjectHistory
 from podcast_mcp.project_store import (
@@ -32,6 +33,20 @@ def test_commit_skips_unchanged_history_index_and_repairs_corruption(minimal_pro
     index.write_text("{broken", encoding="utf-8")
     store.commit(project)
     assert read_history_index(index) == project.history
+
+
+def test_load_adopts_history_index_when_only_pipeline_cursor_changed(minimal_project) -> None:
+    project = ProjectStore(minimal_project).load()
+    HistoryManager(minimal_project).record(project, "initial", force=True)
+    save_project(project, minimal_project)
+
+    project.render.last_completed_step = "focus_from_transcript"
+    project.history = ProjectHistory()
+    save_project(project, minimal_project)
+
+    loaded = ProjectStore(minimal_project).load()
+    assert loaded.render.last_completed_step == "focus_from_transcript"
+    assert [entry.label for entry in loaded.history.entries] == ["initial"]
 
 
 def test_commit_skips_unchanged_transcript_cache_and_repairs_missing_mirror(
