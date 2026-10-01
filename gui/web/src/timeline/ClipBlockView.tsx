@@ -1,6 +1,7 @@
 import type {
   ButtonHTMLAttributes,
   PointerEventHandler,
+  KeyboardEvent as ReactKeyboardEvent,
   ReactNode,
   PointerEvent as ReactPointerEvent,
 } from "react";
@@ -121,6 +122,17 @@ export interface ClipBlockViewProps {
   ) => void;
   onHandlePointerMove?: PointerEventHandler<HTMLButtonElement>;
   onHandlePointerUp?: PointerEventHandler<HTMLButtonElement>;
+  onHandlePointerCancel?: PointerEventHandler<HTMLButtonElement>;
+  onHandleFocus?: (handle: ClipHandle) => void;
+  onHandleBlur?: (handle: ClipHandle) => void;
+  onHandleKeyDown?: (
+    handle: ClipHandle,
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+  ) => void;
+  onHandleKeyUp?: (
+    handle: ClipHandle,
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+  ) => void;
 }
 
 export function ClipBlockView({
@@ -147,6 +159,11 @@ export function ClipBlockView({
   onHandlePointerDown,
   onHandlePointerMove,
   onHandlePointerUp,
+  onHandlePointerCancel,
+  onHandleFocus,
+  onHandleBlur,
+  onHandleKeyDown,
+  onHandleKeyUp,
 }: ClipBlockViewProps) {
   const {
     sourceStart,
@@ -237,8 +254,14 @@ export function ClipBlockView({
           className={`fade-corner in${clip.fade_in_ms === 0 ? " zero" : ""}`}
           style={{ left: fadeInPx }}
           title={fadeTip}
-          aria-label={`${fadeTip} · in ${fadeInMs} ms`}
+          aria-label={`${fadeTip} · in ${fadeInMs} ms. Arrow keys adjust; Shift takes larger steps; Escape cancels. Inspector also sets the length.`}
           onPointerDown={(e) => onHandlePointerDown?.("fade-in", e)}
+          onFocus={() => onHandleFocus?.("fade-in")}
+          onBlur={() => onHandleBlur?.("fade-in")}
+          onKeyDown={(e) => onHandleKeyDown?.("fade-in", e)}
+          onKeyUp={(e) => onHandleKeyUp?.("fade-in", e)}
+          onPointerCancel={onHandlePointerCancel}
+          onLostPointerCapture={onHandlePointerCancel}
           onPointerMove={onHandlePointerMove}
           onPointerUp={onHandlePointerUp}
         />
@@ -249,8 +272,14 @@ export function ClipBlockView({
           className={`fade-corner out${clip.fade_out_ms === 0 ? " zero" : ""}`}
           style={{ right: fadeOutPx }}
           title={fadeTip}
-          aria-label={`${fadeTip} · out ${fadeOutMs} ms`}
+          aria-label={`${fadeTip} · out ${fadeOutMs} ms. Arrow keys adjust; Shift takes larger steps; Escape cancels. Inspector also sets the length.`}
           onPointerDown={(e) => onHandlePointerDown?.("fade-out", e)}
+          onFocus={() => onHandleFocus?.("fade-out")}
+          onBlur={() => onHandleBlur?.("fade-out")}
+          onKeyDown={(e) => onHandleKeyDown?.("fade-out", e)}
+          onKeyUp={(e) => onHandleKeyUp?.("fade-out", e)}
+          onPointerCancel={onHandlePointerCancel}
+          onLostPointerCapture={onHandlePointerCancel}
           onPointerMove={onHandlePointerMove}
           onPointerUp={onHandlePointerUp}
         />
@@ -272,8 +301,14 @@ export function ClipBlockView({
             type="button"
             className="trim-handle in"
             title={`${trimTip} · start`}
-            aria-label={`${trimTip} · start`}
+            aria-label={`${trimTip} · start. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
             onPointerDown={(e) => onHandlePointerDown?.("trim-in", e)}
+            onFocus={() => onHandleFocus?.("trim-in")}
+            onBlur={() => onHandleBlur?.("trim-in")}
+            onKeyDown={(e) => onHandleKeyDown?.("trim-in", e)}
+            onKeyUp={(e) => onHandleKeyUp?.("trim-in", e)}
+            onPointerCancel={onHandlePointerCancel}
+            onLostPointerCapture={onHandlePointerCancel}
             onPointerMove={onHandlePointerMove}
             onPointerUp={onHandlePointerUp}
           />
@@ -281,8 +316,14 @@ export function ClipBlockView({
             type="button"
             className="trim-handle out"
             title={`${trimTip} · end`}
-            aria-label={`${trimTip} · end`}
+            aria-label={`${trimTip} · end. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
             onPointerDown={(e) => onHandlePointerDown?.("trim-out", e)}
+            onFocus={() => onHandleFocus?.("trim-out")}
+            onBlur={() => onHandleBlur?.("trim-out")}
+            onKeyDown={(e) => onHandleKeyDown?.("trim-out", e)}
+            onKeyUp={(e) => onHandleKeyUp?.("trim-out", e)}
+            onPointerCancel={onHandlePointerCancel}
+            onLostPointerCapture={onHandlePointerCancel}
             onPointerMove={onHandlePointerMove}
             onPointerUp={onHandlePointerUp}
           />

@@ -24,6 +24,8 @@ Rules:
 5. **Guest** — share/remote MCP stays on the guest allowlist (`allowlist.py`). Host capabilities with `omit.guest: true` are documented as host-only; runtime share gates use `has_capability` + document-command allowlists.
 6. **Presence** — every GUI surface declares `presence` (Look / Hear / Do rubric in [`docs/session-sync.md`](session-sync.md) § Follow scope); `cursor: anchor` surfaces must render `data-presence-anchor` via `presenceAnchorProps`.
 
+**Focused clip handles:** `edit.setClipFade` and `edit.trimClipEdge` route Left/Right nudges through the sole keymap listener before playhead navigation. Their focused-handle predicates describe focus ownership; handlers separately require `canApplyPass12`, so a denied edit still consumes the focused arrow. Clip-local previews share pointer clamping and save once through the existing document commands on key release or normal blur. Escape cancels locally. The manifest keeps the canonical first key (`ArrowLeft`); generated shortcut notes name both Left/Right directions.
+
 **Long-press exemption:** the mobile Long-press gesture opens different existing selection or correction actions according to its target (clip, comment, track, or transcript word). It has no single command ID. The gesture cheatsheet keeps that behavior as a documented exception; swipe-left comment resolution has the command ID `comment.resolve` and capability `daw.review.resolveComment`.
 
 ## Adding a new capability

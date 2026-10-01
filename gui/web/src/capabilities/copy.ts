@@ -396,8 +396,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "daw.edit.trimClipEdge": {
     label: "Trim clip edge",
-    tooltip:
-      "Drag clip start or end to expand or trim this clip · waveform preview shows restored audio",
+    tooltip: "Drag or use focused Left/Right arrows to trim a clip edge",
   },
   "daw.edit.moveClips": {
     label: "Move clips",
@@ -414,7 +413,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
   },
   "daw.edit.setClipFade": {
     label: "Set clip fade",
-    tooltip: "Drag to set fade length (distinct from trim)",
+    tooltip: "Drag or use focused Left/Right arrows to set fade length",
   },
   "daw.edit.setClipJoin": {
     label: "Set clip join",

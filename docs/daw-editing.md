@@ -4,6 +4,10 @@ Multi-pass plan that turned the host Sharecut Studio from a **read-only inspecto
 
 Agents mutate via MCP/CLI; the GUI writes the same services through typed document commands (`POST /api/document/command`) plus comments, pipeline, bounce, and ingest. The web command flow keeps raw HTTP transport in `gui/web/src/api/documentTransport.ts` and durable queue, replay, conflict, and active-project result policy in `gui/web/src/services/commandQueue.ts`; `gui/web/src/api.ts` remains the named export facade for callers, while `gui/web/src/api/` groups the request adapters by domain. Display-only document ops (`ReorderTrack`, `SetTrackMeta`) and the saved mix (`SetTrackFader`, `SetTrackMute`) apply optimistically in the DAW. Transport failures keep persisted commands queued for replay. A refused reorder or metadata change restores the previous view only while its originating project, optimistic snapshot, and document sequence remain current; mix changes revert only the failed field. See [gui-integration.md](gui-integration.md) and [session-sync.md](session-sync.md).
 
+## Keyboard clip handles
+
+Focused timeline fade and trim handles accept Left/Right arrows through the shared command bus. Fade steps are 1 ms (Shift 10 ms); trim steps are 10 ms (Shift 100 ms), without snapping. Right grows fade-in, Left grows fade-out; Right advances either source boundary. Holding a key previews repeated steps and releasing that arrow saves once, so one Undo restores the gesture. Normal blur also saves; Escape, pointer cancellation, unmount, or changed project/clip geometry discards the preview. An in-flight save blocks another handle gesture. Fades preserve the opposite edge and clamp to the track cap and remaining clip length; trims preserve minimum span and neighbor bounds. Arrow keys outside a focused handle retain playhead navigation.
+
 ## Architecture rule
 
 GUI never forks domain logic. Every durable mutation is:

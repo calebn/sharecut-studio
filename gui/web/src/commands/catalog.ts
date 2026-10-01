@@ -540,9 +540,9 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "edit.trimClipEdge",
     category: "edit",
     label: "Trim clip edge",
-    when: "canApplyPass12",
+    when: "focusedTrimHandle",
     paletteRunnable: false,
-    notes: "Pointer trim handles on clip blocks (start / end)",
+    notes: "Pointer or focused keyboard trim handles (10 ms; Shift 100 ms)",
   },
   "edit.rollClipJoin": {
     id: "edit.rollClipJoin",
@@ -556,10 +556,10 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "edit.setClipFade",
     category: "edit",
     label: "Set clip fade",
-    when: "canApplyPass12",
+    when: "focusedFadeHandle",
     paletteRunnable: false,
     notes:
-      "Pointer fade handles on clip blocks and paired sliders in Clip inspector",
+      "Pointer or focused keyboard fade handles (1 ms; Shift 10 ms) and paired sliders in Clip inspector",
   },
   "edit.setClipJoin": {
     id: "edit.setClipJoin",

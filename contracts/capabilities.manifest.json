@@ -2388,11 +2388,12 @@
     {
       "id": "daw.edit.trimClipEdge",
       "label": "Trim clip edge",
-      "tooltip": "Drag clip start or end to expand or trim this clip \u00b7 waveform preview shows restored audio",
+      "tooltip": "Drag or use focused Left/Right arrows to trim a clip edge",
       "service": "Sharecut Studio \u2192 TrimClipEdge document command",
       "industry_standard_key": false,
       "gates": [
-        "canApplyPass12"
+        "canApplyPass12",
+        "focusedTrimHandle"
       ],
       "surfaces": {
         "command": "edit.trimClipEdge",
@@ -2402,11 +2403,10 @@
         "mcp": [
           "trim_clip_edge_tool"
         ],
-        "cli": "podcast edit trim-clip"
+        "cli": "podcast edit trim-clip",
+        "keyboard": "ArrowLeft"
       },
-      "omit": {
-        "keyboard_reason": "pointer trim handle; no industry-standard key"
-      },
+      "omit": {},
       "presence": {
         "cursor": "time",
         "follow": "none"
@@ -2491,21 +2491,21 @@
     {
       "id": "daw.edit.setClipFade",
       "label": "Set clip fade",
-      "tooltip": "Drag to set fade length (distinct from trim)",
+      "tooltip": "Drag or use focused Left/Right arrows to set fade length",
       "service": "Sharecut Studio \u2192 SetClipFade document command",
       "industry_standard_key": false,
       "gates": [
-        "canApplyPass12"
+        "canApplyPass12",
+        "focusedFadeHandle"
       ],
       "surfaces": {
         "command": "edit.setClipFade",
         "gui": [
           "timeline.clip.fadeHandle"
-        ]
+        ],
+        "keyboard": "ArrowLeft"
       },
-      "omit": {
-        "keyboard_reason": "pointer fade handle; no industry-standard key"
-      },
+      "omit": {},
       "presence": {
         "cursor": "time",
         "follow": "none"

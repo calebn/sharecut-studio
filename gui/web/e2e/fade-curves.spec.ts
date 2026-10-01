@@ -11,6 +11,136 @@ const intersects = (a: Box, b: Box) =>
   b.y < a.y + a.height;
 
 test.describe("Timeline fade curves", () => {
+  test("saves each focused keyboard burst once and restores it with one Undo", async ({
+    page,
+  }) => {
+    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
+    const block = page.locator(".lane-row").first().locator(".clip-block");
+    await expect(block).toHaveCount(1);
+    const clipId = (
+      await block
+        .getByRole("button", { name: /^Select clip / })
+        .getAttribute("aria-label")
+    )?.match(/^Select clip ([^,]+)/)?.[1];
+    if (!clipId) throw new Error("clip lacks identity");
+    const snapshot = async () => {
+      const response = await page.request.get(
+        `/api/project?path=${encodeURIComponent(e2eProjectPath)}&phase=full`,
+      );
+      expect(response.ok()).toBe(true);
+      const body = (await response.json()) as {
+        clips: {
+          tracks: Record<
+            string,
+            Array<{
+              id: string;
+              fade_in_ms: number;
+              fade_out_ms: number;
+              source_start: number;
+              source_end: number;
+            }>
+          >;
+        };
+      };
+      const clip = Object.values(body.clips.tracks)
+        .flat()
+        .find((row) => row.id === clipId);
+      if (!clip) throw new Error("clip missing from saved snapshot");
+      return clip;
+    };
+    const commands: Array<{ type: string; payload: Record<string, unknown> }> =
+      [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "POST" &&
+        request.url().includes("/api/document/command")
+      )
+        commands.push(request.postDataJSON());
+    });
+    const before = await snapshot();
+    const ruler = page.getByRole("slider", { name: "Timeline position" });
+    const playhead = Number(await ruler.getAttribute("aria-valuenow"));
+    for (const step of [
+      {
+        selector: ".fade-corner.in",
+        key: "ArrowRight",
+        shift: false,
+        field: "fade_in_ms",
+        expected: before.fade_in_ms + 3,
+        type: "SetClipFade",
+      },
+      {
+        selector: ".fade-corner.out",
+        key: "ArrowLeft",
+        shift: true,
+        field: "fade_out_ms",
+        expected: before.fade_out_ms + 30,
+        type: "SetClipFade",
+      },
+      {
+        selector: ".trim-handle.in",
+        key: "ArrowRight",
+        shift: false,
+        field: "source_start",
+        expected: before.source_start + 0.03,
+        type: "TrimClipEdge",
+      },
+      {
+        selector: ".trim-handle.out",
+        key: "ArrowLeft",
+        shift: true,
+        field: "source_end",
+        expected: before.source_end - 0.3,
+        type: "TrimClipEdge",
+      },
+    ] as const) {
+      const handle = block.locator(step.selector);
+      await handle.focus();
+      const count = commands.length;
+      if (step.shift) await page.keyboard.down("Shift");
+      for (let repeat = 0; repeat < 3; repeat++)
+        await page.keyboard.down(step.key);
+      expect(commands).toHaveLength(count);
+      await expect(ruler).toHaveAttribute("aria-valuenow", String(playhead));
+      await page.keyboard.up(step.key);
+      if (step.shift) await page.keyboard.up("Shift");
+      await expect
+        .poll(async () => (await snapshot())[step.field])
+        .toBeCloseTo(step.expected, 6);
+      const edits = commands
+        .slice(count)
+        .filter((command) => command.type === step.type);
+      expect(edits).toHaveLength(1);
+      expect(edits[0].payload.clip_id).toBe(clipId);
+      if (step.type === "SetClipFade")
+        expect(edits[0].payload).toMatchObject({
+          fade_in_ms:
+            step.field === "fade_in_ms" ? step.expected : before.fade_in_ms,
+          fade_out_ms:
+            step.field === "fade_out_ms" ? step.expected : before.fade_out_ms,
+        });
+      else {
+        expect(edits[0].payload.source_sec).toBeCloseTo(step.expected, 6);
+        expect(edits[0].payload.expected_token).toEqual(expect.any(String));
+      }
+      await page.keyboard.press("ControlOrMeta+Z");
+      await expect
+        .poll(async () => (await snapshot())[step.field])
+        .toBeCloseTo(before[step.field], 6);
+      expect(
+        commands
+          .slice(count)
+          .filter((command) => command.type === "UndoHistory"),
+      ).toHaveLength(1);
+    }
+    await block.locator(".clip-hit").focus();
+    const commandCount = commands.length;
+    await page.keyboard.press("ArrowRight");
+    await expect(ruler).toHaveAttribute("aria-valuenow", String(playhead + 1));
+    expect(commands).toHaveLength(commandCount);
+    await expectPageAxeClean(page, ".lane-row .clip-block");
+  });
+
   test("drags a hover-revealed corner handle into a drawn fade", async ({
     page,
   }) => {

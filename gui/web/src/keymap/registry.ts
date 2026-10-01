@@ -201,6 +201,24 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     notes: `Mod+4; ${BROWSER_TAB_CHORD_NOTE}, so use View › Layout there (desktop app unaffected)`,
   },
   {
+    id: "edit.setClipFade",
+    category: "edit",
+    label: "Set clip fade",
+    keys: ["ArrowLeft", "ArrowRight"],
+    bareKey: true,
+    when: "focusedFadeHandle",
+    notes: "Left/Right 1 ms; Shift 10 ms. Release to save; Escape cancels.",
+  },
+  {
+    id: "edit.trimClipEdge",
+    category: "edit",
+    label: "Trim clip edge",
+    keys: ["ArrowLeft", "ArrowRight"],
+    bareKey: true,
+    when: "focusedTrimHandle",
+    notes: "Left/Right 10 ms; Shift 100 ms. Release to save; Escape cancels.",
+  },
+  {
     id: "navigation.nudgePlayheadBack",
     category: "navigation",
     label: "Nudge playhead back",
@@ -874,9 +892,16 @@ export function ignoresKeyRepeat(
 }
 
 export function argsFromKeyEvent(
-  e: Pick<KeyboardEvent, "shiftKey">,
+  e: Pick<KeyboardEvent, "shiftKey" | "key">,
   commandId: string,
 ): Record<string, unknown> {
+  if (commandId === "edit.setClipFade" || commandId === "edit.trimClipEdge") {
+    return {
+      phase: "nudge",
+      direction: e.key === "ArrowLeft" ? -1 : 1,
+      shift: e.shiftKey,
+    };
+  }
   if (
     commandId === "navigation.nudgePlayheadBack" ||
     commandId === "navigation.nudgePlayheadForward"
