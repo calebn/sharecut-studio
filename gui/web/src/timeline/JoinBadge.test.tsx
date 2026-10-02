@@ -5,7 +5,8 @@ import { setClipJoin } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
-import { JoinBadge, JoinBadgeView } from "./JoinBadge";
+import { JoinBadgeView } from "./JoinBadge";
+import { JoinEditor as JoinBadge } from "./JoinEditor";
 
 vi.mock("../api", () => ({
   setClipJoin: vi.fn(async () => undefined),
@@ -145,9 +146,16 @@ const right2 = clipRow({
 
 describe("JoinBadge (live)", () => {
   beforeEach(() => {
-    useDawStore
-      .getState()
-      .hydrate("/tmp/ep.json", minimalProject({ tracks: [sampleTrack()] }));
+    useDawStore.getState().hydrate(
+      "/tmp/ep.json",
+      minimalProject({
+        tracks: [sampleTrack()],
+        clips: {
+          tracks: { host: [left, right], guest: [left2, right2] },
+          clip_count: 4,
+        },
+      }),
+    );
     useDawStore.setState({ openJoinId: null, joinMutationInFlight: false });
   });
 

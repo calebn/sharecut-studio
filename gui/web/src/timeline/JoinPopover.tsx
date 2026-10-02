@@ -1,11 +1,7 @@
 import { type RefObject, useCallback, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { setClipJoin } from "../api";
-import { JOIN_AUDITION_PAD_SEC, joinGlyph } from "../edit/joinRender";
-import { useProjectMutation } from "../hooks/useProjectMutation";
-import { canApplyPass12 } from "../shareMode";
+import { JOIN_AUDITION_PAD_SEC } from "../edit/joinRender";
 import { useDawStore } from "../state/dawStore";
-import { useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
 import {
   InspectorSeekFooter,
@@ -16,6 +12,7 @@ import {
 import { useStableCallback } from "../utils/useStableCallback";
 import { JoinPopoverView } from "./JoinPopoverView";
 import { placeJoinPopover } from "./joinPopoverPlacement";
+import type { JoinEdit } from "./useJoinEdit";
 
 export interface JoinPopoverProps {
   id: string;
@@ -25,6 +22,8 @@ export interface JoinPopoverProps {
   trackFadeMaxMs: number | null;
   anchorRef: RefObject<HTMLElement | null>;
   onClose: () => void;
+  edit: JoinEdit;
+  railRef: RefObject<HTMLElement | null>;
 }
 
 /** Live adapter: portals `JoinPopoverView` to `<body>`, fixed at its badge. */
@@ -36,23 +35,19 @@ export function JoinPopover({
   trackFadeMaxMs,
   anchorRef,
   onClose,
+  edit,
+  railRef,
 }: JoinPopoverProps) {
-  const { projectPath, guestMode, shareCapabilities } = useDaw((s) => ({
-    projectPath: s.projectPath,
-    guestMode: s.guestMode,
-    shareCapabilities: s.shareCapabilities,
-  }));
-  const editable = canApplyPass12(projectPath, guestMode, shareCapabilities);
-  const { busy, error, run } = useProjectMutation();
   const panelRef = useRef<HTMLDivElement>(null);
   // Dismissing mid-request would unmount the popover and drop a failure
   // silently, so Escape, Close, an outside click and opening another join
   // badge (JoinBadge.tsx) all wait for SetClipJoin to settle.
   const dismiss = useCallback(() => {
     if (!useDawStore.getState().joinMutationInFlight) {
+      edit.cancel();
       onClose();
     }
-  }, [onClose]);
+  }, [onClose, edit]);
   // GOVERNANCE: Escape via useDialogModal (allowlisted); non-modal, focus returns to this popover's badge.
   useDialogModal({
     open: true,
@@ -74,7 +69,11 @@ export function JoinPopover({
     const { left: x, top: y } = placeJoinPopover(
       anchor.getBoundingClientRect(),
       { width: panel.offsetWidth, height: panel.offsetHeight },
-      { width: window.innerWidth, height: window.innerHeight },
+      {
+        width: window.innerWidth,
+        height:
+          railRef.current?.getBoundingClientRect().top ?? window.innerHeight,
+      },
       0.5 * rootPx,
     );
     panel.style.left = `${x}px`;
@@ -88,35 +87,17 @@ export function JoinPopover({
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [place, anchorRef, seamSec]);
+  }, [place, anchorRef, seamSec, railRef, right.join_in_mode]);
   // A mode change adds or drops the Length row (an error adds a line), so
   // re-place whenever the panel resizes, not only on window resize/scroll.
   // The observer's first notification (async, after layout) repeats the
   // layout effect's mount-time place(); place() only rewrites left/top, so
   // the repeat is a no-op. If placement ever animates, skip that first call.
   useResizeObserver(panelRef, place);
+  useResizeObserver(railRef, place);
 
-  useOutsidePointerDown([panelRef, anchorRef], dismiss);
+  useOutsidePointerDown([panelRef, anchorRef, railRef], dismiss);
 
-  // One SetClipJoin at a time: a second one would clear the first's busy/error early.
-  // A project switch (hydrate) clears the flag, so a request that settles after it
-  // leaves the new project's flag alone.
-  const mutate = (fn: () => Promise<unknown>) => {
-    const store = useDawStore.getState();
-    if (store.joinMutationInFlight) {
-      return;
-    }
-    const epoch = store.projectEpoch;
-    store.setJoinMutationInFlight(true);
-    void run(fn).finally(() => {
-      const now = useDawStore.getState();
-      if (now.projectEpoch === epoch) {
-        now.setJoinMutationInFlight(false);
-      }
-    });
-  };
-
-  const mode = joinGlyph(right);
   return createPortal(
     <JoinPopoverView
       id={id}
@@ -125,16 +106,12 @@ export function JoinPopover({
       right={right}
       seamSec={seamSec}
       trackFadeMaxMs={trackFadeMaxMs}
-      editable={editable}
-      busy={busy}
-      error={error}
+      editable={edit.editable}
+      busy={edit.busy}
+      error={edit.error}
       onClose={dismiss}
-      onModeChange={(next) =>
-        mutate(() => setClipJoin(projectPath, left.id, right.id, next, null))
-      }
-      onLengthCommit={(ms) =>
-        mutate(() => setClipJoin(projectPath, left.id, right.id, mode, ms))
-      }
+      onModeChange={edit.changeMode}
+      lengthControl={{ value: edit.value, inputProps: edit.rangeProps }}
       footer={
         <InspectorSeekFooter
           seekSec={seamSec}

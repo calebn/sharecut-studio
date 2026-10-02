@@ -1,10 +1,6 @@
-import { memo, type Ref, useCallback, useEffect, useId, useRef } from "react";
+import type { Ref } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
-import { type JoinGlyph, joinGlyph, joinSeamLabel } from "../edit/joinRender";
-import { useDawStore } from "../state/dawStore";
-import { useDaw } from "../state/useDaw";
-import type { ClipRow } from "../types/project";
-import { JoinPopover } from "./JoinPopover";
+import { type JoinGlyph, joinSeamLabel } from "../edit/joinRender";
 
 /** | cut, ╲╱ fade, ✕ crossfade in a 12 × 12 box. */
 const GLYPH_PATH: Record<JoinGlyph, string> = {
@@ -63,74 +59,3 @@ export function JoinBadgeView({
     </button>
   );
 }
-
-interface JoinBadgeProps {
-  left: ClipRow;
-  right: ClipRow;
-  seamSec: number;
-  zoomPxPerSec: number;
-  trackFadeMaxMs: number | null;
-}
-
-function JoinBadgeLive({
-  left,
-  right,
-  seamSec,
-  zoomPxPerSec,
-  trackFadeMaxMs,
-}: JoinBadgeProps) {
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const popoverId = useId();
-  const joinId = right.id;
-  const { open, setOpenJoinId } = useDaw((s) => ({
-    open: s.openJoinId === joinId,
-    setOpenJoinId: s.setOpenJoinId,
-  }));
-  const close = useCallback(() => {
-    if (useDawStore.getState().openJoinId === joinId) {
-      setOpenJoinId(null);
-    }
-  }, [joinId, setOpenJoinId]);
-  // A badge that unmounts (its seam stops being a drawn join, a clip starts moving) closes its popover.
-  useEffect(() => close, [close]);
-  const glyph = joinGlyph(right);
-  return (
-    <>
-      <JoinBadgeView
-        ref={buttonRef}
-        glyph={glyph}
-        blocked={glyph === "crossfade" && right.join_crossfade_blocked != null}
-        seamSec={seamSec}
-        zoomPxPerSec={zoomPxPerSec}
-        expanded={open}
-        popoverId={popoverId}
-        onClick={() => {
-          // A SetClipJoin in flight (from this popover or another badge's) holds
-          // the open popover, so its failure still shows (JoinPopover.tsx).
-          if (useDawStore.getState().joinMutationInFlight) {
-            return;
-          }
-          if (open) {
-            close();
-          } else {
-            setOpenJoinId(joinId);
-          }
-        }}
-      />
-      {open ? (
-        <JoinPopover
-          id={popoverId}
-          left={left}
-          right={right}
-          seamSec={seamSec}
-          trackFadeMaxMs={trackFadeMaxMs}
-          anchorRef={buttonRef}
-          onClose={close}
-        />
-      ) : null}
-    </>
-  );
-}
-
-/** Re-renders only when its props change (rows keep identity across unrelated edits). */
-export const JoinBadge = memo(JoinBadgeLive);

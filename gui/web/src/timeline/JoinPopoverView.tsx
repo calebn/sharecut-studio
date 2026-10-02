@@ -6,12 +6,10 @@ import {
   JOIN_MODE_SHORT,
   type JoinGlyph,
   joinGlyph,
-  joinLengthMs,
   joinModeLabel,
   joinRenderNote,
   joinSeamLabel,
 } from "../edit/joinRender";
-import { useCommitRange } from "../hooks/useCommitRange";
 import type { ClipRow } from "../types/project";
 import {
   CloseButton,
@@ -32,11 +30,16 @@ export interface JoinPopoverViewProps {
   busy: boolean;
   error: string | null;
   onModeChange: (mode: JoinGlyph) => void;
-  onLengthCommit: (ms: number) => void;
   onClose: () => void;
   /** Audition row; the live adapter passes InspectorSeekFooter. */
   footer: ReactNode;
   panelRef?: Ref<HTMLDivElement>;
+  lengthControl: {
+    value: number;
+    inputProps: React.InputHTMLAttributes<HTMLInputElement> & {
+      ref: Ref<HTMLInputElement>;
+    };
+  };
 }
 
 /** Props-only join popover: mode toggles, a length slider and the audition footer. */
@@ -50,10 +53,10 @@ export function JoinPopoverView({
   busy,
   error,
   onModeChange,
-  onLengthCommit,
   onClose,
   footer,
   panelRef,
+  lengthControl,
 }: JoinPopoverViewProps) {
   const titleId = useId();
   const lengthId = useId();
@@ -67,8 +70,7 @@ export function JoinPopoverView({
     { durationSec: right.source_end - right.source_start },
     trackFadeMaxMs,
   );
-  const saved = Math.min(maxMs, Math.max(minMs, joinLengthMs(left, right)));
-  const range = useCommitRange({ saved, onCommit: onLengthCommit });
+  const range = lengthControl;
   const note = joinRenderNote(right);
 
   return (
@@ -93,7 +95,7 @@ export function JoinPopoverView({
               key={m}
               quiet
               pressed={glyph === m}
-              disabled={busy}
+              disabled={busy || (m === "crossfade" && maxMs < 1)}
               title={joinModeLabel(m)}
               onClick={() => {
                 if (m !== glyph) {
@@ -108,7 +110,7 @@ export function JoinPopoverView({
       ) : (
         <p className="join-popover-mode">{joinModeLabel(right.join_in_mode)}</p>
       )}
-      {editable && glyph !== "cut" ? (
+      {editable && glyph !== "cut" && maxMs >= minMs ? (
         <div className="join-popover-length">
           <label htmlFor={lengthId}>Length</label>
           <input
@@ -125,6 +127,17 @@ export function JoinPopoverView({
             {range.value} ms
           </output>
         </div>
+      ) : null}
+      {glyph === "crossfade" && left.fade_out_ms !== right.fade_in_ms ? (
+        <p className="ui-field-hint">
+          Stored fades {left.fade_out_ms} ms out / {right.fade_in_ms} ms in.
+          Length editing sets both fades equally.
+        </p>
+      ) : null}
+      {maxMs < minMs ? (
+        <p className="ui-field-hint">
+          No positive crossfade length is available.
+        </p>
       ) : null}
       {note ? (
         <p className="ui-field-hint" role="status">

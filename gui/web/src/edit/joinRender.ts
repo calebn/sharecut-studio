@@ -170,3 +170,24 @@ export function joinRenderNote(clip: ClipRow): string | null {
   }
   return "Renders as a fade at the join: each clip fades at its edge.";
 }
+
+export type JoinVisual =
+  | { kind: "ordinary" }
+  | { kind: "blocked"; reason: string }
+  | { kind: "blend"; lengthMs: number; leftPx: number; widthPx: number };
+
+export function joinVisual(right: ClipRow, zoomPxPerSec: number): JoinVisual {
+  if (joinGlyph(right) !== "crossfade") return { kind: "ordinary" };
+  if (right.join_crossfade_blocked != null)
+    return { kind: "blocked", reason: right.join_crossfade_blocked };
+  const lengthMs = right.join_crossfade_ms;
+  if (lengthMs == null || !Number.isFinite(lengthMs) || lengthMs <= 0)
+    return { kind: "ordinary" };
+  const widthPx = (lengthMs * zoomPxPerSec) / 1000;
+  return {
+    kind: "blend",
+    lengthMs,
+    widthPx,
+    leftPx: right.timeline_start * zoomPxPerSec - widthPx / 2,
+  };
+}

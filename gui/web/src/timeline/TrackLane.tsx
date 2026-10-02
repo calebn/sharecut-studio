@@ -33,7 +33,7 @@ import { useLaneWaveformStatus } from "../waveform/statusStore";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
 import { ClipBlock } from "./ClipBlock";
 import { EnvelopeOverlay } from "./EnvelopeOverlay";
-import { JoinBadge } from "./JoinBadge";
+import { JoinEditor } from "./JoinEditor";
 import { laneColor } from "./laneColors";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 import { ProsodyOverlay } from "./ProsodyOverlay";
@@ -324,13 +324,14 @@ export function TrackLaneView({
             return null;
           }
           return (
-            <JoinBadge
+            <JoinEditor
               key={`join-${clip.id}`}
               left={prev}
               right={right}
               seamSec={right.timeline_start}
               zoomPxPerSec={zoomPxPerSec}
               trackFadeMaxMs={track.fade_max_ms ?? null}
+              rolling={rollPreview != null}
             />
           );
         })}

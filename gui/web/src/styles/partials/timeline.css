@@ -1153,3 +1153,79 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   inline-size: 1px;
   background: var(--color-danger);
 }
+
+.lane-inner > .join-blend {
+  position: absolute;
+  top: var(--clip-inset-top);
+  height: calc(var(--lane-height) - 2 * var(--clip-inset-top));
+  z-index: var(--z-join);
+  pointer-events: none;
+  overflow: visible;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.join-edit-rail {
+  position: relative;
+  flex: none;
+  background: var(--color-bg-base);
+  border-top: 1px solid var(--border);
+  z-index: var(--z-join);
+}
+
+.join-edit-track {
+  position: relative;
+  height: max(var(--touch-min), calc(2 * var(--join-hit-min)));
+}
+
+.join-length-grip {
+  position: absolute;
+  top: 0;
+  width: max(var(--touch-min), calc(2 * var(--join-hit-min)));
+  height: max(var(--touch-min), calc(2 * var(--join-hit-min)));
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-overlay);
+  color: var(--color-text-on-overlay);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.join-length-grip:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.join-edit-caption {
+  display: block;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-micro);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.join-endpoint-leader {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: var(--z-join);
+  pointer-events: none;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1;
+}
+
+.join-draft-warning {
+  display: block;
+  padding: var(--space-1) var(--space-3);
+  color: var(--warning);
+  font-size: var(--font-size-micro);
+}
+
+.join-blend path {
+  vector-effect: non-scaling-stroke;
+}

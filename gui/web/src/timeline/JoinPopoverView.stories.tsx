@@ -46,7 +46,7 @@ const meta: Meta<typeof JoinPopoverView> = {
     busy: false,
     error: null,
     onModeChange: fn(),
-    onLengthCommit: fn(),
+    lengthControl: { value: 10, inputProps: { ref: fn(), onChange: fn() } },
     onClose: fn(),
     footer: (
       <InspectorSeekFooterView
@@ -73,6 +73,7 @@ export const Crossfade: Story = {
       fade_in_ms: 25,
     }),
     left: clipRow({ ...left, fade_out_ms: 25 }),
+    lengthControl: { value: 25, inputProps: { ref: fn(), onChange: fn() } },
   },
 };
 

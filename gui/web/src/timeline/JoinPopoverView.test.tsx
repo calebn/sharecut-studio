@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { joinLengthMs } from "../edit/joinRender";
+import { useCommitRange } from "../hooks/useCommitRange";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow } from "../test/fixtures";
 import { JoinPopoverView, type JoinPopoverViewProps } from "./JoinPopoverView";
@@ -23,7 +25,11 @@ const right = clipRow({
   join_in_mode: "fade",
 });
 
-function renderView(overrides: Partial<JoinPopoverViewProps> = {}) {
+function renderView(
+  overrides: Partial<JoinPopoverViewProps> & {
+    onLengthCommit?: (ms: number) => void;
+  } = {},
+) {
   const props: JoinPopoverViewProps = {
     id: "join-popover",
     left,
@@ -34,12 +40,19 @@ function renderView(overrides: Partial<JoinPopoverViewProps> = {}) {
     busy: false,
     error: null,
     onModeChange: vi.fn(),
-    onLengthCommit: vi.fn(),
+    lengthControl: { value: 10, inputProps: { ref: () => {} } },
     onClose: vi.fn(),
     footer: null,
     ...overrides,
   };
-  const view = render(<JoinPopoverView {...props} />);
+  function Harness() {
+    const range = useCommitRange({
+      saved: joinLengthMs(props.left, props.right),
+      onCommit: overrides.onLengthCommit ?? (() => {}),
+    });
+    return <JoinPopoverView {...props} lengthControl={range} />;
+  }
+  const view = render(<Harness />);
   return { ...view, props };
 }
 
