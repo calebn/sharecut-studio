@@ -737,6 +737,7 @@ test; other rows are whole tests.
 | keeps the listening shell usable on a touch phone | `gui/web/e2e-compat/browser-matrix.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | takes a recording guest from microphone consent to a live level | `gui/web/e2e-compat/browser-matrix.spec.ts` | getUserMedia | Pass | Pass | Not run |
 | keeps ruler, tiles, envelope and scroll range exact at 15 M px | `gui/web/e2e-compat/deep-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| short desktop lanes reach the horizontal end with classic scrollbars | `gui/web/e2e-compat/timeline-scroll-end.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Pass | Pass | Not run |
 
 A dated snapshot, not a threshold (measured locally on macOS as of #739 and
@@ -830,6 +831,9 @@ the session end, and envelope point and chunk offsets. The Vitest helper test
 also validates the actual stretched project against
 `schemas/episode.project.schema.json` with strict draft 2020-12 Ajv, and checks
 that malformed clip timing and envelope values report their schema paths.
+`e2e-compat/timeline-scroll-end.spec.ts` uses the running desktop app, two
+short lanes, and a rem-sized classic scrollbar. It checks for vertical fit,
+horizontal overflow, and an end gap of at most 2 px on Chromium and WebKit.
 Firefox is not in the matrix. Its layout limit (about 17.9 M px, from Gecko's
 `nscoord_MAX`; see
 [waveform.md § Deep zoom](waveform.md#deep-zoom)) comes from the engine source,
