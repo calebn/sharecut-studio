@@ -2,6 +2,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -19,15 +20,21 @@ import {
   RENDER_TILE_CSS_PX,
 } from "../utils/timelineZoom.generated";
 import { bitmapCache } from "../waveform/bitmapCache";
-import { getPcm, requestPcm, subscribePcm } from "../waveform/pcmStore";
+import {
+  getPcm,
+  type PcmQueueRequest,
+  replacePcmRequests,
+  subscribePcm,
+} from "../waveform/pcmStore";
 import { binRangeForFrames } from "../waveform/pyramidMath";
 import {
   getBins,
   hasBins,
   PRIORITY_OVERSCAN,
   PRIORITY_VISIBLE,
-  requestTiles,
+  replaceTileRequests,
   subscribePyramid,
+  type TileQueueRequest,
 } from "../waveform/pyramidStore";
 import {
   hasRaster,
@@ -315,17 +322,30 @@ function WaveformLayerView({
   const canvases = useRef(new Map<number, HTMLCanvasElement>());
   const drawn = useRef(new WeakMap<HTMLCanvasElement, string>());
   const mounted = useMountedRef();
+  const fetchOwner = useId();
+
+  useEffect(
+    () => () => {
+      replaceTileRequests(fetchOwner, []);
+      replacePcmRequests(fetchOwner, []);
+    },
+    [fetchOwner],
+  );
 
   // Draw what is cached, stand in for the rest, and ask for data and rasters.
   useLayoutEffect(() => {
     if (!meta || !style || !identity) {
       wanted.current = new Set();
+      replaceTileRequests(fetchOwner, []);
+      replacePcmRequests(fetchOwner, []);
       return;
     }
     const keys = new Set(tiles.map((t) => tileKey(identity, t.k)));
     wanted.current = keys;
     const hasPcm = !isShareProjectKey(projectPath);
     const source = { projectPath, ref: dataRef, meta };
+    const tileRequests: TileQueueRequest[] = [];
+    const pcmRequests: PcmQueueRequest[] = [];
     const group = tileGroup(identity);
     const { scrollLeft, timelineViewportWidth } = useDawStore.getState();
     const viewL = scrollLeft - clipLeftCss;
@@ -437,12 +457,12 @@ function WaveformLayerView({
         if (fetch) {
           const t0 = Math.floor(b0 / meta.bins_per_tile);
           const t1 = Math.floor((b1 - 1) / meta.bins_per_tile);
-          requestTiles(
+          tileRequests.push({
             source,
             level,
-            Array.from({ length: t1 - t0 + 1 }, (_, i) => t0 + i),
+            tiles: Array.from({ length: t1 - t0 + 1 }, (_, i) => t0 + i),
             priority,
-          );
+          });
         }
         if (!hasBins(meta, level, b0, b1 - b0)) {
           return null;
@@ -485,7 +505,12 @@ function WaveformLayerView({
           drawn.current.set(canvas, tag);
           continue;
         }
-        requestPcm({ projectPath, ref: dataRef, key: meta.key }, ...blocks);
+        pcmRequests.push({
+          source: { projectPath, ref: dataRef, key: meta.key },
+          b0: blocks[0],
+          b1: blocks[1],
+          priority,
+        });
         const pcm = getPcm(
           meta.key,
           frames.frameStart,
@@ -512,6 +537,8 @@ function WaveformLayerView({
         }
       }
     }
+    replaceTileRequests(fetchOwner, tileRequests);
+    replacePcmRequests(fetchOwner, pcmRequests);
   });
 
   const showSilence = useDawStore((s) => s.layers.showSilence);

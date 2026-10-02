@@ -24,14 +24,14 @@ vi.mock("../waveform/statusStore", async () => {
 vi.mock("../waveform/pyramidStore", () => ({
   PRIORITY_VISIBLE: 0,
   PRIORITY_OVERSCAN: 1,
-  requestTiles: () => {},
+  replaceTileRequests: () => {},
   hasBins: () => true,
   getBins: (_m: unknown, _l: number, _b: number, count: number) =>
     new Int16Array(count * 3).fill(1000),
   subscribePyramid: () => () => {},
 }));
 vi.mock("../waveform/pcmStore", () => ({
-  requestPcm: () => {},
+  replacePcmRequests: () => {},
   getPcm: () => null,
   subscribePcm: () => () => {},
 }));

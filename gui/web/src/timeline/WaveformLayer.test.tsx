@@ -57,21 +57,34 @@ vi.mock("../waveform/statusStore", async () => {
 vi.mock("../waveform/pyramidStore", () => ({
   PRIORITY_VISIBLE: 0,
   PRIORITY_OVERSCAN: 1,
-  requestTiles: (
-    s: { ref: string },
-    level: number,
-    tiles: number[],
-    priority: number,
-  ) =>
-    state.tileRequests.push({ ref: s.ref, level, tiles: [...tiles], priority }),
+  replaceTileRequests: (
+    _owner: string,
+    requests: {
+      source: { ref: string };
+      level: number;
+      tiles: number[];
+      priority: number;
+    }[],
+  ) => {
+    state.tileRequests = requests.map((r) => ({
+      ref: r.source.ref,
+      level: r.level,
+      tiles: [...r.tiles],
+      priority: r.priority,
+    }));
+  },
   hasBins: (_m: unknown, level: number) => state.loaded.has(level),
   getBins: (_m: unknown, _l: number, _b: number, count: number) =>
     new Int16Array(count * 3).fill(1000),
   subscribePyramid: () => () => {},
 }));
 vi.mock("../waveform/pcmStore", () => ({
-  requestPcm: (_s: unknown, b0: number, b1: number) =>
-    state.pcmRequests.push([b0, b1]),
+  replacePcmRequests: (
+    _owner: string,
+    requests: { b0: number; b1: number }[],
+  ) => {
+    state.pcmRequests = requests.map((r) => [r.b0, r.b1]);
+  },
   getPcm: (_k: string, frameStart: number) =>
     state.pcm
       ? { pcm: new Int16Array(8), pcmStart: Math.floor(frameStart) }
@@ -310,14 +323,13 @@ describe("WaveformLayer", () => {
     expect(container.querySelectorAll(".clip-waveform-quiet")).toHaveLength(0);
   });
 
-  it("does not rebuild a tile's job while its render is queued or in flight", () => {
+  it("drops queued fetch interest once its render job is already queued", () => {
     mount();
     const sent = rasters().length;
-    const asked = state.tileRequests.length;
     // Same key, new object: the layer re-renders and its layout effect runs.
     setEntry("track:host", ready());
     expect(rasters()).toHaveLength(sent);
-    expect(state.tileRequests).toHaveLength(asked);
+    expect(state.tileRequests).toHaveLength(0);
   });
 
   it.each(["dropped", "failed"] as const)(
