@@ -77,7 +77,7 @@ export const Editable: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const button = canvas.getByRole("button", {
-      name: "Select clip story-clip-2, dialogue, 7s",
+      name: "Select Dialogue clip at 00:04.000, 7s",
     });
     await expect(button).toHaveAttribute("aria-pressed", "false");
     await expect(canvasElement.querySelectorAll(".trim-handle")).toHaveLength(
@@ -144,9 +144,7 @@ export const ReadOnly: Story = {
     await expect(canvasElement.querySelectorAll(".trim-handle")).toHaveLength(
       0,
     );
-    await expect(
-      canvasElement.querySelector("span.join-diamond"),
-    ).not.toBeNull();
+    await expect(canvasElement.querySelector("span.join-seam")).not.toBeNull();
   },
 };
 

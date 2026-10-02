@@ -12,6 +12,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator
 
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
+from podcast_mcp.edits.decisions import PendingEditBaseline
 from podcast_mcp.models.episode import FADER_MAX_DB, FADER_MIN_DB, ClipJoinMode
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
 from podcast_mcp.util.text import has_meaningful_text
@@ -116,6 +117,13 @@ class UpdatePendingEditPayload(BaseModel):
     end: float
     snap: bool = True
     track_ids: list[str] | None = None
+    expected: PendingEditBaseline | None = Field(
+        default=None,
+        description=(
+            "Saved pending-edit identity and bounds. A changed, applied, or removed target "
+            "returns a 409 conflict without a mutation. Omit for an unconditional nudge."
+        ),
+    )
 
 
 class RestoreAppliedEditPayload(BaseModel):

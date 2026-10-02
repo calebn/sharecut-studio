@@ -5,14 +5,18 @@ import {
   isCurrentDocumentScope,
 } from "../document/authorityState";
 import { submitQueuedDocumentCommand } from "../services/commandQueue";
-import { shareTokenFromKey } from "../shareMode";
+import {
+  isShareProjectKey,
+  reviewApiBase,
+  shareTokenFromKey,
+} from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import {
   type OfflineConflict,
   removeConflictsWhere,
   removeHostConflictsWhere,
 } from "../state/offlineStore";
-import type { AutomationPoint } from "../types/project";
+import type { AutomationPoint, PendingEditView } from "../types/project";
 import { ApiError, readApiError } from "../utils/apiError";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
 import { loadDocumentState } from "./project";
@@ -94,6 +98,130 @@ export async function rejectEdits(
   return { queued: result.queued === true };
 }
 
+export type SourceRange = Readonly<{ start: number; end: number }>;
+
+export type PendingEditBaseline = Readonly<
+  Pick<PendingEditView, "track_id" | "type"> &
+    SourceRange & { timebase: string }
+>;
+
+export function pendingEditBaseline(
+  edit: Pick<
+    PendingEditView,
+    "track_id" | "type" | "timebase" | "source_start" | "source_end"
+  >,
+): PendingEditBaseline {
+  return {
+    track_id: edit.track_id,
+    type: edit.type,
+    timebase: edit.timebase ?? "source",
+    start: edit.source_start,
+    end: edit.source_end,
+  };
+}
+
+export type PendingCutProposal = Readonly<{
+  editId: PendingEditView["id"];
+  trackId: PendingEditView["track_id"];
+  original: SourceRange;
+  expected: PendingEditBaseline;
+  suggested: SourceRange;
+  mode: string;
+  confidence: number;
+  startShiftMs: number;
+  endShiftMs: number;
+  durationDeltaMs: number;
+}>;
+
+function isSuggestionRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function suggestionNumber(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error("Invalid cut suggestion response");
+  }
+  return value;
+}
+
+function suggestionRange(start: unknown, end: unknown): SourceRange {
+  const range = { start: suggestionNumber(start), end: suggestionNumber(end) };
+  if (range.start < 0 || range.end <= range.start) {
+    throw new Error("Invalid cut suggestion bounds");
+  }
+  return range;
+}
+
+type PendingCutIdentity = Pick<
+  PendingEditView,
+  "id" | "track_id" | "type" | "timebase" | "source_start" | "source_end"
+>;
+
+function parsePendingCutSuggestion(
+  value: unknown,
+  edit: PendingCutIdentity,
+): PendingCutProposal {
+  if (!isSuggestionRecord(value) || !isSuggestionRecord(value.optimized)) {
+    throw new Error("Invalid cut suggestion response");
+  }
+  if (value.edit_id !== edit.id || value.track_id !== edit.track_id) {
+    throw new Error("Cut suggestion belongs to another edit");
+  }
+  const original = suggestionRange(value.original_start, value.original_end);
+  if (
+    original.start !== edit.source_start ||
+    original.end !== edit.source_end
+  ) {
+    throw new Error("Cut suggestion is out of date. Reload the current edit.");
+  }
+  const optimized = value.optimized;
+  const suggested = suggestionRange(optimized.start, optimized.end);
+  const confidence = suggestionNumber(optimized.confidence);
+  if (
+    typeof optimized.mode !== "string" ||
+    !optimized.mode ||
+    confidence < 0 ||
+    confidence > 1
+  ) {
+    throw new Error("Invalid cut suggestion response");
+  }
+  return {
+    editId: edit.id,
+    trackId: edit.track_id,
+    original,
+    expected: { ...pendingEditBaseline(edit), ...original },
+    suggested,
+    mode: optimized.mode,
+    confidence,
+    startShiftMs: suggestionNumber(optimized.shifted_start_ms),
+    endShiftMs: suggestionNumber(optimized.shifted_end_ms),
+    durationDeltaMs:
+      (suggested.end - suggested.start - (original.end - original.start)) *
+      1000,
+  };
+}
+
+export async function loadPendingCutSuggestion(
+  request: { projectPath: string; edit: PendingCutIdentity },
+  signal: AbortSignal,
+): Promise<PendingCutProposal> {
+  const { projectPath, edit } = request;
+  const guestToken = shareTokenFromKey(projectPath);
+  if (isShareProjectKey(projectPath) && !guestToken) {
+    throw new Error("Invalid guest cut suggestion project key");
+  }
+  const endpoint = `/pending-edits/${encodeURIComponent(edit.id)}/cut-suggestion`;
+  const url = guestToken
+    ? `${reviewApiBase(guestToken)}/daw${endpoint}`
+    : `/api${endpoint}?${new URLSearchParams({ path: projectPath })}`;
+  const response = await (guestToken ? fetch : hostFetch)(url, { signal });
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
+  }
+  const value: unknown = await response.json();
+  return parsePendingCutSuggestion(value, edit);
+}
+
 export async function updatePendingEdit(
   projectPath: string,
   id: string,
@@ -101,14 +229,21 @@ export async function updatePendingEdit(
   end: number,
   snap = true,
   trackIds?: string[] | null,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "UpdatePendingEdit", {
+  expected?: PendingEditBaseline,
+): Promise<{ queued: false } | { queued: true; commandId: string }> {
+  const result = await submitDocumentCommand(projectPath, "UpdatePendingEdit", {
     id,
     start,
     end,
     snap,
     ...(trackIds != null ? { track_ids: trackIds } : {}),
+    ...(expected ? { expected } : {}),
   });
+  if (result.queued !== true) return { queued: false };
+  if (typeof result.command_id !== "string" || !result.command_id) {
+    throw new Error("Queued timing command is missing its identity");
+  }
+  return { queued: true, commandId: result.command_id };
 }
 
 export async function restoreAppliedEdit(

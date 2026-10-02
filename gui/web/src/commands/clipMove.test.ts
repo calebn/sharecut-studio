@@ -65,6 +65,26 @@ describe("edit.moveClips", () => {
     useDawStore.setState({ guestMode: null, shareCapabilities: null });
   });
 
+  it("preserves placement while a coupled join save is in flight", async () => {
+    const before = useDawStore.getState().project;
+    useDawStore.getState().setJoinMutationInFlight(true);
+    try {
+      const result = await execute(
+        "edit.moveClips",
+        { clips: [{ clip_id: "c1", timeline_start: 4, track_id: "guest" }] },
+        { skipWhen: true },
+      );
+      expect(result).toEqual({
+        status: "disabled",
+        reason: "Wait for the join change to finish",
+      });
+      expect(useDawStore.getState().project).toBe(before);
+      expect(api.moveClips).not.toHaveBeenCalled();
+    } finally {
+      useDawStore.getState().setJoinMutationInFlight(false);
+    }
+  });
+
   it("patches then submits MoveClips", async () => {
     useDawStore.getState().setSelection({
       kind: "clip",

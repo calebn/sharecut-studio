@@ -58,6 +58,8 @@ Inspector sheets keep the timeline interactive behind them: their background scr
 
 Pending timeline edits use the same lane-wide region on phones. A selected region shows 44px start/end touch targets only when its drawn width is at least 44px and the lane leaves room for both targets. For a narrow region or compact lane, the edge handles stay hidden on touch; the selected action card offers **Edit timing**, which focuses the existing Source start field in the inspector. The card keeps its label and Approve/Reject controls in a fixed, viewport-anchored surface below or above the lane; it does not cover the region or add horizontal timeline scroll. Dense unselected cuts reveal a floating label on hover or keyboard focus, and labels follow zoom and responsive layout changes. A host transcript-refine recovery card stays inside the measured, scrollable action surface. The Impact panel lists every pending edit for selection, while bulk review actions remain limited to review-required edits.
 
+Coarse-pointer timeline lanes keep a minimum height of 104 canvas pixels, matching the compact header floor already used by the phone timeline. The lower seam roll target is 48 canvas pixels high and at least the shared touch target width. It stays below the fade corners and inside its clip, while the join badge remains in the top gutter and the crossfade endpoint control uses its separate rail below the timeline.
+
 On phones, Pipeline step parameters open in the shared modal Dialog. Escape and
 Close dismiss it and return focus to the selected step; Tab stays inside the
 dialog. Tablet and desktop keep the parameter form inline.

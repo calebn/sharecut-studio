@@ -9,7 +9,7 @@ import type {
 import { capabilityTooltip } from "../capabilities/copy";
 import { isCrossfadeJoin, isCutJoin } from "../edit/joinRender";
 import type { ClipRow } from "../types/project";
-import { formatDurationLabel } from "../utils/time";
+import { clipLabels } from "../utils/clipLabels";
 import type { ClipBlockGeometry } from "./clipBlockGeometry";
 import { FadeCurves } from "./FadeCurves";
 import { timelineTestIds } from "./selectors";
@@ -57,15 +57,10 @@ function RegionSpans({
   );
 }
 
-function clipLabel(
-  speaker: string,
-  durationSec: number,
-  width: number,
-): string {
+function clipLabel(speaker: string, duration: string, width: number): string {
   if (width < 24) {
     return "";
   }
-  const duration = formatDurationLabel(durationSec);
   if (width < 60) {
     return speaker;
   }
@@ -102,7 +97,7 @@ export interface ClipBlockViewProps {
   selected: boolean;
   /** `clipBlockGeometry` for the committed clip or the live preview. */
   geometry: ClipBlockGeometry;
-  /** Previous clip on this track: draws the join diamond. */
+  /** Previous clip on this track: draws the roll seam. */
   prevClip: ClipRow | null;
   /** Next clip on this track: a cut join into it hides this fade-out. */
   nextClip: ClipRow | null;
@@ -189,14 +184,27 @@ export function ClipBlockView({
     trimDragging,
   } = geometry;
 
-  const speaker = trackSpeaker?.trim() || trackLabel?.trim() || role;
-  const durationLabel = formatDurationLabel(durationSec);
-  const accessibleLabel = `Select clip ${clip.id}, ${speaker}, ${durationLabel}`;
-  const label = clipLabel(speaker, durationSec, width);
+  const timelineStart = left / zoomPxPerSec;
+  const labels = clipLabels({
+    clip: {
+      source_start: sourceStart,
+      source_end: sourceEnd,
+      timeline_start: timelineStart,
+      timeline_end: timelineStart + durationSec,
+    },
+    trackSpeaker,
+    trackLabel,
+    role,
+  });
+  const label = clipLabel(labels.speaker, labels.duration, width);
   const trimTip = capabilityTooltip("daw.edit.trimClipEdge");
   const rollTip = capabilityTooltip("daw.edit.rollClipJoin");
   const fadeTip = capabilityTooltip("daw.edit.setClipFade");
   const moveTip = capabilityTooltip("daw.edit.moveClips");
+  const title =
+    canMove && !bladeMode && interactive
+      ? `${labels.select} · ${moveTip}`
+      : labels.select;
   // Render ignores the fades at a cut join: this clip's fade-in when its
   // incoming join is a cut, its fade-out when the next clip's join is.
   const cutIn = isCutJoin(clip);
@@ -211,17 +219,14 @@ export function ClipBlockView({
       className={`clip-block${selected ? " selected" : ""}${isCrossfadeJoin(clip) ? " join-crossfade" : ""}${fadeDragEdge ? " fade-dragging" : ""}${trimDragging ? " trim-dragging" : ""}${moving ? " clip-moving" : ""}${previewHidden ? " clip-move-hidden" : ""}${!interactive ? " clip-move-ghost" : ""}`}
       style={{ left, width, background: color }}
       aria-hidden={!interactive}
-      title={
-        canMove && !bladeMode && interactive
-          ? `${accessibleLabel} · ${moveTip}`
-          : accessibleLabel
-      }
+      title={title}
     >
       {interactive ? (
         <button
           type="button"
           className={`clip-hit${canMove && !bladeMode ? " clip-hit-moveable" : ""}`}
-          aria-label={accessibleLabel}
+          title={title}
+          aria-label={labels.select}
           aria-pressed={selected}
           {...hitHandlers}
         />
@@ -229,7 +234,7 @@ export function ClipBlockView({
       {showHandles && prevClip ? (
         <button
           type="button"
-          className="join-diamond"
+          className="join-seam"
           title={`${rollTip} · join: ${clip.join_in_mode}`}
           aria-label={rollTip}
           onPointerDown={(e) => onHandlePointerDown?.("roll", e)}
@@ -238,7 +243,7 @@ export function ClipBlockView({
         />
       ) : interactive && prevClip ? (
         <span
-          className="join-diamond"
+          className="join-seam"
           title={`Join: ${clip.join_in_mode}`}
           aria-hidden="true"
         />

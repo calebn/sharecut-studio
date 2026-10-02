@@ -48,6 +48,7 @@ export {
   deleteClips,
   deleteSocialClip,
   duplicateSegment,
+  loadPendingCutSuggestion,
   moveClips,
   moveSegment,
   pasteSegment,

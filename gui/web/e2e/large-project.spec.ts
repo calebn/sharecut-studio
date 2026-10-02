@@ -125,7 +125,7 @@ test.describe("large project benchmark (opt-in fixture)", () => {
     const cdp = await page.context().newCDPSession(page);
     const slider = page.getByRole("slider", { name: "Timeline position" });
     const clipButton = (id: string) =>
-      page.getByRole("button", { name: new RegExp(`^Select clip ${id},`) });
+      page.locator(`[data-clip-id="${id}"] .clip-hit`);
     const profiles: Profile[] = [];
 
     profiles.push(

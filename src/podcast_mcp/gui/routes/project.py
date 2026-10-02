@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import asdict
 from pathlib import Path
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from filelock import Timeout
 from pydantic import BaseModel
 
@@ -212,6 +214,27 @@ def get_project_meta(
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(path, request)
     return project_meta(project_path)
+
+
+@router.get("/api/pending-edits/{edit_id}/cut-suggestion")
+def get_pending_cut_suggestion(
+    request: Request,
+    edit_id: str,
+    path: str = Query(..., description="Path to episode.project.json"),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+) -> JSONResponse:
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    project_path = resolve_project(path, request)
+    from podcast_mcp.services.document import EditService
+
+    try:
+        suggestion = EditService(ProjectWorkspace.open(project_path)).preview_pending_cut(edit_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="pending edit not found") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse(asdict(suggestion), headers={"Cache-Control": "no-store"})
 
 
 @router.get("/api/waveform-snap")

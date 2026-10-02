@@ -1908,6 +1908,15 @@
       "title": "DuplicateSegmentPayload",
       "type": "object"
     },
+    "EditDecisionType": {
+      "enum": [
+        "remove",
+        "mute",
+        "split"
+      ],
+      "title": "EditDecisionType",
+      "type": "string"
+    },
     "EnvelopePoint": {
       "properties": {
         "id": {
@@ -2356,6 +2365,46 @@
         "duration"
       ],
       "title": "PasteSegmentPayload",
+      "type": "object"
+    },
+    "PendingEditBaseline": {
+      "description": "The saved identity and bounds a pending-edit update was based on.",
+      "properties": {
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "timebase": {
+          "enum": [
+            "source",
+            "timeline"
+          ],
+          "title": "Timebase",
+          "type": "string"
+        },
+        "track_id": {
+          "minLength": 1,
+          "title": "Track Id",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/EditDecisionType"
+        }
+      },
+      "required": [
+        "track_id",
+        "type",
+        "timebase",
+        "start",
+        "end"
+      ],
+      "title": "PendingEditBaseline",
       "type": "object"
     },
     "RedoHistoryCommand": {
@@ -6179,6 +6228,18 @@
         "end": {
           "title": "End",
           "type": "number"
+        },
+        "expected": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PendingEditBaseline"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Saved pending-edit identity and bounds. A changed, applied, or removed target returns a 409 conflict without a mutation. Omit for an unconditional nudge."
         },
         "id": {
           "title": "Id",

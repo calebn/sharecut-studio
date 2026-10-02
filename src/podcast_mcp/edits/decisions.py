@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from itertools import pairwise
+from typing import Annotated, Literal
+
+from pydantic import Field
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import abutting_pairs, clips_abut, clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
+from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange, optimize_source_cut_range
 from podcast_mcp.edits.join_modes import cap_fade_ms
 from podcast_mcp.edits.mute_regions import add_source_mute
 from podcast_mcp.edits.timeline_ops import (
@@ -334,6 +339,66 @@ def reject_edits(project: EpisodeProject, ids: list[str]) -> int:
     return removed
 
 
+@dataclass(frozen=True)
+class PendingEditBaseline:
+    """The saved identity and bounds a pending-edit update was based on."""
+
+    track_id: Annotated[str, Field(min_length=1)]
+    type: EditDecisionType
+    timebase: Literal["source", "timeline"]
+    start: Annotated[float, Field(ge=0, allow_inf_nan=False)]
+    end: Annotated[float, Field(ge=0, allow_inf_nan=False)]
+
+
+class PendingEditChangedError(ValueError):
+    """The saved pending decision no longer matches the editor's baseline."""
+
+
+def require_pending_edit_baseline(
+    project: EpisodeProject, edit_id: str, expected: PendingEditBaseline
+) -> None:
+    edit = next((item for item in project.edit_decisions if item.id == edit_id), None)
+    if (
+        edit is None
+        or edit.applied
+        or (edit.track_id, edit.type, edit.timebase, edit.start, edit.end)
+        != (expected.track_id, expected.type, expected.timebase, expected.start, expected.end)
+    ):
+        raise PendingEditChangedError(
+            "This pending edit changed since you reviewed it. Reload its current bounds "
+            "before applying timing."
+        )
+
+
+@dataclass(frozen=True)
+class PendingCutSuggestion:
+    edit_id: str
+    track_id: str
+    original_start: float
+    original_end: float
+    optimized: OptimizedCutRange
+
+
+def preview_pending_cut_range(project: EpisodeProject, edit_id: str) -> PendingCutSuggestion:
+    """Suggest source bounds for one complete pending cut without changing it."""
+    edit = next((e for e in project.edit_decisions if e.id == edit_id), None)
+    if edit is None:
+        raise KeyError(f"edit decision not found: {edit_id}")
+    if edit.applied:
+        raise ValueError("cut suggestions require a pending edit")
+    if edit.type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE):
+        raise ValueError("cut suggestions require a remove or mute edit")
+    if edit.timebase != "source":
+        raise ValueError("cut suggestions require source-time bounds")
+    return PendingCutSuggestion(
+        edit_id=edit.id,
+        track_id=edit.track_id,
+        original_start=edit.start,
+        original_end=edit.end,
+        optimized=optimize_source_cut_range(project, edit.track_id, edit.start, edit.end),
+    )
+
+
 def update_pending_edit(
     project: EpisodeProject,
     edit_id: str,
@@ -363,8 +428,6 @@ def update_pending_edit(
         raise ValueError("end must be after start")
 
     if snap:
-        from podcast_mcp.edits.inaudible_cuts import optimize_source_cut_range
-
         opt = optimize_source_cut_range(project, edit.track_id, start, end)
         edit.start = opt.start
         edit.end = opt.end

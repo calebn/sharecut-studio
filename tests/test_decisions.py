@@ -215,7 +215,7 @@ def test_update_pending_edit_with_snap_passthrough(monkeypatch):
         confidence = 0.8
 
     monkeypatch.setattr(
-        "podcast_mcp.edits.inaudible_cuts.optimize_source_cut_range",
+        "podcast_mcp.edits.decisions.optimize_source_cut_range",
         lambda *a, **k: _Opt(),
     )
     updated = update_pending_edit(proj, "p1", start=1.0, end=2.0, snap=True)

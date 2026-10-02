@@ -1894,6 +1894,15 @@
         "title": "DuplicateSegmentPayload",
         "type": "object"
       },
+      "EditDecisionType": {
+        "enum": [
+          "remove",
+          "mute",
+          "split"
+        ],
+        "title": "EditDecisionType",
+        "type": "string"
+      },
       "EnvelopePoint": {
         "properties": {
           "id": {
@@ -2337,6 +2346,46 @@
           "duration"
         ],
         "title": "PasteSegmentPayload",
+        "type": "object"
+      },
+      "PendingEditBaseline": {
+        "description": "The saved identity and bounds a pending-edit update was based on.",
+        "properties": {
+          "end": {
+            "minimum": 0.0,
+            "title": "End",
+            "type": "number"
+          },
+          "start": {
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "number"
+          },
+          "timebase": {
+            "enum": [
+              "source",
+              "timeline"
+            ],
+            "title": "Timebase",
+            "type": "string"
+          },
+          "track_id": {
+            "minLength": 1,
+            "title": "Track Id",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EditDecisionType"
+          }
+        },
+        "required": [
+          "track_id",
+          "type",
+          "timebase",
+          "start",
+          "end"
+        ],
+        "title": "PendingEditBaseline",
         "type": "object"
       },
       "RedoHistoryCommand": {
@@ -6137,6 +6186,17 @@
             "title": "End",
             "type": "number"
           },
+          "expected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PendingEditBaseline"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Saved pending-edit identity and bounds. A changed, applied, or removed target returns a 409 conflict without a mutation. Omit for an unconditional nudge."
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -7676,6 +7736,50 @@
                   "additionalProperties": true,
                   "type": "object"
                 }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/api/review/{token}/daw/pending-edits/{edit_id}/cut-suggestion": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "edit_id",
+            "required": true,
+            "schema": {
+              "title": "Edit Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             },
             "description": "Successful Response"

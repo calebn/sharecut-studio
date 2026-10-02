@@ -48,7 +48,6 @@
   overflow: visible;
   font-size: var(--font-size-micro);
   padding: var(--space-1) var(--space-3);
-  /* Under the applied-edit layer (4); join diamond / trim handles sit above clip-hit; the lane's join badges (--z-join) sit above the clip. */
   z-index: var(--z-overlay);
 }
 
@@ -263,9 +262,6 @@
   pointer-events: none;
 }
 
-/* Trim strips (#677): full-height clip edges, transparent and click-through
-   (but still in the tab order) until the clip is hovered, focused or
-   selected. Under the fade corner (--z-join) and the join diamond. */
 .trim-handle {
   position: absolute;
   top: 0;
@@ -341,46 +337,62 @@
   z-index: var(--z-clip-overlay);
 }
 
-.join-diamond {
+.join-seam {
   position: absolute;
-  left: -0.4375rem;
+  left: 0;
   top: 50%;
-  width: 0.875rem;
-  height: 0.875rem;
-  /* stylelint-disable-next-line scale-unlimited/declaration-strict-value -- user-approved: canvas join diamond centering */
-  margin-top: -0.4375rem;
+  width: max(1.5rem, var(--join-hit-min));
+  height: max(1.5rem, var(--join-hit-min));
+  translate: -50% -50%;
+  margin: 0;
   padding: 0;
-  border: 1px solid var(--color-overlay-white-55);
-  background: var(--accent);
-  transform: rotate(45deg);
+  border: 0;
+  background: transparent;
   z-index: var(--z-join);
-  /* Decorative when not a button; editable ClipBlock uses <button.join-diamond>. */
   pointer-events: none;
   cursor: ew-resize;
 }
 
-button.join-diamond {
+button.join-seam {
   pointer-events: auto;
   appearance: none;
   box-sizing: border-box;
 }
 
-.join-diamond::after {
-  content: none;
+@media (pointer: coarse) {
+  .join-seam {
+    top: auto;
+    bottom: 0;
+    width: max(var(--touch-min), calc(2 * var(--join-hit-min)));
+    height: calc(2 * var(--join-hit-min));
+    translate: -50% 0;
+  }
 }
 
-.join-diamond::before {
-  content: none;
+.timeline-area[data-pointer-kind="coarse"] .join-seam,
+html[data-shell="phone"] .join-seam {
+  top: auto;
+  bottom: 0;
+  width: max(var(--touch-min), calc(2 * var(--join-hit-min)));
+  height: calc(2 * var(--join-hit-min));
+  translate: -50% 0;
 }
 
-/* One badge per drawn join, at the top of the seam (#690): | cut, ╲╱ fade,
-   ✕ crossfade. It fills the lane's top gutter (--clip-inset-top, the .clip-block top
-   inset, in px so it holds at any root font size) and never leaves its own lane, so it
-   clears the clips' top-corner fade handles, the mid-height join diamond and,
-   on the first track, the marker lane above (e2e/fade-curves.spec.ts checks all three,
-   at the default and a 24px root font size). TrackLane draws it above the resting clips.
-   It is a button that opens the join popover (timeline/JoinPopover.tsx): mode, length and
-   Audition. Declared after `.lane-inner > *` so its pointer-events wins. */
+.join-seam::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+button.join-seam:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .join-badge {
   position: absolute;
   top: 0;
@@ -488,10 +500,8 @@ button.join-diamond {
 
 .pending-overlay {
   position: absolute;
-  /* stylelint-disable meowtec/no-px -- user-approved: canvas overlay inset vs lane height */
-  top: 4px;
-  height: calc(var(--lane-height) - 8px);
-  /* stylelint-enable meowtec/no-px */
+  top: 0;
+  height: var(--lane-height);
   pointer-events: auto;
   cursor: pointer;
   z-index: var(--z-overlay);

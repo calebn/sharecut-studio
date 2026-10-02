@@ -13,6 +13,7 @@ from typing import Any
 from uuid import uuid4
 
 from podcast_mcp.edits.comments import comments_for_view
+from podcast_mcp.edits.decisions import PendingEditChangedError
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
@@ -58,6 +59,7 @@ EXTERNAL_MUTATE_CLIENT_ID = "server:external"
 # raised before mutation, history, or the command log (#650). They subclass ValueError, so
 # ``_apply`` must catch them before its generic ValueError branch.
 STALE_TARGET_ERRORS: tuple[type[ValueError], ...] = (
+    PendingEditChangedError,
     TranscriptTextChangedError,
     TranscriptTimingChangedError,
 )

@@ -58,10 +58,7 @@ test.describe("Clip inspector fade controls", () => {
       };
     };
     const firstBlock = page.locator(".lane-row .clip-block").first();
-    const selectButtonName = await firstBlock
-      .getByRole("button", { name: /^Select clip / })
-      .getAttribute("aria-label");
-    const visibleClipId = selectButtonName?.match(/^Select clip ([^,]+)/)?.[1];
+    const visibleClipId = await firstBlock.getAttribute("data-clip-id");
     const clip = Object.values(snapshot.clips.tracks)
       .flat()
       .find((row) => row.id === visibleClipId);

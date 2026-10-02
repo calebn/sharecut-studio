@@ -1,6 +1,15 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { PendingCutProposal } from "../../api/documentEdits";
 import { registerDawCommands } from "../../commands/register";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -20,6 +29,7 @@ const refreshProject = vi.fn();
 const approveEdits = vi.fn();
 const waiveTranscriptRefine = vi.fn();
 const updatePendingEdit = vi.fn();
+const loadPendingCutSuggestion = vi.fn();
 
 const { loadHostCommandCount } = vi.hoisted(() => ({
   loadHostCommandCount: vi.fn(async () => 1),
@@ -38,6 +48,8 @@ vi.mock("../../api", () => ({
   waiveTranscriptRefine: (...args: unknown[]) => waiveTranscriptRefine(...args),
   rejectEdits: vi.fn(async () => ({ queued: false })),
   updatePendingEdit: (...args: unknown[]) => updatePendingEdit(...args),
+  loadPendingCutSuggestion: (...args: unknown[]) =>
+    loadPendingCutSuggestion(...args),
 }));
 
 const sessionCut: PendingEditView = {
@@ -59,8 +71,19 @@ const sessionCut: PendingEditView = {
   cut_confidence: null,
   review_required: true,
   applied: false,
+  timebase: "source",
   scope: "session",
 };
+
+function expectedBaseline(edit = sessionCut) {
+  return {
+    track_id: edit.track_id,
+    type: edit.type,
+    timebase: edit.timebase ?? "source",
+    start: edit.source_start,
+    end: edit.source_end,
+  };
+}
 
 describe("PendingEditInspector", () => {
   beforeEach(() => {
@@ -68,6 +91,10 @@ describe("PendingEditInspector", () => {
     registerDawCommands();
     loadHostCommandCount.mockReset().mockResolvedValue(1);
     createComment.mockReset();
+    updatePendingEdit.mockReset().mockResolvedValue({ queued: false });
+    loadPendingCutSuggestion
+      .mockReset()
+      .mockImplementation(() => new Promise(() => {}));
     patchComment.mockReset().mockResolvedValue(null);
     refreshProject.mockReset();
     approveEdits.mockReset().mockResolvedValue({ queued: false });
@@ -79,33 +106,6 @@ describe("PendingEditInspector", () => {
     useDawStore.getState().hydrate("/tmp/p.json", {
       ...minimalProject(),
       pending_edits: [sessionCut],
-    });
-  });
-
-  it("says an approval that is still sending is not done yet", async () => {
-    const user = userEvent.setup();
-    approveEdits.mockResolvedValue({ queued: true });
-    const { container } = render(<PendingEditInspector edit={sessionCut} />);
-    await user.click(screen.getByRole("button", { name: "Approve" }));
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      /Still sending/,
-    );
-    expect(screen.queryByRole("alert")).toBeNull();
-    await expectNoA11yViolations(container);
-  });
-
-  it("clears Still sending once the queued approval leaves the queue", async () => {
-    const user = userEvent.setup();
-    approveEdits.mockResolvedValue({ queued: true });
-    render(<PendingEditInspector edit={sessionCut} />);
-    await user.click(screen.getByRole("button", { name: "Approve" }));
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      /Still sending/,
-    );
-    // Refused replay: same edit id, queue emptied.
-    loadHostCommandCount.mockResolvedValue(0);
-    await waitFor(() => expect(screen.queryByRole("status")).toBeNull(), {
-      timeout: 3000,
     });
   });
 
@@ -399,6 +399,448 @@ describe("PendingEditInspector", () => {
     await expectNoA11yViolations(container);
   });
 
+  describe("suggested source bounds", () => {
+    function proposal(edit = sessionCut): PendingCutProposal {
+      return {
+        editId: edit.id,
+        trackId: edit.track_id,
+        original: { start: edit.source_start, end: edit.source_end },
+        expected: expectedBaseline(edit),
+        suggested: {
+          start: edit.source_start - 0.02475,
+          end: edit.source_end + 0.03525,
+        },
+        mode: "waveform_only",
+        confidence: 0.625,
+        startShiftMs: -24.75,
+        endShiftMs: 35.25,
+        durationDeltaMs: 60,
+      };
+    }
+
+    function deferredProposal() {
+      let resolve: (value: PendingCutProposal) => void = () => {};
+      const promise = new Promise<PendingCutProposal>((done) => {
+        resolve = done;
+      });
+      return { promise, resolve };
+    }
+
+    function replaceStored(edit: PendingEditView, path = "/tmp/p.json") {
+      useDawStore
+        .getState()
+        .hydrate(path, minimalProject({ pending_edits: [edit] }));
+    }
+
+    it.each([
+      [sessionCut, "0:09.97525 to 0:12.03525", "0:10.000 to 0:12.000"],
+      [
+        { ...sessionCut, source_start: 1100, source_end: 1102 },
+        "18:19.97525 to 18:22.03525",
+        "18:20.000 to 18:22.000",
+      ],
+    ])(
+      "shows exact bounds for %j and saves them without a second snap",
+      async (edit, suggested, original) => {
+        replaceStored(edit);
+        const preview = proposal(edit);
+        loadPendingCutSuggestion.mockResolvedValue(preview);
+        const user = userEvent.setup();
+        const { container } = render(<PendingEditInspector edit={edit} />);
+        const group = within(
+          screen.getByRole("region", { name: "Suggested bounds" }),
+        );
+        expect(await group.findByText(suggested)).toBeVisible();
+        expect(group.getByText(original)).toBeVisible();
+        expect(group.getByText("-24.75 ms")).toBeVisible();
+        expect(group.getByText("+35.25 ms")).toBeVisible();
+        expect(group.getByText("+60 ms")).toBeVisible();
+        expect(updatePendingEdit).not.toHaveBeenCalled();
+        await user.click(group.getByRole("button", { name: "Use suggestion" }));
+        expect(updatePendingEdit).toHaveBeenCalledExactlyOnceWith(
+          "/tmp/p.json",
+          "ed1",
+          preview.suggested.start,
+          preview.suggested.end,
+          false,
+          undefined,
+          expectedBaseline(edit),
+        );
+        expect(approveEdits).not.toHaveBeenCalled();
+        await expectNoA11yViolations(container);
+      },
+    );
+
+    it("writes nothing on mount or uncheck and re-snaps stored bounds once on recheck", async () => {
+      const user = userEvent.setup();
+      render(<PendingEditInspector edit={sessionCut} />);
+      const snap = screen.getByRole("checkbox", { name: "Snap to silence" });
+      expect(snap).toBeChecked();
+      expect(updatePendingEdit).not.toHaveBeenCalled();
+      await user.click(snap);
+      expect(snap).not.toBeChecked();
+      expect(updatePendingEdit).not.toHaveBeenCalled();
+      await user.clear(screen.getByLabelText("Source start"));
+      await user.type(screen.getByLabelText("Source start"), "9.5");
+      await user.click(snap);
+      expect(updatePendingEdit).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/p.json",
+        "ed1",
+        10,
+        12,
+        true,
+        undefined,
+        expectedBaseline(),
+      );
+      expect(screen.getByLabelText("Source start")).toHaveValue("9.5");
+      expect(approveEdits).not.toHaveBeenCalled();
+    });
+
+    it("retains unchecked Snap after applying timing and receiving saved bounds", async () => {
+      const user = userEvent.setup();
+      const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+      await user.click(
+        screen.getByRole("checkbox", { name: "Snap to silence" }),
+      );
+      await user.clear(screen.getByLabelText("Source end"));
+      await user.type(screen.getByLabelText("Source end"), "12.5");
+      await user.click(screen.getByRole("button", { name: "Apply timing" }));
+      expect(updatePendingEdit).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/p.json",
+        "ed1",
+        10,
+        12.5,
+        false,
+        undefined,
+        expectedBaseline(),
+      );
+      const saved = { ...sessionCut, source_end: 12.5 };
+      act(() => replaceStored(saved));
+      rerender(<PendingEditInspector edit={saved} />);
+      expect(
+        screen.getByRole("checkbox", { name: "Snap to silence" }),
+      ).not.toBeChecked();
+      expect(screen.getByLabelText("Source end")).toHaveValue("0:12.500");
+    });
+
+    it("keeps submitted timing through an unrelated refresh while Apply is in flight", async () => {
+      let finish: (value: { queued: boolean }) => void = () => {};
+      updatePendingEdit.mockImplementationOnce(
+        () =>
+          new Promise<{ queued: boolean }>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const user = userEvent.setup();
+      const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+      await waitFor(() =>
+        expect(screen.getByLabelText("Source end")).toBeEnabled(),
+      );
+      await user.clear(screen.getByLabelText("Source end"));
+      await user.type(screen.getByLabelText("Source end"), "12.5");
+      await user.click(screen.getByRole("button", { name: "Apply timing" }));
+      rerender(
+        <PendingEditInspector edit={{ ...sessionCut, track_ids: ["host"] }} />,
+      );
+      expect(screen.getByLabelText("Source end")).toHaveValue("12.5");
+      expect(
+        screen.getByRole("button", { name: "Apply timing" }),
+      ).toBeDisabled();
+      await act(async () => finish({ queued: false }));
+      const saved = { ...sessionCut, source_end: 12.5, track_ids: ["host"] };
+      act(() => replaceStored(saved));
+      rerender(<PendingEditInspector edit={saved} />);
+      expect(screen.getByLabelText("Source end")).toHaveValue("0:12.500");
+    });
+
+    it.each([
+      { snap: false, start: "10", end: "12" },
+      { snap: true, start: "10.01", end: "12.01" },
+    ])(
+      "normalizes acknowledged unchanged bounds with $snap Snap and permits suggestion acceptance",
+      async ({ snap, start: startText, end: endText }) => {
+        loadPendingCutSuggestion.mockResolvedValue(proposal());
+        const user = userEvent.setup();
+        render(<PendingEditInspector edit={sessionCut} />);
+        await waitFor(() =>
+          expect(screen.getByLabelText("Source start")).toBeEnabled(),
+        );
+        if (!snap)
+          await user.click(
+            screen.getByRole("checkbox", { name: "Snap to silence" }),
+          );
+        const start = screen.getByLabelText("Source start");
+        const end = screen.getByLabelText("Source end");
+        await user.clear(start);
+        await user.type(start, startText);
+        await user.clear(end);
+        await user.type(end, endText);
+        expect(
+          screen.getByRole("button", { name: "Use suggestion" }),
+        ).toBeDisabled();
+        // The acknowledged optimizer result is the original saved 10..12 range.
+        await user.click(screen.getByRole("button", { name: "Apply timing" }));
+        expect(start).toHaveValue("0:10.000");
+        expect(end).toHaveValue("0:12.000");
+        expect(
+          screen.getByRole("button", { name: "Use suggestion" }),
+        ).toBeEnabled();
+        expect(updatePendingEdit).toHaveBeenCalledExactlyOnceWith(
+          "/tmp/p.json",
+          "ed1",
+          Number(startText),
+          Number(endText),
+          snap,
+          undefined,
+          expectedBaseline(),
+        );
+      },
+    );
+
+    it.each(["typing", "project", "epoch", "edit"])(
+      "ignores an old acknowledgment after %s changes",
+      async (change) => {
+        let finish: (value: { queued: boolean }) => void = () => {};
+        updatePendingEdit.mockReturnValueOnce(
+          new Promise<{ queued: boolean }>((resolve) => {
+            finish = resolve;
+          }),
+        );
+        const user = userEvent.setup();
+        const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+        fireEvent.change(screen.getByLabelText("Source start"), {
+          target: { value: "10" },
+        });
+        await user.click(screen.getByRole("button", { name: "Apply timing" }));
+        const next =
+          change === "edit" ? { ...sessionCut, id: "ed2" } : sessionCut;
+        act(() => {
+          if (change === "project") replaceStored(next, "/tmp/other.json");
+          if (change === "epoch")
+            useDawStore.setState({
+              projectEpoch: useDawStore.getState().projectEpoch + 1,
+            });
+          if (change === "edit") replaceStored(next);
+        });
+        rerender(<PendingEditInspector edit={next} />);
+        // A buffered input event must not be replaced by the earlier submission.
+        fireEvent.change(screen.getByLabelText("Source start"), {
+          target: { value: "9.75" },
+        });
+        await act(async () => finish({ queued: change !== "typing" }));
+        expect(screen.getByLabelText("Source start")).toHaveValue("9.75");
+        expect(screen.queryByRole("status")).toBeNull();
+      },
+    );
+
+    it("keeps drafts typed during a read and requires Apply timing before accepting", async () => {
+      const pending = deferredProposal();
+      loadPendingCutSuggestion.mockReturnValueOnce(pending.promise);
+      const user = userEvent.setup();
+      render(<PendingEditInspector edit={sessionCut} />);
+      const end = screen.getByLabelText("Source end");
+      await waitFor(() => expect(end).toBeEnabled());
+      await user.clear(end);
+      await user.type(end, "12.75");
+      await act(async () => pending.resolve(proposal()));
+      expect(end).toHaveValue("12.75");
+      const use = screen.getByRole("button", { name: "Use suggestion" });
+      expect(use).toBeDisabled();
+      expect(use).toHaveAccessibleDescription(
+        "Apply timing first to review a suggestion for your changes.",
+      );
+      await user.click(use);
+      expect(updatePendingEdit).not.toHaveBeenCalled();
+      await user.click(screen.getByRole("button", { name: "Apply timing" }));
+      expect(updatePendingEdit).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/p.json",
+        "ed1",
+        10,
+        12.75,
+        true,
+        undefined,
+        expectedBaseline(),
+      );
+    });
+
+    it("keeps dirty drafts on a remote timing change and discards the previous read", async () => {
+      const first = deferredProposal();
+      const second = deferredProposal();
+      loadPendingCutSuggestion
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(second.promise);
+      const user = userEvent.setup();
+      const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+      await waitFor(() =>
+        expect(screen.getByLabelText("Source start")).toBeEnabled(),
+      );
+      await user.clear(screen.getByLabelText("Source start"));
+      await user.type(screen.getByLabelText("Source start"), "9.5");
+      const updated = { ...sessionCut, source_end: 14 };
+      act(() => replaceStored(updated));
+      rerender(<PendingEditInspector edit={updated} />);
+      expect(screen.getByLabelText("Source start")).toHaveValue("9.5");
+      expect(screen.getByLabelText("Source end")).toHaveValue("0:14.000");
+      await act(async () => second.resolve(proposal(updated)));
+      expect(screen.getByText("0:09.97525 to 0:14.03525")).toBeVisible();
+      await act(async () => first.resolve(proposal()));
+      expect(screen.queryByText("0:09.97525 to 0:12.03525")).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Use suggestion" }),
+      ).toBeDisabled();
+      await user.click(screen.getByRole("button", { name: "Apply timing" }));
+      expect(updatePendingEdit).toHaveBeenCalledExactlyOnceWith(
+        "/tmp/p.json",
+        "ed1",
+        9.5,
+        14,
+        true,
+        undefined,
+        expectedBaseline(updated),
+      );
+    });
+
+    it.each(["project", "epoch", "selection", "track", "edit", "type"])(
+      "discards an obsolete %s response even when it ignores abort",
+      async (change) => {
+        const first = deferredProposal();
+        const second = deferredProposal();
+        loadPendingCutSuggestion
+          .mockReturnValueOnce(first.promise)
+          .mockReturnValueOnce(second.promise);
+        const { rerender } = render(<PendingEditInspector edit={sessionCut} />);
+        await waitFor(() =>
+          expect(loadPendingCutSuggestion).toHaveBeenCalledTimes(1),
+        );
+        const nextEdit =
+          change === "track"
+            ? { ...sessionCut, track_id: "guest" }
+            : change === "edit"
+              ? { ...sessionCut, id: "ed2" }
+              : change === "type"
+                ? { ...sessionCut, type: "mute" }
+                : sessionCut;
+        act(() => {
+          if (change === "project") replaceStored(nextEdit, "/tmp/other.json");
+          else if (change === "epoch")
+            useDawStore.setState({
+              projectEpoch: useDawStore.getState().projectEpoch + 1,
+            });
+          else if (change === "selection")
+            useDawStore.getState().setSelection({
+              kind: "pending",
+              id: sessionCut.id,
+              trackId: "host",
+            });
+          else replaceStored(nextEdit);
+        });
+        rerender(<PendingEditInspector edit={nextEdit} />);
+        await act(async () => first.resolve(proposal()));
+        expect(
+          screen.getByRole("button", { name: "Use suggestion" }),
+        ).toBeDisabled();
+        expect(screen.queryByText("0:09.97525 to 0:12.03525")).toBeNull();
+        await act(async () => second.resolve(proposal(nextEdit)));
+        expect(
+          screen.getByRole("button", { name: "Use suggestion" }),
+        ).toBeEnabled();
+        const signal: AbortSignal = loadPendingCutSuggestion.mock.calls[0]![1];
+        expect(signal.aborted).toBe(true);
+      },
+    );
+
+    it("hides a ready suggestion when capabilities are revoked", async () => {
+      loadPendingCutSuggestion.mockResolvedValue(proposal());
+      const key = shareProjectKey("tok");
+      useDawStore
+        .getState()
+        .hydrate(
+          key,
+          minimalProject({ pending_edits: [sessionCut] }),
+          "suggest",
+          ["view", "suggest"],
+        );
+      render(<PendingEditInspector edit={sessionCut} />);
+      expect(await screen.findByText("0:09.97525 to 0:12.03525")).toBeVisible();
+      act(() => useDawStore.setState({ shareCapabilities: ["view"] }));
+      expect(
+        screen.queryByRole("region", { name: "Suggested bounds" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Use suggestion" }),
+      ).toBeNull();
+    });
+
+    it("recovers a failed read through Retry suggestion and keeps typed timing", async () => {
+      loadPendingCutSuggestion
+        .mockRejectedValueOnce(new Error("Temporarily unavailable"))
+        .mockResolvedValueOnce(proposal());
+      const user = userEvent.setup();
+      render(<PendingEditInspector edit={sessionCut} />);
+      await screen.findByRole("button", { name: "Retry suggestion" });
+      await user.clear(screen.getByLabelText("Source end"));
+      await user.type(screen.getByLabelText("Source end"), "12.5");
+      await user.click(
+        screen.getByRole("button", { name: "Retry suggestion" }),
+      );
+      expect(await screen.findByText("0:09.97525 to 0:12.03525")).toBeVisible();
+      expect(screen.getByLabelText("Source end")).toHaveValue("12.5");
+      expect(
+        screen.getByRole("button", { name: "Use suggestion" }),
+      ).toBeDisabled();
+      expect(
+        screen.queryByRole("button", { name: "Retry suggestion" }),
+      ).toBeNull();
+    });
+
+    it.each(["Apply timing", "Snap to silence", "Use suggestion"])(
+      "blocks repeats while %s is queued, then reads fresh bounds",
+      async (action) => {
+        updatePendingEdit.mockResolvedValueOnce({ queued: true });
+        loadPendingCutSuggestion.mockResolvedValue(proposal());
+        const user = userEvent.setup();
+        render(<PendingEditInspector edit={sessionCut} />);
+        await screen.findByText("0:09.97525 to 0:12.03525");
+        const snap = screen.getByRole("checkbox", { name: "Snap to silence" });
+        if (action === "Snap to silence") {
+          await user.click(snap);
+          await user.click(snap);
+        } else await user.click(screen.getByRole("button", { name: action }));
+        expect(await screen.findByRole("status")).toHaveTextContent(
+          "Still sending.",
+        );
+        for (const name of [
+          "Apply timing",
+          "Use suggestion",
+          "Approve",
+          "Reject",
+        ]) {
+          const control = screen.getByRole("button", { name });
+          expect(control).toBeDisabled();
+          await user.click(control);
+        }
+        expect(snap).toBeDisabled();
+        await user.click(snap);
+        expect(screen.getByLabelText("Source start")).toBeDisabled();
+        expect(updatePendingEdit).toHaveBeenCalledTimes(1);
+        expect(loadPendingCutSuggestion).toHaveBeenCalledTimes(1);
+        expect(approveEdits).not.toHaveBeenCalled();
+        loadHostCommandCount.mockResolvedValue(0);
+        await waitFor(() => expect(screen.queryByRole("status")).toBeNull(), {
+          timeout: 3000,
+        });
+        expect(
+          await screen.findByText("0:09.97525 to 0:12.03525"),
+        ).toBeVisible();
+        expect(loadPendingCutSuggestion).toHaveBeenCalledTimes(2);
+        expect(snap).toBeEnabled();
+        expect(
+          screen.getByRole("button", { name: "Use suggestion" }),
+        ).toBeEnabled();
+      },
+    );
+  });
+
   describe("plain-language copy and m:ss.mmm times", () => {
     const guestCut: PendingEditView = {
       ...sessionCut,
@@ -415,7 +857,10 @@ describe("PendingEditInspector", () => {
 
     beforeEach(() => {
       updatePendingEdit.mockReset();
-      updatePendingEdit.mockResolvedValue(undefined);
+      updatePendingEdit.mockResolvedValue({ queued: false });
+      useDawStore
+        .getState()
+        .hydrate("/tmp/p.json", minimalProject({ pending_edits: [guestCut] }));
     });
 
     it("shows Join fade, rounded times and the reason once in words", () => {
@@ -432,6 +877,9 @@ describe("PendingEditInspector", () => {
     it("sends an untouched field's stored time, not its rounded text", async () => {
       const user = userEvent.setup();
       const precise = { ...guestCut, source_start: 0.1234, source_end: 2.3804 };
+      useDawStore
+        .getState()
+        .hydrate("/tmp/p.json", minimalProject({ pending_edits: [precise] }));
       render(<PendingEditInspector edit={precise} />);
       await user.click(screen.getByRole("button", { name: /Apply timing/ }));
       let args = updatePendingEdit.mock.calls[0] as unknown[];
@@ -481,6 +929,7 @@ describe("PendingEditInspector", () => {
       const user = userEvent.setup();
       render(<PendingEditInspector edit={guestCut} />);
       const end = screen.getByLabelText("Source end");
+      await waitFor(() => expect(end).toBeEnabled());
       await user.clear(end);
       await user.type(end, "0:02.380");
       await user.click(screen.getByRole("button", { name: /Apply timing/ }));
@@ -508,6 +957,7 @@ describe("PendingEditInspector", () => {
         guestCut.source_end,
         false,
         undefined,
+        expectedBaseline(guestCut),
       );
     });
 
@@ -515,6 +965,7 @@ describe("PendingEditInspector", () => {
       const user = userEvent.setup();
       render(<PendingEditInspector edit={guestCut} />);
       const end = screen.getByLabelText("Source end");
+      await waitFor(() => expect(end).toBeEnabled());
       await user.clear(end);
       await user.type(end, "1:75");
       await user.click(screen.getByRole("button", { name: /Apply timing/ }));

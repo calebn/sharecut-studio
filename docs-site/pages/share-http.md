@@ -45,6 +45,7 @@ using MCP; REST `/comments*` remains for ReviewApp-style clients.
 | `GET` | `…/daw/document/state` | `view` | Atomic sanitized document state with sequence and opaque basis token |
 | `POST` | `…/daw/media/upload` | `edit` | Chunked audio into host raw/ |
 | `GET` | `…/daw/meta` | `view` | mtime/size + document server_seq for poll reload (server_seq omitted when document.db is unreadable) |
+| `GET` | `…/daw/pending-edits/{edit_id}/cut-suggestion` | `view + (suggest or edit)` | Read-only full-source pending cut suggestion; no-store; read rate class |
 | `GET` | `…/daw/pending-preview` | `play + view` | Listen-first Current/Suggested/A/B WAV (not host speakers) |
 | `GET` | `…/daw/pending-preview-image` | `play + view` | Waveform or spectrogram of the listen-first extract |
 | `GET` | `…/daw/project` | `view` | Sanitized ProjectView (no host paths) |
