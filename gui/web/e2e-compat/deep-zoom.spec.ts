@@ -16,6 +16,7 @@ import {
 import { scrollToEnd } from "../e2e/scroll";
 import { withShareableProject } from "../e2e/shareableProject";
 import { expectPaintedWaveformTile } from "../e2e/waveformHook";
+import { timelineTestIds } from "../src/timeline/selectors";
 import { VIEWPORT_CHUNK_PX } from "../src/utils/timelineViewport";
 import {
   effectiveMaxZoomPxPerSec,
@@ -24,58 +25,65 @@ import {
 
 /** Scroller, ruler and one lane's geometry, as time-lane x. */
 async function laneGeometry(page: Page, trackId: string) {
-  return page.evaluate((trackId) => {
-    const scroller = document.querySelector<HTMLElement>(".timeline-scroll")!;
-    const lane = scroller.querySelector<HTMLElement>(
-      `.lane-row[data-track-id="${trackId}"]`,
-    );
-    if (!lane) throw new Error(`No lane for track "${trackId}"`);
-    const headerPx =
-      scroller.querySelector<HTMLElement>(".track-headers")?.offsetWidth ?? 0;
-    // Time-lane x of the viewport's left edge: past the border and sticky header, plus the scroll.
-    const origin =
-      scroller.getBoundingClientRect().left +
-      scroller.clientLeft +
-      headerPx -
-      scroller.scrollLeft;
-    const ticks = [
-      ...document.querySelectorAll<HTMLElement>(".time-ruler .ruler-tick"),
-    ].map((el) => {
-      const r = el.getBoundingClientRect();
-      const end = el.classList.contains("ruler-tick--end"); // translateX(-100%): the tick is its right edge
+  return page.evaluate(
+    ({ trackId, ids }) => {
+      const scroller = document.querySelector<HTMLElement>(".timeline-scroll")!;
+      const lane = scroller.querySelector<HTMLElement>(
+        `[data-testid="${ids.lane}"][data-track-id="${trackId}"]`,
+      );
+      if (!lane) throw new Error(`No lane for track "${trackId}"`);
+      const headerPx =
+        scroller.querySelector<HTMLElement>(".track-headers")?.offsetWidth ?? 0;
+      // Time-lane x of the viewport's left edge: past the border and sticky header, plus the scroll.
+      const origin =
+        scroller.getBoundingClientRect().left +
+        scroller.clientLeft +
+        headerPx -
+        scroller.scrollLeft;
+      const ticks = [
+        ...document.querySelectorAll<HTMLElement>(
+          `[data-testid="${ids.rulerTick}"], [data-testid="${ids.rulerEndTick}"]`,
+        ),
+      ].map((el) => {
+        const r = el.getBoundingClientRect();
+        const end = el.dataset.testid === ids.rulerEndTick; // translateX(-100%): the tick is its right edge
+        return {
+          label: el.textContent ?? "",
+          x: (end ? r.right : r.left) - origin,
+        };
+      });
+      // Only this lane: other lanes' clips are not on this clip's tile grid.
+      const tiles = [
+        ...lane.querySelectorAll<HTMLCanvasElement>(
+          `[data-testid="${ids.waveformTile}"]`,
+        ),
+      ].map((c) => {
+        const r = c.getBoundingClientRect();
+        return { x: r.left - origin, right: r.right - origin };
+      });
+      // The stretched envelope's end point: exactly one must match in the lane.
+      const points = lane.querySelectorAll(
+        'circle[aria-label^="Envelope point 2 at"]',
+      );
+      const pr =
+        points.length === 1 ? points[0].getBoundingClientRect() : undefined;
+      const overlay = lane
+        .querySelector(`[data-testid="${ids.envelope}"]`)
+        ?.getBoundingClientRect();
       return {
-        label: el.textContent ?? "",
-        x: (end ? r.right : r.left) - origin,
+        headerPx,
+        scrollLeft: scroller.scrollLeft,
+        scrollWidth: scroller.scrollWidth,
+        clientWidth: scroller.clientWidth,
+        ticks,
+        tiles,
+        pointCount: points.length,
+        pointX: pr ? pr.left + pr.width / 2 - origin : null,
+        overlayX: overlay ? overlay.left - origin : null,
       };
-    });
-    // Only this lane: other lanes' clips are not on this clip's tile grid.
-    const tiles = [
-      ...lane.querySelectorAll<HTMLCanvasElement>("canvas.clip-waveform-tile"),
-    ].map((c) => {
-      const r = c.getBoundingClientRect();
-      return { x: r.left - origin, right: r.right - origin };
-    });
-    // The stretched envelope's end point: exactly one must match in the lane.
-    const points = lane.querySelectorAll(
-      'circle[aria-label^="Envelope point 2 at"]',
-    );
-    const pr =
-      points.length === 1 ? points[0].getBoundingClientRect() : undefined;
-    const overlay = lane
-      .querySelector(".envelope-overlay")
-      ?.getBoundingClientRect();
-    return {
-      headerPx,
-      scrollLeft: scroller.scrollLeft,
-      scrollWidth: scroller.scrollWidth,
-      clientWidth: scroller.clientWidth,
-      ticks,
-      tiles,
-      pointCount: points.length,
-      pointX: pr ? pr.left + pr.width / 2 - origin : null,
-      overlayX: overlay ? overlay.left - origin : null,
-    };
-  }, trackId);
+    },
+    { trackId, ids: timelineTestIds },
+  );
 }
 
 test.describe("deep zoom at the content ceiling", () => {

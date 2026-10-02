@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { timelineTestIds } from "../src/timeline/selectors";
 import { e2eProjectPath } from "./env";
 import { parseTimecodeSec } from "./timecode";
 
@@ -21,7 +22,13 @@ test.describe("Arrange chrome", () => {
       await page.keyboard.press("-");
     }
 
-    const lastTick = page.locator(".ruler-tick").last();
+    const lastTick = page
+      .getByTestId(
+        new RegExp(
+          `^(${timelineTestIds.rulerTick}|${timelineTestIds.rulerEndTick})$`,
+        ),
+      )
+      .last();
     await expect(lastTick).toBeVisible();
     const lastLabel = await lastTick.innerText();
     // Zoomed out, the step is whole seconds: labels carry no fraction.

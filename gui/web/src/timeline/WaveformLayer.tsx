@@ -73,6 +73,7 @@ import {
   type WaveformStyle,
 } from "../waveform/types";
 import { quietBandsInView } from "./quietWash";
+import { timelineTestIds } from "./selectors";
 import { useResolvedTheme, waveformStyle } from "./waveformTheme";
 
 type Props = {
@@ -554,10 +555,16 @@ function WaveformLayerView({
     return null;
   }
   return (
-    <div className="clip-waveform" aria-hidden ref={setEl}>
+    <div
+      data-testid={timelineTestIds.waveform}
+      className="clip-waveform"
+      aria-hidden
+      ref={setEl}
+    >
       {tiles.map(({ k, rect }) => (
         <canvas
           key={k}
+          data-testid={timelineTestIds.waveformTile}
           className="clip-waveform-tile"
           width={rect.sw}
           height={heightDev}

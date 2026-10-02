@@ -38,6 +38,7 @@ import { laneColor } from "./laneColors";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 import { ProsodyOverlay } from "./ProsodyOverlay";
 import { StaleInvalidationOverlay } from "./StaleInvalidationOverlay";
+import { timelineTestIds } from "./selectors";
 
 const NOOP = () => undefined;
 
@@ -194,6 +195,7 @@ export function TrackLaneView({
     <div
       className={`lane-row${track.muted ? " muted" : ""}${bladeHighlight ? " blade-target" : ""}${staleWholeTrack ? " stale-whole-track" : ""}${dropOver ? " lane-drop-target" : ""}`}
       style={{ width }}
+      data-testid={timelineTestIds.lane}
       data-track-id={track.id}
       data-waveform-status={waveformStatus}
       onPointerEnter={(e) => {

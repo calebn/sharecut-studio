@@ -737,6 +737,7 @@ test; other rows are whole tests.
 | keeps the listening shell usable on a touch phone | `gui/web/e2e-compat/browser-matrix.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | takes a recording guest from microphone consent to a live level | `gui/web/e2e-compat/browser-matrix.spec.ts` | getUserMedia | Pass | Pass | Not run |
 | keeps ruler, tiles, envelope and scroll range exact at 15 M px | `gui/web/e2e-compat/deep-zoom.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| snap ticks, mute regions and a live trim ghost share the ruler geometry | `gui/web/e2e-compat/timeline-geometry.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | short desktop lanes reach the horizontal end with classic scrollbars | `gui/web/e2e-compat/timeline-scroll-end.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Pass | Pass | Not run |
 
@@ -775,6 +776,15 @@ regexes, so it fails loudly on shapes it cannot read: a spec that mixes
 Firefox project fails the guard until this table is updated.
 
 ### Browser compatibility matrix
+
+Timeline geometry specs import stable DOM test IDs from
+`gui/web/src/timeline/selectors.ts`. `e2e-compat/timeline-geometry.spec.ts`
+uses a disposable aligned-dialogue copy with nonzero source and timeline starts,
+then zooms, scrolls, and drags a trim-out handle. It compares snap ticks and mute
+regions against rendered ruler ticks within 0.5 CSS px, and the trim ghost
+waveform against the committed clip edge before verifying the saved trim.
+The deep-zoom journey keeps its accessible envelope-point query and measures
+waveform tiles, ruler ticks, and envelope chunks through the same hooks.
 
 The `frontend-e2e-suites` compatibility job runs the focused
 `gui/web/e2e-compat/` matrix (`playwright.compat.config.ts`) in bundled Chromium

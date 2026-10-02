@@ -8,6 +8,7 @@ import {
 } from "../utils/envelopes";
 import { formatTime } from "../utils/time";
 import { VIEWPORT_CHUNK_PX } from "../utils/timelineViewport";
+import { timelineTestIds } from "./selectors";
 
 function valueToY(value: number, height: number): number {
   const clamped = clampEnvelopeValue(value);
@@ -170,6 +171,7 @@ export function EnvelopeOverlayView({
       />
       <div
         className="envelope-overlay"
+        data-testid={timelineTestIds.envelope}
         style={{ left: x0, width: x1 - x0, height }}
       >
         <svg width={x1 - x0} height={height} className="envelope-svg">

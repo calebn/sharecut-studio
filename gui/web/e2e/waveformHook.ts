@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { timelineTestIds } from "../src/timeline/selectors";
 
 /** What `window.__SHARECUT_E2E_WAVEFORM` exposes (E2E builds only). */
 type WaveformHook = {
@@ -66,20 +67,22 @@ export async function expectPaintedWaveformTile(page: Page): Promise<void> {
   await expect
     .poll(
       () =>
-        page.evaluate(() =>
-          [
-            ...document.querySelectorAll<HTMLCanvasElement>(
-              "canvas.clip-waveform-tile",
-            ),
-          ].some((canvas) => {
-            if (!canvas.width || !canvas.height) return false;
-            const pixels = canvas
-              .getContext("2d")
-              ?.getImageData(0, 0, canvas.width, canvas.height).data;
-            return pixels
-              ? pixels.some((value, index) => index % 4 === 3 && value > 0)
-              : false;
-          }),
+        page.evaluate(
+          (tileId) =>
+            [
+              ...document.querySelectorAll<HTMLCanvasElement>(
+                `[data-testid="${tileId}"]`,
+              ),
+            ].some((canvas) => {
+              if (!canvas.width || !canvas.height) return false;
+              const pixels = canvas
+                .getContext("2d")
+                ?.getImageData(0, 0, canvas.width, canvas.height).data;
+              return pixels
+                ? pixels.some((value, index) => index % 4 === 3 && value > 0)
+                : false;
+            }),
+          timelineTestIds.waveformTile,
         ),
       { timeout: 30_000 },
     )
