@@ -237,6 +237,21 @@ Guest playback prefers **proxy media** when `GET /api/review/{token}/daw/proxy/m
 
 ### Audio transport
 
+Track headers include a sample-peak playback meter with the shared dBFS zones
+and peak hold. A clip light latches at -1 dBFS until **Clear clip light** is
+activated, including after Pause, Stop, seeking, or switching responsive shells.
+It resets for a different project or a removed track. These are track-output measurements before the
+premix/master, not a loudness or true-peak measurement.
+
+Proxy playback measures after each track's output gain and fades. Local
+playback keeps its existing audible player path; silent synchronized track
+monitors provide the individual readings while a premix plays. Missing or
+loading monitor audio reports an unavailable meter rather than digital silence.
+Guests using the premix-only fallback have unavailable per-track readings.
+Meter sampling stops with playback. Reduced motion freezes the moving bars and
+peak markers while clip detection remains active. The **Volume envelope** layer
+still controls automation curves independently of playback meters.
+
 When the timeline / transport / track headers **or the Transcript tab** are focused (including after selecting transcript text):
 
 | Control | Behavior |

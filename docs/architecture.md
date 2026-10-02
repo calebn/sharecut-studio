@@ -116,6 +116,18 @@ Models                   models/  (EpisodeProject, snapshots)
 11. **Extensions** (`podcast_mcp.extensions`) — public FeatureRegistry / soft-load SPI; built-in FOSS `collaboration` extension; optional independently installed provider extension named `online`; example stub. `collaboration` composes share CLI/MCP, anonymous guest identity, review/record/remote-MCP routes, guest SPA hooks, and share/tunnel feature slots. `online` contributes only provider account/auth surfaces. Absent extension ⇒ no contributed routes/tools/UI ([extension-seams.md](extension-seams.md)). FOSS share mint works against any self-hosted relay; provider defaults, accounts, and quotas remain outside this repository.
 12. **Relay** (`podcast_relay`) — FOSS host-online reverse tunnel edge (`podcast-relay`); host connects via `podcast tunnel` (`services/collaboration/tunnel.py`). Packaging: `deploy/relay/` plus static vhosts (`/download`, Sharecut marketing, company page). See [host-online-relay.md](host-online-relay.md).
 
+Playback meter sources live under `gui/web/src/audio/`. Transports bind one
+runtime source through `playbackMeterSource.ts`; track meter leaves subscribe
+without sending frame readings through the project store. `channelPeakTap.ts`
+measures channels independently so opposite-polarity stereo cannot cancel.
+`ProxyEngine` owns its post-gain taps. `hostPlaybackMeterMonitor.ts` owns silent
+track monitors synchronized to the audible HTMLAudio transport, preserving the
+premix playback path. Shared metering math and the reference-counted frame
+scheduler supply peak hold and clip detection. Transport cleanup owns audio
+resources; the meter leaf owns presentation. `playbackClipLatches.ts` retains
+clearable clip state across responsive shell remounts, scoped to the current
+project and surviving tracks.
+
 Frontend pointer dispatch policy lives in `gui/web/src/commands/pointer.ts`.
 `gui/web/src/commands/seek.ts` routes transport seeks through that pointer
 adapter and returns the command result so Listen, timeline, and DAW WebMCP share

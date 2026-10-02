@@ -26,6 +26,7 @@ const ICONS = {
   check: true,
   refresh: true,
   seek: true,
+  warning: true,
 } satisfies Record<IconName, true>;
 
 const NAMES = Object.keys(ICONS) as IconName[];

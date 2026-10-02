@@ -102,6 +102,27 @@ describe("LevelMeter", () => {
     ).toContain("inset(0 100% 0 0)");
   });
 
+  it("supports an external clip control and explicit unavailable evidence", async () => {
+    const { container, getByRole, queryByTestId } = render(
+      <LevelMeter
+        levelDb={Number.NEGATIVE_INFINITY}
+        clipped
+        showClipIndicator={false}
+        valueText="Playback level unavailable"
+        label="Mira playback level"
+      />,
+    );
+    expect(queryByTestId("clip-led")).toBeNull();
+    expect(getByRole("meter")).toHaveAttribute(
+      "aria-valuetext",
+      "Playback level unavailable",
+    );
+    expect(getByRole("status")).toHaveTextContent(
+      "Mira playback level: clipping",
+    );
+    await expectNoA11yViolations(container);
+  });
+
   it("supports vertical orientation", () => {
     const { container } = render(
       <LevelMeter levelDb={-12} orientation="vertical" />,

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { loadProxyManifest } from "../api";
 import { cachedFetchArrayBuffer } from "../audio/chunkCache";
 import { bindPlaybackClock } from "../audio/playbackClock";
+import { bindPlaybackMeterSource } from "../audio/playbackMeterSource";
 import { ProxyEngine } from "../audio/proxyEngine";
 import type { ProxyManifest } from "../audio/proxyMath";
 import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
@@ -287,6 +288,13 @@ export function useProxyTransport(): boolean {
         : null,
     );
   }, [active, projectPath]);
+
+  useEffect(() => {
+    if (!active) return;
+    return bindPlaybackMeterSource({
+      read: (trackId) => engineRef.current?.readTrackFrame(trackId) ?? null,
+    });
+  }, [active]);
 
   return active;
 }

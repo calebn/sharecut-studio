@@ -1,9 +1,12 @@
 import { useEffect, useRef } from "react";
 import { audioUrl } from "../api";
+import { createHostPlaybackMeterMonitor } from "../audio/hostPlaybackMeterMonitor";
 import { bindPlaybackClock } from "../audio/playbackClock";
+import { bindPlaybackMeterSource } from "../audio/playbackMeterSource";
+import { isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { pickDaw, useDaw } from "../state/useDaw";
-import type { ProjectView } from "../types/project";
+import type { ProjectView, TrackView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import {
   anySolo,
@@ -145,6 +148,26 @@ function stemRenderHash(project: ProjectView, trackId: string): string {
   return project.render_status.tracks?.[trackId]?.render_hash ?? "";
 }
 
+function trackPlaybackUrl(
+  project: ProjectView,
+  projectPath: string,
+  track: TrackView,
+  kind: "stem" | "raw",
+): string {
+  const trackId = track.id;
+  if (kind === "raw") return audioUrl(projectPath, kind, trackId);
+  const cacheKey = `${track.stem_is_fresh ? "f" : "s"}-${stemRenderHash(
+    project,
+    trackId,
+  )}-${(project.effects_by_track[trackId] ?? [])
+    .map((effect) => `${effect.effect}:${effect.bypass ? 1 : 0}`)
+    .join(",")}`;
+  return audioUrl(projectPath, kind, trackId, {
+    rerender: track.stem_is_fresh === false,
+    cacheKey,
+  });
+}
+
 /**
  * What the players load. They're rebuilt only when this changes: a saved
  * volume or mute change patches the project too, and rebuilding the players
@@ -218,6 +241,9 @@ export function useAudioTransport(enabled = true): void {
   previewUrlRef.current = previewUrl;
   const playersRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const rafRef = useRef<number | null>(null);
+  const meterMonitorRef = useRef<ReturnType<
+    typeof createHostPlaybackMeterMonitor
+  > | null>(null);
   const abTimerRef = useRef<number | null>(null);
   const playheadRef = useRef(playheadSec);
   const appliedSeekRevision = useRef(playheadSeekRevision);
@@ -332,24 +358,7 @@ export function useAudioTransport(enabled = true): void {
         if (!trackHasAudioContent(track, project)) {
           continue;
         }
-        if (kind === "raw") {
-          make(track.id, audioUrl(projectPath, kind, track.id));
-          continue;
-        }
-        const stale = track.stem_is_fresh === false;
-        const cacheKey = `${track.stem_is_fresh ? "f" : "s"}-${stemRenderHash(
-          project,
-          track.id,
-        )}-${(project.effects_by_track[track.id] ?? [])
-          .map((e) => `${e.effect}:${e.bypass ? 1 : 0}`)
-          .join(",")}`;
-        make(
-          track.id,
-          audioUrl(projectPath, kind, track.id, {
-            rerender: stale,
-            cacheKey,
-          }),
-        );
+        make(track.id, trackPlaybackUrl(project, projectPath, track, kind));
       }
     }
 
@@ -612,6 +621,7 @@ export function useAudioTransport(enabled = true): void {
 
       // A Stop or Pause can land before this effect's cleanup; never write a stale clock over it.
       const tick = () => {
+        meterMonitorRef.current?.sync();
         if (
           cancelled ||
           (ownedPreview
@@ -802,4 +812,78 @@ export function useAudioTransport(enabled = true): void {
       );
     });
   }, [enabled, projectEpoch, modeKey]);
+  useEffect(() => {
+    if (
+      !enabled ||
+      !projectRef.current ||
+      previewRef.current ||
+      isShareProjectKey(projectPath)
+    )
+      return;
+    const monitor = createHostPlaybackMeterMonitor({
+      clock: () => {
+        const state = useDawStore.getState();
+        const master = pickMaster(playersRef.current)?.[1];
+        if (
+          previewRef.current ||
+          state.projectEpoch !== projectEpoch ||
+          !state.isPlaying ||
+          !master ||
+          master.paused ||
+          master.ended ||
+          master.seeking ||
+          master.readyState < 2
+        )
+          return null;
+        return { playbackRate: state.playbackRate };
+      },
+      tracks: () => {
+        const state = useDawStore.getState();
+        const currentProject = projectRef.current;
+        const master = pickMaster(playersRef.current);
+        if (!currentProject || !master) return [];
+        const mode = auditionModeRef.current;
+        const timelineSec = masterTimelineSec(
+          master[1],
+          master[0],
+          currentProject,
+          mode,
+        );
+        return currentProject.tracks
+          .filter((track) => trackHasAudioContent(track, currentProject))
+          .map((track) => ({
+            id: track.id,
+            url: trackPlaybackUrl(
+              currentProject,
+              projectPath,
+              track,
+              mode === "raw" ? "raw" : "stem",
+            ),
+            gain: trackIsAudible(
+              track.id,
+              track.muted,
+              state.viewerMute,
+              state.soloTracks,
+            )
+              ? dbToLinear(trackOutputGainDb(track))
+              : 0,
+            mediaSec:
+              mode === "raw"
+                ? rawSourceSec(currentProject, track.id, timelineSec)
+                : timelineSec,
+          }));
+      },
+    });
+    meterMonitorRef.current = monitor;
+    const unbind = bindPlaybackMeterSource(monitor);
+    return () => {
+      unbind();
+      monitor.dispose();
+      if (meterMonitorRef.current === monitor) meterMonitorRef.current = null;
+    };
+  }, [enabled, projectPath, projectEpoch, modeKey]);
+
+  useEffect(() => {
+    meterMonitorRef.current?.sync();
+  }, [timelineIsPlaying, preview, project, playbackRate, playheadSeekRevision]);
 }

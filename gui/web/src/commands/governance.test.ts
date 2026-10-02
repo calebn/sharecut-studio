@@ -63,6 +63,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "tracks/TrackHeaderView.tsx",
   "tracks/TrackMuteSoloButtonsView.tsx",
   "tracks/TrackHeader.tsx",
+  // Keep clip clearing on the focused button from toggling global playback.
+  "tracks/TrackPlaybackMeter.tsx",
   "comments/CommentAuthorLine.tsx",
   "commands/governance.test.ts",
 ]);

@@ -431,6 +431,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     markerLaneHeightPx: liveMarkerLaneHeightPx,
     mode: laneHeightMode,
     fixedPx: laneHeightPx,
+    minimumPx: fixedPlayhead ? COMPACT_LANE_HEIGHT : LANE_HEIGHT,
   });
   const refitLanes = useCallback(() => {
     const inputs = fitInputsRef.current;
@@ -443,6 +444,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
         inputs.markerLaneHeightPx -
         FIT_GUTTER,
       trackCount: inputs.trackCount,
+      minimumPx: inputs.minimumPx,
     });
     useDawStore.getState().setDrawnLaneHeightPx(next);
     if (next !== fittedLaneHeightRef.current) {
@@ -460,6 +462,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       markerLaneHeightPx: liveMarkerLaneHeightPx,
       mode: laneHeightMode,
       fixedPx: laneHeightPx,
+      minimumPx: fixedPlayhead ? COMPACT_LANE_HEIGHT : LANE_HEIGHT,
     };
     refitLanes();
   }, [
@@ -467,6 +470,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     liveMarkerLaneHeightPx,
     laneHeightMode,
     laneHeightPx,
+    fixedPlayhead,
     refitLanes,
   ]);
 

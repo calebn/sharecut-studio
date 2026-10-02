@@ -77,9 +77,25 @@ describe("fitLaneHeight", () => {
 });
 
 describe("resolveLaneHeight", () => {
+  it.each(["fixed", "fit"] as const)(
+    "preserves independent phone touch targets in %s mode",
+    (mode) => {
+      expect(
+        resolveLaneHeight({
+          mode,
+          fixedPx: 72,
+          availablePx: 300,
+          trackCount: 10,
+          minimumPx: 104,
+        }),
+      ).toBe(104);
+    },
+  );
+
   it("ignores stage size and track count in fixed mode", () => {
     expect(
       resolveLaneHeight({
+        minimumPx: 72,
         mode: "fixed",
         fixedPx: 104,
         availablePx: 400,
@@ -88,6 +104,7 @@ describe("resolveLaneHeight", () => {
     ).toBe(104);
     expect(
       resolveLaneHeight({
+        minimumPx: 72,
         mode: "fixed",
         fixedPx: 500,
         availablePx: 400,
@@ -96,6 +113,7 @@ describe("resolveLaneHeight", () => {
     ).toBe(240);
     expect(
       resolveLaneHeight({
+        minimumPx: 72,
         mode: "fixed",
         fixedPx: 10,
         availablePx: 400,
@@ -107,6 +125,7 @@ describe("resolveLaneHeight", () => {
   it("delegates to fitLaneHeight in fit mode", () => {
     expect(
       resolveLaneHeight({
+        minimumPx: 72,
         mode: "fit",
         fixedPx: 104,
         availablePx: 400,
@@ -115,6 +134,7 @@ describe("resolveLaneHeight", () => {
     ).toBe(200);
     expect(
       resolveLaneHeight({
+        minimumPx: 72,
         mode: "fit",
         fixedPx: 104,
         availablePx: 300,

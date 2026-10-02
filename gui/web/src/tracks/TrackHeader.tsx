@@ -8,6 +8,7 @@ import { trackHasSourceAudio } from "../utils/projectMedia";
 import { wholeTrackReasonsForTrack } from "../utils/staleRender";
 import { TrackHeaderView } from "./TrackHeaderView";
 import { TrackMuteSoloButtons } from "./TrackMuteSoloButtons";
+import { TrackPlaybackMeter } from "./TrackPlaybackMeter";
 import { setTrackReorderData } from "./trackReorder";
 
 interface TrackHeaderProps {
@@ -146,6 +147,12 @@ export function TrackHeader({
       dropEdge={dropEdge}
       mayReorder={mayReorder}
       mixer={<TrackMuteSoloButtons trackId={track.id} />}
+      playbackMeter={
+        <TrackPlaybackMeter
+          trackId={track.id}
+          label={track.label || track.id}
+        />
+      }
       longPress={longPress}
       onSelect={select}
       onHandleSelect={() => onSelect(false)}
