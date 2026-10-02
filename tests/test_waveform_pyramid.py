@@ -368,57 +368,6 @@ def test_read_meta_rejects_corrupt_files(tmp_path, corrupt):
         read_meta(out)
 
 
-def test_publish_uses_unique_temp_names_and_cleans_up(tmp_path):
-    out = tmp_path / "peaks" / "track-a.0123456789abcdef0123.wfpk"
-    names: list[str] = []
-
-    def _write(fh):
-        names.append(Path(fh.name).name)
-        fh.write(b"x")
-
-    wp._publish(out, _write)
-    wp._publish(out, _write)  # target exists: replaced atomically
-    assert len(set(names)) == 2
-    for name in names:
-        assert name.startswith(f".{out.name}.")
-        assert name.endswith(".tmp")
-    assert out.read_bytes() == b"x"
-    assert sorted(p.name for p in out.parent.iterdir()) == [out.name]
-
-
-def test_publish_removes_temp_on_failure(tmp_path):
-    out = tmp_path / "x.wfpk"
-
-    def _boom(fh):
-        raise RuntimeError("boom")
-
-    with pytest.raises(RuntimeError):
-        wp._publish(out, _boom)
-    with (
-        patch("podcast_mcp.engines.waveform_pyramid.os.replace", side_effect=OSError("ro")),
-        pytest.raises(OSError),
-    ):
-        wp._publish(out, lambda fh: fh.write(b"y"))
-    assert list(tmp_path.iterdir()) == []
-
-
-def test_publish_fsyncs_file_and_directory(tmp_path):
-    out = tmp_path / "peaks" / "f.wfpk"
-    with patch("podcast_mcp.engines.waveform_pyramid.os.fsync", wraps=os.fsync) as fsync:
-        wp._publish(out, lambda fh: fh.write(b"z"))
-    assert fsync.call_count == 2  # temp file, then the directory
-    assert out.read_bytes() == b"z"
-    with patch("podcast_mcp.engines.waveform_pyramid.os.open", side_effect=OSError("dir")):
-        wp._fsync_dir(out.parent)  # best effort: no raise
-
-
-def test_publish_replaces_a_corrupt_existing_file(tmp_path):
-    out = tmp_path / "p.wfpk"
-    out.write_bytes(b"torn")
-    wp._publish(out, lambda fh: fh.write(b"fresh"))
-    assert out.read_bytes() == b"fresh"
-
-
 # --- Decode --------------------------------------------------------------------------------
 
 

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
+import secrets
 import sqlite3
 import threading
 import time
@@ -15,6 +17,7 @@ from typing import Any, Literal, NamedTuple
 
 from podcast_mcp.models import EpisodeProject, workspace_artifacts_dir
 from podcast_mcp.services.session_sync import cached_store, connect_session_db, sync_db_path
+from podcast_mcp.util.atomic_file import atomic_write, publish_completed_file
 from podcast_mcp.util.body_limits import record_upload_max_part_bytes
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import progress_task
@@ -1190,10 +1193,8 @@ class RecordUploadService:
                 pending = pending_record_upload_bytes(self._root)
                 if pending + len(payload) > RECORD_UPLOAD_PENDING_QUOTA:
                     raise RecordUploadError("pending upload quota exceeded")
-                path.parent.mkdir(parents=True, exist_ok=True)
-                tmp = path.with_name(f"{path.name}.tmp")
-                tmp.write_bytes(payload)
-                try:
+
+                def register_part(_temp: Path) -> None:
                     self._store.put_part(
                         session_id=sid,
                         take_index=take,
@@ -1203,10 +1204,13 @@ class RecordUploadService:
                         digest=expected,
                         byte_length=len(payload),
                     )
-                    tmp.replace(path)
-                except Exception:
-                    tmp.unlink(missing_ok=True)
-                    raise
+
+                atomic_write(
+                    path,
+                    lambda handle: handle.write(payload),
+                    creation_mode=0o666,
+                    prepare_temp=register_part,
+                )
         if (
             final
             and declared_parts is not None
@@ -1498,12 +1502,15 @@ class RecordUploadService:
             raise RecordUploadError("assembled file too large")
         dest = self._acked_path(session_id, take_index, participant_id, segment_index, kind=kind)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        tmp_dest = dest.with_suffix(".wav.tmp")
+        tmp_dest = dest.with_name(f".{dest.name}.{secrets.token_hex(16)}.wav.tmp")
         hasher = hashlib.sha256()
         header = pcm_wav_header(total_pcm, KEEPER_SAMPLE_RATE)
+        created = False
         try:
+            out = tmp_dest.open("xb")
+            created = True
             with (
-                tmp_dest.open("wb") as out,
+                out,
                 progress_task(
                     "record_upload_assemble",
                     "Assembling record keeper",
@@ -1542,9 +1549,11 @@ class RecordUploadService:
             digest = hasher.hexdigest()
             if digest != file_sha256:
                 raise RecordUploadError("file sha256 mismatch")
-            tmp_dest.replace(dest)
-        except Exception:
-            tmp_dest.unlink(missing_ok=True)
+            publish_completed_file(tmp_dest, dest)
+        except BaseException:
+            if created:
+                with contextlib.suppress(OSError):
+                    tmp_dest.unlink(missing_ok=True)
             raise
         self._store.mark_file(
             session_id=session_id,

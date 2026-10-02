@@ -23,6 +23,7 @@ from podcast_mcp.models import (
     ProcessingEffect,
     Track,
 )
+from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.binaries import resolve_ffmpeg, resolve_ffprobe
 from podcast_mcp.util.model_assets import resolve_rnnoise_model
 from podcast_mcp.util.process import PIPE, CalledProcessError, TimeoutExpired, popen, run
@@ -1744,21 +1745,22 @@ class FFmpegEngine:
         return out_path
 
     def _overlay_png(self, png_path: Path, out_path: Path, vf: str) -> bool:
-        tmp = out_path.with_name(f".{out_path.stem}.annot.png")
-        cmd = [
-            self.ffmpeg,
-            "-y",
-            "-i",
-            str(png_path),
-            "-vf",
-            vf,
-            str(tmp),
-        ]
-        try:
-            run(cmd, check=True, capture_output=True)
-            tmp.replace(out_path)
-            return True
-        except CalledProcessError:
-            return False
-        finally:
-            tmp.unlink(missing_ok=True)
+        with tempfile.TemporaryDirectory(
+            prefix=f".{out_path.stem}.", dir=out_path.parent
+        ) as temporary_dir:
+            tmp = Path(temporary_dir) / f"{out_path.stem}.annot.png"
+            cmd = [
+                self.ffmpeg,
+                "-y",
+                "-i",
+                str(png_path),
+                "-vf",
+                vf,
+                str(tmp),
+            ]
+            try:
+                run(cmd, check=True, capture_output=True)
+                publish_completed_file(tmp, out_path)
+                return True
+            except CalledProcessError:
+                return False

@@ -42,6 +42,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.document import PlayService
 from podcast_mcp.services.media.review_media import review_guest_audio_path
+from podcast_mcp.util import atomic_file
 from podcast_mcp.util.atomic_json import load_json_object
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.project_state import project_state_lock
@@ -1565,6 +1566,52 @@ def test_mp3_retry_retargeted_review_root_preserves_other_media(
     assert other_mp3.read_bytes() == b"other valid mp3"
     assert wav.read_bytes() == wav_bytes
     assert version.model_dump() == original_metadata
+
+
+@requires_safe_failed_cleanup
+def test_mp3_retry_rechecks_review_root_after_file_sync(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    project = load_project(minimal_project)
+    artifacts = Path(project.workspace_dir) / "artifacts"
+    artifacts.mkdir(parents=True, exist_ok=True)
+    (artifacts / "premix.wav").write_bytes(sample_wav.read_bytes())
+    old_root = tmp_workspace.parent / "sync-review-old"
+    new_root = tmp_workspace.parent / "sync-review-new"
+    old_root.mkdir()
+    new_root.mkdir()
+    review_root = artifacts / "review"
+    review_root.symlink_to(old_root, target_is_directory=True)
+    version = publish_version(project, label="retry")
+    mp3 = old_root / version.id / "mix.mp3"
+    mp3.unlink()
+    (new_root / version.id).mkdir()
+    metadata = version.model_dump()
+    real_fsync = os.fsync
+    synced = False
+
+    def fsync_then_retarget(fd):
+        nonlocal synced
+        real_fsync(fd)
+        if not synced:
+            synced = True
+            review_root.unlink()
+            review_root.symlink_to(new_root, target_is_directory=True)
+
+    monkeypatch.setattr(atomic_file.os, "fsync", fsync_then_retarget)
+
+    class SuccessfulEngine:
+        def export_mp3(self, source, output, *, bitrate_kbps):
+            output.write_bytes(b"retry mp3")
+
+    with pytest.raises(RuntimeError, match="directory changed"):
+        encode_version_mp3(project, version.id, eng=SuccessfulEngine())
+
+    assert synced
+    assert not mp3.exists()
+    assert not (new_root / version.id / "mix.mp3").exists()
+    assert not list(mp3.parent.glob(".mix-*.mp3"))
+    assert version.model_dump() == metadata
 
 
 @requires_safe_failed_cleanup

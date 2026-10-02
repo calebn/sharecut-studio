@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from podcast_mcp.util import atomic_json
+from podcast_mcp.util import atomic_file, atomic_json
 from podcast_mcp.util.atomic_json import (
     copy_file_atomic,
     load_json_object,
@@ -19,7 +19,7 @@ from podcast_mcp.util.atomic_json import (
 
 def test_write_text_atomic_replaces_and_fsyncs_directory(tmp_path: Path) -> None:
     target = tmp_path / "nested" / "context.yaml"
-    with patch.object(atomic_json.os, "fsync", wraps=atomic_json.os.fsync) as fsync:
+    with patch.object(atomic_file.os, "fsync", wraps=atomic_file.os.fsync) as fsync:
         write_text_atomic(target, "terms: [A]\n")
     assert target.read_text(encoding="utf-8") == "terms: [A]\n"
     assert fsync.call_count >= 2
@@ -29,7 +29,7 @@ def test_write_text_atomic_replaces_and_fsyncs_directory(tmp_path: Path) -> None
 def test_write_text_atomic_removes_temp_on_failure(tmp_path: Path) -> None:
     target = tmp_path / "context.yaml"
     with (
-        patch.object(atomic_json.os, "replace", side_effect=OSError("disk")),
+        patch.object(atomic_file.os, "replace", side_effect=OSError("disk")),
         pytest.raises(OSError),
     ):
         write_text_atomic(target, "x")

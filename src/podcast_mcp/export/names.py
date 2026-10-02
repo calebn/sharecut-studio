@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
+
+from podcast_mcp.util.hashing import short_digest
 
 MAX_FILENAME_COMPONENT_BYTES = 255
 # The longest standard sidecar is ``.chapters.json`` (14 bytes).  Reserve one
@@ -25,7 +26,7 @@ def _truncate_utf8(value: str, max_bytes: int) -> str:
     if len(encoded) <= max_bytes:
         return value
 
-    digest = hashlib.sha256(encoded).hexdigest()[:12]
+    digest = short_digest(value, 12)
     suffix = f"-{digest}"
     prefix_budget = max_bytes - len(suffix.encode("ascii"))
     prefix: list[str] = []

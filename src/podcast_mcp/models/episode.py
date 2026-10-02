@@ -990,9 +990,11 @@ def save_project(project: EpisodeProject, path: Path | None = None) -> Path:
     saved_ws = project.meta.workspace_dir
     project.meta.workspace_dir = "."
     try:
-        tmp = out.with_suffix(".json.tmp")
-        tmp.write_text(project.model_dump_json(indent=2, by_alias=True), encoding="utf-8")
-        tmp.replace(out)
+        from podcast_mcp.util.atomic_json import write_text_atomic
+
+        write_text_atomic(
+            out, project.model_dump_json(indent=2, by_alias=True), creation_mode=0o666
+        )
     finally:
         project.meta.workspace_dir = saved_ws
     return out

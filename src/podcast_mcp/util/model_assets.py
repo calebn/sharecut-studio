@@ -28,6 +28,7 @@ from podcast_mcp.util.asset_sources import (
     download_first_ok,
     ordered_http_urls,
 )
+from podcast_mcp.util.atomic_file import atomic_write
 
 logger = logging.getLogger(__name__)
 
@@ -47,18 +48,13 @@ def _download(url: str, dest: Path, *, timeout: float = 60.0) -> None:
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in {"http", "https"}:
         raise ValueError(f"refusing non-http(s) download URL: {url!r}")
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_name(dest.name + ".part")
-    try:
+
+    def write(handle) -> None:
         req = urllib.request.Request(url, method="GET")
-        with (
-            urllib.request.urlopen(req, timeout=timeout) as resp,  # nosec B310
-            tmp.open("wb") as f,
-        ):
-            shutil.copyfileobj(resp, f)
-        tmp.replace(dest)
-    finally:
-        tmp.unlink(missing_ok=True)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
+            shutil.copyfileobj(resp, handle)
+
+    atomic_write(dest, write, creation_mode=0o666)
 
 
 def rnnoise_model_path() -> Path:

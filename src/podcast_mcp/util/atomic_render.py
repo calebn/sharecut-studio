@@ -8,6 +8,8 @@ import uuid
 from collections.abc import Callable
 from pathlib import Path
 
+from podcast_mcp.util.atomic_file import publish_completed_file
+
 
 def remove_partials(dest: Path) -> int:
     """Delete ``render_atomic`` temps of ``dest`` (``<stem>.<pid>.<hex>.partial<suffix>``).
@@ -48,9 +50,6 @@ def render_atomic(
     tmp = dest.with_name(f"{dest.stem}.{os.getpid()}.{uuid.uuid4().hex}.partial{dest.suffix}")
     try:
         render(tmp)
-        if before_replace is not None:
-            before_replace()
-        os.replace(tmp, dest)
-        return dest
+        return publish_completed_file(tmp, dest, before_replace=before_replace)
     finally:
         tmp.unlink(missing_ok=True)

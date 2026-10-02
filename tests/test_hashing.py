@@ -7,7 +7,20 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.util.hashing import sha256_file, sha256_head_tail
+from podcast_mcp.util.hashing import sha256_file, sha256_head_tail, short_digest
+
+
+def test_short_digest_keeps_text_sha256_prefixes() -> None:
+    assert short_digest("abc") == "ba7816bf8f01cfea"
+    assert short_digest("abc", 12) == "ba7816bf8f01"
+    assert short_digest("abc", length=20) == "ba7816bf8f01cfea4141"
+    assert short_digest("é") == "4a99557e4033c353"
+
+
+@pytest.mark.parametrize("length", [0, -1, 65])
+def test_short_digest_rejects_invalid_lengths(length: int) -> None:
+    with pytest.raises(ValueError):
+        short_digest("abc", length)
 
 
 @pytest.mark.parametrize("data", [b"", b"x", b"abcde"])

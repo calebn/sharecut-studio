@@ -16,6 +16,7 @@ from typing import Any
 
 import yaml
 
+from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.model_manifest import (
     PinnedSnapshot,
     PinnedSnapshotMissingError,
@@ -244,12 +245,9 @@ def persist_whisper_model(model: str) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     existing = _prefs_mapping(path)
     existing["whisper_model"] = canonical
-    tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(
-        yaml.safe_dump(existing, sort_keys=True, allow_unicode=True),
-        encoding="utf-8",
+    write_text_atomic(
+        path, yaml.safe_dump(existing, sort_keys=True, allow_unicode=True), creation_mode=0o666
     )
-    os.replace(tmp, path)
     return canonical
 
 

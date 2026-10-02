@@ -6,7 +6,6 @@ Separate from reject/approve preference events (ROADMAP). Labels live in
 
 from __future__ import annotations
 
-import hashlib
 import json
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -16,6 +15,7 @@ from typing import Any, Literal
 import numpy as np
 
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.hashing import short_digest
 
 VerdictLabel = Literal["pass", "fail"]
 
@@ -45,7 +45,7 @@ def _labels_path(project: EpisodeProject) -> Path:
 
 def config_hash(cfg: dict[str, Any] | None) -> str:
     blob = json.dumps(cfg or {}, sort_keys=True, default=str)
-    return hashlib.sha256(blob.encode()).hexdigest()[:12]
+    return short_digest(blob, 12)
 
 
 def record_label(

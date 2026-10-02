@@ -17,7 +17,7 @@ from podcast_mcp.engines.word_boundary_metrics import (
     measure_word_boundaries,
     word_duration_profile,
 )
-from podcast_mcp.util import atomic_json
+from podcast_mcp.util import atomic_file
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.wav import pcm_wav_header
 from script_loader import load_script
@@ -271,7 +271,7 @@ def test_benchmark_streams_audio_hash_and_preserves_report_on_publish_failure(tm
     output = tmp_path / "report.json"
     output.write_text('{"previous": true}\n', encoding="utf-8")
     with (
-        patch.object(atomic_json.os, "replace", side_effect=OSError("disk full")),
+        patch.object(atomic_file.os, "replace", side_effect=OSError("disk full")),
         pytest.raises(OSError, match="disk full"),
     ):
         benchmark.main(

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 from collections.abc import Callable, Mapping
@@ -17,6 +16,7 @@ from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, Clip, EpisodeProject, Track
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.atomic_render import render_atomic
+from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
 from podcast_mcp.util.tracks import dialogue_track_ids
 from podcast_mcp.util.tracks import stem_path as track_stem_path
@@ -95,7 +95,7 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
 
         payload["bleed_gate"] = bleed_gate_payload(project, track_id)
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    return short_digest(raw)
 
 
 def _selected_media_identity(
@@ -178,7 +178,7 @@ def proxy_render_hash(project: EpisodeProject, track_id: str) -> str:
 
         payload["bleed_gate"] = bleed_gate_payload(project, track_id)
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    return short_digest(raw)
 
 
 PREMIX_NAME = "premix.wav"
@@ -464,7 +464,7 @@ def mix_render_hash(gains: Mapping[str, float], peak_ceiling_db: float | None = 
         "gains": sorted((track_id, round(float(gain), 4)) for track_id, gain in gains.items()),
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    return short_digest(raw)
 
 
 def premix_path(project: EpisodeProject) -> Path:
@@ -611,7 +611,7 @@ def master_source_hash(project: EpisodeProject) -> str | None:
         return None
     payload = {"mix": read_premix_hash(project), "size": st.st_size, "mtime_ns": st.st_mtime_ns}
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    return short_digest(raw)
 
 
 def read_mastered_hash(project: EpisodeProject) -> str | None:

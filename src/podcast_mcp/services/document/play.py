@@ -55,6 +55,7 @@ from podcast_mcp.services.media import schedule_stem_waveforms
 from podcast_mcp.services.session_sync import publish_agent_play
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.file_locks import hold_shared_file_lock
+from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.process import run
 from podcast_mcp.util.project_state import (
     RENDER_LOCK_TIMEOUT_SEC,
@@ -909,7 +910,7 @@ class PlayService:
         # the path and edit hash are unchanged.
         mtime = src.stat().st_mtime_ns if src.is_file() else 0
         key = f"{src}:{mtime}:{label}:{start:.3f}:{end:.3f}:{extra}"
-        digest = hashlib.sha256(key.encode()).hexdigest()[:16]
+        digest = short_digest(key)
         safe = re.sub(r"[^a-z0-9_-]+", "_", label.lower())[:40]
         out_dir = self.project.artifacts_dir() / "play_cache"
         path = out_dir / f"{safe}_{digest}.wav"
@@ -1455,7 +1456,7 @@ class PlayService:
             f"{req.source}:{req.start_sec:.3f}:{req.end_sec:.3f}:"
             f"{req.rerender}:{gap_sec:.3f}"
         )
-        digest = hashlib.sha256(pair_key.encode()).hexdigest()[:16]
+        digest = short_digest(pair_key)
         stable_a = out_dir / f"ab_hist_{digest}_a.wav"
         stable_b = out_dir / f"ab_hist_{digest}_b.wav"
 
@@ -1601,7 +1602,7 @@ class PlayService:
             f"{wav_a.resolve()}:{wav_a.stat().st_mtime_ns}:"
             f"{wav_b.resolve()}:{wav_b.stat().st_mtime_ns}:{gap:.3f}"
         )
-        digest = hashlib.sha256(key.encode()).hexdigest()[:16]
+        digest = short_digest(key)
         out_dir = self.project.artifacts_dir() / "play_cache"
         path = out_dir / f"ab_concat_{digest}.wav"
         self._play_cache_dir(wav_a, wav_b, path)
@@ -1614,7 +1615,7 @@ class PlayService:
             f"{window.timeline_start:.3f}:{window.timeline_end:.3f}:"
             f"{window.play_end:.3f}:{source}:{mtime}"
         )
-        digest = hashlib.sha256(key.encode()).hexdigest()[:16]
+        digest = short_digest(key)
         out_dir = self.project.artifacts_dir() / "play_cache"
         path = out_dir / f"pending_suggested_{digest}.wav"
         self._play_cache_dir(path)

@@ -144,15 +144,16 @@ def test_read_wav_mono_window_edges(tmp_path: Path) -> None:
     i32, n32 = read_wav_mono_window(four, duration_sec=1.0, out_rate=8000)
     assert i32.size == 32
     assert n32 == 32 * 4
+    assert np.array_equal(i32, np.full(32, 1000 / (2**31)))
     packed24 = tmp_path / "i24.wav"
     with wave.open(str(packed24), "w") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(3)
         wf.setframerate(sr)
         wf.writeframes(b"\x00\x00\x01" * 32)
-    empty24, n24 = read_wav_mono_window(packed24, duration_sec=1.0, out_rate=8000)
-    assert empty24.size == 0
-    assert n24 == 0
+    samples24, n24 = read_wav_mono_window(packed24, duration_sec=1.0, out_rate=8000)
+    assert np.array_equal(samples24, np.full(32, 0.0078125))
+    assert n24 == 96
 
 
 def test_read_wav_mono_window_caps_and_rate(
