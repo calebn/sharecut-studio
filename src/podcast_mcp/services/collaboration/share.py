@@ -47,8 +47,7 @@ from podcast_mcp.edits.share_registry import (
 from podcast_mcp.engines.play_audit import premix_path
 from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME, open_project, resolve_project_path
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import CommentService
-from podcast_mcp.services.document.comment import run_comment_mutation_with_file_revisions
+from podcast_mcp.services.document import CommentService, run_comment_mutation_with_file_revisions
 from podcast_mcp.services.document_sync import (
     document_poll_meta,
     notify_comments_changed,
