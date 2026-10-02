@@ -1,5 +1,6 @@
 import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 import { rosterDisplayName } from "../presence/colors";
+import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import type { TrackView } from "../types/project";
 import { Avatar } from "../ui/Avatar";
@@ -67,14 +68,18 @@ export function FixedPlayheadRecenter({
   timeViewportPx,
 }: ScrollerProps & { fixedPlayhead: boolean; timeViewportPx: number }) {
   const playheadSec = useDawStore((s) => s.playheadSec);
+  const playheadSeekRevision = useDawStore((s) => s.playheadSeekRevision);
   const zoomPxPerSec = useDawStore((s) => s.zoomPxPerSec);
   const scrollLeft = useDawStore((s) => s.scrollLeft);
   const isPlaying = useDawStore((s) => s.isPlaying);
   const userZoomed = useDawStore((s) => s.userZoomed);
   const project = useDawStore((s) => s.project);
+  const recordState = useRecordHostStore((s) => s.snapshot?.state);
   const setScrollLeft = useDawStore((s) => s.setScrollLeft);
   const setPlayheadSec = useDawStore((s) => s.setPlayheadSec);
   const prevZoomRef = useRef(zoomPxPerSec);
+  const prevPlayheadRef = useRef(playheadSec);
+  const prevSeekRevisionRef = useRef(playheadSeekRevision);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -82,9 +87,24 @@ export function FixedPlayheadRecenter({
     // playhead does not read an old zoom as a pinch.
     const zoomChanged = prevZoomRef.current !== zoomPxPerSec;
     prevZoomRef.current = zoomPxPerSec;
+    const playheadChanged = prevPlayheadRef.current !== playheadSec;
+    prevPlayheadRef.current = playheadSec;
+    const seekRevisionChanged =
+      prevSeekRevisionRef.current !== playheadSeekRevision;
+    prevSeekRevisionRef.current = playheadSeekRevision;
     if (!el || !fixedPlayhead || !project || timeViewportPx <= 0) {
       return;
     }
+
+    const visualOnlyScroll =
+      (recordState === "recording" || recordState === "paused") &&
+      scrollLeft >
+        centerSecToScrollLeft(
+          project.timeline_duration_sec,
+          zoomPxPerSec,
+          timeViewportPx,
+        );
+    if (visualOnlyScroll && !playheadChanged && !seekRevisionChanged) return;
 
     if (zoomChanged && userZoomed) {
       const centerSec = scrollLeftToCenterSec(
@@ -114,10 +134,12 @@ export function FixedPlayheadRecenter({
     }
   }, [
     playheadSec,
+    playheadSeekRevision,
     zoomPxPerSec,
     scrollLeft,
     fixedPlayhead,
     project,
+    recordState,
     setScrollLeft,
     setPlayheadSec,
     isPlaying,

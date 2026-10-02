@@ -490,3 +490,10 @@ specified in [host-online-relay.md](host-online-relay.md#websocket-backpressure)
 Shared JSON encoding, per-token relay fanout, and replacement of the presence coalescer's threading timer remain deferred after the #601 delivery and worker changes. A production-sanitizer microbenchmark with 50 recipients measured about 0.39 ms per presence event versus 0.21 ms with shared sanitization (about 1.8 ms CPU saved per second at 10 Hz), and 0.88 ms versus 0.02 ms for a compact document event with shared encoding. These are CPU measurements for compact frames, not network throughput or large-snapshot results. Current payload sizes do not justify another delivery cache or relay audience owner.
 
 The current coalescer retains one pending latest builder per project and builds events on delivery, but still uses a new threading timer for each trailing tick. Per-connection authorization, recipient identity, serialized writes, and compression remain independent. Revisit prepared immutable event values or relay fanout when production profiling shows material CPU or network cost; neither optimization is shipped.
+
+The record-plane snapshot's derived `timeline_start_sec` is nullable outside an
+open take and uses the same take offsets and upload tombstones as Land. It is
+not stored in project JSON or the record model. The host pairs accepted record
+samples with `performance.now()` for a visual-only timeline band/needle;
+per-frame updates do not enter the document or playback planes. Stop/null clears
+the preview; existing Land document refresh supplies the committed media.

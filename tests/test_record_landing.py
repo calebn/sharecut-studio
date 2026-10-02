@@ -415,7 +415,9 @@ def test_second_take_lands_after_gap_while_first_still_uploading(
     svc.submit(_cmd("Start"), now_wall_ms=0)
     svc.submit(_cmd("Stop"), now_wall_ms=5_000)
     svc.submit(_cmd("Start"), now_wall_ms=6_000)
+    preview_origin = svc.snapshot()["timeline_start_sec"]
     svc.submit(_cmd("Stop"), now_wall_ms=7_000)
+    assert svc.snapshot()["timeline_start_sec"] is None
     uploader = RecordUploadService(ws.project)
     pcm, digest, _ = _pcm(200)
     uploader.ingest_part(
@@ -438,6 +440,7 @@ def test_second_take_lands_after_gap_while_first_still_uploading(
         nbytes=480,
     )
     result = RecordLandingService(ws).land(align=lambda _p: None)
+    assert result["clips"][0]["timeline_start"] == preview_origin
     assert len(result["clips"]) == 1
     assert result["clips"][0]["take_index"] == 1
     assert result["clips"][0]["timeline_start"] == pytest.approx(5.0 + TAKE_GAP_MS / 1000)

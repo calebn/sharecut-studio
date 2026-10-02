@@ -1430,3 +1430,26 @@ Recovery promises resumed upload only while an upload transport is available.
 After access ends, recovered local audio remains downloadable and the message
 asks the participant to keep a copy. See [GUI surface audit](gui-surface-audit.md)
 for coverage and platform limits.
+
+### Live take monitoring on the timeline
+
+Keep the timeline open while recording: a labeled provisional band and a separate
+recording needle show the current take, even with the Record room panel closed or
+no saved tracks. Pause freezes the band and labels it PAUSED; Stop removes it
+immediately. Land then creates the real clips through the existing document refresh.
+The band represents the aggregate take clock, not participant media or a waveform.
+
+The record snapshot derives nullable `timeline_start_sec` using Land's
+`take_offsets_s` and upload tombstones, so deleted takes and pause spans consume
+exactly the same timeline space as landing. `recording_ms` and `server_time_ns`
+use one wall-clock sample. The host store pairs accepted snapshots with a
+monotonic receipt time; the timeline leaf projects elapsed time via
+`recordingClockMs` and writes only its own geometry per frame. Missing/invalid
+origin or clock samples produce no preview. New samples correct the anchor;
+old or duplicate timestamped samples do not reset it.
+
+The preview may extend the scrollable visual canvas, including fixed-playhead
+lead/trail geometry, but does not extend saved-media ruler/seek authority or
+scroll automatically. Playback position, transport timecode, committed clips,
+project revision and edit state remain independent. Recording frames do not
+rerender committed track lanes.

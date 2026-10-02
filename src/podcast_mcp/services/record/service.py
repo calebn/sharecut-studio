@@ -19,6 +19,7 @@ from podcast_mcp.services.record.commands import (
     RecordCommand,
     authorize_record_command,
 )
+from podcast_mcp.services.record.landing_math import take_offsets_s
 from podcast_mcp.services.record.live_comments import (
     RecordLiveCommentError,
     live_comment_store_for,
@@ -47,6 +48,7 @@ from podcast_mcp.services.record.state import (
     start_blockers,
     take_containing_wall,
 )
+from podcast_mcp.services.record.upload import RecordUploadService
 from podcast_mcp.services.session_sync import (
     cached_store,
     cached_sync_store,
@@ -444,11 +446,18 @@ class RecordSessionService:
 
     def snapshot(self) -> dict[str, Any]:
         snap = self._model()
-        now_ms = time.time_ns() // 1_000_000
+        now_ns = time.time_ns()
+        now_ms = now_ns // 1_000_000
         out = snap.model_dump()
         out["recording_ms"] = recording_ms(snap, now_wall_ms=now_ms)
         out["start_blockers"] = start_blockers(snap)
-        out["server_time_ns"] = time.time_ns()
+        out["server_time_ns"] = now_ns
+        out["timeline_start_sec"] = None
+        if snap.state in ("recording", "paused"):
+            tombstoned = RecordUploadService(self.project).tombstoned_takes(self.session_id)
+            out["timeline_start_sec"] = take_offsets_s(snap.takes, tombstoned=tombstoned).get(
+                snap.take_index
+            )
         out["comments"] = [
             {
                 "id": row["comment_id"],
