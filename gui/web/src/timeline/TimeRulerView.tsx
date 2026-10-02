@@ -8,6 +8,7 @@ import {
   rulerEndTickDropped,
   rulerTickIndices,
 } from "./rulerTicks";
+import { timelineTestIds } from "./selectors";
 
 /** A comment drag shorter than this (px) is an instant comment. */
 const COMMENT_SPAN_MIN_PX = 4;
@@ -75,6 +76,11 @@ const RulerTicks = memo(function RulerTicks({
       return (
         <span
           key={i}
+          data-testid={
+            endAligned
+              ? timelineTestIds.rulerEndTick
+              : timelineTestIds.rulerTick
+          }
           className={`ruler-tick${endAligned ? " ruler-tick--end" : ""}`}
           style={{ left: leftPx }}
         >
@@ -113,6 +119,7 @@ export function TimeRulerView({
 
   return (
     <div
+      data-testid={timelineTestIds.ruler}
       className={`time-ruler${commentMode ? " comment-mode" : ""}`}
       style={{ width }}
       role="slider"

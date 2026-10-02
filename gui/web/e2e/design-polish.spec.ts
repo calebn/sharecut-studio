@@ -7,6 +7,7 @@ import {
   type Page,
   test,
 } from "@playwright/test";
+import { timelineTestIds } from "../src/timeline/selectors";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import { settleAnimations } from "./motion";
@@ -52,7 +53,7 @@ test("stage follows the theme and motion respects preference", async ({
 }) => {
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(page.locator(".lane-row").first()).toBeVisible();
+  await expect(page.getByTestId(timelineTestIds.lane).first()).toBeVisible();
 
   for (const theme of ["light", "dark"] as const) {
     await setTheme(page, theme);
@@ -256,7 +257,7 @@ test("light transport keeps legible status and stable control hover paint", asyn
 }) => {
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(page.locator(".lane-row").first()).toBeVisible();
+  await expect(page.getByTestId(timelineTestIds.lane).first()).toBeVisible();
   await setTheme(page, "light");
   // Mix out of date (or the async audio-error pill) must be on screen first.
   await expect(page.locator(".transport .pill.warning").first()).toBeVisible();
@@ -389,7 +390,7 @@ test("primary buttons keep their fill on hover in both themes", async ({
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(page.locator(".lane-row").first()).toBeVisible();
+  await expect(page.getByTestId(timelineTestIds.lane).first()).toBeVisible();
   await page.evaluate(() => {
     const button = document.createElement("button");
     button.type = "button";
@@ -427,7 +428,7 @@ test("every text on the fixed-dark transport reads in both themes", async ({
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(page.locator(".lane-row").first()).toBeVisible();
+  await expect(page.getByTestId(timelineTestIds.lane).first()).toBeVisible();
   for (const theme of ["light", "dark"] as const) {
     await setTheme(page, theme);
     const samples = await page.locator(".transport").evaluate((transport) => {
@@ -505,11 +506,16 @@ test("stage edges dim the lane floor at both ends, never a clip (#387)", async (
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(page.locator(".lane-row .clip-block").first()).toBeVisible();
+  await expect(
+    page
+      .getByTestId(timelineTestIds.lane)
+      .getByTestId(timelineTestIds.clip)
+      .first(),
+  ).toBeVisible();
   // The on-clip sample sits on the waveform: let every tile land first, so
   // the two screenshots differ only by the edges.
   await waitForWaveformsSettled(page);
-  const boxes = await page.evaluate(() => {
+  const boxes = await page.evaluate((ids) => {
     const box = (selector: string) => {
       const r = (
         document.querySelector(selector) as Element
@@ -519,10 +525,10 @@ test("stage edges dim the lane floor at both ends, never a clip (#387)", async (
     return {
       start: box(".timeline-edge--start"),
       end: box(".timeline-edge--end"),
-      lane: box(".lane-row"),
-      clip: box(".lane-row .clip-block"),
+      lane: box(`[data-testid="${ids.lane}"]`),
+      clip: box(`[data-testid="${ids.lane}"] [data-testid="${ids.clip}"]`),
     };
-  });
+  }, timelineTestIds);
   // Clips sit inset in their lane, so its top strip is bare floor.
   const floorAt = (edge: { x: number }) => ({
     x: edge.x + 4,
@@ -579,7 +585,7 @@ test("menu rows press in place; standalone controls sink (#389)", async ({
   await page.setViewportSize({ width: 800, height: 844 });
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-  await expect(page.locator(".lane-row").first()).toBeVisible();
+  await expect(page.getByTestId(timelineTestIds.lane).first()).toBeVisible();
   const transformWhilePressed = async (control: Locator) => {
     // Menu rows can sit below the panel's scroll fold.
     await control.scrollIntoViewIfNeeded();
@@ -640,11 +646,13 @@ test("capture issue 20 review views", async ({ browser }) => {
       });
       await desktop.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
       await pinTheme(desktop);
-      await expect(desktop.locator(".lane-row").first()).toBeVisible();
+      await expect(
+        desktop.getByTestId(timelineTestIds.lane).first(),
+      ).toBeVisible();
       await expect
         .poll(async () =>
           desktop
-            .locator("canvas.clip-waveform-tile")
+            .getByTestId(timelineTestIds.waveformTile)
             .first()
             .evaluate((canvas) => {
               const surface = canvas as HTMLCanvasElement;

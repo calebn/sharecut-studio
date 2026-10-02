@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { timelineTestIds } from "../src/timeline/selectors";
 import { postDocumentCommand } from "./documentCommand";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
@@ -57,11 +58,13 @@ async function setupManyTrackProject(
 }
 
 async function readChromeGeometry(page: Page): Promise<ChromeGeometry> {
-  return page.evaluate(() => {
+  return page.evaluate((ids) => {
     const scroller = document.querySelector<HTMLElement>(".timeline-scroll");
     const corner = document.querySelector<HTMLElement>(".track-headers-chrome");
     const marker = document.querySelector<HTMLElement>(".marker-lane");
-    const ruler = document.querySelector<HTMLElement>(".time-ruler");
+    const ruler = document.querySelector<HTMLElement>(
+      `[data-testid="${ids.ruler}"]`,
+    );
     const firstTrack = document.querySelector<HTMLElement>(".track-header-row");
     if (!scroller || !corner || !marker || !ruler || !firstTrack) {
       throw new Error("timeline chrome did not mount");
@@ -74,7 +77,7 @@ async function readChromeGeometry(page: Page): Promise<ChromeGeometry> {
       scrollTop: scroller.scrollTop,
       verticalRange: scroller.scrollHeight - scroller.clientHeight,
     };
-  });
+  }, timelineTestIds);
 }
 
 async function exercisePinnedRuler(page: Page): Promise<void> {
@@ -116,9 +119,11 @@ async function exercisePinnedRuler(page: Page): Promise<void> {
     .poll(() => scroller.evaluate((element) => element.scrollLeft > 0))
     .toBe(true);
 
-  const seekPoint = await page.evaluate(() => {
+  const seekPoint = await page.evaluate((ids) => {
     const scroller = document.querySelector<HTMLElement>(".timeline-scroll");
-    const ruler = document.querySelector<HTMLElement>(".time-ruler");
+    const ruler = document.querySelector<HTMLElement>(
+      `[data-testid="${ids.ruler}"]`,
+    );
     if (!scroller || !ruler) throw new Error("timeline ruler did not mount");
     const rulerBox = ruler.getBoundingClientRect();
     const scrollBox = scroller.getBoundingClientRect();
@@ -132,7 +137,7 @@ async function exercisePinnedRuler(page: Page): Promise<void> {
         Math.max(0, (x - rulerBox.left) / scale),
       ),
     };
-  });
+  }, timelineTestIds);
   await page.mouse.click(seekPoint.x, seekPoint.y);
   await expect
     .poll(async () => Number(await playhead.getAttribute("aria-valuenow")))

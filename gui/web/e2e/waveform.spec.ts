@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, type Page, test } from "@playwright/test";
+import { timelineTestIds } from "../src/timeline/selectors";
 import { e2eProjectPath } from "./env";
 import { withShareableProject } from "./shareableProject";
 import {
@@ -88,18 +89,19 @@ test.describe("pyramid waveforms", () => {
     // Deep zoom: tiles stay tile-sized and only the view (plus overscan) mounts.
     await zoomTimelineIn(page, { maxSteps: 16 });
     await expectPaintedWaveformTile(page);
-    const layout = await page.evaluate(() => {
+    const layout = await page.evaluate((ids) => {
       const view =
         (document.querySelector(".timeline-scroll") as HTMLElement | null)
           ?.clientWidth ?? 0;
-      const layers = [...document.querySelectorAll(".clip-waveform")].map(
-        (layer) =>
-          [...layer.querySelectorAll("canvas.clip-waveform-tile")].map(
-            (c) => c.getBoundingClientRect().width,
-          ),
+      const layers = [
+        ...document.querySelectorAll(`[data-testid="${ids.waveform}"]`),
+      ].map((layer) =>
+        [...layer.querySelectorAll(`[data-testid="${ids.waveformTile}"]`)].map(
+          (c) => c.getBoundingClientRect().width,
+        ),
       );
       return { view, layers };
-    });
+    }, timelineTestIds);
     const maxTiles =
       Math.ceil((layout.view + 2 * 512) / 512) + thresholds.tile_count_slop;
     for (const widths of layout.layers) {
@@ -175,15 +177,17 @@ test.describe("pyramid waveforms", () => {
     expect(seen.audioWindows).toBe(0);
 
     // Ruler: millisecond labels, and only the viewport's chunks mount.
-    const ruler = await page.evaluate(() => {
+    const ruler = await page.evaluate((ids) => {
       const view =
         (document.querySelector(".timeline-scroll") as HTMLElement | null)
           ?.clientWidth ?? 0;
       const labels = [
-        ...document.querySelectorAll(".time-ruler .ruler-tick"),
+        ...document.querySelectorAll(
+          `[data-testid="${ids.rulerTick}"], [data-testid="${ids.rulerEndTick}"]`,
+        ),
       ].map((el) => el.textContent ?? "");
       return { view, labels };
-    });
+    }, timelineTestIds);
     expect(ruler.labels.length).toBeGreaterThan(0);
     for (const label of ruler.labels) {
       expect(label).toMatch(/^\d+:\d{2}\.\d{3,4}$/);

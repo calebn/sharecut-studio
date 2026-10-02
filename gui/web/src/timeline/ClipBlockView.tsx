@@ -12,12 +12,14 @@ import type { ClipRow } from "../types/project";
 import { formatDurationLabel } from "../utils/time";
 import type { ClipBlockGeometry } from "./clipBlockGeometry";
 import { FadeCurves } from "./FadeCurves";
+import { timelineTestIds } from "./selectors";
 
 /** Clip-local overlay spans for source regions, clamped to the visible window. */
 function RegionSpans({
   regions,
   className,
   keyPrefix,
+  testId,
   sourceStart,
   sourceEnd,
   zoomPxPerSec,
@@ -25,6 +27,7 @@ function RegionSpans({
   regions: readonly { start_s: number; end_s: number }[] | undefined;
   className: string;
   keyPrefix: string;
+  testId?: string;
   sourceStart: number;
   sourceEnd: number;
   zoomPxPerSec: number;
@@ -40,6 +43,7 @@ function RegionSpans({
         return (
           <span
             key={`${keyPrefix}-${region.start_s}-${region.end_s}-${i}`}
+            data-testid={testId}
             className={className}
             style={{
               left: (start - sourceStart) * zoomPxPerSec,
@@ -200,6 +204,10 @@ export function ClipBlockView({
 
   return (
     <div
+      data-testid={
+        interactive ? timelineTestIds.clip : timelineTestIds.moveGhost
+      }
+      data-clip-id={clip.id}
       className={`clip-block${selected ? " selected" : ""}${isCrossfadeJoin(clip) ? " join-crossfade" : ""}${fadeDragEdge ? " fade-dragging" : ""}${trimDragging ? " trim-dragging" : ""}${moving ? " clip-moving" : ""}${previewHidden ? " clip-move-hidden" : ""}${!interactive ? " clip-move-ghost" : ""}`}
       style={{ left, width, background: color }}
       aria-hidden={!interactive}
@@ -240,6 +248,7 @@ export function ClipBlockView({
         // ghost's border box, and so its layer (1px outside the ghost's
         // dashed border, like the clip's), at timeline x left + committedWidth.
         <span
+          data-testid={timelineTestIds.trimGhost}
           className="clip-trim-ghost"
           style={{ width: ghostExtraPx, left: committedWidth - 1 }}
           aria-hidden
@@ -318,6 +327,7 @@ export function ClipBlockView({
           />
           <button
             type="button"
+            data-testid={timelineTestIds.trimOut}
             className="trim-handle out"
             title={`${trimTip} · end`}
             aria-label={`${trimTip} · end. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
@@ -339,6 +349,8 @@ export function ClipBlockView({
           {snapTicks.map((t) => (
             <span
               key={`s-${t}`}
+              data-testid={timelineTestIds.snapTick}
+              data-source-sec={t}
               className="clip-waveform-snap"
               style={{ left: (t - sourceStart) * zoomPxPerSec }}
             />
@@ -349,6 +361,7 @@ export function ClipBlockView({
         regions={clip.mute_regions}
         className="clip-mute-region"
         keyPrefix="mute"
+        testId={timelineTestIds.muteRegion}
         sourceStart={sourceStart}
         sourceEnd={sourceEnd}
         zoomPxPerSec={zoomPxPerSec}

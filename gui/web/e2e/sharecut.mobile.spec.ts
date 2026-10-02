@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { LONG_PRESS_MS } from "../src/hooks/touchGestureTiming";
+import { timelineTestIds } from "../src/timeline/selectors";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 import { openPhoneTimeline } from "./phoneTimeline";
@@ -225,7 +226,7 @@ test.describe("Sharecut Studio mobile smoke", () => {
       // Tap the visible ruler: its left edge walks back to 0 and its right
       // edge out to the end, a viewport at a time. Each tap must seek to the
       // tapped time and leave that time under the line.
-      const ruler = await page.locator(".time-ruler").boundingBox();
+      const ruler = await page.getByTestId(timelineTestIds.ruler).boundingBox();
       expect(ruler).toBeTruthy();
       const reached: number[] = [];
       for (const edge of ["start", "end", "end", "end"] as const) {
@@ -251,7 +252,10 @@ test.describe("Sharecut Studio mobile smoke", () => {
       }
       // A person's horizontal scroll (the scrub gesture) seeks too.
       const view = await readTimes(page);
-      const lane = await page.locator(".lane-row").first().boundingBox();
+      const lane = await page
+        .getByTestId(timelineTestIds.lane)
+        .first()
+        .boundingBox();
       expect(lane).toBeTruthy();
       await page.mouse.move(
         (view.viewLeft + view.viewRight) / 2,

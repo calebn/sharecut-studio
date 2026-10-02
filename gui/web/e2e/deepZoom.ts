@@ -4,6 +4,7 @@ import {
   estimateRulerLabelWidthPx,
   rulerEndTickDropped,
 } from "../src/timeline/rulerTicks";
+import { timelineTestIds } from "../src/timeline/selectors";
 import { formatRulerTime, niceTimeStep } from "../src/utils/time";
 
 /** Session length (s) of the stretched deep-zoom project. */
@@ -121,6 +122,6 @@ export function offGridPx(offsetPx: number, gridPx: number): number {
 /** Ruler content width (CSS px, fractional `getBoundingClientRect` width, the same measure as the lane geometry). */
 export function rulerWidthPx(page: Page): Promise<number> {
   return page
-    .locator(".time-ruler")
+    .getByTestId(timelineTestIds.ruler)
     .evaluate((el) => el.getBoundingClientRect().width);
 }
