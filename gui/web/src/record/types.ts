@@ -59,6 +59,8 @@ export type RecordSnapshot = {
   state: RecordRoomState;
   take_index: number;
   recording_ms?: number;
+  /** Derived current take origin; null outside recording/paused. */
+  timeline_start_sec?: number | null;
   start_blockers?: string[];
   participants: RecordParticipant[];
   caps: { recorded: number; producers: number };

@@ -24,6 +24,12 @@ tracks. They move with the waveforms when you pan horizontally; the playhead
 stays centered. The phone shows a vertical scrollbar when tracks need more room;
 desktop keeps its scrollbar present so adding tracks does not shift the time view.
 
+While a take is recording or paused, an aggregate band and needle shows its
+provisional timeline span even when the Record room sheet is closed. On phones,
+the pan range grows with the take so you can scroll to the live needle beyond
+saved media; that visual-only pan leaves playback position and saved-media seek
+bounds unchanged. Stop clears the preview, and landing shows the finalized clips.
+
 Pending edit regions fill their lane. Select one to reveal its label and review
 actions above or below the lane; they stay clear of the edge controls, and a
 narrow region does not make the timeline wider. In a dense set of cuts, point

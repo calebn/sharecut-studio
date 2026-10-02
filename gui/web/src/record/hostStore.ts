@@ -1,10 +1,15 @@
 import { create } from "zustand";
 import type { TakeClipping } from "./keeper/clipRegions";
 import type { ByteSink } from "./keeper/store";
-import type { CaptureHealth, RecordSnapshot } from "./types";
+import {
+  type CaptureHealth,
+  type RecordSnapshot,
+  shouldApplyRecordSnapshot,
+} from "./types";
 
 type RecordHostState = {
   snapshot: RecordSnapshot | null;
+  receivedAtMs: number | null;
   connected: boolean;
   /** The record socket was open and has since closed (a drop, not the first connect). */
   dropped: boolean;
@@ -29,6 +34,7 @@ type RecordHostState = {
 
 export const useRecordHostStore = create<RecordHostState>((set) => ({
   snapshot: null,
+  receivedAtMs: null,
   connected: false,
   dropped: false,
   startPending: false,
@@ -42,7 +48,18 @@ export const useRecordHostStore = create<RecordHostState>((set) => ({
   setCaptureHealth: (captureHealth) => set({ captureHealth }),
   setKeeperStorage: (keeperSink, keeperStorageError) =>
     set({ keeperSink, keeperStorageError }),
-  setSnapshot: (snapshot) => set({ snapshot }),
+  setSnapshot: (snapshot) =>
+    set((state) => {
+      if (
+        snapshot &&
+        state.snapshot?.session_id === snapshot.session_id &&
+        (!shouldApplyRecordSnapshot(snapshot, state.snapshot) ||
+          (snapshot.server_time_ns != null &&
+            snapshot.server_time_ns === state.snapshot.server_time_ns))
+      )
+        return state;
+      return { snapshot, receivedAtMs: snapshot ? performance.now() : null };
+    }),
   setConnected: (connected) =>
     set((state) => ({
       connected,

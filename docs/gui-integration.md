@@ -605,3 +605,15 @@ Pending commits block another gesture on that handle and show saving feedback.
 Rejected commits show a scrollable alert with Dismiss and focus restoration.
 Focused component tests, live-project touch and geometry tests, and word-bearing
 Storybook browser tests cover these behaviors at desktop and phone widths.
+
+### Provisional recording timeline
+
+A dedicated timeline leaf shows an aggregate current-take band and recording
+needle while recording/paused, independent of the Record room panel and saved
+track lanes. It uses the server's Land-compatible take origin and a monotonic
+recording clock. Pause freezes it; Stop clears it; Land supplies real clips through
+the existing document refresh. Its overflow is visual scroll extent only: the
+ruler and seek bounds continue to describe saved media. On fixed-playhead
+phones, users can pan to the provisional needle beyond the saved-media end;
+that visual-only pan does not seek or recenter playback. See [Recording
+session](recording-session.md#live-take-monitoring-on-the-timeline).

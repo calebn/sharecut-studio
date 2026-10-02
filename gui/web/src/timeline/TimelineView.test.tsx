@@ -2,11 +2,17 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Profiler, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { projectFromDocumentSnapshot } from "../document/projectPatch";
+import { useRecordHostStore } from "../record/hostStore";
 import { estimateTimelineViewportWidth, useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject, sampleComment, sessionRoster } from "../test/fixtures";
+import {
+  minimalProject,
+  recordSnapshot,
+  sampleComment,
+  sessionRoster,
+} from "../test/fixtures";
 import { stubRaf } from "../test/raf";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { readyEntry } from "../test/waveform";
@@ -98,6 +104,35 @@ describe("TimelineView follow auto-fit", () => {
 
   afterEach(() => {
     Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
+  });
+
+  it("shows the aggregate preview in an empty timeline without inventing tracks", () => {
+    const raf = stubRaf();
+    const project = minimalProject({ timeline_duration_sec: 0 });
+    useDawStore.getState().hydrate("/tmp/p.json", project);
+    useDawStore.setState({ recordPanelOpen: false });
+    useRecordHostStore
+      .getState()
+      .setSnapshot(
+        recordSnapshot({ timeline_start_sec: 0, recording_ms: 1000 }),
+      );
+    const view = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TimelineView />
+      </DawProvider>,
+    );
+    expect(
+      screen.getByRole("img", { name: /provisional recording/ }),
+    ).toBeInTheDocument();
+    act(() => raf.fire(performance.now() + 1000));
+    expect(useDawStore.getState().project).toBe(project);
+    expect(view.container.querySelectorAll(".lane-row")).toHaveLength(0);
+    act(() => useRecordHostStore.getState().setSnapshot(null));
+    expect(
+      screen.queryByRole("img", { name: /provisional recording/ }),
+    ).toBeNull();
+    view.unmount();
+    vi.unstubAllGlobals();
   });
 
   it("does not auto-fit or unfollow when a desktop timeline mounts while following", () => {
@@ -311,6 +346,27 @@ describe("TimelineView fixed playhead (#385)", () => {
     userScrollTo(300);
     expect(useDawStore.getState().playheadSec).toBe(60);
     expect(scroller.scrollLeft).toBe(300);
+  });
+
+  it("recenters explicit seeks after panning to a live take beyond saved media", () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot(
+        recordSnapshot({ timeline_start_sec: 0, recording_ms: 10_000 }),
+      );
+    const { scroller, userScrollTo } = mountFixed();
+    userScrollTo(1_000);
+    expect(useDawStore.getState().playheadSec).toBe(0);
+    expect(scroller.scrollLeft).toBe(1_000);
+
+    act(() => useDawStore.getState().setPlayheadSec(0));
+    expect(scroller.scrollLeft).toBe(0);
+
+    userScrollTo(1_000);
+    act(() => useDawStore.getState().setPlayheadSec(15));
+    expect(scroller.scrollLeft).toBe(150);
+    expect(useDawStore.getState().playheadSec).toBe(15);
+    act(() => useRecordHostStore.getState().setSnapshot(null));
   });
 
   it("keeps the playhead through a fit", () => {
@@ -829,6 +885,45 @@ describe("TimelineView render isolation", () => {
     renders.clips = [];
     return view;
   }
+
+  it("monitors recording with the panel closed without changing playback, project or committed lane renders", () => {
+    const raf = stubRaf();
+    vi.spyOn(performance, "now").mockReturnValue(100);
+    useDawStore.setState({ recordPanelOpen: false });
+    const view = mount();
+    const before = useDawStore.getState();
+    const record = useRecordHostStore.getState();
+    act(() =>
+      record.setSnapshot(
+        recordSnapshot({
+          timeline_start_sec: 7,
+          recording_ms: 1000,
+          server_time_ns: 1,
+        }),
+      ),
+    );
+    expect(
+      screen.getByRole("img", { name: /provisional recording/ }),
+    ).toBeInTheDocument();
+    act(() => {
+      for (let i = 1; i <= 20; i++) raf.fire(100 + i * 1000);
+    });
+    const after = useDawStore.getState();
+    expect(after.project).toBe(before.project);
+    expect(after.playheadSec).toBe(before.playheadSec);
+    expect(after.playheadSeekRevision).toBe(before.playheadSeekRevision);
+    expect(after.lastAppliedRevision).toBe(before.lastAppliedRevision);
+    expect(after.scrollLeft).toBe(before.scrollLeft);
+    expect(after.recordPanelOpen).toBe(false);
+    expect(renders.lanes).toEqual([]);
+    expect(renders.clips).toEqual([]);
+    act(() => record.setSnapshot(null));
+    expect(
+      screen.queryByRole("img", { name: /provisional recording/ }),
+    ).toBeNull();
+    view.unmount();
+    vi.restoreAllMocks();
+  });
 
   it("resets the stored viewport width to the shell estimate on unmount", () => {
     const view = mount();

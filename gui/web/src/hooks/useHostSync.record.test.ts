@@ -25,7 +25,8 @@ vi.mock("../audio/mixMinus", () => ({
     removeRemote() {}
   },
 }));
-vi.mock("../utils/audio", () => ({
+vi.mock("../utils/audio", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../utils/audio")>()),
   audioContextCtor: () =>
     class {
       async resume() {}

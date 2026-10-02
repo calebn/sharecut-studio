@@ -1108,3 +1108,48 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 .lane-prosody-status {
   top: var(--space-1);
 }
+
+.timeline-time {
+  position: relative;
+}
+
+.recording-overlay {
+  position: absolute;
+  inset-block: var(--ruler-height) 0;
+  inset-inline-start: 0;
+  min-block-size: 2rem;
+  pointer-events: none;
+  z-index: var(--z-status-overlay);
+}
+
+.recording-scroll-extent {
+  flex: 0 0 auto;
+  block-size: 0;
+  pointer-events: none;
+}
+
+.recording-overlay-band {
+  position: absolute;
+  inset-block-start: 0;
+  block-size: 1.5rem;
+  background: var(--color-danger-subtle);
+  color: var(--color-text-primary);
+  border: 1px dashed var(--color-danger);
+  font-size: var(--font-size-small);
+  white-space: nowrap;
+}
+
+.recording-overlay-band span {
+  padding-inline: var(--space-3);
+}
+
+.recording-overlay[data-state="paused"] .recording-overlay-band {
+  background: var(--color-bg-base);
+}
+
+.recording-overlay-needle {
+  position: absolute;
+  inset-block: 0;
+  inline-size: 1px;
+  background: var(--color-danger);
+}

@@ -33,6 +33,7 @@ import {
   withProgrammaticScroll,
 } from "../presence/followSync";
 import { useProsodyOverlayViews } from "../prosody/useProsodyOverlay";
+import { useRecordHostStore } from "../record/hostStore";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
@@ -52,6 +53,7 @@ import {
 } from "../utils/layout";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 import {
+  centerSecToScrollLeft,
   domToLogicalScrollLeft,
   fixedPlayheadCanvasSize,
   fixedPlayheadLeadPx,
@@ -86,6 +88,7 @@ import { MarkerLane } from "./MarkerLane";
 import { Playhead } from "./Playhead";
 import { PresenceOverlay } from "./PresenceOverlay";
 import { ProsodyStatusAnnouncer } from "./ProsodyStatusAnnouncer";
+import { RecordingOverlay, RecordingScrollExtent } from "./RecordingOverlay";
 import {
   BladeGuide,
   FixedPlayheadRecenter,
@@ -766,8 +769,16 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
           timeViewportPx,
           canvasSec,
         );
+        const recordState = useRecordHostStore.getState().snapshot?.state;
+        const visualOnlyScroll =
+          (recordState === "recording" || recordState === "paused") &&
+          logicalLeft >
+            centerSecToScrollLeft(canvasSec, zoomPxPerSec, timeViewportPx);
         const playheadSec = useDawStore.getState().playheadSec;
-        if (Math.abs(sec - playheadSec) * zoomPxPerSec > PLAYHEAD_MOVE_MIN_PX) {
+        if (
+          !visualOnlyScroll &&
+          Math.abs(sec - playheadSec) * zoomPxPerSec > PLAYHEAD_MOVE_MIN_PX
+        ) {
           setPlayheadSec(sec);
         }
       }
@@ -883,6 +894,10 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                 }
                 style={{ width }}
               >
+                <RecordingOverlay
+                  zoomPxPerSec={zoomPxPerSec}
+                  trailingPadPx={leadPx}
+                />
                 <TimeRuler
                   durationSec={canvasSec}
                   sessionDurationSec={sessionSec}
@@ -1055,6 +1070,10 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                   </div>
                 </div>
               </div>
+              <RecordingScrollExtent
+                zoomPxPerSec={zoomPxPerSec}
+                timelineWidthPx={width}
+              />
             </div>
           </div>
           {/* After the scroller on purpose: at the lane floor's z, tree order
