@@ -149,8 +149,7 @@ export interface PipelineConfigResponse {
   steps: PipelineStepMeta[];
   params: PipelineParamField[];
   components: Record<string, PipelineComponentStatus>;
-  /** Drives the Precise word boundaries toggle; absent only from older hosts. */
-  forced_alignment?: PipelineForcedAlignment;
+  forced_alignment: PipelineForcedAlignment;
   step_names: string[];
   /** Catalog for Pipeline Whisper picker (Downloaded / Needs download). */
   whisper_models?: WhisperModelCatalogRow[];

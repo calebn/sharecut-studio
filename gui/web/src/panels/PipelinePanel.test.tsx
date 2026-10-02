@@ -8,6 +8,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import type { PipelineConfigResponse } from "../types/pipeline";
 import { PipelinePanel } from "./PipelinePanel";
 import { formatAnalyzeFields } from "./pipelineAnalyzeFormat";
 
@@ -181,6 +182,14 @@ const baseConfig = {
     whisper: { ok: true },
     rnnoise: { ok: false, hint: "missing" },
   },
+  forced_alignment: {
+    enabled: false,
+    model: null,
+    requested: null,
+    installed: false,
+    blocked: false,
+    reason: "",
+  },
   step_names: [
     "ingest_tracks",
     "transcribe_tracks",
@@ -288,6 +297,269 @@ function withMasterLufsParam() {
 }
 
 describe("PipelinePanel", () => {
+  it("merges a parameter edit into the latest working set", async () => {
+    const initial: Omit<typeof baseConfig, "config" | "defaults"> &
+      Pick<PipelineConfigResponse, "config" | "defaults"> =
+      structuredClone(baseConfig);
+    initial.config = {
+      ...initial.config,
+      tighten: { intensity: "medium" },
+    };
+    initial.defaults = {
+      ...initial.defaults,
+      tighten: { intensity: "medium" },
+    };
+    const external = structuredClone(initial);
+    external.config = {
+      ...external.config,
+      tighten: { intensity: "light" },
+    };
+    loadPipelineConfig
+      .mockReset()
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(external);
+    putPipelineConfig.mockImplementationOnce(async (_path, body) => ({
+      ...external,
+      ...body,
+      config: body.config ?? external.config,
+      enabled_steps: body.enabled_steps ?? external.enabled_steps,
+      unattended: body.unattended ?? external.unattended,
+    }));
+
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    const dialogueTarget = await screen.findByDisplayValue("-20");
+    fireEvent.change(dialogueTarget, { target: { value: "-18" } });
+
+    await waitFor(() => expect(putPipelineConfig).toHaveBeenCalledTimes(1));
+    expect(putPipelineConfig).toHaveBeenCalledWith(
+      "/tmp/ep.project.json",
+      expect.objectContaining({
+        config: expect.objectContaining({
+          balance: expect.objectContaining({ dialogue_lufs: -18 }),
+          tighten: { intensity: "light" },
+        }),
+      }),
+    );
+  });
+
+  it("serializes overlapping edits before refetching each working set", async () => {
+    const initial = withMasterLufsParam();
+    const afterFirstSave = structuredClone(initial);
+    afterFirstSave.config.balance.dialogue_lufs = -18;
+    let resolveFirstSave!: (value: typeof initial) => void;
+    const deferredFirstSave = new Promise<typeof initial>((resolve) => {
+      resolveFirstSave = resolve;
+    });
+    putPipelineConfig
+      .mockReset()
+      .mockImplementationOnce(() => deferredFirstSave);
+    loadPipelineConfig
+      .mockReset()
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(afterFirstSave);
+    putPipelineConfig.mockImplementationOnce(async (_path, body) => ({
+      ...afterFirstSave,
+      ...body,
+      config: body.config ?? afterFirstSave.config,
+      enabled_steps: body.enabled_steps ?? afterFirstSave.enabled_steps,
+    }));
+
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    fireEvent.change(await screen.findByLabelText(/Dialogue LUFS/i), {
+      target: { value: "-18" },
+    });
+    await waitFor(() => expect(putPipelineConfig).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText(/Master LUFS/i), {
+      target: { value: "-14" },
+    });
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      resolveFirstSave(afterFirstSave);
+    });
+    await waitFor(() => expect(putPipelineConfig).toHaveBeenCalledTimes(2));
+    expect(putPipelineConfig).toHaveBeenLastCalledWith(
+      "/tmp/ep.project.json",
+      expect.objectContaining({
+        config: expect.objectContaining({
+          balance: expect.objectContaining({ dialogue_lufs: -18 }),
+          master: expect.objectContaining({ integrated_lufs: -14 }),
+        }),
+      }),
+    );
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByLabelText(/Dialogue LUFS/i)).toHaveValue(-18);
+    expect(screen.getByLabelText(/Master LUFS/i)).toHaveValue(-14);
+  });
+
+  it("lets an in-flight edit finish before Analyze refetches the working set", async () => {
+    const initial = withMasterLufsParam();
+    const afterSave = structuredClone(initial);
+    afterSave.config.balance.dialogue_lufs = -18;
+    let resolveFresh!: (value: PipelineConfigResponse) => void;
+    const delayedFresh = new Promise<PipelineConfigResponse>((resolve) => {
+      resolveFresh = resolve;
+    });
+    loadPipelineConfig
+      .mockReset()
+      .mockResolvedValueOnce(initial)
+      .mockImplementationOnce(() => delayedFresh)
+      .mockResolvedValueOnce(afterSave);
+    putPipelineConfig.mockImplementationOnce(async (_path, body) => ({
+      ...afterSave,
+      ...body,
+      config: body.config ?? afterSave.config,
+      enabled_steps: body.enabled_steps ?? afterSave.enabled_steps,
+      unattended: body.unattended ?? afterSave.unattended,
+    }));
+    analyzePipeline.mockResolvedValueOnce({
+      proposed_config: {},
+      patches: {},
+      reasons: [{ code: "complete", message: "analysis complete" }],
+      report_summary: { track_count: 0, reason_count: 1, tracks: [] },
+      applied: true,
+      config: initial,
+    });
+
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    fireEvent.change(await screen.findByLabelText(/Dialogue LUFS/i), {
+      target: { value: "-18" },
+    });
+    await waitFor(() => expect(loadPipelineConfig).toHaveBeenCalledTimes(2));
+    await userEvent.click(screen.getByRole("button", { name: "Analyze" }));
+    await waitFor(() =>
+      expect(
+        screen.getByText("Analyze suggestions applied"),
+      ).toBeInTheDocument(),
+    );
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+    expect(putPipelineConfig).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveFresh(initial as PipelineConfigResponse);
+    });
+    await waitFor(() => expect(putPipelineConfig).toHaveBeenCalledTimes(1));
+    expect(putPipelineConfig).toHaveBeenCalledWith(
+      "/tmp/ep.project.json",
+      expect.objectContaining({
+        config: expect.objectContaining({
+          balance: expect.objectContaining({ dialogue_lufs: -18 }),
+        }),
+      }),
+    );
+    await waitFor(() => expect(loadPipelineConfig).toHaveBeenCalledTimes(3));
+    expect(screen.getByLabelText(/Dialogue LUFS/i)).toHaveValue(-18);
+  });
+
+  it("derives a coupled step edit from the latest working set", async () => {
+    const user = userEvent.setup();
+    const tightenStep = {
+      id: "tighten_from_transcript",
+      index: 4,
+      group: "editorial",
+      title: "Tighten from transcript",
+      summary: "Tighten dialogue",
+      kind: "tooling",
+      depends_on: [],
+      requires_components: [],
+      param_sections: [],
+      enabled_by_default: true,
+    };
+    const initial = {
+      ...structuredClone(baseConfig),
+      steps: [...structuredClone(baseConfig.steps), tightenStep],
+      enabled_steps: [...baseConfig.enabled_steps, tightenStep.id],
+      config: {
+        ...baseConfig.config,
+        tighten: { enabled: true, intensity: "medium" },
+      },
+    };
+    const external = {
+      ...initial,
+      config: {
+        ...initial.config,
+        tighten: { enabled: true, intensity: "light" },
+      },
+    };
+    loadPipelineConfig
+      .mockReset()
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(external);
+    putPipelineConfig.mockImplementationOnce(async (_path, body) => ({
+      ...external,
+      ...body,
+      config: body.config ?? external.config,
+      enabled_steps: body.enabled_steps ?? external.enabled_steps,
+    }));
+
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    await user.click(
+      await screen.findByRole("checkbox", {
+        name: "Enable Tighten from transcript",
+      }),
+    );
+
+    await waitFor(() => expect(putPipelineConfig).toHaveBeenCalledTimes(1));
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+    expect(putPipelineConfig).toHaveBeenCalledWith(
+      "/tmp/ep.project.json",
+      expect.objectContaining({
+        enabled_steps: expect.not.arrayContaining([tightenStep.id]),
+        config: expect.objectContaining({
+          tighten: { enabled: false, intensity: "light" },
+        }),
+      }),
+    );
+  });
+
+  it("refetches before changing unattended mode", async () => {
+    const user = userEvent.setup();
+    loadPipelineConfig
+      .mockReset()
+      .mockResolvedValueOnce(structuredClone(baseConfig))
+      .mockResolvedValueOnce({
+        ...structuredClone(baseConfig),
+        config: {
+          ...baseConfig.config,
+          tighten: { intensity: "light" },
+        },
+      });
+
+    render(
+      <main>
+        <PipelinePanel />
+      </main>,
+    );
+    await screen.findByDisplayValue("-20");
+    await user.selectOptions(screen.getByLabelText("Mode"), "gates");
+
+    await waitFor(() => expect(putPipelineConfig).toHaveBeenCalledTimes(1));
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+    expect(putPipelineConfig).toHaveBeenCalledWith("/tmp/ep.project.json", {
+      unattended: false,
+    });
+  });
+
   it("saves a vocabulary term and offers re-transcription through the pipeline", async () => {
     const user = userEvent.setup();
     render(
@@ -1713,6 +1985,7 @@ describe("PipelinePanel", () => {
     merged.config.master.integrated_lufs = -14;
     loadPipelineConfig
       .mockResolvedValueOnce(withMasterLufsParam())
+      .mockResolvedValueOnce(structuredClone(merged))
       .mockResolvedValueOnce(structuredClone(merged));
     let resolvePut!: () => void;
     putPipelineConfig.mockImplementationOnce(
@@ -1767,12 +2040,12 @@ describe("PipelinePanel", () => {
       );
     });
     // No GET while the PUT is pending: one served first would show the pre-edit value.
-    expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
     await act(async () => {
       resolvePut();
     });
     await waitFor(() => {
-      expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(3);
     });
     expect(screen.getByLabelText(/Dialogue LUFS/i)).toHaveValue(-18);
     expect(screen.getByLabelText(/Master LUFS/i)).toHaveValue(-14);
@@ -1915,7 +2188,7 @@ describe("PipelinePanel", () => {
     expect(screen.getByLabelText(/Master LUFS/i).closest("label")).toHaveClass(
       "pipeline-param-highlight",
     );
-    expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
   });
 
   it("a cancelled Analyze applies nothing and re-enables Analyze", async () => {
@@ -2091,7 +2364,7 @@ describe("PipelinePanel", () => {
     expect(
       screen.getByText(/noise_floor_db=-62\.5, digital_silence_fraction=0\.85/),
     ).toBeInTheDocument();
-    expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
     await expectNoA11yViolations(container);
     await user.click(
       screen.getByRole("button", { name: "Uncheck Align tracks" }),
@@ -2244,11 +2517,12 @@ describe("PipelinePanel", () => {
     await user.click(
       screen.getByRole("checkbox", { name: "Enable Balance tracks" }),
     );
-    await waitFor(() => {
-      expect(putPipelineConfig).toHaveBeenCalledTimes(2);
-    });
+    expect(putPipelineConfig).toHaveBeenCalledTimes(1);
     await act(async () => {
       resolveFirst(undefined);
+    });
+    await waitFor(() => {
+      expect(putPipelineConfig).toHaveBeenCalledTimes(2);
     });
     expect(
       screen.getByRole("checkbox", { name: "Enable Align tracks" }),
@@ -2266,6 +2540,7 @@ describe("PipelinePanel", () => {
     patched.config.master.integrated_lufs = -14;
     loadPipelineConfig
       .mockResolvedValueOnce(withMasterLufsParam())
+      .mockResolvedValueOnce(structuredClone(serverAfterPut))
       .mockResolvedValueOnce(structuredClone(serverAfterPut));
     let resolveAnalyze!: (v: unknown) => void;
     analyzePipeline.mockImplementation(
@@ -2311,12 +2586,12 @@ describe("PipelinePanel", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
     });
-    expect(loadPipelineConfig).toHaveBeenCalledTimes(1);
+    expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
     await act(async () => {
       resolvePut();
     });
     await waitFor(() => {
-      expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(3);
     });
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
@@ -2344,6 +2619,7 @@ describe("PipelinePanel", () => {
     merged.config.master.integrated_lufs = -14;
     loadPipelineConfig
       .mockResolvedValueOnce(withMasterLufsParam())
+      .mockResolvedValueOnce(structuredClone(merged))
       .mockResolvedValueOnce(structuredClone(merged));
     let resolveAnalyze!: (v: unknown) => void;
     analyzePipeline.mockImplementation(
@@ -2379,7 +2655,7 @@ describe("PipelinePanel", () => {
       });
     });
     await waitFor(() => {
-      expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(3);
     });
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
@@ -2405,6 +2681,7 @@ describe("PipelinePanel", () => {
     serverAfterReject.config.master.integrated_lufs = -14;
     loadPipelineConfig
       .mockResolvedValueOnce(structuredClone(baseConfig))
+      .mockResolvedValueOnce(structuredClone(serverAfterReject))
       .mockResolvedValueOnce(structuredClone(serverAfterReject));
     let resolveAnalyze!: (v: unknown) => void;
     analyzePipeline.mockImplementation(
@@ -2450,7 +2727,7 @@ describe("PipelinePanel", () => {
       rejectPut(new Error("save failed"));
     });
     await waitFor(() => {
-      expect(loadPipelineConfig).toHaveBeenCalledTimes(2);
+      expect(loadPipelineConfig).toHaveBeenCalledTimes(3);
     });
     await waitFor(() => {
       expect(screen.getByLabelText(/Dialogue LUFS/i)).toHaveValue(-21);
