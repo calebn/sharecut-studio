@@ -157,7 +157,7 @@ describe("createSyncWriterClient", () => {
     vi.useFakeTimers();
     const { worker, stream } = await openReady();
     const c = stream.close();
-    stream.abort?.();
+    await stream.abort?.();
     await expect(c).rejects.toThrow("aborted");
     expect(worker.terminate).toHaveBeenCalled();
   });
