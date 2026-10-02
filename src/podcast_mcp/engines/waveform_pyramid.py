@@ -35,7 +35,6 @@ from collections.abc import Callable, Generator, Iterable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from threading import Lock
 from typing import IO
 
@@ -43,7 +42,9 @@ import numpy as np
 
 from podcast_mcp.edits.track_ids import SAFE_TRACK_ID
 from podcast_mcp.engines.ffmpeg import PCM_STREAM_CHUNK_FRAMES, FFmpegEngine
+from podcast_mcp.util.atomic_file import atomic_write
 from podcast_mcp.util.file_locks import hold_shared_file_lock
+from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.progress import progress_task
 from podcast_mcp.util.timeline_zoom import (
     base_samples_per_bin,
@@ -52,6 +53,7 @@ from podcast_mcp.util.timeline_zoom import (
     pcm_block_frames,
     waveform_format_version,
 )
+from podcast_mcp.util.wav_pcm import decode_integer_pcm
 from podcast_mcp.util.workspace_paths import resolve_within
 
 log = logging.getLogger(__name__)
@@ -239,48 +241,6 @@ def build_levels(
     return total, levels
 
 
-# --- File I/O ------------------------------------------------------------------
-
-
-def _fsync_dir(path: Path) -> None:
-    """Persist a rename in directory *path* (best effort; no-op where dirs cannot be opened)."""
-    with contextlib.suppress(OSError):
-        fd = os.open(path, os.O_RDONLY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-
-
-def _publish(out: Path, write: Callable[[IO[bytes]], None]) -> Path:
-    """Write via a unique sibling temp file, fsync, then ``os.replace`` into *out*.
-
-    An existing *out* is replaced: pyramids are content-addressed, so a valid
-    one gets identical bytes and a corrupt one (torn write, disk damage) is
-    repaired.
-    """
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with NamedTemporaryFile(
-        dir=out.parent, prefix=f".{out.name}.", suffix=".tmp", delete=False
-    ) as fh:
-        tmp = Path(fh.name)
-        try:
-            write(fh)
-            fh.flush()
-            os.fsync(fh.fileno())
-        except BaseException:
-            fh.close()
-            tmp.unlink(missing_ok=True)
-            raise
-    try:
-        os.replace(tmp, out)
-    except OSError:
-        tmp.unlink(missing_ok=True)
-        raise
-    _fsync_dir(out.parent)
-    return out
-
-
 def write_pyramid(
     out: Path,
     *,
@@ -329,7 +289,7 @@ def write_pyramid(
         for level in levels:
             fh.write(np.ascontiguousarray(level, dtype=_BIN_DTYPE).tobytes())
 
-    return _publish(out, _write)
+    return atomic_write(out, _write)
 
 
 def read_meta(path: Path) -> PyramidMeta:
@@ -508,22 +468,6 @@ def _wav_info(path: Path) -> _WavInfo | None:
     return info
 
 
-def _pcm_to_f32(raw: bytes | bytearray, width: int, channels: int) -> np.ndarray:
-    """Integer PCM bytes to ``(frames, channels)`` float32 in [-1, 1)."""
-    frame_bytes = width * channels
-    raw = raw[: len(raw) - len(raw) % frame_bytes]
-    if width == 1:
-        vals = (np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128.0) / 128.0
-    elif width == 3:
-        b = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 3).astype(np.int32)
-        packed = b[:, 0] | (b[:, 1] << 8) | (b[:, 2] << 16)
-        vals = ((packed ^ 0x800000) - 0x800000).astype(np.float32) / float(1 << 23)
-    else:
-        ints = np.frombuffer(raw, dtype=f"<i{width}")
-        vals = (ints.astype(np.float64) / float(1 << (8 * width - 1))).astype(np.float32)
-    return vals.reshape(-1, channels)
-
-
 def _iter_wav(path: Path, info: _WavInfo, chunk_frames: int) -> Generator[np.ndarray, None, None]:
     frame_bytes = info.width * info.channels
     with wave.open(str(path), "rb") as wf:
@@ -536,7 +480,9 @@ def _iter_wav(path: Path, info: _WavInfo, chunk_frames: int) -> Generator[np.nda
                     break
                 buf += part
             if len(buf) >= frame_bytes:
-                yield _pcm_to_f32(buf, info.width, info.channels)
+                yield decode_integer_pcm(
+                    buf, width=info.width, channels=info.channels, dtype="float32"
+                )
             if len(buf) < want:
                 return
 
@@ -633,7 +579,9 @@ def read_pcm_minmax(
         with wave.open(str(path), "rb") as wf:
             wf.setpos(start)
             raw = wf.readframes(count)
-        return _minmax_int16(_pcm_to_f32(raw, info.width, info.channels))
+        return _minmax_int16(
+            decode_integer_pcm(raw, width=info.width, channels=info.channels, dtype="float32")
+        )
     eng = engine or FFmpegEngine()
     if sample_rate is None or channels is None:
         probe = eng.probe(path, untrusted=True)
@@ -654,7 +602,7 @@ def media_key(rel_posix: str, size: int, mtime_ns: int) -> str:
     invalidate old results without changing the reader's file format.
     """
     raw = f"{waveform_format_version()}|{_BUILD_REVISION}|{rel_posix}|{size}|{mtime_ns}"
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20]
+    return short_digest(raw, 20)
 
 
 def ref_slug(kind: str, ref_id: str) -> str:
@@ -731,7 +679,7 @@ def reuse_existing_pyramid(peaks_dir: Path, key: str, out: Path) -> bool:
             else:
                 return True
         try:
-            _publish(out, functools.partial(_copy_into, candidate))
+            atomic_write(out, functools.partial(_copy_into, candidate))
         except OSError:
             continue
         return True

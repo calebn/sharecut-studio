@@ -7,6 +7,13 @@ import os
 from pathlib import Path
 
 
+def short_digest(text: str, length: int = 16) -> str:
+    """Return a SHA-256 hex prefix for UTF-8 text."""
+    if not 1 <= length <= 64:
+        raise ValueError("length must be between 1 and 64")
+    return hashlib.sha256(text.encode()).hexdigest()[:length]
+
+
 def sha256_file(path: Path, *, chunk_size: int = 1_048_576) -> str:
     """Return the full SHA-256 hex digest without loading the file into memory."""
     if chunk_size <= 0:

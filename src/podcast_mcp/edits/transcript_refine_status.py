@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from contextlib import AbstractContextManager
 from datetime import UTC, datetime
@@ -15,6 +14,7 @@ from podcast_mcp.edits.pipeline_unattended import is_unattended
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.file_locks import hold_shared_file_lock
+from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.workspace_paths import workspace_relpath
 
 # Open words below this confidence count toward the refine brief's low_confidence_open_words.
@@ -47,7 +47,7 @@ def precorrect_fingerprint(project: EpisodeProject) -> str:
             suppressed = bool(getattr(w, "suppressed", False))
             parts.append(f"{tr.track_id}:{i}:{w.text}:{suppressed}")
     raw = "|".join(parts)
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    return short_digest(raw)
 
 
 def transcript_text_fingerprint(project: EpisodeProject) -> str:
@@ -57,7 +57,7 @@ def transcript_text_fingerprint(project: EpisodeProject) -> str:
         for tr in sorted(project.transcripts, key=lambda t: t.track_id)
     ]
     raw = json.dumps(tracks, ensure_ascii=False, separators=(",", ":"))
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    return short_digest(raw)
 
 
 def refine_mode_from_defaults(defaults: dict[str, Any] | None) -> RefineMode:

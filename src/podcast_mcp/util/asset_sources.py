@@ -17,6 +17,7 @@ from os import environ
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.hashing import sha256_file
 
 logger = logging.getLogger(__name__)
@@ -218,7 +219,7 @@ def _download_url(
                 raise AssetSourceError(
                     f"sha256 mismatch for {dest.name}: expected {expected_sha256}, got {got}"
                 )
-        tmp.replace(dest)
+        publish_completed_file(tmp, dest)
     finally:
         tmp.unlink(missing_ok=True)
 

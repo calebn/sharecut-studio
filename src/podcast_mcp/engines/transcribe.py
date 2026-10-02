@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import math
@@ -41,7 +40,7 @@ from podcast_mcp.models import (
 from podcast_mcp.models.episode import workspace_artifacts_dir
 from podcast_mcp.util.atomic_json import write_text_atomic
 from podcast_mcp.util.file_locks import hold_shared_file_lock
-from podcast_mcp.util.hashing import sha256_file
+from podcast_mcp.util.hashing import sha256_file, short_digest
 from podcast_mcp.util.progress import (
     ProgressReporter,
     raise_if_cancel_requested,
@@ -79,7 +78,7 @@ def forced_alignment_succeeded(entry: Mapping[str, Any]) -> bool:
 def cache_id_part(raw: str) -> str:
     if re.fullmatch(r"[A-Za-z0-9_-]+", raw):
         return raw
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    return short_digest(raw)
 
 
 @dataclass(frozen=True)
@@ -500,7 +499,7 @@ class TranscriptionEngine:
             },
             sort_keys=True,
         )
-        inputs_key = hashlib.sha256(inputs.encode()).hexdigest()[:16]
+        inputs_key = short_digest(inputs)
         name = f"{cache_id_part(track_id)}_{audio_key}_{inputs_key}.json"
         return _cache_file(project, track_id, name)
 
@@ -563,7 +562,7 @@ class TranscriptionEngine:
             },
             sort_keys=True,
         )
-        key = hashlib.sha256(key_src.encode()).hexdigest()[:16]
+        key = short_digest(key_src)
         return _cache_file(project, cache_id, f"{asr_cache.stem}.word_align_{key}.json")
 
     def speech_levels(self, project: EpisodeProject) -> SpeechLevels:

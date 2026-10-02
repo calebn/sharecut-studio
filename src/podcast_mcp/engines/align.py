@@ -147,8 +147,8 @@ def read_wav_mono_window(
 ) -> tuple[np.ndarray, int]:
     """Read a bounded PCM window via ``wave`` (never the whole file).
 
-    Returns ``(float64 mono samples at out_rate, PCM bytes read)``. Keepers are
-    16-bit PCM. Unsupported widths (including 24-bit packed) yield empty.
+    Returns ``(float64 mono samples at out_rate, PCM bytes read)``. The reader
+    accepts 8-, 16-, 24-, and 32-bit integer PCM. Keepers remain 16-bit PCM.
     """
     try:
         with path.open("rb") as fh, wave.open(fh, "rb") as wf:
@@ -177,7 +177,7 @@ def read_open_wav_mono_window(
         or nframes <= 0
         or in_rate > _MAX_WAV_RATE
         or channels > _MAX_WAV_CHANNELS
-        or width not in (1, 2, 4)
+        or width not in (1, 2, 3, 4)
         or comptype != "NONE"
     ):
         return np.zeros(0, dtype=np.float64), 0
@@ -192,18 +192,10 @@ def read_open_wav_mono_window(
     wf.setpos(start)
     raw = wf.readframes(count)
     bytes_read = len(raw)
-    if width == 2:
-        pcm = np.frombuffer(raw, dtype="<i2")
-    elif width == 1:
-        pcm = np.frombuffer(raw, dtype=np.uint8).astype(np.int16) - 128
-    elif width == 4:
-        pcm = np.frombuffer(raw, dtype="<i4")
-    else:
-        return np.zeros(0, dtype=np.float64), 0
-    if channels > 1:
-        usable = (pcm.size // channels) * channels
-        pcm = pcm[:usable].reshape(-1, channels).mean(axis=1)
-    samples = pcm.astype(np.float64) / (32768.0 if width != 1 else 128.0)
+    from podcast_mcp.util.wav_pcm import decode_integer_pcm
+
+    pcm = decode_integer_pcm(raw, width=width, channels=channels, dtype="float64")
+    samples = pcm.mean(axis=1)
     if in_rate != out_rate and samples.size:
         n_out = max(1, round(samples.size * out_rate / in_rate))
         x = np.linspace(0.0, 1.0, samples.size, endpoint=False)
@@ -222,7 +214,7 @@ def load_mono_window(
 ) -> np.ndarray:
     """Decode a short mono PCM window for correlation (audio only, no DAW metadata).
 
-    16-bit (and 8/32-bit integer) WAV uses ``read_wav_mono_window``; other
+    8-, 16-, 24-, and 32-bit integer WAV uses ``read_wav_mono_window``; other
     containers fall through to ffmpeg ``-ss``/``-t``.
     """
     try:

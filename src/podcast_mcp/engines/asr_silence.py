@@ -42,7 +42,7 @@ import numpy as np
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.models import Clip, EpisodeProject, TranscriptWord
 from podcast_mcp.util.dsp import db_to_amplitude
-from podcast_mcp.util.hashing import sha256_head_tail
+from podcast_mcp.util.hashing import sha256_head_tail, short_digest
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.project_state import FileRevision, file_revision
 
@@ -108,7 +108,7 @@ def placement_digest(project: EpisodeProject) -> str:
         for c in project.clips
         if c.track_id in dialogue
     )
-    return sha256(repr(rows).encode()).hexdigest()[:16]
+    return short_digest(repr(rows))
 
 
 def _primary_media_key(project: EpisodeProject, track_id: str) -> str | None:
@@ -181,7 +181,7 @@ def _media_keys_digest(keys: Sequence[str], revisions: dict[str, FileRevision | 
     for key in keys:
         revision = revisions.get(key)
         identity.append((key, revision))
-    return sha256(repr(tuple(identity)).encode()).hexdigest()[:16]
+    return short_digest(repr(tuple(identity)))
 
 
 def _evidence_term(
@@ -196,9 +196,9 @@ def _evidence_term(
     relevant_gains = (
         sorted(gains_db.items()) if bleed_check else [(track_id, gains_db.get(track_id, 0.0))]
     )
-    gain_digest = sha256(
-        repr(tuple((tid, float(gain).hex()) for tid, gain in relevant_gains)).encode()
-    ).hexdigest()[:16]
+    gain_digest = short_digest(
+        repr(tuple((tid, float(gain).hex()) for tid, gain in relevant_gains))
+    )
     if bleed_check:
         return f"bleed:{placement or ''}:{gain_digest}:{media_digest}"
     return f"own:{gain_digest}:{media_digest}"

@@ -8,7 +8,6 @@ Never blades or splits media.
 from __future__ import annotations
 
 import collections
-import hashlib
 import itertools
 import logging
 import statistics
@@ -47,6 +46,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.wer import normalize_token
 
@@ -1873,4 +1873,4 @@ def alignment_fingerprint(project: EpisodeProject) -> str:
         parts.append(
             f"{key}:{a.session_start_in_file_sec:.4f}:{a.content_align_sec:.4f}:{a.align_method}"
         )
-    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:16]
+    return short_digest("|".join(parts))

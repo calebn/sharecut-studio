@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import shutil
@@ -14,6 +13,8 @@ import numpy as np
 from podcast_mcp.engines.bleed_gate import BleedGatePlan, build_bleed_gate_plan
 from podcast_mcp.engines.session_timeline import DEFAULT_MERGE_GAP_SEC, SessionTimeline
 from podcast_mcp.models import EpisodeProject, TrackRole
+from podcast_mcp.util.atomic_file import publish_completed_file
+from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import mixed_dialogue_track_ids
 
@@ -105,7 +106,7 @@ def transcript_gate_fingerprint(
             }
         )
     raw = json.dumps(parts, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+    return short_digest(raw)
 
 
 def _gate_pcm_chunk(
@@ -209,7 +210,7 @@ def gate_stem_window(
                 plan=plan,
                 timeline_start=timeline_start,
             )
-            temporary_path.replace(output_path)
+            publish_completed_file(temporary_path, output_path)
         finally:
             temporary_path.unlink(missing_ok=True)
         return output_path

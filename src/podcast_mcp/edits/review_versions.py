@@ -32,6 +32,7 @@ from podcast_mcp.engines.play_audit import (
     read_mastered_hash,
 )
 from podcast_mcp.models import EpisodeProject, ReviewMixVersion
+from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.pinned_media import (
     descriptor_walk_supported,
@@ -655,11 +656,13 @@ def encode_version_mp3(
                     with snapshot.open("xb") as snapshot_file:
                         shutil.copyfileobj(source_file, snapshot_file, length=1024 * 1024)
             engine.export_mp3(snapshot, temporary_path, bitrate_kbps=_REVIEW_MP3_BITRATE_KBPS)
-        if review_root.resolve(strict=True) != resolved_root:
-            raise RuntimeError("review artifacts directory changed during MP3 retry")
-        os.replace(temporary_path, mp3_path)
-        if review_root.resolve(strict=True) != resolved_root:
-            raise RuntimeError("review artifacts directory changed during MP3 retry")
+
+        def check_review_root() -> None:
+            if review_root.resolve(strict=True) != resolved_root:
+                raise RuntimeError("review artifacts directory changed during MP3 retry")
+
+        publish_completed_file(temporary_path, mp3_path, before_replace=check_review_root)
+        check_review_root()
     finally:
         try:
             temporary_path.unlink(missing_ok=True)

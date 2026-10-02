@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import bisect
 import contextlib
-import hashlib
 import json
 import logging
 import re
@@ -44,6 +43,7 @@ from podcast_mcp.engines.transcribe import TranscribeJob, cache_id_part, track_t
 from podcast_mcp.models import EpisodeProject, Transcript
 from podcast_mcp.util.atomic_json import write_json_atomic
 from podcast_mcp.util.file_locks import hold_shared_file_lock
+from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
@@ -91,7 +91,7 @@ def words_fingerprint(words: list[WordSpan]) -> str:
     """A short hash of word text+timing, stable regardless of list order."""
     rows = sorted((round(w.start, 3), round(w.end, 3), w.text) for w in words)
     payload = json.dumps(rows, separators=(",", ":"))
-    return hashlib.sha256(payload.encode()).hexdigest()[:16]
+    return short_digest(payload)
 
 
 def track_words_fingerprint(project: EpisodeProject, track_id: str) -> str:
@@ -125,7 +125,7 @@ def inputs_key(params: ProsodyParams, words_fp: str) -> str:
         },
         sort_keys=True,
     )
-    return hashlib.sha256(payload.encode()).hexdigest()[:16]
+    return short_digest(payload)
 
 
 def profile_path(project: EpisodeProject, track_id: str, audio16: str, inputs16: str) -> Path:

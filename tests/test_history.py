@@ -32,7 +32,7 @@ from podcast_mcp.project_store import (
     read_history_index,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.util import atomic_json
+from podcast_mcp.util import atomic_file
 from podcast_mcp.util.atomic_json import write_json_atomic
 
 
@@ -47,7 +47,7 @@ def test_history_index_is_published_atomically(minimal_project, monkeypatch, wri
     previous = json.loads(index_path.read_text(encoding="utf-8"))
     replace_started = threading.Event()
     release_replace = threading.Event()
-    original_replace = atomic_json.os.replace
+    original_replace = atomic_file.os.replace
 
     def block_index_replace(source: str | Path, destination: str | Path) -> None:
         if Path(destination) == index_path:
@@ -55,7 +55,7 @@ def test_history_index_is_published_atomically(minimal_project, monkeypatch, wri
             assert release_replace.wait(timeout=5), "index replacement did not release"
         original_replace(source, destination)
 
-    monkeypatch.setattr(atomic_json.os, "replace", block_index_replace)
+    monkeypatch.setattr(atomic_file.os, "replace", block_index_replace)
 
     if writer == "history_manager":
 

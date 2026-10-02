@@ -57,6 +57,30 @@ def _nonperiodic_wav(dst: Path, *, duration_sec: float = 2.0) -> None:
             w.writeframes(struct.pack("<h", sample))
 
 
+@pytest.mark.parametrize("width", [3, 4])
+def test_read_open_wav_mono_window_normalizes_integer_pcm(tmp_path: Path, width: int) -> None:
+    import wave
+
+    import numpy as np
+
+    from podcast_mcp.engines.align import read_open_wav_mono_window
+
+    scale = 1 << (8 * width - 1)
+    values = [0, scale // 2, -scale // 2, scale - 1]
+    raw = b"".join(value.to_bytes(width, "little", signed=True) for value in values)
+    path = tmp_path / f"pcm{width * 8}.wav"
+    with wave.open(str(path), "wb") as writer:
+        writer.setnchannels(1)
+        writer.setsampwidth(width)
+        writer.setframerate(10)
+        writer.writeframes(raw)
+    with wave.open(str(path), "rb") as reader:
+        samples, bytes_read = read_open_wav_mono_window(reader, duration_sec=0.4, out_rate=10)
+    assert bytes_read == 4 * width
+    assert samples.dtype == np.float64
+    np.testing.assert_array_equal(samples, [0.0, 0.5, -0.5, 1.0 - 1.0 / scale])
+
+
 def test_estimate_offset_finds_delay(tmp_path: Path) -> None:
     ref = tmp_path / "ref.wav"
     late = tmp_path / "late.wav"

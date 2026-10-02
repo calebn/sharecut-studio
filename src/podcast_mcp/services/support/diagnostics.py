@@ -29,6 +29,7 @@ from podcast_mcp.services.support.doctor import (
     python_runtime_info,
     run_doctor_checks,
 )
+from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.diagnostics_bundle_contract import (
     MAX_BUNDLE_BYTES,
     diagnostics_log_archive_name,
@@ -512,7 +513,7 @@ class DiagnosticsService:
                 size = tmp_path.stat().st_size
                 if size > MAX_BUNDLE_BYTES:
                     raise RuntimeError("diagnostics bundle exceeded 5 MB after truncation")
-                tmp_path.replace(zip_path)
+                publish_completed_file(tmp_path, zip_path)
             except Exception:
                 tmp_path.unlink(missing_ok=True)
                 raise

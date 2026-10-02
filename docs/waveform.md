@@ -134,7 +134,9 @@ hits EOF.
 
 - **WAV fast path:** stdlib `wave` reads uncompressed integer PCM of 8, 16, 24
   or 32 bits. Samples are scaled by `2^(bits−1)`; 8-bit samples are unsigned
-  (`(v−128)/128`), and 24-bit samples are unpacked by hand.
+  (`(v−128)/128`), and 24-bit samples are sign-extended. The shared
+  `util/wav_pcm.py` decoder normalizes complete frames in float64 and returns
+  float32 to the waveform reader or float64 to alignment.
   The header's data size must fit the file; a WAV that declares 0, `0xFFFFFFFF`
   or more bytes than it holds (streamed or truncated) goes to the ffmpeg path
   instead. An empty `data` chunk followed only by known RIFF metadata chunks

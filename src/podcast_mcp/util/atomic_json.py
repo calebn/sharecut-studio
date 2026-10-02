@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import contextlib
 import json
-import os
 import shutil
-import tempfile
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+from podcast_mcp.util.atomic_file import atomic_write
 
 
 def load_json_object(path: Path) -> dict[str, Any] | None:
@@ -44,18 +42,19 @@ def write_json_atomic(
     return write_text_atomic(path, text + "\n", mode=mode)
 
 
-def write_text_atomic(path: Path, text: str, *, mode: int | None = None) -> Path:
-    def fill(handle: Any) -> None:
-        handle.write(text)
-
-    return _replace_from_temp(path, fill, mode=mode, binary=False)
+def write_text_atomic(
+    path: Path, text: str, *, mode: int | None = None, creation_mode: int = 0o600
+) -> Path:
+    return atomic_write(
+        path,
+        lambda handle: handle.write(text.encode("utf-8")),
+        mode=mode,
+        creation_mode=creation_mode,
+    )
 
 
 def write_bytes_atomic(path: Path, data: bytes, *, mode: int | None = None) -> Path:
-    def fill(handle: Any) -> None:
-        handle.write(data)
-
-    return _replace_from_temp(path, fill, mode=mode, binary=True)
+    return atomic_write(path, lambda handle: handle.write(data), mode=mode)
 
 
 def copy_file_atomic(src: Path, dest: Path) -> Path:
@@ -75,50 +74,4 @@ def copy_file_atomic(src: Path, dest: Path) -> Path:
     def copy_metadata(tmp: Path) -> None:
         shutil.copystat(src, tmp)
 
-    return _replace_from_temp(dest, fill, mode=None, binary=True, before_replace=copy_metadata)
-
-
-def _replace_from_temp(
-    path: Path,
-    fill: Callable[[Any], None],
-    *,
-    mode: int | None,
-    binary: bool,
-    before_replace: Callable[[Path], None] | None = None,
-) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-    tmp = Path(tmp_name)
-    replaced = False
-    try:
-        open_mode = "wb" if binary else "w"
-        open_kwargs: dict[str, Any] = {} if binary else {"encoding": "utf-8"}
-        with os.fdopen(fd, open_mode, **open_kwargs) as handle:
-            fill(handle)
-            handle.flush()
-            os.fsync(handle.fileno())
-        if mode is not None:
-            os.chmod(tmp, mode)
-        if before_replace is not None:
-            before_replace(tmp)
-        os.replace(tmp, path)
-        replaced = True
-        if mode is not None:
-            os.chmod(path, mode)
-        _fsync_directory(path.parent)
-    finally:
-        if not replaced:
-            tmp.unlink(missing_ok=True)
-    return path
-
-
-def _fsync_directory(directory: Path) -> None:
-    """Persist a completed rename on POSIX; Windows cannot open directories."""
-    if os.name != "posix":
-        return
-    with contextlib.suppress(OSError):
-        fd = os.open(directory, os.O_RDONLY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
+    return atomic_write(dest, fill, prepare_temp=copy_metadata)
