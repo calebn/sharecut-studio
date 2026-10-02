@@ -134,6 +134,81 @@ describe("BitmapCache", () => {
     expect(cache.placeholder("none", 512, 0)).toBeNull();
   });
 
+  it("skips nearer zoom levels when their tiles do not overlap", () => {
+    const cache = new BitmapCache(() => 1e6);
+    const offscreen = entry({ zoom: 512, tile: 2 });
+    const coarse = entry({ zoom: 256, tile: 0 });
+    cache.set("offscreen", offscreen);
+    cache.set("coarse", coarse);
+    expect(cache.placeholder("g", 512, 0)).toEqual({
+      entry: coarse,
+      startSec: 0,
+      endSec: 2,
+    });
+    expect(cache.placeholder("g", 512, 4)).toBeNull();
+  });
+
+  it("excludes tiles that only touch the target's half-open boundary", () => {
+    const cache = new BitmapCache(() => 1e6);
+    const before = entry({ zoom: 512, tile: -1 });
+    const after = entry({ zoom: 512, tile: 1 });
+    cache.set("before", before);
+    cache.set("after", after);
+    expect(cache.placeholder("g", 512, 0)).toBeNull();
+    expect(cache.placeholder("g", 512, -1)?.entry).toBe(before);
+    expect(cache.placeholder("g", 512, 1)?.entry).toBe(after);
+  });
+
+  it("finds overlap across fractional zoom levels", () => {
+    const cache = new BitmapCache(() => 1e6);
+    const fine = entry({ zoom: 8.64, tile: 16 });
+    cache.set("fine", fine);
+    expect(cache.placeholder("g", 7.2, 13)?.entry).toBe(fine);
+  });
+
+  it("finds a sparse cached tile across a large overlapping tile range", () => {
+    const cache = new BitmapCache(() => 1e6);
+    const last = entry({ zoom: 1e9, tile: 1e9 - 1 });
+    cache.set("last", last);
+    expect(cache.placeholder("g", 1, 0)?.entry).toBe(last);
+  });
+
+  it("keeps duplicate tile entries indexed after one is removed", () => {
+    const cache = new BitmapCache(() => 1e6);
+    const first = entry({ zoom: 512, tile: 0 });
+    const second = entry({ zoom: 512, tile: 0 });
+    cache.set("first", first);
+    cache.set("second", second);
+    cache.delete("first");
+    expect(cache.placeholder("g", 512, 0)?.entry).toBe(second);
+    cache.delete("second");
+    expect(cache.placeholder("g", 512, 0)).toBeNull();
+  });
+
+  it("removes old group, zoom, and tile locations on replacement", () => {
+    const cache = new BitmapCache(() => 1e6);
+    const old = entry({ zoom: 256, tile: 0 });
+    const replacement = entry({ group: "other", zoom: 1024, tile: 3 });
+    cache.set("key", old);
+    cache.set("key", replacement);
+    expect(cache.placeholder("g", 512, 0)).toBeNull();
+    expect(cache.placeholder("other", 1024, 3)?.entry).toBe(replacement);
+    expect(closeOf(old)).toHaveBeenCalledOnce();
+  });
+
+  it("marks a selected placeholder recently used", () => {
+    const cache = new BitmapCache(() => 800);
+    const visible = entry({ zoom: 512, tile: 0 });
+    const hidden = entry({ zoom: 512, tile: 2 });
+    cache.set("visible", visible);
+    cache.set("hidden", hidden);
+    expect(cache.placeholder("g", 512, 0)?.entry).toBe(visible);
+    cache.set("next", entry({ zoom: 512, tile: 4 }));
+    expect(cache.placeholder("g", 512, 0)?.entry).toBe(visible);
+    expect(cache.placeholder("g", 512, 2)).toBeNull();
+    expect(closeOf(hidden)).toHaveBeenCalledOnce();
+  });
+
   it("forgets evicted bitmaps as placeholders", () => {
     const cache = new BitmapCache(() => 400);
     cache.set("a", entry({ zoom: 256, tile: 0 }));
