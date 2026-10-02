@@ -287,3 +287,7 @@ Tap a speaker label to rename or reassign every turn on that track. The editor w
 ### Transcript find and replace
 
 The host Text/Transcript toolbar exposes **Find and replace** on every shell. The native labeled inputs and preview list wrap within the panel and scroll without replacing the transcript list. Hosts review source-keyed changes and apply the complete set as one Undo action. Different word counts show the source-span timing warning before apply. Shared guests retain the existing text-correction restrictions. See [daw-editing.md](daw-editing.md#transcript-find-and-replace).
+
+### Crossfade length on Timeline
+
+Open a crossfade join badge to reveal a reserved endpoint row below the scrolling lanes. The right-endpoint grip has a target at least 44 px in both dimensions. Its leader connects to the centered overlap X, and its caption shows the seam and effective or draft length. The grip stays outside clip move, seek, fade and roll targets, with the popover above its reserved row. Dragging saves one coupled join change on release. Use the native Length range for keyboard editing. Canceling restores the saved overlap. Stored unequal fades remain visible in the popover until an intentional edit sets both edges equally.

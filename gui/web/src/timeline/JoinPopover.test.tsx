@@ -8,6 +8,7 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import { JoinPopover } from "./JoinPopover";
+import { useJoinEdit } from "./useJoinEdit";
 
 vi.mock("../api", () => ({
   setClipJoin: vi.fn(async () => undefined),
@@ -42,6 +43,13 @@ function Harness({
   const anchorRef = useRef<HTMLButtonElement>(
     null,
   ) as RefObject<HTMLButtonElement | null>;
+  const edit = useJoinEdit({
+    left,
+    right: rightRow,
+    trackFadeMaxMs: 40,
+    zoomPxPerSec: 50,
+  });
+  const railRef = useRef<HTMLDivElement>(null);
   return (
     <div>
       <button ref={anchorRef} type="button">
@@ -55,6 +63,8 @@ function Harness({
         trackFadeMaxMs={40}
         anchorRef={anchorRef}
         onClose={onClose}
+        edit={edit}
+        railRef={railRef}
       />
     </div>
   );
@@ -63,9 +73,13 @@ function Harness({
 describe("JoinPopover", () => {
   beforeEach(() => {
     vi.mocked(setClipJoin).mockClear();
-    useDawStore
-      .getState()
-      .hydrate("/tmp/ep.json", minimalProject({ tracks: [sampleTrack()] }));
+    useDawStore.getState().hydrate(
+      "/tmp/ep.json",
+      minimalProject({
+        tracks: [sampleTrack({ fade_max_ms: 40 })],
+        clips: { tracks: { host: [left, right] }, clip_count: 2 },
+      }),
+    );
     useDawStore.setState({
       playheadSec: 0,
       playUntilSec: null,
@@ -121,14 +135,15 @@ describe("JoinPopover", () => {
   });
 
   it("is read-only for a guest without edit", () => {
-    useDawStore
-      .getState()
-      .hydrate(
-        shareProjectKey("tok"),
-        minimalProject({ tracks: [sampleTrack()] }),
-        "view",
-        ["view"],
-      );
+    useDawStore.getState().hydrate(
+      shareProjectKey("tok"),
+      minimalProject({
+        tracks: [sampleTrack({ fade_max_ms: 40 })],
+        clips: { tracks: { host: [left, right] }, clip_count: 2 },
+      }),
+      "view",
+      ["view"],
+    );
     render(<Harness />);
     expect(screen.queryByRole("group", { name: "Join mode" })).toBeNull();
   });
@@ -209,12 +224,13 @@ describe("JoinPopover", () => {
     fireEvent.click(screen.getByRole("button", { name: "Crossfade" }));
     expect(useDawStore.getState().joinMutationInFlight).toBe(true);
     act(() => {
-      useDawStore
-        .getState()
-        .hydrate(
-          "/tmp/other.json",
-          minimalProject({ tracks: [sampleTrack()] }),
-        );
+      useDawStore.getState().hydrate(
+        "/tmp/other.json",
+        minimalProject({
+          tracks: [sampleTrack({ fade_max_ms: 40 })],
+          clips: { tracks: { host: [left, right] }, clip_count: 2 },
+        }),
+      );
     });
     expect(useDawStore.getState().joinMutationInFlight).toBe(false);
     act(() => useDawStore.getState().setJoinMutationInFlight(true));

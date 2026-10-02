@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { clipRow } from "../test/fixtures";
 import type { ClipRow } from "../types/project";
 import {
   clipIdsBeforeCut,
@@ -16,6 +17,7 @@ import {
   joinModeLabel,
   joinRenderNote,
   joinSeamLabel,
+  joinVisual,
   MIN_JOIN_CLIP_PX,
 } from "./joinRender";
 
@@ -208,5 +210,55 @@ describe("drawn joins", () => {
         },
       ),
     ).toBe(20);
+  });
+});
+
+describe("joinVisual authoritative overlap", () => {
+  it("centers the exact derived span rather than either stored fade", () => {
+    const right = clipRow({
+      timeline_start: 5,
+      join_in_mode: "crossfade",
+      fade_in_ms: 80,
+      join_crossfade_ms: 40,
+    });
+    expect(joinVisual(right, 50)).toEqual({
+      kind: "blend",
+      lengthMs: 40,
+      widthPx: 2,
+      leftPx: 249,
+    });
+    expect(joinVisual(right, 100)).toEqual({
+      kind: "blend",
+      lengthMs: 40,
+      widthPx: 4,
+      leftPx: 498,
+    });
+  });
+  it.each([undefined, 0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    "does not substitute raw fades for %s",
+    (length) => {
+      expect(
+        joinVisual(
+          clipRow({
+            join_in_mode: "crossfade",
+            fade_in_ms: 100,
+            join_crossfade_ms: length,
+          }),
+          50,
+        ),
+      ).toEqual({ kind: "ordinary" });
+    },
+  );
+  it("lets a blocked reason win over a contradictory positive projection", () => {
+    expect(
+      joinVisual(
+        clipRow({
+          join_in_mode: "crossfade",
+          join_crossfade_ms: 50,
+          join_crossfade_blocked: "no_fade_in",
+        }),
+        50,
+      ),
+    ).toEqual({ kind: "blocked", reason: "no_fade_in" });
   });
 });
