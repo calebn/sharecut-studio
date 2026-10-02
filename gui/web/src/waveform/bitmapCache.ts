@@ -39,13 +39,32 @@ export function tileSeconds(tile: number, zoom: number): [number, number] {
 
 const PROVISIONAL = "\u0000provisional";
 
+type GroupIndex = {
+  levels: number[];
+  zooms: Map<number, { tileKeys: number[]; tiles: Map<number, Set<string>> }>;
+};
+
+function lowerBound(values: number[], target: number): number {
+  let low = 0;
+  let high = values.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (values[middle] < target) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+  return low;
+}
+
 export class BitmapCache {
   private readonly lru: ByteLru<BitmapEntry>;
-  private readonly groups = new Map<string, Set<string>>();
+  private readonly groups = new Map<string, GroupIndex>();
 
   constructor(budget: () => number = () => waveformBudget().bitmapBytes) {
     this.lru = new ByteLru<BitmapEntry>(budget, (key, entry) => {
-      this.unindex(key, entry.group);
+      this.unindex(key, entry);
       entry.bitmap.close();
     });
   }
@@ -81,13 +100,7 @@ export class BitmapCache {
     }
     // Drop (close and unindex) any old entry first, so it cannot unindex the new one.
     this.lru.delete(slot);
-    let keys = this.groups.get(entry.group);
-    if (!keys) {
-      keys = new Set();
-      this.groups.set(entry.group, keys);
-    }
-    // Index before insert: inserting may evict (and unindex) at once.
-    keys.add(slot);
+    this.index(slot, entry);
     this.lru.set(slot, entry, entry.width * entry.height * 4);
   }
 
@@ -97,36 +110,49 @@ export class BitmapCache {
    * zoom (ties go to the finer one).
    */
   placeholder(group: string, zoom: number, tile: number): Placeholder | null {
-    const keys = this.groups.get(group);
-    if (!keys) {
+    const index = this.groups.get(group);
+    if (!index) {
       return null;
     }
     const [t0, t1] = tileSeconds(tile, zoom);
-    let best: Placeholder | null = null;
-    let bestKey = "";
-    let bestScore = Number.POSITIVE_INFINITY;
-    for (const key of keys) {
-      const entry = this.lru.peek(key);
-      if (!entry) {
-        continue;
+    const levels = index.levels;
+    let finer = lowerBound(levels, zoom);
+    let coarser = finer - 1;
+    while (coarser >= 0 || finer < levels.length) {
+      const coarseZoom = levels[coarser];
+      const fineZoom = levels[finer];
+      const useFiner =
+        coarser < 0 ||
+        (finer < levels.length &&
+          Math.abs(Math.log(fineZoom / zoom)) - 1e-9 <=
+            Math.abs(Math.log(coarseZoom / zoom)));
+      const level = useFiner ? fineZoom : coarseZoom;
+      if (useFiner) {
+        finer += 1;
+      } else {
+        coarser -= 1;
       }
-      const [s0, s1] = tileSeconds(entry.tile, entry.zoom);
-      if (s1 <= t0 || s0 >= t1) {
-        continue;
-      }
-      const score =
-        Math.abs(Math.log(entry.zoom / zoom)) - (entry.zoom >= zoom ? 1e-9 : 0);
-      if (score < bestScore) {
-        bestScore = score;
-        bestKey = key;
-        best = { entry, startSec: s0, endSec: s1 };
+      const { tileKeys, tiles } = index.zooms.get(level)!;
+      const tileWidth = RENDER_TILE_CSS_PX / level;
+      const start = Math.floor(t0 / tileWidth) - 1;
+      const end = Math.ceil(t1 / tileWidth) + 1;
+      for (
+        let position = lowerBound(tileKeys, start);
+        position < tileKeys.length && tileKeys[position] < end;
+        position += 1
+      ) {
+        for (const key of tiles.get(tileKeys[position])!) {
+          const entry = this.lru.peek(key)!;
+          const [s0, s1] = tileSeconds(entry.tile, entry.zoom);
+          if (s1 <= t0 || s0 >= t1) {
+            continue;
+          }
+          this.lru.get(key);
+          return { entry, startSec: s0, endSec: s1 };
+        }
       }
     }
-    if (best) {
-      // Mark it used so an on-screen stand-in is not evicted first.
-      this.lru.get(bestKey);
-    }
-    return best;
+    return null;
   }
 
   delete(key: string): void {
@@ -144,11 +170,46 @@ export class BitmapCache {
     this.lru.trim();
   }
 
-  private unindex(key: string, group: string): void {
-    const keys = this.groups.get(group);
-    keys?.delete(key);
-    if (keys && keys.size === 0) {
-      this.groups.delete(group);
+  private index(key: string, entry: BitmapEntry): void {
+    let group = this.groups.get(entry.group);
+    if (!group) {
+      group = { levels: [], zooms: new Map() };
+      this.groups.set(entry.group, group);
+    }
+    let zoom = group.zooms.get(entry.zoom);
+    if (!zoom) {
+      zoom = { tileKeys: [], tiles: new Map() };
+      group.zooms.set(entry.zoom, zoom);
+      group.levels.splice(lowerBound(group.levels, entry.zoom), 0, entry.zoom);
+    }
+    let keys = zoom.tiles.get(entry.tile);
+    if (!keys) {
+      keys = new Set();
+      zoom.tiles.set(entry.tile, keys);
+      zoom.tileKeys.splice(
+        lowerBound(zoom.tileKeys, entry.tile),
+        0,
+        entry.tile,
+      );
+    }
+    keys.add(key);
+  }
+
+  private unindex(key: string, entry: BitmapEntry): void {
+    const group = this.groups.get(entry.group)!;
+    const zoom = group.zooms.get(entry.zoom)!;
+    const keys = zoom.tiles.get(entry.tile)!;
+    keys.delete(key);
+    if (keys.size === 0) {
+      zoom.tiles.delete(entry.tile);
+      zoom.tileKeys.splice(lowerBound(zoom.tileKeys, entry.tile), 1);
+    }
+    if (zoom.tiles.size === 0) {
+      group.zooms.delete(entry.zoom);
+      group.levels.splice(lowerBound(group.levels, entry.zoom), 1);
+    }
+    if (group.levels.length === 0) {
+      this.groups.delete(entry.group);
     }
   }
 }

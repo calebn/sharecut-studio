@@ -485,9 +485,11 @@ Revocation stops new requests only.
     listener that throws is rethrown in a microtask and does not stop the
     others).
   - `bitmapCache.ts` holds the finished bitmaps and calls `close()` on
-    every one it evicts. While a tile's exact bitmap is pending, it offers
-    the nearest-zoom bitmap that overlaps as a stand-in. A bitmap rendered
-    from a coarser level is kept only as a stand-in, never as the exact hit.
+    every one it evicts. It indexes cached bitmaps by render group, zoom, and
+    tile, then checks overlapping tiles from the nearest zoom. While
+    a tile's exact bitmap is pending, the nearest overlapping bitmap serves
+    as a stand-in. A bitmap rendered from a coarser level remains provisional
+    and never counts as the exact hit.
 - **Colours:** `timeline/waveformTheme.ts` `waveformStyle(layer, colorVar,
   theme)` returns the lane's core and edge tints as RGBA floats. Without a
   readable fill it falls back to `--color-waveform-peak` (resolved through a probe element,
