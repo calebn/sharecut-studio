@@ -318,11 +318,12 @@ flowchart TD
    Retry places the new segment at the current recording clock. After Stop, an incomplete local WAV remains for
    recovery but does not hold Leave once complete segments have uploaded.
    A metadata-free partial is eligible for cleanup seven days after its last
-   write. An hourly settled upload poll in that room can expire it; the panel says the local
-   audio is no longer available, and its segment number remains reserved.
-   Recovery downloads hold an origin-wide Web Lock so another tab cannot prune
-   or reclaim the WAV while the browser still reads it; without Web Locks,
-   deletion leaves the WAV available.
+   write. When a room is stopped and capture settles, background cleanup scans
+   all rooms on this device, including older rooms. It does not delay uploads
+   or status checks. When you revisit an expired segment, the panel says its
+   local copy expired, and the segment number remains reserved. An active
+   capture or recovery download holds an origin-wide lock so cleanup cannot
+   delete its WAV. If Web Locks are unavailable, cleanup leaves WAVs in place.
    Pending metadata and finalized WAVs follow their separate recovery and
    landed-file rules.
 
