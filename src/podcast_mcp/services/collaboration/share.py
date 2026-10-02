@@ -45,7 +45,7 @@ from podcast_mcp.edits.share_registry import (
     share_is_usable,
 )
 from podcast_mcp.engines.play_audit import premix_path
-from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME, open_project
+from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME, open_project, resolve_project_path
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService
 from podcast_mcp.services.document_sync import (
@@ -466,8 +466,9 @@ def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
     candidate = workspace / EPISODE_PROJECT_FILENAME
     if candidate.is_file():
         try:
-            touch_share_last_used_for_workspace(workspace, token)
-            for side in list_shares_for_workspace(workspace):
+            resolved_workspace = resolve_project_path(candidate).parent
+            touch_share_last_used_for_workspace(resolved_workspace, token)
+            for side in list_shares_for_workspace(resolved_workspace):
                 if side.get("token") == token:
                     # Sidecar holds general_access / require_sign_in.
                     row = {**row, **side}

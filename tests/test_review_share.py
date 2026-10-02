@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import struct
 import time
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -2125,6 +2125,57 @@ def test_guest_waveform_live_sidecar_access_and_capability(minimal_project, samp
     denied = client.get(url, params=params)
     assert denied.status_code == 403
     assert denied.headers["cache-control"] == "no-store"
+
+
+def test_guest_waveform_symlinked_project_uses_target_sidecar(
+    minimal_project, sample_wav, tmp_path
+):
+    import podcast_mcp.services.app.workspace as workspace
+    import podcast_mcp.services.collaboration.share as sharing
+    from podcast_mcp.edits.review_shares import shares_path_for_workspace
+    from podcast_mcp.edits.share_registry import get_share_registry
+
+    client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
+    key = client.get(f"/api/review/{token}/daw/waveform/status").json()["media"]["track:host"][
+        "key"
+    ]
+    url = f"/api/review/{token}/daw/waveform/tiles/{key}"
+    params = {"ref": "track:host", "level": 0, "start": 0}
+    assert client.get(url, params=params).status_code == 200
+
+    target_sidecar = shares_path_for_workspace(minimal_project.parent)
+    rows = json.loads(target_sidecar.read_text(encoding="utf-8"))
+    target_row = next(row for row in rows if row["token"] == token)
+    target_row["require_sign_in"] = True
+    target_row["last_used_at"] = "2000-01-01T00:00:00+00:00"
+    target_sidecar.write_text(json.dumps(rows), encoding="utf-8")
+    alias = tmp_path / "alias"
+    alias.mkdir()
+    (alias / "episode.project.json").symlink_to(minimal_project)
+    get_share_registry()._conn.execute(
+        "UPDATE active_shares SET project_workspace = ? WHERE token = ?",
+        (str(alias), token),
+    )
+    aged = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
+    get_share_registry()._conn.execute(
+        "UPDATE active_shares SET last_used_at = ? WHERE token = ?",
+        (aged, token),
+    )
+
+    with (
+        patch.object(workspace, "open_project", wraps=workspace.open_project) as workspace_load,
+        patch.object(sharing, "open_project", wraps=sharing.open_project) as review_load,
+    ):
+        denied = client.get(url, params=params)
+    assert denied.status_code == 401
+    assert workspace_load.call_count == 0
+    assert review_load.call_count == 0
+    refreshed = json.loads(target_sidecar.read_text(encoding="utf-8"))
+    assert (
+        next(row for row in refreshed if row["token"] == token)["last_used_at"]
+        != target_row["last_used_at"]
+    )
+    assert not shares_path_for_workspace(alias).exists()
 
 
 def test_review_version_cache_retries_racing_load(minimal_project, sample_wav, monkeypatch):
