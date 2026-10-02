@@ -257,6 +257,7 @@ only animates when reduced motion is not requested.
 - Pinch-to-zoom on timeline (all shells; spatial claim on `.timeline-scroll` + shared `applyAnchoredZoom` with keys; browser page-zoom does not fight); **fixed-center playhead is phone-only**
 - Follow: tablet slaves viewport like desktop (People in Menu). Phone is listen-along — banner is its own grid row (`daw-shell--following`); Listen scrub/±15s unfollows; Timeline colors the center needle and still draws other ghosts (never the local guest, whose share WS id is `guest-{token}-…`). Touch floors are `var(--touch-min)` in rem via `@container app` (banner, More hub) and `@container transport` (Menu rows), not `@media` viewport queries.
 - Track headers lock vertically with lanes inside one scroller (sticky on inline-start). The ruler and marker row stay pinned above the lanes as you scroll vertically. They keep panning horizontally with the lanes, while the phone's fixed-center playhead stays in the viewport. Density (gutter vs mixer rail) follows `@container timeline` on `.timeline-area`. Zoom hit-tests the time column, not mute/solo.
+- Desktop and tablet timelines keep a vertical scrollbar present so the time viewport width stays steady as track overflow changes. Phone fixed-playhead mode shows the vertical scrollbar only when tracks overflow.
 
 Do **not** bring phone bottom-nav or CapCut fixed playhead to desktop.
 
@@ -265,7 +266,7 @@ Host offline command attention occupies its own shell row on phone, tablet, and 
 ## Testing
 
 - Vitest: `useViewportClass`, `BottomSheet`, mobile shell smoke, follow live region + Listen unfollow, layout CSS classes, shell grid areas (`layout/shellGrid.test.ts`), layout controls; Playwright `e2e/layout-modes.spec.ts` (layout × attention × following geometry at 1512×805)
-- Playwright: phone viewport (`390×844`) asserts `.daw-shell--phone` + mode nav; `e2e/overlay-viewport.spec.ts` Menu + Share dialog reachability at `1280×715` and `390×844`; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; desktop smoke unchanged
+- Playwright: phone viewport (`390×844`) asserts `.daw-shell--phone` + mode nav; `e2e/overlay-viewport.spec.ts` Menu + Share dialog reachability at `1280×715` and `390×844`; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; `e2e-compat/timeline-scroll-end.spec.ts` checks the desktop horizontal end with short lanes and classic scrollbars on Chromium and WebKit
 - Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)
 
 See [`gui/web/README.md`](../gui/web/README.md) and [gui-integration.md](gui-integration.md) § Responsive shells.

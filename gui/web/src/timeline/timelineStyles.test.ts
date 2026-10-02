@@ -100,10 +100,19 @@ describe("timeline styles", () => {
     expect(label).toMatch(/var\(--chapter-label-room\)/);
   });
 
-  it("reserves the scrollbar gutter so fit-to-window cannot oscillate", () => {
+  it("keeps desktop scrollbar width steady without an empty stable gutter", () => {
     expect(rule(partial("layout.css"), ".timeline-scroll")).toMatch(
+      /overflow-y:\s*scroll/,
+    );
+    expect(rule(partial("layout.css"), ".timeline-scroll")).not.toMatch(
       /scrollbar-gutter:\s*stable/,
     );
+    expect(
+      rule(
+        partial("responsive.css"),
+        ".timeline-area--fixed-playhead .timeline-scroll",
+      ),
+    ).toMatch(/overflow-y:\s*auto/);
   });
 
   it("puts the waveform layer and its overlays on the clip's border box", () => {

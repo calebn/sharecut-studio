@@ -24,12 +24,8 @@
   margin-inline: var(--timeline-lead, 0);
 }
 
-/* A reserved but empty scrollbar gutter (classic scrollbars, no vertical
-   overflow) shortens Chromium's scroll range by the gutter, which left the
-   end unreachable under the line. Only reserve it while a vertical scrollbar
-   shows: here width never changes the lane fit, so nothing flip-flops. */
 .timeline-area--fixed-playhead .timeline-scroll {
-  scrollbar-gutter: auto;
+  overflow-y: auto;
 }
 
 /* Desktop/tablet focus layouts: only the main/tabs track sizes change. */

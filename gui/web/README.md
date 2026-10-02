@@ -196,6 +196,10 @@ helper, keymap listener, and WebMCP adapter.
 | `!important` / `@layer` / viewport `@media` | Stylelint + pytest | Default-off; allowed only with `stylelint-disable` + `-- user-approved:`. `tests/test_css_policy.py` does **not** strip comments. `font-size: 62.5%` is a hard ban |
 | Format | Biome | `format:check` in CI; commit hook runs lint-staged (`biome check --write` on staged files; `make hooks`). Biome linter is off (oxlint + Stylelint own lint) |
 
+`e2e-compat/timeline-scroll-end.spec.ts` checks that short desktop lanes can
+reach the horizontal end with a rem-sized classic scrollbar on Chromium and
+WebKit. `e2e/scroll.ts` permits only 2 px of fractional scroll rounding.
+
 Keep component state, validation and mocked error recovery in Vitest. Browser
 specs should protect layout/native input/media/storage/network seams or complete
 user outcomes. Before pruning a browser case, name its remaining coverage owner.

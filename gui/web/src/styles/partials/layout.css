@@ -147,10 +147,10 @@
 
 .timeline-scroll {
   flex: 1;
-  overflow: auto;
-  /* Reserve the vertical scrollbar's room (Windows/Linux): fit-to-window width
-     and lane height then cannot flip-flop as that scrollbar comes and goes. */
-  scrollbar-gutter: stable;
+  overflow-x: auto;
+  /* Keep desktop width steady as lanes gain or lose vertical overflow.
+     Chromium leaves a stable gutter outside the horizontal scroll range with short lanes. */
+  overflow-y: scroll;
   /* Header plane continues to the well floor even when tracks are short.
      Declared here, not as a :root token: --header-width is overridden per
      pane below, and a root-level token would freeze it at 11.25rem. */

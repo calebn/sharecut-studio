@@ -32,11 +32,6 @@ async function laneGeometry(page: Page, trackId: string) {
     if (!lane) throw new Error(`No lane for track "${trackId}"`);
     const headerPx =
       scroller.querySelector<HTMLElement>(".track-headers")?.offsetWidth ?? 0;
-    // Width a classic scrollbar reserves in clientWidth but the maximum scroll offset ignores (see e2e/scroll.ts).
-    const gutterPx = Math.max(
-      0,
-      scroller.offsetWidth - scroller.clientWidth - 2 * scroller.clientLeft,
-    );
     // Time-lane x of the viewport's left edge: past the border and sticky header, plus the scroll.
     const origin =
       scroller.getBoundingClientRect().left +
@@ -71,7 +66,6 @@ async function laneGeometry(page: Page, trackId: string) {
       ?.getBoundingClientRect();
     return {
       headerPx,
-      gutterPx,
       scrollLeft: scroller.scrollLeft,
       scrollWidth: scroller.scrollWidth,
       clientWidth: scroller.clientWidth,
@@ -135,9 +129,7 @@ test.describe("deep zoom at the content ceiling", () => {
           expect(
             Math.abs(g.scrollWidth - (g.headerPx + contentPx)),
           ).toBeLessThanOrEqual(DEEP_ZOOM_TOLERANCE_PX);
-          expect(
-            g.scrollLeft + g.clientWidth + g.gutterPx,
-          ).toBeGreaterThanOrEqual(
+          expect(g.scrollLeft + g.clientWidth).toBeGreaterThanOrEqual(
             g.scrollWidth - 2 * DEEP_ZOOM_TOLERANCE_PX, // rounded box vs fractional max offset
           );
 
