@@ -69,6 +69,8 @@ export const RASTER_JOB_RETRIES = 1;
  */
 export class FetchGate {
   private inflight = 0;
+  private readonly inflightByKind = new Map<string, number>();
+  private readonly queuedByKind = new Map<string, number>();
   private readonly waiters = listenerSet();
 
   get active(): number {
@@ -76,16 +78,43 @@ export class FetchGate {
   }
 
   /** Take a slot if one is free under `limit`. */
-  tryAcquire(limit: number): boolean {
+  /** Keep one slot available for PCM if tile work is already saturating the gate. */
+  setQueued(kind: "tiles" | "pcm", count: number): void {
+    if (count > 0) {
+      this.queuedByKind.set(kind, count);
+    } else {
+      this.queuedByKind.delete(kind);
+    }
+  }
+
+  tryAcquire(
+    limit: number,
+    kind: "tiles" | "pcm" | "other" = "other",
+  ): boolean {
     if (this.inflight >= limit) {
       return false;
     }
+    if (
+      kind === "tiles" &&
+      (this.queuedByKind.get("pcm") ?? 0) > 0 &&
+      (this.inflightByKind.get("pcm") ?? 0) === 0 &&
+      this.inflight >= limit - 1
+    ) {
+      return false;
+    }
     this.inflight += 1;
+    this.inflightByKind.set(kind, (this.inflightByKind.get(kind) ?? 0) + 1);
     return true;
   }
 
-  release(): void {
+  release(kind: "tiles" | "pcm" | "other" = "other"): void {
     this.inflight = Math.max(0, this.inflight - 1);
+    const active = this.inflightByKind.get(kind) ?? 0;
+    if (active <= 1) {
+      this.inflightByKind.delete(kind);
+    } else {
+      this.inflightByKind.set(kind, active - 1);
+    }
     this.waiters.emit();
   }
 

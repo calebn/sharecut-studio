@@ -33,13 +33,42 @@ export type TilePriority =
 /** Levels finer than the coarsest are prefetched only up to this many tiles. */
 const PREFETCH_MAX_TILES = 8;
 
-type Source = { projectPath: string; ref: string; meta: PyramidMeta };
+export type Source = { projectPath: string; ref: string; meta: PyramidMeta };
 
-type Pending = Source & { level: number; tile: number; priority: TilePriority };
+type Pending = Source & {
+  level: number;
+  tile: number;
+  priority: TilePriority;
+  basePriority: TilePriority | null;
+  baseSource: Pick<Source, "projectPath" | "ref"> | null;
+  owners: Map<
+    string,
+    { priority: TilePriority; source: Pick<Source, "projectPath" | "ref"> }
+  >;
+};
+
+export type TileQueueRequest = {
+  source: Source;
+  level: number;
+  tiles: Iterable<number>;
+  priority: TilePriority;
+};
 
 const data = new ByteLru<Int16Array>(() => waveformBudget().tileBytes);
 trimOnShellChange(data);
 const pending = new Map<string, Pending>();
+const priorityBuckets = new Map<TilePriority, Set<string>>([
+  [PRIORITY_VISIBLE, new Set()],
+  [PRIORITY_OVERSCAN, new Set()],
+  [PRIORITY_PREFETCH, new Set()],
+]);
+const ownerTiles = new Map<
+  string,
+  Map<
+    string,
+    { priority: TilePriority; source: Pick<Source, "projectPath" | "ref"> }
+  >
+>();
 const inflight = new Set<string>();
 const requests = new Set<{
   projectPath: string;
@@ -114,28 +143,212 @@ export function requestTiles(
     ) {
       continue;
     }
-    const queued = pending.get(id);
-    if (queued) {
-      queued.priority = Math.min(queued.priority, priority) as TilePriority;
-      // The latest requester owns the tile, so leaving the other project keeps it.
-      queued.projectPath = source.projectPath;
-      queued.ref = source.ref;
+    enqueueTile(source, level, tile, priority, null);
+  }
+  pump();
+}
+
+function effectivePriority(p: Pending): TilePriority {
+  let priority = p.basePriority ?? PRIORITY_PREFETCH;
+  for (const owner of p.owners.values()) {
+    priority = Math.min(priority, owner.priority) as TilePriority;
+  }
+  return priority;
+}
+
+function moveTilePriority(p: Pending, priority: TilePriority): void {
+  if (p.priority === priority) {
+    return;
+  }
+  priorityBuckets.get(p.priority)!.delete(tileId(p.meta.key, p.level, p.tile));
+  p.priority = priority;
+  priorityBuckets.get(priority)!.add(tileId(p.meta.key, p.level, p.tile));
+}
+
+function enqueueTile(
+  source: Source,
+  level: number,
+  tile: number,
+  priority: TilePriority,
+  owner: string | null,
+): void {
+  const id = tileId(source.meta.key, level, tile);
+  let queued = pending.get(id);
+  if (!queued) {
+    queued = {
+      ...source,
+      level,
+      tile,
+      priority,
+      basePriority: owner === null ? priority : null,
+      baseSource: owner === null ? source : null,
+      owners: new Map(),
+    };
+    pending.set(id, queued);
+    priorityBuckets.get(priority)!.add(id);
+  } else {
+    // The latest requester owns the tile, so leaving the other project keeps it.
+    queued.projectPath = source.projectPath;
+    queued.ref = source.ref;
+    if (owner === null) {
+      queued.baseSource = source;
+      queued.basePriority = Math.min(
+        queued.basePriority ?? PRIORITY_PREFETCH,
+        priority,
+      ) as TilePriority;
+    }
+    moveTilePriority(queued, effectivePriority(queued));
+  }
+  if (owner !== null) {
+    queued.owners.set(owner, { priority, source });
+    moveTilePriority(queued, effectivePriority(queued));
+    let owned = ownerTiles.get(owner);
+    if (!owned) {
+      owned = new Map();
+      ownerTiles.set(owner, owned);
+    }
+    owned.set(id, { priority, source });
+  }
+}
+
+function refreshTileOwners(p: Pending, id: string): void {
+  p.owners = new Map(
+    [...ownerTiles]
+      .map(([owner, owned]) => [owner, owned.get(id)] as const)
+      .filter(
+        (entry): entry is readonly [string, NonNullable<(typeof entry)[1]>] =>
+          entry[1] !== undefined,
+      ),
+  );
+  const ownerSource = [...p.owners.keys()]
+    .reverse()
+    .map((owner) => ownerTiles.get(owner)?.get(id)?.source)
+    .find((source) => source !== undefined);
+  const source = ownerSource ?? p.baseSource;
+  if (source) {
+    p.projectPath = source.projectPath;
+    p.ref = source.ref;
+  }
+}
+
+function requeueTile(p: Pending, id: string, includeBasePriority = true): void {
+  refreshTileOwners(p, id);
+  if (
+    p.owners.size === 0 &&
+    (!includeBasePriority || p.basePriority === null)
+  ) {
+    return;
+  }
+  p.priority = effectivePriority(p);
+  pending.set(id, p);
+  priorityBuckets.get(p.priority)!.add(id);
+}
+
+/** Replace one mounted layer's queued tile interest with its current view. */
+export function replaceTileRequests(
+  owner: string,
+  requests: readonly TileQueueRequest[],
+): void {
+  const next = new Map<
+    string,
+    { source: Source; level: number; tile: number; priority: TilePriority }
+  >();
+  for (const request of requests) {
+    const count = levelTileCount(request.source.meta, request.level);
+    for (const tile of request.tiles) {
+      if (tile < 0 || tile >= count) {
+        continue;
+      }
+      const id = tileId(request.source.meta.key, request.level, tile);
+      const current = next.get(id);
+      if (!current || request.priority < current.priority) {
+        next.set(id, {
+          source: request.source,
+          level: request.level,
+          tile,
+          priority: request.priority,
+        });
+      }
+    }
+  }
+
+  const previous = ownerTiles.get(owner);
+  if (previous) {
+    for (const [id] of previous) {
+      if (next.has(id)) {
+        continue;
+      }
+      const queued = pending.get(id);
+      if (!queued) {
+        continue;
+      }
+      queued.owners.delete(owner);
+      const ownerSource = [...queued.owners.keys()]
+        .reverse()
+        .map((remaining) => ownerTiles.get(remaining)?.get(id)?.source)
+        .find((source) => source !== undefined);
+      const source = ownerSource ?? queued.baseSource;
+      if (source) {
+        queued.projectPath = source.projectPath;
+        queued.ref = source.ref;
+      }
+      if (queued.basePriority === null && queued.owners.size === 0) {
+        pending.delete(id);
+        priorityBuckets.get(queued.priority)!.delete(id);
+      } else {
+        moveTilePriority(queued, effectivePriority(queued));
+      }
+    }
+  }
+
+  ownerTiles.delete(owner);
+  for (const [id, request] of next) {
+    if (
+      data.has(id) ||
+      inflight.has(id) ||
+      cooling.has(id) ||
+      stillMissing(id)
+    ) {
       continue;
     }
-    pending.set(id, { ...source, level, tile, priority });
+    enqueueTile(
+      request.source,
+      request.level,
+      request.tile,
+      request.priority,
+      owner,
+    );
+  }
+  if (next.size > 0) {
+    ownerTiles.set(
+      owner,
+      new Map(
+        [...next].map(([id, request]) => [
+          id,
+          { priority: request.priority, source: request.source },
+        ]),
+      ),
+    );
   }
   pump();
 }
 
 /** The most urgent queued tile (lowest priority value, then oldest). */
 function nextPending(): Pending | null {
-  let best: Pending | null = null;
-  for (const p of pending.values()) {
-    if (!best || p.priority < best.priority) {
-      best = p;
+  for (const priority of [
+    PRIORITY_VISIBLE,
+    PRIORITY_OVERSCAN,
+    PRIORITY_PREFETCH,
+  ] as const) {
+    const id = priorityBuckets.get(priority)!.values().next().value;
+    if (id !== undefined) {
+      const item = pending.get(id);
+      if (item) {
+        return item;
+      }
     }
   }
-  return best;
+  return null;
 }
 
 /** A run of queued, consecutive tiles of `head`'s level around it. */
@@ -144,7 +357,7 @@ function runAround(head: Pending): Pending[] {
   let start = head.tile;
   while (
     head.tile - start + 1 < MAX_TILES_PER_REQUEST &&
-    pending.has(tileId(key, head.level, start - 1))
+    pending.get(tileId(key, head.level, start - 1))?.priority === head.priority
   ) {
     start -= 1;
   }
@@ -152,7 +365,7 @@ function runAround(head: Pending): Pending[] {
   for (
     let t = start;
     run.length < MAX_TILES_PER_REQUEST &&
-    pending.has(tileId(key, head.level, t));
+    pending.get(tileId(key, head.level, t))?.priority === head.priority;
     t++
   ) {
     run.push(pending.get(tileId(key, head.level, t))!);
@@ -161,12 +374,18 @@ function runAround(head: Pending): Pending[] {
 }
 
 function pump(): void {
+  waveformFetchGate.setQueued("tiles", pending.size);
   for (;;) {
     const head = nextPending();
-    if (!head || !waveformFetchGate.tryAcquire(fetchLimit(head.projectPath))) {
+    if (
+      !head ||
+      !waveformFetchGate.tryAcquire(fetchLimit(head.projectPath), "tiles")
+    ) {
       return;
     }
-    dispatch(runAround(head));
+    const run = runAround(head);
+    dispatch(run);
+    waveformFetchGate.setQueued("tiles", pending.size);
   }
 }
 
@@ -202,6 +421,7 @@ function dispatch(run: Pending[]): void {
   const ids = run.map((p) => tileId(p.meta.key, p.level, p.tile));
   for (const id of ids) {
     pending.delete(id);
+    priorityBuckets.get(run[0]!.priority)!.delete(id);
     inflight.add(id);
   }
   const request = {
@@ -252,8 +472,16 @@ function dispatch(run: Pending[]): void {
           if (failure.kind === "retry") {
             for (const p of run) {
               const id = tileId(p.meta.key, p.level, p.tile);
-              if (!data.has(id) && !inflight.has(id) && !pending.has(id)) {
-                pending.set(id, p);
+              refreshTileOwners(p, id);
+              if (
+                !data.has(id) &&
+                !inflight.has(id) &&
+                !pending.has(id) &&
+                (p.owners.size > 0 ||
+                  (p.basePriority !== null &&
+                    p.baseSource?.projectPath === retry.projectPath))
+              ) {
+                requeueTile(p, id);
               }
             }
           }
@@ -267,7 +495,16 @@ function dispatch(run: Pending[]): void {
       for (const id of ids) {
         inflight.delete(id);
       }
-      waveformFetchGate.release();
+      if (request.controller.signal.aborted) {
+        for (const p of run) {
+          const id = tileId(p.meta.key, p.level, p.tile);
+          if (!data.has(id) && !pending.has(id)) {
+            requeueTile(p, id, false);
+          }
+        }
+        waveformFetchGate.setQueued("tiles", pending.size);
+      }
+      waveformFetchGate.release("tiles");
     });
 }
 
@@ -378,10 +615,20 @@ export function retainPyramids(projectPath: string): void {
   for (const [id, p] of pending) {
     if (p.projectPath !== projectPath) {
       pending.delete(id);
+      priorityBuckets.get(p.priority)!.delete(id);
     }
   }
   for (const retry of [...retries]) {
     if (retry.projectPath !== projectPath) {
+      const kept = retry.ids.some((id) =>
+        [...ownerTiles.values()].some(
+          (owned) => owned.get(id)?.source.projectPath === projectPath,
+        ),
+      );
+      if (kept) {
+        retry.projectPath = projectPath;
+        continue;
+      }
       clearTimeout(retry.timer);
       for (const id of retry.ids) {
         cooling.delete(id);
@@ -389,6 +636,27 @@ export function retainPyramids(projectPath: string): void {
       retries.delete(retry);
     }
   }
+  for (const [owner, owned] of ownerTiles) {
+    for (const [id, interest] of owned) {
+      if (interest.source.projectPath !== projectPath) {
+        owned.delete(id);
+        const queued = pending.get(id);
+        if (queued) {
+          refreshTileOwners(queued, id);
+          if (queued.basePriority === null && queued.owners.size === 0) {
+            pending.delete(id);
+            priorityBuckets.get(queued.priority)!.delete(id);
+          } else {
+            moveTilePriority(queued, effectivePriority(queued));
+          }
+        }
+      }
+    }
+    if (owned.size === 0) {
+      ownerTiles.delete(owner);
+    }
+  }
+  pump();
 }
 
 /** Drop everything (tests). */
@@ -396,6 +664,7 @@ export function resetPyramidStore(): void {
   retainPyramids("\u0000none");
   data.clear();
   missing.clear();
+  ownerTiles.clear();
   listeners.clear();
 }
 

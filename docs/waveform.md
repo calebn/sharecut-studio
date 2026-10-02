@@ -410,10 +410,15 @@ Revocation stops new requests only.
   shell; tiles 64 or 32 MB; PCM 32 MB; 4 fetches in flight on the host and
   3 through a share, tiles and PCM combined; the caches re-trim when the
   shell breakpoint changes; a slot freed by either store
-  wakes both, via `waveformFetchGate.onRelease`, a `listenerSet`).
-  - `pyramidStore.ts`: missing data tiles are queued by priority (visible,
-    overscan, prefetch), deduplicated, and fetched in runs of up to
-    `max_tiles_per_request`. A 429, or a 503 with `Retry-After`, holds the run back
+  wakes both, via `waveformFetchGate.onRelease`, a `listenerSet`. When PCM is
+  queued, the tile store leaves one shared fetch slot available for it rather
+  than depending on listener registration order).
+  - `pyramidStore.ts`: missing data tiles are queued in visible, overscan,
+    and prefetch priority buckets, deduplicated, and fetched in runs of up to
+    `max_tiles_per_request`. Each mounted layer replaces its visible and
+    overscan request set as the view changes, so queued tiles it left are
+    dropped; requests already in flight still finish into the cache. A 429,
+    or a 503 with `Retry-After`, holds the run back
     until `Retry-After` and then re-queues it. Any
     other failure holds it back for 5 s. A 404, or tiles missing from a short
     response, are skipped until their key is ready again or for 30 s. Zoom and
@@ -421,8 +426,11 @@ Revocation stops new requests only.
     becomes ready, the store prefetches the coarsest level and the next two
     levels when each has at most 8 tiles. `getBins` returns a copy, and
     missing bins have `rms = -1`.
-  - `pcmStore.ts` (host only): block-aligned `(min, max)` frames. A 409 or 404
-    polls status again. Failed blocks are held back the same way (429, or the
+  - `pcmStore.ts` (host only): block-aligned `(min, max)` frames. One rendered
+    tile queues at most 64 blocks at a time. Visible blocks run ahead of
+    overscan blocks, and a layer replaces its queued range after a view change
+    so blocks outside it are dropped. A 409 or 404 polls status again. Failed
+    blocks are held back the same way (429, or the
     host's busy 503 with `Retry-After`: until `Retry-After`, then re-queued;
     otherwise 5 s).
   - `pyramidMath.ts`: `levelFor` and the pyramid and PCM envelope

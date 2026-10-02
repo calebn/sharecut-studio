@@ -55,6 +55,7 @@ const {
   PRIORITY_PREFETCH,
   PRIORITY_VISIBLE,
   pyramidBytes,
+  replaceTileRequests,
   requestTiles,
   resetPyramidStore,
   retainPyramids,
@@ -196,6 +197,143 @@ describe("pyramidStore", () => {
     answer(calls.shift()!);
     await flush();
     expect(calls.at(-1)!.req).toMatchObject({ level: 1, start: 3 });
+  });
+
+  it("drops a layer's stale queued tiles when its view changes", async () => {
+    for (const t of [0, 2, 4, 6]) {
+      requestTiles(source, 0, [t], PRIORITY_VISIBLE);
+    }
+    replaceTileRequests("layer", [
+      { source, level: 1, tiles: [3, 4], priority: PRIORITY_VISIBLE },
+    ]);
+    replaceTileRequests("layer", [
+      { source, level: 1, tiles: [8], priority: PRIORITY_VISIBLE },
+    ]);
+    answer(calls.shift()!);
+    await flush();
+    expect(calls.at(-1)!.req).toMatchObject({ level: 1, start: 8, count: 1 });
+    expect(
+      calls.some(
+        (call) => call.req.level === 1 && [3, 4].includes(call.req.start),
+      ),
+    ).toBe(false);
+  });
+
+  it("does not retry a failed tile after its view owner leaves", async () => {
+    vi.useFakeTimers();
+    replaceTileRequests("layer", [
+      { source, level: 1, tiles: [2], priority: PRIORITY_VISIBLE },
+    ]);
+    calls.shift()!.reject(new WaveformFetchError(429, 1));
+    await flush();
+    replaceTileRequests("layer", []);
+    vi.advanceTimersByTime(1000);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("keeps a second layer's interest when a shared in-flight tile retries", async () => {
+    vi.useFakeTimers();
+    replaceTileRequests("first", [
+      { source, level: 1, tiles: [2], priority: PRIORITY_VISIBLE },
+    ]);
+    replaceTileRequests("second", [
+      {
+        source: { ...source, projectPath: "/tmp/q.json" },
+        level: 1,
+        tiles: [2],
+        priority: PRIORITY_VISIBLE,
+      },
+    ]);
+    replaceTileRequests("first", []);
+    calls.shift()!.reject(new WaveformFetchError(429, 1));
+    await flush();
+    vi.advanceTimersByTime(1000);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.projectPath).toBe("/tmp/q.json");
+    expect(calls[0]!.req).toMatchObject({ level: 1, start: 2, count: 1 });
+  });
+
+  it("keeps a retrying tile alive when retention switches to its cooling owner", async () => {
+    vi.useFakeTimers();
+    replaceTileRequests("first", [
+      { source, level: 1, tiles: [6], priority: PRIORITY_VISIBLE },
+    ]);
+    calls.shift()!.reject(new WaveformFetchError(429, 1));
+    await flush();
+    replaceTileRequests("second", [
+      {
+        source: { ...source, projectPath: "/tmp/q.json" },
+        level: 1,
+        tiles: [6],
+        priority: PRIORITY_VISIBLE,
+      },
+    ]);
+    retainPyramids("/tmp/q.json");
+    vi.advanceTimersByTime(1000);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.projectPath).toBe("/tmp/q.json");
+  });
+
+  it("does not retry stale prefetch tiles from a mixed run after retention", async () => {
+    vi.useFakeTimers();
+    for (let i = 0; i < 4; i++) {
+      waveformFetchGate.tryAcquire(4);
+    }
+    requestTiles(source, 1, [6, 7], PRIORITY_PREFETCH);
+    waveformFetchGate.release();
+    expect(calls[0]!.req).toMatchObject({ start: 6, count: 2 });
+    calls.shift()!.reject(new WaveformFetchError(429, 1));
+    await flush();
+    for (let i = 0; i < 3; i++) {
+      waveformFetchGate.release();
+    }
+    replaceTileRequests("second", [
+      {
+        source: { ...source, projectPath: "/tmp/q.json" },
+        level: 1,
+        tiles: [6],
+        priority: PRIORITY_VISIBLE,
+      },
+    ]);
+    retainPyramids("/tmp/q.json");
+    vi.advanceTimersByTime(1000);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.projectPath).toBe("/tmp/q.json");
+    expect(calls[0]!.req).toMatchObject({ start: 6, count: 1 });
+  });
+
+  it("retains a kept project's interest in an in-flight tile through retry", async () => {
+    vi.useFakeTimers();
+    replaceTileRequests("layer", [
+      { source, level: 1, tiles: [3], priority: PRIORITY_VISIBLE },
+    ]);
+    retainPyramids(source.projectPath);
+    calls.shift()!.reject(new WaveformFetchError(429, 1));
+    await flush();
+    vi.advanceTimersByTime(1000);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.req.start).toBe(3);
+  });
+
+  it("requeues an aborted in-flight tile for its remaining project owner", async () => {
+    replaceTileRequests("first", [
+      { source, level: 1, tiles: [5], priority: PRIORITY_VISIBLE },
+    ]);
+    replaceTileRequests("second", [
+      {
+        source: { ...source, projectPath: "/tmp/q.json" },
+        level: 1,
+        tiles: [5],
+        priority: PRIORITY_VISIBLE,
+      },
+    ]);
+    retainPyramids("/tmp/q.json");
+    expect(calls[0]!.signal.aborted).toBe(true);
+    calls.shift()!.reject(new Error("aborted"));
+    await flush();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.projectPath).toBe("/tmp/q.json");
+    expect(calls[0]!.req.start).toBe(5);
   });
 
   it("never aborts on zoom or scroll; only leaving the project does", async () => {
