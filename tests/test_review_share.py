@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
+import struct
 import time
 from datetime import UTC
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -2039,6 +2041,162 @@ def test_guest_waveform_status_and_tiles(minimal_project, sample_wav, monkeypatc
         f"/api/review/{token}/daw/waveform/pcm/{key}", params={"ref": "track:host", "block": 0}
     )
     assert pcm.status_code in {404, 405}
+
+
+def test_guest_waveform_warm_tiles_do_not_parse_project(minimal_project, sample_wav):
+    import podcast_mcp.services.app.workspace as workspace
+    import podcast_mcp.services.collaboration.share as sharing
+    import podcast_mcp.services.media.waveform as waveform
+
+    client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
+    key = client.get(f"/api/review/{token}/daw/waveform/status").json()["media"]["track:host"][
+        "key"
+    ]
+    url = f"/api/review/{token}/daw/waveform/tiles/{key}"
+    params = {"ref": "track:host", "level": 0, "start": 0}
+    expected = client.get(url, params=params)
+    assert expected.status_code == 200 and expected.content
+    assert expected.headers["cache-control"] == "private, max-age=31536000, immutable"
+    assert len(expected.content) == 9000
+    minimum, maximum, rms = struct.unpack_from("<hhh", expected.content)
+    assert -4096 <= minimum < 0 < maximum <= 4096
+    assert 1000 < rms < 4096
+
+    with (
+        patch.object(workspace, "open_project", wraps=workspace.open_project) as workspace_load,
+        patch.object(waveform, "open_project", wraps=waveform.open_project) as media_load,
+        patch.object(sharing, "open_project", wraps=sharing.open_project) as review_load,
+    ):
+        for _ in range(20):
+            tile = client.get(url, params=params)
+            assert tile.status_code == 200
+            assert tile.content == expected.content
+        assert workspace_load.call_count == 0
+        assert media_load.call_count == 0
+        assert review_load.call_count == 0
+
+
+def test_guest_waveform_deleted_version_revokes_share(minimal_project, sample_wav):
+    from podcast_mcp.edits.review_shares import list_shares_for_workspace, resolve_share
+
+    client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
+    key = client.get(f"/api/review/{token}/daw/waveform/status").json()["media"]["track:host"][
+        "key"
+    ]
+    url = f"/api/review/{token}/daw/waveform/tiles/{key}"
+    params = {"ref": "track:host", "level": 0, "start": 0}
+    assert client.get(url, params=params).status_code == 200
+
+    project = load_project(minimal_project)
+    project.review.versions = []
+    save_project(project, minimal_project)
+    denied = client.get(url, params=params)
+    assert denied.status_code == 404
+    assert denied.headers["cache-control"] == "no-store"
+    assert resolve_share(token) is None
+    side = next(
+        row for row in list_shares_for_workspace(minimal_project.parent) if row["token"] == token
+    )
+    assert side["revoked"] is True
+
+
+def test_guest_waveform_live_sidecar_access_and_capability(minimal_project, sample_wav):
+    from podcast_mcp.edits.review_shares import shares_path_for_workspace
+
+    client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
+    key = client.get(f"/api/review/{token}/daw/waveform/status").json()["media"]["track:host"][
+        "key"
+    ]
+    url = f"/api/review/{token}/daw/waveform/tiles/{key}"
+    params = {"ref": "track:host", "level": 0, "start": 0}
+    assert client.get(url, params=params).status_code == 200
+
+    path = shares_path_for_workspace(minimal_project.parent)
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    next(row for row in rows if row["token"] == token)["require_sign_in"] = True
+    path.write_text(json.dumps(rows), encoding="utf-8")
+    sign_in = client.get(url, params=params)
+    assert sign_in.status_code == 401
+
+    row = next(row for row in rows if row["token"] == token)
+    row["require_sign_in"] = False
+    row["capabilities"] = ["play"]
+    path.write_text(json.dumps(rows), encoding="utf-8")
+    denied = client.get(url, params=params)
+    assert denied.status_code == 403
+    assert denied.headers["cache-control"] == "no-store"
+
+
+def test_review_version_cache_retries_racing_load(minimal_project, sample_wav, monkeypatch):
+    import podcast_mcp.services.collaboration.share as sharing
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Race")
+    sharing._review_version_ids_at_revision.cache_clear()
+    real_open = sharing.open_project
+    calls = 0
+
+    def changed_once(path):
+        nonlocal calls
+        loaded = real_open(path)
+        calls += 1
+        if calls == 1:
+            project = load_project(path)
+            project.review.versions = []
+            save_project(project, path)
+        return loaded
+
+    monkeypatch.setattr(sharing, "open_project", changed_once)
+    assert sharing._current_review_version_ids(minimal_project) == frozenset()
+    assert version["id"] not in sharing._current_review_version_ids(minimal_project)
+    assert calls == 2
+    assert sharing._review_version_ids_at_revision.cache_info().currsize == 1
+
+
+def test_review_version_cache_stops_after_two_races(minimal_project, monkeypatch):
+    import podcast_mcp.services.collaboration.share as sharing
+    from podcast_mcp.util.project_state import ProjectBusyError
+
+    sharing._review_version_ids_at_revision.cache_clear()
+    real_open = sharing.open_project
+    calls = 0
+
+    def changing(path):
+        nonlocal calls
+        loaded = real_open(path)
+        calls += 1
+        project = load_project(path)
+        project.meta.name = f"Changed {calls}"
+        save_project(project, path)
+        return loaded
+
+    monkeypatch.setattr(sharing, "open_project", changing)
+    with pytest.raises(ProjectBusyError):
+        sharing._current_review_version_ids(minimal_project)
+    assert calls == 2
+    assert sharing._review_version_ids_at_revision.cache_info().currsize == 0
+
+
+def test_review_version_cache_is_bounded(minimal_project, tmp_path, monkeypatch):
+    import podcast_mcp.services.collaboration.share as sharing
+
+    sharing._review_version_ids_at_revision.cache_clear()
+    real_open = sharing.open_project
+    loaded_paths = []
+
+    def counted(path):
+        loaded_paths.append(path)
+        return real_open(path)
+
+    monkeypatch.setattr(sharing, "open_project", counted)
+    first = tmp_path / "project-0.json"
+    for index in range(17):
+        path = tmp_path / f"project-{index}.json"
+        path.write_bytes(minimal_project.read_bytes())
+        assert sharing._current_review_version_ids(path) == frozenset()
+    assert sharing._review_version_ids_at_revision.cache_info().currsize == 16
+    assert sharing._current_review_version_ids(first) == frozenset()
+    assert loaded_paths.count(first) == 2
 
 
 def test_guest_waveform_vanished_tile_returns_404_then_status_rebuilds(minimal_project, sample_wav):

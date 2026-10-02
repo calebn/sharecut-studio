@@ -6,6 +6,7 @@ import logging
 import threading
 import uuid
 from collections.abc import Sequence
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -15,10 +16,12 @@ from podcast_mcp.edits.review_shares import (
     drop_share,
     list_room_shares,
     list_shares,
+    list_shares_for_workspace,
     register_share_globally,
     resolve_share,
     revoke_share,
-    touch_share_last_used,
+    revoke_share_for_workspace,
+    touch_share_last_used_for_workspace,
 )
 from podcast_mcp.edits.review_versions import get_version, version_audio_path
 from podcast_mcp.edits.share_capabilities import (
@@ -42,7 +45,7 @@ from podcast_mcp.edits.share_registry import (
     share_is_usable,
 )
 from podcast_mcp.engines.play_audit import premix_path
-from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME
+from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME, open_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService
 from podcast_mcp.services.document_sync import (
@@ -56,6 +59,7 @@ from podcast_mcp.services.media import (
     upload_review_version_to_object_store,
 )
 from podcast_mcp.util.atomic_render import render_atomic
+from podcast_mcp.util.project_state import FileRevision, ProjectBusyError, file_revision
 
 log = logging.getLogger(__name__)
 
@@ -462,11 +466,8 @@ def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
     candidate = workspace / EPISODE_PROJECT_FILENAME
     if candidate.is_file():
         try:
-            ws = ProjectWorkspace.open(candidate)
-            touch_share_last_used(ws.project, token)
-            from podcast_mcp.edits.review_shares import list_shares
-
-            for side in list_shares(ws.project):
+            touch_share_last_used_for_workspace(workspace, token)
+            for side in list_shares_for_workspace(workspace):
                 if side.get("token") == token:
                     # Sidecar holds general_access / require_sign_in.
                     row = {**row, **side}
@@ -798,6 +799,32 @@ def share_daw_meta(token: str) -> dict[str, Any]:
 _GUEST_WAVEFORM_REFS = ("track:", "source:")
 
 
+class _ReviewVersionChanged(Exception):
+    pass
+
+
+@lru_cache(maxsize=16)
+def _review_version_ids_at_revision(project_path: Path, revision: FileRevision) -> frozenset[str]:
+    if file_revision(project_path) != revision:
+        raise _ReviewVersionChanged
+    _, project = open_project(project_path)
+    if file_revision(project_path) != revision:
+        raise _ReviewVersionChanged
+    return frozenset(version.id for version in project.review.versions)
+
+
+def _current_review_version_ids(project_path: Path) -> frozenset[str]:
+    for _ in range(2):
+        try:
+            revision = file_revision(project_path)
+            ids = _review_version_ids_at_revision(project_path, revision)
+            if file_revision(project_path) == revision:
+                return ids
+        except _ReviewVersionChanged:
+            continue
+    raise ProjectBusyError(str(project_path))
+
+
 def share_daw_waveform_status(token: str) -> dict[str, Any]:
     """Raw-media pyramid status for guests (``view``); stems are host-only.
 
@@ -820,13 +847,27 @@ def share_daw_waveform_tiles(
     """
     from podcast_mcp.services.media import live_key, media_index, tile_bytes
 
-    _row, ws = require_share_cap(token, CAP_VIEW)
+    row = lookup_share(token, kind=SHARE_KIND_REVIEW)
+    project_path = (
+        Path(str(row.get("project_workspace") or "")) / EPISODE_PROJECT_FILENAME
+    ).resolve()
+    vid = str(row.get("review_version_id") or "")
+    if vid and vid not in _current_review_version_ids(project_path):
+        log.warning(
+            "Auto-revoking share: review version %s missing from %s",
+            vid,
+            row.get("project_workspace"),
+        )
+        revoke_share_for_workspace(project_path.parent, token)
+        raise KeyError("invalid or revoked share token")
+    if not has_capability(row.get("capabilities"), CAP_VIEW):
+        raise PermissionError("share does not allow view")
     if not ref.startswith(_GUEST_WAVEFORM_REFS):
         raise ValueError("guests may only read track: and source: waveforms")
-    entry = media_index(ws.path).refs.get(ref)
+    entry = media_index(project_path).refs.get(ref)
     if entry is None or live_key(entry) != key:
         raise KeyError("waveform not found")
-    return tile_bytes(ws.path, ref, key, level, start, count)
+    return tile_bytes(project_path, ref, key, level, start, count)
 
 
 def share_daw_waveform_snap(

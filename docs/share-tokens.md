@@ -54,7 +54,7 @@ stateDiagram-v2
 | Step | Behavior |
 |------|----------|
 | **Mint** | `claim_with_mint_retry`: coolname slug → `claim_active` under `BEGIN IMMEDIATE`; remint on reservation race; then write project sidecar; `last_used_at = created_at` |
-| **Guest use** | `lookup_share` only if usable; touch `last_used_at` (throttle **1 hour**); refresh registry + sidecar |
+| **Guest use** | `lookup_share` checks the active registry row on each request, touches `last_used_at` (throttle **1 hour**), and reads the same project `shares.json` sidecar directly for current access policy. The project JSON need not be parsed for this lookup |
 | **Demote** | On revoke, hard `expires_at`, or `now ≥ last_used_at + 365d` → move to cooldown with `reserved_until = last_used_at + 365d` (single transaction) |
 | **Create rollback** | Sidecar write failure → `release_claim` (delete active, **no** 365d cooldown) so flaky disk does not burn coolnames |
 | **Remint** | Allowed only if token absent from active and (absent from cooldown or `reserved_until` passed) |

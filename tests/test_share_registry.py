@@ -828,7 +828,9 @@ def test_lookup_touch_exception_fallback(minimal_project, sample_wav, tmp_worksp
     def _boom(*_a, **_k):
         raise RuntimeError("touch boom")
 
-    monkeypatch.setattr("podcast_mcp.services.collaboration.share.touch_share_last_used", _boom)
+    monkeypatch.setattr(
+        "podcast_mcp.services.collaboration.share.touch_share_last_used_for_workspace", _boom
+    )
     # Age so registry touch path in lookup still runs after exception
     from podcast_mcp.edits.share_registry import get_share_registry
 

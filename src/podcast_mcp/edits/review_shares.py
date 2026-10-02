@@ -35,9 +35,13 @@ _sidecar_lock = threading.Lock()
 
 
 def shares_path(project: EpisodeProject) -> Path:
-    from podcast_mcp.edits.review_versions import review_artifacts_dir
+    return shares_path_for_workspace(project.workspace_path())
 
-    return review_artifacts_dir(project) / _SHARES_NAME
+
+def shares_path_for_workspace(workspace: Path) -> Path:
+    from podcast_mcp.edits.review_versions import REVIEW_ARTIFACTS_RELDIR
+
+    return workspace / REVIEW_ARTIFACTS_RELDIR / _SHARES_NAME
 
 
 def _load(path: Path) -> list[dict[str, Any]]:
@@ -132,7 +136,11 @@ def create_share(
 
 
 def list_shares(project: EpisodeProject) -> list[dict[str, Any]]:
-    return _load(shares_path(project))
+    return list_shares_for_workspace(project.workspace_path())
+
+
+def list_shares_for_workspace(workspace: Path) -> list[dict[str, Any]]:
+    return _load(shares_path_for_workspace(workspace))
 
 
 def list_room_shares(project: EpisodeProject, session_id: str) -> list[dict[str, Any]]:
@@ -149,7 +157,11 @@ def list_usable_shares(project: EpisodeProject) -> list[dict[str, Any]]:
 
 
 def revoke_share(project: EpisodeProject, token: str) -> bool:
-    path = shares_path(project)
+    return revoke_share_for_workspace(project.workspace_path(), token)
+
+
+def revoke_share_for_workspace(workspace: Path, token: str) -> bool:
+    path = shares_path_for_workspace(workspace)
     with _sidecar_lock:
         rows = _load(path)
         found = False
@@ -180,10 +192,14 @@ def drop_share(project: EpisodeProject, token: str) -> bool:
 
 def touch_share_last_used(project: EpisodeProject, token: str) -> str | None:
     """Persist last_used_at on sidecar + registry when throttle allows."""
+    return touch_share_last_used_for_workspace(project.workspace_path(), token)
+
+
+def touch_share_last_used_for_workspace(workspace: Path, token: str) -> str | None:
     ts = get_share_registry().touch_last_used(token)
     if ts is None:
         return None
-    path = shares_path(project)
+    path = shares_path_for_workspace(workspace)
     with _sidecar_lock:
         rows = _load(path)
         changed = False

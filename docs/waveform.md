@@ -377,6 +377,12 @@ Guest routes (`gui/routes/review_share.py`, services
   only `track:` / `source:` refs, and only the ref's live key (404 otherwise).
   Audio rate class on the relay and the host (no RPM; the request takes an
   audio concurrency slot before any disk work and holds it until the response is sent).
+  Each request checks the live share registry and sidecar access policy. Review
+  version membership comes from a separate in-process cache of immutable ID
+  sets, keyed by the episode project's file revision and limited to 16 entries.
+  A changed project is parsed again; a project that changes during both load
+  attempts returns a busy response without caching the result or revoking the
+  share. The media index still checks the live raw ref and key independently.
 
 There is **never** a guest PCM route: raw samples never go to guests.
 
