@@ -51,7 +51,7 @@ describe("downloadLocalKeepers", () => {
     await sink.write(old, new Uint8Array([1]));
     await sink.write(recent, new Uint8Array([2]));
     sink.modified.set(old, Date.now() - ORPHAN_KEEPER_RETENTION_MS - 1);
-    await pruneExpiredKeeperWavs(sink, "room1", "p_guest", 0, () => true);
+    await pruneExpiredKeeperWavs(sink, () => true);
     const readBlob = vi.spyOn(sink, "readBlob");
     expect(await inspectKeeperRecovery(sink, old)).toEqual({ kind: "pruned" });
     expect(await inspectKeeperRecovery(sink, old)).toEqual({ kind: "pruned" });
@@ -76,7 +76,7 @@ describe("downloadLocalKeepers", () => {
       keeperMetaPath(landed),
       keeperMetaBytes({ ...ids, segmentIndex: 1 }, true),
     );
-    await pruneExpiredKeeperWavs(sink, "room1", "p_guest", 0, () => true);
+    await pruneExpiredKeeperWavs(sink, () => true);
     await expect(
       downloadLocalKeepers(sink, "room1", "p_guest", 0),
     ).rejects.toThrow("1 local keeper segment expired after seven days");

@@ -1,5 +1,5 @@
 import { type KeeperClipRegion, parseClipRegions } from "./clipRegions";
-import { removeKeeperUnlessHeld } from "./deletionGuard";
+import { openGuardedKeeperStream } from "./deletionGuard";
 import {
   assertSafePart,
   KEEPER_OPFS_ROOT,
@@ -52,11 +52,11 @@ export type ByteStream = {
   write(bytes: Uint8Array, offset?: number): Promise<void>;
   close(): Promise<void>;
   /**
-   * Best-effort synchronous release after an open/close deadline passes, e.g.
-   * terminating the sync-access writer worker so its exclusive OPFS handle is
-   * freed for recovery and reclaim. Later calls on the stream reject.
+   * Best-effort release after an open/close deadline passes, e.g. synchronous
+   * writer-worker termination or asynchronous swap-file abort. The deletion
+   * lease remains held until cleanup finishes. Later writes reject.
    */
-  abort?(): void;
+  abort?(): void | Promise<void>;
 };
 
 export type ByteSink = {
@@ -68,6 +68,8 @@ export type ByteSink = {
   readBlob?(path: string): Promise<Blob | null>;
   /** Modification time for bounded-age cleanup, without loading PCM. */
   modifiedAt?(path: string): Promise<number | null>;
+  /** Lazy direct children only; maintenance never loads a full inventory. */
+  entries?(path: string): AsyncIterable<KeeperDirectoryEntry>;
   /**
    * Atomically replace the leading bytes of an existing file and truncate it
    * to `byteLength`, keeping the remaining bytes without copying them.
@@ -96,6 +98,13 @@ export type ByteSink = {
     participantId: string,
   ): Promise<number>;
 };
+
+export type KeeperDirectoryEntry = {
+  name: string;
+  kind: "file" | "directory";
+};
+
+export { pruneExpiredKeeperWavs } from "./maintenance";
 
 export class OpfsUnavailableError extends Error {
   constructor() {
@@ -168,52 +177,6 @@ export function prunedKeeperMarker(
   } catch {
     return false;
   }
-}
-
-/** Prune only settled, old metadata-free WAVs; keep their indexes reserved. */
-export async function pruneExpiredKeeperWavs(
-  sink: ByteSink,
-  sessionId: string,
-  participantId: string,
-  lastTakeIndex: number,
-  canPrune: () => boolean,
-  now = Date.now(),
-): Promise<number> {
-  if (!sink.modifiedAt) return 0;
-  let pruned = 0;
-  for await (const { takeIndex, segmentIndex, wavPath } of keeperSegmentPaths(
-    sink,
-    sessionId,
-    participantId,
-    lastTakeIndex,
-  )) {
-    if (!canPrune()) break;
-    const metaPath = keeperMetaPath(wavPath);
-    const existing = await sink.read(metaPath);
-    if (existing && !prunedKeeperMarker(existing, wavPath)) continue;
-    const modified = await sink.modifiedAt(wavPath);
-    if (modified === null || now - modified < ORPHAN_KEEPER_RETENTION_MS) {
-      continue;
-    }
-    if (!canPrune()) break;
-    const currentMeta = await sink.read(metaPath);
-    if (currentMeta && !prunedKeeperMarker(currentMeta, wavPath)) continue;
-    const marker: PrunedKeeperMarker = {
-      pruned: true,
-      sessionId,
-      takeIndex,
-      participantId,
-      segmentIndex,
-    };
-    await sink.write(
-      metaPath,
-      new TextEncoder().encode(JSON.stringify(marker)),
-    );
-    if (!canPrune()) break;
-    if ((await removeKeeperUnlessHeld(sink, wavPath)) === "held") break;
-    pruned += 1;
-  }
-  return pruned;
 }
 
 /** True when `meta` names exactly the keeper file at `wavPath`. */
@@ -425,6 +388,19 @@ export class MemorySink implements ByteSink {
   readonly files = new Map<string, Uint8Array>();
   readonly modified = new Map<string, number>();
 
+  async *entries(path: string): AsyncGenerator<KeeperDirectoryEntry> {
+    const prefix = `${path}/`;
+    const yielded = new Set<string>();
+    for (const key of this.files.keys()) {
+      if (!key.startsWith(prefix)) continue;
+      const rest = key.slice(prefix.length);
+      const name = rest.split("/")[0];
+      if (!name || yielded.has(name)) continue;
+      yielded.add(name);
+      yield { name, kind: rest.includes("/") ? "directory" : "file" };
+    }
+  }
+
   async write(path: string, bytes: Uint8Array): Promise<void> {
     this.files.set(path, bytes);
     this.modified.set(path, Date.now());
@@ -462,6 +438,10 @@ export class MemorySink implements ByteSink {
   }
 
   async open(path: string): Promise<ByteStream> {
+    return openGuardedKeeperStream(this, async () => this.openUnguarded(path));
+  }
+
+  private openUnguarded(path: string): ByteStream {
     let data = this.files.get(path) ?? new Uint8Array(0);
     return {
       write: async (bytes: Uint8Array, offset = data.length) => {
@@ -479,6 +459,7 @@ export class MemorySink implements ByteSink {
         this.files.set(path, data);
         this.modified.set(path, Date.now());
       },
+      abort: () => undefined,
     };
   }
 
@@ -511,8 +492,21 @@ export async function createOpfsSink(
   }
   const root = await storage.getDirectory();
   await assertOpfsWritable(root);
-  return {
+  const sink: ByteSink = {
     deletionLockName: "sharecut-keeper-deletion",
+    async *entries(path) {
+      let dir: FileSystemDirectoryHandle;
+      try {
+        dir = await opfsDirHandle(root, path.split("/"), false);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "NotFoundError")
+          return;
+        throw error;
+      }
+      for await (const [name, handle] of dir.entries()) {
+        yield { name, kind: handle.kind };
+      }
+    },
     async write(path: string, bytes: Uint8Array) {
       const file = await opfsFileHandle(root, path, true);
       const writable = await file.createWritable();
@@ -586,28 +580,33 @@ export async function createOpfsSink(
       }
     },
     async open(path: string) {
-      if (syncWriter) {
-        try {
-          return await syncWriter.open(path);
-        } catch (error) {
-          if (!(error instanceof SyncWriterUnavailableError)) throw error;
-        }
-      }
-      // Fallback: createWritable() stages writes in a swap file committed only
-      // on close, so a hard kill loses the open segment (#242).
-      const file = await opfsFileHandle(root, path, true);
-      const writable = await file.createWritable();
-      return {
-        async write(bytes: Uint8Array, offset?: number) {
-          if (offset !== undefined) {
-            await writable.seek(offset);
+      return openGuardedKeeperStream(sink, async () => {
+        if (syncWriter) {
+          try {
+            return await syncWriter.open(path);
+          } catch (error) {
+            if (!(error instanceof SyncWriterUnavailableError)) throw error;
           }
-          await writable.write(copyBuffer(bytes));
-        },
-        async close() {
-          await writable.close();
-        },
-      };
+        }
+        // Fallback: createWritable() stages writes in a swap file committed only
+        // on close, so a hard kill loses the open segment (#242).
+        const file = await opfsFileHandle(root, path, true);
+        const writable = await file.createWritable();
+        return {
+          async write(bytes: Uint8Array, offset?: number) {
+            if (offset !== undefined) {
+              await writable.seek(offset);
+            }
+            await writable.write(copyBuffer(bytes));
+          },
+          async close() {
+            await writable.close();
+          },
+          async abort() {
+            await writable.abort();
+          },
+        };
+      });
     },
     async nextSegmentIndex(
       sessionId: string,
@@ -636,6 +635,7 @@ export async function createOpfsSink(
       return maxWavIndex(names);
     },
   };
+  return sink;
 }
 
 function probeFileName(): string {

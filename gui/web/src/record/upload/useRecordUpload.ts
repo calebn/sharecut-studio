@@ -139,20 +139,18 @@ export function useRecordUpload(args: {
       try {
         if (settled && !cleanupInFlight && Date.now() >= nextCleanupAt) {
           cleanupInFlight = true;
-          nextCleanupAt = Date.now() + 60 * 60_000;
+          nextCleanupAt = Date.now() + 30_000;
           // Maintenance runs outside the host-status/upload critical path.
           void pruneExpiredKeeperWavs(
             sink,
-            sessionId,
-            participantId,
-            takeIndex,
             () =>
               !cancelled &&
               argsRef.current.roomState === "stopped" &&
               Boolean(argsRef.current.captureSettled),
           )
-            .then((pruned) => {
-              if (pruned > 0 && !cancelled) {
+            .then((cleanup) => {
+              nextCleanupAt = cleanup.nextRunAt;
+              if (cleanup.pruned > 0 && !cancelled) {
                 refreshAfterCleanup = true;
                 if (!inFlight) {
                   refreshAfterCleanup = false;

@@ -107,7 +107,7 @@ describe("useRecordUpload", () => {
     const pending = keeperWavPath({ ...ids, segmentIndex: 1 });
     await sink.write(old, wavWithPcm(8));
     sink.modified.set(old, Date.now() - ORPHAN_KEEPER_RETENTION_MS - 1);
-    await pruneExpiredKeeperWavs(sink, "room1", "p_a", 0, () => true);
+    await pruneExpiredKeeperWavs(sink, () => true);
     // Use the second slot for the recoverable segment.
     await sink.write(pending, wavWithPcm(8));
     await sink.write(keeperMetaPath(pending), pendingMeta(ids, 1));
@@ -129,6 +129,68 @@ describe("useRecordUpload", () => {
     );
     expect(result.current.error).toMatch(/Recover it before uploading/);
     unmount();
+  });
+
+  it("cleans a previous room while uploading/status polling in a new stopped room", async () => {
+    const sink = new MemorySink();
+    const old = keeperWavPath({
+      sessionId: "previous-room",
+      takeIndex: 0,
+      participantId: "old-guest",
+      segmentIndex: 0,
+    });
+    await sink.write(old, wavWithPcm(8));
+    sink.modified.set(old, 0);
+    const transport = memoryUploadTransport();
+    const status = vi.spyOn(transport, "status");
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: "new-room",
+        captureExpected: false,
+        takeIndex: 0,
+        participantId: "new-guest",
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    await waitFor(async () => expect(await sink.read(old)).toBeNull());
+    expect(status).toHaveBeenCalled();
+    expect(result.current.error).toBeNull();
+    unmount();
+  });
+
+  it("does not await a slow maintenance iterator before publishing upload status", async () => {
+    const sink = new MemorySink();
+    let finishScan: () => void = () => undefined;
+    const scanning = new Promise<void>((resolve) => {
+      finishScan = resolve;
+    });
+    sink.entries = async function* () {
+      await scanning;
+      yield* [];
+    };
+    const transport = memoryUploadTransport();
+    const status = vi.spyOn(transport, "status");
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        sessionId: "new-room",
+        takeIndex: 0,
+        participantId: "new-guest",
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() => expect(result.current.pending).toBe(false));
+    expect(status).toHaveBeenCalled();
+    unmount();
+    finishScan();
   });
 
   it("rechecks expiry in a stopped room after the retention deadline passes", async () => {

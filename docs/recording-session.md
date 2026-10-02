@@ -355,8 +355,13 @@ keeper** skips it instead of counting it as a missing segment. While a
 recovery download runs, and for a grace window after it is handed to the
 browser, reclaim is paused (`holdKeeperReclaim`) so the lazily read OPFS
 `File`s in the archive stay readable. OPFS downloads hold a shared origin-wide
-Web Lock; prune and reclaim require its exclusive lock, and leave WAVs in place
-when Web Locks are unavailable. `ByteSink.remove` rejects on real delete
+Web Lock. Opening any keeper capture stream acquires the same shared lock
+before its file is created/opened, and retains it through successful close or
+completed abort (including a late open after a timeout). Pending metadata
+protects the post-close hashing/finalization interval. Prune and reclaim require
+the exclusive lock; age/metadata checks, the pruned marker write, and removal
+run inside that lock. A held candidate is never marked pruned. WAVs remain in
+place when Web Locks are unavailable or rejected. `ByteSink.remove` rejects on real delete
 failures; room-tone cleanup uses `removeBestEffort`. Reclaim failures are
 non-fatal and leave the WAV in place; after three consecutive failures the
 upload panel warns that the local backup could not be cleared. Landing never
@@ -991,16 +996,39 @@ rejected: Chrome copies the whole file into each swap file, which is O(n^2)
 over a long take.
 
 Metadata-free WAVs are eligible for cleanup seven days after their last write.
-While the same room is open and capture has settled, upload polling checks
-hourly and removes older metadata-free WAVs in the background. It writes a
-small `.json` pruned marker before deletion,
-so a later Retry or reload cannot reuse that segment index. A failed deletion
-keeps the WAV visible for download and is retried on a later settled poll.
-Pending or complete metadata protects its WAV from this age cleanup; normal
-landed-file reclaim still requires the host fingerprint check. Download the
-local keeper within seven days if recovery is needed.
-Closed rooms are not scanned until reopened; origin-wide cleanup is tracked in
-[#381](https://github.com/calebn/sharecut-studio/issues/381).
+When a recording room is stopped and local capture has settled, upload polling
+starts origin-wide maintenance in the background, covering previous rooms and
+participants under `Sharecut Recordings/`. Status checks and uploads do not
+await cleanup. Each slice handles at most 64 directory entries, replay entries,
+or retries. The scanner checkpoints each handled item in
+`.keeper-cleanup.json` in the OPFS root. The checkpoint contains a bounded
+directory stack and retry queue instead of a full inventory. Room-tone beds and
+storage probes are excluded. Unfinished scans continue on settled polls after
+30 seconds. Full scans wrap hourly, even while paths are failing, so later
+slices revisit earlier directories and new entries. Failed files and directory
+scans remain pending, with exponential retry from 30 seconds up to 30 minutes.
+Retries share the slice budget so later rooms keep advancing.
+If the bounded retry queue fills, a persisted rescan deadline/backoff revisits
+retained overflow paths while the normal cursor keeps moving.
+
+A reload resumes from the saved directory path and entry count, validating the
+last name. OPFS has no seekable directory iterator, so a restarted browser
+replays the saved prefix in bounded slices before handling new entries. An order
+change restarts that directory, and the next full wrap catches earlier
+additions. Repeated browser termination during a long prefix replay can delay
+cleanup. Leave a stopped room open to let successive slices reach the saved
+cursor.
+
+Maintenance writes a small per-segment `.json` pruned marker inside the deletion
+lock before unlinking the WAV, so Retry/reload cannot reuse that segment index.
+If removal fails, the WAV stays available for download and the marker permits
+a later cleanup retry. Any existing pending, complete, empty or unreadable
+metadata protects its WAV from age cleanup. Normal landed-file reclaim still
+requires the host fingerprint check. Download metadata-free keepers within
+seven days if recovery is needed. When a pruned slot is revisited, the upload
+panel reports that its local copy expired after seven days; **Download local
+keeper** skips that slot and reports expired counts alongside any retained
+copies. Neither reports an expired segment as uploaded or landed.
 The retry segment uses the current recording clock so its landing offset follows
 the lost span. A stopped, incomplete local `.wav` remains in OPFS for recovery
 with only its pending `complete: false` `.json`; it is never given a file ACK,
