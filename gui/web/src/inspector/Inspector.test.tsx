@@ -75,7 +75,9 @@ describe("Inspector clip lookup", () => {
     ).toBeTruthy();
     expect(screen.queryByText("Clip not found")).toBeNull();
     expect(
-      screen.getByRole("heading", { name: "guest clip" }),
+      screen.getByRole("heading", {
+        name: "guest clip, 00:04.000 to 00:06.000",
+      }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("c1").length).toBeGreaterThan(0);
     expect(screen.getByText(/0\.200–0\.800 s/)).toBeInTheDocument();
