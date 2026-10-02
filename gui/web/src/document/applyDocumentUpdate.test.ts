@@ -10,6 +10,7 @@ import {
   applyDocumentSnapshot,
   recoverDocument,
 } from "./applyDocumentUpdate";
+import { documentAuthority } from "./authorityState";
 import {
   noteDocumentFile,
   pollSnapshotAlreadyApplied,
@@ -31,6 +32,50 @@ const track = (id: string) => ({
 });
 
 describe("applyDocumentSnapshot", () => {
+  it("applies a chained comments ExternalMutate without shell recovery", () => {
+    resetDocumentSeqForTests();
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    applyDocumentSnapshot({
+      server_seq: 1,
+      state_token: "before",
+      project: minimalProject(),
+      file: { mtime_ns: 100, size: 5 },
+    });
+
+    applyDocumentSnapshot({
+      server_seq: 2,
+      state_token: "after-comment",
+      comments: [
+        {
+          id: "comment-1",
+          body: "hello",
+          author: "viewer",
+          created_at: "2026-10-02T00:00:00Z",
+          updated_at: null,
+          timeline_start: 1,
+          timeline_end: null,
+          track_ids: [],
+          action_items: [],
+          replies: [],
+          resolved: false,
+          resolved_at: null,
+          resolved_by: null,
+        },
+      ],
+      file_before: { mtime_ns: 100, size: 5 },
+      file: { mtime_ns: 200, size: 6 },
+    });
+
+    expect(documentAuthority.seq).toBe(2);
+    expect(documentAuthority.token).toBe("after-comment");
+    expect(documentAuthority.file).toEqual({ mtime_ns: 200, size: 6 });
+    expect(useDawStore.getState().project?.comments[0]?.body).toBe("hello");
+    expect(
+      pollSnapshotAlreadyApplied({ mtime_ns: 200, size: 6, server_seq: 2 }),
+    ).toBe(true);
+    expect(loadDocumentState).not.toHaveBeenCalled();
+  });
+
   it("reclamps zoom to the new session length in the same update", () => {
     resetDocumentSeqForTests();
     useDawStore

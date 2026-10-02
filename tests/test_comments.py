@@ -34,6 +34,25 @@ def _with_host(proj, sample_wav, tmp_workspace):
     return proj
 
 
+def test_comment_can_target_shared_review_version_without_changing_active_version(
+    minimal_project,
+):
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.review.active_version_id = "host-selected-version"
+    ws.save()
+
+    comment = CommentService(ws).add(
+        body="Guest note",
+        author="guest",
+        timeline_start=1.0,
+        review_version_id="shared-version",
+    )
+
+    saved = load_project(minimal_project)
+    assert comment["review_version_id"] == "shared-version"
+    assert saved.review.active_version_id == "host-selected-version"
+
+
 def test_add_list_resolve_action(minimal_project, sample_wav, tmp_workspace):
     proj = _with_host(load_project(minimal_project), sample_wav, tmp_workspace)
     c = add_comment(

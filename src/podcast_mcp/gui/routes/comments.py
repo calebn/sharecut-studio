@@ -13,6 +13,7 @@ from podcast_mcp.gui.schemas import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService
+from podcast_mcp.services.document.comment import run_comment_mutation_with_file_revisions
 from podcast_mcp.services.document_sync import notify_comments_changed
 
 router = APIRouter()
@@ -29,18 +30,21 @@ def create_comment(
     path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(path)
     try:
-        comment = CommentService(ws).add(
-            body=req.body,
-            author=req.author,
-            timeline_start=req.timeline_start,
-            timeline_end=req.timeline_end,
-            track_ids=req.track_ids or None,
-            action_texts=req.action_texts or None,
-            edit_decision_id=req.edit_decision_id,
+        comment, file_revisions = run_comment_mutation_with_file_revisions(
+            ws,
+            lambda: CommentService(ws).add(
+                body=req.body,
+                author=req.author,
+                timeline_start=req.timeline_start,
+                timeline_end=req.timeline_end,
+                track_ids=req.track_ids or None,
+                action_texts=req.action_texts or None,
+                edit_decision_id=req.edit_decision_id,
+            ),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    notify_comments_changed(path)
+    notify_comments_changed(path, file_revisions=file_revisions)
     return {"comment": comment}
 
 
@@ -59,21 +63,30 @@ def patch_comment(
     mutated = True
     try:
         if req.resolved is not None:
-            if not req.by:
+            by = req.by
+            if not by:
                 raise HTTPException(status_code=400, detail="by is required when setting resolved")
-            comment = svc.resolve(comment_id, by=req.by, resolved=req.resolved)
+            resolved = req.resolved
+            assert resolved is not None
+            comment, file_revisions = run_comment_mutation_with_file_revisions(
+                ws,
+                lambda: svc.resolve(comment_id, by=by, resolved=resolved),
+            )
         elif (
             req.body is not None
             or req.track_ids is not None
             or req.timeline_start is not None
             or req.timeline_end is not None
         ):
-            comment = svc.update(
-                comment_id,
-                body=req.body,
-                track_ids=req.track_ids,
-                timeline_start=req.timeline_start,
-                timeline_end=req.timeline_end,
+            comment, file_revisions = run_comment_mutation_with_file_revisions(
+                ws,
+                lambda: svc.update(
+                    comment_id,
+                    body=req.body,
+                    track_ids=req.track_ids,
+                    timeline_start=req.timeline_start,
+                    timeline_end=req.timeline_end,
+                ),
             )
         else:
             comment = svc.get(comment_id)
@@ -83,7 +96,7 @@ def patch_comment(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if mutated:
-        notify_comments_changed(path)
+        notify_comments_changed(path, file_revisions=file_revisions)
     return {"comment": comment}
 
 
@@ -100,12 +113,17 @@ def action_done(
     path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(path)
     try:
-        result = CommentService(ws).set_action_done(comment_id, action_id, done=req.done, by=req.by)
+        result, file_revisions = run_comment_mutation_with_file_revisions(
+            ws,
+            lambda: CommentService(ws).set_action_done(
+                comment_id, action_id, done=req.done, by=req.by
+            ),
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    notify_comments_changed(path)
+    notify_comments_changed(path, file_revisions=file_revisions)
     return result
 
 
@@ -121,12 +139,15 @@ def create_reply(
     path = resolve_project(req.path, request)
     ws = ProjectWorkspace.open(path)
     try:
-        result = CommentService(ws).add_reply(comment_id, body=req.body, author=req.author)
+        result, file_revisions = run_comment_mutation_with_file_revisions(
+            ws,
+            lambda: CommentService(ws).add_reply(comment_id, body=req.body, author=req.author),
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    notify_comments_changed(path)
+    notify_comments_changed(path, file_revisions=file_revisions)
     return result
 
 
@@ -142,8 +163,10 @@ def remove_comment(
     project_path = resolve_project(path, request)
     ws = ProjectWorkspace.open(project_path)
     try:
-        result = CommentService(ws).delete(comment_id)
+        result, file_revisions = run_comment_mutation_with_file_revisions(
+            ws, lambda: CommentService(ws).delete(comment_id)
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    notify_comments_changed(project_path)
+    notify_comments_changed(project_path, file_revisions=file_revisions)
     return result

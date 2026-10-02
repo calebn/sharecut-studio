@@ -91,6 +91,7 @@ def add_comment(
     action_texts: list[str] | None = None,
     edit_decision_id: str | None = None,
     comment_id: str | None = None,
+    review_version_id: str | None = None,
 ) -> TimelineComment:
     text = _require_body(body)
     who = (author or "").strip()
@@ -125,7 +126,7 @@ def add_comment(
         timeline_end=end,
         track_ids=tracks,
         action_items=items,
-        review_version_id=project.review.active_version_id,
+        review_version_id=review_version_id or project.review.active_version_id,
         edit_decision_id=linked,
     )
     project.comments.append(comment)

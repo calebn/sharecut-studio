@@ -131,7 +131,7 @@ describe("document file signature", () => {
     );
   });
 
-  it("advances the file through a patch whose file_before chains", () => {
+  it("skips the shell poll after a comments ExternalMutate chains its file", () => {
     resetDocumentSeqForTests();
     noteDocumentSeq(1);
     noteDocumentFile({ project: {}, file: { mtime_ns: 100, size: 5 } });
