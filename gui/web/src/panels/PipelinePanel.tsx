@@ -11,13 +11,13 @@ import {
   ANALYZE_WAIT_MS,
   analyzePipeline,
   cancelPipelineRun,
-  loadPipelineConfig,
   loadTranscriptVocabulary,
-  putPipelineConfig,
   startPipelineRun,
   waitForPipelineJob,
 } from "../api";
 import { useLatestRequest } from "../hooks/useLatestRequest";
+import type { PipelineWorkingSetRecipe } from "../hooks/usePipelineWorkingSet";
+import { usePipelineWorkingSet } from "../hooks/usePipelineWorkingSet";
 import { useSingleFlight } from "../hooks/useSingleFlight";
 import { StaleProgressCopy } from "../layout/StaleProgressCopy";
 import { selectAgentPresent } from "../presence/presenceSummary";
@@ -26,7 +26,6 @@ import type {
   PipelineAnalyzeReason,
   PipelineAnalyzeResponse,
   PipelineConfigResponse,
-  PipelineForcedAlignment,
   PipelineJobSnapshot,
   PipelineParamField,
   PipelineStepMeta,
@@ -259,30 +258,6 @@ function pipelineRunOptions(
   };
 }
 
-/**
- * The host's resolved Precise word boundaries state (#780). An older host without
- * `forced_alignment` in its payload is read the pre-#780 way: the raw flag, and the
- * aligner component's readiness.
- */
-function forcedAlignment(cfg: PipelineConfigResponse): PipelineForcedAlignment {
-  if (cfg.forced_alignment) {
-    return cfg.forced_alignment;
-  }
-  const requested = Boolean(
-    getByPath(cfg.config, FORCED_ALIGNMENT_PATH) ??
-      getByPath(cfg.defaults, FORCED_ALIGNMENT_PATH),
-  );
-  const installed = cfg.components[WORD_ALIGNER_COMPONENT]?.ok === true;
-  return {
-    enabled: requested && installed,
-    model: requested && installed ? WORD_ALIGNER_COMPONENT : null,
-    requested,
-    installed,
-    blocked: requested && !installed,
-    reason: "",
-  };
-}
-
 export function PipelinePanel() {
   const {
     projectPath,
@@ -302,7 +277,8 @@ export function PipelinePanel() {
     setActiveTab: s.setActiveTab,
   }));
   const agentRecent = useDaw(selectAgentPresent);
-  const [cfg, setCfg] = useState<PipelineConfigResponse | null>(null);
+  const workingSet = usePipelineWorkingSet(projectPath, true);
+  const { cfg } = workingSet;
   const [whisperPending, setWhisperPending] =
     useState<WhisperDownloadRequest | null>(null);
   const [selectedStep, setSelectedStep] = useState<string>("balance_tracks");
@@ -323,9 +299,8 @@ export function PipelinePanel() {
   const alignerReasonId = useId();
   const [analyzing, setAnalyzing] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
-  const persistRequest = useLatestRequest();
+  const workingSetWriteVersion = useRef(0);
   const analyzeRequest = useLatestRequest();
-  /** The newest config PUT, so Analyze can wait for a write that overlapped its scan. */
   const lastPersist = useRef<Promise<unknown>>(Promise.resolve());
   /** Aborts the wait on the running Analyze job's stream (project switch / re-run). */
   const analyzeAbort = useRef<AbortController | null>(null);
@@ -355,8 +330,11 @@ export function PipelinePanel() {
   const running = slotBusy;
 
   useEffect(() => {
-    // A project switch drops in-flight writes and the previous project's Analyze results.
-    persistRequest.invalidate();
+    if (!cfg || cfg.steps.some((step) => step.id === selectedStep)) return;
+    setSelectedStep(cfg.steps[0]?.id ?? "");
+  }, [cfg, selectedStep]);
+
+  useEffect(() => {
     analyzeRequest.invalidate();
     analyzeAbort.current?.abort();
     analyzeAbort.current = null;
@@ -369,30 +347,12 @@ export function PipelinePanel() {
     setReasons([]);
     setTrackRows([]);
     setHighlightPaths(new Set());
-    let cancelled = false;
-    void loadPipelineConfig(projectPath)
-      .then((data) => {
-        if (!cancelled) {
-          setCfg(data);
-          setSelectedStep((prev) =>
-            data.steps.some((s) => s.id === prev)
-              ? prev
-              : (data.steps[0]?.id ?? prev),
-          );
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setError(errorMessage(e));
-        }
-      });
     return () => {
-      cancelled = true;
       // Stop following another viewer's Analyze (project switch or unmount).
       remoteAnalyzeAbort.current?.abort();
       remoteAnalyzeAbort.current = null;
     };
-  }, [projectPath, persistRequest, analyzeRequest]);
+  }, [projectPath, analyzeRequest]);
 
   /** Render a shared Analyze job's terminal result in a tab that watched it run elsewhere. */
   const showRemoteAnalyze = useEffectEvent(
@@ -486,31 +446,11 @@ export function PipelinePanel() {
     );
   }, [cfg, selectedMeta]);
 
-  const persist = async (patch: {
-    config?: Record<string, unknown>;
-    enabled_steps?: string[];
-    unattended?: boolean;
-    reset?: boolean;
-  }) => {
-    return applyPersist(patch, persistRequest.begin());
-  };
-
-  const applyPersist = async (
-    patch: {
-      config?: Record<string, unknown>;
-      enabled_steps?: string[];
-      unattended?: boolean;
-      reset?: boolean;
-    },
-    token: number,
-  ) => {
-    const pending = putPipelineConfig(projectPath, patch);
+  const updateWorkingSet = (recipe: PipelineWorkingSetRecipe) => {
+    workingSetWriteVersion.current += 1;
+    const pending = workingSet.update(recipe);
     lastPersist.current = pending;
-    const next = await pending;
-    if (persistRequest.isCurrent(token)) {
-      setCfg(next);
-    }
-    return next;
+    return pending;
   };
 
   /**
@@ -523,17 +463,13 @@ export function PipelinePanel() {
     patches: Record<string, unknown>,
     stillCurrent: () => boolean,
   ): Promise<void> => {
-    const latest = persistRequest.peek();
+    const writeVersion = workingSetWriteVersion.current;
     await lastPersist.current.catch(() => undefined);
-    // If that write failed, onParamChange's snapshot revert either already ran or is
-    // retired by the reload's begin() below, so the re-read deliberately wins.
-    if (!stillCurrent() || !persistRequest.isCurrent(latest)) {
+    if (!stillCurrent() || workingSetWriteVersion.current !== writeVersion) {
       return;
     }
-    const reload = persistRequest.begin();
-    const fresh = await loadPipelineConfig(projectPath);
-    if (stillCurrent() && persistRequest.isCurrent(reload)) {
-      setCfg(fresh);
+    const fresh = await workingSet.fetchFresh();
+    if (stillCurrent() && fresh) {
       // A write that landed after apply_patches can replace a patched value; only
       // highlight fields that still hold Analyze's value.
       setHighlightPaths(
@@ -556,39 +492,40 @@ export function PipelinePanel() {
       return false;
     }
     setError(null);
-    const set = new Set(cfg.enabled_steps);
-    if (enabled) {
-      set.add(stepId);
-    } else {
-      set.delete(stepId);
-    }
-    let nextConfig = cfg.config;
-    if (FOCUS_STEPS.has(stepId)) {
-      nextConfig = setByPath(
-        nextConfig,
-        "focus.enabled",
-        [...FOCUS_STEPS].some((s) => set.has(s)),
-      );
-    }
-    if (TIGHTEN_STEPS.has(stepId)) {
-      nextConfig = setByPath(
-        nextConfig,
-        "tighten.enabled",
-        [...TIGHTEN_STEPS].some((s) => set.has(s)),
-      );
-    }
-    const patch: {
-      config?: Record<string, unknown>;
-      enabled_steps: string[];
-    } = { enabled_steps: [...set] };
-    if (nextConfig !== cfg.config) {
-      patch.config = nextConfig;
-    }
-    const token = persistRequest.begin();
     try {
-      await applyPersist(patch, token);
-      // False when a later write (param edit, another toggle, Analyze) overtook this one.
-      return persistRequest.isCurrent(token);
+      const pending = updateWorkingSet((fresh) => {
+        const set = new Set(fresh.enabled_steps);
+        if (enabled) {
+          set.add(stepId);
+        } else {
+          set.delete(stepId);
+        }
+        let nextConfig = fresh.config;
+        if (FOCUS_STEPS.has(stepId)) {
+          nextConfig = setByPath(
+            nextConfig,
+            "focus.enabled",
+            [...FOCUS_STEPS].some((step) => set.has(step)),
+          );
+        }
+        if (TIGHTEN_STEPS.has(stepId)) {
+          nextConfig = setByPath(
+            nextConfig,
+            "tighten.enabled",
+            [...TIGHTEN_STEPS].some((step) => set.has(step)),
+          );
+        }
+        const patch: {
+          config?: Record<string, unknown>;
+          enabled_steps: string[];
+        } = { enabled_steps: [...set] };
+        if (nextConfig !== fresh.config) {
+          patch.config = nextConfig;
+        }
+        return patch;
+      });
+      const writeVersion = workingSetWriteVersion.current;
+      return (await pending) && workingSetWriteVersion.current === writeVersion;
     } catch (e) {
       setError(errorMessage(e));
       return false;
@@ -607,13 +544,12 @@ export function PipelinePanel() {
       return;
     }
     setError(null);
-    const snapshot = cfg;
-    const nextConfig = setByPath(cfg.config, path, value);
-    setCfg({ ...cfg, config: nextConfig });
-    const token = persistRequest.begin();
     try {
-      await applyPersist({ config: nextConfig }, token);
-      if (persistRequest.isCurrent(token)) {
+      if (
+        await updateWorkingSet((fresh) => ({
+          config: setByPath(fresh.config, path, value),
+        }))
+      ) {
         setHighlightPaths((prev) => {
           const n = new Set(prev);
           n.delete(path);
@@ -621,9 +557,6 @@ export function PipelinePanel() {
         });
       }
     } catch (e) {
-      if (persistRequest.isCurrent(token)) {
-        setCfg(snapshot);
-      }
       setError(errorMessage(e));
     }
   };
@@ -632,7 +565,7 @@ export function PipelinePanel() {
     setError(null);
     setAnalyzing(true);
     const token = analyzeRequest.begin();
-    const persistMark = persistRequest.peek();
+    const persistMark = workingSetWriteVersion.current;
     analyzeAbort.current?.abort();
     const abort = new AbortController();
     analyzeAbort.current = abort;
@@ -661,19 +594,25 @@ export function PipelinePanel() {
       setTrackRows(view.trackRows);
       setHighlightPaths(view.highlightPaths);
       const patches = view.patches;
-      const next = result.config ?? (await loadPipelineConfig(projectPath));
       if (!analyzeRequest.isCurrent(token)) {
         return;
       }
-      if (persistRequest.isCurrent(persistMark)) {
-        // No write began during the scan, so Analyze's config is the newest server state.
-        persistRequest.invalidate();
-        setCfg(next);
+      if (workingSetWriteVersion.current === persistMark) {
+        await lastPersist.current.catch(() => undefined);
+        if (!analyzeRequest.isCurrent(token)) return;
+        if (workingSetWriteVersion.current !== persistMark) {
+          setAnalyzing(false);
+          await rereadAfterAnalyze(patches, () =>
+            analyzeRequest.isCurrent(token),
+          );
+          return;
+        }
+        await workingSet.fetchFresh();
         return;
       }
       // The scan result is shown; the re-read below runs without holding Analyze busy.
       setAnalyzing(false);
-      // A full-config PUT sent during the scan may have landed after apply_patches and
+      // A config PUT sent during the scan may have landed after apply_patches and
       // replaced the patched config, so re-read the server once that write settles.
       await rereadAfterAnalyze(patches, () => analyzeRequest.isCurrent(token));
     } catch (e) {
@@ -696,7 +635,10 @@ export function PipelinePanel() {
     setTrackRows([]);
     setHighlightPaths(new Set());
     try {
-      await persist({ reset: true });
+      workingSetWriteVersion.current += 1;
+      const pending = workingSet.reset();
+      lastPersist.current = pending;
+      await pending;
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -739,9 +681,7 @@ export function PipelinePanel() {
   };
 
   const refreshConfig = async () => {
-    const data = await loadPipelineConfig(projectPath);
-    setCfg(data);
-    return data;
+    return workingSet.fetchFresh();
   };
 
   const onWhisperDownloaded = async (modelId: string) => {
@@ -751,12 +691,12 @@ export function PipelinePanel() {
     try {
       await onParamChange(TRANSCRIBE_MODEL_PATH, modelId);
       const next = await refreshConfig();
+      if (!next) return;
       if (
         reason !== undefined &&
         reason !== "select" &&
         whisperModelCached(next, modelId)
       ) {
-        setCfg(next);
         setError(null);
         setStarting(true);
         try {
@@ -827,7 +767,7 @@ export function PipelinePanel() {
 
   const blockedComponents = cfg
     ? Object.entries(cfg.components).filter(
-        ([, c]) => !c.ok && (!c.opt_in || forcedAlignment(cfg).blocked),
+        ([, c]) => !c.ok && (!c.opt_in || cfg.forced_alignment.blocked),
       )
     : [];
 
@@ -894,7 +834,7 @@ export function PipelinePanel() {
                   );
                 }
                 if (field.path === FORCED_ALIGNMENT_PATH) {
-                  const alignment = forcedAlignment(cfg);
+                  const alignment = cfg.forced_alignment;
                   return (
                     <Fragment key={field.path}>
                       <ParamControl
@@ -986,7 +926,11 @@ export function PipelinePanel() {
             value={cfg?.unattended ? "batch" : "gates"}
             disabled={running || starting || !cfg}
             onChange={(e) => {
-              void persist({ unattended: e.target.value === "batch" });
+              setError(null);
+              const unattended = e.target.value === "batch";
+              void updateWorkingSet(() => ({ unattended })).catch(
+                (error: unknown) => setError(errorMessage(error)),
+              );
             }}
           >
             <option value="batch">Batch (waive align + refine)</option>
@@ -1120,7 +1064,9 @@ export function PipelinePanel() {
         </div>
       )}
 
-      {error && <InlineError message={error} />}
+      {(error ?? workingSet.loadError) && (
+        <InlineError message={error ?? workingSet.loadError ?? ""} />
+      )}
 
       <div className="pipeline-master-detail">
         <div className="pipeline-step-list">
