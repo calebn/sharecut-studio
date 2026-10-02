@@ -27,13 +27,10 @@ import { seedStudioJob } from "../state/seedStudioJob";
 import { errorMessage, isAbortError } from "../utils/apiError";
 import { type CommandContext, evaluateWhen } from "./context";
 import { registerCommand } from "./execute";
+import { createSingleFlight } from "./singleFlight";
 import type { ExecuteResult } from "./types";
 
-/** Project path whose `export.deliverables` is in flight, if any. */
-let exportDeliverablesInFlight: string | null = null;
-export function _resetExportDeliverablesInFlightForTests(): void {
-  exportDeliverablesInFlight = null;
-}
+const exportDeliverablesFlight = createSingleFlight();
 /** Same rule and reason as the `hostProjectLoaded` when-clause (handlers run with skipWhen). */
 export function hostProjectGate(ctx: CommandContext): ExecuteResult | null {
   const gate = evaluateWhen("hostProjectLoaded", ctx);
@@ -249,32 +246,35 @@ export function registerHostCommands(): void {
     }
     const s = useDawStore.getState();
     const projectPath = s.projectPath;
-    if (exportDeliverablesInFlight === projectPath) {
+    const result = await exportDeliverablesFlight.run(
+      async (): Promise<ExecuteResult> => {
+        s.announceStatus("Exporting deliverables…");
+        const scope = projectScopedSignal(projectPath);
+        try {
+          await runAnnouncedJob(() => startExportJob(projectPath), {
+            failLabel: "Export failed",
+            resultCopy: (paths) =>
+              `Exported ${paths.length} file(s) to export/`,
+            signal: scope.signal,
+          });
+          return { status: "ok" };
+        } catch (err) {
+          if (isAbortError(err)) {
+            return { status: "disabled", reason: "Project changed" };
+          }
+          const reason = errorMessage(err);
+          useDawStore.getState().announceStatus(`Export failed: ${reason}`);
+          return { status: "disabled", reason };
+        } finally {
+          scope.dispose();
+        }
+      },
+      projectPath,
+    );
+    if (!result.ran) {
       s.announceStatus("Export already in progress…");
       return { status: "disabled", reason: "Export already running" };
     }
-    exportDeliverablesInFlight = projectPath;
-    s.announceStatus("Exporting deliverables…");
-    const scope = projectScopedSignal(projectPath);
-    try {
-      await runAnnouncedJob(() => startExportJob(projectPath), {
-        failLabel: "Export failed",
-        resultCopy: (paths) => `Exported ${paths.length} file(s) to export/`,
-        signal: scope.signal,
-      });
-      return { status: "ok" };
-    } catch (err) {
-      if (isAbortError(err)) {
-        return { status: "disabled", reason: "Project changed" };
-      }
-      const reason = errorMessage(err);
-      useDawStore.getState().announceStatus(`Export failed: ${reason}`);
-      return { status: "disabled", reason };
-    } finally {
-      scope.dispose();
-      if (exportDeliverablesInFlight === projectPath) {
-        exportDeliverablesInFlight = null;
-      }
-    }
+    return result.value;
   });
 }

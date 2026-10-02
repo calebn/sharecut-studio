@@ -4,7 +4,7 @@ import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import type { PendingEditView } from "../types/project";
 import { clearRegisteredCommands, execute } from "./execute";
-import { registerDawCommands } from "./register";
+import { _resetSingleFlightsForTests, registerDawCommands } from "./register";
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
@@ -51,6 +51,7 @@ function pending(overrides: Partial<PendingEditView> = {}): PendingEditView {
 
 describe("tighten commands", () => {
   beforeEach(() => {
+    _resetSingleFlightsForTests();
     clearRegisteredCommands();
     registerDawCommands();
     vi.mocked(approveEdits).mockClear();
@@ -90,6 +91,25 @@ describe("tighten commands", () => {
       status: "ok",
     });
     expect(rejectEdits).toHaveBeenCalledWith("/tmp/p.json", ["e2"]);
+  });
+
+  it("shares the busy guard across approve and reject before permission checks", async () => {
+    let release!: (value: { queued: boolean }) => void;
+    const gate = new Promise<{ queued: boolean }>((resolve) => {
+      release = resolve;
+    });
+    vi.mocked(approveEdits).mockImplementationOnce(() => gate);
+
+    const first = execute("tighten.applyHit", { id: "e1" });
+    await vi.waitFor(() => expect(approveEdits).toHaveBeenCalledTimes(1));
+    useDawStore.setState({ projectPath: "share:token", shareCapabilities: [] });
+
+    expect(await execute("tighten.skipHit", { id: "e2" })).toEqual({
+      status: "disabled",
+      reason: "Tighten action in progress",
+    });
+    release({ queued: false });
+    expect(await first).toEqual({ status: "ok" });
   });
 
   it("applyHit keeps the selection and says Still sending when the approval is queued", async () => {

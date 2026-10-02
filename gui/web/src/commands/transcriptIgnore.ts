@@ -6,14 +6,10 @@ import { TRANSCRIPT_IGNORE_UNVERIFIED_SUFFIX } from "../transcript/transcriptMod
 import { errorMessage } from "../utils/apiError";
 import { transcriptSpanText } from "../utils/transcript";
 import { registerCommand } from "./execute";
+import { createSingleFlight } from "./singleFlight";
 import type { ExecuteResult } from "./types";
 
-let ignoreInFlight = false;
-
-/** Test-only: clear the in-flight guard between cases. */
-export function _resetTranscriptIgnoreInFlightForTests(): void {
-  ignoreInFlight = false;
-}
+const ignoreFlight = createSingleFlight();
 
 /**
  * `transcript.ignoreWords` (#633): strike through and mute a word range at
@@ -48,9 +44,6 @@ export function registerTranscriptIgnoreCommands(): void {
       if (!target) {
         return { status: "disabled", reason: "No transcript range selected" };
       }
-      if (ignoreInFlight) {
-        return { status: "disabled", reason: "Ignore already in progress" };
-      }
       // Captured from the same snapshot that resolved `target`, before any
       // await, so a peer edit mid-flight is refused rather than silently
       // guarding against text the user never saw (#744).
@@ -60,32 +53,37 @@ export function registerTranscriptIgnoreCommands(): void {
         target.startWordIndex,
         target.endWordIndex,
       );
-      ignoreInFlight = true;
-      try {
-        await setTranscriptWordsIgnored(
-          s.projectPath,
-          target.trackId,
-          target.startWordIndex,
-          target.endWordIndex,
-          target.ignored,
-          expectedText,
-        );
-        const suffix =
-          expectedText == null ? TRANSCRIPT_IGNORE_UNVERIFIED_SUFFIX : "";
-        useDawStore
-          .getState()
-          .announceStatus(
-            (target.ignored ? "Ignored selection" : "Restored selection") +
-              suffix,
-          );
-        return { status: "ok" };
-      } catch (e) {
-        const msg = errorMessage(e);
-        useDawStore.getState().announceStatus(`Ignore failed: ${msg}`);
-        return { status: "disabled", reason: msg };
-      } finally {
-        ignoreInFlight = false;
+      const result = await ignoreFlight.run(
+        async (): Promise<ExecuteResult> => {
+          try {
+            await setTranscriptWordsIgnored(
+              s.projectPath,
+              target.trackId,
+              target.startWordIndex,
+              target.endWordIndex,
+              target.ignored,
+              expectedText,
+            );
+            const suffix =
+              expectedText == null ? TRANSCRIPT_IGNORE_UNVERIFIED_SUFFIX : "";
+            useDawStore
+              .getState()
+              .announceStatus(
+                (target.ignored ? "Ignored selection" : "Restored selection") +
+                  suffix,
+              );
+            return { status: "ok" };
+          } catch (e) {
+            const msg = errorMessage(e);
+            useDawStore.getState().announceStatus(`Ignore failed: ${msg}`);
+            return { status: "disabled", reason: msg };
+          }
+        },
+      );
+      if (!result.ran) {
+        return { status: "disabled", reason: "Ignore already in progress" };
       }
+      return result.value;
     },
   );
 }
