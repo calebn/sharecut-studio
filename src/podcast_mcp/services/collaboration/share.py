@@ -871,6 +871,19 @@ def share_daw_waveform_tiles(
     return tile_bytes(project_path, ref, key, level, start, count)
 
 
+def share_pending_cut_suggestion(token: str, edit_id: str) -> dict[str, Any]:
+    """Read a complete pending source cut through the share's edit capabilities."""
+    from dataclasses import asdict
+
+    from podcast_mcp.services.document import EditService
+
+    row, ws = require_share_cap(token, CAP_VIEW)
+    caps = row.get("capabilities")
+    if not has_capability(caps, CAP_SUGGEST) and not has_capability(caps, CAP_EDIT):
+        raise PermissionError("share does not allow cut suggestions")
+    return asdict(EditService(ws).preview_pending_cut(edit_id))
+
+
 def share_daw_waveform_snap(
     token: str,
     *,

@@ -309,7 +309,7 @@ export function registerClipMoveCommands(): void {
   registerCommand("edit.rollClipJoin", () => {
     return {
       status: "disabled",
-      reason: "Use the join diamond or transcript boundary glyph",
+      reason: "Use the roll seam line or transcript boundary glyph",
     };
   });
 
@@ -330,6 +330,12 @@ export function registerClipMoveCommands(): void {
   registerCommand("edit.moveClips", async (args) => {
     return enqueueTrackMutate(async () => {
       const s = useDawStore.getState();
+      if (s.joinMutationInFlight) {
+        return {
+          status: "disabled",
+          reason: "Wait for the join change to finish",
+        };
+      }
       if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
         return { status: "disabled", reason: "Edits not allowed" };
       }

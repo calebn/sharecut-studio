@@ -163,6 +163,7 @@ export function useClipEdgeHandles(context: Context) {
           Infinity) === capture.neighborSourceHi);
     return (
       mounted.current &&
+      !s.joinMutationInFlight &&
       savedGeometryMatches &&
       s.projectPath === capture.projectPath &&
       s.projectEpoch === capture.projectEpoch &&
@@ -177,7 +178,10 @@ export function useClipEdgeHandles(context: Context) {
   const begin = (handle: ClipHandle, input: Input): Draft | null => {
     if (handle === "roll" || draftRef.current) return null;
     const s = useDawStore.getState();
-    if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities))
+    if (
+      s.joinMutationInFlight ||
+      !canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)
+    )
       return null;
     const c = latest.current;
     const capture: Capture = {

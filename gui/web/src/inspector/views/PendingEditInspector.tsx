@@ -1,10 +1,14 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   approveEdits,
   createComment,
   rejectEdits,
   updatePendingEdit,
 } from "../../api";
+import {
+  type PendingEditBaseline,
+  pendingEditBaseline,
+} from "../../api/documentEdits";
 import { CommentCard, CommentCompose, useCommentActions } from "../../comments";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import {
@@ -46,25 +50,78 @@ import {
   REFINE_GATE_GUI_MESSAGE,
   TranscriptRefineRecovery,
 } from "../TranscriptRefineRecovery";
+import { usePendingCutSuggestion } from "../usePendingCutSuggestion";
 import { useQueuedReviewNotice } from "../useQueuedReviewNotice";
 
+function signedMilliseconds(value: number): string {
+  return `${value >= 0 ? "+" : ""}${Number(value.toFixed(3))} ms`;
+}
+
+function exactSourceTime(seconds: number): string {
+  const decimal = seconds.toString();
+  const [whole = "0", fraction = ""] = decimal.split(".");
+  const wholeSeconds = Number(whole);
+  if (decimal.includes("e") || !Number.isSafeInteger(wholeSeconds)) {
+    return `${decimal} s`;
+  }
+  const minutes = Math.floor(wholeSeconds / 60);
+  const secondField = String(wholeSeconds % 60).padStart(2, "0");
+  return `${minutes}:${secondField}.${fraction.padEnd(3, "0")}`;
+}
+
+type TimingDraft = Readonly<{
+  identity: string;
+  start: string;
+  end: string;
+  commandId?: string;
+}>;
+type TimingCapture = Readonly<{
+  projectPath: string;
+  projectEpoch: number;
+  editId: string;
+  identity: string;
+  expected: PendingEditBaseline;
+}>;
+
 export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
-  const { project, projectPath, guestMode, shareCapabilities, setSelection } =
-    useDaw((s) => ({
-      project: s.project,
-      projectPath: s.projectPath,
-      guestMode: s.guestMode,
-      shareCapabilities: s.shareCapabilities,
-      setSelection: s.setSelection,
-    }));
+  const {
+    project,
+    projectPath,
+    projectEpoch,
+    guestMode,
+    shareCapabilities,
+    setSelection,
+  } = useDaw((s) => ({
+    project: s.project,
+    projectPath: s.projectPath,
+    projectEpoch: s.projectEpoch,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    setSelection: s.setSelection,
+  }));
   const canApply = canApplyPass12(projectPath, guestMode, shareCapabilities);
   const canNudge = canSuggestOrNudge(projectPath, guestMode, shareCapabilities);
   const mayAsk = canComment(projectPath, guestMode, shareCapabilities);
   const mayReply = canReply(projectPath, guestMode, shareCapabilities);
   const { busy, error, errorCode, setError, run } = useProjectMutation();
-  const { notice: queuedNotice, setQueued } =
-    useQueuedReviewNotice(projectPath);
+  const {
+    notice: queuedNotice,
+    queued,
+    checking: checkingQueue,
+    settlement,
+    setQueued,
+  } = useQueuedReviewNotice(projectPath, edit.id);
   const isSplit = edit.type === "split";
+  const canSuggestBounds =
+    canNudge &&
+    !edit.applied &&
+    (edit.type === "remove" || edit.type === "mute") &&
+    (edit.timebase == null || edit.timebase === "source");
+  const suggestion = usePendingCutSuggestion(
+    edit,
+    canSuggestBounds && !queued && !checkingQueue,
+  );
+  const timingBusy = busy || queued || checkingQueue;
   const skipOk = canSuggestSkip(edit);
   const skipReason = suggestDisabledReason(edit);
   const [previewMode, setPreviewMode] = useState<PreviewMode>(
@@ -76,6 +133,24 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const [tracksStr, setTracksStr] = useState(
     (edit.track_ids ?? [edit.track_id]).join(", "),
   );
+  const timingIdentity = JSON.stringify([
+    projectPath,
+    projectEpoch,
+    edit.id,
+    edit.track_id,
+    edit.type,
+    edit.timebase ?? "source",
+  ]);
+  const previousTiming = useRef({
+    identity: timingIdentity,
+    start: edit.source_start,
+    end: edit.source_end,
+  });
+  const submittedTiming = useRef<TimingDraft | null>(null);
+  const timingDirty =
+    startStr.trim() !== formatTimeMs(edit.source_start) ||
+    endStr.trim() !== formatTimeMs(edit.source_end);
+  const suggestionHintId = useId();
   const role = commentRole(projectPath, guestMode);
   const [author, setAuthor] = useState(() => sessionDisplayName(role));
   const [askBody, setAskBody] = useState("");
@@ -98,14 +173,46 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   useEffect(() => {
     setError(null);
     setQueued(false);
-  }, [edit.id, setError, setQueued]);
+  }, [timingIdentity, setError, setQueued]);
 
   useEffect(() => {
-    setStartStr(formatTimeMs(edit.source_start));
-    setEndStr(formatTimeMs(edit.source_end));
+    const previous = previousTiming.current;
+    const submitted = submittedTiming.current;
+    const sameIdentity = previous.identity === timingIdentity;
+    const boundsChanged =
+      previous.start !== edit.source_start || previous.end !== edit.source_end;
+    setStartStr((text) =>
+      !sameIdentity ||
+      text.trim() === formatTimeMs(previous.start) ||
+      (boundsChanged &&
+        submitted?.identity === timingIdentity &&
+        !submitted.commandId &&
+        text === submitted.start)
+        ? formatTimeMs(edit.source_start)
+        : text,
+    );
+    setEndStr((text) =>
+      !sameIdentity ||
+      text.trim() === formatTimeMs(previous.end) ||
+      (boundsChanged &&
+        submitted?.identity === timingIdentity &&
+        !submitted.commandId &&
+        text === submitted.end)
+        ? formatTimeMs(edit.source_end)
+        : text,
+    );
+    previousTiming.current = {
+      identity: timingIdentity,
+      start: edit.source_start,
+      end: edit.source_end,
+    };
+    if (!sameIdentity || (boundsChanged && !submitted?.commandId))
+      submittedTiming.current = null;
     setTracksStr((edit.track_ids ?? [edit.track_id]).join(", "));
-    setAskBody("");
-    setSnapToSilence(true);
+    if (!sameIdentity) {
+      setAskBody("");
+      setSnapToSilence(true);
+    }
     setPreviewMode(
       canSuggestSkip({
         type: edit.type,
@@ -118,6 +225,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
         : "current",
     );
   }, [
+    timingIdentity,
     edit.id,
     edit.source_start,
     edit.source_end,
@@ -130,13 +238,43 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     edit.timeline_end,
   ]);
 
+  useEffect(() => {
+    const draft = submittedTiming.current;
+    if (
+      !settlement ||
+      !draft ||
+      draft.identity !== timingIdentity ||
+      draft.commandId !== settlement.commandId
+    )
+      return;
+    if (settlement.outcome === "applied") {
+      setStartStr((text) =>
+        text === draft.start ? formatTimeMs(edit.source_start) : text,
+      );
+      setEndStr((text) =>
+        text === draft.end ? formatTimeMs(edit.source_end) : text,
+      );
+    }
+    submittedTiming.current = null;
+  }, [settlement, timingIdentity, edit.source_start, edit.source_end]);
+
   const runAction = async (action: "approve" | "reject") => {
+    if (timingBusy) return;
+    const selection = useDawStore.getState().selection;
     setQueued(false);
     await run(async () => {
       const { queued } =
         action === "approve"
           ? await approveEdits(projectPath, [edit.id])
           : await rejectEdits(projectPath, [edit.id]);
+      const current = useDawStore.getState();
+      if (
+        current.projectPath !== projectPath ||
+        current.projectEpoch !== projectEpoch ||
+        previousTiming.current.identity !== timingIdentity ||
+        current.selection !== selection
+      )
+        return;
       if (queued) {
         // Saved but not sent yet: keep the edit selected and say so.
         setQueued(true);
@@ -150,12 +288,102 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     });
   };
 
+  const currentTimingEdit = (capture: TimingCapture) => {
+    const current = useDawStore.getState();
+    const saved = current.project?.pending_edits.find(
+      (item) => item.id === capture.editId,
+    );
+    return previousTiming.current.identity === capture.identity &&
+      current.projectPath === capture.projectPath &&
+      current.projectEpoch === capture.projectEpoch &&
+      saved?.applied === false &&
+      saved.track_id === capture.expected.track_id &&
+      saved.type === capture.expected.type &&
+      (saved.timebase ?? "source") === capture.expected.timebase
+      ? saved
+      : null;
+  };
+
+  const captureTiming = (): TimingCapture | null => {
+    const current = useDawStore.getState();
+    const saved = current.project?.pending_edits.find(
+      (item) => item.id === edit.id,
+    );
+    if (!saved) return null;
+    const capture: TimingCapture = {
+      projectPath,
+      projectEpoch,
+      editId: edit.id,
+      identity: timingIdentity,
+      expected: pendingEditBaseline(saved),
+    };
+    return currentTimingEdit(capture) &&
+      saved.track_id === edit.track_id &&
+      saved.type === edit.type &&
+      (saved.timebase ?? "source") === (edit.timebase ?? "source") &&
+      saved.source_start === edit.source_start &&
+      saved.source_end === edit.source_end
+      ? capture
+      : null;
+  };
+
+  const saveTiming = async ({
+    capture,
+    start,
+    end,
+    snap,
+    trackIds,
+    draft,
+  }: {
+    capture: TimingCapture;
+    start: number;
+    end: number;
+    snap: boolean;
+    trackIds?: string[];
+    draft?: TimingDraft;
+  }) => {
+    await run(async () => {
+      try {
+        const result = await updatePendingEdit(
+          capture.projectPath,
+          capture.editId,
+          start,
+          end,
+          snap,
+          trackIds,
+          capture.expected,
+        );
+        const saved = currentTimingEdit(capture);
+        if (!saved) return;
+        if (result.queued && draft && submittedTiming.current === draft) {
+          submittedTiming.current = { ...draft, commandId: result.commandId };
+        }
+        setQueued(result.queued, result.queued ? result.commandId : undefined);
+        if (!result.queued && draft) {
+          setStartStr((text) =>
+            text === draft.start ? formatTimeMs(saved.source_start) : text,
+          );
+          setEndStr((text) =>
+            text === draft.end ? formatTimeMs(saved.source_end) : text,
+          );
+          if (submittedTiming.current === draft) submittedTiming.current = null;
+        }
+      } catch (error) {
+        if (submittedTiming.current === draft) submittedTiming.current = null;
+        if (currentTimingEdit(capture)) throw error;
+      }
+    });
+  };
+
   const applyNudge = async () => {
+    if (timingBusy) return;
+    const capture = captureTiming();
+    if (!capture) return;
     // An untouched field sends the stored time, not its ms-rounded text.
     const fieldSec = (text: string, stored: number) =>
       text.trim() === formatTimeMs(stored) ? stored : parseTimecode(text);
-    const start = fieldSec(startStr, edit.source_start);
-    const end = isSplit ? start : fieldSec(endStr, edit.source_end);
+    const start = fieldSec(startStr, capture.expected.start);
+    const end = isSplit ? start : fieldSec(endStr, capture.expected.end);
     if (start == null || end == null) {
       setError("Times must be m:ss.mmm or seconds");
       return;
@@ -166,17 +394,48 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     }
     const trackIds = tracksStr
       .split(",")
-      .map((s) => s.trim())
+      .map((value) => value.trim())
       .filter(Boolean);
-    await run(async () => {
-      await updatePendingEdit(
-        projectPath,
-        edit.id,
-        start,
-        end,
-        !isSplit && snapToSilence,
-        isSplit ? trackIds : undefined,
-      );
+    const draft: TimingDraft = {
+      identity: timingIdentity,
+      start: startStr,
+      end: endStr,
+    };
+    submittedTiming.current = draft;
+    await saveTiming({
+      capture,
+      start,
+      end,
+      snap: !isSplit && snapToSilence,
+      trackIds: isSplit ? trackIds : undefined,
+      draft,
+    });
+  };
+
+  const recheckSnap = async (checked: boolean) => {
+    if (timingBusy) return;
+    setSnapToSilence(checked);
+    if (!checked || snapToSilence) return;
+    const capture = captureTiming();
+    if (!capture) return;
+    await saveTiming({
+      capture,
+      start: capture.expected.start,
+      end: capture.expected.end,
+      snap: true,
+    });
+  };
+
+  const acceptSuggestion = async () => {
+    if (timingDirty || timingBusy) return;
+    const proposal = suggestion.currentProposal();
+    const capture = captureTiming();
+    if (!proposal || !capture) return;
+    await saveTiming({
+      capture: { ...capture, expected: proposal.expected },
+      start: proposal.suggested.start,
+      end: proposal.suggested.end,
+      snap: false,
     });
   };
 
@@ -224,13 +483,13 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
               {
                 label: "Approve",
                 variant: "primary" as const,
-                disabled: busy,
+                disabled: timingBusy,
                 onClick: () => void runAction("approve"),
               },
               {
                 label: "Reject",
                 variant: "danger" as const,
-                disabled: busy,
+                disabled: timingBusy,
                 onClick: () => void runAction("reject"),
               },
             ]
@@ -265,7 +524,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                     spellCheck={false}
                     placeholder="m:ss.mmm"
                     value={startStr}
-                    disabled={busy}
+                    disabled={timingBusy}
                     aria-label="Cut time"
                     aria-describedby={timeHintId}
                     onChange={(e) => setStartStr(e.target.value)}
@@ -273,7 +532,10 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                   <span id={timeHintId} className="ui-field-hint">
                     m:ss.mmm or seconds
                   </span>
-                  <Button disabled={busy} onClick={() => void applyNudge()}>
+                  <Button
+                    disabled={timingBusy}
+                    onClick={() => void applyNudge()}
+                  >
                     Apply
                   </Button>
                 </FieldRow>
@@ -287,11 +549,14 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                   <input
                     type="text"
                     value={tracksStr}
-                    disabled={busy}
+                    disabled={timingBusy}
                     aria-label="Track ids"
                     onChange={(e) => setTracksStr(e.target.value)}
                   />
-                  <Button disabled={busy} onClick={() => void applyNudge()}>
+                  <Button
+                    disabled={timingBusy}
+                    onClick={() => void applyNudge()}
+                  >
                     Apply tracks
                   </Button>
                 </FieldRow>
@@ -311,7 +576,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                   spellCheck={false}
                   placeholder="m:ss.mmm"
                   value={startStr}
-                  disabled={busy}
+                  disabled={timingBusy}
                   aria-label="Source start"
                   aria-describedby={timeHintId}
                   onChange={(e) => setStartStr(e.target.value)}
@@ -324,7 +589,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                   spellCheck={false}
                   placeholder="m:ss.mmm"
                   value={endStr}
-                  disabled={busy}
+                  disabled={timingBusy}
                   aria-label="Source end"
                   aria-describedby={timeHintId}
                   onChange={(e) => setEndStr(e.target.value)}
@@ -336,16 +601,16 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                   <input
                     type="checkbox"
                     checked={snapToSilence}
-                    disabled={busy}
+                    disabled={timingBusy}
                     onChange={(event) =>
-                      setSnapToSilence(event.currentTarget.checked)
+                      void recheckSnap(event.currentTarget.checked)
                     }
                   />
                   Snap to silence
                 </label>
                 <Button
                   className="pending-source-time-apply"
-                  disabled={busy}
+                  disabled={timingBusy}
                   onClick={() => void applyNudge()}
                 >
                   Apply timing
@@ -376,6 +641,65 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
           <DefItem label="Confidence">{edit.cut_confidence.toFixed(2)}</DefItem>
         ) : null}
       </DefinitionList>
+      {canSuggestBounds ? (
+        <section
+          className="pending-cut-suggestion"
+          aria-label="Suggested bounds"
+        >
+          <h3>Suggested bounds</h3>
+          <DefinitionList>
+            <DefItem label="Original source">
+              {exactSourceTime(edit.source_start)} to{" "}
+              {exactSourceTime(edit.source_end)}
+            </DefItem>
+            {suggestion.state?.kind === "ready" ? (
+              <>
+                <DefItem label="Suggested source">
+                  {exactSourceTime(suggestion.state.proposal.suggested.start)}{" "}
+                  to {exactSourceTime(suggestion.state.proposal.suggested.end)}
+                </DefItem>
+                <DefItem label="Start shift">
+                  {signedMilliseconds(suggestion.state.proposal.startShiftMs)}
+                </DefItem>
+                <DefItem label="End shift">
+                  {signedMilliseconds(suggestion.state.proposal.endShiftMs)}
+                </DefItem>
+                <DefItem label="Edit duration change">
+                  {signedMilliseconds(
+                    suggestion.state.proposal.durationDeltaMs,
+                  )}
+                </DefItem>
+              </>
+            ) : null}
+          </DefinitionList>
+          {suggestion.state?.kind === "unavailable" ? (
+            <>
+              <p className="ui-field-hint">
+                Suggestion unavailable. {suggestion.state.message}
+              </p>
+              <Button disabled={timingBusy} onClick={suggestion.retry}>
+                Retry suggestion
+              </Button>
+            </>
+          ) : !queued && suggestion.state?.kind !== "ready" ? (
+            <p className="ui-field-hint">Loading suggested bounds…</p>
+          ) : null}
+          {timingDirty ? (
+            <p id={suggestionHintId} className="ui-field-hint">
+              Apply timing first to review a suggestion for your changes.
+            </p>
+          ) : null}
+          <Button
+            disabled={
+              timingBusy || timingDirty || suggestion.state?.kind !== "ready"
+            }
+            aria-describedby={timingDirty ? suggestionHintId : undefined}
+            onClick={() => void acceptSuggestion()}
+          >
+            Use suggestion
+          </Button>
+        </section>
+      ) : null}
       {queuedNotice}
       {!isShareProjectKey(projectPath) ? (
         <TranscriptRefineRecovery

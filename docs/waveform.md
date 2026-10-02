@@ -349,6 +349,8 @@ file through `source_id` gets its own `source:` ref, whose key matches the
 
 ## API
 
+`EditService.waveform_snap_window` keeps snap-tick requests within a two-second window around their focus. Pending-cut comparison uses a separate edit-keyed read, `GET /api/pending-edits/{edit_id}/cut-suggestion`, over the complete stored source interval. It reuses the cut optimizer without cropping the proposed range or changing the project. This comparison does not replace the bounded snap-tick window used by timeline gestures.
+
 Host routes ([`gui/routes/waveform.py`](../src/podcast_mcp/gui/routes/waveform.py))
 need the host role (`require_host`) and a project path (`resolve_project`);
 `/api/waveform` is a host-binding protected prefix.

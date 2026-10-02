@@ -17,11 +17,7 @@ test.describe("Timeline fade curves", () => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
     const block = page.locator(".lane-row").first().locator(".clip-block");
     await expect(block).toHaveCount(1);
-    const clipId = (
-      await block
-        .getByRole("button", { name: /^Select clip / })
-        .getAttribute("aria-label")
-    )?.match(/^Select clip ([^,]+)/)?.[1];
+    const clipId = await block.getAttribute("data-clip-id");
     if (!clipId) throw new Error("clip lacks identity");
     const snapshot = async () => {
       const response = await page.request.get(
@@ -217,7 +213,7 @@ test.describe("Timeline fade curves", () => {
     await expectPageAxeClean(page, ".lane-row .clip-block");
   });
 
-  test("keeps the join badge clear of the fade corners, the join diamond and the marker lane at any root font size", async ({
+  test("keeps the join badge clear of the fade corners, the roll seam and the marker lane at any root font size", async ({
     page,
   }) => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
@@ -239,9 +235,9 @@ test.describe("Timeline fade curves", () => {
       const expectBadgeClear = async () => {
         const badgeBox = await badge.boundingBox();
         if (!badgeBox) throw new Error("join badge has no box");
-        const diamondBox = await lane.locator(".join-diamond").boundingBox();
-        if (!diamondBox) throw new Error("join diamond has no box");
-        expect(intersects(badgeBox, diamondBox)).toBe(false);
+        const seamBox = await lane.locator(".join-seam").boundingBox();
+        if (!seamBox) throw new Error("roll seam has no box");
+        expect(intersects(badgeBox, seamBox)).toBe(false);
         // The first track sits right under the marker lane; the badge must not paint over it.
         const markerBox = await page
           .locator(".marker-lane")

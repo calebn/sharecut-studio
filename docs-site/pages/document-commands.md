@@ -73,7 +73,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UndoHistory` | — | `rerender` (boolean) |
 | `UpdateChapter` | `old_time` (number), `old_title` (string), `time` (number), `title` (string) | — |
 | `UpdateComment` | `comment_id` (string) | `body` (string \| null), `timeline_end` (number \| null), `timeline_start` (number \| null), `track_ids` (array \| null) |
-| `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `snap` (boolean), `track_ids` (array \| null) |
+| `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
 _Generated 50 command types._

@@ -192,6 +192,26 @@ describe("TimelineView follow auto-fit", () => {
     useDawStore.setState({ laneHeightMode: "fixed", laneHeightPx: 104 });
   });
 
+  it("keeps coarse-pointer lanes at the touch-editing minimum in fit mode", () => {
+    useDawStore.setState({ laneHeightMode: "fit", pointerKind: "coarse" });
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TimelineView />
+      </DawProvider>,
+    );
+    const area = container.querySelector(".timeline-area") as HTMLElement;
+    expect(area.style.getPropertyValue("--lane-height")).toBe(
+      `${COMPACT_LANE_HEIGHT}px`,
+    );
+    expect(area.dataset.laneDensity).toBeUndefined();
+    expect(area.dataset.pointerKind).toBe("coarse");
+    useDawStore.setState({
+      laneHeightMode: "fixed",
+      laneHeightPx: COMPACT_LANE_HEIGHT,
+      pointerKind: "fine",
+    });
+  });
+
   it("defaults to the fixed lane height with no compact density", () => {
     const { container } = render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
@@ -797,7 +817,7 @@ describe("TimelineView lane fit", () => {
       );
       const lane = (id: string) =>
         container.querySelector(`.lane-row[data-track-id="${id}"]`) as Element;
-      const hit = getByRole("button", { name: /^Select clip c1,/ });
+      const hit = getByRole("button", { name: /^Select .+ clip at / });
 
       document.elementFromPoint = () => lane("guest");
       fireEvent.pointerDown(hit, { pointerId: 1, clientX: 100, clientY: 10 });
@@ -846,7 +866,7 @@ describe("TimelineView lane fit", () => {
       );
       const lane = (id: string) =>
         container.querySelector(`.lane-row[data-track-id="${id}"]`) as Element;
-      const hit = getByRole("button", { name: /^Select clip c1,/ });
+      const hit = getByRole("button", { name: /^Select .+ clip at / });
 
       document.elementFromPoint = () => lane("guest");
       fireEvent.pointerDown(hit, { pointerId: 1, clientX: 100, clientY: 10 });
@@ -1091,9 +1111,7 @@ describe("TimelineView render isolation", () => {
     // envelopes/pending_edits/applied_edits identical, and the per-lane
     // overlay slices keep every other track's slice by reference too.
     expect(renders.lanes).toEqual(["host"]);
-    const block = screen
-      .getByRole("button", { name: /^Select clip host-2,/ })
-      .closest(".clip-block");
+    const block = document.querySelector('[data-clip-id="host-2"]');
     expect(block?.querySelector(".clip-fade-line")).not.toBeNull();
     // The snapshot path built new objects instead of mutating the old ones.
     expect(prev.clips.tracks.host![2]!.fade_in_ms).toBe(0);

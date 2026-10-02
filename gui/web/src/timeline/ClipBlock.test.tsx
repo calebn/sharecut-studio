@@ -702,7 +702,7 @@ describe("ClipBlock waveform", () => {
     expect(container.querySelector("button.fade-corner.in")).toBeNull();
     expect(container.querySelector("button.fade-corner.out")).not.toBeNull();
     expect(container.querySelectorAll(".trim-handle")).toHaveLength(2);
-    expect(container.querySelector("button.join-diamond")).not.toBeNull();
+    expect(container.querySelector("button.join-seam")).not.toBeNull();
     // Outgoing join is a cut: the fade-out goes, the fade-in stays.
     rerender(
       <ClipBlock
@@ -929,6 +929,44 @@ describe("ClipBlock waveform", () => {
     }
   });
 
+  it.each([".fade-corner.in", ".trim-handle.out", ".join-seam", ".clip-hit"])(
+    "keeps %s idle while a coupled join save is in flight",
+    async (selector) => {
+      vi.mocked(setClipFade).mockClear();
+      vi.mocked(trimClipEdge).mockClear();
+      vi.mocked(rollClipJoin).mockClear();
+      base.onRollPreview.mockClear();
+      base.onMovePreview.mockClear();
+      base.onMoveCommit.mockClear();
+      const { container } = render(
+        <ClipBlock
+          {...base}
+          canMove
+          prevClip={{ ...clip, id: "left", source_start: 0, source_end: 1 }}
+          clip={{ ...clip, source_start: 1, source_end: 2 }}
+        />,
+      );
+      useDawStore.getState().setJoinMutationInFlight(true);
+      try {
+        const handle = container.querySelector(selector) as HTMLElement;
+        fireEvent.pointerDown(handle, { clientX: 100, pointerId: 5 });
+        fireEvent.pointerMove(handle, { clientX: 125, pointerId: 5 });
+        fireEvent.pointerUp(handle, { clientX: 125, pointerId: 5 });
+        expect(
+          container.querySelector(".fade-dragging, .trim-dragging"),
+        ).toBeNull();
+        expect(base.onRollPreview).not.toHaveBeenCalled();
+        expect(base.onMovePreview).not.toHaveBeenCalled();
+        expect(base.onMoveCommit).not.toHaveBeenCalled();
+        expect(setClipFade).not.toHaveBeenCalled();
+        expect(trimClipEdge).not.toHaveBeenCalled();
+        expect(rollClipJoin).not.toHaveBeenCalled();
+      } finally {
+        useDawStore.getState().setJoinMutationInFlight(false);
+      }
+    },
+  );
+
   describe("trim and roll handle clicks", () => {
     beforeEach(() => {
       vi.mocked(trimClipEdge).mockClear();
@@ -1065,11 +1103,11 @@ describe("ClipBlock waveform", () => {
       expect(trimClipEdge).not.toHaveBeenCalled();
     });
 
-    it("a click on the join diamond never rolls", async () => {
+    it("a click on the join seam never rolls", async () => {
       const { container } = render(
         <ClipBlock {...base} prevClip={{ ...clip, id: "c0" }} />,
       );
-      const d = container.querySelector("button.join-diamond") as HTMLElement;
+      const d = container.querySelector("button.join-seam") as HTMLElement;
       fireEvent.pointerDown(d, { clientX: 100, pointerId: 6 });
       fireEvent.pointerUp(d, { clientX: 101, pointerId: 6 });
       await new Promise((r) => setTimeout(r, 0));
@@ -1202,7 +1240,9 @@ describe("ClipBlock waveform", () => {
       shift: true,
       mod: false,
     });
-    expect(hit.getAttribute("aria-label")).toBe("Select clip c1, dialogue, 2s");
+    expect(hit.getAttribute("aria-label")).toBe(
+      "Select Dialogue clip at 00:00.000, 2s",
+    );
   });
 
   it("leads the clip label and accessible name with its speaker", () => {
@@ -1213,8 +1253,96 @@ describe("ClipBlock waveform", () => {
       "Avery · 2s",
     );
     expect(
-      getByRole("button", { name: "Select clip c1, Avery, 2s" }),
+      getByRole("button", { name: "Select Avery clip at 00:00.000, 2s" }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps the full clip label on its native button at nonzero timeline time", async () => {
+    const timedClip = {
+      ...clip,
+      id: "internal-clip-id",
+      source_start: 30,
+      source_end: 36,
+      timeline_start: 4,
+      timeline_end: 10,
+    };
+    const { container, getByRole } = render(
+      <ClipBlock
+        {...base}
+        clip={timedClip}
+        trackSpeaker="Host"
+        zoomPxPerSec={1}
+      />,
+    );
+    const hit = getByRole("button", {
+      name: "Select Host clip at 00:04.000, 6s",
+    });
+    expect(hit).toHaveAttribute("title", "Select Host clip at 00:04.000, 6s");
+    expect(container.querySelector(".clip-block")).toHaveAttribute(
+      "title",
+      "Select Host clip at 00:04.000, 6s",
+    );
+    expect(container.querySelector(".clip-label")).toBeNull();
+    await expectNoA11yViolations(container);
+  });
+
+  it("labels the full live range during trim and roll previews", () => {
+    const { getByRole, rerender } = render(
+      <ClipBlockView
+        {...base}
+        trackSpeaker="Host"
+        showHandles
+        geometry={clipBlockGeometry({
+          clip,
+          zoomPxPerSec: 50,
+          rollPreview: null,
+          trimPreview: { edge: "out", sourceStart: 0, sourceEnd: 3 },
+          fadePreview: null,
+          previewTimelineStart: null,
+        })}
+      />,
+    );
+    expect(
+      getByRole("button", { name: "Select Host clip at 00:00.000, 3s" }),
+    ).toBeInTheDocument();
+    rerender(
+      <ClipBlock
+        {...base}
+        clip={{ ...clip, timeline_start: 2, timeline_end: 4 }}
+        trackSpeaker="Host"
+        rollPreview={{
+          leftClipId: "c0",
+          rightClipId: "c1",
+          deltaSec: 1,
+        }}
+      />,
+    );
+    expect(
+      getByRole("button", { name: "Select Host clip at 00:03.000, 1s" }),
+    ).toBeInTheDocument();
+    rerender(
+      <ClipBlock
+        {...base}
+        trackSpeaker="Host"
+        rollPreview={null}
+        previewTimelineStart={4}
+      />,
+    );
+    expect(
+      getByRole("button", { name: "Select Host clip at 00:04.000, 2s" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the move hint in a movable clip's tooltip and its accessible name concise", () => {
+    const { getByRole } = render(
+      <ClipBlock {...base} canMove trackSpeaker="Host" />,
+    );
+    expect(
+      getByRole("button", { name: "Select Host clip at 00:00.000, 2s" }),
+    ).toHaveAttribute(
+      "title",
+      "Select Host clip at 00:00.000, 2s · Drag clip bodies to move in time or onto another track · gaps and overlap allowed",
+    );
   });
 
   it("keeps a long speaker and duration in the accessible name at narrow width", () => {
@@ -1237,7 +1365,7 @@ describe("ClipBlock waveform", () => {
     );
     expect(
       getByRole("button", {
-        name: `Select clip c1, ${longSpeaker}, 17m 26s`,
+        name: `Select ${longSpeaker} clip at 00:00.000, 17m 26s`,
       }),
     ).toBeInTheDocument();
   });
@@ -1310,7 +1438,7 @@ describe("ClipBlock waveform", () => {
     expect(
       container.querySelector(".clip-block")?.getAttribute("aria-hidden"),
     ).toBe("true");
-    expect(container.querySelector(".join-diamond")).toBeNull();
+    expect(container.querySelector(".join-seam")).toBeNull();
     expect(container.querySelector(".clip-hit")).toBeNull();
   });
 
@@ -1383,7 +1511,7 @@ describe("ClipBlock waveform", () => {
       />,
     );
     const block = container.querySelector(".clip-block") as HTMLElement;
-    expect(block.title).toContain("dialogue, 2s");
+    expect(block.title).toBe("Select Dialogue clip at 00:01.234, 2s");
   });
 
   describe("join roll", () => {
@@ -1412,11 +1540,9 @@ describe("ClipBlock waveform", () => {
           zoomPxPerSec={zoom}
         />,
       );
-      const diamond = container.querySelector(
-        "button.join-diamond",
-      ) as HTMLElement;
-      fireEvent.pointerDown(diamond, { clientX: 100, pointerId: 7 });
-      fireEvent.pointerUp(diamond, { clientX: 100 + dxPx, pointerId: 7 });
+      const seam = container.querySelector("button.join-seam") as HTMLElement;
+      fireEvent.pointerDown(seam, { clientX: 100, pointerId: 7 });
+      fireEvent.pointerUp(seam, { clientX: 100 + dxPx, pointerId: 7 });
     };
 
     beforeEach(() => {
@@ -1555,8 +1681,8 @@ describe("ClipBlockView", () => {
       />,
     );
     expect(container.querySelectorAll(".trim-handle")).toHaveLength(2);
-    expect(container.querySelector("button.join-diamond")).not.toBeNull();
-    expect(getByRole("button", { name: /^Select clip c1,/ })).not.toBeNull();
+    expect(container.querySelector("button.join-seam")).not.toBeNull();
+    expect(getByRole("button", { name: /^Select .+ clip at / })).not.toBeNull();
     await expectNoA11yViolations(container);
   });
 
@@ -1576,8 +1702,8 @@ describe("ClipBlockView", () => {
       />,
     );
     expect(container.querySelector(".trim-handle")).toBeNull();
-    const diamond = container.querySelector("span.join-diamond");
-    expect(diamond?.getAttribute("aria-hidden")).toBe("true");
+    const seam = container.querySelector("span.join-seam");
+    expect(seam?.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("routes handle pointerdowns by kind", () => {
@@ -1629,7 +1755,7 @@ describe("ClipBlockView", () => {
         hitHandlers={{ onClick }}
       />,
     );
-    fireEvent.click(getByRole("button", { name: /^Select clip c1,/ }));
+    fireEvent.click(getByRole("button", { name: /^Select .+ clip at / }));
     expect(onClick).toHaveBeenCalled();
   });
 

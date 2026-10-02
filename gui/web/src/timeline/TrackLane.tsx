@@ -25,6 +25,7 @@ import type {
 } from "../types/project";
 import type { ProsodyOverlayTrack } from "../types/prosody";
 import { trackOutputGainDb } from "../utils/audio";
+import { clipIdentityTrack, clipSpeakerLabel } from "../utils/clipLabels";
 import { EMPTY_ARR, EMPTY_OBJ } from "../utils/empty";
 import type { RenderInvalidationView } from "../utils/staleRender";
 import { originTrackId } from "../utils/timebase";
@@ -125,12 +126,14 @@ export function TrackLaneView({
 }: TrackLaneProps) {
   const seekRef = useRef<HTMLDivElement>(null);
   const {
+    tracks,
     auditionMode,
     guestMode,
     shareCapabilities,
     setIngestDropTrackId,
     setPointerTrackId,
   } = useDaw((s) => ({
+    tracks: s.project?.tracks ?? EMPTY_ARR,
     auditionMode: s.auditionMode,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
@@ -265,14 +268,19 @@ export function TrackLaneView({
           const grandPrev = clips[i - 2];
           const mediaDur = track.duration_sec ?? Number.POSITIVE_INFINITY;
           const originId = originTrackId(clip);
+          const identityTrack = clipIdentityTrack({ clip, tracks }) ?? track;
           return (
             <ClipBlock
               key={clip.id}
               clip={clip}
               trackId={originId}
               role={track.role}
-              trackLabel={track.label || track.id}
-              trackSpeaker={track.speaker ?? undefined}
+              trackLabel={identityTrack.label}
+              trackSpeaker={clipSpeakerLabel({
+                trackSpeaker: identityTrack.speaker,
+                trackLabel: identityTrack.label,
+                role: identityTrack.role,
+              })}
               zoomPxPerSec={zoomPxPerSec}
               fadeMaxMs={track.fade_max_ms ?? null}
               color={laneColor(track.role, trackIndex)}

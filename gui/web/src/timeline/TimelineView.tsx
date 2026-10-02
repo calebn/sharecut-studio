@@ -130,6 +130,7 @@ const selectTimelineViewFields = pickDaw(
   "setTimelineViewportWidth",
   "laneHeightMode",
   "laneHeightPx",
+  "pointerKind",
 );
 
 const selectTimelineProject = (s: DawState) => {
@@ -184,6 +185,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     setTimelineViewportWidth,
     laneHeightMode,
     laneHeightPx,
+    pointerKind,
   } = useDaw(selectTimelineViewFields);
   const followColorIndex = useDawStore(selectFollowColorIndex);
   const waveformBackend = useSyncExternalStore(
@@ -379,7 +381,10 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     markerLaneHeightPx: liveMarkerLaneHeightPx,
     mode: laneHeightMode,
     fixedPx: laneHeightPx,
-    minimumPx: fixedPlayhead ? COMPACT_LANE_HEIGHT : LANE_HEIGHT,
+    minimumPx:
+      fixedPlayhead || pointerKind === "coarse"
+        ? COMPACT_LANE_HEIGHT
+        : LANE_HEIGHT,
   });
   const refitLanes = useCallback(() => {
     const inputs = fitInputsRef.current;
@@ -410,7 +415,10 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       markerLaneHeightPx: liveMarkerLaneHeightPx,
       mode: laneHeightMode,
       fixedPx: laneHeightPx,
-      minimumPx: fixedPlayhead ? COMPACT_LANE_HEIGHT : LANE_HEIGHT,
+      minimumPx:
+        fixedPlayhead || pointerKind === "coarse"
+          ? COMPACT_LANE_HEIGHT
+          : LANE_HEIGHT,
     };
     refitLanes();
   }, [
@@ -419,6 +427,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     laneHeightMode,
     laneHeightPx,
     fixedPlayhead,
+    pointerKind,
     refitLanes,
   ]);
 
@@ -721,6 +730,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
           className={`timeline-area${fixedPlayhead ? " timeline-area--fixed-playhead" : ""}`}
           data-following={followingClientId ? "" : undefined}
           data-playing={isPlaying}
+          data-pointer-kind={pointerKind}
           data-waveform-backend={waveformBackend}
           data-lane-density={
             laneHeight < COMPACT_LANE_HEIGHT ? "compact" : undefined

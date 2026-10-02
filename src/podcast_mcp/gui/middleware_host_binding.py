@@ -19,6 +19,7 @@ from podcast_mcp.services.session_sync import is_loopback_host
 # Host-only mutating (and related) surfaces — share/review routes are token-scoped.
 _PROTECTED_PREFIXES = (
     "/api/project",
+    "/api/pending-edits",
     "/api/pipeline",
     "/api/export",
     "/api/bootstrap",

@@ -70,6 +70,7 @@ from podcast_mcp.services.collaboration import (
     share_daw_waveform_snap,
     share_daw_waveform_status,
     share_daw_waveform_tiles,
+    share_pending_cut_suggestion,
     share_pending_preview_image,
     share_pending_preview_image_cached,
     share_pending_preview_wav,
@@ -303,6 +304,17 @@ def get_daw_waveform_tiles(
         return binary_response(body, background=BackgroundTask(slot) if slot is not None else None)
 
     return waveform_call(run, fallback=_map_share_exc)
+
+
+@router.get("/api/review/{token}/daw/pending-edits/{edit_id}/cut-suggestion")
+def get_daw_pending_cut_suggestion(token: str, edit_id: str) -> JSONResponse:
+    _check_token(token)
+    _rate_limit(token, "read")
+    try:
+        suggestion = share_pending_cut_suggestion(token, edit_id)
+    except Exception as exc:
+        raise _map_share_exc(exc) from exc
+    return JSONResponse(suggestion, headers=WAVEFORM_NO_STORE)
 
 
 @router.get("/api/review/{token}/daw/waveform-snap")

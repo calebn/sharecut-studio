@@ -47,7 +47,13 @@ from podcast_mcp.edits.chapters import (
     remove_chapter,
     update_chapter,
 )
-from podcast_mcp.edits.decisions import update_pending_edit
+from podcast_mcp.edits.decisions import (
+    PendingCutSuggestion,
+    PendingEditBaseline,
+    preview_pending_cut_range,
+    require_pending_edit_baseline,
+    update_pending_edit,
+)
 from podcast_mcp.edits.edit_log import list_applied_edits, revert_applied_edit
 from podcast_mcp.edits.edit_reasons import (
     GUEST_SUGGEST_DELETE_REASON,
@@ -376,6 +382,9 @@ class EditService:
 
         return self.ws.mutate("before reject edits", "after reject edits", mutate)
 
+    def preview_pending_cut(self, edit_id: str) -> PendingCutSuggestion:
+        return preview_pending_cut_range(self.ws.project, edit_id)
+
     def update_pending(
         self,
         edit_id: str,
@@ -384,6 +393,7 @@ class EditService:
         end: float,
         snap: bool = True,
         track_ids: list[str] | None = None,
+        expected: PendingEditBaseline | None = None,
     ) -> EditDecision:
         def mutate(p) -> EditDecision:
             return update_pending_edit(
@@ -395,19 +405,23 @@ class EditService:
                 track_ids=track_ids,
             )
 
-        return self.ws.mutate(
-            "before update pending edit",
-            "after update pending edit",
-            mutate,
-            operation="update_pending_edit",
-            params={
-                "id": edit_id,
-                "start": start,
-                "end": end,
-                "snap": snap,
-                "track_ids": track_ids,
-            },
-        )
+        with self.ws.transaction() as project:
+            if expected is not None:
+                require_pending_edit_baseline(project, edit_id, expected)
+            return self.ws.mutate(
+                "before update pending edit",
+                "after update pending edit",
+                mutate,
+                operation="update_pending_edit",
+                params={
+                    "id": edit_id,
+                    "start": start,
+                    "end": end,
+                    "snap": snap,
+                    "track_ids": track_ids,
+                    **({"expected": asdict(expected)} if expected is not None else {}),
+                },
+            )
 
     def revert_applied(self, record_id: str) -> dict:
         def mutate(p) -> dict:

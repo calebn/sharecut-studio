@@ -296,6 +296,14 @@ bounds. A stale token produces `DocumentConflictError`. Its `TRANSCRIPT_AUDIO`
 Applied projection includes transcript words, tracks, and render status, so timing
 changes to ignored words invalidate processed audio in the viewer.
 
+`UpdatePendingEdit` accepts an optional `expected` baseline containing `track_id`,
+`type`, `timebase`, `start`, and `end`. Inspector timing commands send the saved
+baseline. The service checks it against the current unapplied decision under the
+project transaction before creating history. A missing, applied, or changed target
+returns HTTP 409 without changing the project, history, or command journal.
+Offline replay keeps the baseline and reports a conflict in **Needs attention**.
+Deliberate unconditional agent nudges can omit `expected`.
+
 ### Command identity and retries
 
 An explicit `client_seq` (>= 1) plus `client_id` names one edit (#377).
@@ -343,7 +351,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `AddComment`, `UpdateComment`, `ResolveComment`, `DeleteComment`, `AddReply`, `SetActionDone`, `AddAction` | `CommentService` | Comment fields |
 | `UndoHistory`, `RedoHistory` | `HistoryService` | optional `rerender` |
 | `ApproveEdits`, `RejectEdits` | `EditService` | `ids: string[]` |
-| `UpdatePendingEdit` | `EditService.update_pending` | `id`, `start`, `end`, `snap?` (source clocks) |
+| `UpdatePendingEdit` | `EditService.update_pending` | `id`, `start`, `end`, `snap?`, `expected?` (saved track/type/clock/bounds) |
 | `RestoreAppliedEdit` | `EditService.revert_applied` | `id` (applied log id) |
 | `SetClipFade` | `EditService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms` |
 | `TrimClipEdge` | `EditService.trim_clip_edge` | `clip_id`, `edge`, `source_sec`, required `expected_token` from boundary context; `mode?` (`ripple`) |

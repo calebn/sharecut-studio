@@ -253,6 +253,7 @@ export function ClipBlockLive({
       // A click (under the drag threshold) only selects; a roll the clamp
       // shrinks under ROLL_COMMIT_MIN_PX is a no-op.
       if (
+        !useDawStore.getState().joinMutationInFlight &&
         isHandleDrag(state.originX, clientX) &&
         Math.abs(delta) * zoomPxPerSec >= ROLL_COMMIT_MIN_PX
       ) {
@@ -268,6 +269,7 @@ export function ClipBlockLive({
           state.expectedGeometry,
           state.projectEpoch,
         );
+        if (useDawStore.getState().joinMutationInFlight) return;
         await rollClipJoin(
           path,
           state.leftClipId,
@@ -283,7 +285,12 @@ export function ClipBlockLive({
   };
 
   const startRollDrag = (e: ReactPointerEvent) => {
-    if (!editable || !prevClip || edgeHandles.active) {
+    if (
+      !editable ||
+      !prevClip ||
+      edgeHandles.active ||
+      useDawStore.getState().joinMutationInFlight
+    ) {
       return;
     }
     e.stopPropagation();
@@ -361,7 +368,7 @@ export function ClipBlockLive({
     } else {
       onSelectClip?.(clip.id, mods);
     }
-    if (!canMove) {
+    if (!canMove || useDawStore.getState().joinMutationInFlight) {
       return;
     }
     e.preventDefault();
@@ -413,7 +420,11 @@ export function ClipBlockLive({
     } catch {
       // already released
     }
-    if (cancelled || !d.started) {
+    if (
+      cancelled ||
+      !d.started ||
+      useDawStore.getState().joinMutationInFlight
+    ) {
       onMoveCancel?.();
       if (!cancelled && d.wasSelected && (d.mods.shift || d.mods.mod)) {
         onSelectClip?.(clip.id, d.mods);

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.edits.decisions import PendingEditBaseline
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 
@@ -22,12 +23,14 @@ def reject_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 def update_pending_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     track_ids = p.get("track_ids")
+    expected = p.get("expected")
     edit = EditService(ws).update_pending(
         p["id"],
         start=float(p["start"]),
         end=float(p["end"]),
         snap=bool(p.get("snap", True)),
         track_ids=[str(t) for t in track_ids] if track_ids is not None else None,
+        expected=PendingEditBaseline(**expected) if expected is not None else None,
     )
     return {"edit": edit.model_dump()}
 

@@ -50,7 +50,8 @@ flowchart TD
 
 1. Banner reads *Shared suggest view* (or similar).
 2. Guest can propose structural cuts; they become **pending**, not committed.
-3. Guest cannot Approve as if they owned the session (that needs `edit`).
+3. Guest can compare a pending cut's current and suggested source bounds. **Use suggestion** applies those displayed bounds after any typed timing is applied. Re-checking **Snap to silence** snaps the stored bounds once.
+4. Guest cannot Approve as if they owned the session (that needs `edit`).
 
 ---
 

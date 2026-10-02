@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -53,6 +54,64 @@ async function dragFade(edge: "in" | "out", value: number) {
   fireEvent.pointerUp(input, { pointerId: 1 });
   await waitFor(() => expect(setClipFade).toHaveBeenCalled());
 }
+
+describe("ClipInspector presentation", () => {
+  it("names the origin speaker and timeline range with the ID shown once", async () => {
+    const moved = {
+      ...clip,
+      id: "internal-clip-id",
+      track_id: "guest",
+      origin_track_id: "host",
+      source_start: 30,
+      source_end: 36,
+      timeline_start: 4,
+      timeline_end: 10,
+    };
+    useDawStore.getState().hydrate(
+      "/tmp/ep.json",
+      minimalProject({
+        tracks: [
+          sampleTrack({ id: "guest", speaker: "Guest" }),
+          sampleTrack({ id: "host", speaker: "Host" }),
+        ],
+        clips: { tracks: { guest: [moved] }, clip_count: 1 },
+      }),
+    );
+    const { container } = render(<ClipInspector clip={moved} />);
+    expect(
+      screen.getByRole("heading", {
+        name: "Host clip, 00:04.000 to 00:10.000",
+      }),
+    ).toBeVisible();
+    expect(screen.getAllByText("internal-clip-id")).toHaveLength(1);
+    await expectNoA11yViolations(container);
+  });
+
+  it("places delete actions in a named section after constructive controls", () => {
+    hydrateClipProject(sampleTrack({ speaker: "Host" }));
+    const { container } = render(<ClipInspector clip={clip} />);
+    const destructive = screen.getByRole("region", { name: "Delete clip" });
+    expect(
+      within(destructive).getByRole("button", { name: "Delete" }),
+    ).toBeEnabled();
+    expect(
+      within(destructive).getByRole("button", { name: "Ripple delete" }),
+    ).toBeEnabled();
+    const buttons = [...container.querySelectorAll("button")].map(
+      (button) => button.textContent,
+    );
+    expect(buttons).toEqual([
+      "Delete",
+      "Ripple delete",
+      "Seek join",
+      "Play across join",
+    ]);
+    expect(
+      screen.getByLabelText("Fade in ms").compareDocumentPosition(destructive) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+  });
+});
 
 describe("ClipInspector fades", () => {
   beforeEach(() => {
@@ -275,7 +334,11 @@ describe("ClipInspector fades", () => {
   it("uses the track speaker as the clip inspector identity", () => {
     hydrateClipProject(sampleTrack({ label: "Host track", speaker: "Avery" }));
     render(<ClipInspector clip={clip} />);
-    expect(screen.getByRole("heading", { name: "Avery clip" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", {
+        name: "Avery clip, 00:00.000 to 00:02.000",
+      }),
+    ).toBeVisible();
   });
 });
 

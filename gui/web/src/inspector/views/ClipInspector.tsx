@@ -25,7 +25,7 @@ import {
   InspectorSeekFooter,
 } from "../../ui";
 import { errorMessage } from "../../utils/apiError";
-import { formatTime } from "../../utils/time";
+import { clipIdentityTrack, clipLabels } from "../../utils/clipLabels";
 import { ModifierInspector } from "../ModifierInspector";
 
 type FadePair = { inMs: number; outMs: number };
@@ -363,38 +363,19 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
 
   const joinSec = clip.timeline_start;
   const trackIdentity = useDawStore((state) =>
-    state.project?.tracks.find((track) => track.id === clip.track_id),
+    clipIdentityTrack({ clip, tracks: state.project?.tracks ?? [] }),
   );
-  const speakerLabel =
-    trackIdentity?.speaker?.trim() ||
-    trackIdentity?.label?.trim() ||
-    trackIdentity?.id ||
-    clip.track_id;
-
-  const primaryActions = [];
-  if (canStructural) {
-    primaryActions.push(
-      {
-        label: "Delete",
-        variant: "danger" as const,
-        disabled: clipMutationBusy,
-        onClick: () => void runDelete(false),
-      },
-      {
-        label: "Ripple delete",
-        variant: "danger" as const,
-        disabled: clipMutationBusy,
-        onClick: () => void runDelete(true),
-      },
-    );
-  }
+  const labels = clipLabels({
+    clip,
+    trackSpeaker: trackIdentity?.speaker,
+    trackLabel: trackIdentity?.label,
+    role: trackIdentity?.role ?? "audio",
+  });
 
   return (
     <ModifierInspector
       badge="Clip"
-      title={`${speakerLabel} clip`}
-      subtitle={clip.id}
-      primaryActions={primaryActions.length ? primaryActions : undefined}
+      title={labels.heading}
       error={error ?? fadeError}
       footer={
         <InspectorSeekFooter
@@ -410,7 +391,7 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
       <DefinitionList>
         <DefItem label="ID">{clip.id}</DefItem>
         <DefItem label="Timeline">
-          {formatTime(clip.timeline_start)} – {formatTime(clip.timeline_end)}
+          {labels.start} to {labels.end}
         </DefItem>
         <DefItem label="Source">
           {clip.source_start.toFixed(3)} – {clip.source_end.toFixed(3)} s
@@ -567,6 +548,27 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
           </DefItem>
         ) : null}
       </DefinitionList>
+      {canStructural ? (
+        <section className="clip-destructive-controls" aria-label="Delete clip">
+          <h3>Delete clip</h3>
+          <FieldRow>
+            <Button
+              variant="danger"
+              disabled={clipMutationBusy}
+              onClick={() => void runDelete(false)}
+            >
+              Delete
+            </Button>
+            <Button
+              variant="danger"
+              disabled={clipMutationBusy}
+              onClick={() => void runDelete(true)}
+            >
+              Ripple delete
+            </Button>
+          </FieldRow>
+        </section>
+      ) : null}
     </ModifierInspector>
   );
 }

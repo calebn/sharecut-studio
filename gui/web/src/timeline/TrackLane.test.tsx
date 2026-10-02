@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { useDawStore } from "../state/dawStore";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import type { ClipRow, TrackView } from "../types/project";
 import { TrackLane } from "./TrackLane";
 
@@ -64,6 +66,29 @@ const baseProps = {
 describe("TrackLane bladeMode", () => {
   afterEach(() => {
     laneStatus.current = "idle";
+    useDawStore.setState({ project: null, projectPath: "" });
+  });
+
+  it("labels a moved clip with its origin speaker", () => {
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        tracks: [track, sampleTrack({ id: "guest", speaker: "Avery" })],
+      }),
+    );
+    render(
+      <TrackLane
+        {...baseProps}
+        clips={[{ ...clip, origin_track_id: "guest" }]}
+        onSeek={vi.fn()}
+        onSelectClip={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "Select Avery clip at 00:00.000, 10s",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("routes clip hit through onSeek with lane-seek underlay when bladeMode", async () => {
@@ -79,7 +104,7 @@ describe("TrackLane bladeMode", () => {
     );
 
     await userEvent.click(
-      screen.getByRole("button", { name: /^Select clip c1,/ }),
+      screen.getByRole("button", { name: /^Select .+ clip at / }),
     );
 
     expect(onSelectClip).not.toHaveBeenCalled();
@@ -103,7 +128,7 @@ describe("TrackLane bladeMode", () => {
     );
 
     await userEvent.click(
-      screen.getByRole("button", { name: /^Select clip c1,/ }),
+      screen.getByRole("button", { name: /^Select .+ clip at / }),
     );
 
     expect(onSeek).not.toHaveBeenCalled();
@@ -291,20 +316,18 @@ describe("TrackLane join badges", () => {
     ]);
   });
 
-  it("keeps the join diamond alongside the badge", () => {
+  it("keeps the join seam alongside the badge", () => {
     const { container } = lane();
-    expect(container.querySelector(".join-diamond")).toBeTruthy();
+    expect(container.querySelector(".join-seam")).toBeTruthy();
     expect(container.querySelector(".join-badge")).toBeTruthy();
   });
 
   it("moves the badge with a live roll of its join", () => {
     const { container } = lane();
-    const diamond = container.querySelector<HTMLElement>(
-      "button.join-diamond",
-    )!;
+    const seam = container.querySelector<HTMLElement>("button.join-seam")!;
     // 50 px at 100 px/s rolls the c0 | c1 join 0.5 s right.
-    fireEvent.pointerDown(diamond, { clientX: 100, pointerId: 7 });
-    fireEvent.pointerMove(diamond, { clientX: 150, pointerId: 7 });
+    fireEvent.pointerDown(seam, { clientX: 100, pointerId: 7 });
+    fireEvent.pointerMove(seam, { clientX: 150, pointerId: 7 });
     const badge = container.querySelector<HTMLElement>(".join-badge")!;
     expect(badge.style.left).toBe("550px");
   });
@@ -326,14 +349,10 @@ describe("TrackLane join badges", () => {
       width: 150,
     });
     expect(container.querySelectorAll(".join-badge")).toHaveLength(2);
-    // c2's diamond rolls the c1 | c2 join 2.7 s left, so c1 draws 2.3 s = 23 px:
-    // both joins that touch c1 fall under MIN_JOIN_CLIP_PX until pointer-up.
-    const diamonds = container.querySelectorAll<HTMLElement>(
-      "button.join-diamond",
-    );
-    const diamond = diamonds[diamonds.length - 1]!;
-    fireEvent.pointerDown(diamond, { clientX: 100, pointerId: 8 });
-    fireEvent.pointerMove(diamond, { clientX: 73, pointerId: 8 });
+    const seams = container.querySelectorAll<HTMLElement>("button.join-seam");
+    const seam = seams[seams.length - 1]!;
+    fireEvent.pointerDown(seam, { clientX: 100, pointerId: 8 });
+    fireEvent.pointerMove(seam, { clientX: 73, pointerId: 8 });
     expect(container.querySelectorAll(".join-badge")).toHaveLength(0);
   });
 
