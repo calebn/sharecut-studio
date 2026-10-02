@@ -369,6 +369,60 @@ describe("TimelineView fixed playhead (#385)", () => {
     act(() => useRecordHostStore.getState().setSnapshot(null));
   });
 
+  it("keeps a paused visual pan through a cold render until playback changes time", () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot(recordSnapshot({ state: "paused", recording_ms: 100_000 }));
+    const view = mountFixed();
+    view.settle();
+    view.userScrollTo(1_000);
+    expect(useDawStore.getState().playheadSec).toBe(0);
+    expect(useDawStore.getState().scrollLeft).toBe(800);
+    view.rerender(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TimelineView fixedPlayhead headerSlot={<div />} />
+      </DawProvider>,
+    );
+    expect(view.scroller.scrollLeft).toBe(1_000);
+    expect(useDawStore.getState().scrollLeft).toBe(800);
+    act(() => useDawStore.getState().setPlayheadSec(15, "playback"));
+    expect(view.scroller.scrollLeft).toBe(150);
+    expect(useDawStore.getState().scrollLeft).toBe(-50);
+    act(() => useRecordHostStore.getState().setSnapshot(null));
+  });
+
+  it("syncs loading scroll and recenters when the project arrives", () => {
+    useDawStore.setState({ project: null, scrollLeft: 120, playheadSec: 15 });
+    const view = render(<TimelineView fixedPlayhead />);
+    const scroller = view.container.querySelector(
+      ".timeline-scroll",
+    ) as HTMLElement;
+    expect(
+      screen.getByRole("group", { name: "Loading timeline" }),
+    ).toBeInTheDocument();
+    let left = 0;
+    Object.defineProperty(scroller, "scrollLeft", {
+      configurable: true,
+      get: () => left,
+      set: (value: number) => {
+        left = value;
+      },
+    });
+    act(() => useDawStore.setState({ scrollLeft: 125, playheadSec: 15 }));
+    expect(scroller.scrollLeft).toBe(125);
+    expect(timelineViewportRegistry.getLeadPx()).toBe(0);
+    act(() => useDawStore.getState().setProject(minimalProject()));
+    expect(
+      screen.queryByRole("group", { name: "Loading timeline" }),
+    ).toBeNull();
+    const loadedScroller = view.container.querySelector(
+      ".timeline-scroll",
+    ) as HTMLElement;
+    expect(loadedScroller).not.toBe(scroller);
+    expect(loadedScroller.scrollLeft).toBe(150);
+    expect(useDawStore.getState().scrollLeft).toBe(-50);
+  });
+
   it("keeps the playhead through a fit", () => {
     const { scroller } = mountFixed();
     act(() => {
@@ -870,14 +924,14 @@ describe("TimelineView render isolation", () => {
     Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
   });
 
-  function mount() {
+  function mount(fixedPlayhead = false) {
     renders.laneProps = {};
     const view = render(
       <DawProvider
         projectPath="/tmp/p.json"
         initialProject={useDawStore.getState().project}
       >
-        <TimelineView />
+        <TimelineView fixedPlayhead={fixedPlayhead} />
       </DawProvider>,
     );
     expect(renders.clips.length).toBeGreaterThanOrEqual(15);
@@ -967,6 +1021,39 @@ describe("TimelineView render isolation", () => {
     });
     expect(renders.lanes).toEqual([]);
     expect(renders.clips).toEqual([]);
+  });
+
+  it("keeps committed lanes and clips isolated from fixed-mode transport, scroll and recording updates", () => {
+    const raf = stubRaf();
+    const view = mount(true);
+    const s = useDawStore.getState();
+    const beforeRevision = s.playheadSeekRevision;
+    for (let i = 1; i <= 5; i++) {
+      act(() => s.setPlayheadSec(i, "playback"));
+      act(() => s.setScrollLeft(i * 10));
+      act(() => s.setPlayheadSec(i));
+      act(() =>
+        useRecordHostStore.getState().setSnapshot(
+          recordSnapshot({
+            state: i % 2 ? "recording" : "paused",
+            recording_ms: i * 1_000,
+          }),
+        ),
+      );
+      act(() => raf.fire(i * 1_000));
+    }
+    expect(useDawStore.getState().playheadSec).toBe(5);
+    expect(useDawStore.getState().playheadSeekRevision - beforeRevision).toBe(
+      5,
+    );
+    expect(
+      view.container.querySelector(".playhead--fixed"),
+    ).toBeInTheDocument();
+    expect(renders.lanes).toEqual([]);
+    expect(renders.clips).toEqual([]);
+    act(() => useRecordHostStore.getState().setSnapshot(null));
+    view.unmount();
+    act(() => raf.fire(0));
   });
 
   it("re-renders only the newly and previously selected clips", () => {
