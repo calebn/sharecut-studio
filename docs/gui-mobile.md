@@ -249,6 +249,14 @@ is a 6% wash), the dark theme a dark well; the empty project
 offers a gridded drop stage as the import target.
 Track headers use their lane's clip color at the leading edge. Playback lighting
 only animates when reduced motion is not requested.
+Their horizontal playback meters remain visible in compact lanes and in the
+phone rail beneath the initials chip. A separate **Clear clip light** button
+retains a 44px touch target without opening track details. Reduced motion keeps
+the bar and peak marker still while the clip light can latch. Pause and Stop
+retain that light until cleared.
+Phone lanes have a 104px minimum in both fixed and fit modes, leaving separate
+touch targets for opening track details and clearing clipping. The saved track
+height still applies when it is larger than that minimum.
 
 - Transport overflow (theme, layers, zoom; host-only More → Add chapter at playhead, `edit.addChapter`)
 - Layouts (above)

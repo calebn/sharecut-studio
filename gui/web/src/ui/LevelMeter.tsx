@@ -20,6 +20,10 @@ export type LevelMeterProps = {
   peakHoldDb?: number;
   /** Latched clip state — stays lit until the driver clears it. */
   clipped?: boolean;
+  /** Hide the embedded clip LED when the caller supplies an external control. */
+  showClipIndicator?: boolean;
+  /** Overrides the accessible value text. */
+  valueText?: string;
   /** Bottom of the scale, dBFS. */
   minDb?: number;
   /** dBFS where the amber zone starts. */
@@ -66,7 +70,7 @@ function zoneGradient(
 }
 
 /**
- * Presentational peak meter for recording inputs.
+ * Presentational sample peak meter for recording and playback.
  *
  * Pure: it renders whatever the driver hands it — level, peak hold, and the
  * latched clip flag — so Storybook can show every state without a microphone
@@ -80,6 +84,8 @@ export function LevelMeter({
   levelDb,
   peakHoldDb,
   clipped = false,
+  showClipIndicator = true,
+  valueText: suppliedValueText,
   minDb = DEFAULT_MIN_DB,
   warnDb = DEFAULT_WARN_DB,
   dangerDb = DEFAULT_DANGER_DB,
@@ -108,9 +114,11 @@ export function LevelMeter({
         ? { left: `calc(${holdFrac * 100}% - var(--meter-hold-offset))` }
         : { bottom: `calc(${holdFrac * 100}% - var(--meter-hold-offset))` };
 
-  const valueText = clipped
-    ? `Clipping: peak ${formatDb(Math.max(levelDb, peakHoldDb ?? levelDb))}`
-    : formatDb(levelDb);
+  const valueText =
+    suppliedValueText ??
+    (clipped
+      ? `Clipping: peak ${formatDb(Math.max(levelDb, peakHoldDb ?? levelDb))}`
+      : formatDb(levelDb));
 
   return (
     <>
@@ -157,7 +165,7 @@ export function LevelMeter({
             </div>
           )}
         </div>
-        <ClipLed lit={clipped} showText />
+        {showClipIndicator && <ClipLed lit={clipped} showText />}
         {showNumeric && (
           <span className="ui-meter-numeric" aria-hidden="true">
             {formatDb(levelDb)}

@@ -1,5 +1,6 @@
 import type { ClipRow } from "../types/project";
 import { dbToLinear, trackIsAudible, trackOutputGainDb } from "../utils/audio";
+import { createChannelPeakTap } from "./channelPeakTap";
 import {
   buildSchedule,
   type ProxyManifest,
@@ -36,9 +37,14 @@ export class ProxyEngine {
   private lru: string[] = [];
   private decodedBytes = 0;
   private trackGains = new Map<string, GainNode>();
+  private meterTaps = new Map<
+    string,
+    ReturnType<typeof createChannelPeakTap>
+  >();
   private master: GainNode;
   private active: ActiveSource[] = [];
   private playing = false;
+  private scheduleReady = false;
   private playbackRate = 1;
   private scheduleGeneration = 0;
   private originCtxTime = 0;
@@ -77,6 +83,13 @@ export class ProxyEngine {
         g.connect(this.master);
         this.trackGains.set(t.id, g);
       }
+    }
+    for (const [id, gain] of this.trackGains) {
+      if (tracks.some((track) => track.id === id)) continue;
+      this.meterTaps.get(id)?.dispose();
+      this.meterTaps.delete(id);
+      gain.disconnect();
+      this.trackGains.delete(id);
     }
     this.applyGains();
     // A volume or mute change only moves gains; new clips need new sources.
@@ -139,9 +152,11 @@ export class ProxyEngine {
   pause(): number {
     const t = this.currentTimeSec();
     this.playing = false;
+    this.scheduleReady = false;
     this.scheduleGeneration += 1;
     this.stopSources();
     this.originTimelineSec = t;
+    void this.ctx.suspend();
     return t;
   }
 
@@ -165,8 +180,36 @@ export class ProxyEngine {
     );
   }
 
+  readTrackFrame(trackId: string): ArrayLike<number> | null {
+    if (
+      this.ctx.state !== "running" ||
+      !this.playing ||
+      !this.scheduleReady ||
+      !this.manifest?.tracks[trackId]
+    )
+      return null;
+    const gain = this.trackGains.get(trackId);
+    if (!gain) return null;
+    try {
+      let tap = this.meterTaps.get(trackId);
+      if (!tap) {
+        tap = createChannelPeakTap(this.ctx, gain);
+        this.meterTaps.set(trackId, tap);
+      }
+      return tap.read();
+    } catch {
+      return null;
+    }
+  }
+
   dispose(): void {
     this.pause();
+    for (const tap of this.meterTaps.values()) tap.dispose();
+    this.meterTaps.clear();
+    for (const gain of this.trackGains.values()) gain.disconnect();
+    this.trackGains.clear();
+    this.master.disconnect();
+    void this.ctx.close();
     this.buffers.clear();
     this.lru = [];
     this.decodedBytes = 0;
@@ -261,6 +304,7 @@ export class ProxyEngine {
   }
 
   private async scheduleAround(timelineSec: number): Promise<void> {
+    this.scheduleReady = false;
     const generation = ++this.scheduleGeneration;
     if (!this.manifest) {
       return;
@@ -333,5 +377,6 @@ export class ProxyEngine {
       }
       this.active.push({ source, gain: clipGain });
     }
+    this.scheduleReady = true;
   }
 }

@@ -17,6 +17,19 @@ function makeCtx() {
     };
   }> = [];
   const ctx = {
+    createChannelSplitter: vi.fn(() => ({
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+    })),
+    createAnalyser: vi.fn(() => ({
+      fftSize: 2048,
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      getFloatTimeDomainData: vi.fn((samples: Float32Array) =>
+        samples.fill(0.5),
+      ),
+    })),
+    state: "running",
     currentTime: 0,
     destination: {},
     createGain: () => {
@@ -54,11 +67,20 @@ function makeCtx() {
         sampleRate: 48000,
       }) as AudioBuffer,
     resume: vi.fn(async () => undefined),
+    suspend: vi.fn(async () => undefined),
+    close: vi.fn(async () => undefined),
   };
   return {
     ctx: ctx as unknown as AudioContext,
     created,
     gains,
+    analysers: ctx.createAnalyser,
+    splitter: ctx.createChannelSplitter,
+    close: ctx.close,
+    suspend: ctx.suspend,
+    setState: (state: string) => {
+      ctx.state = state;
+    },
     setTime: (time: number) => {
       ctx.currentTime = time;
     },
@@ -66,6 +88,63 @@ function makeCtx() {
 }
 
 describe("ProxyEngine", () => {
+  it("lazily taps output gains with separated channels and releases removed tracks", async () => {
+    const { ctx, gains, analysers, splitter, close, suspend, setState } =
+      makeCtx();
+    const engine = new ProxyEngine(ctx, async () => new ArrayBuffer(64));
+    engine.setManifest({
+      tracks: {
+        host: {
+          hash: "x",
+          chunk_sec: 60,
+          overlap_ms: 0,
+          chunk_count: 0,
+          duration_sec: 10,
+          urls: [],
+        },
+      },
+    });
+    engine.setProject({}, [{ id: "host", gain_db: 6, muted: false }]);
+    expect(engine.readTrackFrame("host")).toBeNull();
+    expect(analysers).not.toHaveBeenCalled();
+    engine.play(0);
+    expect(engine.readTrackFrame("host")).toBeNull();
+    await Promise.resolve();
+    analysers.mockImplementationOnce(() => {
+      throw new Error("temporary analysis failure");
+    });
+    expect(engine.readTrackFrame("host")).toBeNull();
+    expect(splitter.mock.results[0]?.value.disconnect).toHaveBeenCalledOnce();
+    const samples = engine.readTrackFrame("host");
+    expect(samples?.length).toBe(4096);
+    expect(samples?.[0]).toBe(0.5);
+    expect(samples?.[2048]).toBe(0.5);
+    expect(analysers).toHaveBeenCalledTimes(3);
+    setState("suspended");
+    expect(engine.readTrackFrame("host")).toBeNull();
+    setState("interrupted");
+    expect(engine.readTrackFrame("host")).toBeNull();
+    setState("running");
+    expect(engine.readTrackFrame("host")?.[0]).toBe(0.5);
+    const analyser = analysers.mock.results.find(
+      (result) => result.type === "return",
+    )?.value;
+    analyser?.getFloatTimeDomainData.mockImplementationOnce(() => {
+      throw new Error("temporary read failure");
+    });
+    expect(engine.readTrackFrame("host")).toBeNull();
+    expect(engine.readTrackFrame("host")?.[0]).toBe(0.5);
+    expect(gains[1]?.gain.value).toBeCloseTo(1.995262);
+    const split = splitter.mock.results.at(-1)?.value;
+    engine.setProject({}, []);
+    expect(split?.disconnect).toHaveBeenCalledOnce();
+    expect(engine.readTrackFrame("host")).toBeNull();
+    engine.pause();
+    expect(suspend).toHaveBeenCalled();
+    engine.dispose();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it("schedules sources for clips in the window", async () => {
     const { ctx, created } = makeCtx();
     const engine = new ProxyEngine(ctx, async () => new ArrayBuffer(64));

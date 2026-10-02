@@ -30,6 +30,11 @@ the pan range grows with the take so you can scroll to the live needle beyond
 saved media; that visual-only pan leaves playback position and saved-media seek
 bounds unchanged. Stop clears the preview, and landing shows the finalized clips.
 
+A playback meter beneath each track's initials shows its output peak. The clip
+light stays lit after playback stops. Tap **Clear clip light** to reset it
+without opening the track sheet. With reduced motion enabled, the meter bar
+stays still while clip detection continues.
+
 Pending edit regions fill their lane. Select one to reveal its label and review
 actions above or below the lane; they stay clear of the edge controls, and a
 narrow region does not make the timeline wider. In a dense set of cuts, point

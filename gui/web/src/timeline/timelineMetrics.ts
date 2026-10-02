@@ -129,10 +129,13 @@ export function resolveLaneHeight(input: {
   fixedPx: number;
   availablePx: number;
   trackCount: number;
+  minimumPx: number;
 }): number {
-  return input.mode === "fit"
-    ? fitLaneHeight(input.availablePx, input.trackCount)
-    : clampLaneHeightPx(input.fixedPx);
+  const height =
+    input.mode === "fit"
+      ? fitLaneHeight(input.availablePx, input.trackCount)
+      : clampLaneHeightPx(input.fixedPx);
+  return Math.max(input.minimumPx, height);
 }
 
 export type MarkerRows = {

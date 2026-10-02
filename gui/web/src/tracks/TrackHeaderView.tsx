@@ -34,6 +34,7 @@ export interface TrackHeaderViewProps {
   dropEdge: "before" | "after" | null;
   mayReorder: boolean;
   mixer: ReactNode;
+  playbackMeter?: ReactNode;
   longPress?: LongPressHandlers;
   onSelect: MouseEventHandler<HTMLButtonElement>;
   onHandleSelect?: () => void;
@@ -58,6 +59,7 @@ export function TrackHeaderView({
   dropEdge,
   mayReorder,
   mixer,
+  playbackMeter,
   longPress,
   onSelect,
   onHandleSelect,
@@ -160,12 +162,15 @@ export function TrackHeaderView({
           )}
         </div>
       </div>
-      <span
-        className="track-out-gain"
-        title={outputGainTitle(outputDb, stagingDb, volumeDb)}
-      >
-        Out {formatGainDb(outputDb)}
-      </span>
+      <div className="track-output-row">
+        <span
+          className="track-out-gain"
+          title={outputGainTitle(outputDb, stagingDb, volumeDb)}
+        >
+          Out {formatGainDb(outputDb)}
+        </span>
+        {playbackMeter}
+      </div>
     </div>
   );
 }

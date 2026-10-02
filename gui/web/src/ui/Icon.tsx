@@ -22,7 +22,8 @@ export type IconName =
   | "fitHeight"
   | "check"
   | "refresh"
-  | "seek";
+  | "seek"
+  | "warning";
 
 type Props = {
   name: IconName;
@@ -169,6 +170,13 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="M15.5 11.5a5.75 5.75 0 0 1-10.2 2.8" />
       <path d="M14.7 3.5v3.2h-3.2" />
       <path d="M5.3 16.5v-3.2h3.2" />
+    </>
+  ),
+  warning: (
+    <>
+      <path d="m10 3 8 14H2L10 3Z" />
+      <path d="M10 8v4" />
+      <path d="M10 14h.01" />
     </>
   ),
   seek: (
