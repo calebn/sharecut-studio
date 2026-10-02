@@ -21,8 +21,8 @@ import {
 } from "./view";
 
 export { setBladeCommandRunner } from "./editing";
-export { _resetExportDeliverablesInFlightForTests } from "./host";
 export { _resetProjectOpenInFlightForTests } from "./projectMedia";
+export { _resetSingleFlightsForTests } from "./singleFlight";
 export { _resetTrackMutateChainForTests } from "./trackMutation";
 
 export function registerDawCommands(): void {

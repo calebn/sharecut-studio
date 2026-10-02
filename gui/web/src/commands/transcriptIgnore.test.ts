@@ -3,10 +3,8 @@ import * as api from "../api";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import { clearRegisteredCommands, execute } from "./execute";
-import {
-  _resetTranscriptIgnoreInFlightForTests,
-  registerTranscriptIgnoreCommands,
-} from "./transcriptIgnore";
+import { _resetSingleFlightsForTests } from "./register";
+import { registerTranscriptIgnoreCommands } from "./transcriptIgnore";
 
 vi.mock("../api", () => ({
   setTranscriptWordsIgnored: vi.fn(async () => ({})),
@@ -44,7 +42,7 @@ function projectWithWords(
 
 describe("transcript.ignoreWords", () => {
   beforeEach(() => {
-    _resetTranscriptIgnoreInFlightForTests();
+    _resetSingleFlightsForTests();
     clearRegisteredCommands();
     registerTranscriptIgnoreCommands();
     vi.mocked(api.setTranscriptWordsIgnored).mockReset();
@@ -150,6 +148,19 @@ describe("transcript.ignoreWords", () => {
     expect(second).toEqual({
       status: "disabled",
       reason: "Ignore already in progress",
+    });
+    useDawStore.setState({ selection: null });
+    expect(await execute("transcript.ignoreWords", {})).toEqual({
+      status: "disabled",
+      reason: "No transcript range selected",
+    });
+    useDawStore.setState({
+      selection: {
+        kind: "transcriptRange",
+        trackId: "host",
+        startWordIndex: 0,
+        endWordIndex: 1,
+      },
     });
     release();
     expect(await first).toEqual({ status: "ok" });

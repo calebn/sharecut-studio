@@ -17,9 +17,10 @@ import {
   tightenHitsForListedIds,
 } from "../utils/tightenHits";
 import { registerCommand } from "./execute";
+import { createSingleFlight } from "./singleFlight";
 import type { ExecuteResult } from "./types";
 
-let tightenMutationInFlight = false;
+const tightenFlight = createSingleFlight();
 
 export function resolveTightenHitId(
   args: Record<string, unknown>,
@@ -50,78 +51,76 @@ export function pendingTightenHit(
 }
 
 async function runApprove(ids: string[]): Promise<ExecuteResult> {
-  if (tightenMutationInFlight) {
-    return { status: "disabled", reason: "Tighten action in progress" };
-  }
-  const s = useDawStore.getState();
-  if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
-    return { status: "disabled", reason: "Pass 1–2 edits not allowed" };
-  }
-  if (ids.length === 0) {
-    return { status: "disabled", reason: "No tighten hits to apply" };
-  }
-  tightenMutationInFlight = true;
-  try {
-    const projectPath = useDawStore.getState().projectPath;
-    const { queued } = await approveEdits(projectPath, ids);
-    const next = useDawStore.getState();
-    if (queued) {
-      // Saved but not sent yet: keep the selection and say so.
-      next.announceStatus(PENDING_REVIEW_QUEUED_MESSAGE);
+  const result = await tightenFlight.run(async (): Promise<ExecuteResult> => {
+    const s = useDawStore.getState();
+    if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
+      return { status: "disabled", reason: "Pass 1–2 edits not allowed" };
+    }
+    if (ids.length === 0) {
+      return { status: "disabled", reason: "No tighten hits to apply" };
+    }
+    try {
+      const projectPath = useDawStore.getState().projectPath;
+      const { queued } = await approveEdits(projectPath, ids);
+      const next = useDawStore.getState();
+      if (queued) {
+        // Saved but not sent yet: keep the selection and say so.
+        next.announceStatus(PENDING_REVIEW_QUEUED_MESSAGE);
+        return { status: "ok" };
+      }
+      const sel = next.selection;
+      if (
+        sel?.kind === "pending" &&
+        !next.project?.pending_edits.some((e) => e.id === sel.id)
+      ) {
+        next.setSelection(null);
+      }
+      next.announceStatus(
+        ids.length === 1
+          ? "Applied tighten hit"
+          : `Applied ${ids.length} tighten hits`,
+      );
       return { status: "ok" };
+    } catch (e) {
+      const msg = errorMessage(e);
+      useDawStore.getState().announceStatus(`Apply failed: ${msg}`);
+      return { status: "disabled", reason: msg };
     }
-    const sel = next.selection;
-    if (
-      sel?.kind === "pending" &&
-      !next.project?.pending_edits.some((e) => e.id === sel.id)
-    ) {
-      next.setSelection(null);
-    }
-    next.announceStatus(
-      ids.length === 1
-        ? "Applied tighten hit"
-        : `Applied ${ids.length} tighten hits`,
-    );
-    return { status: "ok" };
-  } catch (e) {
-    const msg = errorMessage(e);
-    useDawStore.getState().announceStatus(`Apply failed: ${msg}`);
-    return { status: "disabled", reason: msg };
-  } finally {
-    tightenMutationInFlight = false;
-  }
+  });
+  return result.ran
+    ? result.value
+    : { status: "disabled", reason: "Tighten action in progress" };
 }
 
 async function runReject(id: string): Promise<ExecuteResult> {
-  if (tightenMutationInFlight) {
-    return { status: "disabled", reason: "Tighten action in progress" };
-  }
-  const s = useDawStore.getState();
-  if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
-    return { status: "disabled", reason: "Pass 1–2 edits not allowed" };
-  }
-  tightenMutationInFlight = true;
-  try {
-    const projectPath = useDawStore.getState().projectPath;
-    const { queued } = await rejectEdits(projectPath, [id]);
-    const next = useDawStore.getState();
-    if (queued) {
-      // Saved but not sent yet: keep the selection and say so.
-      next.announceStatus(PENDING_REVIEW_QUEUED_MESSAGE);
+  const result = await tightenFlight.run(async (): Promise<ExecuteResult> => {
+    const s = useDawStore.getState();
+    if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
+      return { status: "disabled", reason: "Pass 1–2 edits not allowed" };
+    }
+    try {
+      const projectPath = useDawStore.getState().projectPath;
+      const { queued } = await rejectEdits(projectPath, [id]);
+      const next = useDawStore.getState();
+      if (queued) {
+        // Saved but not sent yet: keep the selection and say so.
+        next.announceStatus(PENDING_REVIEW_QUEUED_MESSAGE);
+        return { status: "ok" };
+      }
+      if (next.selection?.kind === "pending" && next.selection.id === id) {
+        next.setSelection(null);
+      }
+      next.announceStatus("Skipped tighten hit");
       return { status: "ok" };
+    } catch (e) {
+      const msg = errorMessage(e);
+      useDawStore.getState().announceStatus(`Skip failed: ${msg}`);
+      return { status: "disabled", reason: msg };
     }
-    if (next.selection?.kind === "pending" && next.selection.id === id) {
-      next.setSelection(null);
-    }
-    next.announceStatus("Skipped tighten hit");
-    return { status: "ok" };
-  } catch (e) {
-    const msg = errorMessage(e);
-    useDawStore.getState().announceStatus(`Skip failed: ${msg}`);
-    return { status: "disabled", reason: msg };
-  } finally {
-    tightenMutationInFlight = false;
-  }
+  });
+  return result.ran
+    ? result.value
+    : { status: "disabled", reason: "Tighten action in progress" };
 }
 
 function resolveApplyAllArgs(args: Record<string, unknown>): {

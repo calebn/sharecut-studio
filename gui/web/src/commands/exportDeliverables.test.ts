@@ -5,10 +5,7 @@ import { seedStudioJob } from "../state/seedStudioJob";
 import { minimalProject } from "../test/fixtures";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { clearRegisteredCommands, execute } from "./execute";
-import {
-  _resetExportDeliverablesInFlightForTests,
-  registerDawCommands,
-} from "./register";
+import { _resetSingleFlightsForTests, registerDawCommands } from "./register";
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
@@ -40,7 +37,7 @@ function jobSnapshot(id: string): PipelineJobSnapshot {
 describe("export.deliverables", () => {
   beforeEach(() => {
     clearRegisteredCommands();
-    _resetExportDeliverablesInFlightForTests();
+    _resetSingleFlightsForTests();
     registerDawCommands();
     startMock.mockReset();
     followMock.mockReset();
@@ -54,7 +51,7 @@ describe("export.deliverables", () => {
   });
 
   afterEach(() => {
-    _resetExportDeliverablesInFlightForTests();
+    _resetSingleFlightsForTests();
   });
 
   it("rejects a second invocation while the first export is in flight", async () => {
@@ -181,7 +178,7 @@ describe("export.deliverables", () => {
   });
 
   it("does not block another project's export", async () => {
-    _resetExportDeliverablesInFlightForTests();
+    _resetSingleFlightsForTests();
     startMock.mockResolvedValue(jobSnapshot("job-1"));
     followMock.mockImplementationOnce(() => new Promise(() => {}));
 
