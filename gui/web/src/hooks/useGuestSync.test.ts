@@ -76,7 +76,7 @@ describe("useGuestSync", () => {
       snapshot: {
         playhead_sec: 1.5,
         server_seq: 2,
-        is_playing: false,
+        is_playing: true,
       } as SessionState,
     };
     await act(async () => {
@@ -84,6 +84,25 @@ describe("useGuestSync", () => {
     });
     expect(apply).toHaveBeenCalledWith(
       expect.objectContaining({ playhead_sec: 1.5 }),
+    );
+    await act(async () => {
+      FakeWebSocket.instances[0].emit({
+        type: "Applied",
+        plane: "session",
+        prev_seq: 2,
+        server_seq: 3,
+        command: { type: "SetPlayhead", role: "agent", client_id: "a1" },
+        snapshot: {
+          server_seq: 3,
+          last_command_id: "cmd-3",
+          origin: "agent",
+          last_role: "agent",
+          playhead_sec: 2.5,
+        },
+      });
+    });
+    expect(apply).toHaveBeenLastCalledWith(
+      expect.objectContaining({ playhead_sec: 2.5, is_playing: true }),
     );
 
     const nextProject = minimalProject({
@@ -100,6 +119,125 @@ describe("useGuestSync", () => {
       });
     });
     expect(useDawStore.getState().project?.meta.name).toBe("ep2");
+  });
+
+  it("reconnects once when an Applied delta has a sequence gap", async () => {
+    const apply = vi.fn();
+    renderHook(() => useGuestSync("share:tok123", apply, vi.fn(), true));
+    const socket = FakeWebSocket.instances[0];
+    await act(async () => {
+      socket.emit({
+        type: "Snapshot",
+        plane: "session",
+        snapshot: {
+          playhead_sec: 1,
+          is_playing: false,
+          server_seq: 1,
+          last_command_id: "cmd-1",
+          origin: "viewer",
+          last_role: "viewer",
+        } as SessionState,
+      });
+    });
+    apply.mockClear();
+    const gap = {
+      type: "Applied",
+      plane: "session",
+      prev_seq: 2,
+      server_seq: 3,
+      snapshot: {
+        server_seq: 3,
+        last_command_id: "cmd-3",
+        origin: "agent",
+        last_role: "agent",
+        playhead_sec: 3,
+      },
+    };
+    await act(async () => {
+      socket.deliver(gap);
+      socket.deliver(gap);
+      const { flushInbound } = await import("../sync/inboundQueue");
+      flushInbound();
+    });
+    expect(socket.closed).toBe(true);
+    expect(apply).not.toHaveBeenCalled();
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it("restores agent authority from the guest hello after a gap reconnect", async () => {
+    const retry = vi.spyOn(globalThis, "setTimeout");
+    const apply = vi.fn();
+    renderHook(() => useGuestSync("share:tok123", apply, vi.fn(), true));
+    const first = FakeWebSocket.instances[0];
+    await act(async () => {
+      first.emit({
+        type: "Snapshot",
+        plane: "session",
+        snapshot: {
+          server_seq: 1,
+          last_command_id: "cmd-1",
+          origin: "viewer",
+          last_role: "viewer",
+          playhead_sec: 1,
+          is_playing: false,
+        },
+      });
+    });
+    apply.mockClear();
+    await act(async () => {
+      first.emit({
+        type: "Applied",
+        plane: "session",
+        prev_seq: 2,
+        server_seq: 3,
+        command: {
+          role: "agent",
+          type: "SetPlayhead",
+          client_id: "agent",
+          command_id: "agent-cmd",
+        },
+        snapshot: {
+          server_seq: 3,
+          last_command_id: "agent-cmd",
+          last_client_id: "agent",
+          origin: "agent",
+          last_role: "agent",
+          playhead_sec: 3,
+        },
+      });
+    });
+    expect(first.closed).toBe(true);
+    const reconnect = retry.mock.calls.find((call) => call[1] === 2000)?.[0];
+    expect(reconnect).toBeTypeOf("function");
+    await act(async () => {
+      (reconnect as () => void)();
+    });
+    const second = FakeWebSocket.instances[1];
+    expect(second).toBeDefined();
+    await act(async () => {
+      second.emit({
+        type: "Snapshot",
+        plane: "session",
+        snapshot: {
+          server_seq: 3,
+          last_command_id: "viewer-cmd",
+          last_client_id: "viewer",
+          origin: "viewer",
+          last_role: "viewer",
+          playhead_sec: 3,
+          is_playing: false,
+        },
+      });
+    });
+    expect(apply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        server_seq: 3,
+        last_command_id: "agent-cmd",
+        last_client_id: "agent",
+        origin: "agent",
+        last_role: "agent",
+      }),
+    );
   });
 
   it("applies Presence clients roster", async () => {

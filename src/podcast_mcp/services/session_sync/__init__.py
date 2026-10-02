@@ -47,8 +47,9 @@ if TYPE_CHECKING:
         session_meta,
         session_server_seq_at,
         sync_db_path,
+        wire_session_event,
     )
-    from podcast_mcp.services.session_sync.snapshot import wire_snapshot
+    from podcast_mcp.services.session_sync.snapshot import wire_full_snapshot, wire_snapshot
     from podcast_mcp.services.session_sync.sqlite import connect_session_db
     from podcast_mcp.services.session_sync.viewer import (
         publish_agent_play,
@@ -94,6 +95,8 @@ __all__ = [
     "session_meta",
     "session_server_seq_at",
     "sync_db_path",
+    "wire_full_snapshot",
+    "wire_session_event",
     "wire_snapshot",
 ]
 
@@ -137,6 +140,8 @@ _MODULE_BY_NAME = {
     "session_server_seq_at": "service",
     "sync_db_path": "service",
     "wire_snapshot": "snapshot",
+    "wire_full_snapshot": "snapshot",
+    "wire_session_event": "service",
 }
 
 

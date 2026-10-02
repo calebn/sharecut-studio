@@ -17,6 +17,12 @@ import {
   type PresenceCarryingFrame,
 } from "../presence/presenceFrames";
 import { usePresencePublisher } from "../presence/usePresencePublisher";
+import {
+  mergeSessionAppliedDelta,
+  type SessionAppliedDelta,
+  sessionAppliedHasGap,
+  withAgentAppliedAuthority,
+} from "../session/appliedDelta";
 import { newClientId } from "../session/clientId";
 import { createRosterRequester } from "../session/rosterRequest";
 import { bindWsSender, type WsSender } from "../session/wsSend";
@@ -46,7 +52,14 @@ type GuestMsg = PresenceCarryingFrame & {
   plane?: string;
   server_seq?: number;
   client_id?: string;
-  snapshot?: SessionState & {
+  prev_seq?: number;
+  command?: {
+    role?: string;
+    type?: string;
+    client_id?: string;
+    command_id?: string;
+  };
+  snapshot?: SessionAppliedDelta & {
     server_seq?: number;
     comments?: TimelineComment[];
     project?: ProjectView;
@@ -78,10 +91,10 @@ export function useGuestSync(
   const projectEpoch = useDawStore((state) => state.projectEpoch);
   const applyRef = useRef(applyAgentSession);
   applyRef.current = applyAgentSession;
-  const sessionSeqRef = useRef(0);
   const wsOpenRef = useRef(false);
   const connectIdRef = useRef(newClientId());
   const clientIdRef = useRef(connectIdRef.current);
+  const pendingAgentRecoveryRef = useRef<GuestMsg | null>(null);
   const sendRef = useRef<WsSender | null>(null);
   const [wsReady, setWsReady] = useState(false);
   const guestName = sessionDisplayName("guest");
@@ -98,7 +111,7 @@ export function useGuestSync(
       sendRef.current?.(frame),
     );
     const scope = activateDocumentScope(projectPath);
-    sessionSeqRef.current = 0;
+    pendingAgentRecoveryRef.current = null;
     wsOpenRef.current = false;
 
     const pollProject = () => {
@@ -145,6 +158,8 @@ export function useGuestSync(
       );
       const thisSocket = ws;
       let retired = false;
+      let sessionSnapshot: SessionState | null = null;
+      let sessionResyncing = false;
       const current = () =>
         !closed &&
         !retired &&
@@ -188,13 +203,60 @@ export function useGuestSync(
         }
         if (msg.plane === "session") {
           const seq = Number(snap.server_seq ?? msg.server_seq ?? 0);
-          if (seq > 0 && seq < sessionSeqRef.current) {
+          if (msg.type === "Snapshot") {
+            const full = snap as SessionState;
+            sessionSnapshot = full;
+            sessionResyncing = false;
+            const pendingAgent = pendingAgentRecoveryRef.current;
+            const targetSeq = Number(
+              pendingAgent?.server_seq ??
+                pendingAgent?.snapshot?.server_seq ??
+                0,
+            );
+            if (pendingAgent && full.server_seq < targetSeq) {
+              sessionResyncing = true;
+              thisSocket.close(3000, "session snapshot behind gap");
+              return;
+            }
+            const recovered = pendingAgent?.snapshot
+              ? withAgentAppliedAuthority(
+                  full,
+                  pendingAgent.snapshot,
+                  pendingAgent.command,
+                )
+              : full;
+            pendingAgentRecoveryRef.current = null;
+            applyRef.current(recovered);
             return;
           }
-          if (seq > 0) {
-            sessionSeqRef.current = seq;
+          if (msg.type !== "Applied") return;
+          if (
+            sessionAppliedHasGap(
+              sessionSnapshot?.server_seq ?? null,
+              msg.prev_seq,
+              seq,
+            )
+          ) {
+            if (!sessionResyncing && current()) {
+              sessionResyncing = true;
+              const role = msg.command?.role ?? snap.last_role ?? snap.origin;
+              if (role === "agent" || snap.origin === "agent") {
+                pendingAgentRecoveryRef.current = msg;
+              }
+              thisSocket.close(3000, "session sequence gap");
+            }
+            return;
           }
-          applyRef.current(snap as SessionState);
+          if (!sessionSnapshot || seq < sessionSnapshot.server_seq) return;
+          const merged = mergeSessionAppliedDelta(sessionSnapshot, snap);
+          if (
+            seq === sessionSnapshot.server_seq &&
+            merged.last_command_id === sessionSnapshot.last_command_id
+          ) {
+            return;
+          }
+          sessionSnapshot = merged;
+          applyRef.current(merged);
           return;
         }
         if (msg.plane === "document") {

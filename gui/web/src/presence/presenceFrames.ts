@@ -2,17 +2,15 @@ import type { RosterRequester } from "../session/rosterRequest";
 import { useDawStore } from "../state/dawStore";
 import type { SessionState } from "../types/session";
 
-/** The presence-plane shape of an inbound session/guest WS frame: a full roster
- * `Presence`, a per-client `PresenceDelta`, or a `Snapshot`/`Applied`/`Echo` that may
- * embed `snapshot.clients` (the hello `Snapshot` only - a durable session `Applied` /
- * `Echo` no longer carries the roster, see `docs/session-sync.md`). */
+/** The presence-plane shape of an inbound session/guest WS frame. Durable Applied
+ * snapshots are sparse; only hello Snapshot frames carry a complete session state. */
 export type PresenceCarryingFrame = {
   type?: string;
   clients?: SessionState["clients"];
   roster_version?: number;
   author_client_id?: string;
   changes?: Record<string, unknown>;
-  snapshot?: SessionState & { participants?: unknown };
+  snapshot?: Partial<SessionState> & { participants?: unknown };
 };
 
 /**

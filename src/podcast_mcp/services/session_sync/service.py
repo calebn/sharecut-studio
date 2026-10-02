@@ -328,14 +328,18 @@ def _applied_event(
 
 
 def wire_session_event(
-    row: dict[str, Any], api_snap: dict[str, Any], *, roster_version: int
+    row: dict[str, Any],
+    api_snap: dict[str, Any],
+    *,
+    roster_version: int,
+    server_seq: int | None = None,
+    after: int | None = None,
 ) -> dict[str, Any]:
-    """Compact twin of ``_applied_event`` for the hub publish and the WS ``Echo``: the
-    snapshot drops ``clients`` / ``fields`` (``snapshot.wire_snapshot``), so a durable
-    session ``Applied`` stays a flat, fixed-size transport view. Roster fan-out is the
-    separate per-client-delta path (``presence_delta.py``, ``_fanout_presence_after_commit``)."""
+    server_seq = int(row["server_seq"]) if server_seq is None else server_seq
     event = _applied_event(row, api_snap, roster_version=roster_version)
-    event["snapshot"] = wire_snapshot(api_snap)
+    event["server_seq"] = server_seq
+    event["prev_seq"] = max(0, server_seq - 1)
+    event["snapshot"] = wire_snapshot(api_snap, server_seq=server_seq, after=after)
     return event
 
 
@@ -403,7 +407,8 @@ class SessionSyncService:
         tick (``None`` checks the head alone). Under ``_publish_lock``, every row this
         process appended is already published (``SessionHub.unpublished_seqs``), so only
         foreign rows in ``(after, head]`` count. They collapse into one ``Applied`` at the
-        head ``server_seq`` with the full snapshot. Its ``command`` is the newest foreign
+        head ``server_seq`` with fields changed in ``(after, head]`` and ``prev_seq=head-1``.
+        Its ``command`` is the newest foreign
         agent row, else the newest foreign row (``cross_process_command``), and the
         snapshot's ``last_*`` / ``origin`` fields name that row. The client's authority
         check then applies an agent's command even when a viewer row is the head. Returns
@@ -425,8 +430,13 @@ class SessionSyncService:
                 return None
             clients = store.list_clients()
             api_snap = {**flatten_for_api(snap, clients), **attribution_fields(row)}
-            event = wire_session_event(row, api_snap, roster_version=self._roster_version())
-            event["server_seq"] = head
+            event = wire_session_event(
+                row,
+                api_snap,
+                roster_version=self._roster_version(),
+                server_seq=head,
+                after=after,
+            )
             hub.mark_published(self._project_key, seqs)
             hub.publish(self._project_key, event)
         self._fanout_presence_after_commit(clients)

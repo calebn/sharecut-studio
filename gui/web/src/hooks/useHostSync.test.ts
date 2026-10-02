@@ -290,13 +290,19 @@ describe("useHostSync presence", () => {
             client_id: clientIdRef.current,
             role: "viewer",
           },
-          snapshot: { server_seq: 1, last_command_id: "cmd-1" },
+          snapshot: {
+            server_seq: 1,
+            last_command_id: "cmd-1",
+            playhead_sec: 1,
+            is_playing: true,
+          },
         });
       });
       await act(async () => {
         FakeWebSocket.instances[0].emit({
           plane: "session",
           type: "Applied",
+          prev_seq: 0,
           command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
           snapshot: {
             server_seq: 1,
@@ -312,6 +318,7 @@ describe("useHostSync presence", () => {
         FakeWebSocket.instances[0].emit({
           plane: "session",
           type: "Applied",
+          prev_seq: 1,
           command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
           snapshot: {
             server_seq: 2,
@@ -323,6 +330,9 @@ describe("useHostSync presence", () => {
         });
       });
       expect(apply).toHaveBeenCalledTimes(1);
+      expect(apply).toHaveBeenCalledWith(
+        expect.objectContaining({ playhead_sec: 9, is_playing: true }),
+      );
     } finally {
       vi.useRealTimers();
     }
@@ -1018,6 +1028,7 @@ describe("useHostSync presence", () => {
       const applied = (seq: number, commandId: string) => ({
         plane: "session",
         type: "Applied",
+        prev_seq: seq - 1,
         command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
         snapshot: {
           server_seq: seq,
@@ -1028,6 +1039,18 @@ describe("useHostSync presence", () => {
         },
       });
       await act(async () => {
+        FakeWebSocket.instances[0].emit({
+          plane: "session",
+          type: "Snapshot",
+          snapshot: {
+            server_seq: 1,
+            last_command_id: "cmd-1",
+            origin: "viewer",
+            last_role: "viewer",
+            playhead_sec: 0,
+            is_playing: false,
+          },
+        });
         FakeWebSocket.instances[0].emit(applied(2, "cmd-2"));
       });
       expect(apply).toHaveBeenCalledTimes(1);
@@ -1125,6 +1148,7 @@ describe("useHostSync presence", () => {
       const applied = (seq: number, commandId: string) => ({
         plane: "session",
         type: "Applied",
+        prev_seq: seq - 1,
         command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
         snapshot: {
           server_seq: seq,
@@ -1202,6 +1226,195 @@ describe("useHostSync presence", () => {
         await vi.advanceTimersByTimeAsync(SANITY_POLL_MS);
       });
       expect(loadSessionState).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("coalesces a burst of Applied gaps into one full session resync", async () => {
+    const { loadSessionState } = await import("../api");
+    let finishResync: ((state: SessionState) => void) | undefined;
+    vi.mocked(loadSessionState).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishResync = resolve;
+        }),
+    );
+    const apply = vi.fn();
+    renderHook(() =>
+      useHostSync(
+        "/tmp/ep.project.json",
+        apply,
+        () => ({ playhead_sec: 0, is_playing: false }),
+        false,
+        0,
+        null,
+        false,
+        "k",
+        true,
+      ),
+    );
+    const socket = FakeWebSocket.instances[0];
+    await act(async () => {
+      socket.emit({
+        plane: "session",
+        type: "Snapshot",
+        snapshot: {
+          server_seq: 1,
+          last_command_id: "cmd-1",
+          origin: "viewer",
+          last_role: "viewer",
+          playhead_sec: 0,
+          is_playing: false,
+        },
+      });
+    });
+    await act(async () => {
+      socket.deliver({
+        plane: "session",
+        type: "Applied",
+        prev_seq: 2,
+        server_seq: 3,
+        command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
+        snapshot: {
+          server_seq: 3,
+          last_command_id: "agent-3",
+          last_client_id: "agent",
+          origin: "agent",
+          last_role: "agent",
+          playhead_sec: 3,
+        },
+      });
+      socket.deliver({
+        plane: "session",
+        type: "Applied",
+        prev_seq: 2,
+        server_seq: 3,
+        command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
+        snapshot: {
+          server_seq: 3,
+          last_command_id: "agent-3",
+          last_client_id: "agent",
+          origin: "agent",
+          last_role: "agent",
+          playhead_sec: 3,
+        },
+      });
+      flushInbound();
+    });
+    expect(loadSessionState).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      finishResync?.({
+        server_seq: 3,
+        last_command_id: "viewer-3",
+        last_client_id: "viewer",
+        origin: "viewer",
+        last_role: "viewer",
+        playhead_sec: 3,
+        is_playing: false,
+      } as SessionState);
+      await Promise.resolve();
+    });
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(apply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        server_seq: 3,
+        last_command_id: "agent-3",
+        last_client_id: "agent",
+        origin: "agent",
+        last_role: "agent",
+      }),
+    );
+  });
+
+  it("retries a host resync when a later gap arrives before the first read settles", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const { loadSessionState } = await import("../api");
+      const responses: Array<(state: SessionState) => void> = [];
+      vi.mocked(loadSessionState).mockImplementation(
+        () => new Promise((resolve) => responses.push(resolve)),
+      );
+      const apply = vi.fn();
+      renderHook(() =>
+        useHostSync(
+          "/tmp/ep.project.json",
+          apply,
+          () => ({}),
+          false,
+          0,
+          null,
+          false,
+          "k",
+          true,
+        ),
+      );
+      const socket = FakeWebSocket.instances[0];
+      await act(async () => {
+        socket.emit({
+          plane: "session",
+          type: "Snapshot",
+          snapshot: {
+            server_seq: 1,
+            last_command_id: "cmd-1",
+            origin: "viewer",
+            last_role: "viewer",
+            playhead_sec: 0,
+            is_playing: false,
+          },
+        });
+      });
+      await act(async () => {
+        socket.deliver({
+          plane: "session",
+          type: "Applied",
+          prev_seq: 2,
+          server_seq: 3,
+          snapshot: {
+            server_seq: 3,
+            last_command_id: "cmd-3",
+            playhead_sec: 3,
+          },
+        });
+        flushInbound();
+      });
+      expect(loadSessionState).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        socket.deliver({
+          plane: "session",
+          type: "Applied",
+          prev_seq: 3,
+          server_seq: 4,
+          snapshot: {
+            server_seq: 4,
+            last_command_id: "cmd-4",
+            playhead_sec: 4,
+          },
+        });
+        flushInbound();
+        responses[0]({
+          server_seq: 3,
+          last_command_id: "cmd-3",
+          playhead_sec: 3,
+        } as SessionState);
+        await Promise.resolve();
+      });
+      expect(loadSessionState).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(loadSessionState).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        responses[1]({
+          server_seq: 4,
+          last_command_id: "cmd-4",
+          playhead_sec: 4,
+        } as SessionState);
+        await Promise.resolve();
+      });
+      expect(apply).toHaveBeenLastCalledWith(
+        expect.objectContaining({ server_seq: 4, playhead_sec: 4 }),
+      );
     } finally {
       vi.useRealTimers();
     }
@@ -1321,7 +1534,20 @@ describe("useHostSync presence", () => {
       });
       sock.deliver({
         plane: "session",
+        type: "Snapshot",
+        snapshot: {
+          server_seq: 0,
+          last_command_id: null,
+          origin: "viewer",
+          last_role: "viewer",
+          playhead_sec: 0,
+          is_playing: false,
+        },
+      });
+      sock.deliver({
+        plane: "session",
         type: "Applied",
+        prev_seq: 0,
         command: { role: "agent", type: "SetPlayhead", client_id: "agent" },
         snapshot: {
           server_seq: 1,

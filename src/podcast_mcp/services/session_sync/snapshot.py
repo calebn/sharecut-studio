@@ -219,17 +219,52 @@ def flatten_for_api(snap: dict[str, Any], clients: list[dict[str, Any]]) -> dict
     return out
 
 
-def wire_snapshot(snap: dict[str, Any]) -> dict[str, Any]:
-    """Compact twin of a flattened snapshot for the durable session ``Applied`` wire event
-    (hub publish / WS ``Echo``): drops the roster (``clients``) and the server-only
-    per-field attribution map (``fields``), keeping the flat, fixed-size transport view.
+def wire_full_snapshot(snap: dict[str, Any]) -> dict[str, Any]:
+    """Full transport state and envelope for idempotent WS acknowledgments.
 
-    This removes the ``clients^2`` term from durable-session fan-out (roster fan-out is a
-    separate, per-client-delta path: ``presence_delta.py``). HTTP and MCP responses
-    (``SessionSyncService.snapshot()`` / ``submit()``'s return value) keep the full
-    snapshot, ``clients`` and ``fields`` included.
+    These carry no ``prev_seq`` and can supersede the client's state, since the
+    retried command row may precede the current snapshot. Roster and attribution
+    stay on their separate wire paths.
     """
-    out = dict(snap)
-    out.pop("clients", None)
-    out.pop("fields", None)
+    out: dict[str, Any] = {
+        key: snap[key]
+        for key in (
+            "version",
+            "server_seq",
+            "updated_at_ns",
+            "last_command_id",
+            "last_client_id",
+            "last_role",
+            "origin",
+            "available",
+            "server_time_ns",
+            "roster_version",
+        )
+        if key in snap
+    }
+    out.update({key: snap[key] for key in TRANSPORT_FIELDS if key in snap})
+    return out
+
+
+def wire_snapshot(
+    snap: dict[str, Any], *, server_seq: int | None = None, after: int | None = None
+) -> dict[str, Any]:
+    """Wire metadata plus transport fields attributed to ``(after, server_seq]``.
+
+    By default only the snapshot head's fields travel. Local commands pass their row
+    sequence; a cross-process collapsed head passes its watcher's previous cursor.
+    Neither the roster nor the server-only attribution map travels on this path.
+    HTTP/MCP responses and hello snapshots retain the full snapshot.
+    """
+    if server_seq is None:
+        head = snap.get("server_seq")
+        server_seq = head if isinstance(head, int) and not isinstance(head, bool) else 0
+    after = server_seq - 1 if after is None else after
+    out = wire_full_snapshot(snap)
+    fields = snap.get("fields")
+    for key in TRANSPORT_FIELDS:
+        field = fields.get(key) if isinstance(fields, dict) else None
+        seq = field.get("server_seq") if isinstance(field, dict) else None
+        if not (isinstance(seq, int) and not isinstance(seq, bool) and after < seq <= server_seq):
+            out.pop(key, None)
     return out
