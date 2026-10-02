@@ -28,12 +28,7 @@ import {
 } from "../edit/clipMove";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { presenceColorVar } from "../presence/colors";
-import {
-  isProgrammaticScroll,
-  withProgrammaticScroll,
-} from "../presence/followSync";
 import { useProsodyOverlayViews } from "../prosody/useProsodyOverlay";
-import { useRecordHostStore } from "../record/hostStore";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { timelineViewportRegistry } from "../state/timelineViewportRegistry";
@@ -53,18 +48,9 @@ import {
 } from "../utils/layout";
 import { clientXToTimelineSec } from "../utils/timelinePointer";
 import {
-  centerSecToScrollLeft,
   domToLogicalScrollLeft,
-  fixedPlayheadCanvasSize,
-  fixedPlayheadLeadPx,
   fixedPlayheadLinePx,
-  logicalToDomScrollLeft,
   measureTimelineColumns,
-  minLogicalScrollLeft,
-  PLAYHEAD_MOVE_MIN_PX,
-  SCROLL_SYNC_EPS_PX,
-  scrollLeftToCenterSec,
-  timelineCanvasSize,
   timelineHeaderEl,
 } from "../utils/timelineViewport";
 import { useStableCallback } from "../utils/useStableCallback";
@@ -89,12 +75,7 @@ import { Playhead } from "./Playhead";
 import { PresenceOverlay } from "./PresenceOverlay";
 import { ProsodyStatusAnnouncer } from "./ProsodyStatusAnnouncer";
 import { RecordingOverlay, RecordingScrollExtent } from "./RecordingOverlay";
-import {
-  BladeGuide,
-  FixedPlayheadRecenter,
-  FollowPlayheadChip,
-  TimelineScrollSync,
-} from "./TimelineLeaves";
+import { BladeGuide, FollowPlayheadChip } from "./TimelineLeaves";
 import { TimeRuler } from "./TimeRuler";
 import { TrackLane } from "./TrackLane";
 import {
@@ -107,6 +88,11 @@ import {
   useTimelineMetrics,
 } from "./timelineMetrics";
 import { attachTimelineZoomGestures } from "./timelineZoomGestures";
+import {
+  FixedPlayheadRecenter,
+  TimelineScrollSync,
+  useFixedPlayheadScroll,
+} from "./useFixedPlayheadScroll";
 
 type Props = {
   /** Phone Timeline mode: playhead fixed at viewport center; scrub by scrolling. */
@@ -123,7 +109,6 @@ const selectTimelineViewFields = pickDaw(
   "selection",
   "setSelection",
   "userZoomed",
-  "applyAnchoredZoom",
   "setTimelineFocused",
   "layers",
   "fitToWindow",
@@ -141,7 +126,6 @@ const selectTimelineViewFields = pickDaw(
   "shareCapabilities",
   "highlightStaleRender",
   "followingClientId",
-  "stopFollow",
   "setBladeHoverSec",
   "setTimelineViewportWidth",
   "laneHeightMode",
@@ -179,7 +163,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     selection,
     setSelection,
     userZoomed,
-    applyAnchoredZoom,
     setTimelineFocused,
     layers,
     fitToWindow,
@@ -197,7 +180,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     shareCapabilities,
     highlightStaleRender,
     followingClientId,
-    stopFollow,
     setBladeHoverSec,
     setTimelineViewportWidth,
     laneHeightMode,
@@ -235,9 +217,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const areaRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lanesRef = useRef<HTMLDivElement>(null);
-  // Set while a pinch or wheel zoom applies its anchored scroll, so the
-  // scroll events it causes neither seek nor unfollow.
-  const anchoringZoom = useRef(false);
   const applyZoomAtRef = useRef<(nextZoom: number, clientX: number) => void>(
     () => undefined,
   );
@@ -248,50 +227,19 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     timeViewportPx: 0,
   });
   const { timeViewportPx, headerOffsetPx } = columns;
-  // Fixed playhead: pad the time column by the viewport's center offset on
-  // each side so every time, 0 and the end included, can sit under the
-  // center line. Store scroll stays logical; the DOM scroll is logical + lead.
-  const leadPx = fixedPlayhead ? fixedPlayheadLeadPx(timeViewportPx) : 0;
-  // Layout effect: zoom anchoring reads the lead in the commit that applies
-  // the new margins. A logical scroll before −lead has nowhere to go.
-  useLayoutEffect(() => {
-    timelineViewportRegistry.setLeadPx(leadPx);
-    const { scrollLeft } = useDawStore.getState();
-    const floor = minLogicalScrollLeft(leadPx);
-    if (scrollLeft < floor) {
-      setScrollLeft(floor);
-    }
-  }, [leadPx, setScrollLeft]);
-  // Unmounting drops the pads, so the next (unpadded) view must not inherit a
-  // scroll before 0: it would anchor zoom and publish presence from it.
-  useEffect(
-    () => () => {
-      timelineViewportRegistry.setLeadPx(0);
-      const { scrollLeft } = useDawStore.getState();
-      const floor = minLogicalScrollLeft(0);
-      if (scrollLeft < floor) {
-        setScrollLeft(floor);
-      }
-    },
-    [setScrollLeft],
-  );
-  // The last DOM scroll this view wrote. Its scroll event is an echo, not a
-  // person's scroll, even if it arrives after the programmatic flags clear.
-  const lastWrittenScrollRef = useRef<number | null>(null);
-  const writeScroll = useCallback(
-    (el: HTMLElement, logical: number, lead: number) => {
-      const dom = logicalToDomScrollLeft(logical, lead);
-      if (Math.abs(el.scrollLeft - dom) <= SCROLL_SYNC_EPS_PX) {
-        return;
-      }
-      // The flag covers this frame's scroll event; the marker a late one.
-      withProgrammaticScroll(() => {
-        el.scrollLeft = dom;
-      });
-      lastWrittenScrollRef.current = el.scrollLeft;
-    },
-    [],
-  );
+  const scroll = useFixedPlayheadScroll({
+    scrollRef,
+    fixedPlayhead,
+    timeViewportPx,
+    sessionSec: project?.timeline_duration_sec ?? 0,
+    zoomPxPerSec,
+    followingClientId,
+  });
+  const {
+    leadPx,
+    canvas: { widthPx: width, durationSec: canvasSec },
+    writeScroll,
+  } = scroll;
   const [movePlacements, setMovePlacements] = useState<ClipMoveItem[] | null>(
     null,
   );
@@ -616,11 +564,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   );
 
   const sessionSec = project?.timeline_duration_sec ?? 0;
-  // A fixed playhead's canvas is the session (the pads fill the viewport),
-  // so the scroll range itself ends with the session end under the line.
-  const { widthPx: width, durationSec: canvasSec } = fixedPlayhead
-    ? fixedPlayheadCanvasSize(sessionSec, zoomPxPerSec)
-    : timelineCanvasSize(sessionSec, zoomPxPerSec, timeViewportPx);
   const bladeMode = toolMode === "blade" && !commentMode;
 
   // Lane callbacks: one stable function each, taking the track id first, so
@@ -690,18 +633,8 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
 
   const scrollLeaves = (
     <>
-      <TimelineScrollSync
-        scrollRef={scrollRef}
-        leadPx={leadPx}
-        writeScroll={writeScroll}
-      />
-      <FixedPlayheadRecenter
-        scrollRef={scrollRef}
-        leadPx={leadPx}
-        writeScroll={writeScroll}
-        fixedPlayhead={fixedPlayhead}
-        timeViewportPx={timeViewportPx}
-      />
+      <TimelineScrollSync binding={scroll.binding} />
+      <FixedPlayheadRecenter binding={scroll.binding} />
     </>
   );
 
@@ -747,49 +680,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const laneStackHeight =
     markerLaneHeightPx + project.tracks.length * laneHeight;
 
-  const onScroll = () => {
-    const el = scrollRef.current;
-    if (!el) {
-      return;
-    }
-    const dom = el.scrollLeft;
-    const logicalLeft = domToLogicalScrollLeft(dom, leadPx);
-    // Only a person's scroll unfollows or seeks. Fit, recentering and follow
-    // writes are flagged, and a late echo lands on the last written value.
-    // Decide and seek before storing the scroll: a store update can render
-    // at once, and the recenter effect must already see the new playhead.
-    const echo =
-      lastWrittenScrollRef.current !== null &&
-      Math.abs(dom - lastWrittenScrollRef.current) <= SCROLL_SYNC_EPS_PX;
-    if (!anchoringZoom.current && !isProgrammaticScroll() && !echo) {
-      lastWrittenScrollRef.current = null;
-      if (followingClientId) {
-        stopFollow("local");
-      }
-      if (fixedPlayhead) {
-        const sec = scrollLeftToCenterSec(
-          logicalLeft,
-          zoomPxPerSec,
-          timeViewportPx,
-          canvasSec,
-        );
-        const recordState = useRecordHostStore.getState().snapshot?.state;
-        const visualOnlyScroll =
-          (recordState === "recording" || recordState === "paused") &&
-          logicalLeft >
-            centerSecToScrollLeft(canvasSec, zoomPxPerSec, timeViewportPx);
-        const playheadSec = useDawStore.getState().playheadSec;
-        if (
-          !visualOnlyScroll &&
-          Math.abs(sec - playheadSec) * zoomPxPerSec > PLAYHEAD_MOVE_MIN_PX
-        ) {
-          setPlayheadSec(sec);
-        }
-      }
-    }
-    setScrollLeft(logicalLeft);
-  };
-
   const onBladePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!bladeMode || !lanesRef.current) {
       return;
@@ -809,15 +699,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     setBladeHoverSec(null);
   };
 
-  const applyZoomAt = (nextZoom: number, clientX: number) => {
-    anchoringZoom.current = true;
-    noteZoomPointerClientX(clientX);
-    applyAnchoredZoom(nextZoom, clientX);
-    requestAnimationFrame(() => {
-      anchoringZoom.current = false;
-    });
-  };
-  applyZoomAtRef.current = applyZoomAt;
+  applyZoomAtRef.current = scroll.applyZoomAt;
 
   const onTimelinePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     noteZoomPointerClientX(e.clientX);
@@ -883,7 +765,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
           <div
             className="timeline-scroll"
             ref={scrollRef}
-            onScroll={onScroll}
+            onScroll={scroll.onScroll}
             onPointerMove={onTimelinePointerMove}
           >
             <div className={lockClass}>
