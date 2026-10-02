@@ -2160,6 +2160,7 @@ def test_external_mutate_comments_event_carries_comments_at_the_new_seq(minimal_
     import asyncio
 
     from podcast_mcp.services.document import CommentService
+    from podcast_mcp.services.document.comment import run_comment_mutation_with_file_revisions
     from podcast_mcp.services.document_sync.service import (
         document_hub_key,
         notify_comments_changed,
@@ -2170,17 +2171,84 @@ def test_external_mutate_comments_event_carries_comments_at_the_new_seq(minimal_
     loop = asyncio.new_event_loop()
     queue = get_hub().subscribe(key, loop)
     try:
-        CommentService(ws).add(body="hi", author="viewer", timeline_start=1.0)
-        notify_comments_changed(minimal_project)
+        _, file_revisions = run_comment_mutation_with_file_revisions(
+            ws,
+            lambda: CommentService(ws).add(body="hi", author="viewer", timeline_start=1.0),
+        )
+        notify_comments_changed(minimal_project, file_revisions=file_revisions)
         loop.call_soon(lambda: None)
         loop.run_until_complete(asyncio.sleep(0))
         event = queue.get_nowait()
         assert event["server_seq"] == 1
         assert len(event["snapshot"]["comments"]) == 1
         assert "project" not in event["snapshot"]
+        before, after, _ = file_revisions
+        assert before is not None and after is not None
+        assert event["snapshot"]["file_before"] == {
+            "mtime_ns": before[3],
+            "size": before[2],
+        }
+        assert event["snapshot"]["file"] == {
+            "mtime_ns": after[3],
+            "size": after[2],
+        }
     finally:
         get_hub().unsubscribe(key, queue)
         loop.close()
+
+
+def test_comment_external_mutate_omits_file_before_after_intervening_project_write(
+    minimal_project,
+):
+    from podcast_mcp.services.document import CommentService
+    from podcast_mcp.services.document.comment import run_comment_mutation_with_file_revisions
+
+    ws = ProjectWorkspace.open(minimal_project)
+    _, file_revisions = run_comment_mutation_with_file_revisions(
+        ws,
+        lambda: CommentService(ws).add(body="first", author="viewer", timeline_start=1.0),
+    )
+    _, after, _ = file_revisions
+    assert after is not None
+
+    intervening = ProjectWorkspace.open(minimal_project)
+    CommentService(intervening).add(body="intervening", author="viewer", timeline_start=2.0)
+    event = DocumentSyncService.open(minimal_project).publish_document_changed(
+        projection="comments", file_revisions=file_revisions
+    )
+
+    snapshot = event["snapshot"]
+    assert "file_before" not in snapshot
+    assert len(snapshot["comments"]) == 2
+    assert snapshot["file"] != {"mtime_ns": after[3], "size": after[2]}
+    latest = DocumentSyncService.open(minimal_project).document_snapshot(projection="comments")
+    assert snapshot["file"] == latest["file"]
+
+
+def test_comment_external_mutate_omits_file_before_after_preserved_mtime_write(minimal_project):
+    import os
+
+    from podcast_mcp.services.document import CommentService
+    from podcast_mcp.services.document.comment import run_comment_mutation_with_file_revisions
+
+    ws = ProjectWorkspace.open(minimal_project)
+    _, file_revisions = run_comment_mutation_with_file_revisions(
+        ws,
+        lambda: CommentService(ws).add(body="first", author="viewer", timeline_start=1.0),
+    )
+    _, after, _ = file_revisions
+    assert after is not None
+
+    stat = minimal_project.stat()
+    content = minimal_project.read_text()
+    minimal_project.write_text(content.replace("test_episode", "next_episode"))
+    os.utime(minimal_project, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    assert minimal_project.stat().st_ctime_ns != stat.st_ctime_ns
+
+    service = DocumentSyncService.open(minimal_project)
+    event = service.publish_document_changed(projection="comments", file_revisions=file_revisions)
+    assert "file_before" not in event["snapshot"]
+    assert service.project.meta.name == "next_episode"
 
 
 def test_external_mutate_journals_a_crash_saved_command_first(minimal_project):

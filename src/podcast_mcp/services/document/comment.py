@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import builtins
-from typing import Any
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from podcast_mcp.edits.comments import (
     add_action_item,
@@ -17,6 +18,24 @@ from podcast_mcp.edits.comments import (
     update_comment,
 )
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.util.project_state import FileRevision
+
+T = TypeVar("T")
+
+
+def run_comment_mutation_with_file_revisions(
+    ws: ProjectWorkspace,
+    mutate: Callable[[], T],
+) -> tuple[T, tuple[FileRevision | None, FileRevision | None, int | None]]:
+    with ws.transaction():
+        before = ws.loaded_file_revision
+        result = mutate()
+        after = ws.loaded_file_revision
+        try:
+            after_ctime_ns = ws.path.stat().st_ctime_ns
+        except OSError:
+            after_ctime_ns = None
+    return result, (before, after, after_ctime_ns)
 
 
 class CommentService:
@@ -52,6 +71,7 @@ class CommentService:
         action_texts: builtins.list[str] | None = None,
         edit_decision_id: str | None = None,
         comment_id: str | None = None,
+        review_version_id: str | None = None,
     ) -> dict[str, Any]:
         def mutate(p) -> dict[str, Any]:
             comment = add_comment(
@@ -64,6 +84,7 @@ class CommentService:
                 action_texts=action_texts,
                 edit_decision_id=edit_decision_id,
                 comment_id=comment_id,
+                review_version_id=review_version_id,
             )
             return comment.model_dump()
 

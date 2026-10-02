@@ -618,7 +618,11 @@ class DocumentSyncService:
         return {"ok": True, **event}
 
     def publish_document_changed(
-        self, *, projection: str = "shell", role: ClientRole = "agent"
+        self,
+        *,
+        projection: str = "shell",
+        role: ClientRole = "agent",
+        file_revisions: tuple[FileRevision | None, FileRevision | None, int | None] | None = None,
     ) -> dict[str, Any]:
         """Journal an out-of-band project mutate as an ``ExternalMutate`` row, then fan it
         out (#661).
@@ -651,6 +655,15 @@ class DocumentSyncService:
                 empty_snap_fn=_empty_journal_snapshot,
             )
             api_snap = self._snapshot_or_resync(projection, int(row["server_seq"]))
+            if file_revisions is not None and not api_snap.get("resync"):
+                before, after, after_ctime_ns = file_revisions
+                if (
+                    before is not None
+                    and after is not None
+                    and self.ws.loaded_file_revision == after
+                    and file_certificate(self.ws.path) == (*after, after_ctime_ns)
+                ):
+                    api_snap["file_before"] = _file_wire(before)
             return self._publish_applied(row, api_snap)
 
     def publish_cross_process_head(self, after: int | None = None) -> dict[str, Any] | None:
@@ -788,7 +801,13 @@ class DocumentSyncService:
         return result
 
 
-def _notify_changed(project_path: str | Path, *, projection: str, role: ClientRole) -> None:
+def _notify_changed(
+    project_path: str | Path,
+    *,
+    projection: str,
+    role: ClientRole,
+    file_revisions: tuple[FileRevision | None, FileRevision | None, int | None] | None = None,
+) -> None:
     """Best effort: the mutation is already saved, so any failure to journal it (a lock
     timeout — ``filelock.Timeout`` is an ``OSError`` — a busy/corrupt ``document.db``, a
     project that fails to reload, a journal invariant) only logs a warning instead of
@@ -805,7 +824,7 @@ def _notify_changed(project_path: str | Path, *, projection: str, role: ClientRo
     data to it."""
     try:
         DocumentSyncService.open(project_path).publish_document_changed(
-            projection=projection, role=role
+            projection=projection, role=role, file_revisions=file_revisions
         )
     except Exception:
         log.warning("Could not journal ExternalMutate for %s", project_path, exc_info=True)
@@ -860,9 +879,19 @@ def document_poll_meta(project_path: Path) -> dict[str, Any]:
     return meta
 
 
-def notify_comments_changed(project_path: str | Path, *, role: ClientRole = "viewer") -> None:
+def notify_comments_changed(
+    project_path: str | Path,
+    *,
+    role: ClientRole = "viewer",
+    file_revisions: tuple[FileRevision | None, FileRevision | None, int | None] | None = None,
+) -> None:
     """Best-effort document fanout after REST CommentService mutations."""
-    _notify_changed(project_path, projection="comments", role=role)
+    _notify_changed(
+        project_path,
+        projection="comments",
+        role=role,
+        file_revisions=file_revisions,
+    )
 
 
 def after_agent_mutation(project_path: str | Path | ProjectWorkspace) -> None:

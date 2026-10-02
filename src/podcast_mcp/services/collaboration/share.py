@@ -48,6 +48,7 @@ from podcast_mcp.engines.play_audit import premix_path
 from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME, open_project, resolve_project_path
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService
+from podcast_mcp.services.document.comment import run_comment_mutation_with_file_revisions
 from podcast_mcp.services.document_sync import (
     document_poll_meta,
     notify_comments_changed,
@@ -1409,16 +1410,19 @@ def share_add_comment(
     row, ws = open_share_workspace(token)
     if not has_capability(row.get("capabilities"), "comment"):
         raise PermissionError("share does not allow comments")
-    ws.project.review.active_version_id = row["review_version_id"]
-    comment = CommentService(ws).add(
-        body=body,
-        author=author,
-        timeline_start=timeline_start,
-        timeline_end=timeline_end,
-        edit_decision_id=edit_decision_id,
-        track_ids=track_ids,
+    comment, file_revisions = run_comment_mutation_with_file_revisions(
+        ws,
+        lambda: CommentService(ws).add(
+            body=body,
+            author=author,
+            timeline_start=timeline_start,
+            timeline_end=timeline_end,
+            edit_decision_id=edit_decision_id,
+            track_ids=track_ids,
+            review_version_id=row["review_version_id"],
+        ),
     )
-    notify_comments_changed(ws.path, role="guest")
+    notify_comments_changed(ws.path, role="guest", file_revisions=file_revisions)
     return comment
 
 
@@ -1432,8 +1436,11 @@ def share_add_reply(
     row, ws = open_share_workspace(token)
     if not has_capability(row.get("capabilities"), "reply"):
         raise PermissionError("share does not allow replies")
-    result = CommentService(ws).add_reply(comment_id, body=body, author=author)
-    notify_comments_changed(ws.path, role="guest")
+    result, file_revisions = run_comment_mutation_with_file_revisions(
+        ws,
+        lambda: CommentService(ws).add_reply(comment_id, body=body, author=author),
+    )
+    notify_comments_changed(ws.path, role="guest", file_revisions=file_revisions)
     return result
 
 
@@ -1451,13 +1458,16 @@ def share_set_action_done(
     row, ws = open_share_workspace(token)
     if not has_capability(row.get("capabilities"), CAP_ACTION):
         raise PermissionError("share does not allow action items")
-    result = CommentService(ws).set_action_done(
-        comment_id,
-        action_id,
-        done=done,
-        by=by,
+    result, file_revisions = run_comment_mutation_with_file_revisions(
+        ws,
+        lambda: CommentService(ws).set_action_done(
+            comment_id,
+            action_id,
+            done=done,
+            by=by,
+        ),
     )
-    notify_comments_changed(ws.path, role="guest")
+    notify_comments_changed(ws.path, role="guest", file_revisions=file_revisions)
     return result
 
 

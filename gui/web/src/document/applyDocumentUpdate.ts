@@ -185,9 +185,20 @@ export function applyDocumentSnapshot(
     const phase = documentAuthority.phase;
     if (phase.kind === "recovering" && seq < phase.minimum)
       return useDawStore.getState().project;
+    const chainedComments =
+      phase.kind === "ready" &&
+      seq === currentDocumentSeq() + 1 &&
+      snap.comments !== undefined &&
+      snap.state_token !== undefined &&
+      snap.file !== undefined &&
+      snap.file_before !== undefined &&
+      documentAuthority.file !== null &&
+      snap.file_before.mtime_ns === documentAuthority.file.mtime_ns &&
+      snap.file_before.size === documentAuthority.file.size;
     if (
       !snap.project &&
-      (phase.kind !== "ready" || seq !== currentDocumentSeq())
+      (phase.kind !== "ready" ||
+        (seq !== currentDocumentSeq() && !chainedComments))
     )
       return invalidate(seq, scope);
     next = projectFromDocumentSnapshot(previous, snap);
