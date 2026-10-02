@@ -28,6 +28,12 @@ import { useRecordHostStore } from "../record/hostStore";
 import { bindRecordHostSend } from "../record/hostWire";
 import { emitRecordSignal, isRecordSignal } from "../record/monitor/signalBus";
 import type { RecordSnapshot } from "../record/types";
+import {
+  mergeSessionAppliedDelta,
+  type SessionAppliedDelta,
+  sessionAppliedHasGap,
+  withAgentAppliedAuthority,
+} from "../session/appliedDelta";
 import { newClientId } from "../session/clientId";
 import {
   type AppliedCursor,
@@ -71,7 +77,15 @@ type SessionWireMsg = PresenceCarryingFrame & {
   code?: string;
   plane: "session";
   server_time_ns?: number;
-  command?: { role?: string; type?: string; client_id?: string };
+  server_seq?: number;
+  prev_seq?: number;
+  snapshot?: SessionAppliedDelta;
+  command?: {
+    role?: string;
+    type?: string;
+    client_id?: string;
+    command_id?: string;
+  };
 };
 
 type DocumentWireMsg = {
@@ -130,6 +144,7 @@ export function useHostSync(
   }
   const applyAgentSessionRef = useRef(applyAgentSession);
   applyAgentSessionRef.current = applyAgentSession;
+  const remoteSessionRef = useRef<SessionState | null>(null);
 
   cursorRef.current.value = {
     serverSeq: Math.max(cursorRef.current.value.serverSeq, lastAppliedRevision),
@@ -189,11 +204,16 @@ export function useHostSync(
     if (suppressPublish || !enabled || !projectPath) return;
     const scope = activateDocumentScope(projectPath);
     const written = await postSessionState(projectPath, viewerSnapshot());
-    if (isCurrentDocumentScope(scope))
+    if (isCurrentDocumentScope(scope)) {
+      const held = remoteSessionRef.current;
+      if (!held || written.server_seq >= held.server_seq) {
+        remoteSessionRef.current = written;
+      }
       cursorRef.current.value = advanceCursorIfNewer(
         cursorRef.current.value,
         written,
       );
+    }
   });
 
   const fallBackToHttp = useEffectEvent(() => {
@@ -205,6 +225,7 @@ export function useHostSync(
     if (!enabled || !projectPath) {
       return;
     }
+    remoteSessionRef.current = null;
     const scope = activateDocumentScope(projectPath);
     const viewerStateWait = viewerStateWaitRef.current;
     let attempt = 0;
@@ -212,9 +233,77 @@ export function useHostSync(
     let cancelled = false;
     let retry: number | null = null;
     let socket: WebSocket | null = null;
+    let sessionResyncInFlight = false;
+    let sessionResyncTargetSeq = 0;
+    let pendingAgentResync: SessionWireMsg | null = null;
+    let sessionResyncRetry: number | null = null;
     const rosterRequester = createRosterRequester((frame) =>
       sendRef.current?.(frame),
     );
+
+    const requestSessionResync = (gap?: SessionWireMsg) => {
+      if (gap) {
+        sessionResyncTargetSeq = Math.max(
+          sessionResyncTargetSeq,
+          Number(gap.server_seq ?? gap.snapshot?.server_seq ?? 0),
+          cursorRef.current.value.serverSeq,
+        );
+        const role =
+          gap.command?.role ?? gap.snapshot?.last_role ?? gap.snapshot?.origin;
+        if (role === "agent" || gap.snapshot?.origin === "agent") {
+          pendingAgentResync = gap;
+        }
+      }
+      if (sessionResyncInFlight || sessionResyncTargetSeq <= 0) return;
+      sessionResyncInFlight = true;
+      let retryBehindTarget = false;
+      void loadSessionState(projectPath)
+        .then((snapshot) => {
+          if (!snapshot || cancelled || !isCurrentDocumentScope(scope)) return;
+          sessionResyncTargetSeq = Math.max(
+            sessionResyncTargetSeq,
+            cursorRef.current.value.serverSeq,
+          );
+          if (snapshot.server_seq < sessionResyncTargetSeq) {
+            retryBehindTarget = true;
+            return;
+          }
+          const held = remoteSessionRef.current;
+          if (
+            snapshot.server_seq >= cursorRef.current.value.serverSeq &&
+            (!held || snapshot.server_seq >= held.server_seq)
+          ) {
+            remoteSessionRef.current = snapshot;
+          }
+          if (snapshot.server_seq >= cursorRef.current.value.serverSeq) {
+            const authority = pendingAgentResync;
+            const state = authority?.snapshot
+              ? withAgentAppliedAuthority(
+                  snapshot,
+                  authority.snapshot,
+                  authority.command,
+                )
+              : snapshot;
+            applyRemote(
+              state,
+              authority?.command?.type,
+              authority?.command?.client_id ?? state.last_client_id,
+            );
+            sessionResyncTargetSeq = 0;
+            pendingAgentResync = null;
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          sessionResyncInFlight = false;
+          if (retryBehindTarget && !cancelled) {
+            sessionResyncRetry = window.setTimeout(() => {
+              sessionResyncRetry = null;
+              requestSessionResync();
+            }, 100);
+          }
+        });
+    };
 
     const handleSessionFrame = (msg: SessionWireMsg) => {
       if (cancelled || !isCurrentDocumentScope(scope)) {
@@ -237,20 +326,60 @@ export function useHostSync(
           msg.type === "Echo") &&
         msg.snapshot
       ) {
-        const snap = msg.snapshot;
-        if (
-          msg.type === "Snapshot" &&
-          cursorRef.current.value.serverSeq === 0
-        ) {
-          const { apply, next } = baselineFromSnapshot(
-            snap,
-            cursorRef.current.value,
-          );
-          if (apply) {
-            applyAgentSessionRef.current(snap);
+        const patch = msg.snapshot;
+        if (msg.type === "Snapshot") {
+          const snap = patch as SessionState;
+          const held = remoteSessionRef.current;
+          if (
+            snap.server_seq >= cursorRef.current.value.serverSeq &&
+            (!held || snap.server_seq >= held.server_seq)
+          ) {
+            remoteSessionRef.current = snap;
           }
-          cursorRef.current.value = next;
+          if (
+            cursorRef.current.value.serverSeq === 0 &&
+            remoteSessionRef.current === snap
+          ) {
+            const { apply, next } = baselineFromSnapshot(
+              snap,
+              cursorRef.current.value,
+            );
+            if (apply) applyAgentSessionRef.current(snap);
+            cursorRef.current.value = next;
+          }
           return;
+        }
+
+        const isDurableDelta =
+          msg.type === "Applied" ||
+          (msg.type === "Echo" && msg.prev_seq !== undefined);
+        let snap = patch as SessionState;
+        if (isDurableDelta) {
+          const held = remoteSessionRef.current;
+          const serverSeq = Number(msg.server_seq ?? patch.server_seq ?? 0);
+          if (
+            sessionAppliedHasGap(
+              held?.server_seq ?? null,
+              msg.prev_seq,
+              serverSeq,
+            )
+          ) {
+            requestSessionResync(msg);
+            return;
+          }
+          if (!held || serverSeq < held.server_seq) return;
+          snap = mergeSessionAppliedDelta(held, patch);
+          remoteSessionRef.current = snap;
+        } else {
+          const full = patch as SessionState;
+          const held = remoteSessionRef.current;
+          if (
+            full.server_seq >= cursorRef.current.value.serverSeq &&
+            (!held || full.server_seq >= held.server_seq)
+          ) {
+            remoteSessionRef.current = full;
+          }
+          snap = remoteSessionRef.current ?? full;
         }
         if (
           shouldHandleWsMessage(
@@ -401,6 +530,9 @@ export function useHostSync(
       sendRef.current = null;
       rosterRequester.dispose();
       stopViewerStateWait(viewerStateWait);
+      if (sessionResyncRetry != null) {
+        window.clearTimeout(sessionResyncRetry);
+      }
       setWsReady(false);
       useRecordHostStore.getState().resetConnection();
     };
@@ -420,6 +552,7 @@ export function useHostSync(
       }
       const state = await loadSessionState(projectPath);
       if (state && isCurrentDocumentScope(scope)) {
+        remoteSessionRef.current = state;
         applyRemote(state);
       }
     },

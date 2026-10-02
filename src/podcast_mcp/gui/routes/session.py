@@ -21,7 +21,8 @@ from podcast_mcp.services.session_sync import (
     publish_viewer_snapshot,
     read_session_state,
     retry_command_id,
-    wire_snapshot,
+    wire_full_snapshot,
+    wire_session_event,
 )
 from podcast_mcp.util.proxy_paths import is_relayed_request
 
@@ -150,9 +151,16 @@ def apply_ws_client_message(
                 "detail": str(exc),
             }, seq
         echo = {**result, "type": "Echo"}
-        snapshot = echo.get("snapshot")
-        if isinstance(snapshot, dict):
-            echo["snapshot"] = wire_snapshot(snapshot)
+        if result["type"] == "Applied" and not result.get("idempotent"):
+            echo.update(
+                wire_session_event(
+                    result["command"], result["snapshot"], roster_version=result["roster_version"]
+                )
+            )
+            echo["type"] = "Echo"
+        else:
+            echo["snapshot"] = wire_full_snapshot(result["snapshot"])
+            echo["server_seq"] = result["snapshot"]["server_seq"]
         return echo, seq
     if mtype == "Ack":
         svc.submit(

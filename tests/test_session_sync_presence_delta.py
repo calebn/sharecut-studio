@@ -400,6 +400,11 @@ def test_compact_applied_has_no_clients_or_fields(minimal_project) -> None:
     assert wire_event["type"] == "Applied"
     assert "clients" not in wire_event["snapshot"]
     assert "fields" not in wire_event["snapshot"]
+    from podcast_mcp.services.session_sync.commands import TRANSPORT_FIELDS
+
+    assert wire_event["snapshot"].keys() & TRANSPORT_FIELDS == {"playhead_sec"}
+    assert wire_event["snapshot"]["playhead_sec"] == 3.5
+    assert wire_event["prev_seq"] == wire_event["server_seq"] - 1 == 0
     assert wire_event["author_client_id"] == "agent-x"
     # The Applied is published before the post-commit roster fan-out.
     assert wire_event["roster_version"] == before
@@ -407,6 +412,8 @@ def test_compact_applied_has_no_clients_or_fields(minimal_project) -> None:
     # submit()'s own return value keeps the full snapshot.
     assert "clients" in result["snapshot"]
     assert "fields" in result["snapshot"]
+    assert result["snapshot"].keys() >= TRANSPORT_FIELDS
+    assert "prev_seq" not in result
     assert result["author_client_id"] == "agent-x"
 
 
