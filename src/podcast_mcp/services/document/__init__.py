@@ -11,7 +11,10 @@ if TYPE_CHECKING:
         TrimBoundaryTarget,
     )
     from podcast_mcp.services.document.clip import ClipService
-    from podcast_mcp.services.document.comment import CommentService
+    from podcast_mcp.services.document.comment import (
+        CommentService,
+        run_comment_mutation_with_file_revisions,
+    )
     from podcast_mcp.services.document.cross_process_sync import (
         cross_process_bridge,
         cross_process_lease,
@@ -55,6 +58,7 @@ __all__ = [
     "cross_process_bridge",
     "cross_process_lease",
     "review_comments_locked",
+    "run_comment_mutation_with_file_revisions",
     "score_golden_ear",
 ]
 
@@ -66,6 +70,7 @@ _MODULE_BY_NAME = {
     "TrimBoundaryTarget": "boundary",
     "ClipService": "clip",
     "CommentService": "comment",
+    "run_comment_mutation_with_file_revisions": "comment",
     "cross_process_bridge": "cross_process_sync",
     "cross_process_lease": "cross_process_sync",
     "EditService": "edit",

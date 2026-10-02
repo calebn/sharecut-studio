@@ -12,8 +12,7 @@ from podcast_mcp.gui.schemas import (
     CommentReplyRequest,
 )
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import CommentService
-from podcast_mcp.services.document.comment import run_comment_mutation_with_file_revisions
+from podcast_mcp.services.document import CommentService, run_comment_mutation_with_file_revisions
 from podcast_mcp.services.document_sync import notify_comments_changed
 
 router = APIRouter()
