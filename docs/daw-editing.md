@@ -301,3 +301,7 @@ Words in repeated clips, cut-away words, and retained unplaced recordings edit t
 Overlaps with neighboring words produce a warning, without moving the neighbors or preventing a correction. Bounds must be finite, positive, and within the server's known recording duration (at least one sample when its rate is known). Missing duration disables saving until current waveform metadata is available and the editor is reloaded. Before saving, the server rechecks the raw word sequence, flags and recording identity under the project transaction. A stale draft changes nothing and requires a reload. If delivery queues, the editor says so and the same guard applies on replay.
 
 A successful change marks the selected transcript user-edited and clears timing-derived acoustic evidence. Automatic suppression is cleared with that evidence; locked and ignored choices remain. Moving an ignored word changes its mute interval, and a transcript gate can change its rendered interval. Those audio consequences use the transcript/audio projection and normal render freshness bookkeeping. **Undo timing** is available only while that result is current, closes the draft, and restores both boundaries and evidence in one step. After newer work, use History.
+
+## Exact selected ranges
+
+Selected-track range Cut punches holes in place. Mute adds silence only to the selected clip occurrences. Repeated copies of the same recording remain separate targets. A changed clip placement or media revision rejects the whole action and asks for reselection.

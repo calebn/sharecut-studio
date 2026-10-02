@@ -131,7 +131,7 @@ def edit_approve_cmd(
     ids: str = typer.Option(..., "--ids", help="Comma-separated edit ids"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    n = EditService(ws).approve([x.strip() for x in ids.split(",") if x.strip()])
+    n = EditService(ws).approve([x.strip() for x in ids.split(",") if x.strip()], allow_exact=True)
     typer.echo(f"Approved {n} edit(s).")
     if n == 0:
         typer.echo("Warning: no edits were approved — check the edit ids.", err=True)

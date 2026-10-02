@@ -1019,6 +1019,72 @@
       "title": "ApproveEditsPayload",
       "type": "object"
     },
+    "Clip": {
+      "properties": {
+        "fade_in_ms": {
+          "default": 0,
+          "title": "Fade In Ms",
+          "type": "integer"
+        },
+        "fade_out_ms": {
+          "default": 0,
+          "title": "Fade Out Ms",
+          "type": "integer"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "join_in_mode": {
+          "$ref": "#/$defs/ClipJoinMode",
+          "default": "fade"
+        },
+        "mute_regions": {
+          "items": {
+            "$ref": "#/$defs/ClipMuteRegion"
+          },
+          "title": "Mute Regions",
+          "type": "array"
+        },
+        "source_end": {
+          "title": "Source End",
+          "type": "number"
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Id"
+        },
+        "source_start": {
+          "title": "Source Start",
+          "type": "number"
+        },
+        "timeline_start": {
+          "title": "Timeline Start",
+          "type": "number"
+        },
+        "track_id": {
+          "title": "Track Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "track_id",
+        "source_start",
+        "source_end",
+        "timeline_start"
+      ],
+      "title": "Clip",
+      "type": "object"
+    },
     "ClipJoinMode": {
       "description": "How an incoming clip meets the previous clip at render time.",
       "enum": [
@@ -1050,6 +1116,25 @@
         "track_id"
       ],
       "title": "ClipMoveItem",
+      "type": "object"
+    },
+    "ClipMuteRegion": {
+      "description": "Source-media span rendered as silence inside a clip (mute-in-place).",
+      "properties": {
+        "end_s": {
+          "title": "End S",
+          "type": "number"
+        },
+        "start_s": {
+          "title": "Start S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "start_s",
+        "end_s"
+      ],
+      "title": "ClipMuteRegion",
       "type": "object"
     },
     "CorrectTranscriptPhraseCommand": {
@@ -1917,6 +2002,123 @@
       "title": "EditDecisionType",
       "type": "string"
     },
+    "EditSelectedRangeCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/EditSelectedRangePayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "EditSelectedRange",
+          "default": "EditSelectedRange",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "EditSelectedRangeCommand",
+      "type": "object"
+    },
+    "EditSelectedRangePayload": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "cut",
+            "mute"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/ExactRangeTarget"
+        }
+      },
+      "required": [
+        "action",
+        "target"
+      ],
+      "title": "EditSelectedRangePayload",
+      "type": "object"
+    },
     "EnvelopePoint": {
       "properties": {
         "id": {
@@ -1938,6 +2140,58 @@
         "value"
       ],
       "title": "EnvelopePoint",
+      "type": "object"
+    },
+    "ExactRangeTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "clips": {
+          "items": {
+            "$ref": "#/$defs/Clip"
+          },
+          "maxItems": 10000,
+          "title": "Clips",
+          "type": "array"
+        },
+        "intervals": {
+          "items": {
+            "$ref": "#/$defs/RangeInterval"
+          },
+          "maxItems": 1000,
+          "minItems": 1,
+          "title": "Intervals",
+          "type": "array"
+        },
+        "kind": {
+          "const": "exact_range",
+          "default": "exact_range",
+          "title": "Kind",
+          "type": "string"
+        },
+        "media_seals": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Media Seals",
+          "type": "object"
+        },
+        "track_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 1000,
+          "minItems": 1,
+          "title": "Track Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "intervals",
+        "track_ids",
+        "clips",
+        "media_seals"
+      ],
+      "title": "ExactRangeTarget",
       "type": "object"
     },
     "ExpectedEnvelopePoint": {
@@ -2405,6 +2659,27 @@
         "end"
       ],
       "title": "PendingEditBaseline",
+      "type": "object"
+    },
+    "RangeInterval": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "exclusiveMinimum": 0,
+          "title": "End",
+          "type": "number"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "RangeInterval",
       "type": "object"
     },
     "RedoHistoryCommand": {
@@ -6450,6 +6725,7 @@
       "DeleteComment": "#/$defs/DeleteCommentCommand",
       "DeleteSocialClip": "#/$defs/DeleteSocialClipCommand",
       "DuplicateSegment": "#/$defs/DuplicateSegmentCommand",
+      "EditSelectedRange": "#/$defs/EditSelectedRangeCommand",
       "MoveClips": "#/$defs/MoveClipsCommand",
       "MoveSegment": "#/$defs/MoveSegmentCommand",
       "PasteSegment": "#/$defs/PasteSegmentCommand",
@@ -6590,6 +6866,9 @@
     },
     {
       "$ref": "#/$defs/SetEnvelopeCommand"
+    },
+    {
+      "$ref": "#/$defs/EditSelectedRangeCommand"
     },
     {
       "$ref": "#/$defs/SuggestPendingEditCommand"

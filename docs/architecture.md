@@ -391,3 +391,7 @@ All skills and MCP template live under `.agents/`. See [setup.md](setup.md).
 ## Contributing
 
 See [contributing.md](contributing.md) for where to add new operations.
+
+## Exact selected ranges
+
+Exact selected ranges use `edits/range_edits.py`. The sealed target names timeline intervals, destination lanes, clip occurrences, and opaque media revisions. Approval and pending audition use that kernel. Cut leaves holes and later placements stay aligned. A whole range action uses one workspace mutation and one History Undo. `Track.timeline_empty` distinguishes a fully removed lane from implicit raw media.

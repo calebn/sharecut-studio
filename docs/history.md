@@ -192,3 +192,7 @@ Studio find-and-replace validates its reviewed, source-keyed match set before on
 ## Word timing adjustments
 
 `SetTranscriptWordTiming` checks the exact raw transcript, word sequence and recording revision in a `ProjectWorkspace.transaction()` before one `mutate()` call. A pointer gesture saves only on release; numeric and keyboard drafts require Apply. A no-op or stale draft creates no history action. Undo restores the exact timing, automatic evidence, suppression choices, user-edited flag and silence-filter fingerprint. Render freshness follows the restored ignored-word or transcript-gate intervals. The adjacent Wordbar Undo validates the current project snapshot and document sequence again at click time, then closes the editor before invoking the shared history command.
+
+## Exact selected ranges
+
+A selected range Cut or Mute is one history mutation across every selected lane and interval. Host approval is also one mutation. Undo restores all clip placements, local mute holes, and the pending decision together. Exact range records require History Undo rather than source-span Restore.

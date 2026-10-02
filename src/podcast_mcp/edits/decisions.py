@@ -267,9 +267,19 @@ def _apply_mute_edit(
 
 
 def approve_edits(project: EpisodeProject, ids: list[str]) -> int:
+    from podcast_mcp.edits.range_edits import apply_range, resolve_range
+
     id_set = set(ids)
     applied_ids: set[str] = set()
     to_apply = [e for e in project.edit_decisions if e.id in id_set]
+    exact = [e for e in to_apply if e.exact_range is not None]
+    for edit in exact:
+        if edit.exact_range is not None:
+            resolve_range(project, edit.exact_range)
+    for edit in exact:
+        apply_range(project, edit)
+        applied_ids.add(edit.id)
+    to_apply = [e for e in to_apply if e.exact_range is None]
     # Mutes first (timeline-stable). Later removes first so earlier positions
     # stay valid after ripple+pad. Splits run after removes.
     mutes = [e for e in to_apply if e.type == EditDecisionType.MUTE]
@@ -412,6 +422,9 @@ def update_pending_edit(
     edit = next((e for e in project.edit_decisions if e.id == edit_id), None)
     if edit is None:
         raise KeyError(f"edit decision not found: {edit_id}")
+
+    if edit.exact_range is not None:
+        raise ValueError("Exact ranges cannot change source timing. Select the range again.")
 
     if edit.type == EditDecisionType.SPLIT:
         at_time = float(start)

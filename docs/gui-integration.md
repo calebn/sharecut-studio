@@ -642,3 +642,7 @@ ruler and seek bounds continue to describe saved media. On fixed-playhead
 phones, users can pan to the provisional needle beyond the saved-media end;
 that visual-only pan does not seek or recenter playback. See [Recording
 session](recording-session.md#live-take-monitoring-on-the-timeline).
+
+## Exact selected ranges
+
+Exact selected range pending edits expose their canonical disjoint timeline footprint. Source timing controls do not retime them. Pending Suggested audio renders an ephemeral project through the exact range kernel; it preserves timeline gaps and unselected lanes.

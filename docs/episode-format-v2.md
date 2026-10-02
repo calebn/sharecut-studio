@@ -156,3 +156,7 @@ Only **`version: "2.0"`** is supported. Older flat layouts are rejected at load 
 ## Prior art
 
 Influenced by OpenTimelineIO (tracks/clips), Descript (transcript-first edits), and REAPER-style declarative session + render—without reading DAW project files.
+
+## Exact selected ranges
+
+`EditDecision.exact_range` stores an `exact_range` target with ordered disjoint timeline intervals, explicit destination `track_ids`, observed clips, and opaque `media_seals`. Its flat timing fields are a display envelope. Source Snap and timing updates reject this variant. `Track.timeline_empty` records an intentionally empty lane. Render and mapping preserve silence until new material is added.

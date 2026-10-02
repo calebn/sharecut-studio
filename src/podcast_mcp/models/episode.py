@@ -119,6 +119,7 @@ class Track(BaseModel):
     transcript_gate: bool = False
     transcript_gate_scope: list[TranscriptGateScope] | None = None
     proxy: TrackProxy | None = None
+    timeline_empty: bool = False
 
     @property
     def output_gain_db(self) -> float:
@@ -354,6 +355,37 @@ class CombinedTranscript(BaseModel):
     utterances: list[CombinedUtterance] = Field(default_factory=list)
 
 
+class RangeInterval(BaseModel):
+    model_config = {"extra": "forbid", "frozen": True}
+
+    start: float = Field(ge=0, allow_inf_nan=False)
+    end: float = Field(gt=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> RangeInterval:
+        if self.end <= self.start:
+            raise ValueError("range end must be after start")
+        return self
+
+
+class ExactRangeTarget(BaseModel):
+    model_config = {"extra": "forbid", "frozen": True}
+
+    kind: Literal["exact_range"] = "exact_range"
+    intervals: list[RangeInterval] = Field(min_length=1, max_length=1000)
+    track_ids: list[str] = Field(min_length=1, max_length=1000)
+    clips: list[Clip] = Field(max_length=10000)
+    media_seals: dict[str, str]
+
+    @model_validator(mode="after")
+    def _canonical(self) -> ExactRangeTarget:
+        if len(set(self.track_ids)) != len(self.track_ids) or any(not t for t in self.track_ids):
+            raise ValueError("range track IDs must be nonempty and unique")
+        if any(a.end >= b.start for a, b in zip(self.intervals, self.intervals[1:], strict=False)):
+            raise ValueError("range intervals must be ordered and disjoint")
+        return self
+
+
 class EditDecision(BaseModel):
     id: str
     track_id: str
@@ -377,6 +409,7 @@ class EditDecision(BaseModel):
     track_ids: list[str] | None = None
     # Clock for start/end. remove/mute are source; blade split is timeline.
     timebase: str = "source"
+    exact_range: ExactRangeTarget | None = None
 
 
 class AppliedEditRecord(BaseModel):

@@ -107,6 +107,8 @@ def set_track_clips(project: EpisodeProject, track_id: str, clips: list[Clip]) -
     from podcast_mcp.edits.conversation_align import ingest_alignment_key
 
     track = project.track_by_id(track_id)
+    if track is not None and clips:
+        track.timeline_empty = False
     entries = project.meta.ingest_alignment
     previous = clips_for_track(project, track_id)
     if track is not None and entries:
@@ -643,6 +645,9 @@ def move_clips(project: EpisodeProject, moves: Sequence[Mapping[str, Any]]) -> l
                     f"cannot move clip {clip.id!r} to another track without origin media"
                 )
             clip.track_id = tid
+        destination = project.track_by_id(tid)
+        if destination is not None:
+            destination.timeline_empty = False
         clip.timeline_start = tl
     update_timeline_duration(project)
     return [c for c, _, _ in parsed]

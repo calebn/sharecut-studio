@@ -59,7 +59,17 @@ def map_pending_edits_to_timeline(
         timeline_end: float | None
         source_start_timeline: float | None
         source_end_timeline: float | None
-        if type_val == "split" or decision.timebase == "timeline":
+        if decision.exact_range is not None:
+            from podcast_mcp.edits.range_edits import range_is_current
+
+            target = decision.exact_range
+            track_ids = target.track_ids
+            timeline_spans = [r.model_dump() for r in target.intervals]
+            timeline_start, timeline_end = target.intervals[0].start, target.intervals[-1].end
+            source_start = source_end = None
+            source_start_timeline = source_end_timeline = None
+            mappable = range_is_current(project, target)
+        elif type_val == "split" or decision.timebase == "timeline":
             at = float(decision.start)
             mappable = True
             timeline_start = at
@@ -87,6 +97,9 @@ def map_pending_edits_to_timeline(
         preview = preview_window_for_edit(project, decision)
         rows.append(
             {
+                "exact_range": decision.exact_range.model_dump(mode="json")
+                if decision.exact_range
+                else None,
                 "id": decision.id,
                 "track_id": decision.track_id,
                 "track_ids": track_ids,

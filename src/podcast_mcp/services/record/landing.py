@@ -1512,5 +1512,8 @@ def _upsert_clip(
         timeline_start=timeline_s,
         source_id=source_id,
     )
+    track = project.track_by_id(track_id)
+    if track is not None:
+        track.timeline_empty = False
     project.clips.append(clip)
     return clip
