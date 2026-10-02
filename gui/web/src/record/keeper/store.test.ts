@@ -77,7 +77,12 @@ describe("createOpfsSink open", () => {
         syncWriter,
       });
       const probeCalls = createWritable.mock.calls.length;
-      expect(await sink.open(path)).toBe(stream);
+      const opened = await sink.open(path);
+      const bytes = new Uint8Array([1]);
+      await opened.write(bytes, 0);
+      expect(stream.write).toHaveBeenCalledWith(bytes, 0);
+      await opened.close();
+      expect(stream.close).toHaveBeenCalled();
       expect(createWritable).toHaveBeenCalledTimes(probeCalls);
     } finally {
       vi.unstubAllGlobals();
@@ -499,12 +504,12 @@ describe("MemorySink", () => {
     const now = Date.now();
     sink.modified.set(old, now - ORPHAN_KEEPER_RETENTION_MS - 1);
     sink.modified.set(pending, now - ORPHAN_KEEPER_RETENTION_MS - 1);
-    expect(
-      await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => false, now),
-    ).toBe(0);
-    expect(
-      await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true, now),
-    ).toBe(1);
+    expect(await pruneExpiredKeeperWavs(sink, () => false, now)).toMatchObject({
+      pruned: 0,
+    });
+    expect(await pruneExpiredKeeperWavs(sink, () => true, now)).toMatchObject({
+      pruned: 1,
+    });
     expect(await sink.read(old)).toBeNull();
     expect(await sink.read(recent)).not.toBeNull();
     expect(await sink.read(pending)).not.toBeNull();
@@ -513,9 +518,9 @@ describe("MemorySink", () => {
     );
     expect(await missingKeeperWavState(sink, old)).toBe("pruned");
     expect(await sink.nextSegmentIndex("room", 0, "guest")).toBe(3);
-    expect(
-      await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true, now),
-    ).toBe(0);
+    expect(await pruneExpiredKeeperWavs(sink, () => true, now)).toMatchObject({
+      pruned: 0,
+    });
   });
 
   it("keeps an expired WAV visible if deletion fails after reserving its index", async () => {
@@ -529,11 +534,13 @@ describe("MemorySink", () => {
     await sink.write(wav, new Uint8Array([1]));
     sink.modified.set(wav, 0);
     vi.spyOn(sink, "remove").mockRejectedValueOnce(new Error("locked"));
-    await expect(
-      pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true),
-    ).rejects.toThrow("locked");
+    const cleanup = await pruneExpiredKeeperWavs(sink, () => true);
+    expect(cleanup).toMatchObject({ pruned: 0, complete: false });
     expect(await sink.read(wav)).not.toBeNull();
     expect(await sink.nextSegmentIndex("room", 0, "guest")).toBe(1);
+    expect(
+      await pruneExpiredKeeperWavs(sink, () => true, cleanup.nextRunAt),
+    ).toMatchObject({ pruned: 1 });
   });
 
   it("keeps an expired WAV while a recovery download holds deletion", async () => {
@@ -547,14 +554,17 @@ describe("MemorySink", () => {
     await sink.write(wav, new Uint8Array([1]));
     sink.modified.set(wav, 0);
     const release = await holdKeeperReclaim(sink);
-    expect(
-      await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true),
-    ).toBe(0);
+    const cleanup = await pruneExpiredKeeperWavs(sink, () => true);
+    expect(cleanup).toMatchObject({
+      pruned: 0,
+    });
     expect(await sink.read(wav)).not.toBeNull();
     release();
     expect(
-      await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true),
-    ).toBe(1);
+      await pruneExpiredKeeperWavs(sink, () => true, cleanup.nextRunAt),
+    ).toMatchObject({
+      pruned: 1,
+    });
     expect(await sink.read(wav)).toBeNull();
   });
 
@@ -596,15 +606,15 @@ describe("MemorySink", () => {
       await sink.write(wav, new Uint8Array([1]));
       sink.modified.set(wav, 0);
       const release = await holdKeeperReclaim(otherTab);
-      expect(
-        await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true),
-      ).toBe(0);
+      expect(await pruneExpiredKeeperWavs(sink, () => true)).toMatchObject({
+        pruned: 0,
+      });
       expect(await sink.read(wav)).not.toBeNull();
       release();
       await vi.waitFor(() => expect(shared).toBe(0));
-      expect(
-        await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true),
-      ).toBe(1);
+      expect(await pruneExpiredKeeperWavs(sink, () => true)).toMatchObject({
+        pruned: 1,
+      });
     } finally {
       if (descriptor) Object.defineProperty(navigator, "locks", descriptor);
       else Reflect.deleteProperty(navigator, "locks");
@@ -623,9 +633,9 @@ describe("MemorySink", () => {
     });
     await sink.write(wav, new Uint8Array([1]));
     sink.modified.set(wav, 0);
-    expect(
-      await pruneExpiredKeeperWavs(sink, "room", "guest", 0, () => true),
-    ).toBe(0);
+    expect(await pruneExpiredKeeperWavs(sink, () => true)).toMatchObject({
+      pruned: 0,
+    });
     expect(await sink.read(wav)).not.toBeNull();
   });
 });
