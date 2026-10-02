@@ -21,6 +21,7 @@ HANDLERS: dict[str, Handler] = {
     **comments.HANDLERS,
     "UndoHistory": history.undo_history,
     "RedoHistory": history.redo_history,
+    "EditSelectedRange": edits.edit_selected_range,
     "ApproveEdits": edits.approve_edits,
     "RejectEdits": edits.reject_edits,
     "UpdatePendingEdit": edits.update_pending_edit,

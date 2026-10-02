@@ -8,6 +8,7 @@ from podcast_mcp.services.document_sync.policy import STRUCTURAL_COMMANDS
 # Pass 1-2 apply set (guest ``edit``).
 EDIT_COMMANDS: frozenset[str] = frozenset(
     {
+        "EditSelectedRange",
         "ApproveEdits",
         "RejectEdits",
         "UpdatePendingEdit",
@@ -40,6 +41,7 @@ EDIT_COMMANDS: frozenset[str] = frozenset(
 # Suggest-without-apply (guest ``suggest``) - structural commands propose.
 SUGGEST_COMMANDS: frozenset[str] = frozenset(
     {
+        "EditSelectedRange",
         "SuggestPendingEdit",
         "UpdatePendingEdit",
         *STRUCTURAL_COMMANDS,

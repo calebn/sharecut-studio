@@ -92,6 +92,8 @@ def build_track_views(
     render_status: dict[str, Any] | None = None,
     effects_by_track: dict[str, list[dict[str, Any]]] | None = None,
 ) -> list[TrackView]:
+    from podcast_mcp.edits.range_edits import range_media_seal
+
     project = ws.project
     svc = edit if edit is not None else EditService(ws)
     status = render_status if render_status is not None else svc.render_status()
@@ -102,6 +104,8 @@ def build_track_views(
         stem = status.get("tracks", {}).get(track.id, {})
         track_views.append(
             TrackView(
+                range_media_seal=range_media_seal(project, track.id),
+                timeline_empty=track.timeline_empty,
                 id=track.id,
                 label=track.label,
                 role=track.role.value if hasattr(track.role, "value") else str(track.role),

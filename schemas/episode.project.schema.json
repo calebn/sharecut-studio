@@ -93,6 +93,7 @@
       "type": "object",
       "required": ["id", "label", "role"],
       "properties": {
+        "timeline_empty": { "type": "boolean", "default": false },
         "id": { "type": "string" },
         "label": { "type": "string" },
         "role": { "enum": ["dialogue", "music", "sfx", "intro", "outro"] },
@@ -350,6 +351,7 @@
       "type": "object",
       "required": ["id", "track_id", "type", "start", "end"],
       "properties": {
+        "exact_range": { "anyOf": [{ "$ref": "#/$defs/ExactRangeTarget" }, { "type": "null" }], "default": null },
         "id": { "type": "string" },
         "track_id": { "type": "string" },
         "type": { "enum": ["remove", "mute", "split"] },
@@ -595,5 +597,79 @@
         "render_last_completed_step": { "type": ["string", "null"] }
       }
     }
+,
+  "RangeInterval": {
+    "additionalProperties": false,
+    "properties": {
+      "start": {
+        "minimum": 0,
+        "title": "Start",
+        "type": "number"
+      },
+      "end": {
+        "exclusiveMinimum": 0,
+        "title": "End",
+        "type": "number"
+      }
+    },
+    "required": [
+      "start",
+      "end"
+    ],
+    "title": "RangeInterval",
+    "type": "object"
+  },
+  "ExactRangeTarget": {
+    "additionalProperties": false,
+    "properties": {
+      "kind": {
+        "const": "exact_range",
+        "default": "exact_range",
+        "title": "Kind",
+        "type": "string"
+      },
+      "intervals": {
+        "items": {
+          "$ref": "#/$defs/RangeInterval"
+        },
+        "maxItems": 1000,
+        "minItems": 1,
+        "title": "Intervals",
+        "type": "array"
+      },
+      "track_ids": {
+        "items": {
+          "type": "string"
+        },
+        "maxItems": 1000,
+        "minItems": 1,
+        "title": "Track Ids",
+        "type": "array"
+      },
+      "clips": {
+        "items": {
+          "$ref": "#/$defs/Clip"
+        },
+        "maxItems": 10000,
+        "title": "Clips",
+        "type": "array"
+      },
+      "media_seals": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "title": "Media Seals",
+        "type": "object"
+      }
+    },
+    "required": [
+      "intervals",
+      "track_ids",
+      "clips",
+      "media_seals"
+    ],
+    "title": "ExactRangeTarget",
+    "type": "object"
+  }
   }
 }

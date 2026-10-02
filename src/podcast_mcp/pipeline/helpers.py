@@ -23,7 +23,7 @@ def ensure_dialogue_clips(project: EpisodeProject) -> None:
         if track.role != TrackRole.DIALOGUE or not track.media:
             continue
         existing = [c for c in project.clips if c.track_id == track.id]
-        if existing:
+        if existing or track.timeline_empty:
             continue
         dur = track.media.duration_sec or 0.0
         project.clips.append(

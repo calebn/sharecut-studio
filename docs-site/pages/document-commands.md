@@ -40,6 +40,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `DeleteComment` | `comment_id` (string) | — |
 | `DeleteSocialClip` | `id` (string) | — |
 | `DuplicateSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
+| `EditSelectedRange` | `action` (cut \| mute), `target` (object) | — |
 | `MoveClips` | `clips` (array[object]) | — |
 | `MoveSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
 | `PasteSegment` | `duration` (number), `insert_at` (number) | `extracts` (array[object]) |
@@ -76,7 +77,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
-_Generated 50 command types._
+_Generated 51 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make schema-check`

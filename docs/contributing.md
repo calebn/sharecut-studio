@@ -325,3 +325,7 @@ Operator docs: [history.md](history.md). Agent bundle: [.agents/INSTRUCTIONS.md]
 ### Word timing controls
 
 Wordbar timing uses the stored `(track_id, source_id, word_index)`, never a displayed clip placement as the mutation identity. Source seconds and current raw media duration are validated server-side; unrelated timeline geometry is not a save dependency. Keep drag drafts local and save once on release (or explicit keyboard/numeric Apply) through the document command and `ProjectWorkspace.mutate()`. Reuse the existing transport's owned source preview and the shared waveform's explicit viewport; do not add another player or renderer.
+
+## Exact selected ranges
+
+Selected range commands carry exact timeline occurrences and destination lanes. Do not convert their intervals through earliest-source mapping. Keep the trusted host application policy at the adapter boundary. Use one workspace mutation for the complete action.

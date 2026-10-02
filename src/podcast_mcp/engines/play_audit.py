@@ -79,6 +79,7 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
     payload: dict[str, Any] = {
         "render_rev": RENDER_SEMANTICS_REV,
         "track_id": track_id,
+        "timeline_empty": bool(track and track.timeline_empty),
         "gain_db": track.gain_db if track else 0.0,
         # Stems never bake the mix mute (the mix step skips muted tracks). The
         # key stays, always false, so stem hashes written before it stay valid.

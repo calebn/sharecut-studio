@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from podcast_mcp.edits.comments import comments_for_view
 from podcast_mcp.edits.decisions import PendingEditChangedError
+from podcast_mcp.edits.range_edits import RangeChangedError
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
@@ -59,6 +60,7 @@ EXTERNAL_MUTATE_CLIENT_ID = "server:external"
 # raised before mutation, history, or the command log (#650). They subclass ValueError, so
 # ``_apply`` must catch them before its generic ValueError branch.
 STALE_TARGET_ERRORS: tuple[type[ValueError], ...] = (
+    RangeChangedError,
     PendingEditChangedError,
     TranscriptTextChangedError,
     TranscriptTimingChangedError,
@@ -487,6 +489,7 @@ class DocumentSyncService:
         command: DocumentCommand,
         *,
         capabilities: list[str] | None = None,
+        range_policy: str = "propose",
         structural_mode: str | None = None,
         audience: str = "host",
     ) -> dict[str, Any]:
@@ -559,6 +562,7 @@ class DocumentSyncService:
                 command,
                 store,
                 capabilities=capabilities,
+                range_policy=range_policy,
                 structural_mode=structural_mode,
             )
             row, _snap, claimed = store.append_and_apply(
@@ -704,6 +708,7 @@ class DocumentSyncService:
         command: DocumentCommand,
         *,
         capabilities: list[str] | None = None,
+        range_policy: str = "propose",
         structural_mode: str | None = None,
     ) -> dict[str, Any]:
         from podcast_mcp.services.document_sync.policy import (
@@ -711,7 +716,33 @@ class DocumentSyncService:
             resolve_structural_mode,
         )
 
+        if (capabilities is not None or range_policy != "host_apply") and command.type in {
+            "ApproveEdits",
+            "RejectEdits",
+        }:
+            ids = set(command.payload.get("ids", []))
+            if any(
+                e.id in ids and e.exact_range is not None for e in self.ws.project.edit_decisions
+            ):
+                raise PermissionError("Only the host can decide exact range proposals")
         payload = dict(command.payload)
+        if command.type == "ApproveEdits":
+            payload["_allow_exact"] = capabilities is None and range_policy == "host_apply"
+        if command.type == "EditSelectedRange":
+            from podcast_mcp.services.document_sync.payloads import validate_payload
+
+            payload = validate_payload(command.type, payload)
+            payload["_range_policy"] = (
+                "host_apply" if capabilities is None and range_policy == "host_apply" else "propose"
+            )
+            payload["_range_reason"] = (
+                "guest:suggest"
+                if capabilities is not None
+                else "host:range"
+                if range_policy == "host_apply"
+                else "agent:range"
+            )
+            payload["_action_id"] = command.command_id
         if command.type in STRUCTURAL_COMMANDS:
             mode = resolve_structural_mode(capabilities, structural_mode)
             payload["_structural_mode"] = mode.value
@@ -748,6 +779,7 @@ class DocumentSyncService:
         store: SyncStore,
         *,
         capabilities: list[str] | None = None,
+        range_policy: str = "propose",
         structural_mode: str | None = None,
     ) -> dict[str, Any]:
         """Apply ``command``, saving it as ``document_sync.last_command`` on the same commit.
@@ -772,6 +804,7 @@ class DocumentSyncService:
             result = self._apply(
                 command,
                 capabilities=capabilities,
+                range_policy=range_policy,
                 structural_mode=structural_mode,
             )
         except BaseException:

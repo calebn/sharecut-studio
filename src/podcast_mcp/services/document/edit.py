@@ -79,6 +79,7 @@ from podcast_mcp.edits.join_modes import (
     set_clip_join_mode,
 )
 from podcast_mcp.edits.loudness import check_loudness
+from podcast_mcp.edits.range_edits import RangeAction
 from podcast_mcp.edits.retained_bleed_alignment import (
     AlignmentPlan,
     apply_retained_bleed_alignment,
@@ -166,6 +167,7 @@ from podcast_mcp.effects.presets import (
 )
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.models import EditDecision, EpisodeProject
+from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
@@ -362,10 +364,36 @@ class EditService:
             reason_prefix=reason_prefix,
         )
 
-    def approve(self, ids: list[str]) -> int:
+    def edit_selected_range(
+        self,
+        target: ExactRangeTarget,
+        action: RangeAction,
+        *,
+        propose: bool,
+        reason: str,
+        action_id: str,
+    ) -> dict:
+        from podcast_mcp.edits.range_edits import edit_selected_range
+
+        self._require_refine_clear()
+        return self.ws.mutate(
+            "before selected range",
+            "after selected range",
+            lambda p: edit_selected_range(
+                p, target, action, propose=propose, reason=reason, action_id=action_id
+            ),
+            operation="edit_selected_range",
+            params={"action_id": action_id, "action": action},
+        )
+
+    def approve(self, ids: list[str], *, allow_exact: bool = False) -> int:
         self._require_refine_clear()
 
         def mutate(p) -> int:
+            if not allow_exact and any(
+                e.id in ids and e.exact_range is not None for e in p.edit_decisions
+            ):
+                raise PermissionError("Only the interactive host can approve exact range proposals")
             return approve_edits(p, ids)
 
         return self.ws.mutate(
@@ -425,6 +453,8 @@ class EditService:
 
     def revert_applied(self, record_id: str) -> dict:
         def mutate(p) -> dict:
+            if any(r.id == record_id and "exact_range" in r.params for r in p.editorial.edit_log):
+                raise ValueError("Use History Undo to restore a whole range action")
             return revert_applied_edit(p, record_id)
 
         return self.ws.mutate(

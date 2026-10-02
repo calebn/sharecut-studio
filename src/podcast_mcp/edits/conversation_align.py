@@ -621,7 +621,7 @@ def dialogue_align_units(
         if track.role != TrackRole.DIALOGUE:
             continue
         clips = [c for c in project.clips if c.track_id == track.id]
-        if not clips and track.media:
+        if not clips and track.media and not track.timeline_empty:
             dur = float(track.media.duration_sec or 0.0)
             clips = [
                 Clip(
@@ -1670,7 +1670,7 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
         if track.role != TrackRole.DIALOGUE:
             continue
         clips = [c for c in project.clips if c.track_id == track.id]
-        if not clips and track.media:
+        if not clips and track.media and not track.timeline_empty:
             dur = float(track.media.duration_sec or 0.0)
             clip = Clip(
                 id=f"clip_{track.id}",

@@ -122,6 +122,8 @@ def render_track_from_timeline(
     primary = resolve_under_workspace(project, track.media.path)
 
     track_clips = clips_for_track(project, track.id)
+    if not track_clips and track.timeline_empty:
+        return eng.silence(output_path, max(0.05, project.timeline.duration_sec or 0.0))
     if not track_clips:
         probe = eng.probe(primary)
         track_clips = [
@@ -448,6 +450,8 @@ def render_track_segment(
     if not track:
         raise ValueError(f"track {track_id!r} not found or has no media")
     track_clips = clips_for_track(project, track.id)
+    if not track_clips and track.timeline_empty:
+        return (engine or FFmpegEngine()).silence(output_path, timeline_end - timeline_start)
     if not track_clips:
         if not track.media:
             raise ValueError(f"track {track_id!r} not found or has no media")
@@ -480,9 +484,7 @@ def render_track_segment(
             overlapping.append((clip_i, clip, ov_tl_start, ov_tl_end))
 
     if not overlapping:
-        raise ValueError(
-            f"no audio in timeline range {timeline_start}-{timeline_end} for {track_id}"
-        )
+        return eng.silence(output_path, timeline_end - timeline_start)
 
     overlapping_clips = [clip for _, clip, _, _ in overlapping]
     source_paths = [resolve_clip_audio_path(project, track, clip) for clip in overlapping_clips]

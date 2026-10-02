@@ -131,6 +131,8 @@ class SessionCommandRequest(BaseModel):
 
 
 class TrackView(BaseModel):
+    range_media_seal: str = ""
+    timeline_empty: bool = False
     id: str
     label: str
     role: str

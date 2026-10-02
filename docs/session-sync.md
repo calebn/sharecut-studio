@@ -505,3 +505,7 @@ not stored in project JSON or the record model. The host pairs accepted record
 samples with `performance.now()` for a visual-only timeline band/needle;
 per-frame updates do not enter the document or playback planes. Stop/null clears
 the preview; existing Land document refresh supplies the committed media.
+
+## Exact selected ranges
+
+`EditSelectedRange` accepts `action` (`cut` or `mute`) and an exact target. The server compares selected geometry and media revisions under the workspace lock. Host interactive submission applies immediately. Every share guest with edit or suggest rights and supported agent submission creates one pending decision. Only a trusted host adapter can approve that exact decision. Payload roles and apply fields cannot elevate it. Owner HTTP credentials currently do not distinguish a human from an agent deliberately using those same credentials.

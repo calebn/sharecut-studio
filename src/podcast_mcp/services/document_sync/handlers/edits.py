@@ -11,7 +11,7 @@ from podcast_mcp.services.document import EditService
 
 def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     ids = list(p["ids"])
-    count = EditService(ws).approve(ids)
+    count = EditService(ws).approve(ids, allow_exact=p.get("_allow_exact") is True)
     return {"count": count}
 
 
@@ -193,3 +193,15 @@ def paste_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 def ripple_delete_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     """Ripple-delete a timeline range (clipboard cut). Apply-only."""
     return EditService(ws).ripple_delete(float(p["start"]), float(p["end"]))
+
+
+def edit_selected_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    from podcast_mcp.models.episode import ExactRangeTarget
+
+    return EditService(ws).edit_selected_range(
+        ExactRangeTarget.model_validate(p["target"]),
+        p["action"],
+        propose=p.get("_range_policy") != "host_apply",
+        reason=p.get("_range_reason", "agent:range"),
+        action_id=p["_action_id"],
+    )

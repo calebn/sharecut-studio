@@ -430,6 +430,9 @@ class SessionTimeline:
             for c in self._project.clips
             if origin_track_id_for_clip(self._project, c) == track_id
         )
+        track = self._project.track_by_id(track_id)
+        if not keys and track is not None and track.timeline_empty:
+            return _build_index(())
         cached = self._indexes.get(track_id)
         if cached is not None and cached[0] == keys:
             return cached[1]

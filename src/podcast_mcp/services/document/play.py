@@ -1632,6 +1632,34 @@ class PlayService:
         if out.is_file() and not rerender:
             self._mark_play_cache_used(out)
             return out
+        edit = next((e for e in self.project.edit_decisions if e.id == window.edit_id), None)
+        if edit is not None and edit.exact_range is not None:
+            from podcast_mcp.edits.range_edits import apply_range
+
+            proposed = snapshot_project(self.project)
+            apply_range(proposed, edit.model_copy(deep=True))
+            with tempfile.TemporaryDirectory(dir=out.parent) as directory:
+                segments: list[tuple[Path, float]] = []
+                for track in proposed.tracks:
+                    if track.muted or track.media is None:
+                        continue
+                    segment = Path(directory) / f"{track.id}.wav"
+                    render_track_segment(
+                        proposed,
+                        track.id,
+                        window.play_start,
+                        window.play_end,
+                        segment,
+                        self._defaults,
+                    )
+                    segments.append((segment, track.fader_db))
+                render_atomic(
+                    out,
+                    lambda temporary: FFmpegEngine().mix_tracks(
+                        segments, temporary, peak_ceiling_db=mix_peak_ceiling_db(self._defaults)
+                    ),
+                )
+            return out
         parts: list[Path] = []
         before_end = window.timeline_start
         after_start = window.timeline_end

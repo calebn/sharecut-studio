@@ -1506,3 +1506,7 @@ relative imports verify the guard. Focused pipeline tests live in
 `test_import_order.py` checks app and session-sync cold imports, lazy export
 identity, and CLI commands in fresh processes with the optional HTTP client
 unavailable.
+
+## Exact selected ranges
+
+`tests/test_selected_range.py` proves repeated-source occurrence scope, moved clips, overlap, disjoint islands, unchanged peers, stale geometry and media, guest and agent proposal authority, atomic Undo, and intentionally empty lane rendering. Run it with retained Python and supported disposable share identity and registry overrides.

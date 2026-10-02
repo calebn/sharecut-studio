@@ -31,6 +31,15 @@ class PendingPreviewWindow:
 
 
 def _timeline_span(project: EpisodeProject, edit: EditDecision) -> tuple[float, float, bool]:
+    if edit.exact_range is not None:
+        from podcast_mcp.edits.range_edits import range_is_current
+
+        target = edit.exact_range
+        return (
+            target.intervals[0].start,
+            target.intervals[-1].end,
+            range_is_current(project, target),
+        )
     type_val = edit.type.value if hasattr(edit.type, "value") else str(edit.type)
     if type_val == EditDecisionType.SPLIT.value or edit.timebase == "timeline":
         start = float(edit.start)
@@ -66,6 +75,8 @@ def preview_window_for_edit(
     tl_start, tl_end, mappable = _timeline_span(project, edit)
     type_val = edit.type.value if hasattr(edit.type, "value") else str(edit.type)
     skip_reason = _skip_reason(type_val, edit.scope or "session", mappable, tl_end - tl_start)
+    if edit.exact_range is not None:
+        skip_reason = None if mappable else "Selected audio changed. Select the range again."
     can_skip = skip_reason is None
     play_start = max(0.0, tl_start - pad_sec)
     play_end = max(play_start + 0.05, tl_end + pad_sec)

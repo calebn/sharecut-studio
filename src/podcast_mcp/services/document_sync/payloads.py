@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_valid
 
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.edits.decisions import PendingEditBaseline
-from podcast_mcp.models.episode import FADER_MAX_DB, FADER_MIN_DB, ClipJoinMode
+from podcast_mcp.models.episode import FADER_MAX_DB, FADER_MIN_DB, ClipJoinMode, ExactRangeTarget
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
 from podcast_mcp.util.text import has_meaningful_text
 
@@ -316,6 +316,13 @@ class SetEnvelopePayload(BaseModel):
         return value
 
 
+class EditSelectedRangePayload(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    action: Literal["cut", "mute"]
+    target: ExactRangeTarget
+
+
 class SuggestPendingEditPayload(BaseModel):
     track_id: str
     start: float = Field(allow_inf_nan=False)
@@ -606,6 +613,11 @@ class SetEnvelopeCommand(DocumentCommandEnvelope):
     payload: SetEnvelopePayload
 
 
+class EditSelectedRangeCommand(DocumentCommandEnvelope):
+    type: Literal["EditSelectedRange"] = "EditSelectedRange"
+    payload: EditSelectedRangePayload
+
+
 class SuggestPendingEditCommand(DocumentCommandEnvelope):
     type: Literal["SuggestPendingEdit"] = "SuggestPendingEdit"
     payload: SuggestPendingEditPayload
@@ -721,6 +733,7 @@ DocumentCommandBody = Annotated[
     | UpdateSocialClipCommand
     | DeleteSocialClipCommand
     | SetEnvelopeCommand
+    | EditSelectedRangeCommand
     | SuggestPendingEditCommand
     | SplitAtTimeCommand
     | DeleteClipCommand
@@ -828,6 +841,7 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "UpdateSocialClip": UpdateSocialClipPayload,
     "DeleteSocialClip": DeleteSocialClipPayload,
     "SetEnvelope": SetEnvelopePayload,
+    "EditSelectedRange": EditSelectedRangePayload,
     "SuggestPendingEdit": SuggestPendingEditPayload,
     "SplitAtTime": SplitAtTimePayload,
     "DeleteClip": DeleteClipPayload,

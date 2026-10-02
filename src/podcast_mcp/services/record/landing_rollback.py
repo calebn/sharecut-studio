@@ -185,6 +185,7 @@ def revert_registration(project: EpisodeProject, prior: PriorRegistration) -> bo
                 del project.clips[existing_idx]
         else:
             restored_clip = prior.clip.model_copy(deep=True)
+            track.timeline_empty = False
             if existing_idx is not None:
                 project.clips[existing_idx] = restored_clip
             else:
