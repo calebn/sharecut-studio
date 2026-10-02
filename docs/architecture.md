@@ -128,6 +128,16 @@ resources; the meter leaf owns presentation. `playbackClipLatches.ts` retains
 clearable clip state across responsive shell remounts, scoped to the current
 project and surviving tracks.
 
+Timeline horizontal scroll policy lives in `gui/web/src/timeline/useFixedPlayheadScroll.ts`.
+The parent hook owns lead lifecycle, committed canvas sizing, DOM scroll echoes,
+and pointer zoom gating. Its immutable render binding connects the canonical
+scroller and geometry to separate `TimelineScrollSync` and `FixedPlayheadRecenter`
+children. Hot scroll and transport subscriptions belong to those children,
+outside the parent hook, so frame updates stay outside arrangement rendering.
+`TimelineView` retains shared column measurement, gesture attachment, and desktop
+region reveal. Vertical geometry remains in `timelineMetrics.ts`. See
+[GUI render isolation](gui-integration.md#read-only-daw-viewer).
+
 Frontend pointer dispatch policy lives in `gui/web/src/commands/pointer.ts`.
 `gui/web/src/commands/seek.ts` routes transport seeks through that pointer
 adapter and returns the command result so Listen, timeline, and DAW WebMCP share

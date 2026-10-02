@@ -499,8 +499,12 @@ const HOT_FIELD_ALLOWLIST: readonly AllowEntry[] = [
   },
   {
     file: "timeline/TimelineLeaves.tsx",
+    reason: "small leaves that read blade hover and follow presence themselves",
+  },
+  {
+    file: "timeline/useFixedPlayheadScroll.ts",
     reason:
-      "small leaves that read the live playhead, scroll and blade hover themselves",
+      "TimelineScrollSync and FixedPlayheadRecenter alone select hot scroll and transport fields; the parent hook selects only actions",
   },
   {
     file: "timeline/WaveformLayer.tsx",
