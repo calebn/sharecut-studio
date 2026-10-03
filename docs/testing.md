@@ -670,13 +670,15 @@ bundle guard fails if E2E page flags or signal counters remain in emitted assets
 
 ### Storybook browser geometry
 
-`npm run test:e2e:storybook` in `gui/web` starts its own Storybook server on
-port 6010 and runs Chromium against the production edit-boundary stories.
+`npm run test:e2e:storybook` in `gui/web` builds the static Storybook catalog,
+serves it on port 6010, and runs Chromium against the production edit-boundary
+stories. Testing the build avoids dev-server compilation and reloads while
+Docs iframe previews initialize.
 The restored-word fixtures make ghost preview geometry observable without a
 live episode or backend. Real mouse trajectories check stable text and row
 layout, handle displacement, preview bounds, and Escape cleanup at 1440px
 and 360px in light and dark themes. `.github/workflows/storybook.yml` installs
-Chromium and runs this suite before building the catalog. This supplements
+Chromium and runs this suite against the catalog build. This supplements
 the jsdom story interaction and axe checks.
 
 `e2e-storybook/story-layout.spec.ts` checks floating panels in both standalone

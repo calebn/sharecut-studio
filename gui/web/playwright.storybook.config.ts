@@ -14,7 +14,8 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npm run storybook -- --port 6010 --ci --no-open",
+    command:
+      "npm run build-storybook && npm exec -- vite preview --config .storybook/static-server.config.ts --outDir storybook-static --host 127.0.0.1 --port 6010 --strictPort",
     url: "http://127.0.0.1:6010",
     reuseExistingServer: false,
     timeout: 120_000,

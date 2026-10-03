@@ -45,12 +45,8 @@ jobs:
         run: npx playwright install --with-deps chromium
         working-directory: gui/web
 
-      - name: Verify browser geometry
+      - name: Build Storybook and verify browser geometry
         run: npm run test:e2e:storybook
-        working-directory: gui/web
-
-      - name: Build Storybook
-        run: npm run build-storybook
         working-directory: gui/web
 
       - name: Upload Pages artifact

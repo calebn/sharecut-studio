@@ -24,6 +24,7 @@ test("manager Docs toolbar themes reach isolated previews and follow System", as
   });
   await toolbar.click();
   await page.getByText("Dark", { exact: true }).last().click();
+  await expect(story.locator(".join-popover")).toBeVisible();
   for (const root of [docs.locator("html"), story.locator("html")]) {
     await expect(root).toHaveAttribute("data-theme", "dark");
     await expect(root).toHaveCSS("color-scheme", "dark");
@@ -31,6 +32,7 @@ test("manager Docs toolbar themes reach isolated previews and follow System", as
 
   await toolbar.click();
   await page.getByText("System", { exact: true }).last().click();
+  await expect(story.locator(".join-popover")).toBeVisible();
   for (const root of [docs.locator("html"), story.locator("html")]) {
     await expect(root).not.toHaveAttribute("data-theme");
     await expect(root).toHaveCSS("color-scheme", "dark");
