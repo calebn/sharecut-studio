@@ -56,15 +56,17 @@ function hookName(
     declaration.node.importKind === "type"
   )
     return undefined;
+  const module = declaration.node.source.value;
   let name: string | undefined;
-  if (
-    imported?.isImportSpecifier() &&
-    !member &&
-    imported.node.importKind !== "type"
-  ) {
-    name = t.isIdentifier(imported.node.imported)
+  if (imported?.isImportSpecifier() && imported.node.importKind !== "type") {
+    const importedName = t.isIdentifier(imported.node.imported)
       ? imported.node.imported.name
       : imported.node.imported.value;
+    name = member
+      ? module === "react" && importedName === "default"
+        ? member
+        : undefined
+      : importedName;
   } else if (
     imported?.isImportNamespaceSpecifier() ||
     (imported?.isImportDefaultSpecifier() &&
@@ -72,7 +74,6 @@ function hookName(
   ) {
     name = member;
   }
-  const module = declaration.node.source.value;
   if (
     module === "react" &&
     (name === "useMemo" || name === "useState" || name === "useReducer")

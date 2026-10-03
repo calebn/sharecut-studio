@@ -292,6 +292,13 @@ describe("stable callback execution boundaries", () => {
         { file: "utils/Fixture.tsx", line: 4, column: 10, callback: "read" },
       ],
     },
+    {
+      name: "React default import named alias",
+      text: 'import { useStableCallback } from "./useStableCallback";\nimport { default as React } from "react";\nfunction Probe() {\n  const read = useStableCallback(() => 1);\n  React.useMemo(read, []);\n}',
+      expected: [
+        { file: "utils/Fixture.tsx", line: 5, column: 17, callback: "read" },
+      ],
+    },
   ])("$name", ({ text, expected }) => {
     expect(
       findStableCallbackRenderCalls({ rel: "utils/Fixture.tsx", text }),
