@@ -19,6 +19,9 @@ existing clip geometry, with source ranges and reason in the move edit log.
 Any reduction of retained-word source coverage abstains. Saved mix-muted lanes
 are excluded from automatic alignment; muted secondary copies cannot veto it.
 Planning, trim guards, and bleed gates share `selected_source_transcripts`.
+An eligible scoped lane without a transcript bleed seed reports
+`no_retained_bleed_candidate` through the existing skipped rows; this is unmeasured
+alignment, not acoustic clearance. Specific seeded abstentions remain unchanged.
 `transcript_for_source` prefers an exact recording transcript; track-level words
 apply only to primary media or a physically equivalent explicit source alias.
 An unrelated source without a transcript supplies no phrase or gate authorization,

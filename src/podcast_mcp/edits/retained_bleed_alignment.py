@@ -396,9 +396,18 @@ def plan_retained_bleed_alignment(
         if bleed_track.muted:
             skip(bleed_track.id, "saved_mix_mute")
             continue
+        if not any(
+            clip.track_id == bleed_track.id
+            and clip.timeline_start < upper
+            and clip.timeline_end > lower
+            for clip in project.clips
+        ):
+            continue
         transcripts = project.selected_source_transcripts(bleed_track.id)
         if not transcripts:
+            skip(bleed_track.id, "no_retained_bleed_candidate")
             continue
+        has_scoped_candidate = False
         hard = build_bleed_gate_plan(project, bleed_track.id).attenuation_spans
         hard_plans[bleed_track.id] = hard
         candidates = (
@@ -423,7 +432,10 @@ def plan_retained_bleed_alignment(
                 bleed_track.id, source_id, SourceSec(word.start), SourceSec(word.end)
             ):
                 lo, hi = max(lower, float(candidate_start)), min(upper, float(candidate_end))
-                if hi <= lo or any(a <= lo and b >= hi for a, b in hard):
+                if hi <= lo:
+                    continue
+                has_scoped_candidate = True
+                if any(a <= lo and b >= hi for a, b in hard):
                     continue
                 if direct_id not in phrase_indexes:
                     phrases = _own_phrases(project, direct_id)
@@ -628,6 +640,8 @@ def plan_retained_bleed_alignment(
                         )
                     )
                     completed.add(geometry)
+        if not has_scoped_candidate:
+            skip(bleed_track.id, "no_retained_bleed_candidate")
     return finish()
 
 

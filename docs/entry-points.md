@@ -78,7 +78,7 @@ Contributor recipe stays in this file; the JSON contract is [`contracts/capabili
 
 ### Local retained-bleed alignment
 
-`align_retained_bleed_tool` and `podcast edit align-retained-bleed` preview or apply supported local phrase corrections. `set_retained_bleed_alignment_mode_tool` and `podcast edit bleed-alignment-choice` save or reset user timing decisions. `apply_transcript_gate_tool` checks retained-bleed alignment by default. See [audio engineering](audio-engineering.md#retained-bleed-during-overlapping-speech) for scope, persistent choices, and abstention behavior.
+`align_retained_bleed_tool` and `podcast edit align-retained-bleed` preview or apply supported local phrase corrections. `set_retained_bleed_alignment_mode_tool` and `podcast edit bleed-alignment-choice` save or reset user timing decisions. `apply_transcript_gate_tool` checks retained-bleed alignment by default. `no_retained_bleed_candidate` reports an eligible window without a transcript seed as unmeasured. See [audio engineering](audio-engineering.md#retained-bleed-during-overlapping-speech) for scope, persistent choices, and abstention behavior.
 
 Studio **Find and replace transcript** is a host-only toolbar and command-palette action (`transcript.findReplace`, capability `daw.transcript.findReplace`). It previews literal source-keyed replacements through `POST /api/transcript/replacement-preview` and applies them through `ReplaceTranscriptMatches`. Both delegate to `EditService`; guests cannot access the private source preview or batch mutation.
 

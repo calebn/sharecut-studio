@@ -1295,3 +1295,96 @@ def test_primary_ignored_words_and_conversation_tokens_do_not_project_to_seconda
     secondary = next(clip for clip in p.clips if clip.track_id == "direct")
     assert transcript_for_clip(p, "direct", "secondary") == []
     assert IgnoredWordRegions(p).for_clip(secondary) == []
+
+
+@pytest.mark.parametrize(
+    "case", ["erased_copy_words", "missing_transcript", "out_of_scope", "no_copy_audio"]
+)
+def test_missing_retained_copy_seed_is_explicitly_unmeasured_without_mutation(
+    tmp_path: Path, case: str
+) -> None:
+    p = _episode(tmp_path)
+    api = _api()
+    positive = api.plan_retained_bleed_alignment(
+        p, track_id="uncertain", start_sec=0.8, end_sec=3.5
+    )
+    assert len(positive.proposals) == 1
+    assert positive.proposals[0].offset_sec == pytest.approx(-0.15, abs=0.002)
+    if case == "missing_transcript":
+        p.transcripts = p.transcripts[:1]
+    elif case == "out_of_scope":
+        p.transcripts[1].words[0].start = 4.5
+        p.transcripts[1].words[0].end = 5.0
+    else:
+        p.transcripts[1].words = []
+        if case == "no_copy_audio":
+            _write(tmp_path / "raw" / "uncertain.wav", np.zeros(6 * RATE))
+    before = p.model_dump(mode="json")
+    raw = {path: path.read_bytes() for path in (tmp_path / "raw").glob("*.wav")}
+    plan = api.plan_retained_bleed_alignment(p, track_id="uncertain", start_sec=0.8, end_sec=3.5)
+    assert plan.proposals == ()
+    assert plan.skipped == ({"track_id": "uncertain", "reason": "no_retained_bleed_candidate"},)
+    result = api.apply_retained_bleed_alignment(p, plan)
+    assert result["applied_count"] == 0
+    assert result["skipped"] == list(plan.skipped)
+    assert p.model_dump(mode="json") == before
+    assert all(path.read_bytes() == samples for path, samples in raw.items())
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["muted", "empty_lane", "implicit", "missing_audio", "recorder_lock", "manual", "declined"],
+)
+def test_no_candidate_reporting_preserves_existing_eligibility_and_saved_holds(
+    tmp_path: Path, case: str
+) -> None:
+    p = _episode(tmp_path)
+    api = _api()
+    expected = None
+    if case == "muted":
+        p.track_by_id("uncertain").muted = True
+        p.transcripts[1].words = []
+        expected = {"track_id": "uncertain", "reason": "saved_mix_mute"}
+    elif case == "empty_lane":
+        p.clips = [clip for clip in p.clips if clip.track_id != "uncertain"]
+    elif case == "implicit":
+        p.clips = []
+        expected = {"track_id": "uncertain", "reason": "unsupported_implicit_timeline_alignment"}
+    elif case == "missing_audio":
+        (tmp_path / "raw" / "direct.wav").unlink()
+        expected = {"track_id": "direct", "reason": "unavailable_source_evidence"}
+    elif case == "recorder_lock":
+        from podcast_mcp.models import SpeakerIngestAlignment
+
+        p.meta.ingest_alignment = {"direct": SpeakerIngestAlignment(align_method="manual")}
+        expected = {"track_id": "direct", "reason": "manual_recorder_placement"}
+    else:
+        proposal = api.plan_retained_bleed_alignment(
+            p, track_id="uncertain", start_sec=0.8, end_sec=3.5
+        ).proposals[0]
+        api.set_retained_bleed_alignment_mode(p, proposal.decision_id, case, proposal=proposal)
+        expected = {"track_id": "direct", "reason": f"saved_{case}_decision"}
+    before = p.model_dump(mode="json")
+    plan = api.plan_retained_bleed_alignment(p, track_id="uncertain", start_sec=0.8, end_sec=3.5)
+    assert plan.proposals == ()
+    assert plan.skipped == (() if expected is None else (expected,))
+    assert p.model_dump(mode="json") == before
+
+
+@pytest.mark.parametrize("mode", ["auto", "manual", "declined"])
+def test_copy_lane_discovery_status_survives_direct_role_in_other_relationship(
+    tmp_path: Path, mode: str
+) -> None:
+    p = _episode(tmp_path)
+    api = _api()
+    if mode != "auto":
+        proposal = api.plan_retained_bleed_alignment(
+            p, track_id="uncertain", start_sec=0.8, end_sec=3.5
+        ).proposals[0]
+        api.set_retained_bleed_alignment_mode(p, proposal.decision_id, mode, proposal=proposal)
+    plan = api.plan_retained_bleed_alignment(p, start_sec=0.8, end_sec=3.5)
+    expected = [{"track_id": "direct", "reason": "no_retained_bleed_candidate"}]
+    if mode != "auto":
+        expected.append({"track_id": "direct", "reason": f"saved_{mode}_decision"})
+    assert plan.skipped == tuple(expected)
+    assert len(plan.proposals) == (1 if mode == "auto" else 0)
