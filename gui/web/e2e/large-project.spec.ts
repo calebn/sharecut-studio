@@ -304,6 +304,8 @@ test.describe("large project benchmark (opt-in fixture)", () => {
         },
       );
 
+      await slider.press("Home");
+      await expect(slider).toHaveAttribute("aria-valuenow", "0");
       profiles.push(
         await profile(recorder, "transcript-open", async () => {
           await page
