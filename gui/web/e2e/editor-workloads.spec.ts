@@ -785,63 +785,71 @@ test.describe("remaining editor workloads (opt-in)", () => {
           if (response.ok() && response.url().includes("/api/waveform/tiles/"))
             tileResponses++;
         });
-        await recorder.measure(
-          {
-            id: "cold-waveform",
-            phase: "first-load",
-            input:
-              "full-clock PCM decode from empty pyramid cache; detailed canvas paint after native timeline zoom to first clip >=80px; fresh server/context",
-          },
-          async () => {
-            await open(page);
-            coldEvidence.zoom = await zoomFirstClip(page, 80);
-            recorder.report.protocol.preparation = {
-              kind: "native-timeline-zoom",
-              minimumClipWidthPx: coldEvidence.zoom.minimumClipWidthPx,
-              zoomKeys: coldEvidence.zoom.zoomKeys,
-              beforeScalePxPerSec: coldEvidence.zoom.beforeScalePxPerSec,
-              afterScalePxPerSec: coldEvidence.zoom.afterScalePxPerSec,
-            };
-            await expect
-              .poll(
-                async () => {
-                  const response = await page.request.get(
-                    `/api/waveform/status?path=${encodeURIComponent(e2eProjectPath)}&kind=raw`,
-                  );
-                  const status = await response.json();
-                  coldEvidence.statusSnapshots.push(status);
-                  expect(Object.keys(status.media)).toHaveLength(
-                    resources.media.length,
-                  );
-                  return Object.values(status.media).every(
-                    (entry: unknown) =>
-                      (entry as { status?: string }).status === "ready",
-                  );
-                },
-                { timeout: 20 * 60000 },
-              )
-              .toBe(true);
-            const generatedRefs = fs
-              .readdirSync(
-                path.join(path.dirname(e2eProjectPath), "artifacts", "peaks"),
-              )
-              .filter((name) => name.endsWith(".wfpk"));
-            coldEvidence.generatedRefs = generatedRefs;
-            expect(generatedRefs.length).toBeGreaterThanOrEqual(
-              resources.media.length,
-            );
-            await expectPaintedWaveformTile(page);
-            expect(tileResponses).toBeGreaterThan(0);
-            return {
-              kind: "waveform",
-              initialPyramidCount: 0,
-              generatedRefs,
-              tileResponses,
-              painted: true,
-              sourceDurationSec: resources.media[0]!.durationSec,
-            };
-          },
-        );
+        const measureCold = async () =>
+          recorder.measure(
+            {
+              id: "cold-waveform",
+              phase: process.env.DAW_PROFILE_TRACE
+                ? "diagnostic"
+                : "first-load",
+              input:
+                "full-clock PCM decode from empty pyramid cache; detailed canvas paint after native timeline zoom to first clip >=80px; fresh server/context",
+            },
+            async () => {
+              await open(page);
+              coldEvidence.zoom = await zoomFirstClip(page, 80);
+              recorder.report.protocol.preparation = {
+                kind: "native-timeline-zoom",
+                minimumClipWidthPx: coldEvidence.zoom.minimumClipWidthPx,
+                zoomKeys: coldEvidence.zoom.zoomKeys,
+                beforeScalePxPerSec: coldEvidence.zoom.beforeScalePxPerSec,
+                afterScalePxPerSec: coldEvidence.zoom.afterScalePxPerSec,
+              };
+              await expect
+                .poll(
+                  async () => {
+                    const response = await page.request.get(
+                      `/api/waveform/status?path=${encodeURIComponent(e2eProjectPath)}&kind=raw`,
+                    );
+                    const status = await response.json();
+                    coldEvidence.statusSnapshots.push(status);
+                    expect(Object.keys(status.media)).toHaveLength(
+                      resources.media.length,
+                    );
+                    return Object.values(status.media).every(
+                      (entry: unknown) =>
+                        (entry as { status?: string }).status === "ready",
+                    );
+                  },
+                  { timeout: 20 * 60000 },
+                )
+                .toBe(true);
+              const generatedRefs = fs
+                .readdirSync(
+                  path.join(path.dirname(e2eProjectPath), "artifacts", "peaks"),
+                )
+                .filter((name) => name.endsWith(".wfpk"));
+              coldEvidence.generatedRefs = generatedRefs;
+              expect(generatedRefs.length).toBeGreaterThanOrEqual(
+                resources.media.length,
+              );
+              await expectPaintedWaveformTile(page);
+              expect(tileResponses).toBeGreaterThan(0);
+              return {
+                kind: "waveform",
+                initialPyramidCount: 0,
+                generatedRefs,
+                tileResponses,
+                painted: true,
+                sourceDurationSec: resources.media[0]!.durationSec,
+              };
+            },
+          );
+        if (process.env.DAW_PROFILE_TRACE)
+          await recorder.trace(async () => {
+            await measureCold();
+          });
+        else await measureCold();
         await page.screenshot({
           path: recorder.artifactPath("cold-waveform-painted.png"),
         });

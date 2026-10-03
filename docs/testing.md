@@ -761,8 +761,9 @@ with no other browser, fixture decode, build, or full suite. The runner reuses t
 existing Playwright process/port cleanup and starts a fresh server/context for
 each scene. `--scene clip|boundary|playback|cold-waveform|progress-replay|progress-real|progress-reduced`
 selects one scene for validity debugging; a selected scene does not establish
-whole-issue coverage. `--trace --scene progress-replay` retains a separate
-Chrome diagnostic trace. Traced samples do not enter primary timing budgets.
+whole-issue coverage. `--trace --scene progress-replay` or
+`--trace --scene cold-waveform` retains a separate Chrome diagnostic trace.
+Both use diagnostic sample phases excluded from primary timing budgets.
 The original `large-project.spec.ts` remains the wheel/zoom/ruler-seek and
 extended editor/memory protocol. In Comment mode, ruler dragging anchors a
 comment range. In the ordinary mode, the ruler uses click/keyboard seeking; these measurements do not claim
