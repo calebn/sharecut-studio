@@ -15,6 +15,15 @@ and [consistency audit](design-system-audit.md) for checked examples and remaini
 phone coverage. Guest review bounds its reading column and lets native composer
 fields shrink to fit narrow viewports.
 
+The live `MobileShell` and `StudioShell` adapters render props-only shell views.
+`MobileShellView` owns the four-mode chrome, More-back, and inspector sheet markup.
+`StudioShellView` owns desktop/tablet chrome, editor tabs, and ingest target/coach.
+The adapters retain viewport effects, commands, focus/presence refs, selection
+policy, and memoized timeline headers. The catalog composes these views with
+fictional bounded regions and representative transport controls. It includes
+360px phone and desktop/tablet fixtures without mounting the full DAW runtime.
+See [shell chrome](design-system.md#shell-chrome) for the catalog boundary.
+
 ## Breakpoints
 
 | Shell | Width | Root class | Layout |

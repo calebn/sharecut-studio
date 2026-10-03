@@ -921,6 +921,17 @@ describe("MobileShell", () => {
   });
 
   it.each([
+    [
+      "text",
+      "hub",
+      {
+        kind: "transcriptRange",
+        trackId: "host",
+        startWordIndex: 0,
+        endWordIndex: 1,
+      },
+      true,
+    ],
     ["text", "hub", { kind: "comment", id: "c1" }, false],
     ["more", "impact", { kind: "pending", id: "e1", trackId: "host" }, true],
     ["more", "comments", { kind: "pending", id: "e1", trackId: "host" }, false],
@@ -934,11 +945,47 @@ describe("MobileShell", () => {
       render(
         <DawProvider
           projectPath="/tmp/p.json"
-          initialProject={minimalProject()}
+          initialProject={minimalProject({
+            transcript: {
+              utterances: [
+                {
+                  track_id: "host",
+                  speaker: "Mira",
+                  start: 0,
+                  end: 2,
+                  text: "Welcome back",
+                  timeline_start: 0,
+                  timeline_end: 2,
+                  mappable: true,
+                  words: [
+                    {
+                      text: "Welcome",
+                      start: 0,
+                      end: 1,
+                      timeline_start: 0,
+                      timeline_end: 1,
+                      word_index: 0,
+                    },
+                    {
+                      text: "back",
+                      start: 1,
+                      end: 2,
+                      timeline_start: 1,
+                      timeline_end: 2,
+                      word_index: 1,
+                    },
+                  ],
+                },
+              ],
+            },
+          })}
         >
           <MobileShell />
         </DawProvider>,
       );
+      if (selection.kind === "transcriptRange") {
+        fireEvent.click(screen.getByRole("button", { name: /^Select:/ }));
+      }
       act(() => useDawStore.getState().setSelection(selection));
       expect(
         screen.getByRole("button", { name: mode === "text" ? "Text" : "More" }),
@@ -1019,5 +1066,27 @@ describe("MobileShell", () => {
     await userEvent.click(screen.getByRole("button", { name: "Text" }));
     fireEvent.mouseDown(container.querySelector(".mobile-text-mode")!);
     expect(useDawStore.getState().timelineFocused).toBe(false);
+  });
+  it("collapses the sheet after selection is cleared outside the sheet", () => {
+    useDawStore.getState().setMobileMode("timeline");
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    act(() => {
+      useDawStore.getState().setSelection({ kind: "track", trackId: "host" });
+      useDawStore.getState().setSheetExpanded(true);
+    });
+    expect(screen.getByRole("dialog", { name: "Inspector" })).toHaveClass(
+      "bottom-sheet--full",
+    );
+    act(() => useDawStore.getState().setSelection(null));
+    expect(useDawStore.getState().sheetExpanded).toBe(false);
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Timeline" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 });

@@ -20,8 +20,6 @@ import { ImpactPanel } from "../panels/ImpactPanel";
 import { PipelinePanel } from "../panels/PipelinePanel";
 import { TightenPanel } from "../panels/TightenPanel";
 import { TranscriptPanel } from "../panels/TranscriptPanel";
-import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
-import { studioTabIds } from "../presence/followSync";
 import { PresenceGhostLayer } from "../presence/PresenceGhostLayer";
 import { usePresenceCursorSource } from "../presence/usePresenceCursorSource";
 import { canIngestMedia, guestShareBannerLabel } from "../shareMode";
@@ -29,7 +27,6 @@ import { useDaw } from "../state/useDaw";
 import { RangeActions } from "../timeline/RangeActions";
 import { TimelineView } from "../timeline/TimelineView";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
-import { BottomSheet, ToggleButton } from "../ui";
 import { isPipelineSlotBusy } from "../utils/pipeline";
 import { BottomTabsSplitter } from "./BottomTabsSplitter";
 import { EditingToolRail } from "./EditingToolRail";
@@ -37,14 +34,10 @@ import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
 import { MobileShell } from "./MobileShell";
 import { StatusBar } from "./StatusBar";
+import { StudioShellView, type StudioWorkspace } from "./StudioShellView";
 import { TransportBar } from "./TransportBar";
-import { TAB_LABELS } from "./tabLabels";
 
-export function StudioShellView({
-  guestShare = false,
-}: {
-  guestShare?: boolean;
-}) {
+function StudioShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
   const importShortcut = displayShortcutFor("media.import") ?? "Menu";
   const {
     project,
@@ -129,8 +122,6 @@ export function StudioShellView({
   const pipelineRunning =
     isPipelineSlotBusy(activityJob) || isPipelineSlotBusy(pipelineJob);
 
-  const tabs = studioTabIds(guestShare);
-
   // Memoized: a new element here would re-render the timeline it is slotted
   // into (headerSlot) on every shell render.
   const trackHeaders = useMemo(
@@ -170,169 +161,122 @@ export function StudioShellView({
   // Only the ingest drop target keeps headers outside the timeline; any drawn
   // timeline hosts them so both read one TimelineMetricsProvider and align.
   const showIngestTarget = emptySession && mayIngest;
-  const arranging = !loadingSession && !showIngestTarget;
+
+  const workspace: StudioWorkspace = loadingSession
+    ? { kind: "loading", headers: trackHeaders, canvas: <TimelineView /> }
+    : showIngestTarget
+      ? {
+          kind: "ingest",
+          headers: trackHeaders,
+          ingest: {
+            over: addDropOver,
+            dropLabel: addDropOver
+              ? newTracksDropLabel(addFileCount)
+              : `Drop audio files here, or Import Audio (${importShortcut})`,
+            importShortcut,
+            coachOpen,
+            onDragOver: (e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+              setAddFileCount(
+                Math.max(1, fileCountFromDataTransfer(e.dataTransfer)),
+              );
+              setAddDropOver(true);
+            },
+            onDragLeave: () => setAddDropOver(false),
+            onDrop: (e) => {
+              e.preventDefault();
+              setAddDropOver(false);
+              const files = audioFilesFromDrop(e.dataTransfer.files);
+              if (files.length) void ingestFiles(files, { kind: "new" });
+            },
+            onImport: () => runPointerCommand("media.import", {}),
+            onDismissCoach: () => {
+              dismissIngestCoach();
+              setCoachOpen(false);
+            },
+          },
+        }
+      : { kind: "arrange", canvas: <TimelineView headerSlot={trackHeaders} /> };
+  const panelContent =
+    activeTab === "transcript" ? (
+      <TranscriptPanel />
+    ) : activeTab === "comments" ? (
+      <CommentsPanel guestShare={guestShare} />
+    ) : activeTab === "history" ? (
+      <HistoryPanel />
+    ) : activeTab === "impact" ? (
+      <ImpactPanel />
+    ) : activeTab === "tighten" ? (
+      <TightenPanel />
+    ) : (
+      <PipelinePanel />
+    );
 
   return (
-    <div
-      ref={shellRef}
-      className={[
-        "daw-shell",
-        guestShare ? "daw-shell-guest" : "",
-        !guestShare ? "daw-shell--attention" : "",
-        followingClientId ? "daw-shell--following" : "",
-        `daw-shell--${shell}`,
-        layoutMode !== "default" ? `daw-shell--layout-${layoutMode}` : "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      data-shell={shell}
-    >
-      <div className="daw-shell-banners">
-        <Slot id={FEATURE_SHARE_UI_BANNER}>
-          {guestShare ? (
-            <div className="guest-banner" role="status">
-              {guestShareBannerLabel(guestMode)}
-            </div>
-          ) : null}
-        </Slot>
-        <GuestAttentionBanner />
-      </div>
-      <FollowBanner />
-      <div ref={transportFocusRef} className="daw-shell-transport">
-        <TransportBar compact={shell === "tablet"} showLayout />
-        <RangeActions />
-      </div>
-      <main
-        ref={mainFocusRef}
-        className={[
-          "daw-main",
-          arranging ? "daw-main--arrange" : "",
-          !useSheetInspector && !showInspector
-            ? "daw-main--inspector-collapsed"
-            : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        {loadingSession ? (
+    <StudioShellView
+      appearance={{ guestShare, following: Boolean(followingClientId) }}
+      layout={layoutMode}
+      chrome={{
+        notices: {
+          banners: (
+            <>
+              <Slot id={FEATURE_SHARE_UI_BANNER}>
+                {guestShare ? (
+                  <div className="guest-banner" role="status">
+                    {guestShareBannerLabel(guestMode)}
+                  </div>
+                ) : null}
+              </Slot>
+              <GuestAttentionBanner />
+            </>
+          ),
+          follow: <FollowBanner />,
+        },
+        transport: (
           <>
-            {trackHeaders}
-            <TimelineView />
+            <TransportBar compact={shell === "tablet"} showLayout />
+            <RangeActions />
           </>
-        ) : showIngestTarget ? (
-          <>
-            {trackHeaders}
-            <div className="empty-session-wrap">
-              <button
-                type="button"
-                className={`empty-session-drop${addDropOver ? " lane-drop-target" : ""}`}
-                aria-label="Drop audio files or import"
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "copy";
-                  setAddFileCount(
-                    Math.max(1, fileCountFromDataTransfer(e.dataTransfer)),
-                  );
-                  setAddDropOver(true);
-                }}
-                onDragLeave={() => setAddDropOver(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setAddDropOver(false);
-                  const files = audioFilesFromDrop(e.dataTransfer.files);
-                  if (files.length) {
-                    void ingestFiles(files, { kind: "new" });
-                  }
-                }}
-                onClick={() => {
-                  runPointerCommand("media.import", {});
-                }}
-              >
-                <span className="empty-session-ghost" aria-hidden="true" />
-                <span className="empty-session-drop-label">
-                  {addDropOver
-                    ? newTracksDropLabel(addFileCount)
-                    : `Drop audio files here, or Import Audio (${importShortcut})`}
-                </span>
-              </button>
-              {coachOpen ? (
-                <div className="box elevated empty-session-coach" role="status">
-                  <p>
-                    Drop stems here. Use one file per speaker. Import is also
-                    under Menu ({importShortcut}).
-                  </p>
-                  <button
-                    type="button"
-                    className="empty-session-coach-dismiss"
-                    onClick={() => {
-                      dismissIngestCoach();
-                      setCoachOpen(false);
-                    }}
-                  >
-                    Got it
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </>
-        ) : (
-          <TimelineView headerSlot={trackHeaders} />
-        )}
-        {useSheetInspector ? <EditingToolRail /> : null}
-        {showInspector ? <Inspector /> : null}
-      </main>
-      <section
-        ref={panelsFocusRef}
-        className="bottom-tabs"
-        aria-label="Editor panels"
-      >
-        {layoutMode === "default" ? <BottomTabsSplitter /> : null}
-        <div className="tab-bar">
-          {tabs.map((id) => (
-            <ToggleButton
-              key={id}
-              quiet
-              pressed={activeTab === id}
-              data-ui-kind="tab"
-              {...presenceAnchorProps(presenceAnchor("tab", id))}
-              onClick={() => runPointerCommand("view.setTab", { tab: id })}
-            >
-              {TAB_LABELS[id]}
-              {id === "pipeline" && pipelineRunning ? " ●" : ""}
-            </ToggleButton>
-          ))}
-        </div>
-        <div className="tab-content">
-          {activeTab === "transcript" && <TranscriptPanel />}
-          {activeTab === "comments" && (
-            <CommentsPanel guestShare={guestShare} />
-          )}
-          {!guestShare && activeTab === "history" && <HistoryPanel />}
-          {!guestShare && activeTab === "impact" && <ImpactPanel />}
-          {!guestShare && activeTab === "tighten" && <TightenPanel />}
-          {!guestShare && activeTab === "pipeline" && <PipelinePanel />}
-        </div>
-      </section>
-      <StatusBar guestShare={guestShare} />
-      {useSheetInspector ? (
-        <BottomSheet
-          backgroundPolicy="interactive"
-          open={sheetOpen}
-          onClose={() => {
-            setSelection(null);
-            setSheetExpanded(false);
-          }}
-          title="Inspector"
-          expanded={sheetExpanded}
-          onExpandedChange={setSheetExpanded}
-        >
-          <Inspector />
-        </BottomSheet>
-      ) : null}
-      <PresenceGhostLayer rootRef={shellRef} />
-    </div>
+        ),
+        footer: <StatusBar guestShare={guestShare} />,
+        overlay: <PresenceGhostLayer rootRef={shellRef} />,
+      }}
+      workspace={workspace}
+      panels={{
+        activeTab,
+        pipelineRunning,
+        splitter: <BottomTabsSplitter />,
+        content: panelContent,
+        onTabChange: (tab) => runPointerCommand("view.setTab", { tab }),
+      }}
+      inspector={
+        useSheetInspector
+          ? {
+              kind: "tablet",
+              tools: <EditingToolRail />,
+              sheet: {
+                open: sheetOpen,
+                expanded: sheetExpanded,
+                content: <Inspector />,
+                onClose: () => {
+                  setSelection(null);
+                  setSheetExpanded(false);
+                },
+                onExpandedChange: setSheetExpanded,
+              },
+            }
+          : { kind: "desktop", content: showInspector ? <Inspector /> : null }
+      }
+      bindings={{
+        root: shellRef,
+        transport: transportFocusRef,
+        main: mainFocusRef,
+        panels: panelsFocusRef,
+      }}
+    />
   );
 }
 
 /** Desktop and tablet shell; the phone shell is `MobileShell`. */
-export const StudioShell = memo(StudioShellView);
+export const StudioShell = memo(StudioShellAdapter);

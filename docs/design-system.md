@@ -351,16 +351,43 @@ keeps selection and solo resolution, `startBounceJob` / `followExportJob`,
 abort-on-close and the status announcement. Stories cover ready, no region,
 bouncing, a nothing-selected error and 360px.
 
+### Shell chrome
+
+`Templates/MobileShell` and `Templates/StudioShell` render the production shell
+views from grouped presentation props. `MobileScreen` selects Listen, Timeline,
+Text, or More content. `StudioWorkspace` selects loading, ingest, or arrangement.
+`inspector.kind` selects desktop or tablet chrome. The views own navigation,
+pressed states, guest visibility, layout classes, More-back, ingest coach, and
+interactive inspector sheets. The adapters keep DAW selectors, command dispatch,
+presence and focus bindings, gestures, sheet eligibility, and memoized timeline
+headers.
+
+Stories compose fictional factory data with `ListenHero`, `TrackHeaderView`,
+`TranscriptTurnView`, `FollowBannerView`, `StatusBarView`, and
+`BottomTabsSplitterView`. Their representative transport uses `TransportFrame`,
+`TransportZone`, `TransportPlayControls`, and `ToolModeToggleView`. It does not
+implement the full transport menus, live timecode, recording adapter, or scrubber.
+Listen and More bodies and the timeline are bounded fixture regions rather than
+complete pages. Callbacks forward to `fn()` spies and update local state.
+
+The fullscreen fixture frame has a definite block size and sets document shell
+metadata for portaled sheets. Cleanup restores the previous document metadata.
+Mobile stories use a 360 CSS-pixel frame. Studio stories include desktop, tablet, guest, loading,
+ingest, and inspector states. `e2e-storybook/shells.spec.ts` verifies usable body
+height, horizontal fit, navigation, keyboard resize, and sheet portals in both
+themes. `layout/shellViews.test.ts` checks the views' runtime dependency graphs.
+`layout/shellStoryFixtures.tsx` and `layout/shellStoryData.ts` are catalog-only
+and cannot enter the app bundle.
+
 ### Catalog boundary (store-bound components)
 
 Per sync rule 6 (#172/#173), a component that cannot render from props alone
-gets a refactor issue, not a story. These remaining store-bound surfaces are
-tracked as grouped follow-up issues, one per cluster, each component its own
-checkbox so it can ship as its own PR:
-
-- **H** ([#616](https://github.com/calebn/sharecut-studio/issues/616)) —
-  fixture-composed `MobileShell` and `StudioShell` chrome at 360px and
-  desktop, blocked by the remaining `TransportBar` pieces
+gets a refactor issue, not a story. The shell chrome catalog from
+[#616](https://github.com/calebn/sharecut-studio/issues/616) uses the production
+props-only `MobileShellView` and `StudioShellView` rendered by their live adapters.
+The live `TransportBar`, full Listen and More bodies, connected panels, and full
+DAW page remain outside this catalog. Their store subscriptions and commands stay
+in the runtime adapters.
 
 `CommandButton` and `CommandMenuItem` are command-bus adapters over `Button`
 and `MenuItem`, which already have stories; they are not on this list and get

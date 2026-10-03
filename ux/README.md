@@ -34,6 +34,13 @@ Each site view has **Copy Markdown** for pasting into Google Docs / Notion. Merm
 
 **Shortcuts page:** regenerated from `KEYMAP_COMMANDS` / `COMMANDS` via `make cheatsheet`. Stale output fails `make test-web` / `make cheatsheet-check` and the `keymap-cheatsheet` pre-commit hook.
 
+For component review, the Storybook catalog includes `Templates/MobileShell`
+and `Templates/StudioShell` at phone, tablet, and desktop sizes in both themes.
+These examples use fictional data and bounded regions with representative
+transport controls. Use the demo project below to inspect the complete live DAW.
+The [shell chrome contract](../docs/design-system.md#shell-chrome) describes which
+parts belong to the catalog and which remain live runtime integrations.
+
 ## Demo project (always-visible UI)
 
 Canonical showcase fixture: [`tests/fixtures/sharecut_ux_demo/`](../tests/fixtures/sharecut_ux_demo/)
