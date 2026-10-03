@@ -25,21 +25,12 @@ import {
   canManageProjects,
   guestShareBannerLabel,
 } from "../shareMode";
-import type { MobileMode } from "../state/types";
 import { useDaw } from "../state/useDaw";
 import { RangeActions } from "../timeline/RangeActions";
 import { TimelineView } from "../timeline/TimelineView";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import type { PresenceTab } from "../types/session";
-import {
-  BottomSheet,
-  CommandButton,
-  EmptyState,
-  Icon,
-  type IconName,
-  Timecode,
-  ToggleButton,
-} from "../ui";
+import { CommandButton, EmptyState, Timecode } from "../ui";
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
 import { MIX_STALE_LABEL } from "../utils/staleRender";
 import { formatTimecodePair, transportTimecode } from "../utils/time";
@@ -50,6 +41,7 @@ import { GuestAttentionBanner } from "./GuestAttentionBanner";
 import { ListenHero } from "./ListenHero";
 import { ListenScrubber } from "./ListenPlayhead";
 import { LISTEN_SKIP_SEC, seekListen, skipListen } from "./listenSeek";
+import { type MobileScreen, MobileShellView } from "./MobileShellView";
 import { OverlayLegend } from "./OverlayLegend";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 import { TransportBar } from "./TransportBar";
@@ -57,13 +49,6 @@ import { TransportPlayControls } from "./TransportPlayControls";
 import { TransportTimecode } from "./TransportTimecode";
 import { TAB_LABELS } from "./tabLabels";
 import { transportPlayHandlers } from "./transportPlay";
-
-const MODES: { id: MobileMode; label: string; icon: IconName }[] = [
-  { id: "listen", label: "Listen", icon: "listen" },
-  { id: "timeline", label: "Timeline", icon: "timeline" },
-  { id: "text", label: "Text", icon: "text" },
-  { id: "more", label: "More", icon: "more" },
-];
 
 function MoreHub({ guestShare }: { guestShare: boolean }) {
   const {
@@ -337,11 +322,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
   );
 }
 
-export function MobileShellView({
-  guestShare = false,
-}: {
-  guestShare?: boolean;
-}) {
+function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
   const {
     rangeArmed,
     setRangeArmed,
@@ -410,136 +391,66 @@ export function MobileShellView({
     setSheetExpanded(false);
   };
 
+  const moreContent =
+    moreDestination === "hub" ? (
+      <MoreHub guestShare={guestShare} />
+    ) : moreDestination === "comments" ? (
+      <CommentsPanel guestShare={guestShare} />
+    ) : moreDestination === "history" ? (
+      <HistoryPanel />
+    ) : moreDestination === "impact" ? (
+      <ImpactPanel />
+    ) : moreDestination === "tighten" ? (
+      <TightenPanel />
+    ) : (
+      <PipelinePanel />
+    );
+  const screen: MobileScreen =
+    mobileMode === "listen"
+      ? { kind: "listen", content: <ListenMode guestShare={guestShare} /> }
+      : mobileMode === "timeline"
+        ? {
+            kind: "timeline",
+            canvas: <TimelineView fixedPlayhead headerSlot={headerSlot} />,
+            tools: <EditingToolRail />,
+          }
+        : mobileMode === "text"
+          ? { kind: "text", content: <TranscriptPanel /> }
+          : {
+              kind: "more",
+              destination: moreDestination,
+              content: moreContent,
+              onBack: () => setMoreDestination("hub"),
+            };
+
   return (
-    <div
-      ref={shellRef}
-      className={`daw-shell daw-shell--phone${mobileMode === "listen" ? " daw-shell--listen" : ""}${guestShare ? " daw-shell-guest" : " daw-shell--attention"}${followingClientId ? " daw-shell--following" : ""}`}
-      data-shell="phone"
-    >
-      <div className="daw-shell-banners">
-        <Slot id={FEATURE_SHARE_UI_BANNER}>
-          {guestShare ? (
-            <div className="guest-banner" role="status">
-              {guestShareBannerLabel(guestMode)}
-            </div>
-          ) : null}
-        </Slot>
-        <GuestAttentionBanner />
-      </div>
-      <FollowBanner />
-      <span
-        className="sr-only"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        {statusAnnouncement}
-      </span>
-      {mobileMode !== "listen" ? (
-        <div ref={transportFocusRef} className="daw-shell-transport">
-          <TransportBar compact showFit showRecordingChip={false} />
-        </div>
-      ) : null}
-      <main className="mobile-mode-body">
-        <div className="mobile-record-status">
-          <RecordTransportChip />
-        </div>
-        {mobileMode === "listen" && <ListenMode guestShare={guestShare} />}
-        {mobileMode === "timeline" && (
-          <div className="mobile-timeline-mode">
-            <TimelineView fixedPlayhead headerSlot={headerSlot} />
-            <EditingToolRail />
-          </div>
-        )}
-        {mobileMode === "text" && (
-          <div ref={textFocusRef} className="mobile-text-mode">
-            <TranscriptPanel />
-          </div>
-        )}
-        {mobileMode === "more" && (
-          <div ref={moreFocusRef} className="mobile-more-mode">
-            {moreDestination === "hub" && <MoreHub guestShare={guestShare} />}
-            {moreDestination === "comments" && (
-              <>
-                <button
-                  type="button"
-                  className="mobile-back"
-                  onClick={() => setMoreDestination("hub")}
-                >
-                  ← More
-                </button>
-                <CommentsPanel guestShare={guestShare} />
-              </>
-            )}
-            {!guestShare && moreDestination === "history" && (
-              <>
-                <button
-                  type="button"
-                  className="mobile-back"
-                  onClick={() => setMoreDestination("hub")}
-                >
-                  ← More
-                </button>
-                <HistoryPanel />
-              </>
-            )}
-            {!guestShare && moreDestination === "impact" && (
-              <>
-                <button
-                  type="button"
-                  className="mobile-back"
-                  onClick={() => setMoreDestination("hub")}
-                >
-                  ← More
-                </button>
-                <ImpactPanel />
-              </>
-            )}
-            {!guestShare && moreDestination === "tighten" && (
-              <>
-                <button
-                  type="button"
-                  className="mobile-back"
-                  onClick={() => setMoreDestination("hub")}
-                >
-                  ← More
-                </button>
-                <TightenPanel />
-              </>
-            )}
-            {!guestShare && moreDestination === "pipeline" && (
-              <>
-                <button
-                  type="button"
-                  className="mobile-back"
-                  onClick={() => setMoreDestination("hub")}
-                >
-                  ← More
-                </button>
-                <PipelinePanel />
-              </>
-            )}
-          </div>
-        )}
-      </main>
-      <nav className="mobile-nav" aria-label="Primary">
-        {MODES.map(({ id, label, icon }) => (
-          <ToggleButton
-            key={id}
-            pressed={mobileMode === id}
-            {...presenceAnchorProps(presenceAnchor("mobile-nav", id))}
-            onClick={() =>
-              runPointerCommand("view.setMobileMode", { mode: id })
-            }
-          >
-            <Icon name={icon} size={20} />
-            <span>{label}</span>
-          </ToggleButton>
-        ))}
-      </nav>
-      <BottomSheet
-        backgroundPolicy="interactive"
-        open={
+    <MobileShellView
+      appearance={{ guestShare, following: Boolean(followingClientId) }}
+      chrome={{
+        notices: {
+          banners: (
+            <>
+              <Slot id={FEATURE_SHARE_UI_BANNER}>
+                {guestShare ? (
+                  <div className="guest-banner" role="status">
+                    {guestShareBannerLabel(guestMode)}
+                  </div>
+                ) : null}
+              </Slot>
+              <GuestAttentionBanner />
+            </>
+          ),
+          follow: <FollowBanner />,
+        },
+        announcement: statusAnnouncement,
+        transport: <TransportBar compact showFit showRecordingChip={false} />,
+        recording: <RecordTransportChip />,
+        overlay: <PresenceGhostLayer rootRef={shellRef} />,
+      }}
+      screen={screen}
+      onModeChange={(mode) => runPointerCommand("view.setMobileMode", { mode })}
+      inspector={{
+        open:
           rangeArmed ||
           (selection != null &&
             (mobileMode === "timeline" ||
@@ -553,27 +464,33 @@ export function MobileShellView({
                 selection.kind === "comment") ||
               (mobileMode === "more" &&
                 moreDestination === "impact" &&
-                selection.kind === "pending")))
-        }
-        onClose={() => {
+                selection.kind === "pending"))),
+        expanded: sheetExpanded,
+        onClose: () => {
           setRangeArmed(false);
           closeSheet();
-        }}
-        title="Inspector"
-        expanded={sheetExpanded}
-        onExpandedChange={setSheetExpanded}
-      >
-        <Inspector />
-        {rangeArmed ? (
-          <RangeActions sheet />
-        ) : (
-          <RelatedCommands selection={selection} />
-        )}
-      </BottomSheet>
-      <PresenceGhostLayer rootRef={shellRef} />
-    </div>
+        },
+        onExpandedChange: setSheetExpanded,
+        content: (
+          <>
+            <Inspector />
+            {rangeArmed ? (
+              <RangeActions sheet />
+            ) : (
+              <RelatedCommands selection={selection} />
+            )}
+          </>
+        ),
+      }}
+      bindings={{
+        root: shellRef,
+        transport: transportFocusRef,
+        text: textFocusRef,
+        more: moreFocusRef,
+      }}
+    />
   );
 }
 
 /** Phone shell. */
-export const MobileShell = memo(MobileShellView);
+export const MobileShell = memo(MobileShellAdapter);

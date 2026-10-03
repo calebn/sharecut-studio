@@ -160,6 +160,13 @@ Required for v1 credibility with video-first creators — not just audio post.
 
 ## Follow-up
 
+The shell chrome catalog uses the production `MobileShellView` and
+`StudioShellView` with 360px phone, desktop, and tablet fixtures
+([#616](https://github.com/calebn/sharecut-studio/issues/616)). Full live transport,
+Listen/More bodies, and connected DAW content remain outside the catalog.
+See [the catalog boundary](docs/design-system.md#catalog-boundary-store-bound-components).
+
+
 ### DAW / collab polish
 
 | Item | Notes |

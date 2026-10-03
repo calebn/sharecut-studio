@@ -14,7 +14,11 @@ export const STORY_SUPPORT_MODULES = new Set([
   "storybook/openDialog.ts",
 ]);
 
-export const CATALOG_ONLY_MODULES = new Set(["storybook/StyleGuide.tsx"]);
+export const CATALOG_ONLY_MODULES = new Set([
+  "storybook/StyleGuide.tsx",
+  "layout/shellStoryFixtures.tsx",
+  "layout/shellStoryData.ts",
+]);
 
 // Literal specifiers only: non-literal `import(x)`, template/concatenated
 // strings and path aliases are not detected (see docs/design-system.md).

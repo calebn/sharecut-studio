@@ -155,6 +155,23 @@ deterministically instead of depending on a ticking clock — see
 for which remaining components are store-bound and tracked as refactor
 follow-ups instead of stories.
 
+`Templates/MobileShell` and `Templates/StudioShell` compose the props-only
+production `MobileShellView` and `StudioShellView`. The mobile frame is 360 CSS
+pixels wide. Studio fixtures include desktop, tablet, guest, loading, ingest,
+and inspector states. Play functions forward callbacks to `fn()` spies while
+updating local state. Chromium checks in `e2e-storybook/shells.spec.ts` cover fit,
+usable body height, navigation, keyboard panel resizing, and inspector portals
+in both themes.
+
+The shell views own layout, mode navigation, editor tabs, guest visibility,
+More-back, ingest coach, and sheet markup. Their live adapters retain selectors,
+commands, focus and presence bindings, gestures, sheet policy, and the memoized
+timeline header slot. Stories use a representative `TransportFrame` with
+production play and tool controls. Full `TransportBar`, Listen/More bodies,
+connected panels, and the complete DAW timeline remain runtime integration scope.
+Shared fictional regions live in catalog-only `layout/shellStoryFixtures.tsx`.
+Their factory data lives in catalog-only `layout/shellStoryData.ts`.
+
 Full-viewport loading, error, and record entry screens share `ui/CoverScreen`.
 It supplies the `main.cover` shell and centered content; callers provide an
 optional heading, body content, and any existing shell classes. Keep status or
@@ -298,7 +315,7 @@ Domain CSS is split into `@import` partials from `src/styles/daw.css`, in cascad
 
 ## Responsive shells
 
-See [`docs/gui-mobile.md`](../../docs/gui-mobile.md). Breakpoints: phone `<768`, tablet `768–1100`, desktop `>1100` (`hooks/useViewportClass.ts`). Phone uses `MobileShell` (Listen / Timeline / Text / More); tablet uses peek `BottomSheet` inspector; desktop keeps the Reaper grid with layouts (`Mod+1`–`4`) and transport **More** overflow.
+See [`docs/gui-mobile.md`](../../docs/gui-mobile.md). Breakpoints: phone `<768`, tablet `768–1100`, desktop `>1100` (`hooks/useViewportClass.ts`). Phone uses the `MobileShell` adapter over `MobileShellView` (Listen / Timeline / Text / More); tablet uses peek `BottomSheet` inspector; desktop keeps the Reaper grid with layouts (`Mod+1`–`4`) and transport **More** overflow.
 
 ## UI library (`src/ui/`)
 
