@@ -10,6 +10,20 @@ import { formatTime } from "../utils/time";
 import { VIEWPORT_CHUNK_PX } from "../utils/timelineViewport";
 import { timelineTestIds } from "./selectors";
 
+type EnvelopeDrag = {
+  pointerId: number;
+  target: SVGCircleElement;
+  index: number;
+  origin: AutomationPoint[];
+  points: AutomationPoint[];
+};
+
+function releaseCapture(drag: EnvelopeDrag | null): void {
+  if (drag?.target.hasPointerCapture?.(drag.pointerId)) {
+    drag.target.releasePointerCapture(drag.pointerId);
+  }
+}
+
 function valueToY(value: number, height: number): number {
   const clamped = clampEnvelopeValue(value);
   const norm = clamped / 1.5;
@@ -81,18 +95,21 @@ export function EnvelopeOverlayView({
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   // By id, not index: a re-sort or delete keeps the focused circle (same key).
   const [focusedId, setFocusedId] = useState<string | null>(null);
-  const dragRef = useRef<{
-    index: number;
-    origin: AutomationPoint[];
-    points: AutomationPoint[];
-  } | null>(null);
+  const dragRef = useRef<EnvelopeDrag | null>(null);
   const commitLock = useRef(false);
 
   const releaseHold = useRef<(() => void) | null>(null);
   // Post-await callbacks skip a view that unmounted mid-commit.
   const mounted = useMountedRef();
-  // Unmounting mid-drag must not leave the lane geometry frozen.
-  useEffect(() => () => releaseHeld(releaseHold), []);
+  useEffect(
+    () => () => {
+      const drag = dragRef.current;
+      dragRef.current = null;
+      releaseCapture(drag);
+      releaseHeld(releaseHold);
+    },
+    [],
+  );
 
   if (points.length < 1) {
     return null;
@@ -114,9 +131,12 @@ export function EnvelopeOverlayView({
     .join(" ");
 
   const clearDrag = () => {
+    const drag = dragRef.current;
+    if (!drag) return;
     dragRef.current = null;
     setDragIndex(null);
     setDraft(null);
+    releaseCapture(drag);
     releaseHeld(releaseHold);
   };
 
@@ -205,10 +225,20 @@ export function EnvelopeOverlayView({
                 aria-label={label}
                 aria-pressed={selected}
                 onFocus={() => setFocusedId(p.id)}
-                onBlur={() =>
-                  setFocusedId((cur) => (cur === p.id ? null : cur))
-                }
+                onBlur={(e) => {
+                  setFocusedId((cur) => (cur === p.id ? null : cur));
+                  if (dragRef.current?.target === e.currentTarget) clearDrag();
+                }}
                 onKeyDown={(e) => {
+                  if (
+                    e.key === "Escape" &&
+                    dragRef.current?.target === e.currentTarget
+                  ) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    clearDrag();
+                    return;
+                  }
                   if (e.key !== "Enter" && e.key !== " ") {
                     return;
                   }
@@ -219,30 +249,43 @@ export function EnvelopeOverlayView({
                 onPointerDown={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
-                  onSelectPoint(i);
-                  if (!editable || commitLock.current) {
+                  if (
+                    dragRef.current ||
+                    (e.pointerType === "mouse" && e.button !== 0)
+                  )
+                    return;
+                  if (!editable) {
+                    onSelectPoint(i);
                     return;
                   }
-                  (e.target as Element).setPointerCapture?.(e.pointerId);
-                  // Freeze lane geometry now, not an effect later: yToValue
-                  // maps every pointermove through `height`.
-                  releaseHeld(releaseHold);
-                  releaseHold.current = holdGeometry?.() ?? null;
+                  if (commitLock.current) return;
+                  const target = e.currentTarget;
+                  target.focus({ preventScroll: true });
+                  if (document.activeElement !== target) return;
+                  onSelectPoint(i);
                   const copy = sorted.map((pt) => ({ ...pt }));
                   dragRef.current = {
+                    pointerId: e.pointerId,
+                    target,
                     index: i,
                     origin: copy.map((pt) => ({ ...pt })),
                     points: copy,
                   };
-                  setDraft(copy);
-                  setDragIndex(i);
+                  try {
+                    releaseHold.current = holdGeometry?.() ?? null;
+                    target.setPointerCapture?.(e.pointerId);
+                    setDraft(copy);
+                    setDragIndex(i);
+                  } catch (error) {
+                    clearDrag();
+                    onCommitError(error);
+                  }
                 }}
                 onPointerMove={(e) => {
-                  if (!dragRef.current) {
-                    return;
-                  }
+                  const drag = dragRef.current;
+                  if (!drag || drag.pointerId !== e.pointerId) return;
                   e.stopPropagation();
-                  const svg = (e.target as SVGElement).ownerSVGElement;
+                  const svg = drag.target.ownerSVGElement;
                   if (!svg) {
                     return;
                   }
@@ -250,8 +293,8 @@ export function EnvelopeOverlayView({
                   // The SVG starts at the chunk's x.
                   const x = e.clientX - rect.left + x0;
                   const y = e.clientY - rect.top;
-                  const next = dragRef.current.points.map((pt, j) =>
-                    j === dragRef.current!.index
+                  const next = drag.points.map((pt, j) =>
+                    j === drag.index
                       ? {
                           id: pt.id,
                           time: Math.max(0, x / zoomPxPerSec),
@@ -259,27 +302,25 @@ export function EnvelopeOverlayView({
                         }
                       : pt,
                   );
-                  dragRef.current = { ...dragRef.current, points: next };
+                  dragRef.current = { ...drag, points: next };
                   setDraft(next);
                 }}
                 onPointerUp={(e) => {
-                  if (!dragRef.current) {
-                    return;
-                  }
+                  const drag = dragRef.current;
+                  if (!drag || drag.pointerId !== e.pointerId) return;
                   e.stopPropagation();
-                  const { index, points: next, origin } = dragRef.current;
                   dragRef.current = null;
                   setDragIndex(null);
-                  void commit(next, index, origin);
+                  releaseCapture(drag);
+                  void commit(drag.points, drag.index, drag.origin);
                 }}
                 onPointerCancel={(e) => {
+                  if (dragRef.current?.pointerId !== e.pointerId) return;
                   e.stopPropagation();
                   clearDrag();
                 }}
-                onLostPointerCapture={() => {
-                  if (dragRef.current) {
-                    clearDrag();
-                  }
+                onLostPointerCapture={(e) => {
+                  if (dragRef.current?.pointerId === e.pointerId) clearDrag();
                 }}
               />
             );
