@@ -10,6 +10,7 @@ import pytest
 from podcast_mcp.edits.pending_preview import PendingPreviewWindow
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models import EditDecision, EditDecisionType
+from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document.golden_ear import (
     LISTEN_DIRNAME,
@@ -648,17 +649,45 @@ def test_build_real_aligned_dialogue_smoke(tmp_path):
     if not ok:
         pytest.skip("ffmpeg not available")
     before_files = _fixture_files()
+    before_fingerprint = source_fingerprint(FIXTURE)
     out = tmp_path / "golden-real"
-    result = build_golden_ear(FIXTURE, out, limit=1, seed=0, classes="filler,pause")
+    source = copy_relocated_project(FIXTURE, tmp_path / "source")
+    source_store = ProjectStore(source)
+    source_project = source_store.load()
+    source_project.edit_decisions = [
+        EditDecision(
+            id="real-pause",
+            track_id="reference",
+            type=EditDecisionType.REMOVE,
+            start=14.0,
+            end=34.0,
+            reason="pause:20.00s",
+            review_required=True,
+            applied=False,
+        )
+    ]
+    for track in ("reference", "guest"):
+        with wave.open(str(source.parent / "raw" / f"{track}.wav"), "rb") as handle:
+            handle.setpos(round(14.0 * handle.getframerate()))
+            silence = handle.readframes(round(20.0 * handle.getframerate()))
+        assert not any(silence)
+    source_store.commit(source_project)
+    result = build_golden_ear(source, out, limit=1, seed=0, classes="pause")
     workspace = Path(result["workspace"]).resolve()
     assert workspace == (out / "workspace").resolve()
     assert workspace != FIXTURE.resolve()
     assert _fixture_files() == before_files
-    if result["pair_count"] == 0:
-        pytest.skip("no suggestable tighten pairs on aligned_dialogue")
+    assert source_fingerprint(FIXTURE) == before_fingerprint
+    assert result["pair_count"] == 1
     pair = out / LISTEN_DIRNAME / "pair_000"
     assert (pair / "1.wav").is_file()
     assert (pair / "2.wav").is_file()
+    pcm = []
+    for name in ("1.wav", "2.wav"):
+        with wave.open(str(pair / name), "rb") as handle:
+            pcm.append(handle.readframes(handle.getnframes()))
+    assert all(any(samples) for samples in pcm)
+    assert pcm[0] != pcm[1]
     assert abs(_wav_duration(pair / "1.wav") - _wav_duration(pair / "2.wav")) < 0.08
     assert (out / "key.json").is_file()
     assert not (out / LISTEN_DIRNAME / "key.json").exists()

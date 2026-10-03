@@ -16,7 +16,6 @@ def test_social_clip_export(e2e_workspace) -> None:
     seed_canned_transcript(e2e_workspace, DEFAULT_CANNED)
     runner.invoke(app, ["render-preview", "--project", str(e2e_workspace)])
 
-    # Ensure at least one sentence-like utterance in the social duration band.
     from podcast_mcp.models import CombinedTranscript, CombinedUtterance
     from podcast_mcp.project_store import ProjectStore
 
@@ -26,11 +25,13 @@ def test_social_clip_export(e2e_workspace) -> None:
             CombinedUtterance(
                 track_id="reference",
                 speaker="Host",
-                start=2.0,
-                end=18.0,
+                start=2.38,
+                end=42.44,
                 text=(
-                    "Welcome to the show. So here is why this matters for people "
-                    "who care about learning from each other?"
+                    "My uncle was delighted for myself moody and dissatisfied I appeared "
+                    "almost to expect a glimpse of the ghost of Hamlet. "
+                    "My uncle was delighted for myself moody and dissatisfied I appeared "
+                    "almost to expect a glimpse of the ghost of Hamlet."
                 ),
             )
         ]
@@ -44,8 +45,13 @@ def test_social_clip_export(e2e_workspace) -> None:
     assert propose.exit_code == 0, propose.stdout + propose.stderr
 
     proj = load_project(e2e_workspace)
-    ids = [c.id for c in proj.social_clip_candidates[:1]]
-    assert ids
+    assert len(proj.social_clip_candidates) == 1
+    candidate = proj.social_clip_candidates[0]
+    assert candidate.track_id == "reference"
+    assert candidate.start == pytest.approx(2.38)
+    assert candidate.end == pytest.approx(42.44)
+    assert candidate.transcript_excerpt.startswith("My uncle was delighted")
+    ids = [candidate.id]
 
     approve = runner.invoke(
         app,

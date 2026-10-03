@@ -1,227 +1,92 @@
 #!/usr/bin/env python3
-"""Build tests/fixtures/aligned_dialogue speech from Piper TTS at canned word times (#801).
+"""Compose the aligned-dialogue fixture offline from checked-in LibriSpeech speech.
 
-Regenerates ``raw/{reference,guest}.wav`` and ``sources/{reference,guest}.wav`` by
-synthesizing the canned transcript (``tests/fixtures/canned_transcript_aligned.json``) with
-Piper TTS voices, placed exactly at the canned words' start/end times, and rewrites the
-``transcripts/{reference,guest}.json`` write-through mirrors to match.
-
-Piper is not a project dependency (it is a one-off regeneration tool, like
-``build_synthetic_bleed_fixture.py`` is for ffmpeg); run this with:
-
-    uv run --with piper-tts==1.8.0 python scripts/build_aligned_dialogue_audio.py
-
-See ``tests/fixtures/aligned_dialogue/README.md`` for voice licensing and provenance.
+Run ``uv run python scripts/build_aligned_dialogue_audio.py``. Whole utterances
+are resampled to mono PCM16 at 48 kHz, without trimming, stretching or gain.
+Published MFA-derived boundaries are shifted into each placement's source clock.
 """
 
 from __future__ import annotations
 
 import argparse
-import contextlib
-import io
+import hashlib
 import json
 import subprocess
 import sys
 import tempfile
 import wave
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import numpy as np
-import yaml
 
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
 from podcast_mcp.e2e_fixture import DEFAULT_CANNED, FIXTURES_DIR
-from podcast_mcp.models import load_project
+from podcast_mcp.engines.transcribe import TranscriptionEngine
+from podcast_mcp.models import Transcript, TranscriptWord, load_project
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.util.binaries import resolve_ffmpeg
 
 FIXTURE = FIXTURES_DIR / "aligned_dialogue"
-PIPER_VOICES_REPO = "rhasspy/piper-voices"
-PIPER_VOICES_REVISION = "c10ece1aade47bb51c153c893d14e5bf8e5b7117"
-VOICES = {
-    "reference": "en/en_US/norman/medium/en_US-norman-medium.onnx",
-    "guest": "en/en_US/ljspeech/medium/en_US-ljspeech-medium.onnx",
-}
+GOLD_DIR = FIXTURES_DIR / "word_boundary"
 SAMPLE_RATE = 48_000
-SOURCE_DURATION_SEC = {"reference": 90.0, "guest": 180.0}  # current sources/*.wav lengths
-PHRASE_MAX_SLOT_SEC = (
-    0.5  # words faster than this in a contiguous run are synthesized as one phrase
-)
-JOIN_GAP_SEC = 0.05  # max gap between words of one phrase
-ONSET_PAD_SEC = 0.02  # silence between the canned start and the speech onset
-TAIL_GUARD_SEC = 0.04  # silence kept before the canned end (inaudible-cut search room)
-MIN_LENGTH_SCALE = 0.3  # Piper speed-up floor
-TARGET_PEAK = 0.7
-FADE_SEC = 0.005
-TRIM_THRESHOLD = 0.02  # fraction of the clip peak treated as silence when trimming
+DURATION_SEC = 60.0
 
 
 @dataclass(frozen=True)
-class Segment:
-    text: str
-    start: float
-    end: float
+class SpeechClip:
+    clip_id: str
+    audio_sha256: str
+    gold_sha256: str
 
 
-# (text, length_scale) -> (float32 mono audio, sample_rate)
-Synthesize = Callable[[str, float], tuple[np.ndarray, int]]
+@dataclass(frozen=True)
+class TrackLayout:
+    track_id: str
+    clip: SpeechClip
+    placements_sec: tuple[float, ...]
+    session_start_in_file_sec: float
+    source_duration_sec: float
 
 
-def plan_segments(words: Sequence[Mapping[str, Any]]) -> list[Segment]:
-    """Group a contiguous run of short words into one phrase; leave slow words separate."""
-    ordered = sorted(words, key=lambda w: w["start"])
-    segments: list[Segment] = []
-    run: list[Mapping[str, Any]] = []
-
-    def flush() -> None:
-        if not run:
-            return
-        if len(run) >= 2:
-            text = " ".join(str(w["text"]) for w in run)
-            segments.append(Segment(text, float(run[0]["start"]), float(run[-1]["end"])))
-        else:
-            w = run[0]
-            segments.append(Segment(str(w["text"]), float(w["start"]), float(w["end"])))
-        run.clear()
-
-    for w in ordered:
-        if run:
-            prev = run[-1]
-            joins = (
-                w["start"] - prev["end"] <= JOIN_GAP_SEC
-                and (prev["end"] - prev["start"]) < PHRASE_MAX_SLOT_SEC
-                and (w["end"] - w["start"]) < PHRASE_MAX_SLOT_SEC
-            )
-            if not joins:
-                flush()
-        run.append(w)
-    flush()
-    return segments
+LAYOUT = (
+    TrackLayout(
+        "reference",
+        SpeechClip(
+            "6241-61943-0003",
+            "8d1217eb43a8e46f825bc25cdf2cfed9d2f797520e1c0e1624cbf22208468540",
+            "05fd4c4286af48a4dc81024841f51c65ecadee92be6552bf3afa412d16eb7ac8",
+        ),
+        (2.0, 35.0),
+        0.0,
+        90.0,
+    ),
+    TrackLayout(
+        "guest",
+        SpeechClip(
+            "1988-147956-0023",
+            "60726751a107f923f62d1f4c271751c07ae4c6ec511d4ba009e8182720184f53",
+            "69db76f58d58ede2a659fd10b726d93b2ed886c10f1f1272bfe960aaa6048158",
+        ),
+        (8.0, 43.0),
+        98.0,
+        180.0,
+    ),
+)
 
 
-def trim_silence(audio: np.ndarray, threshold: float = TRIM_THRESHOLD) -> np.ndarray:
-    """Drop leading/trailing samples below ``threshold`` of the clip's own peak."""
-    if audio.size == 0:
-        return audio
-    peak = float(np.abs(audio).max())
-    if peak <= 0.0:
-        return audio[:0]
-    loud = np.flatnonzero(np.abs(audio) >= threshold * peak)
-    if loud.size == 0:
-        return audio[:0]
-    return audio[loud[0] : loud[-1] + 1]
-
-
-def _fade(audio: np.ndarray, sr: int) -> np.ndarray:
-    n = min(round(FADE_SEC * sr), audio.size // 2)
-    if n <= 0:
-        return audio
-    out = audio.copy()
-    ramp = np.linspace(0.0, 1.0, n, dtype=np.float32)
-    out[:n] *= ramp
-    out[-n:] *= ramp[::-1]
-    return out
-
-
-def fit_segment(segment: Segment, synthesize: Synthesize) -> tuple[np.ndarray, int]:
-    """Synthesize ``segment.text`` to fit inside its own time slot, speeding up then truncating."""
-    target = segment.end - segment.start - ONSET_PAD_SEC - TAIL_GUARD_SEC
-    audio, sr = synthesize(segment.text, 1.0)
-    audio = trim_silence(audio)
-    dur = audio.size / sr
-    if dur > target > 0:
-        scale = max(MIN_LENGTH_SCALE, 0.97 * target / dur)
-        audio, sr = synthesize(segment.text, scale)
-        audio = trim_silence(audio)
-        dur = audio.size / sr
-    target_samples = max(round(target * sr), 0)
-    if audio.size > target_samples:
-        print(
-            f"warning: truncating {segment.text!r} ({dur:.3f}s -> {target:.3f}s)",
-            file=sys.stderr,
-        )
-        audio = _loudest_window(audio, target_samples)
-    return _fade(audio.astype(np.float32), sr), sr
-
-
-def _loudest_window(audio: np.ndarray, n: int) -> np.ndarray:
-    """The contiguous ``n``-sample slice of ``audio`` with the most energy.
-
-    Truncating to the loudest window (rather than always the head) avoids landing on a
-    quiet onset ramp when a word must be cut down to a slot much shorter than its natural
-    length (short filler words like "um" against a 0.2 s canned slot, in particular).
-    """
-    if n <= 0 or audio.size <= n:
-        return audio[:n]
-    energy = np.cumsum(np.concatenate([[0.0], audio.astype(np.float64) ** 2]))
-    window_energy = energy[n:] - energy[:-n]
-    start = int(np.argmax(window_energy))
-    return audio[start : start + n]
-
-
-def render_track(
-    segments: Sequence[Segment], synthesize: Synthesize, *, duration_sec: float
-) -> tuple[np.ndarray, int]:
-    """Fit and place every segment's speech into a silent track of ``duration_sec`` seconds."""
-    fitted = [fit_segment(seg, synthesize) for seg in segments]
-    rates = {sr for _, sr in fitted}
-    if len(rates) > 1:
-        raise ValueError(f"mixed sample rates from synthesizer: {sorted(rates)}")
-    sr = next(iter(rates)) if rates else SAMPLE_RATE
-    out = np.zeros(round(duration_sec * sr), dtype=np.float32)
-    prev_end = 0
-    for seg, (clip, _sr) in zip(segments, fitted, strict=True):
-        start_sample = round((seg.start + ONSET_PAD_SEC) * sr)
-        end_sample = start_sample + clip.size
-        if start_sample < prev_end:
-            raise ValueError(f"segment {seg.text!r} overlaps the previous segment")
-        if end_sample > out.size:
-            raise ValueError(f"segment {seg.text!r} runs past the track end")
-        out[start_sample:end_sample] = clip
-        prev_end = end_sample
-    peak = float(np.abs(out).max())
-    if peak > 0:
-        out = out * (TARGET_PEAK / peak)
-    return out, sr
-
-
-def pad_source(
-    raw: np.ndarray, *, offset_sec: float, duration_sec: float, sample_rate: int
-) -> np.ndarray:
-    """Zero-pad ``raw`` into a track of ``duration_sec`` seconds starting at ``offset_sec``."""
-    total = round(duration_sec * sample_rate)
-    offset = round(offset_sec * sample_rate)
-    if offset + raw.size > total:
-        raise ValueError("raw audio does not fit inside the padded source duration")
-    out = np.zeros(total, dtype=raw.dtype)
-    out[offset : offset + raw.size] = raw
-    return out
-
-
-def exact_length(samples: np.ndarray, n: int) -> np.ndarray:
-    """Truncate, or zero-pad at the end, to exactly ``n`` samples."""
-    if samples.size == n:
-        return samples
-    if samples.size > n:
-        return samples[:n]
-    pad = np.zeros(n - samples.size, dtype=samples.dtype)
-    return np.concatenate([samples, pad])
-
-
-def to_int16(audio: np.ndarray) -> np.ndarray:
-    return np.clip(np.round(audio * 32767), -32768, 32767).astype(np.int16)
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def read_wav_int16(path: Path) -> tuple[np.ndarray, int]:
     with wave.open(str(path), "rb") as wf:
-        sr = wf.getframerate()
-        raw = wf.readframes(wf.getnframes())
-    return np.frombuffer(raw, dtype=np.int16).copy(), sr
+        if wf.getnchannels() != 1 or wf.getsampwidth() != 2:
+            raise ValueError(f"expected mono PCM16 WAV: {path}")
+        return np.frombuffer(wf.readframes(wf.getnframes()), dtype="<i2").copy(), wf.getframerate()
 
 
 def write_wav_int16(path: Path, samples: np.ndarray, sample_rate: int) -> None:
@@ -230,20 +95,20 @@ def write_wav_int16(path: Path, samples: np.ndarray, sample_rate: int) -> None:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(sample_rate)
-        wf.writeframes(samples.astype(np.int16).tobytes())
+        wf.writeframes(samples.astype("<i2").tobytes())
 
 
-# --- Side-effect helpers (network, ffmpeg, piper); kept out of the pure functions above so
-# those can be unit-tested with a fake synthesizer. ---
-
-
-def resample_int16(samples: np.ndarray, from_sr: int, to_sr: int) -> np.ndarray:
-    if from_sr == to_sr:
-        return samples
+def load_clip(clip: SpeechClip, gold_dir: Path) -> tuple[np.ndarray, list[TranscriptWord]]:
+    audio_path = gold_dir / f"{clip.clip_id}.wav"
+    gold_path = gold_dir / f"{clip.clip_id}.gold.json"
+    for path, digest in ((audio_path, clip.audio_sha256), (gold_path, clip.gold_sha256)):
+        if sha256(path) != digest:
+            raise ValueError(f"SHA-256 mismatch: {path}")
+    gold = json.loads(gold_path.read_text())
+    if gold["audio_sha256"] != clip.audio_sha256 or gold["id"] != clip.clip_id:
+        raise ValueError("gold labels identify a different audio clip")
     with tempfile.TemporaryDirectory() as tmp:
-        src = Path(tmp) / "in.wav"
-        dst = Path(tmp) / "out.wav"
-        write_wav_int16(src, samples, from_sr)
+        output = Path(tmp) / "resampled.wav"
         subprocess.run(
             [
                 resolve_ffmpeg(),
@@ -251,9 +116,9 @@ def resample_int16(samples: np.ndarray, from_sr: int, to_sr: int) -> np.ndarray:
                 "-v",
                 "error",
                 "-i",
-                str(src),
+                str(audio_path),
                 "-ar",
-                str(to_sr),
+                str(SAMPLE_RATE),
                 "-ac",
                 "1",
                 "-c:a",
@@ -262,83 +127,153 @@ def resample_int16(samples: np.ndarray, from_sr: int, to_sr: int) -> np.ndarray:
                 "-1",
                 "-fflags",
                 "+bitexact",
-                str(dst),
+                str(output),
             ],
             check=True,
             timeout=120,
         )
-        out, _sr = read_wav_int16(dst)
-    return out
+        samples, _ = read_wav_int16(output)
+    words = [TranscriptWord.model_validate({**word, "confidence": 0.95}) for word in gold["words"]]
+    previous_end = 0.0
+    for word in words:
+        if not word.text or word.start < previous_end or word.end <= word.start:
+            raise ValueError("invalid or overlapping gold word boundaries")
+        if word.end > samples.size / SAMPLE_RATE:
+            raise ValueError("gold words extend beyond the audio")
+        previous_end = word.end
+    if not words:
+        raise ValueError("gold labels contain no words")
+    return samples, words
 
 
-def download_voice(rel_path: str) -> Path:
-    from huggingface_hub import hf_hub_download
-
-    hf_hub_download(PIPER_VOICES_REPO, rel_path + ".json", revision=PIPER_VOICES_REVISION)
-    return Path(hf_hub_download(PIPER_VOICES_REPO, rel_path, revision=PIPER_VOICES_REVISION))
-
-
-def piper_synthesizer(model_path: Path) -> Synthesize:
-    try:
-        from piper import PiperVoice, SynthesisConfig
-    except ImportError as exc:
-        raise SystemExit(
-            "piper-tts missing: run with "
-            "`uv run --with piper-tts==1.8.0 python scripts/build_aligned_dialogue_audio.py`"
-        ) from exc
-
-    voice = PiperVoice.load(str(model_path))
-
-    def synthesize(text: str, scale: float) -> tuple[np.ndarray, int]:
-        chunks = list(voice.synthesize(text, syn_config=SynthesisConfig(length_scale=scale)))
-        audio = np.concatenate([c.audio_float_array for c in chunks]).astype(np.float32)
-        return audio, chunks[0].sample_rate
-
-    return synthesize
+def compose_track(
+    clip: np.ndarray,
+    placements_sec: Sequence[float],
+    *,
+    duration_sec: float,
+    sample_rate: int = SAMPLE_RATE,
+) -> np.ndarray:
+    """Copy every complete utterance, rejecting overlapping or out-of-range placements."""
+    output = np.zeros(round(duration_sec * sample_rate), dtype=np.int16)
+    previous_end = 0
+    for offset in placements_sec:
+        start = round(offset * sample_rate)
+        end = start + clip.size
+        if start < previous_end:
+            raise ValueError("utterance placements overlap or start before zero")
+        if end > output.size:
+            raise ValueError("utterance runs past the track end")
+        output[start:end] = clip
+        previous_end = end
+    return output
 
 
-def write_transcript_mirrors(fixture: Path) -> None:
-    project = load_project(fixture / "episode.project.json")
-    ProjectStore(fixture / "episode.project.json")._mirror_transcript_cache(project)
+def pad_source(
+    raw: np.ndarray,
+    *,
+    offset_sec: float,
+    duration_sec: float,
+    sample_rate: int,
+) -> np.ndarray:
+    return compose_track(raw, (offset_sec,), duration_sec=duration_sec, sample_rate=sample_rate)
+
+
+def build_fixture(fixture: Path, canned: Path, gold_dir: Path = GOLD_DIR) -> None:
+    project_path = fixture / "episode.project.json"
+    project = load_project(project_path)
+    transcripts = []
+    manifest_tracks = []
+    outputs: dict[str, str] = {}
+    for layout in LAYOUT:
+        clip, words = load_clip(layout.clip, gold_dir)
+        raw = compose_track(clip, layout.placements_sec, duration_sec=DURATION_SEC)
+        source = pad_source(
+            raw,
+            offset_sec=layout.session_start_in_file_sec,
+            duration_sec=layout.source_duration_sec,
+            sample_rate=SAMPLE_RATE,
+        )
+        for folder, samples in (("raw", raw), ("sources", source)):
+            path = fixture / folder / f"{layout.track_id}.wav"
+            write_wav_int16(path, samples, SAMPLE_RATE)
+            outputs[str(path.relative_to(fixture))] = sha256(path)
+        transcripts.append(
+            Transcript(
+                track_id=layout.track_id,
+                language="en",
+                words=[
+                    word.model_copy(
+                        update={
+                            "start": round(word.start + offset, 8),
+                            "end": round(word.end + offset, 8),
+                        }
+                    )
+                    for offset in layout.placements_sec
+                    for word in words
+                ],
+            )
+        )
+        manifest_tracks.append(
+            {
+                "track_id": layout.track_id,
+                "clip_id": layout.clip.clip_id,
+                "audio_sha256": layout.clip.audio_sha256,
+                "gold_sha256": layout.clip.gold_sha256,
+                "placements_sec": layout.placements_sec,
+                "session_start_in_file_sec": layout.session_start_in_file_sec,
+                "source_duration_sec": layout.source_duration_sec,
+                "resampled_frames": clip.size,
+            }
+        )
+    project.transcript_data.per_track = transcripts
+    project.transcript_data.combined = TranscriptionEngine().merge_transcripts(project)
+    ProjectStore(project_path).commit(project)
+    canned.write_text(
+        json.dumps(
+            {"per_track": [t.model_dump(mode="json", by_alias=True) for t in transcripts]}, indent=2
+        )
+        + "\n"
+    )
+    (fixture / "fixture.meta.json").write_text(
+        json.dumps(
+            {
+                "duration_sec": DURATION_SEC,
+                "track_ids": [t.track_id for t in LAYOUT],
+                "known_phrases": ["uncle", "delighted", "questioned"],
+                "provenance_manifest": "provenance.json",
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    (fixture / "provenance.json").write_text(
+        json.dumps(
+            {
+                "license": "CC-BY-4.0",
+                "license_url": "https://creativecommons.org/licenses/by/4.0/",
+                "audio_source": "https://www.openslr.org/12",
+                "audio_attribution": "LibriSpeech, Panayotov, Chen, Povey and Khudanpur, ICASSP 2015",
+                "labels_source": "https://huggingface.co/datasets/gilkeyio/librispeech-alignments",
+                "labels_attribution": "gilkeyio/librispeech-alignments",
+                "text_reference": "LibriSpeech reference text",
+                "boundary_reference": "Published MFA-derived boundaries, not human-verified timings",
+                "composition": "Whole utterances; ffmpeg mono PCM16 48000 Hz resampling; no trim, stretch or gain",
+                "tracks": manifest_tracks,
+                "output_sha256": outputs,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixture", type=Path, default=FIXTURE)
     parser.add_argument("--canned", type=Path, default=DEFAULT_CANNED)
+    parser.add_argument("--gold-dir", type=Path, default=GOLD_DIR)
     args = parser.parse_args(argv)
-    fixture: Path = args.fixture
-
-    duration = float(json.loads((fixture / "fixture.meta.json").read_text())["duration_sec"])
-    ingest = yaml.safe_load((fixture / "ingest.yaml").read_text())
-    offsets = {s["name"]: float(s["session_start_in_file_sec"]) for s in ingest["speakers"]}
-    canned = json.loads(args.canned.read_text())
-    words_by_track = {t["track_id"]: t["words"] for t in canned["per_track"]}
-
-    for track in ("reference", "guest"):
-        segments = plan_segments(words_by_track[track])
-        voice_path = download_voice(VOICES[track])
-        synth = piper_synthesizer(voice_path)
-        stderr_buf = io.StringIO()
-        with contextlib.redirect_stderr(stderr_buf):
-            audio, sr = render_track(segments, synth, duration_sec=duration)
-        captured = stderr_buf.getvalue()
-        sys.stderr.write(captured)
-        truncated = captured.count("warning: truncating")
-        raw = exact_length(
-            resample_int16(to_int16(audio), sr, SAMPLE_RATE), round(duration * SAMPLE_RATE)
-        )
-        write_wav_int16(fixture / "raw" / f"{track}.wav", raw, SAMPLE_RATE)
-        source = pad_source(
-            raw,
-            offset_sec=offsets[track],
-            duration_sec=SOURCE_DURATION_SEC[track],
-            sample_rate=SAMPLE_RATE,
-        )
-        write_wav_int16(fixture / "sources" / f"{track}.wav", source, SAMPLE_RATE)
-        print(f"{track}: {len(segments)} segments, {truncated} truncated")
-
-    write_transcript_mirrors(fixture)
+    build_fixture(args.fixture, args.canned, args.gold_dir)
     return 0
 
 

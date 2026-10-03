@@ -13,12 +13,12 @@ test("reviewed replace all is one command and one Undo restores every instance",
   const list = await openTranscriptPanel(page);
   const word = list
     .locator(".utterance-word")
-    .filter({ hasText: /^documented$/i })
+    .filter({ hasText: /^delighted$/i })
     .first();
   await expect(word).toBeVisible();
   const originalCount = await list
     .locator(".utterance-word")
-    .filter({ hasText: /^documented$/i })
+    .filter({ hasText: /^delighted$/i })
     .count();
   expect(originalCount).toBeGreaterThan(1);
   await page
@@ -29,7 +29,7 @@ test("reviewed replace all is one command and one Undo restores every instance",
   });
   await replace
     .getByRole("textbox", { name: "Find", exact: true })
-    .fill("documented");
+    .fill("delighted");
   await replace
     .getByRole("textbox", { name: "Replace with" })
     .fill("Testreplacement");
@@ -44,7 +44,7 @@ test("reviewed replace all is one command and one Undo restores every instance",
       replace.getByRole("button", { name: "Undo replacements" }),
     ).toBeEnabled();
     await expect(
-      list.locator(".utterance-word").filter({ hasText: /^documented$/i }),
+      list.locator(".utterance-word").filter({ hasText: /^delighted$/i }),
     ).toHaveCount(0);
     await expect(
       list.locator(".utterance-word").filter({ hasText: /^Testreplacement$/ }),
@@ -54,7 +54,7 @@ test("reviewed replace all is one command and one Undo restores every instance",
     ).toHaveLength(1);
     await replace.getByRole("button", { name: "Undo replacements" }).click();
     await expect(
-      list.locator(".utterance-word").filter({ hasText: /^documented$/i }),
+      list.locator(".utterance-word").filter({ hasText: /^delighted$/i }),
     ).toHaveCount(originalCount);
     await expect(
       list.locator(".utterance-word").filter({ hasText: /^Testreplacement$/ }),

@@ -6,7 +6,7 @@ Commands assume `podcast` is on your PATH from the project venv.
 
 | Fixture | Path | Use |
 |---------|------|-----|
-| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/episode.project.json` | Smoke, NL edit, social; Piper TTS speech at canned word times; waveform pyramids build on demand (nothing tracked under `artifacts/`) |
+| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/episode.project.json` | Smoke, NL edit, social; human LibriSpeech utterances with corpus text and MFA-derived word boundaries; waveform pyramids build on demand (nothing tracked under `artifacts/`) |
 | `synthetic_bleed_60s` | `tests/fixtures/synthetic_bleed_60s/episode.project.json` | Bleed/reconcile gold |
 | `ami_bleed_60s` | `tests/fixtures/ami_bleed_60s/episode.project.json` | AMI overlap realism |
 | `audition_defects` | `tests/fixtures/audition_defects/` (audio generated at test time) | Hum / clipping / skew hypothesis eval |
@@ -30,11 +30,13 @@ podcast fixture seed-transcript --project "$PROJECT" \
   --from tests/fixtures/canned_transcript_aligned.json
 ```
 
-Known search phrases: `documented`, `people`, `today`, `going`, `great`. The live
-transcription test checks `documented`, `people`, and `today` against the committed
-Piper TTS audio (checklist #3, "Transcribe (slow)"). Regenerate the audio with
-`uv run --with piper-tts==1.8.0 python scripts/build_aligned_dialogue_audio.py` if you
-change the canned word times.
+Known search phrases are `uncle`, `delighted`, and `questioned`. The slow live
+transcription test scores complete reference text for each track. Word boundaries
+are machine-derived labels, not human boundary gold. Regenerate offline with
+`uv run python scripts/build_aligned_dialogue_audio.py`, then regenerate the UX
+demo with `uv run python scripts/build_ux_demo_fixture.py`. The placement table
+moves complete recordings and their labels together. See the
+[fixture provenance](../tests/fixtures/aligned_dialogue/README.md).
 
 ---
 
@@ -44,11 +46,11 @@ change the canned word times.
 |---|----------|---------|--------|----------|
 | 1 | Aligned dialogue | Use repo fixture | `podcast play --project "$PROJECT" --source track:reference --start 0 --end 15` | Raw dialogue (no FX) |
 | 1 | | | `podcast play --project "$PROJECT" --source processed:guest --start 0 --end 15` | Processed solo |
-| 1 | | | `podcast play --project "$PROJECT" --compare --start 18 --end 28` | Both tracks + premix |
-| 1 | | | `podcast play compose --project "$PROJECT" --track-ids reference,guest --tier processed --start 18 --end 28 --dry-run` | Subset mix WAV under `play_cache` |
-| 2 | Alignment | — | Play both tracks with identical `--start` / `--end` | Same words, minimal drift |
-| 3 | Transcribe (slow) | `podcast transcribe --project "$PROJECT"` | `podcast play --project "$PROJECT" --query documented` | Phrase audible in padding |
-| 4 | NL cut | `fixture seed-transcript` → `edit cut-text --query um` → `edit approve` → `render-preview` | `processed:<id>` or premix before/after at cut region | After: tighter gap / shorter segment |
+| 1 | | | `podcast play --project "$PROJECT" --compare --start 2 --end 15` | Both tracks + premix |
+| 1 | | | `podcast play compose --project "$PROJECT" --track-ids reference,guest --tier processed --start 2 --end 15 --dry-run` | Subset mix WAV under `play_cache` |
+| 2 | Alignment | — | Play both tracks with identical `--start` / `--end` | Clips remain on their shared session clock |
+| 3 | Transcribe (slow) | `podcast transcribe --project "$PROJECT"` | `podcast play --project "$PROJECT" --query uncle` | Phrase audible in padding |
+| 4 | NL cut | `fixture seed-transcript` → `edit cut-text --query uncle` → `edit approve` → `render-preview` | `processed:<id>` or premix before/after at cut region | After: selected spoken word removed |
 | 5 | Undo | `undo --rerender` | Same premix range | Cut restored |
 | 6 | Social clip | `clips propose` → `clips approve` → `clips export` | Play exported WAV path from JSON | Isolated highlight |
 | 7 | Master export | `pipeline run` (or from `master_loudness`) | `podcast play --project "$PROJECT" --source export --start 0 --end 30` | Full mix |

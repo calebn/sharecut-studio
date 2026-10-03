@@ -50,17 +50,16 @@ def main() -> int:
     data["meta"]["workspace_dir"] = "."
     data["meta"]["created_at"] = _now()
 
-    # Pending cut (filler "um") - surfaces on Impact / overlay / Listen chips
     data["editorial"] = {
         "edit_decisions": [
             {
-                "id": "ux_pending_um",
+                "id": "ux_pending_uncle",
                 "track_id": "reference",
                 "type": "remove",
-                "start": 22.0,
-                "end": 22.2,
+                "start": 35.53,
+                "end": 35.79,
                 "crossfade_ms": 10,
-                "reason": "Filler: um",
+                "reason": "Review word removal: uncle",
                 "review_required": True,
                 "applied": False,
                 "cut_confidence": 0.82,
@@ -70,7 +69,7 @@ def main() -> int:
         "edit_log": [],
         "chapters": [
             {"time": 0.0, "title": "Cold open", "image_url": None},
-            {"time": 21.0, "title": "Guest joins", "image_url": None},
+            {"time": 8.0, "title": "Guest joins", "image_url": None},
         ],
     }
 
@@ -79,9 +78,9 @@ def main() -> int:
         if tr.get("track_id") != "reference":
             continue
         for w in tr.get("words", []):
-            if w.get("text") == "documented":
+            if w.get("text") == "delighted":
                 w["confidence"] = 0.41
-            if w.get("text") == "um":
+            if w.get("text") == "uncle" and w.get("start") == 35.53:
                 w["suppressed"] = True
                 w["audibility_status"] = "bleed_candidate"
 
@@ -116,13 +115,19 @@ def main() -> int:
             {
                 "id": "ux_clip_1",
                 "track_id": "reference",
-                "start": 5.0,
-                "end": 18.0,
+                "start": 2.38,
+                "end": 42.44,
                 "score": 0.77,
                 "reasons": ["dense dialogue", "clear hook"],
-                "title_suggestion": "Why documented stories matter",
+                "title_suggestion": "A glimpse of Hamlet",
                 "caption_suggestion": None,
-                "transcript_excerpt": "here is why this matters for people who care about documented stories",
+                "transcript_excerpt": " ".join(
+                    w["text"]
+                    for tr in data["transcripts"]["per_track"]
+                    if tr["track_id"] == "reference"
+                    for w in tr["words"]
+                    if 2.38 <= w["start"] < 42.44
+                ),
                 "speaker": "reference",
                 "review_required": True,
                 "approved": False,
@@ -140,8 +145,8 @@ def main() -> int:
                 "author": "reviewer",
                 "created_at": ts,
                 "updated_at": None,
-                "timeline_start": 22.0,
-                "timeline_end": 28.0,
+                "timeline_start": 43.0,
+                "timeline_end": 46.0,
                 "track_ids": ["guest"],
                 "action_items": [
                     {
@@ -160,12 +165,12 @@ def main() -> int:
             },
             {
                 "id": "ux_cmt_cut",
-                "body": "Approve the filler cut after listen-through?",
+                "body": "Approve the word removal after listen-through?",
                 "author": "host",
                 "created_at": ts,
                 "updated_at": None,
-                "timeline_start": 22.0,
-                "timeline_end": 22.2,
+                "timeline_start": 35.53,
+                "timeline_end": 35.79,
                 "track_ids": ["reference"],
                 "action_items": [],
                 "replies": [

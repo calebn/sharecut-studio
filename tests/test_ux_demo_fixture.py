@@ -42,3 +42,23 @@ def test_ux_demo_fixture_loads_and_has_showcase_data() -> None:
     )
     ref = DEMO / "raw" / "reference.wav"
     assert ref.is_symlink() or ref.is_file()
+
+
+def test_ux_demo_audio_and_words_share_the_source_fixture() -> None:
+    from podcast_mcp.models import load_project
+
+    source = load_project(DEMO.parent / "aligned_dialogue" / "episode.project.json")
+    demo = load_project(PROJECT)
+    for original, showcased in zip(source.transcripts, demo.transcripts, strict=True):
+        assert original.track_id == showcased.track_id
+        assert [(w.text, w.start, w.end) for w in showcased.words] == [
+            (w.text, w.start, w.end) for w in original.words
+        ]
+        assert (DEMO / "raw" / f"{original.track_id}.wav").read_bytes() == (
+            DEMO.parent / "aligned_dialogue" / "raw" / f"{original.track_id}.wav"
+        ).read_bytes()
+    decision = demo.edit_decisions[0]
+    transcript = next(t for t in demo.transcripts if t.track_id == decision.track_id)
+    assert [(w.text, w.start, w.end) for w in transcript.words if w.suppressed] == [
+        ("uncle", decision.start, decision.end)
+    ]

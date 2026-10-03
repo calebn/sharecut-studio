@@ -51,16 +51,16 @@ def test_canned_fixture_anchor_offset() -> None:
         anchors=[
             {
                 "reference_speaker": "reference",
-                "reference_contains": "today going",
+                "reference_contains": "my uncle",
                 "source_speaker": "guest",
-                "source_contains": "been great",
+                "source_contains": "antonia pointed",
                 "gap_sec": 1.0,
             }
         ],
     )
     guest = results["guest"]
     assert guest.method == "anchor"
-    assert guest.offset_sec != 0.0 or guest.anchor_detail
+    assert guest.offset_sec == pytest.approx(-4.7)
 
 
 def test_find_phrase_interval_edge_cases():
