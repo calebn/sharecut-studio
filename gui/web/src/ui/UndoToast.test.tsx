@@ -268,6 +268,7 @@ describe("UndoToast", () => {
     const target = document.createElement("div");
     target.tabIndex = -1;
     document.body.appendChild(target);
+    const focus = vi.spyOn(target, "focus");
     const returnFocusRef = { current: target };
     const { rerender } = render(
       <UndoToast
@@ -289,6 +290,7 @@ describe("UndoToast", () => {
       />,
     );
     expect(document.activeElement).toBe(target);
+    expect(focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
     target.remove();
   });
 

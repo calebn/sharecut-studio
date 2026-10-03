@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { createComment } from "../api";
 import {
   CommentAuthorLine,
@@ -7,6 +7,7 @@ import {
   commentTimeLabel,
   useCommentActions,
 } from "../comments";
+import { useMountedRef } from "../hooks/useMountedRef";
 import { canComment, canReply, canSetAction, commentRole } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import type { TimelineComment } from "../types/project";
@@ -87,13 +88,7 @@ export function CommentsPanel({
     (UndoToastState & { comment: TimelineComment }) | null
   >(null);
   const dismissUndo = useCallback(() => setUndoToast(null), []);
-  const mounted = useRef(false);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
+  const mounted = useMountedRef();
 
   const onResolve = async (c: TimelineComment, resolved: boolean) => {
     const ok = await resolve(c, resolved);
@@ -113,8 +108,8 @@ export function CommentsPanel({
   const onUndoResolve = async () => {
     if (!undoToast) return;
     const ok = await resolve(undoToast.comment, false);
-    // Skip if the panel unmounted mid-request (e.g. project switch): the
-    // announcement goes to the app-wide live region and would be stale.
+    // Unmount disposes the panel-local toast, but cannot cancel this mutation.
+    // Suppress its later app-wide announcement. Revisit if toast ownership moves.
     if (!ok || !mounted.current) return;
     setUndoToast(null);
     announceStatus("Comment reopened");
