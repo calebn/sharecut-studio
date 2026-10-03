@@ -253,6 +253,7 @@ typed AST and scope bindings handle lexical shadowing and TypeScript expression
 wrappers, including `satisfies`. Calls during the owner's evaluation include
 JSX expressions, optional calls, `.call`, `.apply`, synchronous inline IIFEs,
 and React's imported `useMemo`, lazy `useState`, and `useReducer` initializers.
+React default imports include the equivalent `{ default as React }` form.
 Member names must be noncomputed identifiers or computed string literals.
 Computed keys, class heritage, static fields, and static blocks are eager.
 Creating methods, getters, or instance fields does not execute their bodies.
