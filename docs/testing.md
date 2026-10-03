@@ -1535,9 +1535,21 @@ reject partial candidates, enforce the completed 30-second bound, forbid cold
 whole-recording gate plans and bound whole-planner reads on a two-hour source.
 The unbounded workflow remains transcript-seeded and retains its prior budget.
 CLI and default-gate tests distinguish unbounded no-candidate reporting from
-explicit scoped discovery. Synthetic evidence does not replace artifact listening.
+explicit scoped discovery. Actual-WAV ownership regressions add a local-only
+237 Hz tone and retain explicitly foreign words: bleed status, foreign dominant
+lane and foreign speaker match each forbid owner authorization through both
+candidate origins, including manual unsuppression. Conflicting own-lane status
+does not override a foreign speaker match. Unattributed, own-lane and manually
+retained local-owner controls retain the supported 150 ms move without changing
+text decisions. Interior and completion-margin foreign controls cover retained,
+suppressed and ignored rows under both identity and shifted timeline placements;
+other-recording and outside-source-interval positives remain supported. Synthetic
+evidence does not replace artifact listening.
 
-Additional regressions cover reciprocal and secondary-reference batch dependencies,
+Additional regressions cover reciprocal batch dependencies with supported scoped
+own-only proposals, reciprocal foreign-interval refusals, stationary secondary
+references during another supported move and competing secondary-reference
+dependencies, previous-evidence-revision plan rejection,
 unsupported measured active interiors despite agreeing endpoints, distinct ASR
 seeds expanding to one acoustic phrase, and declined choices after actual
 move-away/back source pinning and workspace reopening. Identity controls cover

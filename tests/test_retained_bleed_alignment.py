@@ -968,17 +968,17 @@ def test_reciprocal_mixed_phrase_corrections_abstain_without_reversing_copy_lag(
     api = _api()
     for bleed_lane in ("direct", "uncertain"):
         one = api.plan_retained_bleed_alignment(p, track_id=bleed_lane, start_sec=0.7, end_sec=3.7)
-        assert len(one.proposals) == 1
-        assert abs(one.proposals[0].offset_sec) == pytest.approx(0.15, abs=0.002)
+        assert one.proposals == ()
+        assert {row["reason"] for row in one.skipped} >= {"foreign_attribution_in_direct_phrase"}
     before = p.model_dump(by_alias=True)
     plan = api.plan_retained_bleed_alignment(p, start_sec=0.7, end_sec=3.7)
     assert plan.proposals == ()
-    assert {row["reason"] for row in plan.skipped} >= {"conflicting_phrase_dependencies"}
+    assert {row["reason"] for row in plan.skipped} >= {"foreign_attribution_in_direct_phrase"}
     assert api.apply_retained_bleed_alignment(p, plan)["applied_count"] == 0
     assert p.model_dump(by_alias=True) == before
 
 
-def test_batch_preserves_secondary_retained_peer_used_as_stationary_reference(
+def test_foreign_secondary_owner_stays_stationary_during_other_supported_move(
     tmp_path: Path,
 ) -> None:
     p = _reciprocal_episode(tmp_path)
@@ -1021,14 +1021,58 @@ def test_batch_preserves_secondary_retained_peer_used_as_stationary_reference(
         )
     )
     api = _api()
-    for bleed_lane in ("uncertain", "target"):
-        assert len(api.plan_retained_bleed_alignment(p, track_id=bleed_lane).proposals) == 1
-    before = p.model_dump(by_alias=True)
+    assert len(api.plan_retained_bleed_alignment(p, track_id="uncertain").proposals) == 1
+    secondary_plan = api.plan_retained_bleed_alignment(p, track_id="target")
+    assert secondary_plan.proposals == ()
+    assert {"track_id": "secondary", "reason": "foreign_attribution_in_direct_phrase"} in (
+        secondary_plan.skipped
+    )
+    stationary = [clip.model_dump() for clip in p.clips if clip.track_id != "direct"]
     plan = api.plan_retained_bleed_alignment(p)
-    assert plan.proposals == ()
-    assert {row["reason"] for row in plan.skipped} >= {"conflicting_phrase_dependencies"}
-    api.apply_retained_bleed_alignment(p, plan)
-    assert p.model_dump(by_alias=True) == before
+    assert len(plan.proposals) == 1
+    assert plan.proposals[0].direct_track_id == "direct"
+    assert set(plan.proposals[0].reference_track_ids) == {"uncertain", "secondary"}
+    secondary_owner = p.model_copy(deep=True)
+    for transcript in secondary_owner.transcripts:
+        transcript.words = transcript.words[:1]
+    for track in secondary_owner.tracks:
+        if track.id in {"direct", "uncertain"}:
+            track.muted = True
+    other = api.plan_retained_bleed_alignment(
+        secondary_owner, track_id="target", start_sec=0.7, end_sec=3.7
+    )
+    assert len(other.proposals) == 1
+    assert other.proposals[0].direct_track_id == "secondary"
+    assert other.proposals[0].offset_sec == pytest.approx(0.15, abs=0.002)
+    safe, conflicts = api._safe_batch_proposals((plan.proposals[0], other.proposals[0]))
+    assert safe == ()
+    assert set(conflicts) == {
+        ("direct", "conflicting_phrase_dependencies"),
+        ("secondary", "conflicting_phrase_dependencies"),
+    }
+    assert api.apply_retained_bleed_alignment(p, plan)["applied_count"] == 1
+    assert [clip.model_dump() for clip in p.clips if clip.track_id != "direct"] == stationary
+
+
+def test_supported_reciprocal_owner_proposals_cannot_move_each_others_reference(
+    tmp_path: Path,
+) -> None:
+    p = _reciprocal_episode(tmp_path)
+    for transcript in p.transcripts:
+        transcript.words = transcript.words[:1]
+    api = _api()
+    candidates = []
+    for bleed_lane in ("direct", "uncertain"):
+        one = api.plan_retained_bleed_alignment(p, track_id=bleed_lane, start_sec=0.7, end_sec=3.7)
+        assert len(one.proposals) == 1
+        assert abs(one.proposals[0].offset_sec) == pytest.approx(0.15, abs=0.002)
+        candidates.extend(one.proposals)
+    safe, conflicts = api._safe_batch_proposals(tuple(candidates))
+    assert safe == ()
+    assert set(conflicts) == {
+        ("direct", "conflicting_phrase_dependencies"),
+        ("uncertain", "conflicting_phrase_dependencies"),
+    }
 
 
 def test_unsupported_active_interior_probe_blocks_whole_phrase_correction(

@@ -493,3 +493,168 @@ def test_rejected_complete_geometry_is_not_measured_twice(tmp_path: Path, monkey
     monkeypatch.setattr(api, "_local_delay", measure)
     assert _plan(project).proposals == ()
     assert measured == [(1.48, 2.26)]
+
+
+@pytest.mark.parametrize("origin", ["transcript", "acoustic"])
+@pytest.mark.parametrize("foreign", ["locked_bleed", "bleed", "dominant", "speaker_match"])
+def test_explicit_foreign_retention_cannot_authorize_owner_move(
+    tmp_path: Path, origin: str, foreign: str
+) -> None:
+    project = _episode(tmp_path)
+    if origin == "acoustic":
+        project.transcripts[1].words = []
+    for word in project.transcripts[0].words:
+        if foreign in {"locked_bleed", "bleed"}:
+            word.audibility_status = "bleed"
+        if foreign in {"locked_bleed", "dominant"}:
+            word.dominant_track = "uncertain"
+        if foreign == "speaker_match":
+            word.speaker_match_track = "uncertain"
+            word.dominant_track = "direct"
+            word.audibility_status = "audible"
+        word.audibility_locked = foreign == "locked_bleed"
+        word.suppressed = False
+    samples = _read(tmp_path / "raw" / "direct.wav").astype(float) / 32767
+    lo, hi = round(1.2 * RATE), round(3.2 * RATE)
+    samples[lo:hi] += 0.012 * np.sin(2 * np.pi * 237 * np.arange(hi - lo) / RATE)
+    _write(tmp_path / "raw" / "direct.wav", samples)
+    before = project.model_dump(by_alias=True)
+    plan = (
+        _plan(project)
+        if origin == "acoustic"
+        else api.plan_retained_bleed_alignment(project, track_id="uncertain")
+    )
+    assert plan.proposals == ()
+    assert api.apply_retained_bleed_alignment(project, plan)["applied_count"] == 0
+    assert project.model_dump(by_alias=True) == before
+    assert all(not word.suppressed for word in project.transcripts[0].words)
+
+
+@pytest.mark.parametrize("origin", ["transcript", "acoustic"])
+@pytest.mark.parametrize("owner", ["unattributed", "own_track", "manual_retained"])
+def test_retained_local_owner_words_still_authorize_move(
+    tmp_path: Path, origin: str, owner: str
+) -> None:
+    project = _episode(tmp_path)
+    if origin == "acoustic":
+        project.transcripts[1].words = []
+    for word in project.transcripts[0].words:
+        if owner == "own_track":
+            word.dominant_track = "direct"
+            word.speaker_match_track = "direct"
+            word.audibility_status = "audible"
+        if owner == "manual_retained":
+            word.audibility_locked = True
+    before = project.model_dump(by_alias=True)
+    plan = (
+        _plan(project)
+        if origin == "acoustic"
+        else api.plan_retained_bleed_alignment(project, track_id="uncertain")
+    )
+    assert len(plan.proposals) == 1
+    assert plan.proposals[0].offset_sec == pytest.approx(-0.15)
+    assert project.model_dump(by_alias=True) == before
+
+
+@pytest.mark.parametrize("origin", ["transcript", "acoustic"])
+@pytest.mark.parametrize("location", ["interior", "start_margin", "end_margin"])
+@pytest.mark.parametrize("retention", ["manual", "suppressed", "ignored"])
+@pytest.mark.parametrize("mapping", ["identity", "shifted"])
+def test_completed_owner_interval_cannot_enclose_foreign_attribution(
+    tmp_path: Path, origin: str, location: str, retention: str, mapping: str
+) -> None:
+    from podcast_mcp.models import TranscriptWord
+
+    project = _episode(tmp_path)
+    if origin == "acoustic":
+        project.transcripts[1].words = []
+    project.transcripts[0].words[0].end = 1.95
+    start, end = {
+        "interior": (2.0, 2.1),
+        "start_margin": (1.22, 1.28),
+        "end_margin": (3.12, 3.18),
+    }[location]
+    project.transcripts[0].words.insert(
+        1,
+        TranscriptWord(
+            text="foreign",
+            start=start,
+            end=end,
+            dominant_track="uncertain",
+            audibility_status="bleed",
+            audibility_locked=True,
+            suppressed=retention == "suppressed",
+            ignored=retention == "ignored",
+        ),
+    )
+    samples = _read(tmp_path / "raw" / "direct.wav").astype(float) / 32767
+    lo, hi = round(1.2 * RATE), round(3.2 * RATE)
+    samples[lo:hi] += 0.012 * np.sin(2 * np.pi * 237 * np.arange(hi - lo) / RATE)
+    _write(tmp_path / "raw" / "direct.wav", samples)
+    if mapping == "shifted":
+        for clip in project.clips:
+            clip.timeline_start = 0.4
+    before = project.model_dump(by_alias=True)
+    plan = api.plan_retained_bleed_alignment(
+        project,
+        track_id="uncertain",
+        **({"start_sec": 0.8, "end_sec": 4.0} if origin == "acoustic" else {}),
+    )
+    assert plan.proposals == ()
+    assert {"track_id": "direct", "reason": "foreign_attribution_in_direct_phrase"} in plan.skipped
+    assert api.apply_retained_bleed_alignment(project, plan)["applied_count"] == 0
+    assert project.model_dump(by_alias=True) == before
+
+
+@pytest.mark.parametrize("origin", ["transcript", "acoustic"])
+@pytest.mark.parametrize(
+    "foreign_source", ["other_recording", "outside_interval", "mapped_outside"]
+)
+def test_foreign_attribution_outside_selected_source_interval_does_not_veto(
+    tmp_path: Path, origin: str, foreign_source: str
+) -> None:
+    from podcast_mcp.models import SourceRecording, Transcript, TranscriptWord
+
+    project = _episode(tmp_path)
+    if origin == "acoustic":
+        project.transcripts[1].words = []
+    foreign = TranscriptWord(
+        text="foreign",
+        start=2.0,
+        end=2.1,
+        dominant_track="uncertain",
+        audibility_status="bleed",
+        audibility_locked=True,
+    )
+    if foreign_source == "other_recording":
+        project.sources.append(SourceRecording(id="other", path="raw/other.wav", duration_sec=6))
+        project.transcripts.append(
+            Transcript(track_id="direct", source_id="other", words=[foreign])
+        )
+    else:
+        foreign.start, foreign.end = 3.4, 3.5
+        project.transcripts[0].words.append(foreign)
+        if foreign_source == "mapped_outside":
+            for clip in project.clips:
+                clip.timeline_start = 0.4
+    before = project.model_dump(by_alias=True)
+    plan = api.plan_retained_bleed_alignment(
+        project,
+        track_id="uncertain",
+        **({"start_sec": 0.8, "end_sec": 4.0} if origin == "acoustic" else {}),
+    )
+    assert len(plan.proposals) == 1
+    assert plan.proposals[0].offset_sec == pytest.approx(-0.15)
+    assert project.model_dump(by_alias=True) == before
+
+
+def test_previous_owner_evidence_revision_cannot_apply(tmp_path: Path, monkeypatch) -> None:
+    project = _unseeded(tmp_path)
+    with monkeypatch.context() as previous:
+        previous.setattr(api, "EVIDENCE_REVISION", 4)
+        plan = _plan(project)
+    assert len(plan.proposals) == 1
+    before = project.model_dump(by_alias=True)
+    with pytest.raises(ValueError, match="plan is stale"):
+        api.apply_retained_bleed_alignment(project, plan)
+    assert project.model_dump(by_alias=True) == before
