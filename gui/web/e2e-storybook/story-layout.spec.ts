@@ -176,6 +176,7 @@ for (const width of [1440, 360]) {
         await expect(iframe).toBeAttached();
         await iframe.scrollIntoViewIfNeeded();
         const frame = docs.frameLocator(selector);
+        await expect(frame.locator(".daw-shell")).toBeVisible();
         await expect(frame.locator("html")).toHaveAttribute(
           "data-shell",
           shell,

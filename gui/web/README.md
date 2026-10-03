@@ -10,7 +10,7 @@ npm run dev         # Vite on :5173 (proxy /api → :8765)
 npm run build
 npm run storybook  # component catalog on :6006
 npm run build-storybook  # static catalog under storybook-static/
-npm run test:e2e:storybook  # real Chromium geometry against isolated Storybook on :6010
+npm run test:e2e:storybook  # build catalog, then check Chromium geometry on :6010
 npm run typecheck   # tsc -b (strict; includes e2e/, e2e-compat/, and e2e-storybook/)
 npm test            # vitest run (unit + component a11y)
 npm run test:watch  # vitest watch mode
@@ -30,8 +30,9 @@ Repo root:
 Storybook uses the real `src/ui/` components and theme tokens. See
 [`docs/design-system.md`](../../docs/design-system.md) for story conventions and
 the GitHub Pages publishing setup. Pull requests build the catalog without
-deploying it. The workflow also runs `test:e2e:storybook` against production
-boundary stories with restored-word fixtures. Real mouse trajectories cover
+deploying it. The workflow runs `test:e2e:storybook` against the built catalog,
+including production boundary stories with restored-word fixtures. Real mouse
+trajectories cover
 1440px and 360px widths in both themes, stable neighboring text and row geometry,
 bounded previews, and Escape cleanup. Install Chromium with
 `npx playwright install chromium` before running this focused suite locally.
