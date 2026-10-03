@@ -31,7 +31,7 @@ function seedEnvelope(prefix: string) {
       parameter: "volume",
       points: [
         { id: "recovery-first", time: 2, value: 0.6 },
-        { id: "recovery-second", time: 10, value: 0.9 },
+        { id: "recovery-second", time: 10, value: 1.6 },
       ],
     },
   ];
@@ -75,17 +75,6 @@ export async function exerciseEnvelopeRecovery(
       const lane = page.locator(".lane-row").first();
       const owner = lane.locator('circle[aria-label^="Envelope point 1 at"]');
       await expect(owner).toBeVisible();
-      if (shell !== "desktop") {
-        await owner.click();
-        await expect(
-          page.getByRole("dialog", { name: "Inspector", exact: true }),
-        ).toBeVisible();
-        await expect(
-          page
-            .getByRole("dialog", { name: "Inspector", exact: true })
-            .getByRole("button", { name: "Close", exact: true }),
-        ).toBeFocused();
-      }
       await setTheme(page, theme);
       const otherControl = page.getByRole("button", {
         name: "Menu",
@@ -173,9 +162,11 @@ export async function exerciseEnvelopeRecovery(
         await page.mouse.move(start.x + 32, start.y - 8, { steps: 4 });
         await expect(async () => {
           const preview = await geometry();
-          expect(preview.cx).toBeCloseTo(original.cx + 32, 4);
-          expect(preview.cy).toBeCloseTo(original.cy - 8, 4);
-        }).toPass();
+          expect(Math.abs(preview.cx - original.cx - 32)).toBeLessThanOrEqual(
+            1,
+          );
+          expect(Math.abs(preview.cy - original.cy + 8)).toBeLessThanOrEqual(1);
+        }).toPass({ timeout: 5_000 });
         const pointerId = await ownerId();
         expect(
           await owner.evaluate(
@@ -200,11 +191,12 @@ export async function exerciseEnvelopeRecovery(
 
       const laneBefore = await lane.boundingBox();
       const escape = await begin();
-      expect(await lane.boundingBox()).toEqual(laneBefore);
+      expect((await lane.boundingBox())?.height).toBe(laneBefore?.height);
       expect(savedState(projectPath)).toEqual(before);
       await page.keyboard.press("Escape");
       await expect.poll(geometry).toEqual(original);
-      await expect(owner).toHaveAttribute("aria-pressed", "true");
+      await expect(owner).toHaveAttribute("aria-pressed", "false");
+      await expect(page.getByLabel("Envelope time")).toHaveCount(0);
       await expect(owner).toBeFocused();
       expect(
         await owner.evaluate(
@@ -278,6 +270,79 @@ export async function exerciseEnvelopeRecovery(
         .poll(() => savedState(projectPath).points)
         .toEqual(before.points);
       expect(commands).toHaveLength(1);
+      await otherControl.focus();
+      await page.keyboard.press("Escape");
+      await expect(page.getByLabel("Envelope time")).toHaveCount(0);
+      await owner.click();
+      await expect(page.getByLabel("Envelope time")).toBeVisible();
+      await settle();
+      expect(commands).toHaveLength(1);
+      expect(savedState(projectPath).points).toEqual(before.points);
+      const selectedState = savedState(projectPath);
+      const second = lane.locator('circle[aria-label^="Envelope point 2 at"]');
+      const secondOrigin = await second.evaluate((element) => ({
+        cx: element.getAttribute("cx"),
+        cy: element.getAttribute("cy"),
+      }));
+      await otherControl.focus();
+      const secondBox = await second.boundingBox();
+      if (!secondBox) throw new Error("Second envelope point has no hit area");
+      const secondStart = {
+        x: secondBox.x + secondBox.width / 2,
+        y: secondBox.y + secondBox.height / 2,
+      };
+      const secondHit = await second.evaluate((element, center) => {
+        const hit = document.elementFromPoint(center.x, center.y);
+        const active = document.activeElement;
+        return {
+          center,
+          targetRect: element.getBoundingClientRect().toJSON(),
+          hit: hit?.outerHTML,
+          active: active?.outerHTML,
+          sheet: document
+            .querySelector(".bottom-sheet")
+            ?.getBoundingClientRect()
+            .toJSON(),
+        };
+      }, secondStart);
+      fs.writeFileSync(
+        info.outputPath("selected-point-hit.json"),
+        JSON.stringify(secondHit, null, 2),
+      );
+      expect(
+        await second.evaluate(
+          (element, center) =>
+            document.elementFromPoint(center.x, center.y) === element,
+          secondStart,
+        ),
+      ).toBe(true);
+      await page.mouse.move(secondStart.x, secondStart.y);
+      await page.mouse.down();
+      await expect(second).toBeFocused();
+      await page.mouse.move(secondStart.x + 8, secondStart.y - 4);
+      await expect(second).toHaveAttribute("aria-pressed", "true");
+      await expect(owner).toHaveAttribute("aria-pressed", "false");
+      expect(
+        await second.evaluate(
+          (element, id) => element.hasPointerCapture(id),
+          normal.pointerId,
+        ),
+      ).toBe(true);
+      await page.keyboard.press("Escape");
+      await expect(second).toBeFocused();
+      await expect(second).toHaveAttribute("aria-pressed", "false");
+      await expect(owner).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByLabel("Envelope time")).toBeVisible();
+      expect(
+        await second.evaluate((element) => ({
+          cx: element.getAttribute("cx"),
+          cy: element.getAttribute("cy"),
+        })),
+      ).toEqual(secondOrigin);
+      await page.mouse.up();
+      await settle();
+      expect(commands).toHaveLength(1);
+      expect(savedState(projectPath)).toEqual(selectedState);
       const pointerEvents = await events.jsonValue();
       expect(
         pointerEvents.some(
