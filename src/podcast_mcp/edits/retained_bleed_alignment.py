@@ -38,6 +38,7 @@ from podcast_mcp.models import (
     RetainedBleedAlignmentDecision,
     TrackRole,
     TranscriptGateScope,
+    TranscriptWord,
 )
 from podcast_mcp.models.project_format import snapshot_editable_state
 from podcast_mcp.util.dsp import bool_runs
@@ -45,7 +46,7 @@ from podcast_mcp.util.intervals import HalfOpenIntervalIndex, merge_intervals
 from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.timebase import SourceSec
 
-EVIDENCE_REVISION = 4
+EVIDENCE_REVISION = 5
 _RATE = 8000
 _FULL_RATE = 48_000
 _QUIET_PEAK = 3 / 32768
@@ -145,11 +146,25 @@ class _EvidenceBudget:
         self.remaining -= units
 
 
+def _word_has_foreign_attribution(word: TranscriptWord, track_id: str) -> bool:
+    return (
+        word.audibility_status == "bleed"
+        or word.dominant_track not in (None, "", track_id)
+        or word.speaker_match_track not in (None, "", track_id)
+    )
+
+
 def _own_phrases(project: EpisodeProject, track_id: str) -> list[_OwnPhrase]:
     timeline = SessionTimeline(project)
     phrases: list[_OwnPhrase] = []
     for source_id, transcript in project.selected_source_transcripts(track_id):
-        words = [word for word in transcript.words if not word.suppressed and not word.ignored]
+        words = [
+            word
+            for word in transcript.words
+            if not word.suppressed
+            and not word.ignored
+            and not _word_has_foreign_attribution(word, track_id)
+        ]
         mapped = timeline.map_selected_source_spans(
             track_id, source_id, [(SourceSec(word.start), SourceSec(word.end)) for word in words]
         )
@@ -573,6 +588,18 @@ def plan_retained_bleed_alignment(
             phrase_start, phrase_end = complete
             phrase_source = clip_timeline_overlap_to_source(clip, phrase_start, phrase_end)
             if phrase_source is None:
+                return None
+            transcript = project.transcript_for_source(direct_id, clip.source_id)
+            if transcript is None:
+                skip(direct_id, "missing_direct_retained_phrase")
+                return None
+            if any(
+                _word_has_foreign_attribution(word, direct_id)
+                and word.start < float(phrase_source[1])
+                and word.end > float(phrase_source[0])
+                for word in transcript.words
+            ):
+                skip(direct_id, "foreign_attribution_in_direct_phrase")
                 return None
             geometry = (
                 direct_id,

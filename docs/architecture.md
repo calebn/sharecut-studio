@@ -21,8 +21,17 @@ are excluded from automatic alignment; muted secondary copies cannot veto it.
 Planning, trim guards, and bleed gates share `selected_source_transcripts`.
 An explicitly selected bleed lane with finite start/end also discovers candidates
 from retained owner phrases on selected direct recordings, without inventing copy
-transcript words. Both discovery origins use one complete-phrase validator. A lane
-with neither a transcript seed nor an eligible bounded owner phrase reports
+transcript words. Both origins exclude retained words explicitly marked bleed,
+dominant on another lane or speaker-matched to another lane from owner seeds.
+Manual text retention does not override those ownership exclusions; unattributed
+and own-lane words remain eligible for the acoustic validator.
+Both discovery origins use one complete-phrase validator. It also refuses a
+completed direct interval overlapping explicit foreign attribution on that
+selected recording, including gaps between seeds and completion margins. Foreign
+rows veto even when suppressed or ignored because raw evidence includes their
+samples. Attribution on another recording or outside that source interval does
+not veto it. A lane with neither a transcript seed nor an eligible bounded owner
+phrase reports
 `no_retained_bleed_candidate`; this is unmeasured alignment, not acoustic clearance.
 Examined candidates retain their specific abstention reasons.
 `transcript_for_source` prefers an exact recording transcript; track-level words
