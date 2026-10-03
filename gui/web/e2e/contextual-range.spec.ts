@@ -226,13 +226,15 @@ test("guest suggests a range, host approves, and one Undo restores every occurre
             ),
             fullPage: true,
           });
-          await guest.reload();
-          await guest.locator(".pending-overlay").first().click();
-          await expect(
-            guest
-              .getByText("Only the host can review exact range proposals.")
-              .first(),
-          ).toBeVisible();
+        }
+        await guest.reload();
+        await guest.locator(".pending-overlay").first().click();
+        await expect(
+          guest
+            .getByText("Only the host can review exact range proposals.")
+            .first(),
+        ).toBeVisible();
+        if (process.env.RANGE_CONFIRMATION_SCREENSHOTS) {
           await guest.locator(".pending-overlay").first().hover();
           await guest.screenshot({
             path: path.join(
@@ -241,14 +243,36 @@ test("guest suggests a range, host approves, and one Undo restores every occurre
             ),
             fullPage: true,
           });
-          await guest.setViewportSize({ width: 390, height: 844 });
-          await openPhoneTimeline(guest);
-          await guest.locator(".pending-overlay").first().click();
-          await expect(
-            guest
-              .getByText("Only the host can review exact range proposals.")
-              .first(),
-          ).toBeVisible();
+        }
+        await guest.setViewportSize({ width: 390, height: 844 });
+        await openPhoneTimeline(guest);
+        await guest.locator(".pending-overlay").first().click();
+        const inspector = guest.locator(".modifier-inspector");
+        const previewFooter = inspector.locator(".modifier-footer");
+        const footerBounds = await previewFooter.boundingBox();
+        expect(footerBounds).not.toBeNull();
+        for (const fact of [
+          inspector.getByText(
+            "Only the host can review exact range proposals.",
+            { exact: true },
+          ),
+          inspector.getByText("0:11.000 – 0:12.000", { exact: true }),
+          inspector.locator("dd").filter({ hasText: /^reference$/ }),
+        ]) {
+          await expect(fact).toBeVisible();
+          const bounds = await fact.boundingBox();
+          expect(bounds).not.toBeNull();
+          expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(
+            footerBounds!.y + 1,
+          );
+        }
+        await expect(
+          previewFooter.getByRole("button", {
+            name: "Play around",
+            exact: true,
+          }),
+        ).toBeEnabled();
+        if (process.env.RANGE_CONFIRMATION_SCREENSHOTS) {
           await guest.screenshot({
             path: path.join(
               process.env.RANGE_CONFIRMATION_SCREENSHOTS,

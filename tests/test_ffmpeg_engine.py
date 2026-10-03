@@ -1444,3 +1444,18 @@ def test_render_timeline_bounded_seek_keeps_nonzero_source_ranges(tmp_path: Path
     assert np.mean(np.abs(rendered[: round(0.2 * rate)])) == pytest.approx(0.1 * 32767, abs=2)
     second = rendered[round(1.5 * rate) : round(1.7 * rate)]
     assert np.mean(np.abs(second)) == pytest.approx(0.15 * 32767, abs=2)
+
+
+def test_silence_uses_the_engine_selected_pair(tmp_path: Path, monkeypatch):
+    from unittest.mock import Mock
+
+    monkeypatch.setenv("PODCAST_MCP_FFMPEG", "environment-ffmpeg")
+    engine = FFmpegEngine(ffmpeg="selected-ffmpeg", ffprobe="selected-ffprobe")
+    invocation = Mock()
+    monkeypatch.setattr("podcast_mcp.engines.ffmpeg.run", invocation)
+    output = tmp_path / "silence.wav"
+
+    assert engine.silence(output, 1.25) == output
+    assert invocation.call_count == 1
+    assert invocation.call_args.args[0][0] == "selected-ffmpeg"
+    assert engine.ffprobe == "selected-ffprobe"
