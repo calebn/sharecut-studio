@@ -568,6 +568,11 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
         ) : undefined
       }
     >
+      {edit.exact_range && !canApply ? (
+        <p className="ui-field-hint">
+          Only the host can review exact range proposals.
+        </p>
+      ) : null}
       <DefinitionList>
         <DefItem label="Type">{pendingTypeLabel(edit.type)}</DefItem>
         {edit.exact_range ? (

@@ -105,7 +105,37 @@ export function rangeIsCurrent(
   target: ExactRangeTarget,
 ): boolean {
   const current = makeRangeTarget(project, target.intervals, target.track_ids);
-  return current !== null && JSON.stringify(current) === JSON.stringify(target);
+  if (current === null) return false;
+  return rangeTargetsEqual(current, target);
+}
+
+export function rangeTargetsEqual(
+  left: ExactRangeTarget,
+  right: ExactRangeTarget,
+): boolean {
+  const sealedFields = (range: ExactRangeTarget) => [
+    range.kind,
+    range.intervals.map(({ start, end }) => [start, end]),
+    range.track_ids,
+    range.clips.map((clip) => [
+      clip.id,
+      clip.track_id,
+      clip.source_id,
+      clip.source_start,
+      clip.source_end,
+      clip.timeline_start,
+      clip.fade_in_ms,
+      clip.fade_out_ms,
+      clip.join_in_mode,
+      clip.mute_regions.map(({ start_s, end_s }) => [start_s, end_s]),
+    ]),
+    Object.keys(range.media_seals)
+      .sort()
+      .map((id) => [id, range.media_seals[id]]),
+  ];
+  return (
+    JSON.stringify(sealedFields(left)) === JSON.stringify(sealedFields(right))
+  );
 }
 
 export type RangeResolution = {

@@ -175,7 +175,90 @@ test("guest suggests a range, host approves, and one Undo restores every occurre
         expect(geometry(projectPath)).toEqual(before);
         await page.reload();
         await page.locator(".pending-overlay").first().click();
+        await page.evaluate(() => {
+          const evidence: Array<{ url: string; duration: number }> = [];
+          Object.assign(window, { exactPendingPlaybackEvidence: evidence });
+          const nativePlay = HTMLMediaElement.prototype.play;
+          HTMLMediaElement.prototype.play = function () {
+            if (this.src.startsWith("blob:")) {
+              this.addEventListener(
+                "playing",
+                () => evidence.push({ url: this.src, duration: this.duration }),
+                { once: true },
+              );
+            }
+            return nativePlay.call(this);
+          };
+        });
+        const previewResponse = page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === "/api/pending-preview",
+        );
         await page
+          .getByRole("button", { name: "Play around", exact: true })
+          .click();
+        const audio = await previewResponse;
+        expect(audio.status()).toBe(200);
+        expect(audio.headers()["content-type"]).toBe("audio/wav");
+        await expect
+          .poll(() =>
+            page.evaluate(() =>
+              (
+                window as unknown as {
+                  exactPendingPlaybackEvidence: Array<{
+                    url: string;
+                    duration: number;
+                  }>;
+                }
+              ).exactPendingPlaybackEvidence.some(
+                (item) => item.url.startsWith("blob:") && item.duration > 0,
+              ),
+            ),
+          )
+          .toBe(true);
+        expect(geometry(projectPath)).toEqual(before);
+        if (process.env.RANGE_CONFIRMATION_SCREENSHOTS) {
+          await page.locator(".pending-overlay").first().hover();
+          await page.screenshot({
+            path: path.join(
+              process.env.RANGE_CONFIRMATION_SCREENSHOTS,
+              "host-exact-preview-desktop.png",
+            ),
+            fullPage: true,
+          });
+          await guest.reload();
+          await guest.locator(".pending-overlay").first().click();
+          await expect(
+            guest
+              .getByText("Only the host can review exact range proposals.")
+              .first(),
+          ).toBeVisible();
+          await guest.locator(".pending-overlay").first().hover();
+          await guest.screenshot({
+            path: path.join(
+              process.env.RANGE_CONFIRMATION_SCREENSHOTS,
+              "guest-exact-pending-desktop.png",
+            ),
+            fullPage: true,
+          });
+          await guest.setViewportSize({ width: 390, height: 844 });
+          await openPhoneTimeline(guest);
+          await guest.locator(".pending-overlay").first().click();
+          await expect(
+            guest
+              .getByText("Only the host can review exact range proposals.")
+              .first(),
+          ).toBeVisible();
+          await guest.screenshot({
+            path: path.join(
+              process.env.RANGE_CONFIRMATION_SCREENSHOTS,
+              "guest-exact-pending-phone.png",
+            ),
+            fullPage: true,
+          });
+        }
+        await page
+          .locator(".modifier-inspector")
           .getByRole("button", { name: "Approve", exact: true })
           .click();
         await expect

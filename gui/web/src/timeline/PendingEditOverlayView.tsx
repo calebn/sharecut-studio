@@ -933,6 +933,11 @@ function PendingEditRegion({
                 </Button>
               </div>
             ) : null}
+            {edit.exact_range && !canApply ? (
+              <p className="ui-field-hint">
+                Only the host can review exact range proposals.
+              </p>
+            ) : null}
             {actionState.kind === "busy" ? (
               <span role="status">
                 {actionState.action === "approve" ? "Approving…" : "Rejecting…"}
