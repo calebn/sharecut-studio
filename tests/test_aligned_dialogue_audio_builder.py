@@ -19,6 +19,26 @@ def _load_builder() -> ModuleType:
     return load_script("build_aligned_dialogue_audio", register=True)
 
 
+def test_integer_interpolation_preserves_source_and_rounds_signed_samples() -> None:
+    builder = _load_builder()
+    source = np.array([-32768, -1, 1, 32767], dtype=np.int16)
+    actual = builder.upsample_int16(source, 16000, 48000)
+    np.testing.assert_array_equal(
+        actual, [-32768, -21846, -10923, -1, 0, 0, 1, 10923, 21845, 32767, 32767, 32767]
+    )
+    np.testing.assert_array_equal(actual[::3], source)
+    np.testing.assert_array_equal(builder.upsample_int16(source, 16000, 16000), source)
+
+
+@pytest.mark.parametrize("source_rate,target_rate", [(0, 48000), (48000, 16000), (16000, 44100)])
+def test_interpolation_rejects_unsupported_rate_conversion(source_rate, target_rate) -> None:
+    builder = _load_builder()
+    with pytest.raises(ValueError, match="integer upsampling factor"):
+        builder.upsample_int16(np.array([1], dtype=np.int16), source_rate, target_rate)
+    with pytest.raises(ValueError, match="no samples"):
+        builder.upsample_int16(np.array([], dtype=np.int16), 16000, 48000)
+
+
 def test_compose_preserves_entire_clip_and_silence() -> None:
     builder = _load_builder()
     clip = np.array([0, 100, -200, 400, 0], dtype=np.int16)

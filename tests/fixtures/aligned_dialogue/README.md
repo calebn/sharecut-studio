@@ -34,7 +34,11 @@ uv run python scripts/build_aligned_dialogue_audio.py
 uv run python scripts/build_ux_demo_fixture.py
 ```
 
-The builder uses checked-in media and FFmpeg. It needs no network or model.
+The builder uses checked-in media and integer linear interpolation from 16 to
+48 kHz. Original samples remain every third frame; intermediate frames round
+to the nearest integer and the final endpoint is held. This preserves duration
+and gives identical PCM across platforms without FFmpeg or floating-point
+resampling. It needs no network or model.
 It verifies input hashes before writing. Fixture tests independently reconstruct
 the audio from the source recordings and verify the shifted labels.
 

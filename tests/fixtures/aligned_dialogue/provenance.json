@@ -7,7 +7,7 @@
   "labels_attribution": "gilkeyio/librispeech-alignments",
   "text_reference": "LibriSpeech reference text",
   "boundary_reference": "Published MFA-derived boundaries, not human-verified timings",
-  "composition": "Whole utterances; ffmpeg mono PCM16 48000 Hz resampling; no trim, stretch or gain",
+  "composition": "Whole utterances; integer linear interpolation to mono PCM16 48000 Hz; no trim, stretch or gain",
   "tracks": [
     {
       "track_id": "reference",
@@ -37,9 +37,9 @@
     }
   ],
   "output_sha256": {
-    "raw/reference.wav": "70e16b2773c3839904441ff21392d0f8f884e0a7460bf2d980afdaf72633d5f1",
-    "sources/reference.wav": "d2cdb0d8004159ad73e0994307b0cfd9c50780fd28925691621c9572d3917130",
-    "raw/guest.wav": "ed806df811dc072a33edddb62a8038b0a4ed28f7343f4ba42bf50aafb9b5eb43",
-    "sources/guest.wav": "938f9ef76f87603e716cf5e005cf48f425d18f163d06e241c44912593d65b7a6"
+    "raw/reference.wav": "8d64d7055635aeaa4e868a146cf7677bd6173aa3e36eb254cd5b77deeb2bd0ec",
+    "sources/reference.wav": "a4ad2dee9c7d9ddf3dcc226b87deb54a7871c62fe959608814d5b67f814a0e29",
+    "raw/guest.wav": "45efbaebd385d923bc59d747d654de8e305bd7f5197bca95a2437bc1ba2581fa",
+    "sources/guest.wav": "163494cbc9f31d0d65c123661f823a31a3251e809dcf31e86a972c7416e36a22"
   }
 }

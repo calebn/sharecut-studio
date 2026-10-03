@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 import wave
 from pathlib import Path
 
@@ -12,7 +11,6 @@ import yaml
 
 from podcast_mcp.e2e_fixture import DEFAULT_CANNED, FIXTURES_DIR
 from podcast_mcp.models import load_project
-from podcast_mcp.util.binaries import resolve_ffmpeg
 
 FIXTURE = FIXTURES_DIR / "aligned_dialogue"
 SAMPLE_RATE = 48_000
@@ -85,27 +83,21 @@ def test_tracks_and_labels_match_recorded_corpus(
 ) -> None:
     source = FIXTURES_DIR / "word_boundary" / f"{utterance}.wav"
     assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha256
-    decoded = subprocess.run(
+    original, original_rate = _read_wav(source)
+    assert original_rate == 16000
+    speech = np.array(
         [
-            resolve_ffmpeg(),
-            "-v",
-            "error",
-            "-i",
-            str(source),
-            "-ar",
-            str(SAMPLE_RATE),
-            "-ac",
-            "1",
-            "-f",
-            "s16le",
-            "-c:a",
-            "pcm_s16le",
-            "pipe:1",
+            (
+                (3 - phase) * int(sample)
+                + phase * int(original[min(index + 1, original.size - 1)])
+                + 1
+            )
+            // 3
+            for index, sample in enumerate(original)
+            for phase in range(3)
         ],
-        check=True,
-        capture_output=True,
+        dtype=np.int16,
     )
-    speech = np.frombuffer(decoded.stdout, dtype=np.int16)
     expected = np.zeros(round(DURATION_SEC * SAMPLE_RATE), dtype=np.int16)
     for offset in offsets:
         start = round(offset * SAMPLE_RATE)

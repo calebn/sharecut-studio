@@ -11,9 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import subprocess
 import sys
-import tempfile
 import wave
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -28,7 +26,6 @@ from podcast_mcp.e2e_fixture import DEFAULT_CANNED, FIXTURES_DIR
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import Transcript, TranscriptWord, load_project
 from podcast_mcp.project_store import ProjectStore
-from podcast_mcp.util.binaries import resolve_ffmpeg
 
 FIXTURE = FIXTURES_DIR / "aligned_dialogue"
 GOLD_DIR = FIXTURES_DIR / "word_boundary"
@@ -98,6 +95,24 @@ def write_wav_int16(path: Path, samples: np.ndarray, sample_rate: int) -> None:
         wf.writeframes(samples.astype("<i2").tobytes())
 
 
+def upsample_int16(samples: np.ndarray, source_rate: int, target_rate: int) -> np.ndarray:
+    """Integer linear interpolation with round-to-nearest and a held final endpoint.
+
+    Exact integer arithmetic makes the fixture independent of FFmpeg builds and
+    CPU floating-point kernels. Original samples remain at every factor-th frame.
+    """
+    if source_rate <= 0 or target_rate < source_rate or target_rate % source_rate:
+        raise ValueError("sample rates must specify an integer upsampling factor")
+    if samples.size == 0:
+        raise ValueError("audio clip contains no samples")
+    factor = target_rate // source_rate
+    original = samples.astype(np.int64)
+    following = np.concatenate((original[1:], original[-1:]))
+    phase = np.arange(factor, dtype=np.int64)
+    weighted = original[:, None] * (factor - phase) + following[:, None] * phase
+    return ((weighted + factor // 2) // factor).reshape(-1).astype(np.int16)
+
+
 def load_clip(clip: SpeechClip, gold_dir: Path) -> tuple[np.ndarray, list[TranscriptWord]]:
     audio_path = gold_dir / f"{clip.clip_id}.wav"
     gold_path = gold_dir / f"{clip.clip_id}.gold.json"
@@ -107,32 +122,8 @@ def load_clip(clip: SpeechClip, gold_dir: Path) -> tuple[np.ndarray, list[Transc
     gold = json.loads(gold_path.read_text())
     if gold["audio_sha256"] != clip.audio_sha256 or gold["id"] != clip.clip_id:
         raise ValueError("gold labels identify a different audio clip")
-    with tempfile.TemporaryDirectory() as tmp:
-        output = Path(tmp) / "resampled.wav"
-        subprocess.run(
-            [
-                resolve_ffmpeg(),
-                "-y",
-                "-v",
-                "error",
-                "-i",
-                str(audio_path),
-                "-ar",
-                str(SAMPLE_RATE),
-                "-ac",
-                "1",
-                "-c:a",
-                "pcm_s16le",
-                "-map_metadata",
-                "-1",
-                "-fflags",
-                "+bitexact",
-                str(output),
-            ],
-            check=True,
-            timeout=120,
-        )
-        samples, _ = read_wav_int16(output)
+    original, sample_rate = read_wav_int16(audio_path)
+    samples = upsample_int16(original, sample_rate, SAMPLE_RATE)
     words = [TranscriptWord.model_validate({**word, "confidence": 0.95}) for word in gold["words"]]
     previous_end = 0.0
     for word in words:
@@ -257,7 +248,7 @@ def build_fixture(fixture: Path, canned: Path, gold_dir: Path = GOLD_DIR) -> Non
                 "labels_attribution": "gilkeyio/librispeech-alignments",
                 "text_reference": "LibriSpeech reference text",
                 "boundary_reference": "Published MFA-derived boundaries, not human-verified timings",
-                "composition": "Whole utterances; ffmpeg mono PCM16 48000 Hz resampling; no trim, stretch or gain",
+                "composition": "Whole utterances; integer linear interpolation to mono PCM16 48000 Hz; no trim, stretch or gain",
                 "tracks": manifest_tracks,
                 "output_sha256": outputs,
             },
