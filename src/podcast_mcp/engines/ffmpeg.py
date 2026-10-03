@@ -24,7 +24,7 @@ from podcast_mcp.models import (
     Track,
 )
 from podcast_mcp.util.atomic_file import publish_completed_file
-from podcast_mcp.util.binaries import resolve_ffmpeg, resolve_ffprobe
+from podcast_mcp.util.binaries import FFmpegPair, resolve_ffmpeg_pair
 from podcast_mcp.util.model_assets import resolve_rnnoise_model
 from podcast_mcp.util.process import PIPE, CalledProcessError, TimeoutExpired, popen, run
 
@@ -310,11 +310,18 @@ def _pcm_decode_error(code: int, timed_out: bool, timeout_sec: float, err: IO[by
 
 class FFmpegEngine:
     def __init__(self, ffmpeg: str | None = None, ffprobe: str | None = None) -> None:
-        self.ffmpeg = ffmpeg or resolve_ffmpeg()
-        self.ffprobe = ffprobe or resolve_ffprobe()
+        pair = resolve_ffmpeg_pair(ffmpeg, ffprobe)
+        self.ffmpeg = pair.ffmpeg
+        self.ffprobe = pair.ffprobe
         self._filter_names_cache: set[str] | None = None
 
     def check_available(self) -> tuple[bool, str]:
+        pair = FFmpegPair(self.ffmpeg, self.ffprobe)
+        if not pair.is_available():
+            return (
+                False,
+                "FFmpeg/FFprobe pair is unavailable (one or both commands are not executable)",
+            )
         try:
             r = run(
                 [self.ffmpeg, "-version"],
@@ -324,12 +331,16 @@ class FFmpegEngine:
             )
             if r.returncode != 0:
                 return False, r.stderr or "ffmpeg failed"
-            line = (r.stdout or "").splitlines()[0]
-            return True, line
+            line = (r.stdout or "").splitlines()
+            if not line:
+                return False, "ffmpeg returned empty version output"
+            return True, line[0]
         except FileNotFoundError:
             return False, "ffmpeg not found on PATH"
         except TimeoutExpired:
             return False, "ffmpeg timed out"
+        except PermissionError:
+            return False, "ffmpeg is not executable"
 
     def probe(self, path: Path, *, untrusted: bool = False) -> AudioProbe:
         cmd = [

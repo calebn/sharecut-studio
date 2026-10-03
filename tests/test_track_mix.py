@@ -77,6 +77,7 @@ from podcast_mcp.services.document_sync.projection_types import ViewProjection
 from podcast_mcp.services.document_sync.projections import projection_for_command
 from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util import atomic_render
+from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.project_state import render_lock, render_lock_path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -204,7 +205,7 @@ def test_real_wav_export_refreshes_music_fx_and_media_once(
     other = tmp_path / "other.wav"
     subprocess.run(
         [
-            "ffmpeg",
+            resolve_ffmpeg(),
             "-v",
             "error",
             "-y",

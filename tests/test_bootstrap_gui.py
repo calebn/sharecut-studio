@@ -21,7 +21,7 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
 
     monkeypatch.setattr(config, "cache_dir", lambda: tmp_path / "cache")
     monkeypatch.setattr(config, "whisper_cache_dir", lambda: tmp_path / "cache" / "whisper")
-    monkeypatch.setattr(boot, "_ffmpeg_ready", lambda: False)
+    monkeypatch.setattr(boot, "_available_ffmpeg_pair", lambda: None)
     from podcast_mcp.whisper_models import WhisperWeightsMissingError
 
     monkeypatch.setattr(boot, "whisper_model_problem", lambda m, **k: WhisperWeightsMissingError(m))
@@ -208,10 +208,21 @@ def test_run_bootstrap_rejects_torch_extras() -> None:
         run_bootstrap(["speaker"])
 
 
-def test_run_bootstrap_ffmpeg_skip_when_on_path(monkeypatch) -> None:
+def test_run_bootstrap_ffmpeg_skip_when_on_path(monkeypatch, tmp_path: Path) -> None:
     from podcast_mcp.services.pipeline import bootstrap as boot
+    from podcast_mcp.util.binaries import FFmpegPair
 
-    monkeypatch.setattr(boot.shutil, "which", lambda name: f"/usr/bin/{name}")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    commands = (bin_dir / "ffmpeg", bin_dir / "ffprobe")
+    for command in commands:
+        command.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        command.chmod(0o755)
+    monkeypatch.setattr(
+        boot,
+        "resolve_ffmpeg_pair",
+        lambda: FFmpegPair(str(commands[0]), str(commands[1])),
+    )
     out = boot.run_bootstrap(["ffmpeg"])
     assert out["ok"] is True
     assert out["results"]["ffmpeg"]["skipped"] is True
@@ -505,7 +516,6 @@ def test_run_bootstrap_whisper_forwards_model(monkeypatch) -> None:
         return {"ok": True, "model": model_size, "cache": "/tmp", "persist_error": None}
 
     monkeypatch.setattr(boot, "bootstrap_whisper_model", fake_bootstrap)
-    monkeypatch.setattr(boot, "_ffmpeg_ready", lambda: True)
     monkeypatch.setattr(boot, "_rnnoise_ready", lambda: True)
     monkeypatch.setattr(boot, "whisper_model_problem", lambda *a, **k: None)
     out = boot.run_bootstrap(["whisper"], whisper_model="small.en")
@@ -680,3 +690,16 @@ def test_word_aligner_component_flags_a_pin_mismatch(monkeypatch) -> None:
     assert component["pin_mismatch"] is True
     assert component["bootstrap"] == "podcast bootstrap --component word-aligner --upgrade"
     assert "vocab.json" in component["hint"]
+
+
+@pytest.mark.parametrize("executable", [True, False])
+def test_first_run_readiness_checks_bare_and_nonexecutable_explicit_commands(
+    monkeypatch, executable
+):
+    import podcast_mcp.util.binaries as binaries
+    from podcast_mcp.services.pipeline import bootstrap as boot
+    from podcast_mcp.util.binaries import FFmpegPair
+
+    monkeypatch.setattr(binaries.shutil, "which", lambda _command: "found" if executable else None)
+    monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda: FFmpegPair("ffmpeg", "ffprobe"))
+    assert boot.component_status()["components"]["ffmpeg"]["ok"] is executable

@@ -12,6 +12,8 @@ description: >-
 - Python 3.11+
 - FFmpeg and ffprobe — a system binary (`brew install ffmpeg` / `apt install ffmpeg`),
   or `podcast bootstrap --component ffmpeg` for a static build (no package manager)
+- Pair selection prefers the native Homebrew keg on macOS. See the tested release
+  policy in [docs/setup.md](../../../docs/setup.md#ffmpeg-version-and-pair-policy).
 - [uv](https://github.com/astral-sh/uv) (recommended — `pip install uv` if not already on PATH)
 - Node.js 24+ only if building the Sharecut Studio viewer (`gui/web`)
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import shutil
 import sys
 from pathlib import Path
 
@@ -8,7 +7,11 @@ import typer
 
 from podcast_mcp.config import cache_dir, repo_root
 from podcast_mcp.engines import FFmpegEngine
-from podcast_mcp.util.binaries import bootstrap_ffmpeg
+from podcast_mcp.util.binaries import (
+    FFmpegPairResolutionError,
+    bootstrap_ffmpeg,
+    resolve_ffmpeg_pair,
+)
 from podcast_mcp.util.model_assets import (
     bootstrap_nisqa_model,
     bootstrap_rnnoise_model,
@@ -55,7 +58,10 @@ def setup(
             typer.echo(str(exc), err=True)
             raise typer.Exit(2) from exc
         typer.echo(f"Whisper model preference: {chosen}")
-    ok, msg = FFmpegEngine().check_available()
+    try:
+        ok, msg = FFmpegEngine().check_available()
+    except FFmpegPairResolutionError as exc:
+        ok, msg = False, str(exc)
     if ok:
         typer.echo(f"FFmpeg: {msg}")
     else:
@@ -191,9 +197,15 @@ def bootstrap(
 
 
 def _bootstrap_ffmpeg_component(*, force: bool) -> bool:
-    if not force and shutil.which("ffmpeg") and shutil.which("ffprobe"):
-        typer.echo("[skip] ffmpeg: already on system PATH")
-        return True
+    if not force:
+        try:
+            pair = resolve_ffmpeg_pair()
+        except FFmpegPairResolutionError:
+            pass
+        else:
+            if pair.is_available():
+                typer.echo(f"[skip] ffmpeg: pair available at {pair.ffmpeg} and {pair.ffprobe}")
+                return True
     try:
         ffmpeg_path, ffprobe_path = bootstrap_ffmpeg(force=force)
     except ImportError as exc:

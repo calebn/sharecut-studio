@@ -75,18 +75,23 @@ def test_bootstrap_progress_reporter_fail_and_cancel() -> None:
 
 def test_bootstrap_service_error_paths(monkeypatch, tmp_path) -> None:
     from podcast_mcp.services.pipeline import bootstrap as boot
+    from podcast_mcp.util.binaries import FFmpegPair, FFmpegPairResolutionError
 
-    monkeypatch.setattr(boot.shutil, "which", lambda _n: None)
-    monkeypatch.setattr(boot, "resolve_ffmpeg", lambda: "ffmpeg")
-    assert boot._ffmpeg_ready() is False
+    monkeypatch.setattr(
+        boot,
+        "resolve_ffmpeg_pair",
+        lambda: (_ for _ in ()).throw(FFmpegPairResolutionError("missing pair")),
+    )
+    assert boot.component_status()["components"]["ffmpeg"]["ok"] is False
 
     ff = tmp_path / "ffmpeg"
     fp = tmp_path / "ffprobe"
     ff.write_text("x")
     fp.write_text("x")
-    monkeypatch.setattr(boot, "resolve_ffmpeg", lambda: str(ff))
-    monkeypatch.setattr(boot, "resolve_ffprobe", lambda: str(fp))
-    assert boot._ffmpeg_ready() is True
+    ff.chmod(0o755)
+    fp.chmod(0o755)
+    monkeypatch.setattr(boot, "resolve_ffmpeg_pair", lambda: FFmpegPair(str(ff), str(fp)))
+    assert boot.component_status()["components"]["ffmpeg"]["ok"] is True
 
     monkeypatch.setattr(
         boot,

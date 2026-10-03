@@ -19,6 +19,7 @@ from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.util import object_store as object_store_util
 from podcast_mcp.util import pinned_media
+from podcast_mcp.util.binaries import resolve_ffmpeg
 
 _REPO_PIPELINE_DEFAULTS = repo_root() / ".agents" / "defaults" / "pipeline.yaml"
 
@@ -184,7 +185,7 @@ def tmp_workspace(tmp_path: Path) -> Path:
 def sample_wav(tmp_path_factory: pytest.TempPathFactory) -> Path:
     out = tmp_path_factory.mktemp("audio") / "tone.wav"
     cmd = [
-        "ffmpeg",
+        resolve_ffmpeg(),
         "-y",
         "-f",
         "lavfi",

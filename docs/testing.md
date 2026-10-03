@@ -173,6 +173,36 @@ A cold and warm run on fresh hosted runners must use the same archive key. The
 warm install must report `Need to get 0 B`, and all existing required checks must
 pass before accepting a performance improvement.
 
+### FFmpeg release acceptance
+
+Run the FFmpeg resolver and media acceptance suites against the pair selected by
+the product resolver:
+
+```bash
+.venv/bin/python scripts/verify_ffmpeg_baseline.py \
+  --out-dir .audit/ffmpeg-baseline \
+  --expected-version 9.0.2
+```
+
+The runner records the commands, resolved paths, canonical targets, and release
+strings for both executables. Tests run with the inspected pair through child
+environment overrides. It writes `ffmpeg-baseline.json` and
+`media-acceptance.junit.xml` and the child's `pytest.log` under the caller's
+output directory. The child ignores ambient `PYTEST_ADDOPTS` selection filters.
+Any failed
+test, skipped or deselected test, empty/missing/malformed JUnit evidence, or
+guarded release mismatch fails the run. Omit
+`--expected-version` to record another installed pair without a release guard.
+Pass `--ffmpeg` and `--ffprobe` only when you need explicit command overrides.
+The selected native macOS Homebrew pair is the full media acceptance lane.
+Cross-platform behavioral resolver tests mock OS selection and executable
+lookup policy while keeping the test host's real path semantics. Focused
+resolver and readiness tests also run on real Windows in the desktop workflow;
+that job does not claim Windows media acceptance. Ubuntu uses authenticated
+distro packages in full CI. The Windows media lane pins 9.0.2 for a narrower
+suite. The release and security policy is in
+[setup.md](setup.md#ffmpeg-version-and-pair-policy).
+
 ## Fast inner loop
 
 The audio-audit cache regression tests use deterministic decoder-call counts

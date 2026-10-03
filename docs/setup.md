@@ -246,12 +246,60 @@ podcast bootstrap                       # fetches ffmpeg/ffprobe + whisper model
 podcast doctor
 ```
 
-Resolution order for FFmpeg at runtime is: `PODCAST_MCP_FFMPEG`/`PODCAST_MCP_FFPROBE`
-env override → a system install on `PATH` → the bootstrapped copy in the cache
-dir → (if truly nothing is found) the literal `ffmpeg`/`ffprobe` command name,
-so upgrading FFmpeg is as simple as `brew upgrade ffmpeg` (system takes
-precedence) or `podcast bootstrap --component ffmpeg --upgrade` (bumps the
-pinned `static-ffmpeg` package's bundled build).
+### FFmpeg version and pair policy
+
+Research checked the upstream release and security pages, Homebrew's formula,
+and the installed native pair on 2026-10-02. Upstream publishes signed source
+releases; Homebrew provides native Apple Silicon builds and bottles.
+FFmpeg 9.0.2 was the latest stable release on that date and is the recommended
+baseline. Prefer current maintained patches or distributor security updates
+when upgrading. See the [FFmpeg release list](https://ffmpeg.org/download.html),
+[FFmpeg security page](https://ffmpeg.org/security.html), and [Homebrew FFmpeg formula](https://formulae.brew.sh/formula/ffmpeg).
+
+On macOS, pair consumers first use the native Homebrew installation under
+`/opt/homebrew/opt/ffmpeg/bin` on Apple Silicon or `/usr/local/opt/ffmpeg/bin`
+on Intel. They then use the first `PATH` directory with executable `ffmpeg`
+and `ffprobe`, followed by a complete executable pair in the bootstrap cache.
+The resolver does not rank versions, inspect binaries, access the network, or
+change global configuration. If no complete pair exists, pair consumers report
+that FFmpeg is missing. `FFmpegEngine` accepts `ffmpeg` and `ffprobe` constructor
+overrides. Each constructor value takes precedence over its matching
+`PODCAST_MCP_FFMPEG` or `PODCAST_MCP_FFPROBE` environment variable.
+Nonempty environment overrides and supplied constructor values stay unchanged,
+so you can intentionally select commands from different installations. The single-command `resolve_ffmpeg()` and `resolve_ffprobe()`
+functions use the same native Homebrew preference, followed by individual
+`PATH` and cache lookup. They serve workflows that invoke only one command.
+For a single explicit path, an executable sibling fills an unset companion;
+otherwise automatic pair discovery fills it. First-run readiness checks both
+selected commands for executability, including bare command overrides.
+
+The functional floor is FFmpeg 6.0. Both 6.0 and 9.0.2 passed the selected resolver and media contracts,
+including direct mix-ceiling checks during the #859 investigation. This
+floor describes tested behavior. It is not a security recommendation.
+Ubuntu CI uses authenticated distro packages. The Windows lane pins 9.0.2 and
+covers a narrower test set. See [CI dependency downloads](testing.md#ci-dependency-downloads)
+for Ubuntu's package verification.
+
+Bootstrap remains an alternate installation path. The current `static-ffmpeg`
+3.0 helper fetches from mutable `main` and `v8.0` URLs in the
+[ffmpeg_bins source tree](https://github.com/zackees/ffmpeg_bins/tree/main/v8.0).
+Sharecut's CDN path stays
+disabled until real per-platform hashes are configured. `podcast bootstrap --component ffmpeg --upgrade` rechecks the configured source and recopies its binaries.
+The helper can reuse its own cache, so this flag does not guarantee a fresh
+download, update the Python helper package, or promise FFmpeg 9.0.2.
+
+Run the selected build's media acceptance suite with the
+[`scripts/verify_ffmpeg_baseline.py`](../scripts/verify_ffmpeg_baseline.py).
+It records both command paths and releases, passes that pair to the test child,
+writes JSON and fresh JUnit evidence, and
+fails if any acceptance test skips. Pass `--expected-version 9.0.2` to reject an
+unknown or different release before tests start. The runner removes inherited
+`PYTEST_ADDOPTS` from its child and fails if pytest reports deselected cases.
+Cross-platform behavioral resolver tests mock OS selection and executable
+lookup policy while keeping the test host's real path semantics. Focused
+resolver/readiness tests run on real Windows in the desktop workflow, but do
+not constitute Windows media acceptance. Full media acceptance evidence
+currently comes from actual macOS runs against the selected Homebrew pair.
 
 ## Reproducible installs
 

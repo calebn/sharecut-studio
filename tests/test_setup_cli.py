@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.setup_cmd import _link_global_skills, setup_app
@@ -31,6 +32,25 @@ def test_setup_ffmpeg_missing(tmp_path, monkeypatch):
     assert "FFmpeg missing" in result.stderr
     assert "brew/apt install ffmpeg" in result.stderr
     assert "podcast bootstrap --component ffmpeg" in result.stderr
+
+
+@pytest.mark.parametrize("command", ["setup", "doctor"])
+def test_setup_and_doctor_reject_missing_explicit_ffprobe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, command: str
+) -> None:
+    monkeypatch.setenv("PODCAST_MCP_CACHE", str(tmp_path / "cache"))
+    ffmpeg = tmp_path / "ffmpeg"
+    ffmpeg.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    ffmpeg.chmod(0o755)
+    monkeypatch.setenv("PODCAST_MCP_FFMPEG", str(ffmpeg))
+    monkeypatch.setenv("PODCAST_MCP_FFPROBE", str(tmp_path / "missing-ffprobe"))
+
+    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+        result = runner.invoke(setup_app, [command])
+
+    assert result.exit_code == (0 if command == "setup" else 1)
+    assert "pair is unavailable" in result.output
+    run.assert_not_called()
 
 
 def test_setup_whisper_model_persists(tmp_path, monkeypatch):

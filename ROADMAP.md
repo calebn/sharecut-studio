@@ -2,7 +2,7 @@
 
 Future work only — not committed. Remove or move items to issues/PRs when shipped.
 
-**What is implemented today:** host product surfaces are registered in [`contracts/capabilities.manifest.json`](contracts/capabilities.manifest.json) and browsable at [docs.sharecut.studio/#/capabilities](https://docs.sharecut.studio/#/capabilities). Document commands, share HTTP, and guest MCP have separate generated catalogs (see [docs/entry-points.md](docs/entry-points.md)). Feature behavior lives in `docs/` (e.g. [daw-editing.md](docs/daw-editing.md), [host-online-relay.md](docs/host-online-relay.md)).
+**What is implemented today:** host product surfaces are registered in [`contracts/capabilities.manifest.json`](contracts/capabilities.manifest.json) and browsable at [docs.sharecut.studio/#/capabilities](https://docs.sharecut.studio/#/capabilities). Document commands, share HTTP, and guest MCP have separate generated catalogs (see [docs/entry-points.md](docs/entry-points.md)). Feature behavior lives in `docs/` (e.g. [daw-editing.md](docs/daw-editing.md), [host-online-relay.md](docs/host-online-relay.md)). FFmpeg pair selection and its tested release policy are documented in [docs/setup.md](docs/setup.md#ffmpeg-version-and-pair-policy).
 
 **Native iOS/Android + in-app bring-your-own-agent** is deferred long-horizon. Detail and interim architecture rules: [docs/cross-platform-byok.md](docs/cross-platform-byok.md).
 
