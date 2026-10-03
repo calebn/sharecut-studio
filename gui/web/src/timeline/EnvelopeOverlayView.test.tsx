@@ -46,6 +46,22 @@ function renderView(
   };
 }
 
+function capture(circle: SVGCircleElement) {
+  let pointer: number | null = null;
+  const release = vi.fn((pointerId: number) => {
+    pointer = null;
+    fireEvent.lostPointerCapture(circle, { pointerId });
+  });
+  Object.assign(circle, {
+    setPointerCapture: vi.fn((pointerId: number) => {
+      pointer = pointerId;
+    }),
+    hasPointerCapture: (pointerId: number) => pointer === pointerId,
+    releasePointerCapture: release,
+  });
+  return release;
+}
+
 describe("EnvelopeOverlayView", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -203,6 +219,137 @@ describe("EnvelopeOverlayView", () => {
     await vi.waitFor(() => expect(onCommitPoints).toHaveBeenCalledTimes(1));
   });
 
+  it("focuses the owner without scrolling and Escape restores its preview before release", () => {
+    const { container, onCommitPoints, release } = renderView();
+    const circle = container.querySelectorAll("circle")[0]!;
+    const releaseCapture = capture(circle);
+    const focus = vi.spyOn(circle, "focus");
+    const original = {
+      cx: circle.getAttribute("cx"),
+      cy: circle.getAttribute("cy"),
+    };
+    const parentKey = vi.fn();
+    container.addEventListener("keydown", parentKey);
+    fireEvent.pointerDown(circle, { pointerId: 1 });
+    expect(document.activeElement).toBe(circle);
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    fireEvent.pointerMove(circle, { pointerId: 1, clientX: 65, clientY: 8 });
+    expect(circle.getAttribute("cx")).toBe("65");
+    expect(fireEvent.keyDown(circle, { key: "Escape" })).toBe(false);
+    expect(parentKey).not.toHaveBeenCalled();
+    expect({
+      cx: circle.getAttribute("cx"),
+      cy: circle.getAttribute("cy"),
+    }).toEqual(original);
+    expect(releaseCapture).toHaveBeenCalledExactlyOnceWith(1);
+    expect(release).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(circle, { pointerId: 1 });
+    expect(onCommitPoints).not.toHaveBeenCalled();
+    fireEvent.pointerDown(circle, { pointerId: 2 });
+    fireEvent.pointerMove(circle, { pointerId: 2, clientX: 65, clientY: 8 });
+    fireEvent.pointerUp(circle, { pointerId: 2 });
+    expect(onCommitPoints).toHaveBeenCalledExactlyOnceWith(
+      [
+        { id: "late", time: 5, value: 0.5 },
+        { id: "early", time: 6.5, value: 1.40625 },
+      ],
+      points,
+    );
+  });
+
+  it.each([
+    "pointerDown",
+    "pointerMove",
+    "pointerUp",
+    "pointerCancel",
+    "lostPointerCapture",
+  ] as const)(
+    "ignores foreign %s while retaining the owner's draft and geometry hold",
+    (event) => {
+      const {
+        container,
+        onCommitPoints,
+        onSelectPoint,
+        holdGeometry,
+        release,
+      } = renderView();
+      const [owner, other] = [...container.querySelectorAll("circle")];
+      capture(owner!);
+      fireEvent.pointerDown(owner!, { pointerId: 1 });
+      fireEvent.pointerMove(owner!, { pointerId: 1, clientX: 65, clientY: 8 });
+      fireEvent[event](other!, { pointerId: 99, clientX: 120, clientY: 60 });
+      expect(owner!.getAttribute("cx")).toBe("65");
+      expect(owner!.getAttribute("cy")).toBe("8");
+      expect(document.activeElement).toBe(owner);
+      expect(onSelectPoint).toHaveBeenCalledExactlyOnceWith(0);
+      expect(holdGeometry).toHaveBeenCalledTimes(1);
+      expect(release).not.toHaveBeenCalled();
+      expect(onCommitPoints).not.toHaveBeenCalled();
+      fireEvent.pointerUp(owner!, { pointerId: 1 });
+      expect(onCommitPoints).toHaveBeenCalledExactlyOnceWith(
+        [
+          { id: "late", time: 5, value: 0.5 },
+          { id: "early", time: 6.5, value: 1.40625 },
+        ],
+        points,
+      );
+    },
+  );
+
+  it("cancels on actual focus departure without moving focus back", () => {
+    const { container, onCommitPoints, release } = renderView();
+    const circle = container.querySelectorAll("circle")[0]!;
+    const releaseCapture = capture(circle);
+    const other = document.createElement("button");
+    container.appendChild(other);
+    fireEvent.pointerDown(circle, { pointerId: 1 });
+    fireEvent.pointerMove(circle, { pointerId: 1, clientX: 65, clientY: 8 });
+    act(() => {
+      other.focus();
+    });
+    expect(document.activeElement).toBe(other);
+    expect(circle.getAttribute("cx")).toBe("0");
+    expect(releaseCapture).toHaveBeenCalledExactlyOnceWith(1);
+    expect(release).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(circle, { pointerId: 1 });
+    expect(onCommitPoints).not.toHaveBeenCalled();
+  });
+
+  it.each([1, 2])(
+    "rejects mouse button %s before selecting or acquiring a drag",
+    (button) => {
+      const { container, onSelectPoint, holdGeometry, onCommitPoints } =
+        renderView();
+      const circle = container.querySelectorAll("circle")[0]!;
+      fireEvent.pointerDown(circle, {
+        pointerId: 1,
+        pointerType: "mouse",
+        button,
+      });
+      fireEvent.pointerMove(circle, { pointerId: 1, clientX: 65, clientY: 8 });
+      fireEvent.pointerUp(circle, { pointerId: 1 });
+      expect(onSelectPoint).not.toHaveBeenCalled();
+      expect(holdGeometry).not.toHaveBeenCalled();
+      expect(onCommitPoints).not.toHaveBeenCalled();
+      expect(document.activeElement).not.toBe(circle);
+    },
+  );
+
+  it.each(["pointerCancel", "lostPointerCapture"] as const)(
+    "restores owner geometry and makes release inert after %s",
+    (event) => {
+      const { container, onCommitPoints, release } = renderView();
+      const circle = container.querySelectorAll("circle")[0]!;
+      capture(circle);
+      fireEvent.pointerDown(circle, { pointerId: 1 });
+      fireEvent.pointerMove(circle, { pointerId: 1, clientX: 65, clientY: 8 });
+      fireEvent[event](circle, { pointerId: 1 });
+      expect(circle.getAttribute("cx")).toBe("0");
+      fireEvent.pointerUp(circle, { pointerId: 1 });
+      expect(onCommitPoints).not.toHaveBeenCalled();
+      expect(release).toHaveBeenCalledTimes(1);
+    },
+  );
   it("draws only the deep-zoom viewport chunk", () => {
     const zoom = 48000;
     const deepPoints: AutomationPoint[] = [
