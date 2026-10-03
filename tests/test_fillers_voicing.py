@@ -1,7 +1,8 @@
 """Tier A pins for voiced speech at tighten cut edges and inside pause spans (#815, #818).
 
 Synthetic tracks: a 180 Hz harmonic "vowel" for voice, digital silence (-200 dBFS,
-Zoom's gate) between words. Word times are what the transcript says; the audio is
+Zoom's gate) between words. Breath handling is disabled because these fixtures
+have no measurable room-tone contrast; complete breath protection has its own tests. Word times are what the transcript says; the audio is
 what the listener hears, and the two disagree on purpose where the issues did.
 """
 
@@ -34,11 +35,17 @@ from podcast_mcp.models import (
 )
 
 RATE = 16_000
-DEFAULTS: dict[str, object] = {"tighten": {"max_pause_sec": 1.2}}
+DEFAULTS: dict[str, object] = {
+    "tighten": {"breath_handling": {"enabled": False}, "max_pause_sec": 1.2}
+}
 # The word tail past its transcript time is itself a review-only acoustic candidate;
 # the edge pins look at the pause alone.
 EDGE_DEFAULTS: dict[str, object] = {
-    "tighten": {"max_pause_sec": 1.2, "acoustic_gap_filler": {"enabled": False}}
+    "tighten": {
+        "breath_handling": {"enabled": False},
+        "max_pause_sec": 1.2,
+        "acoustic_gap_filler": {"enabled": False},
+    }
 }
 
 
@@ -241,11 +248,18 @@ def test_word_cut_with_voice_running_through_both_edges_is_reviewed(tmp_path: Pa
         TranscriptWord(text="edits", start=2.3, end=2.6),
     ]
     project = _project(tmp_path, samples, words)
-    defaults = {"tighten": {"filler_words": ["like", "um"], "discourse_markers": []}}
+    defaults = {
+        "tighten": {
+            "breath_handling": {"enabled": False},
+            "filler_words": ["like", "um"],
+            "discourse_markers": [],
+        }
+    }
 
     decisions = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
 
-    assert [d.reason for d in decisions] == ["filler:like:voiced_edge", "filler:um:voiced_edge"]
+    # The optimized "like" cut no longer covers half its target span.
+    assert [d.reason for d in decisions] == ["filler:um:voiced_edge"]
     assert all(d.review_required for d in decisions)
 
 
@@ -326,6 +340,7 @@ def test_voice_before_a_filler_with_no_word_is_reviewed_not_widened(tmp_path: Pa
     project = _project(tmp_path, host, words)
     defaults = {
         "tighten": {
+            "breath_handling": {"enabled": False},
             "filler_words": ["um", "uh"],
             "discourse_markers": [],
             "acoustic_gap_filler": {"enabled": False},

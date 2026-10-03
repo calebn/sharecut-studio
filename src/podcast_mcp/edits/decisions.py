@@ -502,7 +502,7 @@ def apply_prefix_edits(
         tl_start, tl_end, track_ids, params = _apply_remove_edit(
             project,
             edit,
-            use_inaudible_opt=inaudible_opt,
+            use_inaudible_opt=inaudible_opt and edit.boundary_mode is None,
             record_log=False,
         )
         if not track_ids:

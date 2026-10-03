@@ -548,6 +548,7 @@ def test_analyze_fillers_sets_replace_gap(monkeypatch):
     ):
         defaults = {
             "tighten": {
+                "breath_handling": {"enabled": False},
                 "filler_words": ["um", "uh"],
                 "max_pause_sec": 99.0,
                 "min_filler_cluster": 2,
@@ -994,6 +995,7 @@ def test_analyze_candidate_marks_review_when_guard_requests() -> None:
         filler_confidence=0.9,
     )
     defaults = load_defaults()
+    defaults["tighten"]["breath_handling"]["enabled"] = False
     defaults.setdefault("inaudible_cuts", {})["enabled"] = False
     opt = type("O", (), {"start": 1.0, "end": 1.3, "confidence": 0.9, "mode": "exact"})()
     risk = type("R", (), {"too_risky": False})()
@@ -1040,6 +1042,7 @@ def test_analyze_candidate_track_local_on_blocked_peer() -> None:
         filler_confidence=0.9,
     )
     defaults = load_defaults()
+    defaults["tighten"]["breath_handling"]["enabled"] = False
     defaults.setdefault("inaudible_cuts", {})["enabled"] = False
     opt = type("O", (), {"start": 1.0, "end": 1.3, "confidence": 0.9, "mode": "exact"})()
     risk = type("R", (), {"too_risky": False})()

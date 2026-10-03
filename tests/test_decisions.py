@@ -548,7 +548,9 @@ def test_apply_prefix_edits_pause_with_crossfade():
     assert proj.edit_decisions == []
 
 
-def test_apply_prefix_edits_archives_the_optimized_cut_range():
+@pytest.mark.parametrize("boundary_mode", [None, "vocal_transcript_guided"])
+@pytest.mark.parametrize("config_key,prefix", [("tighten", "pause:"), ("focus", "focus:")])
+def test_apply_prefix_edits_archives_the_settled_cut_range(boundary_mode, config_key, prefix):
     """The archived timeline range is the cut per_track_source describes, so revert fills it exactly."""
     proj = _project_with_clip()
     proj.edit_decisions = [
@@ -558,7 +560,8 @@ def test_apply_prefix_edits_archives_the_optimized_cut_range():
             type=EditDecisionType.REMOVE,
             start=2.0,
             end=2.5,
-            reason="pause:long",
+            reason=f"{prefix}long",
+            boundary_mode=boundary_mode,
             review_required=False,
             applied=False,
         )
@@ -568,14 +571,17 @@ def test_apply_prefix_edits_archives_the_optimized_cut_range():
         patch("podcast_mcp.edits.decisions.load_defaults") as defaults,
         patch(
             "podcast_mcp.edits.timeline_ops.optimize_timeline_cut_range",
-            return_value=optimized,
-        ),
+            side_effect=lambda project, track, start, end, force_enabled: (
+                optimized if force_enabled else type("R", (), {"start": start, "end": end})()
+            ),
+        ) as optimize,
     ):
-        defaults.return_value = {"tighten": {"inaudible_opt": True}}
-        assert apply_prefix_edits(proj, "pause:", config_key="tighten") == 1
+        defaults.return_value = {config_key: {"inaudible_opt": True}}
+        assert apply_prefix_edits(proj, prefix, config_key=config_key) == 1
+    assert optimize.call_args.kwargs["force_enabled"] is (boundary_mode is None)
     record = proj.editorial.edit_log[-1]
     assert record.timeline_start == pytest.approx(2.0)
-    assert record.timeline_end == pytest.approx(2.56)
+    assert record.timeline_end == pytest.approx(2.56 if boundary_mode is None else 2.5)
     pre, post = record.params["per_track_source"]["host"]
     assert post - pre == pytest.approx(record.timeline_end - record.timeline_start)
     revert_applied_edit(proj, record.id)

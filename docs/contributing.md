@@ -298,6 +298,11 @@ Podcast MCP treats **all editable project state** as undoable unless explicitly 
    removing redo entries.
 5. **Skills** that orchestrate mutations must mention `history_undo` and prefer batch tools where they exist.
 
+Applying a pending decision with `boundary_mode` already set must consume its
+stored optimized bounds. A second snap can reopen a protected breath edge.
+Unsnapped decisions retain configured apply-time optimization. Both paths use
+the existing applied-edit archive and workspace history mutation.
+
 ### Transcript sync after audio changes
 
 Operations that change audible output (gain, mute, FX, cuts, clips, envelopes, balance, etc.) must keep per-track transcripts aligned via **reconciliation** — see [architecture.md § Automatic transcript sync](architecture.md#automatic-transcript-sync).
