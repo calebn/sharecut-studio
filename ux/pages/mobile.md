@@ -69,7 +69,7 @@ transport Menu on Timeline, Text, or More.
 | **Two-finger tap** | Undo |
 | **Pinch** | Zoom the timeline in/out |
 | **Long-press** | Open the selection sheet for a comment or track, or correct a transcript word (hosts) |
-| **Swipe left on comment** | Resolve an open comment in the list (hosts). The card slides with your finger; **Undo** appears for a few seconds afterwards (for the most recent one only) |
+| **Swipe left on comment** | Resolve an open comment in the list (hosts). The card slides with your finger; **Undo** appears for a few seconds afterwards (for the most recent one only). The toast stays reachable as the Comments list scrolls. Closing it with keyboard focus inside returns focus to Comments without scrolling |
 | **Double-tap word** | Open word correction (hosts) in the sheet; the transcript hint says so on touch; closing it returns to your previous mode (touch keeps the sheet rather than desktop's inline editor so the keyboard has room) |
 
 A full list is in the app: **More → Gestures**.

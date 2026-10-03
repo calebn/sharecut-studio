@@ -513,6 +513,15 @@ persistence, audio readiness, overflow and contrast in both themes at 1440px
 and 320px. The intermediate 360px review cases use the same reading layout and
 are omitted. The smallest case enlarges native fields' preferred sizes to
 exercise intrinsic-width overflow across platforms.
+`gui/web/e2e/comment-undo.spec.ts` checks host Resolve and Undo persistence,
+sticky toast bounds and hit testing after two interior panel scrolls, and Dismiss
+focus without changing panel, ancestor, or window scroll offsets. It runs at
+desktop and phone widths in both themes, with axe while the toast is visible.
+`gui/web/e2e-compat/comment-undo.spec.ts` runs one phone recovery flow in Chromium
+and WebKit, including a real pending reopen request and disabled Undo focus.
+These tests use disposable projects. Physical iPhone and iPad Safari checks remain
+pending. Run the focused cases with `npm run test:e2e -- e2e/comment-undo.spec.ts`
+and `npm run test:e2e:compat -- e2e-compat/comment-undo.spec.ts` after the E2E build.
 `gui/web/e2e/desktop-splash.spec.ts` renders native startup HTML with long errors
 at narrow and wide sizes. These browser checks do not validate packaged WebViews
 or physical microphone behavior.

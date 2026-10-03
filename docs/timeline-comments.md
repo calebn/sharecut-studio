@@ -208,6 +208,13 @@ Token algorithm, roles, Restricted identity: **[share-tokens.md](share-tokens.md
 
 **Comment resolve is host-only.** The host can resolve or reopen a thread in the Comments tab; that state lives in the project and persists when the host publishes another review version. ReviewApp labels each thread Open or Resolved and offers **Open comments only** to hide resolved threads temporarily; clearing the filter makes them readable again. The lightweight review socket pushes comments without the Studio `view` capability. It sends an initial comments replacement, then ordered changes with an opaque per-connection revision. The server also reads current comments every 30 seconds to recover missed notifications. A visible guest page refreshes the full review every 15 seconds only while the comments stream is disconnected or not initialized. Own successful REST edits wait briefly for push when the stream is healthy; they use an immediate refresh otherwise. Guests (human and agent) may add comments, replies, and toggle action items when those caps are on the token. There is no share HTTP or `guest_*` tool to resolve/reopen a thread. Anonymous link shares have no verified per-guest identity for own-thread resolve; if guest resolve is added later, it must ship HTTP and MCP together.
 
+The host Comments panel keeps the latest resolved comment in panel-local toast
+state. Successful Undo clears that toast and announces `Comment reopened` while
+the panel remains mounted. Unmount disposes the local toast and suppresses the
+later app-wide announcement. The mounted guard does not cancel the mutation or
+reject a response for another project while the same panel stays mounted.
+Lifting toast ownership out of the panel requires revisiting that guard.
+
 ## Live comments during recording
 
 Host, guests, and producers can add live marker comments during a record
