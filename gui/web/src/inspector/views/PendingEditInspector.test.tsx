@@ -153,8 +153,12 @@ describe("PendingEditInspector", () => {
         await waitFor(() =>
           expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled(),
         );
-      else
+      else {
         expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+        expect(
+          screen.getByText("Only the host can review exact range proposals."),
+        ).toBeVisible();
+      }
     },
   );
 

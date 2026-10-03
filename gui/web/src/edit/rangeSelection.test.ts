@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
-import type { ClipRow, ProjectView, Selection } from "../types/project";
+import type {
+  ClipRow,
+  ExactRangeTarget,
+  ProjectView,
+  Selection,
+} from "../types/project";
 import {
   makeRangeTarget,
   rangeIsCurrent,
+  rangeTargetsEqual,
   resolveSelectionRange,
 } from "./rangeSelection";
 
@@ -152,5 +158,120 @@ describe("exact transcript range resolution", () => {
     expect(rangeIsCurrent(p, target)).toBe(true);
     p.clips.tracks.speaker!.push(placement("inserted", 0, 1, 8));
     expect(rangeIsCurrent(p, target)).toBe(false);
+  });
+});
+
+describe("exact range wire seals", () => {
+  function fixture() {
+    const first = placement("a", 0, 8, 10);
+    first.mute_regions = [{ start_s: 1.2, end_s: 1.4 }];
+    const p = project([first, placement("b", 0, 8, 10, "destination")]);
+    const target = makeRangeTarget(
+      p,
+      [
+        { start: 11, end: 12 },
+        { start: 14, end: 15 },
+      ],
+      ["speaker", "destination"],
+    )!;
+    const wire: ExactRangeTarget = JSON.parse(
+      JSON.stringify({
+        media_seals: { destination: "d", speaker: "s" },
+        clips: target.clips.map((clip) => ({
+          id: clip.id,
+          track_id: clip.track_id,
+          source_start: clip.source_start,
+          source_end: clip.source_end,
+          timeline_start: clip.timeline_start,
+          source_id: clip.source_id,
+          fade_in_ms: clip.fade_in_ms,
+          fade_out_ms: clip.fade_out_ms,
+          join_in_mode: clip.join_in_mode,
+          mute_regions: clip.mute_regions.map(({ start_s, end_s }) => ({
+            end_s,
+            start_s,
+          })),
+        })),
+        track_ids: target.track_ids,
+        intervals: target.intervals.map(({ start, end }) => ({ end, start })),
+        kind: target.kind,
+      }),
+    );
+    return { p, target, wire };
+  }
+
+  it("accepts the saved server-shaped target despite object key order", () => {
+    const { p, target, wire } = fixture();
+    expect(JSON.stringify(wire)).not.toEqual(JSON.stringify(target));
+    expect(rangeIsCurrent(JSON.parse(JSON.stringify(p)), wire)).toBe(true);
+  });
+
+  it.each([
+    ["id", "changed"],
+    ["track_id", "destination"],
+    ["source_id", "new-recording"],
+    ["source_start", 0.1],
+    ["source_end", 7.9],
+    ["timeline_start", 10.1],
+    ["fade_in_ms", 20],
+    ["fade_out_ms", 20],
+    ["join_in_mode", "cut"],
+    ["mute_regions", [{ start_s: 1.2, end_s: 1.5 }]],
+  ])("rejects changed sealed clip field %s", (field, value) => {
+    const { p, wire } = fixture();
+    const changed = {
+      ...wire,
+      clips: wire.clips.map((clip, index) =>
+        index ? clip : { ...clip, [field as string]: value },
+      ),
+    };
+    expect(rangeIsCurrent(p, changed)).toBe(false);
+  });
+
+  it("keeps media seal values and array ordering meaningful", () => {
+    const { p, wire } = fixture();
+    expect(
+      rangeIsCurrent(p, {
+        ...wire,
+        media_seals: { ...wire.media_seals, speaker: "changed" },
+      }),
+    ).toBe(false);
+    expect(
+      rangeIsCurrent(p, {
+        ...wire,
+        media_seals: { ...wire.media_seals, extra: "seal" },
+      }),
+    ).toBe(false);
+    expect(
+      rangeIsCurrent(p, { ...wire, intervals: [...wire.intervals].reverse() }),
+    ).toBe(false);
+    expect(rangeIsCurrent(p, { ...wire, track_ids: ["speaker"] })).toBe(false);
+    expect(
+      rangeIsCurrent(p, { ...wire, clips: [...wire.clips].reverse() }),
+    ).toBe(false);
+    expect(
+      rangeTargetsEqual(wire, { ...wire, intervals: [wire.intervals[0]] }),
+    ).toBe(false);
+    expect(
+      rangeTargetsEqual(wire, {
+        ...wire,
+        track_ids: [...wire.track_ids].reverse(),
+      }),
+    ).toBe(false);
+    expect(
+      rangeTargetsEqual(wire, {
+        ...wire,
+        intervals: [...wire.intervals].reverse(),
+      }),
+    ).toBe(false);
+    const changed = {
+      ...p,
+      tracks: p.tracks.map((track) =>
+        track.id === "destination"
+          ? { ...track, range_media_seal: "replacement" }
+          : track,
+      ),
+    };
+    expect(rangeIsCurrent(changed, wire)).toBe(false);
   });
 });

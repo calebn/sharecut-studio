@@ -151,6 +151,10 @@ describe("PendingEditOverlay handles", () => {
           else expect(button).toBeDisabled();
         }
       });
+      if (guestMode !== null)
+        expect(
+          screen.getByText("Only the host can review exact range proposals."),
+        ).toBeVisible();
       expect(updatePendingEdit).not.toHaveBeenCalled();
     },
   );

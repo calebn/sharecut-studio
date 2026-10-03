@@ -636,8 +636,8 @@ button.join-seam:focus-visible {
   color: var(--color-text-on-overlay);
   font-size: var(--font-size-caption);
   line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
   transform: translate(-50%, -100%);
   pointer-events: none;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { hostFetch } from "../api/documentTransport";
-import { rangeIsCurrent } from "../edit/rangeSelection";
+import { rangeIsCurrent, rangeTargetsEqual } from "../edit/rangeSelection";
 import {
   hasShareCapability,
   isShareProjectKey,
@@ -73,7 +73,6 @@ export function ExactPendingPreviewFooter({
       captured.project.envelopes,
     ]);
     const epoch = captured.projectEpoch;
-    const targetKey = JSON.stringify(target);
     resource.current?.controller.abort();
     if (resource.current?.url) {
       captured.releaseSourcePreview(ownerId);
@@ -119,7 +118,8 @@ export function ExactPendingPreviewFooter({
         ]) !== mixKey ||
         ((isShareProjectKey(live.projectPath) || live.guestMode !== null) &&
           !hasShareCapability(live.shareCapabilities, "play")) ||
-        JSON.stringify(pending?.exact_range) !== targetKey
+        !pending?.exact_range ||
+        !rangeTargetsEqual(pending.exact_range, target)
       )
         return;
       request.url = URL.createObjectURL(blob);

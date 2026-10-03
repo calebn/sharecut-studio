@@ -52,7 +52,34 @@ function setup(path = "/tmp/p.json", mode: PreviewMode = "suggested") {
     id: "exact",
     source_start: null,
     source_end: null,
-    exact_range: target,
+    exact_range: {
+      ...target,
+      clips: target.clips.map(
+        ({
+          id,
+          track_id,
+          source_start,
+          source_end,
+          timeline_start,
+          source_id,
+          fade_in_ms,
+          fade_out_ms,
+          join_in_mode,
+          mute_regions,
+        }) => ({
+          id,
+          track_id,
+          source_start,
+          source_end,
+          timeline_start,
+          source_id,
+          fade_in_ms,
+          fade_out_ms,
+          join_in_mode,
+          mute_regions,
+        }),
+      ),
+    },
     can_skip: true,
   };
   project.pending_edits = [edit];
@@ -136,6 +163,48 @@ describe("exact pending full mix preview", () => {
       "This share cannot play audio",
     );
   });
+
+  it.each(["object_order", "islands", "lanes"])(
+    "checks pending identity after deferred %s changes",
+    async (change) => {
+      let finish!: (response: Response) => void;
+      vi.mocked(hostFetch).mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const { project, edit } = setup();
+      fireEvent.click(screen.getByRole("button", { name: "Play around" }));
+      const target = edit.exact_range;
+      const updated =
+        change === "object_order"
+          ? (Object.fromEntries(
+              Object.entries(target).reverse(),
+            ) as typeof target)
+          : change === "islands"
+            ? { ...target, intervals: [target.intervals[0]] }
+            : { ...target, track_ids: ["other"] };
+      act(() =>
+        useDawStore.setState({
+          project: {
+            ...project,
+            pending_edits: [{ ...edit, exact_range: updated }],
+          },
+        }),
+      );
+      await act(async () =>
+        finish(new Response(new Blob(["wav"]), { status: 200 })),
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Play around" }),
+        ).not.toHaveAttribute("title", "Preparing full mix preview"),
+      );
+      if (change === "object_order")
+        expect(useDawStore.getState().sourcePreview).not.toBeNull();
+      else expect(useDawStore.getState().sourcePreview).toBeNull();
+    },
+  );
 
   it.each(["geometry", "mix", "permission"])(
     "discards deferred audio after %s changes",
