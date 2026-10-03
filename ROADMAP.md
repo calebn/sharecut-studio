@@ -160,6 +160,10 @@ Required for v1 credibility with video-first creators — not just audio post.
 
 ## Follow-up
 
+Phone More → Mix now provides the shared track sheet using the existing saved
+volume/mute commands and local solo controls. The identity-only timeline rail
+remains unchanged. A swipe-to-mix overlay is deferred.
+
 The shell chrome catalog uses the production `MobileShellView` and
 `StudioShellView` with 360px phone, desktop, and tablet fixtures
 ([#616](https://github.com/calebn/sharecut-studio/issues/616)). Full live transport,

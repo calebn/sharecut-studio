@@ -19,11 +19,13 @@ export type BalancePresentation = Readonly<{
   ungated: boolean;
 }>;
 
-export type FaderPresentation = {
-  kind: "detailed";
-  stagingDb: number;
-  balance: BalancePresentation | null;
-};
+export type FaderPresentation =
+  | { kind: "compact"; descriptionId: string }
+  | {
+      kind: "detailed";
+      stagingDb: number;
+      balance: BalancePresentation | null;
+    };
 
 export type TrackFaderViewProps = {
   trackLabel: string;
@@ -51,6 +53,41 @@ export function TrackFaderView({
   const reset = () => range.commitValue(0);
   const id = useId();
   const noteId = `${id}-note`;
+  const input = (
+    <input
+      id={id}
+      className="track-fader-input"
+      type="range"
+      min={FADER_MIN_DB}
+      max={FADER_MAX_DB}
+      step={FADER_STEP_DB}
+      disabled={!editable}
+      aria-label={`Volume ${trackLabel}`}
+      title={
+        editable ? "Saved volume. Double-click to reset to 0 dB" : undefined
+      }
+      aria-describedby={
+        presentation.kind === "compact" ? presentation.descriptionId : noteId
+      }
+      aria-valuetext={formatGainDb(value)}
+      onDoubleClick={() => {
+        if (editable) {
+          reset();
+        }
+      }}
+      {...range.inputProps}
+    />
+  );
+  if (presentation.kind === "compact") {
+    return (
+      <div className="track-fader track-fader--compact">
+        {input}
+        <output htmlFor={id} className="track-fader-value">
+          {formatGainDb(value)}
+        </output>
+      </div>
+    );
+  }
   const { stagingDb, balance } = presentation;
 
   return (
@@ -58,27 +95,7 @@ export function TrackFaderView({
       <label htmlFor={id} className="track-fader-label">
         Volume
       </label>
-      <input
-        id={id}
-        className="track-fader-input"
-        type="range"
-        min={FADER_MIN_DB}
-        max={FADER_MAX_DB}
-        step={FADER_STEP_DB}
-        disabled={!editable}
-        aria-label={`Volume ${trackLabel}`}
-        title={
-          editable ? "Saved volume. Double-click to reset to 0 dB" : undefined
-        }
-        aria-describedby={noteId}
-        aria-valuetext={formatGainDb(value)}
-        onDoubleClick={() => {
-          if (editable) {
-            reset();
-          }
-        }}
-        {...range.inputProps}
-      />
+      {input}
       <span className="track-fader-end">
         <output htmlFor={id} className="track-fader-value">
           {formatGainDb(value)}

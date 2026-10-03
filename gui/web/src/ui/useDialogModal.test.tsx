@@ -39,7 +39,7 @@ function Fixture({ initiallyOpen = true }: { initiallyOpen?: boolean }) {
   );
 }
 
-function ReturnFocusHarness() {
+function ReturnFocusHarness({ explicit = true }: { explicit?: boolean }) {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const returnRef = useRef<HTMLButtonElement>(null);
@@ -48,7 +48,7 @@ function ReturnFocusHarness() {
     onClose: () => setOpen(false),
     panelRef,
     mode: "sheet",
-    returnFocusRef: returnRef,
+    returnFocusRef: explicit ? returnRef : undefined,
   });
   return (
     <>
@@ -58,9 +58,14 @@ function ReturnFocusHarness() {
       <button type="button" onClick={() => setOpen(true)}>
         Open
       </button>
+      <button type="button" onClick={() => setOpen(false)}>
+        Navigate
+      </button>
       {open ? (
         <div ref={panelRef} role="dialog" aria-label="Sheet">
-          <button type="button">Inside</button>
+          <button type="button" onClick={() => setOpen(false)}>
+            Close sheet
+          </button>
         </div>
       ) : null}
     </>
@@ -133,6 +138,30 @@ describe("useDialogModal", () => {
     await user.click(screen.getByRole("button", { name: "Open" }));
     await user.keyboard("{Escape}");
     expect(screen.getByRole("button", { name: "Return here" })).toHaveFocus();
+  });
+
+  it("keeps the explicit return target authoritative after outside navigation", async () => {
+    const user = userEvent.setup();
+    render(<ReturnFocusHarness />);
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await user.click(screen.getByRole("button", { name: "Navigate" }));
+    expect(screen.getByRole("button", { name: "Return here" })).toHaveFocus();
+  });
+
+  it("preserves outside navigation focus for a sheet with default restoration", async () => {
+    const user = userEvent.setup();
+    render(<ReturnFocusHarness explicit={false} />);
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await user.click(screen.getByRole("button", { name: "Navigate" }));
+    expect(screen.getByRole("button", { name: "Navigate" })).toHaveFocus();
+  });
+
+  it("restores the opener after the focused sheet control is removed", async () => {
+    const user = userEvent.setup();
+    render(<ReturnFocusHarness explicit={false} />);
+    await user.click(screen.getByRole("button", { name: "Open" }));
+    await user.click(screen.getByRole("button", { name: "Close sheet" }));
+    expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
   });
 });
 

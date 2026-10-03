@@ -9,6 +9,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | Term | What it means for a host or guest |
 |------|-----------------------------------|
 | **Episode / project** | The session you’re editing or reviewing |
+| **Mix sheet** | Phone More → Mix controls all tracks. Hosts/editors save M and Volume; other guests use local M. S is local for everyone |
 | **Track** | One speaker mic (or music bed) |
 | **Clip** | A kept stretch of audio on the session |
 | **Pending cut** | A suggested remove not yet approved |
@@ -52,6 +53,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 |---------|---------------------|---------|---------|
 | **Episode / project** | The session being edited | `episode.project.json` (`meta`, …) | All |
 | **Host home** | New / Open before a project is loaded | `POST /api/project/create\|open\|pick` | Loopback Sharecut Studio only (not guests) |
+| **Mix sheet** | Phone More → Mix controls all tracks. Hosts/editors save M and Volume; other guests use local M. S is local for everyone | Existing track mix and listen state | Phone full-height sheet |
 | **Track** | One speaker/mic (or bed) | `timeline.tracks` (+ sources) | Timeline headers, Mix, FX inspector |
 | **Clip** | Kept audio placed on the session | `timeline.clips` | Timeline lanes, body-drag move, fade/join inspector |
 | **Fade / join** | Soft edge between kept regions | `fade_*_ms`, `join_in_mode` | Clip edges, inspector |

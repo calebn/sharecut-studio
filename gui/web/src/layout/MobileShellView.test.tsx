@@ -29,13 +29,7 @@ function presentation(): MobileShellViewProps {
       ),
     },
     onModeChange: vi.fn(),
-    inspector: {
-      open: false,
-      expanded: false,
-      content: <p>Selected track</p>,
-      onClose: vi.fn(),
-      onExpandedChange: vi.fn(),
-    },
+    sheet: { kind: "closed" },
   };
 }
 
@@ -167,7 +161,15 @@ describe("MobileShellView", () => {
 
   it("keeps the inspector background interactive and forwards expand and close", async () => {
     const props = presentation();
-    props.inspector.open = true;
+    const onClose = vi.fn();
+    const onExpandedChange = vi.fn();
+    props.sheet = {
+      kind: "inspector",
+      expanded: false,
+      content: <p>Selected track</p>,
+      onClose,
+      onExpandedChange,
+    };
     render(<MobileShellView {...props} />);
     const dialog = screen.getByRole("dialog", { name: "Inspector" });
     expect(dialog).toHaveAttribute("aria-modal", "false");
@@ -178,9 +180,9 @@ describe("MobileShellView", () => {
     await userEvent.click(
       within(dialog).getByRole("button", { name: "Expand" }),
     );
-    expect(props.inspector.onExpandedChange).toHaveBeenCalledWith(true);
+    expect(onExpandedChange).toHaveBeenCalledWith(true);
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(vi.mocked(props.inspector.onClose).mock.calls).toEqual([[]]);
+    expect(vi.mocked(onClose).mock.calls).toEqual([[]]);
     await expectNoA11yViolations(document.body);
   });
 });

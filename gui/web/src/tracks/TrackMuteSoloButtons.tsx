@@ -1,4 +1,5 @@
 import { runPointerCommand } from "../commands/pointer";
+import { displayShortcutFor } from "../keymap/registry";
 import { canEditMix } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { trackMuteState } from "../utils/audio";
@@ -44,6 +45,10 @@ export function TrackMuteSoloButtons({ trackId }: { trackId: string }) {
       muteState={state}
       solo={solo}
       editsMix={editsMix}
+      shortcuts={{
+        mute: displayShortcutFor("track.muteToggle") ?? "",
+        solo: displayShortcutFor("track.soloToggle") ?? "",
+      }}
       onMute={() => {
         runPointerCommand("track.muteToggle", { trackId });
       }}

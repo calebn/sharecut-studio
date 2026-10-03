@@ -31,7 +31,7 @@ describe("trackMuteCopy", () => {
   )(
     "gives %s (editsMix=%s) a title starting with the action",
     (state, editsMix) => {
-      const title = muteButtonTitle(state, editsMix);
+      const title = muteButtonTitle(state, editsMix, "M");
       if (state === "saved" && !editsMix) {
         expect(title).toBe(SAVED_MUTE_READ_ONLY);
         return;
@@ -43,28 +43,28 @@ describe("trackMuteCopy", () => {
   );
 
   it("leads with the shortcut before what the state means", () => {
-    expect(muteButtonTitle("saved", true)).toBe(
+    expect(muteButtonTitle("saved", true, "M")).toBe(
       "Unmute (M). Muted in the mix, for everyone and every export",
     );
-    expect(muteButtonTitle("saved", false)).toBe(SAVED_MUTE_READ_ONLY);
-    expect(muteButtonTitle("listen", true)).toBe(
+    expect(muteButtonTitle("saved", false, "M")).toBe(SAVED_MUTE_READ_ONLY);
+    expect(muteButtonTitle("listen", true, "M")).toBe(
       "Unmute (M). Muted for you only",
     );
-    expect(muteButtonTitle("implied", true)).toBe(
+    expect(muteButtonTitle("implied", true, "M")).toBe(
       "Mute (M). Not muted: silent because you soloed another track, and only you hear it that way",
     );
-    expect(muteButtonTitle("off", true)).toBe(
+    expect(muteButtonTitle("off", true, "M")).toBe(
       "Mute (M). Mutes the track in the mix, for everyone",
     );
-    expect(muteButtonTitle("off", false)).toBe(
+    expect(muteButtonTitle("off", false, "M")).toBe(
       "Mute (M). Mutes the track for you only",
     );
   });
 
   it("titles the solo button by soloed state", () => {
-    expect(soloButtonTitle(false)).toBe(
+    expect(soloButtonTitle(false, "S")).toBe(
       "Solo (S). Solos the track for you only",
     );
-    expect(soloButtonTitle(true)).toBe("Unsolo (S). Soloed for you only");
+    expect(soloButtonTitle(true, "S")).toBe("Unsolo (S). Soloed for you only");
   });
 });

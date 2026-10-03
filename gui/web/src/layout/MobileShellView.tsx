@@ -5,11 +5,7 @@ import type { MobileMode, MoreDestination } from "../state/types";
 import { BottomSheet } from "../ui/BottomSheet";
 import { Icon, type IconName } from "../ui/Icon";
 import { ToggleButton } from "../ui/ToggleButton";
-import type {
-  SheetPresentation,
-  ShellAppearance,
-  ShellNotices,
-} from "./shellPresentation";
+import type { ShellAppearance, ShellNotices } from "./shellPresentation";
 
 const MODES: { id: MobileMode; label: string; icon: IconName }[] = [
   { id: "listen", label: "Listen", icon: "listen" },
@@ -29,6 +25,17 @@ export type MobileScreen =
       onBack: () => void;
     };
 
+export type MobileSheet =
+  | { kind: "closed" }
+  | { kind: "mix"; content: ReactNode; onClose: () => void }
+  | {
+      kind: "inspector";
+      content: ReactNode;
+      expanded: boolean;
+      onExpandedChange: (expanded: boolean) => void;
+      onClose: () => void;
+    };
+
 export type MobileShellViewProps = {
   appearance: ShellAppearance;
   chrome: {
@@ -40,7 +47,7 @@ export type MobileShellViewProps = {
   };
   screen: MobileScreen;
   onModeChange: (mode: MobileMode) => void;
-  inspector: SheetPresentation;
+  sheet: MobileSheet;
   bindings?: {
     root?: Ref<HTMLDivElement>;
     transport?: Ref<HTMLDivElement>;
@@ -54,7 +61,7 @@ export function MobileShellView({
   chrome,
   screen,
   onModeChange,
-  inspector,
+  sheet,
   bindings,
 }: MobileShellViewProps) {
   const allowedMore =
@@ -128,14 +135,18 @@ export function MobileShellView({
         ))}
       </nav>
       <BottomSheet
-        backgroundPolicy="interactive"
-        open={inspector.open}
-        onClose={inspector.onClose}
-        title="Inspector"
-        expanded={inspector.expanded}
-        onExpandedChange={inspector.onExpandedChange}
+        key={sheet.kind}
+        backgroundPolicy={sheet.kind === "mix" ? "dismiss" : "interactive"}
+        open={sheet.kind !== "closed"}
+        onClose={sheet.kind === "closed" ? () => {} : sheet.onClose}
+        title={sheet.kind === "mix" ? "Mix" : "Inspector"}
+        size={sheet.kind === "mix" ? "full" : "half"}
+        expanded={sheet.kind === "inspector" ? sheet.expanded : undefined}
+        onExpandedChange={
+          sheet.kind === "inspector" ? sheet.onExpandedChange : undefined
+        }
       >
-        {inspector.content}
+        {sheet.kind !== "closed" ? sheet.content : null}
       </BottomSheet>
       {chrome.overlay}
     </div>

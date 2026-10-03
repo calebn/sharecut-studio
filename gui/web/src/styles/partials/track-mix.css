@@ -1,0 +1,93 @@
+.track-mix {
+  padding: var(--space-3);
+  container: track-mix / inline-size;
+}
+
+.track-mix-note {
+  margin: 0 0 var(--space-3);
+  color: var(--text-dim);
+  font-size: var(--font-size-small);
+}
+
+.track-mix-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.track-mix-row {
+  display: grid;
+  grid-template-columns: var(--mix-identity-size) minmax(0, 1fr) var(
+      --touch-min
+    ) var(--touch-min) var(--mix-volume-width);
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: var(--mix-row-height);
+  border-bottom: 1px solid var(--border);
+}
+
+.track-mix-identity {
+  --track-identity-background: color-mix(
+    in srgb,
+    var(--track-identity-color) 22%,
+    var(--color-bg-base)
+  );
+
+  display: grid;
+  place-items: center;
+  inline-size: var(--mix-identity-size);
+  block-size: var(--mix-identity-size);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--track-identity-background);
+  font-size: var(--font-size-micro);
+  font-weight: 600;
+}
+
+.track-mix-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-small);
+}
+
+.track-mix-row .trk-btn {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+}
+
+.track-fader--compact {
+  position: relative;
+  display: block;
+  min-inline-size: 0;
+}
+
+.track-fader--compact .track-fader-input {
+  display: block;
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  min-block-size: var(--touch-min);
+}
+
+.track-fader--compact .track-fader-value {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  pointer-events: none;
+  min-inline-size: 0;
+  font-size: var(--font-size-micro);
+}
+
+@container track-mix (max-width: 16rem) {
+  .track-mix-row {
+    grid-template-columns: var(--mix-identity-size) minmax(0, 1fr) var(
+        --touch-min
+      ) var(--touch-min);
+    padding-block: var(--space-1);
+  }
+
+  .track-fader--compact {
+    grid-column: 1 / -1;
+  }
+}

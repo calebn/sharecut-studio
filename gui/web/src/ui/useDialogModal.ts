@@ -69,6 +69,7 @@ export function useDialogModal({
     restoreFocusRef.current = previous;
     // Read once, not in the cleanup: the ref's value could differ by unmount time.
     const returnTarget = returnFocusRef?.current ?? null;
+    const openedPanel = panelRef.current;
 
     const background =
       mode === "modal"
@@ -136,7 +137,16 @@ export function useDialogModal({
         background.inert = false;
       }
       const restore = returnTarget ?? restoreFocusRef.current;
-      if (restore?.isConnected) {
+      const active = document.activeElement;
+      const movedOutsideSheet =
+        mode === "sheet" &&
+        returnTarget == null &&
+        active instanceof HTMLElement &&
+        active !== document.body &&
+        active !== previous &&
+        active.isConnected &&
+        !openedPanel?.contains(active);
+      if (restore?.isConnected && !movedOutsideSheet) {
         restore.focus();
       }
       restoreFocusRef.current = null;

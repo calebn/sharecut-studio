@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { runPointerCommand } from "../commands/pointer";
 import { FEATURE_SHARE_UI_BANNER } from "../extensions/features";
 import { Slot } from "../extensions/Slot";
@@ -29,6 +29,7 @@ import { useDaw } from "../state/useDaw";
 import { RangeActions } from "../timeline/RangeActions";
 import { TimelineView } from "../timeline/TimelineView";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
+import { TrackMix } from "../tracks/TrackMix";
 import type { PresenceTab } from "../types/session";
 import { CommandButton, EmptyState, Timecode } from "../ui";
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
@@ -41,7 +42,11 @@ import { GuestAttentionBanner } from "./GuestAttentionBanner";
 import { ListenHero } from "./ListenHero";
 import { ListenScrubber } from "./ListenPlayhead";
 import { LISTEN_SKIP_SEC, seekListen, skipListen } from "./listenSeek";
-import { type MobileScreen, MobileShellView } from "./MobileShellView";
+import {
+  type MobileScreen,
+  type MobileSheet,
+  MobileShellView,
+} from "./MobileShellView";
 import { OverlayLegend } from "./OverlayLegend";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 import { TransportBar } from "./TransportBar";
@@ -50,7 +55,15 @@ import { TransportTimecode } from "./TransportTimecode";
 import { TAB_LABELS } from "./tabLabels";
 import { transportPlayHandlers } from "./transportPlay";
 
-function MoreHub({ guestShare }: { guestShare: boolean }) {
+function MoreHub({
+  guestShare,
+  onOpenMix,
+  onOpenGestures,
+}: {
+  guestShare: boolean;
+  onOpenMix: () => void;
+  onOpenGestures: () => void;
+}) {
   const {
     pipelineJob,
     activityJob,
@@ -58,7 +71,6 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
     guestMode,
     shareCapabilities,
     project,
-    setGesturesSheetOpen,
   } = useDaw((s) => ({
     pipelineJob: s.pipelineJob,
     activityJob: s.activityJob,
@@ -66,7 +78,6 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
     project: s.project,
-    setGesturesSheetOpen: s.setGesturesSheetOpen,
   }));
   const running =
     isPipelineSlotBusy(activityJob) || isPipelineSlotBusy(pipelineJob);
@@ -84,6 +95,15 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
   return (
     <div className="mobile-more-hub" aria-label="More">
       <ul className="mobile-more-list">
+        <li>
+          <button
+            type="button"
+            className="mobile-more-item"
+            onClick={onOpenMix}
+          >
+            Mix
+          </button>
+        </li>
         {items
           .filter((id) => !isHostOnlyTab(id) || !guestShare)
           .map((id) => {
@@ -135,7 +155,7 @@ function MoreHub({ guestShare }: { guestShare: boolean }) {
         <button
           type="button"
           className="mobile-more-item"
-          onClick={() => setGesturesSheetOpen(true)}
+          onClick={onOpenGestures}
         >
           Gestures
         </button>
@@ -340,6 +360,9 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
     shareCapabilities,
     followingClientId,
     statusAnnouncement,
+    gesturesSheetOpen,
+    commandPaletteOpen,
+    setGesturesSheetOpen,
   } = useDaw((s) => ({
     rangeArmed: s.rangeArmed,
     setRangeArmed: s.setRangeArmed,
@@ -357,7 +380,27 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
     shareCapabilities: s.shareCapabilities,
     followingClientId: s.followingClientId,
     statusAnnouncement: s.statusAnnouncement,
+    gesturesSheetOpen: s.gesturesSheetOpen,
+    commandPaletteOpen: s.commandPaletteOpen,
+    setGesturesSheetOpen: s.setGesturesSheetOpen,
   }));
+  const [mixRequest, setMixRequest] = useState<{
+    projectPath: string | null;
+    followingClientId: string | null;
+  } | null>(null);
+  const mixEligible =
+    mixRequest != null &&
+    mixRequest.projectPath === projectPath &&
+    mixRequest.followingClientId === followingClientId &&
+    mobileMode === "more" &&
+    moreDestination === "hub" &&
+    selection == null &&
+    !rangeArmed &&
+    !gesturesSheetOpen &&
+    !commandPaletteOpen;
+  useEffect(() => {
+    if (mixRequest && !mixEligible) setMixRequest(null);
+  }, [mixRequest, mixEligible]);
   useJobStatusAnnouncement();
   const transportFocusRef = useTimelineFocusRegion<HTMLDivElement>(
     true,
@@ -393,7 +436,19 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
 
   const moreContent =
     moreDestination === "hub" ? (
-      <MoreHub guestShare={guestShare} />
+      <MoreHub
+        guestShare={guestShare}
+        onOpenMix={() => {
+          setRangeArmed(false);
+          setSelection(null);
+          setSheetExpanded(false);
+          setMixRequest({ projectPath, followingClientId });
+        }}
+        onOpenGestures={() => {
+          setMixRequest(null);
+          setGesturesSheetOpen(true);
+        }}
+      />
     ) : moreDestination === "comments" ? (
       <CommentsPanel guestShare={guestShare} />
     ) : moreDestination === "history" ? (
@@ -420,8 +475,54 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
               kind: "more",
               destination: moreDestination,
               content: moreContent,
-              onBack: () => setMoreDestination("hub"),
+              onBack: () => {
+                setMixRequest(null);
+                setMoreDestination("hub");
+              },
             };
+
+  const inspectorOpen =
+    rangeArmed ||
+    (selection != null &&
+      (mobileMode === "timeline" ||
+        mobileMode === "listen" ||
+        (mobileMode === "text" &&
+          (selection.kind === "transcriptWord" ||
+            selection.kind === "transcriptRange" ||
+            selection.kind === "range")) ||
+        (mobileMode === "more" &&
+          moreDestination === "comments" &&
+          selection.kind === "comment") ||
+        (mobileMode === "more" &&
+          moreDestination === "impact" &&
+          selection.kind === "pending")));
+  const sheet: MobileSheet = inspectorOpen
+    ? {
+        kind: "inspector",
+        expanded: sheetExpanded,
+        onExpandedChange: setSheetExpanded,
+        onClose: () => {
+          setRangeArmed(false);
+          closeSheet();
+        },
+        content: (
+          <>
+            <Inspector />
+            {rangeArmed ? (
+              <RangeActions sheet />
+            ) : (
+              <RelatedCommands selection={selection} />
+            )}
+          </>
+        ),
+      }
+    : mixEligible
+      ? {
+          kind: "mix",
+          content: <TrackMix />,
+          onClose: () => setMixRequest(null),
+        }
+      : { kind: "closed" };
 
   return (
     <MobileShellView
@@ -448,40 +549,11 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
         overlay: <PresenceGhostLayer rootRef={shellRef} />,
       }}
       screen={screen}
-      onModeChange={(mode) => runPointerCommand("view.setMobileMode", { mode })}
-      inspector={{
-        open:
-          rangeArmed ||
-          (selection != null &&
-            (mobileMode === "timeline" ||
-              mobileMode === "listen" ||
-              (mobileMode === "text" &&
-                (selection.kind === "transcriptWord" ||
-                  selection.kind === "transcriptRange" ||
-                  selection.kind === "range")) ||
-              (mobileMode === "more" &&
-                moreDestination === "comments" &&
-                selection.kind === "comment") ||
-              (mobileMode === "more" &&
-                moreDestination === "impact" &&
-                selection.kind === "pending"))),
-        expanded: sheetExpanded,
-        onClose: () => {
-          setRangeArmed(false);
-          closeSheet();
-        },
-        onExpandedChange: setSheetExpanded,
-        content: (
-          <>
-            <Inspector />
-            {rangeArmed ? (
-              <RangeActions sheet />
-            ) : (
-              <RelatedCommands selection={selection} />
-            )}
-          </>
-        ),
+      onModeChange={(mode) => {
+        setMixRequest(null);
+        runPointerCommand("view.setMobileMode", { mode });
       }}
+      sheet={sheet}
       bindings={{
         root: shellRef,
         transport: transportFocusRef,

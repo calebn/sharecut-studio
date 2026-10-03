@@ -328,3 +328,10 @@ rename to the system. Don't do drive-by renames across the codebase.
   contours, `on-*` contrast pairs). Implementation (renames, `on-*` partners,
   computed contrast test) is follow-up work; legacy `--color-bg-*` names
   grandfathered.
+
+### Phone Mix geometry
+
+`--mix-row-height`, `--mix-identity-size`, and `--mix-volume-width` set the
+normal row, initials chip, and compact fader widths. M/S/range targets use
+`--touch-min`. The named `track-mix` container moves Volume below the controls
+when available width shrinks under text scaling. Rows grow rather than clip.

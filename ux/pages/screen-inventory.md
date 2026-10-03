@@ -255,12 +255,23 @@ action in those modes; Enter in the inline editor saves and Escape cancels.
 
 ---
 
+## Phone — Mix
+
+More → Mix opens a full-height sheet for all roles. Each ordered row has lane
+initials, a track name, M, S, and Volume. Hosts and editors save M and Volume;
+listeners use local M and see why Volume is read-only. S is always local.
+Shared playback uses Full mix, so local listen controls may not be audible.
+Close or Escape returns to More; navigation or a new inspection closes Mix.
+The sheet scrolls above the bottom nav, with 44px controls and growing rows
+under text scaling. Swipe-to-mix is deferred.
+
 ## Phone — More hub
 
 **Host** destinations:
 
 | Destination | Shows | Source |
 |-------------|-------|--------|
+| Mix | Full-height track sheet; saved Volume/M and local S | Existing mix/listen state |
 | Comments | Thread list / detail | `review.comments` |
 | History | Undo/redo · grouped steps (follows document snapshots) | `history` |
 | Impact | Pending bulk + removed duration | `editorial.edit_decisions` + impact report |
@@ -269,7 +280,7 @@ action in those modes; Enter in the inline editor saves and Escape cancels.
 
 Destinations render as one settings-style list (hairline rows, 44pt targets), not stacked slabs. Plus **Overlay legend** and, host only, **Add chapter at playhead** (`edit.addChapter`) on the hub. Theme and audition mode live in transport **Menu**, not a Settings destination. The bottom mode nav shows icon + label tabs; the active tab is tinted with an accent top indicator.
 
-**Guest** More hub: Comments + Overlay legend only (History / Impact / Tighten / Pipeline stay host-only).
+**Guest** More hub: Mix + Comments + Overlay legend (History / Impact / Tighten / Pipeline stay host-only).
 
 Long-lived panels; do not stack sheets to reach these — navigate More.
 
@@ -380,7 +391,7 @@ Step flows: [Guest journeys](#/journeys).
 
 **Playback:** prefer **proxy media** (short MP3 listen chunks, often via CDN) so ordinary listen does not pull long host WAVs through the tunnel. Fallback to WAV when proxies are unavailable.
 
-**More hub (guest):** Comments + Overlay legend only.
+**More hub (guest):** Mix + Comments + Overlay legend.
 
 **Remote agent (`mcp`):** Hosts copy the agent URL from Menu → Share… when minting with Allow agent. Guests still connect via an external MCP client — not a guest Settings pane. Same caps as the human on that share. Listen-first Suggested is HTTP (`guest_pending_preview` / `GET …/daw/pending-preview`), not host speakers.
 

@@ -1,4 +1,3 @@
-import { titleWithShortcut } from "../keymap/registry";
 import type { MuteState } from "../utils/audio";
 
 /** M on a track muted in the mix, for a guest who can't edit it. */
@@ -27,8 +26,14 @@ const MUTE_ACTION: Record<MuteState, string> = {
 };
 
 /** Tooltip for the M button: the action and its shortcut, then what it means. */
-export function muteButtonTitle(state: MuteState, editsMix: boolean): string {
-  const action = titleWithShortcut(MUTE_ACTION[state], "track.muteToggle");
+export function muteButtonTitle(
+  state: MuteState,
+  editsMix: boolean,
+  shortcut = "",
+): string {
+  const action = shortcut
+    ? `${MUTE_ACTION[state]} (${shortcut})`
+    : MUTE_ACTION[state];
   switch (state) {
     case "saved":
       return editsMix
@@ -46,11 +51,9 @@ export function muteButtonTitle(state: MuteState, editsMix: boolean): string {
 }
 
 /** Tooltip for the S button: the action and its shortcut, then what it means. */
-export function soloButtonTitle(solo: boolean): string {
-  const action = titleWithShortcut(
-    solo ? "Unsolo" : "Solo",
-    "track.soloToggle",
-  );
+export function soloButtonTitle(solo: boolean, shortcut = ""): string {
+  const label = solo ? "Unsolo" : "Solo";
+  const action = shortcut ? `${label} (${shortcut})` : label;
   return solo
     ? `${action}. Soloed for you only`
     : `${action}. Solos the track for you only`;

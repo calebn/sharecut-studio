@@ -1,5 +1,5 @@
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
-import { ToggleButton } from "../ui";
+import { ToggleButton } from "../ui/ToggleButton";
 import type { MuteState } from "../utils/audio";
 import { keepActivationKeys } from "./trackHeaderKeys";
 import {
@@ -17,6 +17,7 @@ export interface TrackMuteSoloButtonsViewProps {
   muteState: MuteState;
   solo: boolean;
   editsMix: boolean;
+  shortcuts?: { mute: string; solo: string };
   onMute: () => void;
   onSolo: () => void;
 }
@@ -28,6 +29,7 @@ export function TrackMuteSoloButtonsView({
   muteState,
   solo,
   editsMix,
+  shortcuts,
   onMute,
   onSolo,
 }: TrackMuteSoloButtonsViewProps) {
@@ -45,7 +47,7 @@ export function TrackMuteSoloButtonsView({
         aria-disabled={muteState === "saved" && !editsMix ? true : undefined}
         aria-label={muteButtonLabel(trackLabel)}
         className={`trk-btn ui-control--compact${muteClass}`}
-        title={muteButtonTitle(muteState, editsMix)}
+        title={muteButtonTitle(muteState, editsMix, shortcuts?.mute)}
         data-mute-state={muteState}
         {...presenceAnchorProps(presenceAnchor("track", trackId, "mute"))}
         onClick={onMute}
@@ -57,7 +59,7 @@ export function TrackMuteSoloButtonsView({
         pressed={solo}
         aria-label={soloButtonLabel(trackLabel)}
         className={`trk-btn ui-control--compact${solo ? " solo" : ""}`}
-        title={soloButtonTitle(solo)}
+        title={soloButtonTitle(solo, shortcuts?.solo)}
         {...presenceAnchorProps(presenceAnchor("track", trackId, "solo"))}
         onClick={onSolo}
         onKeyDown={keepActivationKeys}
