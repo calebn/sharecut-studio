@@ -6,7 +6,8 @@ import {
   TranscriptRefineRecovery,
 } from "../inspector/TranscriptRefineRecovery";
 import { useQueuedReviewNotice } from "../inspector/useQueuedReviewNotice";
-import { isShareProjectKey } from "../shareMode";
+import { canReviewPendingEdit, isShareProjectKey } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import {
   appliedEditTitle,
@@ -17,11 +18,14 @@ import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { selectUnmappedPending, UNMAPPED_PENDING_TITLE } from "../utils/edits";
 
 export function ImpactPanel() {
-  const { project, projectPath, setSelection } = useDaw((s) => ({
-    project: s.project,
-    projectPath: s.projectPath,
-    setSelection: s.setSelection,
-  }));
+  const { project, projectPath, guestMode, shareCapabilities, setSelection } =
+    useDaw((s) => ({
+      project: s.project,
+      projectPath: s.projectPath,
+      guestMode: s.guestMode,
+      shareCapabilities: s.shareCapabilities,
+      setSelection: s.setSelection,
+    }));
   const { busy, error, errorCode, setError, run } = useProjectMutation();
   const { notice: queuedNotice, setQueued } =
     useQueuedReviewNotice(projectPath);
@@ -48,8 +52,38 @@ export function ImpactPanel() {
   const unmappable = selectUnmappedPending(project.pending_edits);
   const reviewRequired = project.pending_edits.filter((e) => e.review_required);
 
+  const canReviewAll = reviewRequired.every(
+    (e) =>
+      !e.exact_range ||
+      canReviewPendingEdit(
+        projectPath,
+        guestMode,
+        shareCapabilities,
+        Boolean(e.exact_range),
+      ),
+  );
+  const reviewReason = canReviewAll
+    ? undefined
+    : "Exact range proposals require host review.";
+
   const runBulk = async (action: "approve" | "reject") => {
-    const ids = reviewRequired.map((e) => e.id);
+    const live = useDawStore.getState();
+    if (live.projectPath !== projectPath || !live.project) return;
+    const pending = live.project.pending_edits.filter((e) => e.review_required);
+    if (
+      !pending.every(
+        (e) =>
+          !e.exact_range ||
+          canReviewPendingEdit(
+            live.projectPath,
+            live.guestMode,
+            live.shareCapabilities,
+            Boolean(e.exact_range),
+          ),
+      )
+    )
+      return;
+    const ids = pending.map((e) => e.id);
     if (ids.length === 0) {
       return;
     }
@@ -135,10 +169,18 @@ export function ImpactPanel() {
       {reviewRequired.length > 0 && (
         <div className="impact-bulk">
           <div className="impact-bulk-actions">
-            <Button disabled={busy} onClick={() => void runBulk("approve")}>
+            <Button
+              disabled={busy || !canReviewAll}
+              title={reviewReason}
+              onClick={() => void runBulk("approve")}
+            >
               Approve all review-required ({reviewRequired.length})
             </Button>
-            <Button disabled={busy} onClick={() => void runBulk("reject")}>
+            <Button
+              disabled={busy || !canReviewAll}
+              title={reviewReason}
+              onClick={() => void runBulk("reject")}
+            >
               Reject all review-required
             </Button>
           </div>

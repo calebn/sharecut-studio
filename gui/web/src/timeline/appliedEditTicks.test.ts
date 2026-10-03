@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { appliedEditRecord, clipRow } from "../test/fixtures";
+import type { ExactRangeTarget } from "../types/project";
 import {
   appliedEditTicks,
   appliedEditTitle,
@@ -9,6 +10,132 @@ import {
 const TRACK = "mira-voice";
 
 describe("appliedEditTicks", () => {
+  it.each(["cut", "mute"])(
+    "projects exact %s islands only at the selected repeated placement",
+    (action) => {
+      const original = clipRow({
+        id: "selected-copy",
+        track_id: TRACK,
+        source_id: "recording",
+        source_start: 0,
+        source_end: 5,
+        timeline_start: 10,
+        timeline_end: 15,
+      });
+      const target: ExactRangeTarget = {
+        kind: "exact_range",
+        intervals: [
+          { start: 11, end: 12 },
+          { start: 13, end: 14 },
+        ],
+        track_ids: [TRACK],
+        clips: [{ ...original, mute_regions: [] }],
+        media_seals: { [TRACK]: "seal" },
+      };
+      const record = appliedEditRecord({
+        operation: "edit_selected_range",
+        source_start: null,
+        source_end: null,
+        timeline_start: 11,
+        timeline_end: 14,
+        params: { action, exact_range: target },
+        reason: null,
+      });
+      const firstCopy = {
+        ...original,
+        id: "first-copy",
+        timeline_start: 0,
+        timeline_end: 5,
+      };
+      const kept =
+        action === "mute"
+          ? [original]
+          : [
+              { ...original, id: "left", source_end: 1, timeline_end: 11 },
+              {
+                ...original,
+                id: "middle",
+                source_start: 2,
+                source_end: 3,
+                timeline_start: 12,
+                timeline_end: 13,
+              },
+              {
+                ...original,
+                id: "right",
+                source_start: 4,
+                timeline_start: 14,
+                timeline_end: 15,
+              },
+            ];
+      const ticks = appliedEditTicks([record], TRACK, [firstCopy, ...kept]);
+      expect(ticks.map((t) => t.sec)).toEqual([11, 12, 13, 14]);
+      expect(
+        ticks.every((t) => t.kind === (action === "mute" ? "edge" : "seam")),
+      ).toBe(true);
+      expect(appliedEditTitle(record)).toBe(action === "mute" ? "Mute" : "Cut");
+      expect(appliedEditTicks([record], "peer", [firstCopy])).toEqual([]);
+    },
+  );
+  it("keeps second-occurrence Cut edges after clip ids disappear, including a fully removed clip", () => {
+    const selected = clipRow({
+      id: "second",
+      track_id: TRACK,
+      source_id: "recording",
+      source_start: 0,
+      source_end: 4,
+      timeline_start: 10,
+      timeline_end: 14,
+    });
+    const overlapping = clipRow({
+      ...selected,
+      id: "overlap",
+      source_id: "other",
+      source_start: 10,
+      source_end: 12,
+      timeline_start: 11,
+      timeline_end: 13,
+    });
+    const target: ExactRangeTarget = {
+      kind: "exact_range",
+      intervals: [
+        { start: 11, end: 12 },
+        { start: 12.5, end: 13 },
+      ],
+      track_ids: [TRACK],
+      clips: [
+        { ...selected, mute_regions: [] },
+        { ...overlapping, mute_regions: [] },
+      ],
+      media_seals: { [TRACK]: "seal" },
+    };
+    const record = appliedEditRecord({
+      operation: "edit_selected_range",
+      source_start: null,
+      source_end: null,
+      params: { action: "cut", exact_range: target },
+    });
+    const first = {
+      ...selected,
+      id: "first",
+      timeline_start: 2,
+      timeline_end: 6,
+    };
+    expect(
+      appliedEditTicks([record], TRACK, [first]).map((t) => t.sec),
+    ).toEqual([11, 12, 12.5, 13]);
+    const removed = {
+      ...record,
+      params: {
+        action: "cut",
+        exact_range: { ...target, intervals: [{ start: 10, end: 14 }] },
+      },
+    };
+    expect(appliedEditTicks([removed], TRACK, []).map((t) => t.sec)).toEqual([
+      10, 14, 11, 13,
+    ]);
+  });
+
   it("projects two stacked ripples plus a trim onto the post-edit seams, zero width", () => {
     const clips = [
       clipRow({

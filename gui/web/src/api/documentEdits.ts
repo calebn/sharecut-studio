@@ -111,6 +111,9 @@ export function pendingEditBaseline(
     "track_id" | "type" | "timebase" | "source_start" | "source_end"
   >,
 ): PendingEditBaseline {
+  if (edit.source_start == null || edit.source_end == null) {
+    throw new Error("This proposal has no editable source bounds.");
+  }
   return {
     track_id: edit.track_id,
     type: edit.type,

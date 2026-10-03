@@ -42,7 +42,9 @@ async function shellRects(page: Page): Promise<ShellRects> {
 
 async function setLayout(page: Page, n: number): Promise<void> {
   // Click a non-input so no text field owns the chord.
-  await page.getByRole("heading", { level: 1 }).click();
+  await page
+    .locator(".daw-shell-transport")
+    .click({ position: { x: 4, y: 4 } });
   await page.keyboard.press(`ControlOrMeta+${n}`);
 }
 

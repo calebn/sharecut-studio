@@ -94,6 +94,18 @@ export function canApplyPass12(
   return shareGranted(projectPath, capabilities, "edit");
 }
 
+export function canReviewPendingEdit(
+  projectPath: string,
+  guestMode: string | null,
+  capabilities: string[] | null | undefined,
+  exactRange: boolean,
+): boolean {
+  return (
+    canApplyPass12(projectPath, guestMode, capabilities) &&
+    (!exactRange || (!isShareProjectKey(projectPath) && guestMode === null))
+  );
+}
+
 /** Host / edit apply structural timeline ops; suggest-only proposes. */
 export function canApplyStructural(
   projectPath: string,

@@ -193,7 +193,11 @@ def apply_ranges(project: EpisodeProject, edits: list[EditDecision]) -> None:
             timeline_start=target.intervals[0].start,
             timeline_end=target.intervals[-1].end,
             track_ids=target.track_ids,
-            params={"exact_range": target.model_dump(mode="json"), "action_id": edit.id},
+            params={
+                "exact_range": target.model_dump(mode="json"),
+                "action_id": edit.id,
+                "action": "mute" if edit.type == EditDecisionType.MUTE else "cut",
+            },
         )
 
 

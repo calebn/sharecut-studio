@@ -478,6 +478,7 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit session width) require *
 | `GET /api/history/diff?path=&from_index=&to_index=` | Snapshot delta |
 | `POST /api/document/command?path=` | Typed document commands (`UndoHistory`, `SetClipFade`, `TrimClipEdge`, `SetEnvelope`, `AddChapter`, …) |
 | `POST /api/review/{token}/daw/document/command` | Guest document commands (capability-gated; see [host-online-relay.md](host-online-relay.md)) |
+| `GET /api/pending-preview` | Host full-mix Current/Suggested/A/B WAV; authenticated, exact pending GUI previews |
 | `GET /api/review/{token}/daw/pending-preview` | Guest listen-first Current/Suggested/A/B WAV (`play`+`view`) |
 | `GET /api/review/{token}/daw/pending-preview-image` | Guest waveform/spectrogram of that extract |
 | `GET /api/review/{token}/daw/proxy/{track_id}/{hash}/{i}` | Local proxy chunk fallback when object storage unset |
@@ -659,6 +660,8 @@ selected. **Edits in removed audio** in the footer opens Impact, where every
 pending item remains selectable. The transport holds the single mix freshness
 cue (**Mix out of date · Refresh** for hosts); the footer retains transcript,
 pending, comment and job status. Select/Blade remain visible with disabled reasons.
+
+Exact pending GUI previews use `GET /api/pending-preview` for the host and the token-scoped pending-preview route for guests. They play a rendered full-mix extract through the source-preview transport, preserving each island and the gaps between them; they do not install a bounding-hull skip. The adapter discards prepared audio if the target, mix, project, or playback permission changes before it arrives. Exact proposal review controls remain visible with a host-only disabled reason for guests; source timing and snap controls are absent. Applied exact Cut/Mute ticks retain every recorded timeline edge, including holes and repeated-source occurrences, rather than falling back to the first matching source clock.
 
 Exact pending Current/Suggested/A-B supports the full mix (`premix`); isolated
 source requests reject before playback. Suggested cache identity includes every

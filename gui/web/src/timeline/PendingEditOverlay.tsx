@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { approveEdits, rejectEdits, updatePendingEdit } from "../api";
-import { canApplyPass12, canSuggestOrNudge } from "../shareMode";
+import { canReviewPendingEdit, canSuggestOrNudge } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { EMPTY_OBJ } from "../utils/empty";
@@ -33,7 +33,12 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
     guestMode,
     shareCapabilities,
   );
-  const canApply = canApplyPass12(projectPath, guestMode, shareCapabilities);
+  const canApply = canReviewPendingEdit(
+    projectPath,
+    guestMode,
+    shareCapabilities,
+    false,
+  );
   const onCommitSpan = useCallback<PendingEditOverlayViewProps["onCommitSpan"]>(
     async (
       capturedPath,
@@ -61,6 +66,7 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
       );
       if (
         !current ||
+        current.exact_range ||
         current.source_start !== expectedSourceStart ||
         current.source_end !== expectedSourceEnd
       ) {
@@ -80,15 +86,20 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
     PendingEditOverlayViewProps["onReviewAction"]
   >(async (capturedPath, capturedEpoch, editId, action) => {
     const state = useDawStore.getState();
+    const current = state.project?.pending_edits.find(
+      (item) => item.id === editId,
+    );
     if (
+      !current ||
       state.projectPath !== capturedPath ||
       state.projectEpoch !== capturedEpoch ||
       state.selection?.kind !== "pending" ||
       state.selection.id !== editId ||
-      !canApplyPass12(
+      !canReviewPendingEdit(
         state.projectPath,
         state.guestMode,
         state.shareCapabilities,
+        Boolean(current.exact_range),
       )
     ) {
       throw new Error(

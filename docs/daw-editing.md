@@ -101,12 +101,13 @@ Shipped:
 
 Shipped:
 
-- Session-scope REMOVE Suggested skip plays pad-before + pad-after (Current / Suggested / A/B). Splits, track-scope punch, and pending MUTE stay Current-only with a skip reason.
+- Source-timed session-scope REMOVE Suggested skip plays pad-before + pad-after (Current / Suggested / A/B). Splits, track-scope punch, and pending MUTE stay Current-only with a skip reason.
 - Applied mute-in-place (`Clip.mute_regions` from `tighten.edit_mode: mute`) is in the mix. The DAW paints those holes on clip blocks (`list_clips` / `ClipRow.mute_regions`) and lists them in Clip inspector — preview Current around the hole.
-- Review stays on the **current timeline + pending inspector** (no modal). Play around is a skip, not a bounced sidecar. Ask, mutation errors, and Current / Suggested / A/B stack in document flow; long threads scroll in the body and long mutation errors scroll in a capped error slot so the footer stays visible.
+- Review stays on the **current timeline + pending inspector** (no modal). Source-timed Play around is a skip; exact range previews use rendered full-mix audio. Ask, mutation errors, and Current / Suggested / A/B stack in document flow; long threads scroll in the body and long mutation errors scroll in a capped error slot so the footer stays visible.
 - One `TimelineComment` thread per pending decision (`edit_decision_id`, unique). First Ask creates the root; later notes are replies. Approve/Reject does **not** auto-resolve the thread.
 - Mobile Listen **Pending** chip selects the first review-required pending (else first pending) and switches to Timeline (sheet opens from selection).
 - MCP `play_pending_preview_tool` / CLI `podcast play pending-preview` (`current` | `suggested` | `ab`) — concat pad-before + pad-after; does not mutate the project. Skill: **podcast-play-audition**. Host speakers only.
+- Exact range pending GUI previews render the full mix for Current, Suggested, and A/B. Selected islands alone receive Cut/Mute; gaps and other lanes remain audible. The host uses `GET /api/pending-preview`; guests use the token-scoped route with playback permission. Exact proposals show timeline islands and lanes, with source-bound timing controls omitted and guest Approve/Reject disabled with a host-only reason.
 - Share HTTP / guest MCP: `GET /api/review/{token}/daw/pending-preview` (+ optional `-image`) and `guest_pending_preview` (`play`+`view`). Relative URLs; never `afplay` on the host. See [host-online-relay.md](host-online-relay.md) § Remote MCP.
 
 **Done when:** an approver can hear Suggested vs Current on a pending session remove, then Approve, Reject, or Ask in that inspector thread.
