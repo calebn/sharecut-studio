@@ -228,7 +228,7 @@ The projection guard remains in
 
 Raw WAV → project JSON → transcripts → edit decisions (proposals) / clip timeline (applied) → FFmpeg render → deliverables.
 
-Cut data flow: cut operations that remove a time range route through `edits/inaudible_cuts.py` before commit (local snap + absorb). `strip_silence` is an exception: it rebuilds keep islands from silence detection and does not call the cut optimizer. Narrative handoffs that need a beat use `edits/silence_islands.py` / `suggest_handoff_cut` and lock bounds with `use_inaudible_opt=false`. See [inaudible-cuts.md](inaudible-cuts.md).
+Cut data flow: cut operations that remove a time range route through `edits/inaudible_cuts.py` before commit (local snap + absorb). Exact selected-range Cut uses validated occurrences and canonical punches without source snapping. `strip_silence` is another exception: it rebuilds keep islands from silence detection and does not call the cut optimizer. Narrative handoffs that need a beat use `edits/silence_islands.py` / `suggest_handoff_cut` and lock bounds with `use_inaudible_opt=false`. See [inaudible-cuts.md](inaudible-cuts.md).
 
 Episode workspaces live outside this repo; the CLI accepts `--project path/to/episode.project.json`.
 
@@ -395,3 +395,12 @@ See [contributing.md](contributing.md) for where to add new operations.
 ## Exact selected ranges
 
 Exact selected ranges use `edits/range_edits.py`. The sealed target names timeline intervals, destination lanes, clip occurrences, and opaque media revisions. Approval and pending audition use that kernel. Cut leaves holes and later placements stay aligned. A whole range action uses one workspace mutation and one History Undo. `Track.timeline_empty` distinguishes a fully removed lane from implicit raw media.
+
+Batch approval validates before mutation, combining mutes and canonical punches
+per original clip with the existing microfade policy. Only lanes with validated
+occurrences mutate. Clipless media with unknown duration rejects selection.
+Stored duration retains fully removed lane extent, including moved media.
+`services/media/range_audio.py`, exported by the media facade, owns FFmpeg
+orchestration for islands and silence; domain code owns geometry and validation.
+Selected segments bake staging gain, so their mix adds fader gain only. Full
+Bounce stems retain the ordinary output-gain path.

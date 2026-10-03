@@ -147,6 +147,12 @@ CLI: `podcast session status|seek|stop|mode|region`. Prefer real play (`dry_run=
 
 ## Pair with editing
 
+Studio range Play uses selected lanes for the host and a fresh published full mix
+for guests. Exact pending preview supports `premix` only, preserves punch gaps,
+and invalidates cached Suggested audio after any contributing track changes.
+An agent region is a preview until the user adopts explicit lanes; supported
+agent range Cut/Mute submission creates pending edits for host review.
+
 After proposing NL cuts, offer: *"Want to hear that section?"* → `play_pending_preview_tool` with the pending id (Suggested), or `play_transcript_query_tool` / `play_audio_tool` on the approved span. On a **review share**, use `guest_pending_preview` (pending cut) or `guest_audition_context` (arbitrary window) instead (HTTP URLs, not host speakers).
 
 ## Pair with cleanup analysis

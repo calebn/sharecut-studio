@@ -646,3 +646,22 @@ session](recording-session.md#live-take-monitoring-on-the-timeline).
 ## Exact selected ranges
 
 Exact selected range pending edits expose their canonical disjoint timeline footprint. Source timing controls do not retime them. Pending Suggested audio renders an ephemeral project through the exact range kernel; it preserves timeline gaps and unselected lanes.
+
+`rangeSelection.ts` resolves timeline/transcript selections into sealed targets.
+`rangeActions.ts` supplies the same five action descriptors, permission reasons
+and live execution guards to the desktop bar and phone sheet. Numeric bounds and
+explicit lanes share this path. Failed/stale actions retain selection with a
+readable reason; in-flight mutations block duplicates. Play uses the owned
+transport preview; Bounce captures a detached target with ordinary configuration.
+
+The idle desktop inspector collapses and restores when an inspector object is
+selected. **Edits in removed audio** in the footer opens Impact, where every
+pending item remains selectable. The transport holds the single mix freshness
+cue (**Mix out of date · Refresh** for hosts); the footer retains transcript,
+pending, comment and job status. Select/Blade remain visible with disabled reasons.
+
+Exact pending Current/Suggested/A-B supports the full mix (`premix`); isolated
+source requests reject before playback. Suggested cache identity includes every
+track's current render and mix state. Guest range Play never renders stems and
+requires a fresh published mix. Host isolated and guest full-mix extracts use
+separate private paths and atomic publication.

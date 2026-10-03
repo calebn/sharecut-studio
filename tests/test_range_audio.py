@@ -208,9 +208,29 @@ def test_range_play_and_bounce_apply_staging_gain_and_fader_once(minimal_project
     assert 1950 < max(abs(v) for v in bounced[:48000]) < 2050
 
 
-@pytest.mark.parametrize("caps,expected", [(["view"], 200), (["play", "comment"], 403)])
+@pytest.mark.parametrize("mode,duration", [("suggested", 4), ("ab", 8.4)])
+def test_exact_pending_all_muted_mix_is_duration_correct_silence(minimal_project, mode, duration):
+    from podcast_mcp.edits.range_edits import edit_selected_range
+
+    ws, target, _raw = seed(minimal_project)
+    ws.project.tracks[0].muted = True
+    edit_selected_range(
+        ws.project, target, "cut", propose=True, reason="guest:range", action_id="silent"
+    )
+    output = (
+        PlayService(ws).play_pending_preview("silent", mode=mode, pad_sec=0, dry_run=True).wav_path
+    )
+    samples = pcm(output)
+    assert len(samples) == round(duration * 48000)
+    assert max(abs(v) for v in samples) == 0
+
+
+@pytest.mark.parametrize(
+    "caps,stale,expected",
+    [(["view"], False, 200), (["play", "comment"], False, 403), (["view"], True, 400)],
+)
 def test_guest_range_http_requires_view_and_returns_full_mix(
-    minimal_project, monkeypatch, caps, expected
+    minimal_project, monkeypatch, caps, stale, expected
 ):
     from fastapi.testclient import TestClient
 
@@ -221,6 +241,9 @@ def test_guest_range_http_requires_view_and_returns_full_mix(
 
     ws, target, raw = seed(minimal_project)
     save_project(ws.project)
+    from podcast_mcp.engines.play_audit import publish_stem
+
+    publish_stem(ws.project, "a", lambda output: output.write_bytes(raw.read_bytes()))
     mix = ws.project.artifacts_dir() / "premix.wav"
     mix.parent.mkdir(parents=True, exist_ok=True)
     mix.write_bytes(raw.read_bytes())
@@ -229,6 +252,9 @@ def test_guest_range_http_requires_view_and_returns_full_mix(
     share = ShareService(ws).create(
         review_version_id=version["id"], public_base_url="https://share.example", capabilities=caps
     )
+    if stale:
+        ws.project.tracks[0].fader_db = -6
+        save_project(ws.project)
     response = TestClient(create_app()).post(
         f"/api/review/{share['token']}/daw/range-audio",
         json={"action": "play", "target": target.model_dump(mode="json")},
@@ -241,3 +267,5 @@ def test_guest_range_http_requires_view_and_returns_full_mix(
         returned = raw.parent / "returned.wav"
         returned.write_bytes(response.content)
         assert len(pcm(returned)) == 4 * 48000
+    elif stale:
+        assert "Mix out of date" in response.text

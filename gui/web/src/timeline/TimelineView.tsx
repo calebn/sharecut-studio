@@ -869,11 +869,16 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                   >
                     {sessionRegion && (
                       <AuditionOverlay
+                        className="range-overlay"
                         startSec={sessionRegion.start_sec}
                         endSec={sessionRegion.end_sec}
                         zoomPxPerSec={zoomPxPerSec}
                         height={laneStackHeight - markerLaneHeightPx}
-                        label={lastAgentQuery ? `“${lastAgentQuery}”` : null}
+                        label={
+                          lastAgentQuery
+                            ? `Agent range · ${lastAgentQuery}`
+                            : "Agent range"
+                        }
                       />
                     )}
                     {selection?.kind === "comment" &&

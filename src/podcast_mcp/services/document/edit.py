@@ -375,7 +375,6 @@ class EditService:
     ) -> RangeEditResult:
         from podcast_mcp.edits.range_edits import edit_selected_range
 
-        self._require_refine_clear()
         return self.ws.mutate(
             "before selected range",
             "after selected range",
@@ -387,9 +386,10 @@ class EditService:
         )
 
     def approve(self, ids: list[str], *, allow_exact: bool = False) -> int:
-        self._require_refine_clear()
-
         def mutate(p) -> int:
+            selected = [e for e in p.edit_decisions if e.id in ids]
+            if not selected or any(e.exact_range is None for e in selected):
+                self._require_refine_clear()
             if not allow_exact and any(
                 e.id in ids and e.exact_range is not None for e in p.edit_decisions
             ):

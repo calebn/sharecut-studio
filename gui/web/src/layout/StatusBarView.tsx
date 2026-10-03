@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { unmappedPendingLabel } from "../utils/edits";
-import { MIX_FRESH_LABEL, MIX_STALE_LABEL } from "../utils/staleRender";
 import { formatTimeShort } from "../utils/time";
 import { PipelineStatusChip } from "./PipelineStatusChip";
 import type { StatusBarSummary } from "./statusBarSummary";
@@ -62,8 +61,6 @@ export function StatusBarView({
     unmappedCount,
     cut,
     socialClipCount,
-    renderStale,
-    renderSummary,
     transcriptNeedsSync,
   } = summary;
 
@@ -105,20 +102,6 @@ export function StatusBarView({
         <span className={narrow ? "status-bar-secondary" : undefined}>
           Social: {socialClipCount}
         </span>
-      )}
-      {guestShare ? (
-        <span title={renderSummary}>
-          {renderStale ? MIX_STALE_LABEL : MIX_FRESH_LABEL}
-        </span>
-      ) : (
-        <button
-          type="button"
-          className="ui-control status-chip"
-          title={renderSummary}
-          onClick={() => onOpenTab("pipeline")}
-        >
-          {renderStale ? MIX_STALE_LABEL : MIX_FRESH_LABEL}
-        </button>
       )}
       {transcriptNeedsSync ? (
         <span className={reconcileHighlight ? "stale-highlight" : undefined}>

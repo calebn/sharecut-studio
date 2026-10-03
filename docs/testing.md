@@ -1510,3 +1510,15 @@ unavailable.
 ## Exact selected ranges
 
 `tests/test_selected_range.py` proves repeated-source occurrence scope, moved clips, overlap, disjoint islands, unchanged peers, stale geometry and media, guest and agent proposal authority, atomic Undo, and intentionally empty lane rendering. Run it with retained Python and supported disposable share identity and registry overrides.
+
+## Exact selected-range checks
+
+`tests/test_selected_range.py` covers repeated recordings, same-baseline bulk
+approval, mixed cuts/mutes, stale atomic rejection, unknown implicit extents,
+canonical microfades and whole-action Undo. `tests/test_range_audio.py` decodes
+actual PCM to check selected-lane/full-mix isolation, gain parity, silent island
+gaps, full-lane duration and all-muted pending A/B. The frontend selection,
+gesture and shared-action suites cover resolution, permissions and live guards.
+`gui/web/e2e/contextual-range.spec.ts` walks guest suggestion → host approval →
+Undo, host repeated-copy Cut/Mute, phone armed clip-body selection, orphan edit
+reachability after inspector collapse, and desktop/phone action-surface axe.

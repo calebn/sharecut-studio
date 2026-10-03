@@ -42,6 +42,10 @@ Outputs land in `{workspace}/export/bounces/`.
 
 ## Notes
 
+- Studio selected-range Bounce opens the normal configuration with a fixed exact
+  target. It exports selected occurrences/lanes and preserves silent gaps between
+  islands; a changed target rejects before output. Share guests cannot export it.
+
 - Omit `track_ids` / `--tracks` → all **non-muted** mixable tracks with media
 - Renders stems into a **private bounce temp dir** (does not overwrite shared
   `artifacts/tracks/` — safe concurrent with GUI refresh-mix)

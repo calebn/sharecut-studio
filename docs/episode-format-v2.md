@@ -160,3 +160,9 @@ Influenced by OpenTimelineIO (tracks/clips), Descript (transcript-first edits), 
 ## Exact selected ranges
 
 `EditDecision.exact_range` stores an `exact_range` target with ordered disjoint timeline intervals, explicit destination `track_ids`, observed clips, and opaque `media_seals`. Its flat timing fields are a display envelope. Source Snap and timing updates reject this variant. `Track.timeline_empty` records an intentionally empty lane. Render and mapping preserve silence until new material is added.
+
+`timeline.duration_sec` retains the pre-punch extent when a range Cut removes the
+last clips; duration and default Bounce still include the resulting silence.
+`TimelineComment.timeline_spans` optionally carries ordered selected islands;
+`timeline_start`/`timeline_end` remain their display envelope and `track_ids`
+preserves selected lanes.

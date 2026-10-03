@@ -54,7 +54,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     id: "tool.select",
     category: "tools",
     label: "Select tool",
-    when: "timelineAndStructural",
+    when: "timelineFocused",
   },
   "tool.blade": {
     id: "tool.blade",

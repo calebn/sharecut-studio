@@ -34,7 +34,7 @@ describe("StatusBarView", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("opens impact, impact, pipeline and comments from their chips", async () => {
+  it("opens impact and comments without a duplicate mix control", async () => {
     const user = userEvent.setup();
     const onOpenTab = vi.fn();
     const project = minimalProject({
@@ -88,11 +88,9 @@ describe("StatusBarView", () => {
     );
     expect(onOpenTab).toHaveBeenCalledTimes(2);
     expect(onOpenTab).toHaveBeenLastCalledWith("impact");
-    await user.click(screen.getByRole("button", { name: /^Mix /i }));
-    expect(onOpenTab).toHaveBeenCalledTimes(3);
-    expect(onOpenTab).toHaveBeenLastCalledWith("pipeline");
+    expect(screen.queryByText(/^Mix /i)).toBeNull();
     await user.click(screen.getByRole("button", { name: "Open comments" }));
-    expect(onOpenTab).toHaveBeenCalledTimes(4);
+    expect(onOpenTab).toHaveBeenCalledTimes(3);
     expect(onOpenTab).toHaveBeenLastCalledWith("comments");
   });
 
@@ -130,8 +128,8 @@ describe("StatusBarView", () => {
       />,
     );
     expect(
-      screen.getByRole("button", { name: "Mix out of date" }),
-    ).toBeTruthy();
+      screen.queryByRole("button", { name: /Mix out of date/ }),
+    ).toBeNull();
     const notice = screen.getByText("Transcript: needs sync");
     expect(notice.className).toContain("stale-highlight");
   });
@@ -237,7 +235,7 @@ describe("StatusBarView", () => {
     );
     expect(screen.getByText("Pending: 2").tagName).toBe("SPAN");
     expect(screen.getByText(/^Edits in removed audio/).tagName).toBe("SPAN");
-    expect(screen.getByText(/^Mix /i).tagName).toBe("SPAN");
+    expect(screen.queryByText(/^Mix /i)).toBeNull();
     expect(
       screen.queryByRole("button", {
         name: /^Pending:|^Edits in removed audio|^Mix /i,
@@ -245,7 +243,6 @@ describe("StatusBarView", () => {
     ).not.toBeInTheDocument();
     await user.click(screen.getByText("Pending: 2"));
     await user.click(screen.getByText(/^Edits in removed audio/));
-    await user.click(screen.getByText(/^Mix /i));
     expect(onOpenTab).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Open comments" }));
     expect(onOpenTab.mock.calls).toEqual([["comments"]]);

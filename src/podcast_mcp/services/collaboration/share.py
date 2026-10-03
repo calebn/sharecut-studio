@@ -45,6 +45,7 @@ from podcast_mcp.edits.share_registry import (
     share_is_usable,
 )
 from podcast_mcp.engines.play_audit import premix_path
+from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME, open_project, resolve_project_path
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService, run_comment_mutation_with_file_revisions
@@ -971,6 +972,20 @@ def share_proxy_chunk_path(
         raise PermissionError("share does not allow play")
     ensure_track_proxy(ws, track_id)
     return local_proxy_chunk_path(ws, track_id, chunk_idx, expected_hash=proxy_hash)
+
+
+def share_selected_range_audio(token: str, target: ExactRangeTarget) -> Path:
+    from podcast_mcp.engines.play_audit import mix_gains, premix_is_stale, stem_is_fresh
+    from podcast_mcp.services.document import PlayService
+
+    _row, ws = require_share_cap(token, CAP_VIEW)
+    mix = share_daw_audio_path(token, kind="premix")
+    with ws.transaction() as project:
+        if premix_is_stale(project) or any(
+            not stem_is_fresh(project, tid) for tid in mix_gains(project)
+        ):
+            raise ValueError("Mix out of date. Ask the host to Refresh before playing this range.")
+        return PlayService(ws).play_selected_range(target, full_mix_path=mix)
 
 
 def share_daw_audio_path(

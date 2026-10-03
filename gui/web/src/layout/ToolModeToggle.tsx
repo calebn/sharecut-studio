@@ -1,6 +1,10 @@
 import { runPointerCommand } from "../commands/pointer";
 import { ariaKeyShortcutsFor, titleWithShortcut } from "../keymap/registry";
-import { canSuggestStructuralOnProject } from "../shareMode";
+import {
+  canSuggestStructuralOnProject,
+  hasShareCapability,
+  isShareProjectKey,
+} from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { commentModeTitle } from "./commentModeTitle";
 import { ToolModeToggleView } from "./ToolModeToggleView";
@@ -33,6 +37,12 @@ export function ToolModeToggle({ compact = false }: { compact?: boolean }) {
     <ToolModeToggleView
       compact={compact}
       structuralToolsAllowed={allowed}
+      selectAllowed={project != null}
+      commentAllowed={
+        project != null &&
+        (!(isShareProjectKey(projectPath) || guestMode != null) ||
+          hasShareCapability(shareCapabilities, "comment"))
+      }
       toolMode={toolMode}
       commentMode={commentMode}
       selectTitle={titleWithShortcut("Select tool", "tool.select")}

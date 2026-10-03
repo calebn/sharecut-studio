@@ -3,6 +3,7 @@ import { executePointerCommand } from "../commands/pointer";
 import { rangeActionDescriptors } from "../commands/rangeActions";
 import { makeRangeTarget, resolveSelectionRange } from "../edit/rangeSelection";
 import { useDaw } from "../state/useDaw";
+import { Button } from "../ui";
 
 export function RangeActions({ sheet = false }: { sheet?: boolean }) {
   const state = useDaw((s) => ({
@@ -88,9 +89,9 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
         <div>
           <p>Choose the audible occurrence.</p>
           {resolution.targets.map((choice, index) => (
-            <button
+            <Button
               type="button"
-              className="btn"
+              className="ui-control--compact"
               key={`${choice.intervals[0]!.start}:${index}`}
               onClick={() =>
                 state.setSelection({ kind: "range", target: choice })
@@ -101,7 +102,7 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
                 .map((r) => `${r.start.toFixed(2)}–${r.end.toFixed(2)} s`)
                 .join(" · ")}{" "}
               · {choice.track_ids.join(", ")}
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}
@@ -109,9 +110,9 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
         <div className="range-action-buttons">
           {descriptors.map((d) => (
             <div key={d.action} className="range-action">
-              <button
+              <Button
                 type="button"
-                className="btn"
+                className="ui-control--compact"
                 disabled={d.reason !== null}
                 aria-describedby={
                   d.reason
@@ -125,7 +126,7 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
                 }
               >
                 {d.label}
-              </button>
+              </Button>
               {d.reason ? (
                 <small
                   id={`range-${sheet ? "sheet" : "bar"}-${d.action}-reason`}
@@ -135,9 +136,9 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
               ) : null}
             </div>
           ))}
-          <button
+          <Button
             type="button"
-            className="btn"
+            className="ui-control--compact"
             disabled={state.rangeBusy}
             onClick={() => {
               state.setSelection(null);
@@ -145,7 +146,7 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
             }}
           >
             Clear range
-          </button>
+          </Button>
         </div>
       ) : null}
       {rangeArmed ? (
@@ -195,13 +196,17 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
               </label>
             ))}
           </fieldset>
-          <button type="button" className="btn" onClick={selectNumeric}>
+          <Button
+            type="button"
+            className="ui-control--compact"
+            onClick={selectNumeric}
+          >
             Select range
-          </button>
+          </Button>
           {sessionRegion ? (
-            <button
+            <Button
               type="button"
-              className="btn"
+              className="ui-control--compact"
               disabled={selectedTrackIds.length === 0}
               onClick={() => {
                 const next = makeRangeTarget(
@@ -218,15 +223,15 @@ export function RangeActions({ sheet = false }: { sheet?: boolean }) {
               }}
             >
               Use agent range on selected tracks
-            </button>
+            </Button>
           ) : null}
-          <button
+          <Button
             type="button"
-            className="btn"
+            className="ui-control--compact"
             onClick={() => state.setRangeArmed(false)}
           >
             Cancel range selection
-          </button>
+          </Button>
         </div>
       ) : null}
       {!target && resolution.reason && resolution.targets.length === 0 ? (

@@ -216,3 +216,8 @@ the **recording clock**; at landing they become ordinary `review.comments[]`
 entries via `add_comment` under
 `ProjectWorkspace.mutate()`. Spec:
 [recording-session.md § Live comments](recording-session.md#live-comments).
+
+Range Comment carries exact selected `timeline_spans` and `track_ids` into the
+draft. The existing start/end fields remain a display envelope; intervening gaps
+are not added to the stored islands. The ordinary comment capability and command
+path still govern submission.

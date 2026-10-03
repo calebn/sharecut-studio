@@ -69,10 +69,15 @@ dialog. Tablet and desktop keep the parameter form inline.
 Every selection sheet follows the same three-zone layout for consistency:
 
 1. **Primary actions** — the inspector content itself (2-3 most common actions, large targets)
-2. **Related commands** ("You might also want…") — supported next actions for this selection, currently Copy for clips and single selected transcript words. Transcript ranges stay in Text; keyboard Copy remains available there.
+2. **Related commands** ("You might also want…") — Copy for clips and single transcript words. Transcript and timeline ranges use the shared Play/Cut/Mute/Comment/Bounce sheet, with capability reasons on disabled actions.
 3. **More** — context-filtered command overflow below Related. Clips offer Cut (copy to the session clipboard, then ripple-delete) to editors; tracks offer Move track up/down only for directions that exist. View-only guests do not see edit actions. Other selections show an accurate empty state when their safe actions already live in the inspector or Related zone. Both zones live in `RelatedCommands` (`gui/web/src/inspector/RelatedCommands.tsx`), with mappings in `relatedCommandDescriptors.ts`.
 
 Example: Clip selected → Related shows Copy; More shows Cut for editors. Fade/delete remain clip-inspector controls and seeking remains in its footer.
+
+In Timeline, **Select range** arms touch selection on clip bodies and empty
+lanes. Numeric In/Out with lane checkboxes offers precision without dragging.
+Trim/fade/join/envelope handles retain priority. Edit/suggest guests create pending
+range proposals; view guests keep the five actions visible with disabled reasons.
 
 ### Feature → home map
 

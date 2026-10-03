@@ -49,7 +49,7 @@ describe("TransportBar stale refresh", () => {
     expect(pill.getAttribute("aria-disabled")).toBeNull();
     // Short wide-bar text so the transport fits at 1280px; the refresh verb
     // is in the accessible name, title, Mod+B and the collapsed Menu item.
-    expect(pill).toHaveTextContent(/^Mix out of date$/);
+    expect(pill).toHaveTextContent(/^Mix out of date · Refresh$/);
     expect(pill.getAttribute("aria-label")).toMatch(
       /^Mix out of date\. .*\. Refresh mix\.$/,
     );

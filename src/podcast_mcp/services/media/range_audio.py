@@ -1,5 +1,3 @@
-"""Render exact selected islands with silent gaps on the timeline clock."""
-
 from __future__ import annotations
 
 from pathlib import Path

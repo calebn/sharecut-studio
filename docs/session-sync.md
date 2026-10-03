@@ -509,3 +509,16 @@ the preview; existing Land document refresh supplies the committed media.
 ## Exact selected ranges
 
 `EditSelectedRange` accepts `action` (`cut` or `mute`) and an exact target. The server compares selected geometry and media revisions under the workspace lock. Host interactive submission applies immediately. Every share guest with edit or suggest rights and supported agent submission creates one pending decision. Only a trusted host adapter can approve that exact decision. Payload roles and apply fields cannot elevate it. Owner HTTP credentials currently do not distinguish a human from an agent deliberately using those same credentials.
+
+Ordered timeline islands, explicit lanes, overlapping clip geometry and media
+seals form the target. A stale target remains pending; no partial group applies.
+Bulk approval validates the starting snapshot and combines effects per original
+clip, so an internal split cannot invalidate another proposal in that batch.
+Source/mixed approval retains narrative refinement. Trusted CLI/host adapters can
+approve and reject exact proposals; supported direct MCP calls cannot. IDs are
+validated before authority lookup.
+
+Selection, gesture drafts, range arming and Bounce targets stay local. A remote
+region requires explicit adoption with lanes. Guest range Play checks the live
+target and published mix freshness under a workspace transaction, returns full
+mix only, and grants no render or export authority.

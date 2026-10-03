@@ -46,6 +46,7 @@ if TYPE_CHECKING:
         share_project_view,
         share_proxy_chunk_path,
         share_proxy_manifest,
+        share_selected_range_audio,
         share_set_action_done,
         share_upload_media,
     )
@@ -105,6 +106,7 @@ __all__ = [
     "share_proxy_chunk_path",
     "share_proxy_manifest",
     "share_public_origin",
+    "share_selected_range_audio",
     "share_set_action_done",
     "share_upload_media",
 ]
@@ -140,6 +142,7 @@ _MODULE_BY_NAME = {
     "share_audition_context_image_cached": "share",
     "share_audition_context_info": "share",
     "share_daw_audio_path": "share",
+    "share_selected_range_audio": "share",
     "share_daw_meta": "share",
     "share_daw_project_view": "share",
     "share_daw_waveform_snap": "share",

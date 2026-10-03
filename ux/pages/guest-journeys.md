@@ -37,6 +37,19 @@ page scrolling. Native field sizing stays within the column rather than widening
 
 ## 2. Suggest a cut (Sharecut Studio guest)
 
+For Studio range suggestions, edit and suggest guests choose a transcript or
+timeline passage, select its intended occurrence when repeated, and see
+**Play full mix, Suggest cut, Suggest mute, Comment, Bounce**. Disabled actions
+explain permissions; Bounce is host-only. Suggestion leaves clips unchanged.
+The host selects the pending overlay and approves it; one History Undo restores
+the whole action. Changed selected audio requires reselection.
+
+Phone users open Timeline and arm **Select range** on its tool rail for a touch
+drag, or use numeric In/Out and lanes. View guests can select and play a fresh full
+mix but cannot suggest edits. Stale range playback asks for host Refresh; guests
+receive no isolated selected-track audio through this action.
+
+
 **Setup:** Share includes `view` + `suggest` (+ usually `play` / `comment`).
 
 ```mermaid
@@ -50,14 +63,17 @@ flowchart TD
 
 1. Banner reads *Shared suggest view* (or similar).
 2. Guest can propose structural cuts; they become **pending**, not committed.
-3. Guest can compare a pending cut's current and suggested source bounds. **Use suggestion** applies those displayed bounds after any typed timing is applied. Re-checking **Snap to silence** snaps the stored bounds once.
-4. Guest cannot Approve as if they owned the session (that needs `edit`).
+3. For ordinary source proposals, compare current/suggested bounds; **Use suggestion** applies them after typed timing is applied. **Snap to silence** snaps those source bounds. Exact range proposals keep their sealed timeline footprint and have no source timing controls.
+4. Guests need `edit` to approve ordinary source proposals; exact range proposals always require host approval.
 
 ---
 
 ## 3. Edit guest approves on phone
 
 **Setup:** Share includes `view` + `edit`.
+
+This journey covers ordinary source proposals. Exact selected-range proposals
+remain host-only for approval and rejection, including on edit shares.
 
 ```mermaid
 flowchart TD
