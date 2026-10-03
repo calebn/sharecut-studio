@@ -200,8 +200,9 @@ Users don’t need tool IDs. They need this story:
 4. **Possibly re-render** — stems/premix may show “stale” until refresh. If an undo or redo is saved but its preview render fails, the app reports a conflict that says to re-render the preview, not to repeat the move.
 
 An editable envelope drag focuses its point without scrolling. Escape or moving
-focus away discards its preview. Escape retains the selected point. Only the
-owning pointer can complete the drag. A completed save remains in flight until
+focus away discards its preview and preserves the pregesture selection. Escape
+retains point focus without opening the inspector. Only the owning pointer can
+complete the drag. A click selects on release; a changed save selects on success. A completed save remains in flight until
 it settles, and History Undo restores the saved edit.
 
 If a selected envelope point changes in another tab before Apply or Delete,

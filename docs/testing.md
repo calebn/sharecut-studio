@@ -523,21 +523,25 @@ These tests use disposable projects. Physical iPhone and iPad Safari checks rema
 pending. Run the focused cases with `npm run test:e2e -- e2e/comment-undo.spec.ts`
 and `npm run test:e2e:compat -- e2e-compat/comment-undo.spec.ts` after the E2E build.
 `gui/web/e2e/envelope-recovery.spec.ts` covers envelope recovery at desktop,
-tablet, and phone widths in both themes with reduced motion. Tablet and phone
-open the inspector sheet before the recovery gesture, so its initial focus has
-settled. Each case starts with a different control focused, uses native mouse
-input to acquire circle focus and capture, and checks draft geometry, local
-Escape, retained selection, focus-departure cancellation, zero commands and
-unchanged saved points/history after cancellation, then one completed edit and
-one Undo restoring the exact origin. Foreign pointer ID 99 move/up events are
-explicitly synthetic. They exercise real app handlers while the native mouse
-owner remains held. This does not prove native second-touch routing.
-`gui/web/e2e-compat/envelope-recovery.spec.ts` shares that flow in Chromium and
-WebKit at desktop width. Physical touch, stylus, Safari, and assistive technology
-remain unverified. Focused component tests cover all foreign terminal events,
-non-left mouse admission, capture cleanup, setup failure, pending saves, rejected
-saves, read-only selection, and unmount. Run browser wrappers sequentially with
-fixture/environment unit tests.
+tablet, and phone widths in both themes with reduced motion. The first gesture
+starts with the inspector closed and a different control focused. Native mouse
+input acquires circle focus and capture. The flow checks local preview highlight,
+Escape retaining point focus without opening the inspector, focus-departure
+cancellation, zero commands and unchanged saved points/history after cancellation,
+then one completed edit and one Undo restoring the exact origin. A no-op click
+opens the inspector without saving. A later native drag on an exposed second
+point preserves the first point's inspector selection after Escape. Its center
+must hit the circle; points covered by the incumbent tablet sheet are not tested
+as native drag targets. Native movement allows one CSS pixel of engine coordinate
+rounding; cancellation and Undo restore exact geometry and saved points.
+Foreign pointer ID 99 move/up events are explicitly synthetic. They exercise real
+app handlers while the native mouse owner remains held. This does not prove
+native second-touch routing. `gui/web/e2e-compat/envelope-recovery.spec.ts` shares
+that flow in Chromium and WebKit at desktop width. Physical touch, stylus, Safari,
+and assistive technology remain unverified. Focused component tests cover all
+foreign terminal events, non-left mouse admission, capture cleanup, setup failure,
+pending saves, rejected saves preserving previous selection, read-only selection,
+and unmount. Run browser wrappers sequentially with fixture/environment unit tests.
 `gui/web/e2e/desktop-splash.spec.ts` renders native startup HTML with long errors
 at narrow and wide sizes. These browser checks do not validate packaged WebViews
 or physical microphone behavior.
@@ -814,7 +818,7 @@ test; other rows are whole tests.
 | Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Pass | Pass | Not run |
 | phone Mix native edits and touch geometry across engines | `gui/web/e2e-compat/phone-mix.spec.ts` | Core flow | Pass | Pass | Not run |
 | comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Pass | Pass | Not run |
-| native envelope owner cancels locally and ignores synthetic foreign events | `gui/web/e2e-compat/envelope-recovery.spec.ts` | Core flow | Not run | Not run | Not run |
+| native envelope owner cancels locally and ignores synthetic foreign events | `gui/web/e2e-compat/envelope-recovery.spec.ts` | Core flow | Pass | Pass | Not run |
 
 A dated snapshot, not a threshold (measured locally on macOS as of #739 and
 #747; no test re-checks these figures): the core-flow landed track peaked at

@@ -149,6 +149,7 @@ export function EnvelopeOverlayView({
     if (!movedPoint || !pointMoved(origin[dragIndex], movedPoint)) {
       setDraft(null);
       releaseHeld(releaseHold);
+      onSelectPoint(dragIndex);
       return;
     }
     if (commitLock.current) {
@@ -209,7 +210,7 @@ export function EnvelopeOverlayView({
             if (!pinned && (xOf(p) < x0 || xOf(p) > x1)) {
               return null;
             }
-            const selected = selectedIndex === i;
+            const selected = (dragIndex ?? selectedIndex) === i;
             const label = `Envelope point ${i + 1} at ${formatTime(p.time)}`;
             return (
               <circle
@@ -244,7 +245,7 @@ export function EnvelopeOverlayView({
                   }
                   e.preventDefault();
                   e.stopPropagation();
-                  onSelectPoint(i);
+                  if (!dragRef.current) onSelectPoint(i);
                 }}
                 onPointerDown={(e) => {
                   e.stopPropagation();
@@ -262,7 +263,6 @@ export function EnvelopeOverlayView({
                   const target = e.currentTarget;
                   target.focus({ preventScroll: true });
                   if (document.activeElement !== target) return;
-                  onSelectPoint(i);
                   const copy = sorted.map((pt) => ({ ...pt }));
                   dragRef.current = {
                     pointerId: e.pointerId,

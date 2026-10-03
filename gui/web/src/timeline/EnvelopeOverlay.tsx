@@ -1,8 +1,7 @@
-import { useRef } from "react";
 import { setEnvelope } from "../api";
 import { isShareProjectKey } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import type { AutomationEnvelope, Selection } from "../types/project";
+import type { AutomationEnvelope } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { sortedVolumePoints } from "../utils/envelopes";
 import { EnvelopeOverlayView } from "./EnvelopeOverlayView";
@@ -37,7 +36,6 @@ export function EnvelopeOverlay({
   // yToValue reads the lane height and SVG rect: the view holds both still
   // from pointerdown until the drag commits, cancels or unmounts.
   const holdGeometry = useTimelineGestureHold() ?? undefined;
-  const priorSel = useRef<Selection>(null);
 
   const points = sortedVolumePoints(envelopes, trackId);
   const editable = !isShareProjectKey(projectPath);
@@ -57,14 +55,12 @@ export function EnvelopeOverlay({
       selectedIndex={selectedIndex}
       onSelectTrack={onSelectTrack}
       onSelectPoint={(index) => {
-        priorSel.current = selection;
         setSelection({ kind: "envelopePoint", trackId, index });
       }}
       onCommitPoints={(nextPoints, origin) =>
         setEnvelope(projectPath, trackId, nextPoints, origin)
       }
       onCommitError={(error) => {
-        setSelection(priorSel.current);
         announceStatus(errorMessage(error, "Could not apply envelope"));
       }}
       holdGeometry={holdGeometry}
