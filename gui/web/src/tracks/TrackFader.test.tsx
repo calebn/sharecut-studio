@@ -32,7 +32,10 @@ function renderFader(
       <FaderFromStore />
     </DawProvider>,
   );
-  return { ...view, slider: screen.getByRole("slider", { name: "Volume" }) };
+  return {
+    ...view,
+    slider: screen.getByRole("slider", { name: "Volume host" }),
+  };
 }
 
 /** Reads the track from the store, as the inspector does. */
