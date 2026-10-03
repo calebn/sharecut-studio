@@ -6,6 +6,12 @@ export interface GuiCommandOptions {
   projectPath: string;
 }
 
+export function podcastCommand({
+  ci,
+}: Pick<GuiCommandOptions, "ci">): string[] {
+  return ci ? ["podcast"] : ["uv", "run", "--extra", "gui", "podcast"];
+}
+
 /** Build the E2E GUI command without pinning ordinary loopback test projects. */
 export function guiCommand({
   ci,
@@ -14,9 +20,8 @@ export function guiCommand({
   port,
   projectPath,
 }: GuiCommandOptions): string[] {
-  const runner = ci ? ["podcast"] : ["uv", "run", "--extra", "gui", "podcast"];
   return [
-    ...runner,
+    ...podcastCommand({ ci }),
     "gui",
     ...(pinProject ? ["--project", projectPath] : []),
     "--host",
