@@ -1,6 +1,6 @@
 # E2E test plan — real data fixtures
 
-Plan for expanding end-to-end coverage beyond `aligned_dialogue` (synthetic/canned) using public corpora and controlled real-speech clips. Complements [testing.md](testing.md) and [e2e-fixture-manual.md](e2e-fixture-manual.md).
+Plan for expanding end-to-end coverage beyond the labeled human-speech `aligned_dialogue` fixture using public corpora and controlled real-speech clips. Complements [testing.md](testing.md) and [e2e-fixture-manual.md](e2e-fixture-manual.md).
 
 **Status:** Phase 1 implemented (synthetic bleed, asr_gold, ami_bleed_60s, e2e tests). See [fixture-catalog.md](fixture-catalog.md).
 
@@ -12,15 +12,15 @@ Plan for expanding end-to-end coverage beyond `aligned_dialogue` (synthetic/cann
 
 | Test | Fixture | Real speech? | Gold labels? |
 |------|---------|--------------|--------------|
-| `test_fixture_smoke` | `aligned_dialogue` | TTS (Piper) | No |
-| `test_fixture_play` | `aligned_dialogue` | TTS (Piper) | No |
-| `test_fixture_edits` | `aligned_dialogue` + canned seed | TTS (Piper) | Canned = audio |
-| `test_fixture_pipeline` | `aligned_dialogue` + canned | TTS (Piper) | Canned = audio |
-| `test_fixture_social` | `aligned_dialogue` + canned | TTS (Piper) | Canned = audio |
-| `test_fixture_transcribe_slow` | `aligned_dialogue` | TTS (Piper) | Canned = audio |
+| `test_fixture_smoke` | `aligned_dialogue` | Human (LibriSpeech) | Published reference text; MFA timings |
+| `test_fixture_play` | `aligned_dialogue` | Human (LibriSpeech) | Published reference text; MFA timings |
+| `test_fixture_edits` | `aligned_dialogue` + canned seed | Human (LibriSpeech) | Published reference text; MFA timings |
+| `test_fixture_pipeline` | `aligned_dialogue` + canned | Human (LibriSpeech) | Published reference text; MFA timings |
+| `test_fixture_social` | `aligned_dialogue` + canned | Human (LibriSpeech) | Published reference text; MFA timings |
+| `test_fixture_transcribe_slow` | `aligned_dialogue` | Human (LibriSpeech) | Published reference text; MFA timings |
 | `PODCAST_E2E_PROJECT` override | e.g. `test_fixture_5min` | Yes | Weak (prior ASR) |
 
-`aligned_dialogue` is excellent for **pipeline wiring, MCP/CLI smoke, and NL edit mechanics** but cannot validate transcription accuracy, bleed suppression, or precorrect against truth.
+`aligned_dialogue` exercises **pipeline wiring, MCP/CLI smoke, NL edit mechanics, and live per-track WER** against complete LibriSpeech utterances. Its word timings are published MFA alignments, not human-verified boundaries. It contains no controlled bleed and does not provide bleed-suppression or precorrect gold.
 
 ### Tools / pipeline steps to cover
 
@@ -54,11 +54,15 @@ Small clips in git. No download step.
 | Fixture | Source | Size target | Purpose |
 |---------|--------|-------------|---------|
 | `aligned_dialogue` | Existing | 60s × 2 | CLI/MCP smoke, edit/social/history (keep) |
-| `asr_gold` | Mini LibriSpeech `dev-clean-2` (20 utterances) | ~5 MB | WER regression for transcribe backends |
-| `synthetic_bleed_60s` | Generator + committed WAVs | ~15 MB | **Primary** bleed/reconcile/precorrect gold |
-| `ami_bleed_60s` | AMI `ES2002a` word XML + synthetic overlap audio | ~15 MB | Natural overlap vs synthetic calibration |
+| `asr_gold` | Mini LibriSpeech `dev-clean-2` (3 utterances) | ~0.55 MB | WER regression for transcribe backends |
+| `synthetic_bleed_60s` | Generator + committed WAVs | ~10.6 MB | **Primary** bleed/reconcile/precorrect gold |
+| `ami_bleed_60s` | AMI `ES2002a` word XML + synthetic overlap audio | ~10.6 MB | Synthetic bleed calibration using AMI overlap timings |
 
-**AMI clip:** Download full meeting via [AMI corpus](https://groups.inf.ed.ac.uk/ami/download/) (CC BY 4.0). Commit only a single 60s slice + `ground_truth.json` converted from `*.words.xml`. Map two headset channels to `host` / `guest` for podcast-shaped tests.
+**AMI calibration:** The committed fixture uses word labels from the
+[AMI corpus](https://groups.inf.ed.ac.uk/ami/download/) under CC BY 4.0.
+`scripts/download_fixture_ami.sh` fetches words XML and synthesizes tones at
+those times. The committed fixture contains no AMI microphone recordings.
+Natural speech overlap requires a separate real-audio fixture.
 
 **LibriSpeech slice:** Official transcripts in `*.trans.txt` next to each FLAC. One file per utterance in `tests/fixtures/asr_gold/manifest.json`.
 
@@ -163,8 +167,8 @@ Add checklist rows for AMI bleed window and `test_fixture_5min` intro bleed (~20
 ### Phase 1 — Foundation (1–2 days)
 
 1. `scripts/import_ami_words.py` — AMI `*.words.xml` → `TranscriptWord` JSON
-2. `scripts/download_fixture_ami.sh` — fetch one meeting, extract 60s, write `tests/fixtures/ami_bleed_60s/`
-3. `scripts/download_fixture_asr_gold.sh` — Mini LibriSpeech 20-file slice
+2. `scripts/download_fixture_ami.sh` — fetch AMI word labels, synthesize a 60s calibration, write `tests/fixtures/ami_bleed_60s/`
+3. `scripts/download_fixture_asr_gold.sh` — Mini LibriSpeech 3-file WER regression slice
 4. `tests/fixtures/ami_bleed_60s/episode.project.json` + `ground_truth.json`
 5. `test_asr_gold_wer.py`, `test_ami_bleed_reconcile.py`
 
@@ -180,7 +184,7 @@ Add checklist rows for AMI bleed window and `test_fixture_5min` intro bleed (~20
 1. Speaker attribution e2e on AMI when bleed gate opens
 2. `podcast ingest align` on multichannel-meetings clip
 3. Audio cleanup A/B harness on AMI (gate overreach regression)
-4. Optional: synthetic `aligned_dialogue_speech` (TTS + controlled bleed) to replace text≠audio mismatch — done for `aligned_dialogue` in #801 (no bleed)
+4. `aligned_dialogue` now uses complete human LibriSpeech utterances with published text and MFA timings (#948), replacing the earlier TTS fixture (#801). It has no controlled bleed.
 
 ### Phase 4 — CI topology
 
@@ -210,8 +214,8 @@ whisper.cpp remains **benchmark-only** until WER on `asr_gold` and `test_fixture
 
 ## Open decisions
 
-1. **Commit AMI/LibriSpeech audio to git** vs download-only — recommend commit 60s AMI + 20 LibriSpeech utterances (&lt;25 MB total).
-2. **Replace or supplement `aligned_dialogue`** with TTS-generated speech matching canned text. — resolved: replaced in place (#801)
+1. **Commit AMI/LibriSpeech audio to git** vs download-only — retain the synthetic AMI timing calibration and the 3 LibriSpeech utterances exercised by WER regression.
+2. **Replace or supplement `aligned_dialogue`** — resolved: complete human LibriSpeech utterances and published labels now replace the TTS fixture in place (#948).
 3. **Whether `test_fixture_5min` becomes a submodule** or stays `PODCAST_E2E_PROJECT` local path for nightly only.
 4. **Fixture write guard** (`PODCAST_ALLOW_FIXTURE_WRITE`) before expanding committed fixtures.
 
