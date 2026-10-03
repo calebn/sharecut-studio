@@ -919,4 +919,105 @@ describe("MobileShell", () => {
     });
     expect(useDawStore.getState().followingClientId).toBeNull();
   });
+
+  it.each([
+    ["text", "hub", { kind: "comment", id: "c1" }, false],
+    ["more", "impact", { kind: "pending", id: "e1", trackId: "host" }, true],
+    ["more", "comments", { kind: "pending", id: "e1", trackId: "host" }, false],
+    ["more", "impact", { kind: "comment", id: "c1" }, false],
+    ["more", "pipeline", { kind: "track", trackId: "host" }, false],
+  ] as const)(
+    "preserves sheet eligibility in %s/%s for %j as %s",
+    (mode, destination, selection, open) => {
+      useDawStore.getState().setMoreDestination(destination);
+      useDawStore.getState().setMobileMode(mode);
+      render(
+        <DawProvider
+          projectPath="/tmp/p.json"
+          initialProject={minimalProject()}
+        >
+          <MobileShell />
+        </DawProvider>,
+      );
+      act(() => useDawStore.getState().setSelection(selection));
+      expect(
+        screen.getByRole("button", { name: mode === "text" ? "Text" : "More" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(screen.queryByRole("dialog", { name: "Inspector" }) !== null).toBe(
+        open,
+      );
+      expect(useDawStore.getState().selection).toEqual(selection);
+    },
+  );
+
+  it("closes an armed range sheet by disarming, clearing selection, and collapsing", async () => {
+    useDawStore.getState().setMobileMode("more");
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    act(() => {
+      useDawStore.getState().setRangeArmed(true);
+      useDawStore.getState().setSheetExpanded(true);
+    });
+    expect(screen.getByRole("dialog", { name: "Inspector" })).toHaveClass(
+      "bottom-sheet--full",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(useDawStore.getState().rangeArmed).toBe(false);
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(useDawStore.getState().sheetExpanded).toBe(false);
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    expect(screen.getByRole("button", { name: "More" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it.each(["history", "impact", "tighten", "pipeline"] as const)(
+    "hides stale host-only %s content and back button for guests",
+    (destination) => {
+      useDawStore.getState().setMobileMode("more");
+      useDawStore.getState().setMoreDestination(destination);
+      const { container } = render(
+        <DawProvider
+          projectPath="/tmp/p.json"
+          initialProject={minimalProject()}
+        >
+          <MobileShell guestShare />
+        </DawProvider>,
+      );
+      expect(
+        container.querySelector(".mobile-more-mode"),
+      ).toBeEmptyDOMElement();
+      expect(screen.getByRole("button", { name: "More" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      expect(screen.queryByRole("button", { name: "← More" })).toBeNull();
+    },
+  );
+
+  it("returns to More hub and retains transport, text, and More focus targets", async () => {
+    useDawStore.getState().setMobileMode("more");
+    useDawStore.getState().setMoreDestination("comments");
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    fireEvent.mouseDown(container.querySelector(".mobile-more-mode")!);
+    expect(useDawStore.getState().timelineFocused).toBe(false);
+    fireEvent.mouseDown(container.querySelector(".daw-shell-transport")!);
+    expect(useDawStore.getState().timelineFocused).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "← More" }));
+    expect(useDawStore.getState().moreDestination).toBe("hub");
+    expect(
+      screen.getByRole("button", { name: "Gestures" }),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Text" }));
+    fireEvent.mouseDown(container.querySelector(".mobile-text-mode")!);
+    expect(useDawStore.getState().timelineFocused).toBe(false);
+  });
 });
