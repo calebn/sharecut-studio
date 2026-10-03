@@ -16,6 +16,7 @@ from podcast_mcp.gui.job_events import (
     job_listener_count,
     publish_job_event,
 )
+from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import BounceRequest, BounceService
 from podcast_mcp.services.pipeline import PipelineService
@@ -912,6 +913,7 @@ class PipelineJobManager:
         start_s: float | None = None,
         end_s: float | None = None,
         formats: list[str] | None = None,
+        exact_range: ExactRangeTarget | None = None,
     ) -> PipelineJob:
         """Bounce stems/range via ``BounceService`` (same single-flight slot as pipeline)."""
         req = BounceRequest(
@@ -919,6 +921,7 @@ class PipelineJobManager:
             start_s=start_s,
             end_s=end_s,
             formats=formats,
+            exact_range=exact_range,
         )
 
         def validate_bounce() -> None:
@@ -933,6 +936,7 @@ class PipelineJobManager:
                 "start_s": start_s,
                 "end_s": end_s,
                 "formats": formats,
+                "exact_range": exact_range.model_dump(mode="json") if exact_range else None,
             },
             validate=validate_bounce,
         )
@@ -1083,6 +1087,9 @@ class PipelineJobManager:
                     start_s=cfg.get("start_s"),
                     end_s=cfg.get("end_s"),
                     formats=cfg.get("formats"),
+                    exact_range=ExactRangeTarget.model_validate(cfg["exact_range"])
+                    if cfg.get("exact_range")
+                    else None,
                 ),
                 cancel_check=cancel_check,
             )

@@ -51,6 +51,7 @@ using MCP; REST `/comments*` remains for ReviewApp-style clients.
 | `GET` | `…/daw/project` | `view` | Sanitized ProjectView (no host paths) |
 | `GET` | `…/daw/proxy/manifest` | `play` | Proxy chunk manifest |
 | `GET` | `…/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}` | `play` | Content-addressed proxy media |
+| `POST` | `…/daw/range-audio` | `play` | Exact timeline islands from the full mix, with silent gaps. Never isolated stems. |
 | `POST` | `…/daw/render-preview` | `edit` | Start stem/premix render job (opt-in PODCAST_GUEST_RENDER) |
 | `GET` | `…/daw/render-preview/{job_id}` | `edit` | Read project-scoped render job status (no host paths) |
 | `GET` | `…/daw/waveform-snap` | `suggest or edit` | Windowed snap ticks; view-only gets wash only |

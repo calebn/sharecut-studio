@@ -539,6 +539,7 @@
         "updated_at": { "type": ["string", "null"] },
         "timeline_start": { "type": "number" },
         "timeline_end": { "type": ["number", "null"] },
+        "timeline_intervals": { "type": "array", "items": { "$ref": "#/$defs/RangeInterval" } },
         "track_ids": { "type": "array", "items": { "type": "string" } },
         "action_items": {
           "type": "array",

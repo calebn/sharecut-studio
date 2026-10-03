@@ -93,6 +93,7 @@ import {
   TimelineScrollSync,
   useFixedPlayheadScroll,
 } from "./useFixedPlayheadScroll";
+import { useRangeGesture } from "./useRangeGesture";
 
 type Props = {
   /** Phone Timeline mode: playhead fixed at viewport center; scrub by scrolling. */
@@ -107,6 +108,7 @@ const selectTimelineViewFields = pickDaw(
   "setScrollLeft",
   "setPlayheadSec",
   "selection",
+  "rangeArmed",
   "setSelection",
   "userZoomed",
   "setTimelineFocused",
@@ -162,6 +164,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     setScrollLeft,
     setPlayheadSec,
     selection,
+    rangeArmed,
     setSelection,
     userZoomed,
     setTimelineFocused,
@@ -578,6 +581,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   // Lane callbacks: one stable function each, taking the track id first, so
   // memoized lanes and clips see equal props. Hot fields (playhead, scroll)
   // are read at call time.
+  const rangeGesture = useRangeGesture(lanesRef, zoomPxPerSec, canvasSec);
   const onSeek = useStableCallback((clientX: number, target: HTMLElement) => {
     const sec = clientXToTimelineSec(
       clientX,
@@ -850,6 +854,12 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                   />
                   <div
                     ref={lanesRef}
+                    onPointerDownCapture={rangeGesture.captureDown}
+                    onPointerMoveCapture={rangeGesture.captureMove}
+                    onPointerUpCapture={rangeGesture.captureUp}
+                    onPointerCancelCapture={rangeGesture.captureCancel}
+                    onClickCapture={rangeGesture.captureClick}
+                    data-range-armed={rangeArmed || undefined}
                     className={
                       movePlacements ? "timeline-clip-moving" : undefined
                     }
@@ -936,6 +946,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                           pendingEdits={
                             pendingEditSlices[track.id] ?? EMPTY_ARR
                           }
+                          onRangeGesture={rangeGesture.gesture}
                           onSeek={onSeek}
                           bladeMode={bladeMode}
                           canMoveClips={canMoveClips}

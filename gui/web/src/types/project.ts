@@ -45,7 +45,30 @@ export interface ClipRow {
   clipping_truncated?: boolean;
 }
 
+export type ExactRangeClip = Pick<
+  ClipRow,
+  | "id"
+  | "track_id"
+  | "source_id"
+  | "source_start"
+  | "source_end"
+  | "timeline_start"
+  | "fade_in_ms"
+  | "fade_out_ms"
+  | "join_in_mode"
+> & { mute_regions: ClipMuteRegion[] };
+
+export interface ExactRangeTarget {
+  kind: "exact_range";
+  intervals: TimelineSpan[];
+  track_ids: string[];
+  clips: ExactRangeClip[];
+  media_seals: Record<string, string>;
+}
+
 export interface TrackView {
+  range_media_seal?: string;
+  timeline_empty?: boolean;
   id: string;
   label: string;
   role: string;
@@ -76,6 +99,7 @@ export interface PendingJoinRisk {
 }
 
 export interface PendingEditView {
+  exact_range?: ExactRangeTarget | null;
   id: string;
   track_id: string;
   track_ids?: string[];
@@ -152,6 +176,7 @@ export interface CommentReply {
 }
 
 export interface TimelineComment {
+  timeline_spans?: TimelineSpan[];
   id: string;
   body: string;
   author: string;
@@ -353,6 +378,7 @@ export interface ProjectView {
 }
 
 export type Selection =
+  | { kind: "range"; target: ExactRangeTarget }
   | { kind: "clip"; id: string; trackId: string }
   | { kind: "pending"; id: string; trackId: string }
   /** `trackId` is omitted for a session-wide record (`track_ids: []`). */

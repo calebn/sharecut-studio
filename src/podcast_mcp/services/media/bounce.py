@@ -9,14 +9,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from podcast_mcp.config import load_defaults, mix_peak_ceiling_db
+from podcast_mcp.edits.range_edits import resolve_range
 from podcast_mcp.engines.timeline_render import timeline_duration_sec
 from podcast_mcp.export.audio import specs_from_extensions, write_audio_formats
 from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.models import Track, TrackRole
+from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.pipeline.helpers import ffmpeg
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.media.range_audio import append_range_gap
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.progress import raise_if_cancel_requested, resolve_progress_task
+from podcast_mcp.util.project_state import snapshot_project
 
 BOUNCE_CANCELLED = "Bounce cancelled"
 
@@ -29,6 +33,7 @@ class BounceRequest:
     start_s: float | None = None
     end_s: float | None = None
     formats: list[str] | None = None
+    exact_range: ExactRangeTarget | None = None
 
 
 _BOUNCEABLE_ROLES = (
@@ -104,7 +109,12 @@ class BounceService:
         if req.start_s is not None and req.end_s is not None and req.end_s <= req.start_s:
             raise ValueError("end_s must be greater than start_s")
 
-        wanted = set(req.track_ids) if req.track_ids is not None else None
+        if req.exact_range is not None:
+            if req.track_ids is not None or req.start_s is not None or req.end_s is not None:
+                raise ValueError("Exact range cannot be combined with track_ids or start/end")
+            resolve_range(project, req.exact_range)
+        ids = req.exact_range.track_ids if req.exact_range is not None else req.track_ids
+        wanted = set(ids) if ids is not None else None
         if wanted is not None:
             unknown = wanted - {t.id for t in project.tracks}
             if unknown:
@@ -122,10 +132,12 @@ class BounceService:
         cancel_check: Callable[[], bool] | None = None,
     ) -> list[Path]:
         req = req or BounceRequest()
-        tracks = self.validate(req)
+        with self.ws.transaction():
+            tracks = self.validate(req)
+            project = snapshot_project(self.ws.project)
+        tracks = [t for t in project.tracks if t.id in {track.id for track in tracks}]
 
         raise_if_cancel_requested(cancel_check, BOUNCE_CANCELLED)
-        project = self.ws.project
 
         out_dir = project.export_dir() / "bounces"
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -172,21 +184,34 @@ class BounceService:
                 prog.advance(1, message="Mix ready")
                 raise_if_cancel_requested(cancel_check, BOUNCE_CANCELLED)
                 source = mixed
-                start = float(req.start_s) if req.start_s is not None else 0.0
-                mixed_dur = float(eng.probe(mixed).duration_sec)
-                if req.end_s is not None:
-                    end = float(req.end_s)
-                else:
-                    extent = float(timeline_duration_sec(project) or 0.0)
-                    end = min(extent, mixed_dur) if extent > 0 else mixed_dur
-                needs_trim = start > 1e-3 or end < mixed_dur - 1e-3
-                if needs_trim:
-                    if end <= start:
-                        raise ValueError("end_s must be greater than start_s")
-                    prog.set_phase("trim", "Trimming bounce range…")
+                if req.exact_range is not None:
+                    prog.set_phase("trim", "Preparing selected intervals…")
+                    parts: list[Path] = []
+                    for index, interval in enumerate(req.exact_range.intervals):
+                        raise_if_cancel_requested(cancel_check, BOUNCE_CANCELLED)
+                        append_range_gap(eng, parts, stem_dir, index, req.exact_range.intervals)
+                        part = stem_dir / f"range-{index}.wav"
+                        eng.extract_segment(mixed, part, interval.start, interval.end)
+                        parts.append(part)
                     trimmed = out_dir / f".{stem_label}.trim.wav"
-                    eng.extract_segment(mixed, trimmed, start, end)
+                    eng.join_audio_parts(parts, trimmed)
                     source = trimmed
+                else:
+                    start = float(req.start_s) if req.start_s is not None else 0.0
+                    mixed_dur = float(eng.probe(mixed).duration_sec)
+                    if req.end_s is not None:
+                        end = float(req.end_s)
+                    else:
+                        extent = float(timeline_duration_sec(project) or 0.0)
+                        end = min(extent, mixed_dur) if extent > 0 else mixed_dur
+                    needs_trim = start > 1e-3 or end < mixed_dur - 1e-3
+                    if needs_trim:
+                        if end <= start:
+                            raise ValueError("end_s must be greater than start_s")
+                        prog.set_phase("trim", "Trimming bounce range…")
+                        trimmed = out_dir / f".{stem_label}.trim.wav"
+                        eng.extract_segment(mixed, trimmed, start, end)
+                        source = trimmed
                 prog.advance(1, message="Range ready")
                 raise_if_cancel_requested(cancel_check, BOUNCE_CANCELLED)
 

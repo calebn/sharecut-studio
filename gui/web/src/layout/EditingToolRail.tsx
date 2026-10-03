@@ -2,6 +2,7 @@ import { runPointerCommand } from "../commands/pointer";
 import { useBladeCut } from "../hooks/useBladeCut";
 import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
+import { CommandButton } from "../ui/CommandButton";
 import { EditingToolRailView } from "./EditingToolRailView";
 import { ToolModeToggle } from "./ToolModeToggle";
 
@@ -29,7 +30,12 @@ export function EditingToolRail() {
       error={error}
       bladeConfirmSec={bladeConfirmSec}
       trackIdsForCut={trackIdsForCut}
-      toolToggle={<ToolModeToggle compact />}
+      toolToggle={
+        <>
+          <ToolModeToggle compact />
+          <CommandButton commandId="range.arm">Select range</CommandButton>
+        </>
+      }
       onAddTrack={() => runPointerCommand("track.add")}
       onImport={() => runPointerCommand("media.import")}
       onCutAtPlayhead={() => runPointerCommand("edit.bladeCut")}

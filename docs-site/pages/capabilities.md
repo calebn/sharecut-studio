@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**104** capabilities · **88** Sharecut Studio commands · **54** keyed · **170** MCP tools · **17** skills on rows (+ **19** hub skills).
+**110** capabilities · **94** Sharecut Studio commands · **54** keyed · **170** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -115,6 +115,12 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Set clip fade | `edit.setClipFade` | `ArrowLeft` | `timeline.clip.fadeHandle` | — | — | — | — | time · none |
 | Set clip join | `edit.setClipJoin` | — (inspector select and join badge popover; no industry-standard key) | `inspector.clip.joinMode`, `timeline.join.badge` | `set_clip_join_tool` | `podcast edit set-clip-join` | — | — | time · none |
 | Find and replace transcript | `transcript.findReplace` | — (toolbar and command palette; no shortcut yet) | `transcript.findReplace` | — | — | — | yes | none · none |
+| Play range | `range.play` | — (Context action with explicit range selection) | `RangeActions` | — | — | — | — | none · none |
+| Cut range | `range.cut` | — (Context action with explicit range selection) | `RangeActions` | — | — | — | — | none · none |
+| Mute range | `range.mute` | — (Context action with explicit range selection) | `RangeActions` | — | — | — | — | none · none |
+| Comment on range | `range.comment` | — (Context action with explicit range selection) | `RangeActions` | — | — | — | — | none · none |
+| Bounce range | `range.bounce` | — (Context action with explicit range selection) | `RangeActions` | — | — | — | — | none · none |
+| Select a range | `range.arm` | — (Context action with explicit range selection) | `EditingToolRail`, `transport.menu` | — | — | — | — | none · none |
 
 ## Agent workflows
 

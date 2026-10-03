@@ -39,6 +39,7 @@ describe("BounceDialog", () => {
   beforeEach(() => {
     useDawStore.setState({
       bounceDialogOpen: false,
+      bounceRangeTarget: null,
       projectPath: "/tmp/ep.project.json",
       project: projectStub,
       selectedTrackIds: [],
@@ -130,4 +131,45 @@ describe("BounceDialog", () => {
       b1: "Bounced 2 file(s) to export/bounces/",
     });
   });
+});
+
+it("keeps an exact range preset when lane and transport selections change", async () => {
+  const user = userEvent.setup();
+  const target = {
+    kind: "exact_range" as const,
+    intervals: [
+      { start: 11, end: 12 },
+      { start: 14, end: 15 },
+    ],
+    track_ids: ["a"],
+    clips: [],
+    media_seals: { a: "seal" },
+  };
+  useDawStore.setState({
+    project: projectStub,
+    projectPath: "/tmp/ep.project.json",
+    bounceDialogOpen: true,
+    bounceRangeTarget: target,
+    selectedTrackIds: ["other"],
+    sessionRegion: { start_sec: 0, end_sec: 60 },
+  });
+  vi.mocked(startBounceJob).mockResolvedValue(bounceJobSnapshot);
+  vi.mocked(followExportJob).mockResolvedValue(["export/bounces/range.wav"]);
+  render(<BounceDialog />);
+  expect(screen.queryByText("Entire mix")).toBeNull();
+  expect(screen.getByText(/11.00–12.00 s/)).toBeTruthy();
+  await user.click(screen.getByRole("checkbox", { name: /MP3/ }));
+  await user.click(screen.getByRole("button", { name: "Bounce" }));
+  await waitFor(() =>
+    expect(startBounceJob).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/ep.project.json",
+      {
+        track_ids: null,
+        start_s: null,
+        end_s: null,
+        formats: ["wav", "mp3"],
+        exact_range: target,
+      },
+    ),
+  );
 });

@@ -13,7 +13,13 @@ from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_valid
 
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.edits.decisions import PendingEditBaseline
-from podcast_mcp.models.episode import FADER_MAX_DB, FADER_MIN_DB, ClipJoinMode, ExactRangeTarget
+from podcast_mcp.models.episode import (
+    FADER_MAX_DB,
+    FADER_MIN_DB,
+    ClipJoinMode,
+    ExactRangeTarget,
+    RangeInterval,
+)
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
 from podcast_mcp.util.text import has_meaningful_text
 
@@ -50,6 +56,7 @@ class PasteExtract(BaseModel):
 
 
 class AddCommentPayload(BaseModel):
+    timeline_spans: list[RangeInterval] | None = Field(default=None, max_length=1000)
     body: str = Field(max_length=COMMENT_BODY_MAX)
     author: str
     timeline_start: float

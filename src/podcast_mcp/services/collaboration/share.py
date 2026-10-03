@@ -1416,9 +1416,12 @@ def share_add_comment(
     author: str,
     timeline_start: float,
     timeline_end: float | None = None,
+    timeline_spans: list[dict[str, float]] | None = None,
     edit_decision_id: str | None = None,
     track_ids: list[str] | None = None,
 ) -> dict[str, Any]:
+    from podcast_mcp.models.episode import RangeInterval
+
     row, ws = open_share_workspace(token)
     if not has_capability(row.get("capabilities"), "comment"):
         raise PermissionError("share does not allow comments")
@@ -1429,6 +1432,7 @@ def share_add_comment(
             author=author,
             timeline_start=timeline_start,
             timeline_end=timeline_end,
+            timeline_spans=[RangeInterval.model_validate(r) for r in timeline_spans or []],
             edit_decision_id=edit_decision_id,
             track_ids=track_ids,
             review_version_id=row["review_version_id"],

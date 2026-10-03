@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService
 
@@ -17,6 +18,7 @@ def add_comment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         author=p["author"],
         timeline_start=float(p["timeline_start"]),
         timeline_end=p.get("timeline_end"),
+        timeline_spans=[RangeInterval.model_validate(r) for r in p.get("timeline_spans") or []],
         track_ids=p.get("track_ids"),
         action_texts=p.get("action_texts"),
         edit_decision_id=p.get("edit_decision_id"),

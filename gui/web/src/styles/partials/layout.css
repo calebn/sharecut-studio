@@ -1209,3 +1209,87 @@
     padding: 0;
   }
 }
+
+.range-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-bg-raised);
+  border-block-end: 1px solid var(--border);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-ui);
+}
+
+.range-actions p {
+  margin: 0;
+}
+
+.range-summary {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.range-action-buttons,
+.range-numeric,
+.range-numeric fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.range-action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-inline-size: 16rem;
+}
+
+.range-action small {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.range-numeric label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.range-numeric input[type="number"] {
+  inline-size: 6rem;
+}
+
+.range-numeric fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.range-numeric legend {
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+.range-overlay {
+  block-size: 100%;
+  background: var(--color-selection-subtle);
+  border-inline-color: var(--color-selection);
+}
+
+[data-range-armed] .lane-seek,
+[data-range-armed] .clip-block {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.range-actions--sheet {
+  padding: var(--space-4);
+}
+
+.range-actions--sheet .btn {
+  min-block-size: 2.75rem;
+}

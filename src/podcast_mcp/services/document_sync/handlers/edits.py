@@ -17,7 +17,7 @@ def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 
 def reject_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     ids = list(p["ids"])
-    count = EditService(ws).reject(ids)
+    count = EditService(ws).reject(ids, allow_exact=p.get("_allow_exact") is True)
     return {"count": count}
 
 
@@ -198,10 +198,12 @@ def ripple_delete_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, An
 def edit_selected_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     from podcast_mcp.models.episode import ExactRangeTarget
 
-    return EditService(ws).edit_selected_range(
-        ExactRangeTarget.model_validate(p["target"]),
-        p["action"],
-        propose=p.get("_range_policy") != "host_apply",
-        reason=p.get("_range_reason", "agent:range"),
-        action_id=p["_action_id"],
+    return dict(
+        EditService(ws).edit_selected_range(
+            ExactRangeTarget.model_validate(p["target"]),
+            p["action"],
+            propose=p.get("_range_policy") != "host_apply",
+            reason=p.get("_range_reason", "agent:range"),
+            action_id=p["_action_id"],
+        )
     )

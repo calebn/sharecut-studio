@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request
 from filelock import Timeout
+from pydantic import BaseModel
 
+from podcast_mcp.edits.range_edits import RangeChangedError
 from podcast_mcp.edits.transcript_refine_status import TranscriptRefineRequiredError
 from podcast_mcp.gui.routes.deps import (
     peer_host,
@@ -17,6 +19,7 @@ from podcast_mcp.gui.routes.deps import (
 )
 from podcast_mcp.gui.routes.project import pin_served_if_allowed
 from podcast_mcp.gui.schemas import DocumentCommandRequest
+from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.document_sync import (
     DocumentConflictError,
     DocumentSyncService,
@@ -108,3 +111,31 @@ def post_document_command(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+class RangeAudioInput(BaseModel):
+    model_config = {"extra": "forbid"}
+    target: ExactRangeTarget
+    action: Literal["play"] = "play"
+
+
+@router.post("/api/range-audio")
+def range_audio(
+    body: RangeAudioInput,
+    request: Request,
+    path: str = Query(...),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+):
+    from podcast_mcp.gui.audio import pinned_audio_response
+    from podcast_mcp.gui.routes.deps import require_host
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import PlayService
+
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    ws = ProjectWorkspace.open(resolve_project(path, request))
+    try:
+        audio = PlayService(ws).play_selected_range(body.target)
+        return pinned_audio_response(audio, media_type="audio/wav", filename=audio.name)
+    except RangeChangedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

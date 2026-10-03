@@ -143,7 +143,7 @@ def edit_reject_cmd(
     ids: str = typer.Option(..., "--ids", help="Comma-separated edit ids"),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    n = EditService(ws).reject([x.strip() for x in ids.split(",") if x.strip()])
+    n = EditService(ws).reject([x.strip() for x in ids.split(",") if x.strip()], allow_exact=True)
     typer.echo(f"Removed {n} edit(s).")
 
 

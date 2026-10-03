@@ -48,6 +48,7 @@ from podcast_mcp.engines.transcript_gated_play import (
     word_intervals,
 )
 from podcast_mcp.models import EpisodeProject, Track, TrackRole
+from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
@@ -1483,6 +1484,34 @@ class PlayService:
             end_sec=req.end_sec,
         )
 
+    def play_selected_range(
+        self, target: ExactRangeTarget, *, full_mix_path: Path | None = None
+    ) -> Path:
+        from podcast_mcp.edits.range_edits import resolve_range
+        from podcast_mcp.services.media import render_range_audio
+
+        with self.ws.transaction() as project:
+            target = resolve_range(project, target)
+            current = snapshot_project(project)
+        digest = short_digest(json.dumps(target.model_dump(mode="json"), sort_keys=True))
+        context = "full-mix" if full_mix_path is not None else "selected-tracks"
+        output = (
+            self._play_cache_dir() / f"selected-range-{context}-{digest}-{secrets.token_hex(8)}.wav"
+        )
+        render_atomic(
+            output,
+            lambda temporary: render_range_audio(
+                current, target, temporary, full_mix_path=full_mix_path
+            ),
+        )
+        self._mark_play_cache_used(output)
+        return output
+
+    def _require_pending_preview_source(self, edit_id: str, source: str) -> None:
+        edit = next((e for e in self.project.edit_decisions if e.id == edit_id), None)
+        if edit is not None and edit.exact_range is not None and source != "premix":
+            raise ValueError("Exact range previews use the full mix. Choose source='premix'.")
+
     def play_pending_preview(
         self,
         edit_id: str,
@@ -1499,6 +1528,7 @@ class PlayService:
         kind = (mode or "suggested").strip().lower()
         if kind not in {"current", "suggested", "ab"}:
             raise ValueError("mode must be current, suggested, or ab")
+        self._require_pending_preview_source(edit_id, source)
         window = resolve_pending_preview(self.project, edit_id, pad_sec=pad_sec)
         if kind != "current" and not window.can_skip:
             raise ValueError(window.skip_reason or "suggested preview unavailable")
@@ -1570,6 +1600,7 @@ class PlayService:
         kind = (mode or "suggested").strip().lower()
         if kind not in {"current", "suggested", "ab"}:
             raise ValueError("mode must be current, suggested, or ab")
+        self._require_pending_preview_source(edit_id, source)
         window = resolve_pending_preview(self.project, edit_id, pad_sec=pad_sec)
         if kind != "current" and not window.can_skip:
             raise ValueError(window.skip_reason or "suggested preview unavailable")
@@ -1615,6 +1646,19 @@ class PlayService:
             f"{window.timeline_start:.3f}:{window.timeline_end:.3f}:"
             f"{window.play_end:.3f}:{source}:{mtime}"
         )
+        edit = next((e for e in self.project.edit_decisions if e.id == window.edit_id), None)
+        if edit is not None and edit.exact_range is not None:
+            key += json.dumps(
+                {
+                    "edit": edit.model_dump(mode="json"),
+                    "tracks": [
+                        (t.id, track_render_hash(self.project, t.id), t.output_gain_db, t.muted)
+                        for t in self.project.tracks
+                    ],
+                    "defaults": self._defaults,
+                },
+                sort_keys=True,
+            )
         digest = short_digest(key)
         out_dir = self.project.artifacts_dir() / "play_cache"
         path = out_dir / f"pending_suggested_{digest}.wav"

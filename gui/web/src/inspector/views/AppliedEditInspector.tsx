@@ -24,7 +24,8 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
     rec.source_end != null &&
     rec.timeline_start != null &&
     rec.timeline_end != null;
-  const canRestore = mayRestore && hasSourceClocks;
+  const exact = rec.operation === "edit_selected_range";
+  const canRestore = mayRestore && hasSourceClocks && !exact;
 
   const onRestore = async () => {
     await run(async () => {
@@ -84,7 +85,11 @@ export function AppliedEditInspector({ rec }: { rec: AppliedEditRecord }) {
             {rec.timeline_start.toFixed(3)} – {rec.timeline_end?.toFixed(3)} s
           </DefItem>
         ) : null}
-        {!canRestore ? (
+        {exact ? (
+          <DefItem label="Restore">
+            Use History Undo to restore the whole range action.
+          </DefItem>
+        ) : !canRestore ? (
           <DefItem label="Restore">
             {mayRestore
               ? "Unavailable (no source clocks). Use History undo"

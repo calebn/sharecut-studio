@@ -39,6 +39,7 @@ import { useClipEdgeHandles } from "./useClipEdgeHandles";
 import { WaveformLayer } from "./WaveformLayer";
 
 export interface ClipBlockProps {
+  onRangeGesture?: import("./useRangeGesture").RangeGesture;
   clip: ClipRow;
   trackId: string;
   role: string;
@@ -112,6 +113,7 @@ type RollDrag = {
 };
 
 type BodyDrag = {
+  rangeCandidate: boolean;
   pointerId: number;
   originX: number;
   originY: number;
@@ -152,6 +154,7 @@ export function ClipBlockLive({
   onMovePreview,
   onMoveCommit,
   onMoveCancel,
+  onRangeGesture,
 }: ClipBlockProps) {
   const editable = useDawStore(
     (s) =>
@@ -363,14 +366,16 @@ export function ClipBlockLive({
       mod: e.metaKey || e.ctrlKey,
     };
     const wasSelected = selected;
-    if (wasSelected) {
-      onSelect(clip.id);
-    } else {
-      onSelectClip?.(clip.id, mods);
+    const rangeCandidate = e.shiftKey && Boolean(onRangeGesture);
+    if (!rangeCandidate) {
+      if (wasSelected) onSelect(clip.id);
+      else onSelectClip?.(clip.id, mods);
     }
-    if (!canMove || useDawStore.getState().joinMutationInFlight) {
+    if (
+      (!canMove && !rangeCandidate) ||
+      useDawStore.getState().joinMutationInFlight
+    )
       return;
-    }
     e.preventDefault();
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -379,6 +384,7 @@ export function ClipBlockLive({
     }
     bodyMovedRef.current = false;
     bodyRef.current = {
+      rangeCandidate,
       pointerId: e.pointerId,
       originX: e.clientX,
       originY: e.clientY,
@@ -400,6 +406,12 @@ export function ClipBlockLive({
       }
       d.started = true;
       bodyMovedRef.current = true;
+      if (d.rangeCandidate)
+        onRangeGesture?.("start", { clientX: d.originX, clientY: d.originY });
+    }
+    if (d.rangeCandidate) {
+      onRangeGesture?.("move", e);
+      return;
     }
     onMovePreview?.(clip.id, {
       deltaSec: (e.clientX - d.originX) / zoomPxPerSec,
@@ -415,6 +427,12 @@ export function ClipBlockLive({
       return;
     }
     bodyRef.current = null;
+    if (d.rangeCandidate) {
+      (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+      if (d.started) onRangeGesture?.(cancelled ? "cancel" : "end", e);
+      else if (!cancelled) onSelectClip?.(clip.id, d.mods);
+      return;
+    }
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch {

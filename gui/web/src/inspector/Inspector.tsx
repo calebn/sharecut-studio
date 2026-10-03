@@ -49,6 +49,8 @@ export function Inspector() {
   }
 
   switch (selection.kind) {
+    case "range":
+      return null;
     case "clip": {
       const clip = Object.values(project.clips.tracks)
         .flat()

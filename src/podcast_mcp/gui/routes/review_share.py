@@ -27,6 +27,7 @@ from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewPro
 from podcast_mcp.gui.audio import pinned_audio_response
 from podcast_mcp.gui.routes.boundary import BoundaryContextInput
 from podcast_mcp.gui.routes.deps import project_busy_from_timeout, project_busy_http_error
+from podcast_mcp.gui.routes.document import RangeAudioInput
 from podcast_mcp.gui.routes.guest_ws_common import (
     GUEST_MALFORMED_LIMIT,
     GuestWsGuard,
@@ -121,6 +122,7 @@ _GUEST_CLIENT_SUFFIX_RE = re.compile(r"[^A-Za-z0-9_-]")
 
 
 class ShareCommentRequest(BaseModel):
+    timeline_spans: list[dict[str, float]] | None = Field(default=None, max_length=1000)
     body: str = Field(max_length=COMMENT_BODY_MAX)
     author: str
     timeline_start: float
@@ -657,6 +659,7 @@ def post_review_comment(token: str, req: ShareCommentRequest) -> dict[str, Any]:
             author=req.author,
             timeline_start=req.timeline_start,
             timeline_end=req.timeline_end,
+            timeline_spans=req.timeline_spans,
             edit_decision_id=req.edit_decision_id,
             track_ids=req.track_ids,
         )
@@ -1133,3 +1136,25 @@ async def daw_ws(
                         )
                 finally:
                     conn.release()
+
+
+@router.post("/api/review/{token}/daw/range-audio")
+def guest_range_audio(token: str, body: RangeAudioInput):
+    _check_token(token)
+    _rate_limit(token, "read")
+    try:
+        _row, ws = require_share_cap(token, CAP_VIEW)
+        from podcast_mcp.services.document import PlayService
+
+        mix = share_daw_audio_path(token, kind="premix")
+        audio = PlayService(ws).play_selected_range(body.target, full_mix_path=mix)
+        return _audio_file_response(
+            token,
+            audio,
+            media_type="audio/wav",
+            filename="selected-range.wav",
+            content_disposition_type="inline",
+            cache_audio=False,
+        )
+    except Exception as exc:
+        raise _map_share_exc(exc) from exc

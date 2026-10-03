@@ -1122,7 +1122,9 @@ class FFmpegEngine:
         peaks = _SUMMARY_TRUE_PEAK_RE.findall(r.stderr or "")
         return float(peaks[-1]) if peaks else None
 
-    def silence(self, output_path: Path, duration_sec: float) -> Path:
+    def silence(
+        self, output_path: Path, duration_sec: float, *, sample_rate: int = 48000, channels: int = 2
+    ) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         run(
             [
@@ -1131,7 +1133,7 @@ class FFmpegEngine:
                 "-f",
                 "lavfi",
                 "-i",
-                "anullsrc=r=48000:cl=stereo",
+                f"anullsrc=r={sample_rate}:cl={channels}c",
                 "-t",
                 str(duration_sec),
                 "-c:a",

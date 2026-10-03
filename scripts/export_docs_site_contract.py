@@ -35,6 +35,10 @@ REMOTE_END = "<!-- /remote-mcp-tools:generated -->"
 # (+ remote MCP mounts). Every /api/rec/ and /api/review/ HTTP or WS route
 # must have a note — schema-check fails without one.
 _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
+    ("POST", "/api/review/{token}/daw/range-audio"): (
+        "play",
+        "Exact timeline islands from the full mix, with silent gaps. Never isolated stems.",
+    ),
     ("GET", "/api/review/{token}/project"): ("view", "Legacy ReviewApp project JSON"),
     ("GET", "/api/review/{token}/features"): ("view", "Extension / feature manifest"),
     ("GET", "/api/review/{token}/audio"): ("play", "ReviewApp frozen mix"),
@@ -147,6 +151,7 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
 
 # Named guest MCP twin, or ``http-only:`` reason (Sharecut Studio-only / no named MCP).
 _ROUTE_AGENT: dict[tuple[str, str], str] = {
+    ("POST", "/api/review/{token}/daw/range-audio"): "http-only: contextual range playback",
     ("GET", "/api/review/{token}/project"): "guest_get_review_summary",
     ("GET", "/api/review/{token}/features"): "http-only: extension manifest for Sharecut Studio",
     ("GET", "/api/review/{token}/audio"): "guest_audio_info",

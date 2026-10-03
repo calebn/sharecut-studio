@@ -19,6 +19,7 @@ export async function createComment(
     timelineStart: number;
     timelineEnd?: number | null;
     trackIds?: string[];
+    timelineSpans?: { start: number; end: number }[];
     actionTexts?: string[];
     editDecisionId?: string | null;
   },
@@ -35,6 +36,7 @@ export async function createComment(
         timeline_end: opts.timelineEnd ?? null,
         edit_decision_id: opts.editDecisionId ?? null,
         track_ids: opts.trackIds ?? [],
+        timeline_spans: opts.timelineSpans ?? null,
       }),
     });
     if (!res.ok) {
@@ -50,6 +52,7 @@ export async function createComment(
     timeline_start: opts.timelineStart,
     timeline_end: opts.timelineEnd ?? null,
     track_ids: opts.trackIds ?? [],
+    timeline_spans: opts.timelineSpans ?? null,
     action_texts: opts.actionTexts ?? [],
     edit_decision_id: opts.editDecisionId ?? null,
   });

@@ -4,6 +4,7 @@ import { Button, Dialog, InlineError } from "../ui";
 export type BounceSourceMode = "entire" | "selected" | "soloed";
 
 export type BounceDialogViewProps = {
+  rangeSummary?: string;
   open: boolean;
   onClose: () => void;
   source: BounceSourceMode;
@@ -27,6 +28,7 @@ export type BounceDialogViewProps = {
  */
 export function BounceDialogView(props: BounceDialogViewProps) {
   const {
+    rangeSummary,
     open,
     onClose,
     source,
@@ -52,49 +54,58 @@ export function BounceDialogView(props: BounceDialogViewProps) {
       panelClassName="bounce-dialog-panel"
     >
       <div className="bounce-dialog-body">
-        <fieldset className="bounce-dialog-fieldset">
-          <legend>Source</legend>
-          <label>
-            <input
-              type="radio"
-              name={sourceName}
-              checked={source === "entire"}
-              onChange={() => onSourceChange("entire")}
-            />
-            <span>Entire mix</span>
-          </label>
-          <label>
-            <input
-              type="radio"
-              name={sourceName}
-              checked={source === "selected"}
-              onChange={() => onSourceChange("selected")}
-            />
-            <span>Selected tracks ({selectedCount})</span>
-          </label>
-          <label>
-            <input
-              type="radio"
-              name={sourceName}
-              checked={source === "soloed"}
-              onChange={() => onSourceChange("soloed")}
-            />
-            <span>Soloed tracks ({soloCount})</span>
-          </label>
-        </fieldset>
+        {rangeSummary ? (
+          <p>
+            Selected range · {rangeSummary}. This selection is fixed for this
+            export.
+          </p>
+        ) : (
+          <fieldset className="bounce-dialog-fieldset">
+            <legend>Source</legend>
+            <label>
+              <input
+                type="radio"
+                name={sourceName}
+                checked={source === "entire"}
+                onChange={() => onSourceChange("entire")}
+              />
+              <span>Entire mix</span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name={sourceName}
+                checked={source === "selected"}
+                onChange={() => onSourceChange("selected")}
+              />
+              <span>Selected tracks ({selectedCount})</span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name={sourceName}
+                checked={source === "soloed"}
+                onChange={() => onSourceChange("soloed")}
+              />
+              <span>Soloed tracks ({soloCount})</span>
+            </label>
+          </fieldset>
+        )}
         <div className="bounce-dialog-options">
-          <label className="bounce-dialog-check">
-            <input
-              type="checkbox"
-              checked={useRegion}
-              disabled={!hasRegion}
-              onChange={(e) => onUseRegionChange(e.target.checked)}
-            />
-            <span>
-              Limit to session region
-              {!hasRegion ? " (no region set)" : ""}
-            </span>
-          </label>
+          {!rangeSummary ? (
+            <label className="bounce-dialog-check">
+              <input
+                type="checkbox"
+                checked={useRegion}
+                disabled={!hasRegion}
+                onChange={(e) => onUseRegionChange(e.target.checked)}
+              />
+              <span>
+                Limit to session region
+                {!hasRegion ? " (no region set)" : ""}
+              </span>
+            </label>
+          ) : null}
           <label className="bounce-dialog-check">
             <input
               type="checkbox"
