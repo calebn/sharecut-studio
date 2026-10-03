@@ -830,8 +830,8 @@ test.describe("remaining editor workloads (opt-in)", () => {
             expect(generatedRefs.length).toBeGreaterThanOrEqual(
               resources.media.length,
             );
-            expect(tileResponses).toBeGreaterThan(0);
             await expectPaintedWaveformTile(page);
+            expect(tileResponses).toBeGreaterThan(0);
             return {
               kind: "waveform",
               initialPyramidCount: 0,
