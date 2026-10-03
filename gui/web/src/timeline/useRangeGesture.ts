@@ -1,4 +1,4 @@
-import { type PointerEvent, type RefObject, useRef } from "react";
+import { type PointerEvent, type RefObject, useCallback, useRef } from "react";
 import { makeRangeTarget } from "../edit/rangeSelection";
 import { useDawStore } from "../state/dawStore";
 import type { ProjectView, Selection } from "../types/project";
@@ -24,7 +24,7 @@ export function useRangeGesture(
     pointerId: number | null;
   } | null>(null);
   const suppressClick = useRef(false);
-  function cancel() {
+  const cancel = useCallback(() => {
     const active = draft.current;
     draft.current = null;
     const state = useDawStore.getState();
@@ -34,88 +34,91 @@ export function useRangeGesture(
       active.painted === state.selection
     )
       state.setSelection(active.previous);
-  }
-  const gesture: RangeGesture = (stage, point) => {
-    const state = useDawStore.getState();
-    if (
-      stage === "cancel" ||
-      state.joinMutationInFlight ||
-      state.toolMode !== "select"
-    ) {
-      cancel();
-      return;
-    }
-    const lanes = lanesRef.current;
-    if (!lanes || !state.project) return;
-    if (stage === "start") {
-      draft.current = {
-        origin: point,
-        project: state.project,
-        previous: state.selection,
-        drawing: false,
-        epoch: state.projectEpoch,
-        painted: state.selection,
-        pointerId: null,
-      };
-      return;
-    }
-    const active = draft.current;
-    if (!active) return;
-    if (
-      active.epoch !== state.projectEpoch ||
-      (active.drawing && state.selection !== active.painted)
-    ) {
-      draft.current = null;
-      return;
-    }
-    if (
-      Math.hypot(
-        point.clientX - active.origin.clientX,
-        point.clientY - active.origin.clientY,
-      ) < 4 &&
-      !active.drawing
-    ) {
-      if (stage === "end") draft.current = null;
-      return;
-    }
-    const rect = lanes.getBoundingClientRect();
-    const start = Math.max(
-      0,
-      Math.min(
-        duration,
-        (Math.min(active.origin.clientX, point.clientX) - rect.left) / zoom,
-      ),
-    );
-    const end = Math.max(
-      0,
-      Math.min(
-        duration,
-        (Math.max(active.origin.clientX, point.clientX) - rect.left) / zoom,
-      ),
-    );
-    const top = Math.min(active.origin.clientY, point.clientY),
-      bottom = Math.max(active.origin.clientY, point.clientY);
-    const ids = [
-      ...lanes.querySelectorAll<HTMLElement>(".lane-row[data-track-id]"),
-    ]
-      .filter((lane) => {
-        const r = lane.getBoundingClientRect();
-        return r.bottom > top && r.top <= bottom;
-      })
-      .map((lane) => lane.dataset.trackId!)
-      .filter(Boolean);
-    const target = makeRangeTarget(active.project, [{ start, end }], ids);
-    if (target) {
-      active.drawing = true;
-      active.painted = { kind: "range", target };
-      state.setSelection(active.painted);
-      suppressClick.current = true;
-    }
-    if (stage === "end") {
-      draft.current = null;
-      state.setRangeArmed(false);
-    }
-  };
+  }, []);
+  const gesture = useCallback<RangeGesture>(
+    (stage, point) => {
+      const state = useDawStore.getState();
+      if (
+        stage === "cancel" ||
+        state.joinMutationInFlight ||
+        state.toolMode !== "select"
+      ) {
+        cancel();
+        return;
+      }
+      const lanes = lanesRef.current;
+      if (!lanes || !state.project) return;
+      if (stage === "start") {
+        draft.current = {
+          origin: point,
+          project: state.project,
+          previous: state.selection,
+          drawing: false,
+          epoch: state.projectEpoch,
+          painted: state.selection,
+          pointerId: null,
+        };
+        return;
+      }
+      const active = draft.current;
+      if (!active) return;
+      if (
+        active.epoch !== state.projectEpoch ||
+        (active.drawing && state.selection !== active.painted)
+      ) {
+        draft.current = null;
+        return;
+      }
+      if (
+        Math.hypot(
+          point.clientX - active.origin.clientX,
+          point.clientY - active.origin.clientY,
+        ) < 4 &&
+        !active.drawing
+      ) {
+        if (stage === "end") draft.current = null;
+        return;
+      }
+      const rect = lanes.getBoundingClientRect();
+      const start = Math.max(
+        0,
+        Math.min(
+          duration,
+          (Math.min(active.origin.clientX, point.clientX) - rect.left) / zoom,
+        ),
+      );
+      const end = Math.max(
+        0,
+        Math.min(
+          duration,
+          (Math.max(active.origin.clientX, point.clientX) - rect.left) / zoom,
+        ),
+      );
+      const top = Math.min(active.origin.clientY, point.clientY),
+        bottom = Math.max(active.origin.clientY, point.clientY);
+      const ids = [
+        ...lanes.querySelectorAll<HTMLElement>(".lane-row[data-track-id]"),
+      ]
+        .filter((lane) => {
+          const r = lane.getBoundingClientRect();
+          return r.bottom > top && r.top <= bottom;
+        })
+        .map((lane) => lane.dataset.trackId!)
+        .filter(Boolean);
+      const target = makeRangeTarget(active.project, [{ start, end }], ids);
+      if (target) {
+        active.drawing = true;
+        active.painted = { kind: "range", target };
+        state.setSelection(active.painted);
+        suppressClick.current = true;
+      }
+      if (stage === "end") {
+        draft.current = null;
+        state.setRangeArmed(false);
+      }
+    },
+    [cancel, duration, lanesRef, zoom],
+  );
   return {
     gesture,
     captureDown(event: PointerEvent<HTMLDivElement>) {
