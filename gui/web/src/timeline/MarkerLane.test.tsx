@@ -1,6 +1,6 @@
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { updateSocialClip } from "../api";
+import { updateChapter, updateSocialClip } from "../api";
 import {
   PRESENCE_ANCHOR_ATTR,
   resolvePresenceAnchor,
@@ -22,6 +22,7 @@ import type { MarkerRows } from "./timelineMetrics";
 
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
+  updateChapter: vi.fn(async () => undefined),
   updateSocialClip: vi.fn(async () => undefined),
 }));
 
@@ -136,6 +137,34 @@ describe("MarkerLane", () => {
       container.querySelector(".marker-lane.empty"),
     );
   });
+
+  it.each(["chapter", "social"])(
+    "does not carry an identical %s marker gesture into another project",
+    (kind) => {
+      vi.mocked(updateChapter).mockClear();
+      vi.mocked(updateSocialClip).mockClear();
+      const view = renderLane({
+        chapters: true,
+        social: true,
+        comments: false,
+        clipping: false,
+      });
+      const marker = view.container.querySelector(`.${kind}-marker`)!;
+      fireEvent.pointerDown(marker, { pointerId: 1, clientX: 100 });
+      fireEvent.pointerMove(marker, { pointerId: 1, clientX: 130 });
+      act(() =>
+        useDawStore.getState().hydrate("/tmp/other.json", minimalProject()),
+      );
+      const current = view.container.querySelector(`.${kind}-marker`)!;
+      fireEvent.pointerMove(current, { pointerId: 1, clientX: 150 });
+      fireEvent.pointerUp(current, { pointerId: 1, clientX: 150 });
+      expect(updateChapter).not.toHaveBeenCalled();
+      expect(updateSocialClip).not.toHaveBeenCalled();
+      expect((current as HTMLElement).style.left).toBe(
+        kind === "chapter" ? "8px" : "10px",
+      );
+    },
+  );
 
   it("centers point markers with the row height constant", () => {
     const { container } = renderLane({
@@ -313,6 +342,155 @@ describe("MarkerLaneView", () => {
     expect(onMoveChapter).not.toHaveBeenCalled();
     fireEvent.click(chapter);
     expect(onSelectChapter).toHaveBeenCalledWith(chapters[0]);
+  });
+
+  it.each(["Escape", "cancel", "lostcapture", "blur", "unmount"])(
+    "restores an owned chapter preview on %s and stops held input",
+    (interruption) => {
+      const view = renderView();
+      const chapter = view.container.querySelector(
+        ".chapter-marker",
+      ) as HTMLElement;
+      fireEvent.pointerDown(chapter, { pointerId: 1, clientX: 100 });
+      fireEvent.pointerMove(chapter, { pointerId: 1, clientX: 130 });
+      expect(chapter.style.left).toBe("38px");
+      if (interruption === "Escape")
+        fireEvent.keyDown(chapter, { key: "Escape" });
+      else if (interruption === "cancel")
+        fireEvent.pointerCancel(chapter, { pointerId: 1 });
+      else if (interruption === "lostcapture")
+        fireEvent.lostPointerCapture(chapter, { pointerId: 1 });
+      else if (interruption === "blur") fireEvent.blur(chapter);
+      else view.unmount();
+      expect(chapter.style.left).toBe("8px");
+      fireEvent.pointerMove(chapter, { pointerId: 1, clientX: 150 });
+      fireEvent.pointerUp(chapter, { pointerId: 1, clientX: 150 });
+      expect(chapter.style.left).toBe("8px");
+      expect(view.onMoveChapter).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["Escape", "cancel", "lostcapture", "blur", "unmount"])(
+    "restores a social body preview on %s without a release mutation",
+    (interruption) => {
+      const view = renderView();
+      const marker = view.container.querySelector(
+        ".social-marker",
+      ) as HTMLElement;
+      vi.spyOn(marker, "getBoundingClientRect").mockReturnValue({
+        left: 0,
+        width: 100,
+      } as DOMRect);
+      fireEvent.pointerDown(marker, { pointerId: 1, clientX: 50 });
+      fireEvent.pointerMove(marker, { pointerId: 1, clientX: 80 });
+      expect(marker.style.left).toBe("40px");
+      if (interruption === "Escape")
+        fireEvent.keyDown(marker, { key: "Escape" });
+      else if (interruption === "cancel")
+        fireEvent.pointerCancel(marker, { pointerId: 1 });
+      else if (interruption === "lostcapture")
+        fireEvent.lostPointerCapture(marker, { pointerId: 1 });
+      else if (interruption === "blur") fireEvent.blur(marker);
+      else view.unmount();
+      expect(marker.style.left).toBe("10px");
+      expect(marker.style.width).toBe("24px");
+      fireEvent.pointerUp(marker, { pointerId: 1, clientX: 80 });
+      expect(view.onMoveSocial).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["chapter", "social"])(
+    "keeps %s owner isolated and restores a sub-threshold no-op",
+    (kind) => {
+      const view = renderView();
+      const marker = view.container.querySelector(
+        `.${kind}-marker`,
+      ) as HTMLElement;
+      const before = { left: marker.style.left, width: marker.style.width };
+      fireEvent.pointerDown(marker, {
+        pointerId: 7,
+        pointerType: "mouse",
+        button: 2,
+        clientX: 100,
+      });
+      fireEvent.pointerMove(marker, { pointerId: 7, clientX: 130 });
+      expect({ left: marker.style.left, width: marker.style.width }).toEqual(
+        before,
+      );
+      fireEvent.pointerDown(marker, { pointerId: 1, clientX: 100 });
+      fireEvent.pointerDown(marker, { pointerId: 2, clientX: 100 });
+      for (const event of [
+        fireEvent.pointerMove,
+        fireEvent.pointerUp,
+        fireEvent.pointerCancel,
+        fireEvent.lostPointerCapture,
+      ])
+        event(marker, { pointerId: 2, clientX: 130 });
+      expect({ left: marker.style.left, width: marker.style.width }).toEqual(
+        before,
+      );
+      fireEvent.pointerMove(marker, { pointerId: 1, clientX: 102 });
+      fireEvent.pointerUp(marker, { pointerId: 1, clientX: 102 });
+      expect({ left: marker.style.left, width: marker.style.width }).toEqual(
+        before,
+      );
+      expect(view.onMoveChapter).not.toHaveBeenCalled();
+      expect(view.onMoveSocial).not.toHaveBeenCalled();
+    },
+  );
+
+  it("preserves an externally updated social range and ends the old owner", () => {
+    const view = renderView();
+    const marker = view.container.querySelector(
+      ".social-marker",
+    ) as HTMLElement;
+    fireEvent.pointerDown(marker, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(marker, { pointerId: 1, clientX: 130 });
+    view.rerender(
+      <MarkerLaneView
+        chapters={chapters}
+        socialClips={[{ ...socialClips[0], start: 4, end: 8 }]}
+        comments={comments}
+        rows={allRows}
+        zoomPxPerSec={10}
+        width={400}
+        editable
+        onSelectChapter={vi.fn()}
+        onSelectSocial={vi.fn()}
+        onSelectComment={vi.fn()}
+        onMoveChapter={view.onMoveChapter}
+        onMoveSocial={view.onMoveSocial}
+      />,
+    );
+    expect(marker.style.left).toBe("40px");
+    expect(marker.style.width).toBe("40px");
+    fireEvent.pointerUp(marker, { pointerId: 1, clientX: 150 });
+    expect(view.onMoveSocial).not.toHaveBeenCalled();
+  });
+
+  it("restores a fractional chapter preview after platform CSS serialization", () => {
+    const prototype = Object.getPrototypeOf(
+      document.createElement("div").style,
+    );
+    const setter = Object.getOwnPropertyDescriptor(prototype, "left")!.set!;
+    vi.spyOn(prototype, "left", "set").mockImplementation(function (
+      this: CSSStyleDeclaration,
+      value: string,
+    ) {
+      setter.call(this, `${Number.parseFloat(value).toFixed(3)}px`);
+    });
+    const view = renderView({ zoomPxPerSec: 10 / 3 });
+    const chapter = view.container.querySelector(
+      ".chapter-marker",
+    ) as HTMLElement;
+    expect(chapter.style.left).toBe("-5.333px");
+    fireEvent.pointerDown(chapter, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(chapter, { pointerId: 1, clientX: 120 });
+    expect(chapter.style.left).toBe("14.667px");
+    fireEvent.keyDown(chapter, { key: "Escape" });
+    expect(chapter.style.left).toBe("-5.333px");
+    fireEvent.pointerUp(chapter, { pointerId: 1, clientX: 120 });
+    expect(view.onMoveChapter).not.toHaveBeenCalled();
   });
 
   it("commits an editable chapter drag through onMoveChapter", () => {

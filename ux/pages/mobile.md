@@ -58,6 +58,15 @@ The selection sheet groups actions in this order:
 2. **You might also want…** — related commands when available
 3. **More** — available clip Cut or track Move up/down actions, or a message when none are available
 
+Phone inspectors use Expand/Collapse for panel space. Desktop and tablet use a
+resize separator above the editor panels. Escape cancels its current preview and
+restores the previous panel preference, including the default when none was saved.
+These view changes do not add project History.
+
+Escape also cancels an active clip body or chapter/social marker preview.
+Canceled pointer ownership cannot save on later held movement or release.
+Completed edits retain their existing command and Undo behavior.
+
 Use Close or Escape to dismiss an inspector sheet. Tap outside a confirmation
 sheet to dismiss it. Audition modes and export controls are in the compact
 transport Menu on Timeline, Text, or More.

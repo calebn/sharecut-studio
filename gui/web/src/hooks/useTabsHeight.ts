@@ -96,6 +96,7 @@ export function initTabsHeight(): number | null {
     return null;
   }
   const rem = clampTabsHeightRem(stored, availableBelowChromePx());
+  if (rem !== stored) writeStoredRem(rem);
   applyTabsHeight(rem);
   return rem;
 }

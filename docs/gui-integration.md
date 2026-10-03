@@ -183,6 +183,26 @@ Any HTTP route that does not map `project_commit_lock` / `render_lock` contentio
 
 Focused timeline fade and trim handles accept Left/Right arrows through the shared command bus. Fade steps are 1 ms (Shift 10 ms); trim steps are 10 ms (Shift 100 ms), without snapping. Right grows fade-in, Left grows fade-out; Right advances either source boundary. Holding a key previews repeated steps and releasing that arrow saves once, so one Undo restores the gesture. Normal blur also saves; Escape, pointer cancellation, unmount, or changed project/clip geometry discards the preview. An in-flight save blocks another handle gesture. Fades preserve the opposite edge and clamp to the track cap and remaining clip length; trims preserve minimum span and neighbor bounds. A handle that retains native focus after a project reload edits the fresh clip. Removing the focused handle releases keyboard ownership. Arrow keys outside a focused handle retain playhead navigation.
 
+### Pointer draft ownership
+
+A clip body keeps its existing pointer selection and focus policy. Its key
+handler exists only for the admitted pointer gesture: Escape cancels it;
+arrow, endpoint and activation keys stay local until release. Every terminal
+path removes the handler. This is the component Escape exception to keyboard
+listener governance and dispatches no global command. Timeline admission permits
+one body owner, and move/range cancellation checks its own draft before clearing
+shared preview state. Chapter and social marker keys remain on their focused
+buttons. Project path and epoch key their marker lifetime, so an identical
+marker in another project cannot inherit a held gesture. Cancellation compares
+the actual serialized painted geometry. These previews create no document
+History.
+
+The panel separator reports measured height to assistive technology even when
+CSS chooses the responsive default and its preference remains unset. Its title
+exposes arrows, Shift for larger steps, Escape cancellation and Enter reset.
+The measured pointer strip remains 10 px high; keyboard resizing is the available
+alternative, and physical touch comfort remains a manual validation gap.
+
 ### Clip join fields
 
 `list_clips` / the project view give every clip row the effective render of its incoming join as flat fields: `join_left_clip_id` (null for a track's first clip), `join_render_mode`, `join_crossfade_ms` and `join_crossfade_blocked` (`not_abutting` | `no_fade_out` | `no_fade_in`). They come from `edits/clips_ops.py` (`join_render_fields`, the same functions render uses), so the inspector states what render will do. The inspector's Join control and the timeline join popover set a join with the `SetClipJoin` document command (mode plus both fades, one undo step); `SetJoinMode` changes the mode only and returns the same `join_*` fields, so a caller sees when a crossfade has nothing to blend.
@@ -468,7 +488,7 @@ candidate window on each tick, including backward seeks. Results keep transcript
 row order and use the shared active predicates for overlapping speakers, split
 spans, and instant words. A long overlapping row can still widen that window.
 
-**Tools:** Select / Blade / Comment are exclusive icon tools in the transport (pointer / razor / bubble cursors on the time column). Fit (session width), Fit tracks to window height (wide bar only) and Menu stay as icon actions. Host **Menu → Share…** opens the share dialog (`ShareService` list/create/revoke; FOSS collaboration extension). With no review mix yet, Create link publishes **Share mix** first. A stale premix returns the typed `stale_mix` conflict; **Refresh mix** runs the existing render job command and retries the captured create request only after successful completion. Stale-master errors explain that re-mastering is required ([share-tokens.md § Operator quick path](share-tokens.md#operator-quick-path)). Desktop/tablet bottom Transcript–Pipeline tabs are drag-resizable (`role="separator"`, `ns-resize`, persisted as `sharecut.tabsHeight`); double-click resets to the CSS default. The sticky track-header column stretches to the timeline well floor (surface plane under empty space below the last track).
+**Tools:** Select / Blade / Comment are exclusive icon tools in the transport (pointer / razor / bubble cursors on the time column). Fit (session width), Fit tracks to window height (wide bar only) and Menu stay as icon actions. Host **Menu → Share…** opens the share dialog (`ShareService` list/create/revoke; FOSS collaboration extension). With no review mix yet, Create link publishes **Share mix** first. A stale premix returns the typed `stale_mix` conflict; **Refresh mix** runs the existing render job command and retries the captured create request only after successful completion. Stale-master errors explain that re-mastering is required ([share-tokens.md § Operator quick path](share-tokens.md#operator-quick-path)). Desktop/tablet bottom Transcript–Pipeline tabs are drag-resizable (`role="separator"`, `ns-resize`, persisted as `sharecut.tabsHeight`). The owning pointer previews clamped height; release retains it. Escape, owner cancellation or lost capture, focus departure and unmount restore the prior preference while the preview still owns that value. An unset default stays unset after cancellation or a gesture returning to its origin. A newer independent resize remains intact. Finite stored heights outside current viewport bounds are normalized on initialization. During pointer ownership, the separator consumes its resize keys without changing the preview. After release, arrow keys resize, Home/End use the bounds, and Enter or double-click resets to the CSS default. The phone uses inspector Expand/Collapse instead of this separator. The sticky track-header column stretches to the timeline well floor (surface plane under empty space below the last track).
 
 Pinch-to-zoom and Ctrl/Cmd+wheel zoom are claimed only while the pointer is over `.timeline-scroll`, outside the track headers (spatial intent — no prior click required). Zoom keeps the **time under the cursor** (or the midpoint of a two-finger pinch) stable. Listeners use `{ passive: false }` so `preventDefault()` can own trackpad pinch (`wheel` + `ctrlKey`) and Safari `gesture*` events; plain two-finger scroll still pans. Typing in an input/textarea skips claiming. A successful gesture sets `timelineFocused` so keyboard zoom works afterward.
 

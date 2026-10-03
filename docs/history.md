@@ -10,6 +10,11 @@ so the applied-edit record and undo preserve the reviewed breath boundaries.
 Unsnapped pending edits still use configured apply-time optimization. See
 [inaudible cuts](inaudible-cuts.md#behavior).
 
+Editor panel height is a browser preference, not an episode mutation. A canceled
+splitter preview restores its prior explicit value or absence; resize and reset
+create no project History entry. Finite out-of-bounds saved heights are clamped
+and normalized when the editor initializes.
+
 ## Storage layout
 
 Local retained-bleed alignment decisions are part of `editorial`, so undo/redo

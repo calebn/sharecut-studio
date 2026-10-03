@@ -39,6 +39,7 @@ const MANIFEST_CAPABILITIES: ManifestCapability[] = JSON.parse(
 /** Allowlisted non-bus keydown sites (component Escape / a11y widgets). */
 const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "keymap/listener.ts",
+  "timeline/ClipBlock.tsx",
   "ui/useDialogModal.ts",
   "ui/Menu.tsx",
   "commands/governance.test.ts",
@@ -48,6 +49,7 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
 const ON_KEY_DOWN_ALLOWLIST = new Set([
   "transcript/EditBoundaryMarkView.tsx",
   "timeline/TimeRulerView.tsx",
+  "timeline/MarkerLaneView.tsx",
   "timeline/EnvelopeOverlayView.tsx",
   // Escape cancels only this region's active pointer gesture.
   "timeline/PendingEditOverlayView.tsx",

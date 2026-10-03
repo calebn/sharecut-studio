@@ -254,7 +254,9 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     canApplyPass12(projectPath, guestMode, shareCapabilities);
   const allClips = project ? allClipsFromTracks(project.clips.tracks) : [];
   const trackIds = project?.tracks.map((t) => t.id) ?? [];
+  const bodyOwnerRef = useRef<string | null>(null);
   const moveGestureRef = useRef<{
+    anchorId: string;
     movingIds: string[];
     clips: ClipRow[];
     trackIds: string[];
@@ -270,12 +272,14 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     if (!moveGestureRef.current) {
       const selectedNow = useDawStore.getState().selectedClipIds;
       moveGestureRef.current = {
+        anchorId,
         movingIds: selectedNow.includes(anchorId) ? selectedNow : [anchorId],
         clips: allClips,
         trackIds,
       };
     }
     const snap = moveGestureRef.current;
+    if (snap.anchorId !== anchorId) return [];
     const anchor = snap.clips.find((c) => c.id === anchorId);
     if (!anchor) {
       return [];
@@ -581,7 +585,21 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   // Lane callbacks: one stable function each, taking the track id first, so
   // memoized lanes and clips see equal props. Hot fields (playhead, scroll)
   // are read at call time.
-  const rangeGesture = useRangeGesture(lanesRef, zoomPxPerSec, canvasSec);
+  const rangeGesture = useRangeGesture(
+    lanesRef,
+    zoomPxPerSec,
+    canvasSec,
+    () => bodyOwnerRef.current === null,
+  );
+  const onClipBodyStart = useStableCallback((clipId: string) => {
+    if (bodyOwnerRef.current !== null || rangeGesture.hasActiveGesture())
+      return false;
+    bodyOwnerRef.current = clipId;
+    return true;
+  });
+  const onClipBodyEnd = useStableCallback((clipId: string) => {
+    if (bodyOwnerRef.current === clipId) bodyOwnerRef.current = null;
+  });
   const onSeek = useStableCallback((clientX: number, target: HTMLElement) => {
     const sec = clientXToTimelineSec(
       clientX,
@@ -613,11 +631,14 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   );
   const onClipMovePreview = useStableCallback(
     (clipId: string, info: ClipMovePointerInfo) => {
-      setMovePlacements(resolveMove(clipId, info, "preview"));
+      if (bodyOwnerRef.current === clipId)
+        setMovePlacements(resolveMove(clipId, info, "preview"));
     },
   );
   const onClipMoveCommit = useStableCallback(
     (clipId: string, info: ClipMovePointerInfo) => {
+      if (moveGestureRef.current && moveGestureRef.current.anchorId !== clipId)
+        return;
       const moves = resolveMove(clipId, info, "commit");
       endMoveGesture();
       if (!movesDifferFromClips(allClips, moves, zoomPxPerSec)) {
@@ -626,7 +647,9 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       runPointerCommand("edit.moveClips", { clips: moves });
     },
   );
-  const onClipMoveCancel = useStableCallback(() => endMoveGesture());
+  const onClipMoveCancel = useStableCallback((clipId: string) => {
+    if (moveGestureRef.current?.anchorId === clipId) endMoveGesture();
+  });
 
   // Per-track slices: a lane's own array keeps its identity across renders
   // when nothing on that track changed, so TrackLane's memo bails out for
@@ -962,6 +985,8 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                           onClipMovePreview={onClipMovePreview}
                           onClipMoveCommit={onClipMoveCommit}
                           onClipMoveCancel={onClipMoveCancel}
+                          onClipBodyStart={onClipBodyStart}
+                          onClipBodyEnd={onClipBodyEnd}
                           onSelectClip={onSelectClip}
                           onSelectTrack={onSelectTrack}
                           bladeHighlight={

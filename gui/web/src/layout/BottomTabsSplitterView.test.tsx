@@ -26,6 +26,27 @@ function renderSplitter(overrides: Partial<BottomTabsSplitterViewProps> = {}) {
 }
 
 describe("BottomTabsSplitterView", () => {
+  it("reports the responsive panel's measured height without creating a preference", () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ height: 423 } as DOMRect);
+    try {
+      const { props } = renderSplitter({ userSet: false, heightRem: 12.5 });
+      const separator = screen.getByRole("separator", {
+        name: "Resize editor panels",
+      });
+      expect(separator).toHaveAttribute("aria-valuenow", "26.4");
+      expect(separator).toHaveAttribute("aria-valuetext", "26.4 rem");
+      rect.mockReturnValue({ height: 384 } as DOMRect);
+      fireEvent(window, new Event("resize"));
+      expect(separator).toHaveAttribute("aria-valuenow", "24");
+      expect(props.onResize).not.toHaveBeenCalled();
+      expect(props.onReset).not.toHaveBeenCalled();
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
   it("renders an accessible horizontal separator from props", async () => {
     const { container } = renderSplitter();
     const sep = screen.getByRole("separator", {
@@ -35,10 +56,10 @@ describe("BottomTabsSplitterView", () => {
     expect(sep.getAttribute("aria-valuemin")).toBe("8");
     expect(sep.getAttribute("aria-valuemax")).toBe("24");
     expect(sep.getAttribute("aria-valuenow")).toBe("12.5");
-    expect(sep.getAttribute("aria-valuetext")).toBe("12.5 rem (default 12.5)");
+    expect(sep.getAttribute("aria-valuetext")).toBe("12.5 rem");
     expect(sep.getAttribute("tabindex")).toBe("0");
     expect(sep.getAttribute("title")).toBe(
-      "Drag to resize · double-click to reset",
+      "Drag or arrows to resize · Shift for larger steps · Escape cancels · Enter or double-click resets",
     );
     await expectNoA11yViolations(container);
   });
@@ -140,5 +161,98 @@ describe("BottomTabsSplitterView", () => {
     sep.focus();
     await userEvent.keyboard("{Home}");
     expect(parentKeys).not.toContain("Home");
+  });
+  it("leaves a newer external height intact when the owner is canceled", () => {
+    const onResize = vi.fn();
+    const onReset = vi.fn();
+    const { rerender } = renderSplitter({ onResize, onReset });
+    const sep = screen.getByRole("separator", { name: "Resize editor panels" });
+    fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
+    fireEvent.pointerMove(sep, { pointerId: 1, clientY: 280 });
+    expect(onResize).toHaveBeenLastCalledWith(13.75);
+    rerender(
+      <div className="bottom-tabs" style={{ height: 200 }}>
+        <BottomTabsSplitterView
+          heightRem={22}
+          minRem={8}
+          maxRem={24}
+          userSet
+          onResize={onResize}
+          onReset={onReset}
+        />
+      </div>,
+    );
+    fireEvent.keyDown(sep, { key: "Escape" });
+    expect(onResize).toHaveBeenCalledTimes(1);
+    expect(onReset).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-left mouse admission and clamps each preview", () => {
+    const { props } = renderSplitter();
+    const sep = screen.getByRole("separator", { name: "Resize editor panels" });
+    fireEvent.pointerDown(sep, {
+      pointerId: 1,
+      pointerType: "mouse",
+      button: 2,
+      clientY: 300,
+    });
+    fireEvent.pointerMove(sep, { pointerId: 1, clientY: 280 });
+    expect(props.onResize).not.toHaveBeenCalled();
+    fireEvent.pointerDown(sep, {
+      pointerId: 2,
+      pointerType: "mouse",
+      button: 0,
+      clientY: 300,
+    });
+    fireEvent.pointerMove(sep, { pointerId: 2, clientY: -500 });
+    expect(props.onResize).toHaveBeenLastCalledWith(24);
+  });
+  it("does not paint over an external height change before the first movement", () => {
+    const onResize = vi.fn();
+    const onReset = vi.fn();
+    const { rerender } = renderSplitter({ onResize, onReset });
+    const sep = screen.getByRole("separator", { name: "Resize editor panels" });
+    fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
+    rerender(
+      <div className="bottom-tabs" style={{ height: 200 }}>
+        <BottomTabsSplitterView
+          heightRem={22}
+          minRem={8}
+          maxRem={24}
+          userSet
+          onResize={onResize}
+          onReset={onReset}
+        />
+      </div>,
+    );
+    fireEvent.pointerMove(sep, { pointerId: 1, clientY: 280 });
+    fireEvent.pointerCancel(sep, { pointerId: 1 });
+    expect(onResize).not.toHaveBeenCalled();
+    expect(onReset).not.toHaveBeenCalled();
+  });
+  it("consumes splitter keys during pointer ownership without changing its preview", () => {
+    const parentKeys: string[] = [];
+    const onResize = vi.fn();
+    render(
+      <div
+        role="presentation"
+        onKeyDown={(event) => parentKeys.push(event.key)}
+      >
+        <BottomTabsSplitterView
+          heightRem={12.5}
+          minRem={8}
+          maxRem={24}
+          userSet
+          onResize={onResize}
+          onReset={vi.fn()}
+        />
+      </div>,
+    );
+    const sep = screen.getByRole("separator", { name: "Resize editor panels" });
+    fireEvent.pointerDown(sep, { pointerId: 1, button: 0, clientY: 300 });
+    for (const key of ["ArrowUp", "ArrowDown", "Home", "End", "Enter"])
+      fireEvent.keyDown(sep, { key });
+    expect(parentKeys).toEqual([]);
+    expect(onResize).not.toHaveBeenCalled();
   });
 });
