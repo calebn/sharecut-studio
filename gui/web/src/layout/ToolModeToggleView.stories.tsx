@@ -140,8 +140,12 @@ export const CommentOnlyGuest: Story = {
   args: { structuralToolsAllowed: false },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.queryByRole("button", { name: "Select" })).toBeNull();
-    await expect(canvas.queryByRole("button", { name: "Blade" })).toBeNull();
+    await expect(canvas.getByRole("button", { name: "Select" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "Blade" })).toBeDisabled();
+    await expect(canvas.getByRole("button", { name: "Blade" })).toHaveAttribute(
+      "title",
+      "Blade requires permission to suggest edits",
+    );
     await expect(canvas.getByRole("button", { name: "Comment" })).toBeTruthy();
   },
 };

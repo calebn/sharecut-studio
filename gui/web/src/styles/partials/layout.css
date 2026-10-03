@@ -635,9 +635,6 @@
   outline-offset: -1px;
 }
 
-/* Hotspot (6,10) is the cut line — scissor tips meet there (same clientX as cuts). */
-/* Data-URI cursors cannot read CSS variables; stroke is baked to warning
-   (#e8a838). Theme-token cursors are on the roadmap. */
 .timeline-blade-mode,
 .timeline-blade-mode .lane-seek,
 .timeline-blade-mode .clip-block,

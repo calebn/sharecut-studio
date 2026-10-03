@@ -19,7 +19,10 @@ describe("shell grid areas", () => {
     const rows = /grid-template-rows:([^;]*);/.exec(shell)?.[1] ?? "";
     const tracks = rows.trim().split(/\s+(?![^(]*\))/);
     expect(tracks).toHaveLength(6);
-    expect(tracks[2]).toBe("var(--transport-height)");
+    expect(tracks[2]).toBe("auto");
+    expect(rule(layoutCss, ".daw-shell-transport > .transport")).toContain(
+      "block-size: var(--transport-height)",
+    );
     expect(tracks[3]).toBe("var(--shell-main-row)");
     expect(tracks[4]).toBe("var(--shell-tabs-row)");
   });

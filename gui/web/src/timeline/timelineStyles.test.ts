@@ -133,8 +133,9 @@ describe("timeline styles", () => {
     const corner = rule(css, ".fade-corner");
     expect(corner).toMatch(/top:\s*0/);
     expect(corner).toMatch(/z-index:\s*var\(--z-join\)/);
-    expect(partial("layout.css")).toMatch(
-      /\.timeline-blade-mode \.fade-corner\s*[,{]/,
+    expect(corner).toMatch(/cursor:\s*ew-resize/);
+    expect(partial("layout.css")).not.toMatch(
+      /\.timeline-(?:blade|comment)-mode \.fade-corner\s*[,{]/,
     );
     const dir = join(here, "../styles/partials");
     for (const name of readdirSync(dir)) {
