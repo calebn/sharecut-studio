@@ -267,18 +267,15 @@ def _apply_mute_edit(
 
 
 def approve_edits(project: EpisodeProject, ids: list[str]) -> int:
-    from podcast_mcp.edits.range_edits import apply_range, resolve_range
+    from podcast_mcp.edits.range_edits import apply_ranges
 
     id_set = set(ids)
     applied_ids: set[str] = set()
     to_apply = [e for e in project.edit_decisions if e.id in id_set]
     exact = [e for e in to_apply if e.exact_range is not None]
-    for edit in exact:
-        if edit.exact_range is not None:
-            resolve_range(project, edit.exact_range)
-    for edit in exact:
-        apply_range(project, edit)
-        applied_ids.add(edit.id)
+    if exact:
+        apply_ranges(project, exact)
+        applied_ids.update(edit.id for edit in exact)
     to_apply = [e for e in to_apply if e.exact_range is None]
     # Mutes first (timeline-stable). Later removes first so earlier positions
     # stay valid after ripple+pad. Splits run after removes.

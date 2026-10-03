@@ -85,6 +85,120 @@ def test_mute_is_local_to_occurrence(tmp_path):
     ] == [(31, 32), (33, 34)]
 
 
+@pytest.mark.parametrize("second_action", ["cut", "mute"])
+def test_bulk_exact_approval_composes_same_clip_baseline_and_one_undo(
+    minimal_project, second_action
+):
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    before = deepcopy(ws.project.clips)
+    for action_id, interval, action in [("one", (11, 12), "cut"), ("two", (13, 14), second_action)]:
+        edit_selected_range(
+            ws.project,
+            target(ws.project, (interval,), ("a", "b")),
+            action,
+            propose=True,
+            reason="guest:range",
+            action_id=action_id,
+        )
+    save_project(ws.project)
+    sync = DocumentSyncService.open(minimal_project)
+    sync.submit(
+        DocumentCommand(
+            type="ApproveEdits",
+            payload={"ids": ["one", "two"]},
+            client_id="host",
+            role="viewer",
+            client_seq=None,
+        ),
+        range_policy="host_apply",
+    )
+    expected = [(0, 1, 10), (0, 5, 0), (2, 5, 12), (21, 23, 12)]
+    if second_action == "cut":
+        expected = [(0, 1, 10), (0, 5, 0), (2, 3, 12), (4, 5, 14), (21, 22, 12)]
+    assert spans(sync.ws.project, "a") == expected
+    assert spans(sync.ws.project, "b") == (
+        [(30, 31, 10), (32, 33, 12), (34, 35, 14)]
+        if second_action == "cut"
+        else [(30, 31, 10), (32, 35, 12)]
+    )
+    if second_action == "mute":
+        assert [
+            (r.start_s, r.end_s)
+            for r in next(
+                c for c in sync.ws.project.clips if c.track_id == "b" and c.timeline_start == 12
+            ).mute_regions
+        ] == [(33, 34)]
+    assert next(c for c in sync.ws.project.clips if c.id == "other") == before[-1]
+    assert len(sync.ws.project.editorial.edit_log) == 2
+    assert not sync.ws.project.edit_decisions
+    HistoryService(sync.ws).undo()
+    assert sync.ws.project.clips == before
+    assert {e.id for e in sync.ws.project.edit_decisions} == {"one", "two"}
+
+
+def test_exact_cut_uses_canonical_microfades_and_preserves_outer_edges(tmp_path):
+    from podcast_mcp.config import join_micro_fade_ms
+
+    project = fixture(EpisodeProject.create("range", str(tmp_path)))
+    project.clips[1].fade_in_ms = 3
+    project.clips[1].fade_out_ms = 4
+    apply(project, target(project, ((11, 12),), ("a",)))
+    left = next(c for c in project.clips if c.track_id == "a" and c.timeline_start == 10)
+    right = next(c for c in project.clips if c.timeline_start == 12 and c.source_start == 2)
+    assert left.fade_in_ms == 3
+    assert right.fade_out_ms == 4
+    assert left.fade_out_ms == right.fade_in_ms == join_micro_fade_ms()
+
+
+@pytest.mark.parametrize("action", ["cut", "mute"])
+@pytest.mark.parametrize("propose", [False, True])
+def test_unknown_implicit_lane_extent_rejects_whole_range(minimal_project, action, propose):
+    from podcast_mcp.models import MediaAsset
+
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    ws.project.tracks.append(
+        Track(id="unknown", label="unknown", media=MediaAsset(path="raw/host.wav"))
+    )
+    selection = target(ws.project, ((11, 12),), ("a", "unknown"))
+    before = deepcopy(ws.project.model_dump())
+    with pytest.raises(RangeChangedError, match="duration is unavailable"):
+        apply(ws.project, selection, action, propose)
+    assert ws.project.model_dump() == before
+
+
+@pytest.mark.parametrize("action", ["cut", "mute"])
+def test_all_gap_selected_lane_is_unchanged_at_exact_approval(minimal_project, action):
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    selection = target(ws.project, ((6, 7),), ("a", "c"))
+    gap_lane = deepcopy([c for c in ws.project.clips if c.track_id == "a"])
+    apply(ws.project, selection, action, propose=True)
+    approve_edits(ws.project, ["range_action"])
+    assert [c for c in ws.project.clips if c.track_id == "a"] == gap_lane
+    assert ws.project.track_by_id("a").timeline_empty is False
+
+
+def test_pending_unknown_implicit_extent_rejects_approval_atomically(minimal_project):
+    from podcast_mcp.models import MediaAsset
+    from podcast_mcp.services.document import EditService
+
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    ws.project.tracks.append(
+        Track(
+            id="implicit", label="implicit", media=MediaAsset(path="raw/host.wav", duration_sec=20)
+        )
+    )
+    apply(ws.project, target(ws.project, ((11, 12),), ("a", "implicit")), propose=True)
+    ws.project.track_by_id("implicit").media.duration_sec = None
+    before = deepcopy(ws.project.model_dump())
+    with pytest.raises(RangeChangedError, match="duration is unavailable"):
+        EditService(ws).approve(["range_action"], allow_exact=True)
+    assert ws.project.model_dump() == before
+
+
 @pytest.mark.parametrize("change", ["move", "gap_insert", "overlap", "mute"])
 def test_stale_group_rejects_atomically_and_stays_pending(tmp_path, change):
     project = fixture(EpisodeProject.create("range", str(tmp_path)))
@@ -272,6 +386,38 @@ def test_media_change_invalidates_proposal(tmp_path):
     project.tracks[0].media = MediaAsset(path="different.wav")
     with pytest.raises(RangeChangedError):
         apply(project, selection)
+
+
+@pytest.mark.refine_gate
+def test_manual_range_and_exact_only_approval_work_with_pending_refinement(minimal_project):
+    from podcast_mcp.edits.transcript_refine_status import (
+        TranscriptRefineRequiredError,
+        mark_refine_pending,
+    )
+    from podcast_mcp.models import EditDecision
+    from podcast_mcp.services.document import EditService
+
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    mark_refine_pending(ws.project)
+    service = EditService(ws)
+    service.edit_selected_range(
+        target(ws.project), "mute", propose=False, reason="host:range", action_id="manual"
+    )
+    service.edit_selected_range(
+        target(ws.project), "cut", propose=True, reason="guest:range", action_id="exact"
+    )
+    ws.project.edit_decisions.append(
+        EditDecision(id="source", track_id="a", type="remove", start=0, end=1, applied=False)
+    )
+    with pytest.raises(TranscriptRefineRequiredError):
+        service.approve(["exact", "source"], allow_exact=True)
+    assert not next(e for e in ws.project.edit_decisions if e.id == "exact").applied
+    with pytest.raises(TranscriptRefineRequiredError):
+        service.approve(["source"], allow_exact=True)
+    with pytest.raises(TranscriptRefineRequiredError):
+        service.cut_text_match("word", track_id="a")
+    assert service.approve(["exact"], allow_exact=True) == 1
 
 
 def test_supported_agent_cannot_approve_exact_proposal(minimal_project):

@@ -28,7 +28,7 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 
 | Shortcut | Command | When | Notes |
 |----------|---------|------|-------|
-| `V` | Select tool (`tool.select`) | Timeline focused + structural edits allowed | When timeline is focused |
+| `V` | Select tool (`tool.select`) | Timeline focused | When timeline is focused |
 | `C` | Blade tool (`tool.blade`) | Timeline focused + structural edits allowed | When timeline is focused — C alone selects the Blade tool; Mod+C is Copy, Mod+Shift+C is Toggle comment mode |
 
 ## layout

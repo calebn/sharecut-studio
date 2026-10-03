@@ -1143,11 +1143,9 @@ def guest_range_audio(token: str, body: RangeAudioInput):
     _check_token(token)
     _rate_limit(token, "read")
     try:
-        _row, ws = require_share_cap(token, CAP_VIEW)
-        from podcast_mcp.services.document import PlayService
+        from podcast_mcp.services.collaboration import share_selected_range_audio
 
-        mix = share_daw_audio_path(token, kind="premix")
-        audio = PlayService(ws).play_selected_range(body.target, full_mix_path=mix)
+        audio = share_selected_range_audio(token, body.target)
         return _audio_file_response(
             token,
             audio,

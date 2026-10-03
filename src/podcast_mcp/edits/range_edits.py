@@ -1,5 +1,3 @@
-"""Exact timeline occurrences for selected-track punch cuts and local mutes."""
-
 from __future__ import annotations
 
 import hashlib
@@ -7,11 +5,11 @@ import json
 from typing import Any, Literal, TypedDict
 from uuid import uuid4
 
-from podcast_mcp.edits.clips_ops import new_clip_id, set_track_clips
+from podcast_mcp.edits.clips_ops import punch_timeline_range_from_clips, set_track_clips
 from podcast_mcp.edits.edit_log import archive_decision
-from podcast_mcp.edits.mute_regions import add_source_mute, intersect_mute_regions
-from podcast_mcp.edits.ranges import subtract_ranges_from_intervals
+from podcast_mcp.edits.mute_regions import add_source_mute
 from podcast_mcp.edits.transcript_sync import rebuild_combined
+from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.models import Clip, EditDecision, EditDecisionType, EpisodeProject
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 
@@ -93,6 +91,18 @@ def range_geometry(
 
 
 def resolve_range(project: EpisodeProject, target: ExactRangeTarget) -> ExactRangeTarget:
+    for tid in target.track_ids:
+        track = project.track_by_id(tid)
+        if (
+            track
+            and track.media
+            and not track.timeline_empty
+            and track.media.duration_sec is None
+            and not any(c.track_id == tid for c in project.clips)
+        ):
+            raise RangeChangedError(
+                "Selected lane duration is unavailable. Select lanes with known media bounds."
+            )
     actual = range_geometry(project, target.intervals, target.track_ids)
     if actual != sorted(target.clips, key=lambda c: c.id) or target.media_seals != {
         t: range_media_seal(project, t) for t in target.track_ids
@@ -110,81 +120,81 @@ def range_is_current(project: EpisodeProject, target: ExactRangeTarget) -> bool:
 
 
 def apply_range(project: EpisodeProject, edit: EditDecision) -> None:
-    target = edit.exact_range
-    if target is None:
-        raise ValueError("exact range target required")
-    target = resolve_range(project, target)
-    if not target.clips:
-        raise ValueError("No audible media in this range")
-    if edit.type == EditDecisionType.REMOVE:
+    apply_ranges(project, [edit])
+
+
+def apply_ranges(project: EpisodeProject, edits: list[EditDecision]) -> None:
+    plans: list[tuple[EditDecision, ExactRangeTarget]] = []
+    for edit in edits:
+        if edit.exact_range is None:
+            raise ValueError("exact range target required")
+        target = resolve_range(project, edit.exact_range)
+        if not target.clips:
+            raise ValueError("No audible media in this range")
+        plans.append((edit, target))
+    if any(edit.type == EditDecisionType.REMOVE for edit, _target in plans):
         from podcast_mcp.engines.timeline_render import timeline_duration_sec
 
         project.timeline.duration_sec = max(
             project.timeline.duration_sec or 0.0,
             timeline_duration_sec(project),
-            max(c.timeline_end for c in target.clips),
+            max(c.timeline_end for _edit, target in plans for c in target.clips),
         )
-    for clip in target.clips:
-        if not any(c.id == clip.id for c in project.clips):
-            project.clips.append(clip.model_copy(deep=True))
-    spans = [(r.start, r.end) for r in target.intervals]
-    selected_ids = {c.id for c in target.clips}
-    for tid in target.track_ids:
-        replacements: list[Clip] = []
-        for clip in project.clips:
-            if clip.track_id != tid:
-                continue
-            if clip.id not in selected_ids:
-                replacements.append(clip)
-                continue
-            if edit.type == EditDecisionType.MUTE:
-                for start, end in spans:
-                    a, b = max(start, clip.timeline_start), min(end, clip.timeline_end)
-                    if b > a:
-                        add_source_mute(
-                            clip,
-                            clip.source_start + a - clip.timeline_start,
-                            clip.source_start + b - clip.timeline_start,
-                        )
-                replacements.append(clip)
-                continue
-            remaining = subtract_ranges_from_intervals(
-                [(clip.timeline_start, clip.timeline_end)], spans
+    operations: dict[str, list[tuple[EditDecisionType, RangeInterval]]] = {}
+    track_ids: set[str] = set()
+    for edit, target in plans:
+        track_ids.update(c.track_id for c in target.clips)
+        for clip in target.clips:
+            if not any(c.id == clip.id for c in project.clips):
+                project.clips.append(clip.model_copy(deep=True))
+            operations.setdefault(clip.id, []).extend(
+                (edit.type, interval) for interval in target.intervals
             )
-            for start, end in remaining:
-                src_start = clip.source_start + start - clip.timeline_start
-                src_end = clip.source_start + end - clip.timeline_start
-                replacements.append(
-                    clip.model_copy(
-                        update={
-                            "id": new_clip_id(),
-                            "timeline_start": start,
-                            "source_start": src_start,
-                            "source_end": src_end,
-                            "fade_in_ms": clip.fade_in_ms if start == clip.timeline_start else 0,
-                            "fade_out_ms": clip.fade_out_ms if end == clip.timeline_end else 0,
-                            "mute_regions": intersect_mute_regions(
-                                clip.mute_regions, src_start, src_end
-                            ),
-                        },
-                        deep=True,
-                    )
-                )
+    for tid in sorted(track_ids):
+        replacements: list[Clip] = []
+        for original in project.clips:
+            if original.track_id != tid:
+                continue
+            actions = operations.get(original.id)
+            if not actions:
+                replacements.append(original)
+                continue
+            clip = original.model_copy(deep=True)
+            cuts: list[tuple[float, float]] = []
+            for action, interval in actions:
+                a = max(interval.start, clip.timeline_start)
+                b = min(interval.end, clip.timeline_end)
+                if b <= a:
+                    continue
+                if action == EditDecisionType.MUTE:
+                    source_span = clip_timeline_overlap_to_source(clip, a, b)
+                    if source_span is not None:
+                        add_source_mute(clip, *source_span)
+                else:
+                    cuts.append((a, b))
+            if not cuts:
+                replacements.append(clip)
+                continue
+            remaining = [clip]
+            for start, end in sorted(cuts):
+                remaining = punch_timeline_range_from_clips(remaining, start, end)
+            replacements.extend(remaining)
         set_track_clips(project, tid, replacements)
         if not replacements:
             track = project.track_by_id(tid)
             if track is not None:
                 track.timeline_empty = True
     rebuild_combined(project)
-    archive_decision(
-        project,
-        edit,
-        operation="edit_selected_range",
-        timeline_start=target.intervals[0].start,
-        timeline_end=target.intervals[-1].end,
-        track_ids=target.track_ids,
-        params={"exact_range": target.model_dump(mode="json"), "action_id": edit.id},
-    )
+    for edit, target in plans:
+        archive_decision(
+            project,
+            edit,
+            operation="edit_selected_range",
+            timeline_start=target.intervals[0].start,
+            timeline_end=target.intervals[-1].end,
+            track_ids=target.track_ids,
+            params={"exact_range": target.model_dump(mode="json"), "action_id": edit.id},
+        )
 
 
 def edit_selected_range(

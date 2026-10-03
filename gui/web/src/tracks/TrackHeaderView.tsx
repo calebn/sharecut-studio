@@ -122,9 +122,9 @@ export function TrackHeaderView({
           {initials(label)}
         </span>
         <span className="track-title-text">{label}</span>
-        {stemClass && (
+        {stemClass === "stale" && (
           <Icon
-            name={stemClass === "stale" ? "refresh" : "check"}
+            name="refresh"
             className={`stem-status ${stemClass}`}
             title={STEM_STATUS_LABEL[stemClass]}
             size={12}

@@ -1535,23 +1535,33 @@ class PlayService:
 
         current_wav: Path | None = None
         if kind in {"current", "ab"}:
-            current = self.play(
-                PlayRequest(
-                    source=source,
-                    start_sec=window.play_start,
-                    end_sec=window.play_end,
-                    rerender=rerender,
-                ),
-                dry_run=True,
-                publish_audition=False,
-            )
-            current_wav = current.wav_path
+            silent = self._pending_silent_current_path(window)
+            if silent is not None:
+                render_atomic(
+                    silent,
+                    lambda temporary: FFmpegEngine().silence(
+                        temporary, window.play_end - window.play_start
+                    ),
+                )
+                current_wav = silent
+            else:
+                current_wav = self.play(
+                    PlayRequest(
+                        source=source,
+                        start_sec=window.play_start,
+                        end_sec=window.play_end,
+                        rerender=rerender,
+                    ),
+                    dry_run=True,
+                    publish_audition=False,
+                ).wav_path
             if kind == "current":
-                cmd = None if dry_run else self._player_command(player, current.wav_path)
+                self._mark_play_cache_used(current_wav)
+                cmd = None if dry_run else self._player_command(player, current_wav)
                 if cmd:
                     run(cmd, check=True)
                 return PlayResult(
-                    wav_path=current.wav_path,
+                    wav_path=current_wav,
                     player_cmd=cmd,
                     source_label=f"pending:{kind}",
                     start_sec=window.play_start,
@@ -1605,6 +1615,10 @@ class PlayService:
         if kind != "current" and not window.can_skip:
             raise ValueError(window.skip_reason or "suggested preview unavailable")
         if kind == "current":
+            silent = self._pending_silent_current_path(window)
+            if silent is not None:
+                self._mark_play_cache_used(silent)
+                return silent if silent.is_file() else None
             premix = premix_path(self.project)
             if not premix.is_file():
                 return None
@@ -1627,6 +1641,17 @@ class PlayService:
         out = self._ab_concat_path(current, suggested, max(0.0, float(gap)))
         self._mark_play_cache_used(out)
         return out if out.is_file() else None
+
+    def _pending_silent_current_path(self, window: PendingPreviewWindow) -> Path | None:
+        from podcast_mcp.edits.range_edits import resolve_range
+        from podcast_mcp.engines.play_audit import mix_gains
+
+        edit = next((e for e in self.project.edit_decisions if e.id == window.edit_id), None)
+        if edit is None or edit.exact_range is None or mix_gains(self.project):
+            return None
+        resolve_range(self.project, edit.exact_range)
+        suggested = self._pending_suggested_path(window, source="premix")
+        return suggested.with_name(suggested.name.replace("pending_suggested_", "pending_current_"))
 
     def _ab_concat_path(self, wav_a: Path, wav_b: Path, gap: float) -> Path:
         key = (
@@ -1697,12 +1722,20 @@ class PlayService:
                         self._defaults,
                     )
                     segments.append((segment, track.fader_db))
-                render_atomic(
-                    out,
-                    lambda temporary: FFmpegEngine().mix_tracks(
-                        segments, temporary, peak_ceiling_db=mix_peak_ceiling_db(self._defaults)
-                    ),
-                )
+                if segments:
+                    render_atomic(
+                        out,
+                        lambda temporary: FFmpegEngine().mix_tracks(
+                            segments, temporary, peak_ceiling_db=mix_peak_ceiling_db(self._defaults)
+                        ),
+                    )
+                else:
+                    render_atomic(
+                        out,
+                        lambda temporary: FFmpegEngine().silence(
+                            temporary, window.play_end - window.play_start
+                        ),
+                    )
             return out
         parts: list[Path] = []
         before_end = window.timeline_start

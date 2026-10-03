@@ -113,7 +113,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     label: "Select tool",
     keys: ["V"],
     bareKey: true,
-    when: "timelineAndStructural",
+    when: "timelineFocused",
     notes: "When timeline is focused",
   },
   {

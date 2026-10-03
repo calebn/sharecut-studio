@@ -186,11 +186,6 @@ export function TransportBar({
     ? `Click or ${displayShortcutFor("render.refreshMix") ?? "use the Menu"} to refresh mix.`
     : null;
   const staleTitle = joinSentences([breakdown?.summary, refreshHint]);
-  // The wide-bar pill reads just MIX_STALE_LABEL so the transport fits at
-  // 1280px; the refresh verb lives in its title, name, Mod+B and the
-  // collapsed Menu item. Name starts with the visible text (WCAG 2.5.3).
-  // A summary that is only the label again (no specific cause) is dropped so
-  // the name never repeats a clause.
   const staleCause =
     breakdown?.summary && breakdown.summary !== MIX_STALE_LABEL
       ? breakdown.summary
@@ -388,7 +383,11 @@ export function TransportBar({
               }
             }}
           >
-            {renderPreviewBusy ? "Refreshing…" : MIX_STALE_LABEL}
+            {renderPreviewBusy
+              ? "Refreshing…"
+              : mayRefresh
+                ? `${MIX_STALE_LABEL} · Refresh`
+                : MIX_STALE_LABEL}
           </CommandButton>
         ) : null}
         {!collapsed && !stale ? <Pill tone="ok">{MIX_FRESH_LABEL}</Pill> : null}
@@ -632,6 +631,11 @@ export function TransportBar({
               </MenuSection>
             ) : null}
             {collapsed ? viewSections(closeMenu) : null}
+            <MenuSection label="Selection">
+              <CommandMenuItem commandId="range.arm" onSelect={closeMenu}>
+                Select a range
+              </CommandMenuItem>
+            </MenuSection>
             <MenuSection label="Help">
               {mayManage ? (
                 <CommandMenuItem

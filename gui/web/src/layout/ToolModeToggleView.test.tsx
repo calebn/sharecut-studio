@@ -151,7 +151,7 @@ describe("ToolModeToggleView", () => {
     expect(group.classList.contains("tool-mode-toggle--compact")).toBe(true);
   });
 
-  it("renders only Comment when structural tools are not allowed", () => {
+  it("keeps Select and disabled Blade visible for a viewer", () => {
     render(
       <ToolModeToggleView
         structuralToolsAllowed={false}
@@ -163,8 +163,12 @@ describe("ToolModeToggleView", () => {
         {...actions()}
       />,
     );
-    expect(screen.queryByRole("button", { name: "Select" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Blade" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Select" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Blade" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Blade" })).toHaveAttribute(
+      "title",
+      "Blade requires permission to suggest edits",
+    );
     expect(screen.getByRole("button", { name: "Comment" })).toBeTruthy();
   });
 

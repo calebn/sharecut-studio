@@ -98,7 +98,7 @@ describe("StatusBar render state", () => {
         <StatusBar />
       </DawProvider>,
     );
-    expect(screen.getByRole("button", { name: "Mix up to date" })).toBeTruthy();
+    expect(screen.queryByText(/^Mix /i)).toBeNull();
     expect(screen.queryByText(/Rerender|Reconcile|Premix/)).toBeNull();
     expect(screen.queryByText("Transcript: needs sync")).toBeNull();
   });
@@ -132,8 +132,7 @@ describe("StatusBar render state", () => {
         <StatusBar />
       </DawProvider>,
     );
-    const chip = screen.getByRole("button", { name: "Mix out of date" });
-    expect(chip.getAttribute("title")).toContain("No mix preview");
+    expect(screen.queryByText(/^Mix /i)).toBeNull();
     expect(screen.getByText("Transcript: needs sync")).toBeTruthy();
   });
 });
@@ -862,7 +861,6 @@ describe("StatusBar cut chip", () => {
       screen.queryByRole("button", { name: /^Pending:|^Mix /i }),
     ).not.toBeInTheDocument();
     await user.click(screen.getByText(/^Pending:/));
-    await user.click(screen.getByText(/^Mix /i));
     expect(useDawStore.getState().activeTab).toBe("transcript");
     await user.click(screen.getByRole("button", { name: "Open comments" }));
     expect(useDawStore.getState().activeTab).toBe("comments");

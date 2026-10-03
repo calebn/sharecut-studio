@@ -1,4 +1,5 @@
 interface AuditionOverlayProps {
+  className?: string;
   startSec: number;
   endSec: number;
   zoomPxPerSec: number;
@@ -7,6 +8,7 @@ interface AuditionOverlayProps {
 }
 
 export function AuditionOverlay({
+  className = "",
   startSec,
   endSec,
   zoomPxPerSec,
@@ -17,7 +19,7 @@ export function AuditionOverlay({
   const width = Math.max(3, (endSec - startSec) * zoomPxPerSec);
   return (
     <div
-      className="audition-overlay"
+      className={`audition-overlay ${className}`.trim()}
       style={{ left, width, height }}
       title={label ?? `${startSec.toFixed(1)}–${endSec.toFixed(1)}s`}
     >

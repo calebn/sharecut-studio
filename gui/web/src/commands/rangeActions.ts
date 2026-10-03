@@ -14,6 +14,7 @@ import { useDawStore } from "../state/dawStore";
 import type { DawState } from "../state/types";
 import type { ExactRangeTarget } from "../types/project";
 import { errorMessage, readApiError } from "../utils/apiError";
+import { staleRenderBreakdown } from "../utils/staleRender";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
 
@@ -81,6 +82,14 @@ export function rangeActionDescriptors(
       !hasShareCapability(state.shareCapabilities, "play")
     )
       reason = "This share cannot play audio";
+    if (
+      !reason &&
+      action === "play" &&
+      guest &&
+      staleRenderBreakdown(state.project).stale
+    )
+      reason =
+        "Mix out of date. Ask the host to Refresh before playing this range.";
     if (
       !reason &&
       action === "comment" &&

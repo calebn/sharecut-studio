@@ -61,7 +61,7 @@ describe("TrackHeaderView", () => {
     });
     expect(open).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByTitle("2 effects")).toHaveTextContent("FX 2");
-    expect(screen.getByRole("img", { name: "Stem up to date" })).toBeTruthy();
+    expect(screen.queryByRole("img", { name: "Stem up to date" })).toBeNull();
     const out = screen.getByText("Out 0.0 dB");
     expect(out).toHaveAttribute("title");
     // layout.css keys the compact grid area and narrow-pane hide rule on it.

@@ -1,5 +1,11 @@
 import { patchComment } from "../api";
-import { canManageProjects, guestHearsMixOnly } from "../shareMode";
+import {
+  canManageProjects,
+  canSuggestStructuralOnProject,
+  guestHearsMixOnly,
+  hasShareCapability,
+  isShareProjectKey,
+} from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { AuditionMode, LayoutMode } from "../state/types";
 import { errorMessage } from "../utils/apiError";
@@ -70,12 +76,29 @@ export function registerNavigationCommands(): void {
   });
 
   registerCommand("tool.select", () => {
-    useDawStore.getState().setToolMode("select");
+    const state = useDawStore.getState();
+    if (!state.project)
+      return { status: "disabled", reason: "Open a project to select audio" };
+    state.setToolMode("select");
     return { status: "ok" };
   });
 
   registerCommand("tool.blade", () => {
-    useDawStore.getState().setToolMode("blade");
+    const state = useDawStore.getState();
+    if (
+      !canSuggestStructuralOnProject(
+        state.projectPath,
+        state.guestMode,
+        state.shareCapabilities,
+        state.project != null,
+      )
+    )
+      return {
+        status: "disabled",
+        reason: "Blade requires permission to suggest edits",
+      };
+    state.setRangeArmed(false);
+    state.setToolMode("blade");
     return { status: "ok" };
   });
 
@@ -85,7 +108,14 @@ export function registerNavigationCommands(): void {
   });
 
   registerCommand("review.toggleCommentMode", () => {
-    useDawStore.getState().toggleCommentMode();
+    const state = useDawStore.getState();
+    if (
+      (isShareProjectKey(state.projectPath) || state.guestMode != null) &&
+      !hasShareCapability(state.shareCapabilities, "comment")
+    )
+      return { status: "disabled", reason: "This share cannot add comments" };
+    state.setRangeArmed(false);
+    state.toggleCommentMode();
     return { status: "ok" };
   });
 

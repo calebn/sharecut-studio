@@ -155,6 +155,11 @@ export function StudioShellView({
   }
 
   const useSheetInspector = shell === "tablet";
+  const showInspector =
+    !useSheetInspector &&
+    selection != null &&
+    selection.kind !== "range" &&
+    selection.kind !== "transcriptRange";
   // Peek sheet shares the bottom band with tabs; hide it when text/review
   // focus expands that band so Transcript/Comments stay fully readable.
   const sheetOpen =
@@ -194,12 +199,18 @@ export function StudioShellView({
       </div>
       <FollowBanner />
       <div ref={transportFocusRef} className="daw-shell-transport">
-        <RangeActions />
         <TransportBar compact={shell === "tablet"} showLayout />
+        <RangeActions />
       </div>
       <main
         ref={mainFocusRef}
-        className={["daw-main", arranging ? "daw-main--arrange" : ""]
+        className={[
+          "daw-main",
+          arranging ? "daw-main--arrange" : "",
+          !useSheetInspector && !showInspector
+            ? "daw-main--inspector-collapsed"
+            : "",
+        ]
           .filter(Boolean)
           .join(" ")}
       >
@@ -268,7 +279,7 @@ export function StudioShellView({
           <TimelineView headerSlot={trackHeaders} />
         )}
         {useSheetInspector ? <EditingToolRail /> : null}
-        {!useSheetInspector ? <Inspector /> : null}
+        {showInspector ? <Inspector /> : null}
       </main>
       <section
         ref={panelsFocusRef}

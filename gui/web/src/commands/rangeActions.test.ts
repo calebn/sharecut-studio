@@ -13,6 +13,11 @@ import {
 
 vi.mock("../api/documentEdits", () => ({ submitDocumentCommand: vi.fn() }));
 const p = minimalProject({
+  render_status: {
+    needs_rerender: false,
+    reconciliation: { stale: false },
+    premix: { exists: true },
+  },
   tracks: [sampleTrack({ id: "a", range_media_seal: "a" })],
   clips: {
     tracks: {
@@ -53,6 +58,27 @@ beforeEach(() => {
   });
 });
 describe("shared range action policy and commands", () => {
+  it("blocks guest playback of an old mix while retaining host live rendering", async () => {
+    useDawStore.setState({
+      project: {
+        ...p,
+        render_status: { ...p.render_status, needs_rerender: true },
+      },
+    });
+    expect(
+      rangeActionDescriptors(useDawStore.getState(), target)[0].reason,
+    ).toBeNull();
+    useDawStore.setState({
+      projectPath: "share:token",
+      guestMode: "view",
+      shareCapabilities: ["view"],
+    });
+    expect(await runRangeAction("play")).toEqual({
+      status: "disabled",
+      reason:
+        "Mix out of date. Ask the host to Refresh before playing this range.",
+    });
+  });
   it("exposes the same five actions with host labels", () =>
     expect(
       rangeActionDescriptors(useDawStore.getState(), target).map((d) => [

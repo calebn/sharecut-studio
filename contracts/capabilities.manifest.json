@@ -176,7 +176,7 @@
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
-        "timelineAndStructural"
+        "timelineFocused"
       ],
       "surfaces": {
         "command": "tool.select",

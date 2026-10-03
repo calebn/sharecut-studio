@@ -183,6 +183,11 @@ Agent entry points: [.agents/INSTRUCTIONS.md](../.agents/INSTRUCTIONS.md), [.age
 
 ## Removed transcript words
 
+Exact range Cut/Mute and approval use one mutation for the target or reviewed
+batch. Undo restores all affected clips and pending proposals, including empty
+lanes and retained duration. Applied exact records direct users to History Undo
+instead of offering a partial source-span Restore.
+
 Cut and boundary-adjustment snapshots include the active word list and its source-scoped archive. Undoing a cut restores its original active words. Undoing a boundary expansion restores the prior archive; redo restores the expanded word metadata. Normal `ProjectWorkspace.mutate()` history owns these changes. Archived previews are not active word correction targets.
 
 ## Transcript replacement pass

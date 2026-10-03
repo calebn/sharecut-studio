@@ -256,7 +256,7 @@ Portable selection hints (any MCP client). Detail: [`.agents/rules/engineering-s
 
 ## Time handling (source vs timeline clock)
 
-Stored times (`TranscriptWord`, `EditDecision`, `CombinedUtterance`) are **source-media seconds**; rendered audio is **timeline seconds**. See [architecture.md § Timebase](architecture.md#timebase-source-vs-timeline-clock).
+Transcript words and ordinary remove/mute decisions use **source-media seconds**; rendered audio uses **timeline seconds**. `EditDecision.exact_range` is the explicit timeline-clock variant: its islands, destination lanes, observed clips and media seals must stay together. See [architecture.md § Timebase](architecture.md#timebase-source-vs-timeline-clock).
 
 When writing new code that deals with time:
 

@@ -30,7 +30,6 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
   const chipJob = activityJob ?? pipelineJob;
   useJobStatusAnnouncement();
 
-  // Same source as the transport pill, so the two never disagree.
   const render = useStaleRenderBreakdown(project);
   const narrow = shellBreakpoint === "phone" || shellBreakpoint === "tablet";
 
