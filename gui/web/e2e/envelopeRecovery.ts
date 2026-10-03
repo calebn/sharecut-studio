@@ -31,7 +31,7 @@ function seedEnvelope(prefix: string) {
       parameter: "volume",
       points: [
         { id: "recovery-first", time: 2, value: 0.6 },
-        { id: "recovery-second", time: 10, value: 1.6 },
+        { id: "recovery-second", time: 10, value: 1.4 },
       ],
     },
   ];
