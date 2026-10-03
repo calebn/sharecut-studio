@@ -239,6 +239,48 @@ placeholder while the transcript hydrates.
 
 Vitest uses `jsdom` ([`vitest.config.ts`](vitest.config.ts)); setup lives in [`src/test/setup.ts`](src/test/setup.ts).
 
+`src/utils/useStableCallback.test.tsx` scans production `.ts` and `.tsx` files
+and proves detection by inserting a direct call after each of the ten current
+stable callback declarations in memory. The pure test helper accepts
+`SourceInput` with `rel` and `text` and returns ordered `RenderCall` diagnostics
+with file, one-based line and column, and callback name. Parse errors fail the
+test. `src/test/stableCallbackGovernance.test.ts` contains execution-boundary
+fixtures with literal diagnostics and valid deferred or shadowed uses.
+
+The check follows direct, unreassigned local variables initialized by the actual imported
+`useStableCallback`, including import aliases and namespace imports. Babel's
+typed AST and scope bindings handle lexical shadowing and TypeScript expression
+wrappers, including `satisfies`. Calls during the owner's evaluation include
+JSX expressions, optional calls, `.call`, `.apply`, synchronous inline IIFEs,
+and React's imported `useMemo`, lazy `useState`, and `useReducer` initializers.
+Member names must be noncomputed identifiers or computed string literals.
+Computed keys, class heritage, static fields, and static blocks are eager.
+Creating methods, getters, or instance fields does not execute their bodies.
+
+Parameter handling is deliberately syntactic. For synchronous inline functions,
+default expressions are checked for omitted arguments, unshadowed `undefined`,
+and `void` of a numeric literal. Supplied non-undefined literal arguments do not
+activate those defaults. Shallow destructuring defaults are checked with empty
+object or array literals, supplied directly or through a parameter default.
+`useMemo` and lazy `useState` supply no arguments. A `useReducer` initializer
+receives its initial argument. Dynamic arguments, spreads before the parameter,
+nonempty destructuring arguments, and nested destructuring are outside this
+parameter policy. There is no value evaluator or branch-reachability analysis.
+
+The check does not enter async or generator functions, follow callback aliases,
+reassignments, named helper calls, child props, or arbitrary callback APIs.
+Passing the check covers these local forms only. Enforcement runs in tests and
+adds no runtime guard. The executable hook and its callers remain unchanged.
+The runtime suite checks stable identity, latest arguments, child layout effects,
+StrictMode, a same-state render bailout, and an uncommitted Suspense transition
+followed by commit.
+
+`@babel/traverse` 7.29.8, `@babel/types` 7.29.8, and
+`@types/babel__traverse` 7.28.0 are direct dev dependencies for this test helper
+and its independent mutation traversal. They replace a partial custom scope
+resolver and keep parser nodes typed. Production modules do not import the
+policy or these test dependencies. See the [Babel traversal documentation](https://babeljs.io/docs/babel-traverse).
+
 ### Lint suppressions
 
 Do **not** add `eslint-disable`, `oxlint-disable`, `biome-ignore`, or `stylelint-disable` without **explicit user approval**. Default is fix the code (or add a theme token). Stylelint exceptions must be `/* stylelint-disable-next-line RULE -- user-approved: reason */`. See [.agents/rules/gui-styling.md](../../.agents/rules/gui-styling.md).

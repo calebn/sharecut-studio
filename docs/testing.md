@@ -356,6 +356,12 @@ Playwright because jsdom cannot prove them. Keep Chromium/WebKit coverage for
 engine-sensitive behavior in `e2e-compat/`; do not multiply every component case
 across engines. Live ASR and model downloads remain in their separate slow tiers.
 
+Vitest also scans production source for supported local render-time calls to
+`useStableCallback`. In-memory mutations prove detection at every current
+declaration. Runtime tests preserve committed callbacks through bailouts and
+suspended transitions. This is bounded test-time enforcement; it adds no runtime
+guard. Coverage and syntax limits live in the [frontend testing contract](../gui/web/README.md#testing).
+
 Before adding a browser test, name the browser or integration seam it protects.
 When its API responses are mocked and it only checks component state or a payload,
 prefer Vitest. Before removing a case, identify the test that owns its meaningful
