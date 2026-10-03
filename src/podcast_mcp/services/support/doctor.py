@@ -11,7 +11,13 @@ from typing import Any, Literal
 from podcast_mcp.config import cache_dir
 from podcast_mcp.engines import FFmpegEngine
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.binaries import ffmpeg_source, resolve_ffmpeg
+from podcast_mcp.util.binaries import (
+    FFmpegPairResolutionError,
+    ffmpeg_source,
+    resolve_ffmpeg,
+    resolve_ffmpeg_pair,
+    resolve_ffprobe,
+)
 from podcast_mcp.util.model_assets import rnnoise_model_path
 from podcast_mcp.whisper_models import (
     WhisperPinMismatchError,
@@ -60,9 +66,14 @@ def run_doctor_checks(
 ) -> DoctorReport:
     """Run the same health checks as `podcast doctor` (no I/O besides reads)."""
     report = DoctorReport()
-    ok, msg = FFmpegEngine().check_available()
+    try:
+        engine = FFmpegEngine()
+    except FFmpegPairResolutionError as exc:
+        ok, msg = False, str(exc)
+    else:
+        ok, msg = engine.check_available()
     if ok:
-        source = ffmpeg_source(resolve_ffmpeg())
+        source = ffmpeg_source(engine.ffmpeg)
         report.checks.append(DoctorCheck("ok", f"ffmpeg ({source}): {msg}"))
     else:
         report.checks.append(
@@ -206,13 +217,16 @@ def _load_project(project: EpisodeProject | Path | None) -> EpisodeProject | Non
 
 def ffmpeg_probe_info() -> dict[str, Any]:
     """Basename-only ffmpeg/ffprobe paths plus version strings."""
-    from podcast_mcp.util.binaries import resolve_ffprobe
     from podcast_mcp.util.process import TimeoutExpired, run
 
-    ffmpeg = resolve_ffmpeg()
-    ffprobe = resolve_ffprobe()
-    engine = FFmpegEngine()
-    ok, ffmpeg_ver = engine.check_available()
+    try:
+        pair = resolve_ffmpeg_pair()
+        ffmpeg, ffprobe = pair.ffmpeg, pair.ffprobe
+        engine = FFmpegEngine(ffmpeg, ffprobe)
+        ok, ffmpeg_ver = engine.check_available()
+    except FFmpegPairResolutionError:
+        ffmpeg, ffprobe = resolve_ffmpeg(), resolve_ffprobe()
+        ok, ffmpeg_ver = False, "FFmpeg and FFprobe pair not found"
     probe_ok, probe_ver = False, "ffprobe not found"
     try:
         r = run([ffprobe, "-version"], capture_output=True, text=True, timeout=10)

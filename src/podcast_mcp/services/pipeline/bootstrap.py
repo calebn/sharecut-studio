@@ -7,18 +7,17 @@ network on import or resolve) — same contract as ``util/binaries.py``.
 
 from __future__ import annotations
 
-import shutil
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config import whisper_cache_dir
 from podcast_mcp.util.asset_sources import cdn_base_configured
 from podcast_mcp.util.binaries import (
+    FFmpegPair,
+    FFmpegPairResolutionError,
     bootstrap_ffmpeg,
     ffmpeg_source,
-    resolve_ffmpeg,
-    resolve_ffprobe,
+    resolve_ffmpeg_pair,
 )
 from podcast_mcp.util.model_assets import bootstrap_rnnoise_model, rnnoise_model_path
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
@@ -51,13 +50,14 @@ ALL_GUI_COMPONENTS: tuple[str, ...] = (
 )
 
 
-def _ffmpeg_ready() -> bool:
-    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
-        return True
-    resolved = resolve_ffmpeg()
-    if resolved in ("ffmpeg", "ffprobe"):
-        return False
-    return Path(resolved).is_file() and Path(resolve_ffprobe()).is_file()
+def _available_ffmpeg_pair() -> FFmpegPair | None:
+    try:
+        pair = resolve_ffmpeg_pair()
+    except FFmpegPairResolutionError:
+        return None
+    if pair.is_available():
+        return pair
+    return None
 
 
 def _rnnoise_ready() -> bool:
@@ -140,13 +140,14 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
     from podcast_mcp.engines.vad_silero import is_available as silero_available
 
     model = resolve_whisper_model(requested=whisper_model)
-    ffmpeg_ok = _ffmpeg_ready()
+    ffmpeg_pair = _available_ffmpeg_pair()
+    ffmpeg_ok = ffmpeg_pair is not None
     whisper = whisper_component(model)
     rnnoise_ok = _rnnoise_ready()
     components = {
         "ffmpeg": {
             "ok": ffmpeg_ok,
-            "source": ffmpeg_source(resolve_ffmpeg()) if ffmpeg_ok else "not found",
+            "source": ffmpeg_source(ffmpeg_pair.ffmpeg) if ffmpeg_pair else "not found",
             "required_for_first_run": True,
         },
         "whisper": {**whisper, "cache": str(whisper_cache_dir()), "required_for_first_run": True},
@@ -226,8 +227,14 @@ def run_bootstrap(
 
 
 def _run_ffmpeg(*, force: bool) -> dict[str, Any]:
-    if not force and shutil.which("ffmpeg") and shutil.which("ffprobe"):
-        return {"ok": True, "skipped": True, "reason": "system PATH"}
+    if not force and (pair := _available_ffmpeg_pair()):
+        return {
+            "ok": True,
+            "skipped": True,
+            "reason": "available pair",
+            "ffmpeg": pair.ffmpeg,
+            "ffprobe": pair.ffprobe,
+        }
     try:
         ffmpeg_path, ffprobe_path = bootstrap_ffmpeg(force=force)
     except Exception as exc:

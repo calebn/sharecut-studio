@@ -32,7 +32,7 @@
       "kind": "static-ffmpeg",
       "license": "LGPL/GPL (build-dependent)",
       "cdn_prefix": "bin/ffmpeg",
-      "notes": "Mirror platform static builds + license notices under bin/ffmpeg/{darwin-arm64,darwin-x64,windows-x64,linux-x64}/. Runtime skips CDN until sha256_by_platform pins exist for this host. Do not rely on PyPI static-ffmpeg alone for consumer SLA."
+      "notes": "Mirror platform static builds + license notices under bin/ffmpeg/{darwin-arm64,darwin-x64,windows-x64,linux-x64}/. Runtime skips CDN until real sha256_by_platform pins exist for this host. The current static-ffmpeg 3.0 helper uses mutable main/v8.0 URLs. podcast bootstrap --component ffmpeg --upgrade rechecks the configured source and recopies helper binaries, which may come from its cache. It does not update the Python package or promise FFmpeg 9.0.2."
     }
   },
   "fallback": {

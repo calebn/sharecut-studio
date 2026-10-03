@@ -118,6 +118,14 @@ Models                   models/  (EpisodeProject, snapshots)
 11. **Extensions** (`podcast_mcp.extensions`) — public FeatureRegistry / soft-load SPI; built-in FOSS `collaboration` extension; optional independently installed provider extension named `online`; example stub. `collaboration` composes share CLI/MCP, anonymous guest identity, review/record/remote-MCP routes, guest SPA hooks, and share/tunnel feature slots. `online` contributes only provider account/auth surfaces. Absent extension ⇒ no contributed routes/tools/UI ([extension-seams.md](extension-seams.md)). FOSS share mint works against any self-hosted relay; provider defaults, accounts, and quotas remain outside this repository.
 12. **Relay** (`podcast_relay`) — FOSS host-online reverse tunnel edge (`podcast-relay`); host connects via `podcast tunnel` (`services/collaboration/tunnel.py`). Packaging: `deploy/relay/` plus static vhosts (`/download`, Sharecut marketing, company page). See [host-online-relay.md](host-online-relay.md).
 
+`FFmpegEngine` resolves `ffmpeg` and `ffprobe` as one `FFmpegPair` through
+[`util.binaries.resolve_ffmpeg_pair`](../src/podcast_mcp/util/binaries.py).
+Pair selection prefers the native Homebrew keg on macOS, then the first complete
+`PATH` directory, then the bootstrap cache. Single-command workflows keep using
+`resolve_ffmpeg()` or `resolve_ffprobe()` with the same native preference and
+individual PATH/cache fallback. First-run boundaries share `FFmpegPair.is_available()`
+to check executability without running commands. See [FFmpeg version and pair policy](setup.md#ffmpeg-version-and-pair-policy).
+
 Playback meter sources live under `gui/web/src/audio/`. Transports bind one
 runtime source through `playbackMeterSource.ts`; track meter leaves subscribe
 without sending frame readings through the project store. `channelPeakTap.ts`

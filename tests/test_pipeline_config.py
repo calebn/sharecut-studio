@@ -661,13 +661,15 @@ def test_component_status_error_branches(monkeypatch) -> None:
     from podcast_mcp.services.pipeline import config as pc
 
     def boom_ffmpeg():
-        raise RuntimeError("no ffmpeg")
+        from podcast_mcp.util.binaries import FFmpegPairResolutionError
+
+        raise FFmpegPairResolutionError("no ffmpeg")
 
     def boom_rnnoise():
         raise RuntimeError("no rnnoise")
 
     monkeypatch.setattr(
-        "podcast_mcp.util.binaries.resolve_ffmpeg",
+        "podcast_mcp.util.binaries.resolve_ffmpeg_pair",
         boom_ffmpeg,
     )
     monkeypatch.setattr(
@@ -1408,3 +1410,15 @@ def test_suggest_pipeline_tuning_forwards_cancel_check(monkeypatch, tmp_path) ->
     project = EpisodeProject.create(name="t", workspace_dir=str(tmp_path))
     suggest_pipeline_tuning(project, cancel_check=sentinel)
     assert recorded["cancel_check"] is sentinel
+
+
+@pytest.mark.parametrize("executable", [True, False])
+def test_component_status_checks_executability_for_explicit_pair(monkeypatch, executable):
+    from podcast_mcp.services.pipeline import config as pc
+    from podcast_mcp.util import binaries
+
+    monkeypatch.setattr(binaries.shutil, "which", lambda _command: "found" if executable else None)
+    monkeypatch.setattr(
+        binaries, "resolve_ffmpeg_pair", lambda: binaries.FFmpegPair("ffmpeg", "ffprobe")
+    )
+    assert pc.component_status()["ffmpeg"]["ok"] is executable

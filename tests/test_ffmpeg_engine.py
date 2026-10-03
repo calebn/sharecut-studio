@@ -6,6 +6,7 @@ import wave
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
 from podcast_mcp.engines.ffmpeg import (
@@ -27,6 +28,7 @@ from podcast_mcp.models import (
     Track,
     TrackRole,
 )
+from podcast_mcp.util.binaries import FFmpegPair
 
 
 @pytest.mark.parametrize(
@@ -223,6 +225,38 @@ def test_check_available_failure_paths():
         ok, msg = eng.check_available()
         assert ok is False
         assert "timed out" in msg
+
+
+def test_check_available_rejects_missing_explicit_ffprobe_before_subprocess(tmp_path: Path):
+    ffmpeg = tmp_path / "ffmpeg"
+    ffmpeg.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    ffmpeg.chmod(0o755)
+    engine = FFmpegEngine(ffmpeg=str(ffmpeg), ffprobe=str(tmp_path / "missing-ffprobe"))
+
+    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+        ok, message = engine.check_available()
+
+    assert ok is False
+    assert "pair is unavailable" in message
+    run.assert_not_called()
+
+
+def test_check_available_handles_empty_version_output():
+    engine = FFmpegEngine()
+    with patch("podcast_mcp.engines.ffmpeg.run", return_value=MagicMock(returncode=0, stdout="")):
+        ok, message = engine.check_available()
+
+    assert ok is False
+    assert "empty version output" in message
+
+
+def test_check_available_handles_permission_error():
+    engine = FFmpegEngine()
+    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=PermissionError):
+        ok, message = engine.check_available()
+
+    assert ok is False
+    assert "not executable" in message
 
 
 def test_probe_parsed_from_json(tmp_path: Path):
@@ -449,6 +483,32 @@ def test_export_audio_options(sample_wav: Path, tmp_path: Path):
     assert "-ac" in cmd and "2" in cmd
     assert any("title=test" in arg for arg in cmd)
     assert "-vn" in cmd
+
+
+def test_real_wav_and_mp3_exports_decode(tmp_path: Path) -> None:
+    engine = FFmpegEngine()
+    source = tmp_path / "source.wav"
+    samples = np.sin(2 * np.pi * 440 * np.arange(24_000) / 48_000) * 0.25
+    pcm = np.rint(samples * 32767).astype("<i2")
+    with wave.open(str(source), "wb") as stream:
+        stream.setnchannels(1)
+        stream.setsampwidth(2)
+        stream.setframerate(48_000)
+        stream.writeframes(pcm.tobytes())
+
+    wav_export = tmp_path / "export.wav"
+    mp3_export = tmp_path / "export.mp3"
+    engine.export_audio(source, wav_export, codec="pcm_s16le")
+    engine.export_mp3(source, mp3_export, bitrate_kbps=128)
+
+    for exported in (wav_export, mp3_export):
+        sample_rate, channels, chunks = engine.stream_pcm_f32(exported)
+        decoded = np.concatenate(list(chunks))
+        assert sample_rate == 48_000
+        assert channels == 1
+        assert 23_000 <= decoded.shape[0] <= 25_000
+        assert np.isfinite(decoded).all()
+        assert 0.15 <= np.sqrt(np.mean(decoded**2)) <= 0.19
 
 
 def test_measure_loudness_patterns(tmp_path: Path):
@@ -778,9 +838,11 @@ def test_build_track_filter_arnndn_escapes_colons_in_path():
 
 
 def test_ffmpeg_engine_defaults_resolve_binaries():
-    with patch("podcast_mcp.engines.ffmpeg.resolve_ffmpeg", return_value="/resolved/ffmpeg"):
-        with patch("podcast_mcp.engines.ffmpeg.resolve_ffprobe", return_value="/resolved/ffprobe"):
-            eng = FFmpegEngine()
+    with patch(
+        "podcast_mcp.engines.ffmpeg.resolve_ffmpeg_pair",
+        return_value=FFmpegPair("/resolved/ffmpeg", "/resolved/ffprobe"),
+    ):
+        eng = FFmpegEngine()
     assert eng.ffmpeg == "/resolved/ffmpeg"
     assert eng.ffprobe == "/resolved/ffprobe"
 
@@ -789,6 +851,18 @@ def test_ffmpeg_engine_explicit_paths_override_resolver():
     eng = FFmpegEngine(ffmpeg="/custom/ffmpeg", ffprobe="/custom/ffprobe")
     assert eng.ffmpeg == "/custom/ffmpeg"
     assert eng.ffprobe == "/custom/ffprobe"
+
+
+def test_ffmpeg_engine_constructor_override_wins_per_slot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PODCAST_MCP_FFMPEG", "/env/ffmpeg")
+    monkeypatch.setenv("PODCAST_MCP_FFPROBE", "/env/ffprobe")
+
+    engine = FFmpegEngine(ffmpeg="invalid explicit command")
+
+    assert engine.ffmpeg == "invalid explicit command"
+    assert engine.ffprobe == "/env/ffprobe"
 
 
 def test_render_spectrogram(sample_wav: Path, tmp_path: Path):
@@ -1213,6 +1287,52 @@ def test_mix_tracks_uses_the_completed_peak_summary(
     }
     assert _filter_complex(render) == f"{unity_graph[track_count]}{trim_filter}[out]"
     assert render[-1] == str(out)
+
+
+@pytest.mark.parametrize("track_count", [1, 2])
+def test_real_mix_true_peak_ceiling_after_independent_4x_resample(
+    tmp_path: Path, track_count: int
+) -> None:
+    engine = FFmpegEngine()
+    paths: list[Path] = []
+    time = np.arange(96_000, dtype=np.float64) / 48_000
+    samples = np.rint(np.sin(2 * np.pi * 997 * time + 0.37) * 0.8 * 32767).astype("<i2")
+    for index in range(track_count):
+        path = tmp_path / f"track-{index}.wav"
+        with wave.open(str(path), "wb") as stream:
+            stream.setnchannels(1)
+            stream.setsampwidth(2)
+            stream.setframerate(48_000)
+            stream.writeframes(samples.tobytes())
+        paths.append(path)
+
+    output = tmp_path / f"mix-{track_count}.wav"
+    engine.mix_tracks([(path, 0.0) for path in paths], output, peak_ceiling_db=-6.0)
+    decoded = subprocess.run(
+        [
+            engine.ffmpeg,
+            "-hide_banner",
+            "-v",
+            "error",
+            "-i",
+            str(output),
+            "-af",
+            "aresample=192000",
+            "-f",
+            "f32le",
+            "-acodec",
+            "pcm_f32le",
+            "-ac",
+            "1",
+            "pipe:",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    oversampled = np.frombuffer(decoded.stdout, dtype="<f4")
+    assert oversampled.size >= 4 * samples.size - 64
+    output_peak_db = 20 * np.log10(np.max(np.abs(oversampled)))
+    assert output_peak_db <= -5.9
 
 
 def test_headroom_trim_db():

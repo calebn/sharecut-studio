@@ -51,7 +51,30 @@ from podcast_mcp.engines.waveform_pyramid import (
 )
 from podcast_mcp.util.process import run
 
-needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not available")
+
+def _selected_ffmpeg_available() -> bool:
+    from podcast_mcp.util.binaries import resolve_ffmpeg
+
+    return shutil.which(resolve_ffmpeg()) is not None
+
+
+needs_ffmpeg = pytest.mark.skipif(not _selected_ffmpeg_available(), reason="ffmpeg not available")
+
+
+def test_selected_ffmpeg_availability_accepts_executable_outside_path(monkeypatch, tmp_path):
+    from podcast_mcp.util import binaries
+
+    selected = tmp_path / "cache" / "ffmpeg"
+    selected.parent.mkdir()
+    selected.write_bytes(b"selected executable")
+    monkeypatch.setattr(binaries, "resolve_ffmpeg", lambda: str(selected))
+    monkeypatch.setenv("PATH", "")
+    selected.chmod(0o755)
+    monkeypatch.setattr(
+        shutil, "which", lambda command: str(selected) if command == str(selected) else None
+    )
+    assert _selected_ffmpeg_available() is True
+
 
 FULL = 32767
 

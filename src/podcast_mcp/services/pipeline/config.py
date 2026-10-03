@@ -260,12 +260,11 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
 
     out: dict[str, Any] = {}
     try:
-        import shutil
+        from podcast_mcp.util.binaries import FFmpegPairResolutionError, resolve_ffmpeg_pair
 
-        from podcast_mcp.util.binaries import resolve_ffmpeg
-
-        path = resolve_ffmpeg()
-        ok = Path(path).is_file() or shutil.which(path) is not None
+        pair = resolve_ffmpeg_pair()
+        path = pair.ffmpeg
+        ok = pair.is_available()
         out["ffmpeg"] = {
             "ok": ok,
             "path": path,
@@ -275,7 +274,7 @@ def component_status(*, whisper_model: str | None = None) -> dict[str, Any]:
                 else {"hint": "FFmpeg not found - run podcast bootstrap --component ffmpeg"}
             ),
         }
-    except Exception as exc:
+    except FFmpegPairResolutionError as exc:
         out["ffmpeg"] = {"ok": False, "hint": str(exc)}
 
     try:
