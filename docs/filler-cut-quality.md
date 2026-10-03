@@ -86,6 +86,8 @@ Hard joins (`join_in_mode=cut`, zero fades) use plain concat. See [inaudible-cut
 
 ## CLI / MCP
 
+Omit track and speaker for a session handoff to require quiet across all dialogue lanes, including muted lanes. Explicit selectors analyze one lane. Results list the analyzed `track_ids`. Missing or incomplete audio blocks approval. See [Narrative handoffs](inaudible-cuts.md#narrative-handoffs) for evidence and locking bounds.
+
 - `podcast propose-edits` / `propose_edits` — proposals include optimized boundaries and per-cut `crossfade_ms`. The MCP payload is `{operation, edits, skip_counts, summary}` (`operation` is `propose_edits`; not a bare array). `skip_counts` maps `discourse:{token}` → kept uses, including isolated cluster-size rejects. CLI prints `proposal.summary()`.
 - `podcast apply-edits` / `apply_edits` — applies via batch ripple + per-join fades (`apply_join_fades_from_decisions`).
 

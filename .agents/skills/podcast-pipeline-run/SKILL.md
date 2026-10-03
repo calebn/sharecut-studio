@@ -46,19 +46,23 @@ Resume notes: `--from reconcile_transcript` starts at **pass 1**. For pass 2 onl
 
 ## Long raw sessions: content cut before tighten
 
+A ripple that removes no words preserves done or waived refinement clearance after saving and reopening. Word timing and clip placement alone do not change the precorrect fingerprint. Text, word order, track IDs, and suppressed state changes still require clearance.
+
+Omit track and speaker on `suggest_handoff_cut_tool` to require quiet across every dialogue lane, including muted lanes. Explicit selectors limit evidence to one lane. The result lists the analyzed `track_ids`. Missing or incomplete cached audio blocks the suggestion. See [Narrative handoffs](../../../docs/inaudible-cuts.md#narrative-handoffs).
+
 The default pipeline cuts no content: focus and tighten are off, so a raw session exports at full length. Before any tighten on a long raw session:
 
 1. **Content cut** (after sign-off; it usually exceeds the 15% guard). Remove off-topic runs and meta talk, then the dead start, on every dialogue track with **podcast-edit-natural-language**. Work from the end of the episode toward the start; the dead start (`--start 0`) is always last:
    ```bash
    # each off-topic run / meta talk, latest first
-   podcast edit suggest-handoff-cut --project episode.project.json --track <id> --keep-left-end <L> --keep-right-start <R>
+   podcast edit suggest-handoff-cut --project episode.project.json --keep-left-end <L> --keep-right-start <R>
    podcast edit ripple-delete --project episode.project.json --start <cut_start> --end <cut_end> --no-inaudible-opt
    # last: the dead start shifts everything after it
    podcast edit search --project episode.project.json --query "<first kept line>"   # timeline_start
    podcast edit ripple-delete --project episode.project.json --start 0 --end <timeline_start-0.5>
    ```
    MCP: `suggest_handoff_cut_tool`, `ripple_delete_tool`, `search_transcript_tool`.
-2. **Re-clear the refine gate after each ripple.** Dropped words make the waive stale: `podcast transcript refine-status` shows `"stale": true`, and the next edit raises `TranscriptRefineRequiredError`.
+2. **Re-clear the refine gate after a ripple removes words.** Dropped words make the waive stale: `podcast transcript refine-status` shows `"stale": true`, and the next edit raises `TranscriptRefineRequiredError`.
    ```bash
    podcast transcript refine-waive --project episode.project.json --reason "content cut: structural edit"
    ```

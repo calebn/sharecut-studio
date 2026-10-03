@@ -24,11 +24,25 @@ from podcast_mcp.models import (
 )
 
 
+def _write_wav(path, samples):
+    import wave
+
+    import numpy as np
+
+    with wave.open(str(path), "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(16000)
+        audio.writeframes((samples * 32767).astype(np.int16).tobytes())
+
+
 def _project(tmp_path: Path) -> EpisodeProject:
     ws = tmp_path / "ws"
     raw = ws / "raw"
     raw.mkdir(parents=True)
-    (raw / "host.wav").write_bytes(b"fake")
+    import numpy as np
+
+    _write_wav(raw / "host.wav", np.zeros(30 * 16000))
     p = EpisodeProject.create("t", str(ws))
     p.timeline.tracks = [
         Track(
@@ -119,7 +133,7 @@ def test_suggest_handoff_retains_air_and_removes_um(tmp_path):
         "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
         side_effect=fake_rms,
     ):
-        out = suggest_handoff_cut(p, "host", 1.6, 8.0, hop_ms=50)
+        out = suggest_handoff_cut(p, ["host"], 1.6, 8.0, hop_ms=50)
 
     assert out["ok"] is True
     assert out["use_inaudible_opt"] is False
@@ -157,7 +171,7 @@ def test_suggest_handoff_ignores_puddle_glued_to_pivot(tmp_path):
         "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
         side_effect=fake_rms,
     ):
-        out = suggest_handoff_cut(p, "host", 1.6, 8.0, hop_ms=50, retain_sec=1.0)
+        out = suggest_handoff_cut(p, ["host"], 1.6, 8.0, hop_ms=50, retain_sec=1.0)
 
     assert out["ok"] is True
     assert out["cut_end"] is not None
@@ -185,7 +199,7 @@ def test_suggest_handoff_refuses_um_at_retain_target(tmp_path):
         "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
         side_effect=fake_rms,
     ):
-        out = suggest_handoff_cut(p, "host", 1.6, 8.0, hop_ms=50, retain_sec=1.0)
+        out = suggest_handoff_cut(p, ["host"], 1.6, 8.0, hop_ms=50, retain_sec=1.0)
 
     assert out["ok"] is False
     assert "cut_start_not_quiet" in out["warnings"]
@@ -210,7 +224,7 @@ def test_suggest_handoff_ignores_brief_quiet_dip_in_um(tmp_path):
         "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
         side_effect=fake_rms,
     ):
-        out = suggest_handoff_cut(p, "host", 1.6, 8.0, hop_ms=20, retain_sec=1.0)
+        out = suggest_handoff_cut(p, ["host"], 1.6, 8.0, hop_ms=20, retain_sec=1.0)
 
     assert out["ok"] is False
     assert "cut_start_not_quiet" in out["warnings"]
@@ -222,7 +236,7 @@ def test_suggest_handoff_missing_audio_is_not_room_tone(tmp_path):
         "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
         return_value=None,
     ):
-        out = suggest_handoff_cut(p, "host", 1.0, 5.0)
+        out = suggest_handoff_cut(p, ["host"], 1.0, 5.0)
     assert out["ok"] is False
     assert "cut_start_not_quiet" in out["warnings"]
 
@@ -233,7 +247,7 @@ def test_suggest_handoff_refuses_when_bounds_are_speech(tmp_path):
         "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
         return_value=-10.0,
     ):
-        out = suggest_handoff_cut(p, "host", 1.0, 3.0)
+        out = suggest_handoff_cut(p, ["host"], 1.0, 3.0)
     assert out["ok"] is False
     assert "cut_start_not_quiet" in out["warnings"]
     assert "cut_end_not_quiet" in out["warnings"]
@@ -248,7 +262,7 @@ def test_suggest_handoff_single_island_retains_target_air(tmp_path):
         "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
         return_value=-55.0,
     ):
-        out = suggest_handoff_cut(p, "host", 1.0, 13.0, hop_ms=50, retain_sec=1.0)
+        out = suggest_handoff_cut(p, ["host"], 1.0, 13.0, hop_ms=50, retain_sec=1.0)
     assert out["ok"] is True
     assert len(out["islands"]) == 1
     assert out["cut_start"] is not None and out["cut_end"] is not None
@@ -270,7 +284,7 @@ def test_suggest_handoff_snaps_to_quieter_hop(tmp_path):
         "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
         side_effect=fake_rms,
     ):
-        out = suggest_handoff_cut(p, "host", 1.0, 5.0, hop_ms=20, retain_sec=1.0)
+        out = suggest_handoff_cut(p, ["host"], 1.0, 5.0, hop_ms=20, retain_sec=1.0)
     assert out["ok"] is True
     assert out["cut_start"] is not None
     assert 2.05 < out["cut_start"] < 2.16
@@ -282,7 +296,7 @@ def test_suggest_handoff_side_blob_bounds_not_quiet(tmp_path):
         "podcast_mcp.edits.silence_islands.timeline_rms_hops",
         return_value=[(1.0, -55.0), (1.4, -55.0), (1.7, -55.0)],
     ):
-        out = suggest_handoff_cut(p, "host", 1.0, 8.0)
+        out = suggest_handoff_cut(p, ["host"], 1.0, 8.0)
     assert out["ok"] is False
     assert "cut_start_not_quiet" in out["warnings"]
     assert "cut_end_not_quiet" in out["warnings"]
@@ -295,7 +309,7 @@ def test_suggest_handoff_keep_gap_too_short(tmp_path):
         "podcast_mcp.edits.silence_islands.timeline_rms_hops",
         return_value=[(1.0, -55.0)],
     ):
-        out = suggest_handoff_cut(p, "host", 1.0, 1.04)
+        out = suggest_handoff_cut(p, ["host"], 1.0, 1.04)
     assert out["ok"] is False
     assert "keep_gap_too_short" in out["warnings"]
 
@@ -306,7 +320,7 @@ def test_suggest_handoff_clamps_retain_on_short_gap(tmp_path):
         "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
         return_value=-55.0,
     ):
-        out = suggest_handoff_cut(p, "host", 1.0, 1.9, hop_ms=50, retain_sec=1.0)
+        out = suggest_handoff_cut(p, ["host"], 1.0, 1.9, hop_ms=50, retain_sec=1.0)
     assert out["ok"] is True
     assert out["cut_start"] is not None and out["cut_end"] is not None
     assert out["retained_air_after_left_sec"] is not None
@@ -322,7 +336,7 @@ def test_suggest_handoff_warns_when_requested_retain_is_short(tmp_path):
         "podcast_mcp.edits.silence_islands.measure_timeline_rms_db",
         return_value=-55.0,
     ):
-        out = suggest_handoff_cut(p, "host", 1.0, 13.0, hop_ms=50, retain_sec=0.3)
+        out = suggest_handoff_cut(p, ["host"], 1.0, 13.0, hop_ms=50, retain_sec=0.3)
     assert out["ok"] is True
     assert "retained_air_after_left_short" in out["warnings"]
     assert "retained_air_before_right_short" in out["warnings"]
@@ -333,7 +347,11 @@ def test_timeline_rms_hops_uses_cache_builder(tmp_path):
     from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
 
     p = _project(tmp_path)
-    empty = TrackRmsCacheSet(caches={})
+    import numpy as np
+
+    from podcast_mcp.engines.audio_audit import TrackRmsCache
+
+    empty = TrackRmsCacheSet(caches={"host": TrackRmsCache(np.zeros(16000))})
     with (
         patch(
             "podcast_mcp.edits.silence_islands.build_track_rms_caches",
@@ -344,7 +362,7 @@ def test_timeline_rms_hops_uses_cache_builder(tmp_path):
             return_value=-50.0,
         ) as measure,
     ):
-        hops = timeline_rms_hops(p, "host", 0.0, 0.1, hop_ms=50)
+        hops = timeline_rms_hops(p, ["host"], 0.0, 0.1, hop_ms=50)
     build.assert_called_once_with(p)
     assert measure.called
     assert measure.call_args.kwargs.get("caches") is empty
@@ -354,7 +372,7 @@ def test_timeline_rms_hops_uses_cache_builder(tmp_path):
 def test_suggest_handoff_rejects_inverted_keeps(tmp_path):
     p = _project(tmp_path)
     with pytest.raises(ValueError, match="keep_right_start"):
-        suggest_handoff_cut(p, "host", 5.0, 4.0)
+        suggest_handoff_cut(p, ["host"], 5.0, 4.0)
 
 
 def test_silence_islands_empty_hops():
@@ -389,7 +407,210 @@ def test_suggest_handoff_warns_when_snaps_invert(tmp_path):
             "podcast_mcp.edits.silence_islands._snap_to_quiet",
             side_effect=[2.0, 2.01],
         ):
-            out = suggest_handoff_cut(p, "host", 1.0, 5.0)
+            out = suggest_handoff_cut(p, ["host"], 1.0, 5.0)
     assert out["ok"] is False
     assert "proposed_bounds_too_tight_or_inverted" in out["warnings"]
     assert out["cut_start"] is None
+
+
+@pytest.mark.parametrize("muted", [False, True])
+def test_session_handoff_requires_quiet_peer_audio(tmp_path, muted):
+    import numpy as np
+
+    from podcast_mcp.models import save_project
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import EditService
+
+    p = _project(tmp_path)
+    samples = np.zeros(30 * 16000)
+    samples[int(1.7 * 16000) : int(2.3 * 16000)] = 0.2
+    _write_wav(Path(p.workspace_dir) / "raw/guest.wav", samples)
+    p.timeline.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            speaker="Guest",
+            role=TrackRole.DIALOGUE,
+            muted=muted,
+            media=MediaAsset(path="raw/guest.wav", duration_sec=30.0),
+        )
+    )
+    p.timeline.clips.append(
+        Clip(id="g1", track_id="guest", source_start=0, source_end=30, timeline_start=0)
+    )
+    path = Path(p.workspace_dir) / "episode.project.json"
+    save_project(p, path)
+    service = EditService(ProjectWorkspace.open(path))
+    out = service.suggest_handoff_cut(keep_left_end=1, keep_right_start=5)
+    assert out["track_ids"] == ["host", "guest"]
+    assert out["track_id"] is None
+    assert out["ok"] is False
+    assert "cut_start_not_quiet" in out["warnings"]
+    for selector in ({"track_id": "host"}, {"speaker": "Host"}):
+        single = service.suggest_handoff_cut(keep_left_end=1, keep_right_start=5, **selector)
+        assert single["ok"] is True
+        assert (single["cut_start"], single["cut_end"]) == (2.0, 4.0)
+        assert single["track_ids"] == ["host"]
+        assert single["track_id"] == "host"
+
+
+def test_missing_cache_blocks_even_positive_quiet_threshold_without_fallback(tmp_path):
+    import math
+
+    from podcast_mcp.edits.silence_islands import timeline_rms_hops
+    from podcast_mcp.engines.audio_audit import TrackRmsCacheSet
+
+    p = _project(tmp_path)
+    with (
+        patch(
+            "podcast_mcp.edits.silence_islands.build_track_rms_caches",
+            return_value=TrackRmsCacheSet(),
+        ) as build,
+        patch("podcast_mcp.edits.silence_islands.measure_timeline_rms_db") as measure,
+    ):
+        hops = timeline_rms_hops(p, ["host", "guest"], 1, 5)
+        out = suggest_handoff_cut(p, ["host", "guest"], 1, 5, quiet_db=10)
+    assert all(math.isinf(db) for _, db in hops)
+    assert out["ok"] is False
+    assert build.call_count == 2
+    measure.assert_not_called()
+
+
+def test_handoff_requires_nonempty_selection(tmp_path):
+    with pytest.raises(ValueError, match="at least one dialogue track"):
+        suggest_handoff_cut(_project(tmp_path), [], 1, 5)
+
+
+@pytest.mark.parametrize("peer_quiet", [(1.95, 2.05), (3.5, 4.5)])
+def test_handoff_refuses_short_or_disjoint_common_quiet(tmp_path, peer_quiet):
+    import numpy as np
+
+    from podcast_mcp.engines.audio_audit import TrackRmsCache, TrackRmsCacheSet
+
+    p = _project(tmp_path)
+    caches = TrackRmsCacheSet(
+        {tid: TrackRmsCache(np.zeros(16000 * 6), sample_rate=16000) for tid in ["host", "guest"]}
+    )
+
+    def measured(_project, tid, start, end, **_kwargs):
+        mid = (start + end) / 2
+        quiet = (1.5 <= mid < 2.5) if tid == "host" else peer_quiet[0] <= mid < peer_quiet[1]
+        return -60.0 if quiet else -15.0
+
+    with (
+        patch(
+            "podcast_mcp.edits.silence_islands.build_track_rms_caches", return_value=caches
+        ) as build,
+        patch("podcast_mcp.edits.silence_islands.measure_timeline_rms_db", side_effect=measured),
+    ):
+        out = suggest_handoff_cut(p, ["host", "guest"], 1, 5)
+    build.assert_called_once_with(p)
+    assert out["ok"] is False
+    assert out["cut_start"] is None
+    assert out["islands"] == []
+
+
+@pytest.mark.parametrize("offset,size", [(0.0, 1600), (0.05, 16000)])
+def test_incomplete_cache_windows_are_unknown(tmp_path, offset, size):
+    import math
+
+    import numpy as np
+
+    from podcast_mcp.edits.silence_islands import timeline_rms_hops
+    from podcast_mcp.engines.audio_audit import TrackRmsCache, TrackRmsCacheSet
+
+    p = _project(tmp_path)
+    cache = TrackRmsCache(np.zeros(size), sample_rate=16000, timeline_offset_sec=offset)
+    with patch(
+        "podcast_mcp.edits.silence_islands.build_track_rms_caches",
+        return_value=TrackRmsCacheSet({"host": cache}),
+    ):
+        hops = timeline_rms_hops(p, ["host"], 0, 0.12, hop_ms=40)
+    assert math.isinf(hops[-1 if offset == 0 else 0][1])
+
+
+def test_real_wav_repeated_source_mapping_and_gain(tmp_path):
+    import numpy as np
+
+    from podcast_mcp.edits.silence_islands import timeline_rms_hops
+    from podcast_mcp.engines.audio_audit import build_track_rms_caches
+    from podcast_mcp.engines.ungated_audio import load_mono_full
+
+    p = _project(tmp_path)
+    audio = np.zeros(4 * 16000)
+    audio[16000:32000] = 0.1
+    _write_wav(Path(p.workspace_dir) / "raw/host.wav", audio)
+    p.timeline.tracks[0].gain_db = 6
+    p.timeline.clips = [
+        Clip(id=f"c{i}", track_id="host", source_start=1, source_end=2, timeline_start=start)
+        for i, start in enumerate([1, 3])
+    ]
+    with (
+        patch(
+            "podcast_mcp.edits.silence_islands.build_track_rms_caches", wraps=build_track_rms_caches
+        ) as build,
+        patch("podcast_mcp.engines.ungated_audio.load_mono_full", wraps=load_mono_full) as decode,
+    ):
+        hops = timeline_rms_hops(p, ["host"], 0, 4, hop_ms=500)
+    build.assert_called_once_with(p)
+    assert decode.call_count == 1
+    assert [t for t, _ in hops] == [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]
+    assert [db < -48 for _, db in hops] == [True, True, False, False, True, True, False, False]
+    assert hops[2][1] == pytest.approx(-14, abs=0.1)
+
+
+def test_default_quiet_session_excludes_music_and_adapters_work(tmp_path):
+    import json
+
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+    from podcast_mcp.mcp.tools.edits import suggest_handoff_cut_tool
+    from podcast_mcp.models import save_project
+
+    p = _project(tmp_path)
+    p.timeline.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            muted=True,
+            media=p.timeline.tracks[0].media.model_copy(),
+        )
+    )
+    p.timeline.clips.append(
+        Clip(id="g", track_id="guest", source_start=0, source_end=30, timeline_start=0)
+    )
+    p.timeline.tracks.append(Track(id="music", label="Music", role=TrackRole.MUSIC))
+    path = Path(p.workspace_dir) / "episode.project.json"
+    save_project(p, path)
+    result = CliRunner().invoke(
+        app,
+        [
+            "edit",
+            "suggest-handoff-cut",
+            "--project",
+            str(path),
+            "--keep-left-end",
+            "1",
+            "--keep-right-start",
+            "5",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    cli = json.loads(result.stdout)
+    mcp = json.loads(suggest_handoff_cut_tool(str(path), 1, 5))
+    assert cli == mcp
+    assert cli["ok"] is True
+    assert cli["track_ids"] == ["host", "guest"]
+    assert (cli["cut_start"], cli["cut_end"]) == (2.0, 4.0)
+
+
+@pytest.mark.parametrize("measurement", [None, float("nan"), float("inf")])
+def test_unavailable_rms_does_not_approve_quiet(tmp_path, measurement):
+    with patch(
+        "podcast_mcp.edits.silence_islands.measure_timeline_rms_db", return_value=measurement
+    ):
+        out = suggest_handoff_cut(_project(tmp_path), ["host"], 1, 5, quiet_db=float("inf"))
+    assert out["ok"] is False
+    assert out["islands"] == []

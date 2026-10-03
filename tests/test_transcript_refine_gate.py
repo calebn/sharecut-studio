@@ -591,7 +591,7 @@ def test_service_assert_clear_and_cli(minimal_project):
 @pytest.mark.refine_gate
 def test_ripple_delete_pending_refine_prints_clean_error_not_traceback(minimal_project):
     """#773: TranscriptRefineRequiredError used to print as a raw traceback on
-    every ripple, including trims that remove no words."""
+    a ripple with pending refinement, including trims that remove no words."""
     from typer.testing import CliRunner
 
     from podcast_mcp.cli.main import app
@@ -618,3 +618,79 @@ def test_ripple_delete_pending_refine_prints_clean_error_not_traceback(minimal_p
     assert result.stderr.startswith("Error: ")
     assert "Transcript refine is required" in result.stderr
     assert "PODCAST_DEBUG=1" in result.stderr
+
+
+@pytest.mark.refine_gate
+@pytest.mark.parametrize("clearance", ["done", "waived"])
+def test_no_word_ripples_preserve_refine_clearance_after_reopen(minimal_project, clearance):
+    from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
+
+    proj = _with_words(minimal_project)
+    proj.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=10),
+        )
+    ]
+    proj.timeline.clips = [
+        Clip(id="c", track_id="host", source_start=0, source_end=10, timeline_start=0)
+    ]
+    if clearance == "done":
+        mark_refine_done(proj, notes="reviewed")
+    else:
+        mark_refine_waived(proj, reason="structural edit")
+    for word in proj.transcripts[0].words:
+        word.start += 3
+        word.end += 3
+    fingerprint = precorrect_fingerprint(proj)
+    save_project(proj, minimal_project)
+    EditService(ProjectWorkspace.open(minimal_project)).ripple_delete(1, 2, use_inaudible_opt=False)
+    reopened = ProjectWorkspace.open(minimal_project)
+    assert precorrect_fingerprint(reopened.project) == fingerprint
+    assert refine_status_report(reopened.project)["clear"] is True
+    assert load_status(reopened.project)["status"] == clearance
+    EditService(reopened).ripple_delete(0.6, 1.6, use_inaudible_opt=False)
+    again = load_project(minimal_project)
+    assert precorrect_fingerprint(again) == fingerprint
+    assert status_is_clear(again)
+    assert [word.text for word in again.transcripts[0].words] == ["hello", "world"]
+
+    from podcast_mcp.engines.session_timeline import SessionTimeline, word_source_span
+
+    word = again.transcripts[0].words[0]
+    mapped = SessionTimeline(again).map_source_span("host", *word_source_span(word.start, word.end))
+    assert mapped[0][0] == pytest.approx(1.0)
+
+
+@pytest.mark.refine_gate
+@pytest.mark.parametrize("clearance", ["done", "waived"])
+def test_word_removing_ripple_stales_refine_and_blocks_next_edit(minimal_project, clearance):
+    from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
+
+    proj = _with_words(minimal_project)
+    proj.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=10),
+        )
+    ]
+    proj.timeline.clips = [
+        Clip(id="c", track_id="host", source_start=0, source_end=10, timeline_start=0)
+    ]
+    if clearance == "done":
+        mark_refine_done(proj, notes="reviewed")
+    else:
+        mark_refine_waived(proj, reason="structural edit")
+    save_project(proj, minimal_project)
+    EditService(ProjectWorkspace.open(minimal_project)).ripple_delete(
+        0, 0.25, use_inaudible_opt=False
+    )
+    reopened = ProjectWorkspace.open(minimal_project)
+    assert [word.text for word in reopened.project.transcripts[0].words] == ["world"]
+    assert refine_status_report(reopened.project)["stale"] is True
+    with pytest.raises(TranscriptRefineRequiredError):
+        EditService(reopened).ripple_delete(1, 2, use_inaudible_opt=False)

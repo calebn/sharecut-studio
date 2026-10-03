@@ -98,7 +98,7 @@ podcast edit-context --project episode.project.json
 podcast edit search --project ... --query "coffee"
 podcast edit cut-text --project ... --query "coffee"
 podcast edit preview-cut --project ... --track host --start 32.4 --end 34.8
-podcast edit suggest-handoff-cut --project ... --track host --keep-left-end 2154.0 --keep-right-start 2167.0
+podcast edit suggest-handoff-cut --project ... --keep-left-end 2154.0 --keep-right-start 2167.0
 podcast edit ripple-delete --project ... --start 0 --end 1289.5          # content cut: dead start
 podcast transcript refine-waive --project ... --reason "content cut: structural edit"
 podcast edit approve --project ... --ids cut_abc123
@@ -127,10 +127,12 @@ NL removes also apply **filler pacing** from `tighten.min_gap_after_filler_sec` 
 
 ## Long raw sessions: content cut before tighten
 
+Omit track and speaker for a session handoff to require quiet across all dialogue lanes, including muted lanes. Explicit selectors analyze one lane. Results list the analyzed `track_ids`. Missing or incomplete audio blocks approval. See [Narrative handoffs](inaudible-cuts.md#narrative-handoffs) for evidence and locking bounds.
+
 On a long raw session, cut content before tightening:
 
 1. Content-cut from the end of the episode toward the start with `ripple_delete_tool`. Off-topic runs and meta talk first (latest first): `suggest_handoff_cut_tool` → `ripple_delete_tool(use_inaudible_opt=false)`. The dead start (`start=0`) goes last, because it shifts everything after it.
-2. Re-waive the refine gate after each ripple (`transcript_refine_waive_tool`), because dropped words make the waive stale.
+2. Re-waive the refine gate after a ripple removes words (`transcript_refine_waive_tool`). A ripple that removes no words preserves done or waived clearance after saving and reopening.
 3. Only then run `propose_edits`. It sees only the kept words, so reject any tighten proposal made before the cut.
 
 `analyze_focus_cuts` writes an outline, not a cut list, and is skipped when `focus.enabled` is false. Full order, CLI commands and rationale: [pipeline.md § Long raw sessions](pipeline.md#long-raw-sessions-content-cut-before-tighten).

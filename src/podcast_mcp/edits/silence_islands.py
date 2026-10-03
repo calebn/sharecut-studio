@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
+from math import inf, isfinite
 from typing import Any
 
 import numpy as np
@@ -50,7 +52,7 @@ def silence_islands_from_hops(
     if not hops:
         return []
     ordered = sorted(hops, key=lambda h: h[0])
-    quiet = np.asarray([db <= quiet_db for _, db in ordered], dtype=bool)
+    quiet = np.asarray([isfinite(db) and db <= quiet_db for _, db in ordered], dtype=bool)
     return [
         SilenceIsland(start=ordered[start][0], end=ordered[end - 1][0])
         for start, end in bool_runs(quiet)
@@ -93,6 +95,7 @@ def _snap_to_quiet(
         for ht, db in hops
         if lo - 1e-9 <= ht <= hi + 1e-9
         and abs(ht - t) <= window_sec
+        and isfinite(db)
         and db <= quiet_db
         and _island_at(islands, ht) is not None
     ]
@@ -105,28 +108,43 @@ def _snap_to_quiet(
 
 def timeline_rms_hops(
     project: EpisodeProject,
-    track_id: str,
+    track_ids: Sequence[str],
     timeline_start: float,
     timeline_end: float,
     *,
     hop_ms: int = 20,
 ) -> list[tuple[float, float]]:
-    """Measure RMS (dB) on ``hop_ms`` timeline hops for one track.
+    """Measure maximum lane RMS (dB) on shared ``hop_ms`` timeline hops.
 
     Uses ``TrackRmsCache`` (processed stem when present) so a handoff window is
     one decode, not one FFmpeg spawn per hop.
     """
+    if not track_ids:
+        raise ValueError("at least one dialogue track is required")
     if timeline_end <= timeline_start:
         raise ValueError("timeline_end must be after timeline_start")
     hop = max(0.005, hop_ms / 1000.0)
+    track_ids = list(dict.fromkeys(track_ids))
     caches = build_track_rms_caches(project)
     out: list[tuple[float, float]] = []
     t = float(timeline_start)
     while t < timeline_end - 1e-9:
         t1 = min(timeline_end, t + hop)
-        rms = measure_timeline_rms_db(project, track_id, t, t1, caches=caches)
-        # Missing audio is unknown, not room tone — don't snap a join onto it.
-        db = float(rms) if rms is not None else 0.0
+        db = -inf
+        for tid in track_ids:
+            cache = caches.get(tid)
+            if (
+                cache is None
+                or t < cache.timeline_offset_sec - 1e-9
+                or t1 > cache.timeline_offset_sec + cache.samples.size / cache.sample_rate + 1e-9
+            ):
+                db = inf
+                break
+            rms = measure_timeline_rms_db(project, tid, t, t1, caches=caches)
+            if rms is None or not isfinite(rms):
+                db = inf
+                break
+            db = max(db, float(rms))
         out.append((t, db))
         t = t1
     return out
@@ -134,7 +152,7 @@ def timeline_rms_hops(
 
 def suggest_handoff_cut(
     project: EpisodeProject,
-    track_id: str,
+    track_ids: Sequence[str],
     keep_left_end: float,
     keep_right_start: float,
     *,
@@ -159,9 +177,10 @@ def suggest_handoff_cut(
     if keep_right_start <= keep_left_end:
         raise ValueError("keep_right_start must be after keep_left_end")
 
+    track_ids = list(dict.fromkeys(track_ids))
     hops = timeline_rms_hops(
         project,
-        track_id,
+        track_ids,
         float(keep_left_end),
         float(keep_right_start),
         hop_ms=hop_ms,
@@ -232,7 +251,8 @@ def suggest_handoff_cut(
     )
 
     return {
-        "track_id": track_id,
+        "track_id": track_ids[0] if len(track_ids) == 1 else None,
+        "track_ids": track_ids,
         "timebase": "timeline",
         "keep_left_end": round(keep_left_end, 4),
         "keep_right_start": round(keep_right_start, 4),

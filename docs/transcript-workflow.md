@@ -537,7 +537,7 @@ Mode (`analysis.transcript_refine.mode` in pipeline.yaml):
 
 Focus/tighten/NL service entry points also call the same assert so agents cannot bypass via direct tools.
 
-Applied cuts (ripple deletes, approved removes, punches) drop the removed words, which changes the fingerprint. A `done` or `waived` status therefore goes stale after a structural edit. Re-waive (`refine-waive --reason …`) or run `refine-done` before the next edit. See [pipeline.md § Long raw sessions](pipeline.md#long-raw-sessions-content-cut-before-tighten).
+Cuts that remove words change the precorrect fingerprint, which hashes track IDs, word order, text, and suppressed state. A `done` or `waived` status goes stale after word removal. Timing and clip placement alone do not change the fingerprint. A ripple that removes no words preserves clearance after saving and reopening. After word removal, re-waive (`refine-waive --reason …`) or run `refine-done` before the next edit. See [pipeline.md § Long raw sessions](pipeline.md#long-raw-sessions-content-cut-before-tighten).
 
 ## Decision tree
 

@@ -111,9 +111,8 @@ def test_recursion_error_is_never_swallowed(monkeypatch):
     assert isinstance(result.exception, RecursionError)
 
 
-def test_suggest_handoff_cut_without_track_or_speaker_prints_clean_error(tmp_path):
-    """The issue's reproduction: help lists --track as optional; omitting both
-    --track and --speaker used to end in a full Rich traceback."""
+def test_suggest_handoff_cut_without_dialogue_prints_clean_error(tmp_path):
+    """An empty session cannot establish quiet, and reports a clean error."""
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
     project = ws / "episode.project.json"
@@ -133,7 +132,7 @@ def test_suggest_handoff_cut_without_track_or_speaker_prints_clean_error(tmp_pat
     assert result.exit_code == 1
     assert (
         result.stderr.strip()
-        == "Error: track_id or speaker is required (set PODCAST_DEBUG=1 for the traceback)"
+        == "Error: at least one dialogue track is required (set PODCAST_DEBUG=1 for the traceback)"
     )
     assert "Traceback" not in result.output
 
@@ -158,4 +157,4 @@ def test_suggest_handoff_cut_debug_env_var_shows_original_exception(tmp_path, mo
     )
     assert result.exit_code != 0
     assert isinstance(result.exception, ValueError)
-    assert str(result.exception) == "track_id or speaker is required"
+    assert str(result.exception) == "at least one dialogue track is required"

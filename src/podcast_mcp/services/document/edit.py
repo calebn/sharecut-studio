@@ -636,7 +636,7 @@ class EditService:
         found: list[SilenceIsland] = []
         if timeline:
             try:
-                hops = timeline_rms_hops(self.ws.project, tid, lo, hi)
+                hops = timeline_rms_hops(self.ws.project, [tid], lo, hi)
                 found = silence_islands_from_hops(hops)
             except Exception as exc:
                 log.debug("waveform snap islands skipped: %s", exc)
@@ -670,10 +670,16 @@ class EditService:
         hop_ms: int = 20,
         retain_sec: float = 1.0,
     ) -> dict:
-        tid = self._resolve(track_id, speaker)
+        from podcast_mcp.util.tracks import dialogue_track_ids
+
+        tids = (
+            [self._resolve(track_id, speaker)]
+            if track_id is not None or speaker is not None
+            else dialogue_track_ids(self.ws.project)
+        )
         return suggest_handoff_cut_bounds(
             self.ws.project,
-            tid,
+            tids,
             keep_left_end,
             keep_right_start,
             quiet_db=quiet_db,

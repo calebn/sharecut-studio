@@ -70,12 +70,16 @@ Auto-tighten (`propose-edits` → `apply-edits` / pipeline `tighten_from_transcr
 
 ## Workflow
 
+A ripple that removes no words preserves done or waived refinement clearance after saving and reopening. Word timing and clip placement alone do not change the precorrect fingerprint. Text, word order, track IDs, and suppressed state changes still require clearance.
+
+Omit track and speaker on `suggest_handoff_cut_tool` to require quiet across every dialogue lane, including muted lanes. Explicit selectors limit evidence to one lane. The result lists the analyzed `track_ids`. Missing or incomplete cached audio blocks the suggestion. See [Narrative handoffs](../../../docs/inaudible-cuts.md#narrative-handoffs).
+
 Default: **propose → review → approve**. Never bulk-apply on a production episode
 without the user signing off.
 
 1. Ensure per-track transcripts exist (`podcast transcribe --project ...`).
 2. Clear the transcript refine gate (**podcast-transcript-refine** → `refine-done`) if status is pending.
-   **Long raw session?** Do the content cut **first** (off-topic runs, meta talk, dead start) with **podcast-edit-natural-language**, from the end of the episode toward the start. Mid-episode runs (latest first) use `suggest_handoff_cut_tool`, then `ripple_delete_tool(use_inaudible_opt=false)`. `suggest_handoff_cut_tool`'s `retain_sec` / CLI `--retain-sec` defaults to `1.0` per side (~2s of air at the join); a tighter conversational handoff usually wants `0.3`–`0.6`. Cut the dead start last, because it shifts everything after it: `podcast edit ripple-delete --start 0 --end <first kept line − 0.5>` / `ripple_delete_tool`. Every ripple drops words and makes the refine waive stale, so re-clear it before step 3: `podcast transcript refine-waive --project … --reason "content cut: structural edit"` / `transcript_refine_waive_tool`. Proposals then fall only in the kept range; there is no range argument. Reject tighten hits proposed before the cut (`podcast edit reject --ids …`). Order: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
+   **Long raw session?** Do the content cut **first** (off-topic runs, meta talk, dead start) with **podcast-edit-natural-language**, from the end of the episode toward the start. Mid-episode runs (latest first) use `suggest_handoff_cut_tool`, then `ripple_delete_tool(use_inaudible_opt=false)`. `suggest_handoff_cut_tool`'s `retain_sec` / CLI `--retain-sec` defaults to `1.0` per side (~2s of air at the join); a tighter conversational handoff usually wants `0.3`–`0.6`. Cut the dead start last, because it shifts everything after it: `podcast edit ripple-delete --start 0 --end <first kept line − 0.5>` / `ripple_delete_tool`. A ripple that removes words makes the refine waive stale, so re-clear it before step 3: `podcast transcript refine-waive --project … --reason "content cut: structural edit"` / `transcript_refine_waive_tool`. Proposals then fall only in the kept range; there is no range argument. Reject tighten hits proposed before the cut (`podcast edit reject --ids …`). Order: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
 3. Propose (does not apply):
 
 ```bash
