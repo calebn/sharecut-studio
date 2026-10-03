@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import type {
@@ -67,18 +67,104 @@ export function MarkerLaneView({
   onMoveSocial,
 }: MarkerLaneViewProps) {
   const chapterDrag = useRef<{
+    pointerId: number;
+    zoom: number;
+    target: HTMLButtonElement;
+    originLeft: string;
+    paintedLeft: string | null;
     time: number;
     title: string;
     startX: number;
     originTime: number;
   } | null>(null);
   const socialDrag = useRef<{
+    pointerId: number;
+    zoom: number;
+    target: HTMLButtonElement;
+    originLeft: string;
+    originWidth: string;
+    paintedLeft: string | null;
+    paintedWidth: string | null;
     id: string;
     mode: SocialDragMode;
     startX: number;
     originStart: number;
     originEnd: number;
   } | null>(null);
+
+  const latest = useRef({ chapters, socialClips });
+  latest.current = { chapters, socialClips };
+  const finishChapter = useCallback((cancel: boolean) => {
+    const drag = chapterDrag.current;
+    if (!drag) return;
+    chapterDrag.current = null;
+    if (
+      cancel &&
+      drag.target.style.left === drag.paintedLeft &&
+      latest.current.chapters.some(
+        (ch) => ch.time === drag.time && ch.title === drag.title,
+      )
+    )
+      drag.target.style.left = drag.originLeft;
+    if (drag.target.hasPointerCapture?.(drag.pointerId))
+      drag.target.releasePointerCapture(drag.pointerId);
+  }, []);
+  const finishSocial = useCallback((cancel: boolean) => {
+    const drag = socialDrag.current;
+    if (!drag) return;
+    socialDrag.current = null;
+    if (
+      cancel &&
+      drag.target.style.left === drag.paintedLeft &&
+      drag.target.style.width === drag.paintedWidth &&
+      latest.current.socialClips.some(
+        (clip) =>
+          clip.id === drag.id &&
+          clip.start === drag.originStart &&
+          clip.end === drag.originEnd,
+      )
+    ) {
+      drag.target.style.left = drag.originLeft;
+      drag.target.style.width = drag.originWidth;
+    }
+    if (drag.target.hasPointerCapture?.(drag.pointerId))
+      drag.target.releasePointerCapture(drag.pointerId);
+  }, []);
+  useLayoutEffect(
+    () => () => {
+      finishChapter(true);
+      finishSocial(true);
+    },
+    [finishChapter, finishSocial],
+  );
+
+  useLayoutEffect(() => {
+    const chapter = chapterDrag.current;
+    if (
+      chapter &&
+      (!editable ||
+        !rows.chapters ||
+        chapter.zoom !== zoomPxPerSec ||
+        !chapters.some(
+          (ch) => ch.time === chapter.time && ch.title === chapter.title,
+        ))
+    )
+      finishChapter(true);
+    const social = socialDrag.current;
+    if (
+      social &&
+      (!editable ||
+        !rows.social ||
+        social.zoom !== zoomPxPerSec ||
+        !socialClips.some(
+          (clip) =>
+            clip.id === social.id &&
+            clip.start === social.originStart &&
+            clip.end === social.originEnd,
+        ))
+    )
+      finishSocial(true);
+  });
 
   if (!rows.chapters && !rows.social && !rows.comments && !rows.clipping) {
     return (
@@ -115,12 +201,22 @@ export function MarkerLaneView({
                 title={ch.title}
                 onClick={() => onSelectChapter(ch)}
                 onPointerDown={(e) => {
-                  if (!editable) {
+                  if (
+                    !editable ||
+                    chapterDrag.current ||
+                    socialDrag.current ||
+                    (e.pointerType === "mouse" && e.button !== 0)
+                  ) {
                     return;
                   }
                   e.stopPropagation();
                   e.currentTarget.setPointerCapture?.(e.pointerId);
                   chapterDrag.current = {
+                    pointerId: e.pointerId,
+                    zoom: zoomPxPerSec,
+                    target: e.currentTarget,
+                    originLeft: e.currentTarget.style.left,
+                    paintedLeft: null,
                     time: ch.time,
                     title: ch.title,
                     startX: e.clientX,
@@ -128,7 +224,11 @@ export function MarkerLaneView({
                   };
                 }}
                 onPointerMove={(e) => {
-                  if (!chapterDrag.current) {
+                  if (
+                    !chapterDrag.current ||
+                    chapterDrag.current.pointerId !== e.pointerId ||
+                    chapterDrag.current.target !== e.currentTarget
+                  ) {
                     return;
                   }
                   const dx = e.clientX - chapterDrag.current.startX;
@@ -136,21 +236,67 @@ export function MarkerLaneView({
                     0,
                     chapterDrag.current.originTime + dx / zoomPxPerSec,
                   );
-                  (e.currentTarget as HTMLElement).style.left =
-                    `${nextTime * zoomPxPerSec - MARKER_HALF}px`;
+                  const left = `${nextTime * zoomPxPerSec - MARKER_HALF}px`;
+                  chapterDrag.current.target.style.left = left;
+                  chapterDrag.current.paintedLeft =
+                    chapterDrag.current.target.style.left;
                 }}
                 onPointerUp={(e) => {
-                  if (!chapterDrag.current) {
+                  if (
+                    !chapterDrag.current ||
+                    chapterDrag.current.pointerId !== e.pointerId ||
+                    chapterDrag.current.target !== e.currentTarget
+                  ) {
                     return;
                   }
                   const dx = e.clientX - chapterDrag.current.startX;
                   const { time, title, originTime } = chapterDrag.current;
-                  chapterDrag.current = null;
                   if (Math.abs(dx) < 3) {
+                    finishChapter(true);
                     return;
                   }
                   const nextTime = Math.max(0, originTime + dx / zoomPxPerSec);
-                  onMoveChapter?.({ time, title }, nextTime);
+                  finishChapter(nextTime === originTime);
+                  if (nextTime !== originTime)
+                    onMoveChapter?.({ time, title }, nextTime);
+                }}
+                onPointerCancel={(e) => {
+                  if (
+                    chapterDrag.current?.pointerId === e.pointerId &&
+                    chapterDrag.current.target === e.currentTarget
+                  )
+                    finishChapter(true);
+                }}
+                onLostPointerCapture={(e) => {
+                  if (
+                    chapterDrag.current?.pointerId === e.pointerId &&
+                    chapterDrag.current.target === e.currentTarget
+                  )
+                    finishChapter(true);
+                }}
+                onBlur={(e) => {
+                  if (chapterDrag.current?.target === e.currentTarget)
+                    finishChapter(true);
+                }}
+                onKeyDown={(e) => {
+                  if (
+                    !chapterDrag.current ||
+                    ![
+                      "Escape",
+                      "ArrowLeft",
+                      "ArrowRight",
+                      "ArrowUp",
+                      "ArrowDown",
+                      "Home",
+                      "End",
+                      "Enter",
+                      " ",
+                    ].includes(e.key)
+                  )
+                    return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.key === "Escape") finishChapter(true);
                 }}
               >
                 {labelRoom[i] != null ? (
@@ -189,7 +335,12 @@ export function MarkerLaneView({
                   }
                   onClick={() => onSelectSocial(clip)}
                   onPointerDown={(e) => {
-                    if (!editable) {
+                    if (
+                      !editable ||
+                      chapterDrag.current ||
+                      socialDrag.current ||
+                      (e.pointerType === "mouse" && e.button !== 0)
+                    ) {
                       return;
                     }
                     e.stopPropagation();
@@ -205,6 +356,13 @@ export function MarkerLaneView({
                           ? "end"
                           : "move";
                     socialDrag.current = {
+                      pointerId: e.pointerId,
+                      zoom: zoomPxPerSec,
+                      target: e.currentTarget,
+                      originLeft: el.style.left,
+                      originWidth: el.style.width,
+                      paintedLeft: null,
+                      paintedWidth: null,
                       id: clip.id,
                       mode,
                       startX: e.clientX,
@@ -215,7 +373,9 @@ export function MarkerLaneView({
                   onPointerMove={(e) => {
                     if (
                       !socialDrag.current ||
-                      socialDrag.current.id !== clip.id
+                      socialDrag.current.id !== clip.id ||
+                      socialDrag.current.pointerId !== e.pointerId ||
+                      socialDrag.current.target !== e.currentTarget
                     ) {
                       return;
                     }
@@ -230,18 +390,22 @@ export function MarkerLaneView({
                     const el = e.currentTarget as HTMLElement;
                     el.style.left = `${start * zoomPxPerSec}px`;
                     el.style.width = `${Math.max(MARKER_ROW_HEIGHT, (end - start) * zoomPxPerSec)}px`;
+                    socialDrag.current.paintedLeft = el.style.left;
+                    socialDrag.current.paintedWidth = el.style.width;
                   }}
                   onPointerUp={(e) => {
                     if (
                       !socialDrag.current ||
-                      socialDrag.current.id !== clip.id
+                      socialDrag.current.id !== clip.id ||
+                      socialDrag.current.pointerId !== e.pointerId ||
+                      socialDrag.current.target !== e.currentTarget
                     ) {
                       return;
                     }
                     const { mode, originStart, originEnd, id, startX } =
                       socialDrag.current;
-                    socialDrag.current = null;
                     if (!isHandleDrag(startX, e.clientX)) {
+                      finishSocial(true);
                       return;
                     }
                     const dx = (e.clientX - startX) / zoomPxPerSec;
@@ -251,7 +415,47 @@ export function MarkerLaneView({
                       originEnd,
                       dx,
                     );
-                    onMoveSocial?.(id, start, end);
+                    finishSocial(start === originStart && end === originEnd);
+                    if (start !== originStart || end !== originEnd)
+                      onMoveSocial?.(id, start, end);
+                  }}
+                  onPointerCancel={(e) => {
+                    if (
+                      socialDrag.current?.pointerId === e.pointerId &&
+                      socialDrag.current.target === e.currentTarget
+                    )
+                      finishSocial(true);
+                  }}
+                  onLostPointerCapture={(e) => {
+                    if (
+                      socialDrag.current?.pointerId === e.pointerId &&
+                      socialDrag.current.target === e.currentTarget
+                    )
+                      finishSocial(true);
+                  }}
+                  onBlur={(e) => {
+                    if (socialDrag.current?.target === e.currentTarget)
+                      finishSocial(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (
+                      !socialDrag.current ||
+                      ![
+                        "Escape",
+                        "ArrowLeft",
+                        "ArrowRight",
+                        "ArrowUp",
+                        "ArrowDown",
+                        "Home",
+                        "End",
+                        "Enter",
+                        " ",
+                      ].includes(e.key)
+                    )
+                      return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.key === "Escape") finishSocial(true);
                   }}
                 />
               );

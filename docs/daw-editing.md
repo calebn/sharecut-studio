@@ -8,6 +8,36 @@ Agents mutate via MCP/CLI; the GUI writes the same services through typed docume
 
 Focused timeline fade and trim handles accept Left/Right arrows through the shared command bus. Fade steps are 1 ms (Shift 10 ms); trim steps are 10 ms (Shift 100 ms), without snapping. Right grows fade-in, Left grows fade-out; Right advances either source boundary. Holding a key previews repeated steps and releasing that arrow saves once, so one Undo restores the gesture. Normal blur also saves; Escape, pointer cancellation, unmount, or changed project/clip geometry discards the preview. An in-flight save blocks another handle gesture. Fades preserve the opposite edge and clamp to the track cap and remaining clip length; trims preserve minimum span and neighbor bounds. A handle that retains native focus after a project reload edits the fresh clip. Removing the focused handle releases keyboard ownership. Arrow keys outside a focused handle retain playhead navigation.
 
+See the [editor interaction inventory](editor-interactions.md) for pointer and
+keyboard alternatives, recovery checks and platform limits.
+
+## Clip and marker drafts
+
+Clip body moves keep their existing pointer selection behavior. Escape cancels
+an active move from the current focus; owner pointer cancellation/capture loss,
+focused-owner blur and unmount also discard it. Chapter and social markers cancel
+on Escape, owner cancellation/capture loss, blur or unmount. Later held movement
+and release cannot save a canceled draft. These previews do not write episode
+state; a changed release uses the existing command and one Undo restores it.
+Right mouse buttons and foreign pointer events do not replace a gesture owner.
+Switching projects ends clip and marker ownership even when their values match.
+An active lane range rejects another pointer pressing a clip body.
+
+## Editor panel space
+
+Desktop and tablet bottom panels resize from the separator's measured height.
+Its accessible value reflects that height even when the responsive CSS default
+is active and no preference is saved.
+Dragging shows a bounded preview. Escape or pointer interruption restores the
+prior explicit preference, or the CSS default when no preference existed.
+Further held movement cannot restart a canceled gesture. Returning to the origin
+leaves a default preference unset. Focus departure and unmount also cancel while
+the preview still owns the height; a newer independent resize is preserved.
+While a pointer owns the separator, its resize keys stay local and do not alter
+the preview. After release, arrows, Home/End, Enter reset and double-click reset
+remain available. Phone inspectors use Expand/Collapse. These local view changes create no document
+command or History action.
+
 ## Architecture rule
 
 GUI never forks domain logic. Every durable mutation is:

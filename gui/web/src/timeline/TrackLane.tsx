@@ -82,7 +82,9 @@ interface TrackLaneProps {
   moveGhosts?: readonly MoveGhost[];
   onClipMovePreview?: (clipId: string, info: ClipMovePointerInfo) => void;
   onClipMoveCommit?: (clipId: string, info: ClipMovePointerInfo) => void;
-  onClipMoveCancel?: () => void;
+  onClipMoveCancel?: (clipId: string) => void;
+  onClipBodyStart?: (clipId: string) => boolean;
+  onClipBodyEnd?: (clipId: string) => void;
   /** Whole-track stale cause → light lane edge (not full wash when bands exist). */
   staleWholeTrack?: boolean;
   /** Cause journal entries for this hover session. */
@@ -120,6 +122,8 @@ export function TrackLaneView({
   onClipMovePreview,
   onClipMoveCommit,
   onClipMoveCancel,
+  onClipBodyStart,
+  onClipBodyEnd,
   onRangeGesture,
   staleWholeTrack = false,
   staleInvalidations = EMPTY_ARR,
@@ -332,6 +336,8 @@ export function TrackLaneView({
               onMovePreview={onClipMovePreview}
               onMoveCommit={onClipMoveCommit}
               onMoveCancel={onClipMoveCancel}
+              onBodyStart={onClipBodyStart}
+              onBodyEnd={onClipBodyEnd}
             />
           );
         })}

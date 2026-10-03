@@ -7,14 +7,17 @@ export type RangePoint = { clientX: number; clientY: number };
 export type RangeGesture = (
   stage: "start" | "move" | "end" | "cancel",
   point: RangePoint,
+  owner?: object,
 ) => void;
 
 export function useRangeGesture(
   lanesRef: RefObject<HTMLDivElement | null>,
   zoom: number,
   duration: number,
+  canStart?: () => boolean,
 ) {
   const draft = useRef<{
+    owner: object | undefined;
     origin: RangePoint;
     project: ProjectView;
     previous: Selection;
@@ -36,13 +39,13 @@ export function useRangeGesture(
       state.setSelection(active.previous);
   }, []);
   const gesture = useCallback<RangeGesture>(
-    (stage, point) => {
+    (stage, point, owner) => {
       const state = useDawStore.getState();
-      if (
-        stage === "cancel" ||
-        state.joinMutationInFlight ||
-        state.toolMode !== "select"
-      ) {
+      if (stage === "cancel") {
+        if (draft.current?.owner === owner) cancel();
+        return;
+      }
+      if (state.joinMutationInFlight || state.toolMode !== "select") {
         cancel();
         return;
       }
@@ -50,6 +53,7 @@ export function useRangeGesture(
       if (!lanes || !state.project) return;
       if (stage === "start") {
         draft.current = {
+          owner,
           origin: point,
           project: state.project,
           previous: state.selection,
@@ -61,7 +65,7 @@ export function useRangeGesture(
         return;
       }
       const active = draft.current;
-      if (!active) return;
+      if (!active || active.owner !== owner) return;
       if (
         active.epoch !== state.projectEpoch ||
         (active.drawing && state.selection !== active.painted)
@@ -121,7 +125,9 @@ export function useRangeGesture(
   );
   return {
     gesture,
+    hasActiveGesture: () => draft.current !== null,
     captureDown(event: PointerEvent<HTMLDivElement>) {
+      if (canStart && !canStart()) return;
       const state = useDawStore.getState();
       const target = event.target;
       if (
@@ -132,7 +138,8 @@ export function useRangeGesture(
       )
         return;
       if (draft.current) {
-        cancel();
+        event.preventDefault();
+        event.stopPropagation();
         return;
       }
       const button = target.closest("button");
@@ -164,8 +171,12 @@ export function useRangeGesture(
         event.currentTarget.releasePointerCapture?.(event.pointerId);
       }
     },
-    captureCancel() {
-      cancel();
+    captureCancel(event: PointerEvent<HTMLDivElement>) {
+      if (
+        draft.current?.owner === undefined &&
+        draft.current?.pointerId === event.pointerId
+      )
+        cancel();
     },
     captureClick(event: {
       preventDefault: () => void;

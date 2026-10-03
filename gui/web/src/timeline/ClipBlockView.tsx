@@ -82,6 +82,7 @@ export type ClipHitHandlers = Pick<
   | "onPointerUp"
   | "onPointerCancel"
   | "onLostPointerCapture"
+  | "onBlur"
   | "onClick"
 >;
 

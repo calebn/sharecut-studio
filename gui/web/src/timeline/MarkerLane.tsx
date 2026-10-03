@@ -11,8 +11,9 @@ type MarkerLaneProps = Omit<
 
 /** Live wiring: host-only drags commit UpdateChapter / UpdateSocialClip. */
 export function MarkerLane(props: MarkerLaneProps) {
-  const { projectPath, setSelection } = useDaw((s) => ({
+  const { projectPath, projectEpoch, setSelection } = useDaw((s) => ({
     projectPath: s.projectPath,
+    projectEpoch: s.projectEpoch,
     setSelection: s.setSelection,
   }));
   const onMoveChapter = (chapter: ChapterMarker, nextTime: number) => {
@@ -32,6 +33,7 @@ export function MarkerLane(props: MarkerLaneProps) {
   };
   return (
     <MarkerLaneView
+      key={`${projectEpoch}:${projectPath}`}
       {...props}
       editable={!isShareProjectKey(projectPath)}
       onMoveChapter={onMoveChapter}

@@ -1,6 +1,7 @@
 import {
   memo,
   type PointerEvent as ReactPointerEvent,
+  useCallback,
   useLayoutEffect,
   useRef,
 } from "react";
@@ -93,7 +94,9 @@ export interface ClipBlockProps {
   interactive?: boolean;
   onMovePreview?: (clipId: string, info: ClipMovePointerInfo) => void;
   onMoveCommit?: (clipId: string, info: ClipMovePointerInfo) => void;
-  onMoveCancel?: () => void;
+  onMoveCancel?: (clipId: string) => void;
+  onBodyStart?: (clipId: string) => boolean;
+  onBodyEnd?: (clipId: string) => void;
 }
 
 type RollDrag = {
@@ -113,6 +116,11 @@ type RollDrag = {
 };
 
 type BodyDrag = {
+  clip: ClipRow;
+  projectPath: string;
+  projectEpoch: number;
+  target: HTMLElement;
+  stopListening: () => void;
   rangeCandidate: boolean;
   pointerId: number;
   originX: number;
@@ -154,6 +162,8 @@ export function ClipBlockLive({
   onMovePreview,
   onMoveCommit,
   onMoveCancel,
+  onBodyStart,
+  onBodyEnd,
   onRangeGesture,
 }: ClipBlockProps) {
   const editable = useDawStore(
@@ -165,6 +175,47 @@ export function ClipBlockLive({
   const bodyRef = useRef<BodyDrag | null>(null);
   const bodyMovedRef = useRef(false);
   const pointerHandledRef = useRef(false);
+  const bodyCallbacks = useRef({ onMoveCancel, onBodyEnd, onRangeGesture });
+  bodyCallbacks.current = { onMoveCancel, onBodyEnd, onRangeGesture };
+  const cancelBodyDrag = useCallback(() => {
+    const drag = bodyRef.current;
+    if (!drag) return;
+    bodyRef.current = null;
+    drag.stopListening();
+    if (drag.target.hasPointerCapture?.(drag.pointerId))
+      drag.target.releasePointerCapture(drag.pointerId);
+    if (drag.rangeCandidate) {
+      if (drag.started)
+        bodyCallbacks.current.onRangeGesture?.(
+          "cancel",
+          {
+            clientX: drag.originX,
+            clientY: drag.originY,
+          },
+          drag,
+        );
+    } else bodyCallbacks.current.onMoveCancel?.(drag.clip.id);
+    bodyCallbacks.current.onBodyEnd?.(drag.clip.id);
+  }, []);
+  useLayoutEffect(() => () => cancelBodyDrag(), [cancelBodyDrag]);
+
+  useLayoutEffect(() => {
+    const drag = bodyRef.current;
+    if (!drag) return;
+    const state = useDawStore.getState();
+    if (
+      state.projectPath !== drag.projectPath ||
+      state.projectEpoch !== drag.projectEpoch ||
+      clip.id !== drag.clip.id ||
+      clip.track_id !== drag.clip.track_id ||
+      clip.source_start !== drag.clip.source_start ||
+      clip.source_end !== drag.clip.source_end ||
+      clip.timeline_start !== drag.clip.timeline_start ||
+      (!canMove && !drag.rangeCandidate)
+    )
+      cancelBodyDrag();
+  });
+
   const ticksRef = useRef<readonly number[]>(EMPTY_ARR);
   const edgeHandles = useClipEdgeHandles({
     clip,
@@ -356,7 +407,14 @@ export function ClipBlockLive({
   const extraTicks = () => waveformTicksToTimeline(clip, ticks);
 
   const onBodyDown = (e: ReactPointerEvent) => {
-    if (bladeMode || !interactive || edgeHandles.active) {
+    if (
+      bodyRef.current ||
+      rollDragRef.current ||
+      bladeMode ||
+      !interactive ||
+      edgeHandles.active ||
+      (e.pointerType === "mouse" && e.button !== 0)
+    ) {
       return;
     }
     e.stopPropagation();
@@ -367,6 +425,10 @@ export function ClipBlockLive({
     };
     const wasSelected = selected;
     const rangeCandidate = e.shiftKey && Boolean(onRangeGesture);
+    const ownsGesture =
+      (canMove || rangeCandidate) &&
+      !useDawStore.getState().joinMutationInFlight;
+    if (ownsGesture && onBodyStart?.(clip.id) === false) return;
     if (!rangeCandidate) {
       if (wasSelected) onSelect(clip.id);
       else onSelectClip?.(clip.id, mods);
@@ -382,8 +444,38 @@ export function ClipBlockLive({
     } catch {
       // optional
     }
+    const target = e.currentTarget as HTMLElement;
+    const onOwnedKey = (event: KeyboardEvent) => {
+      if (
+        ![
+          "Escape",
+          "ArrowLeft",
+          "ArrowRight",
+          "ArrowUp",
+          "ArrowDown",
+          "Home",
+          "End",
+          "Enter",
+          " ",
+        ].includes(event.key)
+      )
+        return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === "Escape") cancelBodyDrag();
+    };
+    document.addEventListener("keydown", onOwnedKey, true);
+    window.addEventListener("blur", cancelBodyDrag);
     bodyMovedRef.current = false;
     bodyRef.current = {
+      clip,
+      projectPath: useDawStore.getState().projectPath,
+      projectEpoch: useDawStore.getState().projectEpoch,
+      target,
+      stopListening: () => {
+        document.removeEventListener("keydown", onOwnedKey, true);
+        window.removeEventListener("blur", cancelBodyDrag);
+      },
       rangeCandidate,
       pointerId: e.pointerId,
       originX: e.clientX,
@@ -407,10 +499,14 @@ export function ClipBlockLive({
       d.started = true;
       bodyMovedRef.current = true;
       if (d.rangeCandidate)
-        onRangeGesture?.("start", { clientX: d.originX, clientY: d.originY });
+        onRangeGesture?.(
+          "start",
+          { clientX: d.originX, clientY: d.originY },
+          d,
+        );
     }
     if (d.rangeCandidate) {
-      onRangeGesture?.("move", e);
+      onRangeGesture?.("move", e, d);
       return;
     }
     onMovePreview?.(clip.id, {
@@ -426,10 +522,16 @@ export function ClipBlockLive({
     if (!d || d.pointerId !== e.pointerId) {
       return;
     }
+    if (cancelled) {
+      cancelBodyDrag();
+      return;
+    }
     bodyRef.current = null;
+    d.stopListening();
+    bodyCallbacks.current.onBodyEnd?.(d.clip.id);
     if (d.rangeCandidate) {
       (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
-      if (d.started) onRangeGesture?.(cancelled ? "cancel" : "end", e);
+      if (d.started) onRangeGesture?.(cancelled ? "cancel" : "end", e, d);
       else if (!cancelled) onSelectClip?.(clip.id, d.mods);
       return;
     }
@@ -443,7 +545,7 @@ export function ClipBlockLive({
       !d.started ||
       useDawStore.getState().joinMutationInFlight
     ) {
-      onMoveCancel?.();
+      onMoveCancel?.(d.clip.id);
       if (!cancelled && d.wasSelected && (d.mods.shift || d.mods.mod)) {
         onSelectClip?.(clip.id, d.mods);
       }
@@ -472,6 +574,7 @@ export function ClipBlockLive({
     onPointerUp: (e) => endBodyDrag(e, false),
     onPointerCancel: (e) => endBodyDrag(e, true),
     onLostPointerCapture: (e) => endBodyDrag(e, true),
+    onBlur: cancelBodyDrag,
     onClick: (e) => {
       e.stopPropagation();
       if (bodyMovedRef.current) {

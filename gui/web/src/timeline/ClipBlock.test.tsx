@@ -1370,6 +1370,163 @@ describe("ClipBlock waveform", () => {
     ).toBeInTheDocument();
   });
 
+  it.each(["Escape", "blur", "unmount"])(
+    "cancels the body owner on %s and ignores later held input",
+    (interruption) => {
+      const onMovePreview = vi.fn();
+      const onMoveCommit = vi.fn();
+      const onMoveCancel = vi.fn();
+      const view = render(
+        <ClipBlock
+          {...base}
+          canMove
+          onSelect={vi.fn()}
+          onHit={vi.fn()}
+          onSelectClip={vi.fn()}
+          onMovePreview={onMovePreview}
+          onMoveCommit={onMoveCommit}
+          onMoveCancel={onMoveCancel}
+        />,
+      );
+      const hit = view.container.querySelector(".clip-hit") as HTMLElement;
+      fireEvent.pointerDown(hit, { pointerId: 7, clientX: 40, clientY: 10 });
+      fireEvent.pointerMove(hit, { pointerId: 7, clientX: 80, clientY: 10 });
+      expect(onMovePreview).toHaveBeenCalledTimes(1);
+      if (interruption === "Escape")
+        fireEvent.keyDown(document.body, { key: "Escape" });
+      else if (interruption === "blur") fireEvent.blur(hit);
+      else view.unmount();
+      expect(onMoveCancel).toHaveBeenCalledTimes(1);
+      fireEvent.pointerMove(hit, { pointerId: 7, clientX: 100, clientY: 10 });
+      fireEvent.pointerUp(hit, { pointerId: 7, clientX: 100, clientY: 10 });
+      expect(onMovePreview).toHaveBeenCalledTimes(1);
+      expect(onMoveCommit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps body ownership through foreign down and terminal events", () => {
+    const onSelectClip = vi.fn();
+    const onMovePreview = vi.fn();
+    const onMoveCommit = vi.fn();
+    const onMoveCancel = vi.fn();
+    const { container } = render(
+      <ClipBlock
+        {...base}
+        canMove
+        onSelect={vi.fn()}
+        onHit={vi.fn()}
+        onSelectClip={onSelectClip}
+        onMovePreview={onMovePreview}
+        onMoveCommit={onMoveCommit}
+        onMoveCancel={onMoveCancel}
+      />,
+    );
+    const hit = container.querySelector(".clip-hit") as HTMLElement;
+    fireEvent.pointerDown(hit, {
+      pointerId: 1,
+      pointerType: "mouse",
+      button: 2,
+      clientX: 40,
+    });
+    fireEvent.pointerMove(hit, { pointerId: 1, clientX: 80 });
+    expect(onSelectClip).not.toHaveBeenCalled();
+    fireEvent.pointerDown(hit, { pointerId: 7, clientX: 40, clientY: 10 });
+    fireEvent.pointerDown(hit, { pointerId: 8, clientX: 40, clientY: 10 });
+    for (const event of [
+      fireEvent.pointerMove,
+      fireEvent.pointerCancel,
+      fireEvent.lostPointerCapture,
+      fireEvent.pointerUp,
+    ])
+      event(hit, { pointerId: 8, clientX: 80, clientY: 10 });
+    expect(onSelectClip).toHaveBeenCalledTimes(1);
+    expect(onMoveCancel).not.toHaveBeenCalled();
+    expect(onMovePreview).not.toHaveBeenCalled();
+    fireEvent.pointerMove(hit, { pointerId: 7, clientX: 80, clientY: 10 });
+    fireEvent.pointerUp(hit, { pointerId: 7, clientX: 80, clientY: 10 });
+    expect(onMoveCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("ends body keyboard ownership synchronously after cancellation", () => {
+    const ancestorKeys = vi.fn();
+    const add = vi.spyOn(document, "addEventListener");
+    const remove = vi.spyOn(document, "removeEventListener");
+    const { container } = render(
+      <div role="presentation" onKeyDown={ancestorKeys}>
+        <ClipBlock {...base} canMove onSelect={vi.fn()} onHit={vi.fn()} />
+      </div>,
+    );
+    const hit = container.querySelector(".clip-hit") as HTMLElement;
+    fireEvent.pointerDown(hit, { pointerId: 7, clientX: 40 });
+    const listener = add.mock.calls.find(([type]) => type === "keydown")!;
+    expect(listener[2]).toBe(true);
+    for (const key of [
+      "ArrowUp",
+      "ArrowDown",
+      "ArrowLeft",
+      "ArrowRight",
+      "Home",
+      "End",
+      "Enter",
+      " ",
+      "Escape",
+    ])
+      fireEvent.keyDown(hit, { key });
+    expect(ancestorKeys).not.toHaveBeenCalled();
+    expect(remove).toHaveBeenCalledWith("keydown", listener[1], true);
+    fireEvent.keyDown(hit, { key: "Home" });
+    expect(ancestorKeys).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses body movement during an in-flight document join", () => {
+    useDawStore.setState({ joinMutationInFlight: true });
+    const onMovePreview = vi.fn();
+    const onMoveCommit = vi.fn();
+    const { container } = render(
+      <ClipBlock
+        {...base}
+        canMove
+        onSelect={vi.fn()}
+        onHit={vi.fn()}
+        onMovePreview={onMovePreview}
+        onMoveCommit={onMoveCommit}
+      />,
+    );
+    const hit = container.querySelector(".clip-hit") as HTMLElement;
+    fireEvent.pointerDown(hit, { pointerId: 7, clientX: 40 });
+    fireEvent.pointerMove(hit, { pointerId: 7, clientX: 80 });
+    fireEvent.pointerUp(hit, { pointerId: 7, clientX: 80 });
+    expect(onMovePreview).not.toHaveBeenCalled();
+    expect(onMoveCommit).not.toHaveBeenCalled();
+    useDawStore.setState({ joinMutationInFlight: false });
+  });
+
+  it("abandons a body preview when the committed source geometry changes", () => {
+    const onMoveCancel = vi.fn();
+    const onMoveCommit = vi.fn();
+    const props = {
+      ...base,
+      canMove: true,
+      onSelect: vi.fn(),
+      onHit: vi.fn(),
+      onMoveCancel,
+      onMoveCommit,
+    };
+    const view = render(<ClipBlock {...props} />);
+    const hit = view.container.querySelector(".clip-hit") as HTMLElement;
+    fireEvent.pointerDown(hit, { pointerId: 7, clientX: 40 });
+    fireEvent.pointerMove(hit, { pointerId: 7, clientX: 80 });
+    view.rerender(
+      <ClipBlock
+        {...props}
+        clip={{ ...clip, timeline_start: 5, timeline_end: 7 }}
+      />,
+    );
+    expect(onMoveCancel).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(hit, { pointerId: 7, clientX: 80 });
+    expect(onMoveCommit).not.toHaveBeenCalled();
+  });
+
   it("cancels a body drag on lost pointer capture", () => {
     const onMovePreview = vi.fn();
     const onMoveCommit = vi.fn();

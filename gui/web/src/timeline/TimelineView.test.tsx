@@ -805,6 +805,145 @@ describe("TimelineView lane fit", () => {
       Reflect.deleteProperty(document, "elementFromPoint");
     });
 
+    it("keeps a lane range owner when a foreign pointer presses a clip body", () => {
+      const project = twoTrackProject({
+        clips: { tracks: { host: [hostClip], guest: [] }, clip_count: 1 },
+      });
+      useDawStore.getState().hydrate("/tmp/p.json", project);
+      useDawStore.setState({ zoomPxPerSec: 10, userZoomed: true });
+      const { container } = render(
+        <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+          <TimelineView />
+        </DawProvider>,
+      );
+      const lane = container.querySelector(
+        '.lane-row[data-track-id="host"]',
+      ) as HTMLElement;
+      const lanes = lane.parentElement!;
+      vi.spyOn(lanes, "getBoundingClientRect").mockReturnValue({
+        left: 100,
+      } as DOMRect);
+      vi.spyOn(lane, "getBoundingClientRect").mockReturnValue({
+        top: 0,
+        bottom: 100,
+      } as DOMRect);
+      document.elementFromPoint = () => lane;
+      const blank = lane.querySelector(".lane-seek")!;
+      const hit = lane.querySelector(".clip-hit")!;
+      fireEvent.pointerDown(blank, { pointerId: 1, clientX: 110, clientY: 10 });
+      fireEvent.pointerMove(blank, { pointerId: 1, clientX: 150, clientY: 20 });
+      const owned = useDawStore.getState().selection;
+      expect(owned).toMatchObject({ kind: "range" });
+      fireEvent.pointerDown(hit, { pointerId: 2, clientX: 140, clientY: 10 });
+      fireEvent.pointerMove(hit, { pointerId: 2, clientX: 180, clientY: 10 });
+      fireEvent.pointerUp(hit, { pointerId: 2, clientX: 180, clientY: 10 });
+      expect(useDawStore.getState().selection).toBe(owned);
+      expect(execute).not.toHaveBeenCalled();
+      fireEvent.pointerMove(blank, { pointerId: 1, clientX: 170, clientY: 20 });
+      expect(useDawStore.getState().selection).toMatchObject({ kind: "range" });
+      expect(useDawStore.getState().selection).not.toBe(owned);
+      fireEvent.pointerCancel(blank, { pointerId: 1 });
+      expect(useDawStore.getState().selection).toBeNull();
+    });
+
+    it("keeps a second clip from replacing or canceling the body owner's preview", () => {
+      const other = {
+        ...hostClip,
+        id: "c2",
+        source_start: 3,
+        source_end: 5,
+        timeline_start: 6,
+        timeline_end: 8,
+      };
+      const project = twoTrackProject({
+        clips: {
+          tracks: { host: [hostClip, other], guest: [] },
+          clip_count: 2,
+        },
+      });
+      useDawStore.getState().hydrate("/tmp/p.json", project);
+      const { container } = render(
+        <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+          <TimelineView />
+        </DawProvider>,
+      );
+      const first = container.querySelector(
+        '[data-testid="timeline-clip"][data-clip-id="c1"]',
+      ) as HTMLElement;
+      const second = container.querySelector(
+        '[data-testid="timeline-clip"][data-clip-id="c2"]',
+      ) as HTMLElement;
+      const firstHit = first.querySelector(".clip-hit")!;
+      const secondHit = second.querySelector(".clip-hit")!;
+      const origin = first.style.left;
+      document.elementFromPoint = () => first.closest(".lane-row");
+      fireEvent.pointerDown(firstHit, {
+        pointerId: 1,
+        clientX: 100,
+        clientY: 10,
+      });
+      fireEvent.pointerMove(firstHit, {
+        pointerId: 1,
+        clientX: 140,
+        clientY: 10,
+      });
+      const preview = first.style.left;
+      expect(preview).not.toBe(origin);
+      fireEvent.pointerDown(secondHit, {
+        pointerId: 2,
+        clientX: 240,
+        clientY: 10,
+      });
+      fireEvent.pointerMove(secondHit, {
+        pointerId: 2,
+        clientX: 280,
+        clientY: 10,
+      });
+      fireEvent.pointerCancel(secondHit, { pointerId: 2 });
+      fireEvent.pointerUp(secondHit, {
+        pointerId: 2,
+        clientX: 280,
+        clientY: 10,
+      });
+      expect(first.style.left).toBe(preview);
+      expect(useDawStore.getState().selectedClipIds).toEqual(["c1"]);
+      expect(execute).not.toHaveBeenCalled();
+      fireEvent.keyDown(document.body, { key: "Escape" });
+      expect(first.style.left).toBe(origin);
+      fireEvent.pointerMove(firstHit, {
+        pointerId: 1,
+        clientX: 180,
+        clientY: 10,
+      });
+      fireEvent.pointerUp(firstHit, {
+        pointerId: 1,
+        clientX: 180,
+        clientY: 10,
+      });
+      expect(execute).not.toHaveBeenCalled();
+      fireEvent.pointerDown(secondHit, {
+        pointerId: 3,
+        clientX: 240,
+        clientY: 10,
+      });
+      fireEvent.pointerMove(secondHit, {
+        pointerId: 3,
+        clientX: 280,
+        clientY: 10,
+      });
+      fireEvent.pointerUp(secondHit, {
+        pointerId: 3,
+        clientX: 280,
+        clientY: 10,
+      });
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect(execute).toHaveBeenCalledWith(
+        "edit.moveClips",
+        { clips: [expect.objectContaining({ clip_id: "c2" })] },
+        { skipWhen: true },
+      );
+    });
+
     it("holds lanes still and drops on the lane the ghost showed", () => {
       const withClip = twoTrackProject({
         clips: { tracks: { host: [hostClip], guest: [] }, clip_count: 1 },
