@@ -140,6 +140,10 @@ describe("PendingEditInspector", () => {
       ).toBeVisible();
       expect(screen.getByText("host, guest")).toBeVisible();
       expect(
+        screen.getByRole("heading", { name: "Pending cut" }),
+      ).toBeVisible();
+      expect(screen.queryByText("Type")).toBeNull();
+      expect(
         screen.queryByRole("textbox", { name: "Source start" }),
       ).toBeNull();
       expect(screen.queryByRole("textbox", { name: "Source end" })).toBeNull();

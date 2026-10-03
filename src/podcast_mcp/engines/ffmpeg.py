@@ -1128,7 +1128,7 @@ class FFmpegEngine:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         run(
             [
-                resolve_ffmpeg(),
+                self.ffmpeg,
                 "-y",
                 "-f",
                 "lavfi",

@@ -515,7 +515,13 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   return (
     <ModifierInspector
       badge="Pending"
-      title={isSplit ? "Pending split" : "Pending edit"}
+      title={
+        edit.exact_range
+          ? `Pending ${pendingTypeLabel(edit.type).toLowerCase()}`
+          : isSplit
+            ? "Pending split"
+            : "Pending edit"
+      }
       subtitle={pendingReasonLabel(edit.reason)}
       primaryActions={
         canApply || edit.exact_range
@@ -574,7 +580,9 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
         </p>
       ) : null}
       <DefinitionList>
-        <DefItem label="Type">{pendingTypeLabel(edit.type)}</DefItem>
+        {!edit.exact_range ? (
+          <DefItem label="Type">{pendingTypeLabel(edit.type)}</DefItem>
+        ) : null}
         {edit.exact_range ? (
           <>
             <DefItem label="Timeline islands">
