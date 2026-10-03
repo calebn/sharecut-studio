@@ -693,3 +693,110 @@ def test_selected_alternate_source_bounds_use_source_clock(tmp_path: Path, tid: 
         result = bleed_review_candidates(ws.project, "host", start, end)
         assert not result.candidates
         assert f"unavailable_{'owner' if tid == 'host' else 'peer'}_review_media" in result.reasons
+
+
+@pytest.mark.parametrize("tid", ["host", "guest"])
+@pytest.mark.parametrize("container", ["m4a", "mov"])
+def test_review_requires_selected_audio_extent_with_other_longer_streams(
+    tmp_path: Path, tid: str, container: str
+) -> None:
+    from podcast_mcp.edits.bleed_review import bleed_review_candidates
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
+    from podcast_mcp.util.process import run
+
+    ws = stereo_project(tmp_path)
+    engine = FFmpegEngine()
+    selected = tmp_path / "raw" / f"selected.{container}"
+    inputs = ["-f", "lavfi", "-i", "sine=frequency=440:duration=0.7"]
+    if container == "m4a":
+        inputs += [
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=880:duration=3",
+            "-map",
+            "0:a",
+            "-map",
+            "1:a",
+        ]
+    else:
+        inputs += ["-f", "lavfi", "-i", "color=c=black:s=16x16:r=10:d=3", "-c:v", "mpeg4"]
+    run(
+        [engine.ffmpeg, "-v", "error", *inputs, "-c:a", "aac", "-y", str(selected)],
+        check=True,
+        timeout=30,
+    )
+    probe = engine.probe(selected)
+    assert probe.duration_sec > 2.9
+    assert probe.audio_duration_sec is not None
+    assert 0.65 < probe.audio_duration_sec < 0.8
+    assert probe.duration_estimated is (container == "m4a")
+    track = ws.project.track_by_id(tid)
+    assert track is not None
+    track.media = MediaAsset(path=f"raw/selected.{container}", duration_sec=3)
+    for start, end in ((0, 3), (0.5, 0.9)):
+        result = bleed_review_candidates(ws.project, "host", start, end)
+        assert not result.candidates
+        assert f"unavailable_{'owner' if tid == 'host' else 'peer'}_review_media" in result.reasons
+    interior = bleed_review_candidates(ws.project, "host", 0.5, 0.6)
+    if container == "m4a":
+        assert not interior.candidates
+    else:
+        assert [(r["timeline_start"], r["timeline_end"]) for r in interior.candidates] == [
+            (0.5, 0.6)
+        ]
+
+
+@pytest.mark.parametrize("tid", ["host", "guest"])
+@pytest.mark.parametrize("extent", ["unknown", "estimated"])
+def test_review_refuses_unknown_or_estimated_selected_extent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tid: str, extent: str
+) -> None:
+    from podcast_mcp.edits.bleed_review import bleed_review_candidates
+    from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
+
+    ws = stereo_project(tmp_path)
+    original = FFmpegEngine.probe
+
+    def probe(engine: FFmpegEngine, path: Path) -> AudioProbe:
+        if path.name == f"{tid}.wav":
+            return AudioProbe(
+                duration_sec=3,
+                sample_rate=48000,
+                channels=2,
+                audio_duration_sec=None if extent == "unknown" else 3,
+                duration_estimated=extent == "estimated",
+            )
+        return original(engine, path)
+
+    monkeypatch.setattr(FFmpegEngine, "probe", probe)
+    result = bleed_review_candidates(ws.project, "host", 0, 3)
+    assert not result.candidates
+    assert f"unavailable_{'owner' if tid == 'host' else 'peer'}_review_media" in result.reasons
+
+
+def test_discovery_memoizes_failed_probe_and_next_call_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from podcast_mcp.edits.bleed_review import bleed_review_candidates
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
+
+    ws = stereo_project(tmp_path)
+    original = FFmpegEngine.probe
+    calls: list[Path] = []
+
+    def probe(engine: FFmpegEngine, path: Path):
+        calls.append(path)
+        if len(calls) == 1:
+            raise RuntimeError("unavailable media")
+        return original(engine, path)
+
+    monkeypatch.setattr(FFmpegEngine, "probe", probe)
+    assert not bleed_review_candidates(ws.project, "host", 0, 3).candidates
+    assert len(calls) == 1
+    assert len(bleed_review_candidates(ws.project, "host", 0, 3).candidates) == 2
+    assert calls == [
+        (tmp_path / "raw" / "host.wav").resolve(),
+        (tmp_path / "raw" / "host.wav").resolve(),
+        (tmp_path / "raw" / "guest.wav").resolve(),
+    ]
