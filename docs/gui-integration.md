@@ -375,6 +375,11 @@ Timeline comments from `review.comments[]` (session clock). Hideable pins/range 
 
 ### Pipeline tab (orchestration)
 
+The determinate Pipeline progress bar preserves its height inside short scrolling
+panels. Its fill keeps the existing width transition only when motion is allowed;
+reduced motion has no width transition. Profiling and its visibility regression
+are documented in [testing.md](testing.md).
+
 Configurable production spine — **visible params are the source of truth for Run** (same working set as MCP `pipeline_get_config_tool` / `pipeline_set_config_tool`). Master-detail checklist + param inspector; optional **Analyze** seeds heuristic patches into the form (not a hidden auto-run).
 
 Pipeline and Tighten edits fetch the latest working set before each save, then reapply the requested change. Reset remains a direct `{ reset: true }` PUT. The endpoint has no revision check, so another client can still write between the GET and PUT.
