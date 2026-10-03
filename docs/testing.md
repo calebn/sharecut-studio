@@ -797,6 +797,7 @@ test; other rows are whole tests.
 | short desktop lanes reach the horizontal end with classic scrollbars | `gui/web/e2e-compat/timeline-scroll-end.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | Wordbar native boundary release and exact Undo work across browsers | `gui/web/e2e-compat/transcript-wordbar.spec.ts` | Core flow | Pass | Pass | Not run |
 | phone Mix native edits and touch geometry across engines | `gui/web/e2e-compat/phone-mix.spec.ts` | Core flow | Pass | Pass | Not run |
+| comment recovery keeps native disabled-button focus and sticky controls | `gui/web/e2e-compat/comment-undo.spec.ts` | Core flow | Pass | Pass | Not run |
 
 A dated snapshot, not a threshold (measured locally on macOS as of #739 and
 #747; no test re-checks these figures): the core-flow landed track peaked at
