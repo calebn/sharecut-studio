@@ -31,7 +31,9 @@ def test_propose_filler_edits(minimal_project):
             ],
         )
     )
-    proposal = propose_tighten_edits(proj, load_defaults())
+    defaults = load_defaults()
+    defaults["tighten"]["breath_handling"]["enabled"] = False
+    proposal = propose_tighten_edits(proj, defaults)
     reasons = {e.reason for e in proposal.decisions}
     assert any(r and r.startswith("filler:") for r in reasons)
     assert [e.id for e in proposal.decisions] == [e.id for e in proj.edit_decisions]
@@ -84,6 +86,7 @@ def test_propose_tighten_decisions_match_project_after_coalesce(minimal_project)
         )
     )
     defaults = load_defaults()
+    defaults["tighten"]["breath_handling"]["enabled"] = False
     defaults["tighten"]["inaudible_opt"] = False
     proposal = propose_tighten_edits(proj, defaults)
     assert proposal.decisions
@@ -136,6 +139,7 @@ def test_propose_tighten_edits_parallel_matches_serial_and_preserves_order():
         "tighten": {
             **load_defaults()["tighten"],
             "filler_words": ["um", "uh"],
+            "breath_handling": {"enabled": False},
             "max_pause_sec": 1.0,
             "min_filler_cluster": 2,
             "inaudible_opt": False,

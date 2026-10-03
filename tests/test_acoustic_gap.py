@@ -590,6 +590,17 @@ def test_coalesce_never_merges_across_applied_but_still_merges_ordinary_cuts() -
 # --- end to end ------------------------------------------------------------------
 
 
+def _acoustic_dialogue_samples() -> np.ndarray:
+    """Voiced gap audio between audible words, with retained room tone."""
+    samples = np.random.default_rng(941).normal(0, 0.0003, 3 * RATE).astype(np.float32)
+    # Quiet room-tone separators let the final cut edges settle outside activity.
+    for start, end in ((0.73, 0.78), (1.24, 1.29)):
+        samples[round(start * RATE) : round(end * RATE)] *= 0.1
+    for start, end in ((0.2, 0.4), (0.8, 1.2), (2.0, 2.2)):
+        samples += _tone(3.0, start, end)
+    return samples
+
+
 def _e2e_defaults(**tighten: object) -> dict[str, object]:
     return {"tighten": {"max_pause_sec": 99.0, **tighten}}
 
@@ -598,7 +609,7 @@ def test_propose_emits_bounded_review_only_acoustic_decision_that_never_auto_app
     tmp_path: Path, sample_wav: Path
 ) -> None:
     del sample_wav  # ffmpeg availability gate for decoding the project WAV
-    project = _project(tmp_path, _tone(3.0, 0.8, 1.2), _two_words().words)
+    project = _project(tmp_path, _acoustic_dialogue_samples(), _two_words().words)
 
     proposal = propose_tighten_edits(project, _e2e_defaults())
 
@@ -616,11 +627,24 @@ def test_propose_emits_bounded_review_only_acoustic_decision_that_never_auto_app
     assert project.edit_decisions[0].applied is False
 
 
-def test_propose_apply_propose_keeps_applied_ranges_and_flags(
+def test_propose_suppresses_acoustic_candidate_without_retained_level_profile(
     tmp_path: Path, sample_wav: Path
 ) -> None:
     del sample_wav
     project = _project(tmp_path, _tone(3.0, 0.8, 1.2), _two_words().words)
+
+    proposal = propose_tighten_edits(project, _e2e_defaults())
+
+    assert proposal.decisions == []
+    assert proposal.skip_counts == {"acoustic:rejected": 1}
+    assert project.edit_decisions == []
+
+
+def test_propose_apply_propose_keeps_applied_ranges_and_flags(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    del sample_wav
+    project = _project(tmp_path, _acoustic_dialogue_samples(), _two_words().words)
     first = propose_tighten_edits(project, _e2e_defaults()).decisions[0]
     # A human approved the acoustic proposal but the decision was not archived
     # (transcript reconcile / fixtures can leave applied decisions in place).
@@ -675,7 +699,7 @@ def test_analyze_entry_point_matches_propose_and_skips_decode_when_idle(
     tmp_path: Path, sample_wav: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del sample_wav
-    project = _project(tmp_path, _tone(3.0, 0.8, 1.2), _two_words().words)
+    project = _project(tmp_path, _acoustic_dialogue_samples(), _two_words().words)
 
     decisions = analyze_fillers_and_pauses(project, project.transcripts[0], _e2e_defaults())
 

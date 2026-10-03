@@ -191,6 +191,7 @@ def test_analyze_and_tighten_steps(minimal_project):
         )
     ]
     defaults = load_defaults()
+    defaults["tighten"]["breath_handling"]["enabled"] = False
     defaults.setdefault("tighten", {})["enabled"] = True
     steps.analyze_fillers_pauses(proj, defaults)
     assert len(proj.edit_decisions) > 0
@@ -300,6 +301,7 @@ def test_analyze_fillers_step_honours_config_intensity(minimal_project):
             )
         ]
         defaults = load_defaults()
+        defaults["tighten"]["breath_handling"]["enabled"] = False
         defaults["tighten"]["enabled"] = True
         defaults["tighten"]["intensity"] = intensity
         steps.analyze_fillers_pauses(proj, defaults)

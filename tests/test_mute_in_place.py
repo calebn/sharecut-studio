@@ -149,6 +149,7 @@ def test_mute_mode_skips_pause_candidates():
     defaults = {
         "tighten": {
             "filler_words": ["um", "uh"],
+            "breath_handling": {"enabled": False},
             "max_pause_sec": 1.2,
             "min_filler_cluster": 2,
             "edit_mode": "mute",
@@ -215,6 +216,7 @@ def test_mute_analyze_join_fail_and_pacing_skip():
     defaults = {
         "tighten": {
             "filler_words": ["um", "uh"],
+            "breath_handling": {"enabled": False},
             "min_filler_cluster": 2,
             "edit_mode": "mute",
             "join_continuity_gate": True,
@@ -301,7 +303,13 @@ def test_invalid_edit_mode_falls_back_to_ripple():
     ):
         proposed = propose_tighten_edits(
             project,
-            {"tighten": {"filler_words": ["um", "uh"], "min_filler_cluster": 2}},
+            {
+                "tighten": {
+                    "filler_words": ["um", "uh"],
+                    "breath_handling": {"enabled": False},
+                    "min_filler_cluster": 2,
+                }
+            },
             edit_mode="nope",
         )
     assert proposed.decisions

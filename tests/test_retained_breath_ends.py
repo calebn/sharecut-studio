@@ -428,14 +428,24 @@ def test_proposal_to_exact_approval_preserves_complete_breath_source() -> None:
 
 
 def test_default_apply_preserves_proposed_complete_breath(tmp_path) -> None:
-    import wave
-
     from podcast_mcp.edits.fillers import _apply_analyzed_cut
     from podcast_mcp.edits.tighten import apply_tighten_decisions
 
     cache = _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026))
     result = _proposal(cache, 5.05, "heuristic")
     assert result is not None
+    project = _project_with_wav(tmp_path, cache)
+    _apply_analyzed_cut(project, result)
+    with patch(
+        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope", return_value=("session", None)
+    ):
+        assert apply_tighten_decisions(project) == 1
+    assert any(clip.source_start <= 5.0 and clip.source_end >= 5.26 for clip in project.clips)
+
+
+def _project_with_wav(tmp_path, cache):
+    import wave
+
     project = _host_project()
     path = tmp_path / "host.wav"
     with wave.open(str(path), "wb") as handle:
@@ -446,12 +456,64 @@ def test_default_apply_preserves_proposed_complete_breath(tmp_path) -> None:
     project.tracks[0].media.path = str(path)
     project.tracks[0].media.duration_sec = 10.2
     project.clips[0].source_end = 10.2
-    _apply_analyzed_cut(project, result)
+    return project
+
+
+@pytest.mark.parametrize("protected_edge", ["start", "end"])
+@pytest.mark.parametrize("neighbor_mode", [None, "waveform_only"])
+def test_coalescing_mixed_modes_preserves_protected_breath_on_default_apply(
+    tmp_path, protected_edge, neighbor_mode
+) -> None:
+    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+    from podcast_mcp.edits.tighten import apply_tighten_decisions
+    from podcast_mcp.edits.transcript_cuts import append_remove_decision, coalesce_edits
+
+    if protected_edge == "end":
+        cache = _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026))
+        requested = (4.9, 5.05)
+        expected = (4.9, 5.0)
+        neighbor = (4.8, 4.89)
+        breath = (5.0, 5.26)
+    else:
+        cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
+        requested = (5.3, 5.4)
+        expected = (5.36, 5.4)
+        neighbor = (5.41, 5.44)
+        breath = (5.0, 5.36)
+    project = _project_with_wav(tmp_path, cache)
+    protected = protect_cut_breaths(project, "host", *requested, audio_cache=cache)
+    assert protected == pytest.approx(expected)
+    assert protected is not None
+    saved = append_remove_decision(
+        project,
+        "host",
+        *protected,
+        reason="pause:protected",
+        review_required=False,
+        boundary_mode="vocal_transcript_guided",
+    )
+    append_remove_decision(
+        project,
+        "host",
+        *neighbor,
+        reason="filler:um",
+        review_required=False,
+        boundary_mode=neighbor_mode,
+    )
+    assert coalesce_edits(project, track_id="host") == 0
     with patch(
         "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope", return_value=("session", None)
     ):
-        assert apply_tighten_decisions(project) == 1
-    assert any(clip.source_start <= 5.0 and clip.source_end >= 5.26 for clip in project.clips)
+        assert apply_tighten_decisions(project) == 2
+    assert any(
+        clip.source_start <= breath[0] and clip.source_end >= breath[1] for clip in project.clips
+    )
+    archived = next(row for row in project.editorial.edit_log if saved.id in row.decision_ids)
+    edge_index = 0 if protected_edge == "start" else 1
+    assert archived.params["per_track_source"]["host"][edge_index] == pytest.approx(
+        expected[edge_index]
+    )
+    assert (archived.source_start, archived.source_end) == pytest.approx(expected)
 
 
 def test_final_breath_shrink_respects_existing_pacing_minimum() -> None:

@@ -342,7 +342,7 @@ def coalesce_edits(
     track_id: str | None = None,
     merge_gap_sec: float = 0.05,
 ) -> int:
-    """Merge overlapping or adjacent REMOVE/MUTE decisions on the same track."""
+    """Merge overlapping/adjacent same-track REMOVE/MUTE decisions with matching boundary modes."""
     mergeable = (EditDecisionType.REMOVE, EditDecisionType.MUTE)
     by_key: dict[tuple[str, EditDecisionType], list[EditDecision]] = {}
     other: list[EditDecision] = []
@@ -364,7 +364,11 @@ def coalesce_edits(
         stack = [edits[0]]
         for e in edits[1:]:
             top = stack[-1]
-            if e.start <= top.end + merge_gap_sec and not _keeps_independent_review(top, e):
+            if (
+                e.start <= top.end + merge_gap_sec
+                and top.boundary_mode == e.boundary_mode
+                and not _keeps_independent_review(top, e)
+            ):
                 top.end = max(top.end, e.end)
                 if e.review_required:
                     top.review_required = True
