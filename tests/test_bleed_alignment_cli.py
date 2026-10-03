@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
@@ -54,7 +55,7 @@ def test_cli_rejects_invalid_choice_before_any_project_write(tmp_path):
     assert ws.path.read_bytes() == before
 
 
-def test_cli_preview_reports_missing_seed_without_project_write(tmp_path):
+def test_cli_scoped_preview_discovers_missing_seed_without_project_write(tmp_path):
     ws = _workspace(tmp_path)
     ws.project.transcripts[1].words = []
     ws.save()
@@ -77,8 +78,6 @@ def test_cli_preview_reports_missing_seed_without_project_write(tmp_path):
     )
     assert result.exit_code == 0, result.output
     preview = json.loads(result.output)
-    assert preview["proposed_count"] == 0
-    assert preview["skipped"] == [
-        {"track_id": "uncertain", "reason": "no_retained_bleed_candidate"}
-    ]
+    assert preview["proposed_count"] == 1
+    assert preview["proposals"][0]["offset_sec"] == pytest.approx(-0.15)
     assert ws.path.read_bytes() == before

@@ -86,16 +86,34 @@ def test_default_gate_reports_unmeasured_seed_without_retiming_or_changing_raw(t
     clips = [clip.model_dump() for clip in ws.project.clips]
     raw = {path: path.read_bytes() for path in (tmp_path / "raw").glob("*.wav")}
     expected = [{"track_id": "uncertain", "reason": "no_retained_bleed_candidate"}]
-    preview = EditService(ws).apply_bleed_mute(
-        track_id="uncertain", start_sec=0.8, end_sec=3.5, apply=False
-    )
+    preview = EditService(ws).apply_bleed_mute(track_id="uncertain", apply=False)
     assert preview["alignment"]["proposed_count"] == 0
     assert preview["alignment"]["skipped"] == expected
     assert ws.project.model_dump(mode="json") == before
-    result = EditService(ws).apply_bleed_mute(track_id="uncertain", start_sec=0.8, end_sec=3.5)
+    result = EditService(ws).apply_bleed_mute(track_id="uncertain")
     assert result["alignment"]["applied_count"] == 0
     assert result["alignment"]["skipped"] == expected
     reopened = ProjectWorkspace.open(ws.path).project
     assert [clip.model_dump() for clip in reopened.clips] == clips
     assert reopened.editorial.retained_bleed_alignments == []
     assert all(path.read_bytes() == samples for path, samples in raw.items())
+
+
+def test_explicit_scoped_default_gate_discovers_copy_without_seed(tmp_path):
+    ws = _workspace(tmp_path)
+    ws.project.transcripts[1].words = []
+    ws.save()
+    before = ws.project.model_dump(mode="json")
+    mixed = [clip.model_dump() for clip in ws.project.clips if clip.track_id == "uncertain"]
+    preview = EditService(ws).apply_bleed_mute(
+        track_id="uncertain", start_sec=0.8, end_sec=3.5, apply=False
+    )
+    assert preview["alignment"]["proposed_count"] == 1
+    assert ws.project.model_dump(mode="json") == before
+    result = EditService(ws).apply_bleed_mute(track_id="uncertain", start_sec=0.8, end_sec=3.5)
+    assert result["alignment"]["applied_count"] == 1
+    assert [
+        clip.model_dump()
+        for clip in ProjectWorkspace.open(ws.path).project.clips
+        if clip.track_id == "uncertain"
+    ] == mixed
