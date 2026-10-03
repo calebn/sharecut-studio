@@ -62,6 +62,10 @@ When a Tighten proposal ends inside an accepted breath's quiet onset, the retain
 
 ## Content cut before tighten (long raw sessions)
 
+A ripple that removes no words preserves done or waived refinement clearance after saving and reopening. Word timing and clip placement alone do not change the precorrect fingerprint. Text, word order, track IDs, and suppressed state changes still require clearance.
+
+Omit track and speaker on `suggest_handoff_cut_tool` to require quiet across every dialogue lane, including muted lanes. Explicit selectors limit evidence to one lane. The result lists the analyzed `track_ids`. Missing or incomplete cached audio blocks the suggestion. See [Narrative handoffs](../../../docs/inaudible-cuts.md#narrative-handoffs).
+
 On a raw session, remove the dead start, off-topic runs and meta talk **before** any `propose_edits`. Otherwise tighten proposes dozens of hits in material that is about to go.
 
 1. Read the whole transcript (`get_transcript(combined=true, format=timestamps)`) and agree the kept ranges with the user. This usually exceeds the 15% rule, so get explicit approval.
@@ -69,7 +73,7 @@ On a raw session, remove the dead start, off-topic runs and meta talk **before**
    - Off-topic run or meta talk (latest first): `suggest_handoff_cut_tool(keep_left_end, keep_right_start)` → `ripple_delete_tool(cut_start, cut_end, use_inaudible_opt=false)` (CLI `podcast edit suggest-handoff-cut` then `podcast edit ripple-delete … --no-inaudible-opt`).
    - Dead start, last (it is the leftmost cut and shifts everything after it): `search_transcript_tool` → first kept line's `timeline_start` → `ripple_delete_tool(start=0, end=timeline_start-0.5)` (CLI `podcast edit ripple-delete --start 0 --end …`).
    - Not `cut_time_range_tool` / `apply_edit_plan_tool`: with peer speech in the window they become a track-local punch.
-3. After **each** ripple: `transcript_refine_waive_tool(reason="content cut: structural edit")` (CLI `podcast transcript refine-waive --reason …`). Dropped words make the waive stale, and the next edit raises `TranscriptRefineRequiredError`.
+3. After a ripple that removes words: `transcript_refine_waive_tool(reason="content cut: structural edit")` (CLI `podcast transcript refine-waive --reason …`). Dropped words make the waive stale, and the next edit raises `TranscriptRefineRequiredError`.
 4. Then `propose_edits` (**podcast-tighten-dialogue**). The removed words are gone, so proposals fall only in the kept range; there is no range argument. Reject tighten proposals made before the cut (`reject_edits_tool`).
 
 `analyze_focus_cuts` (pipeline) writes an outline, not a cut list, and is skipped when `focus.enabled` is false. See [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
@@ -79,7 +83,7 @@ On a raw session, remove the dead start, off-topic runs and meta talk **before**
 | User intent | Steps |
 |-------------|--------|
 | Remove topic X | `search_transcript_tool` → `ripple_delete_tool(start, end)` |
-| Cut a raw session down to the show | Content cut before tighten (section above): `suggest_handoff_cut_tool` → `ripple_delete_tool(use_inaudible_opt=false)` per off-topic run (latest first), then `ripple_delete_tool` for the dead start last, `transcript_refine_waive_tool` after each, then `propose_edits` |
+| Cut a raw session down to the show | Content cut before tighten (section above): `suggest_handoff_cut_tool` → `ripple_delete_tool(use_inaudible_opt=false)` per off-topic run (latest first), then `ripple_delete_tool` for the dead start last, `transcript_refine_waive_tool` after word removal, then `propose_edits` |
 | Remove false-start restart | Include trailing dead air through the pause before the kept line (or rely on `inaudible_cuts.absorb_trailing_silence`); leave ~0.4s breath |
 | Narrative handoff / “clean up the transition” / “need a beat” | **Not** word→word + default inaudible opt. `search_transcript` keep-left end + keep-right start (timeline) → `suggest_handoff_cut_tool` → ripple mid-silence→mid-silence with `use_inaudible_opt=false` → audition ~10–15s around the join. Prefer existing room tone; do not `insert_gap` silence unless asked. Default `retain_sec`/`--retain-sec` is `1.0` on *each* side (~2s of air total) — tune down to `0.3`–`0.6` for a tight conversational join; nothing tunes it automatically. See **podcast-inaudible-cuts** § Narrative handoffs |
 | Move section to after Y | search source + dest → `move_by_text_tool` (exact phrase + timeline clocks; dest outside source; transcript words stay) or `move_segment_tool` (range cut+insert on every dialogue lane — not clip body drag / `move_clips_tool`) |

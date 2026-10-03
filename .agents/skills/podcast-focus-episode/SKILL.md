@@ -144,17 +144,21 @@ Do **not** remove >**15%** in one batch without explicit user consent.
 
 ### Phase 3 — Propose cuts
 
+A ripple that removes no words preserves done or waived refinement clearance after saving and reopening. Word timing and clip placement alone do not change the precorrect fingerprint. Text, word order, track IDs, and suppressed state changes still require clearance.
+
+Omit track and speaker on `suggest_handoff_cut_tool` to require quiet across every dialogue lane, including muted lanes. Explicit selectors limit evidence to one lane. The result lists the analyzed `track_ids`. Missing or incomplete cached audio blocks the suggestion. See [Narrative handoffs](../../../docs/inaudible-cuts.md#narrative-handoffs).
+
 `apply_edit_plan_tool` with **`review_required: true`** and segment-aligned
 `start`/`end` from the outline.
 
-**Structural content cuts** (the `focus:dead_start` pre-show, whole off-topic runs, meta talk) span every speaker. After the user signs off on the kept ranges, remove them with `ripple_delete_tool`, from the end toward the start: mid-episode runs first (`suggest_handoff_cut_tool` → `ripple_delete_tool(use_inaudible_opt=false)`), then the dead start (`start=0`) last, because it shifts everything after it. A per-track `apply_edit_plan_tool` cut with peer speech in the window becomes a track-local punch and leaves a hole. After **each** ripple, re-waive the refine gate (`transcript_refine_waive_tool` / `podcast transcript refine-waive --reason "content cut: structural edit"`), because dropped words make it stale. Then tighten. Order: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
+**Structural content cuts** (the `focus:dead_start` pre-show, whole off-topic runs, meta talk) span every speaker. After the user signs off on the kept ranges, remove them with `ripple_delete_tool`, from the end toward the start: mid-episode runs first (`suggest_handoff_cut_tool` → `ripple_delete_tool(use_inaudible_opt=false)`), then the dead start (`start=0`) last, because it shifts everything after it. A per-track `apply_edit_plan_tool` cut with peer speech in the window becomes a track-local punch and leaves a hole. After a ripple that removes words, re-waive the refine gate (`transcript_refine_waive_tool` / `podcast transcript refine-waive --reason "content cut: structural edit"`), because dropped words make it stale. Then tighten. Order: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
 
 Present the brief + impact report. **Lead with theme**, not minutes removed.
 
 ### Phase 4 — Listen loop
 
 Audition `REVIEW` and any disputed cut on **one track** (**podcast-play-audition**).
-User approves → `approve_edits_tool` → `assemble_timeline` → `merge_transcript`. Re-clear the refine gate after approving (applied cuts make it stale), then tighten the kept range.
+User approves → `approve_edits_tool` → `assemble_timeline` → `merge_transcript`. Re-clear the refine gate after approving cuts that remove words, then tighten the kept range.
 
 ### Phase 5 — Optional duration pass
 

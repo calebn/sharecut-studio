@@ -218,7 +218,10 @@ def edit_suggest_handoff_cut_cmd(
         help="Target room-tone beat to keep after punchline / before pivot.",
     ),
 ) -> None:
-    """Propose silence→silence ripple bounds for a narrative handoff."""
+    """Propose quiet handoff bounds across all dialogue lanes, including muted lanes.
+
+    Use --track or --speaker to analyze only one lane.
+    """
     ws = ProjectWorkspace.open(project)
     out = EditService(ws).suggest_handoff_cut(
         track_id=track,

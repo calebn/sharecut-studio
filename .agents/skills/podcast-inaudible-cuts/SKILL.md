@@ -55,6 +55,10 @@ Tighten proposals refine each accepted breath run to its quiet onset before test
 
 ## Narrative handoffs
 
+A ripple that removes no words preserves done or waived refinement clearance after saving and reopening. Word timing and clip placement alone do not change the precorrect fingerprint. Text, word order, track IDs, and suppressed state changes still require clearance.
+
+Omit track and speaker on `suggest_handoff_cut_tool` to require quiet across every dialogue lane, including muted lanes. Explicit selectors limit evidence to one lane. The result lists the analyzed `track_ids`. Missing or incomplete cached audio blocks the suggestion. See [Narrative handoffs](../../../docs/inaudible-cuts.md#narrative-handoffs).
+
 Default inaudible opt ≠ handoff planner:
 
 | Mechanism | What it does | Handoff use |

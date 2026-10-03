@@ -65,6 +65,8 @@ NL editing tools and CLI commands are listed in [nl-editing.md](nl-editing.md).
 
 ## Narrative handoffs
 
+For narrative handoffs, omit track and speaker on `suggest_handoff_cut_tool` or CLI `suggest-handoff-cut` to require quiet across every dialogue lane, including saved-muted dialogue. Music is excluded. Explicit track or speaker selects one lane. The domain receives an explicit track collection and builds RMS caches once for the scan. Each common timeline hop uses the maximum lane RMS, so any audible lane blocks that hop. Missing measurements or incomplete cache coverage cannot approve quiet. Intentional zero-filled timeline gaps remain silence. Results include `track_ids`, with `track_id` populated for one lane and null for multiple lanes. Lock approved bounds with `use_inaudible_opt=false`, then audition the join.
+
 The default optimizer is a **local** boundary tool — not a multi-second transition planner:
 
 | Mechanism | Behavior | Wrong for handoffs because… |
@@ -75,7 +77,9 @@ The default optimizer is a **local** boundary tool — not a multi-second transi
 
 **Prefer:** keep about 1s of existing air after the punchline and before the pivot (`keep_left + retain` / `keep_right − retain`, snapped to local quiet), then lock bounds with `use_inaudible_opt=false`.
 
-Helper: `edits/silence_islands.py` → `suggest_handoff_cut` / MCP `suggest_handoff_cut_tool` / CLI `podcast edit suggest-handoff-cut`. Given timeline `keep_left_end` + `keep_right_start`, it places `cut_start` / `cut_end` at the requested beat on each keep (clamped if the gap is shorter) and snaps onto a **measured RMS silence island** on the stem. Transcript word gaps are not silence — um, chair noise, and bleed with no token still block a join if they sit at the retain target. Audible junk *between* the bounds is removed with the ripple. If a bound is still in energy after snap, the suggestion is not ok.
+Helper: `edits/silence_islands.py` → `suggest_handoff_cut` / MCP `suggest_handoff_cut_tool` / CLI `podcast edit suggest-handoff-cut`. Given timeline `keep_left_end` + `keep_right_start`, it places `cut_start` / `cut_end` at the requested beat on each keep (clamped if the gap is shorter) and snaps onto a **measured RMS silence island** across the selected lanes. Transcript word gaps are not silence — um, chair noise, and bleed with no token still block a join if they sit at the retain target. Audible junk *between* the bounds is removed with the ripple. If a bound is still in energy after snap, the suggestion is not ok.
+
+For the single-lane workflow, pass `--track host` or `--speaker Host`. A session handoff should omit both selectors.
 
 **Tune the beat with `retain_sec` / `--retain-sec`** (default `1.0`, applied on *both* sides, so a default call leaves ~2s of air at the join). That is fine for a punchline beat but too long for a tight conversational handoff; a real run needed `0.3`–`0.6` to keep the join snappy. Nothing tunes this automatically — pass it explicitly per join.
 
@@ -107,8 +111,8 @@ Audition ~10–15s around the join before resolving review comments. Prefer exis
 
 ```bash
 podcast edit preview-cut --project episode.project.json --track host --start 32.4 --end 34.8
-podcast edit suggest-handoff-cut --project ... --track host --keep-left-end 2154.0 --keep-right-start 2167.0
-podcast edit suggest-handoff-cut --project ... --track host --keep-left-end 2154.0 --keep-right-start 2167.0 --retain-sec 0.4  # tighter conversational join
+podcast edit suggest-handoff-cut --project ... --keep-left-end 2154.0 --keep-right-start 2167.0
+podcast edit suggest-handoff-cut --project ... --keep-left-end 2154.0 --keep-right-start 2167.0 --retain-sec 0.4  # tighter conversational join
 podcast edit join-quality --project ... --track host --join 12.5 --timebase timeline
 podcast edit join-sweep --project ...
 podcast edit cut-range --project ... --track host --start 32.4 --end 34.8   # optimized by default

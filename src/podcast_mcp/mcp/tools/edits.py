@@ -192,6 +192,9 @@ def suggest_handoff_cut_tool(
 ) -> str:
     """Propose retain-then-snap ripple bounds for a narrative handoff.
 
+    Omit track_id and speaker to require quiet across every dialogue lane,
+    including muted lanes. Either selector limits analysis to one lane.
+
     Use when cleaning up a transition, leaving a beat, or punchline-to-pivot —
     not word timestamps and not ``preview_inaudible_cut_tool`` (local snap +
     ~0.4s absorb). Times are **timeline** seconds. Keeps about ``retain_sec``
