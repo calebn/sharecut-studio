@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import type { PipelineJobSnapshot } from "../src/types/pipeline";
 import type { createEditorProfiler } from "./editorProfile";
-import { hash, measured } from "./editorProfileReport";
+import { failureReason, hash, measured } from "./editorProfileReport";
 
 type ReplayEvidence = {
   scheduled: number;
@@ -170,8 +170,14 @@ export async function replayPipelineProgress(
     }),
   );
   let replayEvidence: ReplayEvidence | undefined;
+  let primaryFailure: unknown;
   try {
-    await page.getByRole("button", { name: "Pipeline", exact: true }).click();
+    const pipeline = page.getByRole("button", { name: /^Pipeline(?: ●)?$/ });
+    if (await pipeline.isVisible()) await pipeline.click();
+    else {
+      await page.getByRole("button", { name: "More", exact: true }).click();
+      await pipeline.click();
+    }
     await expect
       .poll(() => page.evaluate(() => window.__editorProgressReplay!.connected))
       .toBe(true);
@@ -282,10 +288,35 @@ export async function replayPipelineProgress(
       id: "synthetic-progress",
       result: sample.result,
     });
+  } catch (error) {
+    primaryFailure = error;
+    throw error;
   } finally {
-    if (replayEvidence)
-      await recorder.attachJson("progress-replay.json", replayEvidence);
-    await page.unroute("**/api/pipeline/status");
-    await page.evaluate(() => window.__editorProgressReplay?.restore());
+    let cleanupFailure: unknown;
+    for (const [label, cleanup] of [
+      [
+        "evidence",
+        async () => {
+          if (replayEvidence)
+            await recorder.attachJson("progress-replay.json", replayEvidence);
+        },
+      ],
+      ["route", () => page.unroute("**/api/pipeline/status")],
+      [
+        "EventSource",
+        () => page.evaluate(() => window.__editorProgressReplay?.restore()),
+      ],
+    ] as const) {
+      try {
+        await cleanup();
+      } catch (error) {
+        recorder.report.errors.push(
+          `replay ${label} cleanup: ${failureReason(error)}`,
+        );
+        cleanupFailure ??= error;
+      }
+    }
+    if (primaryFailure === undefined && cleanupFailure !== undefined)
+      throw cleanupFailure;
   }
 }
