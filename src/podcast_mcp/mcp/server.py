@@ -74,6 +74,7 @@ from podcast_mcp.mcp.tools.edits import (  # noqa: E402, F401
     list_edit_decisions_tool,
     preview_inaudible_cut_tool,
     propose_edits,
+    propose_range_mute_tool,
     reject_edits_tool,
     revert_applied_edit_tool,
     search_transcript_tool,

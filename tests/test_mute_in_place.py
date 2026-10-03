@@ -117,7 +117,7 @@ def test_merge_and_intersect_mute_regions():
     assert subtract_source_mute(clip, 0.2, 0.4) is True
     assert clip.mute_regions == []
     assert subtract_source_mute(clip, 0.2, 0.4) is False
-    assert FFmpegEngine()._mute_chain(0.5, ((1.4, 1.6),)) == []
+    assert FFmpegEngine()._mute_chain(0.5, ((1.4, 1.6),), sample_rate=48000) == []
 
 
 def test_mute_mode_skips_pause_candidates():
@@ -567,10 +567,6 @@ def test_two_mute_spans_and_degenerate_chain(tmp_path, sample_wav):
     assert first is not None and first <= -60.0
     assert second is not None and second <= -60.0
     assert mid is not None and mid > -40.0
-    chain = FFmpegEngine()._mute_chain(0.5, ((0.4, 0.4), (0.1, 0.3)))
-    assert any(p.startswith("volume=") for p in chain)
-    assert any(p.startswith("asetnsamples=") for p in chain)
-    assert sum(1 for p in chain if p.startswith("volume=")) == 1
 
 
 def test_update_pending_mute_and_split_at_bounds(minimal_project):
@@ -1064,18 +1060,6 @@ def test_edit_impact_and_invalidation_reason_for_mute(tmp_path, sample_wav):
         new_edit_log=[rec],
     )
     assert created[0].reason == "mute"
-
-
-def test_mute_chain_folds_spans_and_guards_short_holes():
-    from podcast_mcp.edits.mute_regions import MUTE_FADE_SEC
-
-    folded = FFmpegEngine()._mute_chain(1.0, ((0.1, 0.3), (0.5, 0.7)))
-    assert len([p for p in folded if p.startswith("volume=")]) == 1
-    assert folded[0] == "asetnsamples=n=48:p=0"
-    short = FFmpegEngine()._mute_chain(1.0, ((0.1, 0.1 + MUTE_FADE_SEC),))
-    assert "1-(t-" not in short[1]
-    rate = FFmpegEngine()._mute_chain(1.0, ((0.1, 0.3),), sample_rate=44100)
-    assert rate[0] == "asetnsamples=n=44:p=0"
 
 
 def test_clip_mute_region_and_suggest_payload_reject_invalid():

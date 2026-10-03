@@ -1,14 +1,33 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from mcp.server import MCPServer
 
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.mcp.serialize import to_json
+from podcast_mcp.mcp.tools.agent_document import submit_host_document_command
 from podcast_mcp.mcp.tools.agent_notify import agent_mutated
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
+
+
+def propose_range_mute_tool(project_path: str, target: dict[str, Any], command_id: str) -> str:
+    """Propose an exact range mute for host review, with replay-safe command identity.
+
+    Pass a serialized ExactRangeTarget from bleed preview or the range editor.
+    This never applies audio or approves the proposal. Reuse command_id only
+    when retrying the same target. The host auditions and approves or rejects it.
+    """
+    return to_json(
+        submit_host_document_command(
+            project_path,
+            "EditSelectedRange",
+            {"target": target, "action": "mute"},
+            command_id=command_id,
+        )
+    )
 
 
 def build_edit_context(project_path: str, max_utterances: int = 200) -> str:
@@ -378,6 +397,7 @@ def register(mcp: MCPServer) -> None:
     for fn in (
         build_edit_context,
         search_transcript_tool,
+        propose_range_mute_tool,
         cut_time_range_tool,
         cut_text_match_tool,
         cut_utterance_tool,

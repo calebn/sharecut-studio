@@ -1702,3 +1702,5 @@ check preview ownership, a paused proxy, unchanged session playhead and playback
 intent, suppressed timeline clock and meters, release back to timeline playback,
 and disposal on a project switch. A stopped preview keeps its ownership until
 explicit release.
+
+`tests/test_bleed_review.py` generates stereo WAVs and exercises registered MCP proposals, retries, HTTP host approval, pending/approved PCM, stale geometry/media, undo and range starts inside mute envelopes. Private recording auditions supplement these regressions but are not checked-in fixtures or proof of automatic ownership detection. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).

@@ -423,6 +423,8 @@ See [contributing.md](contributing.md) for where to add new operations.
 
 Exact selected ranges use `edits/range_edits.py`. The sealed target names timeline intervals, destination lanes, clip occurrences, and opaque media revisions. Approval and pending audition use that kernel. Cut leaves holes and later placements stay aligned. A whole range action uses one workspace mutation and one History Undo. `Track.timeline_empty` distinguishes a fully removed lane from implicit raw media.
 
+`edits/bleed_review.py` subtracts protected selected-source word coverage before building bounded exact-range hypotheses with this kernel. The MCP adapter submits a pending mute through the existing document command service. Interactive host approval applies it through the same range mutation and history path. Discovery does not establish acoustic ownership.
+
 Batch approval validates before mutation, combining mutes and canonical punches
 per original clip with the existing microfade policy. Only lanes with validated
 occurrences mutate. Clipless media with unknown duration rejects selection.

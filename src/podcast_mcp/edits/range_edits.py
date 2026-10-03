@@ -119,6 +119,18 @@ def range_is_current(project: EpisodeProject, target: ExactRangeTarget) -> bool:
     return True
 
 
+def build_range_target(
+    project: EpisodeProject, intervals: list[RangeInterval], track_ids: list[str]
+) -> ExactRangeTarget:
+    """Snapshot the existing geometry and file-revision seals for an exact edit."""
+    return ExactRangeTarget(
+        intervals=intervals,
+        track_ids=track_ids,
+        clips=range_geometry(project, intervals, track_ids),
+        media_seals={tid: range_media_seal(project, tid) for tid in track_ids},
+    )
+
+
 def apply_range(project: EpisodeProject, edit: EditDecision) -> None:
     apply_ranges(project, [edit])
 

@@ -334,3 +334,5 @@ later placement, other copies and other lanes. One History Undo restores the
 whole action. Bulk approval validates all exact targets against the starting
 snapshot and composes effects per clip. Any stale target rejects the batch.
 Fully removed lanes retain their timeline extent as silence.
+
+Reviewed bleed targets reuse the exact occurrence-local MUTE workflow; they preserve gaps and do not affect another placement of the same recording. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).

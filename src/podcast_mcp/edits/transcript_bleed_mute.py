@@ -6,6 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.bleed_review import (
+    MAX_REVIEW_CANDIDATES,
+    MAX_REVIEW_EXCLUSIONS,
+    bleed_review_candidates,
+)
 from podcast_mcp.engines.bleed_gate import (
     BleedGatePlan,
     build_bleed_gate_plan,
@@ -92,7 +97,7 @@ def apply_transcript_bleed_mute(
     Attenuate verified foreign copies while protecting owner and uncertain audio.
     Requires fresh timeline-length stems under artifacts/tracks/. Sets
     ``track.transcript_gate`` and source scope so history and renders reproduce the gate.
-    Optional ``start_sec``/``end_sec`` select source audio through its current placement.
+    Optional ``start_sec``/``end_sec`` select a timeline-clock review and gate window.
     Transcript word metadata is unchanged.
     With ``dry_run=False`` the caller must hold ``render_lock(project)``, taken before the
     project locks (``EditService.apply_bleed_mute`` does); a gated render longer than the
@@ -110,6 +115,11 @@ def apply_transcript_bleed_mute(
     applied: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     speaker_errors: list[str] = []
+    review_candidates: list[dict[str, Any]] = []
+    review_exclusions: list[dict[str, Any]] = []
+    review_reasons: list[dict[str, Any]] = []
+    review_truncated = False
+    review_exclusions_truncated = False
 
     with resolve_progress_task(
         "bleed-mute",
@@ -123,18 +133,43 @@ def apply_transcript_bleed_mute(
                 track = project.track_by_id(tid)
                 if not track or track.role != TrackRole.DIALOGUE:
                     continue
+                duration = _track_duration(project, tid)
+                review = bleed_review_candidates(
+                    project,
+                    tid,
+                    start_sec if start_sec is not None else 0.0,
+                    end_sec if end_sec is not None else duration,
+                    limit=MAX_REVIEW_CANDIDATES - len(review_candidates),
+                )
+                review_candidates.extend(review.candidates)
+                remaining = MAX_REVIEW_EXCLUSIONS - len(review_exclusions)
+                review_exclusions.extend(review.exclusions[:remaining])
+                review_exclusions_truncated = (
+                    review_exclusions_truncated
+                    or review.exclusions_truncated
+                    or len(review.exclusions) > remaining
+                )
+                review_reasons.extend({"track_id": tid, "reason": r} for r in review.reasons)
+                review_truncated = review_truncated or review.truncated
+                track_review = list(review.candidates)
                 layout_reason = raw_evidence_layout_reason(project, tid)
                 if layout_reason is not None:
+                    for row in track_review:
+                        row["automatic_refusal_reasons"] = [layout_reason]
                     skipped.append({"track_id": tid, "reason": layout_reason})
                     continue
                 stem = _stem_path(project, tid)
                 if stem is None:
+                    for row in track_review:
+                        row["automatic_refusal_reasons"] = ["missing_stem"]
                     skipped.append({"track_id": tid, "reason": "missing_stem"})
                     continue
 
                 expected = expected_stem_duration_sec(project, tid)
                 actual = probe_stem_duration_sec(project, tid)
                 if not stem_is_fresh(project, tid):
+                    for row in track_review:
+                        row["automatic_refusal_reasons"] = ["stem_not_fresh"]
                     skipped.append(
                         {
                             "track_id": tid,
@@ -169,6 +204,8 @@ def apply_transcript_bleed_mute(
                 proposed_track.transcript_gate = True
                 proposed_track.transcript_gate_scope = effective_scope
                 plan = build_bleed_gate_plan(proposed, tid)
+                for row in track_review:
+                    row["automatic_refusal_reasons"] = list(plan.reasons)
                 intervals = word_intervals(project, tid, win_start, win_end)
                 tr = project.transcript_for_track(tid)
                 word_count = len(tr.words) if tr else 0
@@ -183,6 +220,7 @@ def apply_transcript_bleed_mute(
                     "suppressed_words": suppressed,
                     "duration_sec": dur,
                     "attenuation_count": len(plan.attenuation_spans),
+                    "attenuation_spans": list(plan.attenuation_spans),
                     "gate_reasons": list(plan.reasons),
                 }
                 candidates.append(entry)
@@ -244,4 +282,10 @@ def apply_transcript_bleed_mute(
         "applied": applied,
         "skipped": skipped,
         "speaker_errors": speaker_errors or None,
+        "review_candidate_count": len(review_candidates),
+        "review_candidates": review_candidates,
+        "review_exclusions": review_exclusions,
+        "review_reasons": review_reasons,
+        "review_truncated": review_truncated,
+        "review_exclusions_truncated": review_exclusions_truncated,
     }

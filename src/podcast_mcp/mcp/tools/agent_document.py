@@ -19,6 +19,7 @@ def submit_host_document_command(
     payload: dict[str, Any] | None = None,
     *,
     client_id: str = "mcp-agent",
+    command_id: str | None = None,
 ) -> dict[str, Any]:
     """Apply via DocumentSyncService so the GUI sees the same command log."""
     validated = validate_payload(command_type, payload)
@@ -31,4 +32,8 @@ def submit_host_document_command(
         role="agent",
         client_seq=None,  # server-assigned: separate CLI/MCP processes never collide
     )
+    if command_id is not None:
+        if not command_id:
+            raise ValueError("command_id must be nonempty")
+        cmd.command_id = command_id
     return svc.submit(cmd)

@@ -258,6 +258,8 @@ Portable selection hints (any MCP client). Detail: [`.agents/rules/engineering-s
 
 Transcript words and ordinary remove/mute decisions use **source-media seconds**; rendered audio uses **timeline seconds**. `EditDecision.exact_range` is the explicit timeline-clock variant: its islands, destination lanes, observed clips and media seals must stay together. See [architecture.md § Timebase](architecture.md#timebase-source-vs-timeline-clock).
 
+Build reviewed bleed targets with `build_range_target` in `edits/range_edits.py`. `propose_range_mute_tool` accepts timeline intervals in that sealed target. Rendering maps approved mutes to each selected occurrence's source clock and preserves the original envelope endpoints when intersecting a playback window.
+
 When writing new code that deals with time:
 
 1. **Never inline clip arithmetic** (`source_start + (t - timeline_start)` and friends). Use [`SessionTimeline`](../src/podcast_mcp/engines/session_timeline.py) for project-level mapping, `clip_timeline_overlap_to_source` / `clip_timeline_point_to_source` / `clip_source_to_timeline_shift` for clip-list edit/render code, or the `Clip.timeline_end` property for geometry. `tests/test_timebase_guards.py` fails CI otherwise.
