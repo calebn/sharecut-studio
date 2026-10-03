@@ -115,12 +115,17 @@ describe("EnvelopeOverlayView", () => {
     expect(onCommitPoints).not.toHaveBeenCalled();
   });
 
-  it("selects a point on pointer down without committing", () => {
+  it("selects a point on no-op release without changing selection during preview", () => {
     const { container, onSelectPoint, onCommitPoints } = renderView();
     const circle = container.querySelectorAll("circle")[1]!;
     fireEvent.pointerDown(circle);
-    expect(onSelectPoint).toHaveBeenCalledWith(1);
+    expect(onSelectPoint).not.toHaveBeenCalled();
+    expect(circle).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(circle, { key: "Enter" });
+    fireEvent.keyDown(circle, { key: " " });
+    expect(onSelectPoint).not.toHaveBeenCalled();
     fireEvent.pointerUp(circle);
+    expect(onSelectPoint).toHaveBeenCalledExactlyOnceWith(1);
     expect(onCommitPoints).not.toHaveBeenCalled();
   });
 
@@ -296,7 +301,7 @@ describe("EnvelopeOverlayView", () => {
       expect(owner!.getAttribute("cx")).toBe("65");
       expect(owner!.getAttribute("cy")).toBe("8");
       expect(document.activeElement).toBe(owner);
-      expect(onSelectPoint).toHaveBeenCalledExactlyOnceWith(0);
+      expect(onSelectPoint).not.toHaveBeenCalled();
       expect(holdGeometry).toHaveBeenCalledTimes(1);
       expect(release).not.toHaveBeenCalled();
       expect(onCommitPoints).not.toHaveBeenCalled();
@@ -462,7 +467,7 @@ describe("EnvelopeOverlayView", () => {
     await act(async () => {
       resolve({});
     });
-    expect(onSelectPoint).toHaveBeenCalledTimes(1);
+    expect(onSelectPoint).not.toHaveBeenCalled();
     expect(release).toHaveBeenCalledTimes(1);
   });
 
