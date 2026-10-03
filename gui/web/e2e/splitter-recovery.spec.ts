@@ -19,6 +19,10 @@ for (const width of [1440, 820]) {
         name: "Resize editor panels",
       });
       await expect(separator).toBeVisible();
+      await expect(separator).toHaveAttribute(
+        "title",
+        "Drag or arrows to resize · Shift for larger steps · Escape cancels · Enter or double-click resets",
+      );
       await setTheme(page, theme);
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
       const trackDetails = page.locator(".track-header-open").first();

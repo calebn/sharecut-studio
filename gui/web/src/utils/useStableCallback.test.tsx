@@ -306,7 +306,24 @@ describe("stable callback source governance", () => {
         !rel.includes(".stories."),
     );
     const mutations = owners.flatMap(stableDeclarationMutations);
-    expect(mutations).toHaveLength(10);
+    expect(
+      mutations
+        .map(({ source, callback }) => `${source.rel}:${callback}`)
+        .sort(),
+    ).toEqual([
+      "timeline/JoinEditor.tsx:place",
+      "timeline/JoinPopover.tsx:place",
+      "timeline/TimelineView.tsx:measure",
+      "timeline/TimelineView.tsx:onClipBodyEnd",
+      "timeline/TimelineView.tsx:onClipBodyStart",
+      "timeline/TimelineView.tsx:onClipMoveCancel",
+      "timeline/TimelineView.tsx:onClipMoveCommit",
+      "timeline/TimelineView.tsx:onClipMovePreview",
+      "timeline/TimelineView.tsx:onSeek",
+      "timeline/TimelineView.tsx:onSelectClip",
+      "timeline/TimelineView.tsx:onSelectPending",
+      "timeline/TimelineView.tsx:onSelectTrack",
+    ]);
     for (const mutation of mutations) {
       expect(findStableCallbackRenderCalls(mutation.source)).toEqual([
         {
