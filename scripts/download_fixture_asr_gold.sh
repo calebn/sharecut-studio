@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download Mini LibriSpeech dev-clean-2 and copy 20 utterances into tests/fixtures/asr_gold/
+# Download Mini LibriSpeech dev-clean-2 and copy the three WER regression utterances into tests/fixtures/asr_gold/
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -7,7 +7,6 @@ OUT="$ROOT/tests/fixtures/asr_gold"
 CACHE="${TMPDIR:-/tmp}/podcast_mcp_librispeech"
 ARCHIVE="$CACHE/dev-clean-2.tar.gz"
 URL="https://www.openslr.org/resources/31/dev-clean-2.tar.gz"
-COUNT="${ASR_GOLD_COUNT:-20}"
 
 mkdir -p "$CACHE" "$OUT/audio" "$OUT/reference"
 
@@ -21,15 +20,15 @@ if [[ ! -d "$CACHE/LibriSpeech/dev-clean-2" ]]; then
   tar -xzf "$ARCHIVE" -C "$CACHE"
 fi
 
-python3 - "$CACHE/LibriSpeech/dev-clean-2" "$OUT" "$COUNT" <<'PY'
+python3 - "$CACHE/LibriSpeech/dev-clean-2" "$OUT" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 src = Path(sys.argv[1])
 out = Path(sys.argv[2])
-count = int(sys.argv[3])
-flacs = sorted(src.rglob("*.flac"))[:count]
+sample_ids = ("01_1272-135031-0001", "02_1272-135031-0002", "03_1272-135031-0003")
+flacs = {path.stem: path for path in src.rglob("*.flac")}
 entries = []
 def _reference_text(flac_path: Path) -> str:
     chapter_dir = flac_path.parent
@@ -47,21 +46,29 @@ def _reference_text(flac_path: Path) -> str:
     return ""
 
 
-for i, flac_path in enumerate(flacs):
-    stem = flac_path.stem
+for sample_id in sample_ids:
+    _, stem = sample_id.split("_", 1)
+    flac_path = flacs[stem]
     text = _reference_text(flac_path)
-    dest_audio = out / "audio" / f"{i:02d}_{stem}.flac"
+    if not text:
+        raise ValueError(f"missing reference text for {stem}")
+    dest_audio = out / "audio" / f"{sample_id}.flac"
     dest_audio.write_bytes(flac_path.read_bytes())
-    ref_path = out / "reference" / f"{i:02d}_{stem}.txt"
+    ref_path = out / "reference" / f"{sample_id}.txt"
     ref_path.write_text(text + "\n", encoding="utf-8")
     entries.append(
         {
-            "id": f"{i:02d}_{stem}",
+            "id": sample_id,
             "audio": str(dest_audio.relative_to(out)),
             "reference": str(ref_path.relative_to(out)),
             "text": text,
         }
     )
+for folder, extension, field in (("audio", ".flac", "audio"), ("reference", ".txt", "reference")):
+    retained = {out / entry[field] for entry in entries}
+    for path in (out / folder).glob(f"*{extension}"):
+        if path not in retained:
+            path.unlink()
 manifest = {
     "source": "openslr.org/31 dev-clean-2",
     "license": "CC BY 4.0",
@@ -75,9 +82,15 @@ PY
 cat > "$OUT/README.md" <<'EOF'
 # asr_gold
 
-Mini LibriSpeech slice for ASR WER regression tests.
+Three Mini LibriSpeech `dev-clean-2` utterances for the ASR WER regression.
+The committed audio totals 544,936 bytes. The regression uses all three clips
+with the original reference text and a 12% WER ceiling per clip.
 
-Regenerate:
+The source is [Mini LibriSpeech](https://www.openslr.org/31), derived from
+LibriSpeech by Panayotov, Chen, Povey, and Khudanpur. The corpus is licensed
+under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
+Regenerate the same clip IDs and filenames with:
 
 ```bash
 ./scripts/download_fixture_asr_gold.sh

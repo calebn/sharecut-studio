@@ -8,11 +8,11 @@ Canonical registry for Podcast MCP agent skills, MCP tools, pipeline steps, and 
 
 | Fixture | Path | Size | Gold labels | Purpose |
 |---------|------|------|-------------|---------|
-| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/` | ~60s × 2 | Canned transcript = audio (Piper TTS placed at canned word times) | CLI/MCP smoke, edits, social, history; GUI Playwright (waveform pyramids build on demand) |
+| `aligned_dialogue` | `tests/fixtures/aligned_dialogue/` | ~60s × 2 | Whole LibriSpeech utterances; published text and MFA-derived timings, not hand-checked | CLI/MCP smoke, edits, social, history; GUI Playwright (waveform pyramids build on demand) |
 | `sharecut_ux_demo` | `tests/fixtures/sharecut_ux_demo/` | same audio (symlinked) | UX showcase seed | Sharecut Studio UX Pages demo; pending edit, comments, chapters |
-| `asr_gold` | `tests/fixtures/asr_gold/` | ~5 MB | LibriSpeech official | ASR WER regression (`test_asr_gold_wer.py`) |
-| `synthetic_bleed_60s` | `tests/fixtures/synthetic_bleed_60s/` | ~15 MB | Manifest + word JSON; one tone per word so `echo_risk` measures the bleed path (#774) | Bleed/reconcile/precorrect gold (`test_synthetic_bleed_*.py`) |
-| `ami_bleed_60s` | `tests/fixtures/ami_bleed_60s/` | ~15 MB | AMI word XML + synthetic audio | Natural overlap vs synthetic calibration (nightly) |
+| `asr_gold` | `tests/fixtures/asr_gold/` | ~0.55 MB, 3 utterances | LibriSpeech official | ASR WER regression (`test_asr_gold_wer.py`) |
+| `synthetic_bleed_60s` | `tests/fixtures/synthetic_bleed_60s/` | ~10.6 MB | Manifest + word JSON; one tone per word so `echo_risk` measures the bleed path (#774) | Bleed/reconcile/precorrect gold (`test_synthetic_bleed_*.py`) |
+| `ami_bleed_60s` | `tests/fixtures/ami_bleed_60s/` | ~10.6 MB | AMI word XML + synthetic audio | Synthetic bleed calibration using AMI overlap timings (nightly) |
 | `word_boundary` | `tests/fixtures/word_boundary/` | 3 short clips | LibriSpeech MFA reference (not hand-checked) | Word-boundary benchmark (native vs forced aligners) + checked-in candidate reports (#641) |
 | `word_boundary_synthetic` | `tests/fixtures/word_boundary_synthetic/` | 2.5 s tone bursts | Exact by construction (hand-computed) | Word-boundary metric/harness correctness |
 
@@ -131,8 +131,8 @@ make e2e-real     # nightly: AMI bleed + benchmark regression
 | NL edit / social | A (canned) | S | — | I |
 | Benchmark | timing | — | WER | timing |
 
-**A** = automated assertion, **S** = synthetic gold, **R** = range/threshold, **I** = AMI overlap realism.
+**A** = automated assertion, **S** = synthetic gold, **R** = range/threshold, **I** = synthetic calibration with AMI overlap timings.
 
-Synthetic bleed is the **primary gold** for bleed/reconcile/precorrect in PR CI; AMI validates overlap realism; LibriSpeech validates ASR; `aligned_dialogue` is wiring smoke plus a live-transcribe known-phrase check.
+Synthetic bleed is the **primary gold** for bleed/reconcile/precorrect in PR CI; AMI tests synthetic bleed at published overlap timings; LibriSpeech validates ASR; `aligned_dialogue` tests wiring and complete per-track live-ASR WER against published reference text.
 
 **Operational lessons** from building these fixtures (dominance thresholds, duck/inject recipes, cross-track precorrect gates) live in [transcript-reconcile.md](transcript-reconcile.md) and [transcript-precorrect.md](transcript-precorrect.md) — not only in test code.
