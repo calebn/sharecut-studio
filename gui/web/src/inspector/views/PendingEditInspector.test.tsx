@@ -9,7 +9,10 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PendingCutProposal } from "../../api/documentEdits";
+import {
+  type PendingCutProposal,
+  pendingEditBaseline,
+} from "../../api/documentEdits";
 import { registerDawCommands } from "../../commands/register";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -76,13 +79,7 @@ const sessionCut: PendingEditView = {
 };
 
 function expectedBaseline(edit = sessionCut) {
-  return {
-    track_id: edit.track_id,
-    type: edit.type,
-    timebase: edit.timebase ?? "source",
-    start: edit.source_start,
-    end: edit.source_end,
-  };
+  return pendingEditBaseline(edit);
 }
 
 describe("PendingEditInspector", () => {
@@ -108,6 +105,58 @@ describe("PendingEditInspector", () => {
       pending_edits: [sessionCut],
     });
   });
+
+  it.each([null, "edit"])(
+    "shows exact timeline islands and host-only review for guest mode %s",
+    async (guestMode) => {
+      const exact = {
+        ...sessionCut,
+        source_start: null,
+        source_end: null,
+        source_start_timeline: null,
+        source_end_timeline: null,
+        timebase: "timeline",
+        timeline_start: 11,
+        timeline_end: 14,
+        can_skip: true,
+        exact_range: {
+          kind: "exact_range" as const,
+          intervals: [
+            { start: 11, end: 12 },
+            { start: 13, end: 14 },
+          ],
+          track_ids: ["host", "guest"],
+          clips: [],
+          media_seals: { host: "seal", guest: "seal" },
+        },
+      };
+      useDawStore
+        .getState()
+        .hydrate("/tmp/p.json", minimalProject({ pending_edits: [exact] }));
+      useDawStore.setState({ guestMode, shareCapabilities: ["edit"] });
+      render(<PendingEditInspector edit={exact} />);
+      expect(
+        screen.getByText("0:11.000 – 0:12.000 · 0:13.000 – 0:14.000"),
+      ).toBeVisible();
+      expect(screen.getByText("host, guest")).toBeVisible();
+      expect(
+        screen.queryByRole("textbox", { name: "Source start" }),
+      ).toBeNull();
+      expect(screen.queryByRole("textbox", { name: "Source end" })).toBeNull();
+      expect(screen.queryByText("Snap to silence")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Apply timing" })).toBeNull();
+      expect(
+        screen.queryByRole("button", { name: "Use suggestion" }),
+      ).toBeNull();
+      expect(loadPendingCutSuggestion).not.toHaveBeenCalled();
+      if (guestMode === null)
+        await waitFor(() =>
+          expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled(),
+        );
+      else
+        expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    },
+  );
 
   it("defaults to Suggested preview for a session remove", async () => {
     const user = userEvent.setup();
@@ -401,14 +450,15 @@ describe("PendingEditInspector", () => {
 
   describe("suggested source bounds", () => {
     function proposal(edit = sessionCut): PendingCutProposal {
+      const bounds = pendingEditBaseline(edit);
       return {
         editId: edit.id,
         trackId: edit.track_id,
-        original: { start: edit.source_start, end: edit.source_end },
+        original: { start: bounds.start, end: bounds.end },
         expected: expectedBaseline(edit),
         suggested: {
-          start: edit.source_start - 0.02475,
-          end: edit.source_end + 0.03525,
+          start: bounds.start - 0.02475,
+          end: bounds.end + 0.03525,
         },
         mode: "waveform_only",
         confidence: 0.625,

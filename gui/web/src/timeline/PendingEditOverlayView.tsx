@@ -8,7 +8,11 @@ import {
   TranscriptRefineRecovery,
 } from "../inspector/TranscriptRefineRecovery";
 import { useQueuedReviewNotice } from "../inspector/useQueuedReviewNotice";
-import { canSuggestOrNudge, isShareProjectKey } from "../shareMode";
+import {
+  canReviewPendingEdit,
+  canSuggestOrNudge,
+  isShareProjectKey,
+} from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow, PendingEditView } from "../types/project";
 import { Button } from "../ui/Button";
@@ -24,6 +28,7 @@ import {
   pendingTypeLabel,
 } from "../utils/pendingEditLabels";
 import { pendingEditTimingFieldId } from "../utils/pendingEditTimingField";
+import { formatTimeMs } from "../utils/time";
 import { clipsForOriginTrack } from "../utils/timebase";
 import {
   type PendingActionPlacement,
@@ -114,6 +119,14 @@ function touchTargetPx(): number {
 }
 
 function labelFor(edit: PendingEditView): string {
+  if (edit.exact_range) {
+    const islands = edit.exact_range.intervals
+      .map((r) => `${formatTimeMs(r.start)} – ${formatTimeMs(r.end)}`)
+      .join(" · ");
+    return `${pendingTypeLabel(edit.type)} ${islands} · ${edit.exact_range.track_ids.join(", ")} · pending`;
+  }
+  if (edit.source_start == null || edit.source_end == null)
+    return `${pendingTypeLabel(edit.type)} · source bounds unavailable`;
   const duration = Math.max(0, edit.source_end - edit.source_start);
   const durationLabel = `${duration.toFixed(1)}s`;
   const status = edit.reason?.includes(":suggest") ? "suggested" : "pending";
@@ -197,20 +210,22 @@ function PendingEditRegion({
     [clipsByTrack, edit.track_id],
   );
   const isOriginLane = trackId === edit.track_id;
-  const startPlacement = isOriginLane
-    ? pendingEdgePlacement(
-        originClips,
-        edit.source_start,
-        edit.source_start_timeline ?? Number.NaN,
-      )
-    : null;
-  const endPlacement = isOriginLane
-    ? pendingEdgePlacement(
-        originClips,
-        edit.source_end,
-        edit.source_end_timeline ?? Number.NaN,
-      )
-    : null;
+  const startPlacement =
+    isOriginLane && edit.source_start != null && !edit.exact_range
+      ? pendingEdgePlacement(
+          originClips,
+          edit.source_start,
+          edit.source_start_timeline ?? Number.NaN,
+        )
+      : null;
+  const endPlacement =
+    isOriginLane && edit.source_end != null && !edit.exact_range
+      ? pendingEdgePlacement(
+          originClips,
+          edit.source_end,
+          edit.source_end_timeline ?? Number.NaN,
+        )
+      : null;
   const canDragStart =
     !isSplit &&
     canAdjust &&
@@ -368,18 +383,24 @@ function PendingEditRegion({
     const current = state.project?.pending_edits.find(
       (pending) => pending.id === capture.editId,
     );
-    const currentPlacement = current
-      ? pendingEdgePlacement(
-          clipsForOriginTrack(
-            state.project?.clips.tracks ?? {},
-            capture.trackId,
-          ),
-          capture.edge === "start" ? current.source_start : current.source_end,
-          capture.edge === "start"
-            ? (current.source_start_timeline ?? Number.NaN)
-            : (current.source_end_timeline ?? Number.NaN),
-        )
-      : null;
+    const currentPlacement =
+      current &&
+      current.source_start != null &&
+      current.source_end != null &&
+      !current.exact_range
+        ? pendingEdgePlacement(
+            clipsForOriginTrack(
+              state.project?.clips.tracks ?? {},
+              capture.trackId,
+            ),
+            capture.edge === "start"
+              ? current.source_start
+              : current.source_end,
+            capture.edge === "start"
+              ? (current.source_start_timeline ?? Number.NaN)
+              : (current.source_end_timeline ?? Number.NaN),
+          )
+        : null;
     const samePlacement =
       currentPlacement?.kind === capture.placement.kind &&
       (currentPlacement.kind === "identity" ||
@@ -535,6 +556,9 @@ function PendingEditRegion({
     const placement = edge === "start" ? startPlacement : endPlacement;
     if (
       !placement ||
+      edit.exact_range ||
+      edit.source_start == null ||
+      edit.source_end == null ||
       !canAdjust ||
       commitPendingRef.current ||
       currentGesture.current.kind !== "idle"
@@ -873,12 +897,19 @@ function PendingEditRegion({
                 Edit timing
               </Button>
             ) : null}
-            {canApply ? (
+            {canApply || edit.exact_range ? (
               <div className="pending-actions">
                 <Button
                   variant="primary"
                   disabled={
-                    actionState.kind === "busy" || gesture.kind === "settling"
+                    !canApply ||
+                    actionState.kind === "busy" ||
+                    gesture.kind === "settling"
+                  }
+                  title={
+                    !canApply
+                      ? "Only the host can review exact range proposals"
+                      : undefined
                   }
                   onClick={() => void runReviewAction("approve")}
                 >
@@ -887,7 +918,14 @@ function PendingEditRegion({
                 <Button
                   variant="danger"
                   disabled={
-                    actionState.kind === "busy" || gesture.kind === "settling"
+                    !canApply ||
+                    actionState.kind === "busy" ||
+                    gesture.kind === "settling"
+                  }
+                  title={
+                    !canApply
+                      ? "Only the host can review exact range proposals"
+                      : undefined
                   }
                   onClick={() => void runReviewAction("reject")}
                 >
@@ -1004,6 +1042,8 @@ export function PendingEditOverlayView({
   onReviewAction,
 }: PendingEditOverlayViewProps) {
   const projectEpoch = useDawStore((state) => state.projectEpoch);
+  const guestMode = useDawStore((state) => state.guestMode);
+  const shareCapabilities = useDawStore((state) => state.shareCapabilities);
   return (
     <>
       {edits
@@ -1024,8 +1064,21 @@ export function PendingEditOverlayView({
               projectPath={projectPath}
               timelineWidthPx={timelineWidthPx}
               clipsByTrack={clipsByTrack}
-              canAdjust={canAdjust}
-              canApply={canApply}
+              canAdjust={
+                canAdjust &&
+                !edit.exact_range &&
+                edit.source_start != null &&
+                edit.source_end != null
+              }
+              canApply={
+                canApply &&
+                canReviewPendingEdit(
+                  projectPath,
+                  guestMode,
+                  shareCapabilities,
+                  Boolean(edit.exact_range),
+                )
+              }
               onSelect={onSelect}
               onCommitSpan={onCommitSpan}
               onReviewAction={onReviewAction}

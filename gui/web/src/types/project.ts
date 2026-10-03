@@ -105,8 +105,8 @@ export interface PendingEditView {
   track_ids?: string[];
   type: string;
   reason: string | null;
-  source_start: number;
-  source_end: number;
+  source_start: number | null;
+  source_end: number | null;
   /** Timeline clock of the stored source start, or null when clipped. */
   source_start_timeline: number | null;
   /** Timeline clock of the stored source end, or null when clipped. */

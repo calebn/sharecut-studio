@@ -69,11 +69,13 @@ def test_exact_cut_keeps_repeated_source_unselected_tracks_and_gaps(tmp_path):
     assert next(c for c in project.clips if c.id == "other") == other
     assert project.timeline.duration_sec == 20
     assert project.editorial.edit_log[-1].params["action_id"] == "range_action"
+    assert project.editorial.edit_log[-1].params["action"] == "cut"
 
 
 def test_mute_is_local_to_occurrence(tmp_path):
     project = fixture(EpisodeProject.create("range", str(tmp_path)))
     apply(project, target(project), "mute")
+    assert project.editorial.edit_log[-1].params["action"] == "mute"
     assert not project.clips[0].mute_regions
     assert not next(c for c in project.clips if c.id == "other").mute_regions
     assert [

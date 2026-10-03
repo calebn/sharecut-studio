@@ -92,6 +92,69 @@ describe("PendingEditOverlay handles", () => {
       .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
   });
 
+  it.each([null, "edit"])(
+    "presents exact islands without source handles or guest review in mode %s",
+    async (guestMode) => {
+      const exact = {
+        ...edit,
+        source_start: null,
+        source_end: null,
+        source_start_timeline: null,
+        source_end_timeline: null,
+        timeline_start: 11,
+        timeline_end: 14,
+        timeline_spans: [
+          { start: 11, end: 12 },
+          { start: 13, end: 14 },
+        ],
+        exact_range: {
+          kind: "exact_range" as const,
+          intervals: [
+            { start: 11, end: 12 },
+            { start: 13, end: 14 },
+          ],
+          track_ids: ["host", "guest"],
+          clips: [],
+          media_seals: { host: "seal", guest: "seal" },
+        },
+      };
+      useDawStore
+        .getState()
+        .hydrate("/tmp/p.json", minimalProject({ pending_edits: [exact] }));
+      useDawStore.setState({
+        guestMode,
+        shareCapabilities: ["edit"],
+        selection: { kind: "pending", id: exact.id, trackId: "host" },
+      });
+      const { container } = render(
+        <PendingEditOverlay
+          edits={[exact]}
+          trackId="host"
+          zoomPxPerSec={20}
+          timelineWidthPx={1000}
+          selectedId={exact.id}
+          onSelect={vi.fn()}
+        />,
+      );
+      expect(container.querySelectorAll(".pending-overlay")).toHaveLength(2);
+      expect(container.querySelector(".pending-handle")).toBeNull();
+      expect(
+        screen.getAllByRole("button", {
+          name: /0:11.000 – 0:12.000 · 0:13.000 – 0:14.000 · host, guest/,
+        }).length,
+      ).toBeGreaterThan(0);
+      expect(screen.queryByRole("button", { name: "Edit timing" })).toBeNull();
+      await waitFor(() => {
+        const buttons = screen.getAllByRole("button", { name: "Approve" });
+        for (const button of buttons) {
+          if (guestMode === null) expect(button).toBeEnabled();
+          else expect(button).toBeDisabled();
+        }
+      });
+      expect(updatePendingEdit).not.toHaveBeenCalled();
+    },
+  );
+
   it("writes nothing when the 50 ms minimum clamps a drag back to the same bounds", () => {
     const tiny = {
       ...edit,

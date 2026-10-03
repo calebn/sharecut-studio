@@ -1,5 +1,5 @@
 import { approveEdits, rejectEdits } from "../api";
-import { canApplyPass12 } from "../shareMode";
+import { canApplyPass12, canReviewPendingEdit } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { PendingEditView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
@@ -56,6 +56,25 @@ async function runApprove(ids: string[]): Promise<ExecuteResult> {
     if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
       return { status: "disabled", reason: "Pass 1–2 edits not allowed" };
     }
+    if (
+      ids.some((id) => {
+        const edit = s.project?.pending_edits.find((e) => e.id === id);
+        return (
+          edit?.exact_range &&
+          !canReviewPendingEdit(
+            s.projectPath,
+            s.guestMode,
+            s.shareCapabilities,
+            true,
+          )
+        );
+      })
+    ) {
+      return {
+        status: "disabled",
+        reason: "Exact range proposals require host review",
+      };
+    }
     if (ids.length === 0) {
       return { status: "disabled", reason: "No tighten hits to apply" };
     }
@@ -98,6 +117,20 @@ async function runReject(id: string): Promise<ExecuteResult> {
     if (!canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities)) {
       return { status: "disabled", reason: "Pass 1–2 edits not allowed" };
     }
+    const edit = s.project?.pending_edits.find((e) => e.id === id);
+    if (
+      edit?.exact_range &&
+      !canReviewPendingEdit(
+        s.projectPath,
+        s.guestMode,
+        s.shareCapabilities,
+        true,
+      )
+    )
+      return {
+        status: "disabled",
+        reason: "Exact range proposals require host review",
+      };
     try {
       const projectPath = useDawStore.getState().projectPath;
       const { queued } = await rejectEdits(projectPath, [id]);
@@ -180,6 +213,25 @@ export function registerTightenCommands(): void {
     const hits = hitsForApplyAll(s.project, listedIds);
     const ids = eligibleApplyAllIds(hits, avoidHarsh);
     const summary = applyAllSummary(hits.length, ids.length);
+    if (
+      ids.some((id) => {
+        const edit = s.project?.pending_edits.find((e) => e.id === id);
+        return (
+          edit?.exact_range &&
+          !canReviewPendingEdit(
+            s.projectPath,
+            s.guestMode,
+            s.shareCapabilities,
+            true,
+          )
+        );
+      })
+    ) {
+      return {
+        status: "disabled",
+        reason: "Exact range proposals require host review",
+      };
+    }
     if (ids.length === 0) {
       return { status: "disabled", reason: "Nothing is eligible to apply" };
     }

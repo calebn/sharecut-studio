@@ -88,14 +88,14 @@ export function tightenSnippet(
   transcript: ProjectView["transcript"],
   wordsOnTrack?: TranscriptWordView[],
 ): string {
+  const sourceStart = edit.source_start;
+  const sourceEnd = edit.source_end;
+  if (sourceStart == null || sourceEnd == null) return "";
   const words = wordsOnTrack ?? wordsForTrack(edit.track_id, transcript);
   if (words.length) {
     const overlapping = words
       .map((word, index) => ({ word, index }))
-      .filter(
-        ({ word }) =>
-          word.end > edit.source_start && word.start < edit.source_end,
-      );
+      .filter(({ word }) => word.end > sourceStart && word.start < sourceEnd);
     if (overlapping.length) {
       const first = overlapping[0].index;
       const last = overlapping[overlapping.length - 1].index;
@@ -109,9 +109,7 @@ export function tightenSnippet(
   }
   const utterances = transcript?.utterances ?? [];
   const onTrack = utterances.filter((u) => u.track_id === edit.track_id);
-  const hit = onTrack.find(
-    (u) => u.end > edit.source_start && u.start < edit.source_end,
-  );
+  const hit = onTrack.find((u) => u.end > sourceStart && u.start < sourceEnd);
   return hit?.text ?? "";
 }
 
@@ -152,7 +150,7 @@ export function listTightenHits(
   hits.sort((a, b) => {
     const aT = a.timeline_start ?? a.source_start;
     const bT = b.timeline_start ?? b.source_start;
-    return aT - bT;
+    return (aT ?? Number.POSITIVE_INFINITY) - (bT ?? Number.POSITIVE_INFINITY);
   });
   return hits;
 }

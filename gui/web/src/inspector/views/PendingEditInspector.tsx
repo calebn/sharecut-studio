@@ -12,9 +12,9 @@ import {
 import { CommentCard, CommentCompose, useCommentActions } from "../../comments";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import {
-  canApplyPass12,
   canComment,
   canReply,
+  canReviewPendingEdit,
   canSuggestOrNudge,
   commentRole,
   isShareProjectKey,
@@ -45,6 +45,7 @@ import {
   suggestDisabledReason,
 } from "../../utils/playRange";
 import { formatTimeMs, parseTimecode } from "../../utils/time";
+import { ExactPendingPreviewFooter } from "../ExactPendingPreviewFooter";
 import { ModifierInspector } from "../ModifierInspector";
 import {
   REFINE_GATE_GUI_MESSAGE,
@@ -57,7 +58,8 @@ function signedMilliseconds(value: number): string {
   return `${value >= 0 ? "+" : ""}${Number(value.toFixed(3))} ms`;
 }
 
-function exactSourceTime(seconds: number): string {
+function exactSourceTime(seconds: number | null): string {
+  if (seconds === null) return "Unavailable";
   const decimal = seconds.toString();
   const [whole = "0", fraction = ""] = decimal.split(".");
   const wholeSeconds = Number(whole);
@@ -83,6 +85,10 @@ type TimingCapture = Readonly<{
   expected: PendingEditBaseline;
 }>;
 
+function sourceTime(value: number | null): string {
+  return value === null ? "Unavailable" : formatTimeMs(value);
+}
+
 export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   const {
     project,
@@ -99,8 +105,17 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     shareCapabilities: s.shareCapabilities,
     setSelection: s.setSelection,
   }));
-  const canApply = canApplyPass12(projectPath, guestMode, shareCapabilities);
-  const canNudge = canSuggestOrNudge(projectPath, guestMode, shareCapabilities);
+  const canApply = canReviewPendingEdit(
+    projectPath,
+    guestMode,
+    shareCapabilities,
+    Boolean(edit.exact_range),
+  );
+  const canNudge =
+    !edit.exact_range &&
+    edit.source_start != null &&
+    edit.source_end != null &&
+    canSuggestOrNudge(projectPath, guestMode, shareCapabilities);
   const mayAsk = canComment(projectPath, guestMode, shareCapabilities);
   const mayReply = canReply(projectPath, guestMode, shareCapabilities);
   const { busy, error, errorCode, setError, run } = useProjectMutation();
@@ -128,8 +143,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     skipOk ? "suggested" : "current",
   );
   const [snapToSilence, setSnapToSilence] = useState(true);
-  const [startStr, setStartStr] = useState(formatTimeMs(edit.source_start));
-  const [endStr, setEndStr] = useState(formatTimeMs(edit.source_end));
+  const [startStr, setStartStr] = useState(sourceTime(edit.source_start));
+  const [endStr, setEndStr] = useState(sourceTime(edit.source_end));
   const [tracksStr, setTracksStr] = useState(
     (edit.track_ids ?? [edit.track_id]).join(", "),
   );
@@ -148,8 +163,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   });
   const submittedTiming = useRef<TimingDraft | null>(null);
   const timingDirty =
-    startStr.trim() !== formatTimeMs(edit.source_start) ||
-    endStr.trim() !== formatTimeMs(edit.source_end);
+    startStr.trim() !== sourceTime(edit.source_start) ||
+    endStr.trim() !== sourceTime(edit.source_end);
   const suggestionHintId = useId();
   const role = commentRole(projectPath, guestMode);
   const [author, setAuthor] = useState(() => sessionDisplayName(role));
@@ -183,22 +198,22 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
       previous.start !== edit.source_start || previous.end !== edit.source_end;
     setStartStr((text) =>
       !sameIdentity ||
-      text.trim() === formatTimeMs(previous.start) ||
+      text.trim() === sourceTime(previous.start) ||
       (boundsChanged &&
         submitted?.identity === timingIdentity &&
         !submitted.commandId &&
         text === submitted.start)
-        ? formatTimeMs(edit.source_start)
+        ? sourceTime(edit.source_start)
         : text,
     );
     setEndStr((text) =>
       !sameIdentity ||
-      text.trim() === formatTimeMs(previous.end) ||
+      text.trim() === sourceTime(previous.end) ||
       (boundsChanged &&
         submitted?.identity === timingIdentity &&
         !submitted.commandId &&
         text === submitted.end)
-        ? formatTimeMs(edit.source_end)
+        ? sourceTime(edit.source_end)
         : text,
     );
     previousTiming.current = {
@@ -249,10 +264,10 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
       return;
     if (settlement.outcome === "applied") {
       setStartStr((text) =>
-        text === draft.start ? formatTimeMs(edit.source_start) : text,
+        text === draft.start ? sourceTime(edit.source_start) : text,
       );
       setEndStr((text) =>
-        text === draft.end ? formatTimeMs(edit.source_end) : text,
+        text === draft.end ? sourceTime(edit.source_end) : text,
       );
     }
     submittedTiming.current = null;
@@ -260,7 +275,23 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
 
   const runAction = async (action: "approve" | "reject") => {
     if (timingBusy) return;
-    const selection = useDawStore.getState().selection;
+    const live = useDawStore.getState();
+    const currentEdit = live.project?.pending_edits.find(
+      (item) => item.id === edit.id,
+    );
+    if (
+      live.projectPath !== projectPath ||
+      live.projectEpoch !== projectEpoch ||
+      !currentEdit ||
+      !canReviewPendingEdit(
+        live.projectPath,
+        live.guestMode,
+        live.shareCapabilities,
+        Boolean(currentEdit.exact_range),
+      )
+    )
+      return;
+    const selection = live.selection;
     setQueued(false);
     await run(async () => {
       const { queued } =
@@ -309,7 +340,13 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     const saved = current.project?.pending_edits.find(
       (item) => item.id === edit.id,
     );
-    if (!saved) return null;
+    if (
+      !saved ||
+      saved.exact_range ||
+      saved.source_start == null ||
+      saved.source_end == null
+    )
+      return null;
     const capture: TimingCapture = {
       projectPath,
       projectEpoch,
@@ -361,10 +398,10 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
         setQueued(result.queued, result.queued ? result.commandId : undefined);
         if (!result.queued && draft) {
           setStartStr((text) =>
-            text === draft.start ? formatTimeMs(saved.source_start) : text,
+            text === draft.start ? sourceTime(saved.source_start) : text,
           );
           setEndStr((text) =>
-            text === draft.end ? formatTimeMs(saved.source_end) : text,
+            text === draft.end ? sourceTime(saved.source_end) : text,
           );
           if (submittedTiming.current === draft) submittedTiming.current = null;
         }
@@ -456,12 +493,15 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
       }
       const tlStart = edit.timeline_start ?? edit.source_start;
       const tlEnd = isSplit ? tlStart : (edit.timeline_end ?? edit.source_end);
+      if (tlStart == null || tlEnd == null)
+        throw new Error("This edit has no timeline position.");
       await createComment(projectPath, {
         body: text,
         author: resolveCommentActor(author, role),
         timelineStart: tlStart,
         timelineEnd: tlEnd,
         trackIds: edit.track_ids ?? [edit.track_id],
+        timelineSpans: edit.exact_range?.intervals,
         editDecisionId: edit.id,
       });
       setAskBody("");
@@ -478,18 +518,24 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
       title={isSplit ? "Pending split" : "Pending edit"}
       subtitle={pendingReasonLabel(edit.reason)}
       primaryActions={
-        canApply
+        canApply || edit.exact_range
           ? [
               {
                 label: "Approve",
                 variant: "primary" as const,
-                disabled: timingBusy,
+                disabled: timingBusy || !canApply,
+                title: !canApply
+                  ? "Only the host can review exact range proposals"
+                  : undefined,
                 onClick: () => void runAction("approve"),
               },
               {
                 label: "Reject",
                 variant: "danger" as const,
-                disabled: timingBusy,
+                disabled: timingBusy || !canApply,
+                title: !canApply
+                  ? "Only the host can review exact range proposals"
+                  : undefined,
                 onClick: () => void runAction("reject"),
               },
             ]
@@ -501,20 +547,41 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
           : combinedError
       }
       footer={
-        <InspectorSeekFooter
-          seekSec={tlStart}
-          playStart={tlStart}
-          playEnd={isSplit ? tlStart : tlEnd}
-          previewMode={previewMode}
-          onPreviewModeChange={setPreviewMode}
-          suggestDisabled={!skipOk}
-          suggestDisabledReason={skipReason}
-        />
+        edit.exact_range ? (
+          <ExactPendingPreviewFooter
+            edit={edit}
+            projectPath={projectPath}
+            mode={previewMode}
+            onModeChange={setPreviewMode}
+            onError={setThreadError}
+          />
+        ) : tlStart != null && tlEnd != null ? (
+          <InspectorSeekFooter
+            seekSec={tlStart}
+            playStart={tlStart}
+            playEnd={isSplit ? tlStart : tlEnd}
+            previewMode={previewMode}
+            onPreviewModeChange={setPreviewMode}
+            suggestDisabled={!skipOk}
+            suggestDisabledReason={skipReason}
+          />
+        ) : undefined
       }
     >
       <DefinitionList>
         <DefItem label="Type">{pendingTypeLabel(edit.type)}</DefItem>
-        {isSplit ? (
+        {edit.exact_range ? (
+          <>
+            <DefItem label="Timeline islands">
+              {edit.exact_range.intervals
+                .map((r) => `${formatTimeMs(r.start)} – ${formatTimeMs(r.end)}`)
+                .join(" · ")}
+            </DefItem>
+            <DefItem label="Tracks">
+              {edit.exact_range.track_ids.join(", ")}
+            </DefItem>
+          </>
+        ) : isSplit ? (
           <>
             <DefItem label="Cut time (timeline)">
               {canNudge ? (
@@ -540,7 +607,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                   </Button>
                 </FieldRow>
               ) : (
-                formatTimeMs(edit.source_start)
+                sourceTime(edit.source_start)
               )}
             </DefItem>
             <DefItem label="Tracks">
@@ -617,18 +684,18 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 </Button>
               </FieldRow>
             ) : (
-              `${formatTimeMs(edit.source_start)} – ${formatTimeMs(edit.source_end)}`
+              `${sourceTime(edit.source_start)} – ${sourceTime(edit.source_end)}`
             )}
           </DefItem>
         )}
-        {!isSplit ? (
+        {!isSplit && !edit.exact_range ? (
           <DefItem label="Timeline">
             {edit.mappable && edit.timeline_start != null
               ? `${formatTimeMs(edit.timeline_start)} – ${formatTimeMs(edit.timeline_end ?? edit.timeline_start)}`
               : "Not mappable (cut away)"}
           </DefItem>
         ) : null}
-        {edit.crossfade_ms != null && !isSplit ? (
+        {edit.crossfade_ms != null && !isSplit && !edit.exact_range ? (
           <DefItem label="Join fade">{edit.crossfade_ms} ms</DefItem>
         ) : null}
         {edit.boundary_mode ? (

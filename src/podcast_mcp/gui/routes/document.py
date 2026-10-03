@@ -139,3 +139,43 @@ def range_audio(
         return pinned_audio_response(audio, media_type="audio/wav", filename=audio.name)
     except RangeChangedError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/api/pending-preview")
+def pending_preview_audio(
+    request: Request,
+    path: str = Query(...),
+    edit_id: str = Query(...),
+    mode: Literal["current", "suggested", "ab"] = Query("suggested"),
+    token: str | None = Query(None),
+    x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
+):
+    from podcast_mcp.gui.audio import pinned_audio_response
+    from podcast_mcp.gui.routes.deps import require_host
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import PlayService
+    from podcast_mcp.util.project_state import render_lock
+
+    require_host(request, token=token, x_podcast_token=x_podcast_token)
+    ws = ProjectWorkspace.open(resolve_project(path, request))
+    try:
+        with render_lock(ws.project), ws.transaction():
+            audio = (
+                PlayService(ws)
+                .play_pending_preview(
+                    edit_id, mode=mode, source="premix", dry_run=True, rerender=True
+                )
+                .wav_path
+            )
+            return pinned_audio_response(audio, media_type="audio/wav", filename=audio.name)
+    except RangeChangedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Timeout as exc:
+        busy = project_busy_http_error(exc)
+        if busy is None:
+            raise
+        raise busy from exc

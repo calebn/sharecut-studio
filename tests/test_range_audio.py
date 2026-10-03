@@ -269,3 +269,54 @@ def test_guest_range_http_requires_view_and_returns_full_mix(
         assert len(pcm(returned)) == 4 * 48000
     elif stale:
         assert "Mix out of date" in response.text
+
+
+@pytest.mark.parametrize("action", ["cut", "mute"])
+@pytest.mark.parametrize("mode", ["current", "suggested", "ab"])
+def test_host_exact_pending_preview_http_keeps_islands_and_full_window(
+    minimal_project, action, mode
+):
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.edits.range_edits import edit_selected_range
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.models import save_project
+
+    ws, target, raw = seed(minimal_project)
+    edit_selected_range(
+        ws.project, target, action, propose=True, reason="guest:suggest", action_id="proposal"
+    )
+    save_project(ws.project)
+    response = TestClient(create_app()).get(
+        "/api/pending-preview",
+        params={"path": str(minimal_project), "edit_id": "proposal", "mode": mode},
+    )
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"] == "audio/wav"
+    output = raw.parent / f"http-{action}-{mode}.wav"
+    output.write_bytes(response.content)
+    samples = pcm(output)
+    assert len(samples) == round((10.4 if mode == "ab" else 5) * 48000)
+    offset = 5.4 if mode == "ab" else 0
+    selected = samples[round((offset + 0.75) * 48000) : round((offset + 1) * 48000)]
+    gap = samples[round((offset + 2) * 48000) : round((offset + 2.25) * 48000)]
+    assert max(abs(value) for value in gap) > 1000
+    if mode == "current":
+        assert max(abs(value) for value in selected) > 1000
+    else:
+        assert max(abs(value) for value in selected) == 0
+    assert len(ws.project.edit_decisions) == 1
+
+
+def test_host_pending_preview_http_requires_host(minimal_project, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
+    response = TestClient(create_app()).get(
+        "/api/pending-preview",
+        params={"path": str(minimal_project), "edit_id": "proposal"},
+        headers={"x-sharecut-relayed": "1"},
+    )
+    assert response.status_code in {401, 403}

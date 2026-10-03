@@ -68,6 +68,33 @@ describe("ImpactPanel transcript refine recovery", () => {
     useDawStore.setState({ guestMode: null, shareCapabilities: [] });
   });
 
+  it.each(["/tmp/p.json", shareProjectKey("exact")])(
+    "blocks exact bulk review for edit guest at %s",
+    (path) => {
+      const pending = project();
+      pending.pending_edits[0].source_start = null;
+      pending.pending_edits[0].source_end = null;
+      pending.pending_edits[0].exact_range = {
+        kind: "exact_range",
+        intervals: [{ start: 1, end: 2 }],
+        track_ids: ["host"],
+        clips: [],
+        media_seals: { host: "seal" },
+      };
+      useDawStore.getState().hydrate(path, pending);
+      useDawStore.setState({ guestMode: "edit", shareCapabilities: ["edit"] });
+      render(<ImpactPanel />);
+      expect(
+        screen.getByRole("button", { name: /Approve all/ }),
+      ).toBeDisabled();
+      expect(screen.getByRole("button", { name: /Reject all/ })).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: /Approve all/ }),
+      ).toHaveAttribute("title", "Exact range proposals require host review.");
+      expect(approveEdits).not.toHaveBeenCalled();
+    },
+  );
+
   it("marks each pending edit row with its id", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={project()}>

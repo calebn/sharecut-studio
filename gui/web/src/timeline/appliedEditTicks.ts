@@ -1,4 +1,8 @@
-import type { AppliedEditRecord, ClipRow } from "../types/project";
+import type {
+  AppliedEditRecord,
+  ClipRow,
+  ExactRangeTarget,
+} from "../types/project";
 import { capitalize } from "../utils/format";
 import { sourceSecInClipToTimeline } from "../utils/timebase";
 
@@ -27,6 +31,7 @@ interface RecordAnchors {
   kind: AppliedTickKind;
   anchors: Anchor[];
   clipIds?: string[];
+  timelineSecs?: number[];
 }
 
 function isNumberPair(value: unknown): value is [number, number] {
@@ -72,7 +77,11 @@ export function splitSourceFor(
 }
 
 function isMuteRecord(record: AppliedEditRecord): boolean {
-  return record.params?.mute === true;
+  return (
+    record.params?.mute === true ||
+    (record.operation === "edit_selected_range" &&
+      record.params?.action === "mute")
+  );
 }
 
 /** Seam anchors (left clip's end, right clip's start) for a removal record. */
@@ -101,7 +110,7 @@ export function recordAnchors(
   record: AppliedEditRecord,
   trackId: string,
 ): RecordAnchors {
-  if (isMuteRecord(record)) {
+  if (isMuteRecord(record) && record.operation !== "edit_selected_range") {
     const pair = sourcePairFor(record, trackId);
     if (!pair) return { kind: "edge", anchors: [] };
     return {
@@ -113,6 +122,29 @@ export function recordAnchors(
     };
   }
   switch (record.operation) {
+    case "edit_selected_range": {
+      const target = record.params?.exact_range as ExactRangeTarget | undefined;
+      const muted = isMuteRecord(record);
+      const timelineSecs: number[] = [];
+      if (
+        target?.kind === "exact_range" &&
+        Array.isArray(target.clips) &&
+        Array.isArray(target.intervals)
+      ) {
+        for (const clip of target.clips) {
+          if (clip.track_id !== trackId) continue;
+          const clipEnd =
+            clip.timeline_start + clip.source_end - clip.source_start;
+          for (const interval of target.intervals) {
+            const start = Math.max(interval.start, clip.timeline_start);
+            const end = Math.min(interval.end, clipEnd);
+            if (end <= start) continue;
+            timelineSecs.push(start, end);
+          }
+        }
+      }
+      return { kind: muted ? "edge" : "seam", anchors: [], timelineSecs };
+    }
     case "trim_clip_edge": {
       const edge = record.params?.edge;
       if (edge === "in" && record.source_start != null) {
@@ -298,6 +330,8 @@ export function appliedEditTitle(record: AppliedEditRecord): string {
   let label: string;
   if (isMuteRecord(record)) {
     label = "Mute";
+  } else if (record.operation === "edit_selected_range") {
+    label = "Cut";
   } else if (record.operation in OPERATION_LABELS) {
     label = OPERATION_LABELS[record.operation];
   } else if (
@@ -318,7 +352,11 @@ function recordSecs(
   trackId: string,
   clips: readonly ClipRow[],
 ): { kind: AppliedTickKind; secs: number[] } {
-  const { kind, anchors, clipIds } = recordAnchors(record, trackId);
+  const { kind, anchors, clipIds, timelineSecs } = recordAnchors(
+    record,
+    trackId,
+  );
+  if (timelineSecs) return { kind, secs: timelineSecs };
   const [first, second] = anchors;
   const pair =
     anchors.length === 2 && first.side === "end" && second.side === "start"
