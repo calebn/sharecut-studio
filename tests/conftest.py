@@ -83,13 +83,13 @@ def _isolate_relay_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
 
 
 @pytest.fixture(autouse=True)
-def _clear_wav_duration_cache() -> Iterator[None]:
+def _clear_media_probe_cache() -> Iterator[None]:
     """A duration one test probed (and maybe mocked) must not answer another's probe."""
-    from podcast_mcp.engines import play_audit
+    from podcast_mcp.engines import media_probe
 
-    play_audit._cached_wav_duration_sec.cache_clear()
+    media_probe._cached_media_probe.cache_clear()
     yield
-    play_audit._cached_wav_duration_sec.cache_clear()
+    media_probe._cached_media_probe.cache_clear()
 
 
 @pytest.fixture(autouse=True)
