@@ -247,4 +247,157 @@ describe("editor profile evidence", () => {
     b.status = "incomplete";
     expect(compatibilityReasons(a, b)).toContain("incomplete report");
   });
+  it("retains an asset body failure and refuses partial supplemental build provenance", async () => {
+    directory = fs.mkdtempSync(path.join(os.tmpdir(), "editor-profile-asset-"));
+    vi.stubEnv("DAW_PROFILE_OUT", directory);
+    const projectPath = path.join(directory, "project.json");
+    fs.writeFileSync(projectPath, JSON.stringify(project));
+    const on = vi.fn();
+    const page = {
+      on,
+      context: () => ({ browser: () => ({ version: () => "browser-1" }) }),
+      viewportSize: () => ({ width: 1280, height: 720 }),
+      addInitScript: vi.fn(),
+      evaluate: vi.fn().mockResolvedValue({
+        intervalsMs: [16],
+        capped: false,
+        longTaskDurationsMs: [],
+        longTasksSupported: true,
+        theme: "dark",
+        reducedMotion: false,
+        deviceScale: 1,
+        hardwareConcurrency: 4,
+      }),
+    } as unknown as Page;
+    const recorder = await createEditorProfiler(
+      page,
+      {
+        send: vi.fn().mockResolvedValue({ metrics: [] }),
+      } as unknown as CDPSession,
+      {
+        outputPath: (name: string) => path.join(directory!, name),
+        project: { use: { trace: "off" }, retries: 0 },
+        repeatEachIndex: 0,
+        attach: vi.fn(),
+      } as unknown as TestInfo,
+      projectPath,
+      0,
+      true,
+      {
+        scenario: "playback",
+        requiredCoverage: ["playback"],
+        resources: {
+          waveforms: "prebuilt",
+          server: "fresh-process",
+          browser: "fresh-context",
+          osCache: "uncontrolled",
+          media: [],
+        },
+      },
+    );
+    const response = on.mock.calls[0]![1];
+    response({
+      url: () => "http://localhost/assets/ok.js",
+      ok: () => true,
+      body: () => Promise.resolve(Buffer.from("production bytes")),
+    });
+    response({
+      url: () => "http://localhost/assets/missing.css",
+      ok: () => true,
+      body: () => Promise.reject(new Error("body read unavailable")),
+    });
+    await recorder.measure(
+      {
+        id: "playback",
+        phase: "warm",
+        input: "collector provenance validation",
+      },
+      async () => ({
+        kind: "existing",
+        contract: "completed collector action",
+      }),
+    );
+    await expect(recorder.finish()).rejects.toThrow(
+      "served asset read: /assets/missing.css: Error: body read unavailable",
+    );
+    expect(recorder.report.coverage[0]!.result.status).toBe("completed");
+    expect(recorder.report.status).toBe("incomplete");
+    expect(recorder.report.environment.build).toEqual(
+      unavailable("served asset bytes incomplete"),
+    );
+    const retained = JSON.parse(
+      fs.readFileSync(path.join(directory, "playback", "report.json"), "utf8"),
+    );
+    expect(retained.errors).toContain(
+      "required served build identity unavailable or partial",
+    );
+  });
+  it("fails incomplete supplemental coverage after retaining the report without masking an original failure", async () => {
+    directory = fs.mkdtempSync(
+      path.join(os.tmpdir(), "editor-profile-incomplete-"),
+    );
+    vi.stubEnv("DAW_PROFILE_OUT", directory);
+    const projectPath = path.join(directory, "project.json");
+    fs.writeFileSync(projectPath, JSON.stringify(project));
+    const page = {
+      on: vi.fn(),
+      context: () => ({ browser: () => ({ version: () => "browser-1" }) }),
+      viewportSize: () => ({ width: 1280, height: 720 }),
+      addInitScript: vi.fn(),
+      evaluate: vi.fn().mockResolvedValue({
+        theme: "dark",
+        reducedMotion: false,
+        deviceScale: 1,
+        hardwareConcurrency: 4,
+      }),
+    } as unknown as Page;
+    const cdp = {
+      send: vi.fn().mockResolvedValue({}),
+    } as unknown as CDPSession;
+    const attach = vi.fn();
+    const info = {
+      outputPath: (name: string) => path.join(directory!, name),
+      project: { use: { trace: "off" }, retries: 0 },
+      repeatEachIndex: 0,
+      attach,
+    } as unknown as TestInfo;
+    const recorder = await createEditorProfiler(
+      page,
+      cdp,
+      info,
+      projectPath,
+      0,
+      true,
+      {
+        scenario: "playback",
+        requiredCoverage: ["playback"],
+        resources: {
+          waveforms: "prebuilt",
+          server: "fresh-process",
+          browser: "fresh-context",
+          osCache: "uncontrolled",
+          media: [],
+        },
+      },
+    );
+    await expect(recorder.finish()).rejects.toThrow(
+      "required workload incomplete: playback",
+    );
+    const retained = JSON.parse(
+      fs.readFileSync(path.join(directory, "playback", "report.json"), "utf8"),
+    );
+    expect(retained.status).toBe("incomplete");
+    expect(retained.coverage[0].result.status).toBe("not-run");
+    expect(retained.execution.id).toMatch(/^[a-f0-9-]{36}$/);
+    expect(Number.isFinite(Date.parse(retained.execution.startedAt))).toBe(
+      true,
+    );
+    attach.mockRejectedValue(new Error("attachment unavailable"));
+    const original = new Error("native workload failed");
+    await expect(recorder.finish(original)).resolves.toBeUndefined();
+    expect(recorder.report.errors).toContain("Error: native workload failed");
+    expect(recorder.report.errors).toContain(
+      "attachment retention: Error: attachment unavailable",
+    );
+  });
 });

@@ -1,9 +1,32 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 
+export const FRAME_PERCENTILE_POLICY = {
+  minimumIntervals: 2,
+  workloadIds: [
+    "initial-load",
+    "cold-waveform",
+    "clip-drag-preview",
+    "boundary-drag-preview",
+    "playback",
+    "synthetic-progress",
+    "real-progress",
+    "scrub-endurance",
+    "history-keyboard",
+  ],
+  otherWindows: "raw frames retained; no atomic-window percentile budget",
+} as const;
+
 export type Measurement<T> =
   | { status: "measured"; value: T; method: string }
   | { status: "unavailable"; reason: string };
+export type ClipGeometry = {
+  id: string;
+  trackId: string;
+  timelineStart: number;
+  sourceStart: number;
+  sourceEnd: number;
+};
 export type WorkloadObservation =
   | { kind: "load"; detailLoaded: true; firstClipId: string }
   | {
@@ -16,6 +39,58 @@ export type WorkloadObservation =
     }
   | { kind: "seek"; beforeSeconds: number; afterSeconds: number }
   | { kind: "zoom"; beforeScale: number; afterScale: number }
+  | {
+      kind: "drag-preview";
+      target: "clip";
+      id: string;
+      beforePx: number;
+      previewPx: number;
+      commandCount: 0;
+    }
+  | {
+      kind: "boundary-preview";
+      id: string;
+      deltasSec: number[];
+      previewLabel: string;
+      commandCount: 0;
+    }
+  | {
+      kind: "drag-save";
+      target: "clip" | "boundary";
+      commandType: string;
+      commandCount: 1;
+      before: ClipGeometry[];
+      after: ClipGeometry[];
+      restoration: "pending" | "verified";
+    }
+  | {
+      kind: "playback";
+      beforeSeconds: number;
+      afterSeconds: number;
+      peakDb: number;
+      mediaResponses: number;
+      pausedAfter: true;
+    }
+  | {
+      kind: "waveform";
+      initialPyramidCount: 0;
+      generatedRefs: string[];
+      tileResponses: number;
+      painted: true;
+      sourceDurationSec: number;
+    }
+  | {
+      kind: "progress";
+      source: "replay" | "real-job";
+      jobId: string;
+      values: number[];
+      widthsPx: number[];
+      minimumHeightPx: number;
+      updatesObserved: number;
+      updatesSent: Measurement<number>;
+      observationMethod: string;
+      payloadHash: string;
+    }
   | { kind: "existing"; contract: string };
 export type WorkloadResult =
   | { status: "completed"; observation: WorkloadObservation }
@@ -67,7 +142,8 @@ type FixtureProject = {
 };
 export type EditorProfileReport = {
   schemaVersion: 1;
-  measurementVersion: "editor-response-v1";
+  execution: { id: string; startedAt: string };
+  measurementVersion: "editor-response-v1" | "editor-workloads-v2";
   status: "complete" | "incomplete";
   fixture: ReturnType<typeof fixtureIdentity>;
   environment: {
@@ -98,8 +174,12 @@ export type EditorProfileReport = {
     }>;
     playwrightTrace: unknown;
     chromeTrace: "separate-diagnostic-window";
-    cache: "fresh-context; prebuilt-waveforms; OS/server caches uncontrolled";
-    gc: "forced after frame windows and each endurance round";
+    cache:
+      | "fresh-context; prebuilt-waveforms; OS/server caches uncontrolled"
+      | "fresh-process/context; empty-pyramid-cache; OS cache uncontrolled";
+    gc:
+      | "forced after frame windows and each endurance round"
+      | "forced only at named checkpoints outside measured windows";
   };
   protocol: {
     scrubRounds: number;
@@ -108,6 +188,34 @@ export type EditorProfileReport = {
     retries: number;
     repeatIndex: number;
     frameLimit: 10000;
+    framePercentiles: typeof FRAME_PERCENTILE_POLICY;
+    scenario?: string;
+    requiredCoverage?: string[];
+    preparation?: {
+      kind: "native-timeline-zoom";
+      minimumClipWidthPx: number;
+      zoomKeys: number;
+      beforeScalePxPerSec: number;
+      afterScalePxPerSec: number;
+    };
+    resources?: {
+      waveforms: "prebuilt" | "empty-pyramid-cache";
+      server: "fresh-process";
+      browser: "fresh-context";
+      osCache: "uncontrolled";
+      media: {
+        ref: string;
+        bytes: number;
+        durationSec: number;
+        auditionPrefixSec: number;
+        sha256: string;
+      }[];
+      progress?: {
+        source: "replay" | "real-job";
+        payloadHash: string;
+        cadenceMs: Measurement<number>;
+      };
+    };
   };
   samples: WorkloadSample[];
   memory: {
@@ -260,6 +368,34 @@ export function hash(value: string | Buffer) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+export function completionReasons(report: EditorProfileReport): string[] {
+  if (report.measurementVersion !== "editor-workloads-v2") return [];
+  const required = report.protocol.requiredCoverage;
+  if (!required?.length) return ["required coverage not declared"];
+  const reasons = required
+    .filter(
+      (id) =>
+        !report.coverage.some(
+          (entry) => entry.id === id && entry.result.status === "completed",
+        ) ||
+        !report.samples.some(
+          (sample) => sample.id === id && sample.result.status === "completed",
+        ),
+    )
+    .map((id) => `required workload incomplete: ${id}`);
+  if (!report.protocol.resources) reasons.push("resource provenance missing");
+  if (
+    report.samples.some(
+      (sample) =>
+        sample.result.status === "completed" &&
+        sample.result.observation.kind === "drag-save" &&
+        sample.result.observation.restoration !== "verified",
+    )
+  )
+    reasons.push("drag restoration unverified");
+  return reasons;
+}
+
 export function compatibilityReasons(
   a: EditorProfileReport,
   b: EditorProfileReport,
@@ -292,6 +428,7 @@ export function compatibilityReasons(
   if (!a.environment.host.cpuModel || !b.environment.host.cpuModel)
     reasons.push("unknown machine compatibility");
   for (const report of [a, b]) {
+    reasons.push(...completionReasons(report));
     if (
       report.environment.build.status === "unavailable" ||
       report.environment.build.value.mode === "unknown" ||

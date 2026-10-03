@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Create a disposable long-form project for browser performance profiling.
 
-The generated project uses sparse silent WAVs and, per track, a ``.wfpk``
+The generated project uses full-clock sparse WAVs, optionally with a bounded
+nonzero audition prefix, and, per track, a ``.wfpk``
 waveform pyramid written without decoding (``--waveform synthetic`` draws a
 speech-like envelope; ``silent`` draws nothing). It is a UI/data-shape
 fixture, not an audio fidelity fixture, and is refused below ``tests/fixtures``
@@ -12,8 +13,10 @@ can be removed after the benchmark.
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import shutil
+import struct
 import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -209,12 +212,23 @@ def _shape_project(
     project.transcript_data.combined = CombinedTranscript(utterances=utterances)
 
 
-def _write_sparse_wav(path: Path, frames: int) -> None:
-    """Create a seekable silent WAV whose data payload consumes no blocks."""
+def _write_sparse_wav(path: Path, frames: int, tone_seconds: float = 0) -> None:
     data_size = frames * PCM_SAMPLE_WIDTH_BYTES
     with path.open("wb") as wav:
         wav.write(pcm_wav_header(data_size, SAMPLE_RATE))
         wav.truncate(WAV_HEADER_BYTES + data_size)
+        if tone_seconds:
+            tone_frames = min(frames, round(tone_seconds * SAMPLE_RATE))
+            samples = bytearray(tone_frames * PCM_SAMPLE_WIDTH_BYTES)
+            for frame in range(tone_frames):
+                struct.pack_into(
+                    "<h",
+                    samples,
+                    frame * 2,
+                    round(0.25 * 32767 * math.sin(2 * math.pi * 440 * frame / SAMPLE_RATE)),
+                )
+            wav.seek(WAV_HEADER_BYTES)
+            wav.write(samples)
 
 
 def _write_waveform(
@@ -283,6 +297,7 @@ def _write_tree(
     track_ids: tuple[str, ...] = TRACKS,
     waveform: str = "synthetic",
     history_steps: int = 0,
+    tone_seconds: float = 0,
 ) -> None:
     project.meta.workspace_dir = str(staging)
     _seed_history(project, history_steps)
@@ -290,7 +305,7 @@ def _write_tree(
     for folder in ("raw", "sources"):
         (staging / folder).mkdir()
         for track_id in track_ids:
-            _write_sparse_wav(staging / folder / f"{track_id}.wav", frames)
+            _write_sparse_wav(staging / folder / f"{track_id}.wav", frames, tone_seconds)
     for seed, track in enumerate(project.timeline.tracks):
         if track.media is None:
             continue
@@ -298,6 +313,20 @@ def _write_tree(
         _write_waveform(
             project, track.id, staging / track.media.path, frames, seed=seed, waveform=waveform
         )
+
+    (staging / "benchmark-media.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "tone_seconds": tone_seconds,
+                "tone_hz": 440,
+                "tone_peak": 0.25,
+                "source_duration_sec": frames / SAMPLE_RATE,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def build_project(
@@ -309,6 +338,7 @@ def build_project(
     track_count: int = DEFAULT_TRACKS,
     waveform: str = "synthetic",
     history_steps: int = DEFAULT_HISTORY_STEPS,
+    tone_seconds: float = 0,
 ) -> Path:
     """Write a valid project with unique clips and alternating speaker turns.
 
@@ -318,6 +348,8 @@ def build_project(
     frames = _validate(
         output, duration, clip_count, utterance_count, track_count, waveform, history_steps
     )
+    if not math.isfinite(tone_seconds) or not 0 <= tone_seconds <= duration:
+        raise ValueError("tone_seconds must be finite and between zero and duration")
     duration_sec = frames / SAMPLE_RATE
     track_ids = _track_ids(track_count)
     project = load_project(SOURCE_FIXTURE / "episode.project.json")
@@ -334,6 +366,7 @@ def build_project(
             track_ids=track_ids,
             waveform=waveform,
             history_steps=history_steps,
+            tone_seconds=tone_seconds,
         )
         staging.rename(final)
     except BaseException:
@@ -370,6 +403,12 @@ def main() -> None:
             f"{HISTORY_ENTRY_LIMIT} entries)"
         ),
     )
+    parser.add_argument(
+        "--tone-seconds",
+        type=float,
+        default=0,
+        help="bounded nonzero 440Hz audition prefix; rest remains sparse silence",
+    )
     args = parser.parse_args()
     print(
         build_project(
@@ -380,6 +419,7 @@ def main() -> None:
             track_count=args.tracks,
             waveform=args.waveform,
             history_steps=args.history,
+            tone_seconds=args.tone_seconds,
         )
     )
 
