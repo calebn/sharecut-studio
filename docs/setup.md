@@ -53,6 +53,18 @@ make worktree-setup                                 # per git worktree: hooks + 
 podcast gui --project /path/to/episode.project.json
 ```
 
+The opt-in editor profiler also needs the Playwright Chromium install:
+
+```bash
+npm --prefix gui/web run test:e2e:install
+npm --prefix gui/web run profile:remaining -- --preset small --out /tmp/editor-profile
+```
+
+`profile:remaining` builds disposable media fixtures and serves the production
+GUI; `profile:compare` freezes or applies worker-specific diagnostic budgets.
+See [editor responsiveness profiling](testing.md#large-project-browser-profile-opt-in)
+for independent repetitions, retained evidence, and cold-cache limits.
+
 ## Maximal install (all extras)
 
 For enrollment speaker ID and/or neural join QC, install **every** pip extra. This is much larger than `./install.sh` (Docker clean-room on Linux aarch64: ~6 GB `.venv` from CUDA-flavored `torch`, plus ~0.5 GB after `podcast bootstrap --component all`).

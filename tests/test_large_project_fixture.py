@@ -349,3 +349,53 @@ def test_large_project_fixture_zero_history_steps_is_empty(tmp_path):
     )
     assert load_project(project_path).history.is_empty()
     assert not (project_path.parent / "history").exists()
+
+
+def test_audition_prefix_preserves_full_clock_and_silent_tail(tmp_path):
+    builder = _load_fixture_builder()
+    project_path = builder.build_project(
+        tmp_path / "audition",
+        duration=4,
+        clip_count=2,
+        utterance_count=2,
+        history_steps=0,
+        tone_seconds=0.25,
+    )
+    project = load_project(project_path)
+    assert project.timeline.duration_sec == 4
+    manifest = json.loads((project_path.parent / "benchmark-media.json").read_text())
+    assert manifest == {
+        "version": 1,
+        "tone_seconds": 0.25,
+        "tone_hz": 440,
+        "tone_peak": 0.25,
+        "source_duration_sec": 4.0,
+    }
+    for track in project.timeline.tracks:
+        with wave.open(str(project_path.parent / track.media.path), "rb") as wav:
+            assert wav.getnframes() == 4 * 48000
+            assert any(wav.readframes(12000))
+            assert not any(wav.readframes(4 * 48000))
+    from podcast_mcp.engines.waveform_pyramid import media_key, pyramid_path, ref_slug
+
+    for track in project.timeline.tracks:
+        audio = project_path.parent / track.media.path
+        stat = audio.stat()
+        key = media_key(track.media.path, stat.st_size, stat.st_mtime_ns)
+        assert pyramid_path(
+            project.artifacts_dir() / "peaks", ref_slug("track", track.id), key
+        ).exists()
+
+
+@pytest.mark.parametrize("tone_seconds", [-1, float("nan"), float("inf"), 11])
+def test_audition_prefix_refuses_invalid_duration(tmp_path, tone_seconds):
+    with pytest.raises(ValueError, match="tone_seconds"):
+        _load_fixture_builder().build_project(
+            tmp_path / "invalid-tone",
+            duration=10,
+            clip_count=2,
+            utterance_count=2,
+            history_steps=0,
+            tone_seconds=tone_seconds,
+        )
+    assert not (tmp_path / "invalid-tone").exists()

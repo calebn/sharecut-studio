@@ -1,12 +1,15 @@
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { CDPSession, Page, TestInfo } from "@playwright/test";
 
 import {
+  completionReasons,
   counterDeltas,
   type EditorProfileReport,
+  FRAME_PERCENTILE_POLICY,
   type FrameWindow,
   failureReason,
   fixtureIdentity,
@@ -126,17 +129,28 @@ export async function createEditorProfiler(
   projectPath: string,
   scrubRounds: number,
   headless: boolean,
+  options?: {
+    scenario: string;
+    requiredCoverage: string[];
+    resources: NonNullable<EditorProfileReport["protocol"]["resources"]>;
+  },
 ) {
-  const output = process.env.DAW_PROFILE_OUT
+  const outputRoot = process.env.DAW_PROFILE_OUT
     ? path.resolve(process.env.DAW_PROFILE_OUT)
     : info.outputPath("editor-profile");
+  const output = options ? path.join(outputRoot, options.scenario) : outputRoot;
   fs.mkdirSync(output, { recursive: true });
   const assets: { path: string; sha256: string }[] = [];
   const assetReads: Promise<void>[] = [];
+  const assetReadErrors: string[] = [];
   let hookMarker = false;
   page.on("response", (response) => {
     const url = new URL(response.url());
     if (!/\.(js|css)$/.test(url.pathname)) return;
+    if (!response.ok()) {
+      assetReadErrors.push(`${url.pathname}: HTTP ${response.status()}`);
+      return;
+    }
     assetReads.push(
       response
         .body()
@@ -146,11 +160,14 @@ export async function createEditorProfiler(
             bytes.includes("__SHARECUT_E2E") ||
             bytes.includes("__recordSignalCount");
         })
-        .catch(() => undefined),
+        .catch((error) => {
+          assetReadErrors.push(`${url.pathname}: ${failureReason(error)}`);
+        }),
     );
   });
   const report: EditorProfileReport = {
     schemaVersion: 1,
+    execution: { id: randomUUID(), startedAt: new Date().toISOString() },
     measurementVersion: "editor-response-v1",
     status: "incomplete",
     fixture: fixtureIdentity(
@@ -191,6 +208,7 @@ export async function createEditorProfiler(
       retries: info.project.retries,
       repeatIndex: info.repeatEachIndex,
       frameLimit: 10000,
+      framePercentiles: FRAME_PERCENTILE_POLICY,
     },
     samples: [],
     memory: [],
@@ -217,6 +235,30 @@ export async function createEditorProfiler(
     artifacts: [],
     errors: [],
   };
+  if (options) {
+    report.measurementVersion = "editor-workloads-v2";
+    report.environment.gc =
+      "forced only at named checkpoints outside measured windows";
+    report.protocol.scenario = options.scenario;
+    report.protocol.requiredCoverage = options.requiredCoverage;
+    report.protocol.resources = options.resources;
+    report.coverage = options.requiredCoverage.map((id) => ({
+      id,
+      result: { status: "not-run", reason: "workload has not completed" },
+    }));
+    if (options.resources.waveforms === "empty-pyramid-cache") {
+      report.environment.cache =
+        "fresh-process/context; empty-pyramid-cache; OS cache uncontrolled";
+      report.fixture = fixtureIdentity(
+        fs.readFileSync(projectPath, "utf8"),
+        projectPath,
+        measured([], "verified empty pyramid cache before opening"),
+      );
+    }
+    report.fixture.media = options.resources.media.length
+      ? `full-clock PCM; verified deterministic audition prefixes ${options.resources.media.map((item) => `${item.ref}:${item.auditionPrefixSec}s`).join(", ")}; remainder sparse silence`
+      : "media prefix not inspected in this behavior-only regression";
+  }
   await cdp.send("Performance.enable");
   await page.addInitScript(installWindowRecorder);
   await page.evaluate(installWindowRecorder);
@@ -240,6 +282,18 @@ export async function createEditorProfiler(
   retain();
   return {
     report,
+    artifactPath(name: string) {
+      report.artifacts.push(name);
+      return path.join(output, name);
+    },
+    async attachJson(name: string, value: unknown) {
+      fs.writeFileSync(
+        path.join(output, name),
+        `${JSON.stringify(value, null, 2)}\n`,
+      );
+      report.artifacts.push(name);
+      retain();
+    },
     async measure(
       definition: WorkloadDefinition,
       action: () => Promise<WorkloadObservation>,
@@ -305,6 +359,11 @@ export async function createEditorProfiler(
         rawCounters: { before, after },
       };
       report.samples.push(sample);
+      if (options && report.protocol.requiredCoverage?.includes(sample.id)) {
+        report.coverage = report.coverage.map((entry) =>
+          entry.id === sample.id ? { id: entry.id, result } : entry,
+        );
+      }
       retain();
       if (failure !== undefined) throw failure;
       return sample;
@@ -393,7 +452,14 @@ export async function createEditorProfiler(
         const unique = [
           ...new Map(assets.map((asset) => [asset.path, asset])).values(),
         ].sort((a, b) => a.path.localeCompare(b.path));
-        if (unique.length)
+        if (assetReadErrors.length) {
+          report.environment.build = unavailable(
+            "served asset bytes incomplete",
+          );
+          report.errors.push(
+            ...assetReadErrors.map((error) => `served asset read: ${error}`),
+          );
+        } else if (unique.length)
           report.environment.build = measured(
             {
               mode: unique.some((asset) => asset.path.includes("/@vite"))
@@ -405,6 +471,14 @@ export async function createEditorProfiler(
               e2eHooks: hookMarker,
             },
             "SHA256 of actual served JS/CSS response bytes",
+          );
+        if (
+          report.measurementVersion === "editor-workloads-v2" &&
+          (report.environment.build.status !== "measured" ||
+            report.environment.build.value.mode === "unknown")
+        )
+          report.errors.push(
+            "required served build identity unavailable or partial",
           );
         report.environment.page = measured(
           await page.evaluate(() => ({
@@ -421,21 +495,34 @@ export async function createEditorProfiler(
       } catch (error) {
         report.errors.push(`metadata: ${failureReason(error)}`);
       }
+      report.errors.push(...completionReasons(report));
       report.status =
         report.errors.length ||
         report.samples.some((sample) => sample.result.status === "failed")
           ? "incomplete"
           : "complete";
       retain();
-      await info.attach("editor-profile-report", {
-        path: path.join(output, "report.json"),
-        contentType: "application/json",
-      });
-      for (const artifact of report.artifacts)
-        await info.attach(artifact, {
-          path: path.join(output, artifact),
+      try {
+        await info.attach("editor-profile-report", {
+          path: path.join(output, "report.json"),
           contentType: "application/json",
         });
+        for (const artifact of report.artifacts)
+          await info.attach(artifact, {
+            path: path.join(output, artifact),
+            contentType: artifact.endsWith(".png")
+              ? "image/png"
+              : "application/json",
+          });
+      } catch (error) {
+        report.errors.push(`attachment retention: ${failureReason(error)}`);
+        report.status = "incomplete";
+        retain();
+      }
+      if (options && report.status === "incomplete" && failure === undefined)
+        throw new Error(
+          `Incomplete editor workload: ${report.errors.join("; ")}`,
+        );
     },
   };
 }

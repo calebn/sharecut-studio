@@ -738,23 +738,128 @@ filenames. Missing waveform identity refuses comparison; silent and synthetic
 pyramids are different workloads. The pure `compatibilityReasons` function
 rejects mismatched definitions, fixture, machine, browser, viewport, motion,
 cache/GC policy, instrumentation, and unknown build or page provenance. Revision
-and asset hashes may differ for a before/after comparison. There is no comparison
-CLI or speedup claim. Inspect matching repeated runs before proposing a budget.
+and asset hashes may differ for a before/after comparison. The original `editor-response-v1` profile has no speedup claim. The supplemental
+workload runner and local comparison procedure below use a separate measurement
+version.
 
-Existing timeline and transcript scrolling uses programmatic offsets. Keyboard
-seek and existing panel/history controls retain their functional assertions.
+The supplemental `editor-workloads-v2` suite isolates clip dragging, boundary
+rolling, Original playback, cache-cold waveform generation, real pipeline
+progress, and deterministic progress replay (ordinary and reduced motion):
+
+```sh
+npm --prefix gui/web run build
+npm --prefix gui/web run profile:remaining -- --preset small --repeat 5 --out /tmp/editor-small-baseline
+npm --prefix gui/web run profile:remaining -- --preset large --repeat 5 --out /tmp/editor-large-baseline
+npm --prefix gui/web run profile:remaining -- --preset small --out /tmp/editor-small-holdout
+npm --prefix gui/web run profile:compare -- --baseline /tmp/editor-small-baseline --holdout /tmp/editor-small-holdout --out /tmp/editor-small-budget.json
+npm --prefix gui/web run profile:remaining -- --preset small --out /tmp/editor-small-candidate
+npm --prefix gui/web run profile:compare -- --budget /tmp/editor-small-budget.json --candidate /tmp/editor-small-candidate --out /tmp/editor-small-comparison.json
+```
+
+Use an independently generated holdout for each preset. Run on a quiet worker
+with no other browser, fixture decode, build, or full suite. The runner reuses the
+existing Playwright process/port cleanup and starts a fresh server/context for
+each scene. `--scene clip|boundary|playback|cold-waveform|progress-replay|progress-real|progress-reduced`
+selects one scene for validity debugging; a selected scene does not establish
+whole-issue coverage. `--trace --scene progress-replay` retains a separate
+Chrome diagnostic trace. Traced samples do not enter primary timing budgets.
+The original `large-project.spec.ts` remains the wheel/zoom/ruler-seek and
+extended editor/memory protocol. In Comment mode, ruler dragging anchors a
+comment range. In the ordinary mode, the ruler uses click/keyboard seeking; these measurements do not claim
+continuous held-pointer scrubbing.
+
+Both presets keep their full 120 s or 7200 s source clock and original counts.
+`--tone-seconds 20` adds deterministic nonzero PCM only at the start of each
+source; the remaining full-length payload is sparse silence. This establishes
+actual graph sampling during bounded playback without generating dense two-hour
+tone files. The report hashes full actual media bytes and validates WAV duration.
+Prebuilt pyramids remain synthetic UI resources. The cold scene removes only
+its owned pyramids before opening the project, then uses real status/tile
+requests, generated artifacts, and painted production canvases. At fit-session
+zoom, two-hour clips can use the narrow fallback rather than a canvas. The cold
+protocol uses ordinary ruler Home and zoom keys to expose an 80 px first clip;
+clip dragging separately prepares a 120 px body and verifies its actual hit
+target. Reports retain fit/prepared geometry, actual scale, and zoom-key counts.
+These are full-source decode plus detailed canvas paint measurements, not
+fit-zoom initial canvas paint. OS file caches are uncontrolled; this is pyramid-cache cold, not disk cold.
+
+Drag windows separate held preview from release/durable save. Captured commands,
+affected clip geometry, and an exact Undo outside the measured window establish
+that real edits occurred. Playback uses the real Original control, nonzero
+per-track graph meter samples, successful media responses, advancing transport,
+and a held Pause. It does not establish heard fidelity or device latency. Memory
+checkpoints force GC outside input windows and retain raw heap and DOM counts.
+The positive part of final-minus-initial growth is a diagnostic, not proof of a
+leak; the raw checkpoints also preserve decreases.
+
+Progress replay substitutes only its named EventSource transport and status
+response; the production pipeline hook and UI consume the snapshots. It is
+labeled replay, not backend throughput. Visible bar height, changing widths and
+percentages, delivered cadence, and settled terminal geometry are retained.
+Real-job progress uses the ordinary Run control from `compress_tracks`, with
+`balance_tracks` and their required ingest/clean prerequisites enabled. The job
+executes Compress and Balance only, then observes native job status and
+distinct ARIA percentages sampled on animation frames with in-viewport geometry.
+This observes DOM layout, not compositor presentation; the natural producer
+cadence and sent-update count remain unavailable. Request payloads, job status
+snapshots, and terminal step summaries distinguish measurement from skipped
+processing. A job that finishes without sufficient visible changes remains
+an incomplete measurement. The current tooling-only runtime retains the old
+zero-height bar failure in a constrained panel; visible-progress profiling fails
+and preserves that evidence until the separate geometry repair is applied.
+
+Each report has a distinct execution ID and start time. Missing required
+coverage, failed validity, or metadata/retention errors preserves the partial
+report and fails the supplemental run. Failed fixtures and per-scene Playwright
+evidence remain inspectable; successful fixtures are disposable. Output paths
+must be new. Reports record dirty source for validity, but budget comparisons
+require clean source and a served production build without E2E hooks.
+
+The report declares frame-percentile applicability before measurements. Initial
+load, cold decode/detail paint, held clip/boundary preview, playback, real/replayed
+progress, scrub endurance, and multi-key history navigation require at least two
+uncapped rAF intervals for a percentile budget. Atomic zoom, seek, save, and other
+short command windows retain all raw intervals but use no percentile budget.
+This policy follows workload definitions, never observed timing. Missing required
+frame data fails budget creation; it is not padded or removed after results.
+Driver wall time remains available separately. Supported long-task and CDP task
+metrics retain their explicit availability, which must match between runs.
+
+The comparison command requires at least five compatible baseline repetitions
+and an independent holdout. It freezes each local diagnostic upper limit as the
+baseline maximum plus the largest adjacent absolute difference, then checks the
+holdout. An exceeding holdout is retained as an unstable baseline; the limits
+are not padded or rerun until a favorable result. Unstable baselines cannot
+become regression gates. Copied execution IDs or repeated real report paths
+refuse independence. A separate `--budget FILE --candidate DIR` invocation
+applies the stored limits without recalibrating them. It verifies original
+report SHA-256 digests, execution IDs, chronological baseline order, metric keys
+and raw values, and the original maximum/variation/limit arithmetic and holdout
+truth. Candidates never enter that derivation check. Machine/browser/viewport,
+fixture/media/resources, protocol, cache, motion and instrumentation must match;
+source/assets may differ only for candidates. Raw reports, source/build IDs,
+numeric limits and holdout outcomes remain in the budget artifact. These limits
+are a worker-specific reproducibility envelope, not a universal FPS target or
+user-experience SLA. No production optimization or speedup follows merely from
+running this command.
+
+In the original `editor-response-v1` suite, timeline and transcript scrolling
+uses programmatic offsets. Keyboard seek and existing panel/history controls retain their functional assertions.
 A measured one-key zoom precedes a trusted horizontal wheel event over a timeline
 with more than 100 CSS pixels of scroll range; changed visible clip IDs establish
 scrolling. An ordinary ruler click changes the observed playhead. Focus and
 programmatic scroll resets occur outside these measurement windows. The playhead
 returns to zero before measuring transcript opening, so playhead follow exposes
 the first turn on both fixture sizes.
-Clip and boundary drags, playback, cold waveform generation, and native touch
-have explicit not-run reasons. Synthetic progress replay is also not run: an
-attempt attached the real consumer, but the rendered bar had zero computed
-height before and after ordinary panel resizing. Its failed reports and geometry
-were retained; no progress width-transition cost was measured. This slice adds no
-production instrumentation, optimization, telemetry, or timing CI gate. Silent
+That original suite gives clip and boundary drags, playback, cold waveform
+generation, and native touch explicit not-run reasons. Its synthetic progress
+replay was not run: an attempt attached the real consumer, but the rendered bar
+had zero computed height before and after ordinary panel resizing. Its failed reports and geometry
+were retained; no progress width-transition cost was measured in that original
+slice. Supplemental v2 uses the separate drivers above, with native touch still
+unavailable. The retained zero-height result does not establish width-transition
+cost or a speedup; the original suite adds no production telemetry or timing CI
+gate. Silent
 media, ready pyramids, uncontrolled OS/server caches, and desktop Chromium do not
 establish audio quality, cold decoding, physical-device behavior, or Safari parity.
 
