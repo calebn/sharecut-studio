@@ -674,6 +674,11 @@ pending, comment and job status. Select/Blade remain visible with disabled reaso
 
 Exact pending GUI previews use `GET /api/pending-preview` for the host and the token-scoped pending-preview route for guests. They play a rendered full-mix extract through the source-preview transport, preserving each island and the gaps between them; they do not install a bounding-hull skip. Target comparison ignores JSON object property order from the server while preserving every sealed value and ordered array. The adapter discards prepared audio if the target, mix, project, or playback permission changes before it arrives. Exact pending titles carry Cut/Mute without a duplicate Type fact, keeping the timeline intervals and selected track value above the phone preview footer. Guest host-only review reasons remain readable beside the disabled controls on desktop and phone; pending labels wrap so their full identity and status stay visible. Exact proposal review controls remain visible with a host-only disabled reason for guests; source timing and snap controls are absent. Applied exact Cut/Mute ticks retain every recorded timeline edge, including holes and repeated-source occurrences, rather than falling back to the first matching source clock.
 
+While a guest owns a rendered source preview, the loaded proxy transport pauses
+and yields playback, clock, and meter ownership to the existing HTML audio
+transport. The proxy remains loaded and can resume after preview release. Preview
+position stays local and does not move or publish the session playhead.
+
 Exact pending Current/Suggested/A-B supports the full mix (`premix`); isolated
 source requests reject before playback. Suggested cache identity includes every
 track's current render and mix state. Guest range Play never renders stems and

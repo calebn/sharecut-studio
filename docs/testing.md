@@ -1529,8 +1529,15 @@ gesture and shared-action suites cover resolution, permissions and live guards.
 `gui/web/e2e/contextual-range.spec.ts` walks guest suggestion → host approval →
 Undo, host repeated-copy Cut/Mute, phone armed clip-body selection, orphan edit
 reachability after inspector collapse, and desktop/phone action-surface axe.
+
 The suggest-only scenario mints a link through `podcast review share` with
 `play,view,suggest,comment` capabilities. It checks the guest banner, an unapplied
 proposal, denied approval, Suggested audio playback, host review in Impact, and
 the guest's refreshed clip geometry after approval. The editor scenario remains
 separate because editor links exercise a different capability set.
+
+`useProxyTransport.test.tsx` runs the proxy and HTML audio hooks together to
+check preview ownership, a paused proxy, unchanged session playhead and playback
+intent, suppressed timeline clock and meters, release back to timeline playback,
+and disposal on a project switch. A stopped preview keeps its ownership until
+explicit release.

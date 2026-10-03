@@ -21,13 +21,15 @@ import {
 
 /**
  * Guest proxy transport: Web Audio clip scheduler over FX source-clock chunks.
- * Returns true when the proxy path is active (caller should skip HTMLAudio).
+ * Returns true while the proxy owns timeline playback. Owned source previews
+ * yield playback to HTMLAudio without discarding the ready proxy engine.
  */
 export function useProxyTransport(): boolean {
   const {
     project,
     projectPath,
     isPlaying,
+    sourcePreview,
     playbackRate,
     playheadSec,
     playheadSeekRevision,
@@ -47,6 +49,7 @@ export function useProxyTransport(): boolean {
     project: s.project,
     projectPath: s.projectPath,
     isPlaying: s.isPlaying,
+    sourcePreview: s.sourcePreview,
     playbackRate: s.playbackRate,
     playheadSec: s.playheadSec,
     playheadSeekRevision: s.playheadSeekRevision,
@@ -65,6 +68,7 @@ export function useProxyTransport(): boolean {
   }));
 
   const [active, setActive] = useState(false);
+  const timelineActive = active && sourcePreview === null;
   const engineRef = useRef<ProxyEngine | null>(null);
   const manifestRef = useRef<ProxyManifest | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -173,11 +177,16 @@ export function useProxyTransport(): boolean {
     if (!engine || !active) {
       return;
     }
+    if (!timelineActive) {
+      engine.pause();
+      return;
+    }
     let cancelled = false;
     if (isPlaying) {
       engine.play(playheadSecRef.current);
       const tick = () => {
-        if (cancelled || !useDawStore.getState().isPlaying) {
+        const state = useDawStore.getState();
+        if (cancelled || !state.isPlaying || state.sourcePreview) {
           return;
         }
         let t = engine.currentTimeSec();
@@ -212,7 +221,11 @@ export function useProxyTransport(): boolean {
             }
             abTimerRef.current = window.setTimeout(() => {
               abTimerRef.current = null;
-              if (cancelled || auditionEpochRef.current !== gen) {
+              if (
+                cancelled ||
+                useDawStore.getState().sourcePreview ||
+                auditionEpochRef.current !== gen
+              ) {
                 return;
               }
               try {
@@ -260,6 +273,7 @@ export function useProxyTransport(): boolean {
   }, [
     isPlaying,
     active,
+    timelineActive,
     continueAudition,
     setIsPlaying,
     setPlayheadSec,
@@ -279,22 +293,26 @@ export function useProxyTransport(): boolean {
   }, [playheadSec, playheadSeekRevision, active, isPlaying]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!timelineActive) return;
     return bindPlaybackClock(() =>
       useDawStore.getState().projectPath === projectPath &&
+      !useDawStore.getState().sourcePreview &&
       useDawStore.getState().isPlaying &&
       rafRef.current != null
         ? (engineRef.current?.currentTimeSec() ?? null)
         : null,
     );
-  }, [active, projectPath]);
+  }, [timelineActive, projectPath]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!timelineActive) return;
     return bindPlaybackMeterSource({
-      read: (trackId) => engineRef.current?.readTrackFrame(trackId) ?? null,
+      read: (trackId) =>
+        useDawStore.getState().sourcePreview
+          ? null
+          : (engineRef.current?.readTrackFrame(trackId) ?? null),
     });
-  }, [active]);
+  }, [timelineActive]);
 
-  return active;
+  return timelineActive;
 }
