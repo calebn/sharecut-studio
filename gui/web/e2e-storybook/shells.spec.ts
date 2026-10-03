@@ -1,10 +1,16 @@
 import { expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "../e2e/axe";
 
-async function openStory(page: Page, id: string, width: number, theme: string) {
+async function openStory(
+  page: Page,
+  id: string,
+  width: number,
+  theme: string,
+  embed = false,
+) {
   await page.setViewportSize({ width, height: 900 });
   await page.goto(
-    `/iframe.html?id=templates-${id}&viewMode=story&globals=theme:${theme}`,
+    `/iframe.html?id=templates-${id}&viewMode=story&globals=theme:${theme}&embed=${embed}`,
   );
   await expect(page.locator(".daw-shell")).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
@@ -99,14 +105,22 @@ for (const theme of ["light", "dark"]) {
   test(`phone360 More back and guest follow chrome fit in ${theme}`, async ({
     page,
   }) => {
-    await openStory(page, "mobileshell--more-comments", 360, theme);
+    await openStory(page, "mobileshell--more-comments", 360, theme, true);
+    await expect(page.getByText("Keep this introduction.")).toBeVisible();
+    await expectShellFit(page, 360);
+    await expectPageAxeClean(page);
+    await page.getByRole("button", { name: "← More" }).click();
     await expect(
       page.getByText("Comments, history, and project tools live in More."),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "← More" })).toHaveCount(0);
     await expectShellFit(page, 360);
     await expectPageAxeClean(page);
-    await openStory(page, "mobileshell--guest-following", 360, theme);
+    await openStory(page, "mobileshell--guest-following", 360, theme, true);
+    await expect(page.locator(".daw-shell--following")).toBeVisible();
+    await expectShellFit(page, 360);
+    await expectPageAxeClean(page);
+    await page.getByRole("button", { name: "Stop following" }).click();
     await expect(
       page.getByRole("button", { name: "Stop following" }),
     ).toHaveCount(0);
@@ -149,7 +163,11 @@ for (const theme of ["light", "dark"]) {
   test(`desktop guest tabs and loading stay bounded in ${theme}`, async ({
     page,
   }) => {
-    await openStory(page, "studioshell--guest-following", 1440, theme);
+    await openStory(page, "studioshell--guest-following", 1440, theme, true);
+    await expect(page.locator(".daw-shell--following")).toBeVisible();
+    await expectShellFit(page, 1440);
+    await expectPageAxeClean(page);
+    await page.getByRole("button", { name: "Stop following" }).click();
     await expect(
       page.getByRole("button", { name: "Stop following" }),
     ).toHaveCount(0);
