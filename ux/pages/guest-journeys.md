@@ -306,6 +306,9 @@ flowchart TD
    removal close, and a reload retains the revoked identity. The host's removal
    closes that invite link to new people ("Invite link closed"); guests who
    already joined keep their saved lease, and new people need a fresh link.
+   Removal also blocks outstanding uploads from earlier stopped takes, even
+   when the guest consented to those takes. The host should wait for keeper
+   uploads to finish before removal when those parts matter.
    Removal during REC stops microphone capture and upload, then offers local
    keeper recovery or download. A naturally expired lease can start a fresh
    guest identity in the still-open room, unless someone who joined through the
