@@ -94,6 +94,8 @@ the [UI philosophy](https://github.com/calebn/sharecut-studio/blob/main/docs/ui-
 
 ## Speech-preserving bleed cleanup
 
+When automatic cleanup cannot verify a passage, the agent can offer a bounded mute for listening review. The host listens to the receiving microphone and mix, then approves or rejects the pending range. Listen for quiet speech, breaths and handling sounds before approval. Rendered pending previews and host processed playback include these mutes; guest source-proxy timeline playback currently omits them.
+
 The current CLI and agent workflow keeps each speaker's speech and uncertain audio
 intact. After transcript reconciliation, cleanup reduces only independently
 verified foreign copies. A transcript from another recording cannot authorize
