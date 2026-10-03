@@ -474,3 +474,222 @@ def test_selected_recording_controls_coverage_and_protection(tmp_path: Path) -> 
     result = review(ws, 0.5, 0.9)
     assert len(result["review_candidates"]) == 1
     assert result["review_candidates"][0]["source_id"] == "alternate"
+
+
+@pytest.mark.parametrize("coverage", ["absent", "partial", "gap", "overlap", "missing_peer"])
+def test_peer_coverage_refusal_agrees_for_broad_and_narrow_requests(
+    tmp_path: Path, coverage: str
+) -> None:
+    from podcast_mcp.edits.bleed_review import bleed_review_candidates
+
+    ws = stereo_project(tmp_path)
+    peer = ws.project.clips[1]
+    if coverage == "missing_peer":
+        ws.project.transcripts[0].words[1].dominant_track = "missing"
+    elif coverage == "absent":
+        peer.source_end = 0.4
+    elif coverage == "partial":
+        peer.source_end = 0.7
+    elif coverage == "gap":
+        peer.source_end = 0.65
+        ws.project.clips.append(
+            Clip(
+                id="peer-after-gap",
+                track_id="guest",
+                source_start=0.7,
+                source_end=3,
+                timeline_start=0.7,
+            )
+        )
+    else:
+        ws.project.clips.append(
+            Clip(
+                id="peer-overlap",
+                track_id="guest",
+                source_start=0.6,
+                source_end=0.8,
+                timeline_start=0.6,
+            )
+        )
+    for start, end in ((0, 3), (0.5, 0.9)):
+        result = bleed_review_candidates(ws.project, "host", start, end)
+        assert not any(row["timeline_start"] < 0.9 for row in result.candidates)
+        assert (
+            "missing_foreign_peer"
+            if coverage == "missing_peer"
+            else "unavailable_peer_review_media"
+        ) in result.reasons
+
+
+def test_peer_coverage_can_cross_adjacent_placements_and_ignores_remote_overlap(
+    tmp_path: Path,
+) -> None:
+    from podcast_mcp.edits.bleed_review import bleed_review_candidates
+
+    ws = stereo_project(tmp_path)
+    ws.project.clips[1].source_end = 0.7
+    ws.project.clips.extend(
+        [
+            Clip(
+                id="peer-next", track_id="guest", source_start=0.7, source_end=3, timeline_start=0.7
+            ),
+            Clip(
+                id="peer-remote-overlap",
+                track_id="guest",
+                source_start=2,
+                source_end=2.4,
+                timeline_start=2,
+            ),
+        ]
+    )
+    for start, end in ((0, 3), (0.5, 0.9)):
+        result = bleed_review_candidates(ws.project, "host", start, end)
+        assert [(r["timeline_start"], r["timeline_end"]) for r in result.candidates] == [(0.5, 0.9)]
+
+
+@pytest.mark.parametrize("tid", ["host", "guest"])
+def test_review_uses_actual_source_duration_for_owner_and_peer(tmp_path: Path, tid: str) -> None:
+    from podcast_mcp.edits.bleed_review import bleed_review_candidates
+
+    ws = stereo_project(tmp_path)
+    path = tmp_path / "raw" / f"{tid}.wav"
+    pcm = read_pcm(path)[:33_600]
+    with wave.open(str(path), "wb") as audio:
+        audio.setnchannels(2)
+        audio.setsampwidth(2)
+        audio.setframerate(48_000)
+        audio.writeframes(pcm.tobytes())
+    for start, end in ((0, 3), (0.5, 0.9)):
+        result = bleed_review_candidates(ws.project, "host", start, end)
+        assert not result.candidates
+        assert f"unavailable_{'owner' if tid == 'host' else 'peer'}_review_media" in result.reasons
+    result = bleed_review_candidates(ws.project, "host", 0.5, 0.7)
+    assert [(r["source_start"], r["source_end"]) for r in result.candidates] == [(0.5, 0.7)]
+
+
+def test_repeated_alternate_media_is_probed_once_per_resolved_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from podcast_mcp.edits.bleed_review import bleed_review_candidates
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
+    from podcast_mcp.models import SourceRecording
+
+    ws = stereo_project(tmp_path)
+    alternate = tmp_path / "raw" / "alternate.wav"
+    alternate.write_bytes((tmp_path / "raw" / "host.wav").read_bytes())
+    ws.project.sources.append(
+        SourceRecording(id="alternate", path="raw/alternate.wav", duration_sec=3)
+    )
+    ws.project.clips[0].source_id = "alternate"
+    ws.project.clips[0].source_end = 1.1
+    ws.project.clips.append(
+        Clip(
+            id="repeat",
+            track_id="host",
+            source_id="alternate",
+            source_start=0.5,
+            source_end=0.9,
+            timeline_start=1.2,
+        )
+    )
+    ws.project.transcripts[0].source_id = "alternate"
+    calls: list[Path] = []
+    original = FFmpegEngine.probe
+
+    def probe(engine: FFmpegEngine, path: Path):
+        calls.append(path)
+        return original(engine, path)
+
+    monkeypatch.setattr(FFmpegEngine, "probe", probe)
+    result = bleed_review_candidates(ws.project, "host", 0, 3)
+    assert [(r["clip_id"], r["source_id"]) for r in result.candidates] == [
+        ("host", "alternate"),
+        ("repeat", "alternate"),
+    ]
+    assert calls == [alternate.resolve(), (tmp_path / "raw" / "guest.wav").resolve()]
+
+
+@pytest.mark.parametrize("blocked", ["retained", "protected", "outside"])
+def test_no_eligible_intervals_do_not_probe_media(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    blocked: str,
+) -> None:
+    from podcast_mcp.edits.bleed_review import bleed_review_candidates
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
+
+    ws = stereo_project(tmp_path)
+    if blocked == "retained":
+        for word in ws.project.transcripts[0].words:
+            word.suppressed = False
+    elif blocked == "protected":
+        ws.project.transcripts[0].words.append(TranscriptWord(text="owner", start=0, end=3))
+    else:
+        for word in ws.project.transcripts[0].words:
+            word.start += 4
+            word.end += 4
+
+    def probe(*args, **kwargs):
+        pytest.fail("No eligible interval may cause a media probe")
+
+    monkeypatch.setattr(FFmpegEngine, "probe", probe)
+    assert not bleed_review_candidates(ws.project, "host", 0, 3).candidates
+
+
+def test_diagnostic_truncation_retains_late_protection(tmp_path: Path) -> None:
+    from podcast_mcp.edits.bleed_review import bleed_review_candidates
+
+    ws = stereo_project(tmp_path)
+    ws.project.transcripts[0].words.extend(
+        TranscriptWord(text="protected", start=1.2 + i / 1000, end=1.2002 + i / 1000)
+        for i in range(129)
+    )
+    ws.project.transcripts[0].words.append(TranscriptWord(text="late owner", start=2.1, end=2.2))
+    result = bleed_review_candidates(ws.project, "host", 0, 3)
+    assert result.exclusions_truncated
+    assert not any(r["start"] == 2.1 for r in result.exclusions)
+    assert [(r["timeline_start"], r["timeline_end"]) for r in result.candidates] == [
+        (0.5, 0.9),
+        (2, 2.1),
+        (2.2, 2.4),
+    ]
+
+
+@pytest.mark.parametrize("tid", ["host", "guest"])
+def test_selected_alternate_source_bounds_use_source_clock(tmp_path: Path, tid: str) -> None:
+    from podcast_mcp.edits.bleed_review import bleed_review_candidates
+    from podcast_mcp.models import SourceRecording
+
+    ws = stereo_project(tmp_path)
+    alternate = tmp_path / "raw" / "alternate.wav"
+    alternate.write_bytes((tmp_path / "raw" / f"{tid}.wav").read_bytes())
+    ws.project.sources.append(
+        SourceRecording(id="alternate", path="raw/alternate.wav", duration_sec=10)
+    )
+    clip = next(c for c in ws.project.clips if c.track_id == tid)
+    clip.source_id = "alternate"
+    clip.source_start = 8
+    clip.source_end = 8.4
+    clip.timeline_start = 0.5
+    if tid == "host":
+        ws.project.transcripts.append(
+            Transcript(
+                track_id="host",
+                source_id="alternate",
+                words=[
+                    TranscriptWord(
+                        text="foreign",
+                        start=8,
+                        end=8.4,
+                        suppressed=True,
+                        audibility_status="bleed",
+                        dominant_track="guest",
+                    )
+                ],
+            )
+        )
+    for start, end in ((0, 3), (0.5, 0.9)):
+        result = bleed_review_candidates(ws.project, "host", start, end)
+        assert not result.candidates
+        assert f"unavailable_{'owner' if tid == 'host' else 'peer'}_review_media" in result.reasons
