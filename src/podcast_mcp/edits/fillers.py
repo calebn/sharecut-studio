@@ -14,13 +14,17 @@ import numpy as np
 from podcast_mcp.config import bounded_float
 from podcast_mcp.edits.acoustic_gap import AcousticGapConfig, find_voiced_gap_runs
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
-from podcast_mcp.edits.breath_detect import detect_adjacent_breath, extend_cut_for_breaths
+from podcast_mcp.edits.breath_detect import (
+    detect_adjacent_breath,
+    extend_cut_for_breaths,
+    protect_cut_breaths,
+)
 from podcast_mcp.edits.cut_quality import (
     assess_cut_risk,
     optimize_and_assess,
     recommend_cut_fade_ms,
 )
-from podcast_mcp.edits.filler_pacing import apply_filler_pacing
+from podcast_mcp.edits.filler_pacing import MIN_PACED_CUT_SEC, apply_filler_pacing
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import ACOUSTIC_FILLER_REASON
@@ -1374,14 +1378,6 @@ def _analyze_candidate(
         )
     except ValueError:
         return None
-    if guard is not None and guard.blocked and candidate.cut_kind == "pause":
-        # A peer is audibly speaking over this gap, so the guard forces a
-        # track-local punch instead of a session ripple. A punch leaves a
-        # silent hole on this track only -- the peer's track still spans
-        # the same window, so the timeline does not get any shorter. A
-        # pause proposal exists only to shorten the timeline, so it is
-        # useless (and confusing to review) once it can't.
-        return None
     voiced_flag: str | None = None
     if audio_cache is not None:
         peer_caches: list[TrackAudioCache] = []
@@ -1401,7 +1397,8 @@ def _analyze_candidate(
             peer_caches=peer_caches,
         )
         cut_start, cut_end, voiced_flag = voiced.start, voiced.end, voiced.flag
-    crossing_breaths = detect_adjacent_breath(
+    before_protection = cut_start, cut_end
+    protected = protect_cut_breaths(
         project,
         track_id,
         cut_start,
@@ -1409,18 +1406,50 @@ def _analyze_candidate(
         defaults=defaults,
         audio_cache=audio_cache,
         word_index=word_index,
-        crossing_end_only=True,
     )
-    cut_end = min(
-        (span.start for span in crossing_breaths if span.start < cut_end < span.end),
-        default=cut_end,
+    if protected is None:
+        return None
+    cut_start, cut_end = protected
+    minimum = (
+        _ACOUSTIC_MIN_CUT_SEC if candidate.reason == ACOUSTIC_FILLER_REASON else MIN_PACED_CUT_SEC
     )
-    if cut_end <= cut_start:
+    if cut_end - cut_start + 1e-9 < minimum:
         return None
-    if candidate.cut_kind in ("repeat", "restart") and not _cut_covers_reparandum(
-        candidate, cut_start, cut_end
-    ):
+    if candidate.cut_kind != "pause" and not _cut_covers_reparandum(candidate, cut_start, cut_end):
         return None
+    try:
+        final_scope, guard = resolve_cut_scope(
+            project,
+            track_id,
+            cut_start,
+            cut_end,
+            defaults=defaults,
+        )
+    except ValueError:
+        return None
+    if guard is not None and guard.blocked and candidate.cut_kind == "pause":
+        return None
+    if audio_cache is not None and (protected != before_protection or final_scope != scope):
+        peer_caches = []
+        if final_scope == "session" and audio_caches:
+            peer_caches = [
+                audio_caches[tid]
+                for tid in dialogue_track_ids(project)
+                if tid != track_id and tid in audio_caches
+            ]
+        settled = _check_voiced_speech(
+            candidate,
+            cut_start,
+            cut_end,
+            audio_cache=audio_cache,
+            word_index=word_index or CutWordIndex.build(project, track_id),
+            defaults=defaults,
+            peer_caches=peer_caches,
+        )
+        if (settled.start, settled.end) != protected:
+            return None
+        voiced_flag = settled.flag
+    scope = final_scope
     if (cut_start, cut_end) != (opt.start, opt.end):
         # Risk was measured on the optimized span; re-assess the span we cut.
         risk = assess_cut_risk(

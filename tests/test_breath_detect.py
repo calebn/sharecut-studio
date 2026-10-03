@@ -991,17 +991,15 @@ def test_complete_breath_crossing_cut_end_keeps_its_onset(backend: str) -> None:
     assert hit.end == pytest.approx(5.24, abs=0.01)
 
 
-def test_final_end_crossing_detector_reads_before_boundary() -> None:
-    from podcast_mcp.edits.breath_detect import detect_adjacent_breath
+def test_final_end_protection_reads_before_boundary() -> None:
+    from podcast_mcp.edits.breath_detect import protect_cut_breaths
 
     with patch(
         "podcast_mcp.edits.breath_detect.load_mono_window",
         side_effect=_fake_windows(placed=((_shaped_noise(3840, 0.026), 5.1),)),
     ):
-        spans = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, crossing_end_only=True)
-
-    assert len(spans) == 1
-    assert (spans[0].start, spans[0].end) == pytest.approx((5.1, 5.34), abs=0.01)
+        protected = protect_cut_breaths(_host_project(), "host", 5.0, 5.2)
+    assert protected == pytest.approx((5.0, 5.1))
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -1065,26 +1063,19 @@ def test_crossing_breath_keeps_speech_protection(backend: str, protected: str) -
     assert valid.start == pytest.approx(5.0, abs=0.01)
 
 
-def test_final_end_crossing_abstains_when_disabled() -> None:
-    from podcast_mcp.edits.breath_detect import detect_adjacent_breath
+def test_final_protection_is_unchanged_when_disabled() -> None:
+    from podcast_mcp.edits.breath_detect import protect_cut_breaths
 
-    with patch(
-        "podcast_mcp.edits.breath_detect.load_mono_window",
-        side_effect=_fake_windows(placed=((_shaped_noise(3840, 0.026), 5.1),)),
-    ):
-        enabled = detect_adjacent_breath(_host_project(), "host", 5.0, 5.2, crossing_end_only=True)
-        disabled = detect_adjacent_breath(
+    with patch("podcast_mcp.edits.breath_detect.load_mono_window") as read:
+        disabled = protect_cut_breaths(
             _host_project(),
             "host",
             5.0,
             5.2,
             defaults={"tighten": {"breath_handling": {"enabled": False}}},
-            crossing_end_only=True,
         )
-
-    assert len(enabled) == 1
-    assert enabled[0].start == pytest.approx(5.1)
-    assert disabled == []
+    assert disabled == (5.0, 5.2)
+    read.assert_not_called()
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -1148,6 +1139,6 @@ def test_crossing_breath_refines_only_a_safe_quiet_onset(backend: str, protectio
     if protection == "quiet":
         assert refined is not None
         assert refined.start == pytest.approx(5.0)
-        assert refined.end == seed.end
+        assert refined.end == pytest.approx(5.24)
     else:
         assert refined is None

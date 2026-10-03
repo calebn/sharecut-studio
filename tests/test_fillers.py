@@ -243,7 +243,10 @@ def test_analyze_fillers_integration(tmp_path):
     ]
     from podcast_mcp.config import load_defaults
 
-    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], load_defaults())
+    defaults = load_defaults()
+    # This gated speech fixture has no measurable room-tone contrast.
+    defaults["tighten"]["breath_handling"]["enabled"] = False
+    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
 
     assert decision.reason == "filler:um"
     assert decision.review_required is False
@@ -269,6 +272,10 @@ def _mock_cut_pipeline(request):
         patch(
             "podcast_mcp.edits.fillers.detect_adjacent_breath",
             return_value=[],
+        ),
+        patch(
+            "podcast_mcp.edits.fillers.protect_cut_breaths",
+            side_effect=lambda project, track_id, start, end, **kw: (start, end),
         ),
         patch(
             "podcast_mcp.edits.fillers.recommend_cut_fade_ms",
@@ -1396,7 +1403,10 @@ def test_fillers_flags_risky_for_review_when_not_leaving_in():
     with (
         patch(
             "podcast_mcp.edits.fillers.optimize_and_assess",
-            side_effect=lambda *a, **k: (_passthrough_opt(1.0, 1.2), risky),
+            side_effect=lambda project, track, start, end, **k: (
+                _passthrough_opt(start, end),
+                risky,
+            ),
         ),
         patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=risky),
     ):

@@ -47,7 +47,7 @@ description: >-
 
 Progress is automatic on MCP/CLI (relay tool headlines; do not invent status). Spec: [docs/progress.md](../../docs/progress.md). CLI: `--no-progress` to silence or `--json-progress` for automation.
 
-**Cut boundaries:** `docs/inaudible-cuts.md` — `preview-cut` / `preview_inaudible_cut_tool` for dry-run metadata. Tighten's retained-breath check refines each accepted run to its quiet onset before testing whether it crosses the final cut end (separate from cleanup effect analysis).
+**Cut boundaries:** `docs/inaudible-cuts.md` covers `preview-cut` / `preview_inaudible_cut_tool` dry-run metadata. Tighten protects both final breath edges, including quiet onset and tail, and suppresses relevant uncertain crossings. See [filler cut quality](../../../docs/filler-cut-quality.md#policy).
 
 ## When to use each effect
 

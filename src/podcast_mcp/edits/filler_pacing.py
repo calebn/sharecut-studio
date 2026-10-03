@@ -14,6 +14,7 @@ from podcast_mcp.config import load_defaults
 from podcast_mcp.models import EpisodeProject, TranscriptWord
 
 FillerPadMode = Literal["silence", "room_tone"]
+MIN_PACED_CUT_SEC = 0.02
 
 
 @dataclass(frozen=True)
@@ -78,7 +79,7 @@ def shrink_cut_for_min_gap(
     next_start: float,
     min_gap_sec: float,
     *,
-    min_cut_sec: float = 0.02,
+    min_cut_sec: float = MIN_PACED_CUT_SEC,
 ) -> tuple[float, float] | None:
     """Shrink ``[cut_start, cut_end]`` so flanking words keep ``min_gap_sec``.
 
@@ -112,7 +113,7 @@ def expand_cut_for_room_tone_replace(
     *,
     start_margin_sec: float = 0.005,
     end_margin_sec: float = 0.005,
-    min_cut_sec: float = 0.02,
+    min_cut_sec: float = MIN_PACED_CUT_SEC,
 ) -> tuple[float, float] | None:
     """Cut the inter-word hesitation, leaving margins on retained neighbors.
 

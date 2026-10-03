@@ -5,6 +5,11 @@ Podcast MCP uses **non-destructive editing** at two levels:
 1. **Source media** — Files in `raw/` are never overwritten. Cuts and effects are applied only at render time via `edit_decisions` and FFmpeg.
 2. **Editable state history** — Tracks, transcripts, edit decisions, envelopes, and processing chains are snapshotted so you can move backward and forward through changes.
 
+Automatic application of a stored optimized proposal keeps its settled range,
+so the applied-edit record and undo preserve the reviewed breath boundaries.
+Unsnapped pending edits still use configured apply-time optimization. See
+[inaudible cuts](inaudible-cuts.md#behavior).
+
 ## Storage layout
 
 Local retained-bleed alignment decisions are part of `editorial`, so undo/redo
