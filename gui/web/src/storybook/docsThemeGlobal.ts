@@ -4,11 +4,16 @@ import {
   type ThemePreference,
 } from "../hooks/useTheme";
 
-/** Apply globals before a docs page mounts (including standalone MDX). */
+export function docsStoryParentRoot(): HTMLElement | null {
+  const frame = window.frameElement;
+  return frame?.id.startsWith("iframe--")
+    ? frame.ownerDocument.documentElement
+    : null;
+}
+
+/** Apply globals in the owning preview; nested Docs stories inherit its theme. */
 export function updateDocsThemeGlobal(globals: Record<string, unknown>): void {
-  // GLOBALS_UPDATED precedes docs rendering, so apply tokens before the first
-  // studioDocsTheme() calculation. This also works when no story decorator runs.
-  applyTheme(themePreferenceFromGlobals(globals));
+  if (!docsStoryParentRoot()) applyTheme(themePreferenceFromGlobals(globals));
 }
 
 export function themePreferenceFromGlobals(

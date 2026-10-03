@@ -1,12 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { LoadingScreen } from "./index";
 
 const meta: Meta<typeof LoadingScreen> = {
   title: "Organisms/LoadingScreen",
   component: LoadingScreen,
   tags: ["autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { ...isolatedStoryParameters, layout: "fullscreen" },
 };
 
 export default meta;

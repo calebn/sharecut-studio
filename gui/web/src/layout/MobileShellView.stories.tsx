@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { MobileMode, MoreDestination } from "../state/types";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { TrackMixView } from "../tracks/TrackMixView";
 import { Timecode } from "../ui/Timecode";
 import { FollowBannerView } from "./FollowBannerView";
@@ -214,8 +215,9 @@ function PhonePreview(args: PreviewProps) {
 }
 const meta: Meta<PreviewProps> = {
   title: "Templates/MobileShell",
+  tags: ["autodocs"],
   component: PhonePreview,
-  parameters: { layout: "fullscreen" },
+  parameters: { ...isolatedStoryParameters, layout: "fullscreen" },
   render: (args) => <PhonePreview {...args} />,
   args: {
     initialMode: "listen",

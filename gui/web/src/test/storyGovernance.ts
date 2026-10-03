@@ -12,10 +12,12 @@ export const STORY_SUPPORT_MODULES = new Set([
   "storybook/docsTheme.ts",
   "storybook/StudioDocsContainer.tsx",
   "storybook/openDialog.ts",
+  "storybook/storyLayout.tsx",
 ]);
 
 export const CATALOG_ONLY_MODULES = new Set([
   "storybook/StyleGuide.tsx",
+  "storybook/StudioStoryTheme.tsx",
   "layout/shellStoryFixtures.tsx",
   "layout/shellStoryData.ts",
 ]);

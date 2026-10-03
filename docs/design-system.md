@@ -330,8 +330,9 @@ agent-connection and mobile gesture dialogs. The agent dialog's story supplies
 a fixed loopback URL so its fields and client snippet do not depend on the
 Storybook server port; the live dialog still derives its URL from the host.
 Standalone Canvas stories open their dialogs for visual review. Autodocs
-examples start with launchers so the previews remain independently inspectable
-and closable. Their `play` functions open the dialog with
+renders these examples in isolated frames, where Canvas play functions also
+open them. Each dialog remains independently inspectable and closable.
+Their `play` functions open the dialog with
 `openDialogViaLauncher` (`src/storybook/openDialog.ts`), which clicks the
 launcher only when the named dialog is not already open. They cover an
 open episode, the no-episode warning, the gesture sheet's callback handoff
@@ -462,6 +463,43 @@ unchanged for callers and continue to read DAW state and dispatch through
 `execute`.
 
 ## Adding a story
+
+### Preview space and isolation
+
+Give anchored menus room to open inside their story. Use
+`menuStoryDecorator` from `src/storybook/storyLayout.tsx` for end-aligned
+menu triggers. The decorator reserves vertical space and keeps wide panels
+inside the preview. Host decorators for other anchored popups must also
+reserve space below their triggers, as in `AvatarStackView.stories.tsx`.
+
+Use `isolatedStoryParameters` from the same module for fixed overlays,
+body portals, document-level state, or viewport-sized shells. Spread the
+preset into the component metadata's `parameters`. It selects fullscreen
+Canvas layout and a separate Docs iframe with a height of `40rem`.
+The frame gives `100dvh` and fixed positioning a story-local viewport.
+It also keeps portals and shell attributes out of neighboring examples.
+Override the height for a story if its content needs a different viewport.
+Docs previews keep a minimum inline size of `22.5rem`; the Docs canvas
+provides horizontal scrolling when the page is narrower. Use
+`desktopStoryParameters` for desktop chrome with a `70rem` minimum.
+`viewportStoryParameters` supplies the minimum size without iframe isolation
+for inline hosts such as the avatar transport. Keep intentional component
+scrolling and timeline clipping intact.
+
+Ordinary components remain inline. Storybook Controls update inline Docs
+examples; isolated examples use the standalone Canvas Controls instead.
+This is a [Storybook iframe limitation](https://storybook.js.org/docs/api/doc-blocks/doc-block-story).
+Iframe examples run as Canvas stories, including their play functions.
+When combining a preset with a local `docs` object, preserve the preset's
+`docs.story` and `docs.canvas` configuration alongside descriptions.
+`StudioStoryTheme` follows the parent Docs theme inside isolated frames,
+including live toolbar changes and the System preference.
+
+Add browser checks under `e2e-storybook/` for floating content and viewport
+geometry. Assert opened panels fit their preview, rather than relying on
+jsdom visibility checks.
+
+### Story conventions
 
 1. Colocate: `<Name>.stories.tsx` next to `<Name>.tsx` (`src/ui/` for the
    library, the feature folder for domain surfaces).

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { disambiguatedNames } from "../presence/colors";
+import { viewportStoryParameters } from "../storybook/storyLayout";
 import { sessionClient } from "../test/fixtures";
 import { AvatarStackView } from "./AvatarStackView";
 import { TransportFrame, TransportZone } from "./TransportFrame";
@@ -38,6 +39,7 @@ const meta: Meta<typeof AvatarStackView> = {
   title: "Templates/AvatarStack",
   component: AvatarStackView,
   tags: ["autodocs"],
+  parameters: viewportStoryParameters,
   decorators: [
     (Story, context) => {
       if (context.parameters.avatarHost === "menu") {
@@ -50,11 +52,13 @@ const meta: Meta<typeof AvatarStackView> = {
       return (
         <>
           <TransportFrame>
+            <TransportZone position="start">{null}</TransportZone>
+            <TransportZone position="center">{null}</TransportZone>
             <TransportZone position="end">
               <Story />
             </TransportZone>
           </TransportFrame>
-          <main aria-label="Stage" />
+          <main aria-label="Stage" style={{ minBlockSize: "18rem" }} />
         </>
       );
     },

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { LiveComments } from "./LiveComments";
 import type { LiveComment } from "./liveCommentQueue";
@@ -68,6 +69,7 @@ const meta: Meta<typeof LiveComments> = {
   title: "Templates/LiveComments",
   component: LiveComments,
   tags: ["autodocs"],
+  parameters: isolatedStoryParameters,
   decorators: [recordStoryDecorator],
   render: (args) => <NoteHarness key={args.note} {...args} />,
   args: {

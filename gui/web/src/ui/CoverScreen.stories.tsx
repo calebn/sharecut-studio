@@ -1,11 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { CoverScreen } from "./index";
 
 const meta: Meta<typeof CoverScreen> = {
   title: "Organisms/CoverScreen",
   component: CoverScreen,
   tags: ["autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { ...isolatedStoryParameters, layout: "fullscreen" },
 };
 
 export default meta;

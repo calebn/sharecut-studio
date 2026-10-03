@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { ToolMode } from "../state/types";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { EditingToolRailView } from "./EditingToolRailView";
 import { ToolModeToggleView } from "./ToolModeToggleView";
 
@@ -94,7 +95,7 @@ const meta: Meta<typeof RailPreview> = {
   title: "Templates/EditingToolRail",
   component: RailPreview,
   tags: ["autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { ...isolatedStoryParameters, layout: "fullscreen" },
   args: {
     bladeAllowed: true,
     mayIngest: true,

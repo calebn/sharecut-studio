@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { DialogLauncher } from "../test/DialogLauncher";
 import { openDialogByLauncher } from "../test/storyDialog";
 import { Button, Dialog } from "./index";
@@ -7,6 +8,7 @@ const meta: Meta<typeof Dialog> = {
   title: "Organisms/Dialog",
   component: Dialog,
   tags: ["autodocs"],
+  parameters: isolatedStoryParameters,
 };
 
 export default meta;

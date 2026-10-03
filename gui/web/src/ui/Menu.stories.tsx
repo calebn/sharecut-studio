@@ -1,12 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
+import { menuStoryDecorator } from "../storybook/storyLayout";
 import { Button, Menu, MenuItem, MenuSection } from "./index";
 
 const meta: Meta<typeof Menu> = {
   title: "Molecules/Menu",
   component: Menu,
   tags: ["autodocs"],
+  parameters: { layout: "fullscreen" },
+  decorators: [menuStoryDecorator],
 };
 
 export default meta;
@@ -76,18 +79,7 @@ function ShortcutMenu() {
 
 /** Section labels and right-aligned shortcuts; shortcuts stay out of the accessible name. */
 export const WithShortcuts: Story = {
-  // The panel aligns to its trigger's end edge, as in the transport.
-  render: () => (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "flex-end",
-        minBlockSize: "18rem",
-      }}
-    >
-      <ShortcutMenu />
-    </div>
-  ),
+  render: () => <ShortcutMenu />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Menu" }));

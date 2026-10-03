@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { Lobby } from "./Lobby";
 import { MIC_ALLOW_LABEL } from "./micPermission";
 import {
@@ -12,6 +13,7 @@ const meta: Meta<typeof Lobby> = {
   title: "Templates/Lobby",
   component: Lobby,
   tags: ["autodocs"],
+  parameters: isolatedStoryParameters,
   decorators: [recordStoryDecorator],
   args: {
     producer: false,

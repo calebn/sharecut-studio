@@ -37,7 +37,10 @@ Each site view has **Copy Markdown** for pasting into Google Docs / Notion. Merm
 For component review, the Storybook catalog includes `Templates/MobileShell`
 and `Templates/StudioShell` at phone, tablet, and desktop sizes in both themes.
 These examples use fictional data and bounded regions with representative
-transport controls. Use the demo project below to inspect the complete live DAW.
+transport controls. Docs previews keep sheets and dialogs inside each example
+and follow the theme toolbar. On narrow pages, scroll a desktop preview
+horizontally to inspect its controls. Use Canvas Controls to adjust isolated
+examples. Use the demo project below to inspect the complete live DAW.
 The [shell chrome contract](../docs/design-system.md#shell-chrome) describes which
 parts belong to the catalog and which remain live runtime integrations.
 
