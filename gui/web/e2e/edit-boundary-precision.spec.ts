@@ -53,11 +53,15 @@ async function boundaryContainingRestoredWord(page: Page) {
   const boundary = project.edit_boundaries?.find((candidate) =>
     candidate.cutaway_word_ids.some(
       (word) =>
-        word.text.toLowerCase() === "so" && word.start === 5 && word.end === 6,
+        word.text.toLowerCase() === "dissatisfied" &&
+        word.start === 5.37 &&
+        word.end === 6.23,
     ),
   );
   if (!boundary) {
-    throw new Error("The boundary does not contain the archived word so");
+    throw new Error(
+      "The boundary does not contain the archived word dissatisfied",
+    );
   }
   return boundary;
 }
@@ -216,11 +220,11 @@ test("precision boundary editing previews, cancels, and restores transcript audi
     const ghostStatus = dialog
       .getByRole("status")
       .filter({ hasText: "word spans" });
-    await expect(ghostStatus).toContainText("so");
+    await expect(ghostStatus).toContainText("dissatisfied");
     await expect(ghostStatus).toContainText("touched in part");
     await signedOffset.fill("1.500");
-    await expect(ghostStatus).toContainText("1 word spans fully restored");
-    await expect(ghostStatus).toContainText("so");
+    await expect(ghostStatus).toContainText("2 word spans fully restored");
+    await expect(ghostStatus).toContainText("dissatisfied");
 
     const currentResponse = page.waitForResponse(
       (response) =>
@@ -400,10 +404,15 @@ test("precision boundary editing previews, cancels, and restores transcript audi
     const restored = (await restoredResponse.json()) as ProjectView;
     const activeWord = restored.transcript?.utterances
       .flatMap((utterance) => utterance.words ?? [])
-      .find((word) => word.text.toLowerCase() === "so" && word.mappable);
+      .find(
+        (word) =>
+          word.text.toLowerCase() === "dissatisfied" &&
+          word.start === 5.37 &&
+          word.mappable,
+      );
     expect(
       activeWord,
-      "the applied boundary restores so after reload",
+      "the applied boundary restores dissatisfied after reload",
     ).toBeTruthy();
 
     await openTranscript(page);

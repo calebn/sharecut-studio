@@ -1,10 +1,8 @@
-"""Guard the committed aligned_dialogue audio: format, ingest offsets and speech placement
-inside the canned word windows (#801). Fast, default CI tier, independent of the builder.
-"""
-
 from __future__ import annotations
 
+import hashlib
 import json
+import subprocess
 import wave
 from pathlib import Path
 
@@ -14,12 +12,11 @@ import yaml
 
 from podcast_mcp.e2e_fixture import DEFAULT_CANNED, FIXTURES_DIR
 from podcast_mcp.models import load_project
+from podcast_mcp.util.binaries import resolve_ffmpeg
 
 FIXTURE = FIXTURES_DIR / "aligned_dialogue"
 SAMPLE_RATE = 48_000
 DURATION_SEC = 60.0
-JOIN_GAP_SEC = 0.05
-WINDOW_PAD_SEC = 0.05
 TRACKS = ("reference", "guest")
 
 
@@ -39,22 +36,6 @@ def _canned_words(track_id: str) -> list[dict]:
         if t["track_id"] == track_id:
             return t["words"]
     raise KeyError(track_id)
-
-
-def _windows(words: list[dict]) -> list[tuple[float, float]]:
-    """Merge canned words with gap <= JOIN_GAP_SEC into (start, end) speech windows.
-
-    Independent re-derivation from the builder's plan_segments, on purpose: this test must
-    not pass merely because it shares a bug with the generator.
-    """
-    ordered = sorted(words, key=lambda w: w["start"])
-    windows: list[tuple[float, float]] = []
-    for w in ordered:
-        if windows and w["start"] - windows[-1][1] <= JOIN_GAP_SEC:
-            windows[-1] = (windows[-1][0], w["end"])
-        else:
-            windows.append((w["start"], w["end"]))
-    return windows
 
 
 def _ingest_offsets() -> dict[str, float]:
@@ -82,30 +63,80 @@ def test_sources_pad_raw_at_ingest_offsets(track: str, source_duration_sec: floa
     assert not np.any(source[offset + raw.size :])
 
 
-@pytest.mark.parametrize("track", TRACKS)
-def test_speech_sits_inside_canned_word_windows(track: str) -> None:
-    samples, sr = _read_wav(FIXTURE / "raw" / f"{track}.wav")
-    audio = samples.astype(np.float64) / 32768.0
-    windows = _windows(_canned_words(track))
-    widened = [(max(0.0, s - WINDOW_PAD_SEC), e + WINDOW_PAD_SEC) for s, e in windows]
+@pytest.mark.parametrize(
+    "track,utterance,offsets,source_sha256",
+    [
+        (
+            "reference",
+            "6241-61943-0003",
+            (2.0, 35.0),
+            "8d1217eb43a8e46f825bc25cdf2cfed9d2f797520e1c0e1624cbf22208468540",
+        ),
+        (
+            "guest",
+            "1988-147956-0023",
+            (8.0, 43.0),
+            "60726751a107f923f62d1f4c271751c07ae4c6ec511d4ba009e8182720184f53",
+        ),
+    ],
+)
+def test_tracks_and_labels_match_recorded_corpus(
+    track: str, utterance: str, offsets: tuple[float, ...], source_sha256: str
+) -> None:
+    source = FIXTURES_DIR / "word_boundary" / f"{utterance}.wav"
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == source_sha256
+    decoded = subprocess.run(
+        [
+            resolve_ffmpeg(),
+            "-v",
+            "error",
+            "-i",
+            str(source),
+            "-ar",
+            str(SAMPLE_RATE),
+            "-ac",
+            "1",
+            "-f",
+            "s16le",
+            "-c:a",
+            "pcm_s16le",
+            "pipe:1",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    speech = np.frombuffer(decoded.stdout, dtype=np.int16)
+    expected = np.zeros(round(DURATION_SEC * SAMPLE_RATE), dtype=np.int16)
+    for offset in offsets:
+        start = round(offset * SAMPLE_RATE)
+        expected[start : start + speech.size] = speech
+    actual, sr = _read_wav(FIXTURE / "raw" / f"{track}.wav")
+    assert sr == SAMPLE_RATE
+    assert np.array_equal(actual, expected)
 
-    for start, end in windows:
-        lo, hi = round(start * sr), round(end * sr)
-        rms = float(np.sqrt(np.mean(np.square(audio[lo:hi])))) if hi > lo else 0.0
-        db = 20 * np.log10(rms) if rms > 0 else float("-inf")
-        assert db >= -40.0, f"{track} window {start}-{end}s is too quiet ({db:.1f} dBFS)"
-
-    in_window = np.zeros(audio.size, dtype=bool)
-    for start, end in widened:
-        lo, hi = round(start * sr), round(end * sr)
-        in_window[lo:hi] = True
-
-    outside = np.abs(samples)[~in_window]
-    assert outside.size == 0 or int(outside.max()) <= 32
-
-    total_energy = float(np.sum(np.square(audio)))
-    windowed_energy = float(np.sum(np.square(audio[in_window])))
-    assert total_energy == 0 or windowed_energy / total_energy >= 0.99
+    gold_path = source.with_suffix(".gold.json")
+    provenance = json.loads((FIXTURE / "provenance.json").read_text(encoding="utf-8"))
+    recorded = next(t for t in provenance["tracks"] if t["track_id"] == track)
+    assert recorded["clip_id"] == utterance
+    assert recorded["audio_sha256"] == source_sha256
+    assert recorded["gold_sha256"] == hashlib.sha256(gold_path.read_bytes()).hexdigest()
+    assert recorded["placements_sec"] == list(offsets)
+    assert recorded["resampled_frames"] == speech.size
+    for relative in (f"raw/{track}.wav", f"sources/{track}.wav"):
+        assert (
+            hashlib.sha256((FIXTURE / relative).read_bytes()).hexdigest()
+            == (provenance["output_sha256"][relative])
+        )
+    gold = json.loads(gold_path.read_text(encoding="utf-8"))
+    expected_words = [
+        (word["text"], round(offset + word["start"], 4), round(offset + word["end"], 4))
+        for offset in offsets
+        for word in gold["words"]
+    ]
+    canned = _canned_words(track)
+    assert [(w["text"].lower().strip(".!?"), w["start"], w["end"]) for w in canned] == (
+        expected_words
+    )
 
 
 @pytest.mark.parametrize("track", TRACKS)
@@ -118,3 +149,7 @@ def test_transcript_mirrors_match_project(track: str) -> None:
     mirrored = Transcript.model_validate_json(mirror_path.read_text())
     assert mirrored.track_id == transcript.track_id
     assert [w.model_dump() for w in mirrored.words] == [w.model_dump() for w in transcript.words]
+    assert [(w.text, w.start, w.end) for w in transcript.words] == [
+        (w["text"], w["start"], w["end"]) for w in _canned_words(track)
+    ]
+    assert all(w.confidence == 0.95 for w in transcript.words)

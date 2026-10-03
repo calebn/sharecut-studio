@@ -54,7 +54,7 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
     page,
     request,
   }) => {
-    const baseline = await stemRms(request, 2.35, 2.55);
+    const baseline = await stemRms(request, 2.56, 2.75);
     expect(baseline).toBeGreaterThan(0.03);
 
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
@@ -68,16 +68,16 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
     await page.getByRole("button", { name: /^Select:/ }).click();
 
     const list = page.locator(".transcript-list");
-    const to = list.getByRole("button", { name: "to", exact: true }).first();
-    const the = list.getByRole("button", { name: "the", exact: true }).first();
-    const show = list
-      .getByRole("button", { name: "show", exact: true })
-      .first();
-    // `to` already resolves via `.first()`; filtering `.utterance-turn` on
-    // `{ has: to }` is unreliable per the Playwright docs (a `has` locator
-    // must not itself use `.first()`/`.last()`/`.nth()`) and hangs
-    // indefinitely. Walk up from the resolved `to` element instead.
-    const turn = to
+    const uncle = list.locator(
+      '[data-track-id="reference"][data-word-index="1"]',
+    );
+    const was = list.locator(
+      '[data-track-id="reference"][data-word-index="2"]',
+    );
+    const delighted = list.locator(
+      '[data-track-id="reference"][data-word-index="3"]',
+    );
+    const turn = uncle
       .locator(
         "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' utterance-turn ')]",
       )
@@ -85,9 +85,9 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
 
     let restored = false;
     try {
-      await to.click();
-      await the.click({ modifiers: ["Shift"] });
-      const showBefore = await show.boundingBox();
+      await uncle.click();
+      await was.click({ modifiers: ["Shift"] });
+      const delightedBefore = await delighted.boundingBox();
       const turnBefore = await turn.boundingBox();
 
       const commands: string[] = [];
@@ -105,25 +105,25 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
       await expect(async () => {
         expect(commands).toContain("SetTranscriptWordsIgnored");
       }).toPass();
-      await expect(to).toHaveClass(/ignored/);
-      await expect(the).toHaveClass(/ignored/);
+      await expect(uncle).toHaveClass(/ignored/);
+      await expect(was).toHaveClass(/ignored/);
       // The hidden Restore control reserves no space (#672 review).
       await page.mouse.move(0, 0);
-      const showAfter = await show.boundingBox();
+      const delightedAfter = await delighted.boundingBox();
       const turnAfter = await turn.boundingBox();
-      expect(Math.abs((showAfter?.x ?? 0) - (showBefore?.x ?? 0))).toBeLessThan(
-        1,
-      );
+      expect(
+        Math.abs((delightedAfter?.x ?? 0) - (delightedBefore?.x ?? 0)),
+      ).toBeLessThan(1);
       expect(
         Math.abs((turnAfter?.height ?? 0) - (turnBefore?.height ?? 0)),
       ).toBeLessThan(1);
 
       // Restore follows its run when the list scrolls: its containing block
       // (the run's last-word wrapper) is inside the scroller (#672 review).
-      const theHandle = await the.elementHandle();
+      const wasHandle = await was.elementHandle();
       const geometry = await list.evaluate((el, word) => {
         const restore = el.querySelector<HTMLElement>(
-          '[aria-label="Restore ignored: to the"]',
+          '[aria-label="Restore ignored: uncle was"]',
         );
         if (!restore || !word) {
           return null;
@@ -146,7 +146,7 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
           buttonRight: b.right,
           buttonTop: b.top,
         };
-      }, theHandle);
+      }, wasHandle);
       expect(geometry).not.toBeNull();
       expect(geometry?.scrolled ?? 0).toBeGreaterThan(0);
       // Hangs just below the run's last word, right-aligned to it.
@@ -158,16 +158,16 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
       ).toBeLessThan(geometry?.wordHeight ?? 0);
 
       // A run ending at a line end must not widen the list (#672 review).
-      // "the" is 2-3 short words into its turn, nowhere near the line end
+      // "was" is 2-3 short words into its turn, nowhere near the line end
       // at the list's natural width, so a percentage-based narrowing (e.g.
       // shaving the list down to 60% of its width) never reaches a line
-      // break there. Compute the exact width that puts "the" right at the
+      // break there. Compute the exact width that puts "was" right at the
       // wrapped line's end instead: just enough room for the text through
-      // "the" and no more (so the next word wraps to the following line).
+      // "was" and no more (so the next word wraps to the following line).
       const overflow = await list.evaluate((el, word) => {
         const target = word as HTMLElement | null;
         const restore = el.querySelector<HTMLElement>(
-          '[aria-label="Restore ignored: to the"]',
+          '[aria-label="Restore ignored: uncle was"]',
         );
         if (!restore || !target) {
           return null;
@@ -177,7 +177,7 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
         el.style.flex = "none";
         const listLeft = el.getBoundingClientRect().left + el.clientLeft;
         const wordRight = target.getBoundingClientRect().right;
-        // +1px so "the" itself still fits; anything past it must wrap.
+        // +1px so "was" itself still fits; anything past it must wrap.
         const targetWidth = Math.ceil(wordRight - listLeft) + 1;
         el.style.width = `${targetWidth}px`;
         restore.style.display = "none";
@@ -193,28 +193,28 @@ test.describe("Transcript ignore mutes the stem; restore brings it back (#633)",
         el.style.width = originalWidth;
         el.style.flex = originalFlex;
         return { extra, nearestGap };
-      }, theHandle);
+      }, wasHandle);
       expect(overflow).not.toBeNull();
       expect(overflow?.nearestGap ?? Number.POSITIVE_INFINITY).toBeLessThan(8);
       expect(overflow?.extra ?? 1).toBe(0);
       restored = false;
 
-      const mutedRms = await stemRms(request, 2.35, 2.55);
+      const mutedRms = await stemRms(request, 2.56, 2.75);
       expect(mutedRms).toBeLessThan(baseline * 0.01);
 
       await expectPageAxeClean(page, ".transcript-panel");
 
-      await the.hover();
+      await was.hover();
       const restoreControl = page.getByRole("button", {
-        name: /^Restore ignored: to the$/,
+        name: /^Restore ignored: uncle was$/,
       });
       await restoreControl.click();
       restored = true;
 
-      await expect(to).not.toHaveClass(/ignored/);
-      await expect(the).not.toHaveClass(/ignored/);
+      await expect(uncle).not.toHaveClass(/ignored/);
+      await expect(was).not.toHaveClass(/ignored/);
 
-      const restoredRms = await stemRms(request, 2.35, 2.55);
+      const restoredRms = await stemRms(request, 2.56, 2.75);
       expect(restoredRms).toBeCloseTo(baseline, 4);
     } finally {
       if (!restored) {

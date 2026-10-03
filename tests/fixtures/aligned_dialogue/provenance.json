@@ -1,0 +1,45 @@
+{
+  "license": "CC-BY-4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "audio_source": "https://www.openslr.org/12",
+  "audio_attribution": "LibriSpeech, Panayotov, Chen, Povey and Khudanpur, ICASSP 2015",
+  "labels_source": "https://huggingface.co/datasets/gilkeyio/librispeech-alignments",
+  "labels_attribution": "gilkeyio/librispeech-alignments",
+  "text_reference": "LibriSpeech reference text",
+  "boundary_reference": "Published MFA-derived boundaries, not human-verified timings",
+  "composition": "Whole utterances; ffmpeg mono PCM16 48000 Hz resampling; no trim, stretch or gain",
+  "tracks": [
+    {
+      "track_id": "reference",
+      "clip_id": "6241-61943-0003",
+      "audio_sha256": "8d1217eb43a8e46f825bc25cdf2cfed9d2f797520e1c0e1624cbf22208468540",
+      "gold_sha256": "05fd4c4286af48a4dc81024841f51c65ecadee92be6552bf3afa412d16eb7ac8",
+      "placements_sec": [
+        2.0,
+        35.0
+      ],
+      "session_start_in_file_sec": 0.0,
+      "source_duration_sec": 90.0,
+      "resampled_frames": 375600
+    },
+    {
+      "track_id": "guest",
+      "clip_id": "1988-147956-0023",
+      "audio_sha256": "60726751a107f923f62d1f4c271751c07ae4c6ec511d4ba009e8182720184f53",
+      "gold_sha256": "69db76f58d58ede2a659fd10b726d93b2ed886c10f1f1272bfe960aaa6048158",
+      "placements_sec": [
+        8.0,
+        43.0
+      ],
+      "session_start_in_file_sec": 98.0,
+      "source_duration_sec": 180.0,
+      "resampled_frames": 198720
+    }
+  ],
+  "output_sha256": {
+    "raw/reference.wav": "70e16b2773c3839904441ff21392d0f8f884e0a7460bf2d980afdaf72633d5f1",
+    "sources/reference.wav": "d2cdb0d8004159ad73e0994307b0cfd9c50780fd28925691621c9572d3917130",
+    "raw/guest.wav": "ed806df811dc072a33edddb62a8038b0a4ed28f7343f4ba42bf50aafb9b5eb43",
+    "sources/guest.wav": "938f9ef76f87603e716cf5e005cf48f425d18f163d06e241c44912593d65b7a6"
+  }
+}

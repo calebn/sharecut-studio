@@ -12,9 +12,7 @@ test.describe("Transcript inline word edit", () => {
   }) => {
     await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
     const list = await openTranscriptPanel(page);
-    const word = list
-      .getByRole("button", { name: "welcome", exact: true })
-      .first();
+    const word = list.getByRole("button", { name: "my", exact: true }).first();
     await word.focus();
     await page.keyboard.press("F2");
     const input = list.getByRole("textbox", { name: /Correct word/ });
@@ -26,7 +24,9 @@ test.describe("Transcript inline word edit", () => {
     await page.keyboard.press("Enter");
     await expect(input).toHaveCount(0);
     await expect(word).toBeFocused();
-    await expect(page.locator(".timecode-current")).toHaveText("00:02.000");
+    await expect(page.locator(".timecode-current")).toHaveText(
+      /^00:02\.(379|380)$/,
+    );
     const correct = page.getByRole("button", {
       name: /^(Correct:|Exit Correct)/,
     });
@@ -57,7 +57,7 @@ test.describe("Transcript inline word edit", () => {
     );
     const list = await openTranscriptPanel(page);
     const original = list
-      .getByRole("button", { name: "welcome", exact: true })
+      .getByRole("button", { name: "my", exact: true })
       .first();
     let committed = false;
     try {
@@ -72,20 +72,20 @@ test.describe("Transcript inline word edit", () => {
         await original.dblclick();
         await expect(input).toBeFocused();
         await expectPageAxeClean(page, ".transcript-panel");
-        await input.fill("Welcome");
+        await input.fill("My");
         await input.press("Enter");
         await expect(
-          list.getByRole("button", { name: "Welcome", exact: true }).first(),
+          list.getByRole("button", { name: "My", exact: true }).first(),
         ).toBeVisible();
         committed = true;
         expect(commands).toContain("CorrectTranscriptWord");
 
         await page.keyboard.press("ControlOrMeta+Z");
         await expect(
-          list.getByRole("button", { name: "welcome", exact: true }).first(),
+          list.getByRole("button", { name: "my", exact: true }).first(),
         ).toBeVisible();
         await expect(
-          list.getByRole("button", { name: "Welcome", exact: true }),
+          list.getByRole("button", { name: "My", exact: true }),
         ).toHaveCount(0);
         committed = false;
       });

@@ -13,9 +13,9 @@ AMI_BLEED_PROJECT = FIXTURES_DIR / "ami_bleed_60s" / "episode.project.json"
 BENCHMARK_THRESHOLDS = FIXTURES_DIR / "benchmark_regression_thresholds.json"
 
 KNOWN_PHRASES = [
-    "documented",
-    "people",
-    "today",
+    "uncle",
+    "delighted",
+    "questioned",
 ]
 
 

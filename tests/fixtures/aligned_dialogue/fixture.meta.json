@@ -1,5 +1,13 @@
 {
-  "duration_sec": 60,
-  "track_ids": ["reference", "guest"],
-  "known_phrases": ["documented", "people", "today", "going", "great"]
+  "duration_sec": 60.0,
+  "track_ids": [
+    "reference",
+    "guest"
+  ],
+  "known_phrases": [
+    "uncle",
+    "delighted",
+    "questioned"
+  ],
+  "provenance_manifest": "provenance.json"
 }

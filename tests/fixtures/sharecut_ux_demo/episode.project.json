@@ -3,7 +3,7 @@
   "meta": {
     "name": "Sharecut Studio UX demo",
     "workspace_dir": ".",
-    "created_at": "2026-07-11T17:43:01+00:00",
+    "created_at": "2026-10-03T16:59:29+00:00",
     "schema_id": "podcast-mcp/episode/2",
     "ingest_alignment": {
       "reference": {
@@ -27,7 +27,9 @@
       "offset_sec": 0.0,
       "duration_sec": null,
       "sample_rate": null,
-      "channels": null
+      "channels": null,
+      "clipping_regions": [],
+      "clipping_truncated": false
     },
     {
       "id": "guest_src0",
@@ -37,7 +39,9 @@
       "offset_sec": 0.0,
       "duration_sec": null,
       "sample_rate": null,
-      "channels": null
+      "channels": null,
+      "clipping_regions": [],
+      "clipping_truncated": false
     }
   ],
   "timeline": {
@@ -54,8 +58,15 @@
           "sample_rate": 48000,
           "channels": 1
         },
+        "room_tone": null,
         "gain_db": 0.0,
-        "muted": false
+        "balance_basis": null,
+        "fader_db": 0.0,
+        "muted": false,
+        "transcript_gate": false,
+        "transcript_gate_scope": null,
+        "proxy": null,
+        "timeline_empty": false
       },
       {
         "id": "guest",
@@ -68,8 +79,15 @@
           "sample_rate": 48000,
           "channels": 1
         },
+        "room_tone": null,
         "gain_db": 0.0,
-        "muted": false
+        "balance_basis": null,
+        "fader_db": 0.0,
+        "muted": false,
+        "transcript_gate": false,
+        "transcript_gate_scope": null,
+        "proxy": null,
+        "timeline_empty": false
       }
     ],
     "clips": [
@@ -79,7 +97,11 @@
         "source_start": 0.0,
         "source_end": 60.0,
         "timeline_start": 0.0,
-        "source_id": null
+        "source_id": null,
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "join_in_mode": "fade",
+        "mute_regions": []
       },
       {
         "id": "clip_f71a0cd5",
@@ -87,20 +109,24 @@
         "source_start": 0.0,
         "source_end": 60.0,
         "timeline_start": 0.0,
-        "source_id": null
+        "source_id": null,
+        "fade_in_ms": 0,
+        "fade_out_ms": 0,
+        "join_in_mode": "fade",
+        "mute_regions": []
       }
     ]
   },
   "editorial": {
     "edit_decisions": [
       {
-        "id": "ux_pending_um",
+        "id": "ux_pending_uncle",
         "track_id": "reference",
         "type": "remove",
-        "start": 22.0,
-        "end": 22.2,
+        "start": 35.53,
+        "end": 35.79,
         "crossfade_ms": 10,
-        "reason": "Filler: um",
+        "reason": "Review word removal: uncle",
         "review_required": true,
         "applied": false,
         "cut_confidence": 0.82,
@@ -115,7 +141,7 @@
         "image_url": null
       },
       {
-        "time": 21.0,
+        "time": 8.0,
         "title": "Guest joins",
         "image_url": null
       }
@@ -128,308 +154,1022 @@
         "language": "en",
         "words": [
           {
-            "text": "welcome",
-            "start": 2.0,
-            "end": 2.3,
-            "confidence": 0.95
+            "text": "my",
+            "start": 2.38,
+            "end": 2.53,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "to",
-            "start": 2.3,
-            "end": 2.6,
-            "confidence": 0.95
+            "text": "uncle",
+            "start": 2.53,
+            "end": 2.79,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "the",
-            "start": 2.6,
-            "end": 2.9,
-            "confidence": 0.95
+            "text": "was",
+            "start": 2.79,
+            "end": 2.97,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "show",
-            "start": 2.9,
-            "end": 3.2,
-            "confidence": 0.95
-          },
-          {
-            "text": "so",
-            "start": 5.0,
-            "end": 6.0,
-            "confidence": 0.95
-          },
-          {
-            "text": "here",
-            "start": 6.0,
-            "end": 7.0,
-            "confidence": 0.95
-          },
-          {
-            "text": "is",
-            "start": 7.0,
-            "end": 8.0,
-            "confidence": 0.95
-          },
-          {
-            "text": "why",
-            "start": 8.0,
-            "end": 9.0,
-            "confidence": 0.95
-          },
-          {
-            "text": "this",
-            "start": 9.0,
-            "end": 10.0,
-            "confidence": 0.95
-          },
-          {
-            "text": "matters",
-            "start": 10.0,
-            "end": 11.0,
-            "confidence": 0.95
+            "text": "delighted",
+            "start": 2.97,
+            "end": 3.56,
+            "confidence": 0.41,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "for",
-            "start": 11.0,
-            "end": 12.0,
-            "confidence": 0.95
+            "start": 3.89,
+            "end": 4.04,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "people",
-            "start": 12.0,
-            "end": 13.0,
-            "confidence": 0.95
+            "text": "myself",
+            "start": 4.04,
+            "end": 4.65,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "who",
-            "start": 13.0,
-            "end": 14.0,
-            "confidence": 0.95
-          },
-          {
-            "text": "care",
-            "start": 14.0,
-            "end": 15.0,
-            "confidence": 0.95
-          },
-          {
-            "text": "about",
-            "start": 15.0,
-            "end": 16.0,
-            "confidence": 0.95
-          },
-          {
-            "text": "documented",
-            "start": 16.0,
-            "end": 17.0,
-            "confidence": 0.41
-          },
-          {
-            "text": "stories",
-            "start": 17.0,
-            "end": 18.0,
-            "confidence": 0.95
+            "text": "moody",
+            "start": 4.9,
+            "end": 5.27,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "and",
-            "start": 18.0,
-            "end": 19.0,
-            "confidence": 0.95
+            "start": 5.27,
+            "end": 5.37,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "real",
-            "start": 19.0,
-            "end": 20.0,
-            "confidence": 0.95
+            "text": "dissatisfied",
+            "start": 5.37,
+            "end": 6.23,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "change",
-            "start": 20.0,
-            "end": 21.0,
-            "confidence": 0.95
+            "text": "i",
+            "start": 6.48,
+            "end": 6.71,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "um",
-            "start": 22.0,
-            "end": 22.2,
+            "text": "appeared",
+            "start": 6.71,
+            "end": 7.07,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "almost",
+            "start": 7.07,
+            "end": 7.39,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "to",
+            "start": 7.39,
+            "end": 7.5,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "expect",
+            "start": 7.5,
+            "end": 7.9,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "a",
+            "start": 7.9,
+            "end": 7.99,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "glimpse",
+            "start": 7.99,
+            "end": 8.31,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "of",
+            "start": 8.31,
+            "end": 8.39,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "the",
+            "start": 8.39,
+            "end": 8.49,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "ghost",
+            "start": 8.49,
+            "end": 8.79,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "of",
+            "start": 8.79,
+            "end": 8.89,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "hamlet",
+            "start": 8.89,
+            "end": 9.44,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "my",
+            "start": 35.38,
+            "end": 35.53,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "uncle",
+            "start": 35.53,
+            "end": 35.79,
             "confidence": 0.95,
             "suppressed": true,
-            "audibility_status": "bleed_candidate"
+            "audibility_status": "bleed_candidate",
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "how",
-            "start": 23.0,
-            "end": 23.23,
-            "confidence": 0.95
+            "text": "was",
+            "start": 35.79,
+            "end": 35.97,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "is",
-            "start": 23.23,
-            "end": 23.45,
-            "confidence": 0.95
+            "text": "delighted",
+            "start": 35.97,
+            "end": 36.56,
+            "confidence": 0.41,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "today",
-            "start": 23.45,
-            "end": 23.67,
-            "confidence": 0.95
+            "text": "for",
+            "start": 36.89,
+            "end": 37.04,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "going",
-            "start": 23.67,
-            "end": 23.9,
-            "confidence": 0.95
+            "text": "myself",
+            "start": 37.04,
+            "end": 37.65,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "moody",
+            "start": 37.9,
+            "end": 38.27,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "and",
+            "start": 38.27,
+            "end": 38.37,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "dissatisfied",
+            "start": 38.37,
+            "end": 39.23,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "i",
+            "start": 39.48,
+            "end": 39.71,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "appeared",
+            "start": 39.71,
+            "end": 40.07,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "almost",
+            "start": 40.07,
+            "end": 40.39,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "to",
+            "start": 40.39,
+            "end": 40.5,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "expect",
+            "start": 40.5,
+            "end": 40.9,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "a",
+            "start": 40.9,
+            "end": 40.99,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "glimpse",
+            "start": 40.99,
+            "end": 41.31,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "of",
+            "start": 41.31,
+            "end": 41.39,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "the",
+            "start": 41.39,
+            "end": 41.49,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "ghost",
+            "start": 41.49,
+            "end": 41.79,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "of",
+            "start": 41.79,
+            "end": 41.89,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "hamlet",
+            "start": 41.89,
+            "end": 42.44,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           }
-        ]
+        ],
+        "archived_words": [],
+        "source_id": null,
+        "vocabulary_revision": null,
+        "audio_sha256": null,
+        "audio_size": null,
+        "audio_mtime_ns": null,
+        "silence_filter_fingerprint": null,
+        "word_aligner": null,
+        "alignment_score_method": null,
+        "user_edited": false
       },
       {
         "track_id": "guest",
         "language": "en",
         "words": [
           {
-            "text": "life",
-            "start": 21.5,
-            "end": 21.8,
-            "confidence": 0.95
+            "text": "antonia",
+            "start": 8.49,
+            "end": 9.04,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "been",
-            "start": 21.8,
-            "end": 22.1,
-            "confidence": 0.95
+            "text": "pointed",
+            "start": 9.04,
+            "end": 9.42,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "great",
-            "start": 22.1,
-            "end": 22.4,
-            "confidence": 0.95
-          },
-          {
-            "text": "what",
-            "start": 25.0,
-            "end": 25.89,
-            "confidence": 0.95
-          },
-          {
-            "text": "if",
-            "start": 25.89,
-            "end": 26.78,
-            "confidence": 0.95
-          },
-          {
-            "text": "we",
-            "start": 26.78,
-            "end": 27.67,
-            "confidence": 0.95
-          },
-          {
-            "text": "never",
-            "start": 27.67,
-            "end": 28.56,
-            "confidence": 0.95
-          },
-          {
-            "text": "stop",
-            "start": 28.56,
-            "end": 29.44,
-            "confidence": 0.95
-          },
-          {
-            "text": "learning",
-            "start": 29.44,
-            "end": 30.33,
-            "confidence": 0.95
-          },
-          {
-            "text": "from",
-            "start": 30.33,
-            "end": 31.22,
-            "confidence": 0.95
-          },
-          {
-            "text": "each",
-            "start": 31.22,
-            "end": 32.11,
-            "confidence": 0.95
-          },
-          {
-            "text": "other",
-            "start": 32.11,
-            "end": 33.0,
-            "confidence": 0.95
-          },
-          {
-            "text": "and",
-            "start": 33.0,
-            "end": 33.89,
-            "confidence": 0.95
-          },
-          {
-            "text": "keep",
-            "start": 33.89,
-            "end": 34.78,
-            "confidence": 0.95
-          },
-          {
-            "text": "asking",
-            "start": 34.78,
-            "end": 35.67,
-            "confidence": 0.95
-          },
-          {
-            "text": "how",
-            "start": 35.67,
-            "end": 36.56,
-            "confidence": 0.95
+            "text": "up",
+            "start": 9.42,
+            "end": 9.59,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
             "text": "to",
-            "start": 36.56,
-            "end": 37.44,
-            "confidence": 0.95
+            "start": 9.59,
+            "end": 9.69,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "build",
-            "start": 37.44,
-            "end": 38.33,
-            "confidence": 0.95
+            "text": "the",
+            "start": 9.69,
+            "end": 9.81,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "something",
-            "start": 38.33,
-            "end": 39.22,
-            "confidence": 0.95
+            "text": "sky",
+            "start": 9.81,
+            "end": 10.27,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "better",
-            "start": 39.22,
-            "end": 40.11,
-            "confidence": 0.95
+            "text": "and",
+            "start": 10.36,
+            "end": 10.53,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "together",
-            "start": 40.11,
-            "end": 41.0,
-            "confidence": 0.95
+            "text": "questioned",
+            "start": 10.53,
+            "end": 11.0,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "uh",
-            "start": 42.0,
-            "end": 42.2,
-            "confidence": 0.95
+            "text": "me",
+            "start": 11.0,
+            "end": 11.11,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "documented",
-            "start": 43.0,
-            "end": 43.5,
-            "confidence": 0.95
+            "text": "with",
+            "start": 11.11,
+            "end": 11.27,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           },
           {
-            "text": "people",
-            "start": 43.5,
-            "end": 44.0,
-            "confidence": 0.95
+            "text": "her",
+            "start": 11.27,
+            "end": 11.36,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "glance",
+            "start": 11.36,
+            "end": 11.9,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "antonia",
+            "start": 43.49,
+            "end": 44.04,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "pointed",
+            "start": 44.04,
+            "end": 44.42,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "up",
+            "start": 44.42,
+            "end": 44.59,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "to",
+            "start": 44.59,
+            "end": 44.69,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "the",
+            "start": 44.69,
+            "end": 44.81,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "sky",
+            "start": 44.81,
+            "end": 45.27,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "and",
+            "start": 45.36,
+            "end": 45.53,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "questioned",
+            "start": 45.53,
+            "end": 46.0,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "me",
+            "start": 46.0,
+            "end": 46.11,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "with",
+            "start": 46.11,
+            "end": 46.27,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "her",
+            "start": 46.27,
+            "end": 46.36,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
+          },
+          {
+            "text": "glance",
+            "start": 46.36,
+            "end": 46.9,
+            "confidence": 0.95,
+            "suppressed": false,
+            "audibility_status": null,
+            "dominant_track": null,
+            "speaker_match_track": null,
+            "speaker_match_score": null,
+            "suspect_hallucination": false,
+            "alignment_score": null,
+            "ignored": false,
+            "audibility_locked": false
           }
-        ]
+        ],
+        "archived_words": [],
+        "source_id": null,
+        "vocabulary_revision": null,
+        "audio_sha256": null,
+        "audio_size": null,
+        "audio_mtime_ns": null,
+        "silence_filter_fingerprint": null,
+        "word_aligner": null,
+        "alignment_score_method": null,
+        "user_edited": false
       }
     ],
     "combined": {
@@ -437,51 +1177,30 @@
         {
           "track_id": "reference",
           "speaker": "reference",
-          "start": 2.0,
-          "end": 3.2,
-          "text": "welcome to the show"
-        },
-        {
-          "track_id": "reference",
-          "speaker": "reference",
-          "start": 5.0,
-          "end": 21.0,
-          "text": "so here is why this matters for people who care about documented stories and real change"
+          "start": 2.38,
+          "end": 9.44,
+          "text": "my uncle was delighted for myself moody and dissatisfied i appeared almost to expect a glimpse of the ghost of hamlet"
         },
         {
           "track_id": "guest",
           "speaker": "guest",
-          "start": 21.5,
-          "end": 22.4,
-          "text": "life been great"
+          "start": 8.49,
+          "end": 11.9,
+          "text": "antonia pointed up to the sky and questioned me with her glance"
         },
         {
           "track_id": "reference",
           "speaker": "reference",
-          "start": 22.0,
-          "end": 22.2,
-          "text": "um"
-        },
-        {
-          "track_id": "reference",
-          "speaker": "reference",
-          "start": 23.0,
-          "end": 23.9,
-          "text": "how is today going"
+          "start": 35.38,
+          "end": 42.44,
+          "text": "my uncle was delighted for myself moody and dissatisfied i appeared almost to expect a glimpse of the ghost of hamlet"
         },
         {
           "track_id": "guest",
           "speaker": "guest",
-          "start": 25.0,
-          "end": 41.0,
-          "text": "what if we never stop learning from each other and keep asking how to build something better together"
-        },
-        {
-          "track_id": "guest",
-          "speaker": "guest",
-          "start": 42.0,
-          "end": 44.0,
-          "text": "uh documented people"
+          "start": 43.49,
+          "end": 46.9,
+          "text": "antonia pointed up to the sky and questioned me with her glance"
         }
       ]
     }
@@ -507,17 +1226,14 @@
         "parameter": "volume",
         "points": [
           {
-            "id": "reference-start",
             "time": 0.0,
             "value": 1.0
           },
           {
-            "id": "reference-middle",
             "time": 30.0,
             "value": 0.85
           },
           {
-            "id": "reference-end",
             "time": 60.0,
             "value": 1.0
           }
@@ -558,23 +1274,26 @@
     "artifacts": {
       "premix": null,
       "mastered": null
-    }
+    },
+    "reconciliation_stale": false,
+    "last_reconciliation_hash": null,
+    "invalidations": []
   },
   "social": {
     "clip_candidates": [
       {
         "id": "ux_clip_1",
         "track_id": "reference",
-        "start": 5.0,
-        "end": 18.0,
+        "start": 2.38,
+        "end": 42.44,
         "score": 0.77,
         "reasons": [
           "dense dialogue",
           "clear hook"
         ],
-        "title_suggestion": "Why documented stories matter",
+        "title_suggestion": "A glimpse of Hamlet",
         "caption_suggestion": null,
-        "transcript_excerpt": "here is why this matters for people who care about documented stories",
+        "transcript_excerpt": "my uncle was delighted for myself moody and dissatisfied i appeared almost to expect a glimpse of the ghost of hamlet my uncle was delighted for myself moody and dissatisfied i appeared almost to expect a glimpse of the ghost of hamlet",
         "speaker": "reference",
         "review_required": true,
         "approved": false,
@@ -582,18 +1301,16 @@
       }
     ]
   },
-  "social_clip_candidates": [],
-  "music": [],
   "review": {
     "comments": [
       {
         "id": "ux_cmt_level",
         "body": "Guest level feels low under the host here.",
         "author": "reviewer",
-        "created_at": "2026-07-11T17:43:01+00:00",
+        "created_at": "2026-10-03T16:59:29+00:00",
         "updated_at": null,
-        "timeline_start": 22.0,
-        "timeline_end": 28.0,
+        "timeline_start": 43.0,
+        "timeline_end": 46.0,
         "track_ids": [
           "guest"
         ],
@@ -614,12 +1331,12 @@
       },
       {
         "id": "ux_cmt_cut",
-        "body": "Approve the filler cut after listen-through?",
+        "body": "Approve the word removal after listen-through?",
         "author": "host",
-        "created_at": "2026-07-11T17:43:01+00:00",
+        "created_at": "2026-10-03T16:59:29+00:00",
         "updated_at": null,
-        "timeline_start": 22.0,
-        "timeline_end": 22.2,
+        "timeline_start": 35.53,
+        "timeline_end": 35.79,
         "track_ids": [
           "reference"
         ],
@@ -629,7 +1346,7 @@
             "id": "ux_reply_1",
             "body": "Playing Mix around the join first.",
             "author": "host",
-            "created_at": "2026-07-11T17:43:01+00:00"
+            "created_at": "2026-10-03T16:59:29+00:00"
           }
         ],
         "resolved": false,
@@ -640,5 +1357,12 @@
     ],
     "versions": [],
     "active_version_id": null
+  },
+  "history": {
+    "cursor": -1,
+    "entries": []
+  },
+  "document_sync": {
+    "last_command": null
   }
 }

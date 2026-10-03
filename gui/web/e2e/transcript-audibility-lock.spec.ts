@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
 
-/** Lock reference:"matters" (word_index 9, t=10s) via a stubbed ProjectView
+/** Lock reference:"delighted" (word_index 3, t=2.97s) via a stubbed ProjectView
  * response, the same word `transcript-low-confidence.spec.ts` uses. */
 function lockWord(body: Record<string, unknown>): void {
   const transcript = body.transcript as
@@ -12,14 +12,14 @@ function lockWord(body: Record<string, unknown>): void {
   for (const u of transcript?.utterances ?? []) {
     if (u.track_id !== "reference") continue;
     for (const w of (u.words as Array<Record<string, unknown>>) ?? []) {
-      if (w.text === "matters") {
+      if (w.word_index === 3) {
         w.audibility_locked = true;
       }
     }
   }
 }
 
-/** Lock reference:"matters" and also drop its confidence below the low-confidence
+/** Lock reference:"delighted" and also drop its confidence below the low-confidence
  * threshold, so it carries both `.locked` and `.low-confidence`. */
 function lockAndLowerWord(body: Record<string, unknown>): void {
   lockWord(body);
@@ -30,7 +30,7 @@ function lockAndLowerWord(body: Record<string, unknown>): void {
   for (const u of transcript?.utterances ?? []) {
     if (u.track_id !== "reference") continue;
     for (const w of (u.words as Array<Record<string, unknown>>) ?? []) {
-      if (w.text === "matters") {
+      if (w.word_index === 3) {
         w.confidence = 0.4;
       }
     }
@@ -62,8 +62,7 @@ test.describe("Audibility lock indicator (#781)", () => {
 
     const chip = page
       .locator(".transcript-list")
-      .getByRole("button", { name: "matters", exact: true })
-      .first();
+      .locator('[data-track-id="reference"][data-word-index="3"]');
     await expect(chip).toHaveClass(/locked/);
     await expect(chip).toHaveClass(/utterance-word/);
 
@@ -118,8 +117,7 @@ test.describe("Audibility lock indicator (#781)", () => {
 
     const chip = page
       .locator(".transcript-list")
-      .getByRole("button", { name: "matters", exact: true })
-      .first();
+      .locator('[data-track-id="reference"][data-word-index="3"]');
     const inspector = page.locator(".inspector");
     const explanation = inspector.getByText(/Suppression locked: set directly/);
 
@@ -175,8 +173,7 @@ test.describe("Audibility lock indicator (#781)", () => {
 
     const chip = page
       .locator(".transcript-list")
-      .getByRole("button", { name: "matters", exact: true })
-      .first();
+      .locator('[data-track-id="reference"][data-word-index="3"]');
     await expect(chip).toHaveClass(/locked/);
     await expect(chip).toHaveClass(/low-confidence/);
 

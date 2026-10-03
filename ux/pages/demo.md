@@ -46,8 +46,8 @@ make ux-demo-screens   # refresh Pages screenshots
 | Surface | Seeded data |
 |---------|-------------|
 | Listen | Two timeline comments + action item |
-| Timeline | Pending filler cut overlay, chapters, levels envelope |
-| Text | Low-confidence “documented”, suppressed “um” |
+| Timeline | Pending word-removal overlay, chapters, levels envelope |
+| Text | Low-confidence “delighted”, suppressed “uncle” |
 | Impact / More | Pending review cut |
 | Mix / FX | Audition Full mix/Edited stems/Original in transport; volume envelope on the Volume envelope layer |
 | Social | One clip candidate |

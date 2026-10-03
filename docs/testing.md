@@ -22,7 +22,7 @@ skipping tests. Keep a separate Playwright browser run for real-browser checks.
 
 Hang protection: `pytest-timeout` (`--timeout=60 --timeout-method=thread` in `pyproject.toml` addopts) and job `timeout-minutes` on the GitHub Actions workflow. Nested guest+tunnel WebSocket tests use a live uvicorn server — Starlette `TestClient` nested sockets can deadlock. The blanket 60 s is sized for that fast default suite; `tests/e2e/conftest.py`'s `pytest_collection_modifyitems` hook gives every `e2e_slow`-marked test its own `E2E_SLOW_TIMEOUT_SEC` (300 s) instead, since live ASR / heavier pipeline runs in that tier can take minutes (#795). A test that sets its own `@pytest.mark.timeout` keeps that value.
 
-`e2e_slow` (live ASR / HF downloads) and `e2e_real` (AMI / benchmark regression) are **not** in the default gate — run `make e2e-slow` / `make e2e-real` locally or on a schedule. Fast `e2e` fixture tests stay in `make test` so coverage stays above 95%. `test_fixture_transcribe_slow.py::test_live_transcribe` runs against `aligned_dialogue`'s Piper speech. The browser ignore/restore test checks that the selected speech span starts above 0.03 RMS, falls below 1% of its original RMS when ignored, and returns to its original RMS within 0.00005 when restored.
+`e2e_slow` (live ASR / HF downloads) and `e2e_real` (AMI / benchmark regression) are **not** in the default gate — run `make e2e-slow` / `make e2e-real` locally or on a schedule. Fast `e2e` fixture tests stay in `make test` so coverage stays above 95%. `test_fixture_transcribe_slow.py::test_live_transcribe` runs against `aligned_dialogue`'s complete human LibriSpeech utterances and scores full reference text independently per track at the existing 12% WER ceiling. The browser ignore/restore test checks that the selected speech span starts above 0.03 RMS, falls below 1% of its original RMS when ignored, and returns to its original RMS within 0.00005 when restored.
 
 Tests that execute a Python file from `scripts/` use `tests/script_loader.py`'s
 `load_script(name)`. Each call executes a fresh module without changing
@@ -553,9 +553,26 @@ coverage map and platform limits.
 
 ### Committed fixtures (Tier A)
 
-- `tests/fixtures/aligned_dialogue/` — smoke / edits (canned transcript; Piper TTS speech at the canned word times, so live transcribe hears the known phrases)
+- `tests/fixtures/aligned_dialogue/` — smoke / edits (human LibriSpeech audio and corpus text; published MFA-derived word boundaries shifted with complete utterances; no model downloads to regenerate)
 - `tests/fixtures/synthetic_bleed_60s/` — bleed/reconcile/precorrect gold
 - `tests/fixtures/asr_gold/` — LibriSpeech WER regression
+
+Regenerate `aligned_dialogue` offline with
+`uv run python scripts/build_aligned_dialogue_audio.py`, then regenerate its
+linked UX demo with `uv run python scripts/build_ux_demo_fixture.py`.
+The builder pins source audio and label hashes, preserves whole utterances,
+and records output hashes in `provenance.json`. Fixture guards independently
+reconstruct PCM and shifted labels. Text is a corpus reference; word boundaries
+are machine-derived, not human-verified. See the
+[fixture provenance and layout](../tests/fixtures/aligned_dialogue/README.md).
+The final two-occurrence layout measured 0% reference-track WER and 8.33%
+guest-track WER with CPU/int8 Whisper `base`. The live CLI regression pins
+`--model base` and retains the corpus-ASR suite's 12% ceiling for both tracks.
+Repeated utterances within one decode window caused omissions during fixture
+selection, so each occurrence sits in a separate 30-second window. The golden-ear
+smoke test seeds a pending pause cut over independently verified silence in a
+temporary copy and requires two audible, different blinded exports. It no longer
+skips when this audiobook fixture yields no safe automatic tighten candidates.
 
 ```bash
 make e2e          # pytest -m e2e (fast: aligned_dialogue + synthetic bleed)
@@ -1112,9 +1129,10 @@ pass in `engines/word_align.py`, #714). Targets:
 
 - `librispeech` — scored against the same gold fixture as above.
 - `aligned_dialogue` and `lab` — agreement only (native vs. each candidate,
-  and candidates against each other); `aligned_dialogue` is TTS placed at
-  canned word times (#801), which are approximate, not measured boundaries,
-  so it stays agreement-only.
+  and candidates against each other). `aligned_dialogue` now composes
+  complete human LibriSpeech utterances with shifted MFA-derived labels. This
+  harness target retains its agreement-only contract; use `librispeech` for
+  boundary scoring. Neither target supplies human-verified boundary gold.
 
 **Shipped-pass harness (#715).** The `run`/`agree` subcommands above drive the
 harness's own `align_prediction` (`retime_spans` against a bare backend), not
@@ -1254,7 +1272,7 @@ treat `load` as order-of-magnitude only.
 
 **Table 2 — agreement against native Whisper `base`.** Measured before #801,
 when `aligned_dialogue` was a non-speech tone fixture: `aligned_dialogue`
-(2 × 60 s) produced **zero** native words: its canned transcript doesn't match
+(2 × 60 s) produced **zero** native words: its old canned transcript did not match
 the synthesized audio closely enough for faster-whisper `base` to transcribe
 anything, so every candidate — which re-times the native word list, not the
 audio directly — also has zero predicted words there. There is no agreement
