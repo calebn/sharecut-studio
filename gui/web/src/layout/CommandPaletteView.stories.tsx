@@ -3,6 +3,7 @@ import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { openDialogViaLauncher } from "../storybook/openDialog";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { Button } from "../ui";
 import { CommandPaletteView } from "./CommandPaletteView";
 import type {
@@ -88,7 +89,7 @@ const meta: Meta<typeof CommandPaletteView> = {
   title: "Templates/CommandPalette",
   component: CommandPaletteView,
   tags: ["autodocs"],
-  parameters: { layout: "padded" },
+  parameters: { ...isolatedStoryParameters, layout: "padded" },
   args: {
     open: false,
     categories: CATEGORIES,

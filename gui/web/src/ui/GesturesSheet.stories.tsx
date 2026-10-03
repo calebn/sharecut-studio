@@ -3,6 +3,7 @@ import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { openDialogViaLauncher } from "../storybook/openDialog";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { Button } from "./Button";
 import { GesturesSheet } from "./GesturesSheet";
 
@@ -36,7 +37,7 @@ const meta: Meta<typeof GesturesSheet> = {
   title: "Templates/GesturesSheet",
   component: GesturesSheet,
   tags: ["autodocs"],
-  parameters: { layout: "padded" },
+  parameters: { ...isolatedStoryParameters, layout: "padded" },
   args: {
     open: false,
     onClose: fn(),

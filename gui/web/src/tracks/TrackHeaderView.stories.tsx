@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { sampleTrack } from "../test/fixtures";
 import { trackHasSourceAudio } from "../utils/projectMedia";
 import { TrackHeaderView } from "./TrackHeaderView";
@@ -19,6 +20,7 @@ const meta: Meta<typeof TrackHeaderView> = {
   title: "Templates/TrackHeader",
   component: TrackHeaderView,
   tags: ["autodocs"],
+  parameters: isolatedStoryParameters,
   decorators: [
     (Story, context) => (
       <div

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { Room } from "./Room";
 import {
@@ -28,6 +29,7 @@ const meta: Meta<typeof Room> = {
   title: "Templates/Room",
   component: Room,
   tags: ["autodocs"],
+  parameters: isolatedStoryParameters,
   decorators: [recordStoryDecorator],
   args: {
     snapshot,

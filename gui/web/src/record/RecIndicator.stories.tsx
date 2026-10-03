@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { recordSnapshot } from "../test/fixtures";
 import { RecIndicator } from "./RecIndicator";
 import { recordStoryDecorator } from "./recordStoryDecorator";
@@ -11,6 +12,7 @@ const meta: Meta<typeof RecIndicator> = {
   title: "Templates/RecIndicator",
   component: RecIndicator,
   tags: ["autodocs"],
+  parameters: isolatedStoryParameters,
   decorators: [recordStoryDecorator],
   args: { clockNowMs: 1_000_000 },
 };

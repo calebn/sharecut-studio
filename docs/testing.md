@@ -679,6 +679,15 @@ and 360px in light and dark themes. `.github/workflows/storybook.yml` installs
 Chromium and runs this suite before building the catalog. This supplements
 the jsdom story interaction and axe checks.
 
+`e2e-storybook/story-layout.spec.ts` checks floating panels in both standalone
+Canvas and Docs at desktop and phone widths in both themes. Menus must fit
+their inline host. Fixed popovers and body-portaled dialogs must fit their
+own Docs iframe. Shell examples must keep document attributes inside their
+frame. These checks preserve intentional scrolling inside production panes.
+`e2e-storybook/docs-theme.spec.ts` changes the manager theme toolbar while
+Docs frames are mounted, including an OS preference opposite to the explicit
+toolbar choice. The Docs page and its stories must follow the chosen theme.
+
 ### Shared live project in Playwright
 
 Specs share one live project with `workers: 1`, so rows from earlier specs (for

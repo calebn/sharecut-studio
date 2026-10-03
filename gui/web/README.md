@@ -35,6 +35,15 @@ boundary stories with restored-word fixtures. Real mouse trajectories cover
 1440px and 360px widths in both themes, stable neighboring text and row geometry,
 bounded previews, and Escape cleanup. Install Chromium with
 `npx playwright install chromium` before running this focused suite locally.
+The suite also checks opened menu and avatar panels in Canvas and Docs,
+fixed popovers, and modal and shell isolation at desktop and phone widths.
+Use `src/storybook/storyLayout.tsx` for menu spacing and isolated Docs
+viewports. Fixed overlays, body portals, and viewport shells render in
+separate `40rem` Docs frames that follow the Docs theme toolbar. Previews
+keep a `22.5rem` minimum width, or `70rem` for desktop chrome, with horizontal
+scrolling inside the Docs canvas. Ordinary components stay inline.
+Use standalone Canvas Controls for isolated examples; Storybook does not
+connect Docs Controls to iframe stories.
 Begin with **Style guide → Start here** for live type/spacing samples,
 interactive control states, and links to the component docs and design rules.
 The `Templates/TimelineRange` story shows the production audition and comment
@@ -133,8 +142,9 @@ single-clip trim edge and a 360px row. The live adapter commits
 agent-connection and mobile gesture dialogs. The MCP story passes a fixed
 loopback URL so its preview is independent of Storybook's port; the live
 dialog derives its local URL as before.
-Standalone Canvas stories open their dialogs; autodocs examples start closed
-with launchers so each can be inspected independently; play functions share
+Standalone Canvas stories and isolated autodocs frames open their dialogs
+through Canvas play functions, so each can be inspected independently.
+Play functions share
 `openDialogViaLauncher` from `src/storybook/openDialog.ts`. The gesture callback closes its sheet and
 hands off to the live shortcuts owner; the story does not render that owner.
 `Templates/ToolModeToggle`, `Templates/EditingToolRail` and

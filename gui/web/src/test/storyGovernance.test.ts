@@ -207,13 +207,13 @@ describe("stories stay out of the production bundle", () => {
     expect(text).toContain('"../src/**/*.stories.@(ts|tsx)"');
   });
 
-  it("Storybook preview themes docs pages and reuses applyTheme (#209)", () => {
+  it("Storybook preview uses the shared Studio theme wrappers (#209)", () => {
     const text = readFileSync(
       join(SRC_ROOT, "../.storybook/preview.ts"),
       "utf8",
     );
     expect(text).toContain("container: StudioDocsContainer");
-    expect(text).toContain("applyTheme(");
+    expect(text).toContain("StudioStoryTheme");
     expect(text).not.toContain('removeAttribute("data-theme")');
   });
 

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import type { TakeClipping } from "./keeper/clipRegions";
 import { recordStoryDecorator } from "./recordStoryDecorator";
 import { TakeClippingReport } from "./TakeClippingReport";
@@ -21,6 +22,7 @@ const meta: Meta<typeof TakeClippingReport> = {
   title: "Templates/TakeClippingReport",
   component: TakeClippingReport,
   tags: ["autodocs"],
+  parameters: isolatedStoryParameters,
   decorators: [recordStoryDecorator],
   args: { report, roomState: "stopped" },
 };

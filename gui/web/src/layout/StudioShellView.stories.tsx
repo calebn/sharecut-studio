@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type DragEvent, useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { LayoutMode } from "../state/types";
+import { desktopStoryParameters } from "../storybook/storyLayout";
 import type { PresenceTab } from "../types/session";
 import { BottomTabsSplitterView } from "./BottomTabsSplitterView";
 import { FollowBannerView } from "./FollowBannerView";
@@ -231,8 +232,9 @@ function StudioPreview(args: PreviewProps) {
 }
 const meta: Meta<PreviewProps> = {
   title: "Templates/StudioShell",
+  tags: ["autodocs"],
   component: StudioPreview,
-  parameters: { layout: "fullscreen" },
+  parameters: { ...desktopStoryParameters, layout: "fullscreen" },
   render: (args) => <StudioPreview {...args} />,
   args: {
     tablet: false,

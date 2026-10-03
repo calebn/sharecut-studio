@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { DialogLauncher } from "../test/DialogLauncher";
 import { openDialogByLauncher } from "../test/storyDialog";
 import { BottomSheet, Button } from "./index";
@@ -8,7 +9,9 @@ const meta: Meta<typeof BottomSheet> = {
   component: BottomSheet,
   tags: ["autodocs"],
   parameters: {
+    ...isolatedStoryParameters,
     docs: {
+      ...isolatedStoryParameters.docs,
       description: {
         component:
           "Transient bottom sheet for phone/tablet inspector and quick actions. " +

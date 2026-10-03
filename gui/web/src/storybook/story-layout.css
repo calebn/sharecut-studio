@@ -1,0 +1,7 @@
+.studio-story-viewport .sb-story {
+  min-inline-size: 22.5rem;
+}
+
+.studio-story-viewport--desktop .sb-story {
+  min-inline-size: 70rem;
+}

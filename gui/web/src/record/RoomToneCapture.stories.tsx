@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { RoomToneCapture } from "./RoomToneCapture";
 import { recordStoryDecorator } from "./recordStoryDecorator";
 
@@ -7,6 +8,7 @@ const meta: Meta<typeof RoomToneCapture> = {
   title: "Templates/RoomToneCapture",
   component: RoomToneCapture,
   tags: ["autodocs"],
+  parameters: isolatedStoryParameters,
   decorators: [recordStoryDecorator],
   args: {
     status: "idle",

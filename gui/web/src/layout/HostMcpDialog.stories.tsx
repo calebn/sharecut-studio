@@ -3,6 +3,7 @@ import { type ComponentProps, useState } from "react";
 import { expect, fn, waitFor, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { openDialogViaLauncher } from "../storybook/openDialog";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { Button } from "../ui/Button";
 import { HostMcpDialog } from "./HostMcpDialog";
 import { mcpClientSnippet } from "./hostMcp";
@@ -35,7 +36,7 @@ const meta: Meta<typeof HostMcpDialog> = {
   title: "Templates/HostMcpDialog",
   component: HostMcpDialog,
   tags: ["autodocs"],
-  parameters: { layout: "padded" },
+  parameters: { ...isolatedStoryParameters, layout: "padded" },
   args: {
     open: false,
     onClose: fn(),

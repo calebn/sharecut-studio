@@ -2,6 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import {
+  desktopStoryParameters,
+  isolatedStoryParameters,
+} from "../storybook/storyLayout";
+import {
   Button,
   Icon,
   Pill,
@@ -23,8 +27,9 @@ const TIMECODE = transportTimecode(12.48, 60);
  */
 const meta: Meta<typeof TransportFrame> = {
   title: "Templates/Transport",
+  tags: ["autodocs"],
   component: TransportFrame,
-  parameters: { layout: "fullscreen" },
+  parameters: desktopStoryParameters,
 };
 
 export default meta;
@@ -45,7 +50,12 @@ function TransportTemplate({
   const [mode, setMode] = useState<(typeof MODES)[number]>("Full mix");
   return (
     <>
-      <div style={{ blockSize: "var(--transport-height)" }}>
+      <div
+        style={{
+          blockSize: "var(--transport-height)",
+          minInlineSize: collapsed ? undefined : "70rem",
+        }}
+      >
         <TransportFrame collapsed={collapsed} playing={playing}>
           <TransportZone position="start">
             <h1>Episode 12: Field notes</h1>
@@ -157,5 +167,8 @@ export const StaleRender: Story = {
 
 export const Collapsed: Story = {
   render: () => <TransportTemplate collapsed />,
-  parameters: { viewport: { defaultViewport: "mobile1" } },
+  parameters: {
+    ...isolatedStoryParameters,
+    viewport: { defaultViewport: "mobile1" },
+  },
 };

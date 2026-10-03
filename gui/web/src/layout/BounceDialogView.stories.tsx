@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { DialogLauncher } from "../test/DialogLauncher";
 import { openDialogByLauncher, useArgState } from "../test/storyDialog";
 import { BounceDialogView } from "./BounceDialogView";
@@ -54,7 +55,7 @@ const meta: Meta<typeof BounceDialogView> = {
   title: "Templates/BounceDialog",
   component: BounceDialogView,
   tags: ["autodocs"],
-  parameters: { layout: "padded" },
+  parameters: { ...isolatedStoryParameters, layout: "padded" },
   args: {
     open: false,
     onClose: fn(),

@@ -10,6 +10,7 @@ import {
 } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { useDawStore } from "../state/dawStore";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { clipRow, minimalProject, pendingEditView } from "../test/fixtures";
 import { PendingEditOverlayView } from "./PendingEditOverlayView";
 import { timelineLaneStoryDecorator } from "./timelineLaneStoryDecorator";
@@ -51,6 +52,7 @@ const meta: Meta<typeof PendingEditOverlayView> = {
   component: PendingEditOverlayView,
   tags: ["autodocs"],
   parameters: {
+    ...isolatedStoryParameters,
     layout: "fullscreen",
     lanePreviewLabel: "Pending edit preview",
   },

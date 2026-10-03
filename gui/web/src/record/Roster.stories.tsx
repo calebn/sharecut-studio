@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { recordParticipant } from "../test/fixtures";
 import { Roster } from "./Roster";
 import {
@@ -11,6 +12,7 @@ const meta: Meta<typeof Roster> = {
   title: "Templates/Roster",
   component: Roster,
   tags: ["autodocs"],
+  parameters: isolatedStoryParameters,
   decorators: [recordStoryDecorator],
   args: {
     participants: [

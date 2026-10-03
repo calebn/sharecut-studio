@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { DeviceCheck } from "./DeviceCheck";
 import {
   MIC_ALLOW_LABEL,
@@ -19,6 +20,7 @@ const meta: Meta<typeof DeviceCheck> = {
   title: "Templates/DeviceCheck",
   component: DeviceCheck,
   tags: ["autodocs"],
+  parameters: isolatedStoryParameters,
   decorators: [recordStoryDecorator],
   args: {
     headphonesOk: true,

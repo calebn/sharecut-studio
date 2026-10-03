@@ -44,6 +44,12 @@ export function ShellStoryFrame({
       style={
         {
           inlineSize: shell === "phone" ? "360px" : "100%",
+          minInlineSize:
+            shell === "desktop"
+              ? "70rem"
+              : shell === "tablet"
+                ? "48rem"
+                : undefined,
           maxInlineSize: "100%",
           blockSize: "100dvh",
           "--tabs-height": `${tabsHeight}rem`,

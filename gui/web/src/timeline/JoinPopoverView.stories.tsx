@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
+import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { clipRow } from "../test/fixtures";
 import { InspectorSeekFooterView } from "../ui/InspectorSeekFooterView";
 import { JoinPopoverView } from "./JoinPopoverView";
@@ -28,7 +29,7 @@ const meta: Meta<typeof JoinPopoverView> = {
   title: "Templates/JoinPopover",
   component: JoinPopoverView,
   tags: ["autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: { ...isolatedStoryParameters, layout: "fullscreen" },
   decorators: [
     (Story) => (
       <main aria-label="Join popover preview">
