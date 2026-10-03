@@ -77,7 +77,8 @@ scrim dismissal leave More open and restore its Mix trigger while mounted.
 Navigation keeps focus on the chosen nav control. Project, follow, destination,
 selection, or range changes invalidate Mix permanently; returning to More does
 not reopen it. Mix and Inspector share one keyed sheet. Gestures closes Mix
-before opening its existing dialog. Committed writes continue through the shared
+before opening its existing dialog. Other global dialogs, including Bounce, also
+invalidate Mix. Committed writes continue through the shared
 mix queue after closing. A swipe overlay remains deferred.
 
 Inspector sheets keep the timeline interactive behind them: their background scrim is decorative and pointer-transparent, so a phone user can drag a pending edge or tap the ruler without closing the inspector. A blank ruler tap seeks and clears the current selection. Confirmation sheets, including the blade-cut confirmation, keep a dismissible outside scrim; Close and Escape remain available for both sheet types.

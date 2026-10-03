@@ -132,3 +132,42 @@ test("editor Mix commits saved volume through guest capabilities", async ({
       .toBe(!before[0].muted);
   });
 });
+
+test("phone Mix restores Escape focus after Tab and yields to the Bounce shortcut", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 740 });
+  await withShareableProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await openPhoneMix(page);
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Shift+Tab");
+    await expect(
+      page
+        .getByRole("navigation", { name: "Primary" })
+        .getByRole("button", { name: "Text", exact: true }),
+    ).toBeFocused();
+    await expect(
+      page.getByRole("dialog", { name: "Mix", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Mix", exact: true }),
+    ).toBeFocused();
+    await openPhoneMix(page);
+    await page.keyboard.press("Control+Shift+B");
+    const bounce = page.getByRole("dialog", { name: "Bounce…", exact: true });
+    await expect(bounce).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(1);
+    await expect(
+      bounce.getByRole("button", { name: "Close", exact: true }),
+    ).toBeFocused();
+    await bounce.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Mix", exact: true }),
+    ).toBeVisible();
+  });
+});

@@ -360,8 +360,7 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
     shareCapabilities,
     followingClientId,
     statusAnnouncement,
-    gesturesSheetOpen,
-    commandPaletteOpen,
+    competingDialogOpen,
     setGesturesSheetOpen,
   } = useDaw((s) => ({
     rangeArmed: s.rangeArmed,
@@ -380,8 +379,14 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
     shareCapabilities: s.shareCapabilities,
     followingClientId: s.followingClientId,
     statusAnnouncement: s.statusAnnouncement,
-    gesturesSheetOpen: s.gesturesSheetOpen,
-    commandPaletteOpen: s.commandPaletteOpen,
+    competingDialogOpen:
+      s.gesturesSheetOpen ||
+      s.commandPaletteOpen ||
+      s.bounceDialogOpen ||
+      s.shareDialogOpen ||
+      s.recordPanelOpen ||
+      s.hostMcpDialogOpen ||
+      s.helpDialogOpen,
     setGesturesSheetOpen: s.setGesturesSheetOpen,
   }));
   const [mixRequest, setMixRequest] = useState<{
@@ -396,8 +401,7 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
     moreDestination === "hub" &&
     selection == null &&
     !rangeArmed &&
-    !gesturesSheetOpen &&
-    !commandPaletteOpen;
+    !competingDialogOpen;
   useEffect(() => {
     if (mixRequest && !mixEligible) setMixRequest(null);
   }, [mixRequest, mixEligible]);
