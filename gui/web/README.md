@@ -453,12 +453,16 @@ Part of #879. Build the production frontend with `npm run build`, then use the
 [large-project browser profile](../../docs/testing.md#large-project-browser-profile)
 recipe with a fresh generated project for each repetition. Set `DAW_PROFILE_OUT`
 to retain `report.json` and a separate diagnostic `chrome-trace.json`. Keep the
-`large-project.spec.ts` filter and disable retries.
+`large-project.spec.ts` filter, disable retries, and use `--trace=off` for primary
+repetitions. The separate Chrome trace covers a diagnostic action.
 
 The report separates driver wall time, page-local rAF intervals, long tasks,
 individual CDP duration counters, and post-GC heap checkpoints. It records
 measurement availability, actual served asset hashes, environment, input labels,
-and unsupported workloads. Failed actions retain partial evidence and still fail
-the test. Traced diagnostic samples and primary samples have different phases.
+and actual prebuilt waveform content identity. Native zoom, horizontal wheel
+scroll, and ruler click retain visible outcomes; other scrolling is explicitly
+programmatic. Synthetic progress remains not run because its real bar stayed
+zero-height after ordinary panel resizing; no width-transition result is claimed.
+Failed actions retain partial evidence and still fail the test. Traced diagnostic samples and primary samples have different phases.
 Read the testing guide before comparing runs. These measurements have no timing
 CI threshold and make no physical-device, audio-quality, or speedup claim.

@@ -8,12 +8,14 @@ import {
   counterDeltas,
   type EditorProfileReport,
   type FrameWindow,
+  failureReason,
   fixtureIdentity,
   hash,
   type Measurement,
   measured,
   statistics,
   unavailable,
+  type WaveformIdentity,
   type WorkloadDefinition,
   type WorkloadObservation,
   type WorkloadResult,
@@ -86,6 +88,37 @@ function installWindowRecorder() {
   window.__editorProfileWindow.start();
 }
 
+export function readWaveforms(
+  projectPath: string,
+): Measurement<WaveformIdentity[]> {
+  try {
+    const root = path.join(path.dirname(projectPath), "artifacts", "peaks");
+    const waveforms = fs
+      .readdirSync(root)
+      .filter((name) => name.endsWith(".wfpk"))
+      .map((name) => {
+        const match = /^(.+)\.[^.]+\.wfpk$/.exec(name);
+        if (!match) throw new Error(`Unknown waveform filename ${name}`);
+        return {
+          ref: match[1]!,
+          sha256: hash(fs.readFileSync(path.join(root, name))),
+        };
+      })
+      .sort((a, b) => a.ref.localeCompare(b.ref));
+    if (
+      !waveforms.length ||
+      new Set(waveforms.map((item) => item.ref)).size !== waveforms.length
+    )
+      throw new Error("Missing or ambiguous prebuilt waveform refs");
+    return measured(
+      waveforms,
+      "SHA256 of actual prebuilt .wfpk bytes by stable ref; generated media-key filename excluded",
+    );
+  } catch (error) {
+    return unavailable(failureReason(error));
+  }
+}
+
 export async function createEditorProfiler(
   page: Page,
   cdp: CDPSession,
@@ -120,7 +153,11 @@ export async function createEditorProfiler(
     schemaVersion: 1,
     measurementVersion: "editor-response-v1",
     status: "incomplete",
-    fixture: fixtureIdentity(fs.readFileSync(projectPath, "utf8"), projectPath),
+    fixture: fixtureIdentity(
+      fs.readFileSync(projectPath, "utf8"),
+      projectPath,
+      readWaveforms(projectPath),
+    ),
     environment: {
       revision: execFileSync("git", ["rev-parse", "HEAD"], {
         encoding: "utf8",
@@ -169,7 +206,10 @@ export async function createEditorProfiler(
       ],
       ["cold-waveform", "generator prebuilds pyramids without decoding"],
       ["native-touch", "desktop browser driver is not physical touch"],
-      ["synthetic-progress", "transport replay not yet exercised"],
+      [
+        "synthetic-progress",
+        "real consumer attached in attempted replay, but progress bar computed height stayed 0px before and after ordinary panel resize; width-transition cost not measured",
+      ],
     ].map(([id, reason]) => ({
       id: id!,
       result: { status: "not-run", reason: reason! },
@@ -189,7 +229,7 @@ export async function createEditorProfiler(
         "CDP Performance.getMetrics raw counters",
       );
     } catch (error) {
-      return unavailable(String(error));
+      return unavailable(failureReason(error));
     }
   };
   const retain = () =>
@@ -222,7 +262,7 @@ export async function createEditorProfiler(
         result = { status: "completed", observation };
       } catch (error) {
         failure = error;
-        result = { status: "failed", reason: String(error) };
+        result = { status: "failed", reason: failureReason(error) };
       }
       const driverWallMs = performance.now() - actionStart;
       let frames: Measurement<
@@ -237,7 +277,7 @@ export async function createEditorProfiler(
           "page-local rAF scheduling intervals; navigation starts a new document window",
         );
       } catch (error) {
-        frames = unavailable(String(error));
+        frames = unavailable(failureReason(error));
       }
       const after = await snapshot();
       const longTasks =
@@ -300,11 +340,23 @@ export async function createEditorProfiler(
         failure = error;
       } finally {
         try {
-          const completed = new Promise<{ stream?: string }>((resolve) =>
-            cdp.once("Tracing.tracingComplete", resolve),
+          let timer: ReturnType<typeof setTimeout>;
+          const completed = new Promise<{ stream?: string }>(
+            (resolve, reject) => {
+              timer = setTimeout(
+                () => reject(new Error("Chrome trace completion timed out")),
+                10_000,
+              );
+              cdp.once("Tracing.tracingComplete", resolve);
+            },
           );
-          await cdp.send("Tracing.end");
-          const { stream } = await completed;
+          let stream: string | undefined;
+          try {
+            await cdp.send("Tracing.end");
+            ({ stream } = await completed);
+          } finally {
+            clearTimeout(timer!);
+          }
           if (!stream) throw new Error("Chrome trace has no stream");
           let text = "";
           for (;;) {
@@ -327,7 +379,7 @@ export async function createEditorProfiler(
           )
             throw new Error("Chrome trace has no relevant workload events");
         } catch (error) {
-          report.errors.push(`trace retention: ${String(error)}`);
+          report.errors.push(`trace retention: ${failureReason(error)}`);
           failure ??= error;
         }
         retain();
@@ -335,7 +387,7 @@ export async function createEditorProfiler(
       if (failure !== undefined) throw failure;
     },
     async finish(failure?: unknown) {
-      if (failure !== undefined) report.errors.push(String(failure));
+      if (failure !== undefined) report.errors.push(failureReason(failure));
       try {
         await Promise.all(assetReads);
         const unique = [
@@ -367,7 +419,7 @@ export async function createEditorProfiler(
           "actual page settings",
         );
       } catch (error) {
-        report.errors.push(`metadata: ${String(error)}`);
+        report.errors.push(`metadata: ${failureReason(error)}`);
       }
       report.status =
         report.errors.length ||

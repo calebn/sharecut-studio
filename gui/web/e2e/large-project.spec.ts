@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { expect, test } from "@playwright/test";
 import { VIRTUALIZE_ON_ROWS } from "../src/hooks/virtualRowThresholds";
+import { rulerWidthPx } from "./deepZoom";
 import { createEditorProfiler } from "./editorProfile";
 import type { WorkloadObservation } from "./editorProfileReport";
 import { e2eProjectPath } from "./env";
@@ -132,6 +133,24 @@ test.describe("large project benchmark (opt-in fixture)", () => {
       const clipButton = (id: string) =>
         page.locator(`[data-clip-id="${id}"] .clip-hit`);
       const profiles: Profile[] = [];
+      const historyStepCount = shape.historyEntries / 2;
+      if (historyStepCount < VIRTUALIZE_ON_ROWS)
+        recorder.report.coverage.push({
+          id: "history-keyboard",
+          result: {
+            status: "not-run",
+            reason: "seeded history is below the virtualized row threshold",
+          },
+        });
+      if (!shape.historyEntries)
+        for (const id of ["history-diff", "history-undo-redo"])
+          recorder.report.coverage.push({
+            id,
+            result: {
+              status: "not-run",
+              reason: "fixture has no seeded history",
+            },
+          });
 
       profiles.push(
         await profile(recorder, "initial-load", async () => {
@@ -174,6 +193,115 @@ test.describe("large project benchmark (opt-in fixture)", () => {
             HEAVY,
           );
         }),
+      );
+
+      await slider.focus();
+      await recorder.measure(
+        {
+          id: "timeline-zoom",
+          phase: "warm",
+          input: "browser keyboard '=' once",
+        },
+        async () => {
+          const beforeScale = await rulerWidthPx(page);
+          await page.keyboard.press("=");
+          await expect
+            .poll(() => rulerWidthPx(page))
+            .toBeGreaterThan(beforeScale);
+          return {
+            kind: "zoom",
+            beforeScale,
+            afterScale: await rulerWidthPx(page),
+          };
+        },
+      );
+      await timeline.evaluate((element) => {
+        element.scrollLeft = 0;
+      });
+      const wheelEvents = await timeline.evaluateHandle((element) => {
+        const trusted: boolean[] = [];
+        element.addEventListener(
+          "wheel",
+          (event) => trusted.push(event.isTrusted),
+          { capture: true, once: true },
+        );
+        return trusted;
+      });
+      const visibleClips = () =>
+        timeline.evaluate((element) => {
+          const viewport = element.getBoundingClientRect();
+          return [...element.querySelectorAll<HTMLElement>("[data-clip-id]")]
+            .filter((clip) => {
+              const rect = clip.getBoundingClientRect();
+              return rect.right > viewport.left && rect.left < viewport.right;
+            })
+            .map((clip) => clip.dataset.clipId!)
+            .slice(0, 20);
+        });
+      await timeline.hover({ position: { x: 300, y: 60 } });
+      await recorder.measure(
+        {
+          id: "timeline-wheel",
+          phase: "warm",
+          input: "browser wheel deltaX=600 deltaY=0 once",
+        },
+        async () => {
+          const before = await timeline.evaluate(
+            (element) => element.scrollLeft,
+          );
+          const beforeVisibleClipIds = await visibleClips();
+          const range = await timeline.evaluate(
+            (element) => element.scrollWidth - element.clientWidth,
+          );
+          expect(range).toBeGreaterThan(100);
+          await page.mouse.wheel(600, 0);
+          await expect
+            .poll(() => timeline.evaluate((element) => element.scrollLeft))
+            .toBeGreaterThan(before + Math.min(100, range / 2));
+          const after = await timeline.evaluate(
+            (element) => element.scrollLeft,
+          );
+          const afterVisibleClipIds = await visibleClips();
+          expect(afterVisibleClipIds).not.toEqual(beforeVisibleClipIds);
+          const trusted = await wheelEvents.jsonValue();
+          expect(trusted).toContain(true);
+          return {
+            kind: "scroll",
+            before,
+            after,
+            trustedEvents: trusted.filter(Boolean).length,
+            beforeVisibleClipIds,
+            afterVisibleClipIds,
+          };
+        },
+      );
+      await wheelEvents.dispose();
+      await timeline.evaluate((element) => {
+        element.scrollLeft = 0;
+      });
+      await slider.press("Home");
+      await recorder.measure(
+        {
+          id: "ruler-click-seek",
+          phase: "warm",
+          input: "browser mouse click at ruler local x=240 y=10",
+        },
+        async () => {
+          const beforeSeconds = Number(
+            await slider.getAttribute("aria-valuenow"),
+          );
+          await slider.click({ position: { x: 240, y: 10 } });
+          await expect
+            .poll(async () =>
+              Number(await slider.getAttribute("aria-valuenow")),
+            )
+            .toBeGreaterThan(beforeSeconds);
+          return {
+            kind: "seek",
+            beforeSeconds,
+            afterSeconds: Number(await slider.getAttribute("aria-valuenow")),
+          };
+        },
       );
 
       profiles.push(
@@ -247,7 +375,6 @@ test.describe("large project benchmark (opt-in fixture)", () => {
             );
           }),
         );
-        // Writes to the generated project; build a fresh one per measurement.
         profiles.push(
           await profile(recorder, "history-undo-redo", async () => {
             const undo = historyPanel.getByRole("button", {
@@ -265,10 +392,7 @@ test.describe("large project benchmark (opt-in fixture)", () => {
             await expect(redo).toBeDisabled(HEAVY);
           }),
         );
-        // Each seeded before/after pair is one History step. The fixture's default
-        // history reaches VIRTUALIZE_ON_ROWS (pinned in tests/test_large_project_fixture.py),
-        // so a default-shape run always profiles the virtualized list.
-        if (shape.historyEntries / 2 >= VIRTUALIZE_ON_ROWS) {
+        if (historyStepCount >= VIRTUALIZE_ON_ROWS) {
           profiles.push(
             await profile(recorder, "history-keyboard", async () => {
               const historyList = historyPanel.locator(".history-list");
@@ -302,7 +426,6 @@ test.describe("large project benchmark (opt-in fixture)", () => {
                 );
               await first.focus();
               await expect.poll(focusedIndex, HEAVY).toBe(0);
-              // One Tab per step, past the initially mounted window at normal speed.
               for (let index = 1; index <= lastMounted + 1; index++) {
                 await page.keyboard.press("Tab");
                 await expect.poll(focusedIndex, HEAVY).toBe(index);
@@ -398,7 +521,12 @@ test.describe("large project benchmark (opt-in fixture)", () => {
         if (failure === undefined) throw error;
         process.stderr.write(`profile cleanup: ${String(error)}\n`);
       } finally {
-        await cdp.detach();
+        try {
+          await cdp.detach();
+        } catch (error) {
+          if (failure === undefined) throw error;
+          process.stderr.write(`CDP cleanup: ${String(error)}\n`);
+        }
       }
     }
   });

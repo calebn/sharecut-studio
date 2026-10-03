@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { CDPSession, Page, TestInfo } from "@playwright/test";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createEditorProfiler } from "./editorProfile";
+import { createEditorProfiler, readWaveforms } from "./editorProfile";
 import {
   compatibilityReasons,
   counterDeltas,
@@ -108,6 +108,25 @@ describe("editor profile evidence", () => {
       historyEntries: 1,
     });
   });
+  it("compares waveform content by ref across generated filenames and detects changed data", () => {
+    directory = fs.mkdtempSync(path.join(os.tmpdir(), "editor-waveform-test-"));
+    const peaks = path.join(directory, "artifacts", "peaks");
+    fs.mkdirSync(peaks, { recursive: true });
+    const first = path.join(peaks, "track-host.abc.wfpk");
+    fs.writeFileSync(first, "synthetic peaks");
+    const a = readWaveforms(path.join(directory, "project.json"));
+    fs.renameSync(first, path.join(peaks, "track-host.def.wfpk"));
+    expect(readWaveforms(path.join(directory, "project.json"))).toEqual(a);
+    fs.writeFileSync(path.join(peaks, "track-host.def.wfpk"), "silent peaks");
+    const b = readWaveforms(path.join(directory, "project.json"));
+    expect(
+      fixtureIdentity(JSON.stringify(project), "/tmp/one/project.json", a)
+        .canonicalSha256,
+    ).not.toBe(
+      fixtureIdentity(JSON.stringify(project), "/tmp/one/project.json", b)
+        .canonicalSha256,
+    );
+  });
   it("retains partial frames and a failed action before rethrowing, then refuses incompatible results", async () => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), "editor-profile-test-"));
     vi.stubEnv("DAW_PROFILE_OUT", directory);
@@ -136,16 +155,16 @@ describe("editor profile evidence", () => {
       addInitScript: vi.fn(),
       evaluate,
     } as unknown as Page;
-    const cdp = {
-      send: vi
-        .fn()
-        .mockResolvedValue({ metrics: [{ name: "TaskDuration", value: 1 }] }),
-    } as unknown as CDPSession;
+    const send = vi
+      .fn()
+      .mockResolvedValue({ metrics: [{ name: "TaskDuration", value: 1 }] });
+    const cdp = { send } as unknown as CDPSession;
+    const attach = vi.fn();
     const info = {
       outputPath: (name: string) => path.join(directory!, name),
       project: { use: { trace: "off" }, retries: 0 },
       repeatEachIndex: 0,
-      attach: vi.fn(),
+      attach,
     } as unknown as TestInfo;
     const recorder = await createEditorProfiler(
       page,
@@ -182,13 +201,17 @@ describe("editor profile evidence", () => {
       totalMs: 55,
       maximumMs: 55,
     });
-    expect(cdp.send).not.toHaveBeenCalledWith("HeapProfiler.collectGarbage");
+    expect(send).not.toHaveBeenCalledWith("HeapProfiler.collectGarbage");
     await recorder.finish(error);
-    expect(info.attach).toHaveBeenCalledWith(
+    expect(attach).toHaveBeenCalledWith(
       "editor-profile-report",
       expect.objectContaining({ path: path.join(directory, "report.json") }),
     );
     const a = structuredClone(recorder.report);
+    a.fixture.waveforms = measured(
+      [{ ref: "track-host", sha256: "known" }],
+      "actual content",
+    );
     a.status = "complete";
     a.samples[0]!.result = {
       status: "completed",

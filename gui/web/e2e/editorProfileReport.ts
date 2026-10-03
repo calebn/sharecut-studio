@@ -6,17 +6,16 @@ export type Measurement<T> =
   | { status: "unavailable"; reason: string };
 export type WorkloadObservation =
   | { kind: "load"; detailLoaded: true; firstClipId: string }
-  | { kind: "scroll"; before: number; after: number; trustedEvents: number }
+  | {
+      kind: "scroll";
+      before: number;
+      after: number;
+      trustedEvents: number;
+      beforeVisibleClipIds: string[];
+      afterVisibleClipIds: string[];
+    }
   | { kind: "seek"; beforeSeconds: number; afterSeconds: number }
   | { kind: "zoom"; beforeScale: number; afterScale: number }
-  | {
-      kind: "progress";
-      scheduled: number;
-      delivered: number;
-      rendered: number;
-      cadenceMs: number;
-      payloadHash: string;
-    }
   | { kind: "existing"; contract: string };
 export type WorkloadResult =
   | { status: "completed"; observation: WorkloadObservation }
@@ -133,6 +132,15 @@ export const unavailable = (reason: string): Measurement<never> => ({
   status: "unavailable",
   reason,
 });
+export function failureReason(error: unknown): string {
+  if (error instanceof Error) return `${error.name}: ${error.message}`;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error) ?? "Unknown failure";
+  } catch {
+    return "Unserializable failure";
+  }
+}
 export function statistics(values: readonly number[]) {
   if (!values.length)
     return { count: 0, medianMs: null, p95Ms: null, maximumMs: null };
@@ -184,7 +192,15 @@ export function counterDeltas(
     }),
   );
 }
-export function fixtureIdentity(raw: string, projectPath: string) {
+export type WaveformIdentity = { ref: string; sha256: string };
+
+export function fixtureIdentity(
+  raw: string,
+  projectPath: string,
+  waveforms: Measurement<WaveformIdentity[]> = unavailable(
+    "waveform content identity not provided",
+  ),
+) {
   const project = JSON.parse(raw) as FixtureProject;
   const root = path.dirname(projectPath);
   const canonical = {
@@ -231,12 +247,13 @@ export function fixtureIdentity(raw: string, projectPath: string) {
         ? "large"
         : "custom";
   return {
-    canonicalVersion: "fixture-v1",
-    canonicalSha256: hash(JSON.stringify(canonical)),
+    canonicalVersion: "fixture-v2",
+    canonicalSha256: hash(JSON.stringify({ project: canonical, waveforms })),
     rawSha256: hash(raw),
     counts,
     preset,
-    waveform: "prebuilt; sparse silent media; mode not encoded in project",
+    waveforms,
+    media: "sparse silent media; playback excluded",
   };
 }
 export function hash(value: string | Buffer) {
@@ -260,6 +277,7 @@ export function compatibilityReasons(
   const { repeatIndex: _b, ...bProtocol } = b.protocol;
   equal("protocol", aProtocol, bProtocol);
   for (const key of [
+    "node",
     "host",
     "browser",
     "viewport",
@@ -287,6 +305,8 @@ export function compatibilityReasons(
         !["light", "dark"].includes(report.environment.page.value.theme ?? ""))
     )
       reasons.push("unknown browser/headless/theme provenance");
+    if (report.fixture.waveforms.status === "unavailable")
+      reasons.push("unknown waveform workload identity");
     if (report.samples.some((sample) => sample.result.status !== "completed"))
       reasons.push("failed sample");
   }
