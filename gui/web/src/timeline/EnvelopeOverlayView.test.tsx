@@ -65,6 +65,7 @@ function capture(circle: SVGCircleElement) {
 describe("EnvelopeOverlayView", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    document.body.onkeydown = null;
   });
 
   it("renders named points with an accessible label and no axe violations", async () => {
@@ -178,10 +179,12 @@ describe("EnvelopeOverlayView", () => {
   it("releases the hold when the view unmounts mid-drag", () => {
     const { container, release, unmount } = renderView();
     const circle = container.querySelectorAll("circle")[0]!;
-    fireEvent.pointerDown(circle);
+    const releaseCapture = capture(circle);
+    fireEvent.pointerDown(circle, { pointerId: 1 });
     expect(release).not.toHaveBeenCalled();
     unmount();
     expect(release).toHaveBeenCalledTimes(1);
+    expect(releaseCapture).toHaveBeenCalledExactlyOnceWith(1);
   });
 
   it("restores cy and calls onCommitError when a commit rejects", async () => {
@@ -205,18 +208,30 @@ describe("EnvelopeOverlayView", () => {
         finish = resolve;
       }),
     );
-    const { container } = renderView({ onCommitPoints });
+    const { container, release } = renderView({ onCommitPoints });
     const circle = container.querySelectorAll("circle")[1]!;
+    const releaseCapture = capture(circle);
     fireEvent.pointerDown(circle);
     fireEvent.pointerMove(circle, { clientX: 80, clientY: 8 });
     fireEvent.pointerUp(circle);
     expect(onCommitPoints).toHaveBeenCalledTimes(1);
+    const pendingCy = circle.getAttribute("cy");
+    fireEvent.keyDown(circle, { key: "Escape" });
+    act(() => {
+      circle.blur();
+    });
+    expect(circle.getAttribute("cy")).toBe(pendingCy);
+    expect(release).not.toHaveBeenCalled();
+    expect(releaseCapture).toHaveBeenCalledTimes(1);
     fireEvent.pointerDown(circle);
     fireEvent.pointerMove(circle, { clientX: 120, clientY: 8 });
     fireEvent.pointerUp(circle);
     expect(onCommitPoints).toHaveBeenCalledTimes(1);
-    finish({});
-    await vi.waitFor(() => expect(onCommitPoints).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      finish({});
+    });
+    expect(onCommitPoints).toHaveBeenCalledTimes(1);
+    expect(release).toHaveBeenCalledTimes(1);
   });
 
   it("focuses the owner without scrolling and Escape restores its preview before release", () => {
@@ -229,7 +244,7 @@ describe("EnvelopeOverlayView", () => {
       cy: circle.getAttribute("cy"),
     };
     const parentKey = vi.fn();
-    container.addEventListener("keydown", parentKey);
+    document.body.onkeydown = parentKey;
     fireEvent.pointerDown(circle, { pointerId: 1 });
     expect(document.activeElement).toBe(circle);
     expect(focus).toHaveBeenCalledWith({ preventScroll: true });
@@ -350,6 +365,53 @@ describe("EnvelopeOverlayView", () => {
       expect(release).toHaveBeenCalledTimes(1);
     },
   );
+
+  it("does not admit a preview if the circle cannot acquire focus", () => {
+    const { container, onCommitPoints, holdGeometry } = renderView();
+    const circle = container.querySelectorAll("circle")[0]!;
+    vi.spyOn(circle, "focus").mockImplementation(() => {});
+    fireEvent.pointerDown(circle, { pointerId: 1 });
+    fireEvent.pointerMove(circle, { pointerId: 1, clientX: 65, clientY: 8 });
+    fireEvent.pointerUp(circle, { pointerId: 1 });
+    expect(holdGeometry).not.toHaveBeenCalled();
+    expect(onCommitPoints).not.toHaveBeenCalled();
+    expect(circle.getAttribute("cx")).toBe("0");
+  });
+
+  it("releases geometry and restores the point if capture setup fails", () => {
+    const { container, onCommitPoints, onCommitError, release } = renderView();
+    const circle = container.querySelectorAll("circle")[0]!;
+    capture(circle);
+    const error = new Error("Pointer is no longer active");
+    vi.spyOn(circle, "setPointerCapture").mockImplementationOnce(() => {
+      throw error;
+    });
+    fireEvent.pointerDown(circle, { pointerId: 1 });
+    fireEvent.pointerMove(circle, { pointerId: 1, clientX: 65, clientY: 8 });
+    fireEvent.pointerUp(circle, { pointerId: 1 });
+    expect(onCommitError).toHaveBeenCalledExactlyOnceWith(error);
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(onCommitPoints).not.toHaveBeenCalled();
+    expect(circle.getAttribute("cx")).toBe("0");
+    fireEvent.pointerDown(circle, { pointerId: 2 });
+    fireEvent.pointerMove(circle, { pointerId: 2, clientX: 65, clientY: 8 });
+    fireEvent.pointerUp(circle, { pointerId: 2 });
+    expect(onCommitPoints).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps read-only pointer and Enter/Space selection without admitting edits", () => {
+    const { container, onSelectPoint, onCommitPoints, holdGeometry } =
+      renderView({ editable: false });
+    const circle = container.querySelectorAll("circle")[1]!;
+    fireEvent.pointerDown(circle, { pointerId: 1 });
+    fireEvent.pointerMove(circle, { pointerId: 1, clientX: 65, clientY: 8 });
+    fireEvent.pointerUp(circle, { pointerId: 1 });
+    fireEvent.keyDown(circle, { key: "Enter" });
+    fireEvent.keyDown(circle, { key: " " });
+    expect(onSelectPoint.mock.calls).toEqual([[1], [1], [1]]);
+    expect(onCommitPoints).not.toHaveBeenCalled();
+    expect(holdGeometry).not.toHaveBeenCalled();
+  });
   it("draws only the deep-zoom viewport chunk", () => {
     const zoom = 48000;
     const deepPoints: AutomationPoint[] = [

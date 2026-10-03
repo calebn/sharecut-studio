@@ -199,6 +199,11 @@ Users don’t need tool IDs. They need this story:
 3. **Commit** — same services agents use → history snapshot.
 4. **Possibly re-render** — stems/premix may show “stale” until refresh. If an undo or redo is saved but its preview render fails, the app reports a conflict that says to re-render the preview, not to repeat the move.
 
+An editable envelope drag focuses its point without scrolling. Escape or moving
+focus away discards its preview. Escape retains the selected point. Only the
+owning pointer can complete the drag. A completed save remains in flight until
+it settles, and History Undo restores the saved edit.
+
 If a selected envelope point changes in another tab before Apply or Delete,
 the inspector asks the user to select it again instead of editing a different
 point at the same timeline position.

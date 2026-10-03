@@ -210,7 +210,9 @@ UI state: the envelope drag draft, the focused point id, and the presence
 cursor's rAF easing. `EnvelopeOverlayView` takes the gesture hold as
 `holdGeometry` and calls it inside `pointerdown`, so the lane height is frozen
 before the first `pointermove`; it releases the hold when the drag commits,
-cancels or unmounts. `PresenceOverlayView` takes a fixed `nowMs` instead of
+cancels or unmounts. A drag records its pointer and circle. Focus departure or
+local Escape discards only an active preview. A pending save keeps the draft and
+hold until settlement. `PresenceOverlayView` takes a fixed `nowMs` instead of
 reading the server clock itself, so its stories and tests never depend on the
 wall clock. All three views ship a 360px story (`PhoneEmpty`,
 `PhoneStaleClient`) alongside their desktop ones. All three stories share

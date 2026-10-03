@@ -315,6 +315,11 @@ describe("EnvelopeOverlay", () => {
     act(() => {
       useDawStore.getState().setSelection(null);
     });
+    expect(document.activeElement).toBe(late);
+    expect(late.isConnected).toBe(true);
+    act(() => {
+      late.blur();
+    });
     expect(container.querySelectorAll("circle")).toHaveLength(0);
     // A focused point stays mounted too.
     act(() => {
