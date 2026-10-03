@@ -4,6 +4,7 @@ import path from "node:path";
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { repoRoot } from "./env";
+import { podcastCommand } from "./guiCommand";
 import { createRelocatedE2eProject } from "./liveProject";
 import { openTransportMenu } from "./overlayReachability";
 import { openPhoneTimeline } from "./phoneTimeline";
@@ -140,13 +141,13 @@ async function createSuggestOnlyShare(page: Page, projectPath: string) {
     { data: { path: projectPath } },
   );
   expect(revoked.ok(), await revoked.text()).toBeTruthy();
+  const [command, ...commandArgs] = podcastCommand({
+    ci: Boolean(process.env.CI),
+  });
   const output = execFileSync(
-    "uv",
+    command,
     [
-      "run",
-      "--project",
-      repoRoot,
-      "podcast",
+      ...commandArgs,
       "review",
       "share",
       "--project",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { guiCommand } from "./guiCommand";
+import { guiCommand, podcastCommand } from "./guiCommand";
 
 describe("guiCommand", () => {
   const base = {
@@ -8,6 +8,13 @@ describe("guiCommand", () => {
     port: 43123,
     projectPath: "/tmp/sharecut-e2e/episode.project.json",
   };
+
+  it.each([
+    { ci: false, command: ["uv", "run", "--extra", "gui", "podcast"] },
+    { ci: true, command: ["podcast"] },
+  ])("selects the installed podcast runner for ci=$ci", ({ ci, command }) => {
+    expect(podcastCommand({ ci })).toEqual(command);
+  });
 
   it("leaves ordinary loopback E2E unpinned", () => {
     expect(guiCommand({ ...base, pinProject: false })).toEqual([
