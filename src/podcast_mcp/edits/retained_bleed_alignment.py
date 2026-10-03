@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import wave
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -34,6 +36,7 @@ from podcast_mcp.models import (
     Clip,
     EpisodeProject,
     RetainedBleedAlignmentDecision,
+    TrackRole,
     TranscriptGateScope,
 )
 from podcast_mcp.models.project_format import snapshot_editable_state
@@ -42,7 +45,7 @@ from podcast_mcp.util.intervals import HalfOpenIntervalIndex, merge_intervals
 from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.timebase import SourceSec
 
-EVIDENCE_REVISION = 3
+EVIDENCE_REVISION = 4
 _RATE = 8000
 _FULL_RATE = 48_000
 _QUIET_PEAK = 3 / 32768
@@ -111,21 +114,52 @@ def _recording_key(project: EpisodeProject, track_id: str, source_id: str | None
     return _normalize_media_key(project, clip_media_key(project, selection))
 
 
-def _own_phrases(project: EpisodeProject, track_id: str) -> list[tuple[float, float]]:
+@dataclass(frozen=True)
+class _OwnPhrase:
+    source_id: str | None
+    start: float
+    end: float
+
+
+@dataclass(frozen=True)
+class _PhraseCandidate:
+    direct_track_id: str
+    bleed_track_id: str
+    phrase: _OwnPhrase
+
+
+class _EvidenceBudgetExhausted(Exception):
+    pass
+
+
+@dataclass
+class _EvidenceBudget:
+    remaining: int = _MAX_PHRASES
+
+    def require(self, units: int) -> None:
+        if units > self.remaining:
+            raise _EvidenceBudgetExhausted
+
+    def spend(self, units: int = 1) -> None:
+        self.require(units)
+        self.remaining -= units
+
+
+def _own_phrases(project: EpisodeProject, track_id: str) -> list[_OwnPhrase]:
     timeline = SessionTimeline(project)
-    phrases = []
+    phrases: list[_OwnPhrase] = []
     for source_id, transcript in project.selected_source_transcripts(track_id):
         words = [word for word in transcript.words if not word.suppressed and not word.ignored]
         mapped = timeline.map_selected_source_spans(
             track_id, source_id, [(SourceSec(word.start), SourceSec(word.end)) for word in words]
         )
         phrases.extend(
-            merge_intervals(
-                ((float(start), float(end)) for spans in mapped for start, end in spans),
-                gap=0.3,
+            _OwnPhrase(source_id, float(start), float(end))
+            for start, end in merge_intervals(
+                ((float(start), float(end)) for spans in mapped for start, end in spans), gap=0.3
             )
         )
-    return sorted(phrases)
+    return sorted(phrases, key=lambda phrase: (phrase.start, phrase.end, phrase.source_id or ""))
 
 
 def _complete_phrase(
@@ -148,6 +182,8 @@ def _complete_phrase(
         return None
     lo, hi = touching[0][0], touching[-1][1]
     if lo <= lower + 0.01 or hi >= upper - 0.01:
+        return None
+    if hi - lo > _MAX_PHRASE_SEC:
         return None
     return round(lo, 9), round(hi, 9)
 
@@ -238,8 +274,6 @@ def _local_delay(
     project: EpisodeProject,
     direct_id: str,
     peer_id: str,
-    audio: dict[str, np.ndarray],
-    decoded: dict[Path, np.ndarray],
     start: float,
     end: float,
     *,
@@ -255,8 +289,7 @@ def _local_delay(
     context = config.max_lag_sec + max(abs(shift) for shift in config.null_shifts_sec)
     lower = max(0.0, start - context)
     upper = min(max(clip.timeline_end for clip in project.clips), end + context)
-    audio.clear()
-    decoded.clear()
+    audio: dict[str, np.ndarray] = {}
     for tid in (direct_id, peer_id):
         layout_reason = raw_evidence_layout_reason(project, tid)
         if layout_reason is not None:
@@ -301,7 +334,7 @@ def _retained_peers(
     direct_id: str,
     start: float,
     end: float,
-    hard_plans: dict[str, tuple[tuple[float, float], ...]],
+    hard_plans: dict[str, tuple[tuple[float, float], ...]] | None,
 ) -> set[str]:
     timeline = SessionTimeline(project)
     peers: set[str] = set()
@@ -322,6 +355,9 @@ def _retained_peers(
                 ):
                     if lo >= end + 0.5 or hi <= start - 0.5:
                         continue
+                    if hard_plans is None:
+                        peers.add(peer_track.id)
+                        continue
                     if peer_track.id not in hard_plans:
                         hard_plans[peer_track.id] = build_bleed_gate_plan(
                             project, peer_track.id
@@ -341,8 +377,10 @@ def plan_retained_bleed_alignment(
 ) -> AlignmentPlan:
     """Propose only complete direct phrases with quiet slack and independently stable lag.
 
-    ``track_id`` selects the retained-bleed lane. Explicit scoped override may bypass
-    legacy recorder placement locks; saved manual/declined fine choices still win.
+    ``track_id`` selects the retained-bleed lane. Explicit finite start/end and lane
+    also discover retained direct owner phrases without copy-word seeds. This path
+    budgets all local evidence and requires active peers to validate or veto.
+    Scoped override may bypass legacy recorder locks; saved fine choices still win.
     """
     if override_placement_lock and (start_sec is None or end_sec is None):
         raise ValueError("placement override requires an explicit scoped window")
@@ -358,6 +396,8 @@ def plan_retained_bleed_alignment(
         if end_sec is None
         else end_sec
     )
+    if not math.isfinite(lower) or not math.isfinite(upper):
+        raise ValueError("alignment window bounds must be finite")
     if lower < 0 or (upper <= lower and (end_sec is not None or project.clips)):
         raise ValueError("alignment window must have nonnegative start and increasing end")
     if not project.clips:
@@ -369,15 +409,16 @@ def plan_retained_bleed_alignment(
                 if track_id is None or track.id == track_id
             ),
         )
+    bounded = track_id is not None and start_sec is not None and end_sec is not None
+    extent = max(clip.timeline_end for clip in project.clips)
     timeline = SessionTimeline(project)
     proposals: list[PhraseAlignmentProposal] = []
     skipped: list[dict[str, str]] = []
-    audio: dict[str, np.ndarray] = {}
-    decoded: dict[Path, np.ndarray] = {}
-    seen: set[tuple[str, float, float]] = set()
+    seen: set[tuple[str, str | None, float, float]] = set()
     completed: set[tuple[str, str, float, float, float]] = set()
     hard_plans: dict[str, tuple[tuple[float, float], ...]] = {}
-    phrase_indexes: dict[str, tuple[list[tuple[float, float]], HalfOpenIntervalIndex]] = {}
+    phrase_indexes: dict[str, tuple[list[_OwnPhrase], HalfOpenIntervalIndex]] = {}
+    budget = _EvidenceBudget(_MAX_PHRASES)
 
     def skip(tid: str, reason: str) -> None:
         row = {"track_id": tid, "reason": reason}
@@ -389,6 +430,284 @@ def plan_retained_bleed_alignment(
         for tid, reason in conflicts:
             skip(tid, reason)
         return AlignmentPlan(_fingerprint(project), safe, tuple(skipped))
+
+    def phrases_for(direct_id: str) -> tuple[list[_OwnPhrase], HalfOpenIntervalIndex]:
+        if direct_id not in phrase_indexes:
+            phrases = _own_phrases(project, direct_id)
+            phrase_indexes[direct_id] = (
+                phrases,
+                HalfOpenIntervalIndex.build((phrase.start, phrase.end) for phrase in phrases),
+            )
+        return phrase_indexes[direct_id]
+
+    def candidates_for(bleed_id: str) -> Iterator[_PhraseCandidate]:
+        transcripts = project.selected_source_transcripts(bleed_id)
+        if not bounded:
+            hard_plans[bleed_id] = build_bleed_gate_plan(project, bleed_id).attenuation_spans
+        has_candidate = False
+        for source_id, transcript in transcripts:
+            for word in transcript.words:
+                if (
+                    not word.suppressed
+                    or word.audibility_status != "bleed"
+                    or not word.dominant_track
+                    or word.dominant_track == bleed_id
+                    or word.ignored
+                    or word.audibility_locked
+                ):
+                    continue
+                if budget.remaining == 0:
+                    skip(word.dominant_track, "alignment_evidence_budget_exhausted")
+                    return
+                for start, end in timeline.map_selected_source_span(
+                    bleed_id, source_id, SourceSec(word.start), SourceSec(word.end)
+                ):
+                    lo, hi = max(lower, float(start)), min(upper, float(end))
+                    if hi <= lo:
+                        continue
+                    has_candidate = True
+                    if not bounded and any(a <= lo and b >= hi for a, b in hard_plans[bleed_id]):
+                        continue
+                    phrases, index = phrases_for(word.dominant_track)
+                    matches = index.overlapping_ordinals(lo - 0.5, hi + 0.5)
+                    if not matches:
+                        skip(
+                            word.dominant_track,
+                            "unmatched_direct_retained_phrase"
+                            if phrases
+                            else "missing_direct_retained_phrase",
+                        )
+                    for ordinal in matches:
+                        yield _PhraseCandidate(word.dominant_track, bleed_id, phrases[ordinal])
+        if bounded:
+            for direct in sorted(project.tracks, key=lambda track: track.id):
+                if direct.id == bleed_id or direct.muted or direct.role != TrackRole.DIALOGUE:
+                    continue
+                if not any(
+                    clip.track_id == direct.id
+                    and clip.timeline_start < upper
+                    and clip.timeline_end > lower
+                    for clip in project.clips
+                ):
+                    continue
+                phrases, _index = phrases_for(direct.id)
+                if not phrases:
+                    skip(direct.id, "missing_direct_retained_phrase")
+                for phrase in phrases:
+                    if phrase.start >= lower and phrase.end <= upper:
+                        has_candidate = True
+                        yield _PhraseCandidate(direct.id, bleed_id, phrase)
+        if not has_candidate:
+            skip(bleed_id, "no_retained_bleed_candidate")
+
+    def validate(candidate: _PhraseCandidate) -> PhraseAlignmentProposal | None:
+        direct_id = candidate.direct_track_id
+        bleed_track = project.track_by_id(candidate.bleed_track_id)
+        assert bleed_track is not None
+        seed_start, seed_end = candidate.phrase.start, candidate.phrase.end
+        clips = [
+            clip
+            for clip in project.clips
+            if clip.track_id == direct_id
+            and clip.timeline_start <= seed_start
+            and clip.timeline_end >= seed_end
+        ]
+        if len(clips) != 1:
+            skip(direct_id, "unsafe_phrase_boundaries")
+            return None
+        clip = clips[0]
+        if clip.source_id != candidate.phrase.source_id:
+            skip(direct_id, "unsafe_phrase_boundaries")
+            return None
+        direct_track = project.track_by_id(direct_id)
+        if direct_track is None:
+            return None
+        if direct_track.muted:
+            skip(direct_id, "saved_mix_mute")
+            return None
+        layout_reason = raw_evidence_layout_reason(
+            project, direct_id
+        ) or raw_evidence_layout_reason(project, bleed_track.id)
+        if layout_reason is not None:
+            skip(direct_id, layout_reason)
+            return None
+        mapped_seed = clip_timeline_overlap_to_source(clip, seed_start, seed_end)
+        if mapped_seed is None:
+            return None
+        media_key = _recording_key(project, direct_id, clip.source_id)
+        decisions = [
+            d
+            for d in project.editorial.retained_bleed_alignments
+            if d.direct_track_id == direct_id
+            and (
+                _normalize_media_key(project, d.media_key)
+                if d.media_key is not None
+                else _recording_key(project, d.direct_track_id, d.source_id)
+            )
+            == media_key
+            and d.start_s < float(mapped_seed[1])
+            and d.end_s > float(mapped_seed[0])
+        ]
+        locked = next((d for d in decisions if d.mode != "auto"), None)
+        if locked is not None:
+            skip(direct_id, f"saved_{locked.mode}_decision")
+            return None
+        if _placement_locked(project, direct_id, clip.id) and not override_placement_lock:
+            skip(direct_id, "manual_recorder_placement")
+            return None
+        try:
+            with wave.open(
+                str(resolve_clip_audio_path(project, direct_track, clip)), "rb"
+            ) as media:
+                if (
+                    media.getnchannels() not in (1, 2)
+                    or media.getsampwidth() != 2
+                    or media.getframerate() > _FULL_RATE
+                ):
+                    skip(direct_id, "unsupported_source_evidence_format")
+                    return None
+            complete = _complete_phrase(project, direct_id, seed_start, seed_end, clip.timeline_end)
+            if complete is None:
+                skip(direct_id, "unsafe_phrase_boundaries")
+                return None
+            phrase_start, phrase_end = complete
+            phrase_source = clip_timeline_overlap_to_source(clip, phrase_start, phrase_end)
+            if phrase_source is None:
+                return None
+            geometry = (
+                direct_id,
+                media_key,
+                float(phrase_source[0]),
+                float(phrase_source[1]),
+                phrase_start,
+            )
+            if geometry in completed:
+                return None
+            if bounded:
+                completed.add(geometry)
+                budget.spend()
+            delay = _local_delay(
+                project,
+                direct_id,
+                bleed_track.id,
+                max(lower, phrase_start - 0.5),
+                min(upper, phrase_end + 0.5),
+                phrase_start=phrase_start,
+                phrase_end=phrase_end,
+            )
+            if delay.reason is not None:
+                skip(direct_id, delay.reason)
+                return None
+            offset = delay.offset_sec
+            peer_conflict = False
+            reference_peers = _retained_peers(
+                project, direct_id, phrase_start, phrase_end, None if bounded else hard_plans
+            ) | {bleed_track.id}
+            unknown_peers: set[str] = set()
+            if bounded:
+                peer_start = max(0.0, phrase_start - 0.5)
+                peer_end = min(extent, phrase_end + 0.5)
+                unknown_peers = {
+                    track.id
+                    for track in project.tracks
+                    if not track.muted
+                    and track.id not in {direct_id, bleed_track.id}
+                    and any(
+                        clip.track_id == track.id
+                        and clip.timeline_start < peer_end
+                        and clip.timeline_end > peer_start
+                        for clip in project.clips
+                    )
+                } - reference_peers
+                budget.require(2 * len(unknown_peers) + len(reference_peers - {bleed_track.id}) + 2)
+            for peer in sorted((reference_peers - {bleed_track.id}) | unknown_peers):
+                if bounded and peer in unknown_peers:
+                    layout_reason = raw_evidence_layout_reason(project, peer)
+                    if layout_reason is not None:
+                        skip(direct_id, layout_reason)
+                        return None
+                    budget.spend()
+                    if _quiet(project, peer, peer_start, peer_end):
+                        continue
+                if bounded:
+                    budget.spend()
+                peer_delay = _local_delay(
+                    project,
+                    direct_id,
+                    peer,
+                    max(lower, phrase_start - 0.5),
+                    min(upper, phrase_end + 0.5),
+                    phrase_start=phrase_start,
+                    phrase_end=phrase_end,
+                )
+                if peer_delay.reason is not None:
+                    skip(
+                        direct_id,
+                        peer_delay.reason
+                        if peer_delay.reason == "unsupported_crossfade_evidence_clock"
+                        else "unverified_retained_bleed_peer",
+                    )
+                    peer_conflict = True
+                    break
+                reference_peers.add(peer)
+                if abs(peer_delay.offset_sec - offset) * 1000 > _MAX_RESIDUAL_MS:
+                    skip(direct_id, "conflicting_retained_bleed_delays")
+                    peer_conflict = True
+                    break
+            if peer_conflict:
+                return None
+            if abs(offset) <= 0.002:
+                return None
+            slack = abs(offset) + _SEAM_PAD
+            if bounded:
+                budget.spend(2)
+            if not _quiet(project, direct_id, phrase_start - slack, phrase_start) or not _quiet(
+                project, direct_id, phrase_end, phrase_end + slack
+            ):
+                skip(direct_id, "unsafe_phrase_boundaries")
+                return None
+        except (OSError, ValueError, wave.Error, CalledProcessError):
+            skip(direct_id, "unavailable_source_evidence")
+            return None
+        old_start, old_end = phrase_start - _SEAM_PAD, phrase_end + _SEAM_PAD
+        new_start = old_start + offset
+        if (
+            min(old_start, new_start) - _INTERNAL_FADE_MS / 1000 < lower
+            or max(old_end, old_end + offset) + _INTERNAL_FADE_MS / 1000 > upper
+            or old_start < clip.timeline_start
+            or old_end > clip.timeline_end
+        ):
+            skip(direct_id, "correction_outside_scope")
+            return None
+        fringe_start, fringe_end = _quiet_fringe(old_start, old_end, offset)
+        if not _retained_words_survive_trim(project, direct_id, fringe_start, fringe_end):
+            skip(direct_id, "quiet_trim_would_remove_retained_word")
+            return None
+        source = clip_timeline_overlap_to_source(clip, old_start, old_end)
+        if source is None or phrase_source is None:
+            return None
+        identity = f"{direct_id}:{bleed_track.id}:{media_key}:{float(phrase_source[0]):.9f}:{float(phrase_source[1]):.9f}"
+        proposal = PhraseAlignmentProposal(
+            str(uuid5(NAMESPACE_URL, identity)),
+            direct_id,
+            bleed_track.id,
+            clip.id,
+            clip.source_id,
+            float(source[0]),
+            float(source[1]),
+            float(phrase_source[0]),
+            float(phrase_source[1]),
+            old_start,
+            new_start,
+            offset,
+            "requested_scoped_override" if override_placement_lock else "automatic",
+            delay.validation_windows,
+            delay.max_residual_ms,
+            tuple(sorted(reference_peers)),
+            media_key,
+        )
+        completed.add(geometry)
+        return proposal
 
     for bleed_track in project.tracks:
         if track_id is not None and bleed_track.id != track_id:
@@ -403,245 +722,20 @@ def plan_retained_bleed_alignment(
             for clip in project.clips
         ):
             continue
-        transcripts = project.selected_source_transcripts(bleed_track.id)
-        if not transcripts:
-            skip(bleed_track.id, "no_retained_bleed_candidate")
-            continue
-        has_scoped_candidate = False
-        hard = build_bleed_gate_plan(project, bleed_track.id).attenuation_spans
-        hard_plans[bleed_track.id] = hard
-        candidates = (
-            (source_id, word)
-            for source_id, transcript in transcripts
-            for word in transcript.words
-            if word.suppressed
-            and word.audibility_status == "bleed"
-            and word.dominant_track
-            and word.dominant_track != bleed_track.id
-            and not word.ignored
-            and not word.audibility_locked
-        )
-        for source_id, word in candidates:
-            direct_id = word.dominant_track
-            if direct_id is None:
+        for candidate in candidates_for(bleed_track.id):
+            phrase = candidate.phrase
+            key = (candidate.direct_track_id, phrase.source_id, phrase.start, phrase.end)
+            if key in seen:
                 continue
-            if len(seen) >= _MAX_PHRASES:
-                skip(direct_id, "alignment_evidence_budget_exhausted")
+            try:
+                budget.spend()
+                seen.add(key)
+                proposal = validate(candidate)
+            except _EvidenceBudgetExhausted:
+                skip(candidate.direct_track_id, "alignment_evidence_budget_exhausted")
                 return finish()
-            for candidate_start, candidate_end in timeline.map_selected_source_span(
-                bleed_track.id, source_id, SourceSec(word.start), SourceSec(word.end)
-            ):
-                lo, hi = max(lower, float(candidate_start)), min(upper, float(candidate_end))
-                if hi <= lo:
-                    continue
-                has_scoped_candidate = True
-                if any(a <= lo and b >= hi for a, b in hard):
-                    continue
-                if direct_id not in phrase_indexes:
-                    phrases = _own_phrases(project, direct_id)
-                    phrase_indexes[direct_id] = (phrases, HalfOpenIntervalIndex.build(phrases))
-                phrases, index = phrase_indexes[direct_id]
-                matches = index.overlapping_ordinals(lo - 0.5, hi + 0.5)
-                if not matches:
-                    skip(
-                        direct_id,
-                        "unmatched_direct_retained_phrase"
-                        if phrases
-                        else "missing_direct_retained_phrase",
-                    )
-                    continue
-                for ordinal in matches:
-                    seed_start, seed_end = phrases[ordinal]
-                    key = (direct_id, seed_start, seed_end)
-                    if key in seen:
-                        continue
-                    if len(seen) >= _MAX_PHRASES:
-                        skip(direct_id, "alignment_evidence_budget_exhausted")
-                        return finish()
-                    seen.add(key)
-                    clips = [
-                        clip
-                        for clip in project.clips
-                        if clip.track_id == direct_id
-                        and clip.timeline_start <= seed_start
-                        and clip.timeline_end >= seed_end
-                    ]
-                    if len(clips) != 1:
-                        skip(direct_id, "unsafe_phrase_boundaries")
-                        continue
-                    clip = clips[0]
-                    direct_track = project.track_by_id(direct_id)
-                    if direct_track is None:
-                        continue
-                    if direct_track.muted:
-                        skip(direct_id, "saved_mix_mute")
-                        continue
-                    layout_reason = raw_evidence_layout_reason(
-                        project, direct_id
-                    ) or raw_evidence_layout_reason(project, bleed_track.id)
-                    if layout_reason is not None:
-                        skip(direct_id, layout_reason)
-                        continue
-                    mapped_seed = clip_timeline_overlap_to_source(clip, seed_start, seed_end)
-                    if mapped_seed is None:
-                        continue
-                    media_key = _recording_key(project, direct_id, clip.source_id)
-                    decisions = [
-                        d
-                        for d in project.editorial.retained_bleed_alignments
-                        if d.direct_track_id == direct_id
-                        and (
-                            _normalize_media_key(project, d.media_key)
-                            if d.media_key is not None
-                            else _recording_key(project, d.direct_track_id, d.source_id)
-                        )
-                        == media_key
-                        and d.start_s < float(mapped_seed[1])
-                        and d.end_s > float(mapped_seed[0])
-                    ]
-                    locked = next((d for d in decisions if d.mode != "auto"), None)
-                    if locked is not None:
-                        skip(direct_id, f"saved_{locked.mode}_decision")
-                        continue
-                    if (
-                        _placement_locked(project, direct_id, clip.id)
-                        and not override_placement_lock
-                    ):
-                        skip(direct_id, "manual_recorder_placement")
-                        continue
-                    try:
-                        with wave.open(
-                            str(resolve_clip_audio_path(project, direct_track, clip)), "rb"
-                        ) as media:
-                            if (
-                                media.getnchannels() not in (1, 2)
-                                or media.getsampwidth() != 2
-                                or media.getframerate() > _FULL_RATE
-                            ):
-                                skip(direct_id, "unsupported_source_evidence_format")
-                                continue
-                        complete = _complete_phrase(
-                            project, direct_id, seed_start, seed_end, clip.timeline_end
-                        )
-                        if complete is None:
-                            skip(direct_id, "unsafe_phrase_boundaries")
-                            continue
-                        phrase_start, phrase_end = complete
-                        phrase_source = clip_timeline_overlap_to_source(
-                            clip, phrase_start, phrase_end
-                        )
-                        if phrase_source is None:
-                            continue
-                        geometry = (
-                            direct_id,
-                            media_key,
-                            float(phrase_source[0]),
-                            float(phrase_source[1]),
-                            phrase_start,
-                        )
-                        if geometry in completed:
-                            continue
-                        delay = _local_delay(
-                            project,
-                            direct_id,
-                            bleed_track.id,
-                            audio,
-                            decoded,
-                            max(lower, phrase_start - 0.5),
-                            min(upper, phrase_end + 0.5),
-                            phrase_start=phrase_start,
-                            phrase_end=phrase_end,
-                        )
-                        if delay.reason is not None:
-                            skip(direct_id, delay.reason)
-                            continue
-                        offset = delay.offset_sec
-                        peer_conflict = False
-                        reference_peers = _retained_peers(
-                            project, direct_id, phrase_start, phrase_end, hard_plans
-                        ) | {bleed_track.id}
-                        for peer in reference_peers - {bleed_track.id}:
-                            peer_delay = _local_delay(
-                                project,
-                                direct_id,
-                                peer,
-                                audio,
-                                decoded,
-                                max(lower, phrase_start - 0.5),
-                                min(upper, phrase_end + 0.5),
-                                phrase_start=phrase_start,
-                                phrase_end=phrase_end,
-                            )
-                            if peer_delay.reason is not None:
-                                skip(
-                                    direct_id,
-                                    peer_delay.reason
-                                    if peer_delay.reason == "unsupported_crossfade_evidence_clock"
-                                    else "unverified_retained_bleed_peer",
-                                )
-                                peer_conflict = True
-                                break
-                            if abs(peer_delay.offset_sec - offset) * 1000 > _MAX_RESIDUAL_MS:
-                                skip(direct_id, "conflicting_retained_bleed_delays")
-                                peer_conflict = True
-                                break
-                        if peer_conflict:
-                            continue
-                        if abs(offset) <= 0.002:
-                            continue
-                        slack = abs(offset) + _SEAM_PAD
-                        if not _quiet(
-                            project, direct_id, phrase_start - slack, phrase_start
-                        ) or not _quiet(project, direct_id, phrase_end, phrase_end + slack):
-                            skip(direct_id, "unsafe_phrase_boundaries")
-                            continue
-                    except (OSError, ValueError, wave.Error, CalledProcessError):
-                        skip(direct_id, "unavailable_source_evidence")
-                        continue
-                    old_start, old_end = phrase_start - _SEAM_PAD, phrase_end + _SEAM_PAD
-                    new_start = old_start + offset
-                    if (
-                        min(old_start, new_start) - _INTERNAL_FADE_MS / 1000 < lower
-                        or max(old_end, old_end + offset) + _INTERNAL_FADE_MS / 1000 > upper
-                        or old_start < clip.timeline_start
-                        or old_end > clip.timeline_end
-                    ):
-                        skip(direct_id, "correction_outside_scope")
-                        continue
-                    fringe_start, fringe_end = _quiet_fringe(old_start, old_end, offset)
-                    if not _retained_words_survive_trim(
-                        project, direct_id, fringe_start, fringe_end
-                    ):
-                        skip(direct_id, "quiet_trim_would_remove_retained_word")
-                        continue
-                    source = clip_timeline_overlap_to_source(clip, old_start, old_end)
-                    if source is None or phrase_source is None:
-                        continue
-                    identity = f"{direct_id}:{bleed_track.id}:{media_key}:{float(phrase_source[0]):.9f}:{float(phrase_source[1]):.9f}"
-                    proposals.append(
-                        PhraseAlignmentProposal(
-                            str(uuid5(NAMESPACE_URL, identity)),
-                            direct_id,
-                            bleed_track.id,
-                            clip.id,
-                            clip.source_id,
-                            float(source[0]),
-                            float(source[1]),
-                            float(phrase_source[0]),
-                            float(phrase_source[1]),
-                            old_start,
-                            new_start,
-                            offset,
-                            "requested_scoped_override" if override_placement_lock else "automatic",
-                            delay.validation_windows,
-                            delay.max_residual_ms,
-                            tuple(sorted(reference_peers)),
-                            media_key,
-                        )
-                    )
-                    completed.add(geometry)
-        if not has_scoped_candidate:
-            skip(bleed_track.id, "no_retained_bleed_candidate")
+            if proposal is not None:
+                proposals.append(proposal)
     return finish()
 
 

@@ -19,9 +19,12 @@ existing clip geometry, with source ranges and reason in the move edit log.
 Any reduction of retained-word source coverage abstains. Saved mix-muted lanes
 are excluded from automatic alignment; muted secondary copies cannot veto it.
 Planning, trim guards, and bleed gates share `selected_source_transcripts`.
-An eligible scoped lane without a transcript bleed seed reports
-`no_retained_bleed_candidate` through the existing skipped rows; this is unmeasured
-alignment, not acoustic clearance. Specific seeded abstentions remain unchanged.
+An explicitly selected bleed lane with finite start/end also discovers candidates
+from retained owner phrases on selected direct recordings, without inventing copy
+transcript words. Both discovery origins use one complete-phrase validator. A lane
+with neither a transcript seed nor an eligible bounded owner phrase reports
+`no_retained_bleed_candidate`; this is unmeasured alignment, not acoustic clearance.
+Examined candidates retain their specific abstention reasons.
 `transcript_for_source` prefers an exact recording transcript; track-level words
 apply only to primary media or a physically equivalent explicit source alias.
 An unrelated source without a transcript supplies no phrase or gate authorization,
@@ -35,8 +38,16 @@ remains eligible for attenuation. Selected transcript words map only
 through that recording's placements using
 `SessionTimeline.map_selected_source_span(s)`. Implicit primary lanes keep the
 identity source-to-timeline clock, independent of copies parked on other lanes.
-Phrase indexes are built once per
-direct lane and traversal stops when the 64-phrase evidence budget is spent.
+Phrase indexes retain selected recording identity and are built once per direct
+lane. Unbounded runs retain the 64-phrase transcript-seeded workflow. Explicit
+lane/start/end requests have one 64-unit budget for phrase attempts, directed pair
+measurements and quiet reads. Completed envelopes cannot exceed 30 seconds. The
+bounded path does not build fresh whole-recording bleed gate plans or assume hard
+attenuation to exclude peers. Every other unmuted placed lane in the possible
+copy footprint must be measured quiet in every channel or corroborate the full
+phrase delay; known retained-copy peers always participate. Missing, active
+unverified or conflicting peers veto the candidate. No proposal survives an
+unmeasured required peer when the budget is exhausted.
 Local delay reads include bounded lag and shifted-null context with an explicit
 timeline origin, rather than decoding complete recordings. Overlapping old/new
 correction footprints, including quiet trim and seam fades, abstain as a batch.

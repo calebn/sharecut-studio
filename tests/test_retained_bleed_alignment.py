@@ -811,8 +811,6 @@ def test_scoped_delay_decodes_bounded_context_on_two_hour_source_with_null_contr
         p,
         "direct",
         "uncertain",
-        {},
-        {},
         999.7,
         1002.7,
         phrase_start=1000.2,
@@ -1305,9 +1303,7 @@ def test_missing_retained_copy_seed_is_explicitly_unmeasured_without_mutation(
 ) -> None:
     p = _episode(tmp_path)
     api = _api()
-    positive = api.plan_retained_bleed_alignment(
-        p, track_id="uncertain", start_sec=0.8, end_sec=3.5
-    )
+    positive = api.plan_retained_bleed_alignment(p, track_id="uncertain", end_sec=3.5)
     assert len(positive.proposals) == 1
     assert positive.proposals[0].offset_sec == pytest.approx(-0.15, abs=0.002)
     if case == "missing_transcript":
@@ -1321,7 +1317,7 @@ def test_missing_retained_copy_seed_is_explicitly_unmeasured_without_mutation(
             _write(tmp_path / "raw" / "uncertain.wav", np.zeros(6 * RATE))
     before = p.model_dump(mode="json")
     raw = {path: path.read_bytes() for path in (tmp_path / "raw").glob("*.wav")}
-    plan = api.plan_retained_bleed_alignment(p, track_id="uncertain", start_sec=0.8, end_sec=3.5)
+    plan = api.plan_retained_bleed_alignment(p, track_id="uncertain", end_sec=3.5)
     assert plan.proposals == ()
     assert plan.skipped == ({"track_id": "uncertain", "reason": "no_retained_bleed_candidate"},)
     result = api.apply_retained_bleed_alignment(p, plan)

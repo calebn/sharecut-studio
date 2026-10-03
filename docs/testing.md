@@ -1483,7 +1483,8 @@ repeat/reopen convergence, history restoration of timing choices, source-scoped
 quiet-overlap provenance, no stacked-media QC issues, and saved mix mutes. It
 includes comparable broadband and narrowband overlapping-owner cases. Seed-reporting
 controls compare a supported 150 ms copy with the same samples after erasing only
-copy words, missing transcripts, out-of-scope seeds, and no-copy audio. They check
+copy words, missing transcripts, out-of-scope seeds, and no-copy audio in the
+transcript-only workflow. They check
 `no_retained_bleed_candidate`, unchanged project/PCM on empty-plan apply, and
 preserved mute, implicit-timeline, empty-lane, missing-audio, recorder-lock, and
 saved-choice outcomes. Cross-role controls preserve a lane's missing-copy-seed
@@ -1501,8 +1502,9 @@ Independent held-out calibration (20 seeds per condition) accepted 100/100 clean
 noise, and equal-RMS overlapping-owner cases, 1/20 owner-at-+10-dB cases, and
 0/60 drift, periodic, and unrelated controls. Multipath can select the dominant
 audible copy rather than first arrival. These synthetic controls are finite
-validation, not a guarantee for every room or speaker. The investigated private
-episode still had zero complete phrases meeting all automatic guards; isolated
+validation, not a guarantee for every room or speaker. The prior transcript-seeded
+investigation of a private episode found zero complete phrases meeting all
+automatic guards; that result does not assess the bounded discovery path. Isolated
 copy evidence must not be reported as a successful correction.
 
 Full-band seam reads are restricted to complete phrase candidates (maximum
@@ -1520,6 +1522,21 @@ secondary-source transcript selection and word coverage, explicit unresolved
 missing/suppressed/unmatched phrases through the default service, and safe abstention
 on implicit full-media timelines. Operation counts verify one phrase-index build
 per direct lane and termination once the 64-phrase budget is exhausted.
+`test_retained_bleed_discovery.py` proves explicit finite lane/start/end discovery
+recovers the identical complete -150 ms move after copy words are erased, with
+stationary mixed PCM, preserved retained words, unchanged out-of-scope audio and
+reopen convergence. Controls cover unrelated/periodic/weak audio, insufficient
+null context, endpoints and active interiors, source-specific secondary/alias
+transcripts, overlapping unknown sources, saved holds and recorder locks. Unknown
+third lanes must agree or be measured quiet; conflicting, unrelated, unreadable
+and crossfade lanes veto. A global budget charges every phrase attempt, pair
+measurement and quiet read, with reservation before required peer checks. Tests
+reject partial candidates, enforce the completed 30-second bound, forbid cold
+whole-recording gate plans and bound whole-planner reads on a two-hour source.
+The unbounded workflow remains transcript-seeded and retains its prior budget.
+CLI and default-gate tests distinguish unbounded no-candidate reporting from
+explicit scoped discovery. Synthetic evidence does not replace artifact listening.
+
 Additional regressions cover reciprocal and secondary-reference batch dependencies,
 unsupported measured active interiors despite agreeing endpoints, distinct ASR
 seeds expanding to one acoustic phrase, and declined choices after actual
