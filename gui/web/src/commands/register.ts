@@ -9,6 +9,7 @@ import { registerHistoryCommands } from "./history";
 import { registerHostCommands } from "./host";
 import { registerNavigationCommands } from "./navigation";
 import { registerProjectMediaCommands } from "./projectMedia";
+import { registerRangeCommands } from "./rangeActions";
 import { registerTightenCommands } from "./tighten";
 import { registerTrackMixCommands } from "./trackMix";
 import { registerTranscriptIgnoreCommands } from "./transcriptIgnore";
@@ -26,6 +27,7 @@ export { _resetSingleFlightsForTests } from "./singleFlight";
 export { _resetTrackMutateChainForTests } from "./trackMutation";
 
 export function registerDawCommands(): void {
+  registerRangeCommands();
   registerNavigationCommands();
   registerPrimaryEditingCommands();
   registerViewCommands();

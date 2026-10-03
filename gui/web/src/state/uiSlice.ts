@@ -138,6 +138,10 @@ type UiSlice = Pick<
   | "timelineViewportWidth"
   | "setTimelineViewportWidth"
   | "resetTimelineViewportWidth"
+  | "rangeArmed"
+  | "rangeBusy"
+  | "setRangeArmed"
+  | "setRangeBusy"
   | "selection"
   | "activeTab"
   | "userZoomed"
@@ -215,6 +219,8 @@ type UiSlice = Pick<
   | "gesturesSheetOpen"
   | "setGesturesSheetOpen"
   | "toggleCommandPalette"
+  | "bounceRangeTarget"
+  | "setBounceRangeTarget"
   | "bounceDialogOpen"
   | "setBounceDialogOpen"
   | "shareDialogOpen"
@@ -318,6 +324,10 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       get().setTimelineViewportWidth(
         estimateTimelineViewportWidth(get().shellBreakpoint),
       ),
+    rangeArmed: false,
+    rangeBusy: false,
+    setRangeArmed: (rangeArmed) => set({ rangeArmed }),
+    setRangeBusy: (rangeBusy) => set({ rangeBusy }),
     selection: null as Selection,
     activeTab: "transcript" as DawTab,
     userZoomed: false,
@@ -694,8 +704,15 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         commandPaletteOpen: !s.commandPaletteOpen,
         ...(!s.commandPaletteOpen ? { gesturesSheetOpen: false } : {}),
       })),
+    bounceRangeTarget: null,
+    setBounceRangeTarget: (bounceRangeTarget) => set({ bounceRangeTarget }),
     bounceDialogOpen: false,
-    setBounceDialogOpen: (bounceDialogOpen) => set({ bounceDialogOpen }),
+    setBounceDialogOpen: (bounceDialogOpen) =>
+      set(
+        bounceDialogOpen
+          ? { bounceDialogOpen }
+          : { bounceDialogOpen, bounceRangeTarget: null },
+      ),
     shareDialogOpen: false,
     setShareDialogOpen: (shareDialogOpen) => set({ shareDialogOpen }),
     recordPanelOpen: false,

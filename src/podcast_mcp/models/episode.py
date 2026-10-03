@@ -673,6 +673,7 @@ class TimelineComment(BaseModel):
     updated_at: str | None = None
     timeline_start: float
     timeline_end: float | None = None
+    timeline_spans: list[RangeInterval] = Field(default_factory=list, max_length=1000)
     track_ids: list[str] = Field(default_factory=list)
     action_items: list[CommentActionItem] = Field(default_factory=list)
     replies: list[CommentReply] = Field(default_factory=list)

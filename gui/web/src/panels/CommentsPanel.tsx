@@ -161,7 +161,8 @@ export function CommentsPanel({
         author: who,
         timelineStart: start,
         timelineEnd: end,
-        trackIds,
+        trackIds: commentDraft?.trackIds ?? trackIds,
+        timelineSpans: commentDraft?.intervals,
         actionTexts: actions,
       });
       setBody("");
@@ -240,7 +241,8 @@ export function CommentsPanel({
           hint={
             <p className="comment-compose-hint">
               {commentDraft
-                ? `Anchor: ${formatTimeShort(commentDraft.startSec)}${
+                ? `Anchor: ${commentDraft.intervals ? commentDraft.intervals.map((r) => `${r.start.toFixed(2)}–${r.end.toFixed(2)} s`).join(" · ") : formatTimeShort(commentDraft.startSec)}${
+                    !commentDraft.intervals &&
                     commentDraft.endSec != null &&
                     commentDraft.endSec > commentDraft.startSec
                       ? `–${formatTimeShort(commentDraft.endSec)}`
@@ -265,7 +267,10 @@ export function CommentsPanel({
                   <label key={t.id}>
                     <input
                       type="checkbox"
-                      checked={trackIds.includes(t.id)}
+                      checked={(commentDraft?.trackIds ?? trackIds).includes(
+                        t.id,
+                      )}
+                      disabled={commentDraft?.trackIds != null}
                       onChange={() => toggleTrack(t.id)}
                     />
                     {t.label || t.id}

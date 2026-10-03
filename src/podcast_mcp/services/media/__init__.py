@@ -29,6 +29,7 @@ if TYPE_CHECKING:
         local_proxy_chunk_path,
         presigned_proxy_urls,
     )
+    from podcast_mcp.services.media.range_audio import render_range_audio
     from podcast_mcp.services.media.review_media import (
         delete_object_store_object_if_unused,
         media_type_for_path,
@@ -89,6 +90,7 @@ __all__ = [
     "pcm_block",
     "presigned_proxy_urls",
     "presigned_review_audio_url",
+    "render_range_audio",
     "review_guest_audio_path",
     "schedule_stem_waveforms",
     "schedule_track_waveforms",
@@ -125,6 +127,7 @@ _MODULE_BY_NAME = {
     "media_type_for_path": "review_media",
     "delete_object_store_object_if_unused": "review_media",
     "review_guest_audio_path": "review_media",
+    "render_range_audio": "range_audio",
     "upload_review_version_to_object_store": "review_media",
     "presigned_review_audio_url": "review_media",
     "SpeakerService": "speaker",

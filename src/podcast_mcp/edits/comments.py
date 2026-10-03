@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from itertools import pairwise
 from typing import Any
 
 from podcast_mcp.models import (
@@ -11,6 +12,7 @@ from podcast_mcp.models import (
     EpisodeProject,
     TimelineComment,
 )
+from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 
 COMMENT_BODY_MAX = 8000
@@ -91,6 +93,7 @@ def add_comment(
     action_texts: list[str] | None = None,
     edit_decision_id: str | None = None,
     comment_id: str | None = None,
+    timeline_spans: list[RangeInterval] | None = None,
     review_version_id: str | None = None,
 ) -> TimelineComment:
     text = _require_body(body)
@@ -109,6 +112,13 @@ def add_comment(
             return existing
 
     end = _normalize_end(timeline_start, timeline_end)
+    spans = timeline_spans or []
+    if spans and (
+        spans[0].start != timeline_start
+        or spans[-1].end != end
+        or any(a.end >= b.start for a, b in pairwise(spans))
+    ):
+        raise ValueError("Comment intervals must be ordered, disjoint, and match its bounds")
     tracks = _validate_tracks(project, list(track_ids or []))
     linked = _validate_edit_decision_link(project, edit_decision_id)
     items = [
@@ -124,6 +134,7 @@ def add_comment(
         created_at=created,
         timeline_start=timeline_start,
         timeline_end=end,
+        timeline_spans=spans,
         track_ids=tracks,
         action_items=items,
         review_version_id=review_version_id or project.review.active_version_id,
@@ -175,6 +186,7 @@ def update_comment(
             raise ValueError("timeline_start must be >= 0")
         comment.timeline_start = timeline_start
     if timeline_end is not None or timeline_start is not None:
+        comment.timeline_spans = []
         end_val = timeline_end if timeline_end is not None else comment.timeline_end
         comment.timeline_end = _normalize_end(comment.timeline_start, end_val)
     comment.updated_at = _now_iso()

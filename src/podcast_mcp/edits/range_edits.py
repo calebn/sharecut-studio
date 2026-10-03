@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Literal
+from typing import Any, Literal, TypedDict
 from uuid import uuid4
 
 from podcast_mcp.edits.clips_ops import new_clip_id, set_track_clips
@@ -16,6 +16,12 @@ from podcast_mcp.models import Clip, EditDecision, EditDecisionType, EpisodeProj
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 
 RangeAction = Literal["cut", "mute"]
+
+
+class RangeEditResult(TypedDict):
+    action_id: str
+    proposed: bool
+    edit: dict[str, Any]
 
 
 class RangeChangedError(ValueError):
@@ -110,6 +116,14 @@ def apply_range(project: EpisodeProject, edit: EditDecision) -> None:
     target = resolve_range(project, target)
     if not target.clips:
         raise ValueError("No audible media in this range")
+    if edit.type == EditDecisionType.REMOVE:
+        from podcast_mcp.engines.timeline_render import timeline_duration_sec
+
+        project.timeline.duration_sec = max(
+            project.timeline.duration_sec or 0.0,
+            timeline_duration_sec(project),
+            max(c.timeline_end for c in target.clips),
+        )
     for clip in target.clips:
         if not any(c.id == clip.id for c in project.clips):
             project.clips.append(clip.model_copy(deep=True))
@@ -181,7 +195,7 @@ def edit_selected_range(
     propose: bool,
     reason: str,
     action_id: str,
-) -> dict:
+) -> RangeEditResult:
     target = resolve_range(project, target)
     if not target.clips:
         raise ValueError("No audible media in this range")

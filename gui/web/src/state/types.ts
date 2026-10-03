@@ -89,6 +89,8 @@ export type MoreDestination =
 export interface CommentDraft {
   startSec: number;
   endSec: number | null;
+  trackIds?: string[];
+  intervals?: { start: number; end: number }[];
 }
 
 export type PlaySkipRange = { start: number; end: number };
@@ -166,6 +168,10 @@ export interface DawState {
   /** Visible time column (px) of the mounted timeline, from its observer; the shell estimate before it measures and after it unmounts. */
   timelineViewportWidth: number;
   selection: Selection;
+  rangeArmed: boolean;
+  rangeBusy: boolean;
+  setRangeArmed: (armed: boolean) => void;
+  setRangeBusy: (busy: boolean) => void;
   activeTab: DawTab;
   userZoomed: boolean;
   layers: LayerVisibility;
@@ -228,6 +234,10 @@ export interface DawState {
   /** Mobile gestures cheatsheet open. */
   gesturesSheetOpen: boolean;
   /** Bounce dialog open (host export/bounces). */
+  bounceRangeTarget: import("../types/project").ExactRangeTarget | null;
+  setBounceRangeTarget: (
+    target: import("../types/project").ExactRangeTarget | null,
+  ) => void;
   bounceDialogOpen: boolean;
   /** Host share management dialog. */
   shareDialogOpen: boolean;

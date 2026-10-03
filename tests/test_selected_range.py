@@ -317,3 +317,45 @@ def test_saved_receipt_replay_has_no_result_or_second_history(minimal_project):
     assert retry.ws.project.editorial.edit_log[-1].params["action_id"] == cmd.command_id
     HistoryService(retry.ws).undo()
     assert retry.ws.project.clips == before
+
+
+def test_direct_mcp_cannot_reject_exact_proposal_but_human_cli_can(minimal_project):
+    import json
+
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+    from podcast_mcp.mcp import server
+
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    apply(ws.project, target(ws.project), propose=True)
+    save_project(ws.project)
+    before = deepcopy(ws.project.clips)
+    with pytest.raises(PermissionError, match="interactive host"):
+        server.reject_edits_tool(str(minimal_project), json.dumps(["range_action"]))
+    assert len(load_project(minimal_project).edit_decisions) == 1
+    result = CliRunner().invoke(
+        app, ["edit", "reject", "--project", str(minimal_project), "--ids", "range_action"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "Removed 1 edit(s)" in result.output
+    restored = load_project(minimal_project)
+    assert restored.edit_decisions == []
+    assert restored.clips == before
+
+
+@pytest.mark.parametrize("ids", [None, "action", [{}], [["action"]], [1]])
+@pytest.mark.parametrize("action", ["ApproveEdits", "RejectEdits"])
+def test_decision_policy_validates_ids_before_membership(minimal_project, ids, action):
+    svc = DocumentSyncService.open(minimal_project)
+    fixture(svc.ws.project)
+    apply(svc.ws.project, target(svc.ws.project), propose=True)
+    save_project(svc.ws.project)
+    with pytest.raises(ValueError):
+        svc.submit(
+            DocumentCommand(
+                type=action, payload={"ids": ids}, client_id="agent", role="agent", client_seq=None
+            )
+        )
+    assert len(load_project(minimal_project).edit_decisions) == 1

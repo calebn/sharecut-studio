@@ -44,6 +44,7 @@ import { timelineTestIds } from "./selectors";
 const NOOP = () => undefined;
 
 interface TrackLaneProps {
+  onRangeGesture?: import("./useRangeGesture").RangeGesture;
   track: TrackView;
   trackIndex: number;
   /**
@@ -119,6 +120,7 @@ export function TrackLaneView({
   onClipMovePreview,
   onClipMoveCommit,
   onClipMoveCancel,
+  onRangeGesture,
   staleWholeTrack = false,
   staleInvalidations = EMPTY_ARR,
   showStaleInvalidations = false,
@@ -262,6 +264,20 @@ export function TrackLaneView({
         onClick={(e) => onSeek(e.clientX, e.currentTarget)}
       />
       <div className="lane-inner" style={{ width }}>
+        {selection?.kind === "range" &&
+        selection.target.track_ids.includes(track.id)
+          ? selection.target.intervals.map((r) => (
+              <div
+                key={r.start}
+                className="audition-overlay range-overlay"
+                style={{
+                  left: r.start * zoomPxPerSec,
+                  width: (r.end - r.start) * zoomPxPerSec,
+                }}
+                aria-hidden
+              />
+            ))
+          : null}
         {clips.map((clip, i) => {
           const prev = clips[i - 1];
           const next = clips[i + 1];
@@ -312,6 +328,7 @@ export function TrackLaneView({
               previewTimelineStart={previewStartById[clip.id] ?? null}
               previewHidden={hideClipIds?.has(clip.id) ?? false}
               moving={isMoving(clip.id)}
+              onRangeGesture={onRangeGesture}
               onMovePreview={onClipMovePreview}
               onMoveCommit={onClipMoveCommit}
               onMoveCancel={onClipMoveCancel}

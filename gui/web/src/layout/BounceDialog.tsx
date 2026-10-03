@@ -10,6 +10,7 @@ import { BounceDialogView, type BounceSourceMode } from "./BounceDialogView";
  */
 export function BounceDialog() {
   const {
+    bounceRangeTarget,
     bounceDialogOpen,
     setBounceDialogOpen,
     project,
@@ -18,6 +19,7 @@ export function BounceDialog() {
     soloTracks,
     sessionRegion,
   } = useDaw((s) => ({
+    bounceRangeTarget: s.bounceRangeTarget,
     bounceDialogOpen: s.bounceDialogOpen,
     setBounceDialogOpen: s.setBounceDialogOpen,
     project: s.project,
@@ -52,13 +54,13 @@ export function BounceDialog() {
 
   async function onBounce() {
     let trackIds: string[] | null = null;
-    if (source === "selected") {
+    if (!bounceRangeTarget && source === "selected") {
       trackIds = [...selectedTrackIds];
       if (trackIds.length === 0) {
         setError("Select one or more tracks first");
         return;
       }
-    } else if (source === "soloed") {
+    } else if (!bounceRangeTarget && source === "soloed") {
       trackIds = Object.entries(soloTracks)
         .filter(([, on]) => on)
         .map(([id]) => id);
@@ -81,6 +83,14 @@ export function BounceDialog() {
             start_s: useRegion && region ? region.start_sec : null,
             end_s: useRegion && region ? region.end_sec : null,
             formats,
+            ...(bounceRangeTarget
+              ? {
+                  exact_range: bounceRangeTarget,
+                  track_ids: null,
+                  start_s: null,
+                  end_s: null,
+                }
+              : {}),
           }),
         {
           failLabel: "Bounce failed",
@@ -107,6 +117,11 @@ export function BounceDialog() {
     <BounceDialogView
       open={bounceDialogOpen && !!project}
       onClose={() => setBounceDialogOpen(false)}
+      rangeSummary={
+        bounceRangeTarget
+          ? `${bounceRangeTarget.intervals.map((r) => `${r.start.toFixed(2)}–${r.end.toFixed(2)} s`).join(" · ")} on ${bounceRangeTarget.track_ids.join(", ")}`
+          : undefined
+      }
       source={source}
       onSourceChange={setSource}
       selectedCount={selectedCount}

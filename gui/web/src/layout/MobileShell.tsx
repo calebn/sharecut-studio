@@ -27,6 +27,7 @@ import {
 } from "../shareMode";
 import type { MobileMode } from "../state/types";
 import { useDaw } from "../state/useDaw";
+import { RangeActions } from "../timeline/RangeActions";
 import { TimelineView } from "../timeline/TimelineView";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import type { PresenceTab } from "../types/session";
@@ -342,6 +343,8 @@ export function MobileShellView({
   guestShare?: boolean;
 }) {
   const {
+    rangeArmed,
+    setRangeArmed,
     selection,
     setSelection,
     mobileMode,
@@ -357,6 +360,8 @@ export function MobileShellView({
     followingClientId,
     statusAnnouncement,
   } = useDaw((s) => ({
+    rangeArmed: s.rangeArmed,
+    setRangeArmed: s.setRangeArmed,
     selection: s.selection,
     setSelection: s.setSelection,
     mobileMode: s.mobileMode,
@@ -535,24 +540,35 @@ export function MobileShellView({
       <BottomSheet
         backgroundPolicy="interactive"
         open={
-          selection != null &&
-          (mobileMode === "timeline" ||
-            mobileMode === "listen" ||
-            (mobileMode === "text" && selection.kind === "transcriptWord") ||
-            (mobileMode === "more" &&
-              moreDestination === "comments" &&
-              selection.kind === "comment") ||
-            (mobileMode === "more" &&
-              moreDestination === "impact" &&
-              selection.kind === "pending"))
+          rangeArmed ||
+          (selection != null &&
+            (mobileMode === "timeline" ||
+              mobileMode === "listen" ||
+              (mobileMode === "text" &&
+                (selection.kind === "transcriptWord" ||
+                  selection.kind === "transcriptRange" ||
+                  selection.kind === "range")) ||
+              (mobileMode === "more" &&
+                moreDestination === "comments" &&
+                selection.kind === "comment") ||
+              (mobileMode === "more" &&
+                moreDestination === "impact" &&
+                selection.kind === "pending")))
         }
-        onClose={closeSheet}
+        onClose={() => {
+          setRangeArmed(false);
+          closeSheet();
+        }}
         title="Inspector"
         expanded={sheetExpanded}
         onExpandedChange={setSheetExpanded}
       >
         <Inspector />
-        <RelatedCommands selection={selection} />
+        {rangeArmed ? (
+          <RangeActions sheet />
+        ) : (
+          <RelatedCommands selection={selection} />
+        )}
       </BottomSheet>
       <PresenceGhostLayer rootRef={shellRef} />
     </div>

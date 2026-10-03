@@ -425,6 +425,30 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip:
       "Preview literal replacements across all source transcripts, then apply them as one undoable pass.",
   },
+  "daw.range.play": {
+    label: "Play range",
+    tooltip: "Play range",
+  },
+  "daw.range.cut": {
+    label: "Cut range",
+    tooltip: "Cut range",
+  },
+  "daw.range.mute": {
+    label: "Mute range",
+    tooltip: "Mute range",
+  },
+  "daw.range.comment": {
+    label: "Comment on range",
+    tooltip: "Comment on range",
+  },
+  "daw.range.bounce": {
+    label: "Bounce range",
+    tooltip: "Bounce range",
+  },
+  "daw.range.arm": {
+    label: "Select a range",
+    tooltip: "Select a range",
+  },
 };
 
 export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
@@ -439,7 +463,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   tightenPanel: "daw.tighten.goToHit",
   layoutChip: "daw.layout.default",
   "transport.layout": "daw.layout.timeline",
-  "transport.menu": "daw.edit.addChapter",
+  "transport.menu": "daw.range.arm",
   editingToolRail: "daw.media.import",
   timeline: "daw.edit.bladeCut",
   bladeConfirmSheet: "daw.edit.bladeCut.cancel",
@@ -489,6 +513,8 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "inspector.clip.joinMode": "daw.edit.setClipJoin",
   "timeline.join.badge": "daw.edit.setClipJoin",
   "transcript.findReplace": "daw.transcript.findReplace",
+  RangeActions: "daw.range.bounce",
+  EditingToolRail: "daw.range.arm",
 };
 
 export function capabilityTooltip(

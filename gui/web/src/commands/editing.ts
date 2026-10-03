@@ -19,6 +19,7 @@ import { bladeTrackIds } from "../utils/bladeTracks";
 import type { CommandContext } from "./context";
 import { registerCommand } from "./execute";
 import { runFocusedClipHandle } from "./focusedClipHandle";
+import { runRangeAction } from "./rangeActions";
 import { resolveTrackId } from "./targets";
 import { enqueueTrackMutate } from "./trackMutation";
 import type { ExecuteResult } from "./types";
@@ -210,6 +211,11 @@ export function registerClipboardCommands(): void {
   });
 
   registerCommand("edit.cut", async (args) => {
+    if (
+      useDawStore.getState().selection?.kind === "range" ||
+      useDawStore.getState().selection?.kind === "transcriptRange"
+    )
+      return runRangeAction("cut");
     const s = useDawStore.getState();
     if (
       "clipId" in args &&

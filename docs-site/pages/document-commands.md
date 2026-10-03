@@ -27,7 +27,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 |------|------------------|------------------|
 | `AddAction` | `comment_id` (string), `text` (string) | — |
 | `AddChapter` | `time` (number), `title` (string) | — |
-| `AddComment` | `author` (string), `body` (string), `timeline_start` (number) | `action_texts` (array \| null), `edit_decision_id` (string \| null), `timeline_end` (number \| null), `track_ids` (array \| null) |
+| `AddComment` | `author` (string), `body` (string), `timeline_start` (number) | `action_texts` (array \| null), `edit_decision_id` (string \| null), `timeline_end` (number \| null), `timeline_spans` (array \| null), `track_ids` (array \| null) |
 | `AddReply` | `author` (string), `body` (string), `comment_id` (string) | — |
 | `AddSocialClip` | `end` (number), `start` (number), `track_id` (string) | `title` (string \| null) |
 | `AddTrack` | — | `label` (string \| null), `role` (string \| null), `speaker` (string \| null), `track_id` (string \| null) |

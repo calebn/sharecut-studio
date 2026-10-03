@@ -8,6 +8,7 @@ import logging
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -716,6 +717,10 @@ class DocumentSyncService:
             resolve_structural_mode,
         )
 
+        if command.type in {"ApproveEdits", "RejectEdits"}:
+            from podcast_mcp.services.document_sync.payloads import validate_payload
+
+            command = replace(command, payload=validate_payload(command.type, command.payload))
         if (capabilities is not None or range_policy != "host_apply") and command.type in {
             "ApproveEdits",
             "RejectEdits",
@@ -726,7 +731,7 @@ class DocumentSyncService:
             ):
                 raise PermissionError("Only the host can decide exact range proposals")
         payload = dict(command.payload)
-        if command.type == "ApproveEdits":
+        if command.type in {"ApproveEdits", "RejectEdits"}:
             payload["_allow_exact"] = capabilities is None and range_policy == "host_apply"
         if command.type == "EditSelectedRange":
             from podcast_mcp.services.document_sync.payloads import validate_payload

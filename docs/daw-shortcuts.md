@@ -132,6 +132,12 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control |
 | Confirm blade cut | `edit.bladeCut.confirm` | Structural edits allowed |  |
 | Cancel blade cut | `edit.bladeCut.cancel` | Always (when not typing in an input) |  |
+| Play range | `range.play` | Project loaded |  |
+| Cut selected range | `range.cut` | Project loaded |  |
+| Mute selected range | `range.mute` | Project loaded |  |
+| Comment on range | `range.comment` | Project loaded |  |
+| Bounce selected range | `range.bounce` | Project loaded |  |
+| Select a range | `range.arm` | Project loaded |  |
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
 | Fit tracks to window height | `view.fitTracksHeight` | Always (when not typing in an input) | Toggle: fill the stage height, or a fixed track height |
 | Share… | `share.manage` | Loaded host project | Open host share dialog: live links, create, revoke |

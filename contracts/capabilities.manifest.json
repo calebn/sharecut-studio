@@ -2562,6 +2562,145 @@
         "cursor": "none",
         "follow": "none"
       }
+    },
+    {
+      "id": "daw.range.play",
+      "label": "Play range",
+      "service": "PlayService.play_selected_range",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "range.play",
+        "gui": [
+          "RangeActions"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "Context action with explicit range selection"
+      },
+      "tooltip": "Play range",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.range.cut",
+      "label": "Cut range",
+      "service": "EditService.edit_selected_range",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "range.cut",
+        "gui": [
+          "RangeActions"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "Context action with explicit range selection"
+      },
+      "tooltip": "Cut range",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.range.mute",
+      "label": "Mute range",
+      "service": "EditService.edit_selected_range",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "range.mute",
+        "gui": [
+          "RangeActions"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "Context action with explicit range selection"
+      },
+      "tooltip": "Mute range",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.range.comment",
+      "label": "Comment on range",
+      "service": "CommentService",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "range.comment",
+        "gui": [
+          "RangeActions"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "Context action with explicit range selection"
+      },
+      "tooltip": "Comment on range",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.range.bounce",
+      "label": "Bounce range",
+      "service": "BounceService",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "range.bounce",
+        "gui": [
+          "RangeActions"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "Context action with explicit range selection"
+      },
+      "tooltip": "Bounce range",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.range.arm",
+      "label": "Select a range",
+      "service": "Sharecut Studio range selection",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "range.arm",
+        "gui": [
+          "EditingToolRail",
+          "transport.menu"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "Context action with explicit range selection"
+      },
+      "tooltip": "Select a range",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
     }
   ]
 }

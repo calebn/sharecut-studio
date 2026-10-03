@@ -17,6 +17,7 @@ from podcast_mcp.edits.comments import (
     set_action_item_done,
     update_comment,
 )
+from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.project_state import FileRevision
 
@@ -70,6 +71,7 @@ class CommentService:
         track_ids: builtins.list[str] | None = None,
         action_texts: builtins.list[str] | None = None,
         edit_decision_id: str | None = None,
+        timeline_spans: builtins.list[RangeInterval] | None = None,
         comment_id: str | None = None,
         review_version_id: str | None = None,
     ) -> dict[str, Any]:
@@ -80,6 +82,7 @@ class CommentService:
                 author=author,
                 timeline_start=timeline_start,
                 timeline_end=timeline_end,
+                timeline_spans=timeline_spans,
                 track_ids=track_ids,
                 action_texts=action_texts,
                 edit_decision_id=edit_decision_id,

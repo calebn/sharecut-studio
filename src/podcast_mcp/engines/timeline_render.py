@@ -53,7 +53,7 @@ def resolve_clip_audio_path(
 
 
 def timeline_duration_sec(project: EpisodeProject) -> float:
-    end = 0.0
+    end = project.timeline.duration_sec or 0.0
     for clip in project.clips:
         end = max(end, clip.timeline_end)
     if end > 0:
@@ -123,7 +123,9 @@ def render_track_from_timeline(
 
     track_clips = clips_for_track(project, track.id)
     if not track_clips and track.timeline_empty:
-        return eng.silence(output_path, max(0.05, project.timeline.duration_sec or 0.0))
+        return eng.silence(
+            output_path, max(0.05, project.timeline.duration_sec or timeline_duration_sec(project))
+        )
     if not track_clips:
         probe = eng.probe(primary)
         track_clips = [

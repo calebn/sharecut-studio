@@ -26,6 +26,7 @@ import { PresenceGhostLayer } from "../presence/PresenceGhostLayer";
 import { usePresenceCursorSource } from "../presence/usePresenceCursorSource";
 import { canIngestMedia, guestShareBannerLabel } from "../shareMode";
 import { useDaw } from "../state/useDaw";
+import { RangeActions } from "../timeline/RangeActions";
 import { TimelineView } from "../timeline/TimelineView";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import { BottomSheet, ToggleButton } from "../ui";
@@ -193,6 +194,7 @@ export function StudioShellView({
       </div>
       <FollowBanner />
       <div ref={transportFocusRef} className="daw-shell-transport">
+        <RangeActions />
         <TransportBar compact={shell === "tablet"} showLayout />
       </div>
       <main

@@ -79,7 +79,7 @@ from podcast_mcp.edits.join_modes import (
     set_clip_join_mode,
 )
 from podcast_mcp.edits.loudness import check_loudness
-from podcast_mcp.edits.range_edits import RangeAction
+from podcast_mcp.edits.range_edits import RangeAction, RangeEditResult
 from podcast_mcp.edits.retained_bleed_alignment import (
     AlignmentPlan,
     apply_retained_bleed_alignment,
@@ -372,7 +372,7 @@ class EditService:
         propose: bool,
         reason: str,
         action_id: str,
-    ) -> dict:
+    ) -> RangeEditResult:
         from podcast_mcp.edits.range_edits import edit_selected_range
 
         self._require_refine_clear()
@@ -404,8 +404,12 @@ class EditService:
             params={"ids": ids},
         )
 
-    def reject(self, ids: list[str]) -> int:
+    def reject(self, ids: list[str], *, allow_exact: bool = False) -> int:
         def mutate(p) -> int:
+            if not allow_exact and any(
+                e.id in ids and e.exact_range is not None for e in p.edit_decisions
+            ):
+                raise PermissionError("Only the interactive host can reject exact range proposals")
             return reject_edits(p, ids)
 
         return self.ws.mutate("before reject edits", "after reject edits", mutate)

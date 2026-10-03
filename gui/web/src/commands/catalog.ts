@@ -187,6 +187,42 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "hasProject",
     notes: "Mod+C: clip or transcript range → session clipboard",
   },
+  "range.play": {
+    id: "range.play",
+    category: "edit",
+    label: "Play range",
+    when: "hasProject",
+  },
+  "range.cut": {
+    id: "range.cut",
+    category: "edit",
+    label: "Cut selected range",
+    when: "hasProject",
+  },
+  "range.mute": {
+    id: "range.mute",
+    category: "edit",
+    label: "Mute selected range",
+    when: "hasProject",
+  },
+  "range.comment": {
+    id: "range.comment",
+    category: "edit",
+    label: "Comment on range",
+    when: "hasProject",
+  },
+  "range.bounce": {
+    id: "range.bounce",
+    category: "edit",
+    label: "Bounce selected range",
+    when: "hasProject",
+  },
+  "range.arm": {
+    id: "range.arm",
+    category: "edit",
+    label: "Select a range",
+    when: "hasProject",
+  },
   "edit.cut": {
     id: "edit.cut",
     category: "edit",

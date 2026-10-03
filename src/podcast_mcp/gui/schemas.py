@@ -4,6 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.document_sync import (
     COMMENT_BODY_MAX,
     DocumentCommandBody,
@@ -82,6 +83,8 @@ class BootstrapCancelRequest(BaseModel):
 
 
 class BounceRequestBody(BaseModel):
+    model_config = {"extra": "forbid"}
+    exact_range: ExactRangeTarget | None = None
     path: str
     track_ids: list[str] | None = None
     start_s: float | None = None

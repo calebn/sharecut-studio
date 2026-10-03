@@ -1,11 +1,13 @@
 import { hostFetch } from "../api/documentTransport";
 import type { PipelineJobSnapshot } from "../types/pipeline";
+import type { ExactRangeTarget } from "../types/project";
 import { readApiError } from "../utils/apiError";
 import { followExportJob } from "./pipeline";
 
 export async function bounceAudio(
   projectPath: string,
   body: {
+    exact_range?: ExactRangeTarget | null;
     track_ids?: string[] | null;
     start_s?: number | null;
     end_s?: number | null;
@@ -20,6 +22,7 @@ export async function bounceAudio(
 export async function startBounceJob(
   projectPath: string,
   body: {
+    exact_range?: ExactRangeTarget | null;
     track_ids?: string[] | null;
     start_s?: number | null;
     end_s?: number | null;

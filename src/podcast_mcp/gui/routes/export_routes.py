@@ -39,6 +39,7 @@ def export_bounce(
             start_s=body.start_s,
             end_s=body.end_s,
             formats=body.formats,
+            exact_range=body.exact_range,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
