@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import pairwise
-from math import isfinite
 from pathlib import Path
 from typing import Any
 
 from podcast_mcp.edits.range_edits import build_range_target, range_geometry
 from podcast_mcp.engines.bleed_gate import bleed_gate_geometry
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.media_probe import probe_first_audio_duration_sec
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 from podcast_mcp.engines.ungated_audio import raw_evidence_layout_reason
@@ -20,7 +19,6 @@ from podcast_mcp.util.intervals import (
     merge_intervals,
     subtract_intervals,
 )
-from podcast_mcp.util.process import CalledProcessError
 
 MAX_REVIEW_CANDIDATES = 16
 MAX_REVIEW_SECONDS = 4.0
@@ -169,16 +167,9 @@ def bleed_review_candidates(
             try:
                 path = resolve_clip_audio_path(project, other, clip).resolve()
                 if path not in durations:
-                    try:
-                        durations[path] = FFmpegEngine().probe(path).duration_sec
-                    except (OSError, ValueError, CalledProcessError):
-                        durations[path] = None
+                    durations[path] = probe_first_audio_duration_sec(path)
                 duration = durations[path]
-                if (
-                    duration is None
-                    or not isfinite(duration)
-                    or not 0 <= source[0] < source[1] <= duration
-                ):
+                if duration is None or not 0 <= source[0] < source[1] <= duration:
                     return False
             except (OSError, ValueError):
                 return False

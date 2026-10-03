@@ -509,8 +509,8 @@ def test_reconciliation_status_hashes_each_dialogue_track_once(tmp_path, monkeyp
     assert sorted(calls) == ["guest", "host"]
 
 
-def test_wav_duration_cache_is_bounded_by_the_named_size() -> None:
-    from podcast_mcp.engines import play_audit
+def test_media_probe_cache_is_bounded_by_the_named_size() -> None:
+    from podcast_mcp.engines import media_probe
 
-    info = play_audit._cached_wav_duration_sec.cache_info()
-    assert info.maxsize == play_audit.WAV_DURATION_CACHE_SIZE == 1024
+    info = media_probe._cached_media_probe.cache_info()
+    assert info.maxsize == media_probe.MEDIA_PROBE_CACHE_SIZE == 1024

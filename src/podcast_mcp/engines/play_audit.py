@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import json
-import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +10,7 @@ from podcast_mcp.config import mix_peak_ceiling_db
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.mute_regions import IgnoredWordRegions, mute_regions_payload
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
+from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, Clip, EpisodeProject, Track
 from podcast_mcp.util.atomic_json import write_text_atomic
@@ -20,8 +19,6 @@ from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
 from podcast_mcp.util.tracks import dialogue_track_ids
 from podcast_mcp.util.tracks import stem_path as track_stem_path
-
-log = logging.getLogger(__name__)
 
 # Stems are timeline-clock WAVs; tolerate encoder/container rounding.
 STEM_DURATION_TOLERANCE_SEC = 0.25
@@ -316,21 +313,6 @@ def expected_stem_duration_sec(project: EpisodeProject, track_id: str) -> float 
     return float(extent[0])
 
 
-# One entry per probed file revision (a path, a 4-tuple and a float: well under 1 KB).
-# 1024 holds the stems, premix and master of dozens of projects, so a busy project in a
-# multi-project MCP or GUI process does not evict another's stem probes (#427).
-WAV_DURATION_CACHE_SIZE = 1024
-
-
-@lru_cache(maxsize=WAV_DURATION_CACHE_SIZE)
-def _cached_wav_duration_sec(path: str, revision: FileRevision) -> float:
-    """ffprobe ``path`` once per ``file_revision``; ``revision`` is only a cache key."""
-    del revision  # cache key only
-    from podcast_mcp.engines.ffmpeg import FFmpegEngine
-
-    return float(FFmpegEngine().probe(Path(path)).duration_sec)
-
-
 def probe_wav_duration_sec(path: Path) -> float | None:
     """Duration of the WAV at ``path`` in seconds, or None when missing or unreadable.
 
@@ -339,23 +321,18 @@ def probe_wav_duration_sec(path: Path) -> float | None:
     ``services.record.landing._wav_duration_s`` (PCM uploads it already validates)
     stay separate on purpose: they avoid a subprocess per file.
 
-    Cached in-process per resolved path and ``file_revision`` (device, inode, size,
-    mtime), so render status and freshness checks on an unchanged stem spawn no ffprobe
-    (#427). Stems, premix and master are swapped in whole (``render_atomic``), so a
+    Successful probe metadata is shared through ``media_probe`` per resolved path
+    and ``file_revision`` (device, inode, size, mtime). Render status and freshness
+    checks on an unchanged stem spawn no ffprobe (#427). Stems, premix and master are swapped in whole (``render_atomic``), so a
     publish always re-probes. Failures are not cached. Every caller (stems, premix,
     master, the ingest WAVs in ``conversation_align``, the gate temp in
     ``transcript_bleed_mute``) must write a new file or change its size or mtime: an
     in-place rewrite that keeps both (possible with coarse filesystem timestamps) is
-    unsupported and keeps the old duration. ``_cached_wav_duration_sec.cache_clear()``
-    drops every entry.
+    unsupported and keeps the old duration. The container-preferred duration policy
+    here remains distinct from strict first-audio extent checks.
     """
-    if not path.is_file():
-        return None
-    try:
-        return _cached_wav_duration_sec(str(path.resolve()), file_revision(path))
-    except Exception as exc:
-        log.debug("probe failed for %s: %s", path, exc)
-        return None
+    info = probe_media(path)
+    return float(info.duration_sec) if info is not None else None
 
 
 def probe_stem_duration_sec(project: EpisodeProject, track_id: str) -> float | None:
