@@ -100,3 +100,12 @@ The phone layout groups controls by task so they fit a smaller screen.
 - **Listen mode** is the fastest way to review. Play through and open **More → Comments** to use the comment tools.
 - **Text mode** with "Follow" on will highlight words as the audio plays — great for catching transcript errors.
 - If you make a mistake, **two-finger tap** to undo. No need to find the button.
+
+### Mix tracks from More
+
+More → Mix shows all tracks without opening each inspector. M and Volume save
+for hosts and editors; S affects your listening only. Other guests can use local
+M and S, while Volume shows its permission reason. Shared playback uses Full
+mix, so these local controls may not be audible in that preview. Close and
+Escape return to More. Switching modes or inspecting something else closes Mix.
+The timeline gutter keeps its identity-only layout. Swipe-to-mix is deferred.

@@ -423,8 +423,15 @@ colours); `tests/test_brand_color_roles.py` checks all three theme selectors.
 Review every new component in
 both themes, in story mode and on its docs page, before merging.
 
+`Templates/TrackMix` renders the props-only ordered `TrackMixView` with controlled
+six-track, long-name, many-track, saved/implied mute, read-only, loading, and empty
+fixtures at 360px. Its live `TrackMix` adapter selects non-hot track/listen/access
+fields and dispatches explicit row IDs through existing commands. M/S views take
+shortcut labels from live adapters; pure views never read the keymap registry.
+The phone shell's `MoreMix` story opens and closes the production Mix sheet.
+
 `Templates/TrackFader` renders the props-only `TrackFaderView` used by the
-live inspector adapter. Its controlled fixtures cover Reset with focus return,
+live inspector and compact Mix rows. Its controlled fixtures cover Reset with focus return,
 read-only volume, stale Balance, non-dialogue tracks, and a 360px frame.
 The view owns `useCommitRange`, draft dB output, staging/output notes, and
 unique input associations. `TrackFader` retains capability checks and dispatches

@@ -116,6 +116,9 @@
   --status-chip-height: 1.5rem;
   /* 44pt touch floor at 16px root; phone/tablet follow chrome via @container */
   --touch-min: 2.75rem;
+  --mix-row-height: 3.5rem;
+  --mix-identity-size: 1.5rem;
+  --mix-volume-width: 6rem;
   --status-height: 1.75rem;
   --tabs-height: 12.5rem;
   --mobile-nav-height: 3.25rem;

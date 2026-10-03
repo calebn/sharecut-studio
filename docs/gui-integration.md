@@ -220,7 +220,7 @@ Shared dialog close buttons and Share actions/checkbox labels use the tokenized
 without changing dense editor controls. The [component consistency audit](design-system-audit.md)
 records the verified phone examples and outstanding composition work.
 
-Phone (`<768`), tablet (`768–1100`), and desktop (`>1100`) share domain components but not the same chrome. Phone uses Listen / Timeline / Text / More modes + selection sheets. Touch long-press selects clips, words, comments, and tracks; swipe left resolves an eligible host comment; double-tap a word opens correction. Full map, wireframes, and desktop back-apply: [gui-mobile.md](gui-mobile.md).
+Phone (`<768`), tablet (`768–1100`), and desktop (`>1100`) share domain components but not the same chrome. Phone uses Listen / Timeline / Text / More modes and one Inspector or Mix sheet. More → Mix shows all tracks in project order with saved Volume and capability-dependent M; S stays local. Opening Mix exits inspection, and navigation or new selection invalidates it. Close, Escape, and its scrim return to More. The timeline rail remains identity-only at phone width. Touch long-press selects clips, words, comments, and tracks; swipe left resolves an eligible host comment; double-tap a word opens correction. Full map, wireframes, and desktop back-apply: [gui-mobile.md](gui-mobile.md).
 
 Host and guest shells reserve a banner row for offline command attention on all three sizes. Host pending edits remain visible there until replay; host and guest 409 conflicts appear in the same **Needs attention** list and can be dismissed. The guest share-mode label stays guest-only.
 

@@ -92,3 +92,18 @@ it("the production fader view owns range interaction without runtime adapters", 
     ),
   ).toEqual([]);
 });
+
+it("the production mix view reaches both controls without runtime adapters", () => {
+  const graph = runtimeGraph("tracks/TrackMixView.tsx");
+  expect(graph).toContain("tracks/TrackFaderView.tsx");
+  expect(graph).toContain("tracks/TrackMuteSoloButtonsView.tsx");
+  expect(graph).toContain("hooks/useCommitRange.ts");
+  expect(
+    graph.filter(
+      (file) =>
+        /^(state|commands|api|extensions)\//.test(file) ||
+        /(^|\/)(TrackMix|TrackFader|TrackMuteSoloButtons)\.tsx$/.test(file) ||
+        /\.stories\.tsx?$/.test(file),
+    ),
+  ).toEqual([]);
+});

@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { MobileMode, MoreDestination } from "../state/types";
+import { TrackMixView } from "../tracks/TrackMixView";
 import { Timecode } from "../ui/Timecode";
 import { FollowBannerView } from "./FollowBannerView";
 import { ListenHero } from "./ListenHero";
@@ -38,6 +39,7 @@ function PhonePreview(args: PreviewProps) {
   const [destination, setDestination] = useState(args.initialDestination);
   const [playing, setPlaying] = useState(false);
   const [inspector, setInspector] = useState(args.initialInspector);
+  const [mix, setMix] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [following, setFollowing] = useState(args.following);
   const onPlayingChange = (next: boolean) => {
@@ -103,7 +105,19 @@ function PhonePreview(args: PreviewProps) {
                     <p>{shellProject.comments?.[0].body}</p>
                   </article>
                 ) : (
-                  <p>Comments, history, and project tools live in More.</p>
+                  <>
+                    <p>Comments, history, and project tools live in More.</p>
+                    <button
+                      type="button"
+                      className="mobile-more-item"
+                      onClick={() => {
+                        setInspector(false);
+                        setMix(true);
+                      }}
+                    >
+                      Mix
+                    </button>
+                  </>
                 ),
               onBack: () => {
                 args.onBack("hub");
@@ -148,22 +162,52 @@ function PhonePreview(args: PreviewProps) {
         screen={screen}
         onModeChange={(next) => {
           args.onModeChange(next);
+          setMix(false);
           setMode(next);
         }}
-        inspector={{
-          open: inspector,
-          expanded,
-          content: <ShellStoryInspector />,
-          onClose: () => {
-            args.onCloseInspector();
-            setInspector(false);
-            setExpanded(false);
-          },
-          onExpandedChange: (next) => {
-            args.onExpandedChange(next);
-            setExpanded(next);
-          },
-        }}
+        sheet={
+          mix
+            ? {
+                kind: "mix",
+                onClose: () => setMix(false),
+                content: (
+                  <TrackMixView
+                    state="ready"
+                    rows={[
+                      {
+                        id: "mira",
+                        label: "Mira",
+                        initials: "M",
+                        identityColor: "var(--clip-dialogue-0)",
+                        muteState: "off",
+                        solo: false,
+                        faderDb: 0,
+                      },
+                    ]}
+                    access={{ kind: "listen" }}
+                    preview="host"
+                    onMute={() => {}}
+                    onSolo={() => {}}
+                  />
+                ),
+              }
+            : inspector
+              ? {
+                  kind: "inspector",
+                  expanded,
+                  content: <ShellStoryInspector />,
+                  onClose: () => {
+                    args.onCloseInspector();
+                    setInspector(false);
+                    setExpanded(false);
+                  },
+                  onExpandedChange: (next) => {
+                    args.onExpandedChange(next);
+                    setExpanded(next);
+                  },
+                }
+              : { kind: "closed" }
+        }
       />
     </ShellStoryFrame>
   );
@@ -297,5 +341,25 @@ export const Loading: Story = {
     ).toBeInTheDocument();
     await expect(canvas.getByRole("button", { name: "Play" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Stop" })).toBeDisabled();
+  },
+};
+
+export const MoreMix: Story = {
+  args: { initialMode: "more" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole("button", { name: "Mix" });
+    await userEvent.click(trigger);
+    const body = within(document.body);
+    await expect(body.getAllByRole("dialog")).toHaveLength(1);
+    await expect(body.getByRole("dialog", { name: "Mix" })).toHaveClass(
+      "bottom-sheet--full",
+    );
+    await userEvent.click(body.getByRole("button", { name: "Close" }));
+    await expect(trigger).toHaveFocus();
+    await userEvent.click(trigger);
+    await userEvent.keyboard("{Escape}");
+    await expect(body.queryByRole("dialog")).toBeNull();
+    await expect(trigger).toHaveFocus();
   },
 };

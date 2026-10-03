@@ -52,6 +52,31 @@ describe("TrackFaderView", () => {
     fireEvent.change(slider(), { target: { value: "-6" } });
     expect(onCommit.mock.calls).toEqual([[-6]]);
   });
+  it("compact presentation shares native drafts, commits and double-click reset", () => {
+    const onCommit = vi.fn();
+    render(
+      <>
+        <p id="permission">Saved volume</p>
+        <TrackFaderView
+          {...props}
+          presentation={{ kind: "compact", descriptionId: "permission" }}
+          access={{ kind: "edit", onCommit }}
+        />
+      </>,
+    );
+    fireEvent.input(slider(), { target: { value: "-6" } });
+    expect(slider()).toHaveValue("-6");
+    expect(screen.getByRole("status")).toHaveTextContent("−6.0 dB");
+    expect(slider()).toHaveAccessibleDescription("Saved volume");
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.change(slider(), { target: { value: "-6" } });
+    expect(onCommit.mock.calls).toEqual([[-6]]);
+    fireEvent.doubleClick(slider());
+    expect(onCommit.mock.calls).toEqual([[-6], [0]]);
+    expect(slider()).toHaveValue("0");
+    expect(screen.queryByRole("button", { name: /Reset/ })).toBeNull();
+  });
+
   it("Reset commits zero and returns focus when its button disables", async () => {
     const onCommit = vi.fn();
     render(<ControlledFader onCommit={onCommit} />);

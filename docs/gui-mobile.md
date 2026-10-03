@@ -16,7 +16,7 @@ phone coverage. Guest review bounds its reading column and lets native composer
 fields shrink to fit narrow viewports.
 
 The live `MobileShell` and `StudioShell` adapters render props-only shell views.
-`MobileShellView` owns the four-mode chrome, More-back, and inspector sheet markup.
+`MobileShellView` owns the four-mode chrome, More-back, and the single Inspector or Mix sheet.
 `StudioShellView` owns desktop/tablet chrome, editor tabs, and ingest target/coach.
 The adapters retain viewport effects, commands, focus/presence refs, selection
 policy, and memoized timeline headers. The catalog composes these views with
@@ -57,11 +57,28 @@ Phone four-mode chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport
 | **Listen** | Mix-oriented scrubber, comment list, status chips | Guest review, audition |
 | **Timeline** | Fixed-center playhead scrub, Ferrite lane gutter (sticky identity), layer chips | Spatial edit / seek |
 | **Text** | Transcript panel (follow, edit, cut-away) | Word fix, suggest cut |
-| **More** | Hub → Comments, History, Impact, Tighten, Pipeline, settings | Long-lived panels |
+| **More** | Hub → Mix sheet, Comments, History, Impact, Tighten, Pipeline, settings | Track mixing and long-lived panels |
 
 While `project === null` (progressive load), Listen keeps its hero with disabled play and “Loading episode…” as its heading; the shell header row is absent. Timeline shows skeleton lanes below its compact header transport and gutter grid. That chrome is not the ingest empty-session coach.
 
 Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the same inspector views as desktop (`aria-modal="false"`, Escape + focus restore, no chrome `inert` / Tab trap). Modifier sheets (pending, clip, track, chapter — any `.modifier-inspector`) pin the mutation error and audition footer; long Ask threads scroll in the body; long mutation errors scroll inside a capped error slot. The taller half peek (`:has(.modifier-inspector)`) applies to every modifier, not only pending. Sheets are transient: visible Close, no stacking (drill to a More destination instead). Deferred: mutation error across shell remount, Firefox layout CI, overlapping Approve — [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up).
+
+**More → Mix** opens one full-height non-modal sheet for every role. Rows follow
+project order and show lane initials, names, M, S, and saved Volume. M and Volume
+save through the existing mix commands for hosts and guests with `edit`; other
+guests use local M and see disabled Volume with its permission reason. S stays
+local for everyone. Shared playback still uses Full mix, as the sheet explains.
+The default row is 3.5rem with at least 2.75rem M/S/range targets. Long names
+truncate only in their column; many rows scroll together with the explanatory
+copy. Text scaling can move Volume onto a second row without clipping controls.
+
+Opening Mix clears the prior selection and armed range. Close, Escape, and
+scrim dismissal leave More open and restore its Mix trigger while mounted.
+Navigation keeps focus on the chosen nav control. Project, follow, destination,
+selection, or range changes invalidate Mix permanently; returning to More does
+not reopen it. Mix and Inspector share one keyed sheet. Gestures closes Mix
+before opening its existing dialog. Committed writes continue through the shared
+mix queue after closing. A swipe overlay remains deferred.
 
 Inspector sheets keep the timeline interactive behind them: their background scrim is decorative and pointer-transparent, so a phone user can drag a pending edge or tap the ruler without closing the inspector. A blank ruler tap seeks and clears the current selection. Confirmation sheets, including the blade-cut confirmation, keep a dismissible outside scrim; Close and Escape remain available for both sheet types.
 
@@ -95,7 +112,7 @@ range proposals; view guests keep the five actions visible with disabled reasons
 | Transport play/time/audition | Listen hero (`layout/ListenHero`, story `Templates/ListenHero`); compact header transport on Timeline, Text, and More (the project name moves to the Listen hero when the bar is under 30rem); audition/zoom in Menu |
 | Mode nav | Icon + label tabs; the active tab is tinted with an accent top indicator (no filled block) |
 | Comment / Fit | Header primary **icons** outside Listen; Fit is available on Timeline and in the non-Listen Menu |
-| Track headers M/S/FX | Lane gutter tap (the whole rail; the initials chip is the affordance) → track sheet (**M**/**S** toggles and the saved **Volume** fader; drag the Volume envelope layer for envelopes). Header mixer chrome hidden when the timeline pane is narrow; reorder via Menu → Move track up/down |
+| Track headers M/S/FX | Lane gutter tap (the whole rail; the initials chip is the affordance) → track sheet (**M**/**S** toggles and the saved **Volume** fader; drag the Volume envelope layer for envelopes). More → Mix adjusts all tracks without changing selection. Header mixer chrome hidden when the timeline pane is narrow; reorder via Menu → Move track up/down |
 | Timeline overlays | Timeline mode + layer chips |
 | Inspector | Selection sheet |
 | Transcript tab | Text mode |
@@ -111,7 +128,7 @@ Touch gestures for common actions, documented in the **Gestures** cheatsheet (Mo
 - **Double-tap word**: the first tap seeks immediately (no added latency); a second tap on the same word within the double-tap gap opens correction. `.transcript-list` sets `touch-action: manipulation` so browser double-tap zoom cannot eat the second tap. On desktop, a host's double-click opens inline word editing instead (the first click still seeks); touch double-tap keeps the correction sheet. The navigate-mode hint under the transcript toolbar follows the pointer: coarse pointers read "Double-tap a word to correct its text…" and fine pointers get the inline Enter/Esc hint. The split is deliberate: the sheet leaves room for the on-screen keyboard and keeps Suppress and phrase (End index) correction one tap away, which a chip-sized inline input cannot. Both paths submit through `submitWordCorrection` (`gui/web/src/transcript/wordCorrection.ts`), so they cannot drift.
 - **Word correction from a gesture is scoped to that gesture**: it switches the panel to Correct only while the word sheet is open; closing restores the previous mode (and a Select range). Gestures only open correction for hosts with hydrated words — guests and unhydrated transcripts keep tap-to-seek and never enter Correct.
 - **Swipe left** invokes `comment.resolve` through the shared comment mutation path for an open comment in the comments list (hosts only; opt-in via `swipeToResolve`, so embedded threads such as the pending-edit Ask thread never resolve from a stray drag). It gives up on vertical travel, must finish before a long-press would, and the card keeps `touch-action: pan-y pinch-zoom`. Controls inside the card (checkbox labels, links, inputs, reply rows) keep their own behavior. While the drag is tracked, the card follows the finger leftward, capped at 2× the resolve threshold, and a `Resolve` cue fills the gap it opens; the cue switches to the accent style once travel reaches the threshold, exactly when release would resolve. The card snaps back on release, vertical travel, pointer cancel, or a hold past long-press, so the cue never shows for a swipe that cannot resolve. With `prefers-reduced-motion: reduce`, the card does not move; the cue instead overlays the card's inline end. Resolving from either the swipe or the footer **Resolve** button shows an Undo toast (`Resolved comment at <time>`, polite live region, 8s auto-dismiss paused while a mouse or pen hovers it, while focus is inside it, or while Undo is disabled by another pending comment change; touch contact does not pause it). Only the latest resolve has a toast: resolving another comment replaces it. **Undo** reopens the comment and moves keyboard focus to the Comments panel (so it never falls back to the page body, even though the browser blurs Undo while it is disabled during the reopen request); reopening from the card's **Reopen** button still works after the toast is gone or was replaced.
-- In **More → Comments**, selecting a comment (tap, long-press, or posting a new one) opens the Inspector sheet, matching Listen. Other More destinations never open it.
+- In **More → Comments**, selecting a comment (tap, long-press, or posting a new one) opens the Inspector sheet, matching Listen. In **More → Impact**, selecting a pending edit opens the same Inspector.
 
 Two-finger Undo is active only while a project is loaded and the shared Undo command is available. Its recognizer yields to timeline pinch/rotation and rejects delayed, moving, or cancelled contacts so zooming does not also undo an edit.
 

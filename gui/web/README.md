@@ -91,8 +91,15 @@ They do not mount the live comment panel.
 `TranscriptPanel` for mapped, selected, annotated, cut-away and 360px long-turn
 examples. The panel retains DAW state, gestures, presence, and virtualization;
 stories pass fixture props and local callbacks only.
+`Templates/TrackMix` renders the production `TrackMixView` with controlled six,
+many, long-name, saved/implied mute, read-only, loading, and empty fixtures.
+`TrackMix` owns one non-hot selector and projects rows outside it; the view owns
+only list composition and shared control presentation. `MobileShellView` takes
+a closed/Inspector/Mix discriminated sheet; `MobileShell` owns transient Mix
+eligibility in the originating More hub. `MoreMix` adds a controlled shell play.
+
 `Templates/TrackFader` uses the production `TrackFaderView` shared with the
-inspector. Controlled fixtures cover Reset and focus return, read-only saved
+inspector and compact Mix rows. Controlled fixtures cover Reset and focus return, read-only saved
 volume, stale Balance, non-dialogue tracks, and a 360px frame. The view keeps
 range drafts and their output notes together. The live `TrackFader` adapter
 retains capability checks and dispatches native-change commits through
