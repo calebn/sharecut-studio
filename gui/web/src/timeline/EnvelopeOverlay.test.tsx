@@ -45,7 +45,7 @@ describe("EnvelopeOverlay", () => {
     useDawStore.getState().setSelection(null);
   });
 
-  it("selects a point on pointer down and highlights it", () => {
+  it("highlights a preview locally and preserves the previous selection on Escape", () => {
     const onSelectTrack = vi.fn();
     const { container } = render(
       <EnvelopeOverlay
@@ -58,12 +58,19 @@ describe("EnvelopeOverlay", () => {
     );
     const circles = container.querySelectorAll("circle");
     expect(circles.length).toBe(2);
-    fireEvent.pointerDown(circles[1]!);
-    expect(useDawStore.getState().selection).toEqual({
+    const previous = {
       kind: "envelopePoint",
       trackId: "host",
-      index: 1,
-    });
+      index: 0,
+    } as const;
+    act(() => useDawStore.getState().setSelection(previous));
+    fireEvent.pointerDown(circles[1]!);
+    expect(useDawStore.getState().selection).toEqual(previous);
+    expect(circles[1]).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(circles[1]!, { key: "Escape" });
+    expect(useDawStore.getState().selection).toEqual(previous);
+    expect(circles[0]).toHaveAttribute("aria-pressed", "true");
+    expect(circles[1]).toHaveAttribute("aria-pressed", "false");
     expect(
       container.querySelector("circle.envelope-point-selected"),
     ).toBeTruthy();
@@ -195,9 +202,15 @@ describe("EnvelopeOverlay", () => {
     ],
     ["not an error", "Could not apply envelope"],
   ])(
-    "rolls back the draft and selection when SetEnvelope rejects (%s)",
+    "rolls back the draft and preserves previous selection when SetEnvelope rejects (%s)",
     async (rejection, announcement) => {
       setEnvelope.mockRejectedValue(rejection);
+      const previous = {
+        kind: "envelopePoint",
+        trackId: "host",
+        index: 0,
+      } as const;
+      useDawStore.getState().setSelection(previous);
       const { container } = renderOverlay();
       const circle = container.querySelectorAll("circle")[1]!;
       const originalY = circle.getAttribute("cy");
@@ -207,7 +220,7 @@ describe("EnvelopeOverlay", () => {
       await vi.waitFor(() =>
         expect(useDawStore.getState().statusAnnouncement).toBe(announcement),
       );
-      expect(useDawStore.getState().selection).toBeNull();
+      expect(useDawStore.getState().selection).toEqual(previous);
       expect(container.querySelectorAll("circle")[1]!.getAttribute("cy")).toBe(
         originalY,
       );
