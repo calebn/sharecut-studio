@@ -1203,6 +1203,50 @@ def test_guest_keeper_upload_rejected_after_host_removal(
     assert denied.json()["detail"] == "invalid lease"
 
 
+def test_removed_guest_cannot_upload_stopped_take_after_next_take_starts(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    svc = RecordSessionService(_ws.project, session_id=room["session_id"])
+    svc.join(
+        token=token,
+        role="host",
+        display_name="Host",
+        client_id="host",
+        connection_id="h1",
+    )
+    pid, lease = _guest_join(svc, room, name="Ava", conn="a1")
+    _guest_consent(svc, pid, name="Ava", accepted=True, seq=2)
+    _host_cmd(svc, "Start", now=1000)
+    _host_cmd(svc, "Stop", now=2000)
+
+    assert svc.upload_consented(pid, take_index=0) is True
+    assert svc._participants.verify(pid, lease, token=token, session_id=room["session_id"])
+    accepted = _post_keeper(client, token, pid, lease, take=0)
+    assert accepted.status_code == 200, accepted.text
+
+    _host_cmd(svc, "Start", now=3000)
+    state = svc.snapshot()
+    assert state["takes"][0]["consented_participant_ids"] == ["p_host", pid]
+    assert state["takes"][1]["consented_participant_ids"] == ["p_host", pid]
+    assert svc.upload_consented(pid, take_index=0) is True
+    assert svc.upload_consented(pid, take_index=1) is True
+
+    _host_cmd(svc, "RemoveParticipant", now=3500, payload={"participant_id": pid})
+    state = svc.snapshot()
+    assert state["takes"][0]["consented_participant_ids"] == ["p_host", pid]
+    assert state["takes"][1]["consented_participant_ids"] == ["p_host"]
+    assert svc.upload_consented(pid, take_index=0) is False
+    assert svc.upload_consented(pid, take_index=1) is False
+    assert svc.upload_consented(pid, take_index=None) is False
+    assert not svc._participants.verify(pid, lease, token=token, session_id=room["session_id"])
+
+    denied = _post_keeper(client, token, pid, lease, take=0, segment=1)
+    assert denied.status_code == 403, denied.text
+    assert denied.json()["detail"] == "invalid lease"
+
+
 def test_removed_guest_fails_lease_check_if_revocation_is_interrupted(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

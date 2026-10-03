@@ -758,6 +758,34 @@ def test_remove_participant_mid_take_revokes_upload_consent() -> None:
     assert guest_upload_consented(snap, "p_g", take_index=0) is False
 
 
+def test_remove_participant_revokes_stopped_and_current_take_upload_consent() -> None:
+    snap = empty_record_snapshot("sess")
+    snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
+    snap = _join(snap, pid="p_g", role="guest", name="Ava", now=1, seq=2)
+    snap = apply_record_command(
+        snap, _cmd("Consent", pid="p_g", payload={"accepted": True}, seq=3), now_wall_ms=2
+    )
+    snap = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=10)
+    snap = apply_record_command(snap, _cmd("Stop", role="host", pid="p_host"), now_wall_ms=20)
+    snap = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=21)
+
+    assert snap.takes[0].consented_participant_ids == ["p_host", "p_g"]
+    assert snap.takes[1].consented_participant_ids == ["p_host", "p_g"]
+    assert guest_upload_consented(snap, "p_g", take_index=0) is True
+    assert guest_upload_consented(snap, "p_g", take_index=1) is True
+    removed = apply_record_command(
+        snap,
+        _cmd("RemoveParticipant", role="host", pid="p_host", payload={"participant_id": "p_g"}),
+        now_wall_ms=22,
+    )
+
+    assert removed.takes[0].consented_participant_ids == ["p_host", "p_g"]
+    assert removed.takes[1].consented_participant_ids == ["p_host"]
+    assert guest_upload_consented(removed, "p_g", take_index=0) is False
+    assert guest_upload_consented(removed, "p_g", take_index=1) is False
+    assert guest_upload_consented(removed, "p_g", take_index=None) is False
+
+
 def test_start_roster_keeps_consented_guest_who_disconnected() -> None:
     snap = empty_record_snapshot("sess")
     snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
