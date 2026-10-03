@@ -1481,7 +1481,14 @@ held-out delay stability, supported copy endpoints (interior-only evidence
 abstains), agreement across all known retained peers, original outer fade preservation, stale-plan rejection,
 repeat/reopen convergence, history restoration of timing choices, source-scoped
 quiet-overlap provenance, no stacked-media QC issues, and saved mix mutes. It
-includes comparable broadband and narrowband overlapping-owner cases. A louder-owner case
+includes comparable broadband and narrowband overlapping-owner cases. Seed-reporting
+controls compare a supported 150 ms copy with the same samples after erasing only
+copy words, missing transcripts, out-of-scope seeds, and no-copy audio. They check
+`no_retained_bleed_candidate`, unchanged project/PCM on empty-plan apply, and
+preserved mute, implicit-timeline, empty-lane, missing-audio, recorder-lock, and
+saved-choice outcomes. Cross-role controls preserve a lane's missing-copy-seed
+status when it serves as a direct reference elsewhere. Service and CLI tests
+check default-gate propagation and nonmutating preview output. A louder-owner case
 currently abstains because evidence is weak; amplitude alone does not establish
 that delay is unidentifiable.
 

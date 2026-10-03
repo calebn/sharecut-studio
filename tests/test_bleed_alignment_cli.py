@@ -52,3 +52,33 @@ def test_cli_rejects_invalid_choice_before_any_project_write(tmp_path):
     assert result.exit_code != 0
     assert "mode must be auto, manual, or declined" in result.output
     assert ws.path.read_bytes() == before
+
+
+def test_cli_preview_reports_missing_seed_without_project_write(tmp_path):
+    ws = _workspace(tmp_path)
+    ws.project.transcripts[1].words = []
+    ws.save()
+    before = ws.path.read_bytes()
+    result = CliRunner().invoke(
+        app,
+        [
+            "edit",
+            "align-retained-bleed",
+            "--project",
+            str(ws.path),
+            "--track",
+            "uncertain",
+            "--start",
+            "0.8",
+            "--end",
+            "3.5",
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    preview = json.loads(result.output)
+    assert preview["proposed_count"] == 0
+    assert preview["skipped"] == [
+        {"track_id": "uncertain", "reason": "no_retained_bleed_candidate"}
+    ]
+    assert ws.path.read_bytes() == before
