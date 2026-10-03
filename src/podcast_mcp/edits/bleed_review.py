@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import pairwise
+from math import isfinite
+from pathlib import Path
 from typing import Any
 
 from podcast_mcp.edits.range_edits import build_range_target, range_geometry
@@ -11,7 +14,12 @@ from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 from podcast_mcp.engines.ungated_audio import raw_evidence_layout_reason
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.models.episode import RangeInterval
-from podcast_mcp.util.intervals import intersect_intervals, merge_intervals, subtract_intervals
+from podcast_mcp.util.intervals import (
+    HalfOpenIntervalIndex,
+    intersect_intervals,
+    merge_intervals,
+    subtract_intervals,
+)
 from podcast_mcp.util.process import CalledProcessError
 
 MAX_REVIEW_CANDIDATES = 16
@@ -72,9 +80,11 @@ def bleed_review_candidates(
     for mapped in geometry.words:
         peer = mapped.word.dominant_track
         if mapped.is_candidate and peer:
-            foreign_spans.setdefault(peer, []).extend(
-                intersect_intervals([(float(a), float(b)) for a, b in mapped.spans], [(start, end)])
+            selected = intersect_intervals(
+                [(float(a), float(b)) for a, b in mapped.spans], [(start, end)]
             )
+            if selected:
+                foreign_spans.setdefault(peer, []).extend(selected)
     peers = list(foreign_spans)
     for i, peer in enumerate(peers):
         for other in peers[i + 1 :]:
@@ -102,8 +112,14 @@ def bleed_review_candidates(
         )
 
     placements = range_geometry(project, [RangeInterval(start=start, end=end)], [track_id])
+    placement_index = HalfOpenIntervalIndex.build(
+        (clip.timeline_start, clip.timeline_end) for clip in placements
+    )
     for i, first in enumerate(placements):
-        for second in placements[i + 1 :]:
+        for j in placement_index.overlapping_ordinals(first.timeline_start, first.timeline_end):
+            if j <= i:
+                continue
+            second = placements[j]
             a = max(start, first.timeline_start, second.timeline_start)
             b = min(end, first.timeline_end, second.timeline_end)
             if b > a:
@@ -123,37 +139,51 @@ def bleed_review_candidates(
         return preview([], ("missing_receiving_track",))
     protected = merge_intervals([(row["start"], row["end"]) for row in exclusions])
     reasons: set[str] = set()
-    available: dict[str, bool] = {}
+    protected_index = HalfOpenIntervalIndex.build(protected)
+    lane_placements = {track_id: (placements, placement_index)}
+    durations: dict[Path, float | None] = {}
 
-    def media_available(tid: str) -> bool:
-        if tid not in available:
-            other = project.track_by_id(tid)
+    def media_available(tid: str, a: float, b: float) -> bool:
+        other = project.track_by_id(tid)
+        if other is None or raw_evidence_layout_reason(project, tid):
+            return False
+        if tid not in lane_placements:
+            clips = range_geometry(project, [RangeInterval(start=start, end=end)], [tid])
+            lane_placements[tid] = (
+                clips,
+                HalfOpenIntervalIndex.build((c.timeline_start, c.timeline_end) for c in clips),
+            )
+        clips, index = lane_placements[tid]
+        selected_clips = [clips[i] for i in index.overlapping_ordinals(a, b)]
+        coverage = sorted(
+            (max(a, c.timeline_start), min(b, c.timeline_end)) for c in selected_clips
+        )
+        if merge_intervals(coverage) != [(a, b)] or any(
+            first[1] > second[0] for first, second in pairwise(coverage)
+        ):
+            return False
+        for clip in selected_clips:
+            source = clip_timeline_overlap_to_source(clip, a, b)
+            if source is None:
+                return False
             try:
-                clips = range_geometry(project, [RangeInterval(start=start, end=end)], [tid])
-                available[tid] = bool(
-                    other
-                    and clips
-                    and not raw_evidence_layout_reason(project, tid)
-                    and not any(
-                        min(a.timeline_end, b.timeline_end)
-                        > max(a.timeline_start, b.timeline_start)
-                        for i, a in enumerate(clips)
-                        for b in clips[i + 1 :]
-                    )
-                    and all(
-                        FFmpegEngine()
-                        .probe(resolve_clip_audio_path(project, other, clip))
-                        .duration_sec
-                        > 0
-                        for clip in clips
-                    )
-                )
-            except (OSError, ValueError, CalledProcessError):
-                available[tid] = False
-        return available[tid]
+                path = resolve_clip_audio_path(project, other, clip).resolve()
+                if path not in durations:
+                    try:
+                        durations[path] = FFmpegEngine().probe(path).duration_sec
+                    except (OSError, ValueError, CalledProcessError):
+                        durations[path] = None
+                duration = durations[path]
+                if (
+                    duration is None
+                    or not isfinite(duration)
+                    or not 0 <= source[0] < source[1] <= duration
+                ):
+                    return False
+            except (OSError, ValueError):
+                return False
+        return True
 
-    if not media_available(track_id):
-        return preview([], ("unavailable_owner_review_media",))
     grouped: dict[tuple[str, str], list[tuple[float, float]]] = {}
     for mapped in geometry.words:
         if not mapped.is_candidate:
@@ -162,19 +192,20 @@ def bleed_review_candidates(
         if not peer_id or peer_id == track_id or project.track_by_id(peer_id) is None:
             reasons.add("missing_foreign_peer")
             continue
-        if not media_available(peer_id):
-            reasons.add("unavailable_peer_review_media")
-            continue
-        for clip in placements:
-            if clip.source_id != mapped.source_id:
-                continue
-            selected = intersect_intervals(
-                [(float(a), float(b)) for a, b in mapped.spans],
-                [(max(start, clip.timeline_start), min(end, clip.timeline_end))],
-            )
-            grouped.setdefault((clip.id, peer_id), []).extend(
-                subtract_intervals(selected, protected)
-            )
+        for a, b in intersect_intervals(
+            [(float(a), float(b)) for a, b in mapped.spans], [(start, end)]
+        ):
+            for i in placement_index.overlapping_ordinals(a, b):
+                clip = placements[i]
+                if clip.source_id != mapped.source_id:
+                    continue
+                selected = [(max(a, clip.timeline_start), min(b, clip.timeline_end))]
+                if selected[0][1] <= selected[0][0]:
+                    continue
+                removes = [protected[j] for j in protected_index.overlapping_ordinals(*selected[0])]
+                remaining = subtract_intervals(selected, removes)
+                if remaining:
+                    grouped.setdefault((clip.id, peer_id), []).extend(remaining)
     rows: list[dict[str, Any]] = []
     truncated = False
     by_id = {clip.id: clip for clip in placements}
@@ -186,6 +217,14 @@ def bleed_review_candidates(
     for a, b, clip_id, peer in windows:
         while a < b:
             last = min(b, a + MAX_REVIEW_SECONDS)
+            if not media_available(track_id, a, last):
+                reasons.add("unavailable_owner_review_media")
+                a = last
+                continue
+            if not media_available(peer, a, last):
+                reasons.add("unavailable_peer_review_media")
+                a = last
+                continue
             if len(rows) >= limit:
                 truncated = True
                 break
