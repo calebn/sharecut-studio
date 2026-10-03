@@ -135,7 +135,7 @@ CLI: `podcast session status|seek|stop|mode|region`. Prefer real play (`dry_run=
 
 ## Rules
 
-- **Clocks:** `play_audio_tool` `start_sec`/`end_sec` for `processed:<id>`, `premix`, and `export` are **timeline seconds** (the edited/deliverable clock). When you get times from `search_transcript_tool`, use the match's **`timeline_start`/`timeline_end`**, not `start`/`end` (those are source-media seconds for cut decisions). `play_transcript_query_tool` already resolves this for you. Raw `track:<id>` playback is the one exception — it takes source seconds on the untouched file. A `null` `timeline_start` means the span was cut away.
+- **Clocks:** `play_audio_tool` `start_sec`/`end_sec` for `processed:<id>`, `premix`, and `export` are **timeline seconds** (the edited/deliverable clock). When you get times from `search_transcript_tool`, use the match's **`timeline_start`/`timeline_end`**, not `start`/`end` (those are source-media seconds for cut decisions). `play_transcript_query_tool` already resolves this for you. Raw `track:<id>` also accepts timeline seconds and maps that range to the untouched source file. A `null` `timeline_start` means the span was cut away.
 - Query search is **substring** on transcript text, not semantic embeddings — pick distinctive words from what the user said.
 - Without transcripts, search/play by topic will fail; transcribe or seed canned transcript first.
 - NL play does not modify the project; cuts still use edit tools + `approve_edits_tool`.

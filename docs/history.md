@@ -206,3 +206,5 @@ Studio find-and-replace validates its reviewed, source-keyed match set before on
 ## Exact selected ranges
 
 A selected range Cut or Mute is one history mutation across every selected lane and interval. Host approval is also one mutation. Undo restores all clip placements, local mute holes, and the pending decision together. Exact range records require History Undo rather than source-span Restore.
+
+Submitting a reviewed exact MUTE creates pending state; host approval applies an undoable clip-local envelope. History undo restores the previous audio state. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).

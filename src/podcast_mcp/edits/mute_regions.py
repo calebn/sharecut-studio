@@ -80,15 +80,16 @@ def mute_spans_for_source_window(
     src_end: float,
     extra: Sequence[ClipMuteRegion] = (),
 ) -> tuple[tuple[float, float], ...]:
-    """Mute intervals inside ``[src_start, src_end)``, relative to ``src_start``.
+    """Intersecting mute envelopes relative to ``src_start``; endpoints stay unclipped.
 
     ``extra`` regions (e.g. ignored-word spans, #633) are merged in without being
     written to ``clip.mute_regions``.
     """
     spans: list[tuple[float, float]] = []
     combined = [*clip.mute_regions, *extra]
-    for region in intersect_mute_regions(combined, src_start, src_end):
-        spans.append((region.start_s - src_start, region.end_s - src_start))
+    for region in merge_mute_regions(combined):
+        if region.end_s > src_start and region.start_s < src_end:
+            spans.append((region.start_s - src_start, region.end_s - src_start))
     return tuple(spans)
 
 

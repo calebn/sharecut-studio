@@ -496,3 +496,5 @@ Users can save `manual` or `declined` timing decisions with `set_retained_bleed_
 Crossfade layouts currently skip automatic acoustic gating and local alignment because their rendered sample clock can differ from raw clip placements. Gate apply also skips their ungated reconstruction, so a nondefault crossfade recipe cannot change audio outside a selected window. These skips require review, not a clean safety verdict.
 
 Audition context reports `retained_bleed_misalignment` when supported local long-delay evidence exists. It names `podcast-mute-bleed` and the alignment tools. A delay measurement does not prove that owner speech is absent or authorize muting it.
+
+Clip-local mute envelopes use nominal 5 ms transitions rounded to source samples and evaluate gain on every channel at sample boundaries. Segment renders preserve the original envelope when their window begins inside a mute. Stateful FX and premix normalization can affect output beyond the edited interval; see [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).

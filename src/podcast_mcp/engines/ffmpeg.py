@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 import json
 import logging
+import math
 import re
 import shutil
 import tempfile
@@ -25,6 +26,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.binaries import FFmpegPair, resolve_ffmpeg_pair
+from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.model_assets import resolve_rnnoise_model
 from podcast_mcp.util.process import PIPE, CalledProcessError, TimeoutExpired, popen, run
 
@@ -44,6 +46,12 @@ log = logging.getLogger(__name__)
 
 # 3: use the completed graph's true-peak summary for headroom trim (#855).
 MIX_SEMANTICS_REV = 3
+
+
+def _timestamp_sample_origin(seconds: float, sample_rate: int) -> int:
+    """Match FFmpeg's microsecond timestamp parsing before sample rescaling."""
+    timestamp = int(seconds * 1_000_000 + 1e-6) / 1_000_000
+    return math.floor(timestamp * sample_rate + 0.5)
 
 
 def _escape_filter_value(value: str) -> str:
@@ -685,32 +693,49 @@ class FFmpegEngine:
         seg_duration: float,
         mute_spans: tuple[tuple[float, float], ...],
         *,
-        sample_rate: int | None = None,
+        sample_rate: int,
+        source_start: float = 0.0,
+        source_seek_start: float = 0.0,
     ) -> list[str]:
         from podcast_mcp.edits.mute_regions import MUTE_FADE_SEC
 
-        gains: list[str] = []
-        for start, end in mute_spans:
-            a = max(0.0, float(start))
-            b = min(seg_duration, float(end))
-            if b <= a + 1e-6:
+        origin = _timestamp_sample_origin(
+            source_seek_start, sample_rate
+        ) + _timestamp_sample_origin(source_start - source_seek_start, sample_rate)
+        gains: list[tuple[str, str]] = []
+        for start, end in merge_intervals(list(mute_spans)):
+            a = float(start)
+            b = float(end)
+            if b <= a + 1e-6 or b <= 0 or a >= seg_duration:
                 continue
-            span = b - a
-            if span < 2 * MUTE_FADE_SEC:
-                gains.append(f"if(between(t,{a:.6f},{b:.6f}),0,1)")
+            first = str(math.floor((a + source_start) * sample_rate + 0.5) - origin)
+            last = str(math.floor((b + source_start) * sample_rate + 0.5) - origin)
+            if b - a < 2 * MUTE_FADE_SEC:
+                gains.append((first, f"if(gte(n,{first})*lt(n,{last}),0,1)"))
                 continue
-            fade = min(MUTE_FADE_SEC, max(0.001, span / 2.0))
+            fade = str(max(1, math.floor(MUTE_FADE_SEC * sample_rate + 0.5)))
             gains.append(
-                f"if(between(t,{a:.6f},{a + fade:.6f}),1-(t-{a:.6f})/{fade:.6f},"
-                f"if(between(t,{a + fade:.6f},{b - fade:.6f}),0,"
-                f"if(between(t,{b - fade:.6f},{b:.6f}),(t-{b - fade:.6f})/{fade:.6f},1)))"
+                (
+                    first,
+                    f"if(between(n,{first},{first}+{fade}),1-(n-{first})/{fade},"
+                    f"if(between(n,{first}+{fade},{last}-{fade}),0,"
+                    f"if(between(n,{last}-{fade},{last}),(n-({last}-{fade}))/{fade},1)))",
+                )
             )
         if not gains:
             return []
-        rate = int(sample_rate) if sample_rate and sample_rate > 0 else 48000
-        n = max(1, round(rate / 1000.0))
-        expr = "*".join(f"({g})" for g in gains) if len(gains) > 1 else gains[0]
-        return [f"asetnsamples=n={n}:p=0", f"volume=volume='{expr}':eval=frame"]
+
+        def interval_tree(items: list[tuple[str, str]]) -> str:
+            if len(items) == 1:
+                return items[0][1]
+            middle = len(items) // 2
+            return (
+                f"if(lt(n,{items[middle][0]}),"
+                f"{interval_tree(items[:middle])},{interval_tree(items[middle:])})"
+            )
+
+        expr = interval_tree(gains)
+        return [f"aeval=exprs='val(ch)*({expr})':c=same"]
 
     def _append_fades(
         self,
@@ -888,10 +913,24 @@ class FFmpegEngine:
                 )
 
         seg_labels: list[str] = []
+        source_rates: dict[Path, int] = {}
         for i, seg in enumerate(placed):
             dur = seg.src_end - seg.src_start
             chain = self._fade_chain(dur, seg.fade_in_sec, seg.fade_out_sec)
-            chain.extend(self._mute_chain(dur, seg.mute_spans))
+            if seg.mute_spans:
+                source_path = source_paths[i] if multi_source else input_path
+                if source_path not in source_rates:
+                    source_rates[source_path] = self.probe(source_path).sample_rate
+                seek_start = source_ranges[source_path][0] if multi_source else 0.0
+                chain.extend(
+                    self._mute_chain(
+                        dur,
+                        seg.mute_spans,
+                        sample_rate=source_rates[source_path],
+                        source_start=seg.src_start,
+                        source_seek_start=seek_start,
+                    )
+                )
             body = ",".join(chain) if chain else "anull"
             filters.append(f"[src{i}]{body}[a{i}]")
             seg_labels.append(f"[a{i}]")

@@ -19,7 +19,8 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `join_quality_tool` / `join_qa_sweep_tool` | Perceptual join continuity (advisory; disclaimer on every report) |
 | `join_label_tool` | Explicit A/B pass/fail labels for the join ranker |
 | `list_edit_decisions_tool` | List cuts |
-| `approve_edits_tool` / `reject_edits_tool` | Review workflow |
+| `approve_edits_tool` / `reject_edits_tool` | Review workflow; exact range approval is host-only |
+| `propose_range_mute_tool` | Submit a serialized exact range as pending MUTE with an explicit retry command ID; see [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges) |
 | `edit_impact_report_tool` | Seconds removed summary |
 | `propose_edits` / `apply_edits` | Filler/pause tightening (`propose_edits` returns `{operation, edits, skip_counts, summary}`; discourse skips are `discourse:{token}`; optional `edit_mode=ripple|mute`, optional `intensity=light|medium|aggressive`; without it, shipped `pipeline.yaml` applies, not the GUI working set ([filler-cut-quality.md § Intensity presets](filler-cut-quality.md#intensity-presets))). Default is listen-first review, not bulk apply. |
 | `ripple_delete_tool` | Cross-track ripple delete by time |

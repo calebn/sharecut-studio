@@ -684,3 +684,5 @@ source requests reject before playback. Suggested cache identity includes every
 track's current render and mix state. Guest range Play never renders stems and
 requires a fresh published mix. Host isolated and guest full-mix extracts use
 separate private paths and atomic publication.
+
+Reviewed exact MUTE proposals require interactive host approval. Rendered pending previews and host processed timeline playback honor clip-local mute envelopes; guest source-proxy timeline playback currently omits them. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).

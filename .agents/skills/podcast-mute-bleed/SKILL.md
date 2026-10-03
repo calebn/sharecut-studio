@@ -13,7 +13,7 @@ description: >-
 
 This skill applies **waveform** gating derived from reconciled transcript metadata. It does not change word text or suppression flags.
 
-Reconcile can measure bleed from mapped raw media when stems are absent. Applying this skill still requires fresh rendered stems.
+Reconcile can measure bleed from mapped raw media when stems are absent. Automatic attenuation still requires fresh rendered stems. Dry-run review discovery does not require a stem.
 
 ## When to use
 
@@ -60,3 +60,11 @@ Reconcile can measure bleed from mapped raw media when stems are absent. Applyin
 - Do **not** run before reconcile — without suppression metadata, there are no justified automatic candidates.
 
 See [docs/transcript-reconcile.md](../../../docs/transcript-reconcile.md#acoustic-follow-up-preserve-speech-while-reducing-verified-bleed).
+
+## Reviewed fallback
+
+Dry-run `review_candidates` are transcript-derived listening hypotheses, including on stereo or missing-stem refusals. Each names the receiving lane and foreign peer, exact source/timeline bounds and a serialized `target`. They do not prove owner absence. Listen to receiving raw audio, the named peer and the mix; never infer breath or thump absence from transcript words. Retained, all locked, ignored and uncertain word footprints, contradictory peers, unknown coverage and overlapping placements are excluded. Gaps and repeated occurrences remain separate.
+
+Pass an independently reviewed row's unchanged `target` to `propose_range_mute_tool(project_path, target, command_id)`. Use a unique command ID per proposal; retry only the identical command with that ID. This creates pending exact MUTE. Only the interactive host can approve it. Rows cap at 16 and four seconds each, with `review_truncated` for omissions. Shared window-local exclusion diagnostics cap at 128 with `review_exclusions_truncated`; protection remains complete. Narrow the timeline request to inspect more.
+
+Current geometry/stat seals neither hash media contents nor seal transcript metadata. Re-review after transcript changes. Use host processed playback or rendered pending previews: guest source-proxy timeline playback currently omits clip-local mute envelopes. See [reviewed bleed ranges](../../../docs/transcript-reconcile.md#reviewed-bleed-ranges) for undo, FX and mix normalization limits.

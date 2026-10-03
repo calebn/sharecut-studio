@@ -89,6 +89,66 @@ class BleedGatePlan:
         return gains
 
 
+@dataclass(frozen=True)
+class BleedWordMapping:
+    source_id: str | None
+    word: TranscriptWord
+    spans: tuple[tuple[TimelineSec, TimelineSec], ...]
+    boundary_spans: tuple[tuple[TimelineSec, TimelineSec], ...]
+
+    @property
+    def is_candidate(self) -> bool:
+        word = self.word
+        return bool(
+            word.suppressed
+            and word.audibility_status == "bleed"
+            and word.dominant_track
+            and word.end > word.start
+            and not word.ignored
+            and not word.audibility_locked
+            and self.spans
+        )
+
+
+@dataclass(frozen=True)
+class BleedGateGeometry:
+    words: tuple[BleedWordMapping, ...]
+    untranscribed_spans: tuple[tuple[float, float], ...]
+
+
+def bleed_gate_geometry(project: EpisodeProject, track_id: str) -> BleedGateGeometry:
+    """Map eligibility and protection metadata through selected recordings only."""
+    timeline = SessionTimeline(project)
+    placements = timeline.lane_clip_spans(track_id)
+    transcripts = project.selected_source_transcripts(track_id)
+    transcribed = {source_id for source_id, _ in transcripts}
+    words: list[BleedWordMapping] = []
+    for source_id, transcript in transcripts:
+        bounds = [(SourceSec(word.start), SourceSec(word.end)) for word in transcript.words]
+        spans = (
+            timeline.map_selected_source_spans(track_id, source_id, bounds)
+            if placements
+            else [[(TimelineSec(a), TimelineSec(b))] if b > a else [] for a, b in bounds]
+        )
+        boundaries = (
+            timeline.map_selected_word_spans(track_id, source_id, bounds)
+            if placements
+            else timeline.map_word_spans(track_id, bounds)
+        )
+        words.extend(
+            BleedWordMapping(source_id, word, tuple(mapped), tuple(boundary))
+            for word, mapped, boundary in zip(transcript.words, spans, boundaries, strict=True)
+        )
+    return BleedGateGeometry(
+        tuple(words),
+        tuple(
+            (float(span.timeline_start), float(span.timeline_end))
+            for span in placements
+            if span.clip.source_id not in transcribed
+        ),
+    )
+
+
 def gate_scope_for_window(
     project: EpisodeProject, track_id: str, start: float, end: float
 ) -> list[TranscriptGateScope]:
@@ -341,39 +401,14 @@ def _compute_bleed_gate_plan(
     transcripts = project.selected_source_transcripts(track_id)
     if not transcripts:
         return BleedGatePlan(reasons=("missing_transcript",))
-    placements = timeline.lane_clip_spans(track_id)
-    explicit_placements = bool(placements)
-    transcribed_sources = {source_id for source_id, _ in transcripts}
-    untranscribed_spans = [
-        (float(span.timeline_start), float(span.timeline_end))
-        for span in placements
-        if span.clip.source_id not in transcribed_sources
-    ]
-    word_spans: list[tuple[TranscriptWord, list[tuple[TimelineSec, TimelineSec]]]] = []
-    for source_id, transcript in transcripts:
-        bounds = [(SourceSec(word.start), SourceSec(word.end)) for word in transcript.words]
-        mapped = (
-            timeline.map_selected_source_spans(track_id, source_id, bounds)
-            if explicit_placements
-            else [
-                [(TimelineSec(float(start)), TimelineSec(float(end)))] if end > start else []
-                for start, end in bounds
-            ]
-        )
-        word_spans.extend(zip(transcript.words, mapped, strict=True))
+    geometry = bleed_gate_geometry(project, track_id)
+    untranscribed_spans = list(geometry.untranscribed_spans)
+    word_spans = [(mapped.word, list(mapped.spans)) for mapped in geometry.words]
     related = {track_id} | {word.dominant_track for word, _ in word_spans if word.dominant_track}
     if any(raw_evidence_layout_reason(project, tid) for tid in related):
         return BleedGatePlan(reasons=("unsupported_crossfade_evidence_clock",))
     candidates = [
-        (word, spans)
-        for word, spans in word_spans
-        if word.suppressed
-        and word.audibility_status == "bleed"
-        and word.dominant_track
-        and word.end > word.start
-        and not word.ignored
-        and not word.audibility_locked
-        and spans
+        (mapped.word, list(mapped.spans)) for mapped in geometry.words if mapped.is_candidate
     ]
     if not candidates:
         return BleedGatePlan(reasons=("no_confirmed_bleed_words",))
@@ -427,7 +462,7 @@ def _compute_bleed_gate_plan(
     if not ignore_scope:
         attenuation = intersect_intervals(attenuation, _scope_intervals(project, track_id))
     attenuation = [(start, end) for start, end in attenuation if end - start > 2 * GATE_FADE_SEC]
-    if source_clock and explicit_placements:
+    if source_clock and timeline.lane_clip_spans(track_id):
         placements = timeline.lane_clip_spans(track_id)
         attenuation = merge_intervals(
             (float(source_span[0]), float(source_span[1]))

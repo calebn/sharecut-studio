@@ -2619,6 +2619,7 @@
       ],
       "surfaces": {
         "command": "range.mute",
+        "mcp": ["propose_range_mute_tool"],
         "gui": [
           "RangeActions"
         ]
