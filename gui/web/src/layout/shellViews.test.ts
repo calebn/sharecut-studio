@@ -78,3 +78,17 @@ describe("production shell views", () => {
     },
   );
 });
+
+it("the production fader view owns range interaction without runtime adapters", () => {
+  const graph = runtimeGraph("tracks/TrackFaderView.tsx");
+  expect(graph).toContain("hooks/useCommitRange.ts");
+  expect(graph).toContain("ui/Button.tsx");
+  expect(
+    graph.filter(
+      (file) =>
+        /^(state|commands|api|extensions)\//.test(file) ||
+        /(^|\/)TrackFader\.tsx$/.test(file) ||
+        /\.stories\.tsx?$/.test(file),
+    ),
+  ).toEqual([]);
+});

@@ -91,6 +91,12 @@ They do not mount the live comment panel.
 `TranscriptPanel` for mapped, selected, annotated, cut-away and 360px long-turn
 examples. The panel retains DAW state, gestures, presence, and virtualization;
 stories pass fixture props and local callbacks only.
+`Templates/TrackFader` uses the production `TrackFaderView` shared with the
+inspector. Controlled fixtures cover Reset and focus return, read-only saved
+volume, stale Balance, non-dialogue tracks, and a 360px frame. The view keeps
+range drafts and their output notes together. The live `TrackFader` adapter
+retains capability checks and dispatches native-change commits through
+`track.setVolume`; stories use local saved dB state and callback spies.
 `Templates/InspectorSeekFooter` shows the production `InspectorSeekFooterView`
 shared by the modifier inspectors: seek and play actions, seek-only footers,
 preview modes with a blocked-skip reason, and a 360px footer. The live

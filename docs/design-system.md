@@ -423,6 +423,13 @@ colours); `tests/test_brand_color_roles.py` checks all three theme selectors.
 Review every new component in
 both themes, in story mode and on its docs page, before merging.
 
+`Templates/TrackFader` renders the props-only `TrackFaderView` used by the
+live inspector adapter. Its controlled fixtures cover Reset with focus return,
+read-only volume, stale Balance, non-dialogue tracks, and a 360px frame.
+The view owns `useCommitRange`, draft dB output, staging/output notes, and
+unique input associations. `TrackFader` retains capability checks and dispatches
+committed values through the existing `track.setVolume` command.
+
 `Templates/TrackHeader` renders the production `TrackHeaderView` and
 `TrackMuteSoloButtonsView` from fixed, fictional props. It covers selected,
 saved/listen/implied mute, solo, stale stem, empty lane, reorder/drop,
