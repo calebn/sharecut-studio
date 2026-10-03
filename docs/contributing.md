@@ -302,6 +302,8 @@ Applying a pending decision with `boundary_mode` already set must consume its
 stored optimized bounds. A second snap can reopen a protected breath edge.
 Unsnapped decisions retain configured apply-time optimization. Both paths use
 the existing applied-edit archive and workspace history mutation.
+Coalescing only merges decisions with the same `boundary_mode`, so combining
+rows cannot replace a settled edge's optimization policy with another row's.
 
 ### Transcript sync after audio changes
 

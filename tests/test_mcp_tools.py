@@ -195,7 +195,12 @@ def test_set_envelope_goes_through_document_log_and_baseline(tmp_path):
     assert [(p.id, p.value) for p in stored.points] == [("a", 0.25)]
 
 
-def test_propose_and_apply_edits(tmp_path):
+def test_propose_and_apply_edits(tmp_path, monkeypatch):
+    from podcast_mcp.config import load_defaults
+
+    defaults = load_defaults()
+    defaults["tighten"]["breath_handling"]["enabled"] = False
+    monkeypatch.setattr("podcast_mcp.services.document.edit.load_defaults", lambda: defaults)
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
     proj = load_project(Path(path))

@@ -71,6 +71,35 @@ def test_cut_time_range_and_coalesce():
     assert proj.edit_decisions[0].end == 2.5
 
 
+@pytest.mark.parametrize(
+    "modes, expected_merges",
+    [
+        ((None, None), 1),
+        (("vocal_transcript_guided", "vocal_transcript_guided"), 1),
+        ((None, "vocal_transcript_guided"), 0),
+        (("vocal_transcript_guided", None), 0),
+        (("waveform_only", "vocal_transcript_guided"), 0),
+        (("vocal_transcript_guided", "waveform_only"), 0),
+    ],
+)
+def test_coalesce_preserves_each_boundary_mode(modes, expected_merges):
+    proj = EpisodeProject.create("t", "/tmp/ws")
+    left = append_remove_decision(proj, "host", 1.0, 2.0, boundary_mode=modes[0])
+    right = append_remove_decision(proj, "host", 1.9, 2.5, boundary_mode=modes[1])
+
+    assert coalesce_edits(proj) == expected_merges
+    if expected_merges:
+        assert [(e.start, e.end, e.boundary_mode) for e in proj.edit_decisions] == [
+            (1.0, 2.5, modes[0])
+        ]
+    else:
+        assert proj.edit_decisions == [left, right]
+        assert [(e.start, e.end, e.boundary_mode) for e in proj.edit_decisions] == [
+            (1.0, 2.0, modes[0]),
+            (1.9, 2.5, modes[1]),
+        ]
+
+
 def test_cut_text_match():
     proj = _project_with_transcript()
     cuts = cut_text_match(proj, "coffee", review_required=True)

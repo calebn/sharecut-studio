@@ -138,6 +138,7 @@ def test_propose_fillers_runs_waveform_optimizer(monkeypatch):
     defaults = {
         "tighten": {
             "filler_words": ["um", "like", "uh"],
+            "breath_handling": {"enabled": False},
             "max_pause_sec": 99.0,
             "crossfade_ms": 10,
             "min_filler_cluster": 2,
