@@ -693,6 +693,58 @@ its own test and `expect` timeouts only to bound a hung run. The GUI writes
 `sync.db` and history into the generated project while it runs, so build a
 fresh one per measurement (the `trap` above deletes it).
 
+The benchmark retains a versioned `EditorProfileReport` and `chrome-trace.json`
+under `DAW_PROFILE_OUT`, or the test's `editor-profile` output directory. This is
+Part of #879. The small profiling preset is 120 seconds, two tracks, 24 clips,
+200 utterances, and 20 history steps. Generate a fresh workspace for every run:
+
+```bash
+uv run python scripts/build_large_project_fixture.py \
+	--out /tmp/editor-small-1 --duration 120 --tracks 2 \
+	--clips 24 --utterances 200 --history 20
+DAW_E2E_PROJECT=/tmp/editor-small-1/episode.project.json \
+	DAW_BENCHMARK_PROJECT=1 DAW_PROFILE_OUT=/tmp/editor-small-1-report \
+	npm --prefix gui/web run test:e2e -- large-project.spec.ts --retries=0
+```
+
+Build once per revision before these runs. Repeat with three fresh paths per
+preset. Large uses the builder's existing defaults. Do not use `--repeat-each`
+with one mutating project. Retain failed repetitions rather than retrying them.
+
+Each action records driver wall time separately from page-local rAF scheduling
+intervals, long tasks, and individual CDP duration deltas. Initial-load rAF data
+starts in the new document and does not cover the full navigation wall interval.
+Raw intervals include their count, median, nearest-rank p95, and maximum. They do
+not measure physical displayed frames or field input latency. Missing or reset
+CDP fields are unavailable, never zero. Task, script, layout, and style durations
+overlap and must not be summed. GC and memory checkpoints follow frame windows.
+The legacy endurance wall duration includes its per-round GC; per-round timing
+and frames exclude GC.
+
+Primary actions run without Chrome tracing. A separate diagnostic keyboard seek
+retains a Chrome trace after the main actions. Its traced sample has a distinct
+phase and must not be pooled with primary timings. Import `chrome-trace.json`
+into Chrome DevTools Performance to inspect its events. Playwright tracing follows
+the runner's configured mode and is recorded separately. The report persists
+partial measurements before rethrowing a failed action. The test remains failing.
+
+The report records actual served asset hashes and hook markers, source revision
+and dirty state, host and browser metadata, page settings, fixture counts, and
+canonical and raw fixture hashes. Its canonical hash ignores only generated
+creation timestamps and workspace paths. The pure `compatibilityReasons` function
+rejects mismatched definitions, fixture, machine, browser, viewport, motion,
+cache/GC policy, instrumentation, and unknown build or page provenance. Revision
+and asset hashes may differ for a before/after comparison. There is no comparison
+CLI or speedup claim. Inspect matching repeated runs before proposing a budget.
+
+Existing timeline and transcript scrolling uses programmatic offsets. Keyboard
+seek and existing panel/history controls retain their functional assertions.
+Clip and boundary drags, playback, cold waveform generation, native touch, and
+progress replay currently have explicit not-run reasons. This slice adds no
+production instrumentation, optimization, telemetry, or timing CI gate. Silent
+media, ready pyramids, uncontrolled OS/server caches, and desktop Chromium do not
+establish audio quality, cold decoding, physical-device behavior, or Safari parity.
+
 `make test` builds a two-minute fixture; the full two-hour shape is checked by
 `test_large_project_fixture_default_two_hour_shape` under the `e2e_real`
 marker (`make e2e-real`).

@@ -446,3 +446,19 @@ examples. Run browser wrappers sequentially with fixture/environment unit tests
 so their shared workspace-marker lifecycle does not overlap.
 
 The live `e2e/edit-boundary-archive.spec.ts` regression cuts a disposable episode, drags the resulting transcript boundary, verifies the restored word after reload, and exercises undo/redo. Run `npm run test:e2e -- e2e/edit-boundary-archive.spec.ts` after `VITE_SHARECUT_E2E=1 npm run build`.
+
+### Profile editor responsiveness
+
+Part of #879. Build the production frontend with `npm run build`, then use the
+[large-project browser profile](../../docs/testing.md#large-project-browser-profile)
+recipe with a fresh generated project for each repetition. Set `DAW_PROFILE_OUT`
+to retain `report.json` and a separate diagnostic `chrome-trace.json`. Keep the
+`large-project.spec.ts` filter and disable retries.
+
+The report separates driver wall time, page-local rAF intervals, long tasks,
+individual CDP duration counters, and post-GC heap checkpoints. It records
+measurement availability, actual served asset hashes, environment, input labels,
+and unsupported workloads. Failed actions retain partial evidence and still fail
+the test. Traced diagnostic samples and primary samples have different phases.
+Read the testing guide before comparing runs. These measurements have no timing
+CI threshold and make no physical-device, audio-quality, or speedup claim.
