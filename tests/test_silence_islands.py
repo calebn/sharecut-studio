@@ -363,7 +363,7 @@ def test_timeline_rms_hops_uses_cache_builder(tmp_path):
         ) as measure,
     ):
         hops = timeline_rms_hops(p, ["host"], 0.0, 0.1, hop_ms=50)
-    build.assert_called_once_with(p)
+    build.assert_called_once_with(p, track_ids=["host"])
     assert measure.called
     assert measure.call_args.kwargs.get("caches") is empty
     assert len(hops) >= 1
@@ -504,7 +504,7 @@ def test_handoff_refuses_short_or_disjoint_common_quiet(tmp_path, peer_quiet):
         patch("podcast_mcp.edits.silence_islands.measure_timeline_rms_db", side_effect=measured),
     ):
         out = suggest_handoff_cut(p, ["host", "guest"], 1, 5)
-    build.assert_called_once_with(p)
+    build.assert_called_once_with(p, track_ids=["host", "guest"])
     assert out["ok"] is False
     assert out["cut_start"] is None
     assert out["islands"] == []
@@ -552,7 +552,7 @@ def test_real_wav_repeated_source_mapping_and_gain(tmp_path):
         patch("podcast_mcp.engines.ungated_audio.load_mono_full", wraps=load_mono_full) as decode,
     ):
         hops = timeline_rms_hops(p, ["host"], 0, 4, hop_ms=500)
-    build.assert_called_once_with(p)
+    build.assert_called_once_with(p, track_ids=["host"])
     assert decode.call_count == 1
     assert [t for t, _ in hops] == [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]
     assert [db < -48 for _, db in hops] == [True, True, False, False, True, True, False, False]
@@ -614,3 +614,33 @@ def test_unavailable_rms_does_not_approve_quiet(tmp_path, measurement):
         out = suggest_handoff_cut(_project(tmp_path), ["host"], 1, 5, quiet_db=float("inf"))
     assert out["ok"] is False
     assert out["islands"] == []
+
+
+@pytest.mark.parametrize("processed", [False, True])
+@pytest.mark.parametrize("selector", [{"track_id": "music"}, {"speaker": "Music"}])
+def test_explicit_music_lane_keeps_handoff_and_waveform_evidence(tmp_path, processed, selector):
+    import numpy as np
+
+    from podcast_mcp.models import save_project
+    from podcast_mcp.services.app import ProjectWorkspace
+    from podcast_mcp.services.document import EditService
+
+    p = _project(tmp_path)
+    p.timeline.tracks[0].id = "music"
+    p.timeline.tracks[0].label = "Music"
+    p.timeline.tracks[0].speaker = "Music"
+    p.timeline.tracks[0].role = TrackRole.MUSIC
+    p.timeline.clips[0].track_id = "music"
+    if processed:
+        stem = Path(p.workspace_dir) / "artifacts/tracks/music.wav"
+        stem.parent.mkdir(parents=True)
+        _write_wav(stem, np.zeros(30 * 16000))
+    path = Path(p.workspace_dir) / "episode.project.json"
+    save_project(p, path)
+    service = EditService(ProjectWorkspace.open(path))
+    out = service.suggest_handoff_cut(keep_left_end=1, keep_right_start=5, **selector)
+    assert out["ok"] is True
+    assert out["track_ids"] == ["music"]
+    assert (out["cut_start"], out["cut_end"]) == (2.0, 4.0)
+    snap = service.waveform_snap_window(track_id="music", start=1, end=5, timeline=True)
+    assert snap["islands"]

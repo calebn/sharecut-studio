@@ -70,9 +70,7 @@ Auto-tighten (`propose-edits` → `apply-edits` / pipeline `tighten_from_transcr
 
 ## Workflow
 
-A ripple that removes no words preserves done or waived refinement clearance after saving and reopening. Word timing and clip placement alone do not change the precorrect fingerprint. Text, word order, track IDs, and suppressed state changes still require clearance.
-
-Omit track and speaker on `suggest_handoff_cut_tool` to require quiet across every dialogue lane, including muted lanes. Explicit selectors limit evidence to one lane. The result lists the analyzed `track_ids`. Missing or incomplete cached audio blocks the suggestion. See [Narrative handoffs](../../../docs/inaudible-cuts.md#narrative-handoffs).
+Omit track and speaker for session handoffs; explicit selectors analyze one lane. Use the [handoff evidence contract](../../../docs/inaudible-cuts.md#narrative-handoffs). Re-clear refinement after word removal; pause-only trims preserve clearance. See the [refinement gate](../../../docs/transcript-workflow.md#agent-gate-require_transcript_refine).
 
 Default: **propose → review → approve**. Never bulk-apply on a production episode
 without the user signing off.

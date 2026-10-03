@@ -247,7 +247,7 @@ inference runs outside it. The persistence contract is in [persistence.md](persi
 
 ### Narrative handoff evidence
 
-Narrative handoff selection belongs to `EditService.suggest_handoff_cut`. Omitted human selectors resolve to all dialogue IDs, including muted lanes. Explicit selectors resolve to one lane. `edits.silence_islands` accepts a track collection, samples the maximum RMS on a shared timeline grid using one cache build, and reuses the silence-island retain and snap planner. Missing or incomplete evidence blocks quiet approval. The waveform snap overlay passes its one selected lane to the same scanner.
+Narrative handoff selection belongs to `EditService.suggest_handoff_cut`. Omitted human selectors resolve to all dialogue IDs, including muted lanes. Explicit selectors resolve to one lane. `edits.silence_islands` accepts a track collection, samples the maximum RMS on a shared timeline grid using one cache build for the selected lanes, and reuses the silence-island retain and snap planner. Missing or incomplete evidence cannot qualify a hop as quiet. The waveform snap overlay passes its one selected lane to the same scanner.
 
 ### Timebase: source vs timeline clock
 

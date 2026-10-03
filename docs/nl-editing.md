@@ -127,7 +127,7 @@ NL removes also apply **filler pacing** from `tighten.min_gap_after_filler_sec` 
 
 ## Long raw sessions: content cut before tighten
 
-Omit track and speaker for a session handoff to require quiet across all dialogue lanes, including muted lanes. Explicit selectors analyze one lane. Results list the analyzed `track_ids`. Missing or incomplete audio blocks approval. See [Narrative handoffs](inaudible-cuts.md#narrative-handoffs) for evidence and locking bounds.
+Omit track and speaker for a session handoff to require quiet across all dialogue lanes, including muted lanes. Explicit selectors analyze one lane. Results list the analyzed `track_ids`. Missing or incomplete evidence cannot qualify a hop as quiet; each proposed boundary must lie in a shared measured quiet island. See [Narrative handoffs](inaudible-cuts.md#narrative-handoffs) for evidence and locking bounds.
 
 On a long raw session, cut content before tightening:
 
