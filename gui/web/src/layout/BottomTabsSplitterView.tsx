@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { pxToRem, remToPx } from "../hooks/useTabsHeight";
+import { useResizeObserver } from "../ui/useResizeObserver";
 
 export interface BottomTabsSplitterViewProps {
   /** Current bottom-panel height in rem (stored preference or CSS default). */
@@ -36,27 +37,17 @@ export function BottomTabsSplitterView({
 }: BottomTabsSplitterViewProps) {
   const separatorRef = useRef<HTMLDivElement>(null);
   const [measuredRem, setMeasuredRem] = useState<number | null>(null);
-  useLayoutEffect(() => {
-    const panel = separatorRef.current?.parentElement;
-    if (!panel) return;
-    const measure = () => {
-      const height = panel.getBoundingClientRect().height;
-      setMeasuredRem(
-        Number.isFinite(height) && height > 0 ? pxToRem(height) : null,
-      );
-    };
-    measure();
-    const observer =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(measure);
-    observer?.observe(panel);
-    window.addEventListener("resize", measure);
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [heightRem, userSet]);
+  const measure = useCallback(() => {
+    const height =
+      separatorRef.current?.parentElement?.getBoundingClientRect().height;
+    setMeasuredRem(
+      height != null && Number.isFinite(height) && height > 0
+        ? pxToRem(height)
+        : null,
+    );
+  }, []);
+  useLayoutEffect(measure, [measure, heightRem, userSet]);
+  useResizeObserver(() => separatorRef.current?.parentElement, measure);
 
   const latest = useRef({ heightRem, userSet, onResize, onReset });
   latest.current = { heightRem, userSet, onResize, onReset };

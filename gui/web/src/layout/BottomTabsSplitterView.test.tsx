@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { FakeResizeObserver, stubResizeObserver } from "../test/resizeObserver";
 import {
   BottomTabsSplitterView,
   type BottomTabsSplitterViewProps,
@@ -30,20 +31,41 @@ describe("BottomTabsSplitterView", () => {
     const rect = vi
       .spyOn(HTMLElement.prototype, "getBoundingClientRect")
       .mockReturnValue({ height: 423 } as DOMRect);
+    stubResizeObserver();
+    let unmount: (() => void) | undefined;
     try {
-      const { props } = renderSplitter({ userSet: false, heightRem: 12.5 });
+      const rendered = renderSplitter({ userSet: false, heightRem: 12.5 });
+      const { props, rerender } = rendered;
+      unmount = rendered.unmount;
       const separator = screen.getByRole("separator", {
         name: "Resize editor panels",
       });
       expect(separator).toHaveAttribute("aria-valuenow", "26.4");
       expect(separator).toHaveAttribute("aria-valuetext", "26.4 rem");
+      const panel = separator.parentElement;
+      expect(panel).not.toBeNull();
+      if (!panel) throw new Error("separator has no panel parent");
+      const observer = FakeResizeObserver.of(panel);
+      expect(observer.targets).toEqual([panel]);
       rect.mockReturnValue({ height: 384 } as DOMRect);
-      fireEvent(window, new Event("resize"));
+      act(() => observer.fire());
       expect(separator).toHaveAttribute("aria-valuenow", "24");
+      rerender(
+        <div className="bottom-tabs" style={{ height: 200 }}>
+          <BottomTabsSplitterView {...props} heightRem={14} />
+        </div>,
+      );
+      expect(FakeResizeObserver.all).toEqual([observer]);
+      expect(observer.disconnected).toBe(false);
+      expect(separator).toHaveAttribute("aria-valuenow", "24");
+      rendered.unmount();
+      expect(observer.disconnected).toBe(true);
       expect(props.onResize).not.toHaveBeenCalled();
       expect(props.onReset).not.toHaveBeenCalled();
     } finally {
+      unmount?.();
       rect.mockRestore();
+      vi.unstubAllGlobals();
     }
   });
 

@@ -23,21 +23,12 @@ const meta: Meta<typeof BottomTabsSplitterView> = {
   title: "Templates/BottomTabsSplitter",
   component: BottomTabsSplitterView,
   tags: ["autodocs"],
-  decorators: [
-    (Story, context) => (
-      <section
-        className="bottom-tabs"
-        aria-label="Editor panels preview"
-        style={{
-          width: context.parameters.splitterPhone ? "360px" : "48rem",
-          maxWidth: "100%",
-          height: "12.5rem",
-        }}
-      >
-        <Story />
-      </section>
-    ),
-  ],
+  render: (args, context) => (
+    <SplitterPreview
+      {...args}
+      phone={context.parameters.splitterPhone === true}
+    />
+  ),
   args: {
     heightRem: DEFAULT_TABS_HEIGHT_REM,
     minRem: MIN_TABS_HEIGHT_REM,
@@ -50,33 +41,46 @@ const meta: Meta<typeof BottomTabsSplitterView> = {
 export default meta;
 type Story = StoryObj<typeof BottomTabsSplitterView>;
 
-function SplitterPreview(args: BottomTabsSplitterViewProps) {
+function SplitterPreview({
+  phone = false,
+  ...args
+}: BottomTabsSplitterViewProps & { phone?: boolean }) {
   const [heightRem, setHeightRem] = useState(args.heightRem);
   const [userSet, setUserSet] = useState(args.userSet);
   return (
-    <BottomTabsSplitterView
-      {...args}
-      heightRem={heightRem}
-      userSet={userSet}
-      onResize={(rem) => {
-        // Same clamp as useTabsHeight.setHeightRem over the fixed story shell,
-        // then bounded by the story's own min/max so aria-valuenow never
-        // leaves the aria-valuemin..aria-valuemax range the view reports.
-        setHeightRem(
-          Math.min(
-            args.maxRem,
-            Math.max(args.minRem, clampTabsHeightRem(rem, STORY_AVAILABLE_PX)),
-          ),
-        );
-        setUserSet(true);
-        args.onResize(rem);
+    <section
+      className="bottom-tabs"
+      aria-label="Editor panels preview"
+      style={{
+        width: phone ? "360px" : "48rem",
+        maxWidth: "100%",
+        height: `${heightRem}rem`,
       }}
-      onReset={() => {
-        setHeightRem(DEFAULT_TABS_HEIGHT_REM);
-        setUserSet(false);
-        args.onReset();
-      }}
-    />
+    >
+      <BottomTabsSplitterView
+        {...args}
+        heightRem={heightRem}
+        userSet={userSet}
+        onResize={(rem) => {
+          setHeightRem(
+            Math.min(
+              args.maxRem,
+              Math.max(
+                args.minRem,
+                clampTabsHeightRem(rem, STORY_AVAILABLE_PX),
+              ),
+            ),
+          );
+          setUserSet(true);
+          args.onResize(rem);
+        }}
+        onReset={() => {
+          setHeightRem(DEFAULT_TABS_HEIGHT_REM);
+          setUserSet(false);
+          args.onReset();
+        }}
+      />
+    </section>
   );
 }
 
@@ -87,10 +91,8 @@ export const Default: Story = {
     });
     await expect(sep).toHaveAttribute("aria-valuenow", "12.5");
     await expect(sep).toHaveAttribute("aria-valuemax", "24");
-    await expect(sep).toHaveAttribute(
-      "aria-valuetext",
-      "12.5 rem (default 12.5)",
-    );
+    await expect(sep).toHaveAttribute("aria-valuetext", "12.5 rem");
+    await expect(sep.parentElement?.style.height).toBe("12.5rem");
   },
 };
 
@@ -102,12 +104,12 @@ export const CustomHeight: Story = {
     });
     await expect(sep).toHaveAttribute("aria-valuenow", "20");
     await expect(sep).toHaveAttribute("aria-valuemax", "20");
+    await expect(sep.parentElement?.style.height).toBe("20rem");
   },
 };
 
 export const KeyboardResize: Story = {
   args: { heightRem: 14, userSet: true },
-  render: (args) => <SplitterPreview {...args} />,
   play: async ({ args, canvasElement }) => {
     const sep = within(canvasElement).getByRole("separator", {
       name: "Resize editor panels",
@@ -116,15 +118,16 @@ export const KeyboardResize: Story = {
     await userEvent.keyboard("{Shift>}{ArrowUp}{/Shift}");
     await expect(args.onResize).toHaveBeenCalledWith(15);
     await expect(sep).toHaveAttribute("aria-valuenow", "15");
+    await expect(sep.parentElement?.style.height).toBe("15rem");
     await userEvent.keyboard("{Enter}");
     await expect(args.onReset).toHaveBeenCalled();
     await expect(sep).toHaveAttribute("aria-valuenow", "12.5");
+    await expect(sep.parentElement?.style.height).toBe("12.5rem");
   },
 };
 
 export const KeyboardResizeCustomMax: Story = {
   args: { heightRem: 19.5, maxRem: 20, userSet: true },
-  render: (args) => <SplitterPreview {...args} />,
   play: async ({ args, canvasElement }) => {
     const sep = within(canvasElement).getByRole("separator", {
       name: "Resize editor panels",
@@ -134,6 +137,7 @@ export const KeyboardResizeCustomMax: Story = {
     await expect(args.onResize).toHaveBeenCalledWith(20.5);
     await expect(sep).toHaveAttribute("aria-valuemax", "20");
     await expect(sep).toHaveAttribute("aria-valuenow", "20");
+    await expect(sep.parentElement?.style.height).toBe("20rem");
   },
 };
 
