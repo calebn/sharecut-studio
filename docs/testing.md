@@ -746,7 +746,9 @@ seek and existing panel/history controls retain their functional assertions.
 A measured one-key zoom precedes a trusted horizontal wheel event over a timeline
 with more than 100 CSS pixels of scroll range; changed visible clip IDs establish
 scrolling. An ordinary ruler click changes the observed playhead. Focus and
-programmatic scroll resets occur outside these measurement windows.
+programmatic scroll resets occur outside these measurement windows. The playhead
+returns to zero before measuring transcript opening, so playhead follow exposes
+the first turn on both fixture sizes.
 Clip and boundary drags, playback, cold waveform generation, and native touch
 have explicit not-run reasons. Synthetic progress replay is also not run: an
 attempt attached the real consumer, but the rendered bar had zero computed
