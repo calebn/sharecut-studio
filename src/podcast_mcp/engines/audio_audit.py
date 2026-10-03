@@ -296,6 +296,7 @@ def build_track_rms_caches(
     project: EpisodeProject,
     *,
     before_transcript_gate: bool = False,
+    track_ids: Collection[str] | None = None,
 ) -> TrackRmsCacheSet:
     from podcast_mcp.engines.play_audit import stem_is_fresh
     from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
@@ -304,7 +305,7 @@ def build_track_rms_caches(
     sources: dict[Path, np.ndarray] = {}
     raw_tracks: dict[str, tuple[list[TimelineClipSpan], list[Path]]] = {}
     timeline = SessionTimeline(project)
-    for tid in dialogue_track_ids(project):
+    for tid in dict.fromkeys(dialogue_track_ids(project) if track_ids is None else track_ids):
         track = project.track_by_id(tid)
         if before_transcript_gate and track is not None:
             proc = _processed_track_path(project, tid)

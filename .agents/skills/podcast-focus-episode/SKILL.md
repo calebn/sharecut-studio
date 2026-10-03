@@ -144,9 +144,7 @@ Do **not** remove >**15%** in one batch without explicit user consent.
 
 ### Phase 3 — Propose cuts
 
-A ripple that removes no words preserves done or waived refinement clearance after saving and reopening. Word timing and clip placement alone do not change the precorrect fingerprint. Text, word order, track IDs, and suppressed state changes still require clearance.
-
-Omit track and speaker on `suggest_handoff_cut_tool` to require quiet across every dialogue lane, including muted lanes. Explicit selectors limit evidence to one lane. The result lists the analyzed `track_ids`. Missing or incomplete cached audio blocks the suggestion. See [Narrative handoffs](../../../docs/inaudible-cuts.md#narrative-handoffs).
+Omit track and speaker for session handoffs; explicit selectors analyze one lane. Use the [handoff evidence contract](../../../docs/inaudible-cuts.md#narrative-handoffs). Re-clear refinement after word removal; pause-only trims preserve clearance. See the [refinement gate](../../../docs/transcript-workflow.md#agent-gate-require_transcript_refine).
 
 `apply_edit_plan_tool` with **`review_required: true`** and segment-aligned
 `start`/`end` from the outline.

@@ -125,7 +125,7 @@ def timeline_rms_hops(
         raise ValueError("timeline_end must be after timeline_start")
     hop = max(0.005, hop_ms / 1000.0)
     track_ids = list(dict.fromkeys(track_ids))
-    caches = build_track_rms_caches(project)
+    caches = build_track_rms_caches(project, track_ids=track_ids)
     out: list[tuple[float, float]] = []
     t = float(timeline_start)
     while t < timeline_end - 1e-9:

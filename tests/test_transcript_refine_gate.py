@@ -590,8 +590,6 @@ def test_service_assert_clear_and_cli(minimal_project):
 
 @pytest.mark.refine_gate
 def test_ripple_delete_pending_refine_prints_clean_error_not_traceback(minimal_project):
-    """#773: TranscriptRefineRequiredError used to print as a raw traceback on
-    a ripple with pending refinement, including trims that remove no words."""
     from typer.testing import CliRunner
 
     from podcast_mcp.cli.main import app

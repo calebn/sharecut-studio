@@ -112,7 +112,6 @@ def test_recursion_error_is_never_swallowed(monkeypatch):
 
 
 def test_suggest_handoff_cut_without_dialogue_prints_clean_error(tmp_path):
-    """An empty session cannot establish quiet, and reports a clean error."""
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
     project = ws / "episode.project.json"
