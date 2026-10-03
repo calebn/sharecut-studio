@@ -1,10 +1,13 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import { repoRoot } from "./env";
 import { createRelocatedE2eProject } from "./liveProject";
 import { openTransportMenu } from "./overlayReachability";
 import { openPhoneTimeline } from "./phoneTimeline";
+import { e2eRuntimeEnv } from "./runtimeEnv";
 import { withShareableProject } from "./shareableProject";
 import {
   createReviewShare,
@@ -77,6 +80,100 @@ function geometry(projectPath: string) {
       mute_regions: clip.mute_regions ?? [],
     }),
   );
+}
+
+async function observePendingPlayback(page: Page) {
+  const evidence = await page.evaluateHandle(() => {
+    const played: Array<{ url: string; duration: number }> = [];
+    const nativePlay: unknown = Reflect.get(HTMLMediaElement.prototype, "play");
+    if (typeof nativePlay !== "function")
+      throw new Error("Media playback is unavailable");
+    HTMLMediaElement.prototype.play = function () {
+      if (this.src.startsWith("blob:")) {
+        this.addEventListener(
+          "playing",
+          () => played.push({ url: this.src, duration: this.duration }),
+          { once: true },
+        );
+      }
+      return nativePlay.call(this);
+    };
+    return played;
+  });
+  return async () => {
+    await expect
+      .poll(() =>
+        evidence.evaluate((played) =>
+          played.some(
+            (item) => item.url.startsWith("blob:") && item.duration > 0,
+          ),
+        ),
+      )
+      .toBe(true);
+    await evidence.dispose();
+  };
+}
+
+async function createSuggestOnlyShare(page: Page, projectPath: string) {
+  const published = await page.request.post("/api/shares", {
+    data: { path: projectPath, role: "editor" },
+  });
+  expect(published.ok(), await published.text()).toBeTruthy();
+  const publishedBody: unknown = await published.json();
+  if (
+    typeof publishedBody !== "object" ||
+    publishedBody === null ||
+    !("share" in publishedBody) ||
+    typeof publishedBody.share !== "object" ||
+    publishedBody.share === null ||
+    !("review_version_id" in publishedBody.share) ||
+    typeof publishedBody.share.review_version_id !== "string" ||
+    !("token" in publishedBody.share) ||
+    typeof publishedBody.share.token !== "string"
+  ) {
+    throw new Error("Host share response omitted version or token");
+  }
+  const { review_version_id: versionId, token: setupToken } =
+    publishedBody.share;
+  const revoked = await page.request.post(
+    `/api/shares/${encodeURIComponent(setupToken)}/revoke`,
+    { data: { path: projectPath } },
+  );
+  expect(revoked.ok(), await revoked.text()).toBeTruthy();
+  const output = execFileSync(
+    "uv",
+    [
+      "run",
+      "--project",
+      repoRoot,
+      "podcast",
+      "review",
+      "share",
+      "--project",
+      projectPath,
+      "--version",
+      versionId,
+      "--capabilities",
+      "play,view,suggest,comment",
+      "--base-url",
+      new URL(page.url()).origin,
+    ],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: e2eRuntimeEnv(process.env, `share-${process.pid}`),
+    },
+  );
+  const created: unknown = JSON.parse(output);
+  if (
+    typeof created !== "object" ||
+    created === null ||
+    !("token" in created) ||
+    typeof created.token !== "string"
+  ) {
+    throw new Error("CLI share response omitted token");
+  }
+  return created.token;
 }
 
 async function undo(page: Page) {
@@ -175,21 +272,7 @@ test("guest suggests a range, host approves, and one Undo restores every occurre
         expect(geometry(projectPath)).toEqual(before);
         await page.reload();
         await page.locator(".pending-overlay").first().click();
-        await page.evaluate(() => {
-          const evidence: Array<{ url: string; duration: number }> = [];
-          Object.assign(window, { exactPendingPlaybackEvidence: evidence });
-          const nativePlay = HTMLMediaElement.prototype.play;
-          HTMLMediaElement.prototype.play = function () {
-            if (this.src.startsWith("blob:")) {
-              this.addEventListener(
-                "playing",
-                () => evidence.push({ url: this.src, duration: this.duration }),
-                { once: true },
-              );
-            }
-            return nativePlay.call(this);
-          };
-        });
+        const expectHostPlayback = await observePendingPlayback(page);
         const previewResponse = page.waitForResponse(
           (response) =>
             new URL(response.url()).pathname === "/api/pending-preview",
@@ -200,22 +283,7 @@ test("guest suggests a range, host approves, and one Undo restores every occurre
         const audio = await previewResponse;
         expect(audio.status()).toBe(200);
         expect(audio.headers()["content-type"]).toBe("audio/wav");
-        await expect
-          .poll(() =>
-            page.evaluate(() =>
-              (
-                window as unknown as {
-                  exactPendingPlaybackEvidence: Array<{
-                    url: string;
-                    duration: number;
-                  }>;
-                }
-              ).exactPendingPlaybackEvidence.some(
-                (item) => item.url.startsWith("blob:") && item.duration > 0,
-              ),
-            ),
-          )
-          .toBe(true);
+        await expectHostPlayback();
         expect(geometry(projectPath)).toEqual(before);
         if (process.env.RANGE_CONFIRMATION_SCREENSHOTS) {
           await page.locator(".pending-overlay").first().hover();
@@ -311,6 +379,193 @@ test("guest suggests a range, host approves, and one Undo restores every occurre
           JSON.parse(fs.readFileSync(projectPath, "utf8")).editorial
             .edit_decisions,
         ).toHaveLength(1);
+      } finally {
+        await guestContext.close();
+      }
+    },
+    undefined,
+    repeatedProject,
+  );
+});
+
+test("suggest-only guest proposes for host review and sees the approved cut", async ({
+  browser,
+  page,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await openHostShare(page, projectPath);
+      const before = geometry(projectPath);
+      const token = await createSuggestOnlyShare(page, projectPath);
+      const guestContext = await browser.newContext({
+        viewport: { width: 1440, height: 900 },
+      });
+      try {
+        const guest = await guestContext.newPage();
+        await openGuestShare(guest, token);
+        await expect(
+          guest.getByText("Shared suggest view", { exact: true }),
+        ).toBeVisible();
+        const range = await selectRange(guest);
+        await range
+          .getByRole("button", { name: "Suggest cut", exact: true })
+          .click();
+        await expect
+          .poll(
+            () =>
+              JSON.parse(fs.readFileSync(projectPath, "utf8")).editorial
+                .edit_decisions.length,
+          )
+          .toBe(1);
+        const pending = JSON.parse(fs.readFileSync(projectPath, "utf8"))
+          .editorial.edit_decisions[0];
+        expect(pending).toMatchObject({
+          applied: false,
+          review_required: true,
+        });
+        expect(geometry(projectPath)).toEqual(before);
+
+        const forbiddenApproval = await guest.request.post(
+          `/api/review/${encodeURIComponent(token)}/daw/document/command`,
+          {
+            data: {
+              type: "ApproveEdits",
+              payload: { ids: [pending.id] },
+              client_id: "e2e-denied-approval",
+              role: "guest",
+              client_seq: Date.now(),
+            },
+          },
+        );
+        expect(forbiddenApproval.status()).toBe(403);
+        expect(geometry(projectPath)).toEqual(before);
+
+        await guest.locator(".pending-overlay").first().click();
+        const guestInspector = guest.locator(".modifier-inspector");
+        const guestApprove = guestInspector.getByRole("button", {
+          name: "Approve",
+          exact: true,
+        });
+        const guestReject = guestInspector.getByRole("button", {
+          name: "Reject",
+          exact: true,
+        });
+        await expect(guestApprove).toBeDisabled();
+        await expect(guestApprove).toHaveAttribute(
+          "title",
+          "Only the host can review exact range proposals",
+        );
+        await expect(guestReject).toBeDisabled();
+        await guestInspector
+          .getByRole("button", { name: "Suggested", exact: true })
+          .click();
+        await expect(
+          guestInspector.getByRole("button", {
+            name: "Suggested",
+            exact: true,
+          }),
+        ).toHaveAttribute("aria-pressed", "true");
+        const expectGuestPlayback = await observePendingPlayback(guest);
+        const suggestedPreview = guest.waitForResponse((response) => {
+          const url = new URL(response.url());
+          return (
+            url.pathname === `/api/review/${token}/daw/pending-preview` &&
+            url.searchParams.get("edit_id") === pending.id &&
+            url.searchParams.get("mode") === "suggested"
+          );
+        });
+        await guestInspector
+          .getByRole("button", { name: "Play around", exact: true })
+          .click();
+        const suggestedAudio = await suggestedPreview;
+        expect(suggestedAudio.status()).toBe(200);
+        expect(suggestedAudio.headers()["content-type"]).toBe("audio/wav");
+        await expectGuestPlayback();
+
+        const panels = page.getByLabel("Editor panels");
+        await panels.getByRole("button", { name: "Impact" }).click();
+        await panels.locator(`button[data-pending-id="${pending.id}"]`).click();
+        const hostInspector = page.locator(".modifier-inspector");
+        await expect(
+          hostInspector.getByRole("button", { name: "Approve", exact: true }),
+        ).toBeEnabled();
+        await expect(
+          hostInspector.getByRole("button", { name: "Reject", exact: true }),
+        ).toBeEnabled();
+        await hostInspector
+          .getByRole("button", { name: "Approve", exact: true })
+          .click();
+        const approvedGeometry = [
+          [0, 5, 0],
+          [0, 1, 10],
+          [2, 5, 12],
+        ];
+        await expect
+          .poll(() =>
+            geometry(projectPath)
+              .filter(
+                (clip: { track_id: string }) => clip.track_id === "reference",
+              )
+              .map(
+                (clip: {
+                  source_start: number;
+                  source_end: number;
+                  timeline_start: number;
+                }) => [clip.source_start, clip.source_end, clip.timeline_start],
+              ),
+          )
+          .toEqual(approvedGeometry);
+        await guest.reload();
+        await expect(
+          guest.locator('.lane-row[data-track-id="reference"] .clip-block'),
+        ).toHaveCount(3);
+        await expect(
+          guest.locator('.lane-row[data-track-id="guest"] .clip-block'),
+        ).toHaveCount(1);
+        await expect(guest.locator(".pending-overlay")).toHaveCount(0);
+        const guestProject = await guest.request.get(
+          `/api/review/${encodeURIComponent(token)}/daw/project?phase=full`,
+        );
+        expect(guestProject.ok()).toBe(true);
+        const guestView: unknown = await guestProject.json();
+        if (
+          typeof guestView !== "object" ||
+          guestView === null ||
+          !("clips" in guestView) ||
+          typeof guestView.clips !== "object" ||
+          guestView.clips === null ||
+          !("tracks" in guestView.clips) ||
+          typeof guestView.clips.tracks !== "object" ||
+          guestView.clips.tracks === null ||
+          !("reference" in guestView.clips.tracks) ||
+          !Array.isArray(guestView.clips.tracks.reference)
+        ) {
+          throw new Error("Guest project response omitted reference clips");
+        }
+        const guestReferenceGeometry = guestView.clips.tracks.reference
+          .filter(
+            (
+              clip: unknown,
+            ): clip is {
+              source_start: number;
+              source_end: number;
+              timeline_start: number;
+            } =>
+              typeof clip === "object" &&
+              clip !== null &&
+              "source_start" in clip &&
+              typeof clip.source_start === "number" &&
+              "source_end" in clip &&
+              typeof clip.source_end === "number" &&
+              "timeline_start" in clip &&
+              typeof clip.timeline_start === "number",
+          )
+          .map((clip) => [
+            clip.source_start,
+            clip.source_end,
+            clip.timeline_start,
+          ]);
+        expect(guestReferenceGeometry).toEqual(approvedGeometry);
       } finally {
         await guestContext.close();
       }
