@@ -1305,6 +1305,7 @@ button.history-row {
 }
 
 .pipeline-bar {
+  flex-shrink: 0;
   height: 0.5rem;
   background: var(--color-bg-sunken);
   border-radius: var(--radius-md);

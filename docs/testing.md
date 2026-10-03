@@ -804,9 +804,8 @@ This observes DOM layout, not compositor presentation; the natural producer
 cadence and sent-update count remain unavailable. Request payloads, job status
 snapshots, and terminal step summaries distinguish measurement from skipped
 processing. A job that finishes without sufficient visible changes remains
-an incomplete measurement. The current tooling-only runtime retains the old
-zero-height bar failure in a constrained panel; visible-progress profiling fails
-and preserves that evidence until the separate geometry repair is applied.
+an incomplete measurement. The default `pipeline-progress.spec.ts` regression
+checks short-panel geometry and both motion modes without injecting CSS.
 
 Each report has a distinct execution ID and start time. Missing required
 coverage, failed validity, or metadata/retention errors preserves the partial
@@ -857,9 +856,8 @@ replay was not run: an attempt attached the real consumer, but the rendered bar
 had zero computed height before and after ordinary panel resizing. Its failed reports and geometry
 were retained; no progress width-transition cost was measured in that original
 slice. Supplemental v2 uses the separate drivers above, with native touch still
-unavailable. The retained zero-height result does not establish width-transition
-cost or a speedup; the original suite adds no production telemetry or timing CI
-gate. Silent
+unavailable. The 0.5rem geometry fix establishes visibility, not a speedup; the
+original suite adds no production telemetry or timing CI gate. Silent
 media, ready pyramids, uncontrolled OS/server caches, and desktop Chromium do not
 establish audio quality, cold decoding, physical-device behavior, or Safari parity.
 

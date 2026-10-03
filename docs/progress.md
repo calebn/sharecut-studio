@@ -16,6 +16,15 @@ Users should be able to answer:
 
 Narration must map to real work (no LLM filler). Brand: calm status chrome ([ux/pages/brand.md](../ux/pages/brand.md)).
 
+## Editor pipeline geometry
+
+The editor's determinate pipeline bar keeps its 0.5rem height (8 px at the
+default 16 px root) when the Pipeline pane is short and its contents overflow. Ordinary motion uses the existing fill
+width transition; reduced motion removes that transition. The consumer replay
+regression checks visible geometry and terminal fill without injecting styles.
+See [editor responsiveness profiling](testing.md#large-project-browser-profile-opt-in)
+for the separate real-job and controlled-replay measurements.
+
 ## API
 
 Domain and pipeline steps use a contextvar reporter. Adapters inject it at choke points.
