@@ -20,6 +20,7 @@ import { useStableCallback } from "./useStableCallback";
 function stableDeclarationMutations(
   source: SourceInput,
 ): Array<{ source: SourceInput; callback: string; line: number }> {
+  if (!source.text.includes("useStableCallback")) return [];
   const ast = parse(source.text, {
     sourceType: "unambiguous",
     plugins: ["typescript", "jsx"],
@@ -315,9 +316,6 @@ describe("stable callback source governance", () => {
           callback: mutation.callback,
         },
       ]);
-    }
-    for (const source of owners) {
-      expect(findStableCallbackRenderCalls(source), source.rel).toEqual([]);
     }
   });
 

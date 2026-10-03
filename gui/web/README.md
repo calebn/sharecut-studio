@@ -246,6 +246,8 @@ stable callback declarations in memory. The pure test helper accepts
 with file, one-based line and column, and callback name. Parse errors fail the
 test. `src/test/stableCallbackGovernance.test.ts` contains execution-boundary
 fixtures with literal diagnostics and valid deferred or shadowed uses.
+Mutation discovery filters for the current hook spelling before parsing; the
+separate production scan still parses and checks every production source file.
 
 The check follows direct, unreassigned local variables initialized by the actual imported
 `useStableCallback`, including import aliases and namespace imports. Babel's
