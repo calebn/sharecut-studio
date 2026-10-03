@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { runPointerCommand } from "../commands/pointer";
-import { displayShortcutFor } from "../keymap/registry";
 import { initials } from "../presence/colors";
 import { canEditMix, guestHearsMixOnly } from "../shareMode";
 import { useDaw } from "../state/useDaw";
@@ -33,10 +32,6 @@ export function TrackMix() {
   return (
     <TrackMixView
       state="ready"
-      shortcuts={{
-        mute: displayShortcutFor("track.muteToggle") ?? "",
-        solo: displayShortcutFor("track.soloToggle") ?? "",
-      }}
       rows={rows}
       access={
         canEditMix(projectPath, guestMode, shareCapabilities)

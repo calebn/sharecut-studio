@@ -92,6 +92,7 @@ export function useDialogModal({
       listFocusable(panel)[0]?.focus();
     };
     const raf = requestAnimationFrame(focusInitial);
+    let escaped = false;
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -100,6 +101,7 @@ export function useDialogModal({
           return;
         }
         e.preventDefault();
+        escaped = true;
         onCloseRef.current();
         return;
       }
@@ -140,6 +142,7 @@ export function useDialogModal({
       const active = document.activeElement;
       const movedOutsideSheet =
         mode === "sheet" &&
+        !escaped &&
         returnTarget == null &&
         active instanceof HTMLElement &&
         active !== document.body &&

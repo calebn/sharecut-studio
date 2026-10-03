@@ -426,8 +426,9 @@ both themes, in story mode and on its docs page, before merging.
 `Templates/TrackMix` renders the props-only ordered `TrackMixView` with controlled
 six-track, long-name, many-track, saved/implied mute, read-only, loading, and empty
 fixtures at 360px. Its live `TrackMix` adapter selects non-hot track/listen/access
-fields and dispatches explicit row IDs through existing commands. M/S views take
-shortcut labels from live adapters; pure views never read the keymap registry.
+fields and dispatches explicit row IDs through existing commands. Detailed M/S
+controls take shortcut labels from their live adapter; Mix rows omit target-based
+shortcut hints. Pure views never read the keymap registry.
 The phone shell's `MoreMix` story opens and closes the production Mix sheet.
 
 `Templates/TrackFader` renders the props-only `TrackFaderView` used by the

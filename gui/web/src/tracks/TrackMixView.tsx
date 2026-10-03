@@ -21,7 +21,6 @@ export type TrackMixViewProps =
       state: "ready";
       rows: readonly MixTrack[];
       access: MixAccess;
-      shortcuts?: { mute: string; solo: string };
       preview: "host" | "shared-full-mix";
       onMute: (trackId: string) => void;
       onSolo: (trackId: string) => void;
@@ -36,7 +35,7 @@ export function TrackMixView(props: TrackMixViewProps) {
       </div>
     );
   }
-  const { rows, access, preview, onMute, onSolo, shortcuts } = props;
+  const { rows, access, preview, onMute, onSolo } = props;
   return (
     <div className="track-mix">
       <p id={descriptionId} className="track-mix-note">
@@ -62,7 +61,6 @@ export function TrackMixView(props: TrackMixViewProps) {
               row={row}
               access={access}
               descriptionId={descriptionId}
-              shortcuts={shortcuts}
               onMute={onMute}
               onSolo={onSolo}
             />
@@ -77,14 +75,12 @@ function MixRow({
   row,
   access,
   descriptionId,
-  shortcuts,
   onMute,
   onSolo,
 }: {
   row: MixTrack;
   access: MixAccess;
   descriptionId: string;
-  shortcuts?: { mute: string; solo: string };
   onMute: (trackId: string) => void;
   onSolo: (trackId: string) => void;
 }) {
@@ -105,7 +101,6 @@ function MixRow({
         muteState={row.muteState}
         solo={row.solo}
         editsMix={access.kind === "edit"}
-        shortcuts={shortcuts}
         onMute={() => onMute(row.id)}
         onSolo={() => onSolo(row.id)}
       />
