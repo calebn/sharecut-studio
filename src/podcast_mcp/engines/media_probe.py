@@ -15,7 +15,6 @@ MEDIA_PROBE_CACHE_SIZE = 1024
 
 @lru_cache(maxsize=MEDIA_PROBE_CACHE_SIZE)
 def _cached_media_probe(path: str, revision: FileRevision) -> AudioProbe:
-    """Cache successful probe metadata by resolved path and file revision."""
     del revision
     return FFmpegEngine().probe(Path(path))
 
