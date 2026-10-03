@@ -1,4 +1,5 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
@@ -312,5 +313,67 @@ describe("StudioShell tablet peek", () => {
       s.setIsPlaying(false);
       s.setSessionClients([]);
     });
+  });
+  it("suppresses review peek, preserves selection, and clears selection on Close", async () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    act(() =>
+      useDawStore.getState().setSelection({ kind: "track", trackId: "guest" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Inspector" }),
+    ).toBeInTheDocument();
+    act(() => useDawStore.getState().setLayoutMode("review"));
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+    expect(useDawStore.getState().selection).toEqual({
+      kind: "track",
+      trackId: "guest",
+    });
+    act(() => {
+      useDawStore.getState().setLayoutMode("default");
+      useDawStore.getState().setSheetExpanded(true);
+    });
+    expect(screen.getByRole("dialog", { name: "Inspector" })).toHaveClass(
+      "bottom-sheet--full",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(useDawStore.getState().selection).toBeNull();
+    expect(useDawStore.getState().sheetExpanded).toBe(false);
+    expect(screen.getByRole("button", { name: "Comments" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("retains focus listeners and headers inside arrangement after chrome changes", () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    fireEvent.mouseDown(container.querySelector(".bottom-tabs")!);
+    expect(useDawStore.getState().timelineFocused).toBe(false);
+    fireEvent.mouseDown(container.querySelector("main.daw-main")!);
+    expect(useDawStore.getState().timelineFocused).toBe(true);
+    fireEvent.mouseDown(container.querySelector(".bottom-tabs")!);
+    fireEvent.mouseDown(container.querySelector(".daw-shell-transport")!);
+    expect(useDawStore.getState().timelineFocused).toBe(true);
+    expect(
+      container.querySelector("main.daw-main > .track-headers"),
+    ).toBeNull();
+    expect(
+      container.querySelector(".timeline-scroll .track-headers-chrome"),
+    ).toHaveStyle({ height: `${RULER_HEIGHT + MARKER_ROW_HEIGHT}px` });
+    act(() => useDawStore.setState({ followingClientId: "peer" }));
+    expect(container.querySelector(".daw-shell")).toHaveClass(
+      "daw-shell--tablet",
+      "daw-shell--following",
+    );
+    expect(
+      container.querySelector(".timeline-scroll .track-headers-chrome"),
+    ).toHaveStyle({ height: `${RULER_HEIGHT + MARKER_ROW_HEIGHT}px` });
   });
 });
