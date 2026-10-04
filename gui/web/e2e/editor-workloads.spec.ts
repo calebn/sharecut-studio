@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { expect, type Page, type Response, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import type { ProjectView } from "../src/types/project";
 import { rulerWidthPx } from "./deepZoom";
 import { postDocumentCommand, waiveRefineGate } from "./documentCommand";
@@ -17,6 +17,7 @@ import { assertDisposableE2eProject, e2eProjectPath } from "./env";
 import {
   NATIVE_PROGRESS_LIMITS,
   NATIVE_PROGRESS_PROTOCOL,
+  nativeProgressSettings,
 } from "./nativeProgressCore";
 import {
   armNativeProgress,
@@ -469,282 +470,6 @@ async function prepareRealProgress(page: Page) {
   return { run, confirmed };
 }
 
-async function realProgress(page: Page, recorder: Recorder) {
-  const { run } = await prepareRealProgress(page);
-  const streamResponses: {
-    url: string;
-    status: number;
-    contentType: string;
-  }[] = [];
-  const observeStream = (response: Response) => {
-    if (response.url().includes("/api/pipeline/events"))
-      streamResponses.push({
-        url: response.url(),
-        status: response.status(),
-        contentType: response.headers()["content-type"] ?? "",
-      });
-  };
-  page.on("response", observeStream);
-  let progressEvidence:
-    | {
-        jobId: string;
-        values: number[];
-        widthsPx: number[];
-        heights: number[];
-        terminal: boolean;
-        requestBody: unknown;
-        startedJob: unknown;
-        statusSnapshots: unknown[];
-        streamResponses: typeof streamResponses;
-        observedFrames?: {
-          value: number;
-          width: number;
-          height: number;
-          atMs: number;
-        }[];
-        finalJob?: unknown;
-      }
-    | undefined;
-  await page.evaluate(() => {
-    const samples: {
-      value: number;
-      width: number;
-      height: number;
-      atMs: number;
-    }[] = [];
-    let frame = 0;
-    const observe = () => {
-      const bar = document.querySelector('.pipeline-bar[role="progressbar"]');
-      if (bar) {
-        const value = Number(bar.getAttribute("aria-valuenow"));
-        const rect = bar.getBoundingClientRect();
-        const fill = bar
-          .querySelector(".pipeline-bar-fill")
-          ?.getBoundingClientRect();
-        if (
-          rect.height >= 4 &&
-          rect.top >= 0 &&
-          rect.bottom <= innerHeight &&
-          fill
-        ) {
-          const observation = {
-            value,
-            width: fill.width,
-            height: rect.height,
-            atMs: performance.now(),
-          };
-          if (samples.at(-1)?.value !== value) samples.push(observation);
-          else Object.assign(samples.at(-1)!, observation);
-        }
-      }
-      frame = requestAnimationFrame(observe);
-    };
-    const owner = window as typeof window & {
-      profileProgressObservation?: {
-        samples: typeof samples;
-        stop: () => void;
-      };
-    };
-    owner.profileProgressObservation = {
-      samples,
-      stop: () => cancelAnimationFrame(frame),
-    };
-    frame = requestAnimationFrame(observe);
-  });
-  let progressFailure: unknown;
-  try {
-    await recorder.measure(
-      {
-        id: "real-progress",
-        phase: "warm",
-        input:
-          "real compress_tracks + balance_tracks pipeline; native SSE consumer; full-clock local PCM sources",
-      },
-      async () => {
-        const startedResponse = page.waitForResponse(
-          (response) =>
-            response.url().includes("/api/pipeline/run") &&
-            response.request().method() === "POST",
-          { timeout: 15000 },
-        );
-        await run.click();
-        const response = await startedResponse;
-        expect(response.ok(), await response.text()).toBe(true);
-        const body = response.request().postDataJSON();
-        expect(body.only_step).toBeNull();
-        expect(body.from_step).toBe("compress_tracks");
-        expect([...body.enabled_steps].sort()).toEqual([
-          "balance_tracks",
-          "clean_audio",
-          "compress_tracks",
-          "ingest_tracks",
-        ]);
-        const payloadHash = hash(
-          JSON.stringify({ ...body, path: "<workspace>" }),
-        );
-        recorder.report.protocol.resources!.progress = {
-          source: "real-job",
-          payloadHash,
-          cadenceMs: unavailable("natural producer cadence not instrumented"),
-        };
-        const { job } = await response.json();
-        const values: number[] = [],
-          widthsPx: number[] = [],
-          heights: number[] = [];
-        progressEvidence = {
-          jobId: job.id,
-          values,
-          widthsPx,
-          heights,
-          terminal: false,
-          requestBody: body,
-          startedJob: job,
-          statusSnapshots: [],
-          streamResponses,
-        };
-        const bar = page.locator('.pipeline-bar[role="progressbar"]');
-        let terminal = false;
-        const started = Date.now();
-        while (Date.now() - started < 20 * 60000) {
-          const status = await page.request.get("/api/pipeline/status");
-          const result = await status.json();
-          const current = (result.jobs ?? [result.job]).find(
-            (entry: { id: string }) => entry?.id === job.id,
-          );
-          if (current) progressEvidence.statusSnapshots.push(current);
-          if (await bar.count()) await bar.scrollIntoViewIfNeeded();
-          if (
-            current &&
-            ["ok", "error", "cancelled"].includes(current.status)
-          ) {
-            expect(current.status, JSON.stringify(current)).toBe("ok");
-            terminal = true;
-            progressEvidence.terminal = true;
-            progressEvidence.finalJob = current;
-            expect(
-              current.steps.map((step: { name: string }) => step.name),
-            ).toEqual(["compress_tracks", "balance_tracks"]);
-            expect(
-              current.steps.every(
-                (step: { status: string }) => step.status === "ok",
-              ),
-            ).toBe(true);
-            expect(current.steps[1].summary).toContain("2 tracks gain-staged");
-            break;
-          }
-          await page.waitForTimeout(100);
-        }
-        progressEvidence.terminal = terminal;
-        await page.waitForTimeout(100);
-        const samples = await page.evaluate(() => {
-          const owner = window as typeof window & {
-            profileProgressObservation?: {
-              samples: {
-                value: number;
-                width: number;
-                height: number;
-                atMs: number;
-              }[];
-              stop: () => void;
-            };
-          };
-          owner.profileProgressObservation?.stop();
-          return owner.profileProgressObservation?.samples ?? [];
-        });
-        progressEvidence.observedFrames = samples;
-        expect(
-          streamResponses.some(
-            (stream) =>
-              stream.url.includes(`job_id=${job.id}`) &&
-              stream.status === 200 &&
-              stream.contentType.includes("text/event-stream"),
-          ),
-          "actual native job SSE transport connected",
-        ).toBe(true);
-        for (const sample of samples) {
-          values.push(sample.value);
-          widthsPx.push(sample.width);
-          heights.push(sample.height);
-        }
-        expect(terminal, "real job completed").toBe(true);
-        expect(
-          values.length,
-          "at least two genuinely visible real-job progress changes",
-        ).toBeGreaterThanOrEqual(3);
-        expect(new Set(widthsPx).size).toBeGreaterThanOrEqual(2);
-        expect(
-          samples.some(
-            (sample) =>
-              sample.value > 0 && sample.value < 100 && sample.width > 0,
-          ),
-          "actual intermediate fill geometry",
-        ).toBe(true);
-        expect(Math.min(...heights)).toBeGreaterThanOrEqual(4);
-        return {
-          kind: "progress",
-          source: "real-job",
-          jobId: job.id,
-          values,
-          widthsPx,
-          minimumHeightPx: Math.min(...heights),
-          updatesObserved: values.length,
-          updatesSent: unavailable(
-            "native SSE producer count not instrumented",
-          ),
-          observationMethod:
-            "last requestAnimationFrame viewport geometry per distinct ARIA interval; no compositor paint or producer count claim",
-          payloadHash,
-        };
-      },
-    );
-    const bar = page.locator('.pipeline-bar[role="progressbar"]');
-    await expect(bar).toHaveAttribute("aria-valuenow", "100");
-    await expect
-      .poll(() =>
-        bar.evaluate((element) =>
-          Math.abs(
-            element.getBoundingClientRect().width -
-              element
-                .querySelector(".pipeline-bar-fill")!
-                .getBoundingClientRect().width,
-          ),
-        ),
-      )
-      .toBeLessThanOrEqual(1);
-    await recorder.attachJson(
-      "real-job-terminal-geometry.json",
-      await bar.evaluate((element) => ({
-        percent: Number(element.getAttribute("aria-valuenow")),
-        rect: element.getBoundingClientRect().toJSON(),
-        fill: element
-          .querySelector(".pipeline-bar-fill")!
-          .getBoundingClientRect()
-          .toJSON(),
-      })),
-    );
-  } catch (error) {
-    progressFailure = error;
-    throw error;
-  } finally {
-    try {
-      page.off("response", observeStream);
-      await page.evaluate(() => {
-        const owner = window as typeof window & {
-          profileProgressObservation?: { stop: () => void };
-        };
-        owner.profileProgressObservation?.stop();
-      });
-      if (progressEvidence)
-        await recorder.attachJson("real-job-progress.json", progressEvidence);
-    } catch (error) {
-      recorder.report.errors.push(
-        `real progress retention: ${failureReason(error)}`,
-      );
-      if (progressFailure === undefined) throw error;
-    }
-  }
-}
-
 async function nativePreparationGeometry(page: Page) {
   return page.evaluate(() => {
     const panel = document.querySelector(".pipeline-panel")!;
@@ -775,7 +500,11 @@ async function nativePreparationGeometry(page: Page) {
   });
 }
 
-async function nativeProgressDiagnostic(page: Page, recorder: Recorder) {
+async function nativeProgressDiagnostic(
+  page: Page,
+  recorder: Recorder,
+  settings: NonNullable<ReturnType<typeof nativeProgressSettings>>,
+) {
   const { run, confirmed } = await prepareRealProgress(page);
   const beforePositioning = await nativePreparationGeometry(page);
   await page.locator(".pipeline-advanced-shortcuts").scrollIntoViewIfNeeded();
@@ -798,17 +527,13 @@ async function nativeProgressDiagnostic(page: Page, recorder: Recorder) {
   expect(baselineResponse.ok()).toBe(true);
   const baseline = await baselineResponse.json();
   const initialProjectHash = hash(fs.readFileSync(e2eProjectPath));
-  const observer = await armNativeProgress(
-    page,
-    process.env.DAW_PROFILE_NATIVE_OBSERVER === "control-v2",
-  );
+  const observer = await armNativeProgress(page, settings.control);
   observer.core.status(baseline, "driver-status", performance.now());
   recorder.report.protocol.nativeObserver = {
     id: NATIVE_PROGRESS_PROTOCOL,
     mode: observer.control ? "control" : "passive",
     limits: NATIVE_PROGRESS_LIMITS,
-    motion:
-      process.env.DAW_PROFILE_NATIVE_MOTION === "reduce" ? "reduce" : "normal",
+    motion: settings.motion,
   };
   let failure: unknown;
   let requestBody: unknown;
@@ -976,27 +701,12 @@ test.describe("remaining editor workloads (opt-in)", () => {
     test.setTimeout(30 * 60000);
     page.setDefaultTimeout(15000);
     assertDisposableE2eProject(e2eProjectPath);
-    const observerMode = process.env.DAW_PROFILE_NATIVE_OBSERVER;
-    if (
-      observerMode &&
-      (scene !== "progress-real" ||
-        !["passive-v2", "control-v2"].includes(observerMode))
-    )
-      throw new Error(
-        "native observer requires progress-real and passive-v2 or control-v2",
-      );
-    if (
-      process.env.DAW_PROFILE_NATIVE_MOTION &&
-      (!observerMode ||
-        !["normal", "reduce"].includes(process.env.DAW_PROFILE_NATIVE_MOTION))
-    )
-      throw new Error(
-        "native motion requires the observer protocol and normal or reduce",
-      );
-    if (
-      scene === "progress-reduced" ||
-      process.env.DAW_PROFILE_NATIVE_MOTION === "reduce"
-    )
+    const nativeSettings = nativeProgressSettings(
+      scene,
+      process.env.DAW_PROFILE_NATIVE_OBSERVER,
+      process.env.DAW_PROFILE_NATIVE_MOTION,
+    );
+    if (scene === "progress-reduced" || nativeSettings?.motion === "reduce")
       await page.emulateMedia({ reducedMotion: "reduce" });
     const required =
       scene === "clip"
@@ -1110,11 +820,9 @@ test.describe("remaining editor workloads (opt-in)", () => {
         if (scene === "clip") await clipDrag(page, recorder);
         else if (scene === "boundary") await boundaryDrag(page, recorder);
         else if (scene === "playback") await playback(page, recorder);
-        else if (scene === "progress-real") {
-          if (process.env.DAW_PROFILE_NATIVE_OBSERVER)
-            await nativeProgressDiagnostic(page, recorder);
-          else await realProgress(page, recorder);
-        } else if (scene?.startsWith("progress-")) {
+        else if (scene === "progress-real")
+          await nativeProgressDiagnostic(page, recorder, nativeSettings!);
+        else if (scene?.startsWith("progress-")) {
           if (process.env.DAW_PROFILE_TRACE)
             await recorder.trace(async () => {
               await replayPipelineProgress(

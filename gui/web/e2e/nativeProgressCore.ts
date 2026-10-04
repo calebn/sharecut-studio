@@ -1,6 +1,27 @@
 import { pipelineProgressPercent } from "../src/utils/pipelineProgress";
 
 export const NATIVE_PROGRESS_PROTOCOL = "native-progress-passive-v2";
+export function nativeProgressSettings(
+  scene: string | undefined,
+  observer: string | undefined,
+  motion: string | undefined,
+): { control: boolean; motion: "normal" | "reduce" } | null {
+  if (scene !== "progress-real") {
+    if (observer || motion)
+      throw new Error("native observer settings require progress-real");
+    return null;
+  }
+  if (observer && observer !== "control-v2")
+    throw new Error(
+      "native observer is passive by default; only control-v2 is explicit",
+    );
+  if (motion && !["normal", "reduce"].includes(motion))
+    throw new Error("native motion requires normal or reduce");
+  return {
+    control: observer === "control-v2",
+    motion: motion === "reduce" ? "reduce" : "normal",
+  };
+}
 export const NATIVE_PROGRESS_LIMITS = {
   inputs: 4096,
   requests: 256,

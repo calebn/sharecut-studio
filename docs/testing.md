@@ -799,26 +799,22 @@ labeled replay, not backend throughput. Visible bar height, changing widths and
 percentages, delivered cadence, and settled terminal geometry are retained.
 Real-job progress uses the ordinary Run control from `compress_tracks`, with
 `balance_tracks` and their required ingest/clean prerequisites enabled. The job
-executes Compress and Balance only, then observes native job status and
-distinct ARIA percentages sampled on animation frames with in-viewport geometry.
-This observes DOM layout, not compositor presentation; the natural producer
-cadence and sent-update count remain unavailable. Request payloads, job status
-snapshots, and terminal step summaries distinguish measurement from skipped
-processing. A job that finishes without sufficient visible changes remains
-an incomplete measurement. The default `pipeline-progress.spec.ts` regression
-checks short-panel geometry and both motion modes without injecting CSS.
+executes Compress and Balance only. The default `progress-real` measurement now
+uses the passive `native-progress-passive-v2` observer; the superseded three-state
+implementation has been removed. Its previous reports, invalid/unstable results
+and frozen budgets remain historical evidence, without recalibration. Default
+`pipeline-progress.spec.ts` regressions still check short-panel geometry and both
+motion modes without injecting CSS.
 
-The opt-in `native-progress-passive-v2` observer is a separate diagnostic
-revision. Preserve the legacy real-job three-state predicate and its invalid or
-unstable historical results. To exercise the revised observer on one fresh small
-fixture, use the ordinary remaining-workload runner with explicit environment:
+Run the current default observer on one fresh small fixture with the ordinary
+remaining-workload command. Reduced motion is an explicit observation setting:
 
 ```sh
-DAW_PROFILE_NATIVE_OBSERVER=passive-v2 DAW_PROFILE_NATIVE_MOTION=normal npm --prefix gui/web run profile:remaining -- --preset small --scene progress-real --out /tmp/native-progress-normal
-DAW_PROFILE_NATIVE_OBSERVER=passive-v2 DAW_PROFILE_NATIVE_MOTION=reduce npm --prefix gui/web run profile:remaining -- --preset small --scene progress-real --out /tmp/native-progress-reduced
+npm --prefix gui/web run profile:remaining -- --preset small --scene progress-real --out /tmp/native-progress-normal
+DAW_PROFILE_NATIVE_MOTION=reduce npm --prefix gui/web run profile:remaining -- --preset small --scene progress-real --out /tmp/native-progress-reduced
 ```
 
-The new protocol records the actual POST snapshot, passive CDP native EventSource
+The current protocol records the actual POST snapshot, passive CDP native EventSource
 message receipt, passively available browser status responses, raw DOM mutation
 batches, indeterminate presence, bar generations, and event-triggered first/last
 sampled geometry with viewport, ancestor clipping and CSS visibility exclusions.
@@ -842,12 +838,19 @@ terminal polling, and enabled Network domain without the added collector. Its
 observations are a control, not native-progress causal evidence. Use this only in
 a predeclared AB/BA overhead experiment; raw paired wall/CDP values do not prove
 negligible overhead or an acceptable latency. Observer settings are recorded in
-`protocol.nativeObserver`, so legacy and revised reports are incompatible for
-frozen-budget application. Initial diagnostic allocation is exactly one normal
+`protocol.nativeObserver`, so earlier reports and current reports are incompatible for
+frozen-budget application. The historical diagnostic allocation was one normal
 and one reduced small attempt, retained without replacements. Tests, source/build
 pins and the campaign manifest were frozen for the two retained natural runs.
-Their observed clipping and unmeasured overhead are summarized below; legacy
-three-state budgets remain separate.
+Their observed clipping and unmeasured overhead are summarized below; previous
+three-state budgets remain historical and reject current-protocol reports.
+
+The default command was also checked once on a fresh small fixture without
+observer or motion environment flags. It selected passive/normal observation,
+completed genuine Compress and Balance, and retained native receipt, DOM and
+layout evidence. All sampled geometry remained clipped. This checks default
+wiring without establishing visible progress, producer cadence or collector
+overhead; it does not replace the historical allocations or frozen budgets.
 
 Each report has a distinct execution ID and start time. Missing required
 coverage, failed validity, or metadata/retention errors preserves the partial
@@ -948,8 +951,7 @@ The pipeline flex-bar correction changed the reproduced zero-height bar to its
 8 px default height; responsive consumer regressions cover normal/reduced
 motion. Four replay cohorts (small/large × normal/reduced) validated, with thirty
 scheduled/delivered snapshots and nominal 50 ms scheduling. Replay is synthetic
-transport through the real consumer, not backend cadence. The legacy small real
-job completed processing but observed only 50/100 percent, so its three-state
+transport through the real consumer, not backend cadence. The earlier small real-job report completed processing but observed only 50/100 percent, so its three-state
 measurement remains invalid. The large real-job holdout exceeded its CDP task
 limit (9676.412 > 9639.009 ms), so that budget remains unstable.
 
