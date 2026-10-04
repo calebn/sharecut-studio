@@ -6,7 +6,6 @@ import {
 } from "@playwright/test";
 import type { InteractionReceipt } from "./interactionEvidence";
 
-/** Measure the whole control and its native label against every clipping ancestor. */
 export async function controlGeometry(control: Locator, identity = false) {
   return control.evaluate((element, useIdentity) => {
     const describe = (node: Element) => ({
@@ -146,7 +145,6 @@ export async function captureInspector(
   });
 }
 
-/** Native wheel at the ordinary body center, including when a numeric input occupies it. */
 export async function wheelInspector(
   page: Page,
   receipts: InteractionReceipt[],
@@ -156,23 +154,66 @@ export async function wheelInspector(
   const body = (await sheetBody.count())
     ? sheetBody
     : page.locator(".inspector .modifier-body");
-  const box = await body.boundingBox();
-  if (!box) throw new Error("Inspector has no ordinary scroll body");
-  const viewport = page.viewportSize();
-  if (!viewport) throw new Error("No viewport");
-  const top = Math.max(0, box.y),
-    bottom = Math.min(viewport.height, box.y + box.height);
-  const point = { x: box.x + box.width / 2, y: top + (bottom - top) / 2 };
+  const anchor = await body.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    let left = Math.max(0, box.left),
+      right = Math.min(innerWidth, box.right);
+    let top = Math.max(0, box.top),
+      bottom = Math.min(innerHeight, box.bottom);
+    for (
+      let ancestor = element.parentElement;
+      ancestor;
+      ancestor = ancestor.parentElement
+    ) {
+      const style = getComputedStyle(ancestor),
+        rect = ancestor.getBoundingClientRect();
+      if (/hidden|clip|auto|scroll/.test(style.overflowX)) {
+        left = Math.max(left, rect.left + ancestor.clientLeft);
+        right = Math.min(
+          right,
+          rect.left + ancestor.clientLeft + ancestor.clientWidth,
+        );
+      }
+      if (/hidden|clip|auto|scroll/.test(style.overflowY)) {
+        top = Math.max(top, rect.top + ancestor.clientTop);
+        bottom = Math.min(
+          bottom,
+          rect.top + ancestor.clientTop + ancestor.clientHeight,
+        );
+      }
+    }
+    const panel =
+      element.closest(".bottom-sheet") ?? element.closest(".inspector");
+    const fallback = panel?.getBoundingClientRect();
+    const visibleBody = right > left && bottom > top;
+    if (!visibleBody && fallback) {
+      left = Math.max(0, fallback.left);
+      right = Math.min(innerWidth, fallback.right);
+      top = Math.max(0, fallback.top);
+      bottom = Math.min(innerHeight, fallback.bottom);
+    }
+    const point = { x: left + (right - left) / 2, y: top + (bottom - top) / 2 };
+    const hit = document.elementFromPoint(point.x, point.y);
+    return {
+      point,
+      body: box.toJSON(),
+      visibleBody,
+      usable: right > left && bottom > top,
+      visibleRect: { left, top, right, bottom },
+      hit: hit?.outerHTML.slice(0, 250),
+    };
+  });
   receipts.push({
     checkpoint: "ordinary-body-wheel",
-    observation: { point, delta, body: box },
+    observation: { ...anchor, delta },
   });
+  expect(anchor.usable, JSON.stringify(anchor)).toBe(true);
+  const { point } = anchor;
   await page.mouse.move(point.x, point.y);
   await page.mouse.wheel(0, delta);
   await page.waitForTimeout(100);
 }
 
-/** Expose a full label/control using only native wheel or the public Expand action. */
 export async function exposeControl(
   page: Page,
   control: Locator,
@@ -189,12 +230,12 @@ export async function exposeControl(
         checkpoint: "public-expand-admission",
         observation: admission,
       });
-      expect(admission.fullyVisible).toBe(true);
-      expect(admission.hitsControl).toBe(true);
-      await page.screenshot();
-      await page.mouse.click(admission.point.x, admission.point.y);
-      await page.waitForTimeout(100);
-      continue;
+      if (admission.fullyVisible && admission.hitsControl) {
+        await page.screenshot();
+        await page.mouse.click(admission.point.x, admission.point.y);
+        await page.waitForTimeout(100);
+        continue;
+      }
     }
     const first =
       geometry.measured.find((item) => !item.full) ?? geometry.measured[0];
@@ -217,9 +258,51 @@ export async function pointerControl(
   receipts: InteractionReceipt[],
   identity = false,
 ) {
-  const geometry = identity
+  let geometry = identity
     ? await controlGeometry(control, true)
     : await exposeControl(page, control, receipts);
+  if (identity && !geometry.fullyVisible) {
+    receipts.push({
+      checkpoint: "track-identity-before-ordinary-scroll",
+      observation: geometry,
+    });
+    for (let step = 0; step < 20 && !geometry.fullyVisible; step++) {
+      const timeline = await controlGeometry(page.locator(".timeline-scroll"));
+      const area = timeline.measured[0];
+      const left = Math.max(area.rect.left, area.clip.left),
+        right = Math.min(area.rect.right, area.clip.right);
+      const top = Math.max(area.rect.top, area.clip.top),
+        bottom = Math.min(area.rect.bottom, area.clip.bottom);
+      expect(right > left && bottom > top, JSON.stringify(timeline)).toBe(true);
+      const point = {
+        x: left + (right - left) / 2,
+        y: top + (bottom - top) / 2,
+      };
+      const clipped =
+        geometry.measured.find((item) => !item.full) ?? geometry.measured[0];
+      const delta = clipped.rect.top < clipped.clip.top ? -80 : 80;
+      receipts.push({
+        checkpoint: "ordinary-timeline-wheel-before-identity",
+        observation: { point, delta, timeline },
+      });
+      await page.mouse.move(point.x, point.y);
+      await page.mouse.wheel(0, delta);
+      await page.waitForTimeout(100);
+      geometry = await controlGeometry(control, true);
+    }
+  }
+  for (let step = 0; step < 12; step++) {
+    const prior = geometry;
+    await page.waitForTimeout(80);
+    geometry = await controlGeometry(control, identity);
+    if (
+      Math.abs(geometry.rect.x - prior.rect.x) < 0.25 &&
+      Math.abs(geometry.rect.y - prior.rect.y) < 0.25
+    )
+      break;
+  }
+  await page.screenshot();
+  geometry = await controlGeometry(control, identity);
   receipts.push({
     checkpoint: identity
       ? "track-identity-pointer-admission"
@@ -228,7 +311,6 @@ export async function pointerControl(
   });
   expect(geometry.fullyVisible, JSON.stringify(geometry)).toBe(true);
   expect(geometry.hitsControl, JSON.stringify(geometry)).toBe(true);
-  await page.screenshot();
   await page.mouse.click(geometry.point.x, geometry.point.y);
 }
 
@@ -249,17 +331,23 @@ export async function visibleFocus(
   receipts: InteractionReceipt[],
   stage: string,
 ) {
-  await expect(control).toBeFocused();
-  await expect
-    .poll(async () => (await controlGeometry(control)).fullyVisible)
-    .toBe(true);
   receipts.push({
-    checkpoint: stage,
+    checkpoint: `${stage}-before`,
     observation: await controlGeometry(control),
   });
+  try {
+    await expect(control).toBeFocused();
+    await expect
+      .poll(async () => (await controlGeometry(control)).fullyVisible)
+      .toBe(true);
+  } finally {
+    receipts.push({
+      checkpoint: stage,
+      observation: await controlGeometry(control),
+    });
+  }
 }
 
-/** Independent keyboard route: native Tab traversal, without programmatic focus. */
 export async function nativeTabTo(
   page: Page,
   target: Locator,

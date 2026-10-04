@@ -5,6 +5,7 @@ import { isShareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { AutomationPoint } from "../../types/project";
+import { focusAndReveal } from "../../ui/focusAndReveal";
 import { errorMessage } from "../../utils/apiError";
 import {
   ENVELOPE_POINT_EPSILON,
@@ -238,11 +239,11 @@ export function EnvelopeWorkspace({
             state.selection?.kind === "track" &&
             state.selection.trackId === trackId
           ) {
-            document
-              .querySelector<HTMLButtonElement>(
+            focusAndReveal(
+              document.querySelector<HTMLButtonElement>(
                 `[data-envelope-entry="${CSS.escape(trackId)}"]`,
-              )
-              ?.focus({ preventScroll: true });
+              ),
+            );
           }
         });
       }}

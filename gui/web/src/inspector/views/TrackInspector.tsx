@@ -12,6 +12,7 @@ import {
 import { useDaw } from "../../state/useDaw";
 import { TrackFader } from "../../tracks/TrackFader";
 import { TrackMuteSoloButtons } from "../../tracks/TrackMuteSoloButtons";
+import { TrackPlaybackMeter } from "../../tracks/TrackPlaybackMeter";
 import type { ProjectView, TrackView } from "../../types/project";
 import {
   Button,
@@ -139,6 +140,11 @@ export function TrackInspector({
           <TrackMuteSoloButtons trackId={track.id} />
         </div>
         <TrackFader track={track} />
+        <TrackPlaybackMeter
+          trackId={track.id}
+          label={track.label || track.id}
+          inspector
+        />
         <Button
           data-envelope-entry={track.id}
           onClick={() => {

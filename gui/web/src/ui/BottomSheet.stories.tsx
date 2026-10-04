@@ -1,7 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
+import { ModifierInspector } from "../inspector/ModifierInspector";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { DialogLauncher } from "../test/DialogLauncher";
+import {
+  enlargedLandscapeSheet,
+  inspectorSheetStoryDecorator,
+} from "../test/inspectorSheetDecorator";
 import { openDialogByLauncher } from "../test/storyDialog";
 import { BottomSheet, Button } from "./index";
 
@@ -130,4 +135,28 @@ export const ControlledResizeWithNativeControls: Story = {
       },
     },
   },
+};
+
+export const InspectorEnlargedTextShortLandscape: Story = {
+  ...enlargedLandscapeSheet,
+  decorators: [inspectorSheetStoryDecorator],
+  render: () => (
+    <ModifierInspector
+      badge="Clip"
+      title="A long selected clip name"
+      subtitle="Timeline clip details"
+      error="The clip changed while editing. Review its latest values and try again."
+      primaryActions={[{ label: "Done", onClick: () => {} }]}
+    >
+      <p>
+        The entire inspector, including its heading, fields, error and actions,
+        shares one ordinary scroll area.
+      </p>
+      <label>
+        Time on timeline
+        <input type="number" defaultValue="2" />
+      </label>
+      <Button>Save changes</Button>
+    </ModifierInspector>
+  ),
 };

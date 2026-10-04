@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   playbackTrackClipped,
   setPlaybackTrackClipped,
+  subscribePlaybackClipLatches,
   synchronizePlaybackClipLatches,
 } from "./playbackClipLatches";
 
@@ -26,4 +27,20 @@ describe("playback clip safety state", () => {
     synchronizePlaybackClipLatches(2, ["host"]);
     expect(playbackTrackClipped("host", 2)).toBe(false);
   });
+});
+
+it("notifies mounted views on actual latch, track removal and project changes", () => {
+  synchronizePlaybackClipLatches(1, ["host"]);
+  const changed = vi.fn();
+  const unsubscribe = subscribePlaybackClipLatches(changed);
+  setPlaybackTrackClipped("host", true);
+  setPlaybackTrackClipped("host", true);
+  expect(changed).toHaveBeenCalledTimes(1);
+  synchronizePlaybackClipLatches(1, []);
+  expect(changed).toHaveBeenCalledTimes(2);
+  synchronizePlaybackClipLatches(2, ["host"]);
+  expect(changed).toHaveBeenCalledTimes(3);
+  unsubscribe();
+  setPlaybackTrackClipped("host", true);
+  expect(changed).toHaveBeenCalledTimes(3);
 });

@@ -61,7 +61,9 @@ Phone four-mode chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport
 
 While `project === null` (progressive load), Listen keeps its hero with disabled play and “Loading episode…” as its heading; the shell header row is absent. Timeline shows skeleton lanes below its compact header transport and gutter grid. That chrome is not the ingest empty-session coach.
 
-Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the same inspector views as desktop (`aria-modal="false"`, Escape + focus restore, no chrome `inert` / Tab trap). Expand/Collapse is a visible button control for that view-only size change; the sheet has no drag resize handle. The resize action and Close meet the sheet-scoped `--touch-min` target floor. The sheet title wraps within its column, and sheet-local automatic inspector height keeps the expanded field region scrollable with enlarged text. Modifier sheets (pending, clip, track, chapter — any `.modifier-inspector`) pin the mutation error and audition footer; long Ask threads scroll in the body; long mutation errors scroll inside a capped error slot. The taller half peek (`:has(.modifier-inspector)`) applies to every modifier, not only pending. Sheets are transient: visible Close, no stacking (drill to a More destination instead). Deferred: mutation error across shell remount, Firefox layout CI, overlapping Approve — [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up).
+Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the desktop inspector views. It retains `aria-modal="false"`, Escape, focus restoration, and an interactive timeline background. It has no Tab trap or drag resize handle. **Expand** and **Collapse** change view size only; these actions and **Close** use the sheet-scoped `--touch-min` floor.
+
+Modifier inspector sheets use one scroll owner for their complete content, including sheet chrome, actions, fields, errors, related commands, and audition footer. The content has natural height, so enlarged headers cannot compress a separate field scroller. Scroll to the top to reach **Expand**, **Collapse**, and **Close**. Desktop side inspectors retain their existing body and error scrollers. Envelope focus transitions reveal the current control within its sheet or inspector without scrolling the page or timeline. The taller half peek applies to every modifier inspector. Sheets remain transient with no stacking. Deferred mutation errors across shell remount, Firefox layout CI, and overlapping Approve remain in [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up).
 
 **More → Mix** opens one full-height non-modal sheet for every role. Rows follow
 project order and show lane initials, names, M, S, and saved Volume. M and Volume
@@ -291,9 +293,11 @@ offers a gridded drop stage as the import target.
 Track headers use their lane's clip color at the leading edge. Playback lighting
 only animates when reduced motion is not requested.
 Their horizontal playback meters remain visible in compact lanes and in the
-phone rail beneath the initials chip. A separate **Clear clip light** button
-retains a 44px touch target without opening track details. Reduced motion keeps
-the bar and peak marker still while the clip light can latch. Pause and Stop
+phone rail beneath the initials chip. Wide headers retain a separate **Clear clip light** button. The narrow identity
+rail shows a passive clipping indicator; open track details to use the labeled
+**Clear clip light** action with its shared touch-target floor. The identity target
+remains free of the meter's reset hit area. Reduced motion keeps the bar and peak
+marker still while the clip light can latch. Pause and Stop
 retain that light until cleared.
 Phone lanes have a 104px minimum in both fixed and fit modes, leaving separate
 touch targets for opening track details and clearing clipping. The saved track

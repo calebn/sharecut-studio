@@ -1,6 +1,13 @@
-import { type KeyboardEvent, useEffect, useId, useRef } from "react";
+import {
+  type KeyboardEvent,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import type { AutomationPoint } from "../../types/project";
 import { Button } from "../../ui";
+import { focusAndReveal } from "../../ui/focusAndReveal";
 import { ModifierInspector } from "../ModifierInspector";
 
 export type EnvelopeError = {
@@ -47,6 +54,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
     collisionId,
   } = props;
   const id = useId();
+  const workspace = useRef<HTMLDivElement>(null);
   const timeInput = useRef<HTMLInputElement>(null);
   const select = useRef<HTMLSelectElement>(null);
   const add = useRef<HTMLButtonElement>(null);
@@ -55,18 +63,24 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
   const formKind = form?.kind ?? null;
   useEffect(() => {
     if (!initialFocus.current && !formKind) {
-      (points.length ? select.current : add.current)?.focus({
-        preventScroll: true,
-      });
+      focusAndReveal(points.length ? select.current : add.current);
     }
     initialFocus.current = true;
-    if (formKind) timeInput.current?.focus({ preventScroll: true });
+    if (formKind) focusAndReveal(timeInput.current);
     else if (priorForm.current)
-      (points.length ? select.current : add.current)?.focus({
-        preventScroll: true,
-      });
+      focusAndReveal(points.length ? select.current : add.current);
     priorForm.current = formKind != null;
   }, [formKind, points.length]);
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    if (
+      error &&
+      active instanceof HTMLElement &&
+      workspace.current?.contains(active)
+    ) {
+      focusAndReveal(active);
+    }
+  }, [error]);
   const cancelOnEscape = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === "Escape" && form && !busy) {
       event.preventDefault();
@@ -86,6 +100,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
       ]}
     >
       <div
+        ref={workspace}
         className="envelope-workspace"
         role="group"
         aria-label="Volume envelope controls"
@@ -108,6 +123,7 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
             <select
               id={`${id}-point`}
               ref={select}
+              onFocus={(event) => focusAndReveal(event.currentTarget)}
               value={selected?.id ?? ""}
               disabled={busy || form != null}
               onChange={(event) => props.onSelect(event.target.value)}
@@ -173,9 +189,9 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
                   error?.target === "time" ? `${id}-time-error` : undefined
                 }
                 onKeyDown={cancelOnEscape}
-                type="number"
-                min={0}
-                step="any"
+                type="text"
+                inputMode="decimal"
+                onFocus={(event) => focusAndReveal(event.currentTarget)}
                 value={form.time}
                 disabled={busy}
                 onChange={(event) =>
@@ -197,10 +213,9 @@ export function EnvelopeWorkspaceView(props: EnvelopeWorkspaceViewProps) {
                   error?.target === "level" ? `${id}-level-error` : undefined
                 }
                 onKeyDown={cancelOnEscape}
-                type="number"
-                min={0}
-                max={1.5}
-                step="any"
+                type="text"
+                inputMode="decimal"
+                onFocus={(event) => focusAndReveal(event.currentTarget)}
                 value={form.level}
                 disabled={busy}
                 onChange={(event) =>

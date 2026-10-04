@@ -1,7 +1,10 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { synchronizePlaybackClipLatches } from "../audio/playbackClipLatches";
+import {
+  setPlaybackTrackClipped,
+  synchronizePlaybackClipLatches,
+} from "../audio/playbackClipLatches";
 import { bindPlaybackMeterSource } from "../audio/playbackMeterSource";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -135,6 +138,28 @@ describe("track playback peak meter", () => {
     });
     render(<TrackPlaybackMeter trackId="host" label="Mira" />);
     expect(screen.getByRole("button")).toBeDisabled();
+  });
+
+  it("clears both rail and labeled inspector latch while paused", async () => {
+    useDawStore.setState({ isPlaying: false });
+    render(
+      <>
+        <TrackPlaybackMeter trackId="host" label="Mira" />
+        <TrackPlaybackMeter trackId="host" label="Mira" inspector />
+      </>,
+    );
+    act(() => setPlaybackTrackClipped("host", true));
+    const controls = screen.getAllByRole("button", {
+      name: "Clear clip light for Mira",
+    });
+    expect(controls[0]).toBeEnabled();
+    expect(controls[1]).toHaveTextContent("Clear clip light");
+    await userEvent.click(controls[1]);
+    for (const control of controls) expect(control).toBeDisabled();
+    for (const meter of screen.getAllByRole("meter")) {
+      expect(meter).toHaveAttribute("aria-valuetext", "Playback stopped");
+    }
+    expect(useDawStore.getState().isPlaying).toBe(false);
   });
 
   it("never samples idle transport", () => {

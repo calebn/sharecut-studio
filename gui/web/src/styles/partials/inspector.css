@@ -14,7 +14,7 @@
 }
 
 .inspector.modifier-inspector {
-  overflow: hidden;
+  overflow: auto;
   min-height: 0;
   height: 100%;
 }
@@ -80,14 +80,12 @@
 }
 
 .modifier-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
+  flex: 1 0 auto;
+  min-height: auto;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  /* Scroll shadows: a hint that more content sits above or below. */
-  background: var(--bg-scroll-shadows-raised);
 }
 
 .modifier-body > * {
@@ -116,10 +114,9 @@ html[data-shell="phone"] .clip-destructive-controls .ui-control {
 }
 
 .modifier-error {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-height: 2.75rem;
-  max-height: 8rem;
-  overflow: auto;
+  overflow: visible;
   overflow-wrap: anywhere;
 }
 

@@ -269,7 +269,9 @@ Guest playback prefers **proxy media** when `GET /api/review/{token}/daw/proxy/m
 Track headers include a sample-peak playback meter with the shared dBFS zones
 and peak hold. A clip light latches at -1 dBFS until **Clear clip light** is
 activated, including after Pause, Stop, seeking, or switching responsive shells.
-It resets for a different project or a removed track. These are track-output measurements before the
+Wide headers keep that reset button. Narrow identity rails show a passive clip
+indicator and expose the labeled reset in track details, so the reset target
+does not overlap track entry. It resets for a different project or a removed track. These are track-output measurements before the
 premix/master, not a loudness or true-peak measurement.
 
 Proxy playback measures after each track's output gain and fades. Local
@@ -281,7 +283,15 @@ Meter sampling stops with playback. Reduced motion freezes the moving bars and
 peak markers while clip detection remains active. The **Volume envelope** layer
 still controls automation curves independently of playback meters.
 
-On a short phone screen, choose **Expand** in the inspector sheet to reach the envelope controls. Opening the workspace does not expand the sheet automatically.
+Inspector sheets scroll as one region, including their header, actions, fields,
+errors, related commands, and footer. The envelope workspace retains its draft
+through view sizing and scrolling. On short phone screens, use ordinary scrolling
+and the visible **Expand** action to reach complete controls. Opening the workspace
+does not expand the sheet automatically. Focus transitions reveal the current
+control within its sheet or desktop inspector; they do not scroll the page or
+timeline. Desktop side inspectors retain their existing scroll regions.
+See [responsive inspector evidence](issue-961/README.md) for the text-size profiles
+and owner acceptance limits.
 
 The track’s **Add volume envelope** or **Edit volume envelope** action opens
 `EnvelopeWorkspace` and shows the layer without creating automation. Its point
