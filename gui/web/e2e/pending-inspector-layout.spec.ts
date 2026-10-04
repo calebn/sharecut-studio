@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { e2eProjectPath } from "./env";
+import { exposeControl } from "./inspectorResponsiveEvidence";
 import { openSuggestedPendingEdit } from "./pendingEdit";
 
 const REFINE_GATE =
@@ -116,21 +117,11 @@ test.describe("Pending inspector layout", () => {
     const dialog = page.getByRole("dialog", { name: "Inspector" });
     await clickApproveUntilError(dialog);
     await expectErrorPinnedAboveAudition(dialog);
-    const seekBox = await dialog
-      .getByRole("button", { name: "Seek" })
-      .boundingBox();
-    const previewBox = await dialog
-      .getByRole("group", { name: "Preview mode" })
-      .boundingBox();
-    const sheetBox = await dialog.boundingBox();
-    expect(seekBox).toBeTruthy();
-    expect(previewBox).toBeTruthy();
-    expect(sheetBox).toBeTruthy();
-    expect(seekBox!.y + seekBox!.height).toBeLessThanOrEqual(
-      sheetBox!.y + sheetBox!.height + 0.5,
-    );
-    expect(previewBox!.y + previewBox!.height).toBeLessThanOrEqual(
-      sheetBox!.y + sheetBox!.height + 0.5,
+    await exposeControl(page, dialog.getByRole("button", { name: "Seek" }), []);
+    await exposeControl(
+      page,
+      dialog.getByRole("group", { name: "Preview mode" }),
+      [],
     );
   });
 
@@ -148,21 +139,11 @@ test.describe("Pending inspector layout", () => {
     ).toBeVisible();
     await clickApproveUntilError(dialog);
     await expectErrorPinnedAboveAudition(dialog);
-    const seekBox = await dialog
-      .getByRole("button", { name: "Seek" })
-      .boundingBox();
-    const previewBox = await dialog
-      .getByRole("group", { name: "Preview mode" })
-      .boundingBox();
-    const sheetBox = await dialog.boundingBox();
-    expect(seekBox).toBeTruthy();
-    expect(previewBox).toBeTruthy();
-    expect(sheetBox).toBeTruthy();
-    expect(seekBox!.y + seekBox!.height).toBeLessThanOrEqual(
-      sheetBox!.y + sheetBox!.height + 0.5,
-    );
-    expect(previewBox!.y + previewBox!.height).toBeLessThanOrEqual(
-      sheetBox!.y + sheetBox!.height + 0.5,
+    await exposeControl(page, dialog.getByRole("button", { name: "Seek" }), []);
+    await exposeControl(
+      page,
+      dialog.getByRole("group", { name: "Preview mode" }),
+      [],
     );
   });
 

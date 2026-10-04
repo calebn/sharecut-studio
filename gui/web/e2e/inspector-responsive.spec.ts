@@ -145,6 +145,75 @@ for (const viewport of viewports)
                   "before-visible-pointer-entry",
                 );
                 await pointerControl(page, identity, receipts, true);
+                const trackInspector = page.locator(".modifier-inspector");
+                for (const name of [
+                  `Mute ${track.label}`,
+                  `Solo ${track.label}`,
+                ]) {
+                  await exposeControl(
+                    page,
+                    trackInspector.getByRole("button", { name, exact: true }),
+                    receipts,
+                  );
+                }
+                await exposeControl(
+                  page,
+                  trackInspector.getByRole("slider", {
+                    name: `Volume ${track.label}`,
+                    exact: true,
+                  }),
+                  receipts,
+                );
+                const resetVolume = trackInspector.getByRole("button", {
+                  name: "Reset volume to 0 dB",
+                  exact: true,
+                });
+                await exposeControl(page, resetVolume, receipts);
+                await captureInspector(
+                  page,
+                  info,
+                  receipts,
+                  "track-volume-reset-full-control",
+                );
+                const clearClip = trackInspector.getByRole("button", {
+                  name: `Clear clip light for ${track.label}`,
+                  exact: true,
+                });
+                await exposeControl(page, clearClip, receipts);
+                const controlFonts = await Promise.all(
+                  [clearClip, resetVolume].map((control) =>
+                    control.evaluate(
+                      (element) => getComputedStyle(element).fontSize,
+                    ),
+                  ),
+                );
+                expect(controlFonts[0]).toBe(controlFonts[1]);
+                receipts.push({
+                  checkpoint: "Clear-clip-shared-theme-text-scale",
+                  observation: {
+                    rootFont,
+                    controlFonts,
+                    clearDisabled: await clearClip.isDisabled(),
+                  },
+                });
+                await captureInspector(
+                  page,
+                  info,
+                  receipts,
+                  "track-clear-clip-full-control",
+                );
+                for (const name of [
+                  "Track label",
+                  "Track speaker",
+                  "Track role",
+                ]) {
+                  await exposeControl(
+                    page,
+                    trackInspector.getByLabel(name, { exact: true }),
+                    receipts,
+                  );
+                }
+                expect(envelopeSnapshot(projectPath, track.id)).toEqual(origin);
                 await pointerControl(
                   page,
                   page.getByRole("button", {
