@@ -7,6 +7,7 @@ import {
   NATIVE_PROGRESS_LIMITS,
   NativeProgressCore,
   nativeJob,
+  nativeProgressSettings,
   pipelineRoute,
   reconstructMutations,
   statusJobs,
@@ -35,6 +36,30 @@ const page = () => ({
   styleReadCount: 0,
 });
 describe("passive native progress evidence", () => {
+  it("selects passive natural-job observation by default and isolates explicit overhead control", () => {
+    expect(
+      nativeProgressSettings("progress-real", undefined, undefined),
+    ).toEqual({ control: false, motion: "normal" });
+    expect(
+      nativeProgressSettings("progress-real", undefined, "reduce"),
+    ).toEqual({ control: false, motion: "reduce" });
+    expect(
+      nativeProgressSettings("progress-real", "control-v2", "normal"),
+    ).toEqual({ control: true, motion: "normal" });
+    expect(
+      nativeProgressSettings("progress-replay", undefined, undefined),
+    ).toBeNull();
+    for (const scene of ["progress-replay", "clip", undefined])
+      expect(() =>
+        nativeProgressSettings(scene, "control-v2", undefined),
+      ).toThrow("require progress-real");
+    expect(() =>
+      nativeProgressSettings("progress-real", "passive-v2", undefined),
+    ).toThrow("passive by default");
+    expect(() =>
+      nativeProgressSettings("progress-real", undefined, "unknown"),
+    ).toThrow("normal or reduce");
+  });
   it("grounds identity in the actual encoded native route and keeps unknown separate from zero", () => {
     const id = "native/with space";
     expect(pipelineRoute(pipelineEventsUrl(id))).toEqual({

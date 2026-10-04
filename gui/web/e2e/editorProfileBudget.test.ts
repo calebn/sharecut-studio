@@ -269,6 +269,44 @@ describe("predeclared frame percentile applicability", () => {
 });
 
 describe("frozen diagnostic budget application", () => {
+  it("rejects previous real-job budgets for the default passive protocol without changing frozen limits", () => {
+    const { baseline, holdout } = cohort();
+    for (const entry of [...baseline, ...holdout]) {
+      entry.report.protocol.scenario = "progress-real";
+      entry.report.protocol.requiredCoverage = ["real-progress"];
+      entry.report.coverage[0]!.id = "real-progress";
+      entry.report.samples[0]!.id = "real-progress";
+    }
+    const budget = freezeDiagnosticBudget(baseline, holdout);
+    expect(budget.status).toBe("validated");
+    const frozen = structuredClone(budget);
+    const candidate = structuredClone(baseline[0]!);
+    candidate.file = "/reports/current-passive/report.json";
+    candidate.sha256 = "current-passive";
+    candidate.report.execution = {
+      id: "current-passive",
+      startedAt: "2026-10-04T00:00:00Z",
+    };
+    candidate.report.protocol.nativeObserver = {
+      id: "native-progress-passive-v2",
+      mode: "passive",
+      limits: { inputs: 4096 },
+      motion: "normal",
+    };
+    expect(
+      budgetCompatibility(baseline[0]!.report, candidate.report),
+    ).toContain("protocol differs");
+    const application = applyDiagnosticBudget(
+      budget,
+      [...baseline, ...holdout],
+      [candidate],
+    );
+    expect(application.status).toBe("invalid");
+    expect(
+      application.errors.some((error) => error.includes("protocol differs")),
+    ).toBe(true);
+    expect(budget).toEqual(frozen);
+  });
   it("rejects altered finite limits and false holdout stability without recalibrating", () => {
     const { baseline, holdout, budget } = cohort();
     const candidate = evidence("candidate", 20, 18);

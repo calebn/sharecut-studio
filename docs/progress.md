@@ -25,11 +25,13 @@ regression checks visible geometry and terminal fill without injecting styles.
 See [editor responsiveness profiling](testing.md#large-project-browser-profile-opt-in)
 for the separate real-job and controlled-replay measurements.
 
-The opt-in passive native-progress observer records genuine POST, native SSE
+The `progress-real` profiling command defaults to the passive native-progress
+observer. It records genuine POST, native SSE
 network receipt, browser status inputs, DOM mutation batches and sampled layout.
 It does not replay producer history, force an initial zero, or require artificial
-dwell for a fast job. Its diagnostic protocol is separate from the legacy
-three-state measurement and from performance acceptance. See
+dwell for a fast job. The superseded three-state measurement implementation is removed; its historical
+reports and frozen budgets remain separate from this protocol and performance
+acceptance. See
 [profiling instructions](testing.md#large-project-browser-profile-opt-in).
 
 The retained normal/reduced native observations completed real Compress/Balance

@@ -81,7 +81,7 @@ export type WorkloadObservation =
     }
   | {
       kind: "progress";
-      source: "replay" | "real-job";
+      source: "replay";
       jobId: string;
       values: number[];
       widthsPx: number[];
