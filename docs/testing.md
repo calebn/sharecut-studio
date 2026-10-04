@@ -579,6 +579,21 @@ and assistive technology remain unverified. Focused component tests cover all
 foreign terminal events, non-left mouse admission, capture cleanup, setup failure,
 pending saves, rejected saves preserving previous selection, read-only selection,
 and unmount. Run browser wrappers sequentially with fixture/environment unit tests.
+`gui/web/e2e/inspector-responsive.spec.ts` covers the #961 inspector regression
+at 360×740, 360×800, 667×360, 820×1180 and 1440×900, in light/dark themes,
+with reduced motion and 16px/32px CSS root text. It uses native mouse input at
+the visible track identity, measured ordinary body-wheel scrolling, and full
+control rectangles rather than center-only visibility. Envelope saves retain
+matching Applied identity, saved stable-ID points and History receipts; Cancel,
+Escape, Done and Close check visible focus recovery without a canceled write.
+The Clip inspector shares the same scrolling checks. A separate phone journey
+uses native Tabs and Enter for field errors and completion. The 32px root is a
+200% text-size simulation, not browser/OS zoom, physical touch, Safari, assistive
+technology or software-keyboard evidence; those acceptance checks remain #960.
+Run the focused regression after the production E2E build:
+`npm run test:e2e -- e2e/inspector-responsive.spec.ts`.
+See [the baseline and result record](issue-961/README.md) for qualified failures
+and selected pixels. This suite does not replace the owner recovery/CAS tests.
 `gui/web/e2e/desktop-splash.spec.ts` renders native startup HTML with long errors
 at narrow and wide sizes. These browser checks do not validate packaged WebViews
 or physical microphone behavior.
