@@ -102,20 +102,17 @@ html[data-shell="tablet"][data-layout="timeline"] .bottom-sheet-root {
   border-bottom: 1px solid var(--border);
 }
 
-.bottom-sheet-grab {
-  width: 2.25rem;
-  height: 0.25rem;
-  border-radius: var(--radius-xs);
-  background: var(--border);
-  margin: var(--space-3) auto var(--space-1);
-}
-
 .bottom-sheet-header {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-1) var(--space-4) var(--space-4);
+  padding: var(--space-3) var(--space-4);
   min-height: 2.75rem;
+}
+
+.bottom-sheet-resize-action {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
 }
 
 .bottom-sheet-title {
@@ -124,6 +121,7 @@ html[data-shell="tablet"][data-layout="timeline"] .bottom-sheet-root {
   font-weight: 600;
   flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .bottom-sheet-title-spacer {
@@ -166,5 +164,6 @@ html[data-shell="tablet"][data-layout="timeline"] .bottom-sheet-root {
   border: none;
   flex: 1 1 auto;
   min-height: 0;
+  height: auto;
   overflow: hidden;
 }
