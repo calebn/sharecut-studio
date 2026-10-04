@@ -386,7 +386,7 @@ test.describe("independent keyboard envelope root32 phone", () => {
           await page.keyboard.press("ControlOrMeta+A");
           await page.keyboard.type("-1");
           await enter("Save point");
-          const alert = page.getByRole("alert");
+          const alert = page.locator(".modifier-inspector").getByRole("alert");
           await expect(alert).toContainText(/non.?negative|at least|zero|0/i);
           await visibleFocus(
             page.getByRole("button", { name: "Save point", exact: true }),
@@ -615,7 +615,7 @@ test.describe("root32 phone many points and request recovery", () => {
             "pending-request-full-controls",
           );
           release();
-          const alert = page.getByRole("alert");
+          const alert = page.locator(".modifier-inspector").getByRole("alert");
           await expect(alert).toContainText(message);
           await expect(save).toBeEnabled();
           await exposeControl(page, alert, receipts);

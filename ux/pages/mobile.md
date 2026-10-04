@@ -31,9 +31,10 @@ saved media; that visual-only pan leaves playback position and saved-media seek
 bounds unchanged. Stop clears the preview, and landing shows the finalized clips.
 
 A playback meter beneath each track's initials shows its output peak. The clip
-light stays lit after playback stops. Tap **Clear clip light** to reset it
-without opening the track sheet. With reduced motion enabled, the meter bar
-stays still while clip detection continues.
+light stays lit after playback stops. This indicator leaves the initials free
+for opening track details. To reset it, tap the track's initials, then choose
+**Clear clip light** in the track inspector. With reduced motion enabled, the
+meter bar stays still while clip detection continues.
 
 Pending edit regions fill their lane. Select one to reveal its label and review
 actions above or below the lane; they stay clear of the edge controls, and a
@@ -58,10 +59,21 @@ The selection sheet groups actions in this order:
 2. **You might also want…** — related commands when available
 3. **More** — available clip Cut or track Move up/down actions. Selections with no related or overflow actions omit the command region.
 
-Phone and tablet inspector sheets use visible Expand/Collapse buttons for panel
-space; the sheet has no drag handle. Desktop and tablet editor panels use a
-resize separator. Escape cancels the separator's current preview and restores
-the previous panel preference, including the default when none was saved. These
+Phone and tablet inspector sheets scroll together, including the heading,
+actions, fields, help, errors, and audition controls. Scroll to the top to reach
+**Close**, **Expand**, and **Collapse**. Use **Expand** for more room on a short
+screen. The sheet has no drag handle.
+
+To adjust a track's volume envelope, open track details and choose **Add volume
+envelope** or **Edit volume envelope**. Choose **Add point** or select a point
+and choose **Edit point**, enter Time and Level, then choose **Save point**.
+**Cancel** keeps the saved points. After Save or Cancel, the selected point is
+visible again; **Done** returns to the track's envelope action. Scrolling and
+changing sheet size keep the current draft.
+
+Desktop and tablet editor panels use a resize separator. Escape cancels its
+current preview and restores the previous panel preference, including the
+default when none was saved. These
 view changes do not add project History.
 
 Escape also cancels an active clip body or chapter/social marker preview.

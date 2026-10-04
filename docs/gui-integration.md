@@ -289,14 +289,17 @@ through view sizing and scrolling. On short phone screens, use ordinary scrollin
 and the visible **Expand** action to reach complete controls. Opening the workspace
 does not expand the sheet automatically. Focus transitions reveal the current
 control within its sheet or desktop inspector; they do not scroll the page or
-timeline. Desktop side inspectors retain their existing scroll regions.
+timeline. Desktop modifier inspectors scroll as one aside, with fields and
+errors in natural flow.
 See [responsive inspector evidence](issue-961/README.md) for the text-size profiles
 and owner acceptance limits.
 
 The track’s **Add volume envelope** or **Edit volume envelope** action opens
 `EnvelopeWorkspace` and shows the layer without creating automation. Its point
 list selects by immutable ID; **Add point** and **Edit point** open numeric time
-and level drafts. **Save point**, **Delete point**, and removing the last point
+and level drafts. Time and Level use decimal text fields so wheel scrolling
+does not step the draft values; the existing numeric validation reports errors.
+**Save point**, **Delete point**, and removing the last point
 use `SetEnvelope` with the exact ordered saved baseline and one undoable change.
 Cancel, form Escape, and unchanged saves write nothing. A conflict preserves the
 draft and offers **Discard draft and reload points**. Shared projects expose
