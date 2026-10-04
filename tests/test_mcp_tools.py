@@ -10,6 +10,7 @@ from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (
     EditDecision,
     EditDecisionType,
+    Track,
     Transcript,
     TranscriptWord,
     load_project,
@@ -165,6 +166,9 @@ def test_episode_create_and_track_add(tmp_path, sample_wav):
 def test_set_envelope(tmp_path):
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
+    project = load_project(Path(path))
+    project.timeline.tracks.append(Track(id="music", label="Music"))
+    save_project(project)
     points = json.dumps([{"time": 0, "value": 0}, {"time": 1, "value": 1}])
     result = mcp_server.set_envelope(path, "music", points)
     assert result == "Envelope set for music (2 points)"
@@ -175,6 +179,9 @@ def test_set_envelope_goes_through_document_log_and_baseline(tmp_path):
     from podcast_mcp.services.document_sync.errors import DocumentConflictError
 
     path = mcp_server.episode_create(str(tmp_path / "workspace"))
+    project = load_project(Path(path))
+    project.timeline.tracks.append(Track(id="music", label="Music"))
+    save_project(project)
     first = json.dumps([{"id": "a", "time": 0, "value": 1}])
     mcp_server.set_envelope(path, "music", first)
     svc = DocumentSyncService.open(path)

@@ -173,6 +173,7 @@ def test_mix_with_music_hashes_the_faded_music_stem(minimal_project, sample_wav,
     steps.mix_with_music(proj, defaults)
     envelope = proj.volume_envelope_for("bed")
     assert envelope is not None and len(envelope.points) == 4
+    assert len({p.id for p in envelope.points}) == 4
     assert read_stem_hash(proj, "bed") == track_render_hash(proj, "bed")
     envelope.points[1].value = 0.5
     assert read_stem_hash(proj, "bed") != track_render_hash(proj, "bed")

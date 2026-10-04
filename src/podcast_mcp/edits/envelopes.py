@@ -28,9 +28,8 @@ def envelope_matches_baseline(
     a baseline before sending it would turn every edit into a permanent conflict.
     Callers reject duplicate point IDs before this check (payload validation).
     """
-    envelope = project.volume_envelope_for(track_id)
-    actual = {p.id: (p.time, p.value) for p in (envelope.points if envelope else [])}
-    expected = {
-        str(point["id"]): (float(point["time"]), float(point["value"])) for point in expected_points
-    }
-    return expected == actual
+    expected = [
+        {"id": str(point["id"]), "time": float(point["time"]), "value": float(point["value"])}
+        for point in expected_points
+    ]
+    return expected == volume_envelope_baseline(project, track_id)

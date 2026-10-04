@@ -61,7 +61,7 @@ describe("EnvelopeOverlay", () => {
     const previous = {
       kind: "envelopePoint",
       trackId: "host",
-      index: 0,
+      pointId: "early",
     } as const;
     act(() => useDawStore.getState().setSelection(previous));
     fireEvent.pointerDown(circles[1]!);
@@ -87,7 +87,7 @@ describe("EnvelopeOverlay", () => {
     expect(useDawStore.getState().selection).toEqual({
       kind: "envelopePoint",
       trackId: "host",
-      index: 1,
+      pointId: "late",
     });
   });
 
@@ -149,8 +149,8 @@ describe("EnvelopeOverlay", () => {
         { id: "early", time: 10, value: 1.40625 },
       ],
       [
-        { id: "late", time: 0, value: 0.5 },
         { id: "early", time: 10, value: 1 },
+        { id: "late", time: 0, value: 0.5 },
       ],
     );
   });
@@ -174,7 +174,7 @@ describe("EnvelopeOverlay", () => {
     expect(useDawStore.getState().selection).toEqual({
       kind: "envelopePoint",
       trackId: "host",
-      index: 1,
+      pointId: "late",
     });
     expect(setEnvelope).not.toHaveBeenCalled();
   });
@@ -208,7 +208,7 @@ describe("EnvelopeOverlay", () => {
       const previous = {
         kind: "envelopePoint",
         trackId: "host",
-        index: 0,
+        pointId: "early",
       } as const;
       useDawStore.getState().setSelection(previous);
       const { container } = renderOverlay();
@@ -391,3 +391,144 @@ describe("EnvelopeOverlay", () => {
     useDawStore.setState({ scrollLeft: 0, timelineViewportWidth: 0 });
   });
 });
+
+it.each(["track", "point", "leave-and-return"])(
+  "preserves a newer %s selection after an envelope save resolves",
+  async (destination) => {
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        envelopes: [
+          {
+            track_id: "host",
+            parameter: "volume",
+            points: [
+              { id: "early", time: 0, value: 1 },
+              { id: "late", time: 5, value: 0.5 },
+              { id: "other", time: 12, value: 0.8 },
+            ],
+          },
+        ],
+      }),
+    );
+    const origin = {
+      kind: "envelopePoint" as const,
+      trackId: "host",
+      pointId: "early",
+    };
+    useDawStore.getState().setSelection(origin);
+    let finish = () => {};
+    setEnvelope.mockReset();
+    setEnvelope.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { container } = renderOverlay();
+    const circle = container.querySelectorAll("circle")[1]!;
+    fireEvent.pointerDown(circle, { pointerId: 81 });
+    fireEvent.pointerMove(circle, { pointerId: 81, clientX: 80, clientY: 8 });
+    fireEvent.pointerUp(circle, { pointerId: 81 });
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    act(() => {
+      useDawStore
+        .getState()
+        .setSelection(
+          destination === "track"
+            ? { kind: "track", trackId: "guest" }
+            : { kind: "envelopePoint", trackId: "host", pointId: "other" },
+        );
+      if (destination === "leave-and-return") {
+        useDawStore
+          .getState()
+          .setSelection({ kind: "track", trackId: "guest" });
+        useDawStore.getState().setSelection({ ...origin });
+      }
+    });
+    const newer = useDawStore.getState().selection;
+    await act(async () => finish());
+    expect(useDawStore.getState().selection).toBe(newer);
+  },
+);
+
+it.each(["null-roundtrip", "equivalent-echo"])(
+  "honors the complete %s selection lifetime while a save is pending",
+  async (caseName) => {
+    useDawStore.getState().hydrate(
+      "/tmp/p.json",
+      minimalProject({
+        envelopes: [
+          {
+            track_id: "host",
+            parameter: "volume",
+            points: [
+              { id: "early", time: 0, value: 1 },
+              { id: "late", time: 5, value: 0.5 },
+            ],
+          },
+        ],
+      }),
+    );
+    useDawStore
+      .getState()
+      .setSelection(
+        caseName === "null-roundtrip"
+          ? null
+          : { pointId: "early", trackId: "host", kind: "envelopePoint" },
+      );
+    let finish = () => {};
+    setEnvelope.mockReset();
+    setEnvelope.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { container } = renderOverlay();
+    const circle = container.querySelectorAll("circle")[1]!;
+    fireEvent.pointerDown(circle, { pointerId: 82 });
+    fireEvent.pointerMove(circle, { pointerId: 82, clientX: 80, clientY: 8 });
+    fireEvent.pointerUp(circle, { pointerId: 82 });
+    expect(setEnvelope).toHaveBeenCalledTimes(1);
+    act(() => {
+      if (caseName === "null-roundtrip") {
+        useDawStore
+          .getState()
+          .setSelection({ kind: "track", trackId: "guest" });
+        useDawStore.getState().setSelection(null);
+      } else {
+        useDawStore.getState().applyAgentSession({
+          version: 1,
+          server_seq: 1,
+          origin: "viewer",
+          last_role: "viewer",
+          updated_at_ns: 0,
+          last_command_id: "echo",
+          playhead_sec: 0,
+          is_playing: false,
+          audition_mode: "mix",
+          region: null,
+          source: null,
+          track_id: null,
+          query: null,
+          match_index: null,
+          selection: {
+            kind: "envelopePoint",
+            track_id: "host",
+            id: "early",
+            time: 0,
+          },
+          viewer_mute: {},
+          solo_tracks: {},
+          tier: null,
+          dry_run: false,
+        });
+      }
+    });
+    await act(async () => finish());
+    expect(useDawStore.getState().selection).toEqual(
+      caseName === "null-roundtrip"
+        ? null
+        : { kind: "envelopePoint", trackId: "host", pointId: "late" },
+    );
+  },
+);

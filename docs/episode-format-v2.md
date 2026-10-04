@@ -36,16 +36,15 @@ my_episode/
 
 `history` is always an object: a project with no recorded snapshots saves an empty `ProjectHistory` (`{"cursor": -1, "entries": []}`), and a legacy `"history": null` loads as that empty history. An empty saved history adopts `history/index.json` only when the index's current entry matches the saved editable state ([history.md § Storage layout](history.md#storage-layout)). A track's optional `room_tone` and `proxy` are saved as `null` when absent; `schemas/episode.project.schema.json` accepts that, so a file written by `save_project` validates as-is.
 
-Each automation envelope point has an immutable `id` plus its mutable `time` and
-`value`. Editors preserve the ID while points move or reorder it; new points get
-an ID at model creation. This gives the GUI a stable React identity during drag
-operations and prevents an index shift from attaching a DOM node to the wrong
-point.
+Each saved automation envelope point requires an immutable `id` plus its mutable
+`time` and `value`. Creation boundaries allocate IDs before persistence. Editors
+preserve the ID when points move or reorder, so an index shift cannot attach a
+DOM node or selection to the wrong point. Saved records without point IDs are
+rejected.
 
-Older project files whose envelope points have no IDs remain readable. On load,
-the model assigns deterministic IDs from the envelope track, parameter, and
-stored point position; the next normal project save persists those IDs. Point
-IDs do not affect audio render or reconciliation fingerprints.
+Changing only point IDs leaves audio render and reconciliation fingerprints
+unchanged. Volume-point times, values, and saved order contribute to those
+fingerprints.
 
 ## Transcripts (canonical in project file)
 

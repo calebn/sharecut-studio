@@ -27,7 +27,7 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 #    full-lane join context in segment renders.
 # 8: every segment window uses the same placement assembly, including one-source windows.
 # 9: reset the sample clock after overlap mixing before concatenating later segments.
-RENDER_SEMANTICS_REV = 10
+RENDER_SEMANTICS_REV = 11
 
 
 def resolve_clip_audio_path(
@@ -475,7 +475,7 @@ def render_track_segment(
     crossfade_curve = str(defaults.get("render", {}).get("crossfade_curve", "tri"))
     chain = next((c for c in project.processing_chains if c.track_id == track.id), None)
     env = project.volume_envelope_for(track.id)
-    af = eng.build_track_filter(chain, env)
+    af = eng.build_track_filter(chain, env, timeline_origin_sec=timeline_start)
     timeline_edits = [e for e in project.edit_decisions if e.track_id == track.id]
 
     overlapping: list[tuple[int, Clip, float, float]] = []

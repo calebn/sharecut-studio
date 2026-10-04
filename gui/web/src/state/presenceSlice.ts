@@ -171,13 +171,18 @@ export const createPresenceSlice: StateCreator<
       state.selection,
       get().project?.envelopes,
     );
+    const localSelection = get().selection;
+    const workspaceEcho =
+      localSelection?.kind === "envelope" &&
+      nextSel?.kind === "track" &&
+      localSelection.trackId === nextSel.trackId;
     set({
       suppressPublish: true,
       _suppressTimer: timer,
       lastAppliedRevision: state.server_seq,
       lastAppliedCommandId: state.last_command_id,
       ...hear,
-      ...(nextSel !== undefined && state.selection !== undefined
+      ...(state.selection !== undefined && !workspaceEcho
         ? { selection: nextSel }
         : {}),
       ...(state.clients

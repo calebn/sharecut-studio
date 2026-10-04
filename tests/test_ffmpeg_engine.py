@@ -165,8 +165,8 @@ def test_build_track_filter_envelope():
     env = AutomationEnvelope(
         track_id="music",
         points=[
-            AutomationPoint(time=0.0, value=0.0),
-            AutomationPoint(time=1.0, value=1.0),
+            AutomationPoint(id="test-point-0", time=0.0, value=0.0),
+            AutomationPoint(id="test-point-1", time=1.0, value=1.0),
         ],
     )
     filt = eng.build_track_filter(None, env)
@@ -353,19 +353,19 @@ def test_volume_expression_variants():
     assert eng._volume_expression(AutomationEnvelope(track_id="m", points=[])) == "1"
     flat = AutomationEnvelope(
         track_id="m",
-        points=[AutomationPoint(time=1.0, value=0.5)],
+        points=[AutomationPoint(id="test-point-2", time=1.0, value=0.5)],
     )
-    assert "gte(t,1.0)" in eng._volume_expression(flat)
+    assert eng._volume_expression(flat) == "0.5"
     overlap = AutomationEnvelope(
         track_id="m",
         points=[
-            AutomationPoint(time=0.0, value=0.0),
-            AutomationPoint(time=0.0, value=1.0),
-            AutomationPoint(time=2.0, value=1.0),
+            AutomationPoint(id="test-point-3", time=0.0, value=0.0),
+            AutomationPoint(id="test-point-4", time=0.0, value=1.0),
+            AutomationPoint(id="test-point-5", time=2.0, value=1.0),
         ],
     )
     expr = eng._volume_expression(overlap)
-    assert "between(t" in expr or "gte(t" in expr
+    assert "if(lt(t,2.0)" in expr
 
 
 def test_render_track_to_file_no_segments_raises(sample_wav: Path, tmp_path: Path):
