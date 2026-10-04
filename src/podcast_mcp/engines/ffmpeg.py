@@ -10,6 +10,7 @@ import tempfile
 import threading
 from collections.abc import Callable, Generator
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 from typing import IO, Any
 
@@ -637,7 +638,11 @@ class FFmpegEngine:
         self,
         chain: ProcessingChain | None,
         envelope: AutomationEnvelope | None,
+        *,
+        timeline_origin_sec: float = 0.0,
     ) -> str:
+        if not math.isfinite(timeline_origin_sec) or timeline_origin_sec < 0:
+            raise ValueError("timeline_origin_sec must be finite and nonnegative")
         filters: list[str] = []
         if chain:
             for fx in chain.effects:
@@ -646,31 +651,29 @@ class FFmpegEngine:
                     if rendered is not None:
                         filters.append(rendered)
         if envelope and envelope.points:
-            expr = self._volume_expression(envelope)
-            filters.append(f"volume=enable='between(t,0,1e6)':volume='{expr}'")
+            expr = self._volume_expression(envelope, timeline_origin_sec=timeline_origin_sec)
+            filters.append(f"volume=volume='{expr}':eval=frame")
         if not filters:
             return "anull"
         return ",".join(filters)
 
-    def _volume_expression(self, envelope: AutomationEnvelope) -> str:
+    def _volume_expression(
+        self, envelope: AutomationEnvelope, *, timeline_origin_sec: float = 0.0
+    ) -> str:
         pts = sorted(envelope.points, key=lambda p: p.time)
         if not pts:
             return "1"
-        parts: list[str] = []
-        for i, pt in enumerate(pts):
-            t0 = pt.time
-            v0 = pt.value
-            if i + 1 < len(pts):
-                t1 = pts[i + 1].time
-                v1 = pts[i + 1].value
-                if t1 > t0:
-                    slope = (v1 - v0) / (t1 - t0)
-                    parts.append(f"if(between(t,{t0},{t1}),{v0}+(t-{t0})*{slope},{v0})")
-                else:
-                    parts.append(f"if(gte(t,{t0}),{v0},1)")
-            else:
-                parts.append(f"if(gte(t,{t0}),{v0},1)")
-        return parts[-1] if len(parts) == 1 else "+".join(parts)
+        if len(pts) == 1:
+            return str(pts[0].value)
+        clock = "t" if timeline_origin_sec == 0 else f"(t+{timeline_origin_sec})"
+        expr = str(pts[-1].value)
+        for left, right in reversed(list(pairwise(pts))):
+            if right.time == left.time:
+                continue
+            slope = (right.value - left.value) / (right.time - left.time)
+            interval = f"{left.value}+({clock}-{left.time})*{slope}"
+            expr = f"if(lt({clock},{right.time}),{interval},{expr})"
+        return f"if(lt({clock},{pts[0].time}),{pts[0].value},{expr})"
 
     def _fade_chain(
         self,

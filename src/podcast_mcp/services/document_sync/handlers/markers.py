@@ -61,6 +61,11 @@ def set_envelope(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     """
     track_id = str(p["track_id"])
     ws.reload()
+    if ws.project.track_by_id(track_id) is None:
+        raise DocumentConflictError(
+            f"Volume envelope track {track_id!r} no longer exists. "
+            "Select an existing track before retrying."
+        )
     if not envelope_matches_baseline(ws.project, track_id, p["expected_points"]):
         raise DocumentConflictError(
             f"Envelope on track {track_id!r} changed since this edit started, so the edit "

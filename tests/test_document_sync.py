@@ -1430,8 +1430,8 @@ def test_document_set_transcript_words_ignored(minimal_project):
     assert "SetTranscriptWordsIgnored" not in document_command_types_for_caps(["edit"])
 
 
-def test_document_markers_envelope_and_suggest(minimal_project):
-    ws = ProjectWorkspace.open(minimal_project)
+def test_document_markers_envelope_and_suggest(envelope_project):
+    ws = ProjectWorkspace.open(envelope_project)
     ws.project.timeline.tracks = [
         Track(
             id="host",
@@ -1442,7 +1442,7 @@ def test_document_markers_envelope_and_suggest(minimal_project):
     ]
     ws.save()
 
-    svc = DocumentSyncService.open(minimal_project)
+    svc = DocumentSyncService.open(envelope_project)
     ch = svc.submit(
         DocumentCommand(
             type="AddChapter",
@@ -1468,7 +1468,7 @@ def test_document_markers_envelope_and_suggest(minimal_project):
         )
     )
     assert moved["ok"]
-    ws2 = ProjectWorkspace.open(minimal_project)
+    ws2 = ProjectWorkspace.open(envelope_project)
     assert ws2.project.chapters[0].time == pytest.approx(3.5)
 
     env = svc.submit(
@@ -1492,7 +1492,7 @@ def test_document_markers_envelope_and_suggest(minimal_project):
     assert "project" not in env_snap
     assert len(env_snap["patch"]["envelopes"]) == 1
     assert "render_status" in env_snap["patch"]
-    ws3 = ProjectWorkspace.open(minimal_project)
+    ws3 = ProjectWorkspace.open(envelope_project)
     assert len(ws3.project.automation_envelopes[0].points) == 2
     assert [point.id for point in ws3.project.automation_envelopes[0].points] == [
         "intro",
@@ -1551,7 +1551,7 @@ def test_document_markers_envelope_and_suggest(minimal_project):
         )
     )
     assert suggested["ok"]
-    ws4 = ProjectWorkspace.open(minimal_project)
+    ws4 = ProjectWorkspace.open(envelope_project)
     pending = [d for d in ws4.project.edit_decisions if not d.applied]
     assert len(pending) >= 1
     assert pending[-1].review_required is True
@@ -1566,11 +1566,11 @@ def test_document_markers_envelope_and_suggest(minimal_project):
             client_seq=8,
         )
     )
-    ws5 = ProjectWorkspace.open(minimal_project)
+    ws5 = ProjectWorkspace.open(envelope_project)
     assert ws5.project.chapters == []
 
 
-def test_document_set_envelope_accepts_new_points_with_explicit_baseline(minimal_project):
+def test_document_set_envelope_accepts_new_points_with_explicit_baseline(envelope_project):
     payload = {
         "track_id": "host",
         "points": [{"time": 0.0, "value": 1.0}, {"time": 5.0, "value": 0.5}],
@@ -1589,7 +1589,7 @@ def test_document_set_envelope_accepts_new_points_with_explicit_baseline(minimal
     )
     assert all(point["id"] for point in parsed.payload["points"])
 
-    result = DocumentSyncService.open(minimal_project).submit(
+    result = DocumentSyncService.open(envelope_project).submit(
         DocumentCommand(
             type="SetEnvelope",
             payload=payload,
@@ -1600,7 +1600,7 @@ def test_document_set_envelope_accepts_new_points_with_explicit_baseline(minimal
     )
     logged_ids = [point["id"] for point in result["command"]["payload"]["points"]]
     assert len(set(logged_ids)) == 2
-    stored = ProjectWorkspace.open(minimal_project).project.automation_envelopes[0]
+    stored = ProjectWorkspace.open(envelope_project).project.automation_envelopes[0]
     assert [point.id for point in stored.points] == logged_ids
 
     with pytest.raises(ValueError, match="expected_points"):
@@ -1616,9 +1616,9 @@ def test_document_set_envelope_accepts_new_points_with_explicit_baseline(minimal
         )
 
 
-def test_document_set_envelope_rejects_stale_peer_without_mutation(minimal_project):
-    first = DocumentSyncService.open(minimal_project)
-    second = DocumentSyncService.open(minimal_project)
+def test_document_set_envelope_rejects_stale_peer_without_mutation(envelope_project):
+    first = DocumentSyncService.open(envelope_project)
+    second = DocumentSyncService.open(envelope_project)
     baseline: list[dict[str, object]] = []
     first.submit(
         DocumentCommand(
@@ -1656,7 +1656,7 @@ def test_document_set_envelope_rejects_stale_peer_without_mutation(minimal_proje
     )
     second.submit(drag)
     seq_after_drag = int(second.store.get_snapshot()["server_seq"])
-    history_after_drag = HistoryService(ProjectWorkspace.open(minimal_project)).list_entries()
+    history_after_drag = HistoryService(ProjectWorkspace.open(envelope_project)).list_entries()
     with pytest.raises(DocumentConflictError, match="changed since this edit started"):
         first.submit(
             DocumentCommand(
@@ -1676,7 +1676,7 @@ def test_document_set_envelope_rejects_stale_peer_without_mutation(minimal_proje
         )
     assert int(first.store.get_snapshot()["server_seq"]) == seq_after_drag
     assert (
-        HistoryService(ProjectWorkspace.open(minimal_project)).list_entries() == history_after_drag
+        HistoryService(ProjectWorkspace.open(envelope_project)).list_entries() == history_after_drag
     )
     replay = second.submit(drag)
     assert replay["idempotent"] is True
@@ -1693,7 +1693,7 @@ def test_document_set_envelope_rejects_stale_peer_without_mutation(minimal_proje
             client_seq=1,
         )
     )
-    stored = ProjectWorkspace.open(minimal_project).project.automation_envelopes
+    stored = ProjectWorkspace.open(envelope_project).project.automation_envelopes
     host = next(envelope for envelope in stored if envelope.track_id == "host")
     assert [(point.id, point.time, point.value) for point in host.points] == [
         ("a", 1.0, 1.0),
@@ -2497,8 +2497,8 @@ def _set_envelope_command(expected, *, points=None, client_id="viewer"):
     )
 
 
-def test_document_set_envelope_baseline_ignores_pan_listed_first(minimal_project):
-    ws = ProjectWorkspace.open(minimal_project)
+def test_document_set_envelope_baseline_ignores_pan_listed_first(envelope_project):
+    ws = ProjectWorkspace.open(envelope_project)
     ws.project.automation_envelopes = [
         AutomationEnvelope(
             track_id="host",
@@ -2510,21 +2510,21 @@ def test_document_set_envelope_baseline_ignores_pan_listed_first(minimal_project
         ),
     ]
     ws.save()
-    DocumentSyncService.open(minimal_project).submit(
+    DocumentSyncService.open(envelope_project).submit(
         _set_envelope_command([{"id": "vol", "time": 0.0, "value": 0.5}])
     )
-    stored = ProjectWorkspace.open(minimal_project).project.automation_envelopes
+    stored = ProjectWorkspace.open(envelope_project).project.automation_envelopes
     assert [(e.parameter, [p.id for p in e.points]) for e in stored] == [
         ("pan", ["pan"]),
         ("volume", ["new"]),
     ]
 
 
-def test_document_set_envelope_rejects_baseline_for_missing_envelope(minimal_project):
-    svc = DocumentSyncService.open(minimal_project)
+def test_document_set_envelope_rejects_baseline_for_missing_envelope(envelope_project):
+    svc = DocumentSyncService.open(envelope_project)
     with pytest.raises(DocumentConflictError, match="not applied"):
         svc.submit(_set_envelope_command([{"id": "ghost", "time": 0.0, "value": 1.0}]))
-    assert ProjectWorkspace.open(minimal_project).project.automation_envelopes == []
+    assert ProjectWorkspace.open(envelope_project).project.automation_envelopes == []
     assert svc.store.get_snapshot() is None
 
 

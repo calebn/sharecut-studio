@@ -21,14 +21,15 @@ function renderView(
   const utils = render(
     <EnvelopeOverlayView
       points={points}
+      baselinePoints={points}
       zoomPxPerSec={10}
       width={200}
       height={72}
       visibleChunks={[0, 0]}
       editable
-      selectedIndex={null}
+      selectedPointId={null}
       onSelectTrack={onSelectTrack}
-      onSelectPoint={onSelectPoint}
+      captureSelection={() => onSelectPoint}
       onCommitPoints={onCommitPoints}
       onCommitError={onCommitError}
       holdGeometry={holdGeometry}
@@ -82,21 +83,22 @@ describe("EnvelopeOverlayView", () => {
   });
 
   it("draws a selected point at radius 7 and a read-only point at radius 2.5", () => {
-    const { container, rerender } = renderView({ selectedIndex: 1 });
+    const { container, rerender } = renderView({ selectedPointId: "late" });
     const circles = [...container.querySelectorAll("circle")];
     expect(circles[1]!.getAttribute("r")).toBe("7");
 
     rerender(
       <EnvelopeOverlayView
         points={points}
+        baselinePoints={points}
         zoomPxPerSec={10}
         width={200}
         height={72}
         visibleChunks={[0, 0]}
         editable={false}
-        selectedIndex={null}
+        selectedPointId={null}
         onSelectTrack={vi.fn()}
-        onSelectPoint={vi.fn()}
+        captureSelection={() => vi.fn()}
         onCommitPoints={vi.fn().mockResolvedValue({})}
         onCommitError={vi.fn()}
       />,
@@ -111,7 +113,7 @@ describe("EnvelopeOverlayView", () => {
       screen.getByRole("button", { name: /Envelope point 2/ }),
       { key: "Enter" },
     );
-    expect(onSelectPoint).toHaveBeenCalledWith(1);
+    expect(onSelectPoint).toHaveBeenCalledWith("late");
     expect(onCommitPoints).not.toHaveBeenCalled();
   });
 
@@ -125,7 +127,7 @@ describe("EnvelopeOverlayView", () => {
     fireEvent.keyDown(circle, { key: " " });
     expect(onSelectPoint).not.toHaveBeenCalled();
     fireEvent.pointerUp(circle);
-    expect(onSelectPoint).toHaveBeenCalledExactlyOnceWith(1);
+    expect(onSelectPoint).toHaveBeenCalledExactlyOnceWith("late");
     expect(onCommitPoints).not.toHaveBeenCalled();
   });
 
@@ -148,7 +150,7 @@ describe("EnvelopeOverlayView", () => {
         { id: "late", time: 5, value: 0.5 },
       ],
     );
-    await vi.waitFor(() => expect(onSelectPoint).toHaveBeenCalledWith(1));
+    await vi.waitFor(() => expect(onSelectPoint).toHaveBeenCalledWith("early"));
     await vi.waitFor(() => expect(release).toHaveBeenCalledTimes(1));
     expect(holdGeometry).toHaveBeenCalledTimes(1);
   });
@@ -413,7 +415,7 @@ describe("EnvelopeOverlayView", () => {
     fireEvent.pointerUp(circle, { pointerId: 1 });
     fireEvent.keyDown(circle, { key: "Enter" });
     fireEvent.keyDown(circle, { key: " " });
-    expect(onSelectPoint.mock.calls).toEqual([[1], [1], [1]]);
+    expect(onSelectPoint.mock.calls).toEqual([["late"], ["late"], ["late"]]);
     expect(onCommitPoints).not.toHaveBeenCalled();
     expect(holdGeometry).not.toHaveBeenCalled();
   });
@@ -492,4 +494,72 @@ describe("EnvelopeOverlayView", () => {
     });
     expect(onCommitError).not.toHaveBeenCalled();
   });
+});
+
+it("captures the raw saved ordering at pointerdown, independently of display order", () => {
+  const raw = [points[1]!, points[0]!];
+  const { container, onCommitPoints } = renderView({ baselinePoints: raw });
+  const circle = container.querySelectorAll("circle")[1]!;
+  fireEvent.pointerDown(circle, { pointerId: 31 });
+  raw.reverse();
+  fireEvent.pointerMove(circle, { pointerId: 31, clientX: 80, clientY: 8 });
+  fireEvent.pointerUp(circle, { pointerId: 31 });
+  expect(onCommitPoints).toHaveBeenCalledWith(
+    [
+      { id: "early", time: 0, value: 1 },
+      { id: "late", time: 8, value: 1.40625 },
+    ],
+    [points[1], points[0]],
+  );
+});
+it("rejects a drag that introduces a new coincident timestamp", () => {
+  const { container, onCommitPoints, onCommitError, release } = renderView();
+  const circle = container.querySelectorAll("circle")[1]!;
+  fireEvent.pointerDown(circle, { pointerId: 31 });
+  fireEvent.pointerMove(circle, { pointerId: 31, clientX: 0, clientY: 8 });
+  fireEvent.pointerUp(circle, { pointerId: 31 });
+  expect(onCommitPoints).not.toHaveBeenCalled();
+  expect(onCommitError).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message: expect.stringContaining("already exists"),
+    }),
+  );
+  expect(release).toHaveBeenCalledTimes(1);
+});
+
+it("releases ownership when the held point disappears while the view remains mounted", () => {
+  const release = vi.fn();
+  const onCommitPoints = vi.fn().mockResolvedValue(undefined);
+  const props = {
+    points,
+    baselinePoints: points,
+    zoomPxPerSec: 10,
+    width: 200,
+    height: 72,
+    visibleChunks: [0, 0] as const,
+    editable: true,
+    selectedPointId: null,
+    onSelectTrack: vi.fn(),
+    captureSelection: () => vi.fn(),
+    onCommitPoints,
+    onCommitError: vi.fn(),
+    holdGeometry: () => release,
+  };
+  const { container, rerender, unmount } = render(
+    <EnvelopeOverlayView {...props} />,
+  );
+  const circle = container.querySelectorAll("circle")[1]!;
+  const releaseCapture = vi.fn();
+  circle.hasPointerCapture = () => true;
+  circle.releasePointerCapture = releaseCapture;
+  fireEvent.pointerDown(circle, { pointerId: 91 });
+  fireEvent.pointerMove(circle, { pointerId: 91, clientX: 80, clientY: 8 });
+  rerender(<EnvelopeOverlayView {...props} points={[]} baselinePoints={[]} />);
+  expect(container.querySelector("circle")).toBeNull();
+  expect(release).toHaveBeenCalledTimes(1);
+  expect(releaseCapture).toHaveBeenCalledWith(91);
+  fireEvent.pointerUp(circle, { pointerId: 91 });
+  expect(onCommitPoints).not.toHaveBeenCalled();
+  unmount();
+  expect(release).toHaveBeenCalledTimes(1);
 });

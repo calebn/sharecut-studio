@@ -7,6 +7,7 @@ import math
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from podcast_mcp.config import mix_peak_ceiling_db
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
@@ -811,10 +812,12 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
                 AutomationEnvelope(
                     track_id=track.id,
                     points=[
-                        AutomationPoint(time=0.0, value=0.0),
-                        AutomationPoint(time=fade_in, value=1.0),
-                        AutomationPoint(time=max(fade_in, dur - fade_out), value=1.0),
-                        AutomationPoint(time=dur, value=0.0),
+                        AutomationPoint(id=str(uuid4()), time=0.0, value=0.0),
+                        AutomationPoint(id=str(uuid4()), time=fade_in, value=1.0),
+                        AutomationPoint(
+                            id=str(uuid4()), time=max(fade_in, dur - fade_out), value=1.0
+                        ),
+                        AutomationPoint(id=str(uuid4()), time=dur, value=0.0),
                     ],
                 )
             )

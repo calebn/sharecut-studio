@@ -91,7 +91,7 @@ describe("Inspector clip lookup", () => {
     ).toBeTruthy();
   });
 
-  it("opens EnvelopePointInspector for a selected point", () => {
+  it("opens the volume envelope workspace for a selected point", () => {
     useDawStore.getState().hydrate(
       "/tmp/ep",
       minimalProject({
@@ -111,10 +111,10 @@ describe("Inspector clip lookup", () => {
     useDawStore.getState().setSelection({
       kind: "envelopePoint",
       trackId: "host",
-      index: 1,
+      pointId: "late",
     });
     render(<Inspector />);
-    expect(screen.getByText("Envelope")).toBeTruthy();
-    expect(screen.getByLabelText("Envelope time")).toHaveValue(4);
+    expect(screen.getByText("Editing volume envelope")).toBeTruthy();
+    expect(screen.getByLabelText("Envelope point")).toHaveValue("late");
   });
 });

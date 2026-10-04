@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   clampEnvelopeValue,
+  envelopeValueAt,
   findVolumeEnvelope,
-  indexOfVolumePointAtTime,
   replaceEnvelopePoint,
   sameEnvelopePoint,
+  sameEnvelopePoints,
   sortedVolumePoints,
   withVolumeEnvelopePoints,
 } from "./envelopes";
@@ -33,20 +34,18 @@ describe("envelopes", () => {
     ]);
   });
 
-  it("reindexes after replacing a point that changes order", () => {
-    const { points, index } = replaceEnvelopePoint(
+  it("sorts after replacing a point that changes order", () => {
+    const points = replaceEnvelopePoint(
       [
         { id: "early", time: 0, value: 1 },
         { id: "late", time: 5, value: 0.5 },
       ],
-      0,
       { id: "early", time: 8, value: 0.2 },
     );
     expect(points).toEqual([
       { id: "late", time: 5, value: 0.5 },
       { id: "early", time: 8, value: 0.2 },
     ]);
-    expect(index).toBe(1);
   });
 
   it("clamps envelope values to 0–1.5", () => {
@@ -61,16 +60,24 @@ describe("envelopes", () => {
         { id: "early", time: 0, value: 1 },
         { id: "late", time: 5, value: 0.5 },
       ],
-      0,
       { id: "early", time: 8, value: 0.2 },
     );
-    expect(result.points[1]?.id).toBe("early");
+    expect(result[1]?.id).toBe("early");
   });
 
-  it("finds the nearest volume point by time", () => {
-    expect(indexOfVolumePointAtTime(envelopes, "host", 4.9)).toBe(1);
-    expect(indexOfVolumePointAtTime(envelopes, "host", 0.1)).toBe(0);
-    expect(indexOfVolumePointAtTime(envelopes, "guest", 0)).toBe(-1);
+  it("evaluates empty, constant, held endpoints and stable coincident steps", () => {
+    expect(envelopeValueAt([], 4)).toBe(1);
+    expect(envelopeValueAt([{ id: "a", time: 5, value: 0.4 }], 0)).toBe(0.4);
+    const tied = [
+      { id: "a", time: 2, value: 1 },
+      { id: "b", time: 4, value: 0.5 },
+      { id: "c", time: 4, value: 0.2 },
+    ];
+    expect(envelopeValueAt(tied, 0)).toBe(1);
+    expect(envelopeValueAt(tied, 3)).toBe(0.75);
+    expect(envelopeValueAt(tied, 4)).toBe(0.2);
+    expect(envelopeValueAt(tied, 20)).toBe(0.2);
+    expect(sameEnvelopePoints(tied, [...tied].reverse())).toBe(false);
   });
 
   it("treats sub-epsilon float noise as the same point, not a new ID", () => {
@@ -96,4 +103,12 @@ describe("envelopes", () => {
       { track_id: "host", parameter: "volume", points: next },
     ]);
   });
+});
+
+it("only recognizes the canonical volume parameter", () => {
+  for (const parameter of ["gain", "", "pan"]) {
+    expect(
+      findVolumeEnvelope([{ track_id: "host", parameter, points: [] }], "host"),
+    ).toBeUndefined();
+  }
 });

@@ -65,7 +65,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Combined transcript** | Utterance stream for search/NL | `transcripts.combined` | Search / agent; export captions |
 | **Transcription vocabulary** | Names and terms used for Whisper; Re-transcribe (forces ASR; normal runs reuse transcripts) when any transcript was produced with a different saved revision | `transcript_context.yaml` revision + `transcripts.per_track[].vocabulary_revision` | Pipeline vocabulary editor |
 | **FX chain** | Per-track cleanup/EQ/etc. | `mix.processing_chains` | Track FX, audition FX vs Raw |
-| **Envelope** | Volume automation over time | `mix.automation_envelopes` | Volume envelope overlay, selected-point inspector |
+| **Envelope** | Volume automation over time | `mix.automation_envelopes` | Volume envelope overlay, track volume workspace |
 | **Volume (fader)** | A track's saved level, on top of the staging gain Balance sets | `timeline.tracks[].fader_db` (+ `gain_db`) | Track inspector / sheet fader; header's **Out** readout shows the sum |
 | **Balance status** | Whether the last dialogue loudness measurement still matches the media revision, ordered FX chain, and kept speech spans; status is not measured before the first successful balance run, current while those inputs match, and stale when they change. The displayed LUFS is the measured level, and “ungated” indicates the measurement fell back from speech gating | `timeline.tracks[].balance_basis` + derived render status | Track inspector below the Volume fader |
 | **Mute / solo** | M removes a track from the saved mix (host and editors); S, and a guest's M, change only what you hear | `timeline.tracks[].muted`; solo and listen-only mute are per-listener | Track headers, inspector, sheet (solid = saved, dashed = only you) |
@@ -205,9 +205,13 @@ retains point focus without opening the inspector. Only the owning pointer can
 complete the drag. A click selects on release; a changed save selects on success. A completed save remains in flight until
 it settles, and History Undo restores the saved edit.
 
-If a selected envelope point changes in another tab before Apply or Delete,
-the inspector asks the user to select it again instead of editing a different
-point at the same timeline position.
+Select a track and choose **Add volume envelope** or **Edit volume envelope**
+to open its point list without creating automation. **Add point** and
+**Edit point** open numeric drafts; Cancel or form Escape discards them.
+Save and Delete are undoable; removing the last point restores unity automation.
+Points keep their IDs when time sorting changes. If the envelope changes while
+a draft is open, saving is refused and **Discard draft and reload points**
+loads the current list. Shares can view the workspace, but editing is host-only.
 
 If the words a transcript correction, Suppress, or Ignore targets change (another tab, a
 guest, or an agent) before it lands, an edit that carries the text it expected is refused

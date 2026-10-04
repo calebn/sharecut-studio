@@ -15,6 +15,7 @@ import type {
   SessionSelection,
 } from "../types/session";
 import { Avatar } from "../ui/Avatar";
+import { sortedVolumePoints } from "../utils/envelopes";
 import { transcriptWordRange } from "../utils/transcript";
 
 export type PresenceOverlayViewProps = {
@@ -153,13 +154,14 @@ function selectionBox(
     }
     return { left: sel.time, width: 0, top: idx * laneHeight, minPx: POINT_PX };
   }
-  if (sel.kind === "envelopePoint" && sel.track_id && sel.time != null) {
+  if (sel.kind === "envelopePoint" && sel.track_id && sel.id) {
     const idx = tracks.findIndex((t) => t.id === sel.track_id);
-    if (idx < 0) {
-      return null;
-    }
+    const point = sortedVolumePoints(project?.envelopes, sel.track_id).find(
+      (item) => item.id === sel.id,
+    );
+    if (idx < 0 || !point) return null;
     return {
-      left: sel.time,
+      left: point.time,
       width: 0,
       top: idx * laneHeight,
       minPx: ENVELOPE_POINT_PX,

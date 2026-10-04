@@ -2122,6 +2122,7 @@
             "type": "string"
           },
           "time": {
+            "minimum": 0.0,
             "title": "Time",
             "type": "number"
           },
@@ -2198,6 +2199,7 @@
             "type": "string"
           },
           "time": {
+            "minimum": 0.0,
             "title": "Time",
             "type": "number"
           },

@@ -282,6 +282,7 @@ describe("useFollowUi", () => {
           {
             selection: {
               kind: "envelopePoint",
+              id: "late",
               track_id: "host",
               time: 4,
             },
@@ -293,7 +294,7 @@ describe("useFollowUi", () => {
     expect(useDawStore.getState().selection).toEqual({
       kind: "envelopePoint",
       trackId: "host",
-      index: 1,
+      pointId: "late",
     });
     expect(useDawStore.getState().layers.showLevels).toBe(true);
     expect(useDawStore.getState().followingClientId).toBe("a");

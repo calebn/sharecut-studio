@@ -64,18 +64,57 @@ describe("selection wire", () => {
     expect(selectionFromWire(wire)).toEqual(local);
   });
 
-  it("round-trips envelopePoint by time", () => {
+  it("round-trips envelopePoint by exact ID", () => {
     const local = {
       kind: "envelopePoint" as const,
       trackId: "host",
-      index: 2,
+      pointId: "c",
     };
     const wire = selectionToWire(local, envelopes);
     expect(wire).toEqual({
       kind: "envelopePoint",
       track_id: "host",
+      id: "c",
       time: 9,
     });
     expect(selectionFromWire(wire, envelopes)).toEqual(local);
+  });
+});
+
+it("does not recover a missing point by matching or nearby time", () => {
+  expect(
+    selectionFromWire(
+      { kind: "envelopePoint", track_id: "host", time: 4 },
+      envelopes,
+    ),
+  ).toBeNull();
+  expect(
+    selectionFromWire(
+      { kind: "envelopePoint", track_id: "host", id: "missing", time: 4 },
+      envelopes,
+    ),
+  ).toBeNull();
+});
+it("keeps coincident points distinct and resolves current time by ID", () => {
+  const tied = [
+    {
+      ...envelopes[0]!,
+      points: [
+        { id: "a", time: 4, value: 1 },
+        { id: "b", time: 4, value: 0.5 },
+      ],
+    },
+  ];
+  expect(
+    selectionFromWire(
+      { kind: "envelopePoint", track_id: "host", id: "b", time: 100 },
+      tied,
+    ),
+  ).toEqual({ kind: "envelopePoint", trackId: "host", pointId: "b" });
+});
+it("projects the local workspace as track presence without creating a point", () => {
+  expect(selectionToWire({ kind: "envelope", trackId: "host" }, [])).toEqual({
+    kind: "track",
+    track_id: "host",
   });
 });

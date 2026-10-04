@@ -360,6 +360,7 @@ describe("PresenceOverlayView", () => {
               display_name: "Ada",
               selection: {
                 kind: "envelopePoint",
+                id: "late",
                 track_id: "host",
                 time: 4,
               },

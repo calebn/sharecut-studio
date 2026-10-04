@@ -22,14 +22,15 @@ const meta: Meta<typeof EnvelopeOverlayView> = {
   decorators: [timelineLaneStoryDecorator],
   args: {
     points,
+    baselinePoints: points,
     zoomPxPerSec: 40,
     width: 640,
     height: 72,
     visibleChunks: [0, 0],
     editable: true,
-    selectedIndex: null,
+    selectedPointId: null,
     onSelectTrack: fn(),
-    onSelectPoint: fn(),
+    captureSelection: fn(() => fn()),
     onCommitPoints: fn(() => Promise.resolve({})),
     onCommitError: fn(),
   },
@@ -47,13 +48,13 @@ export const Editable: Story = {
     });
     point.focus();
     await userEvent.keyboard("{Enter}");
-    await expect(args.onSelectPoint).toHaveBeenCalledWith(1);
+    await expect(args.captureSelection).toHaveBeenCalled();
     await expect(args.onCommitPoints).not.toHaveBeenCalled();
   },
 };
 
 export const Selected: Story = {
-  args: { selectedIndex: 1 },
+  args: { selectedPointId: "b" },
   play: async ({ canvasElement }) => {
     const circles = canvasElement.querySelectorAll("circle");
     await expect(circles[1]).toHaveAttribute("r", "7");

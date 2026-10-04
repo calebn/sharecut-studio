@@ -394,7 +394,8 @@ export type Selection =
       startWordIndex: number;
       endWordIndex: number;
     }
-  | { kind: "envelopePoint"; trackId: string; index: number }
+  | { kind: "envelope"; trackId: string }
+  | { kind: "envelopePoint"; trackId: string; pointId: string }
   | null;
 
 export interface HistoryDiff {
