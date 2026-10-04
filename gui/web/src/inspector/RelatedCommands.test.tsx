@@ -109,15 +109,11 @@ describe("RelatedCommands", () => {
     expect(container.textContent).toBe("");
   });
 
-  it("keeps a truthful More zone for selections without a related command", () => {
+  it("omits command chrome when the selection has no command actions", () => {
     const selection = { kind: "comment" as const, id: "note" };
     useDawStore.getState().setSelection(selection);
-    render(<RelatedCommands selection={selection} />);
-    expect(screen.queryByText("You might also want…")).toBeNull();
-    expect(screen.getByText("More")).toBeInTheDocument();
-    expect(
-      screen.getByText("No additional actions for this selection."),
-    ).toBeInTheDocument();
+    const { container } = render(<RelatedCommands selection={selection} />);
+    expect(container.textContent).toBe("");
   });
 
   it("offers only available track directions and updates after selection changes", () => {
@@ -153,7 +149,14 @@ describe("RelatedCommands", () => {
     expect(screen.getByRole("button", { name: "Cut" })).toBeEnabled();
   });
 
-  it("does not offer track reordering to a view guest", () => {
+  it("omits command chrome for a pending selection", () => {
+    const selection = { kind: "pending" as const, id: "e1", trackId: "t1" };
+    useDawStore.getState().setSelection(selection);
+    const { container } = render(<RelatedCommands selection={selection} />);
+    expect(container.textContent).toBe("");
+  });
+
+  it("omits track command chrome for a view guest", () => {
     useDawStore.setState({
       projectPath: "share:token",
       guestMode: "view",
@@ -161,11 +164,8 @@ describe("RelatedCommands", () => {
     });
     const selection = { kind: "track" as const, trackId: "t1" };
     useDawStore.getState().setSelection(selection);
-    render(<RelatedCommands selection={selection} />);
-    expect(screen.queryByRole("button", { name: /move track/i })).toBeNull();
-    expect(
-      screen.getByText("No additional actions for this selection."),
-    ).toBeInTheDocument();
+    const { container } = render(<RelatedCommands selection={selection} />);
+    expect(container.textContent).toBe("");
   });
 
   it("rejects stale or missing selections in overflow", () => {

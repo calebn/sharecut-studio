@@ -56,12 +56,13 @@ The selection sheet groups actions in this order:
 
 1. **Details** — the inspector for what you selected
 2. **You might also want…** — related commands when available
-3. **More** — available clip Cut or track Move up/down actions, or a message when none are available
+3. **More** — available clip Cut or track Move up/down actions. Selections with no related or overflow actions omit the command region.
 
-Phone inspectors use Expand/Collapse for panel space. Desktop and tablet use a
-resize separator above the editor panels. Escape cancels its current preview and
-restores the previous panel preference, including the default when none was saved.
-These view changes do not add project History.
+Phone and tablet inspector sheets use visible Expand/Collapse buttons for panel
+space; the sheet has no drag handle. Desktop and tablet editor panels use a
+resize separator. Escape cancels the separator's current preview and restores
+the previous panel preference, including the default when none was saved. These
+view changes do not add project History.
 
 Escape also cancels an active clip body or chapter/social marker preview.
 Canceled pointer ownership cannot save on later held movement or release.
@@ -75,7 +76,7 @@ transport Menu on Timeline, Text, or More.
 
 | Gesture | What it does |
 |---------|--------------|
-| **Two-finger tap** | Undo |
+| **Two-finger tap** | Optional Sharecut shortcut for Undo |
 | **Pinch** | Zoom the timeline in/out |
 | **Long-press** | Open the selection sheet for a comment or track, or correct a transcript word (hosts) |
 | **Swipe left on comment** | Resolve an open comment in the list (hosts). The card slides with your finger; **Undo** appears for a few seconds afterwards (for the most recent one only). The toast stays reachable as the Comments list scrolls. Closing it with keyboard focus inside returns focus to Comments without scrolling |
@@ -108,7 +109,7 @@ The phone layout groups controls by task so they fit a smaller screen.
 
 - **Listen mode** is the fastest way to review. Play through and open **More → Comments** to use the comment tools.
 - **Text mode** with "Follow" on will highlight words as the audio plays — great for catching transcript errors.
-- If you make a mistake, **two-finger tap** to undo. No need to find the button.
+- If enabled, **two-finger tap** can undo your last action. History is also under More.
 
 ### Mix tracks from More
 
