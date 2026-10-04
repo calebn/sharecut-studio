@@ -1,7 +1,11 @@
-import { memo, type ReactNode, useRef } from "react";
+import { memo, type ReactNode, useCallback, useEffect, useRef } from "react";
 import { presenceAnchor, presenceAnchorProps } from "../presence/anchors";
 import { clampToSession, formatRulerTime, niceTimeStep } from "../utils/time";
 import { MIN_TIMELINE_WIDTH_PX } from "../utils/timelineViewport";
+import type {
+  CommentAnchorGesture,
+  CommentAnchorSession,
+} from "./commentAnchorSession";
 import {
   estimateRulerLabelWidthPx,
   RULER_END_EDGE_PX,
@@ -28,7 +32,7 @@ export interface TimeRulerViewProps {
   onSeek: (sec: number) => void;
   onFit?: () => void;
   commentMode?: boolean;
-  onCommentAnchor?: (startSec: number, endSec: number | null) => void;
+  commentGesture?: CommentAnchorGesture;
   /** Display value may be throttled while audio is playing. */
   valueSec: number;
   /** Reads the precise current position when a keyboard step is requested. */
@@ -99,7 +103,7 @@ export function TimeRulerView({
   onSeek,
   onFit,
   commentMode = false,
-  onCommentAnchor,
+  commentGesture,
   valueSec,
   getPlayheadSec,
   visibleChunks,
@@ -109,7 +113,26 @@ export function TimeRulerView({
   const majorStep = niceTimeStep(zoomPxPerSec);
   const sessionEnd = Math.max(0, sessionDurationSec);
 
-  const dragStart = useRef<number | null>(null);
+  const drag = useRef<{
+    pointerId: number;
+    target: HTMLElement;
+    startSec: number;
+    session: CommentAnchorSession;
+  } | null>(null);
+  const cancelDrag = useCallback(() => {
+    const owner = drag.current;
+    if (!owner) return;
+    drag.current = null;
+    owner.session.cancel();
+    try {
+      if (owner.target.hasPointerCapture(owner.pointerId))
+        owner.target.releasePointerCapture(owner.pointerId);
+    } catch {}
+  }, []);
+  useEffect(() => cancelDrag, [cancelDrag, commentGesture]);
+  useEffect(() => {
+    if (!commentMode) cancelDrag();
+  }, [commentMode, cancelDrag]);
 
   const secFromEvent = (el: HTMLElement, clientX: number) => {
     const rect = el.getBoundingClientRect();
@@ -141,15 +164,19 @@ export function TimeRulerView({
         const playheadSec = getPlayheadSec();
         if (e.key === "ArrowLeft") {
           e.preventDefault();
+          e.stopPropagation();
           onSeek(Math.max(0, playheadSec - step));
         } else if (e.key === "ArrowRight") {
           e.preventDefault();
+          e.stopPropagation();
           onSeek(Math.min(durationSec, playheadSec + step));
         } else if (e.key === "Home") {
           e.preventDefault();
+          e.stopPropagation();
           onSeek(0);
         } else if (e.key === "End") {
           e.preventDefault();
+          e.stopPropagation();
           onSeek(sessionEnd);
         }
       }}
@@ -161,43 +188,73 @@ export function TimeRulerView({
         onFit?.();
       }}
       onPointerDown={(e) => {
-        if (!commentMode || !onCommentAnchor) {
+        if (
+          !commentMode ||
+          !commentGesture ||
+          drag.current ||
+          e.button !== 0 ||
+          !e.isPrimary
+        )
+          return;
+        const target = e.currentTarget;
+        try {
+          target.setPointerCapture(e.pointerId);
+        } catch {
           return;
         }
-        e.currentTarget.setPointerCapture(e.pointerId);
-        const sec = secFromEvent(e.currentTarget, e.clientX);
-        dragStart.current = sec;
-        onCommentAnchor(sec, null);
-        onSeek(sec);
+        const session = commentGesture.begin(cancelDrag);
+        if (!session) {
+          target.releasePointerCapture(e.pointerId);
+          return;
+        }
+        const sec = secFromEvent(target, e.clientX);
+        drag.current = {
+          pointerId: e.pointerId,
+          target,
+          startSec: sec,
+          session,
+        };
+        session.preview({ startSec: sec, endSec: null });
+        if (drag.current) onSeek(sec);
       }}
       onPointerMove={(e) => {
-        if (!commentMode || !onCommentAnchor || dragStart.current == null) {
-          return;
-        }
-        const sec = secFromEvent(e.currentTarget, e.clientX);
-        const a = dragStart.current;
-        const start = Math.min(a, sec);
-        const end = Math.max(a, sec);
-        if ((end - start) * zoomPxPerSec < COMMENT_SPAN_MIN_PX) {
-          onCommentAnchor(start, null);
-        } else {
-          onCommentAnchor(start, end);
-        }
+        const owner = drag.current;
+        if (!owner || owner.pointerId !== e.pointerId) return;
+        const sec = secFromEvent(owner.target, e.clientX);
+        const startSec = Math.min(owner.startSec, sec);
+        const endSec = Math.max(owner.startSec, sec);
+        owner.session.preview({
+          startSec,
+          endSec:
+            (endSec - startSec) * zoomPxPerSec < COMMENT_SPAN_MIN_PX
+              ? null
+              : endSec,
+        });
       }}
       onPointerUp={(e) => {
-        if (!commentMode || !onCommentAnchor || dragStart.current == null) {
-          return;
-        }
-        const sec = secFromEvent(e.currentTarget, e.clientX);
-        const a = dragStart.current;
-        dragStart.current = null;
-        const start = Math.min(a, sec);
-        const end = Math.max(a, sec);
-        if ((end - start) * zoomPxPerSec < COMMENT_SPAN_MIN_PX) {
-          onCommentAnchor(start, null);
-        } else {
-          onCommentAnchor(start, end);
-        }
+        const owner = drag.current;
+        if (!owner || owner.pointerId !== e.pointerId) return;
+        const sec = secFromEvent(owner.target, e.clientX);
+        const startSec = Math.min(owner.startSec, sec);
+        const endSec = Math.max(owner.startSec, sec);
+        drag.current = null;
+        owner.session.finish({
+          startSec,
+          endSec:
+            (endSec - startSec) * zoomPxPerSec < COMMENT_SPAN_MIN_PX
+              ? null
+              : endSec,
+        });
+        try {
+          if (owner.target.hasPointerCapture(owner.pointerId))
+            owner.target.releasePointerCapture(owner.pointerId);
+        } catch {}
+      }}
+      onPointerCancel={(e) => {
+        if (drag.current?.pointerId === e.pointerId) cancelDrag();
+      }}
+      onLostPointerCapture={(e) => {
+        if (drag.current?.pointerId === e.pointerId) cancelDrag();
       }}
       title={
         commentMode

@@ -1,7 +1,11 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
+import { useDawKeymapListener } from "../keymap/listener";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
+import { minimalProject } from "../test/fixtures";
 import { PlayheadNeedle } from "./PlayheadNeedle";
 import { TimeRuler } from "./TimeRuler";
 import { TimeRulerView } from "./TimeRulerView";
@@ -201,4 +205,42 @@ describe("TimeRulerView", () => {
       ticks.every((tick) => Number.parseFloat(tick.style.left) >= 488 * 2048),
     ).toBe(true);
   });
+});
+
+function ConnectedRuler() {
+  useDawKeymapListener();
+  return (
+    <TimeRuler
+      durationSec={200}
+      sessionDurationSec={60}
+      zoomPxPerSec={5}
+      onSeek={useDawStore.getState().setPlayheadSec}
+    />
+  );
+}
+
+it("owns ruler steps while preserving the real global arrow command elsewhere", async () => {
+  clearRegisteredCommands();
+  registerDawCommands();
+  useDawStore.getState().hydrate("/tmp/ruler-keys", minimalProject());
+  const { unmount } = render(<ConnectedRuler />);
+  try {
+    const slider = screen.getByRole("slider");
+    fireEvent.keyDown(slider, { key: "Home", code: "Home" });
+    fireEvent.keyDown(slider, { key: "ArrowRight", code: "ArrowRight" });
+    expect(useDawStore.getState().playheadSec).toBe(15);
+    fireEvent.keyDown(slider, { key: "ArrowLeft", code: "ArrowLeft" });
+    expect(useDawStore.getState().playheadSec).toBe(0);
+    fireEvent.keyDown(slider, { key: "End", code: "End" });
+    expect(useDawStore.getState().playheadSec).toBe(60);
+    act(() => useDawStore.getState().setPlayheadSec(0));
+    fireEvent.keyDown(document.body, { key: "ArrowRight", code: "ArrowRight" });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(useDawStore.getState().playheadSec).toBe(1);
+  } finally {
+    unmount();
+    clearRegisteredCommands();
+  }
 });
