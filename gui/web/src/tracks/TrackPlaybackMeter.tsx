@@ -126,7 +126,7 @@ export function TrackPlaybackMeter({
       )}
       <button
         type="button"
-        className="track-clip-clear"
+        className={`track-clip-clear${inspector ? " ui-control" : ""}`}
         aria-label={`Clear clip light for ${label}`}
         title={
           clipped
