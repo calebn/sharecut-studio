@@ -25,6 +25,23 @@ regression checks visible geometry and terminal fill without injecting styles.
 See [editor responsiveness profiling](testing.md#large-project-browser-profile-opt-in)
 for the separate real-job and controlled-replay measurements.
 
+The opt-in passive native-progress observer records genuine POST, native SSE
+network receipt, browser status inputs, DOM mutation batches and sampled layout.
+It does not replay producer history, force an initial zero, or require artificial
+dwell for a fast job. Its diagnostic protocol is separate from the legacy
+three-state measurement and from performance acceptance. See
+[profiling instructions](testing.md#large-project-browser-profile-opt-in).
+
+The retained normal/reduced native observations completed real Compress/Balance
+and captured 0/50/100 DOM states, but all sampled bars were outside their panel's
+clip. Keeping an 8 px bar prevents flex collapse; it does not make offscreen
+content visible. Native network receipt, status inputs, DOM mutation and sampled
+layout are separate evidence channels, not render commits or compositor paints.
+The observer's overhead and natural producer sent cadence remain unmeasured.
+These findings do not justify a fill-width rewrite, artificial job dwell, or a
+new three-visible-state requirement. The original replay and real-job outcomes
+remain separate in the [retained findings](testing.md#retained-responsiveness-findings-879).
+
 ## API
 
 Domain and pipeline steps use a contextvar reporter. Adapters inject it at choke points.

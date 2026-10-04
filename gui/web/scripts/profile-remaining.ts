@@ -12,6 +12,7 @@ const { values } = parseArgs({
     out: { type: "string" },
     scene: { type: "string" },
     trace: { type: "boolean", default: false },
+    "keep-fixture": { type: "boolean", default: false },
   },
 });
 const scenes = [
@@ -31,7 +32,7 @@ if (
   (values.scene && !scenes.includes(values.scene))
 )
   throw new Error(
-    "Usage: profile:remaining -- --preset small|large --repeat N --out NEW_DIRECTORY [--scene NAME] [--trace]",
+    "Usage: profile:remaining -- --preset small|large --repeat N --out NEW_DIRECTORY [--scene NAME] [--trace] [--keep-fixture]",
   );
 const output = path.resolve(values.out);
 if (fs.existsSync(output))
@@ -98,7 +99,8 @@ for (let repeat = 1; repeat <= Number(values.repeat); repeat++) {
       () => acquireE2ePortLease(leaseEnv),
     );
     failed ||= code !== 0;
-    if (code === 0) fs.rmSync(fixture, { recursive: true, force: true });
+    if (code === 0 && !values["keep-fixture"])
+      fs.rmSync(fixture, { recursive: true, force: true });
   }
 }
 fs.writeFileSync(

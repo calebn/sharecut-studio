@@ -808,6 +808,47 @@ processing. A job that finishes without sufficient visible changes remains
 an incomplete measurement. The default `pipeline-progress.spec.ts` regression
 checks short-panel geometry and both motion modes without injecting CSS.
 
+The opt-in `native-progress-passive-v2` observer is a separate diagnostic
+revision. Preserve the legacy real-job three-state predicate and its invalid or
+unstable historical results. To exercise the revised observer on one fresh small
+fixture, use the ordinary remaining-workload runner with explicit environment:
+
+```sh
+DAW_PROFILE_NATIVE_OBSERVER=passive-v2 DAW_PROFILE_NATIVE_MOTION=normal npm --prefix gui/web run profile:remaining -- --preset small --scene progress-real --out /tmp/native-progress-normal
+DAW_PROFILE_NATIVE_OBSERVER=passive-v2 DAW_PROFILE_NATIVE_MOTION=reduce npm --prefix gui/web run profile:remaining -- --preset small --scene progress-real --out /tmp/native-progress-reduced
+```
+
+The new protocol records the actual POST snapshot, passive CDP native EventSource
+message receipt, passively available browser status responses, raw DOM mutation
+batches, indeterminate presence, bar generations, and event-triggered first/last
+sampled geometry with viewport, ancestor clipping and CSS visibility exclusions.
+Nonrectangular masks/clips and capped ancestor inspection are explicit unknowns;
+style and layout reads are counted. Caps bound retained records and parsing,
+not the transient already-materialized CDP strings or browser response bodies;
+up to 32 response-body reads can be pending. Missing native receipt, meaningful DOM, or
+geometry channels remains incomplete even when backend processing succeeds. Network receipt is not application acceptance;
+DOM mutations are not React render commits or compositor paints. Clock domains
+remain separate, and network/page cutoff timestamps prohibit absence joins
+outside a demonstrated common observation window. Bounded or unavailable channels make causal conclusions
+inconclusive. It prepositions the existing shortcut region, focuses the actual
+Run control without scrolling, and activates it through keyboard Enter; no
+post-start scroll or fabricated zero/dwell changes the natural job. Successful
+processing and retained observation are separate from a three-visible-state
+pass. Project/config hashes and resulting project/artifact references are
+captured outside the action because Compress/Balance legitimately changes state.
+
+`DAW_PROFILE_NATIVE_OBSERVER=control-v2` uses the same preparation, native action,
+terminal polling, and enabled Network domain without the added collector. Its
+observations are a control, not native-progress causal evidence. Use this only in
+a predeclared AB/BA overhead experiment; raw paired wall/CDP values do not prove
+negligible overhead or an acceptable latency. Observer settings are recorded in
+`protocol.nativeObserver`, so legacy and revised reports are incompatible for
+frozen-budget application. Initial diagnostic allocation is exactly one normal
+and one reduced small attempt, retained without replacements. Tests, source/build
+pins and the campaign manifest were frozen for the two retained natural runs.
+Their observed clipping and unmeasured overhead are summarized below; legacy
+three-state budgets remain separate.
+
 Each report has a distinct execution ID and start time. Missing required
 coverage, failed validity, or metadata/retention errors preserves the partial
 report and fails the supplemental run. Failed fixtures and per-scene Playwright
@@ -857,7 +898,8 @@ replay was not run: an attempt attached the real consumer, but the rendered bar
 had zero computed height before and after ordinary panel resizing. Its failed reports and geometry
 were retained; no progress width-transition cost was measured in that original
 slice. Supplemental v2 uses the separate drivers above, with native touch still
-unavailable. The 0.5rem geometry fix establishes visibility, not a speedup; the
+unavailable. The 0.5rem fix prevents flex-height collapse; it does not guarantee that a bar
+is inside an ancestor's visible clip or establish a speedup; the
 original suite adds no production telemetry or timing CI gate. Silent
 media, ready pyramids, uncontrolled OS/server caches, and desktop Chromium do not
 establish audio quality, cold decoding, physical-device behavior, or Safari parity.
@@ -865,6 +907,91 @@ establish audio quality, cold decoding, physical-device behavior, or Safari pari
 `make test` builds a two-minute fixture; the full two-hour shape is checked by
 `test_large_project_fixture_default_two_hour_shape` under the `e2e_real`
 marker (`make e2e-real`).
+
+### Retained responsiveness findings (#879)
+
+The retained desktop Chromium measurements establish workload coverage, not a
+latency SLA. Small fixtures use 120 seconds/24 clips/200 utterances; large uses
+7200 seconds/1200 clips/10000 utterances. Reports retain their machine, browser,
+source, served assets, viewport and resource identities. Driver wall time is not
+input latency, rAF intervals are not displayed FPS, and overlapping CDP counters
+must not be summed.
+
+Eight original supplemental workload budgets validated against their independent
+holdouts. Both original `editor-response-v1` budgets remained unstable. Applying
+those unchanged budgets to the later control revision produced six within-envelope
+results, two diagnostic exceedances and two unusable v1 comparisons. Small clip
+save wall time was 327.230953 ms against 313.364891 ms; small boundary preview rAF
+p95 was 16.8 ms against 16.7 ms. These remain literal observations, without
+rounding away failures, recalibration or favorable replacement runs. The limits
+are local reproducibility diagnostics, not acceptable-UX targets.
+
+Large full-source cold loading took 69.8–79.8 seconds across the original five
+runs, 77.4 seconds in holdout and 77.729 seconds in the later control. Its frozen
+rAF p95 limit was 1433.1 ms. This is a material responsiveness finding despite
+being within a broad local envelope. The window includes canonical preparation,
+real full-source pyramid generation and detailed canvas readiness; it is not a
+pure decoder benchmark or fit-zoom first paint.
+
+Bounded repeated-use checks also retain positive heap growth. In the first small
+baseline, scrub rounds 1→20 (ten keys each) changed post-GC heap from
+10,244,464 to 11,210,432 bytes (+965,968), with 752 DOM nodes at both endpoints.
+The first large baseline changed 68,653,164→74,851,876 bytes (+6,198,712), with
+8760→8755 nodes. These are specific within-endurance examples, distinct from
+whole-run final-minus-initial growth metrics and first load. They establish
+neither a leak nor a memory plateau, and do not cover native/audio/GPU memory.
+Playback in Original mode separately retained media responses, advancing clocks,
+nonzero graph meters and Pause; it does not establish heard quality or device
+latency.
+
+The pipeline flex-bar correction changed the reproduced zero-height bar to its
+8 px default height; responsive consumer regressions cover normal/reduced
+motion. Four replay cohorts (small/large × normal/reduced) validated, with thirty
+scheduled/delivered snapshots and nominal 50 ms scheduling. Replay is synthetic
+transport through the real consumer, not backend cadence. The legacy small real
+job completed processing but observed only 50/100 percent, so its three-state
+measurement remains invalid. The large real-job holdout exceeded its CDP task
+limit (9676.412 > 9639.009 ms), so that budget remains unstable.
+
+The separate passive native observer later captured genuine Compress/Balance
+in one normal and one reduced small run, eighteen native receipts each, with
+0/50/100 DOM states. Both retained complete-in-window observations, but every
+sampled bar was below its panel clip (top 724.594 px; clipping bottom 684 px).
+These samples prove neither visible progress nor its absence in every layout.
+POST, native SSE receipt, consumer status, driver status, mutation and sampled
+layout remain distinct channels; receipt is not consumption, mutation is not a
+React commit, and layout is not compositor presentation. Producer sent count/
+cadence and collector overhead remain unmeasured. No forced dwell, fabricated
+zero or additional three-visible-state campaign is needed to relabel the old
+results. Width-transition optimization is unsupported by the retained profile.
+
+A separate renderer prototype was **rejected from the final change** because
+native correctness validation was incomplete. Its one marked warm A→B diagnostic
+pair measured 3374.567→2621.260 ms complete wall and
+1537.936→1116.014 ms style/layout union. The union covers
+Layout/UpdateLayoutTree/RecalculateStyles, not all main-thread work. One A-first
+pair with uncontrolled OS caches/order is not a statistical speedup; one
+post-workload heap checkpoint per arm cannot establish growth.
+
+The v4 desktop A/B sequence passed with matching retained control/geometry
+checkpoints, clip mutation/Undo, and terminal screenshots. In v5, baseline A-phone
+passed the initial, far-focus and selected-offscreen checkpoints, then failed the
+held fade-preview focus assertion. Its evidence contains one submitted
+SetClipFade request and no accepted-response receipt. Separately retained saved
+first-clip and history records show a persisted 1 ms fade: history cursor 400,
+401 entries, with current operation `set_clip_fade`. Candidate B-phone did not
+run, so no candidate focus
+regression or successful phone comparison is established. The cause remains
+unproven. The matched canonical D0 cold comparison was source-prepared but not
+run. There is no production renderer gain, completed cold comparison, or pending
+optimization promise to infer from this rejected experiment. Historical cold
+measurements and frozen budgets remain unchanged.
+
+These opt-in diagnostics measure defined editor workloads and retain provenance,
+raw observations and adverse findings. The commands above reproduce those
+workloads and apply frozen local budgets without recalibration. Slow, unstable,
+clipped or unavailable observations remain part of the record; they do not become
+acceptable UX merely because a run completes or fits a local envelope.
 
 ## CI
 
