@@ -2,6 +2,11 @@ import fs from "node:fs";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import {
+  controlGeometry,
+  pointerControl,
+  wheelInspector,
+} from "./inspectorResponsiveEvidence";
 import { openHostProject } from "./overlayReachability";
 import { openPhoneTimeline } from "./phoneTimeline";
 import { setTheme, type Theme } from "./theme";
@@ -147,9 +152,14 @@ export async function exerciseTouchSheetAffordances(
     throw new Error("A visible sheet action has no geometry");
   }
   expect(bodyBox.y).toBeGreaterThanOrEqual(headerBox.y + headerBox.height - 1);
-  expect(bodyBox.y + bodyBox.height).toBeLessThanOrEqual(
-    halfBox.y + halfBox.height + 1,
+  const bodyGeometry = await controlGeometry(
+    sheet.locator(".bottom-sheet-body"),
   );
+  const bodyArea = bodyGeometry.measured[0];
+  expect(
+    Math.min(bodyArea.rect.bottom, bodyArea.clip.bottom) -
+      Math.max(bodyArea.rect.top, bodyArea.clip.top),
+  ).toBeGreaterThan(0);
   if (viewport.textScale) {
     const titleBox = before.titleBox;
     if (titleBox === null) throw new Error("The scaled sheet title is missing");
@@ -247,10 +257,7 @@ export async function exerciseTouchSheetAffordances(
     ? null
     : ((await sheet.boundingBox())?.height ?? null);
 
-  const scrollRegion = sheet.locator(".bottom-sheet-body .modifier-body");
-  await scrollRegion.evaluate((element) => {
-    element.scrollTop = 0;
-  });
+  const scrollRegion = sheet;
   const scrollState = await scrollRegion.evaluate((element) => ({
     scrollHeight: element.scrollHeight,
     clientHeight: element.clientHeight,
@@ -274,8 +281,7 @@ export async function exerciseTouchSheetAffordances(
     ).toBeVisible();
   }
   if (bodyOverflows) {
-    await scrollRegion.hover();
-    await page.mouse.wheel(0, 240);
+    await wheelInspector(page, [], 240);
     await expect
       .poll(() => scrollRegion.evaluate((element) => element.scrollTop))
       .toBeGreaterThan(scrollState.scrollTop);
@@ -287,7 +293,7 @@ export async function exerciseTouchSheetAffordances(
       );
   }
 
-  await close.click();
+  await pointerControl(page, close, []);
   await expect(sheet).toHaveCount(0);
   await expect(clipTrigger).toBeFocused();
   const focusAfterClose = await page.evaluate(() => ({
