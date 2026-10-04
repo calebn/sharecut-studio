@@ -122,7 +122,7 @@ test("passive native collector retains network and between-frame DOM evidence", 
   }
 });
 
-test("collector excludes actual ancestor clipping then samples after native scroll", async ({
+test("collector excludes actual ancestor clipping then samples after scripted scroll", async ({
   page,
 }) => {
   await page.goto("/api/health");
