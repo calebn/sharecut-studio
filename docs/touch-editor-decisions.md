@@ -177,7 +177,9 @@ Historical center hit-testing is not full-control visibility.
 
 Independent designs and a cross-review chose one scroll owner for inspector
 sheets, including chrome and all modifier content, with natural-height fields.
-The retained inner-scrollport alternative adds two positions to coordinate and
+The shared modifier styles also put desktop fields and errors in natural flow;
+the desktop inspector aside owns their scrolling. The retained inner-scrollport
+alternative adds two positions to coordinate and
 cannot guarantee a complete enlarged field group in short landscape. Focus
 reveal stays inside the current sheet or desktop inspector. Track identity and
 clear-clip entry need disjoint regions sized through the common lane geometry.
