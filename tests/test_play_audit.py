@@ -335,12 +335,17 @@ def test_reconciliation_fingerprint_ignores_music_envelopes(tmp_path) -> None:
     project.automation_envelopes = [
         AutomationEnvelope(
             track_id="bed",
-            points=[AutomationPoint(time=0.0, value=0.0), AutomationPoint(time=2.0, value=1.0)],
+            points=[
+                AutomationPoint(id="test-point-0", time=0.0, value=0.0),
+                AutomationPoint(id="test-point-1", time=2.0, value=1.0),
+            ],
         )
     ]
     assert audio_state_fingerprint(project) == before
     project.automation_envelopes.append(
-        AutomationEnvelope(track_id="host", points=[AutomationPoint(time=0.0, value=0.5)])
+        AutomationEnvelope(
+            track_id="host", points=[AutomationPoint(id="test-point-2", time=0.0, value=0.5)]
+        )
     )
     assert audio_state_fingerprint(project) != before
 

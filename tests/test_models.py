@@ -35,52 +35,47 @@ def test_speaker_ingest_alignment_shift_round_trip():
 
 
 def test_automation_point_id_is_stable():
-    point = AutomationPoint(time=0.0, value=1.0)
+    point = AutomationPoint(id="point", time=0.0, value=1.0)
     assert point.id
     with pytest.raises(ValueError, match="Field is frozen"):
         point.id = "different"
 
 
-def test_legacy_envelope_points_get_stable_distinct_ids():
-    legacy = {
-        "track_id": "host",
-        "points": [
-            {"time": 0.0, "value": 1.0},
-            {"time": 0.0, "value": 1.0},
-        ],
-    }
-    first = AutomationEnvelope.model_validate(legacy)
-    second = AutomationEnvelope.model_validate(legacy)
-    first_ids = [point.id for point in first.points]
-    assert first_ids == [point.id for point in second.points]
-    assert len(set(first_ids)) == 2
-    assert all(first_ids)
+def test_serialized_envelope_points_require_ids():
+    with pytest.raises(ValueError, match="id"):
+        AutomationEnvelope.model_validate(
+            {
+                "track_id": "host",
+                "points": [{"time": 0, "value": 1}],
+            }
+        )
 
 
-def test_load_legacy_envelope_ids_stay_stable_until_saved(minimal_project):
-    raw = json.loads(minimal_project.read_text(encoding="utf-8"))
+def test_saved_envelope_ids_round_trip_and_missing_ids_fail(envelope_project):
+    raw = json.loads(envelope_project.read_text(encoding="utf-8"))
     raw["mix"]["automation_envelopes"] = [
         {
             "track_id": "host",
-            "points": [{"time": 0.0, "value": 1.0}, {"time": 5.0, "value": 0.5}],
+            "points": [
+                {"id": "first", "time": 0, "value": 1},
+                {"id": "last", "time": 5, "value": 0.5},
+            ],
         }
     ]
-    minimal_project.write_text(json.dumps(raw), encoding="utf-8")
-
-    first = load_project(minimal_project)
-    second = load_project(minimal_project)
-    ids = [point.id for point in first.automation_envelopes[0].points]
-    assert ids == [point.id for point in second.automation_envelopes[0].points]
-    assert (
-        "id"
-        not in json.loads(minimal_project.read_text(encoding="utf-8"))["mix"][
-            "automation_envelopes"
-        ][0]["points"][0]
-    )
-
-    save_project(first, minimal_project)
-    stored = json.loads(minimal_project.read_text(encoding="utf-8"))
-    assert [point["id"] for point in stored["mix"]["automation_envelopes"][0]["points"]] == ids
+    envelope_project.write_text(json.dumps(raw), encoding="utf-8")
+    project = load_project(envelope_project)
+    assert [p.id for p in project.automation_envelopes[0].points] == ["first", "last"]
+    save_project(project, envelope_project)
+    assert [p.id for p in load_project(envelope_project).automation_envelopes[0].points] == [
+        "first",
+        "last",
+    ]
+    del raw["mix"]["automation_envelopes"][0]["points"][0]["id"]
+    envelope_project.write_text(json.dumps(raw), encoding="utf-8")
+    before = envelope_project.read_bytes()
+    with pytest.raises(ValueError, match="id"):
+        load_project(envelope_project)
+    assert envelope_project.read_bytes() == before
 
 
 def test_transcript_word_resolve_auto_suppression_honors_lock() -> None:

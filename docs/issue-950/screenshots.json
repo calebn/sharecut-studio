@@ -1,0 +1,31 @@
+{
+  "baseline": "Archived PR956 production GUI assets; current #950 backend. Visible entry/discoverability only, not baseline audio or protocol compatibility.",
+  "candidate": "Plain production GUI build; actual consumed JS/CSS response bodies matched frozen build bytes.",
+  "input": "Playwright native click API at desktop/phone emulated viewports; not physical touch.",
+  "files": {
+    "before-desktop.png": {
+      "sha256": "8be7ece05c7113674dcada5bc16057971908b5d318fceaa1057a3ea6a49a7fb0",
+      "scene": "950-impeccable-harness/runtime-first/baseline/baseline-desktop-light-track-entry.png"
+    },
+    "before-phone.png": {
+      "sha256": "fb3fb61ecdc187128d2712ff30cd85eae3c7b6880d9e67ddf8e3d8b2bdb9a6a0",
+      "scene": "950-impeccable-harness/runtime-first/baseline/baseline-phone-dark-track-entry.png"
+    },
+    "after-desktop-draft.png": {
+      "sha256": "bbd906e629836242870ce3ae47c0e71b268bb0716177ce80a0c116b3a705cd32",
+      "scene": "950-impeccable-assessment-a/A-desktop-light-draft.png"
+    },
+    "after-phone-empty.png": {
+      "sha256": "27b69cc36c856d0e67e11fed4f145c9ab915f10e88e6284047be3f5026f04684",
+      "scene": "950-impeccable-assessment-a/A-phone-dark-empty.png"
+    },
+    "after-phone-saved-edit.png": {
+      "sha256": "3ef2ed19264a1aa8925d65540f0a69990130cd035e01a401d69d56e3e8acb59e",
+      "scene": "gui-phone-dark-v6-evidence/populated-envelope-edit-draft.png"
+    },
+    "phone-root-font-200.png": {
+      "sha256": "42d7b6dd37c6fb95e71c43d7bf2fd41558dd1aefeaaf36651a3829b0aadd92a2",
+      "scene": "950-impeccable-assessment-a/A-phone-dark-rootfont200-after-scroll.png"
+    }
+  }
+}

@@ -6,7 +6,6 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal, SupportsIndex, TypeVar, cast
-from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -446,13 +445,9 @@ class SocialClipCandidate(BaseModel):
 
 
 class AutomationPoint(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid4()), min_length=1, frozen=True)
-    time: float
-    value: float
-
-
-# Parameters the renderer and GUI treat as the track's gain envelope ("" = legacy unset).
-VOLUME_ENVELOPE_PARAMETERS = frozenset({"volume", "gain", ""})
+    id: str = Field(min_length=1, frozen=True)
+    time: float = Field(ge=0, allow_inf_nan=False)
+    value: float = Field(allow_inf_nan=False)
 
 
 class AutomationEnvelope(BaseModel):
@@ -463,28 +458,7 @@ class AutomationEnvelope(BaseModel):
     @property
     def is_volume(self) -> bool:
         """True for the gain envelope that ``SetEnvelope`` and the renderer own."""
-        return self.parameter in VOLUME_ENVELOPE_PARAMETERS
-
-    @model_validator(mode="before")
-    @classmethod
-    def _stable_legacy_point_ids(cls, data: Any) -> Any:
-        if not isinstance(data, dict) or not isinstance(data.get("points"), list):
-            return data
-        points = [
-            {
-                **point,
-                "id": str(
-                    uuid5(
-                        NAMESPACE_URL,
-                        f"sharecut-envelope-point:{data.get('track_id')}:{data.get('parameter', 'volume')}:{index}",
-                    )
-                ),
-            }
-            if isinstance(point, dict) and "id" not in point
-            else point
-            for index, point in enumerate(data["points"])
-        ]
-        return {**data, "points": points}
+        return self.parameter == "volume"
 
     @model_validator(mode="after")
     def _unique_point_ids(self) -> AutomationEnvelope:

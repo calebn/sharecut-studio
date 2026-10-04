@@ -5,6 +5,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.models import AutomationEnvelope, AutomationPoint, PipelineRun, PipelineStepLog
@@ -145,9 +146,11 @@ class PipelineService:
 
     def set_envelope(self, track_id: str, points: list[dict]) -> int:
         def mutate(p) -> int:
+            if p.track_by_id(track_id) is None:
+                raise ValueError(f"Volume envelope track {track_id!r} no longer exists")
             pts = [
                 AutomationPoint(
-                    **({"id": str(point["id"])} if "id" in point else {}),
+                    id=str(point["id"]) if "id" in point else str(uuid4()),
                     time=float(point["time"]),
                     value=float(point["value"]),
                 )

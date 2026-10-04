@@ -213,10 +213,15 @@ test("F09 host numeric inspector and view-only guest select without envelope mut
         .locator('circle[aria-label^="Envelope point 1 at"]')
         .first();
       await owner.click();
-      await expect(page.getByLabel("Envelope time")).toHaveValue("2");
-      await expect(page.getByLabel("Envelope value")).toHaveValue("0.8");
+      await page
+        .getByRole("button", { name: "Edit point", exact: true })
+        .click();
+      await expect(page.getByLabel("Time (seconds on timeline)")).toHaveValue(
+        "2",
+      );
+      await expect(page.getByLabel("Level (×)")).toHaveValue("0.8");
       await expect(
-        page.getByRole("button", { name: "Apply", exact: true }),
+        page.getByRole("button", { name: "Save point", exact: true }),
       ).toBeEnabled();
       const token = await createReviewShare(page, projectPath, "viewer");
       const savedAfterShare = fs.readFileSync(projectPath, "utf8");
@@ -245,8 +250,10 @@ test("F09 host numeric inspector and view-only guest select without envelope mut
         await expect(point).toBeVisible();
         await point.click();
         await expect(point).toHaveAttribute("aria-pressed", "true");
-        await expect(guest.getByLabel("Envelope time")).toHaveCount(0);
-        await expect(guest.getByLabel("Envelope value")).toHaveCount(0);
+        await expect(
+          guest.getByLabel("Time (seconds on timeline)"),
+        ).toHaveCount(0);
+        await expect(guest.getByLabel("Level (×)")).toHaveCount(0);
         await expect(guest.locator(".modifier-inspector")).toContainText(
           "Envelope",
         );

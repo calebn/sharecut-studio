@@ -411,3 +411,34 @@ html[data-shell="phone"]
   margin: 0;
   font-size: var(--font-size-body);
 }
+
+.envelope-workspace {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.envelope-workspace form,
+.envelope-workspace label {
+  display: grid;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+
+.envelope-workspace input,
+.envelope-workspace select {
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 2.75rem;
+}
+
+.envelope-workspace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.envelope-workspace-actions button {
+  min-block-size: 2.75rem;
+  white-space: normal;
+}

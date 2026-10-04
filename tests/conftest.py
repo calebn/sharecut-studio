@@ -13,7 +13,7 @@ from podcast_mcp.config import repo_root
 from podcast_mcp.edits.review_shares import create_share
 from podcast_mcp.edits.share_capabilities import ALL_CAPABILITIES
 from podcast_mcp.edits.share_registry import reset_share_registry_for_tests
-from podcast_mcp.models import EpisodeProject, load_project, save_project
+from podcast_mcp.models import EpisodeProject, Track, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
@@ -213,6 +213,14 @@ def minimal_project(tmp_workspace: Path, sample_wav: Path) -> Path:
     project = EpisodeProject.create("test_episode", str(tmp_workspace))
     project.ensure_dirs()
     return save_project(project)
+
+
+@pytest.fixture
+def envelope_project(minimal_project: Path) -> Path:
+    project = load_project(minimal_project)
+    project.timeline.tracks = [Track(id=track_id, label=track_id) for track_id in ("host", "guest")]
+    save_project(project)
+    return minimal_project
 
 
 @pytest.fixture

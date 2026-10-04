@@ -732,3 +732,30 @@ describe("dawStore chapter add pending", () => {
     expect(useDawStore.getState().chapterAddPending).toBe(false);
   });
 });
+
+it("keeps the local envelope workspace when viewer presence echoes its track projection", () => {
+  const store = useDawStore.getState();
+  store.setSelection({ kind: "envelope", trackId: "host" });
+  store.applyAgentSession(
+    agentSession({
+      origin: "viewer",
+      last_role: "viewer",
+      selection: { kind: "track", track_id: "host" },
+    }),
+  );
+  expect(useDawStore.getState().selection).toEqual({
+    kind: "envelope",
+    trackId: "host",
+  });
+  store.applyAgentSession(
+    agentSession({
+      origin: "agent",
+      last_role: "agent",
+      selection: { kind: "track", track_id: "guest" },
+    }),
+  );
+  expect(useDawStore.getState().selection).toEqual({
+    kind: "track",
+    trackId: "guest",
+  });
+});

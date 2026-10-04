@@ -28,8 +28,8 @@ JoinInMode = Literal["fade", "crossfade", "cut"]
 
 class EnvelopePoint(BaseModel):
     id: str = Field(default_factory=lambda: uuid4().hex, min_length=1)
-    time: float
-    value: float
+    time: float = Field(ge=0, allow_inf_nan=False)
+    value: float = Field(allow_inf_nan=False)
 
 
 class ExpectedEnvelopePoint(EnvelopePoint):

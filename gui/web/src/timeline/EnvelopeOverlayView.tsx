@@ -3,8 +3,10 @@ import { useMountedRef } from "../hooks/useMountedRef";
 import type { AutomationPoint } from "../types/project";
 import {
   clampEnvelopeValue,
+  ENVELOPE_POINT_EPSILON,
   replaceEnvelopePoint,
   sameEnvelopePoint,
+  sameEnvelopePoints,
 } from "../utils/envelopes";
 import { formatTime } from "../utils/time";
 import { VIEWPORT_CHUNK_PX } from "../utils/timelineViewport";
@@ -12,8 +14,9 @@ import { timelineTestIds } from "./selectors";
 
 type EnvelopeDrag = {
   pointerId: number;
+  selectPoint: (pointId: string) => void;
   target: SVGCircleElement;
-  index: number;
+  pointId: string;
   origin: AutomationPoint[];
   points: AutomationPoint[];
 };
@@ -54,14 +57,15 @@ function releaseHeld(ref: { current: (() => void) | null }): void {
 
 export interface EnvelopeOverlayViewProps {
   points: AutomationPoint[];
+  baselinePoints: readonly AutomationPoint[];
   zoomPxPerSec: number;
   width: number;
   height: number;
   visibleChunks: readonly [number, number];
   editable: boolean;
-  selectedIndex: number | null;
+  selectedPointId: string | null;
   onSelectTrack: () => void;
-  onSelectPoint: (index: number) => void;
+  captureSelection: () => (pointId: string) => void;
   onCommitPoints: (
     points: AutomationPoint[],
     origin: AutomationPoint[],
@@ -77,14 +81,15 @@ export interface EnvelopeOverlayViewProps {
 /** Prop-driven envelope overlay used by the live adapter and the catalog. */
 export function EnvelopeOverlayView({
   points,
+  baselinePoints,
   zoomPxPerSec,
   width,
   height,
   visibleChunks,
   editable,
-  selectedIndex,
+  selectedPointId,
   onSelectTrack,
-  onSelectPoint,
+  captureSelection,
   onCommitPoints,
   onCommitError,
   holdGeometry,
@@ -92,7 +97,7 @@ export function EnvelopeOverlayView({
   const [draft, setDraft] = useState<AutomationPoint[] | null>(null);
   // Kept mounted outside the chunk range: unmounting would drop pointer
   // capture mid-drag or keyboard focus.
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragPointId, setDragPointId] = useState<string | null>(null);
   // By id, not index: a re-sort or delete keeps the focused circle (same key).
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const dragRef = useRef<EnvelopeDrag | null>(null);
@@ -110,6 +115,16 @@ export function EnvelopeOverlayView({
     },
     [],
   );
+
+  useEffect(() => {
+    const drag = dragRef.current;
+    if (!drag || sameEnvelopePoints(drag.origin, baselinePoints)) return;
+    dragRef.current = null;
+    releaseCapture(drag);
+    releaseHeld(releaseHold);
+    setDraft(null);
+    setDragPointId(null);
+  }, [baselinePoints]);
 
   if (points.length < 1) {
     return null;
@@ -134,7 +149,7 @@ export function EnvelopeOverlayView({
     const drag = dragRef.current;
     if (!drag) return;
     dragRef.current = null;
-    setDragIndex(null);
+    setDragPointId(null);
     setDraft(null);
     releaseCapture(drag);
     releaseHeld(releaseHold);
@@ -142,28 +157,53 @@ export function EnvelopeOverlayView({
 
   const commit = async (
     next: AutomationPoint[],
-    dragIndex: number,
+    pointId: string,
     origin: AutomationPoint[],
+    selectPoint: (pointId: string) => void,
   ) => {
-    const movedPoint = next[dragIndex];
-    if (!movedPoint || !pointMoved(origin[dragIndex], movedPoint)) {
+    const movedPoint = next.find((point) => point.id === pointId);
+    if (
+      !movedPoint ||
+      !pointMoved(
+        origin.find((point) => point.id === pointId),
+        movedPoint,
+      )
+    ) {
       setDraft(null);
       releaseHeld(releaseHold);
-      onSelectPoint(dragIndex);
+      selectPoint(pointId);
       return;
     }
     if (commitLock.current) {
       return;
     }
-    const replaced = replaceEnvelopePoint(next, dragIndex, movedPoint);
+    const originalPoint = origin.find((point) => point.id === pointId);
+    if (
+      originalPoint?.time !== movedPoint.time &&
+      next.some(
+        (point) =>
+          point.id !== pointId &&
+          Math.abs(point.time - movedPoint.time) <= ENVELOPE_POINT_EPSILON,
+      )
+    ) {
+      setDraft(null);
+      releaseHeld(releaseHold);
+      onCommitError(
+        new Error(
+          "A point already exists at this time. Choose a different time.",
+        ),
+      );
+      return;
+    }
+    const replaced = replaceEnvelopePoint(next, movedPoint);
     commitLock.current = true;
     try {
-      await onCommitPoints(replaced.points, origin);
+      await onCommitPoints(replaced, origin);
       // Unmounted mid-commit (track removed, Levels toggled off): skip the
       // selection write for a view that no longer exists.
       if (mounted.current) {
         setDraft(null);
-        onSelectPoint(Math.max(0, replaced.index));
+        selectPoint(pointId);
       }
     } catch (error) {
       if (mounted.current) {
@@ -206,11 +246,13 @@ export function EnvelopeOverlayView({
           />
           {sorted.map((p, i) => {
             const pinned =
-              i === dragIndex || i === selectedIndex || p.id === focusedId;
+              p.id === dragPointId ||
+              p.id === selectedPointId ||
+              p.id === focusedId;
             if (!pinned && (xOf(p) < x0 || xOf(p) > x1)) {
               return null;
             }
-            const selected = (dragIndex ?? selectedIndex) === i;
+            const selected = (dragPointId ?? selectedPointId) === p.id;
             const label = `Envelope point ${i + 1} at ${formatTime(p.time)}`;
             return (
               <circle
@@ -245,7 +287,7 @@ export function EnvelopeOverlayView({
                   }
                   e.preventDefault();
                   e.stopPropagation();
-                  if (!dragRef.current) onSelectPoint(i);
+                  if (!dragRef.current) captureSelection()(p.id);
                 }}
                 onPointerDown={(e) => {
                   e.stopPropagation();
@@ -256,7 +298,7 @@ export function EnvelopeOverlayView({
                   )
                     return;
                   if (!editable) {
-                    onSelectPoint(i);
+                    captureSelection()(p.id);
                     return;
                   }
                   if (commitLock.current) return;
@@ -266,16 +308,17 @@ export function EnvelopeOverlayView({
                   const copy = sorted.map((pt) => ({ ...pt }));
                   dragRef.current = {
                     pointerId: e.pointerId,
+                    selectPoint: captureSelection(),
                     target,
-                    index: i,
-                    origin: copy.map((pt) => ({ ...pt })),
+                    pointId: p.id,
+                    origin: baselinePoints.map((pt) => ({ ...pt })),
                     points: copy,
                   };
                   try {
                     releaseHold.current = holdGeometry?.() ?? null;
                     target.setPointerCapture?.(e.pointerId);
                     setDraft(copy);
-                    setDragIndex(i);
+                    setDragPointId(p.id);
                   } catch (error) {
                     clearDrag();
                     onCommitError(error);
@@ -293,8 +336,8 @@ export function EnvelopeOverlayView({
                   // The SVG starts at the chunk's x.
                   const x = e.clientX - rect.left + x0;
                   const y = e.clientY - rect.top;
-                  const next = drag.points.map((pt, j) =>
-                    j === drag.index
+                  const next = drag.points.map((pt) =>
+                    pt.id === drag.pointId
                       ? {
                           id: pt.id,
                           time: Math.max(0, x / zoomPxPerSec),
@@ -310,9 +353,14 @@ export function EnvelopeOverlayView({
                   if (!drag || drag.pointerId !== e.pointerId) return;
                   e.stopPropagation();
                   dragRef.current = null;
-                  setDragIndex(null);
+                  setDragPointId(null);
                   releaseCapture(drag);
-                  void commit(drag.points, drag.index, drag.origin);
+                  void commit(
+                    drag.points,
+                    drag.pointId,
+                    drag.origin,
+                    drag.selectPoint,
+                  );
                 }}
                 onPointerCancel={(e) => {
                   if (dragRef.current?.pointerId !== e.pointerId) return;

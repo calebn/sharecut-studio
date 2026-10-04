@@ -644,3 +644,37 @@ transcripts. A transcript recording remains available for timing repair after it
 last clip is removed. `collect_media_refs`, `track_media_refs`, and media watch
 paths share this source selection. The existing source ref, pyramid key, and
 workspace path checks apply to these recordings.
+
+
+## Create and edit a track volume envelope
+
+Select a track, then choose **Add volume envelope** in its inspector (the inspector
+sheet on a phone). For a track with points, the entry is **Edit volume envelope**.
+Opening the workspace reveals the Volume envelope layer without changing saved
+audio. **Done** returns to the track inspector. Shared projects show the envelope
+but explain that editing is available to the project owner.
+
+On a short phone screen, choose **Expand** in the inspector sheet to reach the envelope controls. Opening the workspace does not expand the sheet automatically.
+
+Choose **Add point**, enter **Time (seconds on timeline)** and **Level (×)**, then
+**Save point**. The first draft starts at zero seconds and 1.00×. Later additions
+start at the playhead, bounded to the timeline, with the envelope’s current level.
+The default is only a proposal: opening a form or leaving a field does not save it.
+**Cancel** or Escape discards the draft. Level accepts 0 through 1.50: zero is
+silent and 1.00 leaves the track’s volume unchanged. A single point applies across
+the track; before the first and after the last point, the endpoint level holds.
+This automation is separate from the track volume fader and effects.
+
+Use the **Envelope point** selector to reach tightly spaced or coincident points
+without dragging. Select **Edit point** for exact values, or move a point directly
+on the timeline. Creating a new coincident timestamp is rejected with a way to
+select the existing point. Existing coincident points keep their distinct IDs and
+remain independently editable and removable. Ordinary seeking, panning and clip
+selection do not create points.
+
+**Delete point** removes the selected point. The final point instead offers
+**Remove volume envelope**, returning automation to unity while leaving track
+volume and effects intact. Each confirmed change is one Undo step; unchanged or
+canceled edits create no step. If another editor changes the envelope, the draft
+stays visible with an error and an explicit discard/reload action. A submitted
+save is allowed to finish; closing a view does not pretend to cancel that command.

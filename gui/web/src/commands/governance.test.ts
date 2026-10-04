@@ -55,6 +55,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   "timeline/PendingEditOverlayView.tsx",
   // Clip range keys update a local paired preview; Escape cancels that preview.
   "inspector/views/ClipInspector.tsx",
+  // Escape discards only the focused envelope form draft.
+  "inspector/views/EnvelopeWorkspaceView.tsx",
   // Focused clip handles route key edits locally; Escape cancels their preview.
   "timeline/ClipBlockView.tsx",
   "inspector/views/TranscriptWordInspector.tsx",

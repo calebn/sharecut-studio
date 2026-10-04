@@ -1,9 +1,6 @@
 import type { AutomationEnvelope, Selection } from "../types/project";
 import type { SessionSelection, ViewerSessionSnapshot } from "../types/session";
-import {
-  indexOfVolumePointAtTime,
-  sortedVolumePoints,
-} from "../utils/envelopes";
+import { sortedVolumePoints } from "../utils/envelopes";
 
 export function selectionToWire(
   sel: Selection,
@@ -23,7 +20,7 @@ export function selectionToWire(
       ? { kind: "applied", id: sel.id, track_id: sel.trackId }
       : { kind: "applied", id: sel.id };
   }
-  if (sel.kind === "track") {
+  if (sel.kind === "track" || sel.kind === "envelope") {
     return { kind: "track", track_id: sel.trackId };
   }
   if (sel.kind === "chapter") {
@@ -51,13 +48,16 @@ export function selectionToWire(
     };
   }
   if (sel.kind === "envelopePoint") {
-    const pt = sortedVolumePoints(envelopes, sel.trackId)[sel.index];
+    const pt = sortedVolumePoints(envelopes, sel.trackId).find(
+      (point) => point.id === sel.pointId,
+    );
     if (!pt) {
       return null;
     }
     return {
       kind: "envelopePoint",
       track_id: sel.trackId,
+      id: pt.id,
       time: pt.time,
     };
   }
@@ -114,16 +114,13 @@ export function selectionFromWire(
       endWordIndex: sel.word_end,
     };
   }
-  if (sel.kind === "envelopePoint" && sel.track_id && sel.time != null) {
-    const index = indexOfVolumePointAtTime(envelopes, sel.track_id, sel.time);
-    if (index < 0) {
-      return null;
-    }
-    return {
-      kind: "envelopePoint",
-      trackId: sel.track_id,
-      index,
-    };
+  if (sel.kind === "envelopePoint" && sel.track_id && sel.id) {
+    const point = sortedVolumePoints(envelopes, sel.track_id).find(
+      (point) => point.id === sel.id,
+    );
+    return point
+      ? { kind: "envelopePoint", trackId: sel.track_id, pointId: point.id }
+      : null;
   }
   return null;
 }

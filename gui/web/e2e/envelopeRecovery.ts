@@ -196,7 +196,9 @@ export async function exerciseEnvelopeRecovery(
       await page.keyboard.press("Escape");
       await expect.poll(geometry).toEqual(original);
       await expect(owner).toHaveAttribute("aria-pressed", "false");
-      await expect(page.getByLabel("Envelope time")).toHaveCount(0);
+      await expect(
+        page.getByRole("combobox", { name: "Envelope point", exact: true }),
+      ).toHaveCount(0);
       await expect(owner).toBeFocused();
       expect(
         await owner.evaluate(
@@ -265,6 +267,32 @@ export async function exerciseEnvelopeRecovery(
       const afterOwner = savedState(projectPath);
       expect(afterOwner.points?.[1]).toEqual(before.points?.[1]);
       expect(afterOwner.historyEntries).toBeGreaterThan(before.historyEntries);
+      const postCommitFocus = await page.evaluate(() => {
+        const active = document.activeElement;
+        return active
+          ? {
+              tag: active.tagName,
+              role: active.getAttribute("role"),
+              label: active.getAttribute("aria-label"),
+              id: active.id,
+            }
+          : null;
+      });
+      await expect(otherControl).toBeVisible();
+      await expect(otherControl).toBeEnabled();
+      await otherControl.focus();
+      await expect(otherControl).toBeFocused();
+      await info.attach("project-undo-focus-admission", {
+        contentType: "application/json",
+        body: Buffer.from(
+          JSON.stringify({
+            postCommitFocus,
+            target: "visible enabled Menu button, focused without activation",
+            reason:
+              "Native SELECT owns typing shortcuts; project Undo requires a non-typing target.",
+          }),
+        ),
+      });
       await page.keyboard.press("ControlOrMeta+z");
       await expect
         .poll(() => savedState(projectPath).points)
@@ -272,9 +300,13 @@ export async function exerciseEnvelopeRecovery(
       expect(commands).toHaveLength(1);
       await otherControl.focus();
       await page.keyboard.press("Escape");
-      await expect(page.getByLabel("Envelope time")).toHaveCount(0);
+      await expect(
+        page.getByRole("combobox", { name: "Envelope point", exact: true }),
+      ).toHaveCount(0);
       await owner.click();
-      await expect(page.getByLabel("Envelope time")).toBeVisible();
+      await expect(
+        page.getByRole("combobox", { name: "Envelope point", exact: true }),
+      ).toBeVisible();
       await settle();
       expect(commands).toHaveLength(1);
       expect(savedState(projectPath).points).toEqual(before.points);
@@ -332,7 +364,9 @@ export async function exerciseEnvelopeRecovery(
       await expect(second).toBeFocused();
       await expect(second).toHaveAttribute("aria-pressed", "false");
       await expect(owner).toHaveAttribute("aria-pressed", "true");
-      await expect(page.getByLabel("Envelope time")).toBeVisible();
+      await expect(
+        page.getByRole("combobox", { name: "Envelope point", exact: true }),
+      ).toBeVisible();
       expect(
         await second.evaluate((element) => ({
           cx: element.getAttribute("cx"),
