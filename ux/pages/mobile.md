@@ -56,7 +56,7 @@ The selection sheet groups actions in this order:
 
 1. **Details** — the inspector for what you selected
 2. **You might also want…** — related commands when available
-3. **More** — available clip Cut or track Move up/down actions, or a message when none are available
+3. **More** — available clip Cut or track Move up/down actions. Selections with no related or overflow actions omit the command region.
 
 Phone and tablet inspector sheets use visible Expand/Collapse buttons for panel
 space; the sheet has no drag handle. Desktop and tablet editor panels use a

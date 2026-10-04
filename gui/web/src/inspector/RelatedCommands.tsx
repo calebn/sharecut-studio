@@ -4,7 +4,7 @@ import { canApplyPass12, canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { RangeActions } from "../timeline/RangeActions";
 import type { Selection } from "../types/project";
-import { CommandButton, EmptyState } from "../ui";
+import { CommandButton } from "../ui";
 import {
   moreCommandsFor,
   relatedCommandsFor,
@@ -45,7 +45,7 @@ export function RelatedCommands({ selection }: Props) {
 
   if (selection?.kind === "range" || selection?.kind === "transcriptRange")
     return <RangeActions sheet />;
-  if (selection == null) {
+  if (selection == null || (related.length === 0 && more.length === 0)) {
     return null;
   }
 
@@ -76,9 +76,7 @@ export function RelatedCommands({ selection }: Props) {
       ) : null}
       <div className="related-commands-zone" aria-label="More actions">
         <h3 className="related-commands-heading">More</h3>
-        {more.length === 0 ? (
-          <EmptyState>No additional actions for this selection.</EmptyState>
-        ) : (
+        {more.length > 0 ? (
           <div className="related-commands-list">
             {more.map((descriptor) => {
               const cmd = commandById(descriptor.commandId);
@@ -97,7 +95,7 @@ export function RelatedCommands({ selection }: Props) {
               );
             })}
           </div>
-        )}
+        ) : null}
       </div>
     </section>
   );

@@ -97,7 +97,7 @@ Every selection sheet follows the same three-zone layout for consistency:
 
 1. **Primary actions** — the inspector content itself (2-3 most common actions, large targets)
 2. **Related commands** ("You might also want…") — Copy for clips and single transcript words. Transcript and timeline ranges use the shared Play/Cut/Mute/Comment/Bounce sheet, with capability reasons on disabled actions.
-3. **More** — context-filtered command overflow below Related. Clips offer Cut (copy to the session clipboard, then ripple-delete) to editors; tracks offer Move track up/down only for directions that exist. View-only guests do not see edit actions. Other selections show an accurate empty state when their safe actions already live in the inspector or Related zone. Both zones live in `RelatedCommands` (`gui/web/src/inspector/RelatedCommands.tsx`), with mappings in `relatedCommandDescriptors.ts`.
+3. **More** — context-filtered command overflow below Related. Clips offer Cut (copy to the session clipboard, then ripple-delete) to editors; tracks offer Move track up/down only for directions that exist. View-only guests do not see edit actions. Selections whose safe actions already live in the inspector or Related zone omit command chrome entirely. Both zones live in `RelatedCommands` (`gui/web/src/inspector/RelatedCommands.tsx`), with mappings in `relatedCommandDescriptors.ts`.
 
 Example: Clip selected → Related shows Copy; More shows Cut for editors. Fade/delete remain clip-inspector controls and seeking remains in its footer.
 
