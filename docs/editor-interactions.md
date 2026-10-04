@@ -19,16 +19,16 @@ by a test are synthetic, even when the browser viewport resembles a phone.
 
 | Family | Pointer behavior and alternative | State and executable checks |
 | --- | --- | --- |
-| Clip body move | Drag an off-center grab; click selects and modifier click extends selection. Shift drag selects a range instead. A focused keyboard move equivalent is not established. | Local move ghost before `MoveClips`; Escape cancels from the existing focus without changing selection timing. Owner cancellation/capture loss, focused-owner blur and unmount discard the preview; later held input is inert. One changed release and Undo. `ClipBlock.test.tsx` and `edit/clipMove.test.ts` cover the owner and geometry. `inventory-audit.spec.ts` uses a separated-clip fixture for native first-drag, reversal, cancellation, saved geometry and Undo. |
+| Clip body move | Drag an off-center grab; click selects and modifier click extends selection. Shift drag selects a range instead. A focused keyboard move equivalent is not established. | Local in-place preview or destination-lane ghost before `MoveClips`; Escape cancels from the existing focus without changing selection timing. Owner cancellation/capture loss, focused-owner blur and unmount discard the preview; later held input is inert. One changed release and Undo. `ClipBlock.test.tsx` and `edit/clipMove.test.ts` cover the owner and geometry. `inventory-audit.spec.ts` uses a separated-clip fixture for native first-drag, reversal, cancellation, saved geometry and Undo. |
 | Roll seam | Drag the seam between adjacent clips. Click selects it; Precision boundary supplies exact offset and audition. | Preview moves the paired boundary within legal source limits. `transitions-acceptance.spec.ts` checks saved paired bounds and Undo; `edit-boundary-precision.spec.ts` checks the alternative. |
-| Ruler position | Click or tap seeks; double-click fits. Focused Left/Right steps major ticks; Home/End reaches session endpoints. Ordinary desktop ruler dragging is not continuous scrubbing. Phone scroll moves time under its fixed playhead. | Navigation only. `arrange-chrome.spec.ts`, `pinned-ruler.spec.ts` and `sharecut.mobile.spec.ts` check endpoints, fit, pinning and phone position. An atomic seek has no pointer-preview cancellation transaction. |
-| Ruler comment anchor | Comment mode click creates an instant anchor; drag beyond 4 px drafts a span. The composer supplies exact bounds and an explicit submit action. | Escape exits comment mode and clears the draft. Anchoring alone saves no comment. Interrupted ownership outside Escape needs separate evidence; submission/queue tests do not establish it. `TimeRuler.test.tsx` and comment cases in `sharecut.smoke.spec.ts` cover their distinct paths. |
+| Ruler position | Click or tap seeks; double-click fits. Focused Left/Right steps major ticks; Home/End reaches session endpoints. Ordinary desktop ruler dragging is not continuous scrubbing. Phone scroll moves time under its fixed playhead. | Navigation only. `arrange-chrome.spec.ts`, `pinned-ruler.spec.ts` and `sharecut.mobile.spec.ts` check endpoints, fit, pinning and phone position. An atomic seek has no pointer-preview cancellation transaction. Handled ruler arrows and Home/End stay local rather than also invoking global navigation; global Escape remains available. `ruler-recovery.spec.ts` checks the current endpoint and fit paths. |
+| Ruler comment anchor | Comment mode click creates an instant anchor; drag beyond 4 px drafts a span. The composer supplies exact bounds and an explicit submit action. | Escape exits comment mode and clears the draft. Anchoring alone saves no comment. The local session captures the full prior nullable draft and restores it on owner interruption only while the same project, tool and draft remain owned; a newer draft or departed project/tool is preserved. `TimeRuler.test.tsx`, `TimeRulerComment.test.tsx`, `commentAnchorSession.test.ts` and `ruler-recovery.spec.ts` cover the owned session; comment cases in `sharecut.smoke.spec.ts` cover their distinct submit/queue paths. |
 | Timeline range | Empty-lane mouse drag, Shift clip drag or the phone/tablet Select range rail. Numeric In/Out and lane checkboxes are the alternative. | Local exact occurrence target until Cut/Mute/Comment/Bounce. `contextual-range.spec.ts` checks repeated occurrences, one Undo and guest proposal policy. Its dispatched phone range events are synthetic. |
 | Transcript passage | Select passage mode accepts pointer sweep or a Shift-click extension. Selection maps surviving words and pauses through clip placements. | Local range until an explicit action. Repeated placements require choosing the intended occurrence. `contextual-range.spec.ts` checks resulting range operations; `inventory-audit.spec.ts` checks native passage sweep and Shift-click endpoints without writes; `TranscriptPanel.test.tsx` checks passage selection. |
 | Clip trim | Drag the thin edge strip with existing waveform magnets and source/neighbor limits. Focused arrows move 10 ms, Shift 100 ms; exact timing controls remain available. | Draft then one saved boundary. `fade-curves.spec.ts` and `ClipBlock.test.tsx` check pointer/keyboard geometry, cancellation, no-op and durable values. Hidden snap ticks do not disable the existing magnet. |
 | Fade and coupled crossfade | Drag the corner or coupled endpoint. Focused fade arrows move 1 ms, Shift 10 ms; numeric inspector controls supply precise values. | Preview respects remaining clip length, opposite edge and track cap. `fade-curves.spec.ts`, `crossfade-length.spec.ts` and `transitions-acceptance.spec.ts` check persistence, Undo and competing gesture blocking during acknowledgement. |
-| Existing volume envelope | Drag an existing point. Enter/Space selects an idle point; Time/Value Apply is the exact alternative. | Host-only owned preview; Escape, blur and owner interruption cancel, foreign pointer events are ignored. `envelope-recovery.spec.ts` uses native mouse owners and explicitly synthetic foreign events. Creation/discovery is separately deferred to #950. |
-| Pending region and chapter/social marker | Drag a pending outer edge/span, chapter position or social body/edge. Existing inspector numeric bounds supply exact edits; dense touch pending regions use Edit timing. | Pending drafts save through `UpdatePendingEdit`; review/apply remains separate. Chapter/social changes use their existing commands. Their owning marker restores its preview on Escape, cancellation/capture loss, blur or unmount; project switches end the old marker lifetime even when values match. Other pointer events are ignored. `transitions-acceptance.spec.ts`, `pending-edge-controls.spec.ts` and `MarkerLane.test.tsx` cover distinct paths; `inventory-audit.spec.ts` checks native chapter/social body preview, Escape, release, exact saved values and Undo in the representative fixture. |
+| Existing volume envelope | Drag an existing point. Enter/Space selects an idle point; Time/Value Apply is the exact alternative. Arrow keys do not provide point editing and may retain global playhead navigation. | Host-only owned preview; Escape, blur and owner interruption cancel, foreign pointer events are ignored. `envelope-recovery.spec.ts` uses native mouse owners and explicitly synthetic foreign events. Creation/discovery is separately deferred to #950. |
+| Pending region and chapter/social marker | Pending bodies select; only eligible outer start/end handles drag. There is no whole pending-span drag transaction. Drag chapter position or social body/edge. Existing inspector numeric bounds supply exact edits; dense touch pending regions use Edit timing. | Pending drafts save through `UpdatePendingEdit`; review/apply remains separate. Chapter/social changes use their existing commands. Their owning marker restores its preview on Escape, cancellation/capture loss, blur or unmount; project switches end the old marker lifetime even when values match. Other pointer events are ignored. `transitions-acceptance.spec.ts`, `pending-edge-controls.spec.ts` and `MarkerLane.test.tsx` cover distinct paths; `inventory-audit.spec.ts` checks native chapter/social body preview, Escape, release, exact saved values and Undo in the representative fixture. |
 | Transcript edit boundary | Drag the boundary grab; Precision boundary supplies exact offsets, Apply/Cancel and Listen current/proposed. | Existing owned preview and roll lock. `edit-boundary-touch.spec.ts` checks owner isolation, grab geometry and one saved roll; `edit-boundary-precision.spec.ts` checks exact edits, stale recovery and current/proposed routes. The landed boundary engine remains unchanged. |
 | Editor panel space | Desktop/tablet separator drag; arrows, Shift arrows, Home/End, Enter and double-click reset. Phone inspectors use Expand/Collapse. | Browser preference only. Accessible values report the measured panel height, including an unset responsive default. Owner interruption or Escape restores the prior explicit value or absence while still owned. `splitter-recovery.spec.ts` checks intermediate/reversed geometry, cancellation, capture loss, clamp/no-op and phone alternatives in both themes. |
 | Zoom, pinch and scroll | Persistent zoom controls and Fit; Ctrl/Meta wheel and two-touch pinch at their anchor. Ordinary wheel scrolls. Safari gesture routing is a separate path. | Navigation only. `waveform.spec.ts`, `timelineZoomGestures.test.ts` and `applyAnchoredZoom.test.ts` check deep geometry and anchoring. Synthetic contact tests do not establish physical trackpad or touch delivery. |
@@ -114,10 +114,13 @@ The current proximity magnet is 8 px and is independent of snap-tick visibility.
 Keyboard trim/fade steps and exact numeric fields remain the fine-adjustment
 alternatives. Do not infer a new snap engine or modifier from this audit.
 
-Existing Play across join and Precision boundary Listen current/Listen proposed
-are evaluated through their existing playback routes without saving an edit.
-Cloud route and playing-state checks do not establish splice audio quality or
-physical hearing. No new A/B player is introduced.
+The Clip inspector exposes the existing Seek join / Play across join footer.
+Retained Precision boundary evidence checks Listen current → Listen proposed →
+Listen current through the existing audio routes and playing state without saving
+that proposal. The join footer is source-verified here; this checkpoint does not
+claim a new native Play across join run. Cloud route and playing-state checks do
+not establish splice audio quality or physical hearing. No new A/B player is
+introduced.
 
 The currently measured separator pointer strip is 10 px high. Keyboard resizing
 is available, but physical touch comfort remains unverified; this change does
@@ -129,3 +132,48 @@ work and #775/#945 audition work are outside this change. Envelope creation #950
 is a separate task. Touch-gesture and sheet-drag research is tracked separately
 in #951; this inventory does not add those gestures. No telemetry or user study
 is added.
+
+## Bounded interaction acceptance checkpoint (2026-10-04)
+
+The original acceptance uses representative behavior and an explicit unverified
+inventory, not every controller × input × profile × interruption combination.
+Retained evidence contains 108 distinct production-built browser cases; the
+instrumented waveform diagnostic remains separate. Stronger assertion reruns do
+not add unique cases. The continuation first run passed 12 cases and retained two
+range failures. Its corrected two-case range follow-up passed live-target
+multilane reversal and exact numeric Mute/accepted Undo. The initial failures
+remain evidence: Range actions reflow required fresh lane coordinates, and the
+committed full clip rows were compared by stable ID without weakening field
+equality or treating changed array order as an edit defect.
+
+The selected-pair diagnostic retained its initial preview precision failure.
+With a CSS-pixel preview check, both clips previewed and reversed, then one
+accepted `MoveClips` saved both requested full rows with their 20-second spacing
+and one history operation. The exact 7/27-second persistence assertion remained
+failed: the outgoing command contained tiny fractional offsets from those
+times, whose source was not established. Group-specific Undo was not reached. This disproves selection collapse
+on the observed path without certifying that whole test. The changed ruler
+comment controller's allowed/refused guest pair passed actual bootstrap
+capabilities, native submission/full saved row, host Undo, and viewer refusal. `ruler-recovery.spec.ts` and
+`edge-keyboard-recovery.spec.ts` retain the current changed-controller behavior
+checks; a prepared test is not a runtime PASS.
+
+Actual inventory runs covered desktop 1440×900, tablet 820×1024 and phone 390×844
+in both themes: light with normal motion and dark with reduced motion. The
+splitter desktop run used 1440×1024. Some phone clip preparation used public zoom
+controls for a legal body target; those cases are not fit-zoom claims. The tablet
+pending case used Source end/Apply timing/Undo because the Inspector covered its
+edge. A mouse at phone width remains a mouse result.
+
+Native mouse ownership is distinct from scripted capture release followed by
+trusted native loss delivery, explicitly synthetic `pointercancel` or foreign
+pointer events, and public layer/page departure combining blur and unmount. None
+is an OS-interception or isolated-unmount certification. Trusted CDP two-contact
+boundary input is cloud touch evidence, not a physical-device result.
+
+Extra unique bounds, scrolling, touch, interruption and permission combinations
+remain explicitly unverified where no actual test asserted them. Shared source
+and controller units explain applicability, not a runtime PASS for every row.
+Physical devices, assistive technology and heard splice quality remain manual
+gaps. #950 envelope creation/discovery and #951 touch-first work are separately
+sequenced follow-ups.
