@@ -205,6 +205,43 @@ suite. The release and security policy is in
 
 ## Fast inner loop
 
+### Real microphone bleed fixtures
+
+`tests/fixtures/lab_bleed/` contains short lossless clips from real lab
+microphones. Each clip includes 50 ms of source context around its reviewed
+interval so tests can observe actual audio on both sides of the mute. The
+fixture manifest pins source revision and original M4A hashes,
+source and reviewed timeline intervals, literal owner listening labels,
+ownership uncertainty, reviewed mute intent, native format, and file plus decoded
+PCM seals. The repository owner authorized publishing these short clips as
+Sharecut Studio fixtures. This statement does not invent a license for the
+source recordings. Full recordings and episode project JSON are excluded.
+
+The cases preserve the owner's wording and corrections. The sounds initially
+noted as a possible Caleb inhale were later corrected as non-verbal sounds not
+worth keeping, with explicit intent to remove them. That case is not a breath
+positive. The noisy case is manual intent to mute unwanted receiving noise, not
+proof of a foreign speaker. No case gives a numeric breath onset label.
+
+The generator requires an explicit lab checkout and verifies its revision and
+original file hashes. It fully decodes originals before slicing native sample
+frames, then verifies each FLAC by decoding it to PCM. Use `--verify-dir` to
+compare regenerated samples with committed fixtures. PCM comparison is the
+stable regeneration check; FLAC bytes may differ by encoder version. An
+optional historical audition directory can independently verify selected
+intervals, but ordinary tests use only committed clips and never download the
+lab recording. See the fixture [README](../tests/fixtures/lab_bleed/README.md)
+for commands and provenance.
+
+`tests/test_lab_bleed_fixtures.py` verifies each clip's file and decoded PCM
+seals, stereo 48 kHz frame count, and nonzero content. It parameterizes the
+manually reviewed mute cases through pending proposal and host approval. It
+checks silence in the candidate interior, 5 ms edge fades, unchanged audio
+outside the reviewed interval, unchanged peer tracks and raw fixture files, and
+an unchanged direct-Caleb mixed-speech control. These cases establish reviewed
+audio behavior. They do not claim automatic speaker attribution or resolve
+conservative stereo detection, which remains open in issue #945.
+
 The audio-audit cache regression tests use deterministic decoder-call counts
 and numerical equality, not a wall-clock ratio. One test invokes the production
 `compute_word_audibility_map` path and asserts that its processed stem is decoded
@@ -1940,4 +1977,4 @@ explicit release.
 
 Generated unequal-audio-stream M4A and video-with-short-audio MOV files exercise receiving and peer selected-stream bounds. M4A multiple-stream extents refuse conservatively, while a known MOV audio interior remains eligible. Unknown and estimated audio extents refuse.
 
-`tests/test_media_probe.py` verifies distinct container and first-audio duration policies over shared successful probe metadata, revision invalidation, copied results and failed-probe retries. Discovery separately verifies failed-probe memoization per receiving lane and retry on the next call. Private recording auditions supplement these regressions but are not checked-in fixtures or proof of automatic ownership detection. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
+`tests/test_media_probe.py` verifies distinct container and first-audio duration policies over shared successful probe metadata, revision invalidation, copied results and failed-probe retries. Discovery separately verifies failed-probe memoization per receiving lane and retry on the next call. Full recording auditions supplement these regressions. Short reviewed excerpts are checked in under `tests/fixtures/lab_bleed/`; neither the excerpts nor the auditions prove automatic ownership detection. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
