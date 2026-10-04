@@ -196,8 +196,8 @@ html[data-shell="phone"]
 }
 
 .track-fader {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-3);
 }
@@ -209,8 +209,14 @@ html[data-shell="phone"]
 
 .track-fader-end {
   display: flex;
+  flex-wrap: wrap;
+  max-inline-size: 100%;
   align-items: center;
   gap: var(--space-3);
+}
+
+.track-fader-end .ui-control {
+  min-block-size: var(--touch-min);
 }
 
 .track-fader-value {
@@ -221,6 +227,8 @@ html[data-shell="phone"]
 }
 
 .track-fader-input {
+  flex: 1 1 6rem;
+  min-inline-size: 0;
   inline-size: 100%;
   min-block-size: var(--touch-min);
 }
@@ -233,7 +241,7 @@ html[data-shell="phone"]
 }
 
 .track-fader-note {
-  grid-column: 1 / -1;
+  flex-basis: 100%;
 }
 
 .pending-ask-thread {
