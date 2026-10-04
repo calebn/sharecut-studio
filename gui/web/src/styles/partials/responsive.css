@@ -356,9 +356,12 @@ html[data-shell="tablet"] {
   height: 100%;
 }
 
-.mobile-timeline-mode .timeline-area {
+.mobile-timeline-mode > .timeline-area {
   flex: 1;
-  min-height: 0;
+  min-height: min(
+    100%,
+    calc(var(--ruler-height) + var(--marker-lane-height) + var(--lane-height))
+  );
 }
 
 .mobile-text-mode,

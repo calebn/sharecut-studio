@@ -4,6 +4,7 @@ import { type MeterState, SILENT_METER, stepMeter } from "../audio/metering";
 import {
   playbackTrackClipped,
   setPlaybackTrackClipped,
+  subscribePlaybackClipLatches,
 } from "../audio/playbackClipLatches";
 import {
   playbackMeterSource,
@@ -19,9 +20,11 @@ import { keepActivationKeys } from "./trackHeaderKeys";
 export function TrackPlaybackMeter({
   trackId,
   label,
+  inspector = false,
 }: {
   trackId: string;
   label: string;
+  inspector?: boolean;
 }) {
   const { projectEpoch, playing } = useDaw((s) => ({
     projectEpoch: s.projectEpoch,
@@ -31,6 +34,11 @@ export function TrackPlaybackMeter({
     subscribePlaybackMeterSource,
     playbackMeterSource,
     playbackMeterSource,
+  );
+  const clipped = useSyncExternalStore(
+    subscribePlaybackClipLatches,
+    () => playbackTrackClipped(trackId, projectEpoch),
+    () => false,
   );
   const state = useRef<MeterState>(SILENT_METER);
   const [levels, setLevels] = useState(SILENT_METER);
@@ -64,7 +72,10 @@ export function TrackPlaybackMeter({
         wasAvailable = nextAvailable;
         setAvailable(nextAvailable);
       }
-      const prev = state.current;
+      const prev = {
+        ...state.current,
+        clipped: playbackTrackClipped(trackId, projectEpoch),
+      };
       const analysed = stepMeter(
         prev,
         samples ?? [],
@@ -84,39 +95,45 @@ export function TrackPlaybackMeter({
         setLevels(next);
       }
     });
-  }, [playing, source, trackId]);
+  }, [playing, source, trackId, projectEpoch]);
 
   return (
     <div
-      className="track-playback-meter"
+      className={`track-playback-meter${inspector ? " track-playback-meter--inspector" : ""}`}
       data-available={available}
       title="Sample peak at track output, before premix and master"
     >
       <LevelMeter
         {...levels}
+        clipped={clipped}
         label={`${label} playback level`}
         size="sm"
         showClipIndicator={false}
         valueText={
           !available
             ? playing
-              ? `Playback level unavailable${levels.clipped ? ". Clipping detected" : ""}`
-              : `Playback stopped${levels.clipped ? ". Clipping detected" : ""}`
-            : levels.clipped && !Number.isFinite(levels.levelDb)
+              ? `Playback level unavailable${clipped ? ". Clipping detected" : ""}`
+              : `Playback stopped${clipped ? ". Clipping detected" : ""}`
+            : clipped && !Number.isFinite(levels.levelDb)
               ? "Clipping detected"
               : undefined
         }
       />
+      {!inspector && (
+        <span className="track-clip-status" aria-hidden="true">
+          <ClipLed lit={clipped} />
+        </span>
+      )}
       <button
         type="button"
         className="track-clip-clear"
         aria-label={`Clear clip light for ${label}`}
         title={
-          levels.clipped
+          clipped
             ? "Clipping detected. Clear clip light"
             : "No clipping detected"
         }
-        disabled={!levels.clipped}
+        disabled={!clipped}
         onKeyDown={keepActivationKeys}
         onClick={(event) => {
           event.stopPropagation();
@@ -125,11 +142,12 @@ export function TrackPlaybackMeter({
           setLevels(state.current);
         }}
       >
-        {levels.clipped ? (
+        {clipped ? (
           <Icon name="warning" title="Clipping detected" size={12} />
         ) : (
           <ClipLed lit={false} />
         )}
+        {inspector && "Clear clip light"}
       </button>
     </div>
   );

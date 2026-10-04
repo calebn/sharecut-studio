@@ -1,12 +1,13 @@
 # Touch editor decisions
 
-This record narrows issue #951 to the touch affordance that the current sheet
-actually renders. It is reconciled against the current worktree and the merged
-#878 interaction inventory in `docs/editor-interactions.md`. The implementation
-does not create a sheet gesture owner or alter the sheet's controlled
-`half`/`full` state. Physical iOS and Android verification remains with #301;
-named-device profiling remains with #879. #950 owns envelope creation and its
-listed inspector, schema, and project paths.
+The original #951 decision below records the touch affordance repair shipped
+in #958, before the #950 envelope controls landed in #959. It retains the #878
+interaction inventory in `docs/editor-interactions.md` and its qualified evidence.
+The [#961 follow-up](#responsive-inspector-follow-up-961) records the later
+inspector layout and focus repair. Neither change adds a sheet gesture owner or
+alters controlled `half`/`full` state. Physical mobile and assistive-technology
+acceptance for the repaired envelope workflow remains #960; named-device
+profiling remains #879.
 
 ## Decision
 
@@ -166,3 +167,20 @@ advantage, responsiveness, or performance improvement is claimed. A future
 representative native-versus-`@use-gesture/react` adapter spike must measure
 bundle delta, actual responsiveness, Strict Mode listener cleanup, compatibility,
 license, and maintenance before adoption.
+
+## Responsive inspector follow-up #961
+
+The current-main baseline retained the #958 fixes and reproduced the remaining
+track-entry, clipping, and offscreen-focus failures. The [#961 evidence
+record](issue-961/README.md) preserves selected pixels and receipt geometry.
+Historical center hit-testing is not full-control visibility.
+
+Independent designs and a cross-review chose one scroll owner for inspector
+sheets, including chrome and all modifier content, with natural-height fields.
+The retained inner-scrollport alternative adds two positions to coordinate and
+cannot guarantee a complete enlarged field group in short landscape. Focus
+reveal stays inside the current sheet or desktop inspector. Track identity and
+clear-clip entry need disjoint regions sized through the common lane geometry.
+The existing interactive background, controlled Expand/Collapse, modal policy,
+permission and envelope commit/cancel contracts remain the boundaries. Physical
+mobile and assistive-technology acceptance remains #960.

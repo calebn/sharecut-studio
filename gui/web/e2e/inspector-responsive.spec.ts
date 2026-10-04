@@ -301,11 +301,7 @@ for (const viewport of viewports)
                 if (await close.count())
                   await pointerControl(page, close, receipts);
                 await openClip(page, receipts);
-                for (const label of [
-                  "Fade in ms",
-                  "Fade out ms",
-                  "Incoming transition",
-                ]) {
+                for (const label of ["Fade in ms", "Fade out ms"]) {
                   await exposeControl(
                     page,
                     page.getByLabel(label, { exact: true }),
@@ -314,7 +310,7 @@ for (const viewport of viewports)
                 }
                 await exposeControl(
                   page,
-                  page.getByRole("button", { name: "Seek", exact: true }),
+                  page.getByRole("button", { name: "Seek join", exact: true }),
                   receipts,
                 );
                 await captureInspector(
@@ -392,8 +388,22 @@ test.describe("independent keyboard envelope root32 phone", () => {
           await enter("Save point");
           const alert = page.getByRole("alert");
           await expect(alert).toContainText(/non.?negative|at least|zero|0/i);
+          await visibleFocus(
+            page.getByRole("button", { name: "Save point", exact: true }),
+            receipts,
+            "invalid-save-keeps-visible-focus",
+          );
+          await page.keyboard.press("Shift+Tab");
+          await page.keyboard.press("Shift+Tab");
+          await visibleFocus(
+            time,
+            receipts,
+            "native-error-correction-visible-time",
+          );
+          expect(await time.getAttribute("aria-describedby")).toBe(
+            await alert.getAttribute("id"),
+          );
           expect((await controlGeometry(alert)).fullyVisible).toBe(true);
-          await visibleFocus(time, receipts, "error-restores-visible-time");
           expect(
             observer.commands.filter(
               (command) => command.type === "SetEnvelope",
@@ -461,6 +471,189 @@ test.describe("independent keyboard envelope root32 phone", () => {
       },
       undefined,
       emptyEnvelopeProject,
+    );
+  });
+});
+
+function manyPointLongNameProject(prefix: string) {
+  const fixture = emptyEnvelopeProject(prefix);
+  const project = JSON.parse(fs.readFileSync(fixture.projectPath, "utf8"));
+  const track = project.timeline.tracks[0];
+  track.label =
+    "Reference dialogue with a deliberately long descriptive track name";
+  project.mix.automation_envelopes = [
+    {
+      track_id: track.id,
+      parameter: "volume",
+      points: [
+        { id: "responsive-first", time: 0, value: 1 },
+        { id: "responsive-middle", time: 10, value: 0.7 },
+        { id: "responsive-last", time: 20, value: 1.2 },
+      ],
+    },
+  ];
+  fs.writeFileSync(
+    fixture.projectPath,
+    `${JSON.stringify(project, null, 2)}\n`,
+  );
+  return fixture;
+}
+
+test.describe("root32 phone many points and request recovery", () => {
+  test.use({ viewport: { width: 360, height: 800 }, reducedMotion: "reduce" });
+  test("long title, pending lock and wrapped failure keep drafts and recovery actions reachable", async ({
+    page,
+    receipts,
+  }, info) => {
+    await withShareableProject(
+      async (projectPath) => {
+        const track = envelopeTrack(projectPath),
+          saved = envelopeSnapshot(projectPath, track.id);
+        const observer = observeEnvelopeCommands(
+          page,
+          projectPath,
+          track.id,
+          receipts,
+        );
+        let release = () => {};
+        try {
+          await setup(page, projectPath, "dark", 32, receipts);
+          await pointerControl(
+            page,
+            page.getByRole("button", {
+              name: `Open track details, ${track.label}`,
+              exact: true,
+            }),
+            receipts,
+            true,
+          );
+          await pointerControl(
+            page,
+            page.getByRole("button", {
+              name: "Edit volume envelope",
+              exact: true,
+            }),
+            receipts,
+          );
+          const select = page.getByRole("combobox", {
+            name: "Envelope point",
+            exact: true,
+          });
+          await exposeControl(page, select, receipts);
+          await expect(select.locator("option")).toHaveCount(4);
+          await pointerControl(page, select, receipts);
+          await page.keyboard.press("End");
+          await page.keyboard.press("Enter");
+          await expect(select).toHaveValue("responsive-last");
+          await exposeControl(
+            page,
+            page.getByRole("button", { name: "Delete point", exact: true }),
+            receipts,
+          );
+          await pointerControl(
+            page,
+            page.getByRole("button", { name: "Edit point", exact: true }),
+            receipts,
+          );
+          const time = page.getByLabel("Time (seconds on timeline)", {
+            exact: true,
+          });
+          const level = page.getByLabel("Level (×)", { exact: true });
+          await typeControl(page, time, "3", receipts);
+          await typeControl(page, level, "0.8", receipts);
+          const gate = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          let requests = 0;
+          const message =
+            "This envelope changed while the draft was open. Your point draft is preserved; discard this draft and reload points, then try again.";
+          await page.route(
+            (url) => url.pathname === "/api/document/command",
+            async (route) => {
+              if (route.request().postDataJSON()?.type !== "SetEnvelope") {
+                await route.continue();
+                return;
+              }
+              requests += 1;
+              await gate;
+              await route.fulfill({
+                status: 409,
+                contentType: "application/json",
+                body: JSON.stringify({ detail: message }),
+              });
+            },
+          );
+          const save = page.getByRole("button", {
+            name: "Save point",
+            exact: true,
+          });
+          const admission = await exposeControl(page, save, receipts);
+          receipts.push({
+            checkpoint: "native-double-click-save-admission",
+            observation: admission,
+          });
+          await page.screenshot();
+          await page.mouse.dblclick(admission.point.x, admission.point.y);
+          await expect.poll(() => requests).toBe(1);
+          for (const control of [
+            time,
+            level,
+            save,
+            page.getByRole("button", { name: "Cancel", exact: true }),
+            page.getByRole("button", { name: "Done", exact: true }),
+          ]) {
+            await expect(control).toBeDisabled();
+            await exposeControl(page, control, receipts);
+          }
+          await wheelInspector(page, receipts, 220);
+          await expect(time).toHaveValue("3");
+          await expect(level).toHaveValue("0.8");
+          await captureInspector(
+            page,
+            info,
+            receipts,
+            "pending-request-full-controls",
+          );
+          release();
+          const alert = page.getByRole("alert");
+          await expect(alert).toContainText(message);
+          await expect(save).toBeEnabled();
+          await exposeControl(page, alert, receipts);
+          await expect(time).toHaveValue("3");
+          await expect(level).toHaveValue("0.8");
+          await exposeControl(
+            page,
+            page.getByRole("button", {
+              name: "Discard draft and reload points",
+              exact: true,
+            }),
+            receipts,
+          );
+          await captureInspector(
+            page,
+            info,
+            receipts,
+            "wrapped-failure-full-recovery",
+          );
+          await pointerControl(
+            page,
+            page.getByRole("button", { name: "Cancel", exact: true }),
+            receipts,
+          );
+          await visibleFocus(
+            select,
+            receipts,
+            "failure-cancel-visible-selector",
+          );
+          expect(requests).toBe(1);
+          expect(envelopeSnapshot(projectPath, track.id)).toEqual(saved);
+        } finally {
+          release();
+          await observer.retain();
+        }
+      },
+      undefined,
+      manyPointLongNameProject,
     );
   });
 });

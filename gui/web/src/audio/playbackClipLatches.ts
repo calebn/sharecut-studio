@@ -3,11 +3,21 @@ import { useDawStore } from "../state/dawStore";
 /** Listening-session safety state survives responsive shell remounts. */
 let epoch: number | null = null;
 const clippedTracks = new Set<string>();
+const listeners = new Set<() => void>();
+
+export function subscribePlaybackClipLatches(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
 
 export function synchronizePlaybackClipLatches(
   projectEpoch: number,
   trackIds: readonly string[] | null,
 ): void {
+  const previousEpoch = epoch;
+  const previousSize = clippedTracks.size;
   if (epoch !== projectEpoch) {
     epoch = projectEpoch;
     clippedTracks.clear();
@@ -16,6 +26,9 @@ export function synchronizePlaybackClipLatches(
     for (const id of clippedTracks) {
       if (!trackIds.includes(id)) clippedTracks.delete(id);
     }
+  }
+  if (epoch !== previousEpoch || clippedTracks.size !== previousSize) {
+    for (const listener of listeners) listener();
   }
 }
 
@@ -30,8 +43,10 @@ export function setPlaybackTrackClipped(
   trackId: string,
   clipped: boolean,
 ): void {
+  if (clippedTracks.has(trackId) === clipped) return;
   if (clipped) clippedTracks.add(trackId);
   else clippedTracks.delete(trackId);
+  for (const listener of listeners) listener();
 }
 
 let observedEpoch = useDawStore.getState().projectEpoch;

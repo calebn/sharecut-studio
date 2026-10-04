@@ -592,8 +592,11 @@ uses native Tabs and Enter for field errors and completion. The 32px root is a
 technology or software-keyboard evidence; those acceptance checks remain #960.
 Run the focused regression after the production E2E build:
 `npm run test:e2e -- e2e/inspector-responsive.spec.ts`.
-See [the baseline and result record](issue-961/README.md) for qualified failures
-and selected pixels. This suite does not replace the owner recovery/CAS tests.
+See [the baseline and result record](issue-961/README.md) for qualified failures,
+selected pixels, and a separate genuine Chromium 200% browser-zoom check. That
+check uses `chrome.tabs.setZoom` with a 16px root and measured halved CSS layout
+on an Xvfb display. It is distinct from this suite's root32 simulation.
+This suite does not replace the owner recovery/CAS tests.
 `gui/web/e2e/desktop-splash.spec.ts` renders native startup HTML with long errors
 at narrow and wide sizes. These browser checks do not validate packaged WebViews
 or physical microphone behavior.

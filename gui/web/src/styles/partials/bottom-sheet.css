@@ -162,8 +162,19 @@ html[data-shell="tablet"][data-layout="timeline"] .bottom-sheet-root {
   width: 100%;
   max-width: none;
   border: none;
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: auto;
   height: auto;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.bottom-sheet:has(.modifier-inspector) {
+  overflow: auto;
+}
+
+.bottom-sheet:has(.modifier-inspector) .bottom-sheet-body,
+.bottom-sheet:has(.modifier-inspector) .bottom-sheet-body > :not(.inspector) {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
 }

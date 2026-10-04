@@ -77,8 +77,10 @@ describe("EnvelopeWorkspace", () => {
     const { container } = mount(null);
     expect(setEnvelope).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Add point" }));
-    expect(screen.getByLabelText("Time (seconds on timeline)")).toHaveValue(0);
-    expect(screen.getByLabelText("Level (×)")).toHaveValue(1);
+    expect(screen.getByLabelText("Time (seconds on timeline)")).toHaveValue(
+      "0",
+    );
+    expect(screen.getByLabelText("Level (×)")).toHaveValue("1");
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("button", { name: "Save point" })).toBeNull();
     expect(setEnvelope).not.toHaveBeenCalled();
@@ -186,7 +188,7 @@ describe("EnvelopeWorkspace", () => {
     });
     await save();
     expect(setEnvelope).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Level (×)")).toHaveValue(0.25);
+    expect(screen.getByLabelText("Level (×)")).toHaveValue("0.25");
     expect(screen.getByText(/This envelope changed/)).toBeTruthy();
   });
   it("retains a rejected draft and point ID for deliberate retry", async () => {
@@ -250,9 +252,9 @@ describe("EnvelopeWorkspace", () => {
     mount();
     await userEvent.click(screen.getByRole("button", { name: "Add point" }));
     expect(screen.getByLabelText("Time (seconds on timeline)")).toHaveValue(
-      2.5,
+      "2.5",
     );
-    expect(screen.getByLabelText("Level (×)")).toHaveValue(0.75);
+    expect(screen.getByLabelText("Level (×)")).toHaveValue("0.75");
   });
   it("keeps share envelope controls read-only even for an edit-capable share", () => {
     useDawStore.setState({ projectPath: "share:test", guestMode: "edit" });

@@ -348,6 +348,7 @@
 }
 
 .track-headers-chrome {
+  flex-shrink: 0;
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
@@ -741,6 +742,7 @@
 }
 
 .track-header-row {
+  flex-shrink: 0;
   position: relative;
   height: var(--lane-height);
   padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
@@ -1112,6 +1114,10 @@
   grid-area: gain;
 }
 
+.track-clip-status {
+  display: none;
+}
+
 /* After .track-meta / .track-out-gain so display:none wins the cascade. */
 @container timeline (inline-size < 30rem) {
   .track-meta,
@@ -1125,7 +1131,7 @@
      the edge, and the full name on the lane's clip labels; mute, solo, gain
      and reorder live in the track sheet and the Menu. */
   .track-header-row {
-    padding-block: var(--space-3);
+    padding-block: var(--space-1);
     padding-inline: var(--space-1);
     align-items: center;
     gap: 0;
@@ -1151,20 +1157,16 @@
     min-block-size: var(--space-3);
   }
 
-  .track-clip-clear {
-    position: absolute;
-    inset-inline-end: 0;
-    inset-block-end: calc(0rem - var(--space-3));
-    inline-size: var(--touch-min);
-    block-size: var(--touch-min);
+  .track-header-row .track-clip-clear {
+    display: none;
   }
 
-  .track-clip-clear .ui-meter-clip {
-    margin-inline-start: auto;
+  .track-header-row .track-clip-status {
+    display: flex;
   }
 
-  .track-playback-meter .ui-meter {
-    padding-inline-end: var(--space-3);
+  .track-playback-meter {
+    padding-inline-end: 0;
   }
 
   .track-chip {
@@ -1283,4 +1285,24 @@
 
 .daw-main--arrange.daw-main--inspector-collapsed {
   grid-template-columns: 1fr;
+}
+
+.track-playback-meter--inspector {
+  gap: var(--space-3);
+  padding: 0;
+  flex-wrap: wrap;
+}
+
+.track-playback-meter--inspector .track-clip-clear {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  inline-size: auto;
+  block-size: auto;
+  min-block-size: var(--touch-min);
+  min-inline-size: var(--touch-min);
+  padding: var(--space-3) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
 }

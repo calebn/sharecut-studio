@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { recordMobileViewport } from "../../record/recordStoryDecorator";
+import {
+  enlargedLandscapeSheet,
+  inspectorSheetStoryDecorator,
+} from "../../test/inspectorSheetDecorator";
 import { EnvelopeWorkspaceView } from "./EnvelopeWorkspaceView";
 
 const meta: Meta<typeof EnvelopeWorkspaceView> = {
@@ -76,4 +80,18 @@ export const Conflict: Story = {
 export const Saving: Story = { args: { ...FirstPoint.args, busy: true } };
 export const ReadOnly: Story = {
   args: { ...CoincidentPoints.args, editable: false },
+};
+
+export const EnlargedTextShortLandscape: Story = {
+  ...enlargedLandscapeSheet,
+  decorators: [inspectorSheetStoryDecorator],
+  args: {
+    ...FirstPoint.args,
+    trackName: "Host with a deliberately long descriptive track name",
+    error: {
+      target: "form",
+      message:
+        "This envelope changed since editing started. Discard the draft and reload points before trying again. Your saved envelope has not changed.",
+    },
+  },
 };
