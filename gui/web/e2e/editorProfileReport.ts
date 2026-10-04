@@ -91,6 +91,12 @@ export type WorkloadObservation =
       observationMethod: string;
       payloadHash: string;
     }
+  | {
+      kind: "native-progress-diagnostic";
+      jobId: string;
+      observerProtocol: string;
+      terminal: "ok";
+    }
   | { kind: "existing"; contract: string };
 export type WorkloadResult =
   | { status: "completed"; observation: WorkloadObservation }
@@ -191,6 +197,12 @@ export type EditorProfileReport = {
     framePercentiles: typeof FRAME_PERCENTILE_POLICY;
     scenario?: string;
     requiredCoverage?: string[];
+    nativeObserver?: {
+      id: string;
+      mode: "passive" | "control";
+      limits: Record<string, number>;
+      motion: "normal" | "reduce";
+    };
     preparation?: {
       kind: "native-timeline-zoom";
       minimumClipWidthPx: number;
