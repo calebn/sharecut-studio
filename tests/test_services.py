@@ -524,8 +524,8 @@ def test_transcript_precorrect_service_dry_run(minimal_project):
     assert isinstance(result, dict)
 
 
-def test_pipeline_service_set_envelope(minimal_project):
-    ws = ProjectWorkspace.open(minimal_project)
+def test_pipeline_service_set_envelope(envelope_project):
+    ws = ProjectWorkspace.open(envelope_project)
     n = PipelineService(ws).set_envelope(
         "host",
         [{"time": 0.0, "value": 0.0}, {"time": 5.0, "value": -6.0}],
@@ -537,14 +537,14 @@ def test_pipeline_service_set_envelope(minimal_project):
     assert len(ids) == len(set(ids))
 
 
-def test_pipeline_service_preserves_explicit_envelope_point_id(minimal_project):
-    ws = ProjectWorkspace.open(minimal_project)
+def test_pipeline_service_preserves_explicit_envelope_point_id(envelope_project):
+    ws = ProjectWorkspace.open(envelope_project)
     PipelineService(ws).set_envelope("host", [{"id": "stable-point", "time": 0.0, "value": 0.0}])
     assert ws.project.automation_envelopes[0].points[0].id == "stable-point"
 
 
-def test_pipeline_service_rejects_duplicate_envelope_point_ids(minimal_project):
-    ws = ProjectWorkspace.open(minimal_project)
+def test_pipeline_service_rejects_duplicate_envelope_point_ids(envelope_project):
+    ws = ProjectWorkspace.open(envelope_project)
     with pytest.raises(ValueError, match="point IDs must be unique"):
         PipelineService(ws).set_envelope(
             "host",
@@ -555,8 +555,8 @@ def test_pipeline_service_rejects_duplicate_envelope_point_ids(minimal_project):
         )
 
 
-def test_pipeline_service_rejects_blank_envelope_point_id(minimal_project):
-    ws = ProjectWorkspace.open(minimal_project)
+def test_pipeline_service_rejects_blank_envelope_point_id(envelope_project):
+    ws = ProjectWorkspace.open(envelope_project)
     with pytest.raises(ValueError, match="at least 1 character"):
         PipelineService(ws).set_envelope("host", [{"id": "", "time": 0.0, "value": 0.0}])
 

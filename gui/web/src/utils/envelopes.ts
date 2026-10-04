@@ -11,9 +11,7 @@ export function findVolumeEnvelope(
   trackId: string,
 ): AutomationEnvelope | undefined {
   return envelopes?.find(
-    (e) =>
-      e.track_id === trackId &&
-      (e.parameter === "volume" || e.parameter === "gain" || !e.parameter),
+    (e) => e.track_id === trackId && e.parameter === "volume",
   );
 }
 
@@ -57,36 +55,49 @@ export function withVolumeEnvelopePoints(
 }
 
 export function replaceEnvelopePoint(
-  points: AutomationPoint[],
-  index: number,
+  points: readonly AutomationPoint[],
   next: AutomationPoint,
-): { points: AutomationPoint[]; index: number } {
-  const tagged = points.map((p, i) => ({ ...p, i }));
-  tagged[index] = { ...next, i: index };
-  tagged.sort((a, b) => a.time - b.time);
-  return {
-    points: tagged.map(({ id, time, value }) => ({ id, time, value })),
-    index: tagged.findIndex((p) => p.i === index),
-  };
+): AutomationPoint[] {
+  return points
+    .map((point) => (point.id === next.id ? next : point))
+    .sort((a, b) => a.time - b.time);
 }
 
-export function indexOfVolumePointAtTime(
-  envelopes: readonly AutomationEnvelope[] | undefined,
-  trackId: string,
+export function envelopeValueAt(
+  points: readonly AutomationPoint[],
   time: number,
 ): number {
-  const points = sortedVolumePoints(envelopes, trackId);
-  if (points.length === 0) {
-    return -1;
-  }
-  let best = 0;
-  let bestDist = Math.abs(points[0]!.time - time);
-  for (let i = 1; i < points.length; i++) {
-    const dist = Math.abs(points[i]!.time - time);
-    if (dist < bestDist) {
-      best = i;
-      bestDist = dist;
+  if (points.length === 0) return 1;
+  const sorted = [...points].sort((a, b) => a.time - b.time);
+  if (time < sorted[0]!.time) return sorted[0]!.value;
+  for (let i = 1; i < sorted.length; i++) {
+    const next = sorted[i]!;
+    if (time < next.time) {
+      const previous = sorted[i - 1]!;
+      return (
+        previous.value +
+        ((next.value - previous.value) * (time - previous.time)) /
+          (next.time - previous.time)
+      );
     }
   }
-  return best;
+  return sorted[sorted.length - 1]!.value;
+}
+
+export function sameEnvelopePoints(
+  a: readonly AutomationPoint[],
+  b: readonly AutomationPoint[],
+): boolean {
+  return (
+    a.length === b.length &&
+    a.every((point, index) => {
+      const other = b[index];
+      return (
+        other != null &&
+        point.id === other.id &&
+        point.time === other.time &&
+        point.value === other.value
+      );
+    })
+  );
 }

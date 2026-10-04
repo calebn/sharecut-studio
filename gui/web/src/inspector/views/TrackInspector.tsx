@@ -7,6 +7,7 @@ import {
   canApplyPass12,
   canIngestMedia,
   guestHearsMixOnly,
+  isShareProjectKey,
 } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import { TrackFader } from "../../tracks/TrackFader";
@@ -24,6 +25,7 @@ import {
 } from "../../ui";
 import { GUESTS_HEAR_FULL_MIX } from "../../utils/auditionModes";
 import { formatEffectParams } from "../../utils/effectParams";
+import { sortedVolumePoints } from "../../utils/envelopes";
 import { playTimelineRange } from "../../utils/playRange";
 import { ModifierInspector } from "../ModifierInspector";
 
@@ -38,6 +40,9 @@ export function TrackInspector({
 }) {
   const {
     projectPath,
+    project,
+    setSelection,
+    setLayerVisible,
     guestMode,
     shareCapabilities,
     setPlayheadSec,
@@ -45,6 +50,9 @@ export function TrackInspector({
     setIsPlaying,
   } = useDaw((s) => ({
     projectPath: s.projectPath,
+    project: s.project,
+    setSelection: s.setSelection,
+    setLayerVisible: s.setLayerVisible,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
     setPlayheadSec: s.setPlayheadSec,
@@ -131,10 +139,19 @@ export function TrackInspector({
           <TrackMuteSoloButtons trackId={track.id} />
         </div>
         <TrackFader track={track} />
-        <p className="track-sheet-gain">
-          For volume over time, drag Levels points on the timeline, then edit
-          the selected point in the inspector.
-        </p>
+        <Button
+          data-envelope-entry={track.id}
+          onClick={() => {
+            setLayerVisible("showLevels", true);
+            setSelection({ kind: "envelope", trackId: track.id });
+          }}
+        >
+          {isShareProjectKey(projectPath)
+            ? "View volume envelope"
+            : sortedVolumePoints(project?.envelopes, track.id).length
+              ? "Edit volume envelope"
+              : "Add volume envelope"}
+        </Button>
       </div>
       {editable ? (
         <div className="modifier-footer-actions">

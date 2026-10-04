@@ -102,9 +102,9 @@ def main() -> int:
                 "track_id": "reference",
                 "parameter": "volume",
                 "points": [
-                    {"time": 0.0, "value": 1.0},
-                    {"time": 30.0, "value": 0.85},
-                    {"time": 60.0, "value": 1.0},
+                    {"id": "reference-volume-start", "time": 0.0, "value": 1.0},
+                    {"id": "reference-volume-middle", "time": 30.0, "value": 0.85},
+                    {"id": "reference-volume-end", "time": 60.0, "value": 1.0},
                 ],
             }
         ],

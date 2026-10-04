@@ -120,9 +120,9 @@ def test_boundary_http_requires_preview_revision(minimal_project, kind, payload)
     assert "expected_token" in response.text
 
 
-def test_host_http_rejects_stale_envelope_without_overwriting_peer(minimal_project):
+def test_host_http_rejects_stale_envelope_without_overwriting_peer(envelope_project):
     client = TestClient(create_app())
-    url = f"/api/document/command?path={quote(str(minimal_project))}"
+    url = f"/api/document/command?path={quote(str(envelope_project))}"
     first = client.post(
         url,
         json={
@@ -153,7 +153,7 @@ def test_host_http_rejects_stale_envelope_without_overwriting_peer(minimal_proje
     assert stale.status_code == 409
     assert stale.json()["detail"]["conflict"] is True
     assert "not applied" in stale.json()["detail"]["detail"]
-    stored = ProjectWorkspace.open(minimal_project).project.automation_envelopes[0]
+    stored = ProjectWorkspace.open(envelope_project).project.automation_envelopes[0]
     assert [(point.id, point.value) for point in stored.points] == [("first", 1)]
 
 

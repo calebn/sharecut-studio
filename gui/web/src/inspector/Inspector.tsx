@@ -6,19 +6,21 @@ import { ChapterInspector } from "./views/ChapterInspector";
 import { ClipInspector } from "./views/ClipInspector";
 import { CommentInspector } from "./views/CommentInspector";
 import { EmptyInspector } from "./views/EmptyInspector";
-import { EnvelopePointInspector } from "./views/EnvelopePointInspector";
+import { EnvelopeWorkspace } from "./views/EnvelopeWorkspace";
 import { PendingEditInspector } from "./views/PendingEditInspector";
 import { SocialClipInspector } from "./views/SocialClipInspector";
 import { TrackInspector } from "./views/TrackInspector";
 import { TranscriptWordInspector } from "./views/TranscriptWordInspector";
 
 export function Inspector() {
-  const { project, selection, setSelection, setPlayheadSec } = useDaw((s) => ({
-    project: s.project,
-    selection: s.selection,
-    setSelection: s.setSelection,
-    setPlayheadSec: s.setPlayheadSec,
-  }));
+  const { project, projectEpoch, selection, setSelection, setPlayheadSec } =
+    useDaw((s) => ({
+      project: s.project,
+      projectEpoch: s.projectEpoch,
+      selection: s.selection,
+      setSelection: s.setSelection,
+      setPlayheadSec: s.setPlayheadSec,
+    }));
 
   if (!project) {
     return (
@@ -126,11 +128,15 @@ export function Inspector() {
           wordIndex={selection.wordIndex}
         />
       );
+    case "envelope":
     case "envelopePoint":
       return (
-        <EnvelopePointInspector
+        <EnvelopeWorkspace
+          key={`${projectEpoch}:${selection.trackId}:${selection.kind === "envelopePoint" ? selection.pointId : "workspace"}`}
           trackId={selection.trackId}
-          index={selection.index}
+          pointId={
+            selection.kind === "envelopePoint" ? selection.pointId : null
+          }
         />
       );
     default:
