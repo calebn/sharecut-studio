@@ -84,7 +84,8 @@ The Ask compose and the public review page default the author to the same sessio
 ## DAW viewer
 
 - Hideable orange pins / range bars (Overlay legend → Comments)
-- **Comment** mode in the transport: click ruler = instant, drag = span; Esc exits
+- **Comment** mode in the transport: click ruler = instant, drag = span; Esc exits. Pointer cancellation or lost capture restores the prior draft while the same project and comment tool still own it. Later movement and release from that pointer are inert. Changing project, leaving the tool or replacing the draft discards the old gesture without restoring over the new state. Cancellation keeps the initial seek and does not reopen Comments.
+- A focused ruler handles Arrow Left/Right by its visible major tick interval and Home/End by the existing start/session-end route, once per key event; ordinary global arrow shortcuts remain available outside the ruler.
 - **Comments** tab: filter open / open actions / resolved / all; compose; you comment as your session display name (**Commenting as Caleb · Change**: the name saved for comments, else Host or Guest; **Change** edits it inline; Enter or moving to another control saves, Esc cancels, and focus returns to **Change** only after Enter or Esc); replies; check action items; resolve (an **Undo** toast follows for the most recent resolve only — resolving another comment replaces it, and earlier ones stay reopenable with **Reopen**; hosts on touch can swipe left)
 - Playback bubble when the playhead overlaps a comment (capped to one; toggled with Comments layer)
 - Inspector when a comment is selected

@@ -117,7 +117,6 @@ const selectTimelineViewFields = pickDaw(
   "sessionRegion",
   "lastAgentQuery",
   "commentMode",
-  "setCommentDraft",
   "setActiveTab",
   "isPlaying",
   "toolMode",
@@ -173,7 +172,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     sessionRegion,
     lastAgentQuery,
     commentMode,
-    setCommentDraft,
     setActiveTab,
     isPlaying,
     toolMode,
@@ -832,11 +830,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                     if (toolMode === "blade" && !commentMode) {
                       runPointerCommand("edit.bladeCut", { atTime: sec });
                     }
-                  }}
-                  commentMode={commentMode}
-                  onCommentAnchor={(startSec, endSec) => {
-                    setCommentDraft({ startSec, endSec });
-                    setActiveTab("comments");
                   }}
                   onFit={() => {
                     // fitToWindow sets the scroll; the sync effect writes it.

@@ -26,7 +26,9 @@ const meta: Meta<typeof TimeRulerView> = {
     playhead: <PlayheadNeedle xPx={192} height="100%" />,
     onSeek: fn(),
     onFit: fn(),
-    onCommentAnchor: fn(),
+    commentGesture: {
+      begin: () => ({ preview: fn(), finish: fn(), cancel: fn() }),
+    },
   },
   argTypes: {
     getPlayheadSec: { control: false, table: { disable: true } },

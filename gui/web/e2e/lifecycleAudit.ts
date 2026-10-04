@@ -41,6 +41,7 @@ export type Project = {
     }[];
   };
   transcripts: unknown;
+  review?: { comments: unknown[] };
 };
 export type Command = {
   type: string;
@@ -84,13 +85,17 @@ export function snapshot(p: string) {
       end,
     })),
     envelopes: d.mix.automation_envelopes,
+    comments: d.review?.comments ?? [],
     transcripts: JSON.parse(
       JSON.stringify(d.transcripts, (_k, v) =>
         v === null || v === false ? undefined : v,
       ),
     ) as unknown,
     history: fs.existsSync(h)
-      ? (JSON.parse(fs.readFileSync(h, "utf8")) as unknown)
+      ? (JSON.parse(fs.readFileSync(h, "utf8")) as {
+          cursor: number;
+          entries: { operation: string | null }[];
+        })
       : null,
   };
 }

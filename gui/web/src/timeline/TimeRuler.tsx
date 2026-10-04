@@ -1,12 +1,19 @@
+import { useMemo } from "react";
 import { useDawStore } from "../state/dawStore";
 import { MIN_TIMELINE_WIDTH_PX } from "../utils/timelineViewport";
+import { beginCommentAnchorSession } from "./commentAnchorSession";
 import { Playhead } from "./Playhead";
 import { TimeRulerView, type TimeRulerViewProps } from "./TimeRulerView";
 import { useVisibleChunks } from "./useVisibleChunks";
 
 type TimeRulerProps = Omit<
   TimeRulerViewProps,
-  "valueSec" | "getPlayheadSec" | "visibleChunks" | "playhead"
+  | "valueSec"
+  | "getPlayheadSec"
+  | "visibleChunks"
+  | "playhead"
+  | "commentGesture"
+  | "commentMode"
 > & { hidePlayhead?: boolean };
 
 /**
@@ -23,6 +30,14 @@ function selectRulerValueSec(s: {
 /** Live DAW wiring; the Playhead keeps its per-frame DOM transform updates. */
 export function TimeRuler({ hidePlayhead = false, ...props }: TimeRulerProps) {
   const valueSec = useDawStore(selectRulerValueSec);
+  const commentMode = useDawStore((state) => state.commentMode);
+  const commentGesture = useMemo(
+    () => ({
+      begin: (onInvalidated: () => void) =>
+        beginCommentAnchorSession(useDawStore, onInvalidated),
+    }),
+    [],
+  );
   const width = Math.max(
     props.durationSec * props.zoomPxPerSec,
     MIN_TIMELINE_WIDTH_PX,
@@ -32,6 +47,8 @@ export function TimeRuler({ hidePlayhead = false, ...props }: TimeRulerProps) {
   return (
     <TimeRulerView
       {...props}
+      commentMode={commentMode}
+      commentGesture={commentGesture}
       valueSec={valueSec}
       getPlayheadSec={() => useDawStore.getState().playheadSec}
       visibleChunks={visibleChunks}
