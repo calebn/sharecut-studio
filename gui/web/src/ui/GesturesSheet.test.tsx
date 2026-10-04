@@ -29,6 +29,21 @@ describe("GesturesSheet", () => {
     expect(screen.getByText("Double-tap word")).toBeInTheDocument();
   });
 
+  it("describes two-finger Undo as an optional Sharecut shortcut", () => {
+    render(
+      <GesturesSheet
+        open
+        onClose={() => undefined}
+        onShowKeyboardShortcuts={() => undefined}
+      />,
+    );
+    const undoGesture = screen.getByText("Two-finger tap").parentElement;
+    expect(undoGesture).toHaveTextContent(
+      "Undo: Undo the last action. Optional Sharecut shortcut.",
+    );
+    expect(screen.queryByText(/iOS system convention/i)).toBeNull();
+  });
+
   it("does not render when closed", () => {
     const { baseElement: container } = render(
       <GesturesSheet

@@ -1,10 +1,67 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { BottomSheet } from "./BottomSheet";
 
 describe("BottomSheet", () => {
+  it("opens from its trigger, toggles controlled sizing, and restores focus on close and Escape", async () => {
+    const user = userEvent.setup();
+    const onExpandedChange = vi.fn();
+    function ControlledSheet() {
+      const [open, setOpen] = useState(false);
+      const [expanded, setExpanded] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Open inspector
+          </button>
+          <BottomSheet
+            open={open}
+            onClose={() => setOpen(false)}
+            backgroundPolicy="interactive"
+            title="Inspector"
+            expanded={expanded}
+            onExpandedChange={(next) => {
+              onExpandedChange(next);
+              setExpanded(next);
+            }}
+          >
+            <p>Inspector details</p>
+          </BottomSheet>
+        </>
+      );
+    }
+
+    render(<ControlledSheet />);
+    const trigger = screen.getByRole("button", { name: "Open inspector" });
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "Inspector" });
+    const close = screen.getByRole("button", { name: "Close" });
+    await waitFor(() => expect(close).toHaveFocus());
+    expect(dialog).toHaveClass("bottom-sheet--half");
+    expect(dialog.querySelector(".bottom-sheet-grab")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Expand" }));
+    expect(onExpandedChange).toHaveBeenLastCalledWith(true);
+    expect(dialog).toHaveClass("bottom-sheet--full");
+    await expectNoA11yViolations(dialog);
+    await user.click(screen.getByRole("button", { name: "Collapse" }));
+    expect(onExpandedChange).toHaveBeenLastCalledWith(false);
+    expect(dialog).toHaveClass("bottom-sheet--half");
+    await expectNoA11yViolations(dialog);
+
+    await user.click(close);
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+
+    await user.click(trigger);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+  });
+
   it("renders nothing when closed", () => {
     const { container } = render(
       <BottomSheet
@@ -105,5 +162,23 @@ describe("BottomSheet", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("keeps fixed sheets closable without a resize action or drag cue", async () => {
+    render(
+      <BottomSheet
+        open
+        onClose={() => undefined}
+        backgroundPolicy="dismiss"
+        title="Fixed confirmation"
+      >
+        <p>Confirm this action?</p>
+      </BottomSheet>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Fixed confirmation" });
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Expand" })).toBeNull();
+    expect(dialog.querySelector(".bottom-sheet-grab")).toBeNull();
+    await expectNoA11yViolations(dialog);
   });
 });

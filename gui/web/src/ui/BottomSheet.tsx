@@ -79,7 +79,6 @@ export function BottomSheet({
         aria-labelledby={title ? titleId : undefined}
       >
         <div className="bottom-sheet-chrome">
-          <div className="bottom-sheet-grab" aria-hidden />
           <div className="bottom-sheet-header">
             {title ? (
               <h2 id={titleId} className="bottom-sheet-title">
@@ -91,6 +90,7 @@ export function BottomSheet({
             <div className="bottom-sheet-header-actions">
               {onExpandedChange ? (
                 <Button
+                  className="bottom-sheet-resize-action"
                   variant="link"
                   type="button"
                   onClick={() => onExpandedChange(!isFull)}

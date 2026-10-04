@@ -177,3 +177,11 @@ and controller units explain applicability, not a runtime PASS for every row.
 Physical devices, assistive technology and heard splice quality remain manual
 gaps. #950 envelope creation/discovery and #951 touch-first work are separately
 sequenced follow-ups.
+
+## Bounded #951 sheet decision
+
+The #951 touch-editor decision record is [touch-editor-decisions.md](touch-editor-decisions.md).
+This follow-up removes the inert BottomSheet grip while keeping its existing
+Expand/Collapse and Close controls. It does not add sheet drag handling or change
+the bounded #878 counts, cases, or claims above. Physical device checks remain
+pending #301, and named-device profiling remains with #879.

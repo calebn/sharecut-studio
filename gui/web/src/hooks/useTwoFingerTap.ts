@@ -62,10 +62,6 @@ function angularDifference(first: number, second: number): number {
   );
 }
 
-/**
- * Recognizes the iOS two-finger Undo tap without competing with timeline
- * gestures. The command bus retains the final availability check.
- */
 export function useTwoFingerTap(
   ref: RefObject<HTMLElement | null>,
   options: { enabled: boolean },
