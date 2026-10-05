@@ -12,9 +12,10 @@ the first sign of new sound:
   that is audible again, or the first high-band jump out of the quiet. A plosive's
   closure is quiet; its burst is a short broadband transient that can stay under the
   audibility floor yet jumps clear of the room in the band above 2 kHz.
-* With no quiet between (continuous voice), the onset is where the level first fell
-  away from the filler, once a dip and a rise out of it (in level or in the high
-  band) show a new sound began. A glide such as the "w" of "we" is the dip itself.
+* With no quiet between (continuous voice), the onset is the bottom of the dip
+  between the filler and the next sound, once a rise out of it (in level or in the
+  high band) shows a new sound began. The owner hears the filler's vowel run down
+  the dip into a glide such as the "w" of "we" (lab, 706.32 vs 706.44, 2026-10-05).
 """
 
 from __future__ import annotations
@@ -87,9 +88,6 @@ def next_onset_sec(
         rose = (dipped and level >= dip_level + _RISE_DB) or band >= dip_band + _BURST_DB
         # A new sound goes on; the click of voice stopping dead falls quiet next frame.
         if rose and k + 1 < levels.size and levels[k + 1] >= quiet_db:
-            fell = next(
-                (j for j in range(peak_k + 1, k + 1) if levels[j] <= levels[peak_k] - _FALL_DB),
-                k,
-            )
-            return at(fell) if at(fell) < end else None
+            trough = peak_k + 1 + int(np.argmin(levels[peak_k + 1 : k + 1]))
+            return at(trough) if at(trough) < end else None
     return None
