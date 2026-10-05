@@ -22,6 +22,7 @@ from podcast_mcp.edits.breath_detect import (
 from podcast_mcp.edits.cut_quality import (
     assess_cut_risk,
     optimize_and_assess,
+    post_pad_fade_in_bounds_ms,
     recommend_cut_fade_ms,
 )
 from podcast_mcp.edits.filler_pacing import MIN_PACED_CUT_SEC, apply_filler_pacing
@@ -1349,14 +1350,19 @@ def _shrink_to_next_onset(
     by it.
     """
     guard = max(_ONSET_GUARD_SEC, join_micro_fade_ms(defaults) / 1000.0)
+    # Look as far as the longest post-pad fade-in could reach: an onset there does
+    # not move the cut, but approval must still end the fade before it.
+    fade_reach = post_pad_fade_in_bounds_ms(defaults)[1] / 1000.0
     onset = next_onset_sec(
         audio_cache,
         candidate.end,
-        plan.end + guard,
+        plan.end + guard + fade_reach,
         quiet_db=_audibility_floor_db(defaults),
     )
     if onset is None:
         return plan
+    if onset >= plan.end + guard:
+        return replace(plan, next_onset=onset)
     end = min(plan.end, onset - guard)
     if end < candidate.end - _FILLER_END_SLACK_SEC:
         return _CutRejected("next_onset")

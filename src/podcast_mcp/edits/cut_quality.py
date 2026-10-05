@@ -165,7 +165,7 @@ def _resume_edge_rms_db(
     return measure_window_rms_db(path, t0, t1)
 
 
-def _post_pad_fade_in_bounds_ms(defaults: dict[str, Any] | None) -> tuple[int, int]:
+def post_pad_fade_in_bounds_ms(defaults: dict[str, Any] | None) -> tuple[int, int]:
     tighten = _tighten_cfg(defaults)
     min_ms = int(tighten.get("filler_post_pad_fade_in_min_ms", 15))
     max_ms = int(tighten.get("filler_post_pad_fade_in_max_ms", 120))
@@ -201,7 +201,7 @@ def recommend_post_pad_fade_in_ms(
     plosive burst; the join declick (``inaudible_cuts.micro_fade_ms``) is the floor.
     """
     h = _heuristics(defaults)
-    min_ms, max_ms = _post_pad_fade_in_bounds_ms(defaults)
+    min_ms, max_ms = post_pad_fade_in_bounds_ms(defaults)
     if max_ms <= 0:
         return 0
     tighten = _tighten_cfg(defaults)
