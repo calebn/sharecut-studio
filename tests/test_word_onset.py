@@ -46,12 +46,15 @@ def test_onset_is_the_plosive_burst_even_below_the_audibility_floor():
     assert next_onset_sec(cache, 1.3, 1.62, quiet_db=QUIET_DB) == pytest.approx(1.41)
 
 
-def test_onset_in_continuous_voice_is_where_the_level_left_the_filler():
+def test_onset_in_continuous_voice_is_the_bottom_of_the_dip():
+    # The owner hears the filler's vowel run down the dip until the next word rises
+    # out of it (lab "uh, we" at 706.32-706.44, 2026-10-05).
     filler = _voice(round(0.3 * RATE))
-    glide = _voice(round(0.08 * RATE), f0=120.0, level_db=-32.0)
+    n = round(0.08 * RATE)
+    decay = _voice(n) * np.power(10.0, np.linspace(0.0, -16.0, n) / 20.0)
     vowel = _voice(round(0.2 * RATE), level_db=-18.0)
-    cache = _cache((1.0, filler), (1.3, glide), (1.38, vowel))
-    assert next_onset_sec(cache, 1.3, 1.6, quiet_db=QUIET_DB) == pytest.approx(1.29)
+    cache = _cache((1.0, filler), (1.3, decay), (1.38, vowel))
+    assert next_onset_sec(cache, 1.3, 1.6, quiet_db=QUIET_DB) == pytest.approx(1.37, abs=0.011)
 
 
 def test_no_onset_before_the_planned_end():
