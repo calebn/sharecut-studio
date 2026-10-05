@@ -561,20 +561,25 @@ def delete_clips(
     jobs = [(c.track_id, c.timeline_start, c.timeline_end) for c in clips]
     if ripple:
         ranges = merge_timeline_ranges([(s, e) for _, s, e in jobs])
+        rippled: list[str] = []
         for start, end in sorted(ranges, key=lambda r: r[0], reverse=True):
-            ripple_delete(
+            rippled = ripple_delete(
                 project,
                 start,
                 end,
                 use_inaudible_opt=False,
                 record_log=False,
-            )
+            )["affected_tracks"]
         if record_log:
             archive_timeline_op(
                 project,
                 operation="ripple_delete_clips",
                 track_ids=track_ids,
-                params={"clip_ids": list(clip_ids), "ripple": True},
+                params={
+                    "clip_ids": list(clip_ids),
+                    "ripple": True,
+                    "cut_spans": {tid: [list(r) for r in ranges] for tid in rippled},
+                },
             )
         return change_summary(
             project,
@@ -582,6 +587,7 @@ def delete_clips(
             affected_tracks=track_ids,
             clip_ids=list(clip_ids),
         )
+    punched: dict[str, list[list[float]]] = {}
     for track_id, start, end in sorted(jobs, key=lambda j: j[1], reverse=True):
         punch_delete(
             project,
@@ -591,12 +597,13 @@ def delete_clips(
             use_inaudible_opt=False,
             record_log=False,
         )
+        punched.setdefault(track_id, []).append([start, end])
     if record_log:
         archive_timeline_op(
             project,
             operation="delete_clips",
             track_ids=track_ids,
-            params={"clip_ids": list(clip_ids), "ripple": False},
+            params={"clip_ids": list(clip_ids), "ripple": False, "cut_spans": punched},
         )
     return change_summary(
         project,

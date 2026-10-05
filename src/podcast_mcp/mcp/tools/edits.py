@@ -352,7 +352,7 @@ def revert_applied_edit_tool(project_path: str, record_id: str) -> str:
 
 
 def edit_impact_report_tool(project_path: str, markdown: bool = False) -> str:
-    """Report pending-review and applied edits, with applied removal duration by track."""
+    """Report pending-review and applied edits, with seconds cut in total and by track."""
     ws = ProjectWorkspace.open(project_path)
     report = EditService(ws).impact_report(markdown=markdown)
     return report if isinstance(report, str) else to_json(report)

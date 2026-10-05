@@ -9,6 +9,7 @@ from pydantic import Field
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import abutting_pairs, clips_abut, clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
+from podcast_mcp.edits.edit_impact import ImpactKind, record_impact
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange, optimize_source_cut_range
@@ -534,7 +535,36 @@ def apply_auto_edits(project: EpisodeProject) -> int:
     return apply_prefix_edits(project, ("filler:", "pause:"), config_key="tighten")
 
 
+def _impact_segment(
+    segment_id: str,
+    track_id: str,
+    start: float,
+    end: float,
+    duration_sec: float,
+    reason: str | None,
+    *,
+    applied: bool,
+    review_required: bool,
+) -> dict:
+    return {
+        "id": segment_id,
+        "track_id": track_id,
+        "start": start,
+        "end": end,
+        "duration_sec": duration_sec,
+        "reason": reason,
+        "applied": applied,
+        "review_required": review_required,
+    }
+
+
 def edit_impact_report(project: EpisodeProject) -> dict:
+    """Seconds cut and edits applied, from decisions still in ``edit_decisions`` plus the edit log.
+
+    Approval archives decisions into ``editorial.edit_log`` and drops them from
+    ``edit_decisions``, so both sources count without overlap. Mutes count as
+    applied edits but remove no time.
+    """
     by_track: dict[str, float] = {}
     pending = 0
     applied = 0
@@ -547,40 +577,55 @@ def edit_impact_report(project: EpisodeProject) -> dict:
     for tid in {t.id for t in project.tracks}:
         track_clips = clips_for_track(project, tid)
         gap_count += sum(not clips_abut(left, right) for left, right in pairwise(track_clips))
+    total_removed = 0.0
     for e in project.edit_decisions:
-        if e.type.value not in ("remove", "mute"):
+        if e.type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE):
             continue
-        dur = max(0.0, e.end - e.start)
         if e.applied:
             applied += 1
-            by_track[e.track_id] = by_track.get(e.track_id, 0.0) + dur
-            segments.append(
-                {
-                    "id": e.id,
-                    "track_id": e.track_id,
-                    "start": e.start,
-                    "end": e.end,
-                    "duration_sec": dur,
-                    "reason": e.reason,
-                    "applied": True,
-                    "review_required": e.review_required,
-                }
-            )
+            if e.type == EditDecisionType.REMOVE:
+                dur = max(0.0, e.end - e.start)
+                by_track[e.track_id] = by_track.get(e.track_id, 0.0) + dur
+                total_removed += dur
         elif e.review_required:
             pending += 1
-            segments.append(
-                {
-                    "id": e.id,
-                    "track_id": e.track_id,
-                    "start": e.start,
-                    "end": e.end,
-                    "duration_sec": dur,
-                    "reason": e.reason,
-                    "applied": False,
-                    "review_required": True,
-                }
+        else:
+            continue
+        segments.append(
+            _impact_segment(
+                e.id,
+                e.track_id,
+                e.start,
+                e.end,
+                max(0.0, e.end - e.start),
+                e.reason,
+                applied=e.applied,
+                review_required=e.review_required,
             )
-    total_removed = sum(by_track.values())
+        )
+    for record in project.editorial.edit_log:
+        impact = record_impact(record)
+        if impact is None:
+            continue
+        applied += 1
+        if impact.kind is ImpactKind.CUT:
+            total_removed += impact.span_sec
+            for tid in impact.spans_by_track:
+                by_track[tid] = by_track.get(tid, 0.0) + impact.track_sec(tid)
+        spans = [s for spans in impact.spans_by_track.values() for s in spans]
+        if spans:
+            segments.append(
+                _impact_segment(
+                    record.id,
+                    ", ".join(impact.spans_by_track),
+                    min(start for start, _ in spans),
+                    max(end for _, end in spans),
+                    impact.span_sec,
+                    record.reason,
+                    applied=True,
+                    review_required=False,
+                )
+            )
     return {
         "total_removed_sec": total_removed,
         "by_track_sec": by_track,
@@ -597,7 +642,7 @@ def format_edit_impact_markdown(report: dict) -> str:
     lines = [
         "# Edit impact",
         f"- Total removed (applied): **{report['total_removed_sec']:.1f}s**",
-        f"- Applied cuts: {report['applied_count']}",
+        f"- Applied edits: {report['applied_count']}",
         f"- Pending review: {report['pending_review_count']}",
         "",
     ]
