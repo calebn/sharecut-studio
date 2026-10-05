@@ -103,8 +103,6 @@ def test_map_pending_edits_mappable() -> None:
     assert rows[0]["source_start_timeline"] == pytest.approx(1.0)
     assert rows[0]["source_end_timeline"] == pytest.approx(2.0)
     assert rows[0]["scope"] == "session"
-    assert rows[0]["can_skip"] is True
-    assert rows[0]["skip_reason"] is None
     assert rows[0]["suggest_reason"] is None
     assert rows[0]["join_risk"] is None
 
@@ -151,9 +149,6 @@ def test_map_pending_edits_unmappable() -> None:
     assert rows[0]["timeline_start"] is None
     assert rows[0]["source_start_timeline"] is None
     assert rows[0]["source_end_timeline"] is None
-    assert rows[0]["can_skip"] is False
-    assert rows[0]["skip_reason"] is not None
-    assert "not on the current timeline" in rows[0]["skip_reason"]
     assert rows[0]["suggest_reason"] == "This cut is not on the current timeline."
     assert rows[0]["join_risk"] is None
 

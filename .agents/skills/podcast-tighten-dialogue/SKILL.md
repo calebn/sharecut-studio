@@ -120,7 +120,7 @@ separately (“N acoustic, review each”).
 6. For NL cuts by topic, use skill **podcast-edit-natural-language**.
 7. Do **not** run pipeline from `tighten_from_transcript` on production while
    `tighten.enabled` is false / the golden-ear bar is unmet.
-8. Owner golden-ear (Shot of Truth): `make golden-ear ARGS='build --project … --out DIR'` (add `--intensity <tier>` to evaluate a tier) then `score --answers listen/answers.csv` — see [docs/filler-cut-quality.md](../../../docs/filler-cut-quality.md) § Golden-ear protocol. Listen under `listen/`; do not open `key.json`. `propose_tighten` is gated by transcript refine (`_require_refine_clear`). Suggested audio is the pending-skip preview, not the post-apply pad/fade path. Not a CI substitute for the owner listen.
+8. Owner golden-ear (Shot of Truth): `make golden-ear ARGS='build --project … --out DIR'` (add `--intensity <tier>` to evaluate a tier) then `score --answers listen/answers.csv` — see [docs/filler-cut-quality.md](../../../docs/filler-cut-quality.md) § Golden-ear protocol. Listen under `listen/`; do not open `key.json`. `propose_tighten` is gated by transcript refine (`_require_refine_clear`). Suggested audio is the pending preview's approved render (ripple, paced pad, fades), as approving ships it. Not a CI substitute for the owner listen.
 
 ## Undo
 

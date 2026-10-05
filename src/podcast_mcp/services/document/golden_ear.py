@@ -229,7 +229,7 @@ def _render_pair_wavs(
     rng: random.Random,
 ) -> dict[str, Any] | None:
     window = resolve_pending_preview(play.project, edit.id, pad_sec=pad_sec)
-    if not window.can_skip:
+    if window.suggest_reason:
         return None
     leave = play.play_pending_preview(
         edit.id,

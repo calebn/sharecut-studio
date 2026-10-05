@@ -996,8 +996,8 @@ def test_coalesce_merges_same_track_mute():
     assert sum(1 for e in project.edit_decisions if e.type == EditDecisionType.REMOVE) == 1
 
 
-def test_mute_skip_reason_shared_with_play_range_ts():
-    from podcast_mcp.edits.pending_preview import SKIP_REASON_MUTE, resolve_pending_preview
+def test_mute_has_a_suggested_preview():
+    from podcast_mcp.edits.pending_preview import resolve_pending_preview
 
     project = EpisodeProject.create("p", "/tmp/ws")
     project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
@@ -1015,13 +1015,7 @@ def test_mute_skip_reason_shared_with_play_range_ts():
             applied=False,
         )
     ]
-    window = resolve_pending_preview(project, "m1")
-    assert window.can_skip is False
-    assert window.skip_reason == SKIP_REASON_MUTE
-    ts = (
-        Path(__file__).resolve().parents[1] / "gui" / "web" / "src" / "utils" / "playRange.ts"
-    ).read_text(encoding="utf-8")
-    assert SKIP_REASON_MUTE in ts
+    assert resolve_pending_preview(project, "m1").suggest_reason is None
 
 
 def test_edit_impact_and_invalidation_reason_for_mute(tmp_path, sample_wav):

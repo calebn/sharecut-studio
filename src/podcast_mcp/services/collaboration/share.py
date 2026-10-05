@@ -1154,8 +1154,7 @@ def share_pending_preview_info(
         "play_end": window.play_end,
         "timeline_start": window.timeline_start,
         "timeline_end": window.timeline_end,
-        "can_skip": window.can_skip,
-        "skip_reason": window.skip_reason,
+        "suggest_reason": window.suggest_reason,
         "note": (
             "Stream via the share HTTP URLs (or relay public origin). "
             "Remote MCP does not play audio on the host machine."

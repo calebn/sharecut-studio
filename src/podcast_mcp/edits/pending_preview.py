@@ -11,13 +11,9 @@ from podcast_mcp.models import AppliedEditRecord, EditDecision, EditDecisionType
 DEFAULT_PAD_SEC = 0.5
 DEFAULT_AB_GAP_SEC = 0.4
 
-SKIP_REASON_SPLIT = "A split does not change the mix until you delete a side."
-SKIP_REASON_TRACK = "Track punch keeps timeline length. Hear Current around the hole."
-SKIP_REASON_MUTE = "Mute-in-place keeps timeline length. Hear Current around the hole."
-SKIP_REASON_UNMAPPED = "This cut is not on the current timeline."
-SKIP_REASON_TOO_SHORT = "This cut is too short for a Suggested skip."
-SKIP_REASON_SESSION_ONLY = "Suggested skip is only for session-wide removes."
-SKIP_REASON_STALE_RANGE = "Selected audio changed. Select the range again."
+SUGGEST_REASON_SPLIT = "A split does not change the mix until you delete a side."
+SUGGEST_REASON_UNMAPPED = "This cut is not on the current timeline."
+SUGGEST_REASON_STALE_RANGE = "Selected audio changed. Select the range again."
 
 
 @dataclass(frozen=True)
@@ -25,8 +21,7 @@ class PendingPreviewWindow:
     """Current-timeline window around one pending edit.
 
     ``suggest_reason`` says why the rendered Suggested side is unavailable (None when
-    it renders). ``can_skip`` / ``skip_reason`` gate the GUI's live timeline-skip listen,
-    which can only play session removes.
+    it renders).
     """
 
     edit_id: str
@@ -34,8 +29,6 @@ class PendingPreviewWindow:
     timeline_end: float
     play_start: float
     play_end: float
-    can_skip: bool
-    skip_reason: str | None
     suggest_reason: str | None
 
 
@@ -83,11 +76,10 @@ def preview_window_for_edit(
 ) -> PendingPreviewWindow:
     tl_start, tl_end, mappable = _timeline_span(project, edit)
     type_val = edit.type.value if hasattr(edit.type, "value") else str(edit.type)
-    skip_reason = _skip_reason(type_val, edit.scope or "session", mappable, tl_end - tl_start)
-    suggest_reason = _suggest_reason(type_val, mappable)
     if edit.exact_range is not None:
-        skip_reason = suggest_reason = None if mappable else SKIP_REASON_STALE_RANGE
-    can_skip = skip_reason is None
+        suggest_reason = None if mappable else SUGGEST_REASON_STALE_RANGE
+    else:
+        suggest_reason = _suggest_reason(type_val, mappable)
     play_start = max(0.0, tl_start - pad_sec)
     play_end = max(play_start + 0.05, tl_end + pad_sec)
     return PendingPreviewWindow(
@@ -96,17 +88,15 @@ def preview_window_for_edit(
         timeline_end=tl_end,
         play_start=play_start,
         play_end=play_end,
-        can_skip=can_skip,
-        skip_reason=skip_reason,
         suggest_reason=suggest_reason,
     )
 
 
 def _suggest_reason(type_val: str, mappable: bool) -> str | None:
     if type_val == EditDecisionType.SPLIT.value:
-        return SKIP_REASON_SPLIT
+        return SUGGEST_REASON_SPLIT
     if not mappable:
-        return SKIP_REASON_UNMAPPED
+        return SUGGEST_REASON_UNMAPPED
     return None
 
 
@@ -123,7 +113,7 @@ def apply_for_suggested(project: EpisodeProject, window: PendingPreviewWindow) -
     approve_edits(project, [window.edit_id])
     applied = project.editorial.edit_log[logged:]
     if not applied:
-        raise ValueError(SKIP_REASON_UNMAPPED)
+        raise ValueError(SUGGEST_REASON_UNMAPPED)
     return window.play_end - _timeline_shift(applied[0])
 
 
@@ -140,20 +130,3 @@ def _timeline_shift(record: AppliedEditRecord) -> float:
         raise ValueError("applied edit lacks timeline bounds")
     pad = float(params.get("replace_gap_sec") or 0.0)
     return (record.timeline_end - record.timeline_start) - pad
-
-
-def _skip_reason(type_val: str, scope: str, mappable: bool, duration: float) -> str | None:
-    """Keep the public preview's skip decision and explanation in one place."""
-    if type_val == EditDecisionType.SPLIT.value:
-        return SKIP_REASON_SPLIT
-    if type_val == EditDecisionType.MUTE.value:
-        return SKIP_REASON_MUTE
-    if scope == "track":
-        return SKIP_REASON_TRACK
-    if not mappable:
-        return SKIP_REASON_UNMAPPED
-    if duration <= 0.02:
-        return SKIP_REASON_TOO_SHORT
-    if type_val != EditDecisionType.REMOVE.value or scope != "session":
-        return SKIP_REASON_SESSION_ONLY
-    return None

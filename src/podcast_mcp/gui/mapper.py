@@ -113,8 +113,6 @@ def map_pending_edits_to_timeline(
                 "source_end_timeline": source_end_timeline,
                 "timeline_spans": timeline_spans,
                 "mappable": mappable,
-                "can_skip": preview.can_skip,
-                "skip_reason": preview.skip_reason,
                 "suggest_reason": preview.suggest_reason,
                 "crossfade_ms": decision.crossfade_ms,
                 "boundary_mode": decision.boundary_mode,
