@@ -2696,7 +2696,7 @@ def test_approved_padded_cut_leaves_the_plosive_burst_unattenuated(tmp_path):
     (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], load_defaults())
     assert decision.replace_gap_sec
     assert decision.end < burst_at
-    assert decision.next_onset_sec == pytest.approx(decision.end + 0.01)
+    assert decision.next_burst_sec == pytest.approx(decision.end + 0.01)
     project.edit_decisions = [decision]
     assert approve_edits(project, [decision.id]) == 1
     rerender_preview(project, reconcile=False)
@@ -2748,9 +2748,9 @@ def test_onset_past_the_cut_end_still_caps_the_post_pad_fade_in(tmp_path, burst_
     decisions = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
     (decision,) = [d for d in decisions if d.reason == "filler:uh"]
 
-    assert decision.next_onset_sec == pytest.approx(burst_at, abs=0.011)
-    assert decision.next_onset_sec - decision.end > 0.02
-    headroom_ms = (decision.next_onset_sec - decision.end) * 1000.0
+    assert decision.next_burst_sec == pytest.approx(burst_at, abs=0.011)
+    assert decision.next_burst_sec - decision.end > 0.02
+    headroom_ms = (decision.next_burst_sec - decision.end) * 1000.0
     project.edit_decisions = [decision]
     assert approve_edits(project, [decision.id]) == 1
     resumed = next(c for c in project.clips if c.source_start >= decision.end - 1e-6)
@@ -2758,6 +2758,51 @@ def test_onset_past_the_cut_end_still_caps_the_post_pad_fade_in(tmp_path, burst_
     assert recommend_post_pad_fade_in_ms(project, "host", decision.end, defaults=defaults) > (
         headroom_ms
     )
+
+
+def test_gradual_onset_after_a_padded_cut_keeps_the_full_post_pad_fade_in(tmp_path):
+    import numpy as np
+
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
+    from podcast_mcp.edits.decisions import approve_edits
+
+    rate = 48_000
+    # "she": the high band climbs about 4 dB per 10 ms from the room, then holds.
+    ramp_n = round(0.15 * rate)
+    ramp = np.random.default_rng(5).standard_normal(ramp_n) * np.power(
+        10.0, np.linspace(-90.0, -30.0, ramp_n) / 20.0
+    )
+    hold = np.random.default_rng(6).standard_normal(round(0.2 * rate)) * 10 ** (-28 / 20)
+    project = _audio_project(
+        tmp_path,
+        [
+            (0.3, _voice(0.3, rate=rate)),
+            (1.0, _voice(0.3, rate=rate)),
+            (1.40, ramp),
+            (1.55, hold),
+            (1.8, _voice(0.3, level_db=-18, rate=rate)),
+        ],
+        [
+            TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+            TranscriptWord(text="uh,", start=1.0, end=1.3, confidence=0.9),
+            TranscriptWord(text="she", start=1.5, end=1.9, confidence=0.95),
+        ],
+        rate=rate,
+    )
+    defaults = load_defaults()
+
+    decisions = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+    (decision,) = [d for d in decisions if d.reason == "filler:uh"]
+
+    assert decision.replace_gap_sec
+    assert decision.next_burst_sec is None
+    recommended = recommend_post_pad_fade_in_ms(project, "host", decision.end, defaults=defaults)
+    assert recommended > 40
+    project.edit_decisions = [decision]
+    assert approve_edits(project, [decision.id]) == 1
+    resumed = next(c for c in project.clips if c.source_start >= decision.end - 1e-6)
+    assert resumed.fade_in_ms == recommended
 
 
 def _scope_result(scope: str):

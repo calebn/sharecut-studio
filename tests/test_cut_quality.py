@@ -354,7 +354,7 @@ def test_recommend_post_pad_fade_in_covers_late_hot_onset():
         (4, 10),  # never below the declick, even when the onset is nearer
     ],
 )
-def test_post_pad_fade_in_ends_before_the_next_onset(onset_after_resume_ms, expected):
+def test_post_pad_fade_in_ends_before_the_next_burst(onset_after_resume_ms, expected):
     from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
 
     onset = None if onset_after_resume_ms is None else 1.0 + onset_after_resume_ms / 1000.0
@@ -363,7 +363,7 @@ def test_post_pad_fade_in_ends_before_the_next_onset(onset_after_resume_ms, expe
             _minimal_project(),
             "host",
             1.0,
-            next_onset_sec=onset,
+            next_burst_sec=onset,
             defaults={"tighten": {"filler_post_pad_quiet_db": -48.0}},
         )
     assert fade == expected

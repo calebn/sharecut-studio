@@ -126,14 +126,15 @@ tighten:
   filler_pre_pad_fade_out_ms: 5
   # Post-pad fade-in is adaptive to resume-edge energy (see cut_quality).
   # Quiet air → min; hot/late onset within look-ahead → toward max. A detected
-  # next-word onset caps it so the ramp ends before that onset.
+  # plosive burst caps it so the ramp ends before the burst; a gradual onset
+  # (fricative, glide, vowel) does not.
   filler_post_pad_fade_in_min_ms: 15
   filler_post_pad_fade_in_max_ms: 120
   filler_post_pad_look_ahead_ms: 120
   # With a pad the cut's edges never meet: each fades against silence, so the
   # splice checks below (breath protection, cut-risk level jumps, the join gate)
   # skip it. Its right edge instead stops 10 ms before the next word's acoustic
-  # onset (a plosive's burst included), and it may not cover a whole kept word
+  # onset (a plosive's burst kept whole), and it may not cover a whole kept word
   # (skip counts next_onset, kept_word:{word}; #978).
   filler_room_tone_replace: true
   # silence = hard gap (default; good for dry rooms). room_tone = sample air

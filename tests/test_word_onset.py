@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache
-from podcast_mcp.edits.word_onset import next_onset_sec
+from podcast_mcp.edits.word_onset import OnsetKind, next_onset
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 
 RATE = 16_000
@@ -36,28 +36,84 @@ def _burst(level_db: float) -> np.ndarray:
     return np.random.default_rng(3).standard_normal(round(0.008 * RATE)) * _db(level_db)
 
 
-def test_onset_is_the_plosive_burst_even_below_the_audibility_floor():
+def _ramp(n: int, *, from_db: float, to_db: float, seed: int = 5) -> np.ndarray:
+    """White noise whose level moves linearly in dB: the shape of a fricative's rise."""
+    gain = np.power(10.0, np.linspace(from_db, to_db, n) / 20.0)
+    return np.random.default_rng(seed).standard_normal(n) * gain
+
+
+def _voice_envelope(*knots: tuple[float, float]) -> tuple[float, np.ndarray]:
+    """One unbroken voice whose level follows ``(sec, dB)`` knots; no phase clicks."""
+    (t_first, _), (t_last, _) = knots[0], knots[-1]
+    times = np.arange(round((t_last - t_first) * RATE)) / RATE + t_first
+    db = np.interp(times, [t for t, _ in knots], [level for _, level in knots])
+    return t_first, _voice(times.size, level_db=0.0) * np.power(10.0, db / 20.0)
+
+
+# A filler that decays 16 dB into a low, dark stretch with no quiet in it. The stretch
+# creeps up by a dB, so its trough is where it begins (1.38).
+_FILLER_DECAY = ((1.0, -20.0), (1.3, -20.0), (1.38, -36.6), (1.45, -35.4))
+
+
+def test_plosive_out_of_quiet_is_a_burst_even_below_the_audibility_floor():
     burst_at = 1.42
     cache = _cache(
         (1.0, _voice(round(0.3 * RATE))),
         (burst_at, _burst(-50.0)),
         (1.45, _voice(round(0.3 * RATE), level_db=-18.0)),
     )
-    assert next_onset_sec(cache, 1.3, 1.62, quiet_db=QUIET_DB) == pytest.approx(1.41)
+    onset = next_onset(cache, 1.3, 1.62, quiet_db=QUIET_DB)
+    assert onset is not None
+    assert onset.sec == pytest.approx(1.41)
+    assert onset.kind is OnsetKind.BURST
 
 
-def test_onset_in_continuous_voice_is_the_bottom_of_the_dip():
-    # The owner hears the filler's vowel run down the dip until the next word rises
-    # out of it (lab "uh, we" at 706.32-706.44, 2026-10-05).
-    filler = _voice(round(0.3 * RATE))
-    n = round(0.08 * RATE)
-    decay = _voice(n) * np.power(10.0, np.linspace(0.0, -16.0, n) / 20.0)
-    vowel = _voice(round(0.2 * RATE), level_db=-18.0)
-    cache = _cache((1.0, filler), (1.3, decay), (1.38, vowel))
-    assert next_onset_sec(cache, 1.3, 1.6, quiet_db=QUIET_DB) == pytest.approx(1.37, abs=0.011)
+def test_fricative_out_of_quiet_ramps_and_is_gradual():
+    # "she" at 1441.71: the high band climbs about 4 dB per frame, not in one jump.
+    ramp = _ramp(round(0.1 * RATE), from_db=-90.0, to_db=-50.0)
+    cache = _cache(
+        (1.0, _voice(round(0.3 * RATE))),
+        (1.42, ramp),
+        (1.52, _ramp(4000, from_db=-50.0, to_db=-35.0)),
+    )
+    onset = next_onset(cache, 1.3, 1.7, quiet_db=QUIET_DB)
+    assert onset is not None
+    assert onset.sec == pytest.approx(1.47, abs=0.03)
+    assert onset.kind is OnsetKind.GRADUAL
+
+
+def test_onset_in_continuous_voice_is_the_foot_of_the_rise_not_the_trough():
+    # "uh, we" at 706.3-706.5: the level falls into a low, dark stretch and the vowel
+    # climbs out of it. The owner still heard "uh" with the cut at the trough.
+    cache = _cache(_voice_envelope(*_FILLER_DECAY, (1.48, -18.0), (1.68, -18.0)))
+    onset = next_onset(cache, 1.3, 1.6, quiet_db=QUIET_DB)
+    assert onset is not None
+    assert onset.sec == pytest.approx(1.43, abs=0.011)
+    assert onset.kind is OnsetKind.GRADUAL
+
+
+@pytest.mark.parametrize("seconds", [0.1, 0.04])
+def test_continuous_voice_into_a_ramp_is_gradual(seconds):
+    # 0.04 s is a 14 dB per frame climb, the pace of "we" out of its dark stretch
+    # (lab 706.45): a new sound, but one a fade-in can cover.
+    ramp = _ramp(round(seconds * RATE), from_db=-80.0, to_db=-40.0)
+    cache = _cache(_voice_envelope(*_FILLER_DECAY, (1.65, -35.4)), (1.45, ramp))
+    onset = next_onset(cache, 1.3, 1.6, quiet_db=QUIET_DB)
+    assert onset is not None
+    assert onset.sec == pytest.approx(1.44, abs=0.02)
+    assert onset.kind is OnsetKind.GRADUAL
+
+
+def test_plosive_in_continuous_voice_is_a_burst():
+    cache = _cache(_voice_envelope(*_FILLER_DECAY, (1.65, -35.4)), (1.5, _burst(-30.0)))
+    onset = next_onset(cache, 1.3, 1.6, quiet_db=QUIET_DB)
+    assert onset is not None
+    assert onset.kind is OnsetKind.BURST
 
 
 def test_no_onset_before_the_planned_end():
     cache = _cache((1.0, _voice(round(0.3 * RATE))), (2.0, _voice(round(0.3 * RATE))))
-    assert next_onset_sec(cache, 1.3, 1.9, quiet_db=QUIET_DB) is None
-    assert next_onset_sec(cache, 1.3, 2.1, quiet_db=QUIET_DB) == pytest.approx(1.99)
+    assert next_onset(cache, 1.3, 1.9, quiet_db=QUIET_DB) is None
+    onset = next_onset(cache, 1.3, 2.1, quiet_db=QUIET_DB)
+    assert onset is not None
+    assert onset.sec == pytest.approx(1.99)
