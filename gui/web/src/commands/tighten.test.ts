@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { approveEdits, rejectEdits } from "../api";
+import { hostFetch } from "../api/documentTransport";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, wavResponse } from "../test/fixtures";
 import type { PendingEditView } from "../types/project";
 import { clearRegisteredCommands, execute } from "./execute";
 import { _resetSingleFlightsForTests, registerDawCommands } from "./register";
+
+vi.mock("../api/documentTransport", () => ({ hostFetch: vi.fn() }));
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
@@ -32,7 +35,7 @@ function pending(overrides: Partial<PendingEditView> = {}): PendingEditView {
     cut_confidence: 0.9,
     review_required: false,
     applied: false,
-    can_skip: true,
+    suggest_reason: null,
     ...overrides,
     source_start_timeline:
       overrides.source_start_timeline === undefined
@@ -213,6 +216,41 @@ describe("tighten commands", () => {
     });
     const result = await execute("tighten.previewHit", { id: "e1" });
     expect(result.status).toBe("disabled");
+  });
+
+  it("previewHit plays the server's Suggested render of the hit", async () => {
+    vi.mocked(hostFetch).mockResolvedValueOnce(wavResponse(1.2));
+    URL.createObjectURL = vi.fn(() => "blob:hit");
+    expect(await execute("tighten.previewHit", { id: "e1" })).toEqual({
+      status: "ok",
+    });
+    expect(hostFetch).toHaveBeenCalledWith(
+      `/api/pending-preview?edit_id=e1&mode=suggested&path=${encodeURIComponent("/tmp/p.json")}`,
+      expect.anything(),
+    );
+    expect(useDawStore.getState().sourcePreview).toMatchObject({
+      ownerId: "pending:e1",
+      media: { kind: "rendered", url: "blob:hit" },
+      startSec: 0,
+      endSec: 1.2,
+    });
+    expect(useDawStore.getState().isPlaying).toBe(false);
+  });
+
+  it("previewHit plays Current when the server refuses Suggested", async () => {
+    vi.mocked(hostFetch).mockResolvedValueOnce(wavResponse(0.5));
+    useDawStore.setState({
+      project: minimalProject({
+        pending_edits: [pending({ suggest_reason: "No Suggested here." })],
+      }),
+    });
+    expect(await execute("tighten.previewHit", { id: "e1" })).toEqual({
+      status: "ok",
+    });
+    expect(hostFetch).toHaveBeenCalledWith(
+      expect.stringContaining("edit_id=e1&mode=current"),
+      expect.anything(),
+    );
   });
 
   it("goToHit disables when timeline position is missing", async () => {

@@ -667,7 +667,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     category: "review",
     label: "Preview tighten hit",
     when: "tightenPanelOpen",
-    notes: "Args: { id?: string }: Suggested skip when possible",
+    notes: "Args: { id?: string }: rendered Suggested preview when possible",
   },
   "tighten.goToHit": {
     id: "tighten.goToHit",

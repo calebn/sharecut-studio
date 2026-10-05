@@ -278,10 +278,11 @@ wrapped text, both themes, focus departure, and short-viewport error recovery.
 `Templates/InspectorSeekFooter` renders the production `InspectorSeekFooterView`
 that every modifier inspector's footer uses. Fixed props cover the quiet-link
 and full-button actions, seek-only footers, the Current/Suggested/A/B preview
-modes, the blocked-skip reason, and a 360px phone footer. The live
-`InspectorSeekFooter` adapter reads the DAW store and chooses the audition
-(timeline range, suggested skip or A/B) on Play; the story's callbacks only
-update local preview-mode state. The view derives the blocked-skip reason id
+modes, the blocked-Suggested reason, and a 360px phone footer. The live
+`InspectorSeekFooter` adapter plays the timeline range on Play; the pending
+inspector's `PendingPreviewFooter` plays the server-rendered Current, Suggested
+or A/B instead. The story's callbacks only update local preview-mode state.
+The view derives the blocked-Suggested reason id
 with `useId()`, so several footers on one autodocs page never share an
 `aria-describedby` target.
 

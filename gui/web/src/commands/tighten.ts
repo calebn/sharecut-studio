@@ -1,14 +1,10 @@
 import { approveEdits, rejectEdits } from "../api";
+import { playPendingPreview } from "../audio/pendingPreview";
 import { canApplyPass12, canReviewPendingEdit } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { PendingEditView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
-import {
-  canSuggestSkip,
-  playSuggestedRange,
-  playTimelineRange,
-} from "../utils/playRange";
 import {
   applyAllSummary,
   eligibleApplyAllIds,
@@ -250,10 +246,10 @@ export function registerTightenCommands(): void {
     return runApprove(freshIds);
   });
 
-  registerCommand("tighten.previewHit", (args) => {
+  registerCommand("tighten.previewHit", async (args) => {
     const s = useDawStore.getState();
     const edit = pendingTightenHit(resolveTightenHitId(args));
-    if (!edit) {
+    if (!edit || !s.projectPath) {
       return { status: "disabled", reason: "No tighten hit selected" };
     }
     if (edit.timeline_start == null || edit.timeline_end == null) {
@@ -262,25 +258,12 @@ export function registerTightenCommands(): void {
         reason: "Timeline position unavailable for this hit",
       };
     }
-    const start = edit.timeline_start;
-    const end = edit.timeline_end;
-    if (canSuggestSkip(edit)) {
-      playSuggestedRange({
-        skipStart: edit.timeline_start,
-        skipEnd: edit.timeline_end,
-        beginAudition: s.beginAudition,
-      });
-    } else {
-      playTimelineRange({
-        start,
-        end,
-        beginAudition: s.beginAudition,
-        setPlayheadSec: s.setPlayheadSec,
-        setPlayUntilSec: s.setPlayUntilSec,
-        setIsPlaying: s.setIsPlaying,
-      });
-    }
-    return { status: "ok" };
+    const outcome = await playPendingPreview(
+      s.projectPath,
+      edit.id,
+      edit.suggest_reason ? "current" : "suggested",
+    );
+    return outcome.status === "disabled" ? outcome : { status: "ok" };
   });
 
   registerCommand("tighten.goToHit", (args) => {

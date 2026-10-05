@@ -64,6 +64,7 @@ const edit: PendingEditView = {
   cut_confidence: null,
   review_required: true,
   applied: false,
+  suggest_reason: null,
 };
 
 function setup(zoomPxPerSec: number, edits: PendingEditView[] = [edit]) {

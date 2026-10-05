@@ -115,6 +115,7 @@ def map_pending_edits_to_timeline(
                 "mappable": mappable,
                 "can_skip": preview.can_skip,
                 "skip_reason": preview.skip_reason,
+                "suggest_reason": preview.suggest_reason,
                 "crossfade_ms": decision.crossfade_ms,
                 "boundary_mode": decision.boundary_mode,
                 "cut_confidence": decision.cut_confidence,

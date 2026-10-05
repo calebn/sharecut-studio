@@ -1298,6 +1298,7 @@ describe("TimelineView render isolation", () => {
         cut_confidence: null,
         review_required: false,
         applied: false,
+        suggest_reason: null,
       },
     ];
     fresh.applied_edits = {

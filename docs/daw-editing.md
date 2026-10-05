@@ -86,7 +86,7 @@ Select on timeline or list
 
 | Shape | Selection | Inspector body | Preview |
 |-------|-----------|----------------|---------|
-| **A Edit point** | Drag handles on cut overlay; click pending/applied band | Range (source + timeline), reason, confidence; Approve / Reject / Restore; Ask thread | Current / Suggested skip / A/B around the pending band |
+| **A Edit point** | Drag handles on cut overlay; click pending/applied band | Range (source + timeline), reason, confidence; Approve / Reject / Restore; Ask thread | Current / Suggested / A/B rendered around the pending band |
 | **B Join / fade** | Select a clip or join badge / diamond | Paired fade sliders, incoming transition mode and length | Play across join |
 | **C FX** | Track header FX badge → chain list | Per-effect bypass + params; reorder later | FX vs Raw audition; bypass honored in render |
 | **D Transcript** | Double-click word or focus + F2 → inline edit | Word text, confidence, suppressed chip | Play word / utterance |
@@ -131,16 +131,16 @@ Shipped:
 
 Shipped:
 
-- In the GUI, source-timed session-scope REMOVE Suggested is a transport skip: pad-before, then pad-after (Current / Suggested / A/B). Splits, track-scope punch, and pending MUTE stay Current-only there with a skip reason.
+- In the GUI, Current / Suggested / A/B on any pending edit play the rendered pending preview below (`GET /api/pending-preview`, or the share route for a guest with `play`), as a source preview. Removes (session or track), mutes and exact ranges get Suggested; a split shows its `suggest_reason` beside the disabled Suggested and A/B, and an edit off the current timeline cannot play.
 - Applied mute-in-place (`Clip.mute_regions` from `tighten.edit_mode: mute`) is in the mix. The DAW paints those holes on clip blocks (`list_clips` / `ClipRow.mute_regions`) and lists them in Clip inspector — preview Current around the hole.
-- Review stays on the **current timeline + pending inspector** (no modal). Source-timed Play around is a skip; exact range previews use rendered full-mix audio. Ask, mutation errors, and Current / Suggested / A/B stack in document flow; long threads scroll in the body and long mutation errors scroll in a capped error slot so the footer stays visible.
+- Review stays on the **current timeline + pending inspector** (no modal). Play around plays rendered full-mix audio for every pending edit. Ask, mutation errors, and Current / Suggested / A/B stack in document flow; long threads scroll in the body and long mutation errors scroll in a capped error slot so the footer stays visible.
 - One `TimelineComment` thread per pending decision (`edit_decision_id`, unique). First Ask creates the root; later notes are replies. Approve/Reject does **not** auto-resolve the thread.
 - Mobile Listen **Pending** chip selects the first review-required pending (else first pending) and switches to Timeline (sheet opens from selection).
 - MCP `play_pending_preview_tool` / CLI `podcast play pending-preview` (`current` | `suggested` | `ab`), the rendered pending preview behind `GET /api/pending-preview` and the share route: Current is the premix around the edit. Suggested approves the edit on a snapshot (`approve_edits`, so the same ripple, `replace_gap_sec` paced pad, fades and mute) and renders that window through the per-track segment mix at the premix's recorded headroom trim (`premix.hash`), so it is what approving ships and plays at Current's level. The window ends where the post-roll lands after the edit, so a cut with a pad longer than itself plays longer than Current. Removes (session or track), mutes and exact ranges all render; a split or an unmapped edit has no Suggested side. Full mix only. Does not mutate the project. Skill: **podcast-play-audition**. Host speakers only.
-- Exact range pending GUI previews render the full mix for Current, Suggested, and A/B. Selected islands alone receive Cut/Mute; gaps and other lanes remain audible. The host uses `GET /api/pending-preview`; guests use the token-scoped route with playback permission. Exact proposals show timeline islands and lanes, with source-bound timing controls omitted and guest Approve/Reject disabled with a host-only reason.
+- Exact range pending previews: selected islands alone receive Cut/Mute; gaps and other lanes remain audible. Exact proposals show timeline islands and lanes, with source-bound timing controls omitted and guest Approve/Reject disabled with a host-only reason.
 - Share HTTP / guest MCP: `GET /api/review/{token}/daw/pending-preview` (+ optional `-image`) and `guest_pending_preview` (`play`+`view`). Relative URLs; never `afplay` on the host. See [host-online-relay.md](host-online-relay.md) § Remote MCP.
 
-**Done when:** an approver can hear Suggested vs Current on a pending session remove, then Approve, Reject, or Ask in that inspector thread.
+**Done when:** an approver can hear Suggested (as approving ships it) vs Current on a pending edit, then Approve, Reject, or Ask in that inspector thread.
 
 ### Tighten review
 
@@ -148,7 +148,7 @@ Shipped:
 
 - Host-only **Intensity** select (Light / Medium / Aggressive) edits the shared pipeline working set `tighten.intensity` (same value as the Pipeline tab). **Find hits** starts a host pipeline job running only `analyze_fillers_pauses` with `tighten.enabled` forced on for that run only (not persisted), so it re-proposes with the chosen tier and the list refreshes when the job finishes. Intensity and Find hits are disabled while the intensity save is in flight or any pipeline-slot job runs; a save refetches the working set first so only `tighten.intensity` changes, and a failed save rolls back to the last server-confirmed tier. If the config cannot load, the panel shows the error with **Retry**. When the list already has hits, Find hits asks for confirmation first because the re-proposal replaces pending hits (including nudged ones). If the analyze job fails (for example the transcript refine gate), its error shows next to Find hits. Starting Find hits clears a previous intensity save error, so the toolbar shows that run's result. See [filler-cut-quality.md § Intensity presets](filler-cut-quality.md#intensity-presets).
 - Search, class (filler/pause/repetition/restart), track, and “harsh cuts only” filters. Columns: time, track, class, ±3-word snippet, risk badge (risky / review), status. Repetition and restart proposals require individual review and are excluded from the default safe batch.
-- Per-hit command-bus actions: Preview (Suggested skip when `can_skip`), Skip (`RejectEdits`), Apply (`ApproveEdits`), Go to (seek + select). Shortcuts when the tab is open: `Enter`, `Backspace`, `P`, `Mod+Shift+Enter`.
+- Per-hit command-bus actions: Preview (the rendered Suggested preview, or Current when the hit has a `suggest_reason`), Skip (`RejectEdits`), Apply (`ApproveEdits`), Go to (seek + select). Shortcuts when the tab is open: `Enter`, `Backspace`, `P`, `Mod+Shift+Enter`.
 - **Apply eligible** with **Avoid harsh cuts** (default on) approves the listed hits except `review_required`, `:join_review` / `:risky` reason suffixes, or `join_risk.verdict` review as **one** `ApproveEdits` batch. `Mod+Shift+Enter` uses the same filtered list and checkbox state as the button. Confirm copy: “Apply 23 of 31 — 8 skipped as harsh”.
 - `ProjectView.pending_edits[].join_risk` is the propose-time assessment (`:risky` / `:join_review`) — not a live `join_quality` sweep on every snapshot. Live scoring stays MCP `join_quality_tool`.
 

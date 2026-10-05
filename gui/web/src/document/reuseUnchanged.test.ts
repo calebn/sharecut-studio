@@ -207,6 +207,7 @@ describe("reuseUnchanged", () => {
       cut_confidence: null,
       review_required: false,
       applied: false,
+      suggest_reason: null,
       ...extra,
       source_start_timeline:
         extra.source_start_timeline === undefined
