@@ -297,3 +297,34 @@ def test_suggested_mute_preview_matches_the_approved_mix(minimal_project) -> Non
     with wave.open(str(preview), "rb") as audio:
         assert audio.getnframes() == round(1.6 * 48000)
     _assert_same_audio(preview, _approved_premix_window(ws, "hush", 1.5, 3.1))
+
+
+def test_suggested_preview_follows_mix_changes_since_the_last_premix(minimal_project) -> None:
+    from podcast_mcp.services.document import PlayService
+
+    ws = _rendered_project(
+        minimal_project,
+        EditDecision(
+            id="cut",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=2.0,
+            end=2.6,
+            scope="session",
+            replace_gap_sec=0.9,
+            crossfade_ms=10,
+            review_required=True,
+            applied=False,
+        ),
+    )
+    PlayService(ws).play_pending_preview("cut", pad_sec=0.5, dry_run=True)
+    trim_before = read_premix_trim_db(ws.project)
+    guest = ws.project.track_by_id("guest")
+    assert guest is not None
+    guest.fader_db = 6.0
+    ws.save()
+
+    preview = PlayService(ws).play_pending_preview("cut", pad_sec=0.5, dry_run=True).wav_path
+
+    assert read_premix_trim_db(ws.project) != trim_before
+    _assert_same_audio(preview, _approved_premix_window(ws, "cut", 1.5, 3.4))

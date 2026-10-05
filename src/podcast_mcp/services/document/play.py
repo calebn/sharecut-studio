@@ -33,6 +33,7 @@ from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV, FFmpegEngine
 from podcast_mcp.engines.play_audit import (
     clear_invalidations_if_current,
     mix_gains,
+    premix_is_stale,
     premix_path,
     publish_stem,
     read_premix_trim_db,
@@ -1508,6 +1509,10 @@ class PlayService:
         window = resolve_pending_preview(self.project, edit_id, pad_sec=pad_sec)
         if kind != "current" and window.suggest_reason:
             raise ValueError(window.suggest_reason)
+        # Both sides read the premix (Current plays it, Suggested mixes at its trim),
+        # so a premix older than the mix settings would put them at different levels.
+        if premix_path(self.project).is_file() and premix_is_stale(self.project, self._defaults):
+            self._ensure_premix(rerender=True)
 
         current_wav: Path | None = None
         if kind in {"current", "ab"}:
