@@ -87,7 +87,7 @@ it against the owner verdicts.
   token matches the lexicon and becomes a candidate, but gets no hit. Breath
   protection suppresses it, because both cut edges sit inside the Um's own onset
   and tail, which room tone joins into one 0.91 s run. This is a strict `xfail`
-  citing calebn/sharecut-studio#975.
+  citing calebn/sharecut-studio#978.
 - **Cut pauses.** Each `cut` pause verdict needs a pause hit. Tighten proposes
   one at 625.46 to 627.83 s, and this test passes today.
 
