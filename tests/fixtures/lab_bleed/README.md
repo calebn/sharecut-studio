@@ -50,7 +50,9 @@ uv run --extra dev python tests/fixtures/lab_bleed/regenerate.py \
 
 The script checks the lab revision and original M4A file hashes before it
 decodes each original completely to a temporary WAV. It then slices native
-sample frames and verifies each FLAC by decoding it back to PCM. The 50 ms
+sample frames and verifies each FLAC by decoding it back to PCM. The extraction
+code lives in [`../lab_clips.py`](../lab_clips.py), shared with the other lab
+fixtures. The 50 ms
 context lets mute tests compare real receiving audio immediately outside the
 reviewed range. Verification compares decoded samples instead of FLAC bytes.
 Encoder versions can write different lossless FLAC streams for identical PCM.
