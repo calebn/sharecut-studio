@@ -1,8 +1,9 @@
-"""Real lab windows with filler and pause labels from the lab's seeded ASR.
+"""Real lab windows with filler, backchannel and pause labels from the lab's seeded ASR.
 
 Labels are ``label_source: "asr_seed"``: faster-whisper ``base`` words from the
-lab's ``source/asr`` seed. No person has listened to confirm them, and the
-committed audio contradicts some of them (see README.md).
+lab's ``source/asr`` seed. The generator rewrites them on every run. Owner
+listening lives apart in ``OWNER_VERDICTS`` and is never regenerated (see
+README.md).
 """
 
 from __future__ import annotations
@@ -10,6 +11,8 @@ from __future__ import annotations
 VERSION = 1
 LAB_REVISION = "3b414c4c86aa46b058d0505d3e0fb2092a6a959f"
 FILLER_TOKENS = ("uh", "um")
+CONTINUATION_TOKENS = ("-huh", "-hmm")
+HEARD = "2026-10-05"
 MIN_PAUSE_SEC = 1.2
 SOURCE_FILES = {
     "caleb": {
@@ -59,10 +62,10 @@ CASES = (
         "source_interval": (1108.0, 1133.0),
         "labels": (
             {
-                "kind": "filler",
+                "kind": "backchannel",
                 "track": "lana",
-                "source_interval": (1109.04, 1110.44),
-                "text": "Uh",
+                "source_interval": (1109.04, 1110.56),
+                "text": "Uh -huh.",
                 "label_source": "asr_seed",
             },
             {
@@ -80,10 +83,10 @@ CASES = (
                 "label_source": "asr_seed",
             },
             {
-                "kind": "filler",
+                "kind": "backchannel",
                 "track": "lana",
-                "source_interval": (1114.6, 1116.0),
-                "text": "Uh",
+                "source_interval": (1114.6, 1116.24),
+                "text": "Uh -huh.",
                 "label_source": "asr_seed",
             },
             {
@@ -101,10 +104,10 @@ CASES = (
                 "label_source": "asr_seed",
             },
             {
-                "kind": "filler",
+                "kind": "backchannel",
                 "track": "lana",
-                "source_interval": (1121.26, 1122.66),
-                "text": "Uh",
+                "source_interval": (1121.26, 1122.78),
+                "text": "Uh -huh.",
                 "label_source": "asr_seed",
             },
             {
@@ -122,17 +125,17 @@ CASES = (
                 "label_source": "asr_seed",
             },
             {
-                "kind": "filler",
+                "kind": "backchannel",
                 "track": "lana",
                 "source_interval": (1124.56, 1125.96),
-                "text": "Uh",
+                "text": "Uh -huh.",
                 "label_source": "asr_seed",
             },
             {
-                "kind": "filler",
+                "kind": "backchannel",
                 "track": "lana",
-                "source_interval": (1125.96, 1125.96),
-                "text": "Uh",
+                "source_interval": (1125.96, 1132.96),
+                "text": "Uh -huh.",
                 "label_source": "asr_seed",
             },
         ),
@@ -237,3 +240,36 @@ CASES = (
         },
     },
 )
+
+OWNER_VERDICTS = {
+    ("lana_uh_cluster", "lana", "backchannel", 1109.04): {
+        "verdict": "keep",
+        "heard": HEARD,
+        "heard_interval": (1108.5, 1111.5),
+    },
+    ("lana_uh_cluster", "lana", "backchannel", 1121.26): {
+        "verdict": "keep",
+        "heard": HEARD,
+        "heard_interval": (1120.5, 1126.5),
+    },
+    ("lana_uh_cluster", "lana", "backchannel", 1124.56): {
+        "verdict": "keep",
+        "heard": HEARD,
+        "heard_interval": (1120.5, 1126.5),
+    },
+    ("lana_uh_cluster", "lana", "backchannel", 1125.96): {
+        "verdict": "keep",
+        "heard": HEARD,
+        "heard_interval": (1120.5, 1126.5),
+    },
+    ("caleb_um_pause", "caleb", "filler", 615.98): {
+        "verdict": "cut",
+        "heard": HEARD,
+        "heard_interval": None,
+    },
+    ("caleb_um_pause", "caleb", "pause", 625.42): {
+        "verdict": "cut",
+        "heard": HEARD,
+        "heard_interval": (624.5, 628.5),
+    },
+}

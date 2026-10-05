@@ -4,7 +4,7 @@ import argparse
 import json
 import re
 import sys
-from itertools import pairwise
+from itertools import pairwise, zip_longest
 from pathlib import Path
 from pprint import pformat
 from typing import Any
@@ -15,9 +15,11 @@ from lab_clips import LabClip, extract_lab_clips, verify_lab_checkout, zoom_orig
 from manifest import (
     ASR_FILES,
     CASES,
+    CONTINUATION_TOKENS,
     FILLER_TOKENS,
     LAB_REVISION,
     MIN_PAUSE_SEC,
+    OWNER_VERDICTS,
     SOURCE_FILES,
     TRACK_LABELS,
 )
@@ -41,17 +43,29 @@ def asr_labels(
     labels = []
     for track, words in words_by_track.items():
         inside = window_words(words, *interval)
-        for word in inside:
-            if re.sub(r"[^a-z]", "", word["text"].lower()) in FILLER_TOKENS:
-                labels.append(
-                    {
-                        "kind": "filler",
-                        "track": track,
-                        "source_interval": (round(word["start"], 3), round(word["end"], 3)),
-                        "text": word["text"],
-                        "label_source": "asr_seed",
-                    }
+        for word, following in zip_longest(inside, inside[1:]):
+            if re.sub(r"[^a-z]", "", word["text"].lower()) not in FILLER_TOKENS:
+                continue
+            if (
+                following
+                and re.sub(r"[^a-z-]", "", following["text"].lower()) in CONTINUATION_TOKENS
+            ):
+                kind, end, text = (
+                    "backchannel",
+                    following["end"],
+                    f"{word['text']} {following['text']}",
                 )
+            else:
+                kind, end, text = "filler", word["end"], word["text"]
+            labels.append(
+                {
+                    "kind": kind,
+                    "track": track,
+                    "source_interval": (round(word["start"], 3), round(end, 3)),
+                    "text": text,
+                    "label_source": "asr_seed",
+                }
+            )
         for before, after in pairwise(inside):
             gap = (round(before["end"], 3), round(after["start"], 3))
             if gap[1] - gap[0] >= MIN_PAUSE_SEC:
@@ -67,6 +81,18 @@ def asr_labels(
     return tuple(
         sorted(labels, key=lambda label: (label["source_interval"], label["track"], label["kind"]))
     )
+
+
+def unmatched_verdicts(
+    labels_by_case: dict[str, tuple[dict[str, Any], ...]],
+    verdicts: dict[tuple[str, str, str, float], dict[str, Any]],
+) -> list[tuple[str, str, str, float]]:
+    generated = {
+        (name, label["track"], label["kind"], label["source_interval"][0])
+        for name, labels in labels_by_case.items()
+        for label in labels
+    }
+    return sorted(set(verdicts) - generated)
 
 
 def write_project(
@@ -130,11 +156,15 @@ def main() -> int:
         track: json.loads((lab_root / ASR_DIR / info["filename"]).read_text())["words"]
         for track, info in ASR_FILES.items()
     }
+    labels_by_case = {}
     for case in CASES:
         labels = asr_labels(words_by_track, case["source_interval"])
         if labels != case["labels"]:
             print(pformat(labels, sort_dicts=False))
             raise ValueError(f"ASR labels changed for {case['name']}; review and update manifest")
+        labels_by_case[case["name"]] = labels
+    if unmatched := unmatched_verdicts(labels_by_case, OWNER_VERDICTS):
+        raise ValueError(f"owner verdicts match no generated label: {unmatched}")
 
     extract_lab_clips(
         lab_root,

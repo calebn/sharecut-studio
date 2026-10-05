@@ -14,7 +14,7 @@ import pytest
 
 import podcast_mcp.edits.transcript_refine_status as refine_mod
 from fixtures.lab_clips import decode_pcm16_wav
-from fixtures.lab_tighten.manifest import CASES
+from fixtures.lab_tighten.manifest import CASES, OWNER_VERDICTS
 from podcast_mcp.models import EditDecision, load_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline.service import PipelineService
@@ -22,20 +22,47 @@ from podcast_mcp.services.pipeline.service import PipelineService
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "lab_tighten"
 SCHEMA = Path(__file__).resolve().parents[1] / "schemas" / "episode.project.schema.json"
 CASE_BY_NAME = {case["name"]: case for case in CASES}
-FILLER_LABELS = [
-    (case["name"], label) for case in CASES for label in case["labels"] if label["kind"] == "filler"
+LISTENABLE_LABELS = [
+    (case["name"], label)
+    for case in CASES
+    for label in case["labels"]
+    if label["kind"] in ("filler", "backchannel")
 ]
-ISOLATED = "isolated filler: medium tighten needs min_filler_cluster=2 fillers within 2 s"
-PROPOSE_MISSES = {
-    ("lana", 1109.04): ISOLATED,
-    ("lana", 1114.6): ISOLATED,
-    ("lana", 1125.96): "zero-length ASR word: the filler lexicon skips words with end <= start",
-    ("caleb", 615.98): (
-        "punctuated ASR token 'Um.': the filler lexicon compares normalize_text, "
-        "which keeps punctuation, so 'um.' never equals 'um'; as bare 'Um' it is "
-        "still isolated at medium, and aggressive drops it in protect_cut_breaths"
-    ),
-}
+CUT_FILLERS = [
+    key for key, value in OWNER_VERDICTS.items() if key[2] == "filler" and value["verdict"] == "cut"
+]
+CUT_PAUSES = [
+    key for key, value in OWNER_VERDICTS.items() if key[2] == "pause" and value["verdict"] == "cut"
+]
+KEPT_BACKCHANNELS = [
+    key
+    for key, value in OWNER_VERDICTS.items()
+    if key[2] == "backchannel" and value["verdict"] == "keep"
+]
+
+
+def label_interval(key: tuple[str, str, str, float]) -> tuple[float, float]:
+    name, track, kind, start = key
+    return next(
+        label["source_interval"]
+        for label in CASE_BY_NAME[name]["labels"]
+        if (label["track"], label["kind"], label["source_interval"][0]) == (track, kind, start)
+    )
+
+
+def hits_overlapping(
+    hits: dict[str, list[EditDecision]], key: tuple[str, str, str, float]
+) -> list[EditDecision]:
+    name, track, _, _ = key
+    window_start = CASE_BY_NAME[name]["source_interval"][0]
+    start, end = label_interval(key)
+    return [
+        hit
+        for hit in hits[name]
+        if hit.track_id == track
+        and hit.start + window_start < end
+        and hit.end + window_start > start
+    ]
 
 
 @functools.cache
@@ -116,85 +143,74 @@ def test_project_is_schema_valid_with_window_transcripts(case: dict) -> None:
         for word in transcript.words
     }
     for label in case["labels"]:
-        if label["kind"] == "filler":
-            assert (label["track"], label["text"], label["source_interval"][0]) in words
+        if label["kind"] in ("filler", "backchannel"):
+            first_token = label["text"].split(" ")[0]
+            assert (label["track"], first_token, label["source_interval"][0]) in words
 
 
-def test_filler_label_listen_proxy() -> None:
+def test_every_owner_verdict_names_a_manifest_label() -> None:
+    labels = {
+        (case["name"], label["track"], label["kind"], label["source_interval"][0])
+        for case in CASES
+        for label in case["labels"]
+    }
+    assert set(OWNER_VERDICTS) <= labels
+
+
+def test_filler_and_backchannel_label_listen_proxy() -> None:
     levels = {
-        (label["track"], label["source_interval"][0]): track_level(
+        (label["track"], label["kind"], label["source_interval"][0]): track_level(
             CASE_BY_NAME[case_name], label["track"], *label["source_interval"]
         )
-        for case_name, label in FILLER_LABELS
+        for case_name, label in LISTENABLE_LABELS
     }
     assert levels == {
-        ("lana", 1109.04): "audio",
-        ("lana", 1114.6): "digital silence",
-        ("lana", 1121.26): "audio",
-        ("lana", 1124.56): "digital silence",
-        ("lana", 1125.96): "empty interval",
-        ("caleb", 615.98): "audio",
+        ("lana", "backchannel", 1109.04): "audio",
+        ("lana", "backchannel", 1114.6): "digital silence",
+        ("lana", "backchannel", 1121.26): "audio",
+        ("lana", "backchannel", 1124.56): "digital silence",
+        ("lana", "backchannel", 1125.96): "digital silence",
+        ("caleb", "filler", 615.98): "audio",
     }
-
-
-def test_find_hits_counts_and_tracks(proposed_hits: dict[str, list[EditDecision]]) -> None:
-    assert {
-        name: sorted((hit.track_id, (hit.reason or "").split(":")[0]) for hit in hits)
-        for name, hits in proposed_hits.items()
-    } == {
-        "lana_uh_cluster": [("lana", "filler"), ("lana", "filler")],
-        "caleb_um_pause": [("caleb", "pause")],
-    }
-
-
-@pytest.mark.parametrize(
-    ("case_name", "label"),
-    [
-        pytest.param(
-            case_name,
-            label,
-            marks=[pytest.mark.xfail(strict=True, reason=reason)]
-            if (reason := PROPOSE_MISSES.get((label["track"], label["source_interval"][0])))
-            else [],
-            id=f"{label['track']}-{label['source_interval'][0]}",
-        )
-        for case_name, label in FILLER_LABELS
-    ],
-)
-def test_find_hits_overlaps_asr_filler_label(
-    proposed_hits: dict[str, list[EditDecision]], case_name: str, label: dict
-) -> None:
-    window_start = CASE_BY_NAME[case_name]["source_interval"][0]
-    label_start, label_end = label["source_interval"]
-    assert any(
-        hit.track_id == label["track"]
-        and (hit.reason or "").startswith("filler:")
-        and hit.start + window_start <= label_end
-        and hit.end + window_start >= label_start
-        for hit in proposed_hits[case_name]
-    )
 
 
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "both Lana hits follow mistimed ASR 'Uh' words onto her gated track's digital "
-        "silence; her voiced uh-huh at 1110.25-1110.70 s and 1122.45-1122.95 s stays"
+        "calebn/sharecut-studio#977: Tighten proposes filler cuts over the owner-confirmed "
+        "uh-huh acknowledgments at 1121.26 and 1124.56 s. Both cuts land on digital "
+        "silence of Lana's gated track, so they remove no audio (the silent-cut symptom) "
+        "while still deleting a kept acknowledgment from the timeline"
     ),
 )
-def test_find_hits_filler_cuts_remove_audio_on_their_track(
-    proposed_hits: dict[str, list[EditDecision]],
+def test_no_cut_overlaps_kept_backchannel(proposed_hits: dict[str, list[EditDecision]]) -> None:
+    assert proposed_hits["caleb_um_pause"], "propose produced no hits for the control case"
+    assert KEPT_BACKCHANNELS
+    assert {key: hits_overlapping(proposed_hits, key) for key in KEPT_BACKCHANNELS} == {
+        key: [] for key in KEPT_BACKCHANNELS
+    }
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "calebn/sharecut-studio#975: the filler lexicon compares punctuated tokens, so the "
+        "ASR word 'Um.' never matches and the owner-confirmed filler gets no hit"
+    ),
+)
+@pytest.mark.parametrize("key", CUT_FILLERS, ids=lambda key: f"{key[1]}-{key[3]}")
+def test_cut_filler_verdict_gets_filler_hit(
+    proposed_hits: dict[str, list[EditDecision]], key: tuple[str, str, str, float]
 ) -> None:
-    levels = [
-        track_level(
-            case,
-            hit.track_id,
-            hit.start + case["source_interval"][0],
-            hit.end + case["source_interval"][0],
-        )
-        for case in CASES
-        for hit in proposed_hits[case["name"]]
-        if (hit.reason or "").startswith("filler:")
+    assert [(hit.reason or "").split(":")[0] for hit in hits_overlapping(proposed_hits, key)] == [
+        "filler"
     ]
-    assert levels
-    assert set(levels) == {"audio"}
+
+
+@pytest.mark.parametrize("key", CUT_PAUSES, ids=lambda key: f"{key[1]}-{key[3]}")
+def test_cut_pause_verdict_gets_pause_hit(
+    proposed_hits: dict[str, list[EditDecision]], key: tuple[str, str, str, float]
+) -> None:
+    assert [(hit.reason or "").split(":")[0] for hit in hits_overlapping(proposed_hits, key)] == [
+        "pause"
+    ]

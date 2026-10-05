@@ -16,7 +16,7 @@ Canonical registry for Podcast MCP agent skills, MCP tools, pipeline steps, and 
 | `word_boundary` | `tests/fixtures/word_boundary/` | 3 short clips | LibriSpeech MFA reference (not hand-checked) | Word-boundary benchmark (native vs forced aligners) + checked-in candidate reports (#641) |
 | `word_boundary_synthetic` | `tests/fixtures/word_boundary_synthetic/` | 2.5 s tone bursts | Exact by construction (hand-computed) | Word-boundary metric/harness correctness |
 | `lab_bleed` | `tests/fixtures/lab_bleed/` | ~0.9 MB, 11 short clips | Owner listening labels | Reviewed real-microphone bleed mutes (`test_lab_bleed_fixtures.py`) |
-| `lab_tighten` | `tests/fixtures/lab_tighten/` | ~1.7 MB, 2 × 25 s × 3 tracks | Seeded faster-whisper `base` ASR, not listened | Real fillers and pauses for Tighten Find hits; openable projects (`test_lab_tighten_fixtures.py`) |
+| `lab_tighten` | `tests/fixtures/lab_tighten/` | ~1.7 MB, 2 × 25 s × 3 tracks | Seeded faster-whisper `base` ASR labels plus a separate owner-verdict table for the clips heard | Real fillers, backchannels and pauses for Tighten Find hits; openable projects (`test_lab_tighten_fixtures.py`) |
 
 ### Regenerate
 
