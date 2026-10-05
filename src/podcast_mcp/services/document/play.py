@@ -24,6 +24,7 @@ from podcast_mcp.config import load_defaults, mix_peak_ceiling_db
 from podcast_mcp.edits.pending_preview import (
     DEFAULT_AB_GAP_SEC,
     PendingPreviewWindow,
+    apply_for_suggested,
     resolve_pending_preview,
 )
 from podcast_mcp.edits.timeline_ops import roll_clip_join, trim_clip_edge
@@ -918,30 +919,6 @@ class PlayService:
         self._play_cache_dir(src, path)
         return path
 
-    def _source_mtime_ns(self, source: str) -> int:
-        path: Path | None = None
-        if source == "premix":
-            path = premix_path(self.project)
-        elif source == "export":
-            try:
-                path = self._latest_export_wav()
-            except FileNotFoundError:
-                return 0
-        elif source.startswith("processed:"):
-            path = stem_path(self.project, source.split(":", 1)[1])
-        elif source.startswith("track:"):
-            track = self.project.track_by_id(source.split(":", 1)[1])
-            if track is None or track.media is None:
-                return 0
-            media = Path(track.media.path)
-            path = media if media.is_absolute() else Path(self.project.workspace_dir) / media
-        if path is None or not path.is_file():
-            return 0
-        return path.stat().st_mtime_ns
-
-    def _join_parts_atomic(self, parts: list[Path], dest: Path) -> Path:
-        return render_atomic(dest, lambda tmp: FFmpegEngine().join_audio_parts(parts, tmp))
-
     def _play_follow_transcript(
         self,
         req: PlayRequest,
@@ -1507,11 +1484,6 @@ class PlayService:
         self._mark_play_cache_used(output)
         return output
 
-    def _require_pending_preview_source(self, edit_id: str, source: str) -> None:
-        edit = next((e for e in self.project.edit_decisions if e.id == edit_id), None)
-        if edit is not None and edit.exact_range is not None and source != "premix":
-            raise ValueError("Exact range previews use the full mix. Choose source='premix'.")
-
     def play_pending_preview(
         self,
         edit_id: str,
@@ -1519,19 +1491,21 @@ class PlayService:
         mode: str = "suggested",
         pad_sec: float = 0.5,
         gap_sec: float = 0.4,
-        source: str = "premix",
         dry_run: bool = False,
         player: str | None = None,
         rerender: bool = False,
     ) -> PlayResult:
-        """Extract Current / Suggested / A/B around a pending session remove."""
+        """Current / Suggested / A/B full mix around a pending edit.
+
+        Current plays the premix. Suggested renders the window after approving the
+        edit on a snapshot, so it is what approving ships.
+        """
         kind = (mode or "suggested").strip().lower()
         if kind not in {"current", "suggested", "ab"}:
             raise ValueError("mode must be current, suggested, or ab")
-        self._require_pending_preview_source(edit_id, source)
         window = resolve_pending_preview(self.project, edit_id, pad_sec=pad_sec)
-        if kind != "current" and not window.can_skip:
-            raise ValueError(window.skip_reason or "suggested preview unavailable")
+        if kind != "current" and window.suggest_reason:
+            raise ValueError(window.suggest_reason)
 
         current_wav: Path | None = None
         if kind in {"current", "ab"}:
@@ -1547,7 +1521,7 @@ class PlayService:
             else:
                 current_wav = self.play(
                     PlayRequest(
-                        source=source,
+                        source="premix",
                         start_sec=window.play_start,
                         end_sec=window.play_end,
                         rerender=rerender,
@@ -1569,7 +1543,7 @@ class PlayService:
                     tier="pending_current",
                 )
 
-        suggested = self._pending_suggested_wav(window, source=source, rerender=rerender)
+        suggested = self._pending_suggested_wav(window, rerender=rerender)
         if kind == "suggested":
             self._mark_play_cache_used(suggested)
             cmd = None if dry_run else self._player_command(player, suggested)
@@ -1604,16 +1578,14 @@ class PlayService:
         mode: str = "suggested",
         pad_sec: float = 0.5,
         gap_sec: float = 0.4,
-        source: str = "premix",
     ) -> Path | None:
-        """Return the listen-first concat WAV if it already exists (no FFmpeg)."""
+        """Return the pending-preview WAV if it already exists (no FFmpeg)."""
         kind = (mode or "suggested").strip().lower()
         if kind not in {"current", "suggested", "ab"}:
             raise ValueError("mode must be current, suggested, or ab")
-        self._require_pending_preview_source(edit_id, source)
         window = resolve_pending_preview(self.project, edit_id, pad_sec=pad_sec)
-        if kind != "current" and not window.can_skip:
-            raise ValueError(window.skip_reason or "suggested preview unavailable")
+        if kind != "current" and window.suggest_reason:
+            raise ValueError(window.suggest_reason)
         if kind == "current":
             silent = self._pending_silent_current_path(window)
             if silent is not None:
@@ -1625,7 +1597,7 @@ class PlayService:
             path = self._cache_path("premix", window.play_start, window.play_end, premix)
             self._mark_play_cache_used(path)
             return path if path.is_file() else None
-        suggested = self._pending_suggested_path(window, source=source)
+        suggested = self._pending_suggested_path(window)
         if kind == "suggested":
             self._mark_play_cache_used(suggested)
             return suggested if suggested.is_file() else None
@@ -1633,7 +1605,6 @@ class PlayService:
             edit_id,
             mode="current",
             pad_sec=pad_sec,
-            source=source,
         )
         if current is None or not suggested.is_file():
             return None
@@ -1650,7 +1621,7 @@ class PlayService:
         if edit is None or edit.exact_range is None or mix_gains(self.project):
             return None
         resolve_range(self.project, edit.exact_range)
-        suggested = self._pending_suggested_path(window, source="premix")
+        suggested = self._pending_suggested_path(window)
         return suggested.with_name(suggested.name.replace("pending_suggested_", "pending_current_"))
 
     def _ab_concat_path(self, wav_a: Path, wav_b: Path, gap: float) -> Path:
@@ -1664,109 +1635,57 @@ class PlayService:
         self._play_cache_dir(wav_a, wav_b, path)
         return path
 
-    def _pending_suggested_path(self, window: PendingPreviewWindow, *, source: str) -> Path:
-        mtime = self._source_mtime_ns(source)
-        key = (
-            f"pending:{window.edit_id}:{window.play_start:.3f}:"
-            f"{window.timeline_start:.3f}:{window.timeline_end:.3f}:"
-            f"{window.play_end:.3f}:{source}:{mtime}"
+    def _pending_suggested_path(self, window: PendingPreviewWindow) -> Path:
+        edit = next(e for e in self.project.edit_decisions if e.id == window.edit_id)
+        key = json.dumps(
+            {
+                "window": [window.play_start, window.play_end],
+                "edit": edit.model_dump(mode="json"),
+                "tracks": [
+                    (t.id, track_render_hash(self.project, t.id), t.output_gain_db, t.muted)
+                    for t in self.project.tracks
+                ],
+                "defaults": self._defaults,
+            },
+            sort_keys=True,
         )
-        edit = next((e for e in self.project.edit_decisions if e.id == window.edit_id), None)
-        if edit is not None and edit.exact_range is not None:
-            key += json.dumps(
-                {
-                    "edit": edit.model_dump(mode="json"),
-                    "tracks": [
-                        (t.id, track_render_hash(self.project, t.id), t.output_gain_db, t.muted)
-                        for t in self.project.tracks
-                    ],
-                    "defaults": self._defaults,
-                },
-                sort_keys=True,
-            )
-        digest = short_digest(key)
         out_dir = self.project.artifacts_dir() / "play_cache"
-        path = out_dir / f"pending_suggested_{digest}.wav"
+        path = out_dir / f"pending_suggested_{short_digest(key)}.wav"
         self._play_cache_dir(path)
         return path
 
-    def _pending_suggested_wav(
-        self,
-        window: PendingPreviewWindow,
-        *,
-        source: str,
-        rerender: bool,
-    ) -> Path:
-        out = self._pending_suggested_path(window, source=source)
+    def _pending_suggested_wav(self, window: PendingPreviewWindow, *, rerender: bool) -> Path:
+        out = self._pending_suggested_path(window)
         if out.is_file() and not rerender:
             self._mark_play_cache_used(out)
             return out
-        edit = next((e for e in self.project.edit_decisions if e.id == window.edit_id), None)
-        if edit is not None and edit.exact_range is not None:
-            from podcast_mcp.edits.range_edits import apply_range
-
-            proposed = snapshot_project(self.project)
-            apply_range(proposed, edit.model_copy(deep=True))
-            with tempfile.TemporaryDirectory(dir=out.parent) as directory:
-                segments: list[tuple[Path, float]] = []
-                for track in proposed.tracks:
-                    if track.muted or track.media is None:
-                        continue
-                    segment = Path(directory) / f"{track.id}.wav"
-                    render_track_segment(
-                        proposed,
-                        track.id,
-                        window.play_start,
-                        window.play_end,
-                        segment,
-                        self._defaults,
-                    )
-                    segments.append((segment, track.fader_db))
-                if segments:
-                    render_atomic(
-                        out,
-                        lambda temporary: FFmpegEngine().mix_tracks(
-                            segments, temporary, peak_ceiling_db=mix_peak_ceiling_db(self._defaults)
-                        ),
-                    )
-                else:
-                    render_atomic(
-                        out,
-                        lambda temporary: FFmpegEngine().silence(
-                            temporary, window.play_end - window.play_start
-                        ),
-                    )
-            return out
-        parts: list[Path] = []
-        before_end = window.timeline_start
-        after_start = window.timeline_end
-        if before_end - window.play_start > 0.05:
-            before = self.play(
-                PlayRequest(
-                    source=source,
-                    start_sec=window.play_start,
-                    end_sec=before_end,
-                    rerender=rerender,
-                ),
-                dry_run=True,
-                publish_audition=False,
-            )
-            parts.append(before.wav_path)
-        if window.play_end - after_start > 0.05:
-            after = self.play(
-                PlayRequest(
-                    source=source,
-                    start_sec=after_start,
-                    end_sec=window.play_end,
-                    rerender=rerender,
-                ),
-                dry_run=True,
-                publish_audition=False,
-            )
-            parts.append(after.wav_path)
-        if not parts:
-            raise ValueError("suggested preview has no audible pad around the cut")
-        return self._join_parts_atomic(parts, out)
+        proposed = snapshot_project(self.project)
+        play_end = apply_for_suggested(proposed, window)
+        with tempfile.TemporaryDirectory(dir=out.parent) as directory:
+            segments: list[tuple[Path, float]] = []
+            for track in proposed.tracks:
+                if track.muted or track.media is None:
+                    continue
+                segment = Path(directory) / f"{track.id}.wav"
+                render_track_segment(
+                    proposed, track.id, window.play_start, play_end, segment, self._defaults
+                )
+                segments.append((segment, track.fader_db))
+            if segments:
+                render_atomic(
+                    out,
+                    lambda temporary: FFmpegEngine().mix_tracks(
+                        segments, temporary, peak_ceiling_db=mix_peak_ceiling_db(self._defaults)
+                    ),
+                )
+            else:
+                render_atomic(
+                    out,
+                    lambda temporary: FFmpegEngine().silence(
+                        temporary, play_end - window.play_start
+                    ),
+                )
+        return out
 
     def _write_ab_concat(self, wav_a: Path, wav_b: Path, out: Path, *, gap_sec: float) -> Path:
         """Write A + optional silence + B into ``out`` (pcm_s16le)."""

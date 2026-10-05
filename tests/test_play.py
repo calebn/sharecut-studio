@@ -727,13 +727,9 @@ def test_play_pending_preview_suggested_shorter_than_current(
     assert _wav_duration_sec(suggested.wav_path) < _wav_duration_sec(current.wav_path)
     assert suggested.tier == "pending_suggested"
 
-    from podcast_mcp.edits.pending_preview import resolve_pending_preview
-
-    window = resolve_pending_preview(ws.project, "cut1", pad_sec=0.3)
-    path_before = svc._pending_suggested_path(window, source="premix")
-    os.utime(premix, ns=(1_000_000_000, 2_000_000_000))
-    path_after = svc._pending_suggested_path(window, source="premix")
-    assert path_before != path_after
+    assert svc.pending_preview_cached_wav("cut1", pad_sec=0.3) == suggested.wav_path
+    ws.project.edit_decisions[0].crossfade_ms = 40
+    assert svc.pending_preview_cached_wav("cut1", pad_sec=0.3) is None
 
     cli = runner.invoke(
         app,

@@ -55,7 +55,7 @@ catches the clipped entry, with or without the aligner model installed.
 | `play_audio_tool` (`follow_transcript=true`) | Gated mix or per-track audition after bleed suppress |
 | `play_ab_tool` | **Before/after history A/B** — extract both snapshots first, hear A→~0.4s gap→B in one call |
 | `play_ab_wavs_tool` | Replay two existing `play_cache` WAVs back-to-back (same concat) |
-| `play_pending_preview_tool` | **Pending session remove** — Current / Suggested (skip the cut) / A/B; does not mutate |
+| `play_pending_preview_tool` | **Pending remove or mute** — Current / Suggested (the approved result) / A/B; does not mutate |
 
 **CLI:**
 
@@ -73,7 +73,7 @@ podcast play compose --project ... --track-ids host,guest --tier processed --sta
 # Before/after probe (history indices): one call, no long gap between takes
 podcast play ab --project ... --before-index 53 --after-index 55 \
   --source processed:vicky --start 74 --end 83 --gap 0.4
-# Pending session remove: Suggested concatenates pad-before + pad-after (cut gone)
+# Pending edit: Suggested renders the window as approving ships it (ripple, paced pad, fades)
 podcast play pending-preview --project ... --edit-id cut1 --mode suggested
 podcast play pending-preview --project ... --edit-id cut1 --mode ab --gap 0.4
 ```
@@ -142,14 +142,14 @@ CLI: `podcast session status|seek|stop|mode|region`. Prefer real play (`dry_run=
 - For listen-after-edit, prefer `processed:<track_id>` or `play_transcript_query_tool` over raw `track:<id>` unless checking alignment.
 - Do **not** use `--compare` (sequential per-track then mix) unless the user explicitly asks to compare tracks — default section playback is the simultaneous `premix`.
 - For **before/after history probes** (keep/tweak/undo loops), use `play_ab_tool` / `podcast play ab` — never `history_goto` → play → `history_goto` → play (that inserts a long dead gap while stems rebuild). Default silence between A and B is **0.4s**. Replay cached extracts with `play_ab_wavs_tool` when you already have both WAVs.
-- For a **pending session-wide remove**, use `play_pending_preview_tool` / `podcast play pending-preview` (`suggested` default, or `current` / `ab`). Suggested skips the pending band (pad-before + pad-after concat). Splits and track-scope punches are Current-only. Does not mutate. In Sharecut Studio, the pending inspector footer is the same skip (not a bounced sidecar).
+- For a **pending remove or mute**, use `play_pending_preview_tool` / `podcast play pending-preview` (`suggested` default, or `current` / `ab`). Current is the premix. Suggested approves the edit on a snapshot and renders the window, so you hear the ripple, the `replace_gap_sec` paced pad, the fades and any mute exactly as approving ships them; with a pad longer than the cut, Suggested is longer than Current. Splits have no Suggested side. Full mix only. Does not mutate. In Sharecut Studio, the pending inspector footer for a source-timed session remove is still a transport skip (pad-before, jump, pad-after), not this render.
 - **Share / remote MCP:** do **not** call `play_pending_preview_tool` or `audition_context_tool` (host speakers / host paths). Use `guest_pending_preview` (`play`+`view`) for a pending session remove, and `guest_audition_context` (`play`+`view`) for an arbitrary timeline window (captions + hum/clip codes in `warnings[]`, not `hypotheses[]`; optional wave/spec PNG). Stream the returned share HTTP URLs. Skill: **podcast-remote-mcp**.
 
 ## Pair with editing
 
 Studio range Play uses selected lanes for the host and a fresh published full mix
-for guests. Exact pending preview supports `premix` only, preserves punch gaps,
-and invalidates cached Suggested audio after any contributing track changes.
+for guests. Pending preview plays the full mix only, preserves punch gaps,
+and invalidates cached Suggested audio after the edit or any contributing track changes.
 An agent region is a preview until the user adopts explicit lanes; supported
 agent range Cut/Mute submission creates pending edits for host review.
 

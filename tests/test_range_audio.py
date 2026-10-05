@@ -178,25 +178,6 @@ def test_exact_pending_preview_invalidates_after_peer_mix_change(minimal_project
     assert play.pending_preview_cached_wav("proposal", pad_sec=0) == second
 
 
-@pytest.mark.parametrize("mode", ["current", "suggested", "ab"])
-def test_exact_pending_preview_rejects_isolated_source_before_play_or_cache(minimal_project, mode):
-    from unittest.mock import patch
-
-    from podcast_mcp.edits.range_edits import edit_selected_range
-
-    ws, target, _raw = seed(minimal_project)
-    edit_selected_range(
-        ws.project, target, "cut", propose=True, reason="guest:suggest", action_id="proposal"
-    )
-    play = PlayService(ws)
-    with patch.object(play, "play") as current:
-        with pytest.raises(ValueError, match="full mix"):
-            play.play_pending_preview("proposal", mode=mode, source="track:a", dry_run=True)
-        current.assert_not_called()
-    with pytest.raises(ValueError, match="full mix"):
-        play.pending_preview_cached_wav("proposal", mode=mode, source="track:a")
-
-
 def test_range_play_and_bounce_apply_staging_gain_and_fader_once(minimal_project):
     ws, target, _raw = seed(minimal_project)
     ws.project.tracks[0].gain_db = -6
