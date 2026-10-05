@@ -180,6 +180,7 @@ def append_remove_decision(
     cut_confidence: float | None = None,
     boundary_mode: str | None = None,
     replace_gap_sec: float | None = None,
+    next_onset_sec: float | None = None,
     scope: str = "session",
     decision_type: EditDecisionType = EditDecisionType.REMOVE,
 ) -> EditDecision:
@@ -201,6 +202,7 @@ def append_remove_decision(
         cut_confidence=cut_confidence,
         boundary_mode=boundary_mode,
         replace_gap_sec=replace_gap_sec,
+        next_onset_sec=next_onset_sec,
         scope=scope,
     )
     project.edit_decisions.append(decision)
@@ -369,6 +371,9 @@ def coalesce_edits(
                 and top.boundary_mode == e.boundary_mode
                 and not _keeps_independent_review(top, e)
             ):
+                if e.end > top.end:
+                    # The merged cut ends where ``e`` ends, so its next word is ``e``'s.
+                    top.next_onset_sec = e.next_onset_sec
                 top.end = max(top.end, e.end)
                 if e.review_required:
                     top.review_required = True

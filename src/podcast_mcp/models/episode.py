@@ -401,6 +401,11 @@ class EditDecision(BaseModel):
     # ripple (silence by default; room_tone when tighten.filler_pad_mode says so).
     # See tighten.filler_room_tone_replace / filler_pad_mode.
     replace_gap_sec: float | None = None
+    # Source time the next word's first sound begins, read from the audio when a
+    # padded filler cut was proposed (``edits/word_onset.py``). The post-pad fade-in
+    # finishes by it (``recommend_post_pad_fade_in_ms``), so the ramp never
+    # attenuates the first phoneme or a plosive burst. None: no onset was detected.
+    next_onset_sec: float | None = None
     # session = cross-track ripple (default). track = punch silence hole on
     # track_id only when peers are speaking (speech_energy_guard).
     scope: str = "session"

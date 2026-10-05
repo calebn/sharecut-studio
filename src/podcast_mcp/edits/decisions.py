@@ -163,7 +163,8 @@ def _apply_replace_gap_pad(project: EpisodeProject, edit: EditDecision, tl_start
                 clip.fade_out_ms = pre_fade
                 clip.join_in_mode = ClipJoinMode.FADE
     # Right edge: fade length from resume-edge energy (quiet air → short;
-    # late/hot onset → longer so the fade still covers the consonant).
+    # late/hot onset → longer so the fade still covers the consonant), ended
+    # before the next word's detected onset so it never attenuates that onset.
     resume_at = at + gap
     for tid in dialogue_track_ids(project):
         for clip in clips_for_track(project, tid):
@@ -172,6 +173,7 @@ def _apply_replace_gap_pad(project: EpisodeProject, edit: EditDecision, tl_start
                     project,
                     tid,
                     clip.source_start,
+                    next_onset_sec=edit.next_onset_sec,
                     defaults=defaults,
                 )
                 if fade_ms > 0:

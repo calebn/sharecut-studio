@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from podcast_mcp.config import load_defaults
+from podcast_mcp.config import join_micro_fade_ms, load_defaults
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.inaudible_cuts import (
     CutWordIndex,
@@ -165,11 +165,27 @@ def _resume_edge_rms_db(
     return measure_window_rms_db(path, t0, t1)
 
 
+def _post_pad_fade_in_bounds_ms(defaults: dict[str, Any] | None) -> tuple[int, int]:
+    tighten = _tighten_cfg(defaults)
+    min_ms = int(tighten.get("filler_post_pad_fade_in_min_ms", 15))
+    max_ms = int(tighten.get("filler_post_pad_fade_in_max_ms", 120))
+    return (max_ms, min_ms) if max_ms < min_ms else (min_ms, max_ms)
+
+
+def _fit_before_onset_ms(
+    fade_ms: int, resume_sec: float, onset_sec: float, defaults: dict[str, Any] | None
+) -> int:
+    """``fade_ms`` capped so a ramp starting at ``resume_sec`` ends by ``onset_sec``."""
+    headroom_ms = int((onset_sec - resume_sec) * 1000.0 + 1e-6)
+    return max(join_micro_fade_ms(defaults), min(fade_ms, headroom_ms))
+
+
 def recommend_post_pad_fade_in_ms(
     project,
     track_id: str,
     source_resume_sec: float,
     *,
+    next_onset_sec: float | None = None,
     defaults: dict[str, Any] | None = None,
     audio_cache: TrackAudioCache | None = None,
 ) -> int:
@@ -178,15 +194,17 @@ def recommend_post_pad_fade_in_ms(
     Scans a short look-ahead after ``source_resume_sec``. Quiet air keeps a
     tiny declick; a hot onset (and how late it arrives) lengthens the fade so
     it still covers the consonant - not a fixed 50/100 ms rule.
+
+    ``next_onset_sec`` is the source time the next word's first sound begins, when
+    the cut proposal detected one (``EditDecision.next_onset_sec``). The fade then
+    finishes by that onset, so the ramp never attenuates the first phoneme or a
+    plosive burst; the join declick (``inaudible_cuts.micro_fade_ms``) is the floor.
     """
-    tighten = _tighten_cfg(defaults)
     h = _heuristics(defaults)
-    min_ms = int(tighten.get("filler_post_pad_fade_in_min_ms", 15))
-    max_ms = int(tighten.get("filler_post_pad_fade_in_max_ms", 120))
-    if max_ms < min_ms:
-        min_ms, max_ms = max_ms, min_ms
+    min_ms, max_ms = _post_pad_fade_in_bounds_ms(defaults)
     if max_ms <= 0:
         return 0
+    tighten = _tighten_cfg(defaults)
 
     quiet_db = float(tighten.get("filler_post_pad_quiet_db", h["audibility_rms_db"]))
     hot_db = float(tighten.get("filler_post_pad_hot_db", -22.0))
@@ -210,17 +228,19 @@ def recommend_post_pad_fade_in_ms(
             peak_at = t
         t += hop
 
-    if peak_db is None:
-        return min_ms
-
-    span = max(1e-6, hot_db - quiet_db)
-    energy_t = max(0.0, min(1.0, (peak_db - quiet_db) / span))
-    energy_fade = round(min_ms + energy_t * (max_ms - min_ms))
-    # Cover into a real onset (not quiet lead-in air) so a late L still softens.
-    cover_fade = 0
-    if peak_db > quiet_db + 3.0:
-        cover_fade = round((peak_at + 0.025) * 1000)
-    return max(min_ms, min(max_ms, max(energy_fade, cover_fade)))
+    fade_ms = min_ms
+    if peak_db is not None:
+        span = max(1e-6, hot_db - quiet_db)
+        energy_t = max(0.0, min(1.0, (peak_db - quiet_db) / span))
+        energy_fade = round(min_ms + energy_t * (max_ms - min_ms))
+        # Cover into a real onset (not quiet lead-in air) so a late L still softens.
+        cover_fade = 0
+        if peak_db > quiet_db + 3.0:
+            cover_fade = round((peak_at + 0.025) * 1000)
+        fade_ms = max(min_ms, min(max_ms, max(energy_fade, cover_fade)))
+    if next_onset_sec is None:
+        return fade_ms
+    return _fit_before_onset_ms(fade_ms, source_resume_sec, next_onset_sec, defaults)
 
 
 def recommend_prev_word_lead_out_ms(

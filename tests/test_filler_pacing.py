@@ -1059,7 +1059,7 @@ def test_analyze_candidate_track_local_on_blocked_peer() -> None:
         ),
         patch(
             "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
-            return_value=("session", guard),
+            return_value=("track", guard),
         ),
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=10),
     ):
