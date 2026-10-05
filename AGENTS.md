@@ -18,7 +18,7 @@ Ship via **feature branch → PR → `main`**. Do not commit or push directly to
 
 1. Update local `main` (`git checkout main && git pull`).
 2. Create a branch: `type/short-kebab-description`.
-3. Implement with tests and docs in the same change.
+3. Implement with tests and docs in the same change. Post per-issue screenshots and receipts on the PR, never under `docs/issue-<n>/` ([docs/contributing.md § Review evidence](docs/contributing.md#review-evidence)).
 4. When the user asks to ship: reread each doc you changed next to the code it describes (docs-sync proves a doc was touched, not that it is right), commit on the branch, `git push -u origin HEAD`, `gh pr create` targeting **`main`**. Put `Fixes #N` (or `Closes` / `Resolves`) in the PR body so merge into `main` auto-closes linked issues, and `Related #N` for issues the PR touches but does not close (including review follow-ups); one part of a multi-PR series uses `Part of #N` instead of `Fixes #N` until the final part ([docs/contributing.md § Automated issue pipeline](docs/contributing.md#automated-issue-pipeline)).
 5. Merge with **rebase** (`gh pr merge --rebase`), not squash, so `main` keeps each focused commit; keep branch commits conventional and self-contained. Merge only when the user asks. Exception: the `issue-pipeline` workflow (`.claude/workflows/issue-pipeline.js`) is pre-approved to rebase-merge its own PRs when its merge gate passes — see [docs/contributing.md § Automated issue pipeline](docs/contributing.md#automated-issue-pipeline).
 
