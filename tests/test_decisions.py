@@ -15,7 +15,14 @@ from podcast_mcp.edits.decisions import (
     update_pending_edit,
 )
 from podcast_mcp.edits.edit_log import revert_applied_edit
-from podcast_mcp.edits.timeline_ops import ripple_delete
+from podcast_mcp.edits.range_edits import build_range_target, edit_selected_range
+from podcast_mcp.edits.timeline_ops import (
+    delete_clips,
+    punch_delete,
+    ripple_delete,
+    split_clips_at,
+    trim_clip_edge,
+)
 from podcast_mcp.models import (
     AppliedEditRecord,
     Clip,
@@ -29,6 +36,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from podcast_mcp.models.episode import RangeInterval
 
 
 def _project_with_clip() -> EpisodeProject:
@@ -890,3 +898,163 @@ def test_join_rules_follow_shared_gap_tolerance(monkeypatch):
     apply_join_fades_from_decisions(proj, [decision])
     right = next(c for c in proj.clips if c.id == "c2")
     assert right.fade_in_ms == 30
+
+
+def _pending(decision_id: str, edit_type: EditDecisionType, start: float, end: float):
+    return EditDecision(
+        id=decision_id,
+        track_id="host",
+        type=edit_type,
+        start=start,
+        end=end,
+        reason="nl:test",
+        review_required=True,
+        applied=False,
+    )
+
+
+def _impact(project: EpisodeProject) -> dict:
+    report = edit_impact_report(project)
+    return {
+        "total": report["total_removed_sec"],
+        "by_track": report["by_track_sec"],
+        "applied": report["applied_count"],
+        "pending": report["pending_review_count"],
+    }
+
+
+def test_impact_counts_approved_session_cut_once_and_per_track():
+    proj = _approve_two_track_project()
+    proj.edit_decisions = [_pending("a", EditDecisionType.REMOVE, 2.0, 4.0)]
+    assert _impact(proj) == {"total": 0.0, "by_track": {}, "applied": 0, "pending": 1}
+    approve_edits(proj, ["a"])
+    assert proj.edit_decisions == []
+    assert _impact(proj) == {
+        "total": 2.0,
+        "by_track": {"host": 2.0, "guest": 2.0},
+        "applied": 1,
+        "pending": 0,
+    }
+    [segment] = edit_impact_report(proj)["segments"]
+    assert segment["id"] == proj.editorial.edit_log[0].id
+    assert (segment["start"], segment["end"], segment["duration_sec"]) == (2.0, 4.0, 2.0)
+    assert segment["applied"] is True
+
+
+def test_impact_counts_approved_mute_as_applied_but_removes_no_time():
+    proj = _project_with_clip()
+    proj.edit_decisions = [
+        _pending("m", EditDecisionType.MUTE, 2.0, 3.0),
+        _pending("r", EditDecisionType.REMOVE, 6.0, 7.5),
+    ]
+    approve_edits(proj, ["m", "r"])
+    assert _impact(proj) == {
+        "total": 1.5,
+        "by_track": {"host": 1.5},
+        "applied": 2,
+        "pending": 0,
+    }
+
+
+def test_impact_keeps_counting_applied_decisions_left_in_edit_decisions():
+    proj = _project_with_clip()
+    proj.edit_decisions = [
+        EditDecision(
+            id="kept_cut",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=1.0,
+            end=3.0,
+            applied=True,
+        ),
+        EditDecision(
+            id="kept_mute",
+            track_id="host",
+            type=EditDecisionType.MUTE,
+            start=4.0,
+            end=9.0,
+            applied=True,
+        ),
+    ]
+    assert _impact(proj) == {
+        "total": 2.0,
+        "by_track": {"host": 2.0},
+        "applied": 2,
+        "pending": 0,
+    }
+
+
+@pytest.mark.parametrize(
+    ("action", "expected_total", "expected_by_track"),
+    [("cut", 3.0, {"host": 3.0, "guest": 3.0}), ("mute", 0.0, {})],
+)
+def test_impact_uses_exact_range_intervals_once_across_tracks(
+    action, expected_total, expected_by_track
+):
+    proj = _approve_two_track_project()
+    intervals = [RangeInterval(start=1.0, end=2.0), RangeInterval(start=10.0, end=12.0)]
+    selection = build_range_target(proj, intervals, ["host", "guest"])
+    edit_selected_range(
+        proj, selection, action, propose=True, reason="host:range", action_id="range_action"
+    )
+    assert _impact(proj)["pending"] == 1
+    approve_edits(proj, ["range_action"])
+    assert _impact(proj) == {
+        "total": expected_total,
+        "by_track": expected_by_track,
+        "applied": 1,
+        "pending": 0,
+    }
+
+
+def test_impact_counts_timeline_ripple_once_and_punch_on_its_track_only():
+    proj = _approve_two_track_project()
+    ripple_delete(proj, 2.0, 5.0, use_inaudible_opt=False)
+    assert _impact(proj) == {
+        "total": 3.0,
+        "by_track": {"host": 3.0, "guest": 3.0},
+        "applied": 1,
+        "pending": 0,
+    }
+    punch_delete(proj, "guest", 10.0, 11.0, use_inaudible_opt=False)
+    assert _impact(proj) == {
+        "total": 4.0,
+        "by_track": {"host": 3.0, "guest": 4.0},
+        "applied": 2,
+        "pending": 0,
+    }
+
+
+@pytest.mark.parametrize(
+    ("ripple", "expected_by_track"),
+    [(True, {"host": 10.0, "guest": 10.0}), (False, {"host": 10.0})],
+)
+def test_impact_counts_deleted_clips(ripple, expected_by_track):
+    proj = _approve_two_track_project()
+    split_clips_at(proj, 10.0, ["host"])
+    split_clips_at(proj, 20.0, ["host"])
+    middle = next(c for c in clips_for_track(proj, "host") if c.source_start == 10.0)
+    delete_clips(proj, [middle.id], ripple=ripple)
+    assert _impact(proj) == {
+        "total": 10.0,
+        "by_track": expected_by_track,
+        "applied": 1,
+        "pending": 0,
+    }
+
+
+def test_impact_ignores_structural_edits():
+    proj = _approve_two_track_project()
+    split_clips_at(proj, 10.0, ["host", "guest"])
+    clip = clips_for_track(proj, "host")[0]
+    trim_clip_edge(proj, clip.id, "out", clip.source_end - 1.0)
+    assert [r.operation for r in proj.editorial.edit_log] == ["split_clips_at", "trim_clip_edge"]
+    assert _impact(proj) == {"total": 0.0, "by_track": {}, "applied": 0, "pending": 0}
+
+
+def test_impact_drops_a_reverted_cut():
+    proj = _approve_two_track_project()
+    proj.edit_decisions = [_pending("a", EditDecisionType.REMOVE, 2.0, 4.0)]
+    approve_edits(proj, ["a"])
+    revert_applied_edit(proj, proj.editorial.edit_log[0].id)
+    assert _impact(proj) == {"total": 0.0, "by_track": {}, "applied": 0, "pending": 0}

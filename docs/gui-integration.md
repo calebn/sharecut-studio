@@ -37,6 +37,7 @@ Committed cuts are archived in `editorial.edit_log` (not deleted with `edit_deci
 
 - `list_applied_edits_tool` / `podcast edit list-applied` — filter by track or timeline window.
 - Each record includes `reason`, source/timeline ranges, and tool `params`.
+- `ripple_delete_clips` / `delete_clips` records carry no clip ranges after the clips are gone, so they store `params.cut_spans` (`{track_id: [[start, end], ...]}`, timeline seconds) for `edit_impact_report`.
 
 ## Read APIs for inspectors
 
@@ -45,7 +46,7 @@ Committed cuts are archived in `editorial.edit_log` (not deleted with `edit_deci
 | `list_clips_tool` | Full clip rows incl. `join_in_mode`, `source_id`, `origin_track_id` and the effective join render (`join_left_clip_id`, `join_render_mode`, `join_crossfade_ms`, `join_crossfade_blocked`; computed by the same functions render uses) |
 | `list_edit_decisions_tool` | Pending cuts |
 | `list_applied_edits_tool` | Committed cut provenance |
-| `edit_impact_report_tool` | Aggregate removed duration |
+| `edit_impact_report_tool` | Seconds cut (once per cut, per track in `by_track_sec`) and applied-edit count, from approved edits in `editorial.edit_log` plus any applied decisions still in `edit_decisions`; mutes count as applied but remove no time |
 | `render_status_tool` | Stem freshness, premix, reconciliation stale |
 | `reconciliation_status_tool` | Transcript/audio drift flag |
 
