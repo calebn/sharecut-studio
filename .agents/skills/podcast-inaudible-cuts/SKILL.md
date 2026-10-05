@@ -51,7 +51,7 @@ Quiet air after a cut end is absorbed up to the next word (leaving ~0.4s breath)
 
 Sharecut Studio shows the same optimizer on the wave: quiet wash from visible tiles plus snap ticks from `preview_inaudible_cut` / windowed islands (`GET /api/waveform-snap`). Blade and trim magnet to those ticks. See [docs/inaudible-cuts.md](../../../docs/inaudible-cuts.md) § DAW snap overlay.
 
-Tighten preserves confirmed complete breaths at both final edges by shrinking the cut, including quiet onset and tail. Relevant connected uncertainty or missing evidence suppresses the proposal. See [filler cut quality](../../../docs/filler-cut-quality.md#policy) for protections and limits.
+Tighten preserves confirmed complete breaths at both final edges of a cut without a paced pad by shrinking the cut, including quiet onset and tail. Relevant connected uncertainty or missing evidence suppresses the proposal. A filler cut with a pad is two edges faded against silence, not a splice: it skips breath protection, the join gate and the risk level-jump terms, and instead ends before the next word's acoustic onset and never covers a whole kept word (#978). See [filler cut quality](../../../docs/filler-cut-quality.md#policy) for protections and limits.
 
 ## Narrative handoffs
 

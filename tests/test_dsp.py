@@ -10,6 +10,7 @@ from podcast_mcp.util.dsp import (
     bool_runs,
     bridge_short_dips,
     db_to_amplitude,
+    frame_band_db,
     frame_rms_db,
     frame_rms_db_stream,
     high_band_energy_fraction,
@@ -33,6 +34,20 @@ def test_frame_rms_db_matches_scalar_rms_and_caps_frames() -> None:
     assert frame_rms_db(x, 400, 100, max_frames=2).size == 2
     assert frame_rms_db(x[:10], 400, 100).size == 0
     assert frame_rms_db(x, 0, 100).size == 0
+
+
+def test_frame_band_db_reads_only_the_band_above_its_cutoff() -> None:
+    rate = 16_000
+    noise = np.random.default_rng(5).standard_normal(rate) * 10 ** (-30 / 20)
+    hum = 0.1 * np.sin(2 * np.pi * 500.0 * np.arange(rate) / rate)
+
+    noise_db = frame_band_db(noise, rate, 320, 160, lo_hz=2000.0)
+    hum_db = frame_band_db(hum, rate, 320, 160, lo_hz=2000.0)
+
+    assert float(np.median(noise_db)) == pytest.approx(-31.25, abs=0.5)
+    assert float(np.max(hum_db)) < -90.0
+    assert frame_band_db(np.zeros(320), rate, 320, 160, lo_hz=2000.0).tolist() == [-200.0]
+    assert frame_band_db(noise[:10], rate, 320, 160, lo_hz=2000.0).size == 0
 
 
 @pytest.mark.parametrize("chunk_size", [1, 7, 399, 400, 401, 1000, 5000])
