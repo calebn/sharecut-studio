@@ -1,0 +1,53 @@
+{
+  "utterances": [
+    {
+      "track_id": "caleb",
+      "speaker": "caleb",
+      "start": 1.76,
+      "end": 3.18,
+      "text": "It's probably not easy in the right mic."
+    },
+    {
+      "track_id": "caleb",
+      "speaker": "caleb",
+      "start": 4.12,
+      "end": 6.38,
+      "text": "All right, it doesn't matter. I'm recording and soon."
+    },
+    {
+      "track_id": "caleb",
+      "speaker": "caleb",
+      "start": 7.98,
+      "end": 8.3,
+      "text": "Um."
+    },
+    {
+      "track_id": "caleb",
+      "speaker": "caleb",
+      "start": 12.26,
+      "end": 12.62,
+      "text": "Room,"
+    },
+    {
+      "track_id": "caleb",
+      "speaker": "caleb",
+      "start": 15.76,
+      "end": 17.42,
+      "text": "don't, don't, don't, don't."
+    },
+    {
+      "track_id": "caleb",
+      "speaker": "caleb",
+      "start": 20.38,
+      "end": 24.74,
+      "text": "Okay. Hello, everybody. And welcome to the next exciting"
+    },
+    {
+      "track_id": "lana",
+      "speaker": "lana",
+      "start": 21.08,
+      "end": 22.48,
+      "text": "Okay."
+    }
+  ]
+}

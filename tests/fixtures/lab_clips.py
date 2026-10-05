@@ -137,7 +137,8 @@ def extract_lab_clips(
     """Slice each clip from its fully decoded original and verify it against the manifest.
 
     Prints one JSON line of measured seals per clip before comparing, so a new
-    manifest case can be filled from the output. ``output_dir`` receives FLACs
+    manifest case can be filled from the output. ``LabClip.filename`` is relative
+    to ``output_dir`` and ``verify_dir``. ``output_dir`` receives FLACs
     only after every clip verifies; ``verify_dir`` compares decoded PCM with
     committed FLACs. ``check_window`` sees each verified window WAV.
     """
@@ -170,9 +171,9 @@ def extract_lab_clips(
                     f"{track} decode is {format_and_length}, expected {expected_source}"
                 )
             for clip in track_clips:
-                stem = Path(clip.filename).stem
+                stem = clip.filename.removesuffix(".flac").replace("/", "-")
                 window = work / f"{stem}.wav"
-                flac = work / clip.filename
+                flac = work / f"{stem}.flac"
                 write_window(source_wav, window, clip.start_s, clip.end_s)
                 encode_flac(window, flac)
                 decoded = work / f"{stem}-decoded.wav"
@@ -212,4 +213,5 @@ def extract_lab_clips(
                         raise ValueError(f"decoded PCM differs from committed clip {committed}")
             source_wav.unlink()
         for source, destination in generated:
+            destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, destination)

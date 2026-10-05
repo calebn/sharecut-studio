@@ -1,0 +1,31 @@
+{
+  "track_id": "lana",
+  "language": "en",
+  "words": [
+    {
+      "text": "Okay.",
+      "start": 21.08,
+      "end": 22.48,
+      "confidence": 0.017587026581168175,
+      "suppressed": false,
+      "audibility_status": null,
+      "dominant_track": null,
+      "speaker_match_track": null,
+      "speaker_match_score": null,
+      "suspect_hallucination": false,
+      "alignment_score": null,
+      "ignored": false,
+      "audibility_locked": false
+    }
+  ],
+  "archived_words": [],
+  "source_id": null,
+  "vocabulary_revision": null,
+  "audio_sha256": null,
+  "audio_size": null,
+  "audio_mtime_ns": null,
+  "silence_filter_fingerprint": null,
+  "word_aligner": null,
+  "alignment_score_method": null,
+  "user_edited": false
+}
