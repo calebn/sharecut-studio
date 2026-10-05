@@ -291,7 +291,7 @@ does not expand the sheet automatically. Focus transitions reveal the current
 control within its sheet or desktop inspector; they do not scroll the page or
 timeline. Desktop modifier inspectors scroll as one aside, with fields and
 errors in natural flow.
-See [responsive inspector evidence](issue-961/README.md) for the text-size profiles
+See [responsive inspector evidence](https://github.com/calebn/sharecut-studio/pull/963#issuecomment-5998148488) for the text-size profiles
 and owner acceptance limits.
 
 The track’s **Add volume envelope** or **Edit volume envelope** action opens
