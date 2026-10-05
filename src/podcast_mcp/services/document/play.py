@@ -1648,7 +1648,13 @@ class PlayService:
                 "window": [window.play_start, window.play_end],
                 "edit": edit.model_dump(mode="json"),
                 "tracks": [
-                    (t.id, track_render_hash(self.project, t.id), t.output_gain_db, t.muted)
+                    (
+                        t.id,
+                        track_render_hash(self.project, t.id),
+                        t.fader_db,
+                        t.output_gain_db,
+                        t.muted,
+                    )
                     for t in self.project.tracks
                 ],
                 "defaults": self._defaults,
