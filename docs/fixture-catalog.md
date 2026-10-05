@@ -15,6 +15,8 @@ Canonical registry for Podcast MCP agent skills, MCP tools, pipeline steps, and 
 | `ami_bleed_60s` | `tests/fixtures/ami_bleed_60s/` | ~10.6 MB | AMI word XML + synthetic audio | Synthetic bleed calibration using AMI overlap timings (nightly) |
 | `word_boundary` | `tests/fixtures/word_boundary/` | 3 short clips | LibriSpeech MFA reference (not hand-checked) | Word-boundary benchmark (native vs forced aligners) + checked-in candidate reports (#641) |
 | `word_boundary_synthetic` | `tests/fixtures/word_boundary_synthetic/` | 2.5 s tone bursts | Exact by construction (hand-computed) | Word-boundary metric/harness correctness |
+| `lab_bleed` | `tests/fixtures/lab_bleed/` | ~0.9 MB, 11 short clips | Owner listening labels | Reviewed real-microphone bleed mutes (`test_lab_bleed_fixtures.py`) |
+| `lab_tighten` | `tests/fixtures/lab_tighten/` | ~1.7 MB, 2 × 25 s × 3 tracks | Seeded faster-whisper `base` ASR, not listened | Real fillers and pauses for Tighten Find hits; openable projects (`test_lab_tighten_fixtures.py`) |
 
 ### Regenerate
 
@@ -24,6 +26,10 @@ python3 scripts/build_synthetic_bleed_fixture.py
 ./scripts/download_fixture_ami.sh   # fetches AMI words XML, builds ami_bleed_60s
 uv run --with piper-tts==1.8.0 python scripts/build_aligned_dialogue_audio.py
 ```
+
+The `lab_*` fixtures regenerate from a pinned lab checkout passed with
+`--lab-root`. See [`lab_bleed`](../tests/fixtures/lab_bleed/README.md) and
+[`lab_tighten`](../tests/fixtures/lab_tighten/README.md).
 
 Synthetic bleed uses `tests/fixtures/synthetic_bleed_e2e_pipeline.yaml` (`transcript_mode: reconcile`). Standard e2e smoke uses `tests/fixtures/e2e_pipeline.yaml` (`transcript_mode: flag`).
 

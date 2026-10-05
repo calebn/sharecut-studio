@@ -242,6 +242,30 @@ an unchanged direct-Caleb mixed-speech control. These cases establish reviewed
 audio behavior. They do not claim automatic speaker attribution or resolve
 conservative stereo detection, which remains open in issue #945.
 
+### Real lab tighten fixtures
+
+`tests/fixtures/lab_tighten/` holds two 25-second, three-track windows from the
+same pinned lab recording. Each window is an openable v2 project with lossless
+FLAC tracks and the lab's seeded ASR words shifted to clip time.
+`lana_uh_cluster` (source 1108 to 1133 s) holds Lana's dense "Uh" cluster.
+`caleb_um_pause` (source 608 to 633 s) holds Caleb's `Um.` and long solo pauses.
+The owner authorized publishing these clips as fixtures. Filler and pause
+labels come from the faster-whisper `base` seed, labelled `asr_seed`. No
+person has listened to confirm them. The manifest pins revision, M4A and ASR
+hashes, labels, and FLAC plus decoded PCM seals. The generator shares
+`tests/fixtures/lab_clips.py` with `lab_bleed`. See the fixture
+[README](../tests/fixtures/lab_tighten/README.md) for commands and the known
+ASR errors.
+
+`tests/test_lab_tighten_fixtures.py` checks the seals, schema validity, and
+window transcripts. It measures each filler label's level on its own track.
+Two of Lana's five "Uh" labels sit on digital silence, and one has zero
+duration. It then runs the Find hits pipeline step at medium intensity on a
+copy. Literal counts are two Lana filler hits and one Caleb pause hit.
+Strict `xfail` cases record the product misses. Isolated fillers are skipped
+at medium. A zero-length word and the punctuated `Um.` never match the filler
+lexicon. Both Lana hits remove digital silence instead of her voiced audio.
+
 The audio-audit cache regression tests use deterministic decoder-call counts
 and numerical equality, not a wall-clock ratio. One test invokes the production
 `compute_word_audibility_map` path and asserts that its processed stem is decoded
@@ -616,6 +640,7 @@ coverage map and platform limits.
 - `tests/fixtures/aligned_dialogue/` — smoke / edits (human LibriSpeech audio and corpus text; published MFA-derived word boundaries shifted with complete utterances; no model downloads to regenerate)
 - `tests/fixtures/synthetic_bleed_60s/` — bleed/reconcile/precorrect gold
 - `tests/fixtures/asr_gold/` — LibriSpeech WER regression
+- `tests/fixtures/lab_bleed/`, `tests/fixtures/lab_tighten/` — short real lab microphone windows (reviewed bleed mutes; ASR-seeded fillers and pauses with openable projects)
 
 Regenerate `aligned_dialogue` offline with
 `uv run python scripts/build_aligned_dialogue_audio.py`, then regenerate its
