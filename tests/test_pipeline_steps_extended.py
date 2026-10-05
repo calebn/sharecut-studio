@@ -14,6 +14,7 @@ from podcast_mcp.engines.play_audit import (
     mastered_is_fresh,
     premix_stale_vs_mix,
     read_mastered_hash,
+    read_premix_trim_db,
 )
 from podcast_mcp.models import (
     ChapterMarker,
@@ -158,6 +159,7 @@ def test_mix_with_music_builds_premix(minimal_project, sample_wav, tmp_workspace
     steps.assemble_timeline(proj, defaults)
     steps.mix_with_music(proj, defaults)
     assert (proj.artifacts_dir() / "premix.wav").is_file()
+    assert read_premix_trim_db(proj) == 0.0
 
 
 def test_mix_with_music_hashes_the_faded_music_stem(minimal_project, sample_wav, tmp_workspace):

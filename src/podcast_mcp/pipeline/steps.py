@@ -843,13 +843,14 @@ def mix_with_music(project: EpisodeProject, defaults: dict[str, Any]) -> StepSum
         # Mix beside it and swap in whole with the old hash dropped first (#356): a failed or
         # cancelled mix keeps the old premix and hash, and no reader pairs old hash, new bytes.
         ceiling = mix_peak_ceiling_db(defaults)
+        trim = eng.peak_trim_db(inputs, ceiling)
         render_atomic(
             premix_path(project),
-            lambda tmp: eng.mix_tracks(inputs, tmp, peak_ceiling_db=ceiling),
+            lambda tmp: eng.mix_tracks(inputs, tmp, trim_db=trim),
             before_replace=functools.partial(clear_premix_hash, project),
             reap_partials=True,
         )
-        write_premix_hash(project, mixed, peak_ceiling_db=ceiling)
+        write_premix_hash(project, mixed, trim_db=trim, peak_ceiling_db=ceiling)
         prog.message(f"{len(mixed)} tracks mixed")
     return f"{len(mixed)} tracks mixed, {music_envelopes} music envelopes"
 

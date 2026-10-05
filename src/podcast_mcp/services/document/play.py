@@ -32,8 +32,10 @@ from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV, FFmpegEngine
 from podcast_mcp.engines.play_audit import (
     clear_invalidations_if_current,
+    mix_gains,
     premix_path,
     publish_stem,
+    read_premix_trim_db,
     stem_fingerprint,
     stem_is_fresh,
     stem_matches,
@@ -1615,7 +1617,6 @@ class PlayService:
 
     def _pending_silent_current_path(self, window: PendingPreviewWindow) -> Path | None:
         from podcast_mcp.edits.range_edits import resolve_range
-        from podcast_mcp.engines.play_audit import mix_gains
 
         edit = next((e for e in self.project.edit_decisions if e.id == window.edit_id), None)
         if edit is None or edit.exact_range is None or mix_gains(self.project):
@@ -1646,6 +1647,7 @@ class PlayService:
                     for t in self.project.tracks
                 ],
                 "defaults": self._defaults,
+                "premix_trim_db": read_premix_trim_db(self.project),
             },
             sort_keys=True,
         )
@@ -1654,7 +1656,19 @@ class PlayService:
         self._play_cache_dir(path)
         return path
 
+    def _premix_trim_db(self) -> float:
+        """Headroom trim ``premix.wav`` was mixed at; mixes a premix that has none recorded."""
+        trim = read_premix_trim_db(self.project) if premix_path(self.project).is_file() else None
+        if trim is None:
+            self._ensure_premix(rerender=True)
+            trim = read_premix_trim_db(self.project)
+        if trim is None:
+            raise FileNotFoundError("premix.hash records no headroom trim; render the preview")
+        return trim
+
     def _pending_suggested_wav(self, window: PendingPreviewWindow, *, rerender: bool) -> Path:
+        # Suggested mixes at the premix's headroom trim so it plays at Current's level.
+        trim = self._premix_trim_db() if mix_gains(self.project) else 0.0
         out = self._pending_suggested_path(window)
         if out.is_file() and not rerender:
             self._mark_play_cache_used(out)
@@ -1674,9 +1688,7 @@ class PlayService:
             if segments:
                 render_atomic(
                     out,
-                    lambda temporary: FFmpegEngine().mix_tracks(
-                        segments, temporary, peak_ceiling_db=mix_peak_ceiling_db(self._defaults)
-                    ),
+                    lambda temporary: FFmpegEngine().mix_tracks(segments, temporary, trim_db=trim),
                 )
             else:
                 render_atomic(

@@ -1532,7 +1532,7 @@ def test_loudness_reports_artifact_freshness_without_rendering(minimal_project, 
     with patch("podcast_mcp.services.document.edit.check_loudness", return_value=measured.copy()):
         service = EditService(ws)
         assert service.check_loudness()["stale_reason"] == "premix_unverified"
-        write_premix_hash(project, mix_gains(project))
+        write_premix_hash(project, mix_gains(project), trim_db=0.0)
         assert service.check_loudness(str(premix))["stale"] is False
         assert service.check_loudness()["stale_reason"] == "master_missing"
 
@@ -1554,7 +1554,7 @@ def test_loudness_reports_artifact_freshness_without_rendering(minimal_project, 
         project.track_by_id("host").fader_db = -3.0
         assert service.check_loudness()["stale_reason"] == "premix_stale"
         project.track_by_id("host").fader_db = 0.0
-        write_premix_hash(project, mix_gains(project))
+        write_premix_hash(project, mix_gains(project), trim_db=0.0)
         premix.unlink()
         assert service.check_loudness()["stale_reason"] == "premix_missing"
 
