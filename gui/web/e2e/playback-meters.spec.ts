@@ -207,22 +207,23 @@ test("real premix and guest proxy expose per-track peaks, clipping, and responsi
           if (viewport.name === "phone") await openPhoneTimeline(guest);
           await expect(meter(guest, "reference")).toBeVisible();
           await expectContained(meter(guest, "reference"));
+          if (viewport.name === "phone") {
+            const row = guest
+              .locator(".track-header-row")
+              .filter({ has: meter(guest, "reference") });
+            await expect(row.locator(".track-clip-status")).toBeVisible();
+            await expect(
+              row.getByRole("button", { name: /^Clear clip light/ }),
+            ).toHaveCount(0);
+            await guest
+              .getByRole("button", { name: "Open track details, reference" })
+              .click();
+          }
           const target = await clearClip(guest).boundingBox();
           expect(target).not.toBeNull();
           const minimum = viewport.name === "phone" ? 44 : 24;
           expect(target?.width).toBeGreaterThanOrEqual(minimum);
           expect(target?.height).toBeGreaterThanOrEqual(minimum);
-          if (viewport.name === "phone") {
-            const chip = await guest
-              .locator(".track-header-row")
-              .first()
-              .locator(".track-chip")
-              .boundingBox();
-            expect(chip).not.toBeNull();
-            expect(target?.y).toBeGreaterThanOrEqual(
-              (chip?.y ?? 0) + (chip?.height ?? 0),
-            );
-          }
           await expectPageAxeClean(guest, ".track-headers");
           await guest.screenshot({
             path: testInfo.outputPath(`playback-meters-${viewport.name}.png`),
