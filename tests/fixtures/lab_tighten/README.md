@@ -83,8 +83,10 @@ it against the owner verdicts.
   remove digital silence from Lana's gated track. This is a strict `xfail`
   citing calebn/sharecut-studio#977.
 - **Cut fillers.** Each `cut` filler verdict needs a filler hit. The `Um.`
-  token gets none, because the filler lexicon does not strip punctuation. This
-  is a strict `xfail` citing calebn/sharecut-studio#975.
+  token matches the lexicon and becomes a candidate, but gets no hit. Breath
+  protection suppresses it, because both cut edges sit inside the Um's own onset
+  and tail, which room tone joins into one 0.91 s run. This is a strict `xfail`
+  citing calebn/sharecut-studio#975.
 - **Cut pauses.** Each `cut` pause verdict needs a pause hit. Tighten proposes
   one at 625.46 to 627.83 s, and this test passes today.
 

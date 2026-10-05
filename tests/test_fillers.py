@@ -1305,22 +1305,57 @@ def test_fillers_cut_all_when_min_cluster_is_one():
     assert project.edit_decisions[0].crossfade_ms == 25
 
 
-def test_fillers_skip_isolated_when_min_cluster_is_two():
+@pytest.mark.parametrize(("intensity", "expected"), [("medium", ["filler:um"]), ("light", [])])
+def test_isolated_hard_filler_proposed_at_medium_not_light(intensity, expected):
     words = [
         TranscriptWord(text="hello", start=0.0, end=0.4),
-        TranscriptWord(text="um", start=1.0, end=1.2),
+        TranscriptWord(text="Um.", start=1.0, end=1.2, confidence=0.9),
         TranscriptWord(text="world", start=2.0, end=2.4),
     ]
     project = _project_with_transcript(words)
     defaults = {
         "tighten": {
+            "intensity": intensity,
             "filler_words": ["um"],
             "max_pause_sec": 99.0,
             "min_filler_cluster": 2,
         }
     }
     analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
-    assert project.edit_decisions == []
+    assert [e.reason for e in project.edit_decisions] == expected
+
+
+def test_punctuated_asr_fillers_match_the_lexicon():
+    words = [
+        TranscriptWord(text="So,", start=0.0, end=0.2, confidence=0.95),
+        TranscriptWord(text="Uh,", start=0.25, end=0.4, confidence=0.95),
+        TranscriptWord(text="you", start=0.45, end=0.55, confidence=0.95),
+        TranscriptWord(text="know,", start=0.56, end=0.7, confidence=0.95),
+        TranscriptWord(text="it's", start=0.75, end=0.9, confidence=0.95),
+        TranscriptWord(text="Um.", start=5.0, end=5.3, confidence=0.95),
+        TranscriptWord(text="fine.", start=5.35, end=5.6, confidence=0.95),
+    ]
+    cands, skips = _collect_with_skips(
+        words, _discourse_defaults(min_filler_cluster=2, filler_words=["UM", "uh,", "you know"])
+    )
+    assert [(c.reason, c.start, c.end) for c in cands] == [
+        ("filler:uh", 0.25, 0.4),
+        ("filler:you know", 0.45, 0.7),
+        ("filler:um", 5.0, 5.3),
+    ]
+    assert skips == {}
+
+
+def test_isolated_punctuated_discourse_marker_still_demoted():
+    words = [
+        TranscriptWord(text="she", start=0.0, end=0.2, confidence=0.95),
+        TranscriptWord(text="was", start=0.21, end=0.4, confidence=0.95),
+        TranscriptWord(text="like,", start=0.41, end=0.6, confidence=0.95),
+        TranscriptWord(text="no.", start=0.61, end=0.8, confidence=0.95),
+    ]
+    cands, skips = _collect_with_skips(words, _discourse_defaults(min_filler_cluster=2))
+    assert cands == []
+    assert skips == {"discourse:like": 1}
 
 
 def test_fillers_cut_clustered_fillers():

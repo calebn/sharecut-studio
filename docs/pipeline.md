@@ -201,11 +201,12 @@ Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-
 | `tighten.enabled` | `false` | Run `analyze_fillers_pauses` / `tighten_from_transcript` |
 | `tighten.intensity` | `medium` | `light` / `medium` / `aggressive` preset overlay applied at propose time |
 | `tighten.repetition_candidates` | `true` | Propose review-only `repetition:` / `restart:` hits (`light` turns this off) |
-| `tighten.filler_words` | um, uh, erm, ah, like, you know, sort of, kind of | Lexicon (ASR-normalized) |
+| `tighten.filler_words` | um, uh, erm, ah, like, you know, sort of, kind of | Lexicon; ASR words match with case and edge punctuation ignored (`Um.` = `um`) |
 | `tighten.discourse_markers` | like, you know, sort of, kind of | Demoted tokens (adjacent-token phrase match): candidates only with an adjacent true disfluency/repeat, pause ≥ `discourse_pause_sec`, or ASR confidence &lt; `discourse_confidence_max`. Missing key = defaults; `[]` disables demotion. |
 | `tighten.discourse_pause_sec` | `0.35` | Flanking pause that qualifies a discourse marker |
 | `tighten.discourse_confidence_max` | `0.6` | ASR confidence below this qualifies a discourse marker |
-| `tighten.min_filler_cluster` | `2` | Min lexicon hits in a gap cluster before cutting |
+| `tighten.isolated_filler_candidates` | `true` | Propose a lone hard filler (not a discourse marker) without a cluster; `light` turns this off |
+| `tighten.min_filler_cluster` | `2` | Min lexicon hits in a gap cluster before a discourse marker (or, with isolated candidates off, a hard filler) is a candidate |
 | `tighten.max_pause_sec` | `1.2` | Inter-word gap before pause trim |
 | `tighten.acoustic_gap_filler.enabled` | `true` | Review-only `filler:acoustic` proposals for voiced audio inside ASR gaps (never auto-applied) |
 | `tighten.acoustic_gap_filler.min_gap_sec` | `0.35` | Shortest gap scanned (floor `0.35`) |

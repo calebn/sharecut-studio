@@ -20,6 +20,7 @@ DEFAULT_TIGHTEN_INTENSITY: Final[str] = "medium"
 TIGHTEN_INTENSITY_PRESETS: Final[dict[str, dict[str, Any]]] = {
     "light": {
         "filler_words": ["um", "uh", "erm"],
+        "isolated_filler_candidates": False,
         "min_filler_confidence": 0.5,
         "max_cut_risk_score": 0.5,
         "max_pause_sec": 2.0,

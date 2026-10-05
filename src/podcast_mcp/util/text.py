@@ -14,6 +14,27 @@ def normalize_text(text: str) -> str:
     return collapse_whitespace(text.lower())
 
 
+def lexicon_form(text: str) -> str:
+    """Comparison form for matching ASR words against a word lexicon.
+
+    Lowercase, with leading and trailing punctuation stripped from each
+    whitespace-separated token. Inner apostrophes and hyphens stay, and tokens
+    that were only punctuation drop out: ``"Um."`` -> ``"um"``, ``"-huh."`` ->
+    ``"huh"``, ``"Uh-huh,"`` -> ``"uh-huh"``, ``"You  know"`` -> ``"you know"``.
+    """
+    tokens = (_strip_edge_punctuation(token) for token in text.lower().split())
+    return " ".join(token for token in tokens if token)
+
+
+def _strip_edge_punctuation(token: str) -> str:
+    start, end = 0, len(token)
+    while start < end and unicodedata.category(token[start]).startswith("P"):
+        start += 1
+    while end > start and unicodedata.category(token[end - 1]).startswith("P"):
+        end -= 1
+    return token[start:end]
+
+
 def has_meaningful_text(text: str) -> bool:
     """Whether *text* contains more than whitespace or invisible controls.
 
