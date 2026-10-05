@@ -1,3 +1,4 @@
+import { encodePcmWav } from "../audio/wavHeader";
 import { rosterFromList, type SessionRoster } from "../presence/roster";
 import type { RecordParticipant, RecordSnapshot } from "../record/types";
 import type { OfflineConflict, QueuedCommand } from "../state/offlineStore";
@@ -14,6 +15,12 @@ import type {
 import type { SessionClient } from "../types/session";
 import type { HostShareRow } from "../types/shares";
 import type { RenderInvalidationView } from "../utils/staleRender";
+
+/** A silent 16-bit mono WAV of `seconds` at 1 kHz, as the pending-preview route returns. */
+export function wavResponse(seconds: number): Response {
+  const bytes = encodePcmWav(new Int16Array(Math.round(seconds * 1000)), 1000);
+  return new Response(bytes.buffer as ArrayBuffer, { status: 200 });
+}
 
 /** Minimal ProjectView for unit tests that need DawProvider / store hydrate. */
 export function minimalProject(
@@ -150,6 +157,7 @@ export function pendingEditView(
     cut_confidence: null,
     review_required: true,
     applied: false,
+    suggest_reason: null,
     ...overrides,
   };
 }

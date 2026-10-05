@@ -82,6 +82,10 @@ export function parseWavHeader(buffer: ArrayBufferLike): WavHeader {
   };
 }
 
+export function wavDurationSec(header: WavHeader): number {
+  return header.dataSize / (header.blockAlign * header.sampleRate);
+}
+
 function readSample(view: DataView, offset: number, header: WavHeader): number {
   if (header.audioFormat === 3 && header.bitsPerSample === 32) {
     return view.getFloat32(offset, true);

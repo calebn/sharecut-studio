@@ -367,7 +367,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
     keys: ["P"],
     bareKey: true,
     when: "tightenPanelOpen",
-    notes: "P: Suggested skip when possible",
+    notes: "P: rendered Suggested preview when possible",
   },
   {
     id: "track.remove",

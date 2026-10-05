@@ -22,13 +22,7 @@ import {
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { PendingEditView } from "../../types/project";
-import {
-  Button,
-  DefItem,
-  DefinitionList,
-  FieldRow,
-  InspectorSeekFooter,
-} from "../../ui";
+import { Button, DefItem, DefinitionList, FieldRow } from "../../ui";
 import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../../utils/apiError";
 import {
   resolveCommentActor,
@@ -39,14 +33,10 @@ import {
   pendingTypeLabel,
 } from "../../utils/pendingEditLabels";
 import { pendingEditTimingFieldId } from "../../utils/pendingEditTimingField";
-import {
-  canSuggestSkip,
-  type PreviewMode,
-  suggestDisabledReason,
-} from "../../utils/playRange";
+import type { PreviewMode } from "../../utils/playRange";
 import { formatTimeMs, parseTimecode } from "../../utils/time";
-import { ExactPendingPreviewFooter } from "../ExactPendingPreviewFooter";
 import { ModifierInspector } from "../ModifierInspector";
+import { PendingPreviewFooter } from "../PendingPreviewFooter";
 import {
   REFINE_GATE_GUI_MESSAGE,
   TranscriptRefineRecovery,
@@ -137,10 +127,8 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     canSuggestBounds && !queued && !checkingQueue,
   );
   const timingBusy = busy || queued || checkingQueue;
-  const skipOk = canSuggestSkip(edit);
-  const skipReason = suggestDisabledReason(edit);
   const [previewMode, setPreviewMode] = useState<PreviewMode>(
-    skipOk ? "suggested" : "current",
+    edit.suggest_reason ? "current" : "suggested",
   );
   const [snapToSilence, setSnapToSilence] = useState(true);
   const [startStr, setStartStr] = useState(sourceTime(edit.source_start));
@@ -228,17 +216,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
       setAskBody("");
       setSnapToSilence(true);
     }
-    setPreviewMode(
-      canSuggestSkip({
-        type: edit.type,
-        scope: edit.scope,
-        mappable: edit.mappable,
-        timeline_start: edit.timeline_start,
-        timeline_end: edit.timeline_end,
-      })
-        ? "suggested"
-        : "current",
-    );
+    setPreviewMode(edit.suggest_reason ? "current" : "suggested");
   }, [
     timingIdentity,
     edit.id,
@@ -246,11 +224,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     edit.source_end,
     edit.track_id,
     edit.track_ids,
-    edit.type,
-    edit.scope,
-    edit.mappable,
-    edit.timeline_start,
-    edit.timeline_end,
+    edit.suggest_reason,
   ]);
 
   useEffect(() => {
@@ -509,7 +483,6 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
   };
 
   const tlStart = edit.timeline_start ?? edit.source_start;
-  const tlEnd = edit.timeline_end ?? edit.source_end;
   const combinedError = error ?? threadError;
 
   return (
@@ -553,23 +526,14 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
           : combinedError
       }
       footer={
-        edit.exact_range ? (
-          <ExactPendingPreviewFooter
+        tlStart != null ? (
+          <PendingPreviewFooter
             edit={edit}
             projectPath={projectPath}
+            seekSec={tlStart}
             mode={previewMode}
             onModeChange={setPreviewMode}
             onError={setThreadError}
-          />
-        ) : tlStart != null && tlEnd != null ? (
-          <InspectorSeekFooter
-            seekSec={tlStart}
-            playStart={tlStart}
-            playEnd={isSplit ? tlStart : tlEnd}
-            previewMode={previewMode}
-            onPreviewModeChange={setPreviewMode}
-            suggestDisabled={!skipOk}
-            suggestDisabledReason={skipReason}
           />
         ) : undefined
       }

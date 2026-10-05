@@ -122,8 +122,8 @@ export interface PendingEditView {
   applied: boolean;
   timebase?: string;
   scope?: string;
-  can_skip?: boolean;
-  skip_reason?: string | null;
+  /** Why the server cannot render Suggested / A/B (splits, off-timeline edits); null when it can. */
+  suggest_reason: string | null;
   join_risk?: PendingJoinRisk | null;
 }
 

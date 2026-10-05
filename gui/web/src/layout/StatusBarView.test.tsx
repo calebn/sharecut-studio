@@ -57,6 +57,7 @@ describe("StatusBarView", () => {
           cut_confidence: null,
           review_required: false,
           applied: false,
+          suggest_reason: null,
         },
       ],
       social_clips: [

@@ -13,11 +13,16 @@ import {
   type PendingCutProposal,
   pendingEditBaseline,
 } from "../../api/documentEdits";
+import { hostFetch } from "../../api/documentTransport";
 import { registerDawCommands } from "../../commands/register";
 import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
-import { minimalProject, sampleComment } from "../../test/fixtures";
+import {
+  minimalProject,
+  sampleComment,
+  wavResponse,
+} from "../../test/fixtures";
 import type { PendingEditView } from "../../types/project";
 import {
   ApiError,
@@ -42,6 +47,8 @@ vi.mock("../../state/offlineStore", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../state/offlineStore")>()),
   loadHostCommandCount,
 }));
+
+vi.mock("../../api/documentTransport", () => ({ hostFetch: vi.fn() }));
 
 vi.mock("../../api", () => ({
   createComment: (...args: unknown[]) => createComment(...args),
@@ -74,6 +81,7 @@ const sessionCut: PendingEditView = {
   cut_confidence: null,
   review_required: true,
   applied: false,
+  suggest_reason: null,
   timebase: "source",
   scope: "session",
 };
@@ -118,7 +126,6 @@ describe("PendingEditInspector", () => {
         timebase: "timeline",
         timeline_start: 11,
         timeline_end: 14,
-        can_skip: true,
         exact_range: {
           kind: "exact_range" as const,
           intervals: [
@@ -166,29 +173,49 @@ describe("PendingEditInspector", () => {
     },
   );
 
-  it("defaults to Suggested preview for a session remove", async () => {
+  it("plays the server's Suggested render for a session remove by default", async () => {
     const user = userEvent.setup();
+    vi.mocked(hostFetch).mockResolvedValueOnce(wavResponse(1.5));
+    URL.createObjectURL = vi.fn(() => "blob:suggested");
     const { container } = render(<PendingEditInspector edit={sessionCut} />);
     expect(screen.getByRole("button", { name: "Suggested" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
     await user.click(screen.getByRole("button", { name: "Play around" }));
-    const s = useDawStore.getState();
-    expect(s.playSkipStartSec).toBe(10);
-    expect(s.playSkipEndSec).toBe(12);
+    await waitFor(() =>
+      expect(useDawStore.getState().sourcePreview).toMatchObject({
+        ownerId: "pending:ed1",
+        media: { kind: "rendered", url: "blob:suggested" },
+        endSec: 1.5,
+      }),
+    );
+    expect(hostFetch).toHaveBeenCalledWith(
+      `/api/pending-preview?edit_id=ed1&mode=suggested&path=${encodeURIComponent("/tmp/p.json")}`,
+      expect.anything(),
+    );
     expect(screen.getByRole("heading", { name: "Ask" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Ask" })).toBeTruthy();
     await expectNoA11yViolations(container);
   });
 
-  it("disables Suggested and A/B for a split", async () => {
+  it("defaults a mute to Suggested", () => {
+    render(<PendingEditInspector edit={{ ...sessionCut, type: "mute" }} />);
+    expect(screen.getByRole("button", { name: "Suggested" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("disables Suggested and A/B for a split with the server's reason", async () => {
+    const reason = "A split does not change the mix until you delete a side.";
     const split: PendingEditView = {
       ...sessionCut,
       id: "sp1",
       type: "split",
       source_end: 10,
       timeline_end: 10,
+      suggest_reason: reason,
     };
     const { container } = render(<PendingEditInspector edit={split} />);
     expect(screen.getByRole("button", { name: "Current" })).toHaveAttribute(
@@ -197,6 +224,7 @@ describe("PendingEditInspector", () => {
     );
     expect(screen.getByRole("button", { name: "Suggested" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "A/B" })).toBeDisabled();
+    expect(screen.getByText(reason)).toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
 

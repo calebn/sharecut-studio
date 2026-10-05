@@ -30,6 +30,7 @@ function edit(overrides: Partial<PendingEditView> = {}): PendingEditView {
     cut_confidence: 0.8,
     review_required: false,
     applied: false,
+    suggest_reason: null,
     ...overrides,
     source_start_timeline:
       overrides.source_start_timeline === undefined

@@ -60,7 +60,7 @@ Open the in-app cheatsheet with **?** while Sharecut Studio is focused.
 | `Enter` | Apply tighten hit (`tighten.applyHit`) | tightenPanelOpen | Enter: selected tighten hit |
 | `Backspace` | Skip tighten hit (`tighten.skipHit`) | tightenPanelOpen | Backspace: selected tighten hit |
 | `Mod+Shift+Enter` | Apply eligible tighten hits (`tighten.applyAllSafe`) | tightenPanelOpen | Mod+Shift+Enter: skip harsh when Avoid harsh cuts is on |
-| `P` | Preview tighten hit (`tighten.previewHit`) | tightenPanelOpen | P: Suggested skip when possible |
+| `P` | Preview tighten hit (`tighten.previewHit`) | tightenPanelOpen | P: rendered Suggested preview when possible |
 
 ## history
 

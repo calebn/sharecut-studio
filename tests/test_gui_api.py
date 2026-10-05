@@ -105,7 +105,35 @@ def test_map_pending_edits_mappable() -> None:
     assert rows[0]["scope"] == "session"
     assert rows[0]["can_skip"] is True
     assert rows[0]["skip_reason"] is None
+    assert rows[0]["suggest_reason"] is None
     assert rows[0]["join_risk"] is None
+
+
+def test_map_pending_edits_suggest_reason_refuses_only_splits() -> None:
+    p = _minimal()
+    decisions = [
+        EditDecision(
+            id="m1", track_id="host", type=EditDecisionType.MUTE, start=1.0, end=2.0, reason="m"
+        ),
+        EditDecision(
+            id="t1",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=3.0,
+            end=4.0,
+            reason="t",
+            scope="track",
+        ),
+        EditDecision(
+            id="s1", track_id="host", type=EditDecisionType.SPLIT, start=6.0, end=6.0, reason="s"
+        ),
+    ]
+    rows = {row["id"]: row for row in map_pending_edits_to_timeline(p, decisions)}
+    assert rows["m1"]["suggest_reason"] is None
+    assert rows["t1"]["suggest_reason"] is None
+    assert rows["s1"]["suggest_reason"] == (
+        "A split does not change the mix until you delete a side."
+    )
 
 
 def test_map_pending_edits_unmappable() -> None:
@@ -126,6 +154,7 @@ def test_map_pending_edits_unmappable() -> None:
     assert rows[0]["can_skip"] is False
     assert rows[0]["skip_reason"] is not None
     assert "not on the current timeline" in rows[0]["skip_reason"]
+    assert rows[0]["suggest_reason"] == "This cut is not on the current timeline."
     assert rows[0]["join_risk"] is None
 
 

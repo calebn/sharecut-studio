@@ -81,7 +81,7 @@ flowchart TD
   open[Open share] --> banner[Shared edit view banner]
   banner --> chip[Tap Pending chip on Listen]
   chip --> tl[Timeline + sheet / inspector]
-  tl --> audition[Hear Suggested skip or A/B]
+  tl --> audition[Hear rendered Suggested or A/B]
   audition --> decide{Approve / Reject / Ask}
   decide -->|Ask| thread[Inspector Ask thread]
   decide -->|Approve or Reject| done[Decision applied]
