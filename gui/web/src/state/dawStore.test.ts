@@ -203,13 +203,7 @@ describe("dawStore listen-first transport", () => {
 
   beforeEach(() => {
     useDawStore.getState().hydrate("/tmp/ep.project.json", minimalProject());
-    useDawStore.setState({
-      playSkipStartSec: null,
-      playSkipEndSec: null,
-      playAbFollowup: null,
-      auditionEpoch: 0,
-      isPlaying: false,
-    });
+    useDawStore.setState({ isPlaying: false });
   });
 
   afterEach(() => {
@@ -274,7 +268,6 @@ describe("dawStore listen-first transport", () => {
       sessionRegion: { start_sec: 1, end_sec: 2 },
       lastAgentQuery: "play the intro",
       playUntilSec: 10,
-      auditionEpoch: 3,
       highlightStaleRender: true,
       renderPreviewBusy: true,
       openJoinId: "c1",
@@ -292,7 +285,6 @@ describe("dawStore listen-first transport", () => {
     expect(s.sessionRegion).toBeNull();
     expect(s.lastAgentQuery).toBeNull();
     expect(s.playUntilSec).toBeNull();
-    expect(s.auditionEpoch).toBe(0);
     expect(s.highlightStaleRender).toBe(false);
     expect(s.renderPreviewBusy).toBe(false);
     expect(s.openJoinId).toBeNull();
@@ -346,37 +338,19 @@ describe("dawStore listen-first transport", () => {
     expect(useDawStore.getState().spokenJobResultIds).toEqual([]);
   });
 
-  it("beginAudition bumps epoch", () => {
-    useDawStore.getState().beginAudition({
-      playheadSec: 1,
-      untilSec: 3,
-      skip: { start: 1.5, end: 2 },
-    });
-    expect(useDawStore.getState().auditionEpoch).toBe(1);
-    expect(useDawStore.getState().playSkipStartSec).toBe(1.5);
+  it("beginAudition plays the range from its start until its end", () => {
+    useDawStore.getState().beginAudition({ playheadSec: 1, untilSec: 3 });
+    const s = useDawStore.getState();
+    expect(s.isPlaying).toBe(true);
+    expect(s.playheadSec).toBe(1);
+    expect(s.playStartSec).toBe(1);
+    expect(s.playUntilSec).toBe(3);
   });
 
-  it("applyAgentSession clears skip and A/B followup", () => {
-    useDawStore.getState().beginAudition({
-      playheadSec: 1,
-      untilSec: 3,
-      skip: { start: 1.5, end: 2 },
-      abFollowup: {
-        start: 1,
-        until: 3,
-        skipStart: 1.5,
-        skipEnd: 2,
-        gapSec: 0.4,
-      },
-    });
-    const epoch = useDawStore.getState().auditionEpoch;
+  it("applyAgentSession replaces a local audition with the agent's region", () => {
+    useDawStore.getState().beginAudition({ playheadSec: 1, untilSec: 3 });
     useDawStore.getState().applyAgentSession(agentSession());
-    const s = useDawStore.getState();
-    expect(s.playSkipStartSec).toBeNull();
-    expect(s.playSkipEndSec).toBeNull();
-    expect(s.playAbFollowup).toBeNull();
-    expect(s.auditionEpoch).toBe(epoch + 1);
-    expect(s.playUntilSec).toBe(8);
+    expect(useDawStore.getState().playUntilSec).toBe(8);
   });
 });
 

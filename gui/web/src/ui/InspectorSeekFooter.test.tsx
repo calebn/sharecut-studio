@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
@@ -42,50 +42,6 @@ describe("InspectorSeekFooter", () => {
     expect(s.isPlaying).toBe(true);
   });
 
-  it("offers preview modes and plays Suggested skip", async () => {
-    const user = userEvent.setup();
-    const onMode = vi.fn();
-    render(
-      <InspectorSeekFooter
-        seekSec={10}
-        playStart={10}
-        playEnd={12}
-        padSec={0.5}
-        previewMode="suggested"
-        onPreviewModeChange={onMode}
-      />,
-    );
-    const previewGroup = screen.getByRole("group", { name: "Preview mode" });
-    // Shared segmented track (the old bare .audition-modes div lost its CSS).
-    expect(previewGroup.classList.contains("ui-segmented")).toBe(true);
-    await user.click(screen.getByRole("button", { name: "Play around" }));
-    const s = useDawStore.getState();
-    expect(s.playheadSec).toBe(9.5);
-    expect(s.playUntilSec).toBe(12.5);
-    expect(s.playSkipStartSec).toBe(10);
-    expect(s.playSkipEndSec).toBe(12);
-    expect(s.isPlaying).toBe(true);
-    await user.click(screen.getByRole("button", { name: "Current" }));
-    expect(onMode).toHaveBeenCalledWith("current");
-  });
-
-  it("disables Suggested and A/B when skip is unavailable", () => {
-    render(
-      <InspectorSeekFooter
-        seekSec={1}
-        playStart={1}
-        playEnd={1}
-        previewMode="current"
-        onPreviewModeChange={() => undefined}
-        suggestDisabled
-        suggestDisabledReason="A split does not change the mix until you delete a side."
-      />,
-    );
-    expect(screen.getByRole("button", { name: "Suggested" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "A/B" })).toBeDisabled();
-    expect(screen.getByText(/split does not change the mix/i)).toBeTruthy();
-  });
-
   it("hides play when showPlay is false", () => {
     render(
       <InspectorSeekFooter
@@ -102,17 +58,10 @@ describe("InspectorSeekFooter", () => {
     expect(screen.queryByRole("button", { name: "Play around" })).toBeNull();
   });
 
-  it("is axe-clean including preview modes", async () => {
+  it("is axe-clean", async () => {
     const { container } = render(
-      <InspectorSeekFooter
-        seekSec={1}
-        playStart={1}
-        playEnd={2}
-        previewMode="suggested"
-        onPreviewModeChange={() => undefined}
-      />,
+      <InspectorSeekFooter seekSec={1} playStart={1} playEnd={2} />,
     );
-    expect(screen.getByRole("group", { name: "Preview mode" })).toBeTruthy();
     await expectNoA11yViolations(container);
   });
 

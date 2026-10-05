@@ -1,22 +1,26 @@
 import { useDaw } from "../state/useDaw";
-import {
-  playAbRange,
-  playSuggestedRange,
-  playTimelineRange,
-} from "../utils/playRange";
+import { playTimelineRange } from "../utils/playRange";
 import {
   InspectorSeekFooterView,
   type InspectorSeekFooterViewProps,
 } from "./InspectorSeekFooterView";
 
-type Props = Omit<InspectorSeekFooterViewProps, "onSeek" | "onPlay"> & {
+type Props = Omit<
+  InspectorSeekFooterViewProps,
+  | "onSeek"
+  | "onPlay"
+  | "previewMode"
+  | "onPreviewModeChange"
+  | "suggestDisabled"
+  | "suggestDisabledReason"
+> & {
   seekSec: number;
   playStart: number;
   playEnd: number;
   padSec?: number;
 };
 
-/** Live adapter over `InspectorSeekFooterView`. */
+/** Live adapter over `InspectorSeekFooterView`: seek, and play the padded timeline range. */
 export function InspectorSeekFooter({
   seekSec,
   playStart,
@@ -32,43 +36,21 @@ export function InspectorSeekFooter({
       beginAudition: s.beginAudition,
     }));
 
-  const play = () => {
-    const mode = view.previewMode ?? "current";
-    const blocked = view.suggestDisabled ?? false;
-    if (mode === "suggested" && !blocked) {
-      playSuggestedRange({
-        skipStart: playStart,
-        skipEnd: playEnd,
-        padSec,
-        beginAudition,
-      });
-      return;
-    }
-    if (mode === "ab" && !blocked) {
-      playAbRange({
-        skipStart: playStart,
-        skipEnd: playEnd,
-        padSec,
-        beginAudition,
-      });
-      return;
-    }
-    playTimelineRange({
-      start: playStart,
-      end: playEnd,
-      padSec,
-      beginAudition,
-      setPlayheadSec,
-      setPlayUntilSec,
-      setIsPlaying,
-    });
-  };
-
   return (
     <InspectorSeekFooterView
       {...view}
       onSeek={() => setPlayheadSec(seekSec)}
-      onPlay={play}
+      onPlay={() =>
+        playTimelineRange({
+          start: playStart,
+          end: playEnd,
+          padSec,
+          beginAudition,
+          setPlayheadSec,
+          setPlayUntilSec,
+          setIsPlaying,
+        })
+      }
     />
   );
 }
