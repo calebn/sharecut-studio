@@ -1,12 +1,4 @@
-import fs from "node:fs";
-import path from "node:path";
-import {
-  type BrowserContext,
-  expect,
-  type Locator,
-  type Page,
-  test,
-} from "@playwright/test";
+import { expect, type Locator, test } from "@playwright/test";
 import { timelineTestIds } from "../src/timeline/selectors";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
@@ -15,15 +7,6 @@ import { openPhoneTimeline } from "./phoneTimeline";
 import { playButton } from "./playback";
 import { setTheme } from "./theme";
 import { waitForWaveformsSettled } from "./waveformHook";
-
-// Contexts opened from the worker-scoped browser (capture test); closed here
-// so a timeout never leaves a page connected to the shared e2e project.
-const openContexts: BrowserContext[] = [];
-test.afterEach(async () => {
-  await Promise.all(
-    openContexts.splice(0).map((context) => context.close().catch(() => {})),
-  );
-});
 
 function contrastRatio(foreground: string, background: string): number {
   const luminance = (color: string) => {
@@ -618,134 +601,5 @@ test("menu rows press in place; standalone controls sink (#389)", async ({
     expect(await transformWhilePressed(menu.getByRole(role).first())).toBe(
       "none",
     );
-  }
-});
-
-test("capture issue 20 review views", async ({ browser }) => {
-  test.setTimeout(90_000);
-  const directory = process.env.DESIGN_POLISH_SCREENSHOT_DIR;
-  test.skip(!directory, "Set DESIGN_POLISH_SCREENSHOT_DIR for review capture");
-  fs.mkdirSync(directory!, { recursive: true });
-
-  // Light files keep their names (paired with before/); dark adds "-dark".
-  for (const theme of ["light", "dark"] as const) {
-    const suffix = theme === "light" ? "" : "-dark";
-    const shot = (name: string) =>
-      path.join(directory!, `${name}${suffix}.png`);
-    const pinTheme = (page: Page) => setTheme(page, theme);
-
-    const desktopContext = await browser.newContext({
-      viewport: { width: 1440, height: 900 },
-    });
-    openContexts.push(desktopContext);
-    const desktop = await desktopContext.newPage();
-    try {
-      await desktop.emulateMedia({
-        reducedMotion: "reduce",
-        colorScheme: theme,
-      });
-      await desktop.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-      await pinTheme(desktop);
-      await expect(
-        desktop.getByTestId(timelineTestIds.lane).first(),
-      ).toBeVisible();
-      await expect
-        .poll(async () =>
-          desktop
-            .getByTestId(timelineTestIds.waveformTile)
-            .first()
-            .evaluate((canvas) => {
-              const surface = canvas as HTMLCanvasElement;
-              if (!surface.width || !surface.height) return false;
-              const pixels = surface
-                .getContext("2d")
-                ?.getImageData(0, 0, surface.width, surface.height).data;
-              return pixels
-                ? pixels.some((value, index) => index % 4 === 3 && value > 0)
-                : false;
-            }),
-        )
-        .toBe(true);
-      await desktop.screenshot({ path: shot("timeline") });
-
-      await desktop
-        .getByRole("button", { name: "Open track details, reference" })
-        .focus();
-      await desktop.keyboard.press("Enter");
-      await expect(desktop.locator(".inspector")).toBeVisible();
-      await desktop.screenshot({ path: shot("inspector") });
-
-      await desktop.getByRole("button", { name: "Menu", exact: true }).click();
-      await desktop.getByRole("menuitem", { name: /Share/ }).click();
-      await expect(
-        desktop.getByRole("dialog", { name: "Share" }),
-      ).toBeVisible();
-      await expect
-        .poll(() =>
-          desktop
-            .getByRole("dialog", { name: "Share" })
-            .evaluate((dialog) => getComputedStyle(dialog).opacity),
-        )
-        .toBe("1");
-      await desktop.screenshot({ path: shot("share-dialog") });
-      await desktop
-        .getByRole("dialog", { name: "Share" })
-        .getByRole("button", { name: "Close", exact: true })
-        .click();
-
-      await desktop
-        .getByLabel("Editor panels")
-        .getByRole("button", { name: "Tighten", exact: true })
-        .click();
-      await expect(
-        desktop.getByText("No pending tighten decisions."),
-      ).toBeVisible();
-      await desktop.screenshot({ path: shot("empty-state") });
-    } finally {
-      await desktopContext.close();
-    }
-
-    const phoneContext = await browser.newContext({
-      viewport: { width: 390, height: 844 },
-    });
-    openContexts.push(phoneContext);
-    const phone = await phoneContext.newPage();
-    try {
-      await phone.emulateMedia({ reducedMotion: "reduce", colorScheme: theme });
-      await phone.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-      await pinTheme(phone);
-      await expect(
-        phone.getByRole("navigation", { name: "Primary" }),
-      ).toBeVisible();
-      await expect(phone.locator(".listen-hero")).toBeVisible();
-      await phone.screenshot({ path: shot("mobile-nav") });
-    } finally {
-      await phoneContext.close();
-    }
-  }
-});
-
-test("capture empty timeline review view", async ({ page }) => {
-  const directory = process.env.EMPTY_STAGE_SCREENSHOT_DIR;
-  test.skip(
-    !directory,
-    "Set EMPTY_STAGE_SCREENSHOT_DIR with an empty E2E project",
-  );
-  await page.setViewportSize({ width: 1440, height: 900 });
-  fs.mkdirSync(directory!, { recursive: true });
-  for (const theme of ["light", "dark"] as const) {
-    await page.emulateMedia({ reducedMotion: "reduce", colorScheme: theme });
-    await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
-    await setTheme(page, theme);
-    await expect(
-      page.getByRole("button", { name: "Drop audio files or import" }),
-    ).toBeVisible();
-    await expectPageAxeClean(page);
-    await page.screenshot({
-      path: path.join(
-        directory!,
-        theme === "light" ? "empty-timeline.png" : "empty-timeline-dark.png",
-      ),
-    });
   }
 });
