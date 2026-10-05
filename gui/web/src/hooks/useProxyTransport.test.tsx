@@ -151,7 +151,7 @@ describe("useProxyTransport", () => {
     act(() => useDawStore.getState().setPlaybackRate(1.545));
     expect(engine.setPlaybackRate).toHaveBeenLastCalledWith(1.545);
   });
-  it("distinguishes natural ticks from a skip jump", async () => {
+  it("does not count natural ticks as seeks", async () => {
     const { result } = renderHook(() => useProxyTransport());
     await vi.waitFor(() => expect(result.current).toBe(true));
     act(() => useDawStore.getState().setIsPlaying(true));
@@ -160,14 +160,6 @@ describe("useProxyTransport", () => {
       frames.shift()?.(0);
     });
     expect(useDawStore.getState().playheadSeekRevision).toBe(before);
-    act(() =>
-      useDawStore.setState({ playSkipStartSec: 25, playSkipEndSec: 35 }),
-    );
-    act(() => {
-      frames.shift()?.(0);
-    });
-    expect(useDawStore.getState().playheadSeekRevision).toBe(before + 1);
-    expect(useDawStore.getState().playheadSec).toBe(35);
   });
   it("applies follow correction seeks while playing and ignores natural ticks", async () => {
     const { result } = renderHook(() => useProxyTransport());

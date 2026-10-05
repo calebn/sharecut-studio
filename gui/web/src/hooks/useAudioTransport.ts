@@ -14,14 +14,11 @@ import {
   trackIsAudible,
   trackOutputGainDb,
 } from "../utils/audio";
+import { AUDITION_STOP_EPS_SEC } from "../utils/auditionStop";
 import {
   projectHasSourceAudio,
   trackHasAudioContent,
 } from "../utils/projectMedia";
-import {
-  AUDITION_STOP_EPS_SEC,
-  nextPlayheadAfterSkip,
-} from "../utils/skipWindow";
 import {
   clipsForOriginTrack,
   sourcePointToTimeline,
@@ -44,11 +41,6 @@ const selectAudioTransportFields = pickDaw(
   "soloTracks",
   "playUntilSec",
   "setPlayUntilSec",
-  "playSkipStartSec",
-  "playSkipEndSec",
-  "playAbFollowup",
-  "auditionEpoch",
-  "continueAudition",
   "clearSessionRegion",
   "setAudioError",
   "playbackRate",
@@ -214,11 +206,6 @@ export function useAudioTransport(enabled = true): void {
     soloTracks,
     playUntilSec,
     setPlayUntilSec,
-    playSkipStartSec,
-    playSkipEndSec,
-    playAbFollowup,
-    auditionEpoch,
-    continueAudition,
     clearSessionRegion,
     setAudioError,
     playbackRate,
@@ -244,7 +231,6 @@ export function useAudioTransport(enabled = true): void {
   const meterMonitorRef = useRef<ReturnType<
     typeof createHostPlaybackMeterMonitor
   > | null>(null);
-  const abTimerRef = useRef<number | null>(null);
   const playheadRef = useRef(playheadSec);
   const appliedSeekRevision = useRef(playheadSeekRevision);
   const drivingPlayheadRef = useRef(false);
@@ -474,14 +460,6 @@ export function useAudioTransport(enabled = true): void {
 
   const playUntilRef = useRef(playUntilSec);
   playUntilRef.current = playUntilSec;
-  const playSkipStartRef = useRef(playSkipStartSec);
-  playSkipStartRef.current = playSkipStartSec;
-  const playSkipEndRef = useRef(playSkipEndSec);
-  playSkipEndRef.current = playSkipEndSec;
-  const playAbFollowupRef = useRef(playAbFollowup);
-  playAbFollowupRef.current = playAbFollowup;
-  const auditionEpochRef = useRef(auditionEpoch);
-  auditionEpochRef.current = auditionEpoch;
 
   useEffect(() => {
     if (!enabled) {
@@ -595,20 +573,6 @@ export function useAudioTransport(enabled = true): void {
 
       if (cancelled) return;
 
-      const seekAllToTimeline = (timelineSec: number) => {
-        const projNow = projectRef.current;
-        const modeNow = auditionModeRef.current;
-        if (projNow) {
-          seekPlayersToTimeline(
-            playersRef.current,
-            projNow,
-            timelineSec,
-            modeNow,
-            0,
-          );
-        }
-      };
-
       const stopAudition = (at: number) => {
         for (const el of playersRef.current.values()) {
           el.pause();
@@ -657,79 +621,18 @@ export function useAudioTransport(enabled = true): void {
         if (master && !master.paused && !master.ended) {
           const projNow = projectRef.current;
           const modeNow = auditionModeRef.current;
-          let t =
+          const t =
             projNow != null
               ? masterTimelineSec(master, masterKey, projNow, modeNow)
               : master.currentTime;
-          const skipped = nextPlayheadAfterSkip(
-            t,
-            playSkipStartRef.current,
-            playSkipEndRef.current,
-          );
-          const jumped = skipped !== t;
-          if (jumped) {
-            t = skipped;
-            seekAllToTimeline(t);
-          }
           drivingPlayheadRef.current = true;
-          setPlayheadSec(t, jumped ? "seek" : "playback");
+          setPlayheadSec(t, "playback");
           // Keep the flag through React's playhead effect (sync clear was a no-op).
           queueMicrotask(() => {
             drivingPlayheadRef.current = false;
           });
           const until = playUntilRef.current;
           if (until != null && t >= until - AUDITION_STOP_EPS_SEC) {
-            const followup = playAbFollowupRef.current;
-            if (followup) {
-              playAbFollowupRef.current = null;
-              for (const el of playersRef.current.values()) {
-                el.pause();
-              }
-              continueAudition({
-                playheadSec: followup.start,
-                untilSec: followup.until,
-                skip: { start: followup.skipStart, end: followup.skipEnd },
-              });
-              playSkipStartRef.current = followup.skipStart;
-              playSkipEndRef.current = followup.skipEnd;
-              playUntilRef.current = followup.until;
-              const gapMs = Math.max(0, followup.gapSec) * 1000;
-              const gen = auditionEpochRef.current;
-              if (abTimerRef.current != null) {
-                window.clearTimeout(abTimerRef.current);
-              }
-              abTimerRef.current = window.setTimeout(() => {
-                abTimerRef.current = null;
-                if (cancelled || auditionEpochRef.current !== gen) {
-                  return;
-                }
-                seekAllToTimeline(followup.start);
-                setPlayheadSec(followup.start);
-                void Promise.all(
-                  [...playersRef.current.values()].map((el) => el.play()),
-                )
-                  .then(() => {
-                    if (!cancelled && auditionEpochRef.current === gen) {
-                      rafRef.current = requestAnimationFrame(tick);
-                    }
-                  })
-                  .catch((e: unknown) => {
-                    if (cancelled || auditionEpochRef.current !== gen) {
-                      return;
-                    }
-                    const msg = errorMessage(e);
-                    const blocked =
-                      e instanceof DOMException && e.name === "NotAllowedError";
-                    setAudioError(
-                      blocked
-                        ? "Browser blocked autoplay. Click Play in the transport"
-                        : msg,
-                    );
-                    setIsPlaying(false);
-                  });
-              }, gapMs);
-              return;
-            }
             stopAudition(until);
             return;
           }
@@ -763,10 +666,6 @@ export function useAudioTransport(enabled = true): void {
     return () => {
       cancelled = true;
       runEvents.abort();
-      if (abTimerRef.current != null) {
-        window.clearTimeout(abTimerRef.current);
-        abTimerRef.current = null;
-      }
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -780,7 +679,6 @@ export function useAudioTransport(enabled = true): void {
     setIsPlaying,
     setPlayheadSec,
     setPlayUntilSec,
-    continueAudition,
     clearSessionRegion,
     setAudioError,
     updateSourcePreview,

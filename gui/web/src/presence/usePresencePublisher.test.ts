@@ -315,14 +315,6 @@ describe("usePresencePublisher", () => {
     expect(last()).toMatchObject({
       transport: { playing: true, playhead_sec: 10 },
     });
-    act(() =>
-      useDawStore
-        .getState()
-        .continueAudition({ playheadSec: 30, untilSec: 40 }),
-    );
-    expect(last()).toMatchObject({
-      transport: { playing: true, playhead_sec: 30 },
-    });
     act(() => useDawStore.getState().stopPlayback());
     expect(last()).toMatchObject({
       transport: { playing: false, playhead_sec: 10 },

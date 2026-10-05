@@ -93,17 +93,6 @@ export interface CommentDraft {
   intervals?: { start: number; end: number }[];
 }
 
-export type PlaySkipRange = { start: number; end: number };
-
-/** After Current playUntil, pause then play Suggested with this skip. */
-export type PlayAbFollowup = {
-  start: number;
-  until: number;
-  skipStart: number;
-  skipEnd: number;
-  gapSec: number;
-};
-
 type SourcePreviewBase = {
   ownerId: string;
   projectEpoch: number;
@@ -212,10 +201,6 @@ export interface DawState {
   sessionRegion: SessionRegion | null;
   lastAgentQuery: string | null;
   playUntilSec: number | null;
-  playSkipStartSec: number | null;
-  playSkipEndSec: number | null;
-  playAbFollowup: PlayAbFollowup | null;
-  auditionEpoch: number;
   lastAppliedRevision: number;
   lastAppliedCommandId: string | null;
   suppressPublish: boolean;
@@ -366,18 +351,7 @@ export interface DawState {
   applyAgentSession: (state: SessionState) => void;
   clearSessionRegion: () => void;
   setPlayUntilSec: (sec: number | null) => void;
-  beginAudition: (opts: {
-    playheadSec: number;
-    untilSec: number;
-    skip?: PlaySkipRange | null;
-    abFollowup?: PlayAbFollowup | null;
-  }) => void;
-  /** Keep playing; swap skip/until (A/B followup). Does not remount transport. */
-  continueAudition: (opts: {
-    playheadSec: number;
-    untilSec: number;
-    skip?: PlaySkipRange | null;
-  }) => void;
+  beginAudition: (opts: { playheadSec: number; untilSec: number }) => void;
   buildViewerSnapshot: () => ViewerSessionSnapshot;
   markUserZoomed: () => void;
   /**

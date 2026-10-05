@@ -12,12 +12,8 @@ import {
   mergeOfflineSnapshot,
 } from "../state/offlineStore";
 import { useDaw } from "../state/useDaw";
-import { errorMessage } from "../utils/apiError";
 import { audioContextCtor } from "../utils/audio";
-import {
-  AUDITION_STOP_EPS_SEC,
-  nextPlayheadAfterSkip,
-} from "../utils/skipWindow";
+import { AUDITION_STOP_EPS_SEC } from "../utils/auditionStop";
 
 /**
  * Guest proxy transport: Web Audio clip scheduler over FX source-clock chunks.
@@ -35,13 +31,7 @@ export function useProxyTransport(): boolean {
     playheadSeekRevision,
     setPlayheadSec,
     playUntilSec,
-    playSkipStartSec,
-    playSkipEndSec,
-    playAbFollowup,
-    auditionEpoch,
-    continueAudition,
     setIsPlaying,
-    setAudioError,
     clearSessionRegion,
     viewerMute,
     soloTracks,
@@ -55,13 +45,7 @@ export function useProxyTransport(): boolean {
     playheadSeekRevision: s.playheadSeekRevision,
     setPlayheadSec: s.setPlayheadSec,
     playUntilSec: s.playUntilSec,
-    playSkipStartSec: s.playSkipStartSec,
-    playSkipEndSec: s.playSkipEndSec,
-    playAbFollowup: s.playAbFollowup,
-    auditionEpoch: s.auditionEpoch,
-    continueAudition: s.continueAudition,
     setIsPlaying: s.setIsPlaying,
-    setAudioError: s.setAudioError,
     clearSessionRegion: s.clearSessionRegion,
     viewerMute: s.viewerMute,
     soloTracks: s.soloTracks,
@@ -72,20 +56,11 @@ export function useProxyTransport(): boolean {
   const engineRef = useRef<ProxyEngine | null>(null);
   const manifestRef = useRef<ProxyManifest | null>(null);
   const rafRef = useRef<number | null>(null);
-  const abTimerRef = useRef<number | null>(null);
   const appliedSeekRevision = useRef(playheadSeekRevision);
   const playheadSecRef = useRef(playheadSec);
   playheadSecRef.current = playheadSec;
   const playUntilRef = useRef(playUntilSec);
   playUntilRef.current = playUntilSec;
-  const playSkipStartRef = useRef(playSkipStartSec);
-  playSkipStartRef.current = playSkipStartSec;
-  const playSkipEndRef = useRef(playSkipEndSec);
-  playSkipEndRef.current = playSkipEndSec;
-  const playAbFollowupRef = useRef(playAbFollowup);
-  playAbFollowupRef.current = playAbFollowup;
-  const auditionEpochRef = useRef(auditionEpoch);
-  auditionEpochRef.current = auditionEpoch;
 
   useEffect(() => {
     if (!projectPath || !isShareProjectKey(projectPath)) {
@@ -189,58 +164,10 @@ export function useProxyTransport(): boolean {
         if (cancelled || !state.isPlaying || state.sourcePreview) {
           return;
         }
-        let t = engine.currentTimeSec();
-        const skipped = nextPlayheadAfterSkip(
-          t,
-          playSkipStartRef.current,
-          playSkipEndRef.current,
-        );
-        const jumped = skipped !== t;
-        if (jumped) {
-          t = skipped;
-          engine.seek(t);
-        }
-        setPlayheadSec(t, jumped ? "seek" : "playback");
+        const t = engine.currentTimeSec();
+        setPlayheadSec(t, "playback");
         const until = playUntilRef.current;
         if (until != null && t >= until - AUDITION_STOP_EPS_SEC) {
-          const followup = playAbFollowupRef.current;
-          if (followup) {
-            playAbFollowupRef.current = null;
-            engine.pause();
-            continueAudition({
-              playheadSec: followup.start,
-              untilSec: followup.until,
-              skip: { start: followup.skipStart, end: followup.skipEnd },
-            });
-            playSkipStartRef.current = followup.skipStart;
-            playSkipEndRef.current = followup.skipEnd;
-            playUntilRef.current = followup.until;
-            const gen = auditionEpochRef.current;
-            if (abTimerRef.current != null) {
-              window.clearTimeout(abTimerRef.current);
-            }
-            abTimerRef.current = window.setTimeout(() => {
-              abTimerRef.current = null;
-              if (
-                cancelled ||
-                useDawStore.getState().sourcePreview ||
-                auditionEpochRef.current !== gen
-              ) {
-                return;
-              }
-              try {
-                engine.play(followup.start);
-              } catch (e: unknown) {
-                const msg = errorMessage(e);
-                setAudioError(msg);
-                setIsPlaying(false);
-                return;
-              }
-              setPlayheadSec(followup.start);
-              rafRef.current = requestAnimationFrame(tick);
-            }, Math.max(0, followup.gapSec) * 1000);
-            return;
-          }
           engine.pause();
           setPlayheadSec(until);
           setIsPlaying(false);
@@ -261,10 +188,6 @@ export function useProxyTransport(): boolean {
     }
     return () => {
       cancelled = true;
-      if (abTimerRef.current != null) {
-        window.clearTimeout(abTimerRef.current);
-        abTimerRef.current = null;
-      }
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -274,10 +197,8 @@ export function useProxyTransport(): boolean {
     isPlaying,
     active,
     timelineActive,
-    continueAudition,
     setIsPlaying,
     setPlayheadSec,
-    setAudioError,
     clearSessionRegion,
   ]);
 

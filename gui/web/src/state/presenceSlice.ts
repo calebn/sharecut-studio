@@ -144,10 +144,6 @@ export const createPresenceSlice: StateCreator<
         sessionRegion: state.region,
         playUntilSec:
           state.region && state.is_playing ? state.region.end_sec : null,
-        playSkipStartSec: null,
-        playSkipEndSec: null,
-        playAbFollowup: null,
-        auditionEpoch: get().auditionEpoch + 1,
         isPlaying: Boolean(state.is_playing),
         ...playStartPatch(get(), Boolean(state.is_playing), state.playhead_sec),
         sourcePreview: null,

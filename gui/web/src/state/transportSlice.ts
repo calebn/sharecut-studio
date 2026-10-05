@@ -2,7 +2,7 @@ import type { StateCreator } from "zustand";
 import { guestHearsMixOnly } from "../shareMode";
 import type { AuditionMode, SessionRegion } from "../types/session";
 import { clampToSession } from "../utils/time";
-import type { DawStore, PlayAbFollowup } from "./types";
+import type { DawStore } from "./types";
 
 type TransportSlice = Pick<
   DawStore,
@@ -23,10 +23,6 @@ type TransportSlice = Pick<
   | "sessionRegion"
   | "lastAgentQuery"
   | "playUntilSec"
-  | "playSkipStartSec"
-  | "playSkipEndSec"
-  | "playAbFollowup"
-  | "auditionEpoch"
   | "audioError"
   | "setPlayheadSec"
   | "setIsPlaying"
@@ -39,7 +35,6 @@ type TransportSlice = Pick<
   | "toggleSolo"
   | "setPlayUntilSec"
   | "beginAudition"
-  | "continueAudition"
   | "setAudioError"
   | "clearSessionRegion"
 >;
@@ -139,10 +134,6 @@ export const createTransportSlice: StateCreator<
   sessionRegion: null as SessionRegion | null,
   lastAgentQuery: null as string | null,
   playUntilSec: null as number | null,
-  playSkipStartSec: null as number | null,
-  playSkipEndSec: null as number | null,
-  playAbFollowup: null as PlayAbFollowup | null,
-  auditionEpoch: 0,
   audioError: null as string | null,
   setPlayheadSec: (playheadSec, origin = "seek") =>
     set((s) => ({
@@ -161,9 +152,6 @@ export const createTransportSlice: StateCreator<
       ...playStartPatch(s, isPlaying, s.playheadSec),
       // Local transport owns the clock — clear agent audition auto-stop.
       playUntilSec: isPlaying ? null : s.playUntilSec,
-      playSkipStartSec: isPlaying ? null : s.playSkipStartSec,
-      playSkipEndSec: isPlaying ? null : s.playSkipEndSec,
-      playAbFollowup: isPlaying ? null : s.playAbFollowup,
     })),
   togglePlaying: () =>
     set((s) => {
@@ -174,9 +162,6 @@ export const createTransportSlice: StateCreator<
         isPlaying: next,
         ...playStartPatch(s, next, s.playheadSec),
         playUntilSec: next ? null : s.playUntilSec,
-        playSkipStartSec: next ? null : s.playSkipStartSec,
-        playSkipEndSec: next ? null : s.playSkipEndSec,
-        playAbFollowup: next ? null : s.playAbFollowup,
       };
     }),
   stopPlayback: () =>
@@ -205,7 +190,7 @@ export const createTransportSlice: StateCreator<
       soloTracks: { ...s.soloTracks, [trackId]: !s.soloTracks[trackId] },
     })),
   setPlayUntilSec: (playUntilSec) => set({ playUntilSec }),
-  beginAudition: ({ playheadSec, untilSec, skip, abFollowup }) =>
+  beginAudition: ({ playheadSec, untilSec }) =>
     set((s) => ({
       sourcePreview: null,
       sourcePreviewGeneration: s.sourcePreviewGeneration + 1,
@@ -214,29 +199,12 @@ export const createTransportSlice: StateCreator<
       isPlaying: true,
       playStartSec: playheadSec,
       playUntilSec: untilSec,
-      playSkipStartSec: skip?.start ?? null,
-      playSkipEndSec: skip?.end ?? null,
-      playAbFollowup: abFollowup ?? null,
-      auditionEpoch: s.auditionEpoch + 1,
-    })),
-  continueAudition: ({ playheadSec, untilSec, skip }) =>
-    set((s) => ({
-      playheadSec,
-      playheadSeekRevision: s.playheadSeekRevision + 1,
-      isPlaying: true,
-      playUntilSec: untilSec,
-      playSkipStartSec: skip?.start ?? null,
-      playSkipEndSec: skip?.end ?? null,
-      playAbFollowup: null,
     })),
   setAudioError: (audioError) => set({ audioError }),
   clearSessionRegion: () =>
     set({
       sessionRegion: null,
       playUntilSec: null,
-      playSkipStartSec: null,
-      playSkipEndSec: null,
-      playAbFollowup: null,
       lastAgentQuery: null,
     }),
 });
