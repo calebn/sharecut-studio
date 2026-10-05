@@ -59,7 +59,7 @@ matches no generated label.
 | Lana backchannel 1121.26 | keep | 1120.5 to 1126.5 |
 | Lana backchannel 1124.56 | keep | 1120.5 to 1126.5 |
 | Lana backchannel 1125.96 | keep | 1120.5 to 1126.5 |
-| Caleb filler 615.98 (`Um.`) | cut | not recorded |
+| Caleb filler 615.98 (`Um.`) | cut | 615.0 to 617.5 |
 | Caleb pause 625.42 to 628.38 | cut | 624.5 to 628.5 |
 
 Every Lana "Uh" in `lana_uh_cluster` is the first token of an ASR split `Uh`
