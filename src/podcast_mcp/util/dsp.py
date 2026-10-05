@@ -72,6 +72,33 @@ def frame_rms_db(
     return out
 
 
+def frame_band_db(
+    samples: np.ndarray,
+    sample_rate: int,
+    frame: int,
+    hop: int,
+    *,
+    lo_hz: float,
+    floor_db: float = -200.0,
+) -> np.ndarray:
+    """Per-frame dB level of the signal's content at or above ``lo_hz``.
+
+    Same frame grid as :func:`frame_rms_db`; a frame of full-band white noise reads
+    about its RMS level plus ``10 * log10(1 - 2 * lo_hz / sample_rate)``.
+    """
+    if frame <= 0 or hop <= 0 or samples.size < frame:
+        return np.empty(0, dtype=np.float64)
+    window = np.hanning(frame)
+    windows = np.lib.stride_tricks.sliding_window_view(samples, frame)[::hop] * window
+    power = np.abs(np.fft.rfft(windows, axis=1)) ** 2
+    band = np.fft.rfftfreq(frame, d=1.0 / sample_rate) >= lo_hz
+    mean_square = 2.0 * np.sum(power[:, band], axis=1) / (frame * float(np.sum(window**2)))
+    out = np.full(mean_square.shape, floor_db, dtype=np.float64)
+    loud = mean_square >= _SILENCE_RMS**2
+    out[loud] = 10.0 * np.log10(mean_square[loud])
+    return out
+
+
 def frame_rms_db_stream(
     chunks: Iterable[np.ndarray], frame: int, hop: int, *, floor_db: float = -200.0
 ) -> np.ndarray:

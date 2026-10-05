@@ -265,9 +265,8 @@ transcripts, and each filler and backchannel label's level on its own track. It
 then runs the Find hits pipeline step at medium intensity on a copy and checks
 the hits against the owner verdicts. A `cut` pause verdict must get a pause hit,
 and that test passes. No hit may overlap a kept uh-huh acknowledgment, which
-also passes. One strict `xfail` records a product gap: the `Um.` matches the
-lexicon but breath protection drops it, so it gets no filler hit
-(calebn/sharecut-studio#978).
+also passes. A `cut` filler verdict must get a filler hit: the `Um.` passes
+since padded filler cuts skip the splice checks (calebn/sharecut-studio#978).
 
 The audio-audit cache regression tests use deterministic decoder-call counts
 and numerical equality, not a wall-clock ratio. One test invokes the production

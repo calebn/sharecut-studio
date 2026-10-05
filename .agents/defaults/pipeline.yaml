@@ -129,6 +129,11 @@ tighten:
   filler_post_pad_fade_in_min_ms: 15
   filler_post_pad_fade_in_max_ms: 120
   filler_post_pad_look_ahead_ms: 120
+  # With a pad the cut's edges never meet: each fades against silence, so the
+  # splice checks below (breath protection, cut-risk level jumps, the join gate)
+  # skip it. Its right edge instead stops 10 ms before the next word's acoustic
+  # onset (a plosive's burst included), and it may not cover a whole kept word
+  # (skip counts next_onset, kept_word:{word}; #978).
   filler_room_tone_replace: true
   # silence = hard gap (default; good for dry rooms). room_tone = sample air
   # from the stem (needs a matching bed — see ROADMAP room-tone finder).
@@ -160,10 +165,13 @@ tighten:
   isolated_filler_candidates: true
   min_filler_cluster: 2
   filler_cluster_gap_sec: 2.0
+  # Risk = boundary/ASR confidence + word margins + (cuts without a pad only)
+  # the level jump at each edge.
   leave_in_if_risky: true
   max_cut_risk_score: 0.65
   # Fail-closed perceptual join gate (assess_proposed_cut). Skip candidate when
   # verdict is fail. DSP-only until ranker is trained; neural may only elevate.
+  # Scores a butt splice, so it runs only on cuts without a paced pad.
   join_continuity_gate: true
   min_filler_confidence: 0.15
   # Discourse markers stay in filler_words but are cut only with an adjacent
@@ -182,7 +190,8 @@ tighten:
   discourse_confidence_max: 0.6
   # Acknowledgments a listener says while someone else talks. They are speech,
   # never filler hits: matched before filler_words (so Whisper's split "Uh" +
-  # "-huh." is "uh huh", not the filler "uh") and counted as backchannel:{phrase}
+  # "-huh." is "uh huh", not the filler "uh", even when the audibility pass
+  # suppressed one half) and counted as backchannel:{phrase}
   # skips. Split "uh uh" is left out: once the hyphen of "-uh" is stripped it
   # reads like a repeated hesitation ("Uh, uh,"). [] disables.
   backchannels:

@@ -84,15 +84,15 @@ it against the owner verdicts.
   tokens still drift onto digital silence of Lana's gated track; that timing
   problem is separate from the lexicon.
 - **Cut fillers.** Each `cut` filler verdict needs a filler hit. The `Um.`
-  token matches the lexicon and becomes a candidate, but gets no hit. Breath
-  protection suppresses it, because both cut edges sit inside the Um's own onset
-  and tail, which room tone joins into one 0.91 s run. This is a strict `xfail`
-  citing calebn/sharecut-studio#978.
+  gets one. Both its cut edges sit inside the Um's own onset and tail, which room
+  tone joins into one 0.91 s run, so breath protection used to suppress it. The
+  cut carries a paced pad, so its edges fade against silence and the splice
+  checks no longer run on it (calebn/sharecut-studio#978).
 - **Cut pauses.** Each `cut` pause verdict needs a pause hit. Tighten proposes
   one at 625.46 to 627.83 s, and this test passes today.
 
-When a product fix changes a result, the strict marker fails and the test must
-be updated.
+A product change that moves one of these results fails its test, which must be
+updated with the owner's verdict.
 
 ## Open in Sharecut Studio
 

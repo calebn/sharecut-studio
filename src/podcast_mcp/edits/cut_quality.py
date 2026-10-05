@@ -289,7 +289,11 @@ def assess_cut_risk(
     cache: JumpCache | None = None,
     audio_cache: TrackAudioCache | None = None,
     word_index: CutWordIndex | None = None,
+    score_joins: bool = True,
 ) -> CutRisk:
+    """Score a cut from boundary and ASR confidence, word margins and, for a splice,
+    the level jump at each edge. ``score_joins=False`` drops the jump terms for a cut
+    whose edges meet a pad instead of each other (#978)."""
     tighten = _tighten_cfg(defaults)
     max_score = float(tighten.get("max_cut_risk_score", 0.65))
     reasons: list[str] = []
@@ -311,13 +315,15 @@ def assess_cut_risk(
         score += 0.25
         reasons.append(f"low filler ASR confidence ({filler_confidence:.2f})")
 
-    start_jump = _measure_join_jump_cached(project, track_id, start, cache, audio_cache=audio_cache)
-    end_jump = _measure_join_jump_cached(project, track_id, end, cache, audio_cache=audio_cache)
-    h = _heuristics(defaults)
-    for label, jump in (("start", start_jump), ("end", end_jump)):
-        if jump is not None and jump >= float(h["boundary_jump_db"]):
-            score += 0.2
-            reasons.append(f"harsh {label} join (~{jump:.1f} dB)")
+    if score_joins:
+        h = _heuristics(defaults)
+        for label, edge in (("start", start), ("end", end)):
+            jump = _measure_join_jump_cached(
+                project, track_id, edge, cache, audio_cache=audio_cache
+            )
+            if jump is not None and jump >= float(h["boundary_jump_db"]):
+                score += 0.2
+                reasons.append(f"harsh {label} join (~{jump:.1f} dB)")
 
     if end - start < 0.02:
         score += 0.15

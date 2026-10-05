@@ -246,7 +246,7 @@ def test_analyze_fillers_integration(tmp_path):
     defaults = load_defaults()
     # This gated speech fixture has no measurable room-tone contrast.
     defaults["tighten"]["breath_handling"]["enabled"] = False
-    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+    decision, padded = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
 
     assert decision.reason == "filler:um"
     assert decision.review_required is False
@@ -254,11 +254,18 @@ def test_analyze_fillers_integration(tmp_path):
     assert decision.start == pytest.approx(0.460, abs=0.011)
     assert decision.end == pytest.approx(0.702, abs=0.005)
     assert decision.cut_confidence is not None
+    # The uh is paced up to "hello" with a pad, so no splice gate scores its edges.
+    assert (padded.reason, padded.review_required, padded.replace_gap_sec) == (
+        "filler:uh",
+        False,
+        1.0,
+    )
+    assert (padded.start, padded.end) == pytest.approx((0.705, 1.92), abs=0.005)
 
 
 @pytest.fixture(autouse=True)
 def _mock_cut_pipeline(request):
-    if request.node.name == "test_analyze_fillers_integration":
+    if request.node.name.startswith(("test_analyze_fillers_integration", "test_audio_padded_")):
         yield
         return
     with (
@@ -1386,6 +1393,21 @@ def test_split_uh_huh_is_a_backchannel_skip_not_a_filler():
     )
 
 
+def test_uh_huh_with_a_suppressed_half_is_still_a_backchannel():
+    words = [
+        TranscriptWord(text="Uh", start=1.0, end=1.4, confidence=0.1),
+        TranscriptWord(text="-huh.", start=1.4, end=1.4, suppressed=True),
+        TranscriptWord(text="Wait,", start=1.4, end=1.4, suppressed=True),
+        TranscriptWord(text="Uh", start=3.0, end=3.5, suppressed=True),
+        TranscriptWord(text="-huh.", start=3.5, end=4.0, confidence=0.3),
+        TranscriptWord(text="Uh,", start=9.0, end=9.3, confidence=0.9),
+        TranscriptWord(text="right.", start=9.35, end=9.6, confidence=0.9),
+    ]
+    cands, skips = _collect_with_skips(words, _shipped_tighten_defaults())
+    assert [(c.reason, c.start) for c in cands] == [("filler:uh", 9.0)]
+    assert skips == {"backchannel:uh huh": 1}
+
+
 def test_backchannel_wins_over_a_filler_entry_with_the_same_text():
     words = [
         TranscriptWord(text="So", start=0.0, end=0.2),
@@ -2428,3 +2450,192 @@ def test_analyze_fillers_and_pauses_resolves_intensity(monkeypatch):
     )
     assert seen[-1]["max_pause_sec"] == 2.0
     assert seen[-1]["intensity"] == "light"
+
+
+def _uh_with_overshoot(words: list[TranscriptWord], opt_span: tuple[float, float]):
+    """Analyze the lone ``uh`` with waveform optimization moved to ``opt_span``."""
+    project = _project_with_transcript(words)
+    skips: dict[str, int] = {}
+    with patch(
+        "podcast_mcp.edits.fillers.optimize_and_assess",
+        side_effect=lambda *a, **k: (_passthrough_opt(*opt_span), _safe_risk()),
+    ):
+        decisions = analyze_fillers_and_pauses(
+            project,
+            project.transcripts[0],
+            {
+                "tighten": {
+                    "filler_words": ["uh"],
+                    "max_pause_sec": 99.0,
+                    "acoustic_gap_filler": {"enabled": False},
+                }
+            },
+            skip_counts=skips,
+        )
+    return [(d.reason, d.start, d.end, d.replace_gap_sec) for d in decisions], skips
+
+
+def test_padded_cut_covering_a_whole_kept_word_is_rejected():
+    words = [
+        TranscriptWord(text="so", start=0.0, end=0.1),
+        TranscriptWord(text="uh", start=1.0, end=1.2),
+        TranscriptWord(text="we", start=1.22, end=1.4),
+        TranscriptWord(text="okay.", start=5.0, end=5.3),
+    ]
+    assert _uh_with_overshoot(words, (1.0, 1.45)) == ([], {"kept_word:we": 1})
+
+
+def test_padded_cut_partly_over_a_kept_word_is_proposed():
+    words = [
+        TranscriptWord(text="so", start=0.0, end=0.1),
+        TranscriptWord(text="well", start=0.15, end=0.3),
+        TranscriptWord(text="uh", start=1.0, end=1.2),
+        TranscriptWord(text="okay.", start=5.0, end=5.3),
+    ]
+    decisions, skips = _uh_with_overshoot(words, (0.25, 1.2))
+    assert decisions == [("filler:uh", 0.25, 1.2, pytest.approx(0.8075))]
+    assert skips == {}
+
+
+@pytest.mark.parametrize("gate", ["breath", "join"])
+def test_only_unpadded_cuts_go_through_the_splice_gates(gate):
+    from types import SimpleNamespace
+
+    defaults = {
+        "tighten": {"filler_words": ["uh"], "max_pause_sec": 99.0, "join_continuity_gate": True}
+    }
+    unpadded = [
+        TranscriptWord(text="uh", start=1.0, end=1.2),
+        TranscriptWord(text="okay.", start=2.0, end=2.3),
+    ]
+    padded = [TranscriptWord(text="so", start=0.0, end=0.1), *unpadded]
+    rejecting = {
+        "breath": patch("podcast_mcp.edits.fillers.protect_cut_breaths", return_value=None),
+        "join": patch(
+            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+            return_value=SimpleNamespace(verdict="fail"),
+        ),
+    }[gate]
+    results = {}
+    with rejecting:
+        for name, words in (("unpadded", unpadded), ("padded", padded)):
+            project = _project_with_transcript(words)
+            results[name] = [
+                (d.reason, round(d.start, 3), round(d.end, 3), d.replace_gap_sec)
+                for d in analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+            ]
+    assert results == {
+        "unpadded": [],
+        "padded": [("filler:uh", 0.14, 1.92, 1.0)],
+    }
+
+
+def _write_wav(path, segments: list[tuple[float, object]], *, rate: int = 16_000) -> None:
+    """Room noise at -95 dB, 4 s long, with each ``(start_sec, samples)`` added on top."""
+    import wave
+
+    import numpy as np
+
+    samples = np.random.default_rng(7).standard_normal(4 * rate) * 10 ** (-95 / 20)
+    for start, segment in segments:
+        i = round(start * rate)
+        samples[i : i + len(segment)] += segment
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(rate)
+        handle.writeframes((np.clip(samples, -1.0, 1.0) * 32767).astype("<i2").tobytes())
+
+
+def _voice(sec: float, *, level_db: float = -20.0, rate: int = 16_000):
+    import numpy as np
+
+    t = np.arange(round(sec * rate)) / rate
+    tone = sum(np.sin(2 * np.pi * 150.0 * k * t) / k for k in range(1, 6))
+    return tone / np.sqrt(np.mean(tone**2)) * 10 ** (level_db / 20)
+
+
+def _audio_project(tmp_path, segments, words: list[TranscriptWord]) -> EpisodeProject:
+    ws = tmp_path / "ws"
+    _write_wav(ws / "raw" / "host.wav", segments)
+    project = EpisodeProject.create("padded", str(ws))
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=4.0),
+        )
+    ]
+    project.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=4.0, timeline_start=0.0)
+    ]
+    project.transcripts = [Transcript(track_id="host", words=words)]
+    return project
+
+
+def test_audio_padded_filler_with_edges_in_activity_is_proposed(tmp_path):
+    import numpy as np
+
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+
+    # Room tone 35 dB over the floor joins the um's onset and tail into one run that
+    # is too long to be a breath, as on the lab tape (#978).
+    bed = np.random.default_rng(1).standard_normal(round(1.6 * 16_000)) * 10 ** (-60 / 20)
+    project = _audio_project(
+        tmp_path,
+        [(0.3, _voice(0.3)), (0.6, bed), (1.2, _voice(0.4)), (2.4, _voice(0.4))],
+        [
+            TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+            TranscriptWord(text="um,", start=1.2, end=1.6, confidence=0.9),
+            TranscriptWord(text="okay.", start=2.4, end=2.8, confidence=0.95),
+        ],
+    )
+    defaults = load_defaults()
+
+    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+
+    assert (decision.reason, decision.review_required, decision.replace_gap_sec) == (
+        "filler:um",
+        False,
+        1.0,
+    )
+    assert (decision.start, decision.end) == pytest.approx((0.64, 2.32), abs=0.005)
+    assert (
+        protect_cut_breaths(project, "host", decision.start, decision.end, defaults=defaults)
+        is None
+    )
+
+
+def test_audio_padded_filler_cut_ends_before_a_plosive_burst(tmp_path):
+    import numpy as np
+
+    from podcast_mcp.config import load_defaults
+
+    noise = np.random.default_rng(3).standard_normal(round(0.1 * 16_000))
+    burst = noise[: round(0.008 * 16_000)] * 10 ** (-50 / 20)
+    aspiration = noise * 10 ** (-48 / 20)
+    project = _audio_project(
+        tmp_path,
+        [
+            (0.3, _voice(0.3)),
+            (1.0, _voice(0.3)),
+            (1.42, burst),
+            (1.43, aspiration),
+            (1.53, _voice(0.3, level_db=-18)),
+        ],
+        [
+            TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+            TranscriptWord(text="uh,", start=1.0, end=1.3, confidence=0.9),
+            # A late word time: "pat" bursts at 1.42 s and voices at 1.53 s, after
+            # 100 ms of aspiration a voiced-edge nudge would cut.
+            TranscriptWord(text="pat.", start=1.7, end=1.9, confidence=0.95),
+        ],
+    )
+
+    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], load_defaults())
+
+    assert (decision.reason, decision.replace_gap_sec) == ("filler:uh", pytest.approx(0.935))
+    assert decision.end == pytest.approx(1.40)

@@ -182,14 +182,6 @@ def test_no_cut_overlaps_kept_backchannel(proposed_hits: dict[str, list[EditDeci
     }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "calebn/sharecut-studio#978: 'Um.' now becomes a filler candidate at medium, but "
-        "protect_cut_breaths suppresses it. Both cut edges sit in the Um's own onset and "
-        "tail, which room tone joins into one 0.91 s above-floor run, longer than a breath"
-    ),
-)
 @pytest.mark.parametrize("key", CUT_FILLERS, ids=lambda key: f"{key[1]}-{key[3]}")
 def test_cut_filler_verdict_gets_filler_hit(
     proposed_hits: dict[str, list[EditDecision]], key: tuple[str, str, str, float]
