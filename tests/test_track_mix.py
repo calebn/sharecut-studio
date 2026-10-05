@@ -43,6 +43,7 @@ from podcast_mcp.engines.play_audit import (
     read_mastered_hash,
     read_premix_ceiling_db,
     read_premix_hash,
+    read_premix_trim_db,
     track_render_hash,
     write_premix_hash,
     write_stem_hash,
@@ -123,6 +124,7 @@ def _mixing_engine() -> MagicMock:
     """An ffmpeg stand-in whose mix writes the file it's asked for."""
     eng = MagicMock()
     eng.mix_tracks.side_effect = lambda inputs, out, **_kw: out.write_bytes(b"RIFFMIX") or out
+    eng.peak_trim_db.return_value = -2.5
     return eng
 
 
@@ -311,7 +313,7 @@ def test_a_non_dialogue_stem_behind_its_effects_stales_the_premix(
 
     bed.muted = True
     assert premix_is_stale(ws.project) is True
-    write_premix_hash(ws.project, mix_gains(ws.project))
+    write_premix_hash(ws.project, mix_gains(ws.project), trim_db=0.0)
     assert premix_is_stale(ws.project) is False
     ws.project.processing_chains[-1].effects[0].params["frequency"] = 4000
     assert premix_is_stale(ws.project) is False
@@ -455,7 +457,7 @@ def test_balance_stale_status_does_not_invalidate_render_or_mix(minimal_project:
     with patch.object(steps, "ffmpeg", return_value=eng):
         steps.balance_tracks(ws.project, {"balance": {"dialogue_lufs": -20.0}})
     _fake_premix(ws)
-    write_premix_hash(ws.project, mix_gains(ws.project))
+    write_premix_hash(ws.project, mix_gains(ws.project), trim_db=0.0)
     host = ws.project.track_by_id("host")
     host.balance_basis.measured_lufs = -25.0
     report = render_status_report(ws.project)
@@ -521,7 +523,7 @@ def test_cancelled_balance_keeps_gain_and_provenance(minimal_project: Path) -> N
 def test_a_peak_ceiling_change_stales_the_premix(minimal_project: Path) -> None:
     ws = _two_tracks(minimal_project)
     _fake_premix(ws)
-    write_premix_hash(ws.project, mix_gains(ws.project), peak_ceiling_db=-1.0)
+    write_premix_hash(ws.project, mix_gains(ws.project), peak_ceiling_db=-1.0, trim_db=0.0)
     same = {"mix": {"premix_peak_ceiling_db": -1.0}}
     lower = {"mix": {"premix_peak_ceiling_db": -3.0}}
     assert premix_stale_vs_mix(ws.project, same) is False
@@ -537,9 +539,9 @@ def test_revision_two_premix_requires_a_remix_without_changing_stems(
     stem_hashes = {track.id: track_render_hash(ws.project, track.id) for track in ws.project.tracks}
     with monkeypatch.context() as old_mix:
         old_mix.setattr(play_audit, "MIX_SEMANTICS_REV", 2)
-        write_premix_hash(ws.project, mix_gains(ws.project), peak_ceiling_db=-1.0)
+        write_premix_hash(ws.project, mix_gains(ws.project), peak_ceiling_db=-1.0, trim_db=0.0)
     assert render_status_report(ws.project)["premix"]["stale_vs_mix"] is True
-    write_premix_hash(ws.project, mix_gains(ws.project), peak_ceiling_db=-1.0)
+    write_premix_hash(ws.project, mix_gains(ws.project), peak_ceiling_db=-1.0, trim_db=0.0)
     assert render_status_report(ws.project)["premix"]["stale_vs_mix"] is False
     assert {track.id: track_render_hash(ws.project, track.id) for track in ws.project.tracks} == (
         stem_hashes
@@ -551,7 +553,7 @@ def test_without_a_config_the_premix_is_judged_by_its_recorded_ceiling(
 ) -> None:
     ws = _two_tracks(minimal_project)
     _fake_premix(ws)
-    write_premix_hash(ws.project, mix_gains(ws.project), peak_ceiling_db=-3.0)
+    write_premix_hash(ws.project, mix_gains(ws.project), peak_ceiling_db=-3.0, trim_db=0.0)
     assert read_premix_ceiling_db(ws.project) == -3.0
     assert read_premix_hash(ws.project) == mix_render_hash(mix_gains(ws.project), -3.0)
     # Render status and review publish pass no config: a per-project override isn't stale.
@@ -586,18 +588,20 @@ def test_the_mix_applies_output_gain_skips_muted_and_hashes_the_mix(
     eng = _mixing_engine()
     with patch.object(steps, "ffmpeg", return_value=eng):
         steps.mix_with_music(project, load_defaults())
+    eng.peak_trim_db.assert_called_once_with([(Path(rendered["host"]), -5.0)], -1.0)
     (inputs, _out), _kw = eng.mix_tracks.call_args
-    assert _kw == {"peak_ceiling_db": -1.0}
+    assert _kw == {"trim_db": -2.5}
     assert inputs == [(Path(rendered["host"]), -5.0)]
     assert premix_path(project).read_bytes() == b"RIFFMIX"
     assert read_premix_hash(project) == mix_render_hash({"host": -5.0}, -1.0)
+    assert read_premix_trim_db(project) == -2.5
     assert premix_stale_vs_mix(project) is False
 
 
 def test_a_failed_mix_leaves_the_old_premix_whole(minimal_project: Path) -> None:
     ws = _two_tracks(minimal_project)
     _fake_premix(ws)
-    write_premix_hash(ws.project, {"old": 0.0})
+    write_premix_hash(ws.project, {"old": 0.0}, trim_db=0.0)
     _fake_rendered_stems(ws.project)
     eng = MagicMock()
     eng.mix_tracks.side_effect = RuntimeError("ffmpeg died")
@@ -660,7 +664,7 @@ def test_an_empty_mix_says_why(
 def test_volume_and_mute_stale_the_premix_but_no_stem(minimal_project: Path) -> None:
     ws = _two_tracks(minimal_project)
     _fake_premix(ws)
-    write_premix_hash(ws.project, mix_gains(ws.project))
+    write_premix_hash(ws.project, mix_gains(ws.project), trim_db=0.0)
     assert premix_stale_vs_mix(ws.project) is False
     stem_hashes = {t.id: track_render_hash(ws.project, t.id) for t in ws.project.tracks}
     fingerprint = audio_state_fingerprint(ws.project)
@@ -676,7 +680,7 @@ def test_volume_and_mute_stale_the_premix_but_no_stem(minimal_project: Path) -> 
     assert report["premix"]["stale_vs_mix"] is True
     assert report["needs_rerender"] is True
 
-    write_premix_hash(ws.project, mix_gains(ws.project))
+    write_premix_hash(ws.project, mix_gains(ws.project), trim_db=0.0)
     assert premix_stale_vs_mix(ws.project) is False
     EpisodeService(ws).set_track_mute("guest", True)
     assert premix_stale_vs_mix(ws.project) is True
@@ -744,7 +748,7 @@ def test_a_muted_stem_newer_than_the_premix_doesnt_stale_it(minimal_project: Pat
 def test_the_mix_hash_covers_only_what_the_mix_plays(minimal_project: Path) -> None:
     ws = _two_tracks(minimal_project)
     _fake_premix(ws)
-    write_premix_hash(ws.project, mix_gains(ws.project))
+    write_premix_hash(ws.project, mix_gains(ws.project), trim_db=0.0)
     ws.project.tracks.reverse()
     ws.project.tracks.append(Track(id="empty", label="Empty", fader_db=-6.0, muted=True))
     assert premix_stale_vs_mix(ws.project) is False
@@ -753,7 +757,7 @@ def test_the_mix_hash_covers_only_what_the_mix_plays(minimal_project: Path) -> N
     host.gain_db, host.fader_db = -1.0, -1.0
     assert premix_stale_vs_mix(ws.project) is False
     # A premix that left out a track with media is stale.
-    write_premix_hash(ws.project, {"host": -2.0})
+    write_premix_hash(ws.project, {"host": -2.0}, trim_db=0.0)
     assert premix_stale_vs_mix(ws.project) is True
 
 
@@ -766,7 +770,7 @@ def test_undoing_a_volume_change_keeps_every_stem_fresh(minimal_project: Path) -
 
     _fresh_stems(ws.project)
     _fake_premix(ws)
-    write_premix_hash(ws.project, mix_gains(ws.project))
+    write_premix_hash(ws.project, mix_gains(ws.project), trim_db=0.0)
     assert render_status_report(ws.project)["needs_rerender"] is False
 
     HistoryService(ws).undo()

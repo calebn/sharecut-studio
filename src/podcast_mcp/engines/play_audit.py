@@ -454,7 +454,9 @@ def premix_hash_path(project: EpisodeProject) -> Path:
 
 
 def _premix_sidecar(project: EpisodeProject) -> list[str]:
-    """``premix.hash`` split into ``[mix hash, peak ceiling dBTP]`` (older files: hash only)."""
+    """``premix.hash`` split into ``[mix hash, peak ceiling dBTP, headroom trim dB]``.
+
+    Older files hold fewer lines (hash only, or hash and ceiling)."""
     raw = _read_hash(premix_hash_path(project))
     return raw.split() if raw else []
 
@@ -475,17 +477,34 @@ def read_premix_ceiling_db(project: EpisodeProject) -> float | None:
         return None
 
 
+def read_premix_trim_db(project: EpisodeProject) -> float | None:
+    """The headroom trim ``premix.wav`` was mixed at, or None when not recorded."""
+    parts = _premix_sidecar(project)
+    if len(parts) < 3:
+        return None
+    try:
+        return float(parts[2])
+    except ValueError:
+        return None
+
+
 def write_premix_hash(
-    project: EpisodeProject, gains: Mapping[str, float], *, peak_ceiling_db: float | None = None
+    project: EpisodeProject,
+    gains: Mapping[str, float],
+    *,
+    trim_db: float,
+    peak_ceiling_db: float | None = None,
 ) -> str:
     """Record the mix ``premix.wav`` was just mixed from (``track id -> gain``).
 
     The sidecar holds the mix hash, then the peak ceiling it was mixed under, so a
-    caller without the run's config can still judge the premix (``premix_stale_vs_mix``).
+    caller without the run's config can still judge the premix (``premix_stale_vs_mix``),
+    then the headroom trim the whole mix got, so a window mixed from segments plays at
+    the premix's level.
     """
     ceiling = mix_peak_ceiling_db() if peak_ceiling_db is None else float(peak_ceiling_db)
     h = mix_render_hash(gains, ceiling)
-    write_text_atomic(premix_hash_path(project), f"{h}\n{round(ceiling, 2)}\n")
+    write_text_atomic(premix_hash_path(project), f"{h}\n{round(ceiling, 2)}\n{trim_db}\n")
     return h
 
 

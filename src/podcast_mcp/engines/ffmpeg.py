@@ -1192,17 +1192,22 @@ class FFmpegEngine:
         output_path: Path,
         *,
         peak_ceiling_db: float | None = None,
+        trim_db: float | None = None,
     ) -> Path:
         """Sum tracks at unity after each one's gain (never 1/N).
 
-        With ``peak_ceiling_db``, measure the unity sum's true peak on the float graph
-        (ebur128 to a null output), then render once with the whole mix trimmed down so it
-        peaks at or below the ceiling (never up); no intermediate file.
+        With ``peak_ceiling_db``, trim the whole mix by ``peak_trim_db`` so it peaks at or
+        below the ceiling (never up); no intermediate file. With ``trim_db``, sum at that
+        trim instead: a window of a longer mix plays at the trim measured over all of it.
         """
+        if peak_ceiling_db is not None and trim_db is not None:
+            raise ValueError("pass peak_ceiling_db or trim_db, not both")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if not track_wavs:
             raise ValueError("no tracks to mix")
-        if peak_ceiling_db is None:
+        if peak_ceiling_db is not None:
+            trim_db = self.peak_trim_db(track_wavs, float(peak_ceiling_db))
+        if trim_db is None:
             if len(track_wavs) == 1:
                 wav, gain_db = track_wavs[0]
                 if float(gain_db) == 0.0:
@@ -1211,19 +1216,23 @@ class FFmpegEngine:
                 return self.apply_gain(wav, output_path, float(gain_db))
             self._sum_tracks(track_wavs, output_path)
             return output_path
-        ceiling = float(peak_ceiling_db)
+        self._sum_tracks(track_wavs, output_path, trim_db=trim_db)
+        return output_path
+
+    def peak_trim_db(self, track_wavs: list[tuple[Path, float]], ceiling_db: float) -> float:
+        """Gain (<= 0 dB) that brings the unity sum's true peak down to ``ceiling_db``.
+
+        Measures the true peak on the float graph (ebur128 to a null output).
+        """
         peak = self._sum_true_peak_db(track_wavs)
         if peak is None:
             log.warning(
-                "mix true peak not measured; writing %s untrimmed at unity (ceiling %s dBTP)",
-                output_path.name,
-                ceiling,
+                "mix true peak not measured; mixing untrimmed (ceiling %s dBTP)", ceiling_db
             )
-        trim = headroom_trim_db(peak, ceiling)
+        trim = headroom_trim_db(peak, ceiling_db)
         if trim < 0:
-            log.info("mix peaks at %s dBTP; trimmed %s dB to %s dBTP", peak, trim, ceiling)
-        self._sum_tracks(track_wavs, output_path, trim_db=trim)
-        return output_path
+            log.info("mix peaks at %s dBTP; trimmed %s dB to %s dBTP", peak, trim, ceiling_db)
+        return trim
 
     def loudnorm_input_stats(
         self,

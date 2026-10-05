@@ -360,7 +360,7 @@ def test_edit_share_gets_guarded_context(
     ws = _project(minimal_project)
     premix = ws.project.artifacts_dir() / "premix.wav"
     premix.write_bytes((ws.project.workspace_path() / "raw" / "host.wav").read_bytes())
-    write_premix_hash(ws.project, mix_gains(ws.project))
+    write_premix_hash(ws.project, mix_gains(ws.project), trim_db=0.0)
     version = ReviewService(ws).publish(label="boundary-share")
     view = ShareService(ws).create(review_version_id=version["id"], capabilities=["view"])
     edit = ShareService(ws).create(review_version_id=version["id"], capabilities=["view", "edit"])

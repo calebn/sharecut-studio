@@ -1244,6 +1244,17 @@ def test_mix_tracks_trims_to_the_peak_ceiling(tmp_path: Path, peak_line, trim_fi
     assert not list(tmp_path.glob(".*sum*"))
 
 
+def test_mix_tracks_sums_at_a_given_trim_without_measuring(tmp_path: Path):
+    eng = FFmpegEngine()
+    out = tmp_path / "mix.wav"
+    with patch("podcast_mcp.engines.ffmpeg.run") as run:
+        eng.mix_tracks([(tmp_path / "a.wav", 0.0)], out, trim_db=-3.1)
+    (render,) = (c[0][0] for c in run.call_args_list)
+    assert _filter_complex(render) == "[0:a]volume=0.0dB,volume=-3.1dB[out]"
+    with pytest.raises(ValueError, match="not both"):
+        eng.mix_tracks([(tmp_path / "a.wav", 0.0)], out, trim_db=-3.1, peak_ceiling_db=-1.0)
+
+
 def test_mix_tracks_warns_when_the_peak_is_unmeasured(tmp_path: Path, caplog):
     eng = FFmpegEngine()
     out = tmp_path / "mix.wav"

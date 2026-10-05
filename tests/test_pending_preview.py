@@ -16,6 +16,7 @@ from podcast_mcp.edits.pending_preview import (
     _skip_reason,
     resolve_pending_preview,
 )
+from podcast_mcp.engines.play_audit import read_premix_trim_db
 from podcast_mcp.models import (
     Clip,
     EditDecision,
@@ -164,6 +165,8 @@ def _rendered_project(minimal_project, edit: EditDecision):
     """Two dialogue tracks of amplitude-modulated tone, so fades and pads show in the samples.
 
     The guest is silent from 1 s to 4 s, so a host cut there ripples the whole session.
+    A host burst at 5 s pushes the whole mix past the peak ceiling, so the premix is
+    trimmed by headroom that no preview window measures on its own.
     """
     from podcast_mcp.services.app import ProjectWorkspace
 
@@ -174,7 +177,7 @@ def _rendered_project(minimal_project, edit: EditDecision):
             "h",
             (
                 int(
-                    6000
+                    (30000 if track_id == "host" and 240000 <= i < 264000 else 6000)
                     * math.sin(2 * math.pi * (330 + 110 * index) * i / 48000)
                     * (0.55 + 0.45 * math.sin(2 * math.pi * 3 * i / 48000))
                 )
@@ -267,6 +270,7 @@ def test_suggested_remove_preview_matches_the_approved_mix(minimal_project) -> N
     )
     preview = PlayService(ws).play_pending_preview("cut", pad_sec=0.5, dry_run=True).wav_path
 
+    assert read_premix_trim_db(ws.project) < -1.0
     with wave.open(str(preview), "rb") as audio:
         # 0.5 s before + 0.9 s paced pad + 0.5 s after; a butt splice would be 1.0 s.
         assert audio.getnframes() == round(1.9 * 48000)
