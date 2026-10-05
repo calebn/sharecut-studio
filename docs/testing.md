@@ -249,22 +249,25 @@ same pinned lab recording. Each window is an openable v2 project with lossless
 FLAC tracks and the lab's seeded ASR words shifted to clip time.
 `lana_uh_cluster` (source 1108 to 1133 s) holds Lana's dense "Uh" cluster.
 `caleb_um_pause` (source 608 to 633 s) holds Caleb's `Um.` and long solo pauses.
-The owner authorized publishing these clips as fixtures. Filler and pause
-labels come from the faster-whisper `base` seed, labelled `asr_seed`. No
-person has listened to confirm them. The manifest pins revision, M4A and ASR
-hashes, labels, and FLAC plus decoded PCM seals. The generator shares
+The owner authorized publishing these clips as fixtures. Filler, backchannel
+and pause labels come from the faster-whisper `base` seed, labelled `asr_seed`.
+An ASR `Uh` followed by a `-huh` token is a backchannel, not a filler. The
+owner listened to some clips on 2026-10-05, and `OWNER_VERDICTS` in the
+manifest holds those keep and cut verdicts apart from the regenerated labels.
+Unheard labels stay ASR-only. The manifest pins revision, M4A and ASR hashes,
+labels, and FLAC plus decoded PCM seals. The generator shares
 `tests/fixtures/lab_clips.py` with `lab_bleed`. See the fixture
-[README](../tests/fixtures/lab_tighten/README.md) for commands and the known
-ASR errors.
+[README](../tests/fixtures/lab_tighten/README.md) for commands, the verdicts,
+and the known ASR errors.
 
-`tests/test_lab_tighten_fixtures.py` checks the seals, schema validity, and
-window transcripts. It measures each filler label's level on its own track.
-Two of Lana's five "Uh" labels sit on digital silence, and one has zero
-duration. It then runs the Find hits pipeline step at medium intensity on a
-copy. Literal counts are two Lana filler hits and one Caleb pause hit.
-Strict `xfail` cases record the product misses. Isolated fillers are skipped
-at medium. A zero-length word and the punctuated `Um.` never match the filler
-lexicon. Both Lana hits remove digital silence instead of her voiced audio.
+`tests/test_lab_tighten_fixtures.py` checks the seals, schema validity, window
+transcripts, and each filler and backchannel label's level on its own track. It
+then runs the Find hits pipeline step at medium intensity on a copy and checks
+the hits against the owner verdicts. A `cut` pause verdict must get a pause hit,
+and that test passes. Two strict `xfail` cases record product gaps. No hit may
+overlap a kept uh-huh acknowledgment (calebn/sharecut-studio#977, where two
+Lana hits remove digital silence), and the punctuated `Um.` must get a filler
+hit (calebn/sharecut-studio#975).
 
 The audio-audit cache regression tests use deterministic decoder-call counts
 and numerical equality, not a wall-clock ratio. One test invokes the production
@@ -640,7 +643,7 @@ coverage map and platform limits.
 - `tests/fixtures/aligned_dialogue/` — smoke / edits (human LibriSpeech audio and corpus text; published MFA-derived word boundaries shifted with complete utterances; no model downloads to regenerate)
 - `tests/fixtures/synthetic_bleed_60s/` — bleed/reconcile/precorrect gold
 - `tests/fixtures/asr_gold/` — LibriSpeech WER regression
-- `tests/fixtures/lab_bleed/`, `tests/fixtures/lab_tighten/` — short real lab microphone windows (reviewed bleed mutes; ASR-seeded fillers and pauses with openable projects)
+- `tests/fixtures/lab_bleed/`, `tests/fixtures/lab_tighten/` — short real lab microphone windows (reviewed bleed mutes; ASR-seeded fillers, backchannels and pauses with owner verdicts and openable projects)
 
 Regenerate `aligned_dialogue` offline with
 `uv run python scripts/build_aligned_dialogue_audio.py`, then regenerate its

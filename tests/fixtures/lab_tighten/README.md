@@ -13,56 +13,83 @@ revision and the original M4A and ASR hashes are recorded in
 [`manifest.py`](manifest.py). This permission statement does not create or
 claim a license for the source recordings. No full recording is included.
 
-| Case | Source interval (s) | Filler labels | Pause labels |
-| --- | --- | --- | --- |
-| `lana_uh_cluster` | 1108.0 to 1133.0 | 5 (Lana) | 6 (3 Caleb, 3 Lana) |
-| `caleb_um_pause` | 608.0 to 633.0 | 1 (Caleb) | 4 (Caleb) |
+| Case | Source interval (s) | Filler labels | Backchannel labels | Pause labels |
+| --- | --- | --- | --- | --- |
+| `lana_uh_cluster` | 1108.0 to 1133.0 | 0 | 5 (Lana) | 6 (3 Caleb, 3 Lana) |
+| `caleb_um_pause` | 608.0 to 633.0 | 1 (Caleb) | 0 | 4 (Caleb) |
 
 Each case directory is an openable v2 episode project. It has
 `episode.project.json`, `raw/<track>.flac`, and the transcript mirrors under
 `transcripts/`. The transcripts hold the lab's seeded ASR words that lie fully
 inside the window, shifted to clip time.
 
-## Labels are ASR, not ground truth
+## Labels are ASR
 
 Every label has `label_source: "asr_seed"`. Labels come from the lab's
 `source/asr/*.json`, a faster-whisper `base` dump with no reconcile or refine
-pass. No person has listened to confirm them. A filler label is an ASR word
-that reads `uh` or `um` once punctuation is dropped. A pause label is a gap of
-at least 1.2 s between two consecutive ASR words on one track, both inside the
-window.
+pass. A filler label is an ASR word that reads `uh` or `um` once punctuation is
+dropped. A backchannel label is such a word immediately followed by a `-huh` or
+`-hmm` continuation token, which the ASR emits when it splits an "uh-huh"
+acknowledgment in two. Its `text` holds both tokens and its `source_interval`
+spans both. A pause label is a gap of at least 1.2 s between two consecutive
+ASR words on one track, both inside the window.
 
-The committed audio shows where the ASR is wrong. `tests/test_lab_tighten_fixtures.py`
-measures each filler label's RMS on its own track.
+The generator rewrites the labels on every run and fails if they differ from
+the manifest. They are never the truth about what was said. The committed audio
+shows where the ASR is wrong. `tests/test_lab_tighten_fixtures.py` measures
+each filler and backchannel label's RMS on its own track.
 
-- **Lana 1114.6 and 1124.56.** These "Uh" labels sit on digital silence. Lana's
-  track is gated, and her only voiced audio in the window is at 1110.25 to
-  1110.70 s and 1122.45 to 1122.95 s.
-- **Lana 1125.96.** This "Uh" label has zero duration.
-- **Lana "Uh" plus "-huh."** The ASR splits each backchannel "uh-huh" into these
-  two words. The "Uh" labels may therefore mark acknowledgments, not hesitations.
+- **Lana 1114.6, 1124.56 and 1125.96.** These backchannel labels sit on digital
+  silence. Lana's track is gated, and her only voiced audio in the window is at
+  1110.25 to 1110.70 s and 1122.45 to 1122.95 s.
+- **Lana 1124.56 and 1125.96.** The first label's `-huh.` token and the second
+  label's `Uh` token both have zero duration.
 - **Caleb 615.98.** The ASR token is `Um.`, with punctuation.
 
-The labels are kept as the ASR wrote them. Tests that depend on them say which
-ones fail and why.
+## Owner listening
+
+`OWNER_VERDICTS` in [`manifest.py`](manifest.py) holds what the repository owner
+heard on 2026-10-05. It is a separate table keyed by case, track, label kind and
+source start. The generator never rewrites it, and fails if a verdict key
+matches no generated label.
+
+| Label | Verdict | Heard clip (source s) |
+| --- | --- | --- |
+| Lana backchannel 1109.04 | keep | 1108.5 to 1111.5 |
+| Lana backchannel 1121.26 | keep | 1120.5 to 1126.5 |
+| Lana backchannel 1124.56 | keep | 1120.5 to 1126.5 |
+| Lana backchannel 1125.96 | keep | 1120.5 to 1126.5 |
+| Caleb filler 615.98 (`Um.`) | cut | not recorded |
+| Caleb pause 625.42 to 628.38 | cut | 624.5 to 628.5 |
+
+Every Lana "Uh" in `lana_uh_cluster` is the first token of an ASR split `Uh`
+plus `-huh.`. The owner confirmed the heard ones are "uh-huh" acknowledgments
+that should be preserved. The Caleb `Um.` is a real filler to cut. The Caleb
+pause verdict covers the pause Tighten proposes inside that label, at 625.46 to
+627.83 s, which is also to be cut.
+
+Every other label is unheard and stays ASR-only. That includes Lana
+backchannel 1114.6, which the heard clips did not cover, and every other pause
+label.
 
 ## What the tests show
 
 The tests run the Tighten Find hits path (the `analyze_fillers_pauses`
-pipeline step at medium intensity) on a temporary copy of each case.
+pipeline step at medium intensity) on a temporary copy of each case and check
+it against the owner verdicts.
 
-- **`lana_uh_cluster`.** Two Lana filler hits, overlapping the 1121.26 and
-  1124.56 labels. Both hits remove digital silence on Lana's track, not her
-  voiced audio. The labels at 1109.04 and 1114.6 are isolated fillers, which
-  medium skips, and the zero-length 1125.96 label is skipped. No pause hit
-  survives. Breath protection suppresses five of the six pause candidates, and
-  the cross-track speech guard blocks the sixth.
-- **`caleb_um_pause`.** One Caleb pause hit, at 625.46 to 627.83 s. The `Um.`
-  label gets no hit, because the filler lexicon does not strip punctuation.
+- **Kept acknowledgments.** No proposed hit may overlap a `keep` backchannel.
+  Today two Lana filler hits overlap the 1121.26 and 1124.56 labels, and both
+  remove digital silence from Lana's gated track. This is a strict `xfail`
+  citing calebn/sharecut-studio#977.
+- **Cut fillers.** Each `cut` filler verdict needs a filler hit. The `Um.`
+  token gets none, because the filler lexicon does not strip punctuation. This
+  is a strict `xfail` citing calebn/sharecut-studio#975.
+- **Cut pauses.** Each `cut` pause verdict needs a pause hit. Tighten proposes
+  one at 625.46 to 627.83 s, and this test passes today.
 
-The misses and the silent hits are strict `xfail` tests with these reasons.
-When a product fix changes the result, the strict marker fails and the test
-must be updated.
+When a product fix changes a result, the strict marker fails and the test must
+be updated.
 
 ## Open in Sharecut Studio
 
@@ -106,7 +133,8 @@ uv run --extra dev python tests/fixtures/lab_tighten/regenerate.py \
 ```
 
 The generator checks the lab revision and the M4A and ASR file hashes. It then
-derives the labels from the ASR and fails if they differ from the manifest.
+derives the labels from the ASR and fails if they differ from the manifest or
+if an owner verdict matches no label.
 Audio extraction uses the shared [`../lab_clips.py`](../lab_clips.py), the same
 code as `lab_bleed`. It decodes each original completely, slices native sample
 frames, and verifies each FLAC by decoding it back to PCM. Projects are built
