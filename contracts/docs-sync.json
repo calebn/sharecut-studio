@@ -310,11 +310,12 @@
     },
     {
       "id": "filler-lexicon-matching",
-      "when": "Filler lexicon matching or the isolated-filler policy (`tighten.filler_words`, `discourse_markers`, `isolated_filler_candidates`, `util/text.lexicon_form`)",
-      "update": "`docs/filler-cut-quality.md` § Policy and § Intensity presets, `docs/pipeline.md` tighten table, `.agents/defaults/pipeline.yaml` → `tighten`, `.agents/skills/podcast-tighten-dialogue/`",
+      "when": "Filler lexicon matching, backchannels, or the isolated-filler policy (`tighten.filler_words`, `discourse_markers`, `backchannels`, `isolated_filler_candidates`, `util/text.lexicon_form`)",
+      "update": "`docs/filler-cut-quality.md` § Policy and § Intensity presets, `docs/pipeline.md` tighten table, `docs/nl-editing.md` (`propose_edits` skip counts), `.agents/defaults/pipeline.yaml` → `tighten`, `.agents/skills/podcast-tighten-dialogue/`",
       "docs": [
         "docs/filler-cut-quality.md",
         "docs/pipeline.md",
+        "docs/nl-editing.md",
         ".agents/defaults/pipeline.yaml",
         ".agents/skills/podcast-tighten-dialogue/"
       ],

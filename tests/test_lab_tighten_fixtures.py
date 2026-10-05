@@ -174,15 +174,6 @@ def test_filler_and_backchannel_label_listen_proxy() -> None:
     }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "calebn/sharecut-studio#977: Tighten proposes filler cuts over the owner-confirmed "
-        "uh-huh acknowledgments at 1121.26 and 1124.56 s. Both cuts land on digital "
-        "silence of Lana's gated track, so they remove no audio (the silent-cut symptom) "
-        "while still deleting a kept acknowledgment from the timeline"
-    ),
-)
 def test_no_cut_overlaps_kept_backchannel(proposed_hits: dict[str, list[EditDecision]]) -> None:
     assert proposed_hits["caleb_um_pause"], "propose produced no hits for the control case"
     assert KEPT_BACKCHANNELS

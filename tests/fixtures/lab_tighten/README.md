@@ -79,9 +79,10 @@ pipeline step at medium intensity) on a temporary copy of each case and check
 it against the owner verdicts.
 
 - **Kept acknowledgments.** No proposed hit may overlap a `keep` backchannel.
-  Today two Lana filler hits overlap the 1121.26 and 1124.56 labels, and both
-  remove digital silence from Lana's gated track. This is a strict `xfail`
-  citing calebn/sharecut-studio#977.
+  Tighten matches the split `Uh` plus `-huh.` against `tighten.backchannels`
+  and never proposes it (calebn/sharecut-studio#977). The ASR times of these
+  tokens still drift onto digital silence of Lana's gated track; that timing
+  problem is separate from the lexicon.
 - **Cut fillers.** Each `cut` filler verdict needs a filler hit. The `Um.`
   token matches the lexicon and becomes a candidate, but gets no hit. Breath
   protection suppresses it, because both cut edges sit inside the Um's own onset

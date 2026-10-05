@@ -1358,6 +1358,46 @@ def test_isolated_punctuated_discourse_marker_still_demoted():
     assert skips == {"discourse:like": 1}
 
 
+def _shipped_tighten_defaults() -> dict:
+    from podcast_mcp.config import load_defaults
+
+    return {"tighten": {**load_defaults()["tighten"], "max_pause_sec": 99.0}}
+
+
+def test_split_uh_huh_is_a_backchannel_skip_not_a_filler():
+    from podcast_mcp.edits.tighten import format_tighten_propose_summary
+
+    words = [
+        TranscriptWord(text="Uh", start=1.04, end=2.44, confidence=0.06),
+        TranscriptWord(text="-huh.", start=2.44, end=2.56, confidence=0.8),
+        TranscriptWord(text="Uh", start=3.6, end=4.0, confidence=0.87),
+        TranscriptWord(text="-huh.", start=4.0, end=4.0, confidence=0.95),
+        TranscriptWord(text="Wait,", start=4.1, end=4.3, confidence=0.9),
+        TranscriptWord(text="Mm-hmm.", start=4.5, end=4.8, confidence=0.9),
+        TranscriptWord(text="Mm-hmm.", start=4.85, end=5.1, confidence=0.9),
+        TranscriptWord(text="Uh,", start=9.0, end=9.3, confidence=0.9),
+        TranscriptWord(text="right.", start=9.35, end=9.6, confidence=0.9),
+    ]
+    cands, skips = _collect_with_skips(words, _shipped_tighten_defaults())
+    assert [(c.reason, c.start) for c in cands] == [("filler:uh", 9.0)]
+    assert skips == {"backchannel:uh huh": 2, "backchannel:mm-hmm": 2}
+    assert format_tighten_propose_summary([], skips) == (
+        "0 proposed (0 filler, 0 pause, 4 backchannel kept)"
+    )
+
+
+def test_backchannel_wins_over_a_filler_entry_with_the_same_text():
+    words = [
+        TranscriptWord(text="So", start=0.0, end=0.2),
+        TranscriptWord(text="mhm,", start=0.3, end=0.6),
+        TranscriptWord(text="yes.", start=0.7, end=0.9),
+    ]
+    defaults = _discourse_defaults(filler_words=["mhm"], backchannels=["mhm"])
+    cands, skips = _collect_with_skips(words, defaults)
+    assert cands == []
+    assert skips == {"backchannel:mhm": 1}
+
+
 def test_fillers_cut_clustered_fillers():
     words = [
         TranscriptWord(text="so", start=0.0, end=0.2),
