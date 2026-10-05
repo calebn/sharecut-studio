@@ -168,6 +168,7 @@ def test_exact_pending_preview_invalidates_after_peer_mix_change(minimal_project
     first = play.play_pending_preview("proposal", pad_sec=0, dry_run=True).wav_path
     before = pcm(first)
     ws.project.tracks[1].fader_db = -20
+    ws.save()
     assert range_is_current(ws.project, target)
     assert play.pending_preview_cached_wav("proposal", pad_sec=0) is None
     second = play.play_pending_preview("proposal", pad_sec=0, dry_run=True).wav_path
