@@ -265,7 +265,7 @@ OWNER_VERDICTS = {
     ("caleb_um_pause", "caleb", "filler", 615.98): {
         "verdict": "cut",
         "heard": HEARD,
-        "heard_interval": None,
+        "heard_interval": (615.0, 617.5),
     },
     ("caleb_um_pause", "caleb", "pause", 625.42): {
         "verdict": "cut",
