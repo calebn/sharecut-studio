@@ -132,12 +132,13 @@ function sourceReferences(text: string): {
       value.type === "ExportAllDeclaration"
     ) {
       addLiteral(value.source);
-    } else if (value.type === "ImportExpression") {
+    } else if (
+      value.type === "ImportExpression" ||
+      value.type === "TSImportType"
+    ) {
       addLiteral(value.source);
     } else if (value.type === "TSExternalModuleReference") {
       addLiteral(value.expression);
-    } else if (value.type === "TSImportType") {
-      addLiteral(value.argument);
     } else if (value.type === "CallExpression" && isNode(value.callee)) {
       const firstArgument = Array.isArray(value.arguments)
         ? value.arguments[0]
