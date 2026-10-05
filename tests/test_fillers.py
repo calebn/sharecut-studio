@@ -2715,6 +2715,51 @@ def test_approved_padded_cut_leaves_the_plosive_burst_unattenuated(tmp_path):
     assert np.abs(rendered[first + shift : last + shift] - source[first:last]).max() <= 1
 
 
+@pytest.mark.parametrize("burst_at", [1.50, 1.56])
+def test_onset_past_the_cut_end_still_caps_the_post_pad_fade_in(tmp_path, burst_at):
+    import numpy as np
+
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
+    from podcast_mcp.edits.decisions import approve_edits
+
+    rate = 48_000
+    noise = np.random.default_rng(3).standard_normal(round(0.05 * rate))
+    project = _audio_project(
+        tmp_path,
+        [
+            (0.3, _voice(0.3, rate=rate)),
+            (1.0, _voice(0.3, rate=rate)),
+            (burst_at, noise[: round(0.008 * rate)] * 10 ** (-50 / 20)),
+            (burst_at + 0.01, noise * 10 ** (-48 / 20)),
+            (burst_at + 0.04, _voice(0.3, level_db=-18, rate=rate)),
+        ],
+        [
+            TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+            TranscriptWord(text="uh,", start=1.0, end=1.3, confidence=0.9),
+            # Timed at its voicing, so pacing ends the cut short of the burst, outside
+            # the onset guard (the lab's "uh, nope" at 604.80).
+            TranscriptWord(text="pat.", start=burst_at + 0.04, end=burst_at + 0.3, confidence=0.95),
+        ],
+        rate=rate,
+    )
+    defaults = load_defaults()
+
+    decisions = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+    (decision,) = [d for d in decisions if d.reason == "filler:uh"]
+
+    assert decision.next_onset_sec == pytest.approx(burst_at, abs=0.011)
+    assert decision.next_onset_sec - decision.end > 0.02
+    headroom_ms = (decision.next_onset_sec - decision.end) * 1000.0
+    project.edit_decisions = [decision]
+    assert approve_edits(project, [decision.id]) == 1
+    resumed = next(c for c in project.clips if c.source_start >= decision.end - 1e-6)
+    assert resumed.fade_in_ms <= headroom_ms + 1e-6
+    assert recommend_post_pad_fade_in_ms(project, "host", decision.end, defaults=defaults) > (
+        headroom_ms
+    )
+
+
 def _scope_result(scope: str):
     from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
 
