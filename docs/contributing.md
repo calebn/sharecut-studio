@@ -148,6 +148,10 @@ Examples: `feat/guest-sign-in-ui`, `fix/share-acl-401`, `docs/agent-pr-workflow`
 
 Still only create commits or PRs when the user asks to ship (or clearly says to open a PR); this section defines *how* shipping happens.
 
+### Review evidence
+
+Screenshots, receipts and before/after records for one issue belong in the PR description or a PR comment. Do not commit `docs/issue-<n>/` folders: rebase-merge keeps every commit, so evidence added and later removed still stays in `main`'s history. Durable findings go into the doc that owns the behavior. `tests/test_docs_layout.py` fails when a tracked `docs/issue-<n>/` path exists.
+
 ### Automated issue pipeline
 
 `.claude/workflows/issue-pipeline.js` is a Claude Code workflow that works the GitHub issue backlog end-to-end. Running it counts as asking to ship **and** to merge, but only for PRs that pass its gate.
