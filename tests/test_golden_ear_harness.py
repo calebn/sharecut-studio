@@ -53,16 +53,14 @@ def _decision(
     )
 
 
-def _window(*, can_skip: bool = True) -> PendingPreviewWindow:
+def _window(*, suggestable: bool = True) -> PendingPreviewWindow:
     return PendingPreviewWindow(
         edit_id="e1",
         timeline_start=1.0,
         timeline_end=1.2,
         play_start=0.0,
         play_end=3.2,
-        can_skip=can_skip,
-        skip_reason=None if can_skip else "too short",
-        suggest_reason=None,
+        suggest_reason=None if suggestable else "This cut is not on the current timeline.",
     )
 
 
@@ -87,7 +85,7 @@ def _patch_harness(
     sample_wav: Path,
     decisions: list[EditDecision],
     *,
-    can_skip: bool = True,
+    suggestable: bool = True,
     join: dict | Exception | None = None,
     suggested_wav: Path | None = None,
 ) -> None:
@@ -143,7 +141,7 @@ def _patch_harness(
     monkeypatch.setattr(FFmpegEngine, "render_showwavespic", waveform)
     monkeypatch.setattr(
         "podcast_mcp.services.document.golden_ear.resolve_pending_preview",
-        lambda *args, **kwargs: _window(can_skip=can_skip),
+        lambda *args, **kwargs: _window(suggestable=suggestable),
     )
 
 
@@ -281,7 +279,7 @@ def test_build_skips_unsuggestable_and_records_join_error(tmp_path, sample_wav, 
         monkeypatch,
         sample_wav,
         [_decision(edit_id="skip"), _decision(edit_id="keep")],
-        can_skip=False,
+        suggestable=False,
         join=ValueError("no stem"),
     )
     out = tmp_path / "skip"
@@ -290,13 +288,13 @@ def test_build_skips_unsuggestable_and_records_join_error(tmp_path, sample_wav, 
     assert result["skipped_unsuggestable"] == 2
 
     def maybe_skip(edit_id: str, **kwargs):
-        return _window(can_skip=edit_id != "skip")
+        return _window(suggestable=edit_id != "skip")
 
     _patch_harness(
         monkeypatch,
         sample_wav,
         [_decision(edit_id="skip"), _decision(edit_id="keep")],
-        can_skip=True,
+        suggestable=True,
         join=ValueError("no stem"),
     )
     monkeypatch.setattr(

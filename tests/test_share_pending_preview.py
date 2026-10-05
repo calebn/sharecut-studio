@@ -186,6 +186,8 @@ def test_share_pending_preview_suggested_shorter_and_mcp_urls(
     assert audio.startswith(f"/api/review/{token}/daw/pending-preview")
     assert "edit_id=cut1" in audio
     assert "mode=suggested" in audio
+    assert payload["suggest_reason"] is None
+    assert "can_skip" not in payload
     assert "workspace_dir" not in json.dumps(payload)
     assert "/Users/" not in json.dumps(payload)
     assert "player" not in payload

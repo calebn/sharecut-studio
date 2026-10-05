@@ -7,13 +7,8 @@ import wave
 import pytest
 
 from podcast_mcp.edits.pending_preview import (
-    SKIP_REASON_MUTE,
-    SKIP_REASON_SESSION_ONLY,
-    SKIP_REASON_SPLIT,
-    SKIP_REASON_TOO_SHORT,
-    SKIP_REASON_TRACK,
-    SKIP_REASON_UNMAPPED,
-    _skip_reason,
+    SUGGEST_REASON_SPLIT,
+    SUGGEST_REASON_UNMAPPED,
     resolve_pending_preview,
 )
 from podcast_mcp.engines.play_audit import read_premix_trim_db
@@ -50,23 +45,7 @@ def _project() -> EpisodeProject:
     return proj
 
 
-@pytest.mark.parametrize(
-    ("type_val", "scope", "mappable", "duration", "expected"),
-    [
-        ("remove", "session", True, 1.0, None),
-        ("split", "session", False, 0.0, SKIP_REASON_SPLIT),
-        ("mute", "track", True, 1.0, SKIP_REASON_MUTE),
-        ("remove", "track", True, 1.0, SKIP_REASON_TRACK),
-        ("remove", "session", False, 1.0, SKIP_REASON_UNMAPPED),
-        ("remove", "session", True, 0.02, SKIP_REASON_TOO_SHORT),
-        ("future", "session", True, 1.0, SKIP_REASON_SESSION_ONLY),
-    ],
-)
-def test_skip_reason_preserves_preview_priority(type_val, scope, mappable, duration, expected):
-    assert _skip_reason(type_val, scope, mappable, duration) == expected
-
-
-def test_session_remove_can_skip() -> None:
+def test_session_remove_window() -> None:
     proj = _project()
     proj.edit_decisions.append(
         EditDecision(
@@ -80,15 +59,14 @@ def test_session_remove_can_skip() -> None:
         )
     )
     window = resolve_pending_preview(proj, "cut1", pad_sec=0.5)
-    assert window.can_skip is True
-    assert window.skip_reason is None
+    assert window.suggest_reason is None
     assert window.timeline_start == pytest.approx(2.0)
     assert window.timeline_end == pytest.approx(4.0)
     assert window.play_start == pytest.approx(1.5)
     assert window.play_end == pytest.approx(4.5)
 
 
-def test_split_and_track_punch_cannot_skip() -> None:
+def test_split_has_no_suggested_side_but_track_punch_does() -> None:
     proj = _project()
     proj.edit_decisions.append(
         EditDecision(
@@ -112,14 +90,8 @@ def test_split_and_track_punch_cannot_skip() -> None:
             scope="track",
         )
     )
-    split = resolve_pending_preview(proj, "split1")
-    assert split.can_skip is False
-    assert split.skip_reason is not None
-    assert "split" in split.skip_reason.lower()
-    punch = resolve_pending_preview(proj, "punch1")
-    assert punch.can_skip is False
-    assert punch.skip_reason is not None
-    assert "timeline length" in punch.skip_reason.lower()
+    assert resolve_pending_preview(proj, "split1").suggest_reason == SUGGEST_REASON_SPLIT
+    assert resolve_pending_preview(proj, "punch1").suggest_reason is None
 
 
 def test_missing_pending_edit_raises() -> None:
@@ -127,7 +99,7 @@ def test_missing_pending_edit_raises() -> None:
         resolve_pending_preview(_project(), "missing")
 
 
-def test_unmappable_and_tiny_remove_cannot_skip() -> None:
+def test_unmappable_remove_has_no_suggested_side_but_tiny_one_does() -> None:
     proj = _project()
     proj.edit_decisions.append(
         EditDecision(
@@ -151,14 +123,8 @@ def test_unmappable_and_tiny_remove_cannot_skip() -> None:
             scope="session",
         )
     )
-    away = resolve_pending_preview(proj, "away")
-    assert away.can_skip is False
-    assert away.skip_reason is not None
-    assert "not on the current timeline" in away.skip_reason
-    tiny = resolve_pending_preview(proj, "tiny")
-    assert tiny.can_skip is False
-    assert tiny.skip_reason is not None
-    assert "too short" in tiny.skip_reason.lower()
+    assert resolve_pending_preview(proj, "away").suggest_reason == SUGGEST_REASON_UNMAPPED
+    assert resolve_pending_preview(proj, "tiny").suggest_reason is None
 
 
 def _rendered_project(minimal_project, edit: EditDecision):
