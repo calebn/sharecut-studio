@@ -125,7 +125,8 @@ tighten:
   # join fade — that swallows consonant releases once the pad opens a hole).
   filler_pre_pad_fade_out_ms: 5
   # Post-pad fade-in is adaptive to resume-edge energy (see cut_quality).
-  # Quiet air → min; hot/late onset within look-ahead → toward max.
+  # Quiet air → min; hot/late onset within look-ahead → toward max. A detected
+  # next-word onset caps it so the ramp ends before that onset.
   filler_post_pad_fade_in_min_ms: 15
   filler_post_pad_fade_in_max_ms: 120
   filler_post_pad_look_ahead_ms: 120

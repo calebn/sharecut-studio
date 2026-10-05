@@ -2572,9 +2572,11 @@ def _voice(sec: float, *, level_db: float = -20.0, rate: int = 16_000):
     return tone / np.sqrt(np.mean(tone**2)) * 10 ** (level_db / 20)
 
 
-def _audio_project(tmp_path, segments, words: list[TranscriptWord]) -> EpisodeProject:
+def _audio_project(
+    tmp_path, segments, words: list[TranscriptWord], *, rate: int = 16_000
+) -> EpisodeProject:
     ws = tmp_path / "ws"
-    _write_wav(ws / "raw" / "host.wav", segments)
+    _write_wav(ws / "raw" / "host.wav", segments, rate=rate)
     project = EpisodeProject.create("padded", str(ws))
     project.tracks = [
         Track(
@@ -2655,3 +2657,133 @@ def test_audio_padded_filler_cut_ends_before_a_plosive_burst(tmp_path):
 
     assert (decision.reason, decision.replace_gap_sec) == ("filler:uh", pytest.approx(0.935))
     assert decision.end == pytest.approx(1.40)
+
+
+def test_approved_padded_cut_leaves_the_plosive_burst_unattenuated(tmp_path):
+    import wave
+
+    import numpy as np
+
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.decisions import approve_edits
+    from podcast_mcp.engines.play_audit import premix_path
+    from podcast_mcp.render import rerender_preview
+
+    rate = 48_000
+    noise = np.random.default_rng(3).standard_normal(round(0.05 * rate))
+    burst = noise[: round(0.008 * rate)] * 10 ** (-50 / 20)
+    aspiration = noise * 10 ** (-48 / 20)
+    burst_at = 1.42
+    project = _audio_project(
+        tmp_path,
+        [
+            (0.3, _voice(0.3, rate=rate)),
+            (1.0, _voice(0.3, rate=rate)),
+            (burst_at, burst),
+            (burst_at + 0.01, aspiration),
+            # A hot vowel inside the look-ahead: the recommended fade-in is the full
+            # 120 ms ramp, which would start at the cut end and still be rising at the burst.
+            (1.46, _voice(0.3, level_db=-18, rate=rate)),
+        ],
+        [
+            TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+            TranscriptWord(text="uh,", start=1.0, end=1.3, confidence=0.9),
+            TranscriptWord(text="pat.", start=1.7, end=1.9, confidence=0.95),
+        ],
+        rate=rate,
+    )
+
+    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], load_defaults())
+    assert decision.replace_gap_sec
+    assert decision.end < burst_at
+    assert decision.next_onset_sec == pytest.approx(decision.end + 0.01)
+    project.edit_decisions = [decision]
+    assert approve_edits(project, [decision.id]) == 1
+    rerender_preview(project, reconcile=False)
+
+    def pcm(path) -> np.ndarray:
+        with wave.open(str(path), "rb") as audio:
+            channels = audio.getnchannels()
+            data = np.frombuffer(audio.readframes(audio.getnframes()), dtype="<i2")
+        return data.reshape(-1, channels)[:, 0].astype(int)
+
+    source = pcm(project.workspace_path() / "raw" / "host.wav")
+    rendered = pcm(premix_path(project))
+    first, last = round(burst_at * rate), round((burst_at + 0.02) * rate)
+    # The pad replaces the cut: everything the render keeps after it shifts by the pad.
+    shift = round((decision.replace_gap_sec - (decision.end - decision.start)) * rate)
+    assert np.abs(rendered[first + shift : last + shift] - source[first:last]).max() <= 1
+
+
+def _scope_result(scope: str):
+    from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
+
+    if scope == "track":
+        return "track", SpeechEnergyGuardResult(blocking_track_ids=("guest",), action="track_local")
+    return "session", SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
+
+
+def _analyze_with_scope_flip(first: str, then: str, *, join_verdict: str):
+    """Analyze the padded ``uh`` while the scope resolves to ``first`` once, then ``then``."""
+    from types import SimpleNamespace
+
+    scopes = iter([first])
+    words = [
+        TranscriptWord(text="so", start=0.0, end=0.1),
+        TranscriptWord(text="uh", start=1.0, end=1.2),
+        TranscriptWord(text="okay.", start=2.0, end=2.3),
+    ]
+    project = _project_with_transcript(words)
+    defaults = {
+        "tighten": {"filler_words": ["uh"], "max_pause_sec": 99.0, "join_continuity_gate": True}
+    }
+    with (
+        patch(
+            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            side_effect=lambda *_a, **_k: _scope_result(next(scopes, then)),
+        ),
+        patch(
+            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+            return_value=SimpleNamespace(verdict=join_verdict),
+        ),
+    ):
+        return [
+            (d.scope, d.replace_gap_sec, d.reason)
+            for d in analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+        ]
+
+
+def test_a_scope_that_flips_to_a_track_punch_gets_the_splice_gates_and_no_pad():
+    # The punch ships a butt splice, so the join gate scores it: pass keeps the punch
+    # with no pad, fail rejects it. The padded plan's gate skip never carries over.
+    assert _analyze_with_scope_flip("session", "track", join_verdict="pass") == [
+        ("track", None, "filler:uh:track_local:guest")
+    ]
+    assert _analyze_with_scope_flip("session", "track", join_verdict="fail") == []
+
+
+def test_a_scope_that_flips_to_a_session_cut_keeps_its_pad_and_skips_the_splice_gates():
+    # The session cut ships two faded edges, so the failing join verdict is never
+    # asked and the pad survives.
+    assert _analyze_with_scope_flip("track", "session", join_verdict="fail") == [
+        ("session", 1.0, "filler:uh")
+    ]
+
+
+def test_a_scope_that_never_settles_is_not_proposed():
+    flip = iter(["session", "track", "session", "track"])
+    words = [
+        TranscriptWord(text="so", start=0.0, end=0.1),
+        TranscriptWord(text="uh", start=1.0, end=1.2),
+        TranscriptWord(text="okay.", start=2.0, end=2.3),
+    ]
+    project = _project_with_transcript(words)
+    with patch(
+        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+        side_effect=lambda *_a, **_k: _scope_result(next(flip)),
+    ):
+        assert not analyze_fillers_and_pauses(
+            project,
+            project.transcripts[0],
+            {"tighten": {"filler_words": ["uh"], "max_pause_sec": 99.0}},
+        )

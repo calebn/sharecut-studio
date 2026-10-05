@@ -364,6 +364,7 @@
         "cut_confidence": { "type": ["number", "null"] },
         "boundary_mode": { "type": ["string", "null"] },
         "replace_gap_sec": { "type": ["number", "null"] },
+        "next_onset_sec": { "type": ["number", "null"] },
         "scope": { "type": "string", "enum": ["session", "track"], "default": "session" },
         "track_ids": {
           "type": ["array", "null"],

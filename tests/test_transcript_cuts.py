@@ -71,6 +71,17 @@ def test_cut_time_range_and_coalesce():
     assert proj.edit_decisions[0].end == 2.5
 
 
+def test_coalesce_keeps_the_next_onset_of_the_cut_that_ends_last():
+    proj = EpisodeProject.create("t", "/tmp/ws")
+    append_remove_decision(proj, "host", 1.0, 2.0, replace_gap_sec=0.5, next_onset_sec=2.01)
+    append_remove_decision(proj, "host", 1.9, 2.5, replace_gap_sec=0.6, next_onset_sec=2.51)
+    append_remove_decision(proj, "host", 2.0, 2.2, next_onset_sec=2.21)
+
+    assert coalesce_edits(proj) == 2
+    (merged,) = proj.edit_decisions
+    assert (merged.end, merged.next_onset_sec) == (2.5, 2.51)
+
+
 @pytest.mark.parametrize(
     "modes, expected_merges",
     [

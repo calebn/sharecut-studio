@@ -344,6 +344,31 @@ def test_recommend_post_pad_fade_in_covers_late_hot_onset():
     assert fade <= 120
 
 
+@pytest.mark.parametrize(
+    ("onset_after_resume_ms", "expected"),
+    [
+        (None, 120),  # no detected onset: the recommendation stands
+        (300, 120),  # the ramp fits before the onset
+        (60, 60),  # a hot onset 60 ms out ends the ramp there
+        (10, 10),  # the shortest cut a stopped-at-the-guard edge leaves: the declick
+        (4, 10),  # never below the declick, even when the onset is nearer
+    ],
+)
+def test_post_pad_fade_in_ends_before_the_next_onset(onset_after_resume_ms, expected):
+    from podcast_mcp.edits.cut_quality import recommend_post_pad_fade_in_ms
+
+    onset = None if onset_after_resume_ms is None else 1.0 + onset_after_resume_ms / 1000.0
+    with patch("podcast_mcp.edits.cut_quality._resume_edge_rms_db", return_value=-18.0):
+        fade = recommend_post_pad_fade_in_ms(
+            _minimal_project(),
+            "host",
+            1.0,
+            next_onset_sec=onset,
+            defaults={"tighten": {"filler_post_pad_quiet_db": -48.0}},
+        )
+    assert fade == expected
+
+
 def test_recommend_prev_word_lead_out_waits_for_quiet():
     from podcast_mcp.edits.cut_quality import recommend_prev_word_lead_out_ms
 
