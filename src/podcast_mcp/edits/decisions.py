@@ -173,7 +173,7 @@ def _apply_replace_gap_pad(project: EpisodeProject, edit: EditDecision, tl_start
                     project,
                     tid,
                     clip.source_start,
-                    next_onset_sec=edit.next_onset_sec,
+                    next_burst_sec=edit.next_burst_sec,
                     defaults=defaults,
                 )
                 if fade_ms > 0:

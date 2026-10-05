@@ -12,15 +12,26 @@ the first sign of new sound:
   that is audible again, or the first high-band jump out of the quiet. A plosive's
   closure is quiet; its burst is a short broadband transient that can stay under the
   audibility floor yet jumps clear of the room in the band above 2 kHz.
-* With no quiet between (continuous voice), the onset is the bottom of the dip
-  between the filler and the next sound, once a rise out of it (in level or in the
-  high band) shows a new sound began. The owner hears the filler's vowel run down
-  the dip into a glide such as the "w" of "we" (lab, 706.32 vs 706.44, 2026-10-05).
+* With no quiet between (continuous voice), the onset is the foot of the rise: once a
+  rise (in level or in the high band) shows a new sound began, walk back to where
+  the level started to climb. The dip's trough is too early. The owner still heard
+  "uh" when the cut ended at the trough, because the level falls into a low, dark
+  stretch and the next word starts at the foot of the rise after it (lab "uh, we":
+  trough 706.37, foot 706.42-706.44, 2026-10-05).
+
+The onset's kind says how it can be faded over. A ``BURST`` rises at least
+``_BURST_KIND_DB`` in the high band within one frame: a plosive out of closure jumps
+from room noise at once (lab 22 and 40 dB), and a fade over it would soften the
+burst. A ``GRADUAL`` onset (fricative, glide, nasal, vowel) ramps over several
+frames, so a fade-in has room to cover it (lab "know, she" at 1441.71: +4 dB per
+frame, the owner approved 112 ms; "uh, we" at 706.45: +10 to +14 dB per frame).
 """
 
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
+from enum import Enum
 
 import numpy as np
 
@@ -35,18 +46,38 @@ _FALL_DB = 3.0
 # a dip or the quiet, is a new sound.
 _RISE_DB = 6.0
 _BURST_DB = 12.0
+# A single-frame high-band jump this large is a plosive's burst. A vowel or glide
+# climbing out of a dark stretch gains 10-14 dB per frame, which _BURST_DB still
+# calls a new sound, but a fade-in can cover it.
+_BURST_KIND_DB = 18.0
 # A high-band jump out of the quiet must also reach this level: room noise on the lab
 # tape sits near -95 dB in that band and flickers by about 10 dB.
 _BURST_FLOOR_DB = -70.0
+# A frame counts as the climb's lower step only when it is this far under the next:
+# the dark stretch before a rise is flat to a fraction of a dB, not a ramp.
+_FOOT_DB = 0.5
 _FILLER_TAIL_SEC = 0.15
 # Frames read past ``end`` so a rise there can still confirm a dip before it.
 _CONFIRM_SEC = 0.06
 
 
-def next_onset_sec(
+class OnsetKind(Enum):
+    BURST = "burst"
+    GRADUAL = "gradual"
+
+
+@dataclass(frozen=True)
+class Onset:
+    """Where new sound begins (source seconds) and whether a fade-in may cover it."""
+
+    sec: float
+    kind: OnsetKind
+
+
+def next_onset(
     cache: TrackAudioCache, filler_end: float, end: float, *, quiet_db: float
-) -> float | None:
-    """Source time where new sound begins after a filler, if it begins before ``end``.
+) -> Onset | None:
+    """Where new sound begins after a filler, if it begins before ``end``.
 
     ``filler_end`` is the filler's word-time end; ``quiet_db`` is the audibility floor.
     Times are frame starts on the absolute 10 ms grid, so the returned onset is never
@@ -65,6 +96,12 @@ def next_onset_sec(
     def at(k: int) -> float:
         return t0 + k * hop / sr
 
+    def onset_at(k: int, foot: int) -> Onset | None:
+        if at(foot) >= end:
+            return None
+        jumps = (bands[j] - bands[j - 1] >= _BURST_KIND_DB for j in (k, k - 1) if j >= 1)
+        return Onset(at(foot), OnsetKind.BURST if any(jumps) else OnsetKind.GRADUAL)
+
     tail = max(1, round((filler_end - t0) / HOP_SEC) + 1)
     first = peak_k = int(np.argmax(levels[:tail]))
     dip_level = dip_band = math.inf
@@ -73,7 +110,7 @@ def next_onset_sec(
         level, band = float(levels[k]), float(bands[k])
         if quiet_band is not None:
             if level >= quiet_db or (band >= _BURST_FLOOR_DB and band >= quiet_band + _BURST_DB):
-                return at(k) if at(k) < end else None
+                return onset_at(k, k)
             quiet_band = min(quiet_band, band)
             continue
         if level < quiet_db:
@@ -88,6 +125,8 @@ def next_onset_sec(
         rose = (dipped and level >= dip_level + _RISE_DB) or band >= dip_band + _BURST_DB
         # A new sound goes on; the click of voice stopping dead falls quiet next frame.
         if rose and k + 1 < levels.size and levels[k + 1] >= quiet_db:
-            trough = peak_k + 1 + int(np.argmin(levels[peak_k + 1 : k + 1]))
-            return at(trough) if at(trough) < end else None
+            foot = k
+            while foot - 1 > peak_k and levels[foot - 1] <= levels[foot] - _FOOT_DB:
+                foot -= 1
+            return onset_at(k, foot)
     return None

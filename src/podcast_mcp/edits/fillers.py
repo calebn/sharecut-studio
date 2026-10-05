@@ -37,7 +37,7 @@ from podcast_mcp.edits.voiced_runs import (
     voiced_runs,
     voiced_sec_inside,
 )
-from podcast_mcp.edits.word_onset import next_onset_sec
+from podcast_mcp.edits.word_onset import OnsetKind, next_onset
 from podcast_mcp.models import (
     EditDecision,
     EditDecisionType,
@@ -669,7 +669,7 @@ class _AnalyzedCut:
     cut_confidence: float
     boundary_mode: str
     replace_gap_sec: float | None = None
-    next_onset_sec: float | None = None
+    next_burst_sec: float | None = None
     scope: str = "session"
     decision_type: str = "remove"
 
@@ -1315,9 +1315,10 @@ class _CutPlan:
     start: float
     end: float
     replace_gap_sec: float | None
-    # Where the next word's first sound begins, once the right edge has been fitted
-    # to it; the decision carries it so the post-pad fade-in ends by then.
-    next_onset: float | None = None
+    # Where a plosive burst begins, once the right edge has been fitted to the next
+    # word's onset; the decision carries it so the post-pad fade-in ends before it.
+    # A gradual onset is not carried: a fade-in may cover it.
+    next_burst: float | None = None
 
     @property
     def checks(self) -> _EdgeChecks:
@@ -1346,14 +1347,14 @@ def _shrink_to_next_onset(
 ) -> _CutPlan | _CutRejected:
     """End ``plan`` before the next word's acoustic onset; refuse it if the filler stays.
 
-    The plan keeps the onset it fitted to, so approval can end the post-pad fade-in
-    by it.
+    A burst onset stays on the plan, so approval can end the post-pad fade-in before
+    it; a gradual onset moves the edge but leaves the fade-in free.
     """
     guard = max(_ONSET_GUARD_SEC, join_micro_fade_ms(defaults) / 1000.0)
     # Look as far as the longest post-pad fade-in could reach: an onset there does
     # not move the cut, but approval must still end the fade before it.
     fade_reach = post_pad_fade_in_bounds_ms(defaults)[1] / 1000.0
-    onset = next_onset_sec(
+    onset = next_onset(
         audio_cache,
         candidate.end,
         plan.end + guard + fade_reach,
@@ -1361,12 +1362,13 @@ def _shrink_to_next_onset(
     )
     if onset is None:
         return plan
-    if onset >= plan.end + guard:
-        return replace(plan, next_onset=onset)
-    end = min(plan.end, onset - guard)
+    burst = onset.sec if onset.kind is OnsetKind.BURST else None
+    if onset.sec >= plan.end + guard:
+        return replace(plan, next_burst=burst)
+    end = min(plan.end, onset.sec - guard)
     if end < candidate.end - _FILLER_END_SLACK_SEC:
         return _CutRejected("next_onset")
-    return replace(plan, end=end, next_onset=onset)
+    return replace(plan, end=end, next_burst=burst)
 
 
 def _covered_kept_word(
@@ -1842,7 +1844,7 @@ def _analyze_candidate(
         cut_confidence=opt.confidence,
         boundary_mode=opt.mode,
         replace_gap_sec=replace_gap,
-        next_onset_sec=plan.next_onset,
+        next_burst_sec=plan.next_burst,
         scope=scope,
         decision_type="mute" if mute_mode else "remove",
     )
@@ -1864,7 +1866,7 @@ def _apply_analyzed_cut(project: EpisodeProject, result: _AnalyzedCut) -> EditDe
         cut_confidence=result.cut_confidence,
         boundary_mode=result.boundary_mode,
         replace_gap_sec=result.replace_gap_sec,
-        next_onset_sec=result.next_onset_sec,
+        next_burst_sec=result.next_burst_sec,
         scope=result.scope,
         decision_type=decision_type,
     )

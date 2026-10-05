@@ -172,11 +172,11 @@ def post_pad_fade_in_bounds_ms(defaults: dict[str, Any] | None) -> tuple[int, in
     return (max_ms, min_ms) if max_ms < min_ms else (min_ms, max_ms)
 
 
-def _fit_before_onset_ms(
-    fade_ms: int, resume_sec: float, onset_sec: float, defaults: dict[str, Any] | None
+def _fit_before_burst_ms(
+    fade_ms: int, resume_sec: float, burst_sec: float, defaults: dict[str, Any] | None
 ) -> int:
-    """``fade_ms`` capped so a ramp starting at ``resume_sec`` ends by ``onset_sec``."""
-    headroom_ms = int((onset_sec - resume_sec) * 1000.0 + 1e-6)
+    """``fade_ms`` capped so a ramp starting at ``resume_sec`` ends by ``burst_sec``."""
+    headroom_ms = int((burst_sec - resume_sec) * 1000.0 + 1e-6)
     return max(join_micro_fade_ms(defaults), min(fade_ms, headroom_ms))
 
 
@@ -185,7 +185,7 @@ def recommend_post_pad_fade_in_ms(
     track_id: str,
     source_resume_sec: float,
     *,
-    next_onset_sec: float | None = None,
+    next_burst_sec: float | None = None,
     defaults: dict[str, Any] | None = None,
     audio_cache: TrackAudioCache | None = None,
 ) -> int:
@@ -195,10 +195,11 @@ def recommend_post_pad_fade_in_ms(
     tiny declick; a hot onset (and how late it arrives) lengthens the fade so
     it still covers the consonant - not a fixed 50/100 ms rule.
 
-    ``next_onset_sec`` is the source time the next word's first sound begins, when
-    the cut proposal detected one (``EditDecision.next_onset_sec``). The fade then
-    finishes by that onset, so the ramp never attenuates the first phoneme or a
-    plosive burst; the join declick (``inaudible_cuts.micro_fade_ms``) is the floor.
+    ``next_burst_sec`` is the source time a plosive burst begins after the cut, when
+    the cut proposal detected one (``EditDecision.next_burst_sec``). The fade then
+    finishes before the burst, so the ramp never attenuates it; the join declick
+    (``inaudible_cuts.micro_fade_ms``) is the floor. A gradual onset (fricative,
+    glide, vowel) sets no cap: the fade may cover it.
     """
     h = _heuristics(defaults)
     min_ms, max_ms = post_pad_fade_in_bounds_ms(defaults)
@@ -238,9 +239,9 @@ def recommend_post_pad_fade_in_ms(
         if peak_db > quiet_db + 3.0:
             cover_fade = round((peak_at + 0.025) * 1000)
         fade_ms = max(min_ms, min(max_ms, max(energy_fade, cover_fade)))
-    if next_onset_sec is None:
+    if next_burst_sec is None:
         return fade_ms
-    return _fit_before_onset_ms(fade_ms, source_resume_sec, next_onset_sec, defaults)
+    return _fit_before_burst_ms(fade_ms, source_resume_sec, next_burst_sec, defaults)
 
 
 def recommend_prev_word_lead_out_ms(
