@@ -59,6 +59,34 @@ DEFAULT_DISCOURSE_MARKERS = ("like", "you know", "sort of", "kind of")
 DEFAULT_DISCOURSE_PAUSE_SEC = 0.35
 DEFAULT_DISCOURSE_CONFIDENCE_MAX = 0.6
 _DISCOURSE_PAUSE_SEC_MAX = 5.0
+_SUBJECT_PRONOUNS = frozenset(
+    {
+        "i",
+        "i'm",
+        "i've",
+        "i'd",
+        "i'll",
+        "you",
+        "you're",
+        "you've",
+        "we",
+        "we're",
+        "we've",
+        "he",
+        "he's",
+        "she",
+        "she's",
+        "they",
+        "they're",
+        "they've",
+        "it",
+        "it's",
+    }
+)
+# A marker followed by one of these words is content, never filler: "like I'm
+# doing" compares, "I was like, I'm done" quotes. Owner-confirmed on the lab
+# recording (Audra 821.78, 2026-10-05), where ASR confidence alone said cut.
+_CONTENT_USE_FOLLOWERS: dict[str, frozenset[str]] = {"like": _SUBJECT_PRONOUNS}
 _LexiconHit = tuple[int, int, str]
 
 
@@ -223,6 +251,12 @@ def _next_nonsuppressed(words: list[TranscriptWord], index: int) -> int | None:
 def _hits_are_adjacent(words: list[TranscriptWord], left: _LexiconHit, right: _LexiconHit) -> bool:
     """True when no nonsuppressed word sits between ``left`` and ``right`` spans."""
     return _next_nonsuppressed(words, left[1]) == right[0]
+
+
+def _content_use(words: list[TranscriptWord], end_i: int, token: str) -> bool:
+    followers = _CONTENT_USE_FOLLOWERS.get(token)
+    nxt = _next_nonsuppressed(words, end_i)
+    return bool(followers) and nxt is not None and lexicon_form(words[nxt].text) in followers
 
 
 def _adjacent_true_disfluency(
@@ -832,6 +866,8 @@ def _collect_filler_candidates(
         for gi, (start_i, end_i, token) in enumerate(group):
             if token not in discourse:
                 keep = clustered or isolated_hard
+            elif _content_use(words, end_i, token):
+                keep = False
             else:
                 keep = clustered and (
                     _adjacent_true_disfluency(words, group, gi, discourse)

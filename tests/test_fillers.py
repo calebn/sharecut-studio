@@ -1727,6 +1727,22 @@ def test_discourse_comparative_like_kept():
     assert skips["discourse:like"] == 1
 
 
+def test_discourse_like_before_subject_pronoun_kept_despite_low_confidence():
+    # Audra on the lab recording: "...interrupt you, like I'm doing again now."
+    words = [
+        TranscriptWord(text="don't", start=19.96, end=20.12, confidence=1.0),
+        TranscriptWord(text="like", start=20.12, end=20.3, confidence=1.0),
+        TranscriptWord(text="the", start=20.3, end=20.5, confidence=1.0),
+        TranscriptWord(text="you,", start=21.34, end=21.78, confidence=1.0),
+        TranscriptWord(text="like", start=21.78, end=22.24, confidence=0.19),
+        TranscriptWord(text="I'm", start=22.24, end=22.44, confidence=0.94),
+        TranscriptWord(text="doing", start=22.44, end=22.58, confidence=0.99),
+    ]
+    cands, skips = _collect_with_skips(words, _discourse_defaults(min_filler_cluster=2))
+    assert cands == []
+    assert skips == {"discourse:like": 2}
+
+
 def test_discourse_like_um_cluster_cut():
     words = [
         TranscriptWord(text="hello", start=0.0, end=0.2, confidence=0.95),
