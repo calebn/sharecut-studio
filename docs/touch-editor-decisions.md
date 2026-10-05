@@ -172,7 +172,7 @@ license, and maintenance before adoption.
 
 The current-main baseline retained the #958 fixes and reproduced the remaining
 track-entry, clipping, and offscreen-focus failures. The [#961 evidence
-record](issue-961/README.md) preserves selected pixels and receipt geometry.
+record](https://github.com/calebn/sharecut-studio/pull/963#issuecomment-5998148488) preserves selected pixels and receipt geometry.
 Historical center hit-testing is not full-control visibility.
 
 Independent designs and a cross-review chose one scroll owner for inspector
