@@ -134,13 +134,15 @@ def _lexicon_phrase_hits(words: list[TranscriptWord], lexicon: set[str]) -> list
     """Greedy left-to-right longest contiguous lexicon matches.
 
     Words compare in :func:`lexicon_form` (``Um.`` matches ``um``), and multi-word
-    entries (``you know``) match split ASR tokens. ``lexicon`` must already be in
-    that form (:func:`_lexicon`).
+    entries (``you know``, ``uh huh``) match split ASR tokens, including a
+    zero-length second token (``Uh`` + ``-huh.``). ``lexicon`` must already be in
+    that form (:func:`_lexicon`). A hit can have zero length; callers that cut
+    one drop it.
     """
     if not lexicon:
         return []
     phrase_lens = sorted({len(p.split()) for p in lexicon}, reverse=True)
-    kept = [(i, w) for i, w in enumerate(words) if not w.suppressed and w.end > w.start]
+    kept = [(i, w) for i, w in enumerate(words) if not w.suppressed]
     if not kept:
         return []
     norms = [lexicon_form(w.text) for _, w in kept]
@@ -186,6 +188,11 @@ def _cluster_lexicon_hits(
     if current:
         clusters.append(current)
     return clusters
+
+
+def _backchannel_set(tighten: dict[str, Any]) -> set[str]:
+    """Acknowledgments (``uh huh``, ``mm-hmm``) that are speech, never filler cuts."""
+    return _lexicon(tighten.get("backchannels") or [])
 
 
 def _discourse_marker_set(tighten: dict[str, Any]) -> set[str]:
@@ -424,15 +431,15 @@ def _collect_repetition_candidates(
     max_gap = bounded_float(
         tighten.get("repeat_max_gap_sec", _REPEAT_GAP_SEC), _REPEAT_GAP_SEC, 0.0, 2.0
     )
-    filler_words = _lexicon(tighten.get("filler_words", []))
+    lexicon = _lexicon(tighten.get("filler_words", [])) | _backchannel_set(tighten)
     usable = [i for i, word in enumerate(words) if not word.suppressed and word.end > word.start]
-    # A phrase such as ``you know`` is one filler lexicon entry even though ASR
-    # represents it as two words.  Do not reinterpret either occurrence as a
+    # A phrase such as ``you know`` or ``uh huh`` is one lexicon entry even though
+    # ASR represents it as two words.  Do not reinterpret either occurrence as a
     # lexical restart (``you know you know``) after filler selection has made
     # that classification.
-    filler_word_indexes = {
+    lexicon_word_indexes = {
         word_index
-        for start_i, end_i, _token in _lexicon_phrase_hits(words, filler_words)
+        for start_i, end_i, _token in _lexicon_phrase_hits(words, lexicon)
         for word_index in range(start_i, end_i + 1)
     }
     candidates: list[_CutCandidate] = []
@@ -441,7 +448,7 @@ def _collect_repetition_candidates(
     for pos, first_i in enumerate(usable):
         first = words[first_i]
         first_token = _repeat_token(first)
-        if pos in consumed_positions or not first_token or first_i in filler_word_indexes:
+        if pos in consumed_positions or not first_token or first_i in lexicon_word_indexes:
             continue
         # Explicitly marked partial words are clear reparanda; do not infer a
         # cut-off from ASR token similarity alone.
@@ -535,7 +542,7 @@ def _collect_repetition_candidates(
                 continue
             left = usable[pos : pos + length]
             right = usable[pos + length : pos + 2 * length]
-            if any(index in filler_word_indexes for index in (*left, *right)):
+            if any(index in lexicon_word_indexes for index in (*left, *right)):
                 continue
             if any(
                 not _words_are_contiguous(words, sequence[a], sequence[a + 1], max_gap)
@@ -545,7 +552,7 @@ def _collect_repetition_candidates(
                 continue
             if not all(
                 _repeat_token(words[a]) == _repeat_token(words[b])
-                and _repeat_token(words[a]) not in filler_words
+                and _repeat_token(words[a]) not in lexicon
                 for a, b in zip(left, right, strict=True)
             ):
                 continue
@@ -581,7 +588,7 @@ def _collect_repetition_candidates(
         second = words[second_i]
         if (
             first_token == _repeat_token(second)
-            and first_token not in filler_words
+            and first_token not in lexicon
             and _words_are_contiguous(words, first_i, second_i, max_gap)
         ):
             key = (first_i, first_i)
@@ -775,9 +782,12 @@ def _collect_filler_candidates(
 
     A hard filler (a ``filler_words`` entry that is not a discourse marker) is a
     candidate on its own unless ``isolated_filler_candidates`` is off; then it
-    needs ``min_filler_cluster`` like a discourse marker always does.
+    needs ``min_filler_cluster`` like a discourse marker always does. Backchannel
+    phrases are matched in the same pass, win over a filler entry with the same
+    text, and are only counted as ``backchannel:{phrase}`` skips.
     """
     fillers = _lexicon(tighten.get("filler_words", []))
+    backchannels = _backchannel_set(tighten)
     min_cluster = int(tighten.get("min_filler_cluster", 2))
     isolated_hard = bool(tighten.get("isolated_filler_candidates", True))
     cluster_gap_sec = bounded_float(tighten.get("filler_cluster_gap_sec", 2.0), 2.0, 0.0, 60.0)
@@ -795,7 +805,13 @@ def _collect_filler_candidates(
         1.0,
     )
     candidates: list[_CutCandidate] = []
-    hits = _lexicon_phrase_hits(words, fillers)
+    hits: list[_LexiconHit] = []
+    for hit in _lexicon_phrase_hits(words, fillers | backchannels):
+        start_i, end_i, token = hit
+        if token in backchannels:
+            _count_skip(skip_counts, f"backchannel:{token}")
+        elif words[end_i].end > words[start_i].start:
+            hits.append(hit)
     for group in _cluster_lexicon_hits(words, hits, cluster_gap_sec=cluster_gap_sec):
         clustered = min_cluster <= 1 or len(group) >= min_cluster
         for gi, (start_i, end_i, token) in enumerate(group):

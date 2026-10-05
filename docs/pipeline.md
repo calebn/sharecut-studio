@@ -203,6 +203,7 @@ Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-
 | `tighten.repetition_candidates` | `true` | Propose review-only `repetition:` / `restart:` hits (`light` turns this off) |
 | `tighten.filler_words` | um, uh, erm, ah, like, you know, sort of, kind of | Lexicon; ASR words match with case and edge punctuation ignored (`Um.` = `um`) |
 | `tighten.discourse_markers` | like, you know, sort of, kind of | Demoted tokens (adjacent-token phrase match): candidates only with an adjacent true disfluency/repeat, pause ≥ `discourse_pause_sec`, or ASR confidence &lt; `discourse_confidence_max`. Missing key = defaults; `[]` disables demotion. |
+| `tighten.backchannels` | uh huh, uh-huh, mm hmm, mm-hmm, mm hm, mm-hm, mhm, uh-uh | Acknowledgments matched before fillers (split `Uh` + `-huh.` included) and never proposed; counted as `backchannel:{phrase}` skips. `[]` disables. |
 | `tighten.discourse_pause_sec` | `0.35` | Flanking pause that qualifies a discourse marker |
 | `tighten.discourse_confidence_max` | `0.6` | ASR confidence below this qualifies a discourse marker |
 | `tighten.isolated_filler_candidates` | `true` | Propose a lone hard filler (not a discourse marker) without a cluster; `light` turns this off |

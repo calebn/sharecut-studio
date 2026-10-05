@@ -29,6 +29,11 @@ flip `tighten.enabled`.
 - Filler words: um, uh, erm, ah, like, you know, sort of, kind of, etc. ASR
   words match with case and edge punctuation ignored, so Whisper's `Um.` and
   `uh,` are `um` and `uh`.
+- **Backchannels are kept** — `tighten.backchannels` (`uh huh`, `mm-hmm`, `mhm`,
+  …) are acknowledgments, not hesitations. They match before fillers, so
+  Whisper's split `Uh` + `-huh.` is never proposed as `filler:uh`; each is
+  counted as `backchannel:{phrase}` in `skip_counts`. Their Whisper word times
+  can still sit on silence of a gated track, so listen before trusting them.
 - **Discourse-safe selection** — `like` / `you know` / `sort of` / `kind of` stay
   in the lexicon but are candidates only with an **adjacent** true disfluency or
   immediate repeat, a pause ≥ `tighten.discourse_pause_sec` (~0.35s) on either
@@ -92,7 +97,8 @@ MCP `propose_edits` returns `{operation, edits, skip_counts, summary}`
 (`operation` is `propose_edits`; not a bare array). CLI `propose-edits --json`
 prints the same payload (`TightenProposal.to_payload()`); without `--json` it
 prints the summary text only. Report `skip_counts`
-(`discourse:like`, …) as “N discourse uses kept”, and `filler:acoustic` hits
+(`discourse:like`, …) as “N discourse uses kept”, `backchannel:uh huh` as “N
+acknowledgments kept”, and `filler:acoustic` hits
 separately (“N acoustic, review each”).
 
 4. Review each pending decision listen-first:

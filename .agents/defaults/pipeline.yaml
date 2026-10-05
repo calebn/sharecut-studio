@@ -180,6 +180,20 @@ tighten:
     - kind of
   discourse_pause_sec: 0.35
   discourse_confidence_max: 0.6
+  # Acknowledgments a listener says while someone else talks. They are speech,
+  # never filler hits: matched before filler_words (so Whisper's split "Uh" +
+  # "-huh." is "uh huh", not the filler "uh") and counted as backchannel:{phrase}
+  # skips. Split "uh uh" is left out: once the hyphen of "-uh" is stripped it
+  # reads like a repeated hesitation ("Uh, uh,"). [] disables.
+  backchannels:
+    - uh huh
+    - uh-huh
+    - mm hmm
+    - mm-hmm
+    - mm hm
+    - mm-hm
+    - mhm
+    - uh-uh
   # ASR words match these entries (and discourse_markers) lowercased with
   # leading/trailing punctuation stripped, so Whisper's "Um." and "uh," match.
   filler_words:

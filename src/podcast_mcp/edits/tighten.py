@@ -31,7 +31,7 @@ def format_tighten_propose_summary(
     decisions: list[EditDecision],
     skip_counts: dict[str, int] | None = None,
 ) -> str:
-    """Human summary for pipeline/CLI/MCP propose output (includes discourse skips)."""
+    """Human summary for pipeline/CLI/MCP propose output (includes discourse and backchannel skips)."""
     acoustic = sum(1 for d in decisions if is_acoustic_filler_reason(d.reason))
     fillers = sum(1 for d in decisions if (d.reason or "").startswith("filler:")) - acoustic
     pauses = sum(1 for d in decisions if (d.reason or "").startswith("pause:"))
@@ -42,8 +42,10 @@ def format_tighten_propose_summary(
     )
     skips = skip_counts or {}
     discourse = sum(n for key, n in skips.items() if key.startswith("discourse:"))
+    backchannels = sum(n for key, n in skips.items() if key.startswith("backchannel:"))
     acoustic_skipped = sum(n for key, n in skips.items() if key.startswith("acoustic:"))
     extra = f", {discourse} discourse kept" if discourse else ""
+    extra += f", {backchannels} backchannel kept" if backchannels else ""
     repeat_text = f", {repetitions} repetition/restart" if repetitions else ""
     acoustic_text = f", {acoustic} acoustic (review)" if acoustic else ""
     acoustic_skip_text = f", {acoustic_skipped} acoustic skipped" if acoustic_skipped else ""
@@ -70,7 +72,7 @@ def _keep_on_reproposal(decision: EditDecision) -> bool:
 
 @dataclass(frozen=True)
 class TightenProposal:
-    """Pending filler/pause decisions plus counted discourse skips."""
+    """Pending filler/pause decisions plus counted discourse and backchannel skips."""
 
     decisions: list[EditDecision]
     skip_counts: dict[str, int]

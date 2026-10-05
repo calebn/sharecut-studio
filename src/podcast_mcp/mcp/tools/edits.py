@@ -365,7 +365,8 @@ def propose_edits(
 
     Returns a JSON object ``{operation, edits, skip_counts, summary}`` (not a
     bare array — breaking vs older list-of-decisions clients). ``operation`` is
-    ``propose_edits``. ``skip_counts`` maps ``discourse:{token}`` to kept uses.
+    ``propose_edits``. ``skip_counts`` maps ``discourse:{token}`` to kept uses
+    and ``backchannel:{phrase}`` to kept acknowledgments (``uh huh``).
     ``edit_mode`` is ``ripple`` (default, from ``tighten.edit_mode``) or ``mute``.
     Mute proposes ``EditDecisionType.MUTE`` filler hits and skips pause
     candidates (muting a pause is a no-op). ``intensity`` is ``light`` /
