@@ -45,7 +45,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.dsp import db_to_amplitude
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
-from podcast_mcp.util.text import normalize_text
+from podcast_mcp.util.text import lexicon_form, normalize_text
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 log = logging.getLogger(__name__)
@@ -125,11 +125,17 @@ def _cut_span_is_bleed_not_owner(
         return False
 
 
+def _lexicon(entries: Iterable[Any]) -> set[str]:
+    """Config lexicon entries in :func:`lexicon_form`, the form ASR words are compared in."""
+    return {form for entry in entries if (form := lexicon_form(str(entry)))}
+
+
 def _lexicon_phrase_hits(words: list[TranscriptWord], lexicon: set[str]) -> list[_LexiconHit]:
     """Greedy left-to-right longest contiguous lexicon matches.
 
-    Multi-word entries (``you know``) match split ASR tokens the same way
-    ``timeline_ops._exact_phrase_match`` compares ``norms[i : i + len(q_words)]``.
+    Words compare in :func:`lexicon_form` (``Um.`` matches ``um``), and multi-word
+    entries (``you know``) match split ASR tokens. ``lexicon`` must already be in
+    that form (:func:`_lexicon`).
     """
     if not lexicon:
         return []
@@ -137,7 +143,7 @@ def _lexicon_phrase_hits(words: list[TranscriptWord], lexicon: set[str]) -> list
     kept = [(i, w) for i, w in enumerate(words) if not w.suppressed and w.end > w.start]
     if not kept:
         return []
-    norms = [normalize_text(w.text) for _, w in kept]
+    norms = [lexicon_form(w.text) for _, w in kept]
     hits: list[_LexiconHit] = []
     i = 0
     while i < len(kept):
@@ -187,7 +193,7 @@ def _discourse_marker_set(tighten: dict[str, Any]) -> set[str]:
         raw: list[Any] = list(DEFAULT_DISCOURSE_MARKERS)
     else:
         raw = list(tighten.get("discourse_markers") or [])
-    return {normalize_text(str(w)) for w in raw if str(w).strip()}
+    return _lexicon(raw)
 
 
 def _prev_nonsuppressed(words: list[TranscriptWord], index: int) -> int | None:
@@ -342,8 +348,8 @@ _MAX_RESTART_WORDS = 4
 
 
 def _repeat_token(word: TranscriptWord) -> str:
-    """Return a conservative comparison token, retaining punctuation separately."""
-    return normalize_text(word.text).strip(".,!?;:()[]{}\"'").rstrip("-\u2013\u2014\u2026")
+    """The word in :func:`lexicon_form`; restart markers are read from the raw text."""
+    return lexicon_form(word.text)
 
 
 def _words_are_contiguous(
@@ -418,11 +424,7 @@ def _collect_repetition_candidates(
     max_gap = bounded_float(
         tighten.get("repeat_max_gap_sec", _REPEAT_GAP_SEC), _REPEAT_GAP_SEC, 0.0, 2.0
     )
-    filler_words = {
-        normalize_text(str(value))
-        for value in tighten.get("filler_words", [])
-        if str(value).strip()
-    }
+    filler_words = _lexicon(tighten.get("filler_words", []))
     usable = [i for i, word in enumerate(words) if not word.suppressed and word.end > word.start]
     # A phrase such as ``you know`` is one filler lexicon entry even though ASR
     # represents it as two words.  Do not reinterpret either occurrence as a
@@ -447,7 +449,7 @@ def _collect_repetition_candidates(
             second_i = usable[pos + 1]
             second = words[second_i]
             second_token = _repeat_token(second)
-            partial = first_token.rstrip("-\u2013\u2014\u2026")
+            partial = first_token
             if (
                 len(partial) >= 2
                 and second_token.startswith(partial)
@@ -769,9 +771,15 @@ def _collect_filler_candidates(
     *,
     skip_counts: dict[str, int] | None = None,
 ) -> list[_CutCandidate]:
-    """Lexicon filler hits that pass cluster + discourse-safe gates (read-only)."""
-    fillers = {normalize_text(w) for w in tighten.get("filler_words", []) if str(w).strip()}
+    """Lexicon filler hits that pass cluster + discourse-safe gates (read-only).
+
+    A hard filler (a ``filler_words`` entry that is not a discourse marker) is a
+    candidate on its own unless ``isolated_filler_candidates`` is off; then it
+    needs ``min_filler_cluster`` like a discourse marker always does.
+    """
+    fillers = _lexicon(tighten.get("filler_words", []))
     min_cluster = int(tighten.get("min_filler_cluster", 2))
+    isolated_hard = bool(tighten.get("isolated_filler_candidates", True))
     cluster_gap_sec = bounded_float(tighten.get("filler_cluster_gap_sec", 2.0), 2.0, 0.0, 60.0)
     discourse = _discourse_marker_set(tighten)
     pause_sec = bounded_float(
@@ -789,19 +797,17 @@ def _collect_filler_candidates(
     candidates: list[_CutCandidate] = []
     hits = _lexicon_phrase_hits(words, fillers)
     for group in _cluster_lexicon_hits(words, hits, cluster_gap_sec=cluster_gap_sec):
-        meets_cluster = min_cluster <= 1 or len(group) >= min_cluster
-        if not meets_cluster:
-            for _start_i, _end_i, token in group:
-                if token in discourse:
-                    _count_skip(skip_counts, f"discourse:{token}")
-            continue
+        clustered = min_cluster <= 1 or len(group) >= min_cluster
         for gi, (start_i, end_i, token) in enumerate(group):
-            keep = token not in discourse or (
-                _adjacent_true_disfluency(words, group, gi, discourse)
-                or _adjacent_repeat(words, group, gi)
-                or _pause_bounded_span(words, start_i, end_i, pause_sec)
-                or _low_discourse_confidence_span(words, start_i, end_i, confidence_max)
-            )
+            if token not in discourse:
+                keep = clustered or isolated_hard
+            else:
+                keep = clustered and (
+                    _adjacent_true_disfluency(words, group, gi, discourse)
+                    or _adjacent_repeat(words, group, gi)
+                    or _pause_bounded_span(words, start_i, end_i, pause_sec)
+                    or _low_discourse_confidence_span(words, start_i, end_i, confidence_max)
+                )
             if keep:
                 candidates.append(
                     _CutCandidate(
@@ -813,7 +819,7 @@ def _collect_filler_candidates(
                         filler_confidence=_span_confidence(words, start_i, end_i),
                     )
                 )
-            else:
+            elif token in discourse:
                 _count_skip(skip_counts, f"discourse:{token}")
     return candidates
 

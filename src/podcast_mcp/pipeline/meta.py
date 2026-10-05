@@ -791,9 +791,10 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         path="tighten.intensity",
         label="Tighten intensity",
         description=(
-            "light = clear um/uh only, keep at least 0.5 s of every pause; medium = "
-            "defaults; aggressive = isolated fillers, borderline discourse markers, "
-            "0.3 s solo pauses. light/aggressive override the tighten keys they name."
+            "light = clustered um/uh only, keep at least 0.5 s of every pause; medium = "
+            "defaults, including a lone um/uh; aggressive = isolated and borderline "
+            "discourse markers, 0.3 s solo pauses. light/aggressive override the "
+            "tighten keys they name."
         ),
         type="enum",
         default=DEFAULT_TIGHTEN_INTENSITY,

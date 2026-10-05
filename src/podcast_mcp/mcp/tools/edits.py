@@ -370,13 +370,14 @@ def propose_edits(
     Mute proposes ``EditDecisionType.MUTE`` filler hits and skips pause
     candidates (muting a pause is a no-op). ``intensity`` is ``light`` /
     ``medium`` / ``aggressive`` (default from ``tighten.intensity``, else medium):
-    a deterministic preset over existing tighten keys (light = clear um/uh only
-    and >=0.5 s pause air; aggressive = isolated fillers, borderline discourse
-    markers, 0.3 s solo pauses). Unknown values raise. Suggest a tier from the
-    episode (interview -> light, solo monologue -> aggressive); the pipeline
-    itself never chooses. Pipeline auto-tighten stays off;
-    listen-first review before apply_edits / approve_edits. Not NL cut-by-text
-    (cut_* tools) or narrative focus (focus tools).
+    a deterministic preset over existing tighten keys (light = clustered um/uh
+    only and >=0.5 s pause air; medium also proposes a lone um/uh; aggressive =
+    isolated and borderline discourse markers, 0.3 s solo pauses). Unknown
+    values raise. Suggest a tier from the episode (interview -> light, solo
+    monologue -> aggressive); the pipeline itself never chooses. Pipeline
+    auto-tighten stays off; listen-first review before apply_edits /
+    approve_edits. Not NL cut-by-text (cut_* tools) or narrative focus (focus
+    tools).
     """
     ws = ProjectWorkspace.open(project_path)
     proposal = EditService(ws).propose_tighten(edit_mode=edit_mode, intensity=intensity)

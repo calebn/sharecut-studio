@@ -154,6 +154,10 @@ tighten:
     dominance_db: 3.0
     min_overlap_sec: 0.03
   inaudible_opt: true
+  # A lone hard filler (a filler_words entry that is not a discourse marker,
+  # e.g. "Um.") is proposed without a cluster; light turns this off. Discourse
+  # markers always need min_filler_cluster hits within filler_cluster_gap_sec.
+  isolated_filler_candidates: true
   min_filler_cluster: 2
   filler_cluster_gap_sec: 2.0
   leave_in_if_risky: true
@@ -176,6 +180,8 @@ tighten:
     - kind of
   discourse_pause_sec: 0.35
   discourse_confidence_max: 0.6
+  # ASR words match these entries (and discourse_markers) lowercased with
+  # leading/trailing punctuation stripped, so Whisper's "Um." and "uh," match.
   filler_words:
     - um
     - uh

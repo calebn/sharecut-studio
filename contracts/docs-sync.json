@@ -309,6 +309,23 @@
       }
     },
     {
+      "id": "filler-lexicon-matching",
+      "when": "Filler lexicon matching or the isolated-filler policy (`tighten.filler_words`, `discourse_markers`, `isolated_filler_candidates`, `util/text.lexicon_form`)",
+      "update": "`docs/filler-cut-quality.md` § Policy and § Intensity presets, `docs/pipeline.md` tighten table, `.agents/defaults/pipeline.yaml` → `tighten`, `.agents/skills/podcast-tighten-dialogue/`",
+      "docs": [
+        "docs/filler-cut-quality.md",
+        "docs/pipeline.md",
+        ".agents/defaults/pipeline.yaml",
+        ".agents/skills/podcast-tighten-dialogue/"
+      ],
+      "advisory": {
+        "include": [
+          "src/podcast_mcp/edits/fillers.py",
+          "src/podcast_mcp/edits/tighten_intensity.py"
+        ]
+      }
+    },
+    {
       "id": "join-continuity-splice-qa",
       "when": "Join continuity / splice QA",
       "update": "`docs/inaudible-cuts.md` § Join continuity, `edits/join_continuity.py`, `edits/join_cost_spectral.py`, optional `joinqc` extra, `tighten.join_continuity_gate`, skills above",
