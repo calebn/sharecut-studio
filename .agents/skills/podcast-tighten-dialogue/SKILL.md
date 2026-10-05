@@ -41,7 +41,8 @@ flip `tighten.enabled`.
   side of the marker span, or ASR confidence < `tighten.discourse_confidence_max`
   (~0.6). Multi-word markers match split ASR tokens (`you`+`know`). Pause and
   low-confidence are escape hatches (a fluent quotative/comparative `like` with
-  a flanking pause or low ASR still becomes `filler:like`). Propose summaries
+  a flanking pause or low ASR still becomes `filler:like`), except that `like`
+  directly before a subject pronoun ("like I'm doing") is content and never cut. Propose summaries
   count those skips as `discourse:{token}` (`N discourse kept`), including
   isolated markers rejected by `min_filler_cluster`. Missing `discourse_markers`
   uses defaults; explicit `[]` disables demotion.

@@ -176,6 +176,7 @@ tighten:
   min_filler_confidence: 0.15
   # Discourse markers stay in filler_words but are cut only with an adjacent
   # true disfluency/repeat, a pause on either side, or low ASR confidence.
+  # `like` before a subject pronoun ("like I'm doing") is content and never cut.
   # Otherwise they are counted skips (discourse:{token}), including isolated
   # hits rejected by min_filler_cluster.
   # Missing key uses DEFAULT_DISCOURSE_MARKERS. Explicit [] disables demotion
