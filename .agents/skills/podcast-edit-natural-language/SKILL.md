@@ -56,7 +56,7 @@ Tighten preserves confirmed complete breaths at both final edges and suppresses 
      also propose `filler:acoustic` hits (voiced audio the ASR missed inside a
      word gap); they are always review-only — play each before approving.
 6. `edit_impact_report_tool` (markdown=true) — show seconds removed and pending review.
-7. `play_pending_preview_tool` (Suggested) so the user hears the skip before deciding; then `approve_edits_tool` with JSON array of ids — applies cuts to the clip timeline (not just flags).
+7. `play_pending_preview_tool` (Suggested) so the user hears the approved result before deciding; then `approve_edits_tool` with JSON array of ids — applies cuts to the clip timeline (not just flags).
 8. `render_preview` — then `audition_context_tool` on each applied join (step 7 of the harness list; no `speech_crosses_cut` / `echo_risk` left unaddressed), then `play_transcript_query_tool` or `play_audio_tool` on the span so the user can hear it (not only the premix path).
 9. `render_final` or `pipeline_run(from_step=assemble_timeline)` when approved and every join has passed the context check.
 

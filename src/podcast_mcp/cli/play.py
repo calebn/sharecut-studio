@@ -203,19 +203,17 @@ def play_pending_preview_cmd(
     ),
     padding: float = typer.Option(0.5, "--padding", help="Seconds around the cut"),
     gap: float = typer.Option(0.4, "--gap", help="Silence between A and B"),
-    source: str = typer.Option("premix", "--source"),
     dry_run: bool = typer.Option(False, "--dry-run"),
     player: str | None = typer.Option(None, "--player"),
     rerender: bool = typer.Option(False, "--rerender"),
 ) -> None:
-    """Hear Current vs Suggested (skip-span) vs A/B for a pending session remove."""
+    """Hear Current vs Suggested (the approved result) vs A/B for a pending edit."""
     ws = ProjectWorkspace.open(project)
     result = PlayService(ws).play_pending_preview(
         edit_id,
         mode=mode,
         pad_sec=padding,
         gap_sec=gap,
-        source=source,
         dry_run=dry_run,
         player=player,
         rerender=rerender,

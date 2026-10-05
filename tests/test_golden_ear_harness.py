@@ -62,6 +62,7 @@ def _window(*, can_skip: bool = True) -> PendingPreviewWindow:
         play_end=3.2,
         can_skip=can_skip,
         skip_reason=None if can_skip else "too short",
+        suggest_reason=None,
     )
 
 

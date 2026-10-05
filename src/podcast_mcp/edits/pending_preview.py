@@ -1,4 +1,4 @@
-"""Listen-first pending-edit preview windows (session-clock skip)."""
+"""Pending-edit preview windows and the approved result the Suggested side plays."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from podcast_mcp.edits.timeline_span import map_source_span_fields
 from podcast_mcp.engines.session_timeline import SessionTimeline
-from podcast_mcp.models import EditDecision, EditDecisionType, EpisodeProject
+from podcast_mcp.models import AppliedEditRecord, EditDecision, EditDecisionType, EpisodeProject
 
 DEFAULT_PAD_SEC = 0.5
 DEFAULT_AB_GAP_SEC = 0.4
@@ -17,10 +17,18 @@ SKIP_REASON_MUTE = "Mute-in-place keeps timeline length. Hear Current around the
 SKIP_REASON_UNMAPPED = "This cut is not on the current timeline."
 SKIP_REASON_TOO_SHORT = "This cut is too short for a Suggested skip."
 SKIP_REASON_SESSION_ONLY = "Suggested skip is only for session-wide removes."
+SKIP_REASON_STALE_RANGE = "Selected audio changed. Select the range again."
 
 
 @dataclass(frozen=True)
 class PendingPreviewWindow:
+    """Current-timeline window around one pending edit.
+
+    ``suggest_reason`` says why the rendered Suggested side is unavailable (None when
+    it renders). ``can_skip`` / ``skip_reason`` gate the GUI's live timeline-skip listen,
+    which can only play session removes.
+    """
+
     edit_id: str
     timeline_start: float
     timeline_end: float
@@ -28,6 +36,7 @@ class PendingPreviewWindow:
     play_end: float
     can_skip: bool
     skip_reason: str | None
+    suggest_reason: str | None
 
 
 def _timeline_span(project: EpisodeProject, edit: EditDecision) -> tuple[float, float, bool]:
@@ -75,8 +84,9 @@ def preview_window_for_edit(
     tl_start, tl_end, mappable = _timeline_span(project, edit)
     type_val = edit.type.value if hasattr(edit.type, "value") else str(edit.type)
     skip_reason = _skip_reason(type_val, edit.scope or "session", mappable, tl_end - tl_start)
+    suggest_reason = _suggest_reason(type_val, mappable)
     if edit.exact_range is not None:
-        skip_reason = None if mappable else "Selected audio changed. Select the range again."
+        skip_reason = suggest_reason = None if mappable else SKIP_REASON_STALE_RANGE
     can_skip = skip_reason is None
     play_start = max(0.0, tl_start - pad_sec)
     play_end = max(play_start + 0.05, tl_end + pad_sec)
@@ -88,7 +98,48 @@ def preview_window_for_edit(
         play_end=play_end,
         can_skip=can_skip,
         skip_reason=skip_reason,
+        suggest_reason=suggest_reason,
     )
+
+
+def _suggest_reason(type_val: str, mappable: bool) -> str | None:
+    if type_val == EditDecisionType.SPLIT.value:
+        return SKIP_REASON_SPLIT
+    if not mappable:
+        return SKIP_REASON_UNMAPPED
+    return None
+
+
+def apply_for_suggested(project: EpisodeProject, window: PendingPreviewWindow) -> float:
+    """Approve ``window``'s edit on ``project`` (a snapshot) and return the Suggested end.
+
+    The edit applies through ``approve_edits``, so the snapshot carries the same ripple,
+    paced pad and fades that approving ships. The window's post-roll moves with the
+    timeline after the edit.
+    """
+    from podcast_mcp.edits.decisions import approve_edits
+
+    logged = len(project.editorial.edit_log)
+    approve_edits(project, [window.edit_id])
+    applied = project.editorial.edit_log[logged:]
+    if not applied:
+        raise ValueError(SKIP_REASON_UNMAPPED)
+    return window.play_end - _timeline_shift(applied[0])
+
+
+def _timeline_shift(record: AppliedEditRecord) -> float:
+    """Seconds the timeline after ``record``'s span moved earlier when it applied.
+
+    Mutes, track punches and exact ranges leave a hole in place. A session ripple
+    closes its span and opens the paced pad (``replace_gap_sec``) in its place.
+    """
+    params = record.params
+    if params.get("mute") or params.get("scope") == "track" or "exact_range" in params:
+        return 0.0
+    if record.timeline_start is None or record.timeline_end is None:
+        raise ValueError("applied edit lacks timeline bounds")
+    pad = float(params.get("replace_gap_sec") or 0.0)
+    return (record.timeline_end - record.timeline_start) - pad
 
 
 def _skip_reason(type_val: str, scope: str, mappable: bool, duration: float) -> str | None:

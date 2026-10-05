@@ -162,9 +162,7 @@ def pending_preview_audio(
         with render_lock(ws.project), ws.transaction():
             audio = (
                 PlayService(ws)
-                .play_pending_preview(
-                    edit_id, mode=mode, source="premix", dry_run=True, rerender=True
-                )
+                .play_pending_preview(edit_id, mode=mode, dry_run=True, rerender=True)
                 .wav_path
             )
             return pinned_audio_response(audio, media_type="audio/wav", filename=audio.name)

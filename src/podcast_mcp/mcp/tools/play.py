@@ -278,14 +278,14 @@ def play_pending_preview_tool(
     mode: str = "suggested",
     pad_sec: float = 0.5,
     gap_sec: float = 0.4,
-    source: str = "premix",
     dry_run: bool = False,
     rerender: bool = False,
 ) -> str:
-    """Hear Current vs Suggested (skip-span) vs A/B for a pending session remove.
+    """Hear Current vs Suggested vs A/B full mix for a pending remove or mute.
 
-    Suggested concatenates pad-before + pad-after so the cut is gone. Splits and
-    track-scope punches are not skippable. Does not mutate the project.
+    Suggested renders the window after approving the edit on a snapshot: the same
+    ripple, paced pad, fades and mute that approving ships. Splits have no Suggested
+    side. Does not mutate the project.
     """
     ws = ProjectWorkspace.open(project_path)
     result = PlayService(ws).play_pending_preview(
@@ -293,7 +293,6 @@ def play_pending_preview_tool(
         mode=mode,
         pad_sec=pad_sec,
         gap_sec=gap_sec,
-        source=source,
         dry_run=dry_run,
         rerender=rerender,
     )

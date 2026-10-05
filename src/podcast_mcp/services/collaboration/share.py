@@ -1079,7 +1079,7 @@ def share_pending_preview_wav(
     edit_id: str,
     mode: str = "suggested",
 ) -> Path:
-    """Concat Current / Suggested / A/B WAV for a pending session remove.
+    """Current / Suggested / A/B WAV for a pending edit (Suggested is the approved result).
 
     Uses ``PlayService.play_pending_preview`` with ``dry_run=True`` and
     ``rerender=False``. Never plays host speakers. Requires ``play`` + ``view``.
