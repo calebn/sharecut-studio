@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LONG_PRESS_MS, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
+import {
+  CHIP_SETTLE_MS,
+  LONG_PRESS_MS,
+  TOUCH_SLOP_PX,
+} from "../hooks/gestureConstants";
 import type { HitRect } from "./hitCandidates";
 import {
   attachHitRouting,
@@ -7,6 +11,7 @@ import {
   type ChooserView,
   type HitRouter,
   isReplayed,
+  type RoutedTarget,
 } from "./hitRouting";
 import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";
 
@@ -55,6 +60,7 @@ let root: HTMLDivElement;
 let router: HitRouter;
 let log: string[];
 let views: (ChooserView | null)[];
+let targets: (RoutedTarget | null)[];
 let labOn: boolean;
 /** Log only what the router dispatched: the activations it decided. */
 let onlyReplays: boolean;
@@ -73,6 +79,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   log = [];
   views = [];
+  targets = [];
   labOn = false;
   onlyReplays = false;
   root = document.createElement("div");
@@ -80,6 +87,7 @@ beforeEach(() => {
   router = attachHitRouting(root, {
     touchLab: () => labOn,
     onChooser: (view) => views.push(view),
+    onTarget: (target) => targets.push(target),
   });
 });
 
@@ -435,6 +443,114 @@ describe("touch chooser lab", () => {
       "fade:pointerup@216,112",
     ]);
     chip.remove();
+  });
+
+  /** Two chips in a row: chip 0 left of x 240, chip 1 from there. */
+  function chipRow() {
+    const chips = ["0", "1"].map((index) => {
+      const chip = document.createElement("button");
+      chip.setAttribute(CHOOSER_ITEM_ATTR, index);
+      document.body.append(chip);
+      return chip;
+    });
+    document.elementFromPoint = (x: number, y: number) =>
+      y > 80 ? null : x < 240 ? chips[0] : chips[1];
+    return chips;
+  }
+
+  it("drags a settled chip's target on a slide along its axis, with no rest", () => {
+    const { fade } = edgeCluster();
+    const chips = chipRow();
+    press(fade, "pointerdown", 204, 117);
+    router.longPress();
+    press(fade, "pointermove", 250, 53);
+    expect(views.at(-1)).toMatchObject({ over: 1, armed: false });
+    vi.advanceTimersByTime(CHIP_SETTLE_MS);
+    expect(views.at(-1)).toMatchObject({ over: 1, armed: true });
+    // 14 px right, 1 px down: along the fade's time axis.
+    press(fade, "pointermove", 264, 54);
+    press(fade, "pointerup", 274, 54);
+    vi.runAllTimers();
+    for (const chip of chips) chip.remove();
+
+    expect(views.at(-1)).toBeNull();
+    expect(targets).toEqual([{ kind: "fade-in", id: "clip-b" }]);
+    // Offset from where the finger settled (250,53) to the fade (206,112).
+    expect(log).toEqual([
+      "fade:pointerdown@206,112",
+      "fade:pointermove@220,113",
+      "fade:pointerup@230,113",
+    ]);
+  });
+
+  it("never grabs while the finger sweeps across the chips, or moves off the axis", () => {
+    const { fade } = edgeCluster();
+    const chips = chipRow();
+    press(fade, "pointerdown", 204, 117);
+    router.longPress();
+    for (let x = 200; x <= 300; x += 12) {
+      press(fade, "pointermove", x, 53);
+      vi.advanceTimersByTime(16);
+    }
+    // Settled on chip 1, then straight down (off a time-only axis).
+    vi.advanceTimersByTime(CHIP_SETTLE_MS);
+    press(fade, "pointermove", 296, 70);
+    expect(views.at(-1)).toMatchObject({ over: 1, armed: false });
+    press(fade, "pointerup", 296, 70);
+    vi.runAllTimers();
+    for (const chip of chips) chip.remove();
+
+    expect(log).toEqual([
+      "fade:pointerdown@206,112",
+      "fade:pointerup@206,112",
+      "fade:click@206,112",
+    ]);
+  });
+
+  it("drags a chip pressed again after the lift on its first slide along the axis", () => {
+    const { fade } = edgeCluster();
+    const chips = chipRow();
+    press(fade, "pointerdown", 204, 117);
+    router.longPress();
+    press(fade, "pointerup", 204, 117);
+    expect(views.at(-1)).toMatchObject({ fingerDown: false });
+
+    press(chips[1], "pointerdown", 250, 40, 9);
+    expect(views.at(-1)).toMatchObject({
+      fingerDown: true,
+      over: 1,
+      armed: true,
+    });
+    press(chips[1], "pointermove", 262, 40, 9);
+    press(chips[1], "pointerup", 270, 41, 9);
+    vi.runAllTimers();
+    for (const chip of chips) chip.remove();
+
+    expect(log).toEqual([
+      "fade:pointerdown@206,112",
+      "fade:pointermove@218,112",
+      "fade:pointerup@226,113",
+    ]);
+  });
+
+  it("selects a chip pressed again and lifted without moving", () => {
+    const { fade } = edgeCluster();
+    const chips = chipRow();
+    press(fade, "pointerdown", 204, 117);
+    router.longPress();
+    press(fade, "pointerup", 204, 117);
+    press(chips[0], "pointerdown", 200, 40, 9);
+    press(chips[0], "pointermove", 204, 41, 9);
+    press(chips[0], "pointerup", 204, 41, 9);
+    vi.runAllTimers();
+    for (const chip of chips) chip.remove();
+
+    expect(targets).toEqual([{ kind: "trim-in", id: "clip-b" }]);
+    expect(log).toEqual([
+      "trim:pointerdown@204,117",
+      "trim:pointerup@204,117",
+      "trim:click@204,117",
+    ]);
   });
 
   it("cancels scrolling only while it owns the finger", () => {

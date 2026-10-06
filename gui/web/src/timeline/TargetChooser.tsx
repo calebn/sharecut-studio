@@ -26,7 +26,7 @@ import {
   chooserItems,
   layoutChips,
 } from "./chooserLayout";
-import { HIT_KINDS, type HitKind } from "./hitCandidates";
+import { type DragAxis, HIT_KINDS, type HitKind } from "./hitCandidates";
 import {
   CHOOSER_ITEM_ATTR,
   type ChooserView,
@@ -162,6 +162,31 @@ function TargetGlyph({
   );
 }
 
+/** The held finger's choices on a chip, by the target's drag axis. */
+const DRAG_HINT: Record<DragAxis, string> = {
+  x: "Slide sideways to drag · lift to select",
+  xy: "Slide to drag · lift to select",
+  none: "Lift to select",
+};
+
+/**
+ * Chevrons on an armed chip's edges, pointing the ways a slide drags it:
+ * sideways for a time-only target, every way for an envelope point.
+ */
+function AxisCue({ axis }: { axis: DragAxis }) {
+  return (
+    <svg
+      className="target-chip-axis"
+      viewBox="0 0 44 44"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M6 17 2 22l4 5M38 17l4 5-4 5" />
+      {axis === "xy" ? <path d="M17 6l5-4 5 4M17 38l5 4 5-4" /> : null}
+    </svg>
+  );
+}
+
 /** A chip button: a press by any input (touch, mouse, keys, AT) picks it. */
 function Chip({
   onPick,
@@ -273,6 +298,8 @@ export function TargetChooser({
     const arming = view.fingerDown && view.over === item.index;
     const hit = view.hits[item.index];
     const { kind, selected } = hit.candidate;
+    const { axis } = HIT_KINDS[kind];
+    const armed = arming && view.armed && axis !== "none";
     const time = formatTime(hitTimeSec(hit.element));
     const surface = chipSurface(hit);
     const tag = chipTag(hit);
@@ -282,7 +309,7 @@ export function TargetChooser({
         role="menuitemradio"
         aria-checked={selected}
         tabIndex={-1}
-        className={`target-chip${tag ? " has-tag" : ""}${view.over === item.index ? " is-over" : ""}${arming ? " is-arming" : ""}`}
+        className={`target-chip${tag ? " has-tag" : ""}${view.over === item.index ? " is-over" : ""}${arming ? " is-arming" : ""}${armed ? " is-armed" : ""}`}
         style={
           surface
             ? ({ ...style, "--chip-surface": surface } as CSSProperties)
@@ -299,6 +326,7 @@ export function TargetChooser({
             {tag}
           </span>
         ) : null}
+        {armed ? <AxisCue axis={axis} /> : null}
       </Chip>
     );
   };
@@ -352,7 +380,7 @@ export function TargetChooser({
         {caption}
         {view.fingerDown && typeof view.over === "number" ? (
           <span className="target-chooser-hint">
-            Hold to drag · lift to select
+            {DRAG_HINT[HIT_KINDS[view.hits[view.over].candidate.kind].axis]}
           </span>
         ) : null}
       </p>
