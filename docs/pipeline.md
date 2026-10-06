@@ -434,7 +434,7 @@ episodes with more dialogue tracks.
 
 ### Room-tone levels
 
-With `tighten.filler_pad_mode: room_tone`, the first pad or mute fill on a track streams its source audio once at 16 kHz into 10 ms frame levels (`edits/room_tone.py`), cached in-process per file version. Each pick then reads one window of the length it needs and runs Silero on it. On the lab tape's three 28-minute tracks the level pass takes about 1.2 s per track, nearly all of it `ffmpeg` decode (8 kHz decodes no faster). Approving every proposal took 5.5 s (ripple, 26 edits) and 4.5 s (mute, 54) against 3.7 s and 1.8 s for the word-gap sampler it replaced. The level pass (3.6 s for three tracks) is most of that; the picks themselves cost less than the old per-window reads. The default `silence` reads nothing.
+With `tighten.filler_pad_mode: room_tone`, the first pad or mute fill on a track streams its source audio once at 16 kHz into 10 ms frame levels (`edits/room_tone.py`), cached in-process per file version. Each pick then reads one window of the length it needs and runs Silero on it (an error from Silero rejects that window, so a failing detector leaves the fill silent). On the lab tape's three 28-minute tracks the level pass takes about 1.2 s per track, nearly all of it `ffmpeg` decode (8 kHz decodes no faster). Approving every proposal took 5.5 s (ripple, 26 edits) and 4.5 s (mute, 54) against 3.7 s and 1.8 s for the word-gap sampler it replaced. The level pass (3.6 s for three tracks) is most of that; the picks themselves cost less than the old per-window reads. The default `silence` reads nothing.
 
 ### Conservative bleed planning cost
 

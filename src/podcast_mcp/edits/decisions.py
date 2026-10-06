@@ -152,7 +152,7 @@ def _apply_replace_gap_pad(project: EpisodeProject, edit: EditDecision, tl_start
     if filler_pad_mode() == "room_tone":
         insert_room_tone_pad(project, at, gap)
     else:
-        # Default: hard silence beat (dry rooms; avoid mismatched stolen air).
+        # Default: hard silence beat (dry rooms; avoid mismatched sampled room tone).
         insert_gap(project, at, gap)
     defaults = _defaults_all()
     # Left edge: ripple often stamps a ~15ms fade-out while clips still abut,
