@@ -81,6 +81,8 @@ to UX partners; for UI copy, this table wins.
 | Pending edit | A proposed edit awaiting approve/reject | — |
 | Suggest cut | Propose a cut from the transcript | — |
 | Blade cut | Split at the playhead on the timeline | "slice" |
+| Solo on | The chip shown while any track is soloed. It reads "Solo on · Clear solo", and one press unsolos every track. Solo is listen-only: only you hear it | "solo mode", "solo active" |
+| Implied mute | A track silent only because you soloed another track. Its M and row are dashed and dim, never saved | "auto-muted", "muted by solo" |
 | Bounce | Render the current mix | "export mix" |
 | Deliverables | Mastered export set | "final export" |
 | Stop sharing | Revoke a review link. Links do not expire unless the host chose a date, so this is how a review link ends | "delete link" |
@@ -404,3 +406,5 @@ item lives in `docs/contributing.md`. `Dialog` has no `danger` variant;
   line names what guests can do ("Guests can open your links", "Not reachable
   online", "Online sharing is off") instead of the tunnel, relay or host token,
   keeps any fix behind "How to fix", and shows nothing to a local-only host.
+- 2026-10-06 — Added "Solo on" and "Implied mute" (#1102): the global solo
+  chip and the dashed, dim state of a track your solo silences.

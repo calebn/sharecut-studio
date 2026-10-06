@@ -85,6 +85,9 @@
   --z-track-header: 12;
   /* Timeline action popovers sit above sticky headers and below sheets. */
   --z-timeline-popover: 20;
+  /* Phone status row (REC, Solo on): sticky over the mode body, under
+     sheets like the transport, so the Mix sheet's own chip stays visible. */
+  --z-shell-status: 30;
   --z-sheet: 40;
   /* Mode nav / bottom tabs above sheet scrim so one tap switches views. */
   --z-shell-chrome: 50;
@@ -119,6 +122,10 @@
   --mix-row-height: 3.5rem;
   --mix-identity-size: 1.5rem;
   --mix-volume-width: 6rem;
+  /* Mute dim: a track this listener doesn't hear (saved, listen-only or
+     solo-implied mute) fades its identity chip and lane waveform; text
+     stays at full contrast. */
+  --mute-dim-opacity: 0.6;
   --status-height: 1.75rem;
   --tabs-height: 12.5rem;
   --mobile-nav-height: 3.25rem;

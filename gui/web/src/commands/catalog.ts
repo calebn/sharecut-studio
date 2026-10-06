@@ -276,6 +276,14 @@ export const COMMANDS: Record<string, CommandDef> = {
     notes:
       "S: listen-only solo for the selected track, never saved in the mix (Args: { trackId? })",
   },
+  "track.clearSolo": {
+    id: "track.clearSolo",
+    category: "edit",
+    label: "Clear solo",
+    when: "hasProject",
+    notes:
+      "Unsolo every track: the transport Solo on chip, phone status row and Mix sheet (listen-only, no key)",
+  },
   "view.zoomIn": {
     id: "view.zoomIn",
     category: "view",

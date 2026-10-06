@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
+import { partial, rule } from "../test/cssRules";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import type { ClipRow, TrackView } from "../types/project";
 import { TrackLane } from "./TrackLane";
@@ -143,6 +144,56 @@ describe("TrackLane bladeMode", () => {
       <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
     );
     expect(container.querySelector("[data-track-id='host']")).toBeTruthy();
+  });
+});
+
+describe("TrackLane mute dim", () => {
+  afterEach(() => {
+    useDawStore.setState({ soloTracks: {}, viewerMute: {} });
+  });
+
+  it.each([
+    [
+      "your solo on another track",
+      { soloTracks: { guest: true } },
+      false,
+      "lane-row mute-implied",
+    ],
+    ["your own solo", { soloTracks: { host: true } }, false, "lane-row"],
+    [
+      "a listen-only mute",
+      { viewerMute: { host: true } },
+      false,
+      "lane-row muted mute-listen",
+    ],
+    ["a saved mute", {}, true, "lane-row muted"],
+    [
+      "a saved mute under another solo",
+      { soloTracks: { guest: true } },
+      true,
+      "lane-row muted",
+    ],
+  ])("classes the lane for %s", (_case, listen, muted, className) => {
+    useDawStore.setState(listen);
+    const { container } = render(
+      <TrackLane
+        {...baseProps}
+        track={{ ...track, muted }}
+        onSeek={vi.fn()}
+        onSelectClip={vi.fn()}
+      />,
+    );
+    expect(container.querySelector(".lane-row")?.className).toBe(className);
+  });
+
+  it("fades the waveform of every lane this listener doesn't hear", () => {
+    const css = partial("timeline.css");
+    expect(rule(css, ".lane-row:is(.muted, .mute-implied)")).toMatch(
+      /background:\s*var\(--color-timeline-lane-muted\)/,
+    );
+    expect(
+      rule(css, ".lane-row:is(.muted, .mute-implied) .clip-waveform").trim(),
+    ).toBe("opacity: var(--mute-dim-opacity);");
   });
 });
 

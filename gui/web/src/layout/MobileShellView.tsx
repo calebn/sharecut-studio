@@ -42,7 +42,7 @@ export type MobileShellViewProps = {
     notices: ShellNotices;
     announcement: string;
     transport: ReactNode;
-    recording: ReactNode;
+    status: ReactNode;
     overlay: ReactNode;
   };
   screen: MobileScreen;
@@ -89,7 +89,7 @@ export function MobileShellView({
         </div>
       ) : null}
       <main className="mobile-mode-body">
-        <div className="mobile-record-status">{chrome.recording}</div>
+        <div className="mobile-status-row">{chrome.status}</div>
         {screen.kind === "listen" && screen.content}
         {screen.kind === "timeline" && (
           <div className="mobile-timeline-mode">

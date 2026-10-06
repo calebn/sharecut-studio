@@ -1,5 +1,6 @@
-import { type CSSProperties, useId } from "react";
+import { type CSSProperties, type ReactNode, useId } from "react";
 import type { MuteState } from "../utils/audio";
+import { MUTE_STATE_ROW_CLASS } from "./muteRowClass";
 import { TrackFaderView } from "./TrackFaderView";
 import { TrackMuteSoloButtonsView } from "./TrackMuteSoloButtonsView";
 
@@ -22,6 +23,8 @@ export type TrackMixViewProps =
       rows: readonly MixTrack[];
       access: MixAccess;
       preview: "host" | "shared-full-mix";
+      /** The Solo on chip, shown above the rows while any track is soloed. */
+      soloStatus?: ReactNode;
       onMute: (trackId: string) => void;
       onSolo: (trackId: string) => void;
     };
@@ -35,9 +38,10 @@ export function TrackMixView(props: TrackMixViewProps) {
       </div>
     );
   }
-  const { rows, access, preview, onMute, onSolo } = props;
+  const { rows, access, preview, soloStatus, onMute, onSolo } = props;
   return (
     <div className="track-mix">
+      {soloStatus}
       <p id={descriptionId} className="track-mix-note">
         {access.kind === "edit"
           ? "Volume and M are saved in the mix. S is for your listening and never exports."
@@ -86,7 +90,7 @@ function MixRow({
 }) {
   return (
     <li
-      className="track-mix-row"
+      className={`track-mix-row${MUTE_STATE_ROW_CLASS[row.muteState]}`}
       style={{ "--track-identity-color": row.identityColor } as CSSProperties}
     >
       <span className="track-mix-identity" aria-hidden="true">

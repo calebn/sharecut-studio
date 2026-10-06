@@ -864,8 +864,15 @@
   z-index: var(--z-local-chrome);
 }
 
-.track-header-row.muted {
+/* A track this listener doesn't hear dims like the lane beside it. Solid =
+   muted in the saved mix; dashed = only this listener hears it that way (a
+   listen-only mute, or a track their own solo silences). */
+.track-header-row:is(.muted, .mute-implied) {
   background: var(--color-timeline-lane-muted);
+}
+
+.track-header-row:is(.mute-listen, .mute-implied) {
+  border-inline-start-style: dashed;
 }
 
 .track-header-row.dragging {
@@ -923,9 +930,12 @@
   line-height: 1;
 }
 
-.track-header-row.muted .track-chip {
+.track-header-row:is(.muted, .mute-implied) .track-chip {
+  opacity: var(--mute-dim-opacity);
+}
+
+.track-header-row:is(.mute-listen, .mute-implied) .track-chip {
   border-style: dashed;
-  opacity: 0.6;
 }
 
 .track-title {

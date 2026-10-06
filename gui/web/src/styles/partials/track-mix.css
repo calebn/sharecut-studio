@@ -44,6 +44,21 @@
   font-weight: 600;
 }
 
+/* Same mute language as the track rail chip: dim what this listener doesn't
+   hear; dashed when only they hear it that way. */
+.track-mix-row:is(.muted, .mute-implied) .track-mix-identity {
+  opacity: var(--mute-dim-opacity);
+}
+
+.track-mix-row:is(.mute-listen, .mute-implied) .track-mix-identity {
+  outline: 1px dashed var(--track-identity-color);
+  outline-offset: -1px;
+}
+
+.track-mix .solo-chip {
+  margin-block-end: var(--space-3);
+}
+
 .track-mix-name {
   min-inline-size: 0;
   overflow: hidden;

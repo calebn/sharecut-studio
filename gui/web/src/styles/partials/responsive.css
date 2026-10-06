@@ -234,13 +234,22 @@ html[data-shell="tablet"] {
   flex-direction: column;
 }
 
-.mobile-record-status:has(.record-rec-chip) {
+.mobile-status-row:has(.record-rec-chip, .solo-chip) {
   position: sticky;
   top: 0;
-  z-index: var(--z-shell-chrome);
+  z-index: var(--z-shell-status);
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   background: var(--color-bg-base);
+}
+
+/* The phone's two Solo on chips: the status row and the Mix sheet. */
+:is(.mobile-status-row, .track-mix) .solo-chip {
+  min-block-size: var(--touch-min);
+  font-size: var(--font-size-small);
 }
 
 .mobile-nav {

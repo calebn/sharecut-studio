@@ -901,6 +901,31 @@
       }
     },
     {
+      "id": "daw.track.clearSolo",
+      "label": "Clear solo",
+      "service": "Sharecut Studio command bus → services/document",
+      "industry_standard_key": false,
+      "gates": [
+        "hasProject"
+      ],
+      "surfaces": {
+        "command": "track.clearSolo",
+        "gui": [
+          "transport.soloChip",
+          "mobileShell.statusRow",
+          "trackMix"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; the Solo on chip clears every solo"
+      },
+      "tooltip": "Other tracks are silent for you only. Clear solo plays every track again",
+      "presence": {
+        "cursor": "none",
+        "follow": "hear"
+      }
+    },
+    {
       "id": "daw.track.setVolume",
       "label": "Set track volume",
       "service": "Sharecut Studio command bus \u2192 services/document",

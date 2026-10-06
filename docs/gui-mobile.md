@@ -70,6 +70,9 @@ project order and show lane initials, names, M, S, and saved Volume. M and Volum
 save through the existing mix commands for hosts and guests with `edit`; other
 guests use local M and see disabled Volume with its permission reason. S stays
 local for everyone. Shared playback still uses Full mix, as the sheet explains.
+While any track is soloed, **Solo on · Clear solo** leads the sheet, and rows
+your solo silences dim their initials tile with a dashed outline (a saved mute
+dims it without the dash).
 The default row is 3.5rem with at least 2.75rem M/S/range targets. Long names
 truncate only in their column; many rows scroll together with the explanatory
 copy. Text scaling can move Volume onto a second row without clipping controls.
@@ -264,7 +267,7 @@ The shell grid uses named areas (`banners / follow / transport / main / tabs / s
 
 When the transport is **collapsed** (tablet/phone, or bar width ≤720px via `ui/useResizeObserver`):
 
-The host recording chip remains a full touch target in the collapsed tablet transport. On phone it occupies a persistent row above every mode body, leaving the header controls reachable. During a healthy take it shows a red dot, REC, and the running take clock; PAUSED and local capture failure use distinct text. Its accessible description includes the current take time. Reduced-motion settings keep the dot static.
+The host recording chip remains a full touch target in the collapsed tablet transport. On phone it occupies a persistent status row above every mode body, leaving the header controls reachable. The same row shows **Solo on · Clear solo** (44 px) while any track is soloed, in Listen too, where the transport is hidden. The row sits under sheets, like the transport, so the Mix sheet's own chip stays visible. During a healthy take it shows a red dot, REC, and the running take clock; PAUSED and local capture failure use distinct text. Its accessible description includes the current take time. Reduced-motion settings keep the dot static.
 
 | Tier | Controls |
 |------|----------|

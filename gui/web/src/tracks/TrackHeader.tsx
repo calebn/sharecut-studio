@@ -10,6 +10,7 @@ import { TrackHeaderView } from "./TrackHeaderView";
 import { TrackMuteSoloButtons } from "./TrackMuteSoloButtons";
 import { TrackPlaybackMeter } from "./TrackPlaybackMeter";
 import { setTrackReorderData } from "./trackReorder";
+import { useTrackMuteState } from "./useTrackMuteState";
 
 interface TrackHeaderProps {
   track: TrackView;
@@ -50,7 +51,6 @@ export function TrackHeader({
   onReorderDrop,
 }: TrackHeaderProps) {
   const {
-    viewerMute,
     project,
     highlightStaleRender,
     ingestDropTrackId,
@@ -58,7 +58,6 @@ export function TrackHeader({
     guestMode,
     shareCapabilities,
   } = useDaw((s) => ({
-    viewerMute: s.viewerMute,
     project: s.project,
     highlightStaleRender: s.highlightStaleRender,
     ingestDropTrackId: s.ingestDropTrackId,
@@ -68,7 +67,7 @@ export function TrackHeader({
   }));
   const mayReorder =
     reorderEnabled && canIngestMedia(projectPath, guestMode, shareCapabilities);
-  const muted = Boolean(viewerMute[track.id]) || track.muted;
+  const muteState = useTrackMuteState(track.id, track.muted);
   const breakdown = useStaleRenderBreakdown(project);
   // Same source as the status bar and transport: a track with no audio has
   // nothing to render (no dot), and "stale" means the breakdown says so.
@@ -137,7 +136,7 @@ export function TrackHeader({
       track={track}
       trackIndex={trackIndex}
       selected={selected}
-      muted={muted}
+      muteState={muteState}
       stemClass={stemClass}
       wholeReasons={wholeReasons}
       hasRegional={hasRegional}

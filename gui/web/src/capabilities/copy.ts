@@ -165,6 +165,11 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Toggle track solo",
     tooltip: "Toggle track solo",
   },
+  "daw.track.clearSolo": {
+    label: "Clear solo",
+    tooltip:
+      "Other tracks are silent for you only. Clear solo plays every track again",
+  },
   "daw.track.setVolume": {
     label: "Set track volume",
     tooltip: "Set track volume",
@@ -471,6 +476,9 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   trackInspector: "daw.track.setVolume",
   trackHeader: "daw.track.soloToggle",
   trackHeadersWell: "daw.track.deselectAll",
+  "transport.soloChip": "daw.track.clearSolo",
+  "mobileShell.statusRow": "daw.track.clearSolo",
+  trackMix: "daw.track.clearSolo",
   "transport.fit": "daw.view.fit",
   tabBar: "daw.view.setTab",
   mobileNav: "daw.view.setMobileMode",

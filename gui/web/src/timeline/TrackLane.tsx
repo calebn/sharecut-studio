@@ -15,6 +15,8 @@ import {
 import { ingestFiles } from "../ingest/ingestFiles";
 import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
+import { MUTE_STATE_ROW_CLASS } from "../tracks/muteRowClass";
+import { useTrackMuteState } from "../tracks/useTrackMuteState";
 import type {
   AppliedEditRecord,
   AutomationEnvelope,
@@ -146,6 +148,7 @@ export function TrackLaneView({
     setIngestDropTrackId: s.setIngestDropTrackId,
     setPointerTrackId: s.setPointerTrackId,
   }));
+  const muteState = useTrackMuteState(track.id, track.muted);
   const [dropOver, setDropOver] = useState(false);
   const [dragFileCount, setDragFileCount] = useState(1);
   const [rollPreview, setRollPreview] = useState<RollPreview | null>(null);
@@ -202,7 +205,7 @@ export function TrackLaneView({
 
   return (
     <div
-      className={`lane-row${track.muted ? " muted" : ""}${bladeHighlight ? " blade-target" : ""}${staleWholeTrack ? " stale-whole-track" : ""}${dropOver ? " lane-drop-target" : ""}`}
+      className={`lane-row${MUTE_STATE_ROW_CLASS[muteState]}${bladeHighlight ? " blade-target" : ""}${staleWholeTrack ? " stale-whole-track" : ""}${dropOver ? " lane-drop-target" : ""}`}
       style={{ width }}
       data-testid={timelineTestIds.lane}
       data-track-id={track.id}

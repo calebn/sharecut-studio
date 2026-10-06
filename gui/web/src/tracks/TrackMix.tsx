@@ -6,6 +6,7 @@ import { useDaw } from "../state/useDaw";
 import { laneColor } from "../timeline/laneColors";
 import type { TrackView } from "../types/project";
 import { trackFaderDb, trackMuteState } from "../utils/audio";
+import { SoloChip } from "./SoloChip";
 import { type MixTrack, TrackMixView } from "./TrackMixView";
 
 export function TrackMix() {
@@ -43,6 +44,7 @@ export function TrackMix() {
           : { kind: "listen" }
       }
       preview={guestHearsMixOnly(guestMode) ? "shared-full-mix" : "host"}
+      soloStatus={<SoloChip />}
       onMute={(trackId) => runPointerCommand("track.muteToggle", { trackId })}
       onSolo={(trackId) => runPointerCommand("track.soloToggle", { trackId })}
     />

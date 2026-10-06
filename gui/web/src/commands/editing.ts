@@ -14,7 +14,12 @@ import { getClipboard, setClipboard } from "../edit/clipboard";
 import { payloadFromSelection } from "../edit/selectionClipboard";
 import { canApplyPass12, canSuggestStructuralOnProject } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import {
+  SOLO_OFF_ANNOUNCEMENT,
+  SOLO_ON_ANNOUNCEMENT,
+} from "../tracks/trackMuteCopy";
 import { errorMessage } from "../utils/apiError";
+import { anySolo } from "../utils/audio";
 import { bladeTrackIds } from "../utils/bladeTracks";
 import type { CommandContext } from "./context";
 import { registerCommand } from "./execute";
@@ -185,7 +190,23 @@ export function registerPrimaryEditingCommands(): void {
     if (!trackId) {
       return { status: "disabled", reason: "No track selected" };
     }
-    useDawStore.getState().toggleSolo(trackId);
+    const s = useDawStore.getState();
+    const wasOn = anySolo(s.soloTracks);
+    s.toggleSolo(trackId);
+    const on = anySolo(useDawStore.getState().soloTracks);
+    if (on !== wasOn) {
+      s.announceStatus(on ? SOLO_ON_ANNOUNCEMENT : SOLO_OFF_ANNOUNCEMENT);
+    }
+    return { status: "ok" };
+  });
+
+  registerCommand("track.clearSolo", () => {
+    const s = useDawStore.getState();
+    if (!anySolo(s.soloTracks)) {
+      return { status: "disabled", reason: "No track is soloed" };
+    }
+    s.setSoloMap({});
+    s.announceStatus(SOLO_OFF_ANNOUNCEMENT);
     return { status: "ok" };
   });
 }

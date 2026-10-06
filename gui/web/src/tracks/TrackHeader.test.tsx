@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { execute } from "../commands/execute";
@@ -359,5 +359,28 @@ describe("TrackHeader", () => {
     expect(chip).toHaveTextContent("G");
     // The open button already names the track; the chip is visual only.
     expect(chip).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("dims the row your solo silences, with the same state as its M", () => {
+    const project = projectWithTrack();
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TrackHeader
+          track={project.tracks[0]}
+          trackIndex={0}
+          selected={false}
+          onSelect={() => undefined}
+        />
+      </DawProvider>,
+    );
+    const row = container.querySelector(".track-header-row");
+    const mute = screen.getByRole("button", { name: "Mute Guest" });
+    expect(row?.className).toBe("track-header-row");
+    act(() => useDawStore.getState().setSoloMap({ host: true }));
+    expect(row?.className).toBe("track-header-row mute-implied");
+    expect(mute).toHaveAttribute("data-mute-state", "implied");
+    act(() => useDawStore.getState().setSoloMap({ host: true, guest: true }));
+    expect(row?.className).toBe("track-header-row");
+    expect(mute).toHaveAttribute("data-mute-state", "off");
   });
 });

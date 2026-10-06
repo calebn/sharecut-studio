@@ -50,6 +50,14 @@ export function muteButtonTitle(
   }
 }
 
+/** The global chip shown while any track is soloed; one click clears solo. */
+export const SOLO_CHIP_LABEL = "Solo on · Clear solo";
+
+/** Live-region text when this listener's solo turns on or off. */
+export const SOLO_ON_ANNOUNCEMENT =
+  "Solo on. Other tracks are silent for you only.";
+export const SOLO_OFF_ANNOUNCEMENT = "Solo off. Every track plays again.";
+
 /** Tooltip for the S button: the action and its shortcut, then what it means. */
 export function soloButtonTitle(solo: boolean, shortcut = ""): string {
   const label = solo ? "Unsolo" : "Solo";

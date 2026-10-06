@@ -102,6 +102,7 @@ an integer.
 | `10` | `--z-playhead` | Playhead above the pinned timeline rows. |
 | `12` | `--z-track-header` | Sticky track headers. |
 | `20` | `--z-timeline-popover` | Timeline action panels above headers and below sheets. |
+| `30` | `--z-shell-status` | The phone status row (REC, Solo on), sticky over the mode body and under sheets. |
 | `40` | `--z-sheet` | Dialog and sheet layer. |
 | `50` | `--z-shell-chrome` | Shell navigation above sheet scrims. |
 | `51` | `--z-presence-ghost` | Remote presence cursors. |

@@ -5,6 +5,7 @@ import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
+import { partial, rule } from "../test/cssRules";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import { TrackMix } from "./TrackMix";
 
@@ -132,6 +133,40 @@ describe("TrackMix", () => {
       "aria-pressed",
       "true",
     );
+  });
+  it("dims rows nobody hears, dashes only-you rows, and offers Clear solo", async () => {
+    const view = setup();
+    const rowClasses = () =>
+      within(screen.getByRole("list", { name: "Track mix" }))
+        .getAllByRole("listitem")
+        .map((row) => row.className);
+    expect(rowClasses()).toEqual(["track-mix-row", "track-mix-row muted"]);
+    expect(screen.queryByRole("button", { name: /Clear solo/ })).toBeNull();
+
+    act(() => useDawStore.setState({ soloTracks: { music: true } }));
+    expect(rowClasses()).toEqual([
+      "track-mix-row mute-implied",
+      "track-mix-row muted",
+    ]);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Solo on · Clear solo" }),
+    );
+    expect(execute).toHaveBeenCalledWith(
+      "track.clearSolo",
+      {},
+      { skipWhen: true },
+    );
+    const css = partial("track-mix.css");
+    expect(
+      rule(css, ".track-mix-row:is(.muted, .mute-implied) .track-mix-identity"),
+    ).toMatch(/opacity:\s*var\(--mute-dim-opacity\)/);
+    expect(
+      rule(
+        css,
+        ".track-mix-row:is(.mute-listen, .mute-implied) .track-mix-identity",
+      ),
+    ).toMatch(/outline:\s*1px dashed var\(--track-identity-color\)/);
+    await expectNoA11yViolations(view.container);
   });
   it("distinguishes loading from an empty loaded project", async () => {
     useDawStore.getState().hydrate("/tmp/p.json", null);

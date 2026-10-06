@@ -16,7 +16,7 @@ function presentation(): MobileShellViewProps {
           <h1>Field notes</h1>
         </header>
       ),
-      recording: <span>REC 0:12</span>,
+      status: <span>REC 0:12</span>,
       overlay: null,
     },
     screen: {

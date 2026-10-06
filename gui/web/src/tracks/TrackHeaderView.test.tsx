@@ -29,7 +29,7 @@ function renderHeader(
       track={track}
       trackIndex={0}
       selected={false}
-      muted={false}
+      muteState="off"
       stemClass="fresh"
       wholeReasons={[]}
       hasRegional={false}
@@ -47,12 +47,35 @@ function renderHeader(
 }
 
 describe("TrackHeaderView", () => {
-  it("marks muted tracks without fading their readable metadata", () => {
-    const { container } = renderHeader({ muted: true });
-    expect(container.querySelector(".track-header-row")).toHaveClass("muted");
-    const muted = rule(partial("layout.css"), ".track-header-row.muted");
-    expect(muted).toMatch(/background:\s*var\(--color-timeline-lane-muted\)/);
-    expect(muted).not.toMatch(/opacity:/);
+  it.each([
+    ["saved", "track-header-row muted"],
+    ["listen", "track-header-row muted mute-listen"],
+    ["implied", "track-header-row mute-implied"],
+    ["off", "track-header-row"],
+  ] as const)("classes a %s mute row as %j", (muteState, className) => {
+    const { container } = renderHeader({ muteState });
+    expect(container.querySelector(".track-header-row")?.className).toBe(
+      className,
+    );
+  });
+
+  it("dims every unheard row, dashes only-you rows, and keeps metadata readable", () => {
+    const css = partial("layout.css");
+    const dim = rule(css, ".track-header-row:is(.muted, .mute-implied)");
+    expect(dim).toMatch(/background:\s*var\(--color-timeline-lane-muted\)/);
+    expect(dim).not.toMatch(/opacity:/);
+    expect(
+      rule(css, ".track-header-row:is(.mute-listen, .mute-implied)").trim(),
+    ).toBe("border-inline-start-style: dashed;");
+    expect(
+      rule(css, ".track-header-row:is(.muted, .mute-implied) .track-chip"),
+    ).toMatch(/opacity:\s*var\(--mute-dim-opacity\)/);
+    expect(
+      rule(
+        css,
+        ".track-header-row:is(.mute-listen, .mute-implied) .track-chip",
+      ),
+    ).toMatch(/border-style:\s*dashed/);
   });
   it("renders accessible production track details from props", async () => {
     const { container, onSelect } = renderHeader();
@@ -106,7 +129,7 @@ describe("TrackHeaderView", () => {
         })}
         trackIndex={1}
         selected={false}
-        muted={false}
+        muteState="off"
         stemClass=""
         wholeReasons={[]}
         hasRegional={false}
