@@ -67,3 +67,83 @@ def test_explicit_static_dir_wins_over_env(monkeypatch: pytest.MonkeyPatch, tmp_
     assert res.status_code == 200
     assert "arg" in res.text
     assert "env" not in res.text
+
+
+@pytest.fixture
+def empty_dist(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """A wheel install: ``PODCAST_GUI_DIST`` unset and no ``index.html`` anywhere."""
+    dist = tmp_path / "no-web-build"
+    monkeypatch.setenv("PODCAST_GUI_DIST", str(dist))
+    return dist
+
+
+@pytest.mark.parametrize("create_dir", [False, True])
+def test_root_explains_missing_web_build(empty_dist: Path, create_dir: bool) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    if create_dir:
+        empty_dist.mkdir()
+    client = TestClient(create_app(served_project=None))
+    res = client.get("/")
+    assert res.status_code == 503
+    assert res.headers["content-type"].startswith("text/html")
+    assert res.headers["cache-control"] == "no-store"
+    assert "cd gui/web &amp;&amp; npm ci &amp;&amp; npm run build" in res.text
+    assert "PODCAST_GUI_DIST" in res.text
+    assert str(empty_dist) in res.text
+    assert client.get("/api/features").status_code == 200
+
+
+def test_root_page_escapes_the_configured_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    monkeypatch.setenv("PODCAST_GUI_DIST", str(tmp_path / "<script>alert(1)</script>"))
+    res = TestClient(create_app(served_project=None)).get("/")
+    assert "<script>alert(1)</script>" not in res.text
+    assert "&lt;script&gt;" in res.text
+
+
+def test_gui_command_prints_one_startup_line_when_web_build_missing(
+    empty_dist: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("fastapi")
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+
+    served: list[object] = []
+    monkeypatch.setattr("podcast_mcp.gui.bind.run_gui_server", lambda a, **kw: served.append(a))
+    result = CliRunner().invoke(app, ["gui", "--no-open"])
+    assert result.exit_code == 0
+    assert served
+    lines = [line for line in result.output.splitlines() if "web build" in line]
+    assert len(lines) == 1
+    assert "cd gui/web && npm ci && npm run build" in lines[0]
+    assert "PODCAST_GUI_DIST" in lines[0]
+    assert str(empty_dist) in lines[0]
+
+
+def test_gui_command_is_silent_when_web_build_present(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pytest.importorskip("fastapi")
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+
+    dist = tmp_path / "web-dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+    monkeypatch.setenv("PODCAST_GUI_DIST", str(dist))
+    monkeypatch.setattr("podcast_mcp.gui.bind.run_gui_server", lambda a, **kw: None)
+    result = CliRunner().invoke(app, ["gui", "--no-open"])
+    assert result.exit_code == 0
+    assert "web build" not in result.output
