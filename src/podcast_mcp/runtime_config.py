@@ -235,7 +235,8 @@ def _validate_url(
         raise RuntimeConfigError(f"{name} path must be {required_path}")
     if exact_origin:
         normalized_host = f"[{host.lower()}]" if ":" in host else host.lower()
-        normalized_port = f":{port}" if port is not None else ""
+        default_port = {"https": 443, "http": 80, "wss": 443, "ws": 80}.get(parsed.scheme.lower())
+        normalized_port = f":{port}" if port is not None and port != default_port else ""
         return f"{parsed.scheme.lower()}://{normalized_host}{normalized_port}"
     return value.rstrip("/") if required_path is None else value
 

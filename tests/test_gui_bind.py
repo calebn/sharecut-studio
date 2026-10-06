@@ -344,20 +344,24 @@ def test_cors_origins_env_rejects_non_exact_origins(
     assert "pw" not in str(exc.value)
 
 
-def test_cors_origins_env_normalizes_trailing_slash_and_case(
+def test_cors_origins_env_normalizes_trailing_slash_case_and_default_port(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pytest.importorskip("fastapi")
     from podcast_mcp.gui.server import _cors_origins
 
     monkeypatch.setenv(
-        _CORS_ENV, "https://A.example/, http://localhost:9000/ ,, https://b.example:8443"
+        _CORS_ENV,
+        "https://A.example/, http://localhost:9000/ ,, https://b.example:8443,"
+        " https://c.example:443, http://127.0.0.1:80",
     )
     assert _cors_origins() == [
         *_DEFAULT_CORS_ORIGINS,
         "https://a.example",
         "http://localhost:9000",
         "https://b.example:8443",
+        "https://c.example",
+        "http://127.0.0.1",
     ]
 
 
