@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
@@ -949,6 +956,9 @@ describe("MobileShell", () => {
     await user.click(screen.getByRole("button", { name: "More" }));
     await user.click(screen.getByRole("button", { name: "Mix" }));
     const mix = screen.getByRole("dialog", { name: "Mix" });
+    await waitFor(() =>
+      expect(within(mix).getByRole("button", { name: "Close" })).toHaveFocus(),
+    );
     act(() => useDawStore.getState().setSoloMap({ host: true }));
     within(mix).getByRole("button", { name: "Solo on · Clear solo" }).focus();
     await user.keyboard("{Enter}");
