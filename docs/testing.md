@@ -176,6 +176,8 @@ The `pytest` job's final step, on pull requests only, runs `scripts/docs_sync.py
 
 The `pytest` job also runs `actions/setup-node`, so tests that run workflow JavaScript under `node` (for example the docs-lens predicate test in `tests/test_issue_pipeline_workflow.py`) always run in CI. Locally they skip when `node` is not on `PATH`. With `CI` set they fail instead of skipping.
 
+The path-filtered `.github/workflows/release-wheel.yml` builds the web assets, then the sdist and wheel, installs the wheel into a clean venv, and runs `scripts/check_wheel_web_build.py --podcast`. It fails unless the wheel ships `index.html` plus every file it references and the installed `podcast gui` serves that `index.html` at `/`. `tests/test_wheel_web_build.py` covers the build hook in the ordinary `pytest` job without npm ([setup.md § Web build in wheels](setup.md#web-build-in-wheels)).
+
 ### CI dependency downloads
 
 The `pytest` and browser matrix jobs use `.github/actions/setup-ffmpeg` to install

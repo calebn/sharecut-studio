@@ -586,11 +586,17 @@ in `pyproject.toml`:
 | `uv build` with no `gui/web/dist` | absent; the build succeeds |
 | `uv sync` / editable install | never copied; the checkout's `gui/web/dist` is served live |
 
-The web build adds about 0.8 MB to a wheel of about 1.2 MB. Build one locally:
+The web build adds about 0.8 MB to a wheel of about 1.2 MB. The
+[`release-wheel`](../.github/workflows/release-wheel.yml) workflow runs
+`npm ci && npm run build`, then `uv build`, installs the wheel into a clean venv,
+and runs `scripts/check_wheel_web_build.py --podcast <venv>/bin/podcast`. The script
+fails unless the wheel holds `index.html` plus every file it references and
+`podcast gui` serves that same `index.html` at `/`. Run it on a local wheel:
 
 ```bash
 (cd gui/web && npm ci && npm run build)
 uv build --wheel
+python scripts/check_wheel_web_build.py dist/podcast_mcp-*.whl
 ```
 
 The server resolves its static root in this order (`gui/static_assets.py`:

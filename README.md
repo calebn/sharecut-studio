@@ -82,7 +82,7 @@ cd gui/web && npm install && npm run build && cd ../..
 podcast gui --project /path/to/my_episode/episode.project.json
 ```
 
-A wheel built after `npm run build` includes the web build. A wheel built without it makes `podcast gui` warn at startup and `/` explain how to build it and set `PODCAST_GUI_DIST` ([docs/setup.md](docs/setup.md#web-build-in-wheels)). Hot reload: `podcast gui --project … --dev --no-open` plus `cd gui/web && npm run dev`. Agents: MCP `open_gui_tool` / skill `podcast-open-gui` (or `podcast gui --background`). Details: [docs/gui-integration.md](docs/gui-integration.md#read-only-daw-viewer), [docs/setup.md](docs/setup.md#read-only-gui-viewer).
+Release wheels include the web build (the `release-wheel` workflow runs `npm run build` before `uv build`). A wheel built without it makes `podcast gui` warn at startup and `/` explain how to build it and set `PODCAST_GUI_DIST` ([docs/setup.md](docs/setup.md#web-build-in-wheels)). Hot reload: `podcast gui --project … --dev --no-open` plus `cd gui/web && npm run dev`. Agents: MCP `open_gui_tool` / skill `podcast-open-gui` (or `podcast gui --background`). Details: [docs/gui-integration.md](docs/gui-integration.md#read-only-daw-viewer), [docs/setup.md](docs/setup.md#read-only-gui-viewer).
 
 For the development-only UI component catalog, run `cd gui/web && npm ci && npm run storybook`; see [docs/design-system.md](docs/design-system.md) for publishing setup.
 
