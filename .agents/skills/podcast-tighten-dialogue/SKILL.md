@@ -102,7 +102,9 @@ prints the same payload (`TightenProposal.to_payload()`); without `--json` it
 prints the summary text only. Report `skip_counts`
 (`discourse:like`, …) as “N discourse uses kept”, `backchannel:uh huh` as “N
 acknowledgments kept”, and `filler:acoustic` hits
-separately (“N acoustic, review each”).
+separately (“N acoustic, review each”). Proposing again replaces every pending
+generated hit, review-flagged and nudged ones included, so an unchanged project
+returns the same hits each run.
 
 4. Review each pending decision listen-first:
    - Sharecut Studio **Tighten** tab (host): search/filter filler (incl. `filler:acoustic`), pause, repetition, and restart hits,

@@ -58,16 +58,21 @@ def format_tighten_propose_summary(
 def _keep_on_reproposal(decision: EditDecision) -> bool:
     """Whether ``replace_existing`` re-proposal keeps an existing decision.
 
-    Generated review-only proposals (acoustic, repetition, restart) are kept only
-    once a human applied them; pending ones are regenerated.  Other generated
-    ``filler:`` / ``pause:`` decisions are regenerated unless flagged for review
-    (applied or not, exactly as before acoustic candidates existed).  Everything
-    else (manual / NL / focus edits) is kept.
+    Re-proposal replaces every pending decision the generator owns, so Find hits
+    on an unchanged project returns the same hits on every run.  A generated
+    review flag (``voiced_edge``, ``risky``, ``other_speaking``) is analysis
+    output, not ownership; a kept pending copy would absorb its fresh duplicate
+    in coalescing and drop out of the proposal.  Applied review-only
+    proposals (acoustic, repetition, restart) and applied review-flagged
+    ``filler:`` / ``pause:`` cuts are kept; applied ordinary ones regenerate.
+    Everything else (manual / NL / focus edits) is kept.
     """
     reason = decision.reason or ""
     if is_review_only_reason(reason):
         return decision.applied
-    return decision.review_required or not reason.startswith(("filler:", "pause:"))
+    if reason.startswith(("filler:", "pause:")):
+        return decision.applied and decision.review_required
+    return True
 
 
 @dataclass(frozen=True)
@@ -185,7 +190,9 @@ def propose_tighten_edits(
     # ordering/coalescing behavior is identical to the fully-serial path.
     proposed: list[EditDecision] = [_apply_analyzed_cut(project, result) for result in resolved]
     proposed_ids = {decision.id for decision in proposed}
-    for track_id in {t.track_id for t in project.transcripts}:
+    # Transcript order, not a set: coalescing moves each track's decisions to the
+    # end, so the proposal's order must not depend on string hashing.
+    for track_id in dict.fromkeys(t.track_id for t in project.transcripts):
         coalesce_edits(project, track_id=track_id)
     this_run = [e for e in project.edit_decisions if e.id in proposed_ids]
     return TightenProposal(decisions=this_run, skip_counts=dict(skip_counts))
