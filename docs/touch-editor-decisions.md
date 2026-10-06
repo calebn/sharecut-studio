@@ -354,11 +354,15 @@ and a 10 px slop, after the iOS and Android long-press defaults it cites.
 - **Commit.** Lifting on a chip replays a tap on its target at the target's own
   position and focuses it. A chip under the held finger shows it is about to
   grab: an accent ring closes in on it over the long press (shown at once
-  under reduced motion), and the caption adds "Hold to drag · lift to select".
-  Resting that long, within the slop, replays the press on the target and
-  forwards the rest of the drag offset by the chip-to-target distance, so the
-  target moves without jumping to the finger. Chips take taps through
-  `usePress`, so touch, mouse, keyboard and assistive-technology presses pick.
+  under reduced motion), and the caption names what the finger can do there,
+  "Slide sideways to drag · lift to select" for a time-only target. A slide
+  along the target's drag axis grabs it at once (see
+  [Drag from a chip](#drag-from-a-chip-1051-round-3)); resting the long press,
+  within the slop, still grabs as a fallback. A grab replays the press on the
+  target and forwards the rest of the drag offset by the chip-to-target
+  distance, so the target moves without jumping to the finger. Chips take taps
+  through `usePress`, so touch, mouse, keyboard and assistive-technology
+  presses pick.
 - **Cancel.** Lifting anywhere but a chip leaves the chips open to tap. A tap
   on the dimmed timeline, Escape, a second finger before the hold ends, or
   `pointercancel` closes the chooser or drops the hold with no change; the
@@ -386,3 +390,35 @@ slow for the chooser and the rest-to-grab, and whether the lab's
 scroll-first rule should replace today's select-on-press for every touch.
 With the lab off, a touch dragged across a clip still selects it on the way
 (the #1051 round-two repro found this on `main`).
+
+### Drag from a chip (#1051 round 3)
+
+On a phone, picking a target and then dragging it meant two gestures, with
+the inspector in the way of the second. With the lab on, a finger on a chip
+can drag the target from there.
+
+The chooser runs idle → open → over-chip → dragging or selecting. The
+router (`timeline/hitRouting.ts`) owns idle, open and dragging. A pure model,
+`timeline/chipGesture.ts`, decides each move of a finger that is down on the
+open chips:
+
+- **Away.** No hit chip is under the finger. Lifting leaves the chips open.
+- **Over a chip, unarmed.** The finger slid onto it. Each move past
+  `TOUCH_SLOP_PX` re-anchors it there, so a finger passing over chips never
+  grabs one.
+- **Over a chip, armed.** The finger came down on the chip (after lifting at
+  the origin), or a finger that slid there has stayed within the slop for
+  `CHIP_SETTLE_MS` (100 ms, Android's tap timeout). The chip shows chevrons
+  pointing the ways its target moves.
+- **Dragging.** An armed chip grabs on the first move past the slop that runs
+  along its target's axis. The drag is measured from where the finger
+  settled, so that first move already moves the target.
+- **Selecting.** Lifting on a chip without grabbing picks it.
+
+Each target kind declares its drag axis in `HIT_KINDS`: `x` (time) for fade,
+trim, roll, pending edges and chapters, `xy` for envelope points, and `none`
+for joins and pending split flags, which only take taps. A move runs along `x`
+when it is at least twice as wide as it is tall (within about 27° of
+horizontal). An off-axis move past the slop disarms the chip. Resting
+`LONG_PRESS_MS` on a chip still grabs, whatever the axis. No drag magnifier
+exists yet, so a grab from a chip has none.

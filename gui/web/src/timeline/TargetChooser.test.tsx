@@ -66,6 +66,7 @@ beforeEach(() => {
     page: 0,
     fingerDown: true,
     over: null,
+    armed: false,
     hits: [
       hit(target(hitTargetProps("trim-in", "clip-b", 2)), {
         kind: "trim-in",
@@ -138,7 +139,7 @@ describe("TargetChooser", () => {
       />,
     );
     expect(caption()).toBe(
-      "Envelope point 0.80× · 00:02.000Hold to drag · lift to select",
+      "Envelope point 0.80× · 00:02.000Slide to drag · lift to select",
     );
   });
 
@@ -160,6 +161,32 @@ describe("TargetChooser", () => {
     );
     expect(arming()).toEqual([]);
     expect(document.querySelector(".target-chooser-hint")).toBeNull();
+  });
+
+  it("points an armed chip's chevrons along its drag axis", () => {
+    const { rerender } = show({ over: 0 });
+    const cue = () =>
+      [...document.querySelectorAll(".target-chip")].map(
+        (c) => c.querySelectorAll(".target-chip-axis path").length,
+      );
+    expect(cue()).toEqual([0, 0]);
+    expect(document.querySelector(".target-chooser-hint")?.textContent).toBe(
+      "Slide sideways to drag · lift to select",
+    );
+    const at = (over: number) => (
+      <TargetChooser
+        view={{ ...view, over, armed: true }}
+        router={router}
+        bounds={{ left: 0, top: 0, right: 360, bottom: 800 }}
+        closing={false}
+        onClosed={() => undefined}
+      />
+    );
+    rerender(at(0));
+    // Chips read by real x: the envelope point (x 200) first, the trim second.
+    expect(cue()).toEqual([0, 1]);
+    rerender(at(1));
+    expect(cue()).toEqual([2, 0]);
   });
 
   it("commits a chip by click (keyboard) and closes on Escape", () => {
