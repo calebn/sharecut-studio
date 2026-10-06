@@ -39,6 +39,7 @@ import type { ProsodyOverlayTrack } from "../types/prosody";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import { pendingEditTrackIds } from "../utils/edits";
 import { EMPTY_ARR, EMPTY_CLIPS } from "../utils/empty";
+import { isLabEnabled } from "../utils/labFlags";
 import {
   COMPACT_LANE_HEIGHT,
   FIT_GUTTER,
@@ -65,7 +66,11 @@ import { CommentPlaybackBubble } from "./CommentPlaybackBubble";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
 import { clippingFlags } from "./clippingFlags";
 import { selectFollowColorIndex } from "./followTarget";
-import { attachHitRouting } from "./hitRouting";
+import {
+  attachHitRouting,
+  type ChooserView,
+  type HitRouter,
+} from "./hitRouting";
 import {
   appliedRecordTrackIds,
   envelopeTrackIds,
@@ -76,6 +81,7 @@ import { Playhead } from "./Playhead";
 import { PresenceOverlay } from "./PresenceOverlay";
 import { ProsodyStatusAnnouncer } from "./ProsodyStatusAnnouncer";
 import { RecordingOverlay, RecordingScrollExtent } from "./RecordingOverlay";
+import { TargetChooser } from "./TargetChooser";
 import { BladeGuide, FollowPlayheadChip } from "./TimelineLeaves";
 import { TimeRuler } from "./TimeRuler";
 import { TrackLane } from "./TrackLane";
@@ -222,11 +228,32 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lanesRef = useRef<HTMLDivElement>(null);
   // The routed region (marker lane plus lanes) mounts once a project loads.
-  const hitRootRef = useCallback(
-    (root: HTMLDivElement | null) =>
-      root ? attachHitRouting(root) : undefined,
-    [],
-  );
+  const [hitRouter, setHitRouter] = useState<HitRouter | null>(null);
+  const [chooser, setChooser] = useState<{
+    view: ChooserView;
+    closing: boolean;
+  } | null>(null);
+  const hitRootRef = useCallback((root: HTMLDivElement | null) => {
+    if (!root) return;
+    const router = attachHitRouting(root, {
+      chooserEnabled: () => isLabEnabled("touchChooser"),
+      onChooser: (view) =>
+        setChooser((prev) =>
+          view
+            ? { view, closing: false }
+            : prev &&
+                !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+              ? { ...prev, closing: true }
+              : null,
+        ),
+    });
+    setHitRouter(router);
+    return () => {
+      router.dispose();
+      setHitRouter(null);
+    };
+  }, []);
+  const clearChooser = useCallback(() => setChooser(null), []);
   const applyZoomAtRef = useRef<(nextZoom: number, clientX: number) => void>(
     () => undefined,
   );
@@ -1015,6 +1042,14 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
           </div>
           {/* After the scroller on purpose: at the lane floor's z, tree order
               paints the edges over it, and clips and markers stay above. */}
+          {chooser && hitRouter ? (
+            <TargetChooser
+              view={chooser.view}
+              closing={chooser.closing}
+              router={hitRouter}
+              onClosed={clearChooser}
+            />
+          ) : null}
           <div className="timeline-edge timeline-edge--start" aria-hidden />
           <div className="timeline-edge timeline-edge--end" aria-hidden />
         </div>

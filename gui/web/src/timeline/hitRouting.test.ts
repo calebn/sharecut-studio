@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { HitRect } from "./hitCandidates";
-import { attachHitRouting } from "./hitRouting";
+import {
+  attachHitRouting,
+  CHOOSER_ITEM_ATTR,
+  type ChooserView,
+  type HitRouter,
+} from "./hitRouting";
 import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";
 
 function place(element: Element, r: HitRect): void {
@@ -29,27 +34,29 @@ function press(
   type: string,
   x: number,
   y: number,
-  pointerType = "touch",
-): void {
-  target.dispatchEvent(
-    new PointerEvent(type, {
-      bubbles: true,
-      cancelable: true,
-      pointerId: 7,
-      pointerType,
-      isPrimary: true,
-      clientX: x,
-      clientY: y,
-    }),
-  );
+  pointerId = 7,
+): PointerEvent {
+  const event = new PointerEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    pointerId,
+    pointerType: "touch",
+    isPrimary: pointerId === 7,
+    clientX: x,
+    clientY: y,
+  });
+  target.dispatchEvent(event);
+  return event;
 }
 
 let root: HTMLDivElement;
-let detach: () => void;
+let router: HitRouter;
 let log: string[];
+let views: (ChooserView | null)[];
+let labOn: boolean;
 
 function record(name: string, el: Element): void {
-  for (const type of ["pointerdown", "pointerup", "click"]) {
+  for (const type of ["pointerdown", "pointermove", "pointerup", "click"]) {
     el.addEventListener(type, (e) => {
       const p = e as PointerEvent;
       log.push(`${name}:${type}@${p.clientX},${p.clientY}`);
@@ -60,13 +67,18 @@ function record(name: string, el: Element): void {
 beforeEach(() => {
   vi.useFakeTimers();
   log = [];
+  views = [];
+  labOn = false;
   root = document.createElement("div");
   document.body.append(root);
-  detach = attachHitRouting(root);
+  router = attachHitRouting(root, {
+    chooserEnabled: () => labOn,
+    onChooser: (view) => views.push(view),
+  });
 });
 
 afterEach(() => {
-  detach();
+  router.dispose();
   root.remove();
   vi.useRealTimers();
 });
@@ -179,5 +191,150 @@ describe("attachHitRouting", () => {
 
     expect(log).toEqual(["outside:pointerdown@204,117"]);
     outside.remove();
+  });
+});
+
+/** The edge cluster from the first test: trim strip nearer, fade corner next. */
+function edgeCluster() {
+  const trim = button(hitTargetProps("trim-in", "clip-b", 2), {
+    left: 200,
+    top: 106,
+    right: 208,
+    bottom: 174,
+  });
+  const fade = button(hitTargetProps("fade-in", "clip-b", 2.3), {
+    left: 200,
+    top: 106,
+    right: 212,
+    bottom: 118,
+  });
+  root.append(trim, fade);
+  record("trim", trim);
+  record("fade", fade);
+  return { trim, fade };
+}
+
+describe("touch chooser lab", () => {
+  beforeEach(() => {
+    labOn = true;
+  });
+
+  it("opens after a still 250 ms hold, ranked, without pressing any target", () => {
+    const { fade } = edgeCluster();
+    press(fade, "pointerdown", 204, 117);
+    vi.advanceTimersByTime(249);
+    expect(views).toEqual([]);
+    press(fade, "pointermove", 206, 118);
+    vi.advanceTimersByTime(1);
+
+    expect(log).toEqual([]);
+    expect(
+      views.map((v) => ({
+        kinds: v?.hits.map((h) => h.candidate.kind),
+        fingerDown: v?.fingerDown,
+        page: v?.page,
+      })),
+    ).toEqual([{ kinds: ["trim-in", "fade-in"], fingerDown: true, page: 0 }]);
+  });
+
+  it("drags the winner from the origin when the finger moves first", () => {
+    const { fade } = edgeCluster();
+    press(fade, "pointerdown", 204, 117);
+    press(fade, "pointermove", 208, 117);
+    vi.runAllTimers();
+
+    expect(views).toEqual([]);
+    expect(log).toEqual([
+      "trim:pointerdown@204,117",
+      "trim:pointermove@208,117",
+    ]);
+  });
+
+  it("taps the winner on a quick lift", () => {
+    const { fade } = edgeCluster();
+    press(fade, "pointerdown", 204, 117);
+    press(fade, "pointerup", 204, 117);
+    fade.click();
+    vi.runAllTimers();
+
+    expect(views).toEqual([]);
+    expect(log).toEqual([
+      "trim:pointerdown@204,117",
+      "trim:pointerup@204,117",
+      "trim:click@204,117",
+    ]);
+  });
+
+  it("stays open after a lift at the origin, then taps the picked target at its real place", () => {
+    const { fade } = edgeCluster();
+    press(fade, "pointerdown", 204, 117);
+    vi.advanceTimersByTime(250);
+    press(fade, "pointerup", 204, 117);
+    expect(views.at(-1)?.fingerDown).toBe(false);
+
+    const chipTap = press(document.body, "pointerup", 120, 40, 9);
+    router.choose(1, chipTap);
+    vi.runAllTimers();
+
+    expect(views.at(-1)).toBeNull();
+    expect(log).toEqual([
+      "fade:pointerdown@206,112",
+      "fade:pointerup@206,112",
+      "fade:click@206,112",
+    ]);
+  });
+
+  it("closes with no change on cancel, a second finger, or close()", () => {
+    const { fade } = edgeCluster();
+    press(fade, "pointerdown", 204, 117);
+    vi.advanceTimersByTime(250);
+    press(fade, "pointercancel", 204, 117);
+    expect(views.at(-1)).toBeNull();
+
+    press(fade, "pointerdown", 204, 117, 8);
+    press(fade, "pointerdown", 260, 117, 9);
+    vi.runAllTimers();
+    expect(views.length).toBe(2);
+
+    press(fade, "pointerdown", 204, 117, 10);
+    vi.advanceTimersByTime(250);
+    router.close();
+    expect(views.at(-1)).toBeNull();
+    expect(log).toEqual(["fade:pointerdown@260,117"]);
+  });
+
+  it("swallows the click of the tap that closed it", () => {
+    const { fade } = edgeCluster();
+    press(fade, "pointerdown", 204, 117);
+    vi.advanceTimersByTime(250);
+    press(fade, "pointerup", 204, 117);
+    vi.advanceTimersByTime(1000);
+    router.close();
+    fade.click();
+    expect(log).toEqual([]);
+  });
+
+  it("grabs a chip rested on for 250 ms and forwards the drag from the target", () => {
+    const { fade } = edgeCluster();
+    const chip = document.createElement("button");
+    chip.setAttribute(CHOOSER_ITEM_ATTR, "1");
+    document.body.append(chip);
+    document.elementFromPoint = (x: number) => (x > 230 ? chip : null);
+
+    press(fade, "pointerdown", 204, 117);
+    vi.advanceTimersByTime(250);
+    press(fade, "pointermove", 236, 53);
+    vi.advanceTimersByTime(250);
+    press(fade, "pointermove", 246, 53);
+    press(fade, "pointerup", 246, 53);
+    vi.runAllTimers();
+
+    expect(views.at(-1)).toBeNull();
+    expect(log).toEqual([
+      "fade:pointerdown@206,112",
+      "fade:pointermove@216,112",
+      "fade:pointerup@216,112",
+    ]);
+    chip.remove();
   });
 });
