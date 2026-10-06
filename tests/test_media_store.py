@@ -290,24 +290,29 @@ def _guest_share_client(minimal_project, sample_wav, tmp_workspace, monkeypatch)
         review_version_id=ver["id"],
         capabilities=["play", "view", "mcp"],
     )["token"]
+    comment_tok = ShareService(ws).create(
+        review_version_id=ver["id"],
+        capabilities=capabilities_for_role("commenter", with_mcp=True),
+    )["token"]
     edit_tok = ShareService(ws).create(
         review_version_id=ver["id"],
         capabilities=capabilities_for_role("editor", with_mcp=True),
     )["token"]
-    return TestClient(create_app()), view_tok, edit_tok
+    return TestClient(create_app()), view_tok, comment_tok, edit_tok
 
 
 def test_guest_media_upload_requires_edit(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    client, view_tok, edit_tok = _guest_share_client(
+    client, view_tok, comment_tok, edit_tok = _guest_share_client(
         minimal_project, sample_wav, tmp_workspace, monkeypatch
     )
     data = sample_wav.read_bytes()
-    denied = client.post(
-        f"/api/review/{view_tok}/daw/media/upload?filename=g.wav",
-        content=data,
-        headers={"Content-Type": "application/octet-stream"},
-    )
-    assert denied.status_code == 403
+    for denied_tok in (view_tok, comment_tok):
+        denied = client.post(
+            f"/api/review/{denied_tok}/daw/media/upload?filename=g.wav",
+            content=data,
+            headers={"Content-Type": "application/octet-stream"},
+        )
+        assert denied.status_code == 403
     ok = client.post(
         f"/api/review/{edit_tok}/daw/media/upload?filename=g.wav",
         content=data,
@@ -326,7 +331,7 @@ def test_guest_upload_media_mcp_requires_edit(
     from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 
     monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
-    _client, view_tok, edit_tok = _guest_share_client(
+    _client, view_tok, comment_tok, edit_tok = _guest_share_client(
         minimal_project, sample_wav, tmp_workspace, monkeypatch
     )
     payload = {
@@ -345,8 +350,9 @@ def test_guest_upload_media_mcp_requires_edit(
             },
         )
 
-    denied = _call(view_tok, payload)
-    assert denied["error"]["code"] == -32003
+    for denied_tok in (view_tok, comment_tok):
+        denied = _call(denied_tok, payload)
+        assert denied["error"]["code"] == -32003
 
     ok = _call(edit_tok, payload, req_id=2)
     assert "error" not in ok, ok
@@ -525,7 +531,7 @@ def test_host_media_upload_maps_lock_timeout_to_project_busy(minimal_project, mo
 
 def test_guest_media_upload_413_and_400(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     monkeypatch.setenv("PODCAST_GUI_MEDIA_CHUNK_MAX_BYTES", "16")
-    client, _view, edit_tok = _guest_share_client(
+    client, _view, _comment, edit_tok = _guest_share_client(
         minimal_project, sample_wav, tmp_workspace, monkeypatch
     )
     too_big = client.post(
@@ -545,7 +551,7 @@ def test_guest_media_upload_413_and_400(minimal_project, sample_wav, tmp_workspa
 def test_guest_media_upload_maps_probe_errors(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    client, _view, edit_tok = _guest_share_client(
+    client, _view, _comment, edit_tok = _guest_share_client(
         minimal_project, sample_wav, tmp_workspace, monkeypatch
     )
 
@@ -568,7 +574,7 @@ def test_guest_media_upload_maps_probe_errors(
 def test_guest_media_upload_maps_lock_timeout_to_project_busy(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    client, _view, edit_tok = _guest_share_client(
+    client, _view, _comment, edit_tok = _guest_share_client(
         minimal_project, sample_wav, tmp_workspace, monkeypatch
     )
 

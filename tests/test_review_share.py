@@ -789,6 +789,11 @@ def test_guest_render_preview_requires_edit(
     )["token"]
     denied = client.post(f"/api/review/{view_tok}/daw/render-preview")
     assert denied.status_code == 403
+    comment_tok = ShareService(ws).create(
+        review_version_id=ver["id"],
+        capabilities=capabilities_for_role("commenter"),
+    )["token"]
+    assert client.post(f"/api/review/{comment_tok}/daw/render-preview").status_code == 403
 
     calls: list[bool] = []
 
@@ -813,6 +818,7 @@ def test_guest_render_preview_requires_edit(
     assert "project_path" not in status.json()["job"]
     assert "path" not in str(status.json())
     assert client.get(f"/api/review/{view_tok}/daw/render-preview/{job_id}").status_code == 403
+    assert client.get(f"/api/review/{comment_tok}/daw/render-preview/{job_id}").status_code == 403
     from types import SimpleNamespace
 
     other_job = SimpleNamespace(
@@ -840,6 +846,9 @@ def test_guest_render_and_upload_follow_the_document_command_gate(
     blind_tok = ShareService(ws).create(review_version_id=ver["id"], capabilities=["play", "edit"])[
         "token"
     ]
+    comment_tok = ShareService(ws).create(
+        review_version_id=ver["id"], capabilities=capabilities_for_role("commenter")
+    )["token"]
     edit_tok = ShareService(ws).create(
         review_version_id=ver["id"], capabilities=capabilities_for_role("editor")
     )["token"]
@@ -854,6 +863,8 @@ def test_guest_render_and_upload_follow_the_document_command_gate(
 
     assert client.post(f"/api/review/{blind_tok}/daw/render-preview").status_code == 403
     assert upload(blind_tok).status_code == 403
+    assert client.post(f"/api/review/{comment_tok}/daw/render-preview").status_code == 403
+    assert upload(comment_tok).status_code == 403
 
     render = client.post(f"/api/review/{edit_tok}/daw/render-preview")
     assert render.status_code == 202
