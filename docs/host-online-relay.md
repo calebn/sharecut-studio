@@ -26,10 +26,77 @@ returns a stable "host offline" page to guests.
 `podcast tunnel` reconnects automatically after relay or network blips (exponential
 backoff, re-hello + re-register shares). Guests see offline only while the tunnel
 is down; once it reconnects, share URLs work again without restarting the CLI.
+Each reconnect prints a status line; see § Tunnel status.
 Each disconnected session closes its stream queues and waits for its local HTTP
 and WebSocket proxy tasks to stop before the local HTTP client closes.
 Malformed relay HTTP headers or encoded bodies receive a small 400 response
 without reaching the local GUI.
+
+---
+
+## Tunnel status
+
+`podcast tunnel` reports every connection state change on **stderr**, one timestamped
+line each, so a host or agent can tell what happened and for how long. The lines
+never contain a host token or share token (see § Redaction).
+
+| Phase | Line | GUI state |
+|-------|------|-----------|
+| `connecting` | `Tunnel connecting to relay.example.com:8443` (relay host only) | Connecting |
+| `connected` | `Tunnel connected: https://share.example.com (3 shares)` (public base URL, shares the relay accepted) | Online |
+| `disconnected` | `Tunnel disconnected (network: connection lost)` | Reconnecting |
+| `reconnecting` | `Tunnel reconnecting in 2.3s (attempt 2)` | Reconnecting |
+| `failed` | `Tunnel failed (auth: relay rejected the host token or host id). Check the host token …` | Offline |
+| `stopped` | `Tunnel stopped` (Ctrl-C) | Offline |
+
+```text
+15:29:41 Tunnel connecting to relay.example.com:8443
+15:29:41 Tunnel connected: https://share.example.com (3 shares)
+15:29:42 Tunnel disconnected (relay closed: close code 1012)
+15:29:42 Tunnel reconnecting in 1.2s (attempt 1)
+15:29:44 Tunnel disconnected (network: relay refused the connection)
+15:29:44 Tunnel reconnecting in 2.3s (attempt 2)
+15:29:51 Tunnel connected: https://share.example.com (3 shares)
+```
+
+Every failed try is a `disconnected` line (with the reason) followed by a
+`reconnecting` line. Backoff starts at 1 s, doubles to 60 s, adds jitter, and honors
+a relay `retry_after_sec` when the relay rate limits registration. A session that
+reached `connected` resets the attempt count and the backoff. Reasons are
+classified by `services/collaboration/tunnel_failure.py`:
+
+| Reason | Meaning | Retried |
+|--------|---------|---------|
+| `network` | Connection lost or reset, relay refused, network unreachable, DNS failure (the usual shape of a host network change) | yes |
+| `timeout` | Connect timed out, or keepalive pings went unanswered | yes |
+| `relay closed` | The relay closed the socket (`close code N`), restarted, or answered HTTP 5xx | yes |
+| `rate limited` | The relay rate limited tunnel registration | yes |
+| `auth` | Close code `4403`, an `invalid host_token for host_id` reply, or HTTP 401/403 | **no** |
+| `config` | Close code `4400`, HTTP 404 (no `/tunnel` endpoint), or an invalid relay URL | **no** |
+
+An `auth` or `config` failure prints the `failed` line with its fix and exits `1`;
+retrying cannot fix a wrong token or URL. `TunnelClient.run(max_attempts=N)` (library use) gives up after N
+consecutive failures with `Tunnel gave up after N attempts (…)`. The relay `ping`
+frame (logger `podcast_mcp.services.collaboration.tunnel`) and the 15 s status heartbeat
+(`…collaboration.tunnel_status`) are debug-level logs only, never status lines.
+
+**Host GUI.** The tunnel is a separate process from `podcast gui`, so
+`TunnelStatusTracker` also persists the current phase to `tunnel_status.json` next to
+`relay.yaml` (`PODCAST_RELAY_CONFIG` moves both) and refreshes `updated_at` every 15 s.
+The `tunnel.status` feature serves it at `GET /api/tunnel/status` (host role only;
+the tunnel never maps `/api/tunnel`), and the Share dialog shows **Online**,
+**Connecting**, **Reconnecting** or **Offline** from it. A snapshot not refreshed for
+45 s (killed process, sleeping laptop) and a missing file both read **Offline**. The
+file holds the phase, relay host, public base URL, share count, redacted reason,
+attempt, backoff and timestamps. A tunnel started with a custom `--config` writes
+beside that file, so set `PODCAST_RELAY_CONFIG` for both processes to keep the GUI
+in sync.
+
+**Redaction.** The tracker redacts the host token and every advertised share token
+(literal match) plus any `/r/…`, `/rec/…`, `/api/review/…`, `/mcp/…` path segment
+and `token=` value from each line, the snapshot and the tunnel's proxy log messages
+(`util.redact.redact_secrets`). The relay URL carries no user info or query, so the
+connecting line prints only `host[:port]`.
 
 ---
 
@@ -569,6 +636,9 @@ deploy/relay/
 src/podcast_relay/         # FOSS relay server (FastAPI + WebSocket tunnel)
 src/podcast_mcp/
   services/collaboration/tunnel.py      # TunnelClient + run_tunnel_sync
+  services/collaboration/tunnel_status.py   # phases, status lines, snapshot
+  services/collaboration/tunnel_failure.py  # failure classification
+  gui/routes/tunnel.py    # GET /api/tunnel/status (tunnel.status)
   runtime_config.py       # validated relay/object-store configuration
   cli/tunnel.py           # podcast tunnel CLI
   edits/share_capabilities.py  # CAP_* constants, normalize_capabilities, guest_mode

@@ -126,7 +126,7 @@ can require all of its guests to reconnect.
 
 | Situation | Guest experience |
 |-----------|------------------|
-| Host / tunnel offline | Relay offline page — retry later |
+| Host / tunnel offline | Relay offline page — retry later. The host sees the same state in Share (Online / Reconnecting / Offline) and in the `podcast tunnel` output |
 | Share revoked or expired | Link fails to load project (treat as dead link; copy TBD) |
 
 Product still needs polished “link died” copy and free-tier TTL story ([Backlog](#/backlog) item 8).

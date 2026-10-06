@@ -115,6 +115,8 @@ Navigating the browser to `/?project=<other>` while a project is pinned returns 
 
 The loopback GUI is a **privileged local RPC** (not “safe because localhost”). Host/Origin binding rejects DNS-rebind forged `Host` headers on host APIs. Treat `127.0.0.1:8765` like a local agent with full project open/create and pipeline powers. Owner GUI routes also require the **host role** (`gui/routes/deps.require_host`): a loopback peer, or `PODCAST_SESSION_TOKEN` under strict authz — never relay-tunneled traffic, even from loopback. See [host-online-relay.md § Security notes](host-online-relay.md#security-notes).
 
+`GET /api/tunnel/status` (host role; feature `tunnel.status`) reports what `podcast tunnel` last wrote: `state` (`online`, `connecting`, `reconnecting`, `offline`), `phase`, `reason`, `reason_kind`, `relay_host`, `public_base_url`, `share_count`, `attempt` and `retry_in_sec`. The Share dialog polls it every 5 s while open and shows one line; it carries no token. See [host-online-relay.md § Tunnel status](host-online-relay.md#tunnel-status).
+
 **Native shell (optional):** Tauri 2 under [`gui/desktop/`](../gui/desktop/) spawns `podcast gui` and opens a WebView on the same URL. Packaging boundaries: [desktop-packaging.md](desktop-packaging.md).
 
 **From an agent (MCP):** `open_gui_tool(project_path=…)` starts the viewer in the background (or reuses a healthy server on `:8765`), opens the browser, and returns the URL. CLI equivalent: `podcast gui --project … --background`. Skill: `podcast-open-gui`.

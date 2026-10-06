@@ -104,7 +104,7 @@ their first line. Errors appear above the right-aligned Bounce action.
 | **Purpose** | Manage public review links and record-room guest / producer invites for the open episode |
 | **Open** | Menu → Project → **Share…** (`share.manage`; collaboration extension slot `share.ui.menu`) |
 | **Primary actions** | Role (viewer / commenter / editor) · Allow agent (MCP) · **Create link** · **Create record links** · Copy / stop review links · Copy guest / producer links · Replace a closed record invite · End room |
-| **Data shown** | Live coolname, Docs-like role, review mix label, last used; record room role and invite closure state; MCP URL when `mcp` is granted |
+| **Data shown** | Tunnel line at the top (when the `tunnel.status` feature is present): **Online** (guests can open your links), **Connecting**, **Reconnecting** (guests see “Host offline” until it is Online again) or **Offline** (run `podcast tunnel`, or fix the host token or relay address when the relay refused it); live coolname, Docs-like role, review mix label, last used; record room role and invite closure state; MCP URL when `mcp` is granted |
 | **Empty / error** | Quiet “No live review links.” / “No live record rooms.” text (no field-like box). Create publishes a **Share mix** review version if none exists (needs premix/mastered). A stale preview gets a friendly alert and **Refresh mix**; after a successful render, Create retries once. A stale master explains that a new master is needed and does not offer preview refresh. |
 | **Out of scope** | Restricted ACL; expiry picker; in-place review-role edit (rotate = new link + stop old); guest share-token MCP UI |
 
