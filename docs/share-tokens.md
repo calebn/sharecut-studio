@@ -172,6 +172,19 @@ Role presets expand in `edits/share_capabilities.py` (`ROLE_PRESETS` /
 is omitted. Browser and share MCP always share one capability set — see
 [host-online-relay.md](host-online-relay.md) § Share capabilities.
 
+Selected-range edits (transcript words or a timeline range) follow the same
+capabilities. No separate transcript permission exists.
+
+| Capabilities | Transcript **Select** and timed words | Range Cut / Mute |
+|--------------|----------------------------------------|------------------|
+| `edit` | Yes | **Cut** / **Mute** apply at once, one History step |
+| `suggest` (no `edit`) | Yes | **Suggest cut** / **Suggest mute** create a pending edit for host review |
+| `view` / `play` / `comment` / `reply` only | No (untimed utterance text) | Refused by the document-command gate |
+
+The document-command gate (`authorize_document_command` plus
+`policy.resolve_range_mode`) enforces the table; the Studio reads it from
+`rangeEditMode` in `gui/web/src/shareMode.ts` only to choose affordances.
+
 **Login policy:** production public shares are **link only**. Restricted /
 `require_sign_in` minting is refused unless `PODCAST_SHARE_ACCOUNTS=1` (stub
 testing). Optional provider account UI is installed and documented separately.

@@ -714,6 +714,8 @@ class DocumentSyncService:
     ) -> dict[str, Any]:
         from podcast_mcp.services.document_sync.policy import (
             STRUCTURAL_COMMANDS,
+            range_reason,
+            resolve_range_mode,
             resolve_structural_mode,
         )
 
@@ -721,7 +723,7 @@ class DocumentSyncService:
             from podcast_mcp.services.document_sync.payloads import validate_payload
 
             command = replace(command, payload=validate_payload(command.type, command.payload))
-        if (capabilities is not None or range_policy != "host_apply") and command.type in {
+        if (capabilities is not None or range_policy != "apply") and command.type in {
             "ApproveEdits",
             "RejectEdits",
         }:
@@ -732,21 +734,14 @@ class DocumentSyncService:
                 raise PermissionError("Only the host can decide exact range proposals")
         payload = dict(command.payload)
         if command.type in {"ApproveEdits", "RejectEdits"}:
-            payload["_allow_exact"] = capabilities is None and range_policy == "host_apply"
+            payload["_allow_exact"] = capabilities is None and range_policy == "apply"
         if command.type == "EditSelectedRange":
             from podcast_mcp.services.document_sync.payloads import validate_payload
 
             payload = validate_payload(command.type, payload)
-            payload["_range_policy"] = (
-                "host_apply" if capabilities is None and range_policy == "host_apply" else "propose"
-            )
-            payload["_range_reason"] = (
-                "guest:suggest"
-                if capabilities is not None
-                else "host:range"
-                if range_policy == "host_apply"
-                else "agent:range"
-            )
+            mode = resolve_range_mode(capabilities, range_policy, structural_mode)
+            payload["_range_policy"] = mode.value
+            payload["_range_reason"] = range_reason(capabilities, range_policy, mode)
             payload["_action_id"] = command.command_id
         if command.type in STRUCTURAL_COMMANDS:
             mode = resolve_structural_mode(capabilities, structural_mode)

@@ -1,5 +1,5 @@
 import { loadDocumentState } from "../api/project";
-import { isShareProjectKey } from "../shareMode";
+import { type RangeEditMode, rangeEditMode } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ProjectView } from "../types/project";
 import { applyDocumentSnapshot } from "./applyDocumentUpdate";
@@ -11,29 +11,25 @@ import { currentDocumentSeq } from "./cursor";
 
 let inflight: AbortController | null = null;
 
+/** Timed words load only for sessions that can select a range from them. */
 export function needsTranscriptDetailHydrate(
-  _previous: ProjectView | null,
   next: ProjectView | null,
+  mode: RangeEditMode,
 ): boolean {
-  if (!next) {
-    return false;
-  }
-  if (isShareProjectKey(next.project_path)) {
-    return false;
-  }
-  return next.meta?.hydration?.transcript_words === false;
+  return mode !== "none" && next?.meta?.hydration?.transcript_words === false;
 }
 
 /** Re-fetch DETAIL words after overlay leaves `transcript_words` incomplete. */
 export function scheduleTranscriptDetailHydrate(
-  previous: ProjectView | null,
   next: ProjectView | null,
 ): void {
-  if (!needsTranscriptDetailHydrate(previous, next) || !next?.project_path) {
+  const { projectPath: path, shareCapabilities } = useDawStore.getState();
+  if (
+    !path ||
+    !needsTranscriptDetailHydrate(next, rangeEditMode(path, shareCapabilities))
+  ) {
     return;
   }
-  const path = useDawStore.getState().projectPath;
-  if (isShareProjectKey(path)) return;
   const scope = activateDocumentScope(path);
   const seqAtStart = currentDocumentSeq();
   inflight?.abort();
@@ -46,7 +42,7 @@ export function scheduleTranscriptDetailHydrate(
         currentDocumentSeq() !== seqAtStart ||
         detail.server_seq !== seqAtStart
       ) {
-        scheduleTranscriptDetailHydrate(null, useDawStore.getState().project);
+        scheduleTranscriptDetailHydrate(useDawStore.getState().project);
         return;
       }
       applyDocumentSnapshot(detail, { scope, hydrationSeq: seqAtStart });

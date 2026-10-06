@@ -437,10 +437,14 @@ def _word_view(
     }
 
 
-def omit_transcript_words(transcript: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Drop per-word timings, and view-only ``suppressed_only`` rows (#758), from a
-    combined-transcript dict for guests. A suppressed-only row's text is suppressed
-    words, which guests never see.
+def guest_transcript(
+    transcript: dict[str, Any] | None, *, words: bool = False
+) -> dict[str, Any] | None:
+    """A combined-transcript dict for guests.
+
+    Drops view-only ``suppressed_only`` rows (#758): their text is suppressed words,
+    which guests never see. ``words=False`` drops per-word timings; ``words=True``
+    keeps them minus suppressed words, for guests who select transcript ranges.
     """
     if transcript is None:
         return None
@@ -454,7 +458,9 @@ def omit_transcript_words(transcript: dict[str, Any] | None) -> dict[str, Any] |
         if utterance.get("suppressed_only"):
             continue
         row = dict(utterance)
-        row.pop("words", None)
+        timed = row.pop("words", None)
+        if words and isinstance(timed, list):
+            row["words"] = [w for w in timed if not (isinstance(w, dict) and w.get("suppressed"))]
         slim.append(row)
     return {**transcript, "utterances": slim}
 

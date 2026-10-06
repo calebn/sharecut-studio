@@ -10,6 +10,14 @@ export const TRANSCRIPT_MODE_HINT: Record<TranscriptIntent, string> = {
     "Select (edits audio): pick words, then Mod+X cuts their audio from the timeline and Mod+V pastes it. Ignore strikes through and mutes the selection at render, non-destructively; Restore brings it back.",
 };
 
+/** Select-mode hint for share guests: an `edit` share's range applies, a `suggest` share's is a proposal. */
+export const TRANSCRIPT_GUEST_SELECT_HINT: Record<"edit" | "suggest", string> =
+  {
+    edit: "Select (edits audio): pick words, then Cut or Mute in Range actions (or Mod+X) edits the timeline. Undo restores it.",
+    suggest:
+      "Select: pick words, then Suggest cut or Suggest mute sends them to the host for review. Nothing changes until the host approves.",
+  };
+
 /** Navigate hint on coarse pointers: double-tap opens the Correct sheet, not the inline editor. */
 export const TRANSCRIPT_NAVIGATE_TOUCH_HINT =
   "Double-tap a word to correct its text in the word editor. Text fixes never move or cut audio.";

@@ -37,16 +37,18 @@ page scrolling. Native field sizing stays within the column rather than widening
 
 ## 2. Suggest a cut (Sharecut Studio guest)
 
-For Studio range suggestions, edit and suggest guests choose a transcript or
-timeline passage, select its intended occurrence when repeated, and see
-**Play full mix, Suggest cut, Suggest mute, Comment, Bounce**. Disabled actions
-explain permissions; Bounce is host-only. Suggestion leaves clips unchanged.
-The host selects the pending overlay and approves it; one History Undo restores
-the whole action. Changed selected audio requires reselection.
+Suggest and edit guests turn on transcript **Select** and pick words (for
+example a stray "Um."), or select a timeline passage, then choose the intended
+occurrence when it repeats. A suggest guest sees **Play full mix, Suggest cut,
+Suggest mute, Comment, Bounce**; the suggestion leaves clips unchanged until the
+host selects the pending overlay and approves it. An edit guest sees **Cut** and
+**Mute** instead, and they apply at once, exactly as for the host. Either way one
+History Undo restores the whole action. Disabled actions explain permissions;
+Bounce is host-only. Changed selected audio requires reselection.
 
 Phone users open Timeline and arm **Select range** on its tool rail for a touch
-drag, or use numeric In/Out and lanes. View guests can select and play a fresh full
-mix but cannot suggest edits. Stale range playback asks for host Refresh; guests
+drag, or use numeric In/Out and lanes. View guests can select a timeline range and
+play a fresh full mix but cannot suggest edits, and get no transcript Select. Stale range playback asks for host Refresh; guests
 receive no isolated selected-track audio through this action.
 
 
@@ -137,8 +139,8 @@ Product still needs polished “link died” copy and free-tier TTL story ([Back
 |--------------|-------------------|-----|
 | Listen + comment only | `play`, `comment` | ReviewApp |
 | See timeline / transcript | + `view` | Sharecut Studio guest |
-| Propose cuts | + `suggest` | Sharecut Studio guest |
-| Approve cuts | + `edit` | Sharecut Studio guest (Timeline/inspector) |
+| Propose cuts (transcript Select or timeline range) | + `suggest` | Sharecut Studio guest |
+| Apply cuts directly, approve cuts | + `edit` | Sharecut Studio guest (transcript Select, Timeline, inspector) |
 | Hear Suggested (agent) | `play` + `view` + `mcp` | `guest_pending_preview` → share HTTP WAV/PNG |
 | Hear a span (agent) | `play` + `view` + `mcp` | `guest_audition_context` → captions + windowed hum/clip warnings; optional wave/spec |
 | Join a record session | record `join` + `monitor` + `comment` | Record lobby / room (`/rec/{token}`) |

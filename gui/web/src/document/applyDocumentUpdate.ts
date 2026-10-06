@@ -173,8 +173,11 @@ export function applyDocumentSnapshot(
           snap.file_before.size !== documentAuthority.file.size)
       )
         return invalidate(seq, scope);
+      // Guest deltas diff word-free views, so they apply to a word-free basis.
       const basis =
-        delta.projection === "shell" ? shellBasis(previous) : previous;
+        delta.projection === "shell" || delta.audience === "guest"
+          ? shellBasis(previous)
+          : previous;
       next = projectFromDocumentSnapshot(previous, {
         project: applyProjectionDelta(basis, delta),
       });
@@ -210,7 +213,7 @@ export function applyDocumentSnapshot(
   noteDocumentSeq(seq);
   noteDocumentFile(snap);
   const displayed = show(next);
-  scheduleTranscriptDetailHydrate(previous, next);
+  scheduleTranscriptDetailHydrate(next);
   return displayed;
 }
 

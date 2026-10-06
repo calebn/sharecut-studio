@@ -189,4 +189,75 @@ describe("one document authority", () => {
     expect(useDawStore.getState().project?.tracks).toHaveLength(2);
     expect(currentDocumentSeq()).toBe(0);
   });
+  it("moves a word-hydrated guest's words with a guest delta computed on word-free rows", () => {
+    const row = {
+      track_id: "a",
+      speaker: "A",
+      start: 0,
+      end: 1,
+      text: "Um.",
+      mappable: true,
+      timeline_start: 2,
+      timeline_end: 3,
+      timeline_spans: [{ start: 2, end: 3 }],
+    };
+    const word = {
+      text: "Um.",
+      start: 0,
+      end: 1,
+      timeline_start: 2,
+      timeline_end: 3,
+      word_index: 0,
+    };
+    applyDocumentSnapshot({
+      server_seq: 1,
+      state_token: token,
+      file: { mtime_ns: 2, size: 1 },
+      project: {
+        ...initial(),
+        meta: {
+          ...initial().meta,
+          hydration: { transcript_words: true, history_groups: false },
+        },
+        transcript: { utterances: [{ ...row, words: [word] }] },
+      },
+    });
+    applyDocumentSnapshot({
+      server_seq: 2,
+      state_token: token,
+      file_before: { mtime_ns: 2, size: 1 },
+      file: { mtime_ns: 3, size: 1 },
+      delta: {
+        base_seq: 1,
+        base_token: token,
+        projection: "detail",
+        audience: "guest",
+        operations: [
+          {
+            type: "rows",
+            section: "utterances",
+            parent: null,
+            before_count: 1,
+            splices: [],
+            updates: [
+              {
+                index: 0,
+                set: {
+                  timeline_start: 0,
+                  timeline_end: 1,
+                  timeline_spans: [{ start: 0, end: 1 }],
+                },
+                unset: [],
+              },
+            ],
+            row_encoding: "predecessor-spans",
+          },
+        ],
+      },
+    });
+    const [moved] = documentAuthority.project?.transcript?.utterances ?? [];
+    expect(moved?.words).toEqual([
+      { ...word, timeline_start: 0, timeline_end: 1, mappable: true },
+    ]);
+  });
 });

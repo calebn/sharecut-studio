@@ -119,7 +119,8 @@ async function submitCommand(
     const structural =
       type === "SplitAtTime" ||
       type === "DeleteClip" ||
-      type === "RippleDeleteClip";
+      type === "RippleDeleteClip" ||
+      type === "EditSelectedRange";
     const offline =
       opts?.offline === true ||
       (typeof navigator !== "undefined" && navigator.onLine === false);

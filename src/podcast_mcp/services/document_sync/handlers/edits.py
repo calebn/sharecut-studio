@@ -202,7 +202,7 @@ def edit_selected_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, An
         EditService(ws).edit_selected_range(
             ExactRangeTarget.model_validate(p["target"]),
             p["action"],
-            propose=p.get("_range_policy") != "host_apply",
+            propose=p.get("_range_policy") != "apply",
             reason=p.get("_range_reason", "agent:range"),
             action_id=p["_action_id"],
         )

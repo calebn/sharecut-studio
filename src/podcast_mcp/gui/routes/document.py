@@ -90,7 +90,7 @@ def post_document_command(
     svc = DocumentSyncService.open(project_path)
     cmd = document_command_from_body(body)
     try:
-        return svc.submit(cmd, structural_mode=body.structural_mode, range_policy="host_apply")
+        return svc.submit(cmd, structural_mode=body.structural_mode, range_policy="apply")
     except DocumentConflictError as exc:
         raise HTTPException(
             status_code=409,

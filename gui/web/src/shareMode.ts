@@ -133,6 +133,22 @@ export function canSuggestStructural(
   );
 }
 
+/**
+ * What a selected range (timeline or transcript words) can do in this session.
+ * Mirrors the server's ``resolve_range_mode``: host or ``edit`` applies,
+ * ``suggest`` proposes for host review, anything else cannot select for edits.
+ */
+export type RangeEditMode = "edit" | "suggest" | "none";
+
+export function rangeEditMode(
+  projectPath: string,
+  capabilities: string[] | null | undefined,
+): RangeEditMode {
+  if (canApplyPass12(projectPath, null, capabilities)) return "edit";
+  if (canSuggestStructural(projectPath, null, capabilities)) return "suggest";
+  return "none";
+}
+
 /** Host or guest with ``suggest``/``edit`` may nudge pending / suggest cuts. */
 export function canSuggestOrNudge(
   projectPath: string,

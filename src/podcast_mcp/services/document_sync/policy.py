@@ -1,4 +1,4 @@
-"""Apply-vs-propose policy for structural timeline document commands.
+"""Apply-vs-propose policy for structural and selected-range document commands.
 
 Host (``caps is None``) and guests with ``edit`` **apply** immediately (undo via
 History). Guests with ``suggest`` only **propose** pending decisions for host
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
+from podcast_mcp.edits.edit_reasons import GUEST_SUGGEST_REASON
 from podcast_mcp.edits.share_capabilities import CAP_EDIT, CAP_SUGGEST, has_capability
 
 # Structural ops share one command type; policy chooses apply vs propose.
@@ -46,6 +47,33 @@ def resolve_structural_mode(
     if has_capability(caps, CAP_SUGGEST):
         return StructuralMutationMode.PROPOSE
     raise PermissionError("share capabilities do not allow structural timeline mutations")
+
+
+def resolve_range_mode(
+    caps: list[str] | None,
+    range_policy: str,
+    requested: str | None = None,
+) -> StructuralMutationMode:
+    """Apply/propose for ``EditSelectedRange``.
+
+    An interactive DAW (``range_policy == "apply"``) follows the structural policy,
+    so a host or ``edit`` guest applies and a ``suggest`` guest proposes. Any other
+    caller (MCP agents) always proposes.
+    """
+    if range_policy != "apply":
+        return StructuralMutationMode.PROPOSE
+    return resolve_structural_mode(caps, requested)
+
+
+def range_reason(
+    caps: list[str] | None,
+    range_policy: str,
+    mode: StructuralMutationMode,
+) -> str:
+    """Reason code stamped on a selected-range decision."""
+    if caps is not None:
+        return "guest:range" if mode is StructuralMutationMode.APPLY else GUEST_SUGGEST_REASON
+    return "host:range" if range_policy == "apply" else "agent:range"
 
 
 def structural_mode_from_payload(payload: dict) -> StructuralMutationMode:

@@ -4,9 +4,9 @@ import { setClipboard } from "../edit/clipboard";
 import { rangeIsCurrent, resolveSelectionRange } from "../edit/rangeSelection";
 import { extractClipsInRange } from "../edit/selectionClipboard";
 import {
-  canSuggestStructural,
   hasShareCapability,
   isShareProjectKey,
+  rangeEditMode,
   reviewApiBase,
   shareTokenFromKey,
 } from "../shareMode";
@@ -49,6 +49,7 @@ export function rangeActionDescriptors(
 ): RangeDescriptor[] {
   const guest =
     isShareProjectKey(state.projectPath) || state.guestMode !== null;
+  const mode = rangeEditMode(state.projectPath, state.shareCapabilities);
   const base = !target
     ? "Choose a range"
     : !state.project
@@ -63,14 +64,7 @@ export function rangeActionDescriptors(
   return RANGE_ACTIONS.map((action) => {
     let reason = base;
     if (!reason && (action === "cut" || action === "mute")) {
-      if (
-        !canSuggestStructural(
-          state.projectPath,
-          state.guestMode,
-          state.shareCapabilities,
-        )
-      )
-        reason = "This share cannot suggest edits";
+      if (mode === "none") reason = "This share cannot suggest edits";
       else if (!target?.clips.length) reason = "No audible media in this range";
     }
     if (!reason && action === "bounce" && guest)
@@ -99,13 +93,13 @@ export function rangeActionDescriptors(
       reason = "This share cannot add comments";
     const label =
       action === "cut"
-        ? guest
-          ? "Suggest cut"
-          : "Cut"
+        ? mode === "edit"
+          ? "Cut"
+          : "Suggest cut"
         : action === "mute"
-          ? guest
-            ? "Suggest mute"
-            : "Mute"
+          ? mode === "edit"
+            ? "Mute"
+            : "Suggest mute"
           : action === "play"
             ? guest
               ? "Play full mix"
@@ -165,9 +159,9 @@ export async function runRangeAction(
       );
       const live = useDawStore.getState();
       if (live.projectEpoch !== epoch) return { status: "ok" };
-      const guest =
-        isShareProjectKey(state.projectPath) || state.guestMode !== null;
-      if (action === "cut" && !guest && result.type === "Applied") {
+      const applies =
+        rangeEditMode(state.projectPath, state.shareCapabilities) === "edit";
+      if (action === "cut" && applies && result.type === "Applied") {
         const start = target.intervals[0]!.start,
           end = target.intervals.at(-1)!.end;
         setClipboard({
@@ -194,9 +188,9 @@ export async function runRangeAction(
       else {
         if (live.selection === selection) live.setSelection(null);
         live.announceStatus(
-          guest
-            ? "Range suggestion sent for host review"
-            : `Range ${action} applied. Use Undo to restore it.`,
+          applies
+            ? `Range ${action} applied. Use Undo to restore it.`
+            : "Range suggestion sent for host review",
         );
       }
       return { status: "ok" };
