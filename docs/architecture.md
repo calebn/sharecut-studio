@@ -4,7 +4,8 @@
 
 Whole-lane recorder latency is the last stage of pipeline `align_tracks`.
 `engines/envelope_lag.py` finds the lag between a voice's direct track and its copy
-on another mic from level envelopes, tested against shifted nulls. Reuse it for
+on another mic from level envelopes, tested against shifted nulls. It abstains
+when the best lag sits on the search boundary or is not a strict peak. Reuse it for
 any other copy-lag measurement instead of a private estimator.
 `edits/bleed_latency.py` measures every ordered lane pair in windows, rejects
 scattered or drifting pairs, and solves one latency per lane by weighted least
