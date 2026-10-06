@@ -12,6 +12,7 @@ import type { ClipRow } from "../types/project";
 import { clipLabels } from "../utils/clipLabels";
 import type { ClipBlockGeometry } from "./clipBlockGeometry";
 import { FadeCurves } from "./FadeCurves";
+import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";
 import { timelineTestIds } from "./selectors";
 
 /** Clip-local overlay spans for source regions, clamped to the visible window. */
@@ -186,6 +187,7 @@ export function ClipBlockView({
   } = geometry;
 
   const timelineStart = left / zoomPxPerSec;
+  const timelineEnd = timelineStart + durationSec;
   const labels = clipLabels({
     clip: {
       source_start: sourceStart,
@@ -229,6 +231,7 @@ export function ClipBlockView({
           title={title}
           aria-label={labels.select}
           aria-pressed={selected}
+          {...HIT_SURFACE_PROPS}
           {...hitHandlers}
         />
       ) : null}
@@ -236,6 +239,7 @@ export function ClipBlockView({
         <button
           type="button"
           className="join-seam"
+          {...hitTargetProps("roll", clip.id, timelineStart)}
           title={`${rollTip} · join: ${clip.join_in_mode}`}
           aria-label={rollTip}
           onPointerDown={(e) => onHandlePointerDown?.("roll", e)}
@@ -271,6 +275,14 @@ export function ClipBlockView({
         <button
           type="button"
           className={`fade-corner in${clip.fade_in_ms === 0 ? " zero" : ""}`}
+          {...hitTargetProps(
+            "fade-in",
+            clip.id,
+            timelineStart + fadeInMs / 1000,
+            {
+              selected: fadeDragEdge === "in",
+            },
+          )}
           style={{ left: fadeInPx }}
           title={fadeTip}
           aria-label={`${fadeTip} · in ${fadeInMs} ms. Arrow keys adjust; Shift takes larger steps; Escape cancels. Inspector also sets the length.`}
@@ -289,6 +301,14 @@ export function ClipBlockView({
         <button
           type="button"
           className={`fade-corner out${clip.fade_out_ms === 0 ? " zero" : ""}`}
+          {...hitTargetProps(
+            "fade-out",
+            clip.id,
+            timelineEnd - fadeOutMs / 1000,
+            {
+              selected: fadeDragEdge === "out",
+            },
+          )}
           style={{ right: fadeOutPx }}
           title={fadeTip}
           aria-label={`${fadeTip} · out ${fadeOutMs} ms. Arrow keys adjust; Shift takes larger steps; Escape cancels. Inspector also sets the length.`}
@@ -319,6 +339,7 @@ export function ClipBlockView({
           <button
             type="button"
             className="trim-handle in"
+            {...hitTargetProps("trim-in", clip.id, timelineStart)}
             title={`${trimTip} · start`}
             aria-label={`${trimTip} · start. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
             onPointerDown={(e) => onHandlePointerDown?.("trim-in", e)}
@@ -335,6 +356,7 @@ export function ClipBlockView({
             type="button"
             data-testid={timelineTestIds.trimOut}
             className="trim-handle out"
+            {...hitTargetProps("trim-out", clip.id, timelineEnd)}
             title={`${trimTip} · end`}
             aria-label={`${trimTip} · end. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
             onPointerDown={(e) => onHandlePointerDown?.("trim-out", e)}

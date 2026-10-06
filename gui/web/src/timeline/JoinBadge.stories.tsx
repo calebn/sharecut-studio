@@ -38,6 +38,7 @@ export const AllGlyphs: Story = {
   render: () => (
     <>
       <JoinBadgeView
+        clipId="clip-b"
         glyph="cut"
         blocked={false}
         seamSec={2}
@@ -46,6 +47,7 @@ export const AllGlyphs: Story = {
         onClick={() => undefined}
       />
       <JoinBadgeView
+        clipId="clip-b"
         glyph="fade"
         blocked={false}
         seamSec={5}
@@ -54,6 +56,7 @@ export const AllGlyphs: Story = {
         onClick={() => undefined}
       />
       <JoinBadgeView
+        clipId="clip-b"
         glyph="crossfade"
         blocked={false}
         seamSec={8}
@@ -62,6 +65,7 @@ export const AllGlyphs: Story = {
         onClick={() => undefined}
       />
       <JoinBadgeView
+        clipId="clip-b"
         glyph="crossfade"
         blocked
         seamSec={11}

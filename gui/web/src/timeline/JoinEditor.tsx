@@ -166,6 +166,7 @@ function JoinEditorLive(props: JoinEditorProps) {
       <JoinBlend visual={visual} />
       <JoinBadgeView
         ref={anchorRef}
+        clipId={right.id}
         glyph={joinGlyph(right)}
         blocked={visual.kind === "blocked"}
         seamSec={seamSec}
