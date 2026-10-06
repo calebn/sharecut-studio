@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from podcast_mcp.util.lazy_exports import resolve_export
 
 if TYPE_CHECKING:
+    from podcast_mcp.services.document_sync.capabilities import document_command_types_for_caps
     from podcast_mcp.services.document_sync.commands import (
         DocumentCommand,
         DocumentCommandType,
@@ -53,6 +54,7 @@ __all__ = [
     "after_agent_mutation",
     "document_command_from_body",
     "document_command_json_schema",
+    "document_command_types_for_caps",
     "document_db_path",
     "document_hub_key",
     "document_poll_meta",
@@ -83,6 +85,7 @@ _MODULE_BY_NAME = {
     "after_agent_mutation": "service",
     "document_command_from_body": "payloads",
     "document_command_json_schema": "payloads",
+    "document_command_types_for_caps": "capabilities",
     "document_db_path": "service",
     "document_hub_key": "service",
     "document_poll_meta": "service",

@@ -50,11 +50,11 @@ from podcast_mcp.project_io import EPISODE_PROJECT_FILENAME, open_project, resol
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService, run_comment_mutation_with_file_revisions
 from podcast_mcp.services.document_sync import (
+    document_command_types_for_caps,
     document_poll_meta,
     notify_comments_changed,
     parse_view_projection,
 )
-from podcast_mcp.services.document_sync.capabilities import document_command_types_for_caps
 from podcast_mcp.services.media import (
     delete_object_store_object_if_unused,
     review_guest_audio_path,
