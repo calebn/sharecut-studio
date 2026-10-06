@@ -66,6 +66,7 @@ import { CommentPlaybackBubble } from "./CommentPlaybackBubble";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
 import { visibleBox } from "./chooserLayout";
 import { clippingFlags } from "./clippingFlags";
+import { attachDragWatch } from "./dragWatch";
 import { selectFollowColorIndex } from "./followTarget";
 import {
   attachHitRouting,
@@ -248,9 +249,14 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
               ? { ...prev, closing: true }
               : null,
         ),
+      onTarget: (hit) => useDawStore.getState().setSelectionHit(hit),
     });
+    const detachDragWatch = attachDragWatch(root, (dragging) =>
+      useDawStore.getState().setTimelineDragging(dragging),
+    );
     setHitRouter(router);
     return () => {
+      detachDragWatch();
       router.dispose();
       setHitRouter(null);
     };

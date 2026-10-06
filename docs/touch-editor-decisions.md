@@ -142,7 +142,7 @@ or named test owns that behavior; it does not certify unrun combinations.
 | Mix: `MixSheet`, native controls, `useCommitRange` | Native volume range and M/S controls; More → Mix | Volume follows the existing preview/commit lifecycle and permission reason; M/S and local/shared listening distinctions remain. Accepted host/editor volume writes use the existing document command. Sheet layout supports row scrolling and text wrapping. | **Keep.** Do not add swipe-to-mix. Existing `phone-mix.spec.ts` covers its current path; failure/cancel combinations not asserted there remain unverified. |
 | Transcript words: transcript views and correction flow | Tap seeks; double tap or long press opens correction; visible Correct/Select modes | First tap seeks immediately. Correction opens only for a host with hydrated words; current sheet lifecycle restores mode on close. Submission uses `submitWordCorrection`; failure/permission behavior stays there. Phone uses the sheet for keyboard room; desktop has its current inline path. | **Keep.** `transcript-wordbar.spec.ts` and `edit-boundary-touch.spec.ts` are retained evidence. No delayed tap-to-seek recognizer. |
 | Comment rows: comment list/controller | Swipe left resolves; visible Resolve/Reopen and Undo toast | Only enabled for eligible open host comments in the list. Preview reveals a cue; threshold release uses `comment.resolve`; vertical movement, cancel, or hold restores the row. Existing command failures and latest-only Undo toast remain. Embedded threads do not opt in. | **Keep.** Existing comment recovery browser coverage includes Chromium/WebKit phone; physical device verification remains pending. |
-| BottomSheet: `ui/BottomSheet.tsx` | **No drag gesture.** Expand/Collapse and Close are visible single-pointer actions | Controlled `expanded` updates half/full view state only. There is no preview/cancel/command/failure/History path for resize. Close and Escape dismiss; interactive inspector scrim stays transparent; confirmation scrim dismisses. Shell CSS keeps phone nav and tablet chrome clear. | **Remove inert grip; retain and enlarge the resize button.** `BottomSheet.test.tsx` and new touch E2E exercise the existing callback and layout. No global button changes. |
+| BottomSheet: `ui/BottomSheet.tsx` | **No drag gesture.** Expand/Collapse and Close are visible single-pointer actions | Controlled `expanded` updates half/full view state only (peek/half for the #1051 compact inspector, which also stows during a timeline drag). There is no preview/cancel/command/failure/History path for resize. Close and Escape dismiss; interactive inspector scrim stays transparent; confirmation scrim dismisses. Shell CSS keeps phone nav and tablet chrome clear. | **Remove inert grip; retain and enlarge the resize button.** `BottomSheet.test.tsx` and new touch E2E exercise the existing callback and layout. No global button changes. |
 | Transport, Gestures help and History: `MobileShell` More hub, command catalog | Two-finger tap is an optional Sharecut Undo shortcut; visible command routes remain | Existing recognizer dispatches `history.undo` and reports failure through the shared status path. It runs only when enabled by current project/command availability. It does not make a platform convention or modal-body guarantee. Phone More lists History and Gestures. | **Modify attribution only.** `useTwoFingerTap.test.tsx` stays unchanged; `GesturesSheet.test.tsx` asserts the rendered optional Sharecut copy. |
 
 ## Explicit disposition
@@ -422,3 +422,46 @@ when it is at least twice as wide as it is tall (within about 27° of
 horizontal). An off-axis move past the slop disarms the chip. Resting
 `LONG_PRESS_MS` on a chip still grabs, whatever the axis. No drag magnifier
 exists yet, so a grab from a chip has none.
+
+### Compact inspector (#1051 round 3)
+
+With the lab on, a timeline selection on a phone-sized screen opens a peek
+strip instead of the half sheet. Phone-sized means the phone shell in
+Timeline mode, or the tablet shell on a screen at most 40rem tall (a phone
+held sideways). Taller tablets and desktop keep their inspector.
+`layout/useCompactInspector.ts` decides this for both shells.
+
+- **The strip.** `BottomSheet` gains a `peek` size: a content-height strip
+  with the target's name in the header, then its key value
+  (`inspector/peekTarget.ts`), for example "Fade in" and "300 ms", or a trim's
+  source time. A clip's fade or trim adds four nudge buttons of at least
+  `--touch-min` at the keyboard's steps (1 and 10 ms; 0.01 and 0.1 s,
+  `edit/clipHandleSteps.ts`). Each nudge saves at once through the same save
+  the handle drag uses (`edit/clipEdgeSave.ts`). Pending edits, envelope
+  points and chapters show their value without nudges; their fields stay in
+  the full inspector.
+- **Expand and Collapse.** One tap on Expand opens the full inspector, one
+  tap on Collapse returns to the strip. Both are visible buttons; the sheet
+  still has no drag gesture. The last choice opens the next selection
+  (`compactInspectorView`, persisted per browser at
+  `sharecut.compactInspector`). Expanded, the sheet is at most half its slot
+  and leaves room for the transport, ruler, marker lane and one coarse lane.
+- **Keep the selection in view.** The timeline scroller gets bottom padding as
+  deep as the strip or sheet covers it, and scrolls the selected target above
+  it. Sideways, the sheet takes the bottom tabs' place while it is open, so
+  the timeline keeps their row.
+- **Out of the way.** Any timeline drag stows the strip or sheet: it slides
+  off screen, click-through but still mounted. It returns on release with the
+  new value. `timeline/dragWatch.ts` reports a drag: a pointer that started in
+  the timeline, is captured there (or is the router's own replay), and has
+  moved `HANDLE_DRAG_MIN_PX`. A scroll never counts.
+
+Measured in Playwright (Chromium, CDP touch) with the #1051 fixture, as px of timeline lanes left
+visible above the inspector:
+
+| Viewport | Round 2 sheet | Strip | Expanded |
+|---|---|---|---|
+| 360×800 portrait | 136 (second lane covered) | 542 | 274 |
+| 390×844 portrait | 180 (second lane covered) | 586 | 296 |
+| 800×360 sideways | none (timeline covered) | 125 | 107 |
+| 844×390 sideways | none (timeline covered) | 155 | 107 |

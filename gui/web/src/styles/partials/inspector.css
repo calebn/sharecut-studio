@@ -447,3 +447,52 @@ html[data-shell="phone"]
   min-block-size: 2.75rem;
   white-space: normal;
 }
+
+/* Compact inspector peek strip (#1051): name in the sheet header, then the
+   value on the left and the nudges in thumb reach on the right. */
+.inspector-peek {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.inspector-peek-reading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0);
+  min-inline-size: 0;
+  margin: 0;
+}
+
+.inspector-peek-owner {
+  overflow: hidden;
+  font-size: var(--font-size-small);
+  color: var(--text-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-peek-value {
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.inspector-peek-nudges {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.inspector-peek-nudge {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Shorter or earlier on the left, longer or later on the right. */
+.inspector-peek-nudge:nth-child(3) {
+  margin-inline-start: var(--space-3);
+}

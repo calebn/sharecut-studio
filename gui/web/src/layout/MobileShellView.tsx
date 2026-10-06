@@ -7,6 +7,7 @@ import { Icon, type IconName } from "../ui/Icon";
 import { StatusLiveRegion } from "../ui/StatusLiveRegion";
 import { ToggleButton } from "../ui/ToggleButton";
 import type { ShellAppearance, ShellNotices } from "./shellPresentation";
+import type { CompactSheetProps } from "./useCompactInspector";
 
 const MODES: { id: MobileMode; label: string; icon: IconName }[] = [
   { id: "listen", label: "Listen", icon: "listen" },
@@ -35,6 +36,8 @@ export type MobileSheet =
       expanded: boolean;
       onExpandedChange: (expanded: boolean) => void;
       onClose: () => void;
+      /** The compact inspector (peek strip) in place of the half sheet. */
+      compact?: CompactSheetProps;
     };
 
 export type MobileShellViewProps = {
@@ -144,6 +147,7 @@ export function MobileShellView({
         onExpandedChange={
           sheet.kind === "inspector" ? sheet.onExpandedChange : undefined
         }
+        {...(sheet.kind === "inspector" ? sheet.compact : undefined)}
       >
         {sheet.kind !== "closed" ? sheet.content : null}
       </BottomSheet>
