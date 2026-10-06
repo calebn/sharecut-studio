@@ -1542,3 +1542,99 @@ def test_already_muted_covers_acoustic_candidates_and_is_per_track():
     )
     assert len(partial) == 1
     assert skips == {}
+
+
+def _render_samples(project: EpisodeProject) -> np.ndarray:
+    out = Path(project.workspace_dir) / "artifacts" / "host.wav"
+    render_track_from_timeline(project, project.tracks[0], out, {})
+    return load_mono_window(out, duration_sec=10.0, sample_rate=48_000)
+
+
+def _approved_silent_mute(tmp_path: Path) -> tuple[EpisodeProject, ClipMuteRegion, np.ndarray]:
+    """The noise-floor ``uh`` muted as digital silence, its region and its whole render."""
+    from unittest.mock import patch
+
+    project = _noise_floor_project(tmp_path)
+    with patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value="silence"):
+        assert approve_edits(project, ["m1"]) == 1
+    (region,) = project.clips[0].mute_regions
+    return project, region, _render_samples(project)
+
+
+def _silent_span(region: ClipMuteRegion) -> tuple[float, float]:
+    return region.start_s + region.fade_out_ms / 1000, region.end_s - region.fade_in_ms / 1000
+
+
+def _samples(audio: np.ndarray, start: float, end: float) -> np.ndarray:
+    return audio[round(start * 48_000) : round(end * 48_000)]
+
+
+def test_split_inside_a_mute_renders_like_the_unsplit_mute(tmp_path):
+    from podcast_mcp.project_store import ProjectStore
+
+    project, region, whole = _approved_silent_mute(tmp_path)
+    silent_start, silent_end = _silent_span(region)
+    path = Path(project.workspace_dir) / "episode.project.json"
+    ProjectStore(path).commit(project)
+    ws = ProjectWorkspace.open(path)
+    unsplit = [c.model_dump() for c in ws.project.clips]
+
+    EditService(ws).split_clip(1.15, track_id="host")
+
+    split = [c.model_dump() for c in ws.project.clips]
+    assert len(split) == 2
+    rendered = _render_samples(ws.project)
+    assert np.count_nonzero(_samples(rendered, silent_start, silent_end)) == 0
+    assert np.max(np.abs(rendered - whole)) < 1e-4
+    HistoryService(ws).undo()
+    assert [c.model_dump() for c in ws.project.clips] == unsplit
+    HistoryService(ws).redo()
+    assert [c.model_dump() for c in ws.project.clips] == split
+
+
+@pytest.mark.parametrize("edge", ["in", "out"])
+def test_trim_inside_a_mute_keeps_the_kept_part_silent(tmp_path, edge):
+    from podcast_mcp.edits.clips_ops import trim_clip_edge
+
+    project, region, whole = _approved_silent_mute(tmp_path)
+    silent_start, silent_end = _silent_span(region)
+
+    trim_clip_edge(project, "c1", edge, 1.15)
+
+    rendered = _render_samples(project)
+    if edge == "in":
+        silent = (0.0, silent_end - 1.15)
+        actual, expected = _samples(rendered, 0.0, 1.85), _samples(whole, 1.15, 3.0)
+    else:
+        silent = (silent_start, 1.15)
+        actual, expected = _samples(rendered, 0.0, 1.15), _samples(whole, 0.0, 1.15)
+    assert np.count_nonzero(_samples(rendered, *silent)) == 0
+    assert np.max(np.abs(actual - expected)) < 1e-4
+
+
+def test_partial_copy_of_a_mute_pastes_silent_up_to_the_cut(tmp_path):
+    from podcast_mcp.edits.clips_ops import extract_clips_in_timeline_range
+    from podcast_mcp.edits.mute_regions import mute_regions_payload
+    from podcast_mcp.edits.timeline_ops import paste_segment
+
+    project, region, whole = _approved_silent_mute(tmp_path)
+    _, silent_end = _silent_span(region)
+    (copied,) = extract_clips_in_timeline_range(project.clips, 1.15, 2.0)
+
+    paste_segment(
+        project,
+        insert_at=4.0,
+        duration=0.85,
+        extracts=[
+            {
+                "track_id": "host",
+                "source_start": copied.source_start,
+                "source_end": copied.source_end,
+                "mute_regions": mute_regions_payload(copied.mute_regions),
+            }
+        ],
+    )
+
+    rendered = _render_samples(project)
+    assert np.count_nonzero(_samples(rendered, 4.0, 4.0 + silent_end - 1.15)) == 0
+    assert np.max(np.abs(_samples(rendered, 4.0, 4.85) - _samples(whole, 1.15, 2.0))) < 1e-4
