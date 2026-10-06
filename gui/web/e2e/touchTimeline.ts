@@ -202,6 +202,44 @@ export async function centerOf(page: Page, selector: string): Promise<Point> {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
+/**
+ * A point on `selector`'s box inside the timeline's visible time column
+ * (clear of the track headers and 20 px of scrollbar), at `fx` of the visible
+ * part's width and `fy` of the box's height; null if none of it shows.
+ */
+export async function visiblePoint(
+  page: Page,
+  selector: string,
+  fx = 0.5,
+  fy = 0.8,
+): Promise<Point | null> {
+  return page.evaluate(
+    ({ selector, fx, fy }) => {
+      const el = document.querySelector(selector);
+      const scroller = document.querySelector(".timeline-scroll");
+      if (!el || !scroller) return null;
+      const box = el.getBoundingClientRect();
+      const view = scroller.getBoundingClientRect();
+      const headers = scroller.querySelector(".track-headers");
+      const left = Math.max(
+        box.left,
+        headers?.getBoundingClientRect().right ?? view.left,
+      );
+      const right = Math.min(box.right, view.left + scroller.clientWidth - 20);
+      const bottom = Math.min(
+        box.bottom,
+        view.top + scroller.clientHeight - 20,
+      );
+      if (right - left < 8 || bottom - box.top < 8) return null;
+      return {
+        x: left + (right - left) * fx,
+        y: box.top + (bottom - box.top) * fy,
+      };
+    },
+    { selector, fx, fy },
+  );
+}
+
 export const lane = `.lane-row[data-track-id="${TRACK}"]`;
 
 /** What a press changes: selection, open join popover, focus, sheets. */

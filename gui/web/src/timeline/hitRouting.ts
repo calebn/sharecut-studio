@@ -19,6 +19,13 @@
  * press and forwarding the drag, on the real target. A finger on a chip grabs
  * by resting there, or by sliding along the target's drag axis once the chip
  * is armed (`chipGesture.ts`).
+ *
+ * Pinch never edits: the moment a second finger lands on the timeline, every
+ * pointer's uncommitted action (a drag, trim, fade, chip grab, range or a
+ * press still deciding) gets a `pointercancel`, which each owner already
+ * treats as "drop the draft, save nothing", and the selection goes back to
+ * what it was before the first press. Until every pointer lifts, their
+ * pointer events stop here, so the pinch or pan (touch events) owns them.
  */
 import {
   CHIP_SETTLE_MS,
@@ -147,6 +154,12 @@ export interface HitRoutingOptions {
    * tap, a chip pick, a grab, or a press on a target that takes it at once.
    */
   onTarget?: (target: RoutedTarget | null) => void;
+  /**
+   * Called as the first pointer lands, before any target sees it; the
+   * returned function puts back what that press changed (the selection) when
+   * a second finger turns the gesture into a pinch or pan.
+   */
+  snapshot?: () => () => void;
 }
 
 export interface HitRouter {
@@ -182,8 +195,6 @@ type Phase =
       at: HitPoint;
       hits: ResolvedHit[];
       winner: Element;
-      /** Another finger joined: a pinch or two-finger tap, never a pick. */
-      multi: boolean;
     }
   | {
       kind: "open";
@@ -205,6 +216,16 @@ type Phase =
 
 const IDLE: Phase = { kind: "idle" };
 
+/** Every finger (touch pointer) down on the timeline, and whether two or more met there. */
+interface MultiTouch {
+  /** By pointer id, the press each began with. */
+  pointers: Map<number, PointerEvent>;
+  /** A second finger landed: pinch or pan owns them all until all lift. */
+  multi: boolean;
+  /** Puts back what the first press changed (`HitRoutingOptions.snapshot`). */
+  restore: (() => void) | null;
+}
+
 /**
  * Installs the router on `root` (the marker lane plus the lanes). Listens at
  * the document in the capture phase so a routed press never reaches React.
@@ -214,7 +235,14 @@ export function attachHitRouting(
   options: HitRoutingOptions = {},
 ): HitRouter {
   const doc = root.ownerDocument;
+  // The whole timeline, ruler and headers included: a pinch can start there.
+  const scope = root.closest(".timeline-scroll") ?? root;
   let phase: Phase = IDLE;
+  const gesture: MultiTouch = {
+    pointers: new Map(),
+    multi: false,
+    restore: null,
+  };
   let suppressClickUntil = 0;
   /** The last real press, the source for a pick made on a chip. */
   let lastDown: PointerEvent | null = null;
@@ -358,10 +386,6 @@ export function attachHitRouting(
   const onDown = (event: PointerEvent) => {
     if (isReplayed(event)) return;
     lastDown = event;
-    if (phase.kind === "pressing" && phase.down.pointerId !== event.pointerId) {
-      phase.multi = true;
-      return;
-    }
     if (
       phase.kind === "open" &&
       !phase.view.fingerDown &&
@@ -412,7 +436,6 @@ export function attachHitRouting(
         at: origin,
         hits,
         winner,
-        multi: false,
       };
       return;
     }
@@ -586,25 +609,86 @@ export function attachHitRouting(
     event.preventDefault();
   };
 
+  /**
+   * A second finger landed while one was down: every pointer's uncommitted
+   * action is cancelled and rolled back, and the pinch or pan (touch events,
+   * `timelineZoomGestures.ts`) owns them all until the last one lifts.
+   */
+  const yieldToMultiTouch = () => {
+    const owned = phase;
+    setPhase(IDLE);
+    gesture.multi = true;
+    for (const [pointerId, down] of gesture.pointers) {
+      // Each owner cancels on its own pointer's pointercancel, without saving:
+      // whatever the finger pressed, and a target the router replayed it on.
+      const owners = new Set<Element>();
+      if (down.target instanceof Element) owners.add(down.target);
+      if (
+        (owned.kind === "routed" || owned.kind === "grabbed") &&
+        owned.pointerId === pointerId
+      ) {
+        owners.add(owned.element);
+      }
+      for (const owner of owners) replayPointer("pointercancel", owner, down);
+    }
+    gesture.restore?.();
+    gesture.restore = null;
+  };
+  /** Routes every pointer event, applying the multi-pointer rule first. */
+  const guard =
+    (
+      type: "down" | "move" | "up" | "cancel",
+      route: (e: PointerEvent) => void,
+    ) =>
+    (event: PointerEvent) => {
+      if (isReplayed(event)) return;
+      const { pointers } = gesture;
+      if (
+        type === "down" &&
+        event.pointerType === "touch" &&
+        event.target instanceof Node &&
+        scope.contains(event.target)
+      ) {
+        if (pointers.size === 0) gesture.restore = options.snapshot?.() ?? null;
+        else if (!gesture.multi) yieldToMultiTouch();
+        pointers.set(event.pointerId, event);
+      }
+      if (gesture.multi && pointers.has(event.pointerId)) {
+        event.stopImmediatePropagation();
+        if (event.cancelable) event.preventDefault();
+        if (type === "up" || type === "cancel") {
+          pointers.delete(event.pointerId);
+          if (pointers.size === 0) {
+            gesture.multi = false;
+            suppressClickUntil = Date.now() + GHOST_CLICK_MS;
+          }
+        }
+        return;
+      }
+      if (type === "up" || type === "cancel") {
+        pointers.delete(event.pointerId);
+        if (pointers.size === 0) gesture.restore = null;
+      }
+      route(event);
+    };
+
   const listeners = [
-    ["pointerdown", onDown],
-    ["pointermove", onMove],
-    ["pointerup", onUp],
-    ["pointercancel", onCancel],
+    ["pointerdown", guard("down", onDown)],
+    ["pointermove", guard("move", onMove)],
+    ["pointerup", guard("up", onUp)],
+    ["pointercancel", guard("cancel", onCancel)],
     ["click", onClick],
   ] as const;
   for (const [type, listener] of listeners) {
     doc.addEventListener(type, listener as EventListener, true);
   }
 
-  /** The deferred press, if the finger stayed within the slop and alone. */
+  /** The deferred press, if the finger stayed within the slop. */
   const settle = () => {
     if (phase.kind !== "pressing") return null;
     const press = phase;
     setPhase(IDLE);
-    return !press.multi && travel(press.at, press.origin) <= TOUCH_SLOP_PX
-      ? press
-      : null;
+    return travel(press.at, press.origin) <= TOUCH_SLOP_PX ? press : null;
   };
 
   const router: HitRouter = {
