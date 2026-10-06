@@ -942,11 +942,30 @@ def test_master_loudness_limits_a_peaky_premix_onto_the_target(
         "drive_db": 10.0,
         "limit_db": -2.0,
         "renders": 2,
+        "converged": True,
         "trim_db": 0.2,
         "peak_reduction_db": 11.0,
         "loudness_reduction_lu": 1.9,
     }
     assert (qc["measured"]["integrated_lufs"], qc["measured"]["true_peak_db"]) == (-16.0, -1.8)
+
+
+def test_master_loudness_qc_says_when_the_limiter_did_not_converge(
+    minimal_project, dense_clicks_wav, tmp_workspace
+):
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    proj = _dialogue_project(minimal_project, dense_clicks_wav, tmp_workspace)
+    defaults = load_defaults()
+    steps.ingest_tracks(proj, defaults)
+    steps.assemble_timeline(proj, defaults)
+    summary = steps.master_loudness(proj, defaults)
+    qc = json.loads((proj.artifacts_dir() / "master_qc.json").read_text(encoding="utf-8"))
+    assert summary == "mastered to -17.7 LUFS (gain + limiter, 1 QC issues)"
+    assert qc["within_tolerance"] is False
+    assert qc["issues"] == ["Limiter did not converge after 3 renders (-17.7 LUFS, target -16.0)"]
+    assert qc["limiter"]["converged"] is False
 
 
 def test_export_deliverables_without_combined_transcript(

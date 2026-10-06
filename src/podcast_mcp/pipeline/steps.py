@@ -979,10 +979,17 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
             issues = []
             integrated = measured.get("integrated_lufs")
             if integrated is not None and abs(integrated - target_lufs) > lufs_tolerance:
-                issues.append(
-                    f"Integrated loudness {integrated} LUFS misses "
-                    f"target {target_lufs} by more than {lufs_tolerance} LU"
-                )
+                limiter = result.limiter
+                if limiter is not None and not limiter.converged:
+                    issues.append(
+                        f"Limiter did not converge after {limiter.renders} renders "
+                        f"({integrated} LUFS, target {target_lufs})"
+                    )
+                else:
+                    issues.append(
+                        f"Integrated loudness {integrated} LUFS misses "
+                        f"target {target_lufs} by more than {lufs_tolerance} LU"
+                    )
             true_peak = measured.get("true_peak_db")
             if true_peak is not None and true_peak > target_tp + tp_tolerance:
                 issues.append(

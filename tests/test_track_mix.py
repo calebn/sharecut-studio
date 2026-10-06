@@ -146,7 +146,7 @@ def _mastering_engine() -> MagicMock:
 
     def _fake_master(src, dst, **_kw):
         shutil.copyfile(src, dst)
-        return MasterResult(Path(dst), LoudnormPlan(), None, "dynamic", None)
+        return MasterResult(Path(dst), LoudnormPlan(two_pass=False), None, "dynamic", None)
 
     eng.master_loudness.side_effect = _fake_master
     eng.measure_loudness_full.return_value = None
@@ -1065,7 +1065,7 @@ def test_a_premix_swapped_mid_master_leaves_the_master_stale(minimal_project: Pa
         premix = premix_path(ws.project)
         st = premix.stat()
         os.utime(premix, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
-        return MasterResult(Path(dst), LoudnormPlan(), None, "dynamic", None)
+        return MasterResult(Path(dst), LoudnormPlan(two_pass=False), None, "dynamic", None)
 
     with patch.object(steps, "ffmpeg", return_value=eng):
         steps.mix_with_music(ws.project, defaults)

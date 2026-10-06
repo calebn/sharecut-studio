@@ -16,6 +16,13 @@ LIMITER_MAX_RENDERS = 3
 LIMITER_OVERSAMPLE = 4
 LIMITER_ATTACK_MS = 5.0
 LIMITER_RELEASE_MS = 50.0
+# ebur128 prints the true peak to one decimal, so the printed value can sit up to
+# half that under the real peak. The trim keeps this much extra headroom.
+TRUE_PEAK_PRINT_ROUNDING_DB = 0.05
+# ebur128's absolute gate floor and its 400 ms momentary block: a premix at or
+# under the floor, or shorter than a block, has no integrated loudness to plan from.
+LOUDNESS_GATE_FLOOR_LUFS = -70.0
+LOUDNESS_GATE_SEC = 0.4
 
 
 @dataclass(frozen=True)
@@ -23,6 +30,8 @@ class LoudnormPlan:
     """Two-pass loudnorm. Linear when the gain fits under the ceiling; loudnorm
     still falls back to dynamic when the premix LRA exceeds ``master.lra``."""
 
+    # False: the premix has no usable pass-1 stats, so loudnorm measures it itself.
+    two_pass: bool
     kind: ClassVar[str] = "loudnorm"
 
 
@@ -39,21 +48,30 @@ MasterPlan = LoudnormPlan | LimiterPlan
 
 
 def plan_master(
-    stats: dict[str, float] | None, *, integrated_lufs: float, true_peak_db: float
+    stats: dict[str, float] | None,
+    *,
+    integrated_lufs: float,
+    true_peak_db: float,
+    duration_sec: float,
 ) -> MasterPlan:
     """Pick the mastering plan from the premix's pass-1 ebur128 stats.
 
     Linear loudnorm applies ``integrated_lufs - input_i`` to every sample, so it
     can only reach the target when the premix true peak plus that gain stays at
     or under ``true_peak_db``. Past that, loudnorm would fall back to dynamic
-    mode and under-shoot, so the plan limits the peaks instead. Unmeasured
-    stats keep single-pass loudnorm.
+    mode and under-shoot, so the plan limits the peaks instead. Stats that are
+    missing, at the gating floor, or from a premix shorter than the gate would
+    plan an absurd gain; those keep single-pass loudnorm.
     """
-    if stats is None:
-        return LoudnormPlan()
+    if (
+        stats is None
+        or stats["input_i"] <= LOUDNESS_GATE_FLOOR_LUFS
+        or (duration_sec < LOUDNESS_GATE_SEC)
+    ):
+        return LoudnormPlan(two_pass=False)
     gain_db = round(integrated_lufs - stats["input_i"], 2)
     if round(stats["input_tp"] + gain_db, 2) <= true_peak_db:
-        return LoudnormPlan()
+        return LoudnormPlan(two_pass=True)
     return LimiterPlan(gain_db)
 
 
@@ -81,6 +99,7 @@ class LimiterReport:
     drive_db: float  # gain into the limiter after re-drives
     limit_db: float  # limiter ceiling (true-peak ceiling minus LIMITER_MARGIN_DB)
     renders: int  # limiter renders run
+    converged: bool  # the trim reached the target loudness under the ceiling
     trim_db: float  # gain after the limiter, onto the target loudness
     peak_reduction_db: float  # gain reduction on the loudest true peak
     loudness_reduction_lu: float  # integrated loudness the limiter took (average reduction)
