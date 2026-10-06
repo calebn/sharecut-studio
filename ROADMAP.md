@@ -203,7 +203,7 @@ See [the catalog boundary](docs/design-system.md#catalog-boundary-store-bound-co
 | **Large-project performance ([#29](https://github.com/calebn/sharecut-studio/issues/29))** | Shipped: opt-in benchmark ([docs/testing.md](docs/testing.md) § Large-project browser profile), transcript virtualization, history-list virtualization with a seeded 400-entry history (the project history cap), and an extended scrub-session memory profile. Follow-ups: timeline clip windowing, and playback-length memory profiling. |
 | **Forced aligner in Studio** | **Shipped ([#720](https://github.com/calebn/sharecut-studio/issues/720)):** Studio reports and downloads the word aligner next to Precise word boundaries and re-times stored transcripts from the ASR cache (Re-time words / `--retime-words` / `retime_words`). Measured results and threshold re-tune: [#715](https://github.com/calebn/sharecut-studio/issues/715). |
 | **Edit preference learning** | Persist reject/approve/undo as preference events for join ranker priors. |
-| **Room-tone pad from matched air** | Score quiet non-speech spans for `filler_pad_mode: room_tone`. |
+| **Room-tone pad from matched air** | **Shipped ([#1054](https://github.com/calebn/sharecut-studio/issues/1054)):** pads and mute fills sample a steady stretch at the track's noise floor, chosen from its audio (`edits/room_tone.py`). Still open: making `room_tone` the default after the owner listens. |
 | **Find room-tone candidates tool** | MCP/CLI scan for suitable room-tone segments. |
 | **Recording MOS / audio_audit** | FOSS MOS-prediction to flag bad recordings (distinct from joinqc NISQA). |
 | **True de-click / de-reverb** | iZotope-class; not in FFmpeg today. |

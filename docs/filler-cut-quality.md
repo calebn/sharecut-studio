@@ -111,8 +111,8 @@ enforced-by:
 
 Ripple stays the default. Mute keeps the timeline length for work locked to
 picture or other timing, and fills its gap the way a ripple pad fills a cut
-(**Fill, not hole** below). The fill default stays `silence` until #1054 stops
-the room-tone sampler picking speech.
+(**Fill, not hole** below). The fill default stays `silence` until the owner has
+heard the room-tone sampler's picks (#1054).
 
 **A mute is two faded edges on one track, not a splice** (#1024) — Nothing butts together and no other track changes: approving a mute renders the padded cut's edges (`decisions._apply_mute_edit`). The clip fades out over `filler_pre_pad_fade_out_ms` ending at the cut start and back in over `recommend_post_pad_fade_in_ms` from the cut end, cut down to end before the decision's `next_burst_sec`, so the fades fall on the kept audio either side exactly where a padded cut puts them and the cut itself is silent end to end. The region stored is the cut widened by those fades (revert subtracts all of it). On the lab tape three of the six word fillers resume into sound 10-28 dB under speech (`uh` 646.84, `uh` 706.00, `you know` 1440.88), where the recommendation is 92-120 ms; a fixed 5 ms ramp there starts the next word abruptly. The checks that score a join (the cut-risk level-jump terms and the join continuity gate) therefore skip a mute, as they skip a padded cut, and the padded-cut checks run: the right edge stops 10 ms before the next word's acoustic onset (dropped as `next_onset` when that would leave the filler), a burst within reach travels on the decision as `next_burst_sec`, and a mute may not cover a whole kept word (`kept_word:{word}`). Four more checks follow from what a mute is (`_EDGE_CHECKS` in `edits/fillers.py`):
 
@@ -123,7 +123,24 @@ the room-tone sampler picking speech.
 
 Lab (`aligned-ready`, refine waived; ripple proposal byte-identical throughout). Before #1024 mute mode proposed 11 hits and no word filler. Dropping the splice checks alone proposed 222: the six Caleb fillers (`uh` 604.62, `um` 616.30, `uh` 646.84, `uh` 706.00, `um` 712.99, `you know` 1440.88), 13 repetitions/restarts and 203 acoustic runs. Heard alone and measured, those 203 were 112 runs into a kept word, 26 breaths or breath-like unvoiced noise, 22 quiet sounds 15 dB or more under the speaker, 6 bleed, 9 missed words or laughs and 28 vocal hesitations. With these checks mute mode proposes 53: the six fillers, the 13 repetitions/restarts, and 34 acoustic runs (21 vocal hesitations within 9 dB of speech, 5 missed words or a laugh, 7 quiet sounds, 1 unvoiced). Skips: `acoustic:voiced_edge` 134, `acoustic:inaudible` 26, `acoustic:breath` 29 (12 at the scan, 17 at the edges). Acoustic hits stay review-only.
 
-**Fill, not hole** — Dialogue editors fill a gap with matching room tone, because dead air on a track with a noise floor reads as a dropout. Approving a mute lays under it the fill a ripple pad gets from `tighten.filler_pad_mode`. `silence` (the default) leaves digital silence. With `room_tone`, approval picks a sample once with the ripple pad's sampler (`timeline_ops._room_tone_source_span`: the recorded `track.room_tone` bed, else safe stem air, first the leading air after the mute and then the nearest air before it). It stores the sample on the region as `fill` (`{source_id, start_s, end_s}`), and render tiles it under the region with fades that cross the clip's: in over the region's fade-out, out over its fade-in. A track with no bed and no audible safe air (a Zoom-gated track, whose gaps are already digital silence) keeps a silent mute, as a ripple pad would. GUI exact-range mutes stay silent. The sampler trusts word times and checks only a level floor, so it can take untranscribed speech for air: on the lab tape it picked a −20.6 dBFS stretch (615.70–616.11, Whisper timed the speech there earlier) for the `um` at 616.30, and −41 to −45 dBFS stretches for two others. Keep `silence` until the sampler also caps the level.
+**Fill, not hole** — Dialogue editors fill a gap with matching room tone, because dead air on a track with a noise floor reads as a dropout. Approving a mute lays under it the fill a ripple pad gets from `tighten.filler_pad_mode`. `silence` (the default) leaves digital silence. With `room_tone`, approval picks a sample once with the ripple pad's sampler (**Where room tone comes from** below), nearest the middle of the mute. It stores the sample on the region as `fill` (`{source_id, start_s, end_s}`), and render tiles it under the region with fades that cross the clip's: in over the region's fade-out, out over its fade-in. A track with no bed and no room tone (a Zoom-gated track, whose gaps are already digital silence) keeps a silent mute, as a ripple pad would. GUI exact-range mutes stay silent.
+
+**Where room tone comes from** (#1054, `edits/room_tone.py`). With `room_tone`, a ripple pad, an approved mute and `fill_with_room_tone` all ask one sampler for a stretch of the track's room near the cut. A recorded `track.room_tone` bed wins when its `sources[]` entry exists and it is not digital silence. Otherwise the sample comes from the track's own audio, read once per file version as 10 ms frame levels at 16 kHz. Word times are not consulted, because a transcript gap can hold speech the transcript missed (#979).
+
+| Rule | Value | Why |
+|---|---|---|
+| Noise floor | 10th percentile of the track's live frames (digital silence excluded) | The breath detector's floor rule, over the whole track |
+| Speech level | 90th percentile of the frames more than 10 dB above the floor | A track with little speech still measures its voice, not its floor |
+| Quiet run | Every frame live and within 10 dB of the floor | Room tone is steady; a click, breath or syllable ends the run |
+| Candidate | Window of the requested length nearest the cut, from each run at least 0.25 s long (or the request, if shorter) | Shorter scraps tile as a flutter |
+| Ranking | Runs nearest the cut first, at most 16 tried | Every run sits at the floor, so the nearest matches the room at the cut |
+| `above_floor` | Window RMS at most 6 dB over the floor | The fill sits at the floor |
+| `near_speech` | Window RMS at least 30 dB under the speech level | The owner heard bleed turned down 20 dB as an echo of the voice (#945); 10 dB more clears it |
+| `voiced` | Silero speech probability under 0.5 | No voice, even at the floor |
+
+The first window that passes every check is the fill; the caller tiles it when it is shorter than the gap. A track with no such window, such as a Zoom-gated track whose gaps are digital silence, keeps a silent pad or mute. Spectral flatness is not a check: on the lab tape the room floor's flatness (median 0.019, 10th percentile 0.005) overlaps voice and bleed (median 0.005), so no threshold separates them.
+
+Lab tape (`aligned-ready`, every ripple and mute proposal approved with `room_tone`): main picked 69 samples and none sat within 6 dB of its track's floor. 39 were within 30 dB of speech, and one was 0.8 dB louder than Caleb's speech level. Audra's speech at −23.7 dBFS filled a pad at 615.93. With the sampler, all 51 picks on Caleb's track sit −2.2 to +5.5 dB from his −75.3 dBFS floor and at least 54.6 dB under his speech; Audra's and Lana's gated tracks stay silent. Reading the three 28-minute tracks costs about 1.2 s each, once per process.
 
 **Pause candidates are skipped in mute mode** — muting a pause is a no-op (the gap is already silence). Use ripple when you want to shorten dead air.
 
@@ -196,9 +213,9 @@ Per-episode overrides: copy relevant keys from `tighten:` / `inaudible_cuts:` / 
 | Robotic, rushed cadence after tighten | `min_retained_pause_sec` / `min_retained_solo_pause_sec` / `min_gap_after_filler_sec` / `filler_gap_retain_fraction` | **Up** floor or retain fraction |
 | Thinking / list-restart pauses feel slammed | `min_retained_solo_pause_sec` | **Up** (e.g. `0.65–0.8`); or leave the pause uncut |
 | Words smash after um/uh / you-know cut | `filler_gap_retain_fraction` / `min_gap_after_filler_sec`; keep `filler_room_tone_replace: true` | **Up** retain (e.g. `0.65–0.75`); or leave filler in |
-| Dirty air / mouth noise left at filler joins | `filler_room_tone_replace` + `filler_pad_mode` | Replace on; use `silence` (default) or `room_tone` when you have a matching bed |
+| Dirty air / mouth noise left at filler joins | `filler_room_tone_replace` + `filler_pad_mode` | Replace on; use `silence` (default) or `room_tone` on a track with a real room floor |
 | Prefer keeping original pause audio over pad | `filler_room_tone_replace` | **`false`** (shrink cut to leave original air) |
-| Sampled room tone mismatches the join / tiles speech or bleed | `filler_pad_mode` | Prefer **`silence`** until a recorded `track.room_tone` bed exists; steal still skips own words + peer speech windows |
+| Sampled room tone mismatches the join | `filler_pad_mode` | Prefer **`silence`**, or record a `track.room_tone` bed. The sampler only takes a steady stretch at the track's floor, so a mismatch means the room itself changes across the episode |
 | Mid-word chop when ASR missed a word on another mic | `speech_energy_guard` | Keep **`enabled`**; default `on_conflict: track_local` |
 | A proposal carries `:interior_speech` | the transcript, not a knob | A track the ripple removes has voice there Whisper dropped; re-transcribe or add the words, then re-propose |
 | A `pause:` proposal carries `:interior_audio` | `analysis.heuristics.audibility_rms_db` | Audible but unvoiced material (a fricative, a laugh) on a rippled track; listen before approving |
@@ -257,10 +274,8 @@ Per-episode overrides: copy relevant keys from `tighten:` / `inaudible_cuts:` / 
 | `tighten.filler_post_pad_fade_in_max_ms` | `120` | Cap for adaptive resume fade after pad |
 | `tighten.filler_post_pad_look_ahead_ms` | `120` | Source look-ahead used to size resume fade |
 | `tighten.filler_room_tone_replace` | `true` | Replace hesitation with paced pad (`clamp(min, gap×retain, max)`) |
-| `tighten.filler_pad_mode` | `silence` | Fill for ripple pads and approved mutes: hard silence, or `room_tone` (recorded bed, else stem air sample) |
+| `tighten.filler_pad_mode` | `silence` | Fill for ripple pads and approved mutes: hard silence, or `room_tone` (recorded bed, else a steady stretch at the track's floor; **Where room tone comes from**) |
 | `tighten.filler_room_tone_max_expand_sec` | `2.0` | Max expansion toward flanking words; larger gaps keep the local cut + pad |
-| `tighten.room_tone_edge_margin_sec` | `0.15` | Clear air beyond own/peer ASR edges when stealing room tone (blocks inter-word micro-gaps + bleed skirts) |
-| `tighten.room_tone_min_rms_db` | `-65` | Reject digital-silence / gated samples when stealing room tone |
 | `tighten.speech_energy_guard.enabled` | `true` | Block session ripple when peers speak in the cut window |
 | `tighten.speech_energy_guard.on_conflict` | `track_local` | `track_local` / `skip` / `review` |
 | `tighten.leave_in_if_risky` | `true` | Skip high-risk cuts vs flag for review |

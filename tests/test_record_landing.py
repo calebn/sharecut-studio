@@ -2552,7 +2552,7 @@ def test_injected_align_runs_on_fallback_hint(
 def test_land_sets_track_room_tone_under_lock(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
-    from podcast_mcp.edits.timeline_ops import room_tone_source_id
+    from podcast_mcp.edits.room_tone import room_tone_source_id
     from podcast_mcp.edits.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
@@ -2696,7 +2696,7 @@ def test_overlapping_sessions_room_tone_keep_own_verified_bytes(
 ):
     """Two sessions landing the same participant's room tone must not clobber
     each other's raw bytes; each session's landed row keeps its own file."""
-    from podcast_mcp.edits.timeline_ops import room_tone_source_id
+    from podcast_mcp.edits.room_tone import room_tone_source_id
     from podcast_mcp.edits.track_ids import slug_track_id
     from podcast_mcp.services.record import landing
     from podcast_mcp.util.hashing import sha256_file
@@ -3040,7 +3040,7 @@ def test_rollback_failure_keeps_confirmed_land(minimal_project, sample_wav, monk
 def test_room_tone_race_during_project_commit_rolls_back_stale_bed(
     minimal_project, sample_wav, monkeypatch, mode
 ):
-    from podcast_mcp.edits.timeline_ops import room_tone_source_id
+    from podcast_mcp.edits.room_tone import room_tone_source_id
     from podcast_mcp.edits.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
@@ -3103,7 +3103,7 @@ def test_room_tone_race_during_project_commit_rolls_back_stale_bed(
 def test_room_tone_rerecord_stale_during_commit_clears_overwritten_bed(
     minimal_project, sample_wav, monkeypatch
 ):
-    from podcast_mcp.edits.timeline_ops import room_tone_source_id
+    from podcast_mcp.edits.room_tone import room_tone_source_id
     from podcast_mcp.edits.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
@@ -3185,7 +3185,7 @@ def test_room_tone_rerecord_stale_during_commit_clears_overwritten_bed(
 def test_room_tone_newer_bed_on_disk_before_rollback_is_kept(
     minimal_project, sample_wav, monkeypatch
 ):
-    from podcast_mcp.edits.timeline_ops import room_tone_source_id
+    from podcast_mcp.edits.room_tone import room_tone_source_id
     from podcast_mcp.edits.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
@@ -3619,7 +3619,7 @@ def test_failed_keeper_rollback_is_retried_before_next_land(
 def test_failed_room_tone_rollback_is_retried_on_next_land(
     minimal_project, sample_wav, monkeypatch, mode
 ):
-    from podcast_mcp.edits.timeline_ops import room_tone_source_id
+    from podcast_mcp.edits.room_tone import room_tone_source_id
     from podcast_mcp.edits.track_ids import slug_track_id
     from podcast_mcp.services.record.upload import ROOM_TONE_TAKE_INDEX
 
@@ -3778,7 +3778,7 @@ def test_deferred_bed_rollback_without_revision_is_dropped_with_warning(
 ):
     import logging
 
-    from podcast_mcp.edits.timeline_ops import room_tone_source_id
+    from podcast_mcp.edits.room_tone import room_tone_source_id
     from podcast_mcp.edits.track_ids import slug_track_id
     from podcast_mcp.services.record.landing_rollback import PriorRegistration, prior_to_json
 
