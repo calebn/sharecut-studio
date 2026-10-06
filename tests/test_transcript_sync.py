@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from podcast_mcp.edits.transcript_sync import (
@@ -91,7 +93,8 @@ def test_fill_with_room_tone_keeps_word_source_times() -> None:
         Clip(id="c1", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0),
         Clip(id="c2", track_id="host", source_start=10.0, source_end=15.0, timeline_start=6.0),
     ]
-    fill_with_room_tone(p, "host")
+    with patch("podcast_mcp.edits.timeline_ops.room_tone_span", return_value=(7.0, 7.25, None)):
+        fill_with_room_tone(p, "host")
     words = {w.text: w.start for w in p.transcripts[0].words}
     assert words == {"a": 0.0, "b": 5.0}
     # Fill clips tile across the 5.0-6.0 timeline gap (0.25s samples → 4 tiles).
