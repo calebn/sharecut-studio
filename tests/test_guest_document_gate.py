@@ -1,8 +1,9 @@
-"""Guest document-command gate: each share capability set against each command.
+"""Guest document-command gate: each review-link role against each command.
 
-Owner rules (#6, #1004, #1005): ``edit`` guests edit on every surface, ``suggest``
-guests only suggest, and view/play/comment guests do neither. Every document
-command needs ``view`` on both the browser and the guest MCP surface.
+Owner rules (#6, #1004, #1005, #1050): roles follow Google Docs. Editors edit on
+every surface, Commenters only suggest, and Viewers do neither. A share that holds
+no role in full (the dropped suggest-only level, a link without ``view``) runs no
+document command, on the browser and the guest MCP surface alike.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from podcast_mcp.edits.share_capabilities import share_author
+from podcast_mcp.edits.share_capabilities import capabilities_for_role, share_author
 from podcast_mcp.edits.share_registry import SHARE_COOLDOWN_DAYS, get_share_registry
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.gui.server import create_app
@@ -27,15 +28,77 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.document_sync import DocumentCommand, DocumentSyncService
-from podcast_mcp.services.document_sync.capabilities import authorize_document_command
+from podcast_mcp.services.document_sync.capabilities import (
+    EDIT_COMMANDS,
+    SUGGEST_COMMANDS,
+    authorize_document_command,
+)
 from podcast_mcp.services.remote_mcp.allowlist import tools_for_capabilities
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
 from test_selected_range import command, fixture, target
 
 LISTEN = ["play", "comment", "reply", "action"]
-VIEW = [*LISTEN, "view"]
-SUGGEST = [*VIEW, "suggest"]
-EDIT = [*VIEW, "edit"]
+SUGGEST_ONLY = ["play", "view", "suggest"]
+VIEWER = capabilities_for_role("viewer")
+COMMENTER = capabilities_for_role("commenter")
+EDITOR = capabilities_for_role("editor")
+COMMENTER_COMMANDS = {
+    "SuggestPendingEdit",
+    "UpdatePendingEdit",
+    "EditSelectedRange",
+    "SplitAtTime",
+    "DeleteClip",
+    "RippleDeleteClip",
+}
+
+
+def allowed_commands(caps: list[str]) -> set[str]:
+    allowed = set()
+    for command_type in EDIT_COMMANDS | SUGGEST_COMMANDS:
+        try:
+            authorize_document_command(caps, command_type)
+        except PermissionError:
+            continue
+        allowed.add(command_type)
+    return allowed
+
+
+@pytest.mark.parametrize(
+    ("caps", "expected"),
+    [
+        (VIEWER, set()),
+        (COMMENTER, COMMENTER_COMMANDS),
+        (EDITOR, EDIT_COMMANDS | COMMENTER_COMMANDS),
+        ([*EDITOR, "mcp"], EDIT_COMMANDS | COMMENTER_COMMANDS),
+        (SUGGEST_ONLY, set()),
+        (LISTEN, set()),
+    ],
+    ids=["viewer", "commenter", "editor", "editor-mcp", "suggest-only", "listen"],
+)
+def test_each_role_runs_exactly_its_document_commands(caps, expected):
+    assert allowed_commands(caps) == expected
+
+
+def test_a_commenter_suggests_a_cut_and_an_editor_applies_it(minimal_project):
+    svc = range_project(minimal_project)
+    before = deepcopy(svc.ws.project.clips)
+    cut = command(target(svc.ws.project))
+    svc.submit(cut, capabilities=COMMENTER, range_policy="apply")
+    project = load_project(minimal_project)
+    assert [d.reason for d in project.edit_decisions] == ["guest:suggest"]
+    assert project.clips == before
+    approve = guest_command("ApproveEdits", {"ids": [cut.command_id]})
+    for caps in (VIEWER, COMMENTER):
+        with pytest.raises(PermissionError, match="ApproveEdits"):
+            svc.submit(approve, capabilities=caps, range_policy="apply")
+    assert load_project(minimal_project).clips == before
+    with pytest.raises(PermissionError, match="EditSelectedRange"):
+        svc.submit(command(target(svc.ws.project)), capabilities=VIEWER, range_policy="apply")
+
+    svc.submit(approve, capabilities=EDITOR, range_policy="apply")
+    project = load_project(minimal_project)
+    assert project.edit_decisions == []
+    assert project.clips != before
 
 
 def guest_command(command_type: str, payload: dict) -> DocumentCommand:
@@ -73,11 +136,11 @@ def retime(svc: DocumentSyncService, caps: list[str], edit_id: str) -> None:
 @pytest.mark.parametrize(
     ("caps", "allowed"),
     [
-        (VIEW, set()),
-        (SUGGEST, set()),
-        (EDIT, {"host", "agent", "guest"}),
+        (VIEWER, set()),
+        (COMMENTER, set()),
+        (EDITOR, {"host", "agent", "guest"}),
     ],
-    ids=["view", "suggest", "edit"],
+    ids=["viewer", "commenter", "editor"],
 )
 def test_retiming_a_pending_edit_follows_its_author(minimal_project, caps, allowed, edit_id):
     svc = pending_project(minimal_project)
@@ -125,13 +188,13 @@ def edit_at(minimal_project, start: float) -> EditDecision:
 
 
 @pytest.mark.parametrize("surface", ["browser", "mcp"])
-def test_suggest_guests_retime_only_their_own_suggestions(
+def test_commenters_retime_only_their_own_suggestions(
     minimal_project, sample_wav, monkeypatch, surface
 ):
     pending_project(minimal_project)
     shares = {
         who: _mcp_share(minimal_project, sample_wav, monkeypatch, [*caps, "mcp"])
-        for who, caps in (("ann", SUGGEST), ("bob", SUGGEST), ("editor", EDIT))
+        for who, caps in (("ann", COMMENTER), ("bob", COMMENTER), ("editor", EDITOR))
     }
     submit_as = guest_submitter(surface)
 
@@ -205,7 +268,7 @@ def test_guest_edit_author_is_the_share_registry_id_not_the_token(
 ):
     pending_project(minimal_project)
     ann, bob = (
-        _mcp_share(minimal_project, sample_wav, monkeypatch, [*SUGGEST, "mcp"]) for _ in "ab"
+        _mcp_share(minimal_project, sample_wav, monkeypatch, [*COMMENTER, "mcp"]) for _ in "ab"
     )
     submit = guest_submitter(surface)
 
@@ -238,14 +301,14 @@ def test_a_recycled_share_slug_does_not_inherit_the_old_author(
         "podcast_mcp.edits.share_registry.generate_slug", lambda _words=3: "recycled-cool-slug"
     )
     submit = guest_submitter("browser")
-    first = _mcp_share(minimal_project, sample_wav, monkeypatch, SUGGEST)
+    first = _mcp_share(minimal_project, sample_wav, monkeypatch, COMMENTER)
     assert submit(first, "SuggestPendingEdit", {"track_id": "c", "start": 5.0, "end": 5.5})
     old = edit_at(minimal_project, 5.0)
 
     ShareService(ProjectWorkspace.open(minimal_project)).revoke(first)
     after_cooldown = datetime.now(UTC) + timedelta(days=SHARE_COOLDOWN_DAYS + 1)
     get_share_registry().purge_expired_cooldown(now=after_cooldown)
-    second = _mcp_share(minimal_project, sample_wav, monkeypatch, SUGGEST)
+    second = _mcp_share(minimal_project, sample_wav, monkeypatch, COMMENTER)
     assert second == first
 
     retime = {"id": old.id, "start": 6.0, "end": 6.5, "snap": False}
@@ -257,18 +320,19 @@ def test_a_recycled_share_slug_does_not_inherit_the_old_author(
 
 
 @pytest.mark.parametrize(
-    ("caps", "command_type"),
+    ("role", "command_type"),
     [
-        (["suggest"], "SuggestPendingEdit"),
-        (["play", "suggest", "mcp"], "UpdatePendingEdit"),
-        (["edit"], "ApproveEdits"),
-        (["play", "comment", "edit", "mcp"], "EditSelectedRange"),
+        ("commenter", "SuggestPendingEdit"),
+        ("commenter", "UpdatePendingEdit"),
+        ("editor", "ApproveEdits"),
+        ("editor", "EditSelectedRange"),
     ],
 )
-def test_document_commands_need_view(caps, command_type):
+def test_document_commands_need_view(role, command_type):
+    caps = capabilities_for_role(role, with_mcp=True)
     with pytest.raises(PermissionError, match=command_type):
-        authorize_document_command(caps, command_type)
-    authorize_document_command([*caps, "view"], command_type)
+        authorize_document_command([cap for cap in caps if cap != "view"], command_type)
+    authorize_document_command(caps, command_type)
 
 
 def _mcp_share(minimal_project, sample_wav, monkeypatch, caps: list[str]) -> str:
@@ -293,22 +357,22 @@ def _mcp_call(token: str, name: str, arguments: dict) -> dict:
     )
 
 
-@pytest.mark.parametrize("cap", ["suggest", "edit"])
-def test_guest_mcp_needs_view_like_the_browser(minimal_project, sample_wav, monkeypatch, cap):
+@pytest.mark.parametrize("role", ["commenter", "editor"])
+def test_guest_mcp_needs_view_like_the_browser(minimal_project, sample_wav, monkeypatch, role):
     pending_project(minimal_project)
     suggest = {
         "type": "SuggestPendingEdit",
         "payload": {"track_id": "c", "start": 5.0, "end": 5.5},
     }
-    blind = _mcp_share(minimal_project, sample_wav, monkeypatch, ["play", cap, "mcp"])
-    assert "guest_submit_document_command" not in tools_for_capabilities(["play", cap, "mcp"])
+    caps = capabilities_for_role(role, with_mcp=True)
+    blind_caps = [cap for cap in caps if cap != "view"]
+    blind = _mcp_share(minimal_project, sample_wav, monkeypatch, blind_caps)
+    assert "guest_submit_document_command" not in tools_for_capabilities(blind_caps)
     denied = _mcp_call(blind, "guest_submit_document_command", suggest)
     assert "error" in denied
     assert len(load_project(minimal_project).edit_decisions) == 3
 
-    seeing = _mcp_share(
-        minimal_project, sample_wav, monkeypatch, ["play", "view", "suggest", "mcp"]
-    )
+    seeing = _mcp_share(minimal_project, sample_wav, monkeypatch, caps)
     allowed = _mcp_call(seeing, "guest_submit_document_command", suggest)
     assert "error" not in allowed, allowed
     assert json.loads(allowed["result"]["content"][0]["text"])["ok"] is True
@@ -317,8 +381,12 @@ def test_guest_mcp_needs_view_like_the_browser(minimal_project, sample_wav, monk
 
 @pytest.mark.parametrize(
     ("caps", "offered"),
-    [(["play", "edit", "mcp"], set()), (["play", "view", "edit", "mcp"], {"render", "upload"})],
-    ids=["edit-without-view", "edit-with-view"],
+    [
+        ([*(cap for cap in EDITOR if cap != "view"), "mcp"], set()),
+        ([*COMMENTER, "mcp"], set()),
+        ([*EDITOR, "mcp"], {"render", "upload"}),
+    ],
+    ids=["editor-without-view", "commenter", "editor"],
 )
 def test_guest_mcp_offers_edit_tools_only_when_the_gate_allows_edit(
     minimal_project, sample_wav, monkeypatch, caps, offered
@@ -350,29 +418,29 @@ def range_project(minimal_project) -> DocumentSyncService:
 @pytest.mark.parametrize(
     ("caps", "range_policy", "outcome"),
     [
-        (VIEW, "apply", None),
-        (VIEW, "propose", None),
-        (SUGGEST, "apply", "guest:suggest"),
-        (SUGGEST, "propose", "guest:suggest"),
-        (EDIT, "apply", "applied"),
-        (EDIT, "propose", "applied"),
-        ([*SUGGEST, "edit"], "propose", "applied"),
+        (VIEWER, "apply", None),
+        (VIEWER, "propose", None),
+        (SUGGEST_ONLY, "apply", None),
+        (COMMENTER, "apply", "guest:suggest"),
+        (COMMENTER, "propose", "guest:suggest"),
+        (EDITOR, "apply", "applied"),
+        (EDITOR, "propose", "applied"),
         (None, "apply", "applied"),
         (None, "propose", "agent:range"),
     ],
     ids=[
-        "view-daw",
-        "view-mcp",
-        "suggest-daw",
-        "suggest-mcp",
-        "edit-daw",
-        "edit-mcp",
+        "viewer-daw",
+        "viewer-mcp",
+        "suggest-only-daw",
+        "commenter-daw",
+        "commenter-mcp",
+        "editor-daw",
         "editor-mcp",
         "host-daw",
         "host-agent",
     ],
 )
-def test_selected_range_mode_follows_capabilities_on_every_surface(
+def test_selected_range_mode_follows_the_role_on_every_surface(
     minimal_project, caps, range_policy, outcome, action
 ):
     svc = range_project(minimal_project)
@@ -395,12 +463,12 @@ def test_selected_range_mode_follows_capabilities_on_every_surface(
 
 
 def suggest_both_kinds(svc: DocumentSyncService) -> dict[str, str]:
-    """One exact selected-range and one source suggestion, both from a suggest guest."""
+    """One exact selected-range and one source suggestion, both from a Commenter."""
     exact = command(target(svc.ws.project))
-    svc.submit(exact, capabilities=SUGGEST, range_policy="apply")
+    svc.submit(exact, capabilities=COMMENTER, range_policy="apply")
     svc.submit(
         guest_command("SuggestPendingEdit", {"track_id": "c", "start": 15.0, "end": 15.5}),
-        capabilities=SUGGEST,
+        capabilities=COMMENTER,
         range_policy="apply",
     )
     source = next(e.id for e in svc.ws.project.edit_decisions if e.exact_range is None)
@@ -412,10 +480,10 @@ def suggest_both_kinds(svc: DocumentSyncService) -> dict[str, str]:
 @pytest.mark.parametrize("range_policy", ["apply", "propose"], ids=["daw", "mcp"])
 @pytest.mark.parametrize(
     ("caps", "allowed"),
-    [(VIEW, False), (SUGGEST, False), (EDIT, True)],
-    ids=["view", "suggest", "edit"],
+    [(VIEWER, False), (COMMENTER, False), (EDITOR, True)],
+    ids=["viewer", "commenter", "editor"],
 )
-def test_only_edit_guests_decide_pending_suggestions(
+def test_only_editors_decide_pending_suggestions(
     minimal_project, caps, allowed, range_policy, decide, kind
 ):
     svc = range_project(minimal_project)
@@ -456,7 +524,7 @@ def saved_state(minimal_project):
 
 
 @pytest.mark.parametrize("change", ["approve", "reject", "cut", "mute", "retime"])
-def test_host_undoes_each_edit_guest_mcp_change(minimal_project, change):
+def test_host_undoes_each_editor_mcp_change(minimal_project, change):
     svc = range_project(minimal_project)
     ids = suggest_both_kinds(svc)
     host = append_remove_decision(svc.ws.project, "c", 1.0, 1.5, reason="")
@@ -474,7 +542,7 @@ def test_host_undoes_each_edit_guest_mcp_change(minimal_project, change):
             "UpdatePendingEdit", {"id": host.id, "start": 4.0, "end": 4.25, "snap": False}
         ),
     }
-    svc.submit(commands[change], capabilities=EDIT, range_policy="propose")
+    svc.submit(commands[change], capabilities=EDITOR, range_policy="propose")
     assert saved_state(minimal_project) != before
     host_undo(minimal_project)
     assert saved_state(minimal_project) == before
@@ -483,10 +551,10 @@ def test_host_undoes_each_edit_guest_mcp_change(minimal_project, change):
 @pytest.mark.parametrize(
     ("caps", "outcome"),
     [
-        (["play", "view", "suggest", "mcp"], "proposed"),
-        (["play", "view", "edit", "mcp"], "applied"),
+        ([*COMMENTER, "mcp"], "proposed"),
+        ([*EDITOR, "mcp"], "applied"),
     ],
-    ids=["suggest", "edit"],
+    ids=["commenter", "editor"],
 )
 def test_guest_mcp_range_cut_follows_the_share(
     minimal_project, sample_wav, monkeypatch, caps, outcome
@@ -557,21 +625,21 @@ def guest_read_routes(minimal_project, sample_wav, published_share):
     ("caps", "status"),
     [
         (LISTEN, 403),
-        (VIEW, 403),
-        (SUGGEST, 200),
-        (EDIT, 200),
-        ([*SUGGEST, "edit"], 200),
+        (VIEWER, 403),
+        (COMMENTER, 200),
+        (EDITOR, 200),
+        (SUGGEST_ONLY, 403),
         (["play", "suggest"], 403),
-        (["play", "edit"], 403),
+        ([cap for cap in EDITOR if cap != "view"], 403),
     ],
     ids=[
         "listen",
-        "view",
-        "suggest",
-        "edit",
-        "suggest-and-edit",
+        "viewer",
+        "commenter",
+        "editor",
+        "suggest-only",
         "suggest-without-view",
-        "edit-without-view",
+        "editor-without-view",
     ],
 )
 def test_guest_authoring_reads_follow_the_gate(guest_read_routes, route, caps, status):

@@ -10,71 +10,61 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
 from podcast_mcp.edits.share_capabilities import (
-    COMMENTER_CAPABILITIES,
-    EDITOR_CAPABILITIES,
     RECORD_ROLE_PRESETS,
-    ROLE_PRESETS,
-    VIEWER_CAPABILITIES,
+    REVIEW_ROLE_CAPABILITIES,
+    ReviewRole,
     capabilities_for_role,
-    docs_role_for_capabilities,
     record_capabilities_for_role,
     record_role_for_capabilities,
-    resolve_share_capabilities,
+    review_role_for_capabilities,
 )
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.remote_mcp.allowlist import tools_for_capabilities
 
+COMMENTER = ["play", "view", "comment", "reply", "action", "suggest"]
+
+
+def test_review_roles_follow_google_docs() -> None:
+    """Viewer views and plays; Commenter also comments and suggests; Editor also edits."""
+    assert {role.value: capabilities_for_role(role) for role in ReviewRole} == {
+        "viewer": ["play", "view"],
+        "commenter": COMMENTER,
+        "editor": [*COMMENTER, "edit"],
+    }
+    assert list(REVIEW_ROLE_CAPABILITIES) == list(ReviewRole)
+
+
+def test_capabilities_for_role_parses_names_and_adds_mcp() -> None:
+    assert capabilities_for_role("VIEWER") == ["play", "view"]
+    assert capabilities_for_role("commenter", with_mcp=True) == [*COMMENTER, "mcp"]
+
+
+@pytest.mark.parametrize("role", ["owner", "suggester", "guest", ""])
+def test_capabilities_for_role_unknown(role: str) -> None:
+    with pytest.raises(ValueError, match="unknown share role"):
+        capabilities_for_role(role)
+
 
 @pytest.mark.parametrize(
-    ("role", "expected"),
+    ("caps", "role"),
     [
-        ("viewer", VIEWER_CAPABILITIES),
-        ("commenter", COMMENTER_CAPABILITIES),
-        ("editor", EDITOR_CAPABILITIES),
-        ("VIEWER", VIEWER_CAPABILITIES),
+        (["play", "view"], ReviewRole.VIEWER),
+        (COMMENTER, ReviewRole.COMMENTER),
+        ([*COMMENTER, "mcp"], ReviewRole.COMMENTER),
+        ([*COMMENTER, "edit", "mcp"], ReviewRole.EDITOR),
+        # The dropped suggest-only level is no role above Viewer.
+        (["play", "view", "suggest"], ReviewRole.VIEWER),
+        (["play", "view", "comment", "reply", "action"], ReviewRole.VIEWER),
+        (["play", "view", "edit"], ReviewRole.VIEWER),
+        (["play", "comment", "reply", "action"], None),
+        (["join", "monitor", "comment"], None),
+        ([], None),
     ],
 )
-def test_capabilities_for_role(role: str, expected: list[str]) -> None:
-    assert capabilities_for_role(role) == list(expected)
-
-
-def test_capabilities_for_role_with_mcp() -> None:
-    caps = capabilities_for_role("viewer", with_mcp=True)
-    assert "mcp" in caps
-    assert "play" in caps
-    assert "view" in caps
-
-
-def test_capabilities_for_role_unknown() -> None:
-    with pytest.raises(ValueError, match="unknown share role"):
-        capabilities_for_role("owner")
-
-
-def test_resolve_role_overrides_capabilities() -> None:
-    caps = resolve_share_capabilities(
-        role="viewer",
-        capabilities="play,comment,edit",
-        with_mcp=False,
-    )
-    assert caps == list(VIEWER_CAPABILITIES)
-
-
-def test_resolve_raw_capabilities_with_mcp() -> None:
-    caps = resolve_share_capabilities(
-        capabilities="play,comment",
-        with_mcp=True,
-    )
-    assert "mcp" in caps
-    assert "play" in caps
-    assert "comment" in caps
-
-
-def test_docs_role_for_capabilities() -> None:
-    assert docs_role_for_capabilities(VIEWER_CAPABILITIES) == "viewer"
-    assert docs_role_for_capabilities(COMMENTER_CAPABILITIES) == "commenter"
-    assert docs_role_for_capabilities(EDITOR_CAPABILITIES) == "editor"
+def test_review_role_is_the_highest_role_a_share_holds_in_full(caps, role) -> None:
+    assert review_role_for_capabilities(caps) is role
 
 
 def test_record_capabilities_for_role_guest_producer() -> None:
@@ -88,17 +78,8 @@ def test_record_role_unknown_raises() -> None:
         record_capabilities_for_role("viewer")
 
 
-def test_resolve_share_capabilities_kind_record_requires_role() -> None:
-    with pytest.raises(ValueError, match="require --role"):
-        resolve_share_capabilities(kind="record")
-    caps = resolve_share_capabilities(kind="record", role="guest", with_mcp=True)
-    assert caps == ["join", "monitor", "comment"]
-    assert "mcp" not in caps
-
-
 def test_review_role_presets_unchanged_by_record_presets() -> None:
-    assert "guest" not in ROLE_PRESETS
-    assert "producer" not in ROLE_PRESETS
+    assert {"guest", "producer"}.isdisjoint(ReviewRole)
     assert set(RECORD_ROLE_PRESETS) == {"guest", "producer"}
 
 
@@ -108,23 +89,25 @@ def test_record_role_for_capabilities() -> None:
     assert record_role_for_capabilities(["play", "comment"]) is None
 
 
-@pytest.mark.parametrize("role", ["viewer", "commenter", "editor"])
-def test_role_allowlist_parity(role: str) -> None:
+@pytest.mark.parametrize(
+    ("role", "offered"),
+    [
+        ("viewer", {"guest_get_project", "guest_pending_preview", "guest_audition_context"}),
+        (
+            "commenter",
+            {"guest_add_comment", "guest_set_action_done", "guest_submit_document_command"},
+        ),
+        ("editor", {"guest_submit_document_command", "guest_upload_media"}),
+    ],
+)
+def test_role_allowlist_parity(role: str, offered: set[str]) -> None:
     """Web guest mode and remote MCP tools both derive from the same caps."""
-    caps = capabilities_for_role(role)
-    tools = tools_for_capabilities(caps)
-    if role == "viewer":
-        assert "guest_get_project" in tools
-        assert "guest_pending_preview" in tools
-        assert "guest_audition_context" in tools
-        assert "guest_add_comment" not in tools
-    elif role == "commenter":
-        assert "guest_add_comment" in tools
-        assert "guest_pending_preview" not in tools
-        assert "guest_submit_document_command" not in tools
-    else:
-        assert "guest_submit_document_command" in tools
-        assert "guest_upload_media" in tools
+    tools = tools_for_capabilities(capabilities_for_role(role))
+    assert offered <= tools
+    edit_only = {"guest_render_preview", "guest_upload_media", "guest_render_preview_job"}
+    assert edit_only <= tools if role == "editor" else edit_only.isdisjoint(tools)
+    authoring = {"guest_add_comment", "guest_submit_document_command"}
+    assert authoring.isdisjoint(tools) if role == "viewer" else authoring <= tools
 
 
 def _seed_premix(minimal_project, sample_wav):
@@ -163,6 +146,37 @@ def test_cli_share_role_viewer(minimal_project, sample_wav, tmp_workspace, monke
     assert "comment" not in payload["capabilities"]
     assert payload["guest_mode"] == "view"
     assert payload["mcp_url"]
+
+
+def test_cli_share_mints_review_links_from_a_role_only(minimal_project, sample_wav, tmp_workspace):
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="default-role")
+    base = ["review", "share", "--project", str(minimal_project), "--version", ver["id"]]
+    runner = CliRunner()
+
+    default = runner.invoke(cli_app, [*base, "--base-url", "http://relay.test"])
+    assert default.exit_code == 0, default.output
+    payload = json.loads(default.stdout)
+    assert (payload["capabilities"], payload["docs_role"], payload["guest_mode"]) == (
+        COMMENTER,
+        "commenter",
+        "comment",
+    )
+
+    raw = runner.invoke(cli_app, [*base, "--capabilities", "play,view,suggest"])
+    assert raw.exit_code == 2
+    assert "No such option" in raw.output
+
+
+def test_create_review_share_tool_takes_no_raw_capabilities(minimal_project, sample_wav):
+    from podcast_mcp.mcp.tools.review import create_review_share_tool
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="tool-role")
+    with pytest.raises(TypeError, match="capabilities"):
+        create_review_share_tool(str(minimal_project), ver["id"], capabilities="play,view,suggest")
+    made = json.loads(create_review_share_tool(str(minimal_project), ver["id"]))
+    assert (made["capabilities"], made["docs_role"]) == (COMMENTER, "commenter")
 
 
 def test_cli_share_restricted_invite_and_revoke(
