@@ -619,6 +619,23 @@ def test_prosody_marks_meet_non_text_contrast(theme: str) -> None:
         assert _contrast_ratio(ink, lane) >= 3.0, (theme, name)
 
 
+@pytest.mark.parametrize("theme", ["dark", "light"])
+def test_muted_track_keeps_text_contrast(theme: str) -> None:
+    """A track this listener doesn't hear goes grey (#1102): a near-neutral clip
+    fill keeps the clip label at AA, and the grey header row keeps its name and
+    readouts at AA while reading apart from a heard row."""
+    roles = _studio_roles(theme)
+    clip = _resolve_hex("--color-clip-muted", roles)
+    row = _resolve_hex("--color-track-muted", roles)
+    label = _resolve_hex("--color-clip-label", roles)
+    assert _contrast_ratio(label, clip) >= 4.5, theme
+    red, green, blue = (channel / 255 for channel in _rgb(clip))
+    assert colorsys.rgb_to_hls(red, green, blue)[2] < 0.1, (theme, clip)
+    for text in ("--color-text-primary", "--color-text-secondary"):
+        assert _contrast_ratio(_resolve_hex(text, roles), row) >= 4.5, (theme, text)
+    assert _contrast_ratio(row, _resolve_hex("--color-bg-base", roles)) >= 1.1, theme
+
+
 THEME_FIXED = ROOT / "gui/web/src/styles/theme/theme-fixed.css"
 
 

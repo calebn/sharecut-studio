@@ -44,15 +44,22 @@
   font-weight: 600;
 }
 
-/* Same mute language as the track rail chip: dim what this listener doesn't
-   hear; dashed when only they hear it that way. */
+/* Same mute language as the track headers: a track this listener doesn't
+   hear goes grey; its tile outline is solid when muted in the saved mix and
+   dashed when only they hear it that way. */
+.track-mix-row:is(.muted, .mute-implied) {
+  background: var(--color-track-muted);
+}
+
 .track-mix-row:is(.muted, .mute-implied) .track-mix-identity {
-  opacity: var(--mute-dim-opacity);
+  --track-identity-background: var(--color-track-muted);
+
+  outline: 1px solid var(--track-identity-color);
+  outline-offset: -1px;
 }
 
 .track-mix-row:is(.mute-listen, .mute-implied) .track-mix-identity {
-  outline: 1px dashed var(--track-identity-color);
-  outline-offset: -1px;
+  outline-style: dashed;
 }
 
 .track-mix .solo-chip {

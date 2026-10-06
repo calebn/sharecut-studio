@@ -6,14 +6,29 @@
   border-bottom: 1px solid var(--color-timeline-border);
 }
 
-/* Clips cover the lane fill, so a muted lane also fades its waveform. Clip
-   labels keep full contrast. */
+/* A track this listener doesn't hear goes grey, like a muted region in a
+   DAW: lane, clip fill and waveform lose their colour and the waveform
+   fades. The fill drops its sheen so the label keeps AA contrast. */
 .lane-row:is(.muted, .mute-implied) {
-  background: var(--color-timeline-lane-muted);
+  background: var(--color-track-muted);
+}
+
+/* Painted over the lane colour, not instead of it: the waveform tint reads
+   the clip's background-color (waveformStyle) and caches it per lane colour. */
+.lane-row:is(.muted, .mute-implied) .clip-block {
+  background-image: linear-gradient(
+    var(--color-clip-muted),
+    var(--color-clip-muted)
+  );
+}
+
+.lane-row:is(.muted, .mute-implied) .clip-block::before {
+  background: none;
 }
 
 .lane-row:is(.muted, .mute-implied) .clip-waveform {
-  opacity: var(--mute-dim-opacity);
+  filter: grayscale(1);
+  opacity: var(--mute-waveform-opacity);
 }
 
 .timeline-skeleton-lane {

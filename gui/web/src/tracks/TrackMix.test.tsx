@@ -157,15 +157,21 @@ describe("TrackMix", () => {
       { skipWhen: true },
     );
     const css = partial("track-mix.css");
-    expect(
-      rule(css, ".track-mix-row:is(.muted, .mute-implied) .track-mix-identity"),
-    ).toMatch(/opacity:\s*var\(--mute-dim-opacity\)/);
+    expect(rule(css, ".track-mix-row:is(.muted, .mute-implied)")).toMatch(
+      /background:\s*var\(--color-track-muted\)/,
+    );
+    const tile = rule(
+      css,
+      ".track-mix-row:is(.muted, .mute-implied) .track-mix-identity",
+    );
+    expect(tile).toMatch(/outline:\s*1px solid var\(--track-identity-color\)/);
+    expect(tile).not.toMatch(/opacity:/);
     expect(
       rule(
         css,
         ".track-mix-row:is(.mute-listen, .mute-implied) .track-mix-identity",
-      ),
-    ).toMatch(/outline:\s*1px dashed var\(--track-identity-color\)/);
+      ).trim(),
+    ).toBe("outline-style: dashed;");
     await expectNoA11yViolations(view.container);
   });
   it("distinguishes loading from an empty loaded project", async () => {

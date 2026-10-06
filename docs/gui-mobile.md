@@ -70,9 +70,9 @@ project order and show lane initials, names, M, S, and saved Volume. M and Volum
 save through the existing mix commands for hosts and guests with `edit`; other
 guests use local M and see disabled Volume with its permission reason. S stays
 local for everyone. Shared playback still uses Full mix, as the sheet explains.
-While any track is soloed, **Solo on · Clear solo** leads the sheet, and rows
-your solo silences dim their initials tile with a dashed outline (a saved mute
-dims it without the dash).
+While any track is soloed, **Solo on · Clear solo** leads the sheet. Rows of
+tracks you don't hear go grey; the initials tile outline is dashed when your
+solo silences the track and solid for a saved mute.
 The default row is 3.5rem with at least 2.75rem M/S/range targets. Long names
 truncate only in their column; many rows scroll together with the explanatory
 copy. Text scaling can move Volume onto a second row without clipping controls.

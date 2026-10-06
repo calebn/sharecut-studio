@@ -50,8 +50,12 @@ export function muteButtonTitle(
   }
 }
 
-/** The global chip shown while any track is soloed; one click clears solo. */
-export const SOLO_CHIP_LABEL = "Solo on · Clear solo";
+/**
+ * The global Solo on button, shown while any track is soloed; one press
+ * clears solo. It reads "Solo on · Clear solo": the state, then the action.
+ */
+export const SOLO_CHIP_STATE = "Solo on";
+export const SOLO_CHIP_ACTION = "Clear solo";
 
 /** Live-region text when this listener's solo turns on or off. */
 export const SOLO_ON_ANNOUNCEMENT =

@@ -186,14 +186,31 @@ describe("TrackLane mute dim", () => {
     expect(container.querySelector(".lane-row")?.className).toBe(className);
   });
 
-  it("fades the waveform of every lane this listener doesn't hear", () => {
+  it("greys the lane, clips and waveform of every track this listener doesn't hear", () => {
     const css = partial("timeline.css");
     expect(rule(css, ".lane-row:is(.muted, .mute-implied)")).toMatch(
-      /background:\s*var\(--color-timeline-lane-muted\)/,
+      /background:\s*var\(--color-track-muted\)/,
     );
+    const clip = rule(css, ".lane-row:is(.muted, .mute-implied) .clip-block");
+    expect(clip).toMatch(
+      /background-image:\s*linear-gradient\(\s*var\(--color-clip-muted\),\s*var\(--color-clip-muted\)\s*\);/,
+    );
+    expect(clip).not.toMatch(/background(-color)?:/);
     expect(
-      rule(css, ".lane-row:is(.muted, .mute-implied) .clip-waveform").trim(),
-    ).toBe("opacity: var(--mute-dim-opacity);");
+      rule(css, ".lane-row:is(.muted, .mute-implied) .clip-waveform"),
+    ).toMatch(
+      /filter:\s*grayscale\(1\);\s*opacity:\s*var\(--mute-waveform-opacity\);/,
+    );
+    expect(css).not.toMatch(/\.clip-label[^{]*\{[^}]*opacity/);
+  });
+
+  it("keeps the lane colour as each clip's background-color, which the waveform tint reads", () => {
+    const { container } = render(
+      <TrackLane {...baseProps} onSeek={vi.fn()} onSelectClip={vi.fn()} />,
+    );
+    const clip = container.querySelector<HTMLElement>(".clip-block");
+    expect(clip?.style.backgroundColor).toBe("var(--clip-dialogue-0)");
+    expect(clip?.style.backgroundImage).toBe("");
   });
 });
 

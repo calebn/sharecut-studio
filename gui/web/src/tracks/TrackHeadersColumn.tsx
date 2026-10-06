@@ -11,12 +11,15 @@ import { canIngestMedia } from "../shareMode";
 import { useDaw } from "../state/useDaw";
 import { useTimelineMetrics } from "../timeline/timelineMetrics";
 import { RULER_HEIGHT } from "../utils/layout";
+import { SoloChip } from "./SoloChip";
 import { TrackHeader } from "./TrackHeader";
 import { reorderInsertIndex } from "./trackReorder";
 
 interface Props {
   /** Host ingest “+ Track” row under the headers. */
   showAddTrack?: boolean;
+  /** Desktop and tablet: Solo on · Clear solo in the corner above the headers. */
+  showSoloChip?: boolean;
   addDropOver?: boolean;
   addFileCount?: number;
   onAddDropOverChange?: (over: boolean, fileCount?: number) => void;
@@ -28,6 +31,7 @@ function deselectAllTracks(): void {
 
 export function TrackHeadersColumn({
   showAddTrack = false,
+  showSoloChip = false,
   addDropOver = false,
   addFileCount = 1,
   onAddDropOverChange,
@@ -138,6 +142,7 @@ export function TrackHeadersColumn({
           role="presentation"
           onClick={deselectAllTracks}
         />
+        {showSoloChip ? <SoloChip /> : null}
       </div>
       {tracks.map((track, idx) => (
         <TrackHeader

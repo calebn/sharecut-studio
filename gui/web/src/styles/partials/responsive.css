@@ -250,6 +250,7 @@ html[data-shell="tablet"] {
 :is(.mobile-status-row, .track-mix) .solo-chip {
   min-block-size: var(--touch-min);
   font-size: var(--font-size-small);
+  white-space: nowrap;
 }
 
 .mobile-nav {

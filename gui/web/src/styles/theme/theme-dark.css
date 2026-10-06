@@ -182,6 +182,11 @@
   --color-clip-dialogue-2: var(--primitive-brown-700);
   --color-clip-music: var(--primitive-blue-750);
   --color-clip-sfx: var(--primitive-purple-650);
+  /* A track this listener doesn't hear goes grey: its header row and
+     lane take --color-track-muted, its clips --color-clip-muted under
+     the usual --color-clip-label (test_muted_track_keeps_text_contrast). */
+  --color-track-muted: var(--primitive-neutral-975);
+  --color-clip-muted: var(--primitive-neutral-750);
   --color-presence-0: var(--primitive-purple-300);
   --color-presence-1: var(--primitive-purple-400);
   --color-presence-2: var(--primitive-teal-300);

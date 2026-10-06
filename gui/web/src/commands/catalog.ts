@@ -282,7 +282,7 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Clear solo",
     when: "hasProject",
     notes:
-      "Unsolo every track: the transport Solo on chip, phone status row and Mix sheet (listen-only, no key)",
+      "Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key)",
   },
   "view.zoomIn": {
     id: "view.zoomIn",

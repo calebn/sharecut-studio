@@ -476,7 +476,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   trackInspector: "daw.track.setVolume",
   trackHeader: "daw.track.soloToggle",
   trackHeadersWell: "daw.track.deselectAll",
-  "transport.soloChip": "daw.track.clearSolo",
+  "trackHeaders.soloChip": "daw.track.clearSolo",
   "mobileShell.statusRow": "daw.track.clearSolo",
   trackMix: "daw.track.clearSolo",
   "transport.fit": "daw.view.fit",
