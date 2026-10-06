@@ -123,7 +123,12 @@ export function TrackHeadersColumn({
   };
 
   return (
-    <div className="track-headers" role="group" aria-label="Tracks">
+    <div
+      className="track-headers"
+      role="group"
+      aria-label="Tracks"
+      tabIndex={-1}
+    >
       <div
         className="track-headers-chrome"
         style={{

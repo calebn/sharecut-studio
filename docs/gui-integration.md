@@ -339,7 +339,7 @@ evidence:
 - #386 owner: listen-only solo "avoids the known 'exported while soloed' trap"
 - #414 browser QA: the fader saves to the file, Cmd+Z reverts M, solo shows the implied mute
 - #936 phone Mix sheet: an independent verifier passed 16 of 16 live cases
-- #1102: tracks your solo silences go grey (row, lane, clips, waveform), and a Solo on · Clear solo button sits above the track headers on desktop and tablet and in the status row on phone (before/after screenshots on the PR)
+- #1102: tracks your solo silences go grey (row, lane, clips, waveform), and a Solo on · Clear solo button sits above the track headers on desktop and tablet and in the status row on phone. Pressing it moves focus to the soloed track's S button (the first S button if several were soloed; the tracks region or phone body if none is on screen), so keyboard focus never drops to the page (before/after screenshots on the PR)
 enforced-by:
 - tests/test_track_mix.py::test_output_gain_adds_the_fader_to_the_staging_gain
 - tests/test_track_mix.py::test_only_the_host_and_editors_may_change_the_mix

@@ -887,6 +887,12 @@
   outline: none;
 }
 
+/* Landing places for focus after Clear solo when no S button survives; a
+   region ring would only be noise. */
+:is(.track-headers, .track-mix, .mobile-mode-body):focus {
+  outline: none;
+}
+
 .track-header-open:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: -0.25rem;

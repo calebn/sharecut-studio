@@ -134,6 +134,19 @@ describe("TrackMix", () => {
       "true",
     );
   });
+  it("moves focus to the soloed track's S button when the Mix chip is activated", async () => {
+    setup();
+    act(() => useDawStore.setState({ soloTracks: { music: true } }));
+    const chip = screen.getByRole("button", { name: "Solo on · Clear solo" });
+    chip.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(execute).toHaveBeenCalledWith(
+      "track.clearSolo",
+      {},
+      { skipWhen: true },
+    );
+    expect(screen.getByRole("button", { name: "Solo music" })).toHaveFocus();
+  });
   it("dims rows nobody hears, dashes only-you rows, and offers Clear solo", async () => {
     const view = setup();
     const rowClasses = () =>

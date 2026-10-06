@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearRegisteredCommands } from "../commands/execute";
+import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -222,6 +224,27 @@ describe("StudioShell tablet peek", () => {
     expect(
       screen.queryByRole("button", { name: "Solo on · Clear solo" }),
     ).toBeNull();
+  });
+
+  it("hands keyboard focus to the soloed track's S button when the corner chip clears solo", async () => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    const user = userEvent.setup();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    act(() => useDawStore.getState().setSoloMap({ guest: true }));
+    const chip = screen.getByRole("button", { name: "Solo on · Clear solo" });
+    chip.focus();
+    await user.keyboard("{Enter}");
+    expect(useDawStore.getState().soloTracks).toEqual({});
+    expect(
+      screen.queryByRole("button", { name: "Solo on · Clear solo" }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Solo Guest" })).toHaveFocus();
+    clearRegisteredCommands();
   });
 
   it("hosts headers in the timeline for an empty session without ingest", () => {

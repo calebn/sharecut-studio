@@ -88,7 +88,7 @@ export function MobileShellView({
           {chrome.transport}
         </div>
       ) : null}
-      <main className="mobile-mode-body">
+      <main className="mobile-mode-body" tabIndex={-1}>
         <div className="mobile-status-row">{chrome.status}</div>
         {screen.kind === "listen" && screen.content}
         {screen.kind === "timeline" && (
