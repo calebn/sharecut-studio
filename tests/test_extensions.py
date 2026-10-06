@@ -118,7 +118,6 @@ def test_incompatible_extension_skipped() -> None:
             registry.add("share.ui.menu", source="old")
 
     reg = load_extensions(extra_backends=[Old()])  # type: ignore[list-item]
-    # May still have online/example from default load
     assert not any(c.source == "old" for c in reg.get("share.ui.menu"))
 
 
@@ -177,6 +176,7 @@ def test_foss_wheel_config_omits_online_package_and_entry_point() -> None:
     assert "src/podcast_online" not in wheel_packages
     assert entry_points["collaboration"] == "podcast_mcp.extensions.collaboration:create"
     assert "online" not in entry_points
+    assert "example" not in entry_points
 
 
 def test_apply_gui_extensions_sets_state() -> None:
@@ -489,7 +489,7 @@ def test_builtin_fallbacks_when_import_fails(
 ) -> None:
     from podcast_mcp.extensions import loader
 
-    monkeypatch.delenv("PODCAST_EXTENSIONS", raising=False)
+    monkeypatch.setenv("PODCAST_EXTENSIONS", "collaboration,example")
     monkeypatch.setattr(loader, "_iter_entry_points", lambda: [])
 
     real_import = __import__
@@ -503,7 +503,7 @@ def test_builtin_fallbacks_when_import_fails(
     # Still should not raise
     from podcast_mcp.extensions.loader import load_extensions
 
-    load_extensions()
+    assert load_extensions().feature_ids() == []
 
 
 def test_extra_backend_filtered_by_allowlist(

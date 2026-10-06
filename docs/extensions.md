@@ -22,7 +22,9 @@ export PODCAST_EXTENSIONS=collaboration,online
 ```
 
 Unset `PODCAST_EXTENSIONS` loads all discovered entry points plus the built-in
-`collaboration` and example fallbacks for editable installs. The FOSS wheel
+`collaboration` fallback for editable installs. The shipped `example` extension
+is never loaded by default; name it to load it
+(`PODCAST_EXTENSIONS=collaboration,example`). The FOSS wheel
 does not contain or register `podcast_online`; a provider build installs its
 distribution and `online` entry point independently.
 If multiple sources register the same backend name, the loader keeps the first
@@ -38,7 +40,7 @@ surfaces must name both extensions explicitly.
 3. Contribute only known feature IDs (unknown IDs are ignored).
 4. MCP/CLI registrars **must** use the host `mcp` / Typer `app` instance passed into the registrar. The host wraps those objects for the shared progress framework ([progress.md](progress.md)); registering on a private `MCPServer()` bypasses progress and `progress-check`.
 
-Example (shipped): [`podcast_mcp.extensions.example`](../src/podcast_mcp/extensions/example.py).
+Example (shipped, documentation only, no entry point): [`podcast_mcp.extensions.example`](../src/podcast_mcp/extensions/example.py). It contributes `extension.status.0` and loads only when `PODCAST_EXTENSIONS` names `example`.
 
 Shipped FOSS collaboration backend:
 [`podcast_mcp.extensions.collaboration`](../src/podcast_mcp/extensions/collaboration.py).
@@ -84,6 +86,7 @@ The SPI is `podcast_mcp.extensions`, the stable slot IDs above and `HOST_API_VER
 | unset or `collaboration` | FOSS review/record shares, guest SPA, remote MCP, and tunnel status |
 | `collaboration,online` | FOSS collaboration plus provider account/auth surfaces |
 | `online` | Provider account/auth surfaces only; available only when the provider entry point is installed |
+| `collaboration,example` | FOSS collaboration plus the example extension's `extension.status.0` slot |
 
 ## Marketplace
 

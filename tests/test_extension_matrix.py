@@ -13,14 +13,28 @@ import pytest
 
 from podcast_mcp.extensions import loader
 from podcast_mcp.extensions.features import (
+    FEATURE_EXTENSION_STATUS_0,
     FEATURE_ONLINE_ACCOUNT,
     FEATURE_SHARE_CLI,
     FEATURE_SHARE_MCP_TOOLS,
     FEATURE_SHARE_ROUTES,
+    FEATURE_SHARE_UI_BANNER,
+    FEATURE_SHARE_UI_MENU,
+    FEATURE_SHARE_UI_ROUTES,
+    FEATURE_TUNNEL_STATUS,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
 MODES = ("none", "collaboration", "default")
+COLLABORATION_FEATURES = {
+    FEATURE_SHARE_CLI,
+    FEATURE_SHARE_MCP_TOOLS,
+    FEATURE_SHARE_ROUTES,
+    FEATURE_SHARE_UI_BANNER,
+    FEATURE_SHARE_UI_MENU,
+    FEATURE_SHARE_UI_ROUTES,
+    FEATURE_TUNNEL_STATUS,
+}
 
 
 @pytest.fixture
@@ -44,11 +58,21 @@ def test_each_feature_id_is_contributed_once_per_source(extensions_mode: str) ->
     if extensions_mode == "none":
         assert ids == []
     else:
-        assert {FEATURE_SHARE_ROUTES, FEATURE_SHARE_CLI, FEATURE_SHARE_MCP_TOOLS} <= set(ids)
+        assert set(ids) == COLLABORATION_FEATURES
     assert FEATURE_ONLINE_ACCOUNT not in ids
+    assert FEATURE_EXTENSION_STATUS_0 not in ids
     for feature_id in ids:
         sources = [c.source for c in registry.get(feature_id)]
         assert len(sources) == len(set(sources)), feature_id
+
+
+def test_example_extension_loads_only_when_named(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(loader, "_iter_entry_points", lambda: [])
+    monkeypatch.setenv("PODCAST_EXTENSIONS", "collaboration,example")
+    ids = loader.load_extensions().feature_ids()
+    assert set(ids) == COLLABORATION_FEATURES | {FEATURE_EXTENSION_STATUS_0}
+    monkeypatch.setenv("PODCAST_EXTENSIONS", "example")
+    assert loader.load_extensions().feature_ids() == [FEATURE_EXTENSION_STATUS_0]
 
 
 @pytest.mark.parametrize("extensions_mode", MODES, indirect=True)

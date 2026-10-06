@@ -86,15 +86,18 @@ def load_extensions(
         except Exception:
             logger.exception("skip built-in collaboration extension fallback")
 
-    if allow is None and not any(
-        _canonical_name(name, backend) == "example" for name, backend in backends
+    # The example extension documents the API; it loads only when named.
+    if (
+        allow is not None
+        and "example" in allow
+        and not any(_canonical_name(name, backend) == "example" for name, backend in backends)
     ):
         try:
             from podcast_mcp.extensions.example import create as create_example
 
             backends.append(("example", create_example()))
         except Exception:
-            logger.exception("skip built-in example extension fallback")
+            logger.exception("skip built-in example extension")
 
     seen_names: set[str] = set()
     for source_name, backend in backends:
