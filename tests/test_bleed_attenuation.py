@@ -1,4 +1,8 @@
-"""#945: foreign dialogue on a lane is turned down by a fixed amount, not gated to silence."""
+"""#945: another speaker's copy on a lane is muted on a gated lane, turned down on a room mic.
+
+``auto`` resolves per lane: a lane that sits at digital silence where nobody talks is
+muted, a lane with a room or noise floor is turned down by ``bleed_attenuation_db``.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +14,7 @@ import pytest
 import yaml
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
 from podcast_mcp.engines.transcript_gated_play import apply_track_transcript_gate
 from podcast_mcp.models import (
@@ -123,6 +128,24 @@ def _gain_db(before: np.ndarray, after: np.ndarray, start: float, end: float) ->
     return 10 * np.log10(float(np.sum(after[window] ** 2)) / energy)
 
 
+def _silent(after: np.ndarray, start: float, end: float) -> None:
+    window = after[round(start * RATE) : round(end * RATE)]
+    np.testing.assert_array_equal(window, np.zeros(window.size))
+
+
+def _unchanged(before: np.ndarray, after: np.ndarray, start: float, end: float) -> None:
+    window = slice(round(start * RATE), round(end * RATE))
+    np.testing.assert_array_equal(after[window], before[window])
+
+
+def _configure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **heuristics: object) -> None:
+    defaults = load_defaults()
+    defaults["analysis"]["heuristics"].update(heuristics)
+    config = tmp_path / "pipeline.yaml"
+    config.write_text(yaml.safe_dump(defaults))
+    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(config))
+
+
 @pytest.mark.usefixtures("one_phrase_copy_evidence")
 @pytest.mark.parametrize(
     ("direct_lag_sec", "colored"),
@@ -131,25 +154,23 @@ def _gain_db(before: np.ndarray, after: np.ndarray, start: float, end: float) ->
         pytest.param(0.14, True, id="colored-copy-direct-track-140ms-late"),
     ],
 )
-def test_foreign_copy_on_silent_owner_span_is_turned_down_by_20_db(
+def test_foreign_copy_on_a_gated_lane_is_muted(
     tmp_path: Path, direct_lag_sec: float, colored: bool
 ) -> None:
     project = _episode(tmp_path, direct_lag_sec=direct_lag_sec, colored=colored)
+    plan = build_bleed_gate_plan(project, "host")
+    assert (plan.reduction, plan.floor_db) == ("mute", -90.0)
     before, after = _gated(project, tmp_path)
-    assert _gain_db(before, after, 1.05, 2.95) == pytest.approx(-20.0, abs=0.2)
-    np.testing.assert_array_equal(after[: round(0.95 * RATE)], before[: round(0.95 * RATE)])
-    np.testing.assert_array_equal(after[round(3.05 * RATE) :], before[round(3.05 * RATE) :])
+    _silent(after, 1.05, 2.95)
+    _unchanged(before, after, 0.0, 0.85)
+    _unchanged(before, after, 3.2, DURATION)
 
 
 @pytest.mark.usefixtures("one_phrase_copy_evidence")
-def test_attenuation_amount_comes_from_pipeline_defaults(
+def test_attenuate_turns_the_copy_down_by_the_configured_amount(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    defaults = load_defaults()
-    defaults["analysis"]["heuristics"]["bleed_attenuation_db"] = 12.0
-    config = tmp_path / "pipeline.yaml"
-    config.write_text(yaml.safe_dump(defaults))
-    monkeypatch.setenv("PODCAST_MCP_PIPELINE_DEFAULTS", str(config))
+    _configure(monkeypatch, tmp_path, bleed_handling="attenuate", bleed_attenuation_db=12.0)
     project = _episode(tmp_path)
     before, after = _gated(project, tmp_path)
     assert _gain_db(before, after, 1.05, 2.95) == pytest.approx(-12.0, abs=0.2)
@@ -159,22 +180,17 @@ def test_attenuation_amount_comes_from_pipeline_defaults(
 def test_track_speakers_own_speech_is_untouched(tmp_path: Path) -> None:
     project = _episode(tmp_path, own_overlap=(1.8, 2.2))
     before, after = _gated(project, tmp_path)
-    np.testing.assert_array_equal(
-        after[round(0.2 * RATE) : round(0.7 * RATE)], before[round(0.2 * RATE) : round(0.7 * RATE)]
-    )
-    np.testing.assert_array_equal(
-        after[round(1.8 * RATE) : round(2.2 * RATE)], before[round(1.8 * RATE) : round(2.2 * RATE)]
-    )
-    assert _gain_db(before, after, 1.05, 1.6) == pytest.approx(-20.0, abs=0.2)
-    assert _gain_db(before, after, 2.4, 2.95) == pytest.approx(-20.0, abs=0.2)
+    _unchanged(before, after, 0.2, 0.7)
+    _unchanged(before, after, 1.8, 2.2)
+    _silent(after, 1.05, 1.6)
+    _silent(after, 2.55, 2.95)
 
 
 @pytest.mark.usefixtures("one_phrase_copy_evidence")
-def test_late_gate_on_the_direct_track_still_turns_the_foreign_copy_down(tmp_path: Path) -> None:
+def test_late_gate_on_the_direct_track_still_mutes_the_foreign_copy(tmp_path: Path) -> None:
     project = _episode(tmp_path, direct_gated_until=1.15)
-    before, after = _gated(project, tmp_path)
-    assert _gain_db(before, after, 1.02, 1.15) == pytest.approx(-20.0, abs=0.2)
-    assert _gain_db(before, after, 1.15, 2.95) == pytest.approx(-20.0, abs=0.2)
+    _, after = _gated(project, tmp_path)
+    _silent(after, 1.05, 2.95)
 
 
 @pytest.mark.usefixtures("one_phrase_copy_evidence")
@@ -188,13 +204,34 @@ def test_level_without_a_matching_copy_is_not_foreign_evidence(tmp_path: Path) -
 
 
 @pytest.mark.usefixtures("one_phrase_copy_evidence")
-def test_copy_between_asr_word_spans_is_turned_down_with_the_words(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "host_bleed_words",
+    [
+        pytest.param([(1.0, 1.6), (2.4, 3.0)], id="copy-between-asr-word-spans"),
+        pytest.param([], id="copy-with-no-word-on-this-lane"),
+    ],
+)
+def test_copy_is_found_from_the_peers_track_not_this_lanes_words(
+    tmp_path: Path, host_bleed_words: list[tuple[float, float]]
+) -> None:
     project = _episode(tmp_path, direct_lag_sec=0.14)
-    host_words = project.transcript_for_track("host").words
-    host_words[1].end = 1.6
-    host_words[2].start = 2.4
-    before, after = _gated(project, tmp_path)
-    assert _gain_db(before, after, 1.6, 2.4) == pytest.approx(-20.0, abs=0.2)
+    transcript = project.transcript_for_track("host")
+    transcript.words = [
+        transcript.words[0],
+        *(
+            TranscriptWord(
+                text="w",
+                start=start,
+                end=end,
+                suppressed=True,
+                audibility_status="bleed",
+                dominant_track="guest",
+            )
+            for start, end in host_bleed_words
+        ),
+    ]
+    _, after = _gated(project, tmp_path)
+    _silent(after, 1.05, 2.95)
 
 
 TALK_START = 1.0
@@ -250,19 +287,44 @@ def _laugh(clock: np.ndarray, start: float, end: float) -> np.ndarray:
     return out
 
 
+def _burst(clock: np.ndarray, start: float, end: float) -> np.ndarray:
+    """A plosive release: a short broadband burst."""
+    inside = (clock >= start) & (clock < end)
+    return np.where(inside, np.random.default_rng(9).normal(0, 1, clock.size), 0.0)
+
+
+def _room_floor(size: int, level_db: float) -> np.ndarray:
+    """Speech-band noise at ``level_db`` dBFS RMS, like a room mic's steady bed."""
+    noise = np.convolve(np.random.default_rng(13).normal(0, 1, size), np.ones(16), "same")
+    return noise * 10 ** (level_db / 20) / noise.std()
+
+
+def _own_sound(clock: np.ndarray, kind: str, start: float, end: float) -> np.ndarray:
+    if kind == "laugh":
+        return _laugh(clock, start, end)
+    if kind == "burst":
+        return _burst(clock, start, end)
+    if kind == "tone":
+        return np.where((clock >= start) & (clock < end), np.sin(2 * np.pi * 181 * clock), 0.0)
+    return _voiced(clock, start, end, {"mm": 1, "uh-huh": 2, "talk": 5}[kind])
+
+
 def _talking_over(
     tmp_path: Path,
     *,
-    own: tuple[str, float, float, float] | None = None,
+    own: tuple[tuple[str, float, float, float], ...] = (),
     talk_end: float = 31.0,
     transcribed_at: tuple[float, float] | None = None,
     lag_sec: float = LAB_LAG_SEC,
+    room_floor_db: float | None = None,
 ) -> EpisodeProject:
     """The peer talks from 1 s to ``talk_end``; the host mic carries a coloured copy 16 dB down.
 
-    The peer's direct track runs ``lag_sec`` late, 140 ms by default as on the lab tape. ``own`` adds the
-    host's own sound (kind, start, end, level in dB against the direct track) on top
-    of the copy.
+    The peer's direct track runs ``lag_sec`` late, 140 ms by default as on the lab
+    tape. ``own`` adds the host's own sounds (kind, start, end, level in dB against the
+    direct track) on top of the copy. ``room_floor_db`` lays a steady noise bed under
+    the whole host track; without it the host track is digital silence between sounds,
+    like a call app's gated track.
     """
     duration = talk_end + 1.0
     project = EpisodeProject.create("talking over", str(tmp_path))
@@ -275,15 +337,12 @@ def _talking_over(
     host *= 10 ** ((LAB_COUPLING_DB + _db(voice[talk]) - _db(host[talk])) / 20)
     mine = (clock >= 0.2) & (clock < 0.7)
     host[mine] += 0.2 * np.sin(2 * np.pi * 173 * clock[mine])
-    if own is not None:
-        kind, start, end, level_db = own
-        inside = (clock >= start) & (clock < end)
-        sound = {
-            "laugh": lambda: _laugh(clock, start, end),
-            "tone": lambda: np.where(inside, np.sin(2 * np.pi * 181 * clock), 0.0),
-        }.get(kind, lambda: _voiced(clock, start, end, {"mm": 1, "uh-huh": 2, "talk": 5}[kind]))()
+    for kind, start, end, level_db in own:
+        sound = _own_sound(clock, kind, start, end)
         window = slice(round(start * RATE), round(end * RATE))
         host += sound * 10 ** ((level_db + _db(voice[talk]) - _db(sound[window])) / 20)
+    if room_floor_db is not None:
+        host += _room_floor(clock.size, room_floor_db)
     direct = np.roll(voice, round(lag_sec * RATE))
     for track_id, samples in (("host", host), ("guest", direct)):
         _write_pcm(tmp_path / "raw" / f"{track_id}.wav", samples)
@@ -343,9 +402,9 @@ def _gated_over(project: EpisodeProject, tmp_path: Path) -> tuple[np.ndarray, np
     return _read_pcm(source).astype(float), _read_pcm(output).astype(float)
 
 
-def test_pure_foreign_copy_at_lab_coupling_drops_20_db(tmp_path: Path) -> None:
-    before, after = _gated_over(_talking_over(tmp_path), tmp_path)
-    assert _gain_db(before, after, 1.05, 30.95) == pytest.approx(-20.0, abs=0.2)
+def test_pure_foreign_copy_at_lab_coupling_is_muted(tmp_path: Path) -> None:
+    _, after = _gated_over(_talking_over(tmp_path), tmp_path)
+    _silent(after, 1.05, 30.65)
 
 
 @pytest.mark.parametrize(
@@ -361,32 +420,87 @@ def test_pure_foreign_copy_at_lab_coupling_drops_20_db(tmp_path: Path) -> None:
 def test_own_sound_quieter_than_the_peers_direct_track_is_untouched(
     tmp_path: Path, kind: str, start: float, end: float, level_db: float
 ) -> None:
-    project = _talking_over(tmp_path, own=(kind, start, end, level_db))
+    project = _talking_over(tmp_path, own=((kind, start, end, level_db),))
     before, after = _gated_over(project, tmp_path)
-    own = slice(round(start * RATE), round(end * RATE))
-    np.testing.assert_array_equal(after[own], before[own])
-    assert _gain_db(before, after, 1.05, 3.95) == pytest.approx(-20.0, abs=0.2)
-    assert _gain_db(before, after, 7.45, 10.55) == pytest.approx(-20.0, abs=0.2)
+    _unchanged(before, after, start, end)
+    _silent(after, 1.05, 3.95)
+    _silent(after, 7.45, 10.55)
+
+
+def test_hold_keeps_a_plosive_burst_before_a_transcribed_own_word(tmp_path: Path) -> None:
+    """The word's time starts at its vowel; the burst 20-35 ms earlier is the same word.
+
+    The vowel sits under the copy's level, so only the transcript protects it, and the
+    15 ms burst is too short to count as own voice by level.
+    """
+    project = _talking_over(
+        tmp_path,
+        own=(("burst", 4.965, 4.98, -6.0), ("mm", 5.0, 5.3, -22.0)),
+        transcribed_at=(5.0, 5.3),
+    )
+    before, after = _gated_over(project, tmp_path)
+    _unchanged(before, after, 4.965, 5.3)
+    _silent(after, 1.05, 3.95)
 
 
 @pytest.mark.parametrize("level_db", [-10.0, -8.0, -6.0])
 def test_quiet_untranscribed_owner_overlapping_foreign_audio_stays_audible(
     tmp_path: Path, level_db: float
 ) -> None:
-    project = _talking_over(tmp_path, own=("tone", 6.0, 6.6, level_db))
+    project = _talking_over(tmp_path, own=(("tone", 6.0, 6.6, level_db),))
     before, after = _gated_over(project, tmp_path)
-    own = slice(round(6.0 * RATE), round(6.6 * RATE))
-    np.testing.assert_array_equal(after[own], before[own])
-    assert _gain_db(before, after, 1.05, 3.95) == pytest.approx(-20.0, abs=0.2)
+    _unchanged(before, after, 6.0, 6.6)
+    _silent(after, 1.05, 3.95)
 
 
 def test_backchannel_transcribed_early_is_kept_where_it_sounds(tmp_path: Path) -> None:
-    project = _talking_over(tmp_path, own=("uh-huh", 6.2, 6.5, -10.0), transcribed_at=(5.0, 5.3))
+    project = _talking_over(tmp_path, own=(("uh-huh", 6.2, 6.5, -10.0),), transcribed_at=(5.0, 5.3))
     before, after = _gated_over(project, tmp_path)
-    own = slice(round(6.2 * RATE), round(6.5 * RATE))
-    np.testing.assert_array_equal(after[own], before[own])
-    assert _gain_db(before, after, 1.05, 3.95) == pytest.approx(-20.0, abs=0.2)
-    assert _gain_db(before, after, 7.45, 10.55) == pytest.approx(-20.0, abs=0.2)
+    _unchanged(before, after, 6.2, 6.5)
+    _silent(after, 1.05, 3.95)
+    _silent(after, 7.45, 10.55)
+
+
+def test_lane_with_a_room_floor_is_turned_down_20_db_not_muted(tmp_path: Path) -> None:
+    project = _talking_over(tmp_path, room_floor_db=-60.0)
+    plan = build_bleed_gate_plan(project, "host")
+    assert plan.reduction == "attenuate"
+    assert plan.floor_db == pytest.approx(-60.0, abs=1.0)
+    before, after = _gated_over(project, tmp_path)
+    assert _gain_db(before, after, 1.05, 30.65) == pytest.approx(-20.0, abs=0.2)
+
+
+@pytest.mark.parametrize(
+    ("handling", "room_floor_db", "reduction"),
+    [
+        pytest.param("mute", -60.0, "mute", id="mute-overrides-a-room-floor"),
+        pytest.param("attenuate", None, "attenuate", id="attenuate-overrides-a-gated-lane"),
+    ],
+)
+def test_explicit_bleed_handling_overrides_auto(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    handling: str,
+    room_floor_db: float | None,
+    reduction: str,
+) -> None:
+    _configure(monkeypatch, tmp_path, bleed_handling=handling)
+    project = _talking_over(tmp_path, room_floor_db=room_floor_db)
+    assert build_bleed_gate_plan(project, "host").reduction == reduction
+    before, after = _gated_over(project, tmp_path)
+    if reduction == "mute":
+        _silent(after, 1.05, 30.65)
+    else:
+        assert _gain_db(before, after, 1.05, 30.65) == pytest.approx(-20.0, abs=0.2)
+
+
+def test_changing_bleed_handling_replans_the_same_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _talking_over(tmp_path)
+    assert build_bleed_gate_plan(project, "host").reduction == "mute"
+    _configure(monkeypatch, tmp_path, bleed_handling="attenuate")
+    assert build_bleed_gate_plan(project, "host").reduction == "attenuate"
 
 
 @pytest.mark.parametrize(
@@ -409,3 +523,9 @@ def test_copy_lag_at_or_beyond_the_search_edge_abstains(tmp_path: Path, lag_sec:
     plan = build_bleed_gate_plan(_talking_over(tmp_path, lag_sec=lag_sec), "host")
     assert plan.attenuation_spans == ()
     assert plan.reasons == ("uncertain_foreign_ownership",)
+
+
+def test_unknown_bleed_handling_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _configure(monkeypatch, tmp_path, bleed_handling="gate")
+    with pytest.raises(ValueError, match="bleed_handling must be one of"):
+        AnalysisPolicy.from_defaults()

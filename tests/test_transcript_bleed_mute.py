@@ -369,7 +369,7 @@ def test_bleed_mute_reports_uncertain_audio_without_speaker_gap_extension(
     extend.assert_not_called()
     assert result["candidates"][0]["interval_count"] == 1
     assert result["candidates"][0]["attenuation_count"] == 0
-    assert result["candidates"][0]["gate_reasons"] == ["no_confirmed_bleed_words"]
+    assert result["candidates"][0]["gate_reasons"] == ["no_peer_tracks"]
 
 
 def test_bleed_mute_swallows_speaker_extension_errors(tmp_path: Path, sample_wav: Path) -> None:

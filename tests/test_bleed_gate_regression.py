@@ -121,7 +121,7 @@ def test_gate_preserves_own_speech_and_reduces_confirmed_foreign_audio(
         after[int(3.1 * RATE) : int(3.5 * RATE)], before[int(3.1 * RATE) : int(3.5 * RATE)], atol=1
     )
     foreign = slice(int(2.05 * RATE), int(2.55 * RATE))
-    np.testing.assert_allclose(after[foreign], before[foreign] * 0.1, atol=1)
+    np.testing.assert_array_equal(after[foreign], 0)
 
 
 def test_midword_segment_matches_full_gate(tmp_path: Path) -> None:
@@ -156,7 +156,7 @@ def test_scoped_apply_survives_reopen_and_render(tmp_path: Path) -> None:
     np.testing.assert_allclose(actual[: int(2.05 * RATE)], raw[: int(2.05 * RATE)], atol=1)
     np.testing.assert_allclose(actual[int(2.35 * RATE) :], raw[int(2.35 * RATE) :], atol=1)
     inside = slice(int(2.1 * RATE), int(2.3 * RATE))
-    np.testing.assert_allclose(actual[inside], raw[inside] * 0.1, atol=1)
+    np.testing.assert_array_equal(actual[inside], 0)
 
 
 def test_reapplying_gate_does_not_multiply_an_existing_fade(tmp_path: Path) -> None:
@@ -171,14 +171,16 @@ def test_reapplying_gate_does_not_multiply_an_existing_fade(tmp_path: Path) -> N
 
 
 @pytest.mark.parametrize("status", ["inaudible", "deferred", "unknown"])
-def test_suppression_without_foreign_evidence_keeps_audio(tmp_path: Path, status: str) -> None:
+def test_lane_word_status_does_not_decide_whether_a_verified_copy_is_reduced(
+    tmp_path: Path, status: str
+) -> None:
     project = _episode(tmp_path)
     project.transcript_for_track("host").words[1].audibility_status = status
     source = tmp_path / "raw" / "host.wav"
     output = tmp_path / "unknown.wav"
     shutil.copyfile(source, output)
     apply_track_transcript_gate(project, "host", output, timeline_start=0, timeline_end=4)
-    assert output.read_bytes() == source.read_bytes()
+    np.testing.assert_array_equal(_read_pcm(output)[int(2.05 * RATE) : int(2.55 * RATE)], 0)
 
 
 def test_periodic_peer_similarity_is_not_foreign_only_evidence(tmp_path: Path) -> None:
@@ -247,6 +249,13 @@ def test_scoped_preview_and_apply_count_only_effective_attenuation(tmp_path):
     assert actual["applied"][0]["attenuation_count"] == 0
 
 
+def test_preview_reports_each_lanes_resolved_reduction(tmp_path: Path) -> None:
+    project = _episode(tmp_path)
+    preview = apply_transcript_bleed_mute(project, track_id="host", dry_run=True)
+    candidate = preview["candidates"][0]
+    assert (candidate["bleed_reduction"], candidate["bleed_floor_db"]) == ("mute", -90.0)
+
+
 def test_segment_beginning_inside_attenuation_fade_matches_full_render(tmp_path):
     project = _episode(tmp_path)
     raw = _read_pcm(tmp_path / "raw" / "host.wav")
@@ -304,7 +313,7 @@ def test_other_lane_origin_copy_cannot_protect_selected_lane_foreign_audio(tmp_p
     copy.timeline_start = 2
     after = build_bleed_gate_plan(project, "host")
     assert after == plan
-    assert after.attenuation_spans == ((2.0, 2.6),)
+    assert after.attenuation_spans == ((1.71, 2.74),)
     assert not any(start < 2.6 and end > 2.0 for start, end in after.protected_spans)
     assert track_render_hash(project, "host") == before
     next(clip for clip in project.clips if clip.track_id == "host").timeline_start = 0.1
@@ -331,7 +340,7 @@ def test_implicit_primary_gate_words_do_not_follow_other_lane_origin_copy(tmp_pa
     )
     before = project.model_dump(mode="json")
     plan = build_bleed_gate_plan(project, "host")
-    assert plan.attenuation_spans == ((2.0, 2.6),)
+    assert plan.attenuation_spans == ((1.71, 2.74),)
     assert any(start <= 0.55 and end >= 1.0 for start, end in plan.protected_spans)
     assert project.model_dump(mode="json") == before
 
@@ -383,7 +392,7 @@ def test_untranscribed_placement_is_preserved_without_blocking_disjoint_bleed(
     if foreign_probe is not None:
         foreign = slice(round(foreign_probe[0] * RATE), round(foreign_probe[1] * RATE))
         assert np.any(before[foreign])
-        np.testing.assert_allclose(after[foreign], before[foreign] * 0.1, atol=1)
+        np.testing.assert_array_equal(after[foreign], 0)
         assert plan.attenuation_spans
     else:
         assert not plan.attenuation_spans
