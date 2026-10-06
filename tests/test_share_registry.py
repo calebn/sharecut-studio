@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -15,12 +16,14 @@ from podcast_mcp.edits.review_shares import (
     list_shares,
     list_usable_shares,
     revoke_share,
+    shares_path_for_workspace,
 )
 from podcast_mcp.edits.share_registry import (
     RECORD_REVIEW_VERSION_SENTINEL,
     SHARE_COOLDOWN_DAYS,
     SqliteShareRegistry,
     claim_with_mint_retry,
+    get_share_registry,
     share_inactive,
     share_is_usable,
     share_last_used_at,
@@ -965,3 +968,92 @@ def test_failed_commit_rolls_back_release_claim(registry: SqliteShareRegistry):
     assert not real.in_transaction
     assert registry.get_active("commit-fail-token") is not None
     assert registry.release_claim("commit-fail-token") is True
+
+
+def _idle_for(ws: ProjectWorkspace, token: str, days: int) -> None:
+    """Back-date a share's last use in the registry and the project sidecar."""
+    old = _iso(datetime.now(UTC) - timedelta(days=days))
+    get_share_registry()._conn.execute(
+        "UPDATE active_shares SET last_used_at = ?, created_at = ? WHERE token = ?",
+        (old, old, token),
+    )
+    path = shares_path_for_workspace(ws.project.workspace_path())
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    for row in rows:
+        row["last_used_at"] = old
+        row["created_at"] = old
+    path.write_text(json.dumps(rows), encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("state", "usable"),
+    [
+        ("never_used_for_400_days", True),
+        ("future_expires_at", True),
+        ("past_expires_at", False),
+        ("revoked", False),
+    ],
+)
+def test_registry_and_sidecar_agree_on_whether_a_share_is_usable(
+    minimal_project, sample_wav, tmp_workspace, state, usable
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="Agree")
+    expires_at = {
+        "future_expires_at": _iso(datetime.now(UTC) + timedelta(days=30)),
+        "past_expires_at": _iso(datetime.now(UTC) - timedelta(seconds=1)),
+    }.get(state)
+    share = ShareService(ws).create(review_version_id=ver["id"], expires_at=expires_at)
+    token = share["token"]
+    if state == "never_used_for_400_days":
+        _idle_for(ws, token, 400)
+    if state == "revoked":
+        revoke_share(ws.project, token)
+
+    if usable:
+        assert lookup_share(token)["token"] == token
+    else:
+        with pytest.raises(KeyError):
+            lookup_share(token)
+
+    sidecar_row = next(row for row in list_shares(ws.project) if row["id"] == share["id"])
+    assert share_is_usable(sidecar_row) is usable
+    assert (share["id"] in {row["id"] for row in list_usable_shares(ws.project)}) is usable
+    registry = get_share_registry()
+    assert (registry.get_active(token) is not None) is usable
+    assert registry.is_reserved(token) is True
+
+
+def test_a_share_unused_for_over_a_year_keeps_its_last_used_date_for_display(
+    minimal_project, sample_wav, tmp_workspace
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="Display")
+    token = ShareService(ws).create(review_version_id=ver["id"])["token"]
+    _idle_for(ws, token, 400)
+    before = datetime.now(UTC) - timedelta(minutes=1)
+
+    lookup_share(token)
+
+    last_used = get_share_registry().get_active(token)["last_used_at"]
+    assert datetime.fromisoformat(last_used) > before
+
+
+def test_a_link_that_ends_after_a_long_idle_keeps_its_slug_reserved(
+    registry: SqliteShareRegistry,
+):
+    now = datetime.now(UTC)
+    registry.claim_active(
+        {
+            "token": "long-idle-slug",
+            "id": "share-id",
+            "project_workspace": "/tmp/ws",
+            "review_version_id": "v1",
+            "created_at": _iso(now - timedelta(days=400)),
+            "last_used_at": _iso(now - timedelta(days=400)),
+            "capabilities": [],
+        }
+    )
+    registry.demote_to_cooldown("long-idle-slug", reason="revoked", now=now)
+    assert registry.is_reserved("long-idle-slug", now=now + timedelta(days=364))
+    assert not registry.is_reserved("long-idle-slug", now=now + timedelta(days=366))
