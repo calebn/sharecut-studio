@@ -231,8 +231,10 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   over the same frames, and a peer at least `analysis.heuristics.bleed_dominance_db`
   (6 dB) under the cut track is bleed, the same test the word audit applies from
   the other side. On the lab tape Caleb's mic carries Audra's voice on purpose, so
-  her own hesitations were blocked by it (about 14 gaps with the peer 15-35 dB
-  under her own level). A quiet or gated cut track never explains a peer run: a
+  her own hesitations were blocked by it. On the full lab episode 50 of 1,361
+  peer runs read as bleed, with margins from 6 to 28 dB (14 under 10 dB), so a
+  real peer "mm-hm" within a few dB of that margin can also read as bleed; the
+  candidates it frees are review-only. A quiet or gated cut track never explains a peer run: a
   speaker whose own track is shut while their voice survives only on another
   track still blocks (#945), and so do independent voices at similar levels.
   `_peer_voiced_in_gap` is the single decision for peer occupancy.
