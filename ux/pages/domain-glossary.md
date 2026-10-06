@@ -1,6 +1,6 @@
 # Domain glossary — concepts, files, screens
 
-Two layers: **Partner terms** (plain language) and **Schema map** (for people who will touch the project file). Engineer canonical: [episode-format-v2.md](https://github.com/calebn/sharecut-studio/blob/main/docs/episode-format-v2.md).
+Two layers: **Partner terms** (plain language) and **Schema map** (for people who will touch the project file). Engineer canonical: [episode-format-v2.md](https://github.com/calebn/sharecut-studio/blob/main/docs/episode-format-v2.md). The words to use in UI copy are in the [communication philosophy terminology table](https://github.com/calebn/sharecut-studio/blob/main/docs/communication-philosophy.md#terminology).
 
 ---
 

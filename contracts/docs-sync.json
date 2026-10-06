@@ -598,6 +598,16 @@
       }
     },
     {
+      "id": "user-facing-copy-and-controls",
+      "when": "Sharecut Studio user-facing copy, terminology, control placement, menus, dialogs, empty states, or feedback",
+      "update": "`docs/communication-philosophy.md` (Terminology table in the same PR that adds or renames a concept; Changelog when a rule changes; UI philosophy wins on conflict), partner terms in `ux/pages/domain-glossary.md`",
+      "docs": [
+        "docs/communication-philosophy.md",
+        "ux/pages/domain-glossary.md"
+      ],
+      "advisory": null
+    },
+    {
       "id": "native-ios-android-engine-in-app-byok-agent",
       "when": "Native iOS/Android engine / in-app BYOK agent (deferred)",
       "update": "`docs/cross-platform-byok.md` (interim architecture rules + long-horizon path); do not implement now; keep ffmpeg behind `FFmpegEngine`, guest MCP ≠ owner device",
@@ -1023,6 +1033,7 @@
           "gui/web/src/commands/catalog.ts",
           "docs/gui-mobile.md",
           "docs/ui-philosophy.md",
+          "docs/communication-philosophy.md",
           "docs/daw-editing.md",
           "docs/host-online-relay.md",
           "docs/recording-session.md",

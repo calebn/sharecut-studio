@@ -5,8 +5,10 @@ Shareable UX docs for Podcast MCP / Sharecut Studio, published at **https://ux.s
 API & contracts (document commands, share HTTP, remote MCP): **https://docs.sharecut.studio/** ([`docs-site/`](../docs-site/README.md)).
 
 The beta's trust-first design requirements are in the
-[UI philosophy](../docs/ui-philosophy.md); the pages here describe product
-surfaces and should stay consistent with it.
+[UI philosophy](../docs/ui-philosophy.md); voice, terminology, control
+placement, and the mobile checklist are in the
+[communication philosophy](../docs/communication-philosophy.md). The pages
+here describe product surfaces and should stay consistent with both.
 
 ## Live site
 
@@ -63,7 +65,7 @@ cd ux && python3 -m http.server 8766
 
 ## Keeping docs accurate (anti-drift)
 
-When Sharecut Studio shells, the UI philosophy, mobile IA docs, share/session-sync/recording-session docs, or the episode schema change in a way that affects what UX partners see:
+When Sharecut Studio shells, the UI or communication philosophy, mobile IA docs, share/session-sync/recording-session docs, or the episode schema change in a way that affects what UX partners see:
 
 1. Update the matching `ux/pages/*.md` (and demo fixture / screenshots if the UI changed).
 2. The `ux-pack` row of the docs-sync map ([contracts/docs-sync.json](../contracts/docs-sync.json)) is the source of truth, generated into [AGENTS.md](../AGENTS.md) § Docs in sync. `make docs-sync` runs the same PR-diff gate CI runs before you open a PR; the `docs-sync` pre-commit hook runs the equivalent check on staged files but only warns (CI is the gate). See [docs/contributing.md § Docs in sync](../docs/contributing.md#docs-in-sync).

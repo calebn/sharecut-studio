@@ -191,6 +191,7 @@ See [Screen inventory](#/screens), [Guest journeys](#/journeys), [Domain glossar
 ## Related engineer docs
 
 - [ui-philosophy.md](https://github.com/calebn/sharecut-studio/blob/main/docs/ui-philosophy.md) — trust-first beta design requirements
+- [communication-philosophy.md](https://github.com/calebn/sharecut-studio/blob/main/docs/communication-philosophy.md) — voice, terminology, control placement, mobile ergonomics checklist
 - [gui-mobile.md](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-mobile.md) — responsive shells (implementation)
 - [episode-format-v2.md](https://github.com/calebn/sharecut-studio/blob/main/docs/episode-format-v2.md) — project file truth
 - [daw-editing.md](https://github.com/calebn/sharecut-studio/blob/main/docs/daw-editing.md) — modifier / document-command model
