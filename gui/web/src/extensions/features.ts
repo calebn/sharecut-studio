@@ -13,6 +13,7 @@ const EMPTY: FeaturesManifest = { api_version: 1, features: [] };
 export const FEATURE_SHARE_UI_MENU = "share.ui.menu";
 export const FEATURE_SHARE_UI_BANNER = "share.ui.banner";
 export const FEATURE_SHARE_UI_ROUTES = "share.ui.routes";
+export const FEATURE_TUNNEL_STATUS = "tunnel.status";
 export const FEATURE_EXTENSION_STATUS_0 = "extension.status.0";
 
 /**

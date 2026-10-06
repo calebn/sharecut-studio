@@ -8,6 +8,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { FeaturesContext } from "../extensions/FeaturesContext";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import type { HostShareRow } from "../types/shares";
@@ -20,6 +21,11 @@ const revokeHostShare = vi.fn();
 const createHostRecordRoom = vi.fn();
 const revokeHostRoom = vi.fn();
 const execute = vi.fn();
+const loadTunnelStatus = vi.fn();
+
+vi.mock("../api/tunnelStatus", () => ({
+  loadTunnelStatus: (...args: unknown[]) => loadTunnelStatus(...args),
+}));
 
 vi.mock("../commands/execute", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../commands/execute")>();
@@ -88,6 +94,7 @@ function deferred<T>() {
 
 describe("ShareDialog", () => {
   beforeEach(() => {
+    loadTunnelStatus.mockReset();
     listHostShares.mockReset();
     createHostShare.mockReset();
     revokeHostShare.mockReset();
@@ -120,6 +127,36 @@ describe("ShareDialog", () => {
     ).toBeTruthy();
     expect(await screen.findByText("No live review links.")).toBeTruthy();
     await expectNoA11yViolations(container);
+  });
+
+  it("shows the tunnel state only when the tunnel.status feature is present", async () => {
+    loadTunnelStatus.mockResolvedValue({
+      state: "online",
+      reason: null,
+      reason_kind: null,
+      relay_host: "relay.example.test",
+      public_base_url: "https://share.example.test",
+      share_count: 1,
+      attempt: 0,
+      retry_in_sec: null,
+    });
+    useDawStore.setState({ shareDialogOpen: true });
+    const { unmount } = render(<ShareDialog />);
+    await screen.findByText("No live review links.");
+    expect(loadTunnelStatus).not.toHaveBeenCalled();
+    unmount();
+
+    render(
+      <FeaturesContext.Provider
+        value={{
+          ready: true,
+          manifest: { api_version: 1, features: ["tunnel.status"] },
+        }}
+      >
+        <ShareDialog />
+      </FeaturesContext.Provider>,
+    );
+    expect(await screen.findByText("Guests can open your links.")).toBeTruthy();
   });
 
   it("loads the current scope after StrictMode effect replay", async () => {
