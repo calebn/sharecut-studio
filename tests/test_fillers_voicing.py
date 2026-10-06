@@ -235,7 +235,16 @@ def test_clean_dead_air_stays_auto_applicable(tmp_path: Path) -> None:
     assert apply_tighten_decisions(project) == 1
 
 
-def test_word_cut_with_voice_running_through_both_edges_is_reviewed(tmp_path: Path) -> None:
+CONTINUOUS_VOICE_DEFAULTS: dict[str, object] = {
+    "tighten": {
+        "breath_handling": {"enabled": False},
+        "filler_words": ["like", "um"],
+        "discourse_markers": [],
+    }
+}
+
+
+def _continuous_voice_project(tmp_path: Path) -> EpisodeProject:
     """Continuous "kind of like um edits": neither edge of a filler cut can leave the voice."""
     samples = np.zeros(4 * RATE, dtype=np.float32)
     _voice(samples, 0.5, 2.2)
@@ -247,20 +256,43 @@ def test_word_cut_with_voice_running_through_both_edges_is_reviewed(tmp_path: Pa
         TranscriptWord(text="um", start=1.55, end=1.8),
         TranscriptWord(text="edits", start=2.3, end=2.6),
     ]
-    project = _project(tmp_path, samples, words)
-    defaults = {
-        "tighten": {
-            "breath_handling": {"enabled": False},
-            "filler_words": ["like", "um"],
-            "discourse_markers": [],
-        }
-    }
+    return _project(tmp_path, samples, words)
 
-    decisions = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+
+def test_word_cut_with_voice_running_through_both_edges_is_reviewed(tmp_path: Path) -> None:
+    project = _continuous_voice_project(tmp_path)
+
+    decisions = analyze_fillers_and_pauses(
+        project, project.transcripts[0], CONTINUOUS_VOICE_DEFAULTS
+    )
 
     # The optimized "like" cut no longer covers half its target span.
     assert [d.reason for d in decisions] == ["filler:um:voiced_edge"]
     assert all(d.review_required for d in decisions)
+
+
+def test_reproposal_regenerates_its_own_review_flagged_hits(tmp_path: Path) -> None:
+    """Find hits on an unchanged project converges (#995): a generated review flag
+    such as ``voiced_edge`` is not ownership, so re-proposal replaces that pending
+    hit and reports it again instead of keeping the stale copy and dropping it."""
+    project = _continuous_voice_project(tmp_path)
+
+    runs = []
+    for _ in range(3):
+        proposal = propose_tighten_edits(project, CONTINUOUS_VOICE_DEFAULTS)
+        hits = [
+            (d.track_id, d.start, d.end, d.reason, d.review_required) for d in proposal.decisions
+        ]
+        pending = [
+            (d.track_id, d.start, d.end, d.reason, d.review_required)
+            for d in project.edit_decisions
+        ]
+        runs.append((hits, pending, proposal.skip_counts))
+
+    assert [hit[3:] for hit in runs[0][0]] == [("filler:um:voiced_edge", True)]
+    assert runs[0][1] == runs[0][0]
+    assert runs[1] == runs[0]
+    assert runs[2] == runs[0]
 
 
 def test_peer_voice_inside_a_session_pause_is_reviewed(tmp_path: Path) -> None:
