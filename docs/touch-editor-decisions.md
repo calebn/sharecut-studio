@@ -310,7 +310,8 @@ open chips:
   pointing the ways its target moves.
 - **Dragging.** An armed chip grabs on the first move past the slop that runs
   along its target's axis. The drag is measured from where the finger
-  settled, so that first move already moves the target.
+  came to rest on the chip (not where it first crossed its edge), so that
+  first move already moves the target.
 - **Selecting.** Lifting on a chip without grabbing picks it.
 
 Each target kind declares its drag axis in `HIT_KINDS`: `x` (time) for fade,
@@ -354,7 +355,7 @@ held sideways). Taller tablets and desktop keep their inspector.
   the timeline, is captured there (or is the router's own replay), and has
   moved `HANDLE_DRAG_MIN_PX`. A scroll never counts.
 
-Measured in Playwright (Chromium, CDP touch) with the #1051 fixture, as px of timeline lanes left
+Measured in Playwright with the #1051 fixture (the same in Chromium and WebKit; a lone envelope point on lane 1), as px of timeline lanes left
 visible above the inspector:
 
 | Viewport | Round 2 sheet | Strip | Expanded |
