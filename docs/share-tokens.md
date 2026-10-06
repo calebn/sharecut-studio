@@ -72,6 +72,27 @@ stateDiagram-v2
 
 Demotion is **lazy** (on mint / lookup). There is no background sweeper in this release.
 
+### Decision: Share links never expire; the host revokes them
+
+<!-- decision
+id: D-share-links-never-expire
+status: accepted
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #80 owner: "Links stay non-expiring with manual revoke. The per-row Extend proposal is dropped."
+- #80 owner: "Share copy and docs must say this consistently."
+- #1038 put the wording in docs/communication-philosophy.md (Stop sharing)
+enforcement: pending #1027
+-->
+
+A review link works until the host stops sharing it. There is no per-link
+Extend. Product copy says links do not expire and calls revoking **Stop
+sharing** ([communication philosophy](communication-philosophy.md#terminology)).
+The code still accepts an optional hard `expires_at`, and the 365-day
+inactivity demotion above still applies. Whether either one stays is open in
+#1027, which also removes the Share dialog's "keeps the original expiry" copy.
+
 ## Host registry (sqlite)
 
 | | |
@@ -186,6 +207,49 @@ Role presets expand in `edits/share_capabilities.py` (`ROLE_PRESETS` /
 is omitted. Browser and share MCP always share one capability set — see
 [host-online-relay.md](host-online-relay.md) § Share capabilities.
 
+### Decision: Review-link roles follow Google Docs
+
+<!-- decision
+id: D-share-roles-follow-google-docs
+status: accepted
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #1038 owner review: "These follow Google Docs: a Commenter can suggest."
+- #1050: "Make Commenter grant comment and suggest. Delete the standalone suggest-only level."
+enforcement: pending #1050
+-->
+
+A Viewer can view and play. A Commenter can also comment and suggest. An
+Editor can also edit directly and approve or reject suggestions. There is no
+suggest-only level. Until #1050 lands, the `commenter` preset
+(`COMMENTER_CAPABILITIES`) still lacks `view` and `suggest`, and
+`docs_role_for_capabilities` labels a suggest-only share Editor.
+
+### Decision: Guest powers follow the share's capabilities
+
+<!-- decision
+id: D-guest-powers-follow-capabilities
+status: accepted
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #6 owner: "`edit` guests can edit through every surface they have, including the DAW, MCP, and transcript word selection."
+- #1004 owner: "if someone has edit ability, they are trusted to approve." and "the host can undo it from History."
+- #1006, #1011: a 2026-10-03 Chromium run found no guest transcript Select and guest MCP cuts that only proposed; both fixed
+enforced-by:
+- tests/test_guest_document_gate.py::test_only_edit_guests_decide_pending_suggestions
+- tests/test_guest_document_gate.py::test_host_undoes_each_edit_guest_mcp_change
+- tests/test_guest_document_gate.py::test_selected_range_mode_follows_capabilities_on_every_surface
+- tests/test_selected_range.py::test_view_play_comment_guest_cannot_edit_or_suggest
+- docs-sync: decision-sharing
+supersedes: D-exact-range-guests-propose
+-->
+
+An `edit` guest edits and approves, a `suggest` guest only suggests, and a
+`view`, `play` or `comment` guest does neither, on every surface. No new
+permission level exists for this.
+
 Selected-range edits (transcript words or a timeline range) follow the same
 capabilities. No separate transcript permission exists. Every document command
 needs `view`, on the browser route and the guest MCP alike: a share with
@@ -231,7 +295,26 @@ nowhere else. The id is random and grants nothing: every guest route and the gue
 MCP look a share up by its token, never by `id`, so another guest who sees an
 author learns only which suggestions came from the same share.
 
-**Login policy:** production public shares are **link only**. Restricted /
+### Superseded decision: Every guest proposes exact range edits
+
+<!-- decision
+id: D-exact-range-guests-propose
+status: superseded
+date: 2026-10-03
+decided-by: calebn
+evidence:
+- #532, shipped in #932: "The host applies and exports; all edit/suggest guests and supported agents propose."
+superseded-by: D-guest-powers-follow-capabilities
+-->
+
+The first exact range release (#532) let only the host apply a range edit.
+The decision above replaced that for `edit` guests on 2026-10-06. Agents
+still propose, and export stays host-only
+([daw-editing.md § Exact selected ranges](daw-editing.md#exact-selected-ranges)).
+
+### Login policy
+
+Production public shares are **link only**. Restricted /
 `require_sign_in` minting is refused unless `PODCAST_SHARE_ACCOUNTS=1` (stub
 testing). Optional provider account UI is installed and documented separately.
 MCP SDK OAuth is **not** the document ACL.
@@ -258,8 +341,9 @@ passkeys, and agent credentials when accounts are enabled. See
   `view` can see the host's cursor and viewport — the Share dialog states this.
 - On **restricted** leftovers the coolname alone does not grant powers; identity
   middleware keeps them 401 until accounts ship.
-- Prefer short `expires_at` for public demos; revoke with
-  `podcast review revoke-share --token …`.
+- Links do not expire
+  ([decision](#decision-share-links-never-expire-the-host-revokes-them)); end
+  one with `podcast review revoke-share --token …`.
 - Guest JSON never includes host absolute paths; episode JSON stores
   workspace-relative paths only (`workspace_dir: "."` on disk). Rate limits:
   [host-online-relay.md](host-online-relay.md) § Rate limiting.

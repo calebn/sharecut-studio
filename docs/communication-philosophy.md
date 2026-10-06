@@ -324,6 +324,24 @@ new contributor or agent finds it in under a minute:
 
 ## Reconciled with ui-philosophy
 
+### Decision: This guide is canon; the UI philosophy wins on conflict
+
+<!-- decision
+id: D-communication-guide-canon
+status: accepted
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #80 owner: "Land the communication draft below as written."
+- #80 owner: "Where it conflicts with the published `docs/ui-philosophy.md`, the published doc wins."
+- #1025: "each conflict is resolved explicitly in the PR. Owner reviews the PR."
+- #1038 owner review approved it, keeping "MCP URL", renaming keeper to "Full-quality recording", and allowing a dense-target exception to 44 px
+enforced-by:
+- docs-sync: ux-pack
+- docs-sync: user-facing-copy-and-controls
+manual-review: the owner reviews each PR that changes user-facing copy or controls against this guide (contributing.md PR checklist)
+-->
+
 The draft in issue #80 landed as written except for these conflicts with the
 [UI philosophy](ui-philosophy.md). The owner decided on 2026-10-06 that the UI
 philosophy wins each one.

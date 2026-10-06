@@ -48,6 +48,7 @@ def test_every_decision_block_in_docs_is_valid_and_enforced():
     decisions, problems = di.collect(ROOT)
     problems += di.validate(decisions, di.Repo.load(ROOT))
     assert problems == []
+    assert {d.status for d in decisions} >= {"accepted", "superseded"}
 
 
 def test_the_decision_index_is_current():

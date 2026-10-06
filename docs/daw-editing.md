@@ -338,7 +338,26 @@ A successful change marks the selected transcript user-edited and clears timing-
 
 ## Exact selected ranges
 
-Selected-track range Cut punches holes in place. Mute adds silence only to the selected clip occurrences. Repeated copies of the same recording remain separate targets. A changed clip placement or media revision rejects the whole action and asks for reselection.
+### Decision: Range actions edit exact, sealed targets
+
+<!-- decision
+id: D-exact-range-targets
+status: accepted
+date: 2026-10-03
+decided-by: calebn
+evidence:
+- #532 contextual range actions, shipped in #932
+enforced-by:
+- tests/test_selected_range.py::test_exact_cut_keeps_repeated_source_unselected_tracks_and_gaps
+- tests/test_selected_range.py::test_mute_is_local_to_occurrence
+- tests/test_selected_range.py::test_exact_cut_uses_canonical_microfades_and_preserves_outer_edges
+- tests/test_selected_range.py::test_bulk_exact_approval_composes_same_clip_baseline_and_one_undo
+- tests/test_selected_range.py::test_media_change_invalidates_proposal
+- docs-sync: decision-exact-ranges
+-->
+
+A range target is a timeline footprint plus explicit lanes, the clip
+occurrences under it and seals on their media. Selected-track range Cut punches holes in place. Mute adds silence only to the selected clip occurrences. Repeated copies of the same recording remain separate targets. A changed clip placement or media revision rejects the whole action and asks for reselection. The media seal covers every recording on a selected lane, so adding a recording to that lane can require reselection even outside the chosen window.
 
 Drag empty lane space, Shift-drag a clip body, or arm **Select range** in the
 transport Menu (phone: Timeline tool rail). Ordinary unarmed clip drags still
@@ -360,7 +379,7 @@ Host and `edit` guest Cut/Mute apply; `suggest` guests create one pending action
 (Suggest cut / Suggest mute). Offline guest range edits replay as proposals. A
 guest MCP agent follows its share (`edit` applies, `suggest` proposes); host MCP
 agents always propose. Disabled controls explain missing capabilities. Export is
-host-only; exact approval/rejection needs the host or an `edit` guest. Manual ranges and exact-only approval do not require transcript
+host-only; exact approval/rejection needs the host or an `edit` guest, through trusted adapters. Owner credentials cannot tell the owner from an agent deliberately using the owner's credentials. Guest permissions follow [the share's capabilities](share-tokens.md#decision-guest-powers-follow-the-shares-capabilities). Manual ranges and exact-only approval do not require transcript
 refinement; source and narrative workflows retain their existing gate.
 
 Cut uses canonical microfades at new hole edges and preserves outer fades,

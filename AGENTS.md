@@ -113,6 +113,14 @@ Update documentation **in the same change** when behavior, layout, or workflows 
 | UX onboarding pack (shareable site) | `ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; enforced by the `ux-pack` docs-sync gate (triggers: GUI shells, keymap, command catalog, UX-facing docs, episode schema) |
 | Play modes (raw / processed / premix) | `docs/setup.md` — `processed:<id>` for FX+edits, `track:<id>` for raw |
 | Decision blocks (a heading plus a decision comment) in a doc | `docs/decisions/README.md`: regenerate it with `make decisions-index` |
+| Decision: guest powers, review-link roles, share-link expiry | The decision blocks in `docs/share-tokens.md`; a waiver names the decision it keeps |
+| Decision: exact selected range targets | The decision blocks in `docs/daw-editing.md`; a waiver names the decision it keeps |
+| Decision: saved mute and volume, listen-only solo | The decision blocks in `docs/gui-integration.md`; a waiver names the decision it keeps |
+| Decision: configurable master levels | The decision blocks in `docs/audio-engineering.md`; a waiver names the decision it keeps |
+| Decision: bleed handling | The decision blocks in `docs/audio-engineering.md`; a waiver names the decision it keeps |
+| Decision: filler cut rules and mute mode | The decision blocks in `docs/filler-cut-quality.md`; a waiver names the decision it keeps |
+| Decision: alignment from bleed lag | The decision blocks in `docs/multitrack-ingest.md`; a waiver names the decision it keeps |
+| Decision: touch input grammar and visible equivalents | The decision blocks in `docs/touch-editor-decisions.md`; a waiver names the decision it keeps |
 <!-- /docs-sync:generated -->
 
 If a doc would mislead the next agent or contributor, fix it before finishing the task.

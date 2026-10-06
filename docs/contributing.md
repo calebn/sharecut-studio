@@ -110,6 +110,29 @@ suggestions, including advice to add detector ignores.
 - Do **not** add `eslint-disable` / `oxlint-disable` / `biome-ignore` / `stylelint-disable` without **explicit user approval**. Stylelint exceptions: `/* stylelint-disable-next-line RULE -- user-approved: reason */`. Fix the code or add a token instead.
 - **PR checklist.** User-facing copy and control placement follow [`docs/communication-philosophy.md`](communication-philosophy.md) (terminology table, placement rules, mobile checklist). Deviations from its "never" rules need maintainer sign-off recorded in the PR.
 
+#### Decision: Run an Impeccable design pass on every UI change
+
+<!-- decision
+id: D-impeccable-design-pass
+status: accepted
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #1026 to #1034, "Design pass (owner directive 2026-10-06)": "critique and refine every UI, UX or GUI change"
+- same comment: "before implementing and again before the PR"; "Detector suppressions need explicit owner approval."
+- #876 vendored the skill and Codex hooks; #1039 made it load in Claude Code
+enforced-by:
+- tests/test_impeccable_hooks.py::test_design_hooks_enabled_with_portable_launcher_and_private_state
+- tests/test_impeccable_hooks.py::test_claude_code_discovers_the_repo_skills
+manual-review: no check can prove a design pass happened; the PR author runs `/impeccable` and the reviewer asks for its result
+-->
+
+Run the repo's Impeccable skill on every UI, UX or GUI change, before
+implementing and again before the PR, and put the same step in every agent
+brief for `gui/web/` work. The tests above check only that the skill and hooks
+are wired. Repo rules win over upstream advice, and a detector suppression,
+including a lint override in config, needs explicit owner approval.
+
 ### Dependency updates (Dependabot)
 
 Dependabot PRs (`.github/dependabot.yml`) are ordinary PRs against `main`; the
@@ -241,7 +264,7 @@ The map of which docs change with which code is [AGENTS.md § Docs in sync](../A
 
 Docs-sync proves a doc was touched, not that it is right. Before opening a PR, reread every doc you changed next to the code it describes and cut or correct any claim the code does not support (for example "always", "never", defaults, limits, or a path or symbol that does not exist). The issue pipeline's docs-accuracy lens (§ Automated issue pipeline) does the same check on review.
 
-**Keeping gates honest.** A rule is promoted from `advisory` to `gate` only when it fired at least 6 times in a 100-PR `make docs-sync-replay` and its docs were updated every time. Rerun the replay every 50 or so merged PRs, or when a gate starts to feel noisy. Its summary lists each rule's `kind`, firings, `satisfied` and `trivial` firings (satisfying doc edits of at most 2 changed lines in total), `waived` firings and `waive_rate`, with flagged gates first. A gate appears in `flags` when it is waived on more than 1 in 10 of its firings, or when more than half of the edits that satisfy it are trivial. Demote it by renaming its `gate` key to `advisory` in `contracts/docs-sync.json`. Don't add gates below that bar. Where a doc can be generated from code, as `make schema-export` and `make cheatsheet` already do, generate it instead of gating it.
+**Keeping gates honest.** A rule is promoted from `advisory` to `gate` only when it fired at least 6 times in a 100-PR `make docs-sync-replay` and its docs were updated every time. Rerun the replay every 50 or so merged PRs, or when a gate starts to feel noisy. Its summary lists each rule's `kind`, firings, `satisfied` and `trivial` firings (satisfying doc edits of at most 2 changed lines in total), `waived` firings and `waive_rate`, with flagged gates first. A gate appears in `flags` when it is waived on more than 1 in 10 of its firings, or when more than half of the edits that satisfy it are trivial. Demote it by renaming its `gate` key to `advisory` in `contracts/docs-sync.json`. Don't add gates below that bar. The `decision-*` rules are the exception: they start as gates because #1097 asked that a change to code under a recorded decision revisit that decision, and their waiver names the decision it keeps. Replay still flags them. Where a doc can be generated from code, as `make schema-export` and `make cheatsheet` already do, generate it instead of gating it.
 
 The bullets below add how-to detail for rows that need more than a doc path.
 
