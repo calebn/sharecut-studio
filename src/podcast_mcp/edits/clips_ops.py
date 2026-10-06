@@ -7,7 +7,7 @@ from itertools import pairwise
 from typing import Any, Literal
 
 from podcast_mcp.config import join_micro_fade_ms
-from podcast_mcp.edits.mute_regions import intersect_mute_regions
+from podcast_mcp.edits.mute_regions import mute_regions_overlapping
 from podcast_mcp.edits.ranges import subtract_ranges_from_intervals
 from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
@@ -153,10 +153,10 @@ def split_clip_at(clip: Clip, timeline_time: float) -> tuple[Clip, Clip]:
             "join_in_mode": ClipJoinMode.FADE,
         }
     )
-    before.mute_regions = intersect_mute_regions(
+    before.mute_regions = mute_regions_overlapping(
         clip.mute_regions, before.source_start, before.source_end
     )
-    after.mute_regions = intersect_mute_regions(
+    after.mute_regions = mute_regions_overlapping(
         clip.mute_regions, after.source_start, after.source_end
     )
     return before, after
@@ -267,7 +267,7 @@ def extract_clips_in_timeline_range(
                 fade_in_ms=clip.fade_in_ms,
                 fade_out_ms=clip.fade_out_ms,
                 join_in_mode=clip.join_in_mode,
-                mute_regions=intersect_mute_regions(clip.mute_regions, src_start, src_end),
+                mute_regions=mute_regions_overlapping(clip.mute_regions, src_start, src_end),
             )
         )
     return extracted
@@ -321,7 +321,7 @@ def build_clips_after_removes(
                 fade_in_ms=old.fade_in_ms,
                 fade_out_ms=old.fade_out_ms,
                 join_in_mode=old.join_in_mode,
-                mute_regions=intersect_mute_regions(old.mute_regions, src_start, src_end),
+                mute_regions=mute_regions_overlapping(old.mute_regions, src_start, src_end),
             )
         )
         timeline_cursor += src_end - src_start
@@ -426,7 +426,7 @@ def trim_clip_edge(
             if c.track_id == clip.track_id and c.timeline_start >= old_tl_end - 1e-9:
                 c.timeline_start += delta
 
-    clip.mute_regions = intersect_mute_regions(
+    clip.mute_regions = mute_regions_overlapping(
         clip.mute_regions, clip.source_start, clip.source_end
     )
     update_timeline_duration(project)
@@ -549,10 +549,10 @@ def roll_clip_join(
     left.source_end += delta
     right.source_start += delta
     right.timeline_start = left.timeline_end
-    left.mute_regions = intersect_mute_regions(
+    left.mute_regions = mute_regions_overlapping(
         left.mute_regions, left.source_start, left.source_end
     )
-    right.mute_regions = intersect_mute_regions(
+    right.mute_regions = mute_regions_overlapping(
         right.mute_regions, right.source_start, right.source_end
     )
     update_timeline_duration(project)

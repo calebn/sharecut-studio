@@ -37,7 +37,7 @@ from podcast_mcp.edits.inaudible_cuts import (
     optimize_timeline_cut_range,
     recommend_micro_fades,
 )
-from podcast_mcp.edits.mute_regions import intersect_mute_regions, mute_regions_payload
+from podcast_mcp.edits.mute_regions import mute_regions_overlapping, mute_regions_payload
 from podcast_mcp.edits.ranges import merge_intervals, merge_timeline_ranges
 from podcast_mcp.edits.transcript_cuts import TranscriptMatch, search_transcript
 from podcast_mcp.edits.transcript_sync import (
@@ -690,7 +690,7 @@ def paste_segment(
                 fade_in_ms=int(raw.get("fade_in_ms", 0) or 0),
                 fade_out_ms=int(raw.get("fade_out_ms", 0) or 0),
                 join_in_mode=join_mode,
-                mute_regions=intersect_mute_regions(parsed_mutes, src_start, src_end),
+                mute_regions=mute_regions_overlapping(parsed_mutes, src_start, src_end),
             )
         )
     insert_gap(project, insert_at, duration)

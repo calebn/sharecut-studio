@@ -13,8 +13,8 @@ from podcast_mcp.edits.mute_regions import (
     IgnoredWordRegions,
     MuteEnvelope,
     add_source_mute,
-    intersect_mute_regions,
     merge_mute_regions,
+    mute_regions_overlapping,
     mute_spans_for_source_window,
     subtract_source_mute,
 )
@@ -87,7 +87,7 @@ def _project_with_audio(tmp_path: Path, sample_wav: Path) -> EpisodeProject:
     return project
 
 
-def test_merge_and_intersect_mute_regions():
+def test_merge_and_overlap_mute_regions():
     overlapping = merge_mute_regions(
         [
             ClipMuteRegion(start_s=1.0, end_s=1.4),
@@ -96,10 +96,10 @@ def test_merge_and_intersect_mute_regions():
         ]
     )
     assert [(r.start_s, r.end_s) for r in overlapping] == [(1.0, 1.8), (3.0, 3.2)]
-    clipped = intersect_mute_regions(overlapping, 1.5, 3.1)
-    assert [(r.start_s, r.end_s) for r in clipped] == [(1.5, 1.8), (3.0, 3.1)]
+    cut = mute_regions_overlapping(overlapping, 1.5, 3.1)
+    assert [(r.start_s, r.end_s) for r in cut] == [(1.0, 1.8), (3.0, 3.2)]
     assert merge_mute_regions([]) == []
-    assert intersect_mute_regions(overlapping, 2.0, 2.5) == []
+    assert mute_regions_overlapping(overlapping, 2.0, 2.5) == []
     clip = Clip(
         id="c",
         track_id="host",
@@ -159,9 +159,9 @@ def test_mute_region_fill_travels_with_its_span():
 
     # The later silent mute replaces the room tone under 1.5-2.0.
     assert spans(clip.mute_regions) == [(1.0, 1.5, tone), (1.5, 2.5, None)]
-    assert spans(intersect_mute_regions(clip.mute_regions, 1.2, 1.8)) == [
-        (1.2, 1.5, tone),
-        (1.5, 1.8, None),
+    assert spans(mute_regions_overlapping(clip.mute_regions, 1.2, 1.8)) == [
+        (1.0, 1.5, tone),
+        (1.5, 2.5, None),
     ]
     assert mute_regions_payload(clip.mute_regions) == [
         {
@@ -666,7 +666,7 @@ def test_suggest_pending_edit_accepts_mute(minimal_project):
         )
 
 
-def test_split_clip_keeps_intersected_mute_regions():
+def test_split_clip_keeps_a_cut_mute_region_whole():
     clip = Clip(
         id="c1",
         track_id="host",
@@ -676,8 +676,8 @@ def test_split_clip_keeps_intersected_mute_regions():
         mute_regions=[ClipMuteRegion(start_s=0.2, end_s=0.8)],
     )
     before, after = split_clip_at(clip, 0.5)
-    assert [(r.start_s, r.end_s) for r in before.mute_regions] == [(0.2, 0.5)]
-    assert [(r.start_s, r.end_s) for r in after.mute_regions] == [(0.5, 0.8)]
+    assert [(r.start_s, r.end_s) for r in before.mute_regions] == [(0.2, 0.8)]
+    assert [(r.start_s, r.end_s) for r in after.mute_regions] == [(0.2, 0.8)]
 
 
 def test_propose_mute_keeps_existing_when_replace_false():
@@ -813,15 +813,14 @@ def test_extract_and_rebuild_clips_keep_mute_regions():
     )
     extracted = extract_clips_in_timeline_range([clip], 0.3, 0.6)
     assert extracted
-    assert [(r.start_s, r.end_s) for r in extracted[0].mute_regions] == [(0.3, 0.6)]
+    assert [(r.start_s, r.end_s) for r in extracted[0].mute_regions] == [(0.2, 0.8)]
 
     project = EpisodeProject.create("p", "/tmp/ws")
     project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
     project.clips = [clip]
     rebuilt = build_clips_after_removes(project, "host", [(0.4, 0.5)])
-    mutes = [(round(r.start_s, 6), round(r.end_s, 6)) for c in rebuilt for r in c.mute_regions]
-    assert (0.2, 0.4) in mutes
-    assert (0.5, 0.8) in mutes
+    mutes = [(r.start_s, r.end_s) for c in rebuilt for r in c.mute_regions]
+    assert mutes == [(0.2, 0.8), (0.2, 0.8)]
 
 
 def test_update_pending_split_track_ids():
@@ -1104,7 +1103,7 @@ def test_revert_mute_subtracts_regions_without_ripple(tmp_path, sample_wav):
     assert len(loaded.clips) == clip_count
 
 
-def test_paste_and_trim_keep_intersected_mute_regions():
+def test_paste_trim_and_roll_keep_overlapping_mute_regions_whole():
     from podcast_mcp.edits.clips_ops import roll_clip_join, trim_clip_edge
     from podcast_mcp.edits.timeline_ops import paste_segment
 
@@ -1147,17 +1146,22 @@ def test_paste_and_trim_keep_intersected_mute_regions():
     )
     pasted = [c for c in project.clips if abs(c.timeline_start - 10.0) < 1e-6]
     assert pasted
-    assert [(r.start_s, r.end_s) for r in pasted[0].mute_regions] == [(1.5, 2.5)]
+    assert [(r.start_s, r.end_s) for r in pasted[0].mute_regions] == [(1.0, 3.0)]
 
     trim_clip_edge(project, "c1", "out", 2.0)
     trimmed = next(c for c in project.clips if c.id == "c1")
-    assert [(r.start_s, r.end_s) for r in trimmed.mute_regions] == [(1.0, 2.0)]
+    assert [(r.start_s, r.end_s) for r in trimmed.mute_regions] == [(1.0, 3.0)]
 
-    roll_clip_join(project, "c1", "c2", 0.5)
+    roll_clip_join(project, "c1", "c2", -0.8)
     left = next(c for c in project.clips if c.id == "c1")
     right = next(c for c in project.clips if c.id == "c2")
-    assert all(r.end_s <= left.source_end + 1e-9 for r in left.mute_regions)
-    assert all(r.start_s >= right.source_start - 1e-9 for r in right.mute_regions)
+    assert (left.source_end, right.source_start) == (pytest.approx(1.2), pytest.approx(4.2))
+    assert [(r.start_s, r.end_s) for r in left.mute_regions] == [(1.0, 3.0)]
+    assert [(r.start_s, r.end_s) for r in right.mute_regions] == [(5.0, 5.4)]
+
+    roll_clip_join(project, "c1", "c2", -0.2)
+    left = next(c for c in project.clips if c.id == "c1")
+    assert left.mute_regions == []
 
 
 def test_coalesce_merges_same_track_mute():
