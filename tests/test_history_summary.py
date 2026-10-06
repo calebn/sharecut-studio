@@ -70,3 +70,32 @@ def test_summarize_diff_empty_falls_back_to_operation() -> None:
         params={},
     )
     assert lines == ["approve edits"]
+
+
+def test_reproposed_hit_with_moved_edges_shows_as_changed() -> None:
+    from podcast_mcp.history.diff import diff_snapshots
+    from podcast_mcp.models.history import ProjectStateSnapshot
+
+    def snapshot(end: float) -> ProjectStateSnapshot:
+        return ProjectStateSnapshot(
+            timeline={"clips": [], "tracks": []},
+            editorial={
+                "edit_decisions": [
+                    {"id": "cut_pause_1271400_1288770_ab", "start": 1271.4, "end": end}
+                ]
+            },
+        )
+
+    diff = diff_snapshots(snapshot(1288.77), snapshot(1288.98))
+
+    assert diff["edit_decisions"] == {
+        "added": [],
+        "removed": [],
+        "changed": [
+            {
+                "id": "cut_pause_1271400_1288770_ab",
+                "fields": [{"field": "end", "old": 1288.77, "new": 1288.98}],
+            }
+        ],
+    }
+    assert "1 pending edit changed" in summarize_diff(diff)

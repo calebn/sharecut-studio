@@ -161,7 +161,7 @@ Each `HistoryEntry` may include:
 - `history_list` — entries, cursor, and grouped mutations
 - `history_status_tool` — cursor and undo/redo flags (JSON)
 - `history_goto_tool` — jump to snapshot index (`rerender=true` optional; stales only the stems the move changed)
-- `history_diff_tool` — structured delta between indices
+- `history_diff_tool` — structured delta between indices (clips and pending edit decisions are reported as added, removed or changed; a re-proposed Tighten hit keeps its id, so moved edges show under `changed`)
 - `history_record` — manual snapshot
 - `history_undo` / `history_redo` — navigate history (`rerender=true` optional; stales only the stems the move changed)
 
