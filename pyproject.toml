@@ -143,10 +143,12 @@ addopts = [
     "--cov-report=term-missing:skip-covered",
     "--cov-report=xml:coverage.xml",
     "--cov-fail-under=95",
-    # Thread method: Starlette TestClient receive_json blocks in a way that
-    # signal-based timeouts often miss (nested guest/tunnel WS deadlocks).
+    # No --timeout-method on purpose: pytest-timeout picks "signal" where SIGALRM exists
+    # (Linux CI, macOS) and "thread" where it does not (Windows jobs). "signal" fails the
+    # slow test with its stack. "thread" ends the worker with os._exit, which xdist reports
+    # as "node down: Not properly terminated" with no stack (#1058). Pinning either value
+    # here would break or hide one platform.
     "--timeout=60",
-    "--timeout-method=thread",
 ]
 
 [tool.mypy]
