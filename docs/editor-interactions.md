@@ -97,8 +97,8 @@ replay must retain command identity and avoid a second history action.
 Use the existing crossfade acknowledgement case in
 `transitions-acceptance.spec.ts` and queued host comment in
 `sharecut.smoke.spec.ts` for their actual policies. Their evidence does not prove
-every other gesture's rejection path. Host, edit guest, suggest-only guest and
-view-only guest have different action permissions. `contextual-range.spec.ts`
+every other gesture's rejection path. The host, an Editor, a Commenter and a
+Viewer have different action permissions. `contextual-range.spec.ts`
 checks proposed ranges and forbidden host approval. Envelope and Wordbar editing
 remain host-only; guest navigation does not grant those commands.
 

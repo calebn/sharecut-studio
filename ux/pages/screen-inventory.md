@@ -103,8 +103,8 @@ their first line. Errors appear above the right-aligned Bounce action.
 |--|--|
 | **Purpose** | Manage public review links and record-room guest / producer invites for the open episode |
 | **Open** | Menu → Project → **Share…** (`share.manage`; collaboration extension slot `share.ui.menu`) |
-| **Primary actions** | Role (viewer / commenter / editor) · Allow agent (MCP) · **Create link** · **Create record links** · Copy / stop review links · Copy guest / producer links · Replace a closed record invite · End room |
-| **Data shown** | Online sharing line at the top (when the `tunnel.status` feature is present): “Guests can open your links”, “Connecting…”, “Reconnecting… guests may see a brief interruption” with a “Trying again in N s” countdown (a still clock time under reduced motion), “Not reachable online: guests can't open links until you're back online” with a **How to fix** disclosure and guide link, or “Online sharing is off” with **How to turn it on**; no line on a local-only host; live coolname, Docs-like role, review mix label, last used; record room role and invite closure state; MCP URL when `mcp` is granted |
+| **Primary actions** | Role radios under **Anyone with the link** (Viewer / Commenter / Editor, each with a one-line description; default Commenter) · Allow agent (MCP) · **Create link** · **Create record links** · Copy / stop review links · Copy guest / producer links · Replace a closed record invite · End room |
+| **Data shown** | Online sharing line at the top (when the `tunnel.status` feature is present): “Guests can open your links”, “Connecting…”, “Reconnecting… guests may see a brief interruption” with a “Trying again in N s” countdown (a still clock time under reduced motion), “Not reachable online: guests can't open links until you're back online” with a **How to fix** disclosure and guide link, or “Online sharing is off” with **How to turn it on**; no line on a local-only host; live coolname, review role, review mix label, last used; record room role and invite closure state; MCP URL when `mcp` is granted |
 | **Empty / error** | Quiet “No live review links.” / “No live record rooms.” text (no field-like box). Create publishes a **Share mix** review version if none exists (needs premix/mastered). A stale preview gets a friendly alert and **Refresh mix**; after a successful render, Create retries once. A stale master explains that a new master is needed and does not offer preview refresh. |
 | **Out of scope** | Restricted ACL; expiry picker; in-place review-role edit (rotate = new link + stop old); guest share-token MCP UI |
 
@@ -347,21 +347,21 @@ The transport layout control maximizes/restores (named **Maximize timeline** or 
 
 ## Guest / share (`/r/{token}`)
 
-Which UI loads depends on capabilities — not a single “guest Sharecut Studio.”
+Which UI loads depends on whether the share holds `view`. Every review role (Viewer, Commenter, Editor) holds it, so every role opens Sharecut Studio guest.
 
 ```mermaid
 flowchart LR
   shareLink["Share link /r/token"] --> hasView{Has view?}
-  hasView -->|no default| reviewApp[ReviewApp]
-  hasView -->|yes| dawGuest[Sharecut Studio guest]
+  hasView -->|no, no role mints this today| reviewApp[ReviewApp]
+  hasView -->|yes, every role| dawGuest[Sharecut Studio guest]
 ```
 
 ### Which surface?
 
 | Share setup | Surface | What the guest sees |
 |-------------|---------|---------------------|
-| **Default** `play` + `comment` (+ reply/action) | **ReviewApp** | Frozen review mix + comments. Header shows episode name and `mode {guest_mode}`. No Sharecut Studio mode banner. |
-| `view` present (+ play/comment/…) | **Sharecut Studio guest** | Timeline / Listen / Text / More with capability gates. Mode **banner** at top. |
+| Viewer, Commenter (default) or Editor | **Sharecut Studio guest** | Timeline / Listen / Text / More gated by role. Mode **banner** at top. |
+| `play` + `comment` without `view` (no role mints this today) | **ReviewApp** | Frozen review mix + comments. Header shows episode name and `mode {guest_mode}`. No Sharecut Studio mode banner. |
 
 Step flows: [Guest journeys](#/journeys).
 
@@ -374,26 +374,25 @@ Step flows: [Guest journeys](#/journeys).
 | `comment` | Leave time-anchored comments |
 | `reply` | Reply in a comment thread |
 | `action` | Check off comment action items |
-| `suggest` | Propose structural cuts (pending); nudge; **not** hard-apply |
-| `edit` | Approve/reject pending, fades/joins, FX bypass, apply structural cuts |
+| `suggest` | Commenter and Editor. Propose structural cuts (pending); nudge its own suggestions; **not** hard-apply |
+| `edit` | Editor only. Approve/reject pending, fades/joins, FX bypass, apply structural cuts |
 | `mcp` | Connect an **external** agent at `{base}/mcp/{token}/mcp` (host Share dialog copies the URL; **no guest in-app MCP connect UI**) |
 
 ### Sharecut Studio guest chrome (when `view` is granted)
 
-| Banner string | Typical mode |
+| Banner string | Role (`guest_mode`) |
 |---------------|--------------|
-| *Shared edit view* | `edit` |
-| *Shared suggest view* | `suggest` |
-| *Shared read-only view* | `view` (listen + inspect; not “no audio”) |
-| *Shared comment view* | comment-forward guest mode |
+| *Shared edit view · You can add tracks and audio* | Editor (`edit`) |
+| *Shared comment view · You can comment and suggest edits* | Commenter (`comment`) |
+| *Shared read-only view* | Viewer (`view`; listen + inspect, not “no audio”) |
 
-**Approve without Impact:** Impact is **always host-only**. Edit guests approve/reject from Timeline overlay + inspector (pending chip on Listen routes to Timeline).
+**Approve without Impact:** Impact is **always host-only**. Editors approve/reject from Timeline overlay + inspector (pending chip on Listen routes to Timeline).
 
 **Playback:** prefer **proxy media** (short MP3 listen chunks, often via CDN) so ordinary listen does not pull long host WAVs through the tunnel. Fallback to WAV when proxies are unavailable.
 
 **More hub (guest):** Mix + Comments + Overlay legend.
 
-**Remote agent (`mcp`):** Hosts copy the agent URL from Menu → Share… when minting with Allow agent. Guests still connect via an external MCP client — not a guest Settings pane. Same caps as the human on that share. Listen-first Suggested is HTTP (`guest_pending_preview` / `GET …/daw/pending-preview`), not host speakers.
+**Remote agent (`mcp`):** Hosts copy the agent URL from Menu → Share… when minting with Allow agent. Guests still connect via an external MCP client — not a guest Settings pane. Same role as the human on that share. Listen-first Suggested is HTTP (`guest_pending_preview` / `GET …/daw/pending-preview`), not host speakers.
 
 ---
 

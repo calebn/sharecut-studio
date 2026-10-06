@@ -22,9 +22,9 @@ Status key: **Now** (shape decisions) · **Next** (after Now) · **Later** (stra
 
 **Problem:** Guests arrive cold on phone. Capability tiers must feel obvious without host chrome.
 
-**Shipped (engineering):** ReviewApp (default) vs Sharecut Studio guest (`view`); mode banner on Sharecut Studio guest; proxy MP3 guest playback; offline edit queue + **Needs attention**; capability-scoped remote MCP URL; relay host-offline page. Documented in [Screens](#/screens) + [Guest journeys](#/journeys).
+**Shipped (engineering):** Google Docs review roles (Viewer, Commenter by default, Editor), each opening Sharecut Studio guest; ReviewApp for a share without `view`; mode banner on Sharecut Studio guest; proxy MP3 guest playback; offline edit queue + **Needs attention**; capability-scoped remote MCP URL; relay host-offline page. Documented in [Screens](#/screens) + [Guest journeys](#/journeys).
 
-**Still open for UX:** First-run orientation copy; comment vs suggest-cut IA; when to offer ReviewApp vs Sharecut Studio; plain-language Needs attention bodies; revoked/expired link copy.
+**Still open for UX:** First-run orientation copy; comment vs suggest-cut IA; whether ReviewApp stays now that no role mints it; plain-language Needs attention bodies; revoked/expired link copy.
 
 **Touches:** Guest banner, Listen mode, Comments, transport Menu, relay offline page, Needs attention.
 
@@ -95,7 +95,7 @@ Audio candidates exist; video ingest, 9:16 export, captions, active-speaker — 
 
 **Recruit:** 2 hosts (edit podcasts), 3 guests (smart phone users, not DAW experts). 25–30 minutes each.
 
-**Setup:** Host Sharecut Studio demo fixture + one ReviewApp link + one Sharecut Studio `view`+`suggest` share (see [Demo](#/demo)).
+**Setup:** Host Sharecut Studio demo fixture + one ReviewApp link + one Commenter link (see [Demo](#/demo)).
 
 | # | Task | Success looks like |
 |---|------|--------------------|

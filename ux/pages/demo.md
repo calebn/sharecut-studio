@@ -5,7 +5,7 @@ Always-on reference for what Sharecut Studio shows. Two layers:
 1. **Screenshots on this site** (below) — visible without installing anything.
 2. **Live fixture in the repo** — open locally to click through the real shell.
 
-> Host screenshots cover phone Listen / Timeline / Text and desktop. Guest screenshots show **ReviewApp** (default share) and **Sharecut Studio guest** (when `view` is granted).
+> Host screenshots cover phone Listen / Timeline / Text and desktop. Guest screenshots show **Sharecut Studio guest** on a Commenter link (the default role) and **ReviewApp**, the listen page for a share without `view`. No role mints a ReviewApp link today; the demo script mints one directly.
 
 ## Open the live demo (local)
 
@@ -29,7 +29,7 @@ podcast gui --project tests/fixtures/sharecut_ux_demo/episode.project.json --por
 # Terminal B — publish review mix + create tokens
 PODCAST_SHARE_REGISTRY=/tmp/podcast_ux_demo_shares.sqlite \
   python3 scripts/ux_demo_prepare_shares.py --base-url http://127.0.0.1:8777
-# Open the printed ReviewApp URL and Sharecut Studio guest URL
+# Open the printed ReviewApp URL and Sharecut Studio guest (Commenter) URL
 ```
 
 Or refresh all Pages PNGs (host + guest): `make ux-demo-screens` (defaults to port **8777** so a local `:8766` GUI does not block Playwright).
@@ -66,7 +66,7 @@ Audio is **symlinked** from `aligned_dialogue/raw` so the demo stays on the same
 
 ## Screenshots — guest share
 
-![ReviewApp (default share)](../assets/screens/guest-reviewapp.png)
+![ReviewApp (share without view)](../assets/screens/guest-reviewapp.png)
 
 ![Sharecut Studio guest on phone](../assets/screens/guest-sharecut-phone.png)
 

@@ -48,7 +48,7 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "Atomic sanitized document state with sequence and opaque basis token",
     ),
     ("POST", "/api/review/{token}/daw/boundary/context"): (
-        "edit",
+        "Editor",
         "Source-safe trim/roll limits and revision for a visible boundary",
     ),
     ("GET", "/api/review/{token}/daw/meta"): (
@@ -64,12 +64,12 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "Binary min/max/RMS pyramid tiles",
     ),
     ("GET", "/api/review/{token}/daw/pending-edits/{edit_id}/cut-suggestion"): (
-        "view + (suggest or edit)",
+        "Commenter or Editor",
         "Read-only full-source pending cut suggestion; no-store; read rate class",
     ),
     ("GET", "/api/review/{token}/daw/waveform-snap"): (
-        "suggest or edit",
-        "Windowed snap ticks; view-only gets wash only",
+        "Commenter or Editor",
+        "Windowed snap ticks; a Viewer gets the wash only",
     ),
     ("GET", "/api/review/{token}/daw/audio"): (
         "play",
@@ -97,18 +97,18 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "Content-addressed proxy media",
     ),
     ("POST", "/api/review/{token}/daw/render-preview"): (
-        "edit",
+        "Editor",
         "Start stem/premix render job (opt-in PODCAST_GUEST_RENDER)",
     ),
     ("GET", "/api/review/{token}/daw/render-preview/{job_id}"): (
-        "edit",
+        "Editor",
         "Read project-scoped render job status (no host paths)",
     ),
     ("POST", "/api/review/{token}/daw/document/command"): (
-        "view + command allowlist",
+        "role's command set",
         "Typed body — see Document commands",
     ),
-    ("POST", "/api/review/{token}/daw/media/upload"): ("edit", "Chunked audio into host raw/"),
+    ("POST", "/api/review/{token}/daw/media/upload"): ("Editor", "Chunked audio into host raw/"),
     ("POST", "/api/review/{token}/comments"): ("comment", "Timeline comment (REST)"),
     ("POST", "/api/review/{token}/comments/{comment_id}/replies"): ("reply", "Reply (REST)"),
     ("POST", "/api/review/{token}/comments/{comment_id}/actions/{action_id}/done"): (
@@ -412,8 +412,8 @@ def _render_remote_tools() -> str:
         f"| `+view` | {fmt(VIEW_TOOLS - PLAY_TOOLS)} |",
         f"| `+comment` / `reply` | {fmt(COMMENT_TOOLS - PLAY_TOOLS)} |",
         f"| `+action` | {fmt(ACTION_TOOLS)} |",
-        f"| `view` + (`suggest` / `edit`) | {fmt(DOCUMENT_COMMAND_TOOLS)} |",
-        f"| `view` + `edit` | {fmt(EDIT_TOOLS)} |",
+        f"| Commenter or Editor role | {fmt(DOCUMENT_COMMAND_TOOLS)} |",
+        f"| Editor role | {fmt(EDIT_TOOLS)} |",
         "",
         REMOTE_END,
         "",

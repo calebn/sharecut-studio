@@ -105,8 +105,8 @@ Example: Clip selected → Related shows Copy; More shows Cut for editors. Fade/
 
 In Timeline, **Select range** arms touch selection on clip bodies and empty
 lanes. Numeric In/Out with lane checkboxes offers precision without dragging.
-Trim/fade/join/envelope handles retain priority. Edit/suggest guests create pending
-range proposals; view guests keep the five actions visible with disabled reasons.
+Trim/fade/join/envelope handles retain priority. Editors apply range edits and Commenters create
+pending range proposals; Viewers keep the five actions visible with disabled reasons.
 
 ### Feature → home map
 

@@ -13,7 +13,7 @@ requirements for reviewable edits, recovery, export, and a free core workflow.
 
 **Sharecut Studio** is the web DAW / review UI for an episode: listen, inspect timeline and transcript, approve agent-suggested cuts, leave time-anchored comments, and (on share links) collaborate as a guest.
 
-**ReviewApp** is the lighter share surface (default): frozen review mix + comments — no full timeline.
+**ReviewApp** is the lighter listen page: frozen review mix + comments, no full timeline. It opens only for a share without `view`, which no review role mints today.
 
 It is **not** a full Pro Tools replacement. It is closer to **Descript + a Reaper-style session inspector**, with an AI agent that proposes the same kinds of mutations a human can approve.
 
@@ -38,8 +38,8 @@ Personas are **jobs**, not demographics.
 |--|--|
 | **Goal** | Leave useful feedback without installing tooling |
 | **Fears** | “Am I allowed to edit?”; link dead because host laptop slept |
-| **Surface** | Share link `/r/{token}` — default **ReviewApp**; Sharecut Studio guest when `view` is granted |
-| **Scenario** | Phone: play review mix, leave a note at 11:02, optionally suggest a cut if the host allowed it |
+| **Surface** | Share link `/r/{token}`. Every review role (Viewer, Commenter by default, Editor) opens Sharecut Studio guest |
+| **Scenario** | Phone: play review mix, leave a note at 11:02, optionally Suggest cut (Commenter link) |
 
 ### Remote agent — “Cursor on the share”
 
@@ -48,7 +48,7 @@ Personas are **jobs**, not demographics.
 | **Goal** | Same powers as the human share recipient, via tools |
 | **Fears** | Over-privileged tools; silent failure when host is offline |
 | **Surface** | `{base}/mcp/{token}/mcp` (requires share `mcp` + host `PODCAST_REMOTE_MCP=1`) |
-| **Scenario** | Host grants `play,view,comment,mcp`; agent lists comments and proposes a suggest-cut |
+| **Scenario** | Host mints a Commenter link with `--with-mcp`; agent lists comments and suggests a cut |
 
 ### Local agent (Cursor, etc.)
 
@@ -122,7 +122,7 @@ bleed-alignment review control in the Studio UI.
 3. **Phone ≠ shrunk desktop** — four modes + sheet; do not force the four-pane grid onto small screens.
 4. **One job per phone mode** — Listen / Timeline / Text / More.
 5. **Same project, many clients** — GUI, CLI, and agent mutate one episode project.
-6. **Progressive complexity** — guests only see capabilities their share token allows (ReviewApp vs Sharecut Studio).
+6. **Progressive complexity** — guests only see what their review role allows (Viewer, Commenter, Editor).
 7. **Primary chrome stays reachable** — on narrow widths, Comment/Fit icons stay visible; secondary controls go under Menu.
 8. **Contextual discovery** — selection sheets show related commands ("You might also want…"); gestures have a cheatsheet. Users shouldn't hunt through menus to find what goes with their current task.
 
@@ -158,8 +158,8 @@ Guest step flows: [Guest journeys](#/journeys).
 | Surface | Audience | Notes |
 |---------|----------|-------|
 | **Sharecut Studio host** | Editor | Full project; document commands + pipeline |
-| **ReviewApp** | Guest (default share) | Mix + comments; published review MP3 (often CDN) |
-| **Sharecut Studio guest** | Guest with `view` | Mode banner; capability gates; proxy MP3 when available; no Impact/History/Pipeline |
+| **ReviewApp** | Guest on a share without `view` (no role mints one today) | Mix + comments; published review MP3 (often CDN) |
+| **Sharecut Studio guest** | Every review role | Mode banner; role gates; proxy MP3 when available; no Impact/History/Pipeline |
 | **CLI / MCP** | Agent + power user | Same domain services; not a parallel product |
 | **Remote MCP (share)** | Agent as guest | Same caps as the share; `{base}/mcp/{token}/mcp` |
 
