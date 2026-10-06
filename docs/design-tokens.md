@@ -126,6 +126,7 @@ loops, and essential state changes are immediate.
 | `--motion-panel` | Dialog panels rising in (`fade-in` with `rise-in`); dialog and bottom-sheet scrims fading in (`fade-in`); bottom sheets; undo toasts rising 0.5rem (`rise-in`); focus-pull out. |
 | `--motion-state` | Play's playing glow; track-row and empty-stage shadows; the ruler glow; focus-pull in. |
 | `--motion-loop-*` | The pipeline pulse, the loading shimmer, and the REC dot. |
+| `--motion-long-press` | Progress shown during a touch hold that ends when the hold fires: the touch chooser's "about to grab" ring. It equals `LONG_PRESS_MS` (500ms) in `hooks/gestureConstants.ts`, and a Vitest test keeps them equal. |
 
 The shared entrances (`fade-in`, `rise-in`, `drop-in`) live in `ui.css`, and
 each component opts in beside its own rules. Menus and toasts animate

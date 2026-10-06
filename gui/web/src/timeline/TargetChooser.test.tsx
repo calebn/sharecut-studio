@@ -51,6 +51,8 @@ let view: ChooserView;
 beforeEach(() => {
   router = {
     dispose: vi.fn(),
+    defers: vi.fn(() => false),
+    longPress: vi.fn(),
     choose: vi.fn(),
     nextPage: vi.fn(),
     close: vi.fn(),
@@ -92,6 +94,7 @@ function show(overrides: Partial<ChooserView> = {}) {
     <TargetChooser
       view={{ ...view, ...overrides }}
       router={router}
+      bounds={{ left: 0, top: 0, right: 360, bottom: 800 }}
       closing={false}
       onClosed={() => undefined}
     />,
@@ -129,17 +132,40 @@ describe("TargetChooser", () => {
       <TargetChooser
         view={{ ...view, over: 1 }}
         router={router}
+        bounds={{ left: 0, top: 0, right: 360, bottom: 800 }}
         closing={false}
         onClosed={() => undefined}
       />,
     );
-    expect(caption()).toBe("Envelope point 0.80× · 00:02.000");
+    expect(caption()).toBe(
+      "Envelope point 0.80× · 00:02.000Hold to drag · lift to select",
+    );
+  });
+
+  it("marks only the chip under the held finger as about to grab", () => {
+    const { rerender } = show({ over: 1 });
+    const arming = () =>
+      [...document.querySelectorAll(".target-chip.is-arming")].map((c) =>
+        c.getAttribute("aria-label"),
+      );
+    expect(arming()).toEqual(["Envelope point 0.80× at 00:02.000"]);
+    rerender(
+      <TargetChooser
+        view={{ ...view, over: 1, fingerDown: false }}
+        router={router}
+        bounds={{ left: 0, top: 0, right: 360, bottom: 800 }}
+        closing={false}
+        onClosed={() => undefined}
+      />,
+    );
+    expect(arming()).toEqual([]);
+    expect(document.querySelector(".target-chooser-hint")).toBeNull();
   });
 
   it("commits a chip by click (keyboard) and closes on Escape", () => {
     show();
     fireEvent.click(screen.getByRole("menuitemradio", { name: /Trim start/ }));
-    expect(router.choose).toHaveBeenCalledWith(0, null);
+    expect(router.choose).toHaveBeenCalledWith(0, "virtual");
     fireEvent.keyDown(window, { key: "Escape" });
     expect(router.close).toHaveBeenCalledOnce();
   });

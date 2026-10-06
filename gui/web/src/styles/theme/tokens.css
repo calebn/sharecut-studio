@@ -46,6 +46,9 @@
   --motion-panel: 200ms;
   --motion-state: 250ms;
   --motion-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* A touch long press (LONG_PRESS_MS in hooks/gestureConstants.ts, pinned
+     by its test): progress shown during a hold ends when the hold fires. */
+  --motion-long-press: 500ms;
   /* Looping status indicators keep their own, slower periods. */
   --motion-loop-pipeline: 1.2s;
   --motion-loop-skeleton: 1.6s;

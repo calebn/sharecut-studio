@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
-import { DOUBLE_TAP_MS, withinGhostClick } from "../hooks/touchGestureTiming";
+import { DOUBLE_TAP_MS, withinGhostClick } from "../hooks/gestureConstants";
 import { useLongPress } from "../hooks/useLongPress";
 import { useUserScrollIntent } from "../hooks/useUserScrollIntent";
 import { useVirtualTurns } from "../hooks/useVirtualTurns";
