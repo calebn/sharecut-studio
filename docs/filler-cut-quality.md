@@ -57,6 +57,8 @@ Implementation: `edits/fillers.py`, `edits/cut_quality.py`, `edits/join_continui
 
 **Pause candidates are skipped in mute mode** — muting a pause is a no-op (the gap is already silence). Use ripple when you want to shorten dead air.
 
+**A span already muted is not proposed again** (#1002) — Approving a mute removes the decision from `edit_decisions` and leaves the word in the transcript, so nothing else records it. `_resolve_analyzed_cuts` (the one pass every filler, repetition and acoustic candidate goes through) therefore reads what render silences: the track's `Clip.mute_regions`, merged across its clips. A mute-mode cut whose final span they fully cover (within 1 ms) is dropped and counted as `already_muted`. A cut that only partly overlaps a mute is still proposed, since part of it is audible. Ripple cuts never read `mute_regions`, so ripple mode is unchanged. On the lab tape, approving the acoustic hit at 40.31-40.995 s and re-running Find hits went from 4 hits (the same span back pending) to 3 hits with `already_muted: 1`.
+
 Pending `EditDecision` fields are unchanged (`type` was already `remove|mute|split`). After apply, the pending row is archived like a remove; the audible hole lives on the clip. Undo via `ProjectWorkspace.mutate()` restores `mute_regions`. `RestoreAppliedEdit` / MCP `revert_applied_edit` on a mute archive (`params.mute`) subtracts intersecting source spans in place — it does **not** ripple or re-insert clips. Use History undo for snapshots that predate the mute row. `SuggestPendingEdit` accepts `edit_type: mute` (default `remove`). `UpdatePendingEdit` already updates MUTE ranges the same way as REMOVE.
 
 Do not mix mute-in-place with track volume envelopes: Levels automation stays on `mix.automation_envelopes`; filler mutes are clip-local so they do not fight a user envelope.
@@ -278,6 +280,8 @@ Interaction with other proposals:
   same ids and keeps ones a human already applied; new proposals that overlap an
   applied decision are skipped (`applied_overlap`), as are ones whose id an
   applied decision holds (`same_hit`).
+  In mute mode a candidate whose span the clips' `mute_regions` already cover is
+  skipped too (`already_muted`).
 - Propose summaries report acoustic hits separately (`N acoustic (review)`) and
   count skipped scans and candidates (`acoustic:*` skip reasons such as
   `no_audio`, `peer_speaking` (a peer voiced in the gap), `breath`, `rejected`,

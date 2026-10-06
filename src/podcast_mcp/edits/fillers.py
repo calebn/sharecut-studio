@@ -28,6 +28,7 @@ from podcast_mcp.edits.cut_quality import (
 )
 from podcast_mcp.edits.filler_pacing import MIN_PACED_CUT_SEC, apply_filler_pacing
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
+from podcast_mcp.edits.mute_regions import muted_source_spans, source_span_is_muted
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import ACOUSTIC_FILLER_REASON
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
@@ -41,6 +42,7 @@ from podcast_mcp.edits.voiced_runs import (
 from podcast_mcp.edits.word_onset import OnsetKind, next_onset
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.models import (
+    ClipMuteRegion,
     EditDecision,
     EditDecisionType,
     EpisodeProject,
@@ -1256,6 +1258,7 @@ def _resolve_analyzed_cuts(
     results: list[_AnalyzedCut | _CutRejected | None],
     *,
     existing: Iterable[EditDecision] = (),
+    muted: Mapping[str, Sequence[ClipMuteRegion]] | None = None,
     skip_counts: dict[str, int] | None = None,
 ) -> list[_AnalyzedCut]:
     """Resolve overlaps between analyzed cuts, preserving candidate order.
@@ -1287,13 +1290,24 @@ def _resolve_analyzed_cuts(
         tid: HalfOpenIntervalIndex.build(spans) for tid, spans in applied_spans.items()
     }
     pairs: list[tuple[_CutCandidate, _AnalyzedCut | None]] = []
-    for candidate, outcome in zip(candidates, results, strict=True):
+    already_muted: set[int] = set()
+    for idx, (candidate, outcome) in enumerate(zip(candidates, results, strict=True)):
         if isinstance(outcome, _CutRejected):
             _count_skip(skip_counts, outcome.skip)
         result = outcome if isinstance(outcome, _AnalyzedCut) else None
         index = applied_index.get(candidate.track_id)
         if result is not None and index is not None and index.overlaps(result.start, result.end):
             _count_skip(skip_counts, "applied_overlap")
+            result = None
+        if (
+            result is not None
+            and result.decision_type == "mute"
+            and source_span_is_muted(
+                (muted or {}).get(candidate.track_id, ()), result.start, result.end
+            )
+        ):
+            _count_skip(skip_counts, "already_muted")
+            already_muted.add(idx)
             result = None
         if result is not None and result.hit_id in held_ids:
             _count_skip(skip_counts, "same_hit")
@@ -1313,7 +1327,8 @@ def _resolve_analyzed_cuts(
         if not candidate.strictly_bounded:
             continue
         if result is None:
-            _count_skip(skip_counts, "acoustic:rejected")
+            if idx not in already_muted:
+                _count_skip(skip_counts, "acoustic:rejected")
             continue
         index = word_index.get(candidate.track_id)
         if index is not None and index.overlaps(result.start, result.end):
@@ -2025,6 +2040,10 @@ def analyze_fillers_and_pauses(
         for candidate in candidates
     ]
     resolved = _resolve_analyzed_cuts(
-        candidates, results, existing=list(project.edit_decisions), skip_counts=skip_counts
+        candidates,
+        results,
+        existing=list(project.edit_decisions),
+        muted=muted_source_spans(project),
+        skip_counts=skip_counts,
     )
     return [_apply_analyzed_cut(project, result) for result in resolved]
