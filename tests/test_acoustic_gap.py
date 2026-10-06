@@ -109,12 +109,14 @@ def _project(
     words: list[TranscriptWord],
     *,
     peer_words: list[TranscriptWord] | None = None,
+    peer_samples: np.ndarray | None = None,
 ) -> EpisodeProject:
     duration = samples.size / RATE
     project = EpisodeProject.create("acoustic", str(tmp_path))
     track_ids = ["host"] + (["guest"] if peer_words is not None else [])
     for tid in track_ids:
-        _write_wav(tmp_path / "raw" / f"{tid}.wav", samples if tid == "host" else samples * 0)
+        peer = samples * 0 if peer_samples is None else peer_samples
+        _write_wav(tmp_path / "raw" / f"{tid}.wav", samples if tid == "host" else peer)
         project.timeline.tracks.append(
             Track(
                 id=tid,
@@ -427,13 +429,10 @@ def test_edge_margin_and_occupied_runs_are_skipped(monkeypatch: pytest.MonkeyPat
     assert skips == {"acoustic:edge_margin": 1, "acoustic:occupied": 1}
 
 
-def test_peer_speaking_in_gap_is_treated_as_bleed(tmp_path: Path) -> None:
+def test_peer_voice_in_gap_is_treated_as_bleed_with_no_peer_word(tmp_path: Path) -> None:
     samples = _tone(3.0, 0.8, 1.2)
     project = _project(
-        tmp_path,
-        samples,
-        _two_words().words,
-        peer_words=[TranscriptWord(text="yes", start=0.9, end=1.1)],
+        tmp_path, samples, _two_words().words, peer_words=[], peer_samples=_tone(3.0, 0.9, 1.1)
     )
     skips: dict[str, int] = {}
 
@@ -443,11 +442,37 @@ def test_peer_speaking_in_gap_is_treated_as_bleed(tmp_path: Path) -> None:
         {"tighten": {}},
         project=project,
         audio_cache=_cache(samples),
+        audio_caches={"host": _cache(samples), "guest": _cache(_tone(3.0, 0.9, 1.1))},
         skip_counts=skips,
     )
 
     assert found == []
     assert skips == {"acoustic:peer_speaking": 1}
+
+
+def test_peer_word_over_silent_peer_audio_does_not_block_the_gap(tmp_path: Path) -> None:
+    samples = _tone(3.0, 0.8, 1.2)
+    silent = np.zeros_like(samples)
+    project = _project(
+        tmp_path,
+        samples,
+        _two_words().words,
+        peer_words=[TranscriptWord(text="-huh.", start=0.3, end=1.9)],
+    )
+    skips: dict[str, int] = {}
+
+    found = _add_acoustic_candidates(
+        [],
+        project.transcripts[0],
+        {"tighten": {}},
+        project=project,
+        audio_cache=_cache(samples),
+        audio_caches={"host": _cache(samples), "guest": _cache(silent)},
+        skip_counts=skips,
+    )
+
+    assert skips == {}
+    assert [(round(c.start, 2), round(c.end, 2)) for c in _acoustic(found)] == [(0.78, 1.21)]
 
 
 def test_collect_candidates_alone_never_scans_audio() -> None:
@@ -625,6 +650,42 @@ def test_propose_emits_bounded_review_only_acoustic_decision_that_never_auto_app
     assert apply_tighten_decisions(project) == 0
     assert [e.id for e in project.edit_decisions] == [decision.id]
     assert project.edit_decisions[0].applied is False
+
+
+def test_propose_ignores_peer_word_that_spans_the_gap_over_silent_peer_audio(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    del sample_wav
+    project = _project(
+        tmp_path,
+        _acoustic_dialogue_samples(),
+        _two_words().words,
+        peer_words=[TranscriptWord(text="-huh.", start=0.3, end=1.9)],
+    )
+
+    proposal = propose_tighten_edits(project, _e2e_defaults())
+
+    (decision,) = proposal.decisions
+    assert decision.reason and decision.reason.startswith("filler:acoustic")
+    assert proposal.skip_counts == {}
+
+
+def test_propose_skips_the_gap_when_the_peer_track_carries_untranscribed_voice(
+    tmp_path: Path, sample_wav: Path
+) -> None:
+    del sample_wav
+    project = _project(
+        tmp_path,
+        _acoustic_dialogue_samples(),
+        _two_words().words,
+        peer_words=[],
+        peer_samples=_tone(3.0, 0.9, 1.1),
+    )
+
+    proposal = propose_tighten_edits(project, _e2e_defaults())
+
+    assert proposal.decisions == []
+    assert proposal.skip_counts == {"acoustic:peer_speaking": 1}
 
 
 def test_propose_suppresses_acoustic_candidate_without_retained_level_profile(

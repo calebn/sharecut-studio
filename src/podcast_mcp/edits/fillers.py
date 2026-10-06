@@ -683,8 +683,10 @@ def _peer_speaking_in_gap(
 ) -> bool:
     """True when another dialogue transcript has audible words in the gap.
 
-    A peer muted in the mix still counts: the mute is a listening choice, and
-    a cut here ripples the muted track too.
+    Transcript evidence only, which is enough for the pause floor (a turn gap
+    versus a thinking pause). Whether a peer is audibly voiced in a gap is
+    :func:`_peer_voiced_in_gap`. A peer muted in the mix still counts: the mute
+    is a listening choice, and a cut here ripples the muted track too.
     """
     from podcast_mcp.models import TrackRole
 
@@ -704,6 +706,22 @@ def _peer_speaking_in_gap(
                 continue
             return True
     return False
+
+
+def _peer_voiced_in_gap(
+    peer_caches: Sequence[TrackAudioCache],
+    gap_start: float,
+    gap_end: float,
+    defaults: dict[str, Any],
+) -> bool:
+    """True when a peer's own track has voiced audio inside the gap.
+
+    Peer occupancy is measured from peer audio, never from its ASR word spans: a
+    mistimed word can span seconds of digital silence on a gated track. The runs
+    are the same voiced-run evidence the cut gate reads at cut edges.
+    """
+    floor = _audibility_floor_db(defaults)
+    return any(voiced_runs(cache, gap_start, gap_end, floor_db=floor) for cache in peer_caches)
 
 
 def _clip_containing_source(project: EpisodeProject, track_id: str, src: float):
@@ -1082,9 +1100,8 @@ def _collect_acoustic_candidates(
     occupied: HalfOpenIntervalIndex,
     *,
     defaults: dict[str, Any] | None = None,
-    project: EpisodeProject | None = None,
+    peer_caches: Sequence[TrackAudioCache] = (),
     skip_counts: dict[str, int] | None = None,
-    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
 ) -> list[_CutCandidate]:
     """Review-only ``filler:acoustic`` candidates for voiced runs in owner gaps."""
     candidates: list[_CutCandidate] = []
@@ -1093,10 +1110,8 @@ def _collect_acoustic_candidates(
         if _word_not_owner(word, track_id) or _word_not_owner(nxt, track_id):
             _count_skip(skip_counts, "acoustic:not_owner")
             continue
-        # A peer speaking in the gap makes voiced energy here most likely bleed.
-        if project is not None and _peer_speaking_in_gap(
-            project, track_id, gap_start, gap_end, peer_indexes
-        ):
+        # A peer voiced in the gap makes voiced energy here most likely bleed.
+        if _peer_voiced_in_gap(peer_caches, gap_start, gap_end, defaults or {}):
             _count_skip(skip_counts, "acoustic:peer_speaking")
             continue
         reference = _flanking_speech_rms(audio_cache, word, nxt, defaults or {})
@@ -1148,10 +1163,14 @@ def _add_acoustic_candidates(
     *,
     project: EpisodeProject | None = None,
     audio_cache: TrackAudioCache | None = None,
+    audio_caches: Mapping[str, TrackAudioCache] | None = None,
     skip_counts: dict[str, int] | None = None,
-    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
 ) -> list[_CutCandidate]:
-    """``candidates`` plus acoustic gap candidates when enabled and audio decoded."""
+    """``candidates`` plus acoustic gap candidates when enabled and audio decoded.
+
+    ``audio_caches`` holds the dialogue tracks' decodes; the other tracks' voiced
+    runs decide whether a gap is peer bleed.
+    """
     cfg = AcousticGapConfig.from_tighten(defaults.get("tighten"))
     if not cfg.enabled:
         return candidates
@@ -1171,9 +1190,12 @@ def _add_acoustic_candidates(
         audio_cache,
         occupied,
         defaults=defaults,
-        project=project,
+        peer_caches=(
+            _peer_audio_caches(project, transcript.track_id, "session", audio_caches)
+            if project is not None
+            else ()
+        ),
         skip_counts=skip_counts,
-        peer_indexes=peer_indexes,
     )
     if not extra:
         return candidates
@@ -1916,8 +1938,8 @@ def analyze_fillers_and_pauses(
         defaults,
         project=project,
         audio_cache=audio_cache,
+        audio_caches=audio_caches,
         skip_counts=skip_counts,
-        peer_indexes=peer_indexes,
     )
     speaker_context = _speaker_cut_context(project) if candidates else None
     word_index = CutWordIndex.build(project, transcript.track_id) if candidates else None

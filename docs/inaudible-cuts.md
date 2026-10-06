@@ -270,5 +270,6 @@ See also [filler-cut-quality.md](filler-cut-quality.md) for gate + re-enable cri
 Tighten proposals build a read-only word index per track before parallel cut
 analysis. Boundary snapping and next-word lookups reuse it, including the
 original transcript order when words are unsorted. Candidate-specific retained
-boundary exclusions use a nearest-valid lookup against that span. Pause and
-acoustic gap checks share a per-proposal peer-speech overlap index.
+boundary exclusions use a nearest-valid lookup against that span. The pause
+floor reads a per-proposal peer-word overlap index; acoustic gap checks read the
+peer tracks' voiced runs from the shared audio caches instead.
