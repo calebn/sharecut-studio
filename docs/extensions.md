@@ -60,7 +60,7 @@ share minting, guest routes, or remote MCP.
 | `share.ui.menu` | Host Menu → Share… dialog |
 | `share.ui.banner` | Guest/host share banner |
 | `share.ui.routes` | Guest `/r/{token}` SPA |
-| `tunnel.status` | Tunnel indicator |
+| `tunnel.status` | Tunnel indicator: `GET /api/tunnel/status` and the Share dialog's Online / Connecting / Reconnecting / Offline line ([host-online-relay.md § Tunnel status](host-online-relay.md#tunnel-status)) |
 | `online.account` | Provider account/auth surface |
 
 Experimental: `extension.more.0`, `extension.status.0` (may change in minors).
