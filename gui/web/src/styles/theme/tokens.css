@@ -95,6 +95,9 @@
   /* Mode nav / bottom tabs above sheet scrim so one tap switches views. */
   --z-shell-chrome: 50;
   --z-presence-ghost: 51;
+  /* The compact inspector (#1051) docks above shell rows in its slot: no
+     nav, tabs or status row may draw over the strip. */
+  --z-sheet-docked: 55;
   /* Popup menus float above shell chrome so tail items stay clickable. */
   --z-menu: 60;
   --z-command-palette: 80;

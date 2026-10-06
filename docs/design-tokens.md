@@ -106,6 +106,7 @@ an integer.
 | `40` | `--z-sheet` | Dialog and sheet layer. |
 | `50` | `--z-shell-chrome` | Shell navigation above sheet scrims. |
 | `51` | `--z-presence-ghost` | Remote presence cursors. |
+| `55` | `--z-sheet-docked` | The compact phone inspector (#1051), docked above the nav or status row beside it; its slot clips its slide so it never draws over them. |
 | `60` | `--z-menu` | Menus and floating edit previews. |
 | `80` | `--z-command-palette` | Command palette root. |
 
