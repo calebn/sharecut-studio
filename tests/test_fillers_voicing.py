@@ -24,15 +24,20 @@ from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.tighten import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.edits.voiced_runs import run_straddling, voiced_runs, voiced_sec_inside
 from podcast_mcp.engines.audio_audit import TrackRmsCache
+from podcast_mcp.gui.assembler import build_project_view
 from podcast_mcp.models import (
     Clip,
+    EditDecision,
     EpisodeProject,
     MediaAsset,
     Track,
     TrackRole,
     Transcript,
     TranscriptWord,
+    save_project,
 )
+from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document import CommentService
 
 RATE = 16_000
 DEFAULTS: dict[str, object] = {
@@ -281,18 +286,152 @@ def test_reproposal_regenerates_its_own_review_flagged_hits(tmp_path: Path) -> N
     for _ in range(3):
         proposal = propose_tighten_edits(project, CONTINUOUS_VOICE_DEFAULTS)
         hits = [
-            (d.track_id, d.start, d.end, d.reason, d.review_required) for d in proposal.decisions
+            (d.id, d.track_id, d.start, d.end, d.reason, d.review_required)
+            for d in proposal.decisions
         ]
         pending = [
-            (d.track_id, d.start, d.end, d.reason, d.review_required)
+            (d.id, d.track_id, d.start, d.end, d.reason, d.review_required)
             for d in project.edit_decisions
         ]
         runs.append((hits, pending, proposal.skip_counts))
 
-    assert [hit[3:] for hit in runs[0][0]] == [("filler:um:voiced_edge", True)]
+    assert [hit[4:] for hit in runs[0][0]] == [("filler:um:voiced_edge", True)]
     assert runs[0][1] == runs[0][0]
     assert runs[1] == runs[0]
     assert runs[2] == runs[0]
+
+
+FILLER_AND_PAUSE_DEFAULTS: dict[str, object] = {
+    "tighten": {
+        "breath_handling": {"enabled": False},
+        "max_pause_sec": 1.2,
+        "filler_words": ["um"],
+        "discourse_markers": [],
+    }
+}
+
+
+def _filler_and_pause_project(tmp_path: Path, *, peer: bool = False) -> EpisodeProject:
+    """ "one um two ... three": a clean ``um`` hit and a 2 s pause hit on "host" (and,
+    with ``peer``, the same words and audio on "guest")."""
+    spans = [(0.2, 0.6), (1.0, 1.3), (1.6, 2.0), (4.0, 4.4)]
+    samples = np.zeros(6 * RATE, dtype=np.float32)
+    for start, end in spans:
+        _voice(samples, start, end)
+    words = [
+        TranscriptWord(text=text, start=start, end=end)
+        for text, (start, end) in zip(["one", "um", "two", "three"], spans, strict=True)
+    ]
+    project = _project(tmp_path, samples, words, peer=samples if peer else None)
+    if peer:
+        project.transcripts[1].words = [w.model_copy() for w in words]
+    return project
+
+
+def test_reproposal_keeps_an_ask_thread_on_its_hit(tmp_path: Path) -> None:
+    """#999: an Ask thread links to a pending hit by id, so Find hits again on an
+    unchanged project must hand the same hit the same id."""
+    ws = ProjectWorkspace.open(save_project(_filler_and_pause_project(tmp_path)))
+
+    def find_hits() -> list[EditDecision]:
+        return ws.mutate(
+            "before propose edits",
+            "after propose edits",
+            lambda p: propose_tighten_edits(p, FILLER_AND_PAUSE_DEFAULTS).decisions,
+        )
+
+    first = find_hits()
+    pause = next(d for d in first if d.reason.startswith("pause:"))
+    thread = CommentService(ws).add(
+        body="Does this pause land too fast?",
+        author="guest",
+        timeline_start=pause.start,
+        edit_decision_id=pause.id,
+    )
+
+    second = find_hits()
+
+    assert [(d.id, d.start, d.end, d.reason) for d in second] == [
+        (d.id, d.start, d.end, d.reason) for d in first
+    ]
+    view = build_project_view(ws)
+    (attached,) = [row for row in view.pending_edits if row["id"] == thread["edit_decision_id"]]
+    assert (attached["reason"], attached["source_start"], attached["source_end"]) == (
+        "pause:2.00s:solo",
+        2.0,
+        3.45,
+    )
+    assert [c["edit_decision_id"] for c in view.comments] == [attached["id"]]
+    with pytest.raises(ValueError, match="already has a comment thread"):
+        CommentService(ws).add(
+            body="second root", author="host", timeline_start=2.0, edit_decision_id=pause.id
+        )
+
+
+def test_a_pause_hit_keeps_its_id_when_intensity_moves_its_end(tmp_path: Path) -> None:
+    """The pause is its word gap; the retain floor only decides where the trim ends."""
+    project = _filler_and_pause_project(tmp_path)
+
+    pauses = [
+        next(
+            (d.id, d.start, d.end)
+            for d in propose_tighten_edits(
+                project, FILLER_AND_PAUSE_DEFAULTS, intensity=level
+            ).decisions
+            if d.reason.startswith("pause:")
+        )
+        for level in ("light", "medium", "aggressive")
+    ]
+
+    assert [end for _id, _start, end in pauses] == [3.25, 3.45, 3.66]
+    assert len({hit_id for hit_id, _start, _end in pauses}) == 1
+
+
+def test_distinct_hits_never_share_an_id(tmp_path: Path) -> None:
+    """Two tracks with the same words and audio: the same kind of hit at the same
+    source span on each track is still two hits."""
+    project = _filler_and_pause_project(tmp_path, peer=True)
+
+    proposal = propose_tighten_edits(project, FILLER_AND_PAUSE_DEFAULTS)
+
+    hits = [(d.track_id, d.start, d.end, d.reason.split(":")[0]) for d in proposal.decisions]
+    assert hits == [
+        ("host", 0.64, 1.52, "filler"),
+        ("host", 2.0, 3.45, "pause"),
+        ("guest", 0.64, 1.52, "filler"),
+        ("guest", 2.0, 3.45, "pause"),
+    ]
+    assert len({d.id for d in project.edit_decisions}) == 4
+
+
+def test_hit_ids_separate_track_kind_and_span() -> None:
+    base = _CutCandidate(track_id="host", start=1.0, end=1.3, reason="filler:um", cut_kind="filler")
+    variants = [
+        base,
+        _CutCandidate(track_id="guest", start=1.0, end=1.3, reason="filler:um", cut_kind="filler"),
+        _CutCandidate(
+            track_id="host", start=1.0, end=1.3, reason="repetition:word:um", cut_kind="repeat"
+        ),
+        _CutCandidate(
+            track_id="host", start=1.0, end=1.3, reason="restart:partial:u", cut_kind="restart"
+        ),
+        _CutCandidate(track_id="host", start=1.0, end=1.4, reason="filler:um", cut_kind="filler"),
+        _CutCandidate(track_id="host", start=1.1, end=1.3, reason="filler:um", cut_kind="filler"),
+        _CutCandidate(
+            track_id="host", start=1.0, end=1.3, reason="pause:1.30s", cut_kind="pause", gap_end=2.3
+        ),
+        _CutCandidate(
+            track_id="host", start=1.0, end=1.3, reason="pause:1.40s", cut_kind="pause", gap_end=2.4
+        ),
+    ]
+
+    assert len({c.hit_id for c in variants}) == len(variants)
+    assert (
+        base.hit_id
+        == _CutCandidate(
+            track_id="host", start=1.0, end=1.3, reason="filler:um:risky", cut_kind="filler"
+        ).hit_id
+    )
 
 
 def test_peer_voice_inside_a_session_pause_is_reviewed(tmp_path: Path) -> None:
