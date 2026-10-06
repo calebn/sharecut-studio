@@ -39,15 +39,16 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
-BLEED_GATE_REV = 9
+BLEED_GATE_REV = 10
 EVIDENCE_RATE = 8000
 # Gain ramps inside each reduced span, after a hold at full level around the lane's
 # own speech. On the lab tape (#945) the level just outside Caleb's reduced spans is
 # his own onsets and tails until the hold covers them, then his mic's bed. With
 # forced-aligner word times it reads -42 dBFS with no hold, -48 dBFS at 40 ms
-# before and after, and reaches the -57 dBFS bed at 40 ms before and 80 ms after,
-# where longer holds leave it. Whisper's looser word times reach it at 20/40 ms. So
-# the hold is 40 ms before and 80 ms after, which also covers plosive bursts (#978).
+# before and after, and reaches its -57 dBFS power mean beside the copies at 40 ms
+# before and 80 ms after, where longer holds leave it. Whisper's looser word times
+# reach it at 20/40 ms. So the hold is 40 ms before and 80 ms after, which also
+# covers plosive bursts (#978).
 # It keeps the copy at full level for 10 s of Audra's 280 s of speech, half what
 # 80/150 ms would. The 20 ms ramp is the editor's recommended join fade: long enough
 # not to click, short enough to keep the copy out.
@@ -55,16 +56,13 @@ GATE_FADE_SEC = 0.02
 _ONSET_HOLD_SEC = 0.04
 _TAIL_HOLD_SEC = 0.08
 _LEVEL_FRAME_SEC = 0.1
-# ``auto`` mutes a lane only where the bed just outside the peers' copies (within
-# _EDGE_FLOOR_SEC, away from its own speech) is digital silence, which the evidence
-# levels read at their -90 dB floor: a call app's gate holds the lane shut there,
-# so a mute cannot pump. Any bed above it is attenuated instead, so it stays steady.
-# On the lab tape Caleb's edges are digital silence 51% of the time and otherwise
-# carry room tone (-82 to -74 dBFS interquartile) and louder tails of Audra's voice:
-# -57 dBFS power mean, so attenuate. Audra's and Lana's tracks carry no verified
-# copy, so nothing on them is reduced.
-_GATED_FLOOR_DB = LEVEL_FLOOR_DB
-_EDGE_FLOOR_SEC = 0.5
+# ``auto`` attenuates only a lane whose bed would still be heard once turned down:
+# its median level away from its own speech and the peers' copies, less
+# bleed_attenuation_db, must stay above the evidence level floor (-90 dB, about one
+# 16-bit step). Below it, attenuating leaves digital silence where the bed was, so
+# muting changes nothing audible and keeps no echo. A call app's gated track sits at
+# that floor most of the time, so its median is the floor.
+_AUDIBLE_BED_DB = LEVEL_FLOOR_DB
 _MAX_PATH_LAG_SEC = 0.3
 _MIN_PATH_FRAMES = 3000
 _CONTOUR_SEC = 0.5
@@ -74,6 +72,9 @@ _ONSET_REACH_SEC = 0.2
 _OWN_MARGIN_DB = 4.0
 _OWN_HOLD_MARGIN_DB = 2.0
 _MIN_OWN_SEC = 0.05
+_SPREAD_PERCENTILE = 95
+_TIMBRE_WINDOW_SEC = 0.2
+_SIMILARITY_CHUNK = 4096
 _LIKENESS_PERCENTILE = 40
 _TIMBRE_BAND_HZ = (80, 3000)
 _TIMBRE_SMOOTH_BINS = 15
@@ -94,8 +95,8 @@ class BleedGatePlan:
     fade_sec: float = GATE_FADE_SEC
     reduction: BleedReduction = "mute"
     attenuation_db: float = AnalysisPolicy.bleed_attenuation_db
-    floor_db: float | None = None
-    """The lane's power-mean level just outside the peers' copies; ``auto`` resolves from it."""
+    bed_db: float | None = None
+    """The lane's median level away from its own speech and the copies; ``auto`` reads it."""
 
     @property
     def floor_gain(self) -> float:
@@ -370,6 +371,7 @@ class _PeerCopy:
     samples: np.ndarray
     lag: int
     coupling_db: float = 0.0
+    spread_db: float = 0.0
     likeness: float = 1.0
 
     def direct(self, size: int) -> np.ndarray:
@@ -402,10 +404,29 @@ class _PeerCopy:
 
     def similarity(self, own_samples: np.ndarray, frames: np.ndarray) -> np.ndarray:
         """Per frame, how much this lane's fine spectrum matches the peer's at the lag."""
-        return np.sum(
-            _fine_spectra(own_samples, frames) * _fine_spectra(self.samples, frames + self.lag),
-            axis=1,
+        chunks = np.split(frames, range(_SIMILARITY_CHUNK, frames.size, _SIMILARITY_CHUNK))
+        return np.concatenate(
+            [
+                np.sum(
+                    _fine_spectra(own_samples, chunk)
+                    * _fine_spectra(self.samples, chunk + self.lag),
+                    axis=1,
+                )
+                for chunk in chunks
+            ]
         )
+
+    def timbre_windows(self, own_samples: np.ndarray, judged: np.ndarray) -> np.ndarray:
+        """Frames of each fifth of a second whose ``judged`` frames sound like the copy."""
+        width = round(_TIMBRE_WINDOW_SEC / _OWNER_HOP_SEC)
+        frames = np.flatnonzero(judged)
+        like = np.zeros(-(-judged.size // width), dtype=bool)
+        if frames.size:
+            similarity = self.similarity(own_samples, frames)
+            windows, starts = np.unique(frames // width, return_index=True)
+            medians = np.array([np.median(part) for part in np.split(similarity, starts[1:])])
+            like[windows[medians >= self.likeness]] = True
+        return np.repeat(like, width)[: judged.size]
 
 
 def _sliding_max(levels: np.ndarray, before: int, after: int) -> np.ndarray:
@@ -427,8 +448,11 @@ def _peer_copy(
     by the lag. The coupling is the median lane-to-direct level over the louder half
     of the peer's open frames, away from this lane's own words, so the lane's noise
     floor and any overlapping own speech do not move it. On the lab tape it is about
-    -20 dB for Audra on Caleb's mic. The likeness is the 40th percentile of the
-    fine-spectrum match on frames at that level. The room and call software blur and
+    -20 dB for Audra on Caleb's mic. The spread is how far over the coupling the copy
+    reaches on those frames, at their 95th percentile: the peer's phonemes and the
+    call software's noise suppression move it 10.5 dB on the lab, and 10.6 dB on the
+    owner-confirmed Audra-only passages. The likeness is the 40th percentile of the
+    fine-spectrum match on frames at the coupling. The room and call software blur and
     spread it on the lab (0.35; median 0.41); a copy that keeps its timbre sits in a
     narrow band near 1.
     """
@@ -447,6 +471,7 @@ def _peer_copy(
         return None
     loud = frames & (reach >= np.median(reach[frames]))
     coupling = float(np.median(own[loud] - reach[loud]))
+    spread = float(np.percentile(own[loud] - reach[loud], _SPREAD_PERCENTILE)) - coupling
     typical = np.flatnonzero(loud & (np.abs(own - reach - coupling) < _OWN_HOLD_MARGIN_DB))
     sample = typical[:: max(1, typical.size // _LIKENESS_FRAMES)]
     copy = _PeerCopy(peer, peer_samples, lag, coupling)
@@ -455,7 +480,7 @@ def _peer_copy(
         if sample.size
         else 1.0
     )
-    return _PeerCopy(peer, peer_samples, lag, coupling, likeness)
+    return _PeerCopy(peer, peer_samples, lag, coupling, spread, likeness)
 
 
 def _own_voice(
@@ -463,16 +488,16 @@ def _own_voice(
 ) -> list[tuple[float, float]]:
     """Seconds where this lane's speaker is heard over the peers' copies.
 
-    The expected level is the copies plus this mic's own noise floor. A sound that
-    stands the own margin above it for a syllable is a candidate, held through
-    neighbouring frames above the hold margin and through short dips, so a short
-    "mm" is kept whole. The copy's level alone wanders several dB with the peer's
-    phonemes and the call software's noise suppression, so a candidate is the copy,
-    not the lane's speaker, when the median fine-spectrum match of its loud frames
-    reaches the copy's likeness. Judging only the loud frames keeps the copy that a
-    held run reaches into from outvoting the lane's own sound.
-    Transcript words play no part, so untranscribed backchannels, laughs, and words
-    reconciliation gave to a peer are kept too.
+    The expected level is the copies plus this mic's own noise floor. Sound more than
+    a copy's spread above it is the lane's speaker whatever its timbre, since the copy
+    stays under that in 95 of 100 loud frames. Nearer the expected level, level alone
+    cannot tell, so each fifth of a second is judged by timbre: it is the copy where
+    the median fine-spectrum match of its frames over the hold margin reaches the
+    copy's likeness. Judging short windows, not whole runs of sound, keeps seconds of
+    copy or of the lane's own speech from outvoting a word beside them. Own sound is
+    held through short dips, so a short "mm" is kept whole, and needs a syllable over
+    the own margin to count. Transcript words play no part, so untranscribed
+    backchannels, laughs, and words reconciliation gave to a peer are kept too.
     """
     opened = own[own > LEVEL_FLOOR_DB]
     noise = 10 ** (
@@ -481,25 +506,20 @@ def _own_voice(
     )
     reach = sum((copy.power(own.size, held=True) for copy in copies), np.zeros(own.size))
     excess = own - 10 * np.log10(reach + noise)
-
-    audible = [copy.power(own.size, held=False) > noise for copy in copies]
-
+    above = excess > _OWN_HOLD_MARGIN_DB
+    copy_like = np.zeros(own.size, dtype=bool)
+    for copy in copies:
+        copy_like |= copy.timbre_windows(
+            own_samples, above & (copy.power(own.size, held=False) > noise)
+        )
+    clear = excess > max(_OWN_MARGIN_DB, *(copy.spread_db for copy in copies))
+    heard = (bridge_short_dips(above, _OWNER_BRIDGE_FRAMES) & ~copy_like) | clear
     hot = excess > _OWN_MARGIN_DB
-
-    def carries(index: int, lo: int, hi: int) -> bool:
-        heard = np.flatnonzero(audible[index][lo:hi] & hot[lo:hi]) + lo
-        if heard.size == 0:
-            return False
-        copy = copies[index]
-        return float(np.median(copy.similarity(own_samples, heard))) >= (copy.likeness)
-
     least = round(_MIN_OWN_SEC / _OWNER_HOP_SEC)
-    held = bridge_short_dips(excess > _OWN_HOLD_MARGIN_DB, _OWNER_BRIDGE_FRAMES)
     runs = [
         (lo, hi)
-        for lo, hi in bool_runs(held)
+        for lo, hi in bool_runs(heard)
         if any(b - a >= least for a, b in bool_runs(hot[lo:hi]))
-        and not any(carries(index, lo, hi) for index in range(len(copies)))
     ]
     return _frame_spans(runs, whole_frame=True)
 
@@ -519,29 +539,29 @@ def _foreign_speech(size: int, copies: list[_PeerCopy]) -> list[tuple[float, flo
     )
 
 
-def _edge_floor_db(
-    own: np.ndarray, foreign: list[tuple[float, float]], kept: list[tuple[float, float]]
+def _bed_db(
+    own: np.ndarray, placed: list[tuple[float, float]], busy: list[tuple[float, float]]
 ) -> float | None:
-    """This lane's power-mean level just outside the peers' copies, away from its own speech.
+    """This lane's median level where it carries media and nobody it carries speaks.
 
-    That is the bed a mute would make vanish and return at each copy's edge: digital
-    silence (read at the level floor) on a call app's gated track, room tone and the
-    copy's tails on an open mic. None when no copy has such an edge.
+    ``busy`` is the lane's own speech and hold and the peers' copies. A median, because
+    copy tails and the lane's breaths fill a few percent of the rest and would set a
+    mean: on the lab tape 3% of Caleb's frames beside the copies gave 97% of their
+    power. A call app's gated track reads the level floor there most of the time.
     """
-    edges = (
-        _hop_mask(own.size, foreign, _EDGE_FLOOR_SEC)
-        & ~_hop_mask(own.size, foreign)
-        & ~_hop_mask(own.size, kept)
-    )
-    if not edges.any():
+    quiet = _hop_mask(own.size, placed) & ~_hop_mask(own.size, busy)
+    if not quiet.any():
         return None
-    return round(10 * math.log10(float(np.mean(10 ** (own[edges] / 10)))), 1)
+    return round(float(np.median(own[quiet])), 1)
 
 
-def _reduction(handling: BleedHandling, floor_db: float | None) -> BleedReduction:
+def _reduction(
+    handling: BleedHandling, bed_db: float | None, attenuation_db: float
+) -> BleedReduction:
     if handling != "auto":
         return handling
-    return "attenuate" if floor_db is not None and floor_db > _GATED_FLOOR_DB else "mute"
+    audible = bed_db is not None and bed_db - attenuation_db > _AUDIBLE_BED_DB
+    return "attenuate" if audible else "mute"
 
 
 def _peer_ids(project: EpisodeProject, track_id: str) -> list[str]:
@@ -666,12 +686,18 @@ def _compute_bleed_gate_plan(
         (start - _ONSET_HOLD_SEC, end + _TAIL_HOLD_SEC) for start, end in protected
     )
     attenuation = subtract_intervals(foreign, kept)
-    floor_db = _edge_floor_db(own_levels, foreign, kept)
+    placements = timeline.lane_clip_spans(track_id)
+    bed_db = _bed_db(
+        own_levels,
+        [(float(span.timeline_start), float(span.timeline_end)) for span in placements]
+        if placements
+        else [(0.0, own_levels.size * _OWNER_HOP_SEC)],
+        [*foreign, *kept],
+    )
     if not ignore_scope:
         attenuation = intersect_intervals(attenuation, _scope_intervals(project, track_id))
     attenuation = [(start, end) for start, end in attenuation if end - start > 2 * GATE_FADE_SEC]
-    if source_clock and timeline.lane_clip_spans(track_id):
-        placements = timeline.lane_clip_spans(track_id)
+    if source_clock and placements:
         attenuation = merge_intervals(
             (float(source_span[0]), float(source_span[1]))
             for lo, hi in attenuation
@@ -688,9 +714,9 @@ def _compute_bleed_gate_plan(
         tuple(attenuation),
         tuple(protected),
         tuple(sorted(reasons)),
-        reduction=_reduction(policy.bleed_handling, floor_db),
+        reduction=_reduction(policy.bleed_handling, bed_db, policy.bleed_attenuation_db),
         attenuation_db=policy.bleed_attenuation_db,
-        floor_db=floor_db,
+        bed_db=bed_db,
     )
 
 
@@ -751,8 +777,7 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
         "policy": {
             "handling": policy.bleed_handling,
             "attenuation_db": policy.bleed_attenuation_db,
-            "gated_floor_db": _GATED_FLOOR_DB,
-            "edge_floor_sec": _EDGE_FLOOR_SEC,
+            "audible_bed_db": _AUDIBLE_BED_DB,
             "onset_hold_sec": _ONSET_HOLD_SEC,
             "tail_hold_sec": _TAIL_HOLD_SEC,
             "evidence_rate": EVIDENCE_RATE,
@@ -770,6 +795,8 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
             "own_margin_db": _OWN_MARGIN_DB,
             "own_hold_margin_db": _OWN_HOLD_MARGIN_DB,
             "min_own_sec": _MIN_OWN_SEC,
+            "spread_percentile": _SPREAD_PERCENTILE,
+            "timbre_window_sec": _TIMBRE_WINDOW_SEC,
             "likeness_percentile": _LIKENESS_PERCENTILE,
             "timbre_band_hz": list(_TIMBRE_BAND_HZ),
             "timbre_smooth_bins": _TIMBRE_SMOOTH_BINS,
