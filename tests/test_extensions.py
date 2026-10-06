@@ -393,7 +393,7 @@ def test_loader_skips_duplicate_canonical_backend_names(
     reg = loader.load_extensions(extra_backends=[CollaborationExtension()])
 
     assert len(reg.get("share.routes")) == 1
-    assert len(reg.routers) == 4
+    assert len(reg.routers) == 5
     assert len(reg.middlewares) == 1
     assert len(reg.mcp_registrars) == 1
     assert len(reg.cli_registrars) == 1
