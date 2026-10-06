@@ -60,11 +60,14 @@ if TYPE_CHECKING:
         share_public_origin,
     )
     from podcast_mcp.services.collaboration.tunnel import run_tunnel_sync
+    from podcast_mcp.services.collaboration.tunnel_failure import TunnelError
+    from podcast_mcp.services.collaboration.tunnel_status import read_tunnel_status
 
 __all__ = [
     "ReviewService",
     "SessionControlService",
     "ShareService",
+    "TunnelError",
     "build_share_head_tags",
     "drop_absolute_path_strings",
     "guest_progress_hub",
@@ -73,6 +76,7 @@ __all__ = [
     "inject_share_document_head",
     "lookup_share",
     "open_share_workspace",
+    "read_tunnel_status",
     "record_bootstrap",
     "render_record_spa_html",
     "render_share_spa_html",
@@ -119,6 +123,7 @@ _MODULE_BY_NAME = {
     "ReviewService": "review",
     "SessionControlService": "session_control",
     "ShareService": "share",
+    "TunnelError": "tunnel_failure",
     "build_share_head_tags": "share_page",
     "drop_absolute_path_strings": "share",
     "guest_progress_hub": "guest_progress",
@@ -132,6 +137,7 @@ _MODULE_BY_NAME = {
     "render_share_spa_html": "share_page",
     "require_share_cap": "share",
     "require_share_edit": "share",
+    "read_tunnel_status": "tunnel_status",
     "reset_guest_progress_hub": "guest_progress",
     "resolve_share_audio_redirect": "share",
     "run_tunnel_sync": "tunnel",

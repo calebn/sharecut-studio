@@ -100,3 +100,22 @@ def sanitize(
     out = _B64_RUN.sub("<b64>", out)
     out = _HEX_RUN.sub("<hex>", out)
     return out
+
+
+def redact_secrets(text: str, secrets: Sequence[str] = ()) -> str:
+    """Mask known literal secrets and share-token path segments, nothing else.
+
+    Unlike ``sanitize`` this keeps hostnames, IP addresses and paths readable, for
+    operator-facing status lines. ``secrets`` are exact values (a host token, share
+    tokens) replaced wherever they appear, longest first so one that contains
+    another is not left half visible.
+    """
+    if not text:
+        return text
+    out = text
+    for secret in sorted({s for s in secrets if s}, key=len, reverse=True):
+        out = out.replace(secret, "<redacted>")
+    out = _AUTH_HEADER.sub(r"\1<redacted>", out)
+    out = _SECRET_ASSIGN.sub(lambda m: f"{m.group(1)}=<redacted>", out)
+    out = _SHARE_TOKEN.sub(lambda m: f"{m.group('prefix')}<share-token>", out)
+    return _HEX_RUN.sub("<hex>", out)

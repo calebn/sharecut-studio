@@ -34,7 +34,10 @@ def _is_guest_route(path: str, token: str) -> bool:
     return any(path == root or path.startswith(root + "/") for root in roots)
 
 
-@pytest.mark.parametrize("host_path", ["/api/project", "/api/session", "/api/shares"])
+@pytest.mark.parametrize(
+    "host_path",
+    ["/api/project", "/api/session", "/api/shares", "/api/tunnel/status"],
+)
 def test_guest_route_oracle_rejects_other_host_apis(host_path: str):
     assert not _is_guest_route(host_path, "test-token")
 

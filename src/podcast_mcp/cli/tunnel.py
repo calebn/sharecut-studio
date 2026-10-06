@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import typer
 
 from podcast_mcp.runtime_config import RuntimeConfigError
-from podcast_mcp.services.collaboration import run_tunnel_sync
+from podcast_mcp.services.collaboration import TunnelError, run_tunnel_sync
+
+
+def _echo_status_line(line: str) -> None:
+    """One timestamped stderr line per tunnel state change, so a log shows how long it lasted."""
+    typer.echo(f"{time.strftime('%H:%M:%S')} {line}", err=True)
 
 
 def tunnel_cmd(
@@ -51,6 +57,7 @@ def tunnel_cmd(
             public_base_url=public_base_url,
             local_gui_url=local_gui,
             config_path=config,
+            emit=_echo_status_line,
         )
     except RuntimeConfigError as exc:
         typer.echo(f"Invalid relay configuration: {exc}", err=True)
@@ -61,5 +68,8 @@ def tunnel_cmd(
             err=True,
         )
         raise typer.Exit(1) from None
+    except TunnelError as exc:
+        # The failure line (with its fix) was already printed when the tunnel gave up.
+        raise typer.Exit(1) from exc
     except KeyboardInterrupt:
-        typer.echo("\nTunnel disconnected.")
+        pass

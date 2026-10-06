@@ -48,7 +48,6 @@ def test_tunnel_keyboard_interrupt_exits_cleanly(tmp_path: Path):
             ["tunnel", "--project", str(proj)],
         )
     assert result.exit_code == 0
-    assert "disconnected" in result.output.lower()
 
 
 def test_tunnel_passes_options_to_run_tunnel_sync(tmp_path: Path):
