@@ -11,7 +11,7 @@ from podcast_mcp.edits.share_capabilities import (
     CAP_VIEW,
     has_capability,
 )
-from podcast_mcp.services.document_sync.capabilities import document_command_types_for_caps
+from podcast_mcp.services.document_sync import document_command_types_for_caps
 
 # Read / listen (ReviewApp-level summary without full Sharecut Studio).
 PLAY_TOOLS: frozenset[str] = frozenset(
