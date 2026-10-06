@@ -14,6 +14,7 @@ from podcast_mcp.edits.share_capabilities import (
     REVIEW_ROLE_CAPABILITIES,
     ReviewRole,
     capabilities_for_role,
+    normalize_capabilities,
     record_capabilities_for_role,
     record_role_for_capabilities,
     review_role_for_capabilities,
@@ -65,6 +66,100 @@ def test_capabilities_for_role_unknown(role: str) -> None:
 )
 def test_review_role_is_the_highest_role_a_share_holds_in_full(caps, role) -> None:
     assert review_role_for_capabilities(caps) is role
+
+
+def test_omitted_capabilities_default_to_the_commenter_role() -> None:
+    assert normalize_capabilities(None) == COMMENTER
+
+
+@pytest.mark.parametrize("caps", [[], "", " , ", ["sugest"], ["nope", "bogus"], "play,sugest"])
+def test_malformed_capabilities_raise_instead_of_defaulting(caps) -> None:
+    with pytest.raises(ValueError, match="capabilit"):
+        normalize_capabilities(caps)
+
+
+def test_known_capabilities_normalize_with_view_implying_play() -> None:
+    assert normalize_capabilities(["view", "comment", "view"]) == ["play", "view", "comment"]
+    assert normalize_capabilities("play,edit") == ["play", "edit"]
+
+
+@pytest.mark.parametrize("caps", [[], ["sugest"], ["view", "sugest"]])
+def test_share_creation_rejects_malformed_capabilities(
+    minimal_project, sample_wav, tmp_workspace, caps
+) -> None:
+    from podcast_mcp.edits.review_shares import create_share, list_shares
+    from podcast_mcp.services.collaboration.share import ShareService
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="malformed")
+    with pytest.raises(ValueError, match="capabilit"):
+        ShareService(ws).create(review_version_id=ver["id"], capabilities=caps)
+    with pytest.raises(ValueError, match="capabilit"):
+        create_share(ws.project, review_version_id=ver["id"], capabilities=caps)
+    assert list_shares(ws.project) == []
+
+
+def test_share_creation_without_capabilities_is_a_commenter_link(
+    minimal_project, sample_wav, tmp_workspace
+) -> None:
+    from podcast_mcp.services.collaboration.share import ShareService
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="default")
+    row = ShareService(ws).create(review_version_id=ver["id"])
+    assert (row["capabilities"], row["docs_role"]) == (COMMENTER, "commenter")
+
+
+@pytest.mark.parametrize("role", ["owner", "suggester", ""])
+def test_host_share_creation_rejects_unknown_roles(
+    minimal_project, sample_wav, tmp_workspace, role
+) -> None:
+    from podcast_mcp.edits.review_shares import list_shares
+    from podcast_mcp.services.collaboration.share import ShareService
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ReviewService(ws).publish(label="host-role")
+    with pytest.raises(ValueError, match="unknown share role"):
+        ShareService(ws).create_for_host(role=role)
+    assert list_shares(ws.project) == []
+
+
+@pytest.mark.parametrize("role", ["owner", "suggester", ""])
+def test_cli_share_rejects_unknown_roles_without_minting(
+    minimal_project, sample_wav, tmp_workspace, role
+) -> None:
+    from podcast_mcp.edits.review_shares import list_shares
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="cli-role")
+    result = CliRunner().invoke(
+        cli_app,
+        [
+            "review",
+            "share",
+            "--project",
+            str(minimal_project),
+            "--version",
+            ver["id"],
+            "--role",
+            role,
+        ],
+    )
+    assert result.exit_code == 1
+    assert "unknown share role" in result.output
+    assert list_shares(ws.project) == []
+
+
+def test_create_review_share_tool_rejects_unknown_roles(minimal_project, sample_wav) -> None:
+    from podcast_mcp.edits.review_shares import list_shares
+    from podcast_mcp.mcp.tools.review import create_review_share_tool
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="tool-bad-role")
+    for role in ("owner", ""):
+        with pytest.raises(ValueError, match="unknown share role"):
+            create_review_share_tool(str(minimal_project), ver["id"], role=role)
+    assert list_shares(ws.project) == []
 
 
 def test_record_capabilities_for_role_guest_producer() -> None:

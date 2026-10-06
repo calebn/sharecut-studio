@@ -364,6 +364,9 @@ def test_edit_share_gets_guarded_context(
     write_premix_hash(ws.project, mix_gains(ws.project), trim_db=0.0)
     version = ReviewService(ws).publish(label="boundary-share")
     view = ShareService(ws).create(review_version_id=version["id"], capabilities=["view"])
+    comment = ShareService(ws).create(
+        review_version_id=version["id"], capabilities=capabilities_for_role("commenter")
+    )
     edit = ShareService(ws).create(
         review_version_id=version["id"], capabilities=capabilities_for_role("editor")
     )
@@ -374,6 +377,9 @@ def test_edit_share_gets_guarded_context(
     with TestClient(create_app()) as client:
         denied = client.post(f"/api/review/{view['token']}/daw/boundary/context", json=body)
         blind_denied = client.post(f"/api/review/{blind['token']}/daw/boundary/context", json=body)
+        comment_denied = client.post(
+            f"/api/review/{comment['token']}/daw/boundary/context", json=body
+        )
         allowed = client.post(f"/api/review/{edit['token']}/daw/boundary/context", json=body)
         stale = client.post(
             f"/api/review/{edit['token']}/daw/boundary/context",
@@ -381,6 +387,7 @@ def test_edit_share_gets_guarded_context(
         )
     assert denied.status_code == 403
     assert blind_denied.status_code == 403
+    assert comment_denied.status_code == 403
     assert allowed.status_code == 200
     assert allowed.json()["token"]
     assert stale.status_code == 409
