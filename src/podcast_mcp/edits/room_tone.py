@@ -163,14 +163,15 @@ def _measure(track: TrackFloor, span: Span) -> Sample | None:
             duration_sec=end - start,
             sample_rate=SAMPLE_RATE,
         )
+        speech_prob = _speech_prob(audio)
     except Exception as exc:
-        log.debug("room tone window %.2f-%.2f unreadable: %s", start, end, exc)
+        log.warning("room tone window %.2f-%.2f unmeasurable: %s", start, end, exc)
         return None
     return Sample(
         start=start,
         end=end,
         rms_db=rms_db(audio, floor_db=DIGITAL_SILENCE_DB),
-        speech_prob=_speech_prob(audio),
+        speech_prob=speech_prob,
     )
 
 

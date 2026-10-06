@@ -741,6 +741,7 @@ def test_fill_with_room_tone_two_clips() -> None:
     # 1s gap at 2.0-3.0 tiled with 0.25s samples → 4 fill clips + 2 speech
     assert len(host) == 6
     assert [(c.source_start, c.source_end) for c in host[1:5]] == [(5.0, 5.25)] * 4
+    assert [(c.fade_in_ms, c.fade_out_ms) for c in host[1:5]] == [(10, 0), (0, 0), (0, 0), (0, 10)]
     assert host[0].timeline_end == pytest.approx(2.0)
     assert host[-1].timeline_start == pytest.approx(3.0)
     assert host[-2].timeline_end == pytest.approx(3.0)
