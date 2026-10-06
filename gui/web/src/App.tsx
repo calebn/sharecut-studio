@@ -57,7 +57,10 @@ function AppInner() {
     null,
   );
   const [shareAuthor, setShareAuthor] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{
+    message: string;
+    hint?: string;
+  } | null>(null);
   const [shareBootstrapping, setShareBootstrapping] = useState(
     Boolean(reviewToken),
   );
@@ -67,9 +70,10 @@ function AppInner() {
       return;
     }
     if (guestToken && !shareRoutesEnabled) {
-      setError(
-        "Share / guest routes (review and record) are not available (online extension not loaded).",
-      );
+      setError({
+        message:
+          "Share / guest routes (review and record) are not available (online extension not loaded).",
+      });
       setShareBootstrapping(false);
       return;
     }
@@ -94,7 +98,10 @@ function AppInner() {
             return;
           }
           if (!caps.includes("view")) {
-            setError("This link does not open the project.");
+            setError({
+              message: "This link does not open the project.",
+              hint: "Ask the person who shared it for a new link.",
+            });
             return;
           }
           setShareKey(shareProjectKey(reviewToken));
@@ -116,7 +123,7 @@ function AppInner() {
             setError(null);
             return;
           }
-          setError(errorMessage(e));
+          setError({ message: errorMessage(e) });
         } finally {
           if (!cancelled) {
             setShareBootstrapping(false);
@@ -142,7 +149,7 @@ function AppInner() {
     return <LoadingScreen label="Loading project…" />;
   }
   if (error) {
-    return <ErrorScreen message={error} />;
+    return <ErrorScreen message={error.message} hint={error.hint} />;
   }
 
   if (recordToken) {

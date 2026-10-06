@@ -25,7 +25,7 @@ flowchart TD
 4. After the host resolves feedback in Sharecut Studio, the guest sees its resolved state. The host can reopen a thread. Anonymous guests cannot resolve threads from the share link.
 5. If the host laptop sleeps / tunnel drops, the guest sees an offline page (not a broken blank app).
 
-An unavailable or revoked link shows an error. A share built without `view` (API only, no role mints one) opens the same kind of error: "This link does not open the project."
+An unavailable or revoked link shows an error. A share built without `view` (API only, no role mints one) opens the same kind of error: "This link does not open the project. Ask the person who shared it for a new link."
 
 The comment fields fit narrow phones without horizontal page scrolling.
 

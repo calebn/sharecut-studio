@@ -21,3 +21,15 @@ export const Default: Story = {
     );
   },
 };
+
+export const WithNextStep: Story = {
+  args: {
+    message: "This link does not open the project.",
+    hint: "Ask the person who shared it for a new link.",
+  },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByRole("alert")).toHaveTextContent(
+      "Ask the person who shared it for a new link.",
+    );
+  },
+};
