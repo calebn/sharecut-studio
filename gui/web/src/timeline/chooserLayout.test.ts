@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { chooserItems, layoutChips } from "./chooserLayout";
 import type { HitCandidate } from "./hitCandidates";
 
-const phone = { width: 360, height: 800 };
+const phone = { left: 0, top: 0, right: 360, bottom: 800 };
 
 function candidate(x: number, priority = 4): HitCandidate {
   return {
@@ -49,6 +49,25 @@ describe("layoutChips", () => {
       centers: [{ x: 180, y: 164 }],
       caption: { x: 180, y: 194 },
     });
+  });
+
+  it("flips below rather than reach over chrome above the timeline", () => {
+    const timeline = { left: 0, top: 160, right: 360, bottom: 700 };
+    expect(layoutChips(1, { x: 180, y: 250 }, timeline, 44)).toEqual({
+      placement: "below",
+      centers: [{ x: 180, y: 314 }],
+      caption: { x: 180, y: 344 },
+    });
+  });
+
+  it("takes the roomier side when neither fits", () => {
+    const short = { left: 0, top: 100, right: 360, bottom: 300 };
+    expect(layoutChips(1, { x: 180, y: 220 }, short, 44).placement).toBe(
+      "above",
+    );
+    expect(layoutChips(1, { x: 180, y: 180 }, short, 44).placement).toBe(
+      "below",
+    );
   });
 
   it("keeps the caption inside the gutter at a side edge", () => {
