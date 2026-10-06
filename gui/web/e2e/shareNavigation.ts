@@ -24,7 +24,7 @@ export async function openGuestShare(page: Page, token: string): Promise<void> {
   expect(response.status()).toBe(200);
 }
 
-export type ReviewShareRole = "viewer" | "editor";
+export type ReviewShareRole = "viewer" | "commenter" | "editor";
 
 /** Create a review share for `projectPath` and return its token. */
 export async function createReviewShare(

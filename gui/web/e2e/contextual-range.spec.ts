@@ -1,14 +1,10 @@
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
-import { repoRoot } from "./env";
-import { podcastCommand } from "./guiCommand";
 import { createRelocatedE2eProject } from "./liveProject";
 import { openTransportMenu } from "./overlayReachability";
 import { openPhoneTimeline } from "./phoneTimeline";
-import { e2eRuntimeEnv } from "./runtimeEnv";
 import { withShareableProject } from "./shareableProject";
 import {
   createReviewShare,
@@ -119,68 +115,6 @@ async function observePendingPlayback(page: Page) {
       .toBe(true);
     await evidence.dispose();
   };
-}
-
-async function createSuggestOnlyShare(page: Page, projectPath: string) {
-  const published = await page.request.post("/api/shares", {
-    data: { path: projectPath, role: "editor" },
-  });
-  expect(published.ok(), await published.text()).toBeTruthy();
-  const publishedBody: unknown = await published.json();
-  if (
-    typeof publishedBody !== "object" ||
-    publishedBody === null ||
-    !("share" in publishedBody) ||
-    typeof publishedBody.share !== "object" ||
-    publishedBody.share === null ||
-    !("review_version_id" in publishedBody.share) ||
-    typeof publishedBody.share.review_version_id !== "string" ||
-    !("token" in publishedBody.share) ||
-    typeof publishedBody.share.token !== "string"
-  ) {
-    throw new Error("Host share response omitted version or token");
-  }
-  const { review_version_id: versionId, token: setupToken } =
-    publishedBody.share;
-  const revoked = await page.request.post(
-    `/api/shares/${encodeURIComponent(setupToken)}/revoke`,
-    { data: { path: projectPath } },
-  );
-  expect(revoked.ok(), await revoked.text()).toBeTruthy();
-  const [command, ...commandArgs] = podcastCommand({
-    ci: Boolean(process.env.CI),
-  });
-  const output = execFileSync(
-    command,
-    [
-      ...commandArgs,
-      "review",
-      "share",
-      "--project",
-      projectPath,
-      "--version",
-      versionId,
-      "--capabilities",
-      "play,view,suggest,comment",
-      "--base-url",
-      new URL(page.url()).origin,
-    ],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-      env: e2eRuntimeEnv(process.env, `share-${process.pid}`),
-    },
-  );
-  const created: unknown = JSON.parse(output);
-  if (
-    typeof created !== "object" ||
-    created === null ||
-    !("token" in created) ||
-    typeof created.token !== "string"
-  ) {
-    throw new Error("CLI share response omitted token");
-  }
-  return created.token;
 }
 
 async function undo(page: Page) {
@@ -297,7 +231,7 @@ test("editor guest cuts a range and one host Undo restores every occurrence", as
   );
 });
 
-test("suggest-only guest proposes a range, host approves, and one Undo restores every occurrence", async ({
+test("a Commenter proposes a range, host approves, and one Undo restores every occurrence", async ({
   browser,
   page,
 }) => {
@@ -305,7 +239,7 @@ test("suggest-only guest proposes a range, host approves, and one Undo restores 
     async (projectPath) => {
       await openHostShare(page, projectPath);
       const before = geometry(projectPath);
-      const token = await createSuggestOnlyShare(page, projectPath);
+      const token = await createReviewShare(page, projectPath, "commenter");
       const guestContext = await browser.newContext({
         viewport: { width: 1440, height: 900 },
       });
@@ -361,7 +295,7 @@ test("suggest-only guest proposes a range, host approves, and one Undo restores 
         await expect(
           guest
             .getByText(
-              "Only the host or an edit guest can review exact range proposals.",
+              "Only the host or an Editor can review exact range proposals.",
             )
             .first(),
         ).toBeVisible();
@@ -384,7 +318,7 @@ test("suggest-only guest proposes a range, host approves, and one Undo restores 
         expect(footerBounds).not.toBeNull();
         for (const fact of [
           inspector.getByText(
-            "Only the host or an edit guest can review exact range proposals.",
+            "Only the host or an Editor can review exact range proposals.",
             { exact: true },
           ),
           inspector.getByText("0:11.000 – 0:12.000", { exact: true }),
@@ -451,7 +385,7 @@ test("suggest-only guest proposes a range, host approves, and one Undo restores 
   );
 });
 
-test("suggest-only guest proposes for host review and sees the approved cut", async ({
+test("a Commenter suggests a cut for host review and sees the approved cut", async ({
   browser,
   page,
 }) => {
@@ -459,7 +393,7 @@ test("suggest-only guest proposes for host review and sees the approved cut", as
     async (projectPath) => {
       await openHostShare(page, projectPath);
       const before = geometry(projectPath);
-      const token = await createSuggestOnlyShare(page, projectPath);
+      const token = await createReviewShare(page, projectPath, "commenter");
       const guestContext = await browser.newContext({
         viewport: { width: 1440, height: 900 },
       });
@@ -467,7 +401,10 @@ test("suggest-only guest proposes for host review and sees the approved cut", as
         const guest = await guestContext.newPage();
         await openGuestShare(guest, token);
         await expect(
-          guest.getByText("Shared suggest view", { exact: true }),
+          guest.getByText(
+            "Shared comment view · You can comment and suggest edits",
+            { exact: true },
+          ),
         ).toBeVisible();
         const range = await selectRange(guest);
         await range
@@ -516,7 +453,7 @@ test("suggest-only guest proposes for host review and sees the approved cut", as
         await expect(guestApprove).toBeDisabled();
         await expect(guestApprove).toHaveAttribute(
           "title",
-          "Only the host or an edit guest can review exact range proposals",
+          "Only the host or an Editor can review exact range proposals",
         );
         await expect(guestReject).toBeDisabled();
         await guestInspector
