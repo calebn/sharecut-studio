@@ -317,6 +317,13 @@
           "maximum": 1,
           "description": "Mean CTC posterior of the frames the forced aligner used for this word (transcribe.forced_alignment); null = Whisper's own times."
         },
+        "trimmed_from": {
+          "type": ["array", "null"],
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "[start, end] before transcribe_tracks trimmed this word's implausibly long span onto its voiced audio (#979); null = never trimmed."
+        },
         "ignored": { "type": "boolean", "default": false },
         "audibility_status": { "type": ["string", "null"] },
         "dominant_track": { "type": ["string", "null"] },

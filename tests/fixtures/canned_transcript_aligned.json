@@ -16,6 +16,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -31,6 +32,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -46,6 +48,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -61,6 +64,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -76,6 +80,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -91,6 +96,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -106,6 +112,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -121,6 +128,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -136,6 +144,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -151,6 +160,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -166,6 +176,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -181,6 +192,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -196,6 +208,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -211,6 +224,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -226,6 +240,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -241,6 +256,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -256,6 +272,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -271,6 +288,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -286,6 +304,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -301,6 +320,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -316,6 +336,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -331,6 +352,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -346,6 +368,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -361,6 +384,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -376,6 +400,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -391,6 +416,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -406,6 +432,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -421,6 +448,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -436,6 +464,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -451,6 +480,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -466,6 +496,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -481,6 +512,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -496,6 +528,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -511,6 +544,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -526,6 +560,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -541,6 +576,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -556,6 +592,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -571,6 +608,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -586,6 +624,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -601,6 +640,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -616,6 +656,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -631,6 +672,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         }
@@ -662,6 +704,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -677,6 +720,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -692,6 +736,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -707,6 +752,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -722,6 +768,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -737,6 +784,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -752,6 +800,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -767,6 +816,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -782,6 +832,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -797,6 +848,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -812,6 +864,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -827,6 +880,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -842,6 +896,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -857,6 +912,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -872,6 +928,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -887,6 +944,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -902,6 +960,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -917,6 +976,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -932,6 +992,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -947,6 +1008,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -962,6 +1024,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -977,6 +1040,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -992,6 +1056,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         },
@@ -1007,6 +1072,7 @@
           "speaker_match_score": null,
           "suspect_hallucination": false,
           "alignment_score": null,
+          "trimmed_from": null,
           "ignored": false,
           "audibility_locked": false
         }

@@ -114,7 +114,7 @@ def test_voiced_runs_quantize_to_the_frame_grid_and_skip_breath() -> None:
     samples = np.zeros(4 * RATE, dtype=np.float32)
     _voice(samples, 0.2, 1.25)
     _breath(samples, 2.0, 2.3)
-    runs = voiced_runs(_cache(samples), 0.0, 4.0, floor_db=-42.0)
+    runs = voiced_runs(_cache(samples).waveform, 0.0, 4.0, floor_db=-42.0)
     assert runs == [(pytest.approx(0.19), pytest.approx(1.26))]
     assert run_straddling(runs, 1.0) == runs[0]
     assert run_straddling(runs, 1.25) is None
@@ -126,7 +126,7 @@ def test_voiced_runs_quantize_to_the_frame_grid_and_skip_breath() -> None:
 def test_voiced_runs_ignore_the_window_placement_and_digital_silence() -> None:
     samples = np.zeros(3 * RATE, dtype=np.float32)
     _voice(samples, 1.0, 1.5)
-    cache = _cache(samples)
+    cache = _cache(samples).waveform
     assert voiced_runs(cache, 0.937, 2.2, floor_db=-42.0) == voiced_runs(
         cache, 0.5, 3.0, floor_db=-42.0
     )

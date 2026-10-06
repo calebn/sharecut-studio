@@ -104,6 +104,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         refresh_reused_silence_flags,
         run_transcribe_plan,
     )
+    from podcast_mcp.edits.word_spans import trim_project_word_spans
     from podcast_mcp.engines.asr_options import AsrOptions
     from podcast_mcp.engines.audio_audit import AnalysisPolicy
     from podcast_mcp.engines.transcribe import (
@@ -171,6 +172,8 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
         language=language,
         max_word_sec=pol.max_word_audibility_sec,
     )
+    # Word times are final here; trim before the reused-transcript silence flags read spans.
+    span_trims = trim_project_word_spans(project, defaults)
     reflag_skipped = refresh_reused_silence_flags(project, plan, options)
     job_keys = {j.key for j in jobs}
     words = sum(len(t.words) for t in project.transcripts if t.key in job_keys)
@@ -213,6 +216,8 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     summary = f"{len(transcripts) - len(plan.retime)} transcribed, {len(plan.reused)} reused, {words} words"
     if plan.overwrite_edited:
         summary += f", {len(plan.overwrite_edited)} edited overwritten"
+    if trimmed := sum(span_trims.values()):
+        summary += f", {trimmed} implausible word span(s) trimmed"
     if timing_flags:
         summary += f", {len(timing_flags)} timing flags"
     if punctuation_flags:

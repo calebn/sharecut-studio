@@ -71,7 +71,7 @@ Add `{workspace}/show_glossary.yaml` for show-specific replacements (see doc exa
 |---------|-------|
 | Bleed / wrong track audible | reconcile → audition if ambiguous |
 | Cross-track word mismatch | precorrect report → refine |
-| Stretched ASR token / missing words in a long span | `transcript_timing.json` + deferred `anomalous_word_duration` → refine / audition (do **not** clamp times) (with the word aligner installed most words are re-timed by default; the deferred flag remains the backstop on what the aligner leaves) |
+| Stretched ASR token / missing words in a long span | `transcribe_tracks` trims a word over its class cap (fillers/backchannels/discourse 1.0 s, other words 2.0 s) onto its own voiced audio and keeps the old span in `trimmed_from`; listen across `trimmed_from` for speech no word covers. A word still over 2.0 s (undecodable recording) → `transcript_timing.json` + deferred `anomalous_word_duration` → refine / audition (do **not** clamp times by hand) |
 | Word times are Whisper-only (`transcripts[].word_aligner: null`; `audition_context_tool` `limits` has `whisper_word_times`; summary says "forced alignment unavailable") | `podcast bootstrap --component word-aligner`, then Studio **Re-time words** / `pipeline run --retime-words`; until then treat word edges as approximate (measured 120 ms early at a lab cut, #775) and audition cut points (#780) |
 | Episode name / Spanish garble | show_glossary → precorrect → refine |
 | Low-confidence / grammar | refine → audition |
