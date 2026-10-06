@@ -113,6 +113,24 @@ describe("ClipInspector presentation", () => {
   });
 });
 
+describe("ClipInspector mute regions", () => {
+  const muted = { start_s: 1.5, end_s: 2.5 };
+
+  it("lists a mute the clip still overlaps, whole", () => {
+    const overlapping = { ...clip, mute_regions: [muted] };
+    hydrateClipProject(sampleTrack({ speaker: "Host" }), overlapping);
+    render(<ClipInspector clip={overlapping} />);
+    expect(screen.getByText("1.500–2.500 s")).toBeVisible();
+  });
+
+  it("hides a mute a trim left outside the clip, which the server keeps", () => {
+    const trimmedPast = { ...clip, source_end: 1, mute_regions: [muted] };
+    hydrateClipProject(sampleTrack({ speaker: "Host" }), trimmedPast);
+    render(<ClipInspector clip={trimmedPast} />);
+    expect(screen.queryByText("Mute regions")).toBeNull();
+  });
+});
+
 describe("ClipInspector fades", () => {
   beforeEach(() => {
     vi.mocked(setClipFade).mockReset().mockResolvedValue(undefined);
