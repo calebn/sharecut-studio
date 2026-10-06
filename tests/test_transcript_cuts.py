@@ -82,6 +82,27 @@ def test_coalesce_keeps_the_next_burst_of_the_cut_that_ends_last():
     assert (merged.end, merged.next_burst_sec) == (2.5, 2.51)
 
 
+def test_coalesce_keeps_pending_edits_of_different_authors_apart():
+    proj = EpisodeProject.create("t", "/tmp/ws")
+    for start, end, reason, author in (
+        (1.0, 1.5, "pause:0.80s", None),
+        (1.5, 2.0, "guest:suggest", "share:ann"),
+        (2.0, 2.5, "guest:suggest", "share:bob"),
+        (2.5, 3.0, "guest:suggest", "share:bob"),
+        (3.0, 3.5, "pause:0.80s", None),
+        (3.5, 4.0, "pause:0.90s", None),
+    ):
+        append_remove_decision(proj, "host", start, end, reason=reason, author=author)
+
+    assert coalesce_edits(proj) == 2
+    assert sorted((e.start, e.end, e.author) for e in proj.edit_decisions) == [
+        (1.0, 1.5, None),
+        (1.5, 2.0, "share:ann"),
+        (2.0, 3.0, "share:bob"),
+        (3.0, 4.0, None),
+    ]
+
+
 @pytest.mark.parametrize(
     "modes, expected_merges",
     [
