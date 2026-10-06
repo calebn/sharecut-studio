@@ -16,15 +16,30 @@
  * Aria reports a press only from the click that follows, when the pointer is
  * no longer live and an owner that captures it would refuse the press. The
  * chooser's chips commit a pick the same way, or a grab by replaying the
- * press and forwarding the drag, on the real target.
+ * press and forwarding the drag, on the real target. A finger on a chip grabs
+ * by resting there, or by sliding along the target's drag axis once the chip
+ * is armed (`chipGesture.ts`).
  */
 import {
+  CHIP_SETTLE_MS,
   GHOST_CLICK_MS,
   HANDLE_DRAG_MIN_PX,
   LONG_PRESS_MS,
   TOUCH_SLOP_PX,
 } from "../hooks/gestureConstants";
-import type { HitPoint } from "./hitCandidates";
+import {
+  AWAY,
+  type ChipFinger,
+  isArmed,
+  moveOnChips,
+  pressChip,
+} from "./chipGesture";
+import {
+  HIT_KINDS,
+  type HitKind,
+  type HitPoint,
+  isHitKind,
+} from "./hitCandidates";
 import {
   closestHitSurface,
   closestHitTarget,
@@ -106,10 +121,18 @@ export interface ChooserView {
   /** The opening finger is still down: lifting on a chip picks it. */
   fingerDown: boolean;
   /**
-   * The chip under that finger: a hit index, "more", or none. A hit chip under
-   * the finger is about to be grabbed: resting `LONG_PRESS_MS` on it grabs.
+   * The chip under that finger: a hit index, "more", or none. Resting
+   * `LONG_PRESS_MS` on a hit chip grabs its target.
    */
   over: number | "more" | null;
+  /** The chip under the finger is armed: a slide along its axis drags it. */
+  armed: boolean;
+}
+
+/** A target the router handed a press to, for the inspector to name. */
+export interface RoutedTarget {
+  kind: HitKind;
+  id: string;
 }
 
 /** Marks a chooser chip so the router can find it under a finger. */
@@ -119,6 +142,11 @@ export interface HitRoutingOptions {
   /** The touch chooser lab: touch goes through the press layer and chooser. */
   touchLab?: () => boolean;
   onChooser?: (view: ChooserView | null) => void;
+  /**
+   * A press went to a target (`null`: to a surface such as a clip body): a
+   * tap, a chip pick, a grab, or a press on a target that takes it at once.
+   */
+  onTarget?: (target: RoutedTarget | null) => void;
 }
 
 export interface HitRouter {
@@ -161,11 +189,10 @@ type Phase =
       kind: "open";
       view: ChooserView;
       pointerId: number;
-      rest: {
-        index: number;
-        at: HitPoint;
-        timer: ReturnType<typeof setTimeout>;
-      } | null;
+      /** The finger that is down, if any, against the chips. */
+      finger: ChipFinger;
+      /** Rest-to-grab and settle timers for `finger`. */
+      timers: ReturnType<typeof setTimeout>[];
     }
   | {
       kind: "grabbed";
@@ -208,10 +235,18 @@ export function attachHitRouting(
   const emit = (view: ChooserView | null) => options.onChooser?.(view);
   const setPhase = (next: Phase) => {
     if (phase.kind === "open") {
-      if (phase.rest) clearTimeout(phase.rest.timer);
+      for (const timer of phase.timers) clearTimeout(timer);
       if (next.kind !== "open") emit(null);
     }
     phase = next;
+  };
+  const report = (element: Element | null) => {
+    const kind = element?.getAttribute("data-hit-kind");
+    options.onTarget?.(
+      element && isHitKind(kind)
+        ? { kind, id: element.getAttribute("data-hit-id") ?? "" }
+        : null,
+    );
   };
   const stop = (event: Event) => {
     event.stopPropagation();
@@ -245,22 +280,71 @@ export function attachHitRouting(
     if (item == null) return null;
     return item === "more" ? "more" : Number(item);
   };
-  /** Presses `element` at `target`; the finger, `offset` away, drives it. */
+  /**
+   * Presses `element` at `target`; the finger, which pressed at `finger`,
+   * drives it from `offset` away. A finger already at `at` moves it there.
+   */
   const grab = (
     element: Element,
     source: PointerEvent,
     target: HitPoint,
     finger: HitPoint,
+    at: HitPoint = finger,
   ) => {
+    const offset = { x: target.x - finger.x, y: target.y - finger.y };
+    const moved = travel(at, finger) >= HANDLE_DRAG_MIN_PX;
     setPhase({
       kind: "grabbed",
       pointerId: source.pointerId,
       element,
-      offset: { x: target.x - finger.x, y: target.y - finger.y },
+      offset,
       origin: finger,
-      moved: false,
+      moved,
     });
+    report(element);
     replayPointer("pointerdown", element, source, target);
+    if (moved) {
+      replayPointer("pointermove", element, source, {
+        x: at.x + offset.x,
+        y: at.y + offset.y,
+      });
+    }
+  };
+  /** Grabs chip `index`'s target, measured from where the finger settled. */
+  const grabChip = (
+    index: number,
+    source: PointerEvent,
+    anchor: HitPoint,
+    at: HitPoint = anchor,
+  ) => {
+    if (phase.kind !== "open") return;
+    const { candidate, element } = phase.view.hits[index];
+    grab(element, source, candidate, anchor, at);
+  };
+  /** The open chooser's finger is now `finger`; restarts its timers on a new anchor. */
+  const setFinger = (finger: ChipFinger, source: PointerEvent) => {
+    if (phase.kind !== "open") return;
+    const open = phase;
+    if (finger !== open.finger) {
+      for (const timer of open.timers) clearTimeout(timer);
+      open.timers = [];
+      if (finger.kind === "over") {
+        const { index, anchor } = finger;
+        open.timers.push(
+          setTimeout(() => grabChip(index, source, anchor), LONG_PRESS_MS),
+        );
+        if (!finger.pressed) {
+          open.timers.push(
+            setTimeout(() => {
+              if (phase !== open || open.finger !== finger) return;
+              open.view = { ...open.view, armed: true };
+              emit(open.view);
+            }, CHIP_SETTLE_MS),
+          );
+        }
+      }
+    }
+    open.finger = finger;
   };
 
   const onDown = (event: PointerEvent) => {
@@ -268,6 +352,23 @@ export function attachHitRouting(
     lastDown = event;
     if (phase.kind === "pressing" && phase.down.pointerId !== event.pointerId) {
       phase.multi = true;
+      return;
+    }
+    if (
+      phase.kind === "open" &&
+      !phase.view.fingerDown &&
+      event.pointerType !== "mouse"
+    ) {
+      // A finger pressing a chip left open: lift to pick, slide along the
+      // target's axis to drag it. Mouse, keys and AT pick through the chip.
+      const at = pointOf(event);
+      const over = itemAt(at);
+      if (typeof over !== "number") return;
+      stop(event);
+      phase.pointerId = event.pointerId;
+      setFinger(pressChip(over, at, Date.now()), event);
+      phase.view = { ...phase.view, fingerDown: true, over, armed: true };
+      emit(phase.view);
       return;
     }
     if (
@@ -307,6 +408,7 @@ export function attachHitRouting(
       };
       return;
     }
+    report(winner);
     if (hits.length < 2 || winner === event.target || winner === hit) return;
     stop(event);
     phase = {
@@ -333,24 +435,24 @@ export function attachHitRouting(
           return;
         stop(event);
         const over = itemAt(at);
-        const rest = phase.rest;
-        if (typeof over !== "number") {
-          if (rest) clearTimeout(rest.timer);
-          phase.rest = null;
-        } else if (
-          !rest ||
-          rest.index !== over ||
-          travel(rest.at, at) > TOUCH_SLOP_PX
-        ) {
-          if (rest) clearTimeout(rest.timer);
-          phase.rest = {
-            index: over,
-            at,
-            timer: setTimeout(() => grabChip(event), LONG_PRESS_MS),
-          };
+        const index = typeof over === "number" ? over : null;
+        const axis =
+          index == null
+            ? "none"
+            : HIT_KINDS[phase.view.hits[index].candidate.kind].axis;
+        const now = Date.now();
+        const { finger } = phase;
+        const step = moveOnChips(finger, index, axis, at, now);
+        if (step.grab && finger.kind === "over") {
+          // Measured from where the finger settled, so the slop's travel
+          // moves the target too.
+          grabChip(finger.index, event, finger.anchor, at);
+          return;
         }
-        if (over !== phase.view.over) {
-          phase.view = { ...phase.view, over };
+        setFinger(step.finger, event);
+        const armed = index != null && isArmed(step.finger, now);
+        if (over !== phase.view.over || armed !== phase.view.armed) {
+          phase.view = { ...phase.view, over, armed };
           emit(phase.view);
         }
         return;
@@ -378,12 +480,6 @@ export function attachHitRouting(
     }
   };
 
-  const grabChip = (source: PointerEvent) => {
-    if (phase.kind !== "open" || !phase.rest) return;
-    const { candidate, element } = phase.view.hits[phase.rest.index];
-    grab(element, source, candidate, pointOf(source));
-  };
-
   const onUp = (event: PointerEvent) => {
     if (isReplayed(event)) return;
     const at = pointOf(event);
@@ -396,6 +492,7 @@ export function attachHitRouting(
         const press = settle();
         if (!press) return;
         const { winner, down, origin } = press;
+        report(winner);
         replayPointer("pointerdown", winner, down, origin);
         replayPointer("pointerup", winner, event, origin);
         setTimeout(() => replayClick(winner, event, origin), 0);
@@ -410,8 +507,7 @@ export function attachHitRouting(
         }
         if (event.pointerId !== phase.pointerId) return;
         stop(event);
-        if (phase.rest) clearTimeout(phase.rest.timer);
-        phase.rest = null;
+        setFinger(AWAY, event);
         const over = itemAt(at);
         if (typeof over === "number") {
           router.choose(over, event.pointerType);
@@ -423,6 +519,7 @@ export function attachHitRouting(
           ...phase.view,
           fingerDown: false,
           over: null,
+          armed: false,
           page: over === "more" ? phase.view.page + 1 : phase.view.page,
         };
         emit(phase.view);
@@ -525,8 +622,16 @@ export function attachHitRouting(
       phase = {
         kind: "open",
         pointerId: down.pointerId,
-        rest: null,
-        view: { origin, hits, page: 0, fingerDown: true, over: null },
+        finger: AWAY,
+        timers: [],
+        view: {
+          origin,
+          hits,
+          page: 0,
+          fingerDown: true,
+          over: null,
+          armed: false,
+        },
       };
       emit(phase.view);
     },
@@ -536,6 +641,7 @@ export function attachHitRouting(
       if (!hit) return;
       setPhase(IDLE);
       const { element, candidate } = hit;
+      report(element);
       const at = { x: candidate.x, y: candidate.y };
       const pointer =
         pointerType === "touch" ||
@@ -560,7 +666,12 @@ export function attachHitRouting(
     },
     nextPage() {
       if (phase.kind !== "open") return;
-      phase.view = { ...phase.view, page: phase.view.page + 1, over: null };
+      phase.view = {
+        ...phase.view,
+        page: phase.view.page + 1,
+        over: null,
+        armed: false,
+      };
       emit(phase.view);
     },
     close() {
