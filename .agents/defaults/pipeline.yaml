@@ -365,12 +365,13 @@ analysis:
     bleed_min_other_rms_db: -50.0
     # Transcript gate (`podcast edit apply-bleed-mute`, #945): what happens to another
     # speaker's copy on a lane wherever that speaker's own track is talking and the
-    # lane's own speaker is not. `auto` decides per lane from the bed just outside
-    # the copy: `mute` when it is digital silence (a call app's gated track, so
-    # nothing can pump), else `attenuate` by bleed_attenuation_db, which keeps a room
-    # mic's bed steady. Explicit `mute` or `attenuate` overrides it. The lane's own
-    # speech is never touched, and the copy never stands in for the peer's own track,
-    # even where that track's gate opened late.
+    # lane's own speaker is not. `auto` decides per lane from its bed (median level
+    # away from its own speech and the copies): `attenuate` by bleed_attenuation_db
+    # when the bed would still be above the 16-bit floor (-90 dBFS) once turned down,
+    # which keeps a room mic's bed steady; else `mute`, as on a call app's gated track
+    # whose bed is digital silence. Explicit `mute` or `attenuate` overrides it. The
+    # lane's own speech is never touched, and the copy never stands in for the peer's
+    # own track, even where that track's gate opened late.
     bleed_handling: auto
     bleed_attenuation_db: 20.0
     # Word-span plausibility caps (#979). Whisper and the forced aligner stretch a
