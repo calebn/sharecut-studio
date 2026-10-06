@@ -84,6 +84,13 @@ export function isDrawnJoin(
 
 export type JoinGlyph = "cut" | "fade" | "crossfade";
 
+/** | cut, ╲╱ fade, ✕ crossfade in a 12 × 12 box. */
+export const JOIN_GLYPH_PATH: Record<JoinGlyph, string> = {
+  cut: "M6 1V11",
+  fade: "M1 2L6 10L11 2",
+  crossfade: "M1 1L11 11M11 1L1 11",
+};
+
 /** The badge glyph for `right`'s incoming join (an unknown mode reads as fade, as render treats it). */
 export function joinGlyph(right: Pick<ClipRow, "join_in_mode">): JoinGlyph {
   if (right.join_in_mode === "cut") {
