@@ -277,10 +277,7 @@ describe("ShareDialog", () => {
     expect(
       screen.queryByText(/premix\.wav|render-preview provenance/),
     ).toBeNull();
-    await user.selectOptions(
-      screen.getByLabelText("Anyone with the link"),
-      "editor",
-    );
+    await user.click(screen.getByRole("radio", { name: "Editor" }));
     await user.click(screen.getByLabelText("Allow agent (MCP)"));
     await user.click(
       await screen.findByRole("button", { name: "Refresh mix" }),

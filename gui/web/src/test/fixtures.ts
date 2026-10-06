@@ -279,6 +279,16 @@ export function pipelineJobSnapshot(
   };
 }
 
+/** A Commenter review link's capabilities (`REVIEW_ROLE_CAPABILITIES` on the server). */
+export const COMMENTER_CAPABILITIES: readonly string[] = [
+  "play",
+  "view",
+  "comment",
+  "reply",
+  "action",
+  "suggest",
+];
+
 /** A fictional live review share row (never a real token or relay URL). */
 export function hostShareRow(
   overrides: Partial<HostShareRow> = {},
