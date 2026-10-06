@@ -138,16 +138,10 @@ def test_normalize_capabilities_variants():
         "action",
         "suggest",
     ]
-    assert "edit" in normalize_capabilities("play,edit,unknown")
+    assert "edit" in normalize_capabilities("play,edit")
     assert "play" in normalize_capabilities(["view"])
-    assert normalize_capabilities(["nope"]) == [
-        "play",
-        "view",
-        "comment",
-        "reply",
-        "action",
-        "suggest",
-    ]
+    with pytest.raises(ValueError, match="unknown share capabilities"):
+        normalize_capabilities(["nope"])
     assert guest_mode(["play", "view", "comment", "reply", "action", "suggest", "edit"]) == "edit"
     assert guest_mode(["play", "view", "comment", "reply", "action", "suggest"]) == "comment"
     assert guest_mode(["play", "view", "suggest"]) == "view"

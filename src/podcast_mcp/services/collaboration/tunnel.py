@@ -15,7 +15,6 @@ from typing import Any
 from urllib.parse import urlparse
 
 from podcast_mcp.edits.review_shares import list_usable_shares
-from podcast_mcp.edits.share_capabilities import normalize_capabilities
 from podcast_mcp.models import load_project
 from podcast_mcp.runtime_config import RelayConfig, load_relay_config
 from podcast_mcp.services.collaboration.tunnel_failure import (
@@ -206,7 +205,7 @@ class TunnelClient:
             rows = [
                 {
                     "token": row["token"],
-                    "capabilities": list(normalize_capabilities(row.get("capabilities"))),
+                    "capabilities": list(row.get("capabilities") or []),
                 }
                 for row in list_usable_shares(proj)
                 if row.get("token")

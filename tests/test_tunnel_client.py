@@ -172,7 +172,7 @@ def test_build_shares_no_project():
 def test_build_shares_with_project(minimal_project, published_share):
     from podcast_mcp.edits.share_capabilities import DEFAULT_CAPABILITIES
 
-    published_share(capabilities=[], label="test")
+    published_share(capabilities=list(DEFAULT_CAPABILITIES), label="test")
 
     cfg = RelayConfig()
     tc = TunnelClient(cfg, project_path=minimal_project)

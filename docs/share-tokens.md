@@ -221,6 +221,11 @@ document commands (`ROLE_DOCUMENT_COMMANDS`). Browser and share MCP always share
 one capability set. See [host-online-relay.md](host-online-relay.md) § Share
 capabilities.
 
+Minting fails closed. Omitting the role mints a Commenter link. An unknown role,
+an empty capability list or an unknown capability name raises and mints nothing
+(`capabilities_for_role`, `normalize_capabilities`), so a typo never widens into
+the default role.
+
 ### Decision: Review-link roles follow Google Docs
 
 <!-- decision

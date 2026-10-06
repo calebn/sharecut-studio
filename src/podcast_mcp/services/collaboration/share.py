@@ -31,7 +31,6 @@ from podcast_mcp.edits.share_capabilities import (
     capabilities_for_role,
     guest_mode,
     has_capability,
-    normalize_capabilities,
     record_capabilities_for_role,
     review_role_for_capabilities,
     share_author,
@@ -169,7 +168,7 @@ class ShareService:
         row = create_share(
             self.ws.project,
             review_version_id=review_version_id,
-            capabilities=normalize_capabilities(capabilities),
+            capabilities=capabilities,
             expires_at=expires_at,
             general_access=ga,
             require_sign_in=require_sign_in,
