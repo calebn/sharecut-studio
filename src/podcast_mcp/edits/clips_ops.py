@@ -426,9 +426,6 @@ def trim_clip_edge(
             if c.track_id == clip.track_id and c.timeline_start >= old_tl_end - 1e-9:
                 c.timeline_start += delta
 
-    clip.mute_regions = mute_regions_overlapping(
-        clip.mute_regions, clip.source_start, clip.source_end
-    )
     update_timeline_duration(project)
     return clip
 

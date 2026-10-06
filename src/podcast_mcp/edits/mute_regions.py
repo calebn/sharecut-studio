@@ -8,6 +8,8 @@ region's own fade lengths, and lays the region's room-tone ``fill`` under it
 Only muting and unmuting move a region's edges. A clip cut through a region (split,
 trim, roll, ripple delete, partial copy) keeps the region whole, past its own source
 edges, so each piece stays silent up to the cut and fades only where the region does.
+A trim keeps even a region its clip no longer overlaps: render ignores the part outside
+the window, and extending the edge back plays the mute again.
 """
 
 from __future__ import annotations
