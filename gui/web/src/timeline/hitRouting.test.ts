@@ -62,11 +62,20 @@ let log: string[];
 let views: (ChooserView | null)[];
 let targets: (RoutedTarget | null)[];
 let labOn: boolean;
+/** What the selection was rolled back to, once per pinch. */
+let restored: string[];
+let selection: string;
 /** Log only what the router dispatched: the activations it decided. */
 let onlyReplays: boolean;
 
 function record(name: string, el: Element): void {
-  for (const type of ["pointerdown", "pointermove", "pointerup", "click"]) {
+  for (const type of [
+    "pointerdown",
+    "pointermove",
+    "pointerup",
+    "pointercancel",
+    "click",
+  ]) {
     el.addEventListener(type, (e) => {
       if (onlyReplays && !isReplayed(e)) return;
       const p = e as PointerEvent;
@@ -82,12 +91,21 @@ beforeEach(() => {
   targets = [];
   labOn = false;
   onlyReplays = false;
+  restored = [];
+  selection = "none";
   root = document.createElement("div");
   document.body.append(root);
   router = attachHitRouting(root, {
     touchLab: () => labOn,
     onChooser: (view) => views.push(view),
     onTarget: (target) => targets.push(target),
+    snapshot: () => {
+      const before = selection;
+      return () => {
+        selection = before;
+        restored.push(before);
+      };
+    },
   });
 });
 
@@ -181,6 +199,73 @@ describe("attachHitRouting", () => {
     press(body, "pointerdown", 214, 130);
 
     expect(log).toEqual(["body:pointerdown@214,130"]);
+  });
+
+  it("cancels a drag when a second finger lands, and lets the pinch own both until they lift", () => {
+    const fade = button(hitTargetProps("fade-in", "clip-b", 2.3), {
+      left: 200,
+      top: 106,
+      right: 212,
+      bottom: 118,
+    });
+    const surface = document.createElement("div");
+    root.append(fade, surface);
+    record("fade", fade);
+    record("surface", surface);
+    // The fade's own pointerdown selects its clip, as the handle does.
+    fade.addEventListener("pointerdown", () => {
+      selection = "clip-b";
+    });
+
+    press(fade, "pointerdown", 204, 117);
+    press(fade, "pointermove", 230, 117);
+    press(surface, "pointerdown", 320, 140, 8);
+    press(fade, "pointermove", 180, 117);
+    press(surface, "pointermove", 360, 140, 8);
+    press(fade, "pointerup", 180, 117);
+    press(surface, "pointerup", 360, 140, 8);
+    fade.click();
+
+    expect(log).toEqual([
+      "fade:pointerdown@204,117",
+      "fade:pointermove@230,117",
+      "fade:pointercancel@204,117",
+    ]);
+    expect({ selection, restored }).toEqual({
+      selection: "none",
+      restored: ["none"],
+    });
+
+    // Once both lift, the next press is the target's again.
+    log = [];
+    press(fade, "pointerdown", 204, 117, 9);
+    expect(log).toEqual(["fade:pointerdown@204,117"]);
+  });
+
+  it("cancels the target a crowded press was replayed on, not only the one pressed", () => {
+    const trim = button(hitTargetProps("trim-in", "clip-b", 2), {
+      left: 200,
+      top: 106,
+      right: 208,
+      bottom: 174,
+    });
+    const fade = button(hitTargetProps("fade-in", "clip-b", 2.3), {
+      left: 200,
+      top: 106,
+      right: 212,
+      bottom: 118,
+    });
+    root.append(trim, fade);
+    record("trim", trim);
+    onlyReplays = true;
+
+    press(fade, "pointerdown", 204, 117);
+    press(trim, "pointerdown", 300, 140, 8);
+
+    expect(log).toEqual([
+      "trim:pointerdown@204,117",
+      "trim:pointercancel@204,117",
+    ]);
   });
 
   it("does not route a press outside the timeline", () => {
@@ -281,7 +366,7 @@ describe("touch chooser lab", () => {
     expect(log).toEqual([]);
   });
 
-  it("drops a hold once a second finger joins", () => {
+  it("drops a hold once a second finger joins, cancelling the press layer's press", () => {
     const { fade } = edgeCluster();
     press(fade, "pointerdown", 204, 117);
     press(fade, "pointerdown", 260, 117, 9);
@@ -289,7 +374,41 @@ describe("touch chooser lab", () => {
     vi.runAllTimers();
 
     expect(views).toEqual([]);
-    expect(log).toEqual([]);
+    expect(log).toEqual(["fade:pointercancel@204,117"]);
+  });
+
+  it("closes an open chooser, and cancels a grabbed target, when a second finger lands", () => {
+    const { fade } = edgeCluster();
+    press(fade, "pointerdown", 204, 117);
+    router.longPress();
+    expect(views.at(-1)).not.toBeNull();
+    press(fade, "pointerdown", 300, 140, 8);
+    expect(views.at(-1)).toBeNull();
+    press(fade, "pointerup", 204, 117);
+    press(fade, "pointerup", 300, 140, 8);
+
+    const lone = button(hitTargetProps("chapter", "ch-1", 9), {
+      left: 600,
+      top: 10,
+      right: 610,
+      bottom: 30,
+    });
+    root.append(lone);
+    record("lone", lone);
+    press(lone, "pointerdown", 605, 20, 10);
+    router.longPress();
+    press(lone, "pointermove", 640, 20, 10);
+    press(lone, "pointerdown", 300, 140, 11);
+    press(lone, "pointermove", 700, 20, 10);
+    press(lone, "pointerup", 700, 20, 10);
+    vi.runAllTimers();
+
+    expect(log).toEqual([
+      "fade:pointercancel@204,117",
+      "lone:pointerdown@605,20",
+      "lone:pointermove@640,20",
+      "lone:pointercancel@605,20",
+    ]);
   });
 
   it("opens the chooser on a long press over 2+ targets, ranked, without pressing any", () => {
