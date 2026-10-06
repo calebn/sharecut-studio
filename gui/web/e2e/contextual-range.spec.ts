@@ -71,7 +71,13 @@ function geometry(projectPath: string) {
       source_start: number;
       source_end: number;
       timeline_start: number;
-      mute_regions?: { start_s: number; end_s: number }[];
+      mute_regions?: {
+        start_s: number;
+        end_s: number;
+        fade_in_ms: number;
+        fade_out_ms: number;
+        fill: unknown;
+      }[];
     }) => ({
       id: clip.id,
       track_id: clip.track_id,
@@ -670,7 +676,9 @@ test("host cuts and mutes the repeated copy and arms a phone clip-body range", a
               (c: { id: string }) => c.id === "second-copy",
             )?.mute_regions,
         )
-        .toEqual([{ start_s: 1, end_s: 2 }]);
+        .toEqual([
+          { start_s: 1, end_s: 2, fade_in_ms: 5, fade_out_ms: 5, fill: null },
+        ]);
       expect(
         geometry(projectPath).find(
           (c: { id: string }) => c.id === "first-copy",
