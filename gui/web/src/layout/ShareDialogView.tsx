@@ -4,8 +4,8 @@ import {
   REVIEW_ROLES,
   type ShareRole,
 } from "../types/shares";
-import { Button, Dialog, EmptyState, InlineError } from "../ui";
 import type { TunnelStatus } from "../types/tunnel";
+import { Button, Dialog, EmptyState, InlineError } from "../ui";
 import {
   type ShareCopiedKey,
   type ShareCopyKind,
