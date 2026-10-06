@@ -332,6 +332,14 @@ align:
   acoustic_floor_sec: 0.05
   acoustic_agree_sec: 0.25
   max_word_audibility_sec: 2.0
+  # Bleed latency (docs/pipeline.md § Conversation align). Window lags within the
+  # tolerance of a pair's median count; a pair residual or an episode-long trend past it
+  # flags the lane. 40 ms keeps the lab's honest windows (MAD 7.5 ms) and rejects
+  # wrong-syllable peaks (+380..+500 ms).
+  bleed_lag_tolerance_sec: 0.04
+  # A solved latency, or a move from the current placement, within this is noise: no
+  # move. 20 ms is three standard errors of a 5-window median on the lab's spread.
+  bleed_lag_deadband_sec: 0.02
 
 analysis:
   ml_backend: "off"

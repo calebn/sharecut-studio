@@ -71,9 +71,12 @@ COMMON_BLEED_WORDS = frozenset(
     }
 )  # fmt: skip
 BLEED_AGREE_SEC = 0.75
-LOCKED_METHODS = frozenset({"hold", "manual"})  # keep placement unless align.realign
 REFERENCE_METHOD = "reference"
 BLEED_LAG_METHOD = "bleed_lag"
+# The bleed solve put the lane within its deadband of where it already sits.
+BLEED_LAG_KEPT_METHOD = "bleed_lag_kept"
+# Keep their placement: hold/manual unless align.realign; kept on every run.
+LOCKED_METHODS = frozenset({"hold", "manual", BLEED_LAG_KEPT_METHOD})
 LATENCY_RATE = 8000
 UNCONFIRMED_HOLD = "unconfirmed_hold"
 LARGE_MOVE_SEC = 1.0  # moves above this need waveform xcorr confirmation
@@ -145,6 +148,7 @@ class ClipAlignPlan:
     candidate_offset_sec: float | None = None
     acoustic_confirmed: bool | None = None
     skipped_reason: str | None = None
+    proposal: str | None = None  # why candidate_offset_sec is proposed, not applied
 
 
 _LIST_PREVIEW_LIMIT = 6
@@ -181,11 +185,14 @@ class AlignResult:
             listed = _list_preview(parts)
             base = f"{len(moved)} moved ({listed}); ref={self.reference_track_id}"
         notes: list[str] = []
-        locked = sorted({p.track_id for p in self.plans if p.method in LOCKED_METHODS})
+        locked = sorted({p.track_id for p in self.plans if p.method in ("hold", "manual")})
         if locked:
             notes.append(
                 f"locked {', '.join(locked)} (same length / manifest; align.realign to re-align)"
             )
+        kept = sorted({p.track_id for p in self.plans if p.method == BLEED_LAG_KEPT_METHOD})
+        if kept:
+            notes.append(f"kept {', '.join(kept)} (bleed lag inside the deadband; not moved)")
         held = [p for p in self.plans if p.method == UNCONFIRMED_HOLD]
         if held:
             notes.append(
@@ -194,21 +201,18 @@ class AlignResult:
                     [f"{p.track_id}:{(p.candidate_offset_sec or 0.0):+.2f}s" for p in held]
                 )
             )
-        proposed = [
-            f"{p.track_id}: bleed lag {p.candidate_offset_sec:+.2f}s proposed"
+        notes.extend(
+            f"{p.track_id}: bleed lag {p.candidate_offset_sec:+.2f}s proposed ({p.proposal})"
             for p in self.plans
-            if p.method == "manual" and p.candidate_offset_sec is not None
-        ]
-        if proposed:
-            notes.append(f"{'; '.join(proposed)} (manifest pin kept; align.realign to apply)")
-        for reason, label in (("conflict", "pairs conflict"), ("drifting", "drifting")):
-            flagged = [
-                t.track_id
-                for t in (self.latency.tracks if self.latency else ())
-                if t.reason == reason and t.track_id != self.reference_track_id
-            ]
-            if flagged:
-                notes.append(f"bleed lag {label}: {', '.join(flagged)} (left in place)")
+            if p.proposal and p.candidate_offset_sec is not None
+        )
+        flagged: dict[str, list[str]] = collections.defaultdict(list)
+        for t in self.latency.tracks if self.latency else ():
+            if t.decision == "flag" and t.track_id != self.reference_track_id:
+                flagged[t.note()].append(t.track_id)
+        notes.extend(
+            f"bleed lag {label}: {', '.join(ids)} (left in place)" for label, ids in flagged.items()
+        )
         skipped_reason_by_track: dict[str, str] = {}
         for p in self.plans:
             if p.skipped_reason and p.track_id not in skipped_reason_by_track:
@@ -1457,6 +1461,10 @@ def plan_conversation_alignment(
     acoustic_agree_sec = float(cfg.get("acoustic_agree_sec", ACOUSTIC_AGREE_SEC))
     max_word_sec = float(cfg.get("max_word_audibility_sec", MAX_WORD_AUDIBILITY_SEC))
     acoustic_fn = (defaults or {}).get("_align_acoustic_fn")
+    latency_settings = bleed_latency.LatencySettings(
+        tolerance_sec=float(cfg.get("bleed_lag_tolerance_sec", bleed_latency.TOLERANCE_SEC)),
+        deadband_sec=float(cfg.get("bleed_lag_deadband_sec", bleed_latency.DEADBAND_SEC)),
+    )
     cancel_check = (defaults or {}).get("_pipeline_cancel_check")
     if cancel_check is not None and not callable(cancel_check):
         cancel_check = None
@@ -1600,7 +1608,9 @@ def plan_conversation_alignment(
                 prog.advance(1, message=f"Pass {pass_i + 1}: clip {clip.id}")
         raise_if_cancelled(cancel_check)
         prog.set_phase("bleed_latency", "Measuring each lane's lag behind its bleed…")
-        latency = _bleed_latency_stage(project, units, offsets, ref_track.id, ref_clips)
+        latency = _bleed_latency_stage(
+            project, units, offsets, ref_track.id, ref_clips, latency_settings
+        )
     plans = list(offsets.values())
     # Stable order: reference first, then by track/clip
     plans.sort(key=lambda p: (0 if p.method == REFERENCE_METHOD else 1, p.track_id, p.clip_id))
@@ -1657,7 +1667,7 @@ def _planned_geometry(
 ) -> tuple[float, float, float] | None:
     ref_shift = _reference_shift_at(clip, ref_clips)
     if (
-        plan.method in (REFERENCE_METHOD, "manual")
+        plan.method in (REFERENCE_METHOD, "manual", BLEED_LAG_KEPT_METHOD)
         or (
             plan.method == "hold"
             and (
@@ -1720,16 +1730,21 @@ def _bleed_latency_stage(
     offsets: dict[tuple[str, str], ClipAlignPlan],
     ref_track_id: str,
     ref_clips: list[Clip],
+    settings: bleed_latency.LatencySettings,
 ) -> bleed_latency.LatencySolution | None:
-    """Solve each lane's latency at its planned placement and fold it into the plans.
+    """Solve each lane's latency near its planned placement and fold the decision into the plans.
 
-    A lane that trails its own bleed moves earlier by its solved latency (method
-    ``bleed_lag``). A manifest-pinned lane keeps its placement and carries the shift as
-    ``candidate_offset_sec``. Conflicting or drifting lanes stay where they are.
+    Latencies come back against where each lane sits now. ``apply`` places the lane
+    there minus its latency (method ``bleed_lag``); on a manifest-pinned lane it is a
+    proposal instead. ``propose`` keeps the plan and carries the target as
+    ``candidate_offset_sec`` with the reason in ``proposal``. ``flag`` keeps the plan.
+    An ``aligned`` lane does not move: a plan that would have moved it becomes
+    ``bleed_lag_kept``.
     """
     moves = _planned_moves(project, units, offsets, ref_clips)
     sources: dict[Path, np.ndarray] = {}
     levels: dict[str, np.ndarray] = {}
+    measured: dict[str, float] = {}
     try:
         for track_id, move in moves.items():
             envelope = level_envelope_db(
@@ -1739,6 +1754,7 @@ def _bleed_latency_stage(
                 hop_sec=bleed_latency.HOP_SEC,
             )
             hops = round(move / bleed_latency.HOP_SEC)
+            measured[track_id] = hops * bleed_latency.HOP_SEC
             levels[track_id] = (
                 np.concatenate([np.full(hops, LEVEL_FLOOR_DB), envelope])
                 if hops >= 0
@@ -1747,34 +1763,49 @@ def _bleed_latency_stage(
     except (OSError, ValueError, wave.Error, subprocess.CalledProcessError) as exc:
         log.debug("align_tracks: bleed latency skipped: %s", exc)
         return None
-    solution = bleed_latency.measure_bleed_latency(levels, ref_track_id)
+    solution = bleed_latency.measure_bleed_latency(levels, ref_track_id, settings, measured)
     for track, clip, _tokens, _dur in units:
         found = solution.track(track.id)
-        if found is None or found.reason != "shift" or found.latency_sec is None:
+        if (
+            track.id == ref_track_id
+            or found is None
+            or found.latency_sec is None
+            or found.decision == "flag"
+        ):
             continue
         key = (track.id, clip.id)
         plan = offsets[key]
-        planned = (
-            clip_source_to_timeline_shift(clip)
-            + moves[track.id]
-            - _reference_shift_at(clip, ref_clips)
-        )
-        target = planned - found.latency_sec
-        lag = found.latency_sec
-        note = (
-            f"bleed lag: lane {'trails' if lag > 0 else 'leads'} its copies on other mics "
-            f"by {abs(lag) * 1000:.0f} ms"
-        )
-        if plan.method == "manual":
-            plan.candidate_offset_sec = target
-            plan.detail = f"{plan.detail}; {note}; candidate {target:+.3f}s"
-        else:
+        current = clip_source_to_timeline_shift(clip) - _reference_shift_at(clip, ref_clips)
+        target = current - found.latency_sec
+        if found.reason == "aligned":
+            if plan.method not in LOCKED_METHODS:
+                offsets[key] = replace(
+                    plan,
+                    offset_sec=current,
+                    method=BLEED_LAG_KEPT_METHOD,
+                    detail=(
+                        f"bleed lag {found.latency_sec * 1000:+.1f} ms where the lane sits, "
+                        f"inside the {settings.deadband_sec * 1000:.0f} ms deadband; "
+                        f"kept instead of {plan.method}: {plan.detail}"
+                    ),
+                )
+            continue
+        note = f"bleed lag: {found.note()}"
+        if found.decision == "apply" and plan.method != "manual":
             offsets[key] = replace(
                 plan,
                 offset_sec=target,
                 method=BLEED_LAG_METHOD,
-                detail=f"{note}; on top of {plan.method}: {plan.detail}",
+                detail=f"{note}; instead of {plan.method}: {plan.detail}",
             )
+            continue
+        plan.candidate_offset_sec = target
+        plan.proposal = (
+            "manifest pin kept; align.realign to apply"
+            if found.decision == "apply"
+            else found.note()
+        )
+        plan.detail = f"{plan.detail}; {note}; candidate {target:+.3f}s"
     return solution
 
 
@@ -1943,6 +1974,7 @@ def write_alignment_artifact(project: EpisodeProject, result: AlignResult) -> Pa
                 "candidate_offset_sec": p.candidate_offset_sec,
                 "acoustic_confirmed": p.acoustic_confirmed,
                 "skipped_reason": p.skipped_reason,
+                "proposal": p.proposal,
                 **{k: (placed.get((p.track_id, p.clip_id)) or {}).get(k) for k in _PLACEMENT_KEYS},
             }
             for p in result.plans

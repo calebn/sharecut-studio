@@ -354,7 +354,10 @@ def test_loudspeaker_loop_keeps_placement_and_proposes_even_on_realign(tmp_path:
         0.0,
         0.15,
     )
-    assert "lana: bleed lag +0.15s proposed (its copy arrives 150 ms late" in result.summary()
+    assert (
+        "lana: bleed lag +0.15s proposed (a copy arrives 150 ms after the direct sound on 1 pair"
+        in result.summary()
+    )
     assert _geometry(ws, "lana") == (0.0, 240.0, 0.0)
 
 
@@ -390,9 +393,10 @@ def test_realign_lands_on_the_latency_and_then_makes_no_move(
     aligned = _geometry(late_audra, "audra")
     run_conversation_align(late_audra.project, defaults=rescored)
     once = _geometry(late_audra, "audra")
-    run_conversation_align(late_audra.project, defaults=rescored)
+    again = run_conversation_align(late_audra.project, defaults=rescored)
 
     assert (aligned, once, _geometry(late_audra, "audra")) == ((0.12, 240.0, 0.0),) * 3
+    assert "kept audra, lana (bleed lag inside the deadband; not moved)" in again.summary()
 
 
 def test_align_settings_override_tolerance_and_deadband(tmp_path: Path) -> None:
