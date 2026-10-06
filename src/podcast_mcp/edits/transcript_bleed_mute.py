@@ -221,6 +221,8 @@ def apply_transcript_bleed_mute(
                     "duration_sec": dur,
                     "attenuation_count": len(plan.attenuation_spans),
                     "attenuation_spans": list(plan.attenuation_spans),
+                    "bleed_reduction": plan.reduction,
+                    "bleed_floor_db": plan.floor_db,
                     "gate_reasons": list(plan.reasons),
                 }
                 candidates.append(entry)

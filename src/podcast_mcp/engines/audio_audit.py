@@ -7,7 +7,7 @@ from collections import Counter
 from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
 import numpy as np
 
@@ -45,12 +45,29 @@ _RMS_SAMPLE_RATE = 8000
 _FLAGGED_STATUSES = ("inaudible", "bleed")
 
 
+BleedReduction = Literal["mute", "attenuate"]
+"""What the transcript gate does to another speaker's copy on a lane (#945)."""
+BleedHandling = Literal["auto", "mute", "attenuate"]
+"""The configured reduction; ``auto`` picks one per lane from the lane's floor."""
+
+
+def parse_bleed_handling(value: object) -> BleedHandling:
+    for handling in get_args(BleedHandling):
+        if value == handling:
+            return handling
+    raise ValueError(
+        f"analysis.heuristics.bleed_handling must be one of {get_args(BleedHandling)}, not {value!r}"
+    )
+
+
 @dataclass(frozen=True)
 class AnalysisPolicy:
     audibility_rms_db: float = -42.0
     bleed_dominance_db: float = 6.0
     bleed_min_other_rms_db: float = -50.0
-    # How far the transcript gate turns down another speaker's voice on a lane (#945).
+    # How the transcript gate reduces another speaker's voice on a lane (#945), and
+    # how far ``attenuate`` turns it down.
+    bleed_handling: BleedHandling = "auto"
     bleed_attenuation_db: float = 20.0
     gate_onset_drop_db: float = 15.0
     boundary_jump_db: float = 12.0
@@ -81,6 +98,7 @@ class AnalysisPolicy:
             audibility_rms_db=float(heur.get("audibility_rms_db", -42.0)),
             bleed_dominance_db=float(heur.get("bleed_dominance_db", 6.0)),
             bleed_min_other_rms_db=float(heur.get("bleed_min_other_rms_db", -50.0)),
+            bleed_handling=parse_bleed_handling(heur.get("bleed_handling", "auto")),
             bleed_attenuation_db=float(heur.get("bleed_attenuation_db", 20.0)),
             gate_onset_drop_db=float(heur.get("gate_onset_drop_db", 15.0)),
             boundary_jump_db=float(heur.get("boundary_jump_db", 12.0)),
