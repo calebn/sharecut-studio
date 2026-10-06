@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
@@ -309,6 +310,31 @@ def test_collaboration_contribute_cli_without_gui_extra(
     assert not reg.has(FEATURE_SHARE_UI_ROUTES)
     assert list(reg.routers) == []
     assert list(reg.middlewares) == []
+
+
+def test_collaboration_gui_skip_logs_one_line_without_traceback(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A clean install without the gui extra gets one INFO line, not an ImportError traceback."""
+    from podcast_mcp.extensions.collaboration import CollaborationExtension
+    from podcast_mcp.extensions.registry import FeatureRegistry
+
+    def _boom(_self: CollaborationExtension, _registry: FeatureRegistry) -> None:
+        raise ImportError("No module named 'fastapi'", name="fastapi")
+
+    monkeypatch.setattr(CollaborationExtension, "_contribute_gui", _boom)
+    with caplog.at_level(logging.INFO, logger="podcast_mcp.extensions.collaboration"):
+        CollaborationExtension().contribute(FeatureRegistry())
+
+    assert [(r.levelno, r.getMessage()) for r in caplog.records] == [
+        (
+            logging.INFO,
+            "collaboration: skipping GUI share mounts; the gui extra is not installed "
+            "(No module named 'fastapi'). Install it with: pip install \"podcast-mcp[gui]\"",
+        )
+    ]
+    assert caplog.records[0].exc_info is None
+    assert "Traceback" not in caplog.text
 
 
 def test_register_share_cli_adds_share_help() -> None:
