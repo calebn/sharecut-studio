@@ -585,63 +585,82 @@ for (const size of ["portrait-360", "landscape-844"] as const) {
   });
 }
 
-test("Expand is remembered for the next selection, and so is Collapse", async ({
-  page,
-  context,
-  browserName,
-}, info) => {
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-  await buildFixture(page, projectPath, CLIENT_ID);
-  const finger = await newFinger(context, page, browserName);
-  await open(page, "portrait-360");
-  const tap = async (id: string) => {
-    const at = await centerOf(
-      page,
-      `${lane} [data-hit-kind="envelope-point"][data-hit-id="${id}"]`,
+for (const size of ["portrait-360", "landscape-844"] as const) {
+  test(`Expand is remembered for the next selection, and so is Collapse: ${size}`, async ({
+    page,
+    context,
+    browserName,
+  }, info) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await buildFixture(page, projectPath, CLIENT_ID);
+    const finger = await newFinger(context, page, browserName);
+    await open(page, size);
+    const tap = async (at: Point) => {
+      await finger.down(at);
+      await page.waitForTimeout(60);
+      await finger.up();
+      await page.waitForTimeout(700);
+    };
+    const tapPoint = async (id: string) =>
+      tap(
+        await centerOf(
+          page,
+          `${lane} [data-hit-kind="envelope-point"][data-hit-id="${id}"]`,
+        ),
+      );
+    /** A finger on the button where it is drawn; null if something covers it. */
+    const tapButton = async (name: string) => {
+      const at = await centerOfBox(page.getByRole("button", { name }));
+      const hit = await page.evaluate(
+        ({ x, y }) =>
+          document
+            .elementFromPoint(x, y)
+            ?.closest("button")
+            ?.getAttribute("aria-label") ?? null,
+        at,
+      );
+      await tap(at);
+      return hit;
+    };
+    const steps: Record<string, unknown>[] = [];
+    const step = async (name: string, buttonUnderFinger?: string | null) => {
+      steps.push({
+        step: name,
+        ...(buttonUnderFinger !== undefined ? { buttonUnderFinger } : {}),
+        ...(await sheetState(page)),
+        pref: await page.evaluate(() =>
+          localStorage.getItem("sharecut.compactInspector"),
+        ),
+      });
+      await frame(
+        page,
+        info,
+        `remember-${size}-${browserName}-${String(steps.length).padStart(2, "0")}`,
+      );
+    };
+    await tapPoint("env-c");
+    await step("select: strip");
+    await step(
+      "one tap on Expand",
+      await tapButton("Expand to the full inspector"),
     );
-    await finger.down(at);
-    await page.waitForTimeout(60);
-    await finger.up();
-    await page.waitForTimeout(700);
-  };
-  const steps: Record<string, unknown>[] = [];
-  const step = async (name: string) => {
-    steps.push({
-      step: name,
-      ...(await sheetState(page)),
-      pref: await page.evaluate(() =>
-        localStorage.getItem("sharecut.compactInspector"),
-      ),
-    });
-    await frame(
-      page,
-      info,
-      `remember-${browserName}-${String(steps.length).padStart(2, "0")}`,
-    );
-  };
-  await tap("env-c");
-  await step("select: strip");
-  await page
-    .getByRole("button", { name: "Expand to the full inspector" })
-    .click();
-  await page.waitForTimeout(600);
-  await step("one tap on Expand");
-  await tap("env-a");
-  await step("next selection opens expanded");
-  await page.getByRole("button", { name: "Collapse to the strip" }).click();
-  await page.waitForTimeout(600);
-  await step("collapse");
-  await tap("env-c");
-  await step("next selection opens the strip");
-  json(info, `remember-${browserName}`, steps);
-  expect(steps.map((s) => [s.size, s.pref])).toEqual([
-    ["peek", "strip"],
-    ["half", "inspector"],
-    ["half", "inspector"],
-    ["peek", "strip"],
-    ["peek", "strip"],
-  ]);
-});
+    await tapPoint("env-a");
+    await step("next selection opens expanded");
+    await step("collapse", await tapButton("Collapse to the strip"));
+    await tapPoint("env-c");
+    await step("next selection opens the strip");
+    json(info, `remember-${size}-${browserName}`, steps);
+    expect(
+      steps.map((s) => [s.size, s.pref, s.buttonUnderFinger ?? null]),
+    ).toEqual([
+      ["peek", "strip", null],
+      ["half", "inspector", "Expand to the full inspector"],
+      ["half", "inspector", null],
+      ["peek", "strip", "Collapse to the strip"],
+      ["peek", "strip", null],
+    ]);
+  });
+}
 
 test("axe, both themes and reduced motion with the strip open", async ({
   page,
