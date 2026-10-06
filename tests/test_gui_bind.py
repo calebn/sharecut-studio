@@ -251,3 +251,25 @@ def test_cors_origins_append_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     wrong = gated.get("/api/health", headers={BOOT_TOKEN_HEADER: "b" * 64})
     assert wrong.status_code == 401
     assert secret not in wrong.text
+
+
+def test_cors_preflight_allows_only_listed_origins(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    monkeypatch.setenv("PODCAST_REVIEW_CORS_ORIGINS", "https://review.example.test")
+    client = TestClient(create_app())
+
+    def preflight(origin: str) -> tuple[int, str | None]:
+        res = client.options(
+            "/api/health",
+            headers={"Origin": origin, "Access-Control-Request-Method": "GET"},
+        )
+        return res.status_code, res.headers.get("access-control-allow-origin")
+
+    assert preflight("https://review.example.test") == (200, "https://review.example.test")
+    assert preflight("http://127.0.0.1:5173") == (200, "http://127.0.0.1:5173")
+    assert preflight("https://evil.example.test") == (400, None)
+    assert preflight("https://review.example.test.evil.test") == (400, None)
