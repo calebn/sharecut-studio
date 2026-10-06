@@ -41,7 +41,7 @@ const KEYDOWN_LISTENER_ALLOWLIST = new Set([
   "keymap/listener.ts",
   "timeline/ClipBlock.tsx",
   "ui/useDialogModal.ts",
-  "ui/Menu.tsx",
+  "ui/useMenuKeyboard.ts",
   "commands/governance.test.ts",
   "record/useRecordLiveComments.ts",
 ]);

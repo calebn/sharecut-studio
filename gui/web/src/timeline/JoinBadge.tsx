@@ -1,14 +1,11 @@
 import type { Ref } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
-import { type JoinGlyph, joinSeamLabel } from "../edit/joinRender";
+import {
+  JOIN_GLYPH_PATH,
+  type JoinGlyph,
+  joinSeamLabel,
+} from "../edit/joinRender";
 import { hitTargetProps } from "./hitTargets";
-
-/** | cut, ╲╱ fade, ✕ crossfade in a 12 × 12 box. */
-const GLYPH_PATH: Record<JoinGlyph, string> = {
-  cut: "M6 1V11",
-  fade: "M1 2L6 10L11 2",
-  crossfade: "M1 1L11 11M11 1L1 11",
-};
 
 export interface JoinBadgeViewProps {
   /** The clip whose incoming join this badge edits. */
@@ -62,7 +59,7 @@ export function JoinBadgeView({
         aria-hidden="true"
         focusable="false"
       >
-        <path d={GLYPH_PATH[glyph]} />
+        <path d={JOIN_GLYPH_PATH[glyph]} />
       </svg>
     </button>
   );
