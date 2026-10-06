@@ -3,12 +3,15 @@
 ``TunnelStatusTracker`` is the only writer of a ``TunnelStatus``. Every phase change
 is pushed to listeners: ``LineListener`` prints one line, ``StatusFileListener``
 persists the snapshot that ``read_tunnel_status`` serves to the GUI's ``tunnel.status``
-feature. Nothing here carries a token; text is redacted before it leaves the tracker.
+feature. Snapshots live in one file per tunnel identity under the machine cache, so
+the GUI finds them whatever ``--config`` the tunnel ran with. Nothing here carries a
+token; text is redacted before it leaves the tracker.
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import time
 from collections.abc import Awaitable, Callable, Sequence
@@ -17,6 +20,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, Protocol
 
+from podcast_mcp.config import cache_dir
+from podcast_mcp.runtime_config import RelayConfig
 from podcast_mcp.services.collaboration.tunnel_failure import TunnelFailure
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.redact import redact_secrets
@@ -39,12 +44,34 @@ class TunnelPhase(StrEnum):
 
 
 class TunnelState(StrEnum):
-    """What the host sees: Online, Connecting, Reconnecting or Offline."""
+    """What the host's Share dialog says about guests reaching their links.
+
+    ``OFF`` is a tunnel stopped on purpose, or online sharing set up but never
+    started. ``NOT_SET_UP`` is a local-only host: no relay settings and no tunnel
+    has ever reported, so the dialog shows nothing.
+    """
 
     ONLINE = "online"
     CONNECTING = "connecting"
     RECONNECTING = "reconnecting"
     OFFLINE = "offline"
+    OFF = "off"
+    NOT_SET_UP = "not_set_up"
+
+
+# When several tunnels report, the GUI shows the one guests are best served by.
+_STATE_RANK: dict[str, int] = {
+    state.value: rank
+    for rank, state in enumerate(
+        (
+            TunnelState.ONLINE,
+            TunnelState.RECONNECTING,
+            TunnelState.CONNECTING,
+            TunnelState.OFFLINE,
+            TunnelState.OFF,
+        )
+    )
+}
 
 
 _STATE_BY_PHASE: dict[TunnelPhase, TunnelState] = {
@@ -53,7 +80,7 @@ _STATE_BY_PHASE: dict[TunnelPhase, TunnelState] = {
     TunnelPhase.DISCONNECTED: TunnelState.RECONNECTING,
     TunnelPhase.RECONNECTING: TunnelState.RECONNECTING,
     TunnelPhase.FAILED: TunnelState.OFFLINE,
-    TunnelPhase.STOPPED: TunnelState.OFFLINE,
+    TunnelPhase.STOPPED: TunnelState.OFF,
 }
 _LIVE_PHASES = frozenset(
     {
@@ -105,7 +132,11 @@ class TunnelStatus:
         return "Tunnel stopped"
 
     def to_record(self) -> dict[str, Any]:
-        """The persisted and API shape. Tokens never reach it."""
+        """The persisted and API shape. Tokens never reach it.
+
+        ``retry_at`` is the wall-clock time of the next reconnect try, so the GUI can
+        count down without knowing when the snapshot was written.
+        """
         return {
             "schema": RECORD_SCHEMA,
             "phase": self.phase.value,
@@ -115,8 +146,7 @@ class TunnelStatus:
             "share_count": self.share_count,
             "reason": self.failure.reason if self.failure else None,
             "reason_kind": self.failure.kind.value if self.failure else None,
-            "attempt": self.attempt,
-            "retry_in_sec": self.retry_in_sec,
+            "retry_at": (self.since + self.retry_in_sec if self.retry_in_sec is not None else None),
             "since": self.since,
             "updated_at": self.updated_at,
         }
@@ -250,43 +280,91 @@ class TunnelStatusTracker:
             listener.on_transition(self._status)
 
 
-def _offline_record(reason: str) -> dict[str, Any]:
+def tunnel_status_dir() -> Path:
+    """Where every tunnel on this machine writes its snapshot: ``<cache>/tunnel``."""
+    return cache_dir() / "tunnel"
+
+
+def tunnel_status_path(cfg: RelayConfig) -> Path:
+    """This tunnel's snapshot file, keyed by host id and relay URL.
+
+    Two tunnels for different hosts or relays write different files; two tunnels
+    with the same identity would also collide on the relay, so they share one.
+    """
+    identity = f"{cfg.host_id}\n{cfg.relay_url}".encode()
+    return tunnel_status_dir() / f"{hashlib.sha256(identity).hexdigest()[:16]}.json"
+
+
+def _inactive_record(state: TunnelState, reason: str) -> dict[str, Any]:
     return {
         "schema": RECORD_SCHEMA,
         "phase": None,
-        "state": TunnelState.OFFLINE.value,
+        "state": state.value,
         "relay_host": None,
         "public_base_url": None,
         "share_count": None,
         "reason": reason,
         "reason_kind": None,
-        "attempt": 0,
-        "retry_in_sec": None,
+        "retry_at": None,
         "since": None,
         "updated_at": None,
     }
 
 
-def read_tunnel_status(path: Path, *, now: float | None = None) -> dict[str, Any]:
-    """The tunnel snapshot for the GUI, with a dead or frozen process reported Offline.
-
-    A missing or unreadable file means no tunnel is running. A live-looking snapshot
-    whose heartbeat stopped (killed process, sleeping laptop) is Offline too, so the
-    host never sees Online while guests see "Host offline".
-    """
-    try:
-        record = load_json_object(path)
-    except ValueError:
-        return _offline_record("podcast tunnel status could not be read")
-    if record is None or record.get("schema") != RECORD_SCHEMA:
-        return _offline_record("podcast tunnel is not running")
-    updated_at = record.get("updated_at")
-    age = (time.time() if now is None else now) - float(updated_at or 0.0)
+def _current_view(record: dict[str, Any], now: float) -> dict[str, Any]:
+    """A live-looking snapshot whose heartbeat stopped (killed process, sleeping laptop)
+    is Offline, so the host never sees Online while guests see "Host offline"."""
+    age = now - float(record.get("updated_at") or 0.0)
     if record.get("phase") in {p.value for p in _LIVE_PHASES} and age > STALE_AFTER_SEC:
-        stale = _offline_record("podcast tunnel stopped responding")
+        stale = _inactive_record(TunnelState.OFFLINE, "podcast tunnel stopped responding")
         stale.update(relay_host=record.get("relay_host"), since=record.get("updated_at"))
         return stale
     return record
+
+
+def _load_records(directory: Path) -> list[dict[str, Any]]:
+    try:
+        paths = sorted(directory.glob("*.json"))
+    except OSError:
+        return []
+    records = []
+    for path in paths:
+        try:
+            record = load_json_object(path)
+        except ValueError:
+            log.debug("Skipping unreadable tunnel status %s", path)
+            continue
+        if record is not None and record.get("schema") == RECORD_SCHEMA:
+            records.append(record)
+    return records
+
+
+def read_tunnel_status(
+    *,
+    relay_configured: bool,
+    directory: Path | None = None,
+    now: float | None = None,
+) -> dict[str, Any]:
+    """The tunnel snapshot for the GUI's Share dialog.
+
+    With no snapshot on disk, a host with relay settings reads Off and a local-only
+    host reads Not set up. With several, the best state wins (Online, Reconnecting,
+    Connecting, Offline, Off), then the most recently updated.
+    """
+    records = _load_records(directory or tunnel_status_dir())
+    if not records:
+        if relay_configured:
+            return _inactive_record(TunnelState.OFF, "podcast tunnel has not run")
+        return _inactive_record(TunnelState.NOT_SET_UP, "online sharing is not set up")
+    clock = time.time() if now is None else now
+    views = [_current_view(record, clock) for record in records]
+    return min(
+        views,
+        key=lambda v: (
+            _STATE_RANK.get(str(v.get("state")), len(_STATE_RANK)),
+            -float(v.get("updated_at") or v.get("since") or 0.0),
+        ),
+    )
 
 
 async def heartbeat_loop(

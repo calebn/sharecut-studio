@@ -23,7 +23,6 @@ DEFAULT_RELAY_URL = "ws://127.0.0.1:8080/tunnel"
 DEFAULT_PUBLIC_BASE_URL = "http://127.0.0.1:8080"
 DEFAULT_LOCAL_GUI_URL = "http://127.0.0.1:8765"
 RELAY_HOST_ID_FILENAME = "relay_host_id"
-TUNNEL_STATUS_FILENAME = "tunnel_status.json"
 
 # host_id is the ``host_id:`` prefix in PODCAST_RELAY_HOST_TOKENS, so it must not
 # contain the ``:`` / ``,`` separators that map is parsed with.
@@ -99,9 +98,11 @@ def relay_host_id_path(config_path: Path | None = None) -> Path:
     return (config_path or default_relay_config_path()).with_name(RELAY_HOST_ID_FILENAME)
 
 
-def tunnel_status_path(config_path: Path | None = None) -> Path:
-    """Live ``podcast tunnel`` status snapshot, stored next to ``relay.yaml``."""
-    return (config_path or default_relay_config_path()).with_name(TUNNEL_STATUS_FILENAME)
+def relay_configured() -> bool:
+    """Whether this machine has online sharing set up: a ``relay.yaml`` or relay env vars."""
+    if default_relay_config_path().is_file():
+        return True
+    return any(os.environ.get(_RELAY_ENV[key], "").strip() for key in ("relay_url", "host_token"))
 
 
 def persisted_relay_host_id(config_path: Path | None = None) -> str:

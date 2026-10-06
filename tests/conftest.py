@@ -77,9 +77,14 @@ def _isolate_share_registry(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
 
 @pytest.fixture(autouse=True)
 def _isolate_relay_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Keep relay.yaml and the persisted relay host_id out of the developer's home."""
+    """Keep relay.yaml, the relay host_id and tunnel status out of the developer's home."""
+    from podcast_mcp.services.collaboration import tunnel_status
+
     monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(tmp_path / "relay.yaml"))
     monkeypatch.delenv("PODCAST_RELAY_HOST_ID", raising=False)
+    for name in ("PODCAST_RELAY_URL", "PODCAST_RELAY_HOST_TOKEN"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(tunnel_status, "cache_dir", lambda: tmp_path / "machine-cache")
 
 
 @pytest.fixture(autouse=True)

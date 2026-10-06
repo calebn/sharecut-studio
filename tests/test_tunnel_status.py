@@ -22,7 +22,7 @@ from websockets.frames import Close
 from websockets.http11 import Response
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.runtime_config import RelayConfig, tunnel_status_path
+from podcast_mcp.runtime_config import RelayConfig
 from podcast_mcp.services.collaboration.tunnel import TunnelClient
 from podcast_mcp.services.collaboration.tunnel_failure import (
     FailureKind,
@@ -38,6 +38,8 @@ from podcast_mcp.services.collaboration.tunnel_status import (
     TunnelState,
     TunnelStatusTracker,
     read_tunnel_status,
+    tunnel_status_dir,
+    tunnel_status_path,
 )
 
 HOST_TOKEN = "host-secret-9f3a1c7e5b"
@@ -178,7 +180,7 @@ async def test_relay_drop_and_reconnect_prints_each_state_change(tmp_path: Path)
         (TunnelPhase.DISCONNECTED, TunnelState.RECONNECTING),
         (TunnelPhase.RECONNECTING, TunnelState.RECONNECTING),
         (TunnelPhase.CONNECTED, TunnelState.ONLINE),
-        (TunnelPhase.STOPPED, TunnelState.OFFLINE),
+        (TunnelPhase.STOPPED, TunnelState.OFF),
     ]
 
 
@@ -218,14 +220,15 @@ async def test_status_file_follows_the_phase_the_gui_reads(tmp_path: Path):
         ("disconnected", "reconnecting"),
         ("reconnecting", "reconnecting"),
         ("connected", "online"),
-        ("stopped", "offline"),
+        ("stopped", "off"),
     ]
     online, dropped, waiting = records[1], records[2], records[3]
     assert online["relay_host"] == "relay.example.test:8443"
     assert online["public_base_url"] == PUBLIC
     assert online["share_count"] == 2
     assert dropped["reason"] == "network: connection lost"
-    assert (waiting["attempt"], waiting["retry_in_sec"]) == (1, 1.0)
+    assert waiting["retry_at"] == waiting["since"] + 1.0
+    assert "attempt" not in waiting
     assert HOST_TOKEN not in h.status_file.read_text()
 
 
@@ -461,7 +464,7 @@ def test_fatal_failures_carry_a_fix_and_retryable_ones_do_not():
 # --- GUI snapshot ----------------------------------------------------------
 
 
-def _write(path: Path, **overrides: Any) -> None:
+def _write(path: Path, **overrides: Any) -> Path:
     record: dict[str, Any] = {
         "schema": 1,
         "phase": "connected",
@@ -471,69 +474,132 @@ def _write(path: Path, **overrides: Any) -> None:
         "share_count": 2,
         "reason": None,
         "reason_kind": None,
-        "attempt": 0,
-        "retry_in_sec": None,
+        "retry_at": None,
         "since": 1000.0,
         "updated_at": 1000.0,
     }
     record.update(overrides)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(record), encoding="utf-8")
+    return path
+
+
+def _status(**kwargs: Any) -> dict[str, Any]:
+    return read_tunnel_status(relay_configured=True, **kwargs)
 
 
 def test_read_status_passes_a_fresh_snapshot_through(tmp_path: Path):
-    path = tmp_path / "tunnel_status.json"
-    _write(path)
-    assert read_tunnel_status(path, now=1010.0)["state"] == "online"
+    _write(tmp_path / "a.json")
+    assert _status(directory=tmp_path, now=1010.0)["state"] == "online"
 
 
-def test_read_status_reports_offline_when_the_heartbeat_stopped(tmp_path: Path):
-    path = tmp_path / "tunnel_status.json"
-    _write(path)
-    report = read_tunnel_status(path, now=1000.0 + STALE_AFTER_SEC + 1)
-    assert report["state"] == "offline"
-    assert report["reason"] == "podcast tunnel stopped responding"
-    assert report["relay_host"] == "relay.example.test"
+def test_live_snapshot_turns_offline_once_the_heartbeat_is_older_than_the_ttl(tmp_path: Path):
+    _write(tmp_path / "a.json")
+
+    at_ttl = _status(directory=tmp_path, now=1000.0 + STALE_AFTER_SEC)
+    past_ttl = _status(directory=tmp_path, now=1000.0 + STALE_AFTER_SEC + 1)
+
+    assert STALE_AFTER_SEC == 45.0
+    assert at_ttl["state"] == "online"
+    assert (past_ttl["state"], past_ttl["reason"]) == (
+        "offline",
+        "podcast tunnel stopped responding",
+    )
+    assert (past_ttl["relay_host"], past_ttl["since"]) == ("relay.example.test", 1000.0)
 
 
 def test_read_status_keeps_a_failed_snapshot_as_is_however_old(tmp_path: Path):
-    path = tmp_path / "tunnel_status.json"
     _write(
-        path,
+        tmp_path / "a.json",
         phase="failed",
         state="offline",
         reason="auth: relay rejected the host token or host id",
+        reason_kind="auth",
     )
-    report = read_tunnel_status(path, now=9e9)
-    assert report["reason"].startswith("auth:")
+    report = _status(directory=tmp_path, now=9e9)
+    assert (report["state"], report["reason_kind"]) == ("offline", "auth")
 
 
-def test_read_status_offline_when_missing_or_corrupt(tmp_path: Path):
-    path = tmp_path / "tunnel_status.json"
-    assert read_tunnel_status(path)["reason"] == "podcast tunnel is not running"
-    path.write_text("{not json", encoding="utf-8")
-    assert read_tunnel_status(path)["reason"] == "podcast tunnel status could not be read"
+def test_a_local_only_host_reads_not_set_up_and_a_configured_one_reads_off(tmp_path: Path):
+    assert read_tunnel_status(relay_configured=False, directory=tmp_path)["state"] == ("not_set_up")
+    assert read_tunnel_status(relay_configured=True, directory=tmp_path)["state"] == "off"
+    _write(tmp_path / "a.json", phase="stopped", state="off")
+    assert read_tunnel_status(relay_configured=False, directory=tmp_path)["state"] == "off"
 
 
-def test_tunnel_status_route_is_host_only_and_serves_the_snapshot(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+def test_unreadable_snapshots_are_skipped(tmp_path: Path):
+    (tmp_path / "bad.json").write_text("{not json", encoding="utf-8")
+    (tmp_path / "old.json").write_text(json.dumps({"schema": 0}), encoding="utf-8")
+    assert _status(directory=tmp_path)["state"] == "off"
+    _write(tmp_path / "good.json", since=1000.0, updated_at=1000.0)
+    assert _status(directory=tmp_path, now=1001.0)["state"] == "online"
+
+
+def test_two_tunnels_write_separate_files_and_the_gui_shows_the_best(tmp_path: Path):
+    first = RelayConfig(relay_url=RELAY_URL, host_id="host-a")
+    second = RelayConfig(relay_url="wss://other.example.test/tunnel", host_id="host-a")
+    third = RelayConfig(relay_url=RELAY_URL, host_id="host-b")
+    paths = {tunnel_status_path(cfg) for cfg in (first, second, third)}
+    assert len(paths) == 3
+    assert {path.parent for path in paths} == {tunnel_status_dir()}
+    assert tunnel_status_path(first) == tunnel_status_path(
+        RelayConfig(relay_url=RELAY_URL, host_id="host-a", host_token="other")
+    )
+
+    now = [2000.0]
+    trackers = []
+    for cfg in (first, second):
+        trackers.append(
+            TunnelStatusTracker(
+                relay_host=cfg.relay_url,
+                public_base_url=PUBLIC,
+                listeners=[StatusFileListener(tunnel_status_path(cfg))],
+                clock=lambda: now[0],
+            )
+        )
+    trackers[0].connected(share_count=1)
+    now[0] = 2010.0
+    trackers[1].disconnected(TunnelFailure(FailureKind.NETWORK, "connection lost"))
+
+    shown = read_tunnel_status(relay_configured=True, now=2011.0)
+    assert (shown["state"], shown["relay_host"]) == ("online", RELAY_URL)
+    trackers[0].stopped()
+    shown = read_tunnel_status(relay_configured=True, now=2012.0)
+    assert (shown["state"], shown["relay_host"]) == (
+        "reconnecting",
+        "wss://other.example.test/tunnel",
+    )
+
+
+def test_tunnel_status_route_is_host_only_and_serves_the_snapshot(tmp_path: Path):
     pytest.importorskip("fastapi")
+    import time
+
     from fastapi.testclient import TestClient
 
     from podcast_mcp.gui.server import create_app
 
-    monkeypatch.setenv("PODCAST_RELAY_CONFIG", str(tmp_path / "relay.yaml"))
-    import time
-
-    _write(tunnel_status_path(), since=time.time(), updated_at=time.time())
     client = TestClient(create_app())
+    assert client.get("/api/tunnel/status").json()["state"] == "not_set_up"
 
+    _write(tunnel_status_dir() / "a.json", since=time.time(), updated_at=time.time())
     ok = client.get("/api/tunnel/status")
     assert ok.status_code == 200
     assert ok.json()["state"] == "online"
     assert "tunnel.status" in client.get("/api/features").json()["features"]
     relayed = client.get("/api/tunnel/status", headers={"x-sharecut-relayed": "1"})
     assert relayed.status_code == 403
+
+
+def test_relay_settings_in_the_environment_count_as_set_up(monkeypatch: pytest.MonkeyPatch):
+    from podcast_mcp.runtime_config import default_relay_config_path, relay_configured
+
+    assert relay_configured() is False
+    monkeypatch.setenv("PODCAST_RELAY_URL", RELAY_URL)
+    assert relay_configured() is True
+    monkeypatch.delenv("PODCAST_RELAY_URL")
+    default_relay_config_path().write_text(f"relay_url: {RELAY_URL}\n", encoding="utf-8")
+    assert relay_configured() is True
 
 
 # --- CLI -------------------------------------------------------------------
@@ -557,5 +623,33 @@ def test_cli_prints_timestamped_lines_and_exits_1_on_auth_failure(tmp_path: Path
     ]
     assert re.sub(r"^\d\d:\d\d:\d\d ", "", stamped[-1]).startswith("Tunnel failed (auth:")
     assert HOST_TOKEN not in result.output
-    record = json.loads((tmp_path / "tunnel_status.json").read_text())
-    assert (record["phase"], record["state"]) == ("failed", "offline")
+    assert not (tmp_path / "tunnel_status.json").exists()
+    record = read_tunnel_status(relay_configured=False)
+    assert (record["phase"], record["state"], record["reason_kind"]) == (
+        "failed",
+        "offline",
+        "auth",
+    )
+
+
+def test_gui_finds_the_status_of_a_tunnel_started_with_a_custom_config(tmp_path: Path):
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    elsewhere = tmp_path / "elsewhere" / "relay.yaml"
+    elsewhere.parent.mkdir()
+    elsewhere.write_text(f"relay_url: {RELAY_URL}\nhost_id: hid\n", encoding="utf-8")
+    rejected = FakeRelay([{"type": "error", "detail": "invalid host_token for host_id"}])
+
+    with patch("websockets.connect", return_value=rejected):
+        result = CliRunner().invoke(
+            app,
+            ["--no-progress", "tunnel", "--config", str(elsewhere), "--host-token", HOST_TOKEN],
+        )
+
+    assert result.exit_code == 1
+    shown = TestClient(create_app()).get("/api/tunnel/status").json()
+    assert (shown["state"], shown["reason_kind"]) == ("offline", "auth")
+    assert HOST_TOKEN not in json.dumps(shown)

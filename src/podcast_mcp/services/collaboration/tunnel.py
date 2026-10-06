@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 from podcast_mcp.edits.review_shares import list_usable_shares
 from podcast_mcp.edits.share_capabilities import normalize_capabilities
 from podcast_mcp.models import load_project
-from podcast_mcp.runtime_config import RelayConfig, load_relay_config, tunnel_status_path
+from podcast_mcp.runtime_config import RelayConfig, load_relay_config
 from podcast_mcp.services.collaboration.tunnel_failure import (
     FailureKind,
     TunnelError,
@@ -32,6 +32,7 @@ from podcast_mcp.services.collaboration.tunnel_status import (
     TunnelPhase,
     TunnelStatusTracker,
     heartbeat_loop,
+    tunnel_status_path,
 )
 from podcast_mcp.util.body_limits import relay_ws_max_size
 from podcast_mcp.util.proxy_paths import (
@@ -685,7 +686,8 @@ def run_tunnel_sync(
     """Block the calling thread running the tunnel client event loop.
 
     ``emit`` receives one line per connection state change (default: ``log.info``).
-    The live status snapshot the GUI reads is written next to ``relay.yaml``.
+    The live status snapshot the GUI reads is written to ``tunnel_status_path(cfg)``
+    under the machine cache, whatever ``config_path`` is.
     Raises ``TunnelError`` on an auth or config failure that retrying cannot fix.
     """
     cfg = load_relay_config(
@@ -697,6 +699,6 @@ def run_tunnel_sync(
     )
     listeners: list[StatusListener] = [
         LineListener(emit),
-        StatusFileListener(tunnel_status_path(config_path)),
+        StatusFileListener(tunnel_status_path(cfg)),
     ]
     asyncio.run(TunnelClient(cfg, project_path=project_path, listeners=listeners).run())

@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Header, Query, Request
 
 from podcast_mcp.gui.routes.deps import require_host
-from podcast_mcp.runtime_config import tunnel_status_path
+from podcast_mcp.runtime_config import relay_configured
 from podcast_mcp.services.collaboration import read_tunnel_status
 
 router = APIRouter()
@@ -19,9 +19,9 @@ def get_tunnel_status(
     token: str | None = Query(None),
     x_podcast_token: str | None = Header(None, alias="X-Podcast-Token"),
 ) -> dict[str, Any]:
-    """Online / Connecting / Reconnecting / Offline, with the reason and retry backoff.
+    """Online, Connecting, Reconnecting, Offline, Off or Not set up, with the next retry time.
 
     Host only: the relay never proxies ``/api/tunnel``. The body carries no token.
     """
     require_host(request, token=token, x_podcast_token=x_podcast_token)
-    return read_tunnel_status(tunnel_status_path())
+    return read_tunnel_status(relay_configured=relay_configured())
