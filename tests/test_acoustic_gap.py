@@ -475,6 +475,84 @@ def test_peer_word_over_silent_peer_audio_does_not_block_the_gap(tmp_path: Path)
     assert [(round(c.start, 2), round(c.end, 2)) for c in _acoustic(found)] == [(0.78, 1.21)]
 
 
+def _peer_gap_skips(
+    tmp_path: Path, own: np.ndarray, peer: np.ndarray
+) -> tuple[list[_CutCandidate], dict[str, int]]:
+    project = _project(tmp_path, own, _two_words().words, peer_words=[], peer_samples=peer)
+    skips: dict[str, int] = {}
+    found = _add_acoustic_candidates(
+        [],
+        project.transcripts[0],
+        {"tighten": {}},
+        project=project,
+        audio_cache=_cache(own),
+        audio_caches={"host": _cache(own), "guest": _cache(peer)},
+        skip_counts=skips,
+    )
+    return found, skips
+
+
+def test_peer_copy_of_the_cut_tracks_voice_far_below_it_is_bleed_not_peer_speech(
+    tmp_path: Path,
+) -> None:
+    own = _tone(3.0, 0.8, 1.2, amp=0.2)
+    bleed = _tone(3.0, 0.8, 1.2, amp=0.02)
+
+    found, skips = _peer_gap_skips(tmp_path, own, bleed)
+
+    assert skips == {}
+    assert [(round(c.start, 2), round(c.end, 2)) for c in _acoustic(found)] == [(0.78, 1.21)]
+
+
+def test_peer_voice_while_the_cut_track_is_quiet_blocks_the_gap(tmp_path: Path) -> None:
+    own = _tone(3.0, 0.8, 1.2, amp=0.002)
+    peer = _tone(3.0, 0.8, 1.2, amp=0.2)
+
+    found, skips = _peer_gap_skips(tmp_path, own, peer)
+
+    assert found == []
+    assert skips == {"acoustic:peer_speaking": 1}
+
+
+def test_peer_voice_while_the_cut_track_is_gated_shut_blocks_the_gap(tmp_path: Path) -> None:
+    found, skips = _peer_gap_skips(
+        tmp_path, np.zeros(3 * RATE, dtype=np.float32), _tone(3.0, 0.8, 1.2, amp=0.2)
+    )
+
+    assert found == []
+    assert skips == {"acoustic:peer_speaking": 1}
+
+
+def test_independent_voices_at_similar_levels_block_the_gap(tmp_path: Path) -> None:
+    own = _tone(3.0, 0.8, 1.2, hz=180.0, amp=0.2)
+    peer = _tone(3.0, 0.9, 1.1, hz=130.0, amp=0.15)
+
+    found, skips = _peer_gap_skips(tmp_path, own, peer)
+
+    assert found == []
+    assert skips == {"acoustic:peer_speaking": 1}
+
+
+def test_bleed_margin_comes_from_the_analysis_heuristics(tmp_path: Path) -> None:
+    own = _tone(3.0, 0.8, 1.2, amp=0.2)
+    peer = _tone(3.0, 0.8, 1.2, amp=0.02)
+    project = _project(tmp_path, own, _two_words().words, peer_words=[], peer_samples=peer)
+    skips: dict[str, int] = {}
+
+    found = _add_acoustic_candidates(
+        [],
+        project.transcripts[0],
+        {"tighten": {}, "analysis": {"heuristics": {"bleed_dominance_db": 30.0}}},
+        project=project,
+        audio_cache=_cache(own),
+        audio_caches={"host": _cache(own), "guest": _cache(peer)},
+        skip_counts=skips,
+    )
+
+    assert found == []
+    assert skips == {"acoustic:peer_speaking": 1}
+
+
 def test_collect_candidates_alone_never_scans_audio() -> None:
     candidates = _collect_candidates(_two_words(), {"tighten": {"max_pause_sec": 1.2}})
     assert not _acoustic(candidates)
