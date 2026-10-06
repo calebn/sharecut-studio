@@ -99,6 +99,13 @@ once with the whole mix trimmed down (never up) so it peaks at or below
 `mix.premix_peak_ceiling_db` (default -1.0 dBTP). `bounce` shares the ceiling.
 The trim uses the last emitted true-peak summary, which describes the completed graph.
 FFmpeg can emit an initial empty summary before it processes the audio.
+A mix longer than two minutes is measured in up to eight spans in parallel
+(`engines/mix_spans.quiet_spans`). The meter's resampler starts and ends each span without the
+audio on the other side, so neighbouring spans share one 100 ms block at least 24 dB under the
+ceiling, found within 5 s of an even split. Every sample is measured with its real neighbours in
+some span, and the cut edges are too quiet to set the peak, so the loudest span equals the
+single-pass peak. With no such block near a split, that split is dropped; a mix with no pauses
+is measured in one pass.
 `play_compose` uses the same ceiling on its own window, so a hot window is trimmed rather
 than clipped; a window that peaks under the ceiling plays at unity, the same as the premix
 before its whole-mix trim. `audition_eval.inject_hum_span` sums at unity on purpose (see
@@ -108,7 +115,7 @@ its docstring).
 The completed-summary fix advances it to revision 3, so revision 2 premixes and
 composed playback rebuild. Per-track stems remain reusable.
 
-The ceiling is part of the hash too, so a pipeline run with a different `mix.premix_peak_ceiling_db` re-mixes. `premix.hash` also records the ceiling on its own line, then the trim the whole mix got. A window mixed from segments measures only its own peak, so the Suggested pending preview mixes at that recorded trim instead and plays at the premix's level. Render status and review publish have no run config, so they compare the premix against the ceiling it was mixed under. A volume, mute, or mix-rule change makes that hash stale. A changed stem for any included track also makes the premix stale, including music, intro, outro, and sound effects. A muted track is excluded until it is unmuted.
+The ceiling is part of the hash too, so a pipeline run with a different `mix.premix_peak_ceiling_db` re-mixes. `premix.hash` also records the ceiling on its own line, then the trim the whole mix got. A window mixed from segments measures only its own peak, so both pending preview sides mix at the trim the whole mix gets (`PlayService.mix_trim_db`): the recorded one while the premix is fresh, otherwise one measured from the current stems with the same `peak_trim_db`. A fader or mute change re-measures the peak; it never re-mixes the premix. Render status and review publish have no run config, so they compare the premix against the ceiling it was mixed under. A volume, mute, or mix-rule change makes that hash stale. A changed stem for any included track also makes the premix stale, including music, intro, outro, and sound effects. A muted track is excluded until it is unmuted.
 
 `check_loudness_tool` measures the existing exported WAV, or `premix.wav` when no exported WAV exists. Its `pass` field judges measured loudness. Its separate `stale` and `stale_reason` fields report known render age without rendering. For a premix, the check uses its hash and included stems. For an exported WAV, it also checks the current master hash and whether the export predates the master. Missing or unverified upstream artifacts report stale. An explicit unrelated audio path has `stale: null` and `stale_reason: "untracked_audio"`. `stale: false` means these checks found no known mismatch; timestamps cannot prove the export's content came from the current master. The check does not refresh audio or alter the loudness verdict.
 
