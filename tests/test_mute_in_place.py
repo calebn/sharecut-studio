@@ -1710,3 +1710,119 @@ def test_repeated_trims_never_duplicate_the_saved_mute_region(tmp_path):
     assert [(r["start_s"], r["end_s"]) for r in clip["mute_regions"]] == [
         (region.start_s, region.end_s)
     ]
+
+
+def _roll(ws: ProjectWorkspace, delta_sec: float) -> None:
+    from podcast_mcp.services.document.boundary import RollBoundaryTarget, boundary_context
+
+    left, right = ws.project.clips[:2]
+    target = RollBoundaryTarget(left_clip_id=left.id, right_clip_id=right.id)
+    token = boundary_context(ws.project, target).token
+    EditService(ws).roll_clip_join(left.id, right.id, delta_sec, expected_token=token)
+
+
+def _split_workspace(tmp_path: Path, split_at: float):
+    ws, region, whole = _approved_mute_workspace(tmp_path)
+    EditService(ws).split_clip(split_at, track_id="host")
+    assert len(ws.project.clips) == 2
+    return ws, region, whole
+
+
+def _clip_regions(ws: ProjectWorkspace) -> list[list[tuple[float, float]]]:
+    return [[(r.start_s, r.end_s) for r in c.mute_regions] for c in ws.project.clips]
+
+
+# The mute sits at 1.0-1.3 s. Rolling the join across it hands it to the other clip.
+@pytest.mark.parametrize(
+    ("split_at", "delta"),
+    [(2.0, -1.2), (0.5, 1.2)],
+    ids=["left_clip_rolled_past", "right_clip_rolled_past"],
+)
+def test_roll_past_a_mute_keeps_the_span_silent(tmp_path, split_at, delta):
+    ws, region, whole = _split_workspace(tmp_path, split_at)
+    silent_start, silent_end = _silent_span(region)
+
+    _roll(ws, delta)
+
+    left, right = ws.project.clips
+    assert left.source_end == pytest.approx(split_at + delta)
+    assert right.source_start == pytest.approx(split_at + delta)
+    rendered = _render_samples(ws.project)
+    assert np.count_nonzero(_samples(rendered, silent_start, silent_end)) == 0
+    assert np.max(np.abs(rendered - whole)) < 1e-4
+    assert all(regions == [(region.start_s, region.end_s)] for regions in _clip_regions(ws))
+
+
+def test_roll_past_a_mute_undo_and_redo_are_exact(tmp_path):
+    ws, region, _ = _split_workspace(tmp_path, 2.0)
+    states = [[c.model_dump() for c in ws.project.clips]]
+
+    _roll(ws, -1.2)
+    states.append([c.model_dump() for c in ws.project.clips])
+    _roll(ws, 1.2)
+    states.append([c.model_dump() for c in ws.project.clips])
+
+    for expected in reversed(states[:-1]):
+        HistoryService(ws).undo()
+        assert [c.model_dump() for c in ws.project.clips] == expected
+    for expected in states[1:]:
+        HistoryService(ws).redo()
+        assert [c.model_dump() for c in ws.project.clips] == expected
+
+
+def test_repeated_rolls_never_duplicate_the_saved_mute_region(tmp_path):
+    ws, region, _ = _split_workspace(tmp_path, 2.0)
+    for delta in (-1.2, 0.5, -0.4, 1.0, -1.5):
+        _roll(ws, delta)
+
+    saved = json.loads((Path(ws.project.workspace_dir) / "episode.project.json").read_text())
+    for clip in saved["timeline"]["clips"]:
+        assert [(r["start_s"], r["end_s"]) for r in clip["mute_regions"]] == [
+            (region.start_s, region.end_s)
+        ]
+
+
+def test_roll_between_different_sources_keeps_each_clips_regions():
+    from podcast_mcp.edits.clips_ops import roll_clip_join
+
+    project = EpisodeProject.create("p", "/tmp/ws")
+    project.sources.extend(
+        [
+            SourceRecording(id="s1", path="raw/a.wav", speaker="Host", duration_sec=10.0),
+            SourceRecording(id="s2", path="raw/b.wav", speaker="Host", duration_sec=10.0),
+        ]
+    )
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/a.wav", duration_sec=10.0),
+        )
+    ]
+    project.clips = [
+        Clip(
+            id="c1",
+            track_id="host",
+            source_id="s1",
+            source_start=0.0,
+            source_end=5.0,
+            timeline_start=0.0,
+            mute_regions=[ClipMuteRegion(start_s=1.0, end_s=3.0)],
+        ),
+        Clip(
+            id="c2",
+            track_id="host",
+            source_id="s2",
+            source_start=5.0,
+            source_end=8.0,
+            timeline_start=5.0,
+            mute_regions=[ClipMuteRegion(start_s=5.0, end_s=5.4)],
+        ),
+    ]
+
+    roll_clip_join(project, "c1", "c2", -0.8)
+
+    left, right = project.clips
+    assert [(r.start_s, r.end_s) for r in left.mute_regions] == [(1.0, 3.0)]
+    assert [(r.start_s, r.end_s) for r in right.mute_regions] == [(5.0, 5.4)]
