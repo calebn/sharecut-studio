@@ -97,6 +97,16 @@ documentation range for examples) or, for a new generated asset type, add its su
 `_IPV4_SKIP_SUFFIXES`, rather than growing the allowlist. Keep real server addresses in the
 private operations repo.
 
+The same scan fails on a **sibling-repo path** in docs, scripts and config (`.md`, `.mdc`,
+`.yml`, `.yaml`, `.toml`, `.json`, `.txt`, `.sh`, `Makefile`): a `../<name>` path whose first
+segment matches no file or directory name anywhere in the tracked tree points at a directory
+beside the checkout, which may be a private repository. In-tree links such as `../scripts/x.sh`
+pass. Source code is not scanned because tests use dot-dot paths as path-traversal input. The failure
+names the file and line, never the sibling, so a private repo name does not reach CI logs.
+Write a placeholder in examples, for example `../<your-overlay>/config/profile.json`. A sibling
+that shares its name with a tracked directory (`../docs`) is not caught, so the rule guards
+against accidents, not deliberate obfuscation.
+
 Before changing repository visibility, clone a fresh `--mirror`, fetch
 `refs/pull/*/head`, and scan that mirror. The regular workflow prevents new committed
 credentials; the publication audit also covers old pull-request commits and other remote refs.

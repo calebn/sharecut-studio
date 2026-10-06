@@ -34,6 +34,13 @@ _SERVER_IPV4_MARKERS = (
 # Dotted quad not glued to a letter/digit or a longer dotted run (v1.2.3.4.5, SVG ``M8.5.2.1z``);
 # underscore-joined names (RELAY_<ip>, <ip>_prod) and a sentence-final "." still match.
 _IPV4_LITERAL = re.compile(rb"(?<![A-Za-z0-9])(?<!\d\.)(?:\d{1,3}\.){3}\d{1,3}(?![A-Za-z0-9]|\.\d)")
+# A ``../<name>`` path in docs, scripts and config names a directory beside the checkout when no
+# tracked path anywhere carries that name, so it points outside the public tree. Source code is
+# excluded: tests and fixtures use ``../x`` as path-traversal input. The reported line never echoes
+# the name, which may belong to a private repository. Write ``../<your-overlay>`` in examples.
+_SIBLING_SCAN_SUFFIXES = (".md", ".mdc", ".yml", ".yaml", ".toml", ".json", ".txt", ".sh")
+_SIBLING_SCAN_NAMES = frozenset({"Makefile"})
+_SIBLING_PATH = re.compile(rb"(?<![\w./~-])(?:\.\./)+([A-Za-z0-9_@][A-Za-z0-9_@.-]*)")
 
 
 def test_secret_scan_covers_changes_and_scheduled_history() -> None:
@@ -179,6 +186,17 @@ def _public_ipv4_literals(relative: Path, content: bytes) -> list[str]:
     return sorted(set(found))
 
 
+def _sibling_path_candidates(relative: Path, content: bytes) -> list[tuple[int, str]]:
+    """Return (line, first segment) of each ``../<name>`` path in a docs, script or config blob."""
+    if relative.suffix not in _SIBLING_SCAN_SUFFIXES and relative.name not in _SIBLING_SCAN_NAMES:
+        return []
+    found: list[tuple[int, str]] = []
+    for match in _SIBLING_PATH.finditer(content):
+        line = content.count(b"\n", 0, match.start()) + 1
+        found.append((line, match.group(1).decode().rstrip(".-")))
+    return found
+
+
 def _public_tree_violations(root: Path) -> list[str]:
     # Public IPv4 literals are caught by _public_ipv4_literals; skipped blobs get _SERVER_IPV4_MARKERS.
     forbidden = (
@@ -206,6 +224,10 @@ def _public_tree_violations(root: Path) -> list[str]:
         stdout=subprocess.PIPE,
         check=True,
     ).stdout
+    tracked_names = {
+        part for raw_relative, _, _ in entries for part in Path(os.fsdecode(raw_relative)).parts
+    }
+    sibling_candidates: list[tuple[Path, int, str]] = []
     offset = 0
     for raw_relative, oid, mode in entries:
         relative = Path(os.fsdecode(raw_relative))
@@ -223,6 +245,8 @@ def _public_tree_violations(root: Path) -> list[str]:
         offset = header_end + size + 2  # object bytes and trailing newline
         if object_type != b"blob":
             continue
+        for line, name in _sibling_path_candidates(relative, content):
+            sibling_candidates.append((relative, line, name))
         for literal in _public_ipv4_literals(relative, content):
             hits.append(f"{relative}: public IPv4 literal {literal}")
         markers: tuple[bytes, ...] = forbidden
@@ -233,6 +257,9 @@ def _public_tree_violations(root: Path) -> list[str]:
             if marker.lower() in content:
                 hits.append(f"{relative}: {marker.decode()}")
 
+    for relative, line, name in sibling_candidates:
+        if name not in tracked_names:
+            hits.append(f"{relative}:{line}: sibling-repo path outside the public tree")
     return hits
 
 
