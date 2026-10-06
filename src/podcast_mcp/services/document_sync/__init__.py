@@ -3,7 +3,10 @@ from typing import TYPE_CHECKING
 from podcast_mcp.util.lazy_exports import resolve_export
 
 if TYPE_CHECKING:
-    from podcast_mcp.services.document_sync.capabilities import document_command_types_for_caps
+    from podcast_mcp.services.document_sync.capabilities import (
+        document_command_types_for_caps,
+        edit_commands_allowed,
+    )
     from podcast_mcp.services.document_sync.commands import (
         DocumentCommand,
         DocumentCommandType,
@@ -61,6 +64,7 @@ __all__ = [
     "document_server_seq_at",
     "document_submit_lock",
     "dump_projection_locked",
+    "edit_commands_allowed",
     "file_certificate",
     "host_document_event",
     "list_delta",
@@ -92,6 +96,7 @@ _MODULE_BY_NAME = {
     "document_server_seq_at": "service",
     "document_submit_lock": "service",
     "dump_projection_locked": "service",
+    "edit_commands_allowed": "capabilities",
     "file_certificate": "snapshot_cache",
     "host_document_event": "service",
     "list_delta": "projection_delta",
