@@ -30,7 +30,7 @@ podcast gui --project /path/to/episode.project.json
 
 - `uv sync --extra gui` (FastAPI / uvicorn)
 - Built UI once: `cd gui/web && npm install && npm run build`
-- If `open_gui_tool` returns `static_built: false`, run the build and call again (API may already be up)
+- If `open_gui_tool` returns `static_built: false`, run the build and call again (API may already be up). A wheel install never has the build: build from a source checkout and launch with `PODCAST_GUI_DIST=<checkout>/gui/web/dist` (`hint` carries the steps)
 
 ## Workflow
 

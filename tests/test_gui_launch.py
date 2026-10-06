@@ -48,6 +48,20 @@ def test_ensure_viewer_reuses_healthy_server(tmp_path: Path) -> None:
     open_b.assert_called_once()
 
 
+def test_ensure_viewer_hint_names_the_missing_web_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proj = tmp_path / "episode.project.json"
+    proj.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("PODCAST_GUI_DIST", str(tmp_path / "no-web-build"))
+    with patch("podcast_mcp.services.app.gui_launch.is_viewer_up", return_value=True):
+        result = ensure_viewer(proj, open_browser=False)
+    assert result.static_built is False
+    assert result.hint is not None
+    assert "cd gui/web && npm ci && npm run build" in result.hint
+    assert "PODCAST_GUI_DIST" in result.hint
+
+
 def test_ensure_viewer_port_busy_without_health(tmp_path: Path) -> None:
     proj = tmp_path / "episode.project.json"
     proj.write_text("{}", encoding="utf-8")

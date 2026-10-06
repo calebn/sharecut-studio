@@ -69,6 +69,11 @@ def gui_cmd(
         raise typer.Exit(1)
 
     from podcast_mcp.gui.server import create_app
+    from podcast_mcp.gui.static_assets import (
+        missing_bundle_message,
+        resolve_gui_static_root,
+        static_bundle_ready,
+    )
     from podcast_mcp.services.session_sync import ensure_non_loopback_session_auth, is_bind_loopback
 
     if project is None and not is_bind_loopback(host):
@@ -103,6 +108,9 @@ def gui_cmd(
             "and open http://127.0.0.1:5173"
         )
     else:
+        static_root = resolve_gui_static_root()
+        if not static_bundle_ready(static_root):
+            typer.echo(f"Warning: {missing_bundle_message(static_root)}", err=True)
         typer.echo(f"Viewer: {url}")
         if not no_open:
             webbrowser.open(url)

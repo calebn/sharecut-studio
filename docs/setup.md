@@ -203,7 +203,7 @@ Not fetched by Python bootstrap. After the `gui` extra:
 cd gui/web && npm ci && npm run build
 ```
 
-Produces `gui/web/dist/` (`index.html` + assets). Required for `podcast gui` HTML UI; CLI/MCP editing works without it.
+Produces `gui/web/dist/` (`index.html` + assets). Required for `podcast gui` HTML UI; CLI/MCP editing works without it. The Python wheel does not include it (see [Wheel installs](#wheel-installs-have-no-web-build)).
 
 The development-only component catalog uses the same frontend dependencies:
 
@@ -571,6 +571,36 @@ podcast gui --project /path/to/episode.project.json --background
 # Browse… / Mod+O use a host OS file dialog (paste path still works)
 podcast gui
 ```
+
+### Wheel installs have no web build
+
+The wheel carries the Python package only. The web build is about 1.9 MB
+uncompressed (about 0.8 MB zipped, against a wheel of about 1.2 MB), but a wheel
+build would have to run `npm run build` first, and a hatch `force-include` of
+`gui/web/dist` fails every `uv sync` or editable install in a tree without that
+build. So the build stays a source-checkout artifact, and the product says so
+when it is missing:
+
+- `podcast gui` prints one `Warning: Sharecut Studio web build not found at <dir>. ...`
+  line on stderr before `Viewer: <url>` and keeps serving the API and host MCP.
+- `GET /` returns a short HTML page (HTTP 503, `Cache-Control: no-store`) with
+  the same guidance instead of a 404. `/api/*` and `/mcp` are unaffected.
+- MCP `open_gui_tool` / `podcast gui --background` return `static_built: false`
+  and the same text as `hint`.
+
+To get the UI with a wheel install, build it from a source checkout and point
+the launcher at it:
+
+```bash
+cd sharecut-studio/gui/web   # a clone of the source repository
+npm ci && npm run build
+PODCAST_GUI_DIST="$PWD/dist" podcast gui
+```
+
+The check is "`index.html` exists in the resolved static root"
+(`gui/static_assets.py`: `static_bundle_ready`, `missing_bundle_message`,
+`missing_bundle_response`); `PODCAST_GUI_DIST` and `create_app(static_dir=...)`
+resolve as before.
 
 Agents can call MCP `open_gui_tool` (skill `podcast-open-gui`) instead of blocking on a foreground server.
 Background CLI launch and MCP `open_gui_tool` use `services.app.ensure_viewer`.

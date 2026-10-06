@@ -147,7 +147,10 @@ def ensure_viewer(
 
     url = viewer_url(host, port, path, session_token=session_token)
     dist = resolve_gui_static_root()
-    static_built = dist.is_dir() and (dist / "index.html").is_file()
+    from podcast_mcp.gui.static_assets import missing_bundle_message, static_bundle_ready
+
+    static_built = static_bundle_ready(dist)
+    missing_hint = None if static_built else missing_bundle_message(dist)
 
     if is_viewer_up(host, port):
         opened = False
@@ -162,9 +165,7 @@ def ensure_viewer(
             already_running=True,
             opened_browser=opened,
             static_built=static_built,
-            hint=None
-            if static_built
-            else "API is up but gui/web dist is missing - run: cd gui/web && npm install && npm run build",
+            hint=missing_hint,
         )
 
     if _port_in_use(host, port):
@@ -228,20 +229,12 @@ def ensure_viewer(
                 pid=proc.pid,
                 static_built=static_built,
                 error="Viewer process exited before becoming healthy",
-                hint=None
-                if static_built
-                else "Build the UI: cd gui/web && npm install && npm run build",
+                hint=missing_hint,
             )
         if is_viewer_up(host, port):
             opened = False
             if open_browser:
                 opened = bool(webbrowser.open(url))
-            hint = None
-            if not static_built:
-                hint = (
-                    "API started but gui/web dist is missing - "
-                    "run: cd gui/web && npm install && npm run build"
-                )
             return GuiLaunchResult(
                 ok=True,
                 url=url,
@@ -252,7 +245,7 @@ def ensure_viewer(
                 opened_browser=opened,
                 pid=proc.pid,
                 static_built=static_built,
-                hint=hint,
+                hint=missing_hint,
             )
         time.sleep(0.15)
 
