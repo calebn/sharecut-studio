@@ -161,14 +161,16 @@
     "ClipMuteRegion": {
       "type": "object",
       "required": ["start_s", "end_s"],
-      "description": "Source-media mute span; end_s must be greater than start_s. Render fades the clip out of and back into it over fill (room tone), or digital silence when fill is absent.",
+      "description": "Source-media mute span; end_s must be greater than start_s. Render fades the clip out over the region's first fade_out_ms and back in over its last fade_in_ms (an approved tighten mute widens the region by the padded cut's fades), over fill (room tone), or digital silence when fill is absent.",
       "properties": {
         "start_s": { "type": "number" },
         "end_s": { "type": "number" },
         "fill": {
           "oneOf": [{ "$ref": "#/$defs/RoomToneFill" }, { "type": "null" }],
           "default": null
-        }
+        },
+        "fade_out_ms": { "type": "integer", "minimum": 0, "default": 5 },
+        "fade_in_ms": { "type": "integer", "minimum": 0, "default": 5 }
       }
     },
     "Clip": {

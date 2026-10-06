@@ -10,7 +10,7 @@ from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.mute_regions import add_source_mute
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
-from podcast_mcp.models import Clip, EditDecision, EditDecisionType, EpisodeProject
+from podcast_mcp.models import Clip, ClipMuteRegion, EditDecision, EditDecisionType, EpisodeProject
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 
 RangeAction = Literal["cut", "mute"]
@@ -181,8 +181,9 @@ def apply_ranges(project: EpisodeProject, edits: list[EditDecision]) -> None:
                     continue
                 if action == EditDecisionType.MUTE:
                     source_span = clip_timeline_overlap_to_source(clip, a, b)
-                    if source_span is not None:
-                        add_source_mute(clip, *source_span)
+                    if source_span is not None and source_span[1] > source_span[0]:
+                        start_s, end_s = source_span
+                        add_source_mute(clip, ClipMuteRegion(start_s=start_s, end_s=end_s))
                 else:
                     cuts.append((a, b))
             if not cuts:

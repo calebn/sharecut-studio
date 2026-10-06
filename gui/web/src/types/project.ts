@@ -15,6 +15,9 @@ export interface ClipMuteRegion {
   end_s: number;
   /** Absent or null: the mute renders as digital silence. */
   fill?: RoomToneFill | null;
+  /** Fade over the region's start and end; the server defaults both to 5 ms. */
+  fade_out_ms?: number;
+  fade_in_ms?: number;
 }
 
 /** Encoder-detected sample-peak clipping, in source seconds. */

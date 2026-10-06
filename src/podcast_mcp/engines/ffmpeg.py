@@ -12,7 +12,7 @@ from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from itertools import pairwise
 from pathlib import Path
-from typing import IO, Any
+from typing import IO, TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -39,10 +39,12 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.binaries import FFmpegPair, resolve_ffmpeg_pair
-from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.model_assets import resolve_rnnoise_model
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.process import PIPE, CalledProcessError, TimeoutExpired, popen, run
+
+if TYPE_CHECKING:
+    from podcast_mcp.edits.mute_regions import MuteEnvelope
 
 # Raw float32 PCM decode (waveform pyramid builds and deep-zoom windows). The
 # timeouts are watchdogs armed only while waiting on ffmpeg for one chunk, so
@@ -279,7 +281,7 @@ class PlacedSegment:
     crossfade_prev_sec: float = 0.0
     overlap_prev_sec: float = 0.0
     # Clip-local mute holes (seconds from src_start) rendered as silence.
-    mute_spans: tuple[tuple[float, float], ...] = ()
+    mute_spans: tuple[MuteEnvelope, ...] = ()
     source_path: Path | None = None
 
 
@@ -700,37 +702,41 @@ class FFmpegEngine:
     def _mute_chain(
         self,
         seg_duration: float,
-        mute_spans: tuple[tuple[float, float], ...],
+        mute_spans: tuple[MuteEnvelope, ...],
         *,
         sample_rate: int,
         source_start: float = 0.0,
         source_seek_start: float = 0.0,
     ) -> list[str]:
-        from podcast_mcp.edits.mute_regions import MUTE_FADE_SEC
+        """Gain that ramps to zero over each region's fade-out and back over its fade-in.
 
+        ``mute_spans`` never overlap (``mute_regions.mute_spans_for_source_window``). A
+        region too short for both fades is muted outright.
+        """
         origin = _timestamp_sample_origin(
             source_seek_start, sample_rate
         ) + _timestamp_sample_origin(source_start - source_seek_start, sample_rate)
         gains: list[tuple[str, str]] = []
-        for start, end in merge_intervals(list(mute_spans)):
-            a = float(start)
-            b = float(end)
+        for env in mute_spans:
+            a, b = env.start, env.end
             if b <= a + 1e-6 or b <= 0 or a >= seg_duration:
                 continue
-            first = str(math.floor((a + source_start) * sample_rate + 0.5) - origin)
-            last = str(math.floor((b + source_start) * sample_rate + 0.5) - origin)
-            if b - a < 2 * MUTE_FADE_SEC:
-                gains.append((first, f"if(gte(n,{first})*lt(n,{last}),0,1)"))
+            first = math.floor((a + source_start) * sample_rate + 0.5) - origin
+            last = math.floor((b + source_start) * sample_rate + 0.5) - origin
+            fade_out = math.floor(env.fade_out_sec * sample_rate + 0.5)
+            fade_in = math.floor(env.fade_in_sec * sample_rate + 0.5)
+            if fade_out + fade_in > last - first:
+                gains.append((str(first), f"if(gte(n,{first})*lt(n,{last}),0,1)"))
                 continue
-            fade = str(max(1, math.floor(MUTE_FADE_SEC * sample_rate + 0.5)))
-            gains.append(
-                (
-                    first,
-                    f"if(between(n,{first},{first}+{fade}),1-(n-{first})/{fade},"
-                    f"if(between(n,{first}+{fade},{last}-{fade}),0,"
-                    f"if(between(n,{last}-{fade},{last}),(n-({last}-{fade}))/{fade},1)))",
+            expr = "1"
+            if fade_in > 0:
+                expr = f"if(between(n,{last - fade_in},{last}),(n-({last - fade_in}))/{fade_in},1)"
+            expr = f"if(between(n,{first + fade_out},{last - fade_in}),0,{expr})"
+            if fade_out > 0:
+                expr = (
+                    f"if(between(n,{first},{first + fade_out}),1-(n-({first}))/{fade_out},{expr})"
                 )
-            )
+            gains.append((str(first), expr))
         if not gains:
             return []
 
@@ -1662,7 +1668,7 @@ class FFmpegEngine:
         start_sec: float,
         end_sec: float,
         *,
-        mute_spans: tuple[tuple[float, float], ...] = (),
+        mute_spans: tuple[MuteEnvelope, ...] = (),
     ) -> Path:
         """Extract [start_sec, end_sec] from src into output_path (non-destructive).
 

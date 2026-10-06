@@ -1159,11 +1159,23 @@
         "type": "object"
       },
       "ClipMuteRegion": {
-        "description": "Source-media span muted inside a clip (mute-in-place).\n\nRender fades the clip out of and back into the span; ``fill`` is the room tone\nlaid under it (``tighten.filler_pad_mode: room_tone``), digital silence when None.",
+        "description": "Source-media span muted inside a clip (mute-in-place).\n\nRender fades the clip out over the span's first ``fade_out_ms`` and back in over\nits last ``fade_in_ms`` (an approved tighten mute widens the span by the padded\ncut's fades, so the cut itself is silent). ``fill`` is the room tone laid under it\n(``tighten.filler_pad_mode: room_tone``), digital silence when None.",
         "properties": {
           "end_s": {
             "title": "End S",
             "type": "number"
+          },
+          "fade_in_ms": {
+            "default": 5,
+            "minimum": 0.0,
+            "title": "Fade In Ms",
+            "type": "integer"
+          },
+          "fade_out_ms": {
+            "default": 5,
+            "minimum": 0.0,
+            "title": "Fade Out Ms",
+            "type": "integer"
           },
           "fill": {
             "anyOf": [

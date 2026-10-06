@@ -113,6 +113,13 @@ describe("reuseUnchanged", () => {
     expect(reuseUnchanged(prev, filled).clips.tracks.host![0]).not.toBe(
       prev.clips.tracks.host![0],
     );
+    const faded = fresh(prev);
+    faded.clips.tracks.host![0]!.mute_regions = [
+      { start_s: 0.1, end_s: 0.2, fade_out_ms: 5, fade_in_ms: 120 },
+    ];
+    expect(reuseUnchanged(prev, faded).clips.tracks.host![0]).not.toBe(
+      prev.clips.tracks.host![0],
+    );
   });
 
   it("compares clipping regions element by element", () => {

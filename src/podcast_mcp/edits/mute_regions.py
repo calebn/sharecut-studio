@@ -1,24 +1,60 @@
 """Clip-local mute-in-place spans (source-media seconds).
 
 Applied MUTE decisions write ``Clip.mute_regions`` instead of rippling. Render
-fades the clip out of and back into each span over ``MUTE_FADE_SEC`` and lays the
-region's room-tone ``fill`` under it (digital silence without one), so timeline
-length is unchanged.
+fades the clip out over the start of each region and back in over its end, at the
+region's own fade lengths, and lays the region's room-tone ``fill`` under it
+(digital silence without one), so timeline length is unchanged.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from podcast_mcp.edits.ranges import clamp_spans, subtract_ranges_from_intervals
 from podcast_mcp.models import Clip, ClipMuteRegion, EpisodeProject, RoomToneFill
 
-MUTE_FADE_SEC = 0.005
-
 
 def _with_span(region: ClipMuteRegion, start: float, end: float) -> ClipMuteRegion:
-    return ClipMuteRegion(start_s=start, end_s=end, fill=region.fill)
+    return region.model_copy(update={"start_s": start, "end_s": end})
+
+
+@dataclass(frozen=True)
+class MuteEnvelope:
+    """One muted region's gain, in seconds from a render window's start.
+
+    The gain falls to zero over the first ``fade_out_sec`` of ``[start, end)``, stays
+    there and rises back to one over its last ``fade_in_sec``.
+    """
+
+    start: float
+    end: float
+    fade_out_sec: float
+    fade_in_sec: float
+
+
+def _envelopes(regions: Sequence[ClipMuteRegion], origin: float) -> list[MuteEnvelope]:
+    """``regions`` as envelopes from ``origin``, merged where they overlap or abut.
+
+    A merged envelope fades out as its first region does and back in as its last
+    does, so every sample has one gain whatever the regions' fills.
+    """
+    out: list[MuteEnvelope] = []
+    for region in sorted(regions, key=lambda r: (r.start_s, r.end_s)):
+        env = MuteEnvelope(
+            start=region.start_s - origin,
+            end=region.end_s - origin,
+            fade_out_sec=region.fade_out_ms / 1000.0,
+            fade_in_sec=region.fade_in_ms / 1000.0,
+        )
+        if out and env.start <= out[-1].end + 1e-6:
+            prev = out[-1]
+            if env.end > prev.end:
+                out[-1] = MuteEnvelope(prev.start, env.end, prev.fade_out_sec, env.fade_in_sec)
+            continue
+        out.append(env)
+    return out
 
 
 def intersect_mute_regions(
@@ -36,7 +72,10 @@ def intersect_mute_regions(
 
 
 def merge_mute_regions(regions: list[ClipMuteRegion]) -> list[ClipMuteRegion]:
-    """Coalesce overlapping/adjacent source spans that share a fill."""
+    """Coalesce overlapping/adjacent source spans that share a fill.
+
+    A merged region fades out as its first part does and back in as its last does.
+    """
     if not regions:
         return []
     ordered = sorted(regions, key=lambda r: (r.start_s, r.end_s))
@@ -44,19 +83,24 @@ def merge_mute_regions(regions: list[ClipMuteRegion]) -> list[ClipMuteRegion]:
     for region in ordered[1:]:
         prev = merged[-1]
         if region.fill == prev.fill and region.start_s <= prev.end_s + 1e-6:
-            merged[-1] = _with_span(prev, prev.start_s, max(prev.end_s, region.end_s))
+            last = region if region.end_s > prev.end_s else prev
+            merged[-1] = prev.model_copy(
+                update={"end_s": last.end_s, "fade_in_ms": last.fade_in_ms}
+            )
         else:
             merged.append(region)
     return merged
 
 
 def mute_regions_payload(regions: list[ClipMuteRegion]) -> list[dict[str, Any]]:
-    """Sorted ``{start_s, end_s[, fill]}`` dicts for hashes, list_clips, and paste."""
+    """Sorted region dicts (span, fades, optional fill) for hashes, list_clips, paste."""
     return sorted(
         (
             {
                 "start_s": float(r.start_s),
                 "end_s": float(r.end_s),
+                "fade_out_ms": r.fade_out_ms,
+                "fade_in_ms": r.fade_in_ms,
                 **({"fill": r.fill.model_dump()} if r.fill is not None else {}),
             }
             for r in regions
@@ -66,7 +110,7 @@ def mute_regions_payload(regions: list[ClipMuteRegion]) -> list[dict[str, Any]]:
 
 
 def _without_span(regions: list[ClipMuteRegion], start: float, end: float) -> list[ClipMuteRegion]:
-    """``regions`` minus ``[start, end)``; each remaining piece keeps its fill."""
+    """``regions`` minus ``[start, end)``; each remaining piece keeps its fill and fades."""
     return [
         _with_span(region, s, e)
         for region in regions
@@ -74,20 +118,12 @@ def _without_span(regions: list[ClipMuteRegion], start: float, end: float) -> li
     ]
 
 
-def add_source_mute(
-    clip: Clip, start: float, end: float, *, fill: RoomToneFill | None = None
-) -> bool:
-    """Mute ``[start, end)`` (source-media seconds) in ``clip`` over ``fill``.
+def add_source_mute(clip: Clip, region: ClipMuteRegion) -> bool:
+    """Mute ``region`` (source-media seconds, with its fill and fades) in ``clip``.
 
     The new span replaces whatever fill an existing region had under it.
     """
-    if end <= start:
-        return False
-    extra = intersect_mute_regions(
-        [ClipMuteRegion(start_s=start, end_s=end, fill=fill)],
-        clip.source_start,
-        clip.source_end,
-    )
+    extra = intersect_mute_regions([region], clip.source_start, clip.source_end)
     if not extra:
         return False
     (added,) = extra
@@ -129,32 +165,32 @@ def mute_spans_for_source_window(
     src_start: float,
     src_end: float,
     extra: Sequence[ClipMuteRegion] = (),
-) -> tuple[tuple[float, float], ...]:
+) -> tuple[MuteEnvelope, ...]:
     """Intersecting mute envelopes relative to ``src_start``; endpoints stay unclipped.
 
     ``extra`` regions (e.g. ignored-word spans, #633) are merged in without being
     written to ``clip.mute_regions``.
     """
-    spans: list[tuple[float, float]] = []
-    combined = [*clip.mute_regions, *extra]
-    for region in merge_mute_regions(combined):
-        if region.end_s > src_start and region.start_s < src_end:
-            spans.append((region.start_s - src_start, region.end_s - src_start))
-    return tuple(spans)
+    window = src_end - src_start
+    envelopes = _envelopes([*clip.mute_regions, *extra], src_start)
+    return tuple(e for e in envelopes if e.end > 0 and e.start < window)
 
 
 def room_tone_fills_for_source_window(
     clip: Clip, src_start: float, src_end: float
-) -> tuple[tuple[float, float, RoomToneFill], ...]:
+) -> tuple[tuple[MuteEnvelope, RoomToneFill], ...]:
     """``clip``'s filled mutes that intersect the window, relative to ``src_start``.
 
-    Endpoints stay unclipped, as in :func:`mute_spans_for_source_window`, so render
-    fades the fill only at a region's own edges.
+    Endpoints stay unclipped, as in :func:`mute_spans_for_source_window`, so the fill
+    fades in and out across the region's own fades.
     """
+    window = src_end - src_start
     return tuple(
-        (region.start_s - src_start, region.end_s - src_start, region.fill)
+        (env, region.fill)
         for region in clip.mute_regions
-        if region.fill is not None and region.end_s > src_start and region.start_s < src_end
+        if region.fill is not None
+        for env in _envelopes([region], src_start)
+        if env.end > 0 and env.start < window
     )
 
 

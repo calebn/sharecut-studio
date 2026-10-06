@@ -10,8 +10,8 @@ from podcast_mcp.edits.clips_ops import split_clip_at
 from podcast_mcp.edits.decisions import apply_auto_edits, approve_edits, reject_edits
 from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
 from podcast_mcp.edits.mute_regions import (
-    MUTE_FADE_SEC,
     IgnoredWordRegions,
+    MuteEnvelope,
     add_source_mute,
     intersect_mute_regions,
     merge_mute_regions,
@@ -107,17 +107,41 @@ def test_merge_and_intersect_mute_regions():
         source_end=1.0,
         timeline_start=0.0,
     )
-    assert add_source_mute(clip, 2.0, 2.4) is False
+    assert add_source_mute(clip, ClipMuteRegion(start_s=2.0, end_s=2.4)) is False
     assert clip.mute_regions == []
-    assert add_source_mute(clip, 0.4, 0.2) is False
-    add_source_mute(clip, 0.2, 0.4)
-    assert mute_spans_for_source_window(clip, 0.0, 1.0) == ((0.2, 0.4),)
+    add_source_mute(clip, ClipMuteRegion(start_s=0.2, end_s=0.4))
+    assert mute_spans_for_source_window(clip, 0.0, 1.0) == (MuteEnvelope(0.2, 0.4, 0.005, 0.005),)
     assert subtract_source_mute(clip, 0.5, 0.4) is False
     assert subtract_source_mute(clip, 0.8, 0.9) is False
     assert subtract_source_mute(clip, 0.2, 0.4) is True
     assert clip.mute_regions == []
     assert subtract_source_mute(clip, 0.2, 0.4) is False
-    assert FFmpegEngine()._mute_chain(0.5, ((1.4, 1.6),), sample_rate=48000) == []
+    assert (
+        FFmpegEngine()._mute_chain(0.5, (MuteEnvelope(1.4, 1.6, 0.005, 0.005),), sample_rate=48000)
+        == []
+    )
+
+
+def test_overlapping_mutes_render_one_envelope_whatever_their_fills():
+    from podcast_mcp.models import RoomToneFill
+
+    clip = Clip(id="c", track_id="host", source_start=0.0, source_end=4.0, timeline_start=0.0)
+    clip.mute_regions = [
+        ClipMuteRegion(start_s=1.0, end_s=1.5, fade_out_ms=5, fade_in_ms=40),
+        ClipMuteRegion(
+            start_s=1.4,
+            end_s=1.9,
+            fade_out_ms=20,
+            fade_in_ms=120,
+            fill=RoomToneFill(start_s=3.0, end_s=3.5),
+        ),
+        ClipMuteRegion(start_s=2.5, end_s=2.6),
+    ]
+
+    assert mute_spans_for_source_window(clip, 0.5, 3.0) == (
+        MuteEnvelope(0.5, 1.4, 0.005, 0.12),
+        MuteEnvelope(2.0, 2.1, 0.005, 0.005),
+    )
 
 
 def test_mute_region_fill_travels_with_its_span():
@@ -127,8 +151,8 @@ def test_mute_region_fill_travels_with_its_span():
 
     tone = RoomToneFill(start_s=8.0, end_s=8.5)
     clip = Clip(id="c1", track_id="host", source_start=0.0, source_end=4.0, timeline_start=0.0)
-    add_source_mute(clip, 1.0, 2.0, fill=tone)
-    add_source_mute(clip, 1.5, 2.5)
+    add_source_mute(clip, ClipMuteRegion(start_s=1.0, end_s=2.0, fill=tone))
+    add_source_mute(clip, ClipMuteRegion(start_s=1.5, end_s=2.5))
 
     def spans(regions):
         return [(r.start_s, r.end_s, r.fill) for r in regions]
@@ -140,8 +164,14 @@ def test_mute_region_fill_travels_with_its_span():
         (1.5, 1.8, None),
     ]
     assert mute_regions_payload(clip.mute_regions) == [
-        {"start_s": 1.0, "end_s": 1.5, "fill": {"start_s": 8.0, "end_s": 8.5, "source_id": None}},
-        {"start_s": 1.5, "end_s": 2.5},
+        {
+            "start_s": 1.0,
+            "end_s": 1.5,
+            "fade_out_ms": 5,
+            "fade_in_ms": 5,
+            "fill": {"start_s": 8.0, "end_s": 8.5, "source_id": None},
+        },
+        {"start_s": 1.5, "end_s": 2.5, "fade_out_ms": 5, "fade_in_ms": 5},
     ]
     project = EpisodeProject.create("p", "/tmp/ws")
     project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
@@ -150,7 +180,7 @@ def test_mute_region_fill_travels_with_its_span():
 
     assert subtract_source_mute(clip, 1.1, 1.2) is True
     assert spans(clip.mute_regions) == [(1.0, 1.1, tone), (1.2, 1.5, tone), (1.5, 2.5, None)]
-    assert add_source_mute(clip, 1.05, 1.25, fill=tone) is True
+    assert add_source_mute(clip, ClipMuteRegion(start_s=1.05, end_s=1.25, fill=tone)) is True
     assert spans(clip.mute_regions) == [(1.0, 1.5, tone), (1.5, 2.5, None)]
 
     paste_segment(
@@ -388,15 +418,16 @@ def test_apply_mute_keeps_timeline_and_peer_offsets(tmp_path, sample_wav):
     guest = next(c for c in project.clips if c.track_id == "guest")
     assert guest.timeline_start == pytest.approx(guest_start)
     host = next(c for c in project.clips if c.track_id == "host")
-    assert host.mute_regions
-    assert host.mute_regions[0].start_s == pytest.approx(0.4)
-    assert host.mute_regions[0].end_s == pytest.approx(0.7)
+    (region,) = host.mute_regions
+    # The region holds the edit and the fades either side of it.
+    assert (region.start_s, region.fade_out_ms) == (pytest.approx(0.395), 5)
+    assert region.end_s == pytest.approx(0.7 + region.fade_in_ms / 1000)
 
 
 def test_rendered_mute_is_silent_inside_and_unchanged_outside(tmp_path, sample_wav):
     project = _project_with_audio(tmp_path, sample_wav)
     host = next(c for c in project.clips if c.track_id == "host")
-    add_source_mute(host, 0.4, 0.7)
+    add_source_mute(host, ClipMuteRegion(start_s=0.4, end_s=0.7))
     out = Path(project.workspace_dir) / "artifacts" / "host.wav"
     render_track_from_timeline(project, project.tracks[0], out, {})
     inside = measure_window_rms_db(out, 0.45, 0.65)
@@ -408,16 +439,19 @@ def test_rendered_mute_is_silent_inside_and_unchanged_outside(tmp_path, sample_w
     edge = load_mono_window(out, start_sec=0.39, duration_sec=0.03, sample_rate=16000)
     steps = np.abs(np.diff(edge.astype(np.float64)))
     assert float(np.max(steps)) < 0.2
-    assert MUTE_FADE_SEC <= 0.005
+    assert ClipMuteRegion(start_s=0.4, end_s=0.7).fade_out_ms == 5
 
 
-def _noise_floor_project(tmp_path: Path) -> EpisodeProject:
-    """A 4 s mic track: white noise at -60 dBFS RMS, with a -20 dBFS ``uh`` at 1.0-1.3 s."""
+def _noise_floor_project(tmp_path: Path, *, uh_sec: float = 0.3) -> EpisodeProject:
+    """A 4 s mic track: white noise at -60 dBFS RMS, with a -20 dBFS ``uh`` at 1.0-1.3 s.
+
+    The tone runs ``uh_sec`` from 1.0 s, on into the next word when longer than the uh.
+    """
     import wave
 
     rate = 48_000
     samples = np.random.default_rng(11).standard_normal(4 * rate) * 10 ** (-60 / 20)
-    t = np.arange(round(0.3 * rate)) / rate
+    t = np.arange(round(uh_sec * rate)) / rate
     samples[rate : rate + t.size] += np.sin(2 * np.pi * 180.0 * t) * np.sqrt(2) * 10 ** (-20 / 20)
     ws = tmp_path / "ws"
     (ws / "raw").mkdir(parents=True)
@@ -485,6 +519,39 @@ def test_approved_mute_is_filled_like_the_ripple_pad(tmp_path, pad_mode, fill, i
     assert measure_window_rms_db(window, 0.4, 0.9) == pytest.approx(-60.0, abs=1.5)
 
 
+@pytest.mark.parametrize(
+    ("next_burst_sec", "region", "resume_db"),
+    [
+        # A hot resume gets the longest post-pad fade-in, as a padded cut would.
+        (None, (0.995, 1.42, 5, 120), (-46.1, -35.1, -23.9)),
+        # A plosive burst caps it: the clip is back at full level when the burst begins.
+        (1.33, (0.995, 1.33, 5, 30), (-34.1, -23.0, -20.0)),
+    ],
+)
+def test_approved_mute_fades_like_a_padded_cut(tmp_path, next_burst_sec, region, resume_db):
+    project = _noise_floor_project(tmp_path, uh_sec=0.8)
+    project.transcripts[0].words.append(TranscriptWord(text="go", start=1.3, end=1.8))
+    project.edit_decisions[0].next_burst_sec = next_burst_sec
+
+    assert approve_edits(project, ["m1"]) == 1
+
+    (muted,) = project.clips[0].mute_regions
+    assert (muted.start_s, muted.end_s, muted.fade_out_ms, muted.fade_in_ms) == (
+        pytest.approx(region[0]),
+        pytest.approx(region[1]),
+        region[2],
+        region[3],
+    )
+    out = Path(project.workspace_dir) / "artifacts" / "host.wav"
+    render_track_from_timeline(project, project.tracks[0], out, {})
+    assert measure_window_rms_db(out, 0.9, 0.99) == pytest.approx(-60.5, abs=0.5)
+    assert measure_window_rms_db(out, 1.0, 1.3) == pytest.approx(-80.0)
+    assert [
+        measure_window_rms_db(out, a, b) for a, b in ((1.3, 1.31), (1.31, 1.33), (1.35, 1.4))
+    ] == [pytest.approx(level, abs=0.5) for level in resume_db]
+    assert measure_window_rms_db(out, 1.45, 1.75) == pytest.approx(-20.0, abs=0.1)
+
+
 def test_approve_reject_undo_mute(tmp_path, sample_wav):
     project = _project_with_audio(tmp_path, sample_wav)
     path = tmp_path / "ws" / "episode.project.json"
@@ -537,8 +604,11 @@ def test_clip_mute_regions_schema_round_trip(tmp_path, sample_wav):
     from podcast_mcp.models import RoomToneFill
 
     project = _project_with_audio(tmp_path, sample_wav)
-    add_source_mute(project.clips[0], 0.2, 0.4)
-    add_source_mute(project.clips[0], 0.6, 0.7, fill=RoomToneFill(start_s=1.5, end_s=1.6))
+    add_source_mute(project.clips[0], ClipMuteRegion(start_s=0.2, end_s=0.4))
+    add_source_mute(
+        project.clips[0],
+        ClipMuteRegion(start_s=0.6, end_s=0.7, fill=RoomToneFill(start_s=1.5, end_s=1.6)),
+    )
     dumped = json.loads(project.model_dump_json())
     schema = json.loads(
         (
@@ -566,7 +636,7 @@ def test_extract_segment_honours_mute_spans(tmp_path, sample_wav):
         out,
         0.0,
         1.5,
-        mute_spans=((0.4, 0.7),),
+        mute_spans=(MuteEnvelope(0.4, 0.7, 0.005, 0.005),),
     )
     inside = measure_window_rms_db(out, 0.45, 0.65)
     before = measure_window_rms_db(out, 0.05, 0.25)
@@ -662,7 +732,7 @@ def test_multi_source_render_honours_mute_regions(tmp_path, sample_wav):
         timeline_start=0.0,
         source_id="s1",
     )
-    add_source_mute(c1, 0.1, 0.4)
+    add_source_mute(c1, ClipMuteRegion(start_s=0.1, end_s=0.4))
     project.clips = [
         c1,
         Clip(
@@ -685,8 +755,8 @@ def test_multi_source_render_honours_mute_regions(tmp_path, sample_wav):
 def test_two_mute_spans_and_degenerate_chain(tmp_path, sample_wav):
     project = _project_with_audio(tmp_path, sample_wav)
     host = next(c for c in project.clips if c.track_id == "host")
-    add_source_mute(host, 0.2, 0.35)
-    add_source_mute(host, 0.9, 1.15)
+    add_source_mute(host, ClipMuteRegion(start_s=0.2, end_s=0.35))
+    add_source_mute(host, ClipMuteRegion(start_s=0.9, end_s=1.15))
     out = Path(project.workspace_dir) / "artifacts" / "host.wav"
     render_track_from_timeline(project, project.tracks[0], out, {})
     first = measure_window_rms_db(out, 0.24, 0.32)
@@ -962,7 +1032,7 @@ def test_track_render_hash_and_stem_freshness_follow_mute_regions(tmp_path, samp
     fp1 = audio_state_fingerprint(project)
     write_stem_hash(project, "host")
     assert stem_is_fresh(project, "host")
-    add_source_mute(project.clips[0], 0.2, 0.4)
+    add_source_mute(project.clips[0], ClipMuteRegion(start_s=0.2, end_s=0.4))
     assert track_render_hash(project, "host") != h1
     assert audio_state_fingerprint(project) != fp1
     assert not stem_is_fresh(project, "host")
@@ -1247,7 +1317,7 @@ def test_run_mutation_restores_mute_on_failure(tmp_path, sample_wav):
     before = [(c.id, [(r.start_s, r.end_s) for r in c.mute_regions]) for c in project.clips]
 
     def boom(p: EpisodeProject) -> None:
-        add_source_mute(p.clips[0], 0.2, 0.4)
+        add_source_mute(p.clips[0], ClipMuteRegion(start_s=0.2, end_s=0.4))
         raise RuntimeError("mutate failed")
 
     with pytest.raises(RuntimeError, match="mutate failed"):
@@ -1261,7 +1331,7 @@ def test_revert_mute_error_paths_and_per_track_source(tmp_path, sample_wav):
     from podcast_mcp.models import AppliedEditRecord
 
     project = _project_with_audio(tmp_path, sample_wav)
-    add_source_mute(project.clips[0], 0.4, 0.7)
+    add_source_mute(project.clips[0], ClipMuteRegion(start_s=0.4, end_s=0.7))
     project.editorial.edit_log = [
         AppliedEditRecord(
             id="bad",
@@ -1284,7 +1354,7 @@ def test_revert_mute_error_paths_and_per_track_source(tmp_path, sample_wav):
     revert_applied_edit(project, "bad")
     host = next(c for c in project.clips if c.track_id == "host")
     assert host.mute_regions
-    add_source_mute(host, 0.4, 0.7)
+    add_source_mute(host, ClipMuteRegion(start_s=0.4, end_s=0.7))
     project.editorial.edit_log = [
         AppliedEditRecord(
             id="ok",
