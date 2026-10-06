@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.transcript_refine_status import TranscriptRefineRequiredError
 from podcast_mcp.models import (
     Clip,
     MediaAsset,
@@ -54,23 +53,16 @@ def _raw_session(minimal_project: Path) -> ProjectWorkspace:
 
 
 @pytest.mark.refine_gate
-def test_content_ripple_drops_cut_words_and_stales_refine_waive(minimal_project):
+def test_content_ripple_drops_cut_words_and_keeps_refine_waive(minimal_project):
     ws = _raw_session(minimal_project)
     refine = TranscriptRefineService(ws)
     refine.waive(reason="lab prep", source="agent")
-    assert refine.status()["clear"] is True
 
     EditService(ws).ripple_delete(0.0, 1.0, use_inaudible_opt=False)
 
     assert [w.text for w in ws.project.transcripts[0].words] == ["welcome", "everyone"]
-    status = refine.status()
-    assert status["stale"] is True
-    assert status["clear"] is False
-    with pytest.raises(TranscriptRefineRequiredError):
-        EditService(ws).propose_tighten()
-
-    refine.waive(reason="content cut: structural edit", source="agent")
     assert refine.status()["clear"] is True
+    EditService(ws).propose_tighten()
 
 
 def test_analyze_focus_cuts_skips_without_outline_when_disabled(minimal_project):
