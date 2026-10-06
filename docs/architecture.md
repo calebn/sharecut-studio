@@ -100,11 +100,12 @@ Transcript bleed gating plans bounded foreign reduction in
 `engines/ungated_audio.py`. An immutable `BleedGatePlan` carries protected phrases,
 verified reduction spans, the lane's resolved reduction (`mute` or `attenuate`, from
 `analysis.heuristics.bleed_handling` read through `AnalysisPolicy`; `auto` picks per
-lane from the bed just outside the copies), the attenuation in dB, that floor, and
-abstention reasons. Evidence is each lane's level envelope; the copy lag comes from
+lane from its bed, the median level away from its own speech and the copies), the
+attenuation in dB, that bed, and abstention reasons. Evidence is each lane's level envelope; the copy lag comes from
 the shared `engines/envelope_lag.py` estimator over the peer's own speech, every frame
 the peer's direct track reaches at that lag is foreign, and own speech is sound over
-the copy's expected level whose fine spectrum is not the peer's.
+the copy's expected level by more than the copy's own spread, or nearer it, a fifth
+of a second whose fine spectrum is not the peer's.
 Project playback and rendering apply those conservative plans to rendered audio.
 
 `engines/transcript_gated_play.py` uses absolute transition positions so segment
