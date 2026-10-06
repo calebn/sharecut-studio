@@ -130,7 +130,7 @@ def _gain_db(before: np.ndarray, after: np.ndarray, start: float, end: float) ->
 
 def _silent(after: np.ndarray, start: float, end: float) -> None:
     window = after[round(start * RATE) : round(end * RATE)]
-    np.testing.assert_array_equal(window, np.zeros(window.size))
+    np.testing.assert_array_equal(window, np.zeros(window.shape))
 
 
 def _unchanged(before: np.ndarray, after: np.ndarray, start: float, end: float) -> None:
@@ -159,7 +159,7 @@ def test_foreign_copy_on_a_gated_lane_is_muted(
 ) -> None:
     project = _episode(tmp_path, direct_lag_sec=direct_lag_sec, colored=colored)
     plan = build_bleed_gate_plan(project, "host")
-    assert (plan.reduction, plan.floor_db) == ("mute", -90.0)
+    assert (plan.reduction, plan.bed_db) == ("mute", -90.0)
     before, after = _gated(project, tmp_path)
     _silent(after, 1.05, 2.95)
     _unchanged(before, after, 0.0, 0.85)
@@ -317,14 +317,20 @@ def _talking_over(
     transcribed_at: tuple[float, float] | None = None,
     lag_sec: float = LAB_LAG_SEC,
     room_floor_db: float | None = None,
+    room_floor_spans: tuple[tuple[float, float], ...] | None = None,
+    copy_lift: tuple[float, float, float] | None = None,
+    stereo: bool = False,
 ) -> EpisodeProject:
     """The peer talks from 1 s to ``talk_end``; the host mic carries a coloured copy 16 dB down.
 
     The peer's direct track runs ``lag_sec`` late, 140 ms by default as on the lab
     tape. ``own`` adds the host's own sounds (kind, start, end, level in dB against the
     direct track) on top of the copy. ``room_floor_db`` lays a steady noise bed under
-    the whole host track; without it the host track is digital silence between sounds,
-    like a call app's gated track.
+    the host track, everywhere or only in ``room_floor_spans``; elsewhere the host track
+    is digital silence between sounds, like a call app's gated track. ``copy_lift``
+    (start, end, dB) raises the copy for a stretch, as when the peer leans toward the
+    host mic. ``stereo`` writes the host track as two channels with the own sounds on
+    the left only.
     """
     duration = talk_end + 1.0
     project = EpisodeProject.create("talking over", str(tmp_path))
@@ -335,15 +341,23 @@ def _talking_over(
     talk = slice(round(TALK_START * RATE), round(talk_end * RATE))
     host = _colored(voice)
     host *= 10 ** ((LAB_COUPLING_DB + _db(voice[talk]) - _db(host[talk])) / 20)
+    if copy_lift is not None:
+        lifted = (clock >= copy_lift[0]) & (clock < copy_lift[1])
+        host[lifted] *= 10 ** (copy_lift[2] / 20)
     mine = (clock >= 0.2) & (clock < 0.7)
     host[mine] += 0.2 * np.sin(2 * np.pi * 173 * clock[mine])
+    sounds = np.zeros(clock.size)
     for kind, start, end, level_db in own:
         sound = _own_sound(clock, kind, start, end)
         window = slice(round(start * RATE), round(end * RATE))
-        host += sound * 10 ** ((level_db + _db(voice[talk]) - _db(sound[window])) / 20)
+        sounds += sound * 10 ** ((level_db + _db(voice[talk]) - _db(sound[window])) / 20)
     if room_floor_db is not None:
-        host += _room_floor(clock.size, room_floor_db)
+        bed = _room_floor(clock.size, room_floor_db)
+        if room_floor_spans is not None:
+            bed *= np.any([(clock >= a) & (clock < b) for a, b in room_floor_spans], axis=0)
+        host += bed
     direct = np.roll(voice, round(lag_sec * RATE))
+    host = np.column_stack([host + sounds, host]) if stereo else host + sounds
     for track_id, samples in (("host", host), ("guest", direct)):
         _write_pcm(tmp_path / "raw" / f"{track_id}.wav", samples)
         project.timeline.tracks.append(
@@ -465,9 +479,53 @@ def test_lane_with_a_room_floor_is_turned_down_20_db_not_muted(tmp_path: Path) -
     project = _talking_over(tmp_path, room_floor_db=-60.0)
     plan = build_bleed_gate_plan(project, "host")
     assert plan.reduction == "attenuate"
-    assert plan.floor_db == pytest.approx(-60.0, abs=1.0)
+    assert plan.bed_db == pytest.approx(-60.0, abs=1.0)
     before, after = _gated_over(project, tmp_path)
     assert _gain_db(before, after, 1.05, 30.65) == pytest.approx(-20.0, abs=0.2)
+
+
+@pytest.mark.parametrize(
+    ("room_floor_spans", "bed_db"),
+    [
+        pytest.param(((0.7, 1.0), (31.0, 31.3)), -90.0, id="gated-with-faint-tone-near-the-copy"),
+        pytest.param(None, -76.0, id="steady-tone-below-the-bit-floor-once-turned-down"),
+    ],
+)
+def test_lane_whose_bed_cannot_survive_attenuation_is_muted(
+    tmp_path: Path, room_floor_spans: tuple[tuple[float, float], ...] | None, bed_db: float
+) -> None:
+    """Lab Caleb mic: half its quiet frames are the call app's digital silence, the rest
+    room tone near -77 dBFS. Turned down 20 dB, that tone falls under one 16-bit step, so
+    attenuating keeps no bed either; the copy tails beside it must not decide."""
+    project = _talking_over(tmp_path, room_floor_db=-76.0, room_floor_spans=room_floor_spans)
+    plan = build_bleed_gate_plan(project, "host")
+    assert plan.reduction == "mute"
+    assert plan.bed_db == pytest.approx(bed_db, abs=1.0)
+    _, after = _gated_over(project, tmp_path)
+    _silent(after, 1.05, 3.95)
+
+
+def test_own_speech_starting_under_a_louder_copy_tail_is_untouched(tmp_path: Path) -> None:
+    """Lab 829.31 "then" and 1108.74 "your": the lane's speaker starts talking 13 dB over
+    the copy while the peer's last words, louder than usual on this mic, ring out. The
+    seconds of own speech after it hear no copy, so the copy frames before it outvoted
+    the onset when the whole run was judged at once."""
+    project = _talking_over(
+        tmp_path, copy_lift=(29.9, 30.7, 6.0), own=(("talk", 30.55, 31.6, 3.0),)
+    )
+    before, after = _gated_over(project, tmp_path)
+    _unchanged(before, after, 30.55, 31.6)
+    _silent(after, 1.05, 3.95)
+    _silent(after, 7.45, 10.55)
+
+
+def test_stereo_lane_keeps_own_speech_in_both_channels(tmp_path: Path) -> None:
+    project = _talking_over(tmp_path, own=(("mm", 5.0, 5.15, -6.0),), stereo=True)
+    before, after = _gated_over(project, tmp_path)
+    assert before.shape == after.shape == (round(32.0 * RATE), 2)
+    _unchanged(before, after, 5.0, 5.15)
+    _silent(after, 1.05, 3.95)
+    _silent(after, 7.45, 10.55)
 
 
 @pytest.mark.parametrize(
