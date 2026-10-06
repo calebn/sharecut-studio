@@ -719,7 +719,7 @@ def test_pipeline_service_export_audio_creates_master(minimal_project, sample_wa
         patch("podcast_mcp.export.audio.export_episode_audio") as export,
     ):
         export.return_value = [ws.project.export_dir() / "demo.mp3"]
-        paths = PipelineService(ws).export_audio([{"ext": "mp3"}])
+        paths = PipelineService(ws).export_audio([{"ext": "mp3"}]).paths
     assert paths
     assert mastered.is_file()
     export.assert_called_once()

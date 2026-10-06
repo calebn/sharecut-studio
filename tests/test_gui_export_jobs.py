@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 from podcast_mcp.gui.jobs import PipelineJob, PipelineJobManager
+from podcast_mcp.services.pipeline import AudioExportResult
 
 
 def _skip_bounce_validate(monkeypatch) -> None:
@@ -35,11 +36,19 @@ def test_start_bounce_returns_paths_on_terminal_snapshot(minimal_project, monkey
     assert snap["result"]["paths"][0].endswith("x.wav")
 
 
-def test_start_export_returns_paths_on_terminal_snapshot(minimal_project, monkeypatch) -> None:
+def test_start_export_returns_paths_and_master_target_on_terminal_snapshot(
+    minimal_project, monkeypatch
+) -> None:
     out = Path(minimal_project).parent / "export" / "demo.wav"
+    master = {
+        "target_integrated_lufs": -19.0,
+        "target_true_peak_db": -1.5,
+        "measured": {"integrated_lufs": -19.1, "true_peak_db": -2.2},
+        "within_tolerance": True,
+    }
 
     def fake_export(self, formats=None, **_kwargs):
-        return [out]
+        return AudioExportResult([out], master)
 
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.export_audio",
@@ -53,7 +62,9 @@ def test_start_export_returns_paths_on_terminal_snapshot(minimal_project, monkey
             break
         time.sleep(0.05)
     assert job.status == "ok"
-    assert job.snapshot()["result"]["paths"][0].endswith("demo.wav")
+    result = job.snapshot()["result"]
+    assert result["paths"][0].endswith("demo.wav")
+    assert result["master"] == master
 
 
 def test_bounce_takes_pipeline_lock_and_coexists_with_agent(minimal_project, monkeypatch) -> None:

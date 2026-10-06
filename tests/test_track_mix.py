@@ -227,19 +227,19 @@ def test_real_wav_export_refreshes_music_fx_and_media_once(
     episode.add_track("music", str(other), role="music")
     service = PipelineService(ws)
 
-    first = service.export_audio([{"ext": "wav"}])[0].read_bytes()
+    first = service.export_audio([{"ext": "wav"}]).paths[0].read_bytes()
     first_premix = premix_path(ws.project).read_bytes()
     EditService(ws).add_effect(track_id="music", effect="highpass", params={"frequency": 3000})
     assert premix_is_stale(ws.project) is True
     assert EditService(ws).render_status()["needs_rerender"] is True
-    second = service.export_audio([{"ext": "wav"}])[0].read_bytes()
+    second = service.export_audio([{"ext": "wav"}]).paths[0].read_bytes()
     assert second != first
     assert premix_path(ws.project).read_bytes() != first_premix
     assert premix_is_stale(ws.project) is False
 
     episode.set_track_media("music", str(sample_wav))
     assert premix_is_stale(ws.project) is True
-    third = service.export_audio([{"ext": "wav"}])[0].read_bytes()
+    third = service.export_audio([{"ext": "wav"}]).paths[0].read_bytes()
     assert third != second
     assert premix_is_stale(ws.project) is False
     revision = premix_path(ws.project).stat().st_mtime_ns

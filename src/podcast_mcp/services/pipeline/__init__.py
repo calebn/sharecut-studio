@@ -22,12 +22,14 @@ if TYPE_CHECKING:
         transcribe_run_config,
     )
     from podcast_mcp.services.pipeline.service import (
+        AudioExportResult,
         PipelineRunResult,
         PipelineService,
         format_export_qc_lines,
     )
 
 __all__ = [
+    "AudioExportResult",
     "PipelineRunResult",
     "PipelineService",
     "analyze_working_set",
@@ -51,6 +53,7 @@ __all__ = [
 ]
 
 _MODULE_BY_NAME = {
+    "AudioExportResult": "service",
     "PipelineRunResult": "service",
     "PipelineService": "service",
     "format_export_qc_lines": "service",

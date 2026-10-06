@@ -1533,6 +1533,7 @@ class EditService:
         loudness ``pass`` remains the measured level verdict, independent of age.
         """
         from podcast_mcp.engines.balance import balance_status
+        from podcast_mcp.engines.mastering import MasterTarget
         from podcast_mcp.engines.play_audit import (
             mastered_is_fresh,
             mastered_path,
@@ -1541,8 +1542,10 @@ class EditService:
             read_premix_hash,
         )
         from podcast_mcp.export.names import sanitize_export_stem
+        from podcast_mcp.services.pipeline import run_defaults_for
 
         project = self.ws.project
+        target = MasterTarget.from_defaults(run_defaults_for(self.ws.path))
         export_wav = project.export_dir() / f"{sanitize_export_stem(project.name)}.wav"
         premix = premix_path(project)
         path = Path(audio_path) if audio_path else export_wav if export_wav.is_file() else premix
@@ -1566,7 +1569,7 @@ class EditService:
                 reason = "premix_stale"
             elif not master.is_file():
                 reason = "master_missing"
-            elif not mastered_is_fresh(project):
+            elif not mastered_is_fresh(project, target):
                 reason = "master_stale"
             elif path.stat().st_mtime_ns < master.stat().st_mtime_ns:
                 reason = "export_older_than_master"

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 # The limiter sits this far under the true-peak ceiling: room for the final trim
 # to make up the loudness the limiter took without crossing the ceiling.
@@ -114,3 +116,92 @@ class MasterResult:
     # "linear" | "dynamic" from loudnorm's JSON; None for the limiter plan or no JSON.
     normalization_type: str | None
     limiter: LimiterReport | None
+
+
+@dataclass(frozen=True)
+class MasterTarget:
+    """The ``master.*`` settings that change the mastered audio.
+
+    Everything ``FFmpegEngine.master_loudness`` is called with. The cached master's
+    fingerprint covers these, so a change re-masters; the QC tolerances
+    (``MasterQcLimits``) only judge the result and are not part of it.
+    """
+
+    integrated_lufs: float = -16.0
+    true_peak_db: float = -1.5
+    lra: float = 11.0
+
+    @classmethod
+    def from_defaults(cls, defaults: Mapping[str, Any]) -> MasterTarget:
+        cfg = defaults.get("master") or {}
+        base = cls()
+        return cls(
+            float(cfg.get("integrated_lufs", base.integrated_lufs)),
+            float(cfg.get("true_peak_db", base.true_peak_db)),
+            float(cfg.get("lra", base.lra)),
+        )
+
+    def to_json(self) -> str:
+        return json.dumps(self.__dict__, sort_keys=True, separators=(",", ":"))
+
+    @classmethod
+    def from_json(cls, raw: str) -> MasterTarget | None:
+        """The target ``to_json`` wrote, or None for text that is not one."""
+        try:
+            data = json.loads(raw)
+            return cls(**{k: float(data[k]) for k in cls.__dataclass_fields__})
+        except (ValueError, KeyError, TypeError):
+            return None
+
+
+@dataclass(frozen=True)
+class MasterQcLimits:
+    """How far the measured master may sit from its target before QC flags it."""
+
+    lufs_tolerance_lu: float = 0.5
+    true_peak_tolerance_db: float = 0.3
+
+    @classmethod
+    def from_defaults(cls, defaults: Mapping[str, Any]) -> MasterQcLimits:
+        cfg = defaults.get("master") or {}
+        base = cls()
+        return cls(
+            float(cfg.get("qc_lufs_tolerance_lu", base.lufs_tolerance_lu)),
+            float(cfg.get("qc_true_peak_tolerance_db", base.true_peak_tolerance_db)),
+        )
+
+
+def master_qc_issues(
+    measured: Mapping[str, float | None],
+    target: MasterTarget,
+    limits: MasterQcLimits,
+    limiter: Mapping[str, Any] | None,
+) -> list[str]:
+    """What is wrong with a measured master: loudness off target, or peak over the ceiling.
+
+    ``limiter`` is the ``LimiterReport`` as ``master_qc.json`` stores it (a dict), so the
+    verdict can be re-derived from a stored report when only the limits changed.
+    """
+    issues: list[str] = []
+    integrated = measured.get("integrated_lufs")
+    if (
+        integrated is not None
+        and abs(integrated - target.integrated_lufs) > limits.lufs_tolerance_lu
+    ):
+        if limiter is not None and not limiter["converged"]:
+            issues.append(
+                f"Limiter did not converge after {limiter['renders']} renders "
+                f"({integrated} LUFS, target {target.integrated_lufs})"
+            )
+        else:
+            issues.append(
+                f"Integrated loudness {integrated} LUFS misses "
+                f"target {target.integrated_lufs} by more than {limits.lufs_tolerance_lu} LU"
+            )
+    true_peak = measured.get("true_peak_db")
+    if true_peak is not None and true_peak > target.true_peak_db + limits.true_peak_tolerance_db:
+        issues.append(
+            f"True peak {true_peak} dBTP exceeds target {target.true_peak_db} "
+            f"by more than {limits.true_peak_tolerance_db} dB"
+        )
+    return issues

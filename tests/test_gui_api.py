@@ -28,7 +28,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.services.pipeline import PipelineRunResult
+from podcast_mcp.services.pipeline import AudioExportResult, PipelineRunResult
 from podcast_mcp.util.project_state import ProjectBusyError, RenderBusyError
 
 
@@ -2682,7 +2682,9 @@ def test_api_export_deliverables(minimal_project, monkeypatch) -> None:
 
     monkeypatch.setattr(
         "podcast_mcp.services.pipeline.PipelineService.export_audio",
-        lambda self, formats=None, **_k: [self.ws.project.export_dir() / "demo.wav"],
+        lambda self, formats=None, **_k: AudioExportResult(
+            [self.ws.project.export_dir() / "demo.wav"], None
+        ),
     )
     client = TestClient(create_app())
     res = client.post(

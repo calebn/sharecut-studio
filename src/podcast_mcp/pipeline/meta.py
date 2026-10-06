@@ -1022,7 +1022,11 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
     ParamField(
         path="master.integrated_lufs",
         label="Master LUFS",
-        description="Target integrated loudness for two-pass loudnorm.",
+        description=(
+            "Integrated loudness the master is brought to: a linear two-pass loudnorm, or the same "
+            "gain into a true-peak limiter when the premix is too peaky to reach it linearly. "
+            "Changing it re-masters on the next export."
+        ),
         type="number",
         default=-16.0,
         minimum=-24.0,
@@ -1035,7 +1039,11 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
     ParamField(
         path="master.true_peak_db",
         label="True peak",
-        description="True-peak ceiling for loudnorm.",
+        description=(
+            "Highest true peak the master may reach. A premix whose peaks would cross it at the "
+            "gain to the target is limited under it (a 0.5 dB margin) instead of loudnormed. "
+            "Changing it re-masters on the next export."
+        ),
         type="number",
         default=-1.5,
         minimum=-6.0,

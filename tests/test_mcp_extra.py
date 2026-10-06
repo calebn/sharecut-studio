@@ -283,7 +283,7 @@ def test_mcp_pipeline_export_audio(tmp_path, sample_wav):
         (ws / "artifacts").mkdir(parents=True, exist_ok=True)
         (ws / "artifacts" / "mastered.wav").write_bytes(b"wav")
         out = json.loads(mcp_pipeline.export_audio_tool(path, formats_json='[{"ext":"mp3"}]'))
-    assert out
+    assert out["paths"] == [str(ws / "export" / "demo.mp3")]
 
 
 def test_mcp_bounce_audio_tool(tmp_path, sample_wav, monkeypatch):

@@ -220,8 +220,7 @@ def export_audio_tool(
         if not isinstance(parsed, list):
             raise ValueError("formats_json must be a JSON array of format objects")
         formats = parsed
-    paths = PipelineService(ws).export_audio(formats)
-    return to_json([str(p) for p in paths])
+    return to_json(PipelineService(ws).export_audio(formats).job_result())
 
 
 def bounce_audio_tool(

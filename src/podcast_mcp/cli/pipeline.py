@@ -243,8 +243,7 @@ def export_audio_cmd(
         if not isinstance(raw, list):
             raise typer.BadParameter("--formats must be a JSON array")
         parsed = raw
-    paths = PipelineService(ws).export_audio(parsed)
-    typer.echo(json.dumps([str(p) for p in paths], indent=2))
+    typer.echo(json.dumps(PipelineService(ws).export_audio(parsed).job_result(), indent=2))
 
 
 @pipeline_app.command("bounce")

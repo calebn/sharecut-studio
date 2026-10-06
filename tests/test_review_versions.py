@@ -30,8 +30,9 @@ from podcast_mcp.edits.review_versions import (
     version_audio_path,
     version_mp3_path,
 )
+from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.play_audit import (
-    master_source_hash,
+    master_fingerprint,
     mastered_is_fresh,
     write_mastered_hash,
 )
@@ -1853,14 +1854,14 @@ def test_publish_mastered_refuses_a_master_without_a_hash(minimal_project, sampl
 @requires_safe_failed_cleanup
 def test_publish_mastered_accepts_a_master_once_its_hash_is_written(minimal_project, sample_wav):
     ws, _ = _premix_and_master_workspace(minimal_project, sample_wav)
-    write_mastered_hash(ws.project, master_source_hash(ws.project))
+    write_mastered_hash(ws.project, MasterTarget(), master_fingerprint(ws.project, MasterTarget()))
     ver = ReviewService(ws).publish(label="m", prefer="mastered")
     assert ver["source"] == "mastered"
 
 
 def test_publish_mastered_refuses_a_master_from_another_premix(minimal_project, sample_wav):
     ws, art = _premix_and_master_workspace(minimal_project, sample_wav)
-    write_mastered_hash(ws.project, master_source_hash(ws.project))
+    write_mastered_hash(ws.project, MasterTarget(), master_fingerprint(ws.project, MasterTarget()))
     premix = art / "premix.wav"
     st = premix.stat()
     os.utime(premix, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))  # re-mixed or restored
@@ -1889,7 +1890,7 @@ def test_publish_mastered_refuses_a_stale_premix_even_with_a_fresh_master(
     save_project(proj, minimal_project)
 
     ws = ProjectWorkspace.open(minimal_project)
-    write_mastered_hash(ws.project, master_source_hash(ws.project))
+    write_mastered_hash(ws.project, MasterTarget(), master_fingerprint(ws.project, MasterTarget()))
     assert mastered_is_fresh(ws.project)
     with pytest.raises(ValueError, match="any master built from it"):
         ReviewService(ws).publish(label="m", prefer="mastered")
