@@ -637,7 +637,7 @@ The host `POST /api/boundary/context` and edit-share `POST /api/review/{token}/d
 
 Implementation: [`src/podcast_mcp/gui/`](../src/podcast_mcp/gui/) (`server.py` wires routers; handlers live in `gui/routes/`), frontend [`gui/web/`](../gui/web/) (Zustand slices under `gui/web/src/state/`, session dedupe in `gui/web/src/session/`).
 
-Every review-link role holds `view`, so `/r/{token}` always opens Sharecut Studio. A review share without `view` (only a hand-built `ShareService.create(capabilities=…)` call makes one) has no page: bootstrap succeeds and the app shows "This link does not open the project." Guest sockets, comments and recovery are covered in [session sync](session-sync.md).
+Every review-link role holds `view`, so `/r/{token}` always opens Sharecut Studio. A review share without `view` (only a hand-built `ShareService.create(capabilities=…)` call makes one) has no page: bootstrap succeeds and the app shows "This link does not open the project." with the next step beneath it, "Ask the person who shared it for a new link." Guest sockets, comments and recovery are covered in [session sync](session-sync.md).
 
 ## Static assets and guest surfaces
 

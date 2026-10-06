@@ -46,6 +46,11 @@ describe("App review route", () => {
     expect(
       await screen.findByText("This link does not open the project."),
     ).toBeInTheDocument();
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("This link does not open the project.");
+    expect(alert).toHaveTextContent(
+      "Ask the person who shared it for a new link.",
+    );
     expect(
       fetchMock.mock.calls.some((call) =>
         urlOf(call[0] as RequestInfo | URL).endsWith("/audio"),

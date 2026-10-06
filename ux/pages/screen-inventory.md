@@ -361,7 +361,7 @@ flowchart LR
 | Share setup | Surface | What the guest sees |
 |-------------|---------|---------------------|
 | Viewer, Commenter (default) or Editor | **Sharecut Studio guest** | Timeline / Listen / Text / More gated by role. Mode **banner** at top. |
-| Any capability set without `view` (API only, no role mints one) | **Error screen** | "This link does not open the project." |
+| Any capability set without `view` (API only, no role mints one) | **Error screen** | "This link does not open the project." with "Ask the person who shared it for a new link." beneath it in muted text. |
 
 Step flows: [Guest journeys](#/journeys).
 

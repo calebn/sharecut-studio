@@ -22,4 +22,19 @@ describe("ErrorScreen", () => {
     );
     await expectNoA11yViolations(container);
   });
+
+  it("names the next step beside the problem and is axe-clean", async () => {
+    const { container } = render(
+      <ErrorScreen
+        message="This link does not open the project."
+        hint="Ask the person who shared it for a new link."
+      />,
+    );
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("This link does not open the project.");
+    expect(alert).toHaveTextContent(
+      "Ask the person who shared it for a new link.",
+    );
+    await expectNoA11yViolations(container);
+  });
 });
