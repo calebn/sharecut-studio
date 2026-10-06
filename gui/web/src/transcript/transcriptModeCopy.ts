@@ -10,7 +10,7 @@ export const TRANSCRIPT_MODE_HINT: Record<TranscriptIntent, string> = {
     "Select (edits audio): pick words, then Mod+X cuts their audio from the timeline and Mod+V pastes it. Ignore strikes through and mutes the selection at render, non-destructively; Restore brings it back.",
 };
 
-/** Select-mode hint for share guests: an `edit` share's range applies, a `suggest` share's is a proposal. */
+/** Select-mode hint for share guests: an Editor link's range applies, a Commenter link's is a proposal. */
 export const TRANSCRIPT_GUEST_SELECT_HINT: Record<"edit" | "suggest", string> =
   {
     edit: "Select (edits audio): pick words, then Cut or Mute in Range actions (or Mod+X) edits the timeline. Undo restores it.",

@@ -158,7 +158,7 @@ Influenced by OpenTimelineIO (tracks/clips), Descript (transcript-first edits), 
 
 ## Exact selected ranges
 
-`EditDecision.author` names the share guest whose document command created the decision: `share:` plus the share's opaque registry id, random and never derived from the token. A recreated or recycled link is a new share with a new id. It is null for host and agent edits and for edits saved before authorship. The gate lets a `suggest` guest retime only its own (see [share-tokens.md](share-tokens.md)); guest projections never carry it.
+`EditDecision.author` names the share guest whose document command created the decision: `share:` plus the share's opaque registry id, random and never derived from the token. A recreated or recycled link is a new share with a new id. It is null for host and agent edits and for edits saved before authorship. The gate lets a Commenter retime only its own (see [share-tokens.md](share-tokens.md)); guest projections never carry it.
 
 `EditDecision.exact_range` stores an `exact_range` target with ordered disjoint timeline intervals, explicit destination `track_ids`, observed clips, and opaque `media_seals`. Its flat timing fields are a display envelope. Source Snap and timing updates reject this variant. `Track.timeline_empty` records an intentionally empty lane. Render and mapping preserve silence until new material is added.
 

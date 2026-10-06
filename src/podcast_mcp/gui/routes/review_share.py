@@ -620,7 +620,7 @@ async def post_daw_media_upload(
     chunk_index: int = Query(0, ge=0),
     total_chunks: int = Query(1, ge=1),
 ):
-    """Guest ``edit`` only: chunked upload into host ``raw/`` (then SetTrackMedia)."""
+    """Editor links only: chunked upload into host ``raw/`` (then SetTrackMedia)."""
     from podcast_mcp.services.media import gui_media_chunk_max_bytes
     from podcast_mcp.util.body_limits import (
         BodyTooLarge,

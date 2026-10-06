@@ -8012,7 +8012,7 @@
     },
     "/api/review/{token}/daw/media/upload": {
       "post": {
-        "description": "Guest ``edit`` only: chunked upload into host ``raw/`` (then SetTrackMedia).",
+        "description": "Editor links only: chunked upload into host ``raw/`` (then SetTrackMedia).",
         "parameters": [
           {
             "in": "path",

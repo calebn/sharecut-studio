@@ -246,7 +246,7 @@ def guest_set_action_done(
 
 
 def guest_submit_document_command(**kwargs: Any) -> dict[str, Any]:
-    """Submit a document command allowed by suggest/edit caps.
+    """Submit a document command the share's review role allows (Commenter or Editor).
 
     Arguments match ``DocumentCommandBody`` (type + payload + client envelope).
     """
