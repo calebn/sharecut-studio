@@ -563,6 +563,7 @@ deploy/relay/
   Caddyfile.local         # HTTP :8080 development reverse proxy
   Caddyfile.prod          # HTTPS reverse-proxy example; logs redact share paths
 .github/workflows/
+  deploy-config.yml       # caddy validate + docker compose config over deploy/ (scripts/check_deploy_config.sh)
   desktop.yml             # FOSS Tauri scaffold + web dist
   release-desktop-build.yml # reusable installer-artifact builder
 src/podcast_relay/         # FOSS relay server (FastAPI + WebSocket tunnel)
