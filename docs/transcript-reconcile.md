@@ -176,28 +176,49 @@ A span starts from suppressed `bleed` words whose dominant track is another lane
 gate then measures both lanes' audio at 8 kHz (100 ms level frames every 10 ms) and
 needs three things:
 
-- **A copy path.** Over the pair's candidate words, the lane's level envelope must
-  follow the peer's at one lag within ±300 ms, with correlation at least 0.4 and
-  0.15 above the same lag shifted by ±1 s and ±2 s. Envelopes survive room coloration
-  and stereo downmix, where sample-exact residuals never did. A remote speaker's own
-  Zoom track can trail their voice on an in-room mic. On the lab tape Audra's track
-  trails her copy on Caleb's mic by 140 to 150 ms. No path means `uncertain_foreign_ownership`.
+- **A copy path.** Over the pair's candidate words, the lane's syllable contour (its
+  level less the half-second mean) must follow the peer's at one lag within ±300 ms,
+  with correlation at least 0.4 and 0.15 above the same lag shifted by ±1 s and ±2 s,
+  over at least 30 s of frames around the peer's words. The contour drops the shared
+  on/off timing of two people who start and stop talking together. In synthetic
+  trials (200 pairs per case) independent and co-timed voices never passed with 30 s
+  of evidence and true copies always did; with 20 s, 4% of co-timed long phrases
+  still passed. A remote speaker's own Zoom track can trail their voice on an in-room
+  mic. On the lab tape Audra's track trails her copy on Caleb's mic by 140 to 150 ms.
+  No path means `uncertain_foreign_ownership`.
 - **Where the peer owns the audio.** Each word grows through adjacent frames where the
   peer's open direct track, read at that lag, out-levels the lane by
   `bleed_dominance_db`, because ASR word spans miss the copy between words.
-- **Where the lane's own speaker is silent.** Unsuppressed own words protect their
-  connected voiced runs, but those runs stop at foreign spans. Inside a foreign span,
-  100 ms or more louder than the open direct track by `bleed_dominance_db` is the
-  lane's own speaker overlapping, and is protected. Untranscribed placements stay
-  protected.
+- **Where the lane's own speaker is silent.** Own speech is judged against the
+  **expected copy level** on this mic, not the peer's direct track. With the path,
+  the gate measures the coupling: the median of lane level minus direct level over
+  the louder half of the peer's frames, away from the lane's own words (−19.0 dB for
+  Audra on Caleb's mic, reading the direct track held ±50 ms and, where its gate is
+  just opening, up to 200 ms ahead). The expected level is the direct track plus the
+  coupling, power-summed over peers and with the mic's noise floor. A frame 4 dB over
+  it for 50 ms starts a candidate, which holds through frames 2 dB over it and dips
+  up to 150 ms, so a short "mm" is kept whole. Level alone cannot decide: on the lab
+  the copy's own level wanders several dB with the peer's phonemes and the call's
+  noise suppression (in loud Audra-only frames the 75th percentile is 4.6 dB over the
+  expected level and the 95th 7.8 dB, and whole words reach 10 dB). So a candidate counts as the copy only
+  when its fine spectrum, the log spectrum less its smooth envelope, matches the
+  peer's direct track at least 0.9 times as well as the copy's median frame does
+  (0.42 on the lab). Another voice brings its own harmonics: the candidates holding Caleb's
+  "your" (0.33) and "thinking" (0.05) fall below the 0.38 cut, Audra's copy runs
+  0.43–0.57. Kept candidates are
+  protected with or without a transcript word, so untranscribed backchannels, laughs,
+  and own words reconcile gave to the peer stay at full level. Unsuppressed own
+  words protect their connected voiced runs, which stop at foreign spans, and
+  untranscribed placements stay protected.
 
-A direct track still gated shut is no evidence either way. Where the owner's own
-track gates open late, the copy on this lane is still turned down. Bleed is never
-kept as the main audio for another speaker, so the first moments of a late-gated
-word can be quieter in the mix (#945). The lane's own sound that is quieter than
-the copy is turned down with it unless an own word covers it. Words reconcile left
+A direct track still gated shut is no evidence of the lane's speaker. Where the
+owner's own track gates open late, the copy on this lane is still turned down. Bleed
+is never kept as the main audio for another speaker, so the first moments of a
+late-gated word can be quieter in the mix (#945). Own sound less than about 4 dB over
+the copy cannot be told from it and is turned down with it. Words reconcile left
 unsuppressed on this lane stay protected even when they are really the peer's, so
-those copies stay at full level. Unavailable evidence abstains
+those copies stay at full level, and a third speaker's copy with no candidate words
+of its own is protected as not the peer's. Unavailable evidence abstains
 and is reported in `gate_reasons`. Crossfade layouts abstain because their rendered
 clock can diverge from raw placements. Applying the flag does not prove bleed was
 reduced, so compare stems before and after.
