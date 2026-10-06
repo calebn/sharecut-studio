@@ -1642,3 +1642,71 @@ def test_partial_copy_of_a_mute_pastes_silent_up_to_the_cut(tmp_path):
     rendered = _render_samples(project)
     assert np.count_nonzero(_samples(rendered, 4.0, 4.0 + silent_end - 1.15)) == 0
     assert np.max(np.abs(_samples(rendered, 4.0, 4.85) - _samples(whole, 1.15, 2.0))) < 1e-4
+
+
+def _approved_mute_workspace(tmp_path: Path):
+    from podcast_mcp.project_store import ProjectStore
+
+    project, region, whole = _approved_silent_mute(tmp_path)
+    path = Path(project.workspace_dir) / "episode.project.json"
+    ProjectStore(path).commit(project)
+    return ProjectWorkspace.open(path), region, whole
+
+
+def _trim(ws: ProjectWorkspace, edge: str, source_sec: float) -> None:
+    from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
+
+    token = boundary_context(ws.project, TrimBoundaryTarget(clip_id="c1", edge=edge)).token
+    EditService(ws).trim_clip_edge("c1", edge, source_sec, expected_token=token)
+
+
+def _regions(ws: ProjectWorkspace) -> list[tuple[float, float]]:
+    return [(r.start_s, r.end_s) for r in ws.project.clips[0].mute_regions]
+
+
+@pytest.mark.parametrize(
+    ("edge", "past", "back"),
+    [("in", 2.0, 0.0), ("out", 0.5, 4.0)],
+)
+def test_trim_past_a_mute_then_back_keeps_the_span_silent(tmp_path, edge, past, back):
+    ws, region, whole = _approved_mute_workspace(tmp_path)
+    silent_start, silent_end = _silent_span(region)
+
+    _trim(ws, edge, past)
+    _trim(ws, edge, back)
+
+    rendered = _render_samples(ws.project)
+    assert np.count_nonzero(_samples(rendered, silent_start, silent_end)) == 0
+    assert np.max(np.abs(rendered - whole)) < 1e-4
+    assert _regions(ws) == [(region.start_s, region.end_s)]
+
+
+def test_trim_past_a_mute_undo_and_redo_are_exact(tmp_path):
+    ws, region, _ = _approved_mute_workspace(tmp_path)
+    states = [[c.model_dump() for c in ws.project.clips]]
+
+    _trim(ws, "in", 2.0)
+    states.append([c.model_dump() for c in ws.project.clips])
+    _trim(ws, "in", 0.0)
+    states.append([c.model_dump() for c in ws.project.clips])
+
+    assert _regions(ws) == [(region.start_s, region.end_s)]
+    for expected in reversed(states[:-1]):
+        HistoryService(ws).undo()
+        assert [c.model_dump() for c in ws.project.clips] == expected
+    for expected in states[1:]:
+        HistoryService(ws).redo()
+        assert [c.model_dump() for c in ws.project.clips] == expected
+
+
+def test_repeated_trims_never_duplicate_the_saved_mute_region(tmp_path):
+    ws, region, _ = _approved_mute_workspace(tmp_path)
+    for edge, positions in (("in", (2.0, 0.0, 1.1, 0.5)), ("out", (0.5, 4.0, 1.2, 3.0))):
+        for source_sec in positions:
+            _trim(ws, edge, source_sec)
+
+    saved = json.loads((Path(ws.project.workspace_dir) / "episode.project.json").read_text())
+    (clip,) = saved["timeline"]["clips"]
+    assert [(r["start_s"], r["end_s"]) for r in clip["mute_regions"]] == [
+        (region.start_s, region.end_s)
+    ]
