@@ -5,8 +5,11 @@
  * where it really is. `hitRouting` owns the gesture; this view only draws the
  * `ChooserView` it publishes and hands chip picks back to the router.
  */
+import { usePress } from "@react-aria/interactions";
 import {
+  type ComponentPropsWithoutRef,
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -17,7 +20,12 @@ import { JOIN_GLYPH_PATH, type JoinGlyph } from "../edit/joinRender";
 import { useDawStore } from "../state/dawStore";
 import { useMenuKeyboard } from "../ui/useMenuKeyboard";
 import { formatTime } from "../utils/time";
-import { type ChooserItem, chooserItems, layoutChips } from "./chooserLayout";
+import {
+  type ChooserBounds,
+  type ChooserItem,
+  chooserItems,
+  layoutChips,
+} from "./chooserLayout";
 import { HIT_KINDS, type HitKind } from "./hitCandidates";
 import {
   CHOOSER_ITEM_ATTR,
@@ -154,9 +162,34 @@ function TargetGlyph({
   );
 }
 
+/** A chip button: a press by any input (touch, mouse, keys, AT) picks it. */
+function Chip({
+  onPick,
+  ...props
+}: Omit<ComponentPropsWithoutRef<"button">, "onClick" | "type"> & {
+  onPick: (pointerType: string) => void;
+}) {
+  const { pressProps } = usePress({ onPress: (e) => onPick(e.pointerType) });
+  return (
+    <button
+      type="button"
+      {...props}
+      {...pressProps}
+      onPointerDown={(e: ReactPointerEvent<HTMLButtonElement>) => {
+        // No compatibility mousedown: it would land on the timeline once the
+        // chooser unmounts and pull focus off the picked target.
+        e.preventDefault();
+        pressProps.onPointerDown?.(e);
+      }}
+    />
+  );
+}
+
 export interface TargetChooserProps {
   view: ChooserView;
   router: HitRouter;
+  /** The timeline's visible box; the chooser stays inside it. */
+  bounds: ChooserBounds;
   /** Playing the close; inert, then `onClosed`. */
   closing: boolean;
   onClosed: () => void;
@@ -165,6 +198,7 @@ export interface TargetChooserProps {
 export function TargetChooser({
   view,
   router,
+  bounds,
   closing,
   onClosed,
 }: TargetChooserProps) {
@@ -173,12 +207,7 @@ export function TargetChooser({
   const [focused, setFocused] = useState<number | null>(null);
   const candidates = view.hits.map((h) => h.candidate);
   const items = chooserItems(candidates, view.page);
-  const layout = layoutChips(
-    items.length,
-    view.origin,
-    { width: window.innerWidth, height: window.innerHeight },
-    chipPx,
-  );
+  const layout = layoutChips(items.length, view.origin, bounds, chipPx);
   const hidden = view.hits.length - items.length + 1;
   // One readable caption instead of a label per chip: it names the chip under
   // the finger, else the focused chip, else the best-ranked chip shown.
@@ -224,9 +253,8 @@ export function TargetChooser({
     } as CSSProperties;
     if (item.kind === "more") {
       return (
-        <button
+        <Chip
           key="more"
-          type="button"
           role="menuitem"
           tabIndex={-1}
           className={`target-chip target-chip--more${view.over === "more" ? " is-over" : ""}`}
@@ -234,27 +262,27 @@ export function TargetChooser({
           {...{ [CHOOSER_ITEM_ATTR]: "more" }}
           aria-label={`More targets, ${hidden} not shown`}
           onFocus={() => setFocused(null)}
-          onClick={() => router.nextPage()}
+          onPick={() => router.nextPage()}
         >
           <span className="target-chip-more" aria-hidden="true">
             +{hidden}
           </span>
-        </button>
+        </Chip>
       );
     }
+    const arming = view.fingerDown && view.over === item.index;
     const hit = view.hits[item.index];
     const { kind, selected } = hit.candidate;
     const time = formatTime(hitTimeSec(hit.element));
     const surface = chipSurface(hit);
     const tag = chipTag(hit);
     return (
-      <button
+      <Chip
         key={`${kind}-${hit.candidate.id}`}
-        type="button"
         role="menuitemradio"
         aria-checked={selected}
         tabIndex={-1}
-        className={`target-chip${tag ? " has-tag" : ""}${view.over === item.index ? " is-over" : ""}`}
+        className={`target-chip${tag ? " has-tag" : ""}${view.over === item.index ? " is-over" : ""}${arming ? " is-arming" : ""}`}
         style={
           surface
             ? ({ ...style, "--chip-surface": surface } as CSSProperties)
@@ -263,11 +291,7 @@ export function TargetChooser({
         {...{ [CHOOSER_ITEM_ATTR]: String(item.index) }}
         aria-label={`${chipTitle(hit)} at ${time}`}
         onFocus={() => setFocused(item.index)}
-        // No compatibility mousedown: it would land on the timeline once the
-        // chooser unmounts and pull focus off the picked target.
-        onPointerDown={(e) => e.preventDefault()}
-        onPointerUp={(e) => router.choose(item.index, e.nativeEvent)}
-        onClick={() => router.choose(item.index, null)}
+        onPick={(pointerType) => router.choose(item.index, pointerType)}
       >
         <TargetGlyph kind={kind} detail={hitDetail(hit.element)} />
         {tag ? (
@@ -275,7 +299,7 @@ export function TargetChooser({
             {tag}
           </span>
         ) : null}
-      </button>
+      </Chip>
     );
   };
 
@@ -326,6 +350,11 @@ export function TargetChooser({
         aria-hidden="true"
       >
         {caption}
+        {view.fingerDown && typeof view.over === "number" ? (
+          <span className="target-chooser-hint">
+            Hold to drag · lift to select
+          </span>
+        ) : null}
       </p>
     </div>,
     document.body,

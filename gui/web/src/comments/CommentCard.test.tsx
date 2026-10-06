@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { LONG_PRESS_MS } from "../hooks/touchGestureTiming";
+import { LONG_PRESS_MS } from "../hooks/gestureConstants";
 import { expectNoA11yViolations } from "../test/a11y";
 import { sampleComment } from "../test/fixtures";
 import { CommentCard } from "./CommentCard";

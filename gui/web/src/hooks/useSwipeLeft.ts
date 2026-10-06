@@ -9,7 +9,7 @@ import {
   SWIPE_MIN_DX_PX,
   swipeDragOffset,
   withinGhostClick,
-} from "./touchGestureTiming";
+} from "./gestureConstants";
 
 export type SwipeLeftHandlers = {
   onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
