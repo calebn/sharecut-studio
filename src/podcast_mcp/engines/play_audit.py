@@ -317,7 +317,7 @@ def probe_wav_duration_sec(path: Path) -> float | None:
     """Duration of the WAV at ``path`` in seconds, or None when missing or unreadable.
 
     Probes through ffprobe, so it reads any encoding a render writes. The header-only
-    readers ``services.document.golden_ear._wav_duration_sec`` (stdlib ``wave``) and
+    readers ``services.document.golden_ear._wav_frames_and_rate`` (stdlib ``wave``) and
     ``services.record.landing._wav_duration_s`` (PCM uploads it already validates)
     stay separate on purpose: they avoid a subprocess per file.
 

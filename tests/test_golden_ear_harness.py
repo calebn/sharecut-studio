@@ -692,6 +692,73 @@ def test_build_real_aligned_dialogue_smoke(tmp_path):
     assert not (out / LISTEN_DIRNAME / "key.json").exists()
 
 
+def _wav_pcm(path: Path) -> tuple[int, int, bytes]:
+    with wave.open(str(path), "rb") as handle:
+        return (
+            handle.getnframes(),
+            handle.getsampwidth() * handle.getnchannels(),
+            handle.readframes(handle.getnframes()),
+        )
+
+
+@pytest.mark.parametrize(
+    ("cut_sec", "pad_sec"),
+    [(0.4, 0.6), (2.0, None)],
+    ids=["pad-longer-than-cut", "cut-longer-than-pad"],
+)
+def test_build_serves_equal_length_clips_whichever_side_is_longer(
+    tmp_path, monkeypatch, cut_sec, pad_sec
+):
+    eng = FFmpegEngine()
+    ok, _ = eng.check_available()
+    if not ok:
+        pytest.skip("ffmpeg not available")
+    source = copy_relocated_project(FIXTURE, tmp_path / "source")
+    store = ProjectStore(source)
+    project = store.load()
+    project.edit_decisions = [
+        EditDecision(
+            id="padded-pause",
+            track_id="reference",
+            type=EditDecisionType.REMOVE,
+            start=14.0,
+            end=14.0 + cut_sec,
+            reason="pause:2.00s",
+            review_required=True,
+            applied=False,
+            replace_gap_sec=pad_sec,
+        )
+    ]
+    store.commit(project)
+    previews: dict[str, tuple[int, int, bytes]] = {}
+    real_preview = PlayService.play_pending_preview
+
+    def spy(self, edit_id, *, mode="suggested", **kwargs):
+        result = real_preview(self, edit_id, mode=mode, **kwargs)
+        previews[mode] = _wav_pcm(result.wav_path)
+        return result
+
+    monkeypatch.setattr(PlayService, "play_pending_preview", spy)
+    monkeypatch.setattr(EditService, "propose_tighten", lambda self, **kwargs: [])
+    out = tmp_path / "golden-equal"
+    result = build_golden_ear(source, out, limit=1, seed=0, classes="pause")
+    assert result["pair_count"] == 1
+    key = json.loads((out / "key.json").read_text(encoding="utf-8"))
+    pair = out / LISTEN_DIRNAME / key["pairs"][0]["id"]
+    served = {
+        "current": _wav_pcm(pair / key["pairs"][0]["leave_file"]),
+        "suggested": _wav_pcm(pair / key["pairs"][0]["edit_file"]),
+    }
+    shorter, longer = sorted(previews, key=lambda mode: previews[mode][0])
+    assert previews[shorter][0] < previews[longer][0]
+    assert served["current"][0] == served["suggested"][0] == previews[longer][0]
+    for mode, (frames, width, pcm) in served.items():
+        preview_frames, _, preview_pcm = previews[mode]
+        assert pcm[: preview_frames * width] == preview_pcm
+        assert not any(pcm[preview_frames * width :])
+        assert frames == previews[longer][0]
+
+
 def test_copy_premix_partial_and_project_symlink(tmp_path, sample_wav):
     src = tmp_path / "src"
     src.mkdir()
@@ -717,20 +784,20 @@ def test_copy_premix_partial_and_project_symlink(tmp_path, sample_wav):
 
 def test_pad_and_workspace_helpers(tmp_path, sample_wav, monkeypatch):
     from podcast_mcp.services.document.golden_ear import (
+        _equalize_clip_lengths,
         _normalize_prefer,
         _out_has_content,
-        _pad_edit_to_leave,
         _publish_pair_dir,
         _reuse_workspace,
-        _wav_duration_sec,
+        _wav_frames_and_rate,
         answers_have_preferences,
         min_gated_n_for,
     )
 
-    assert _wav_duration_sec(tmp_path / "missing.wav") is None
+    assert _wav_frames_and_rate(tmp_path / "missing.wav") is None
     junk = tmp_path / "junk.wav"
     junk.write_text("not a wav", encoding="utf-8")
-    assert _wav_duration_sec(junk) is None
+    assert _wav_frames_and_rate(junk) is None
 
     class _ZeroRate:
         def __enter__(self):
@@ -748,26 +815,28 @@ def test_pad_and_workspace_helpers(tmp_path, sample_wav, monkeypatch):
     monkeypatch.setattr(
         "podcast_mcp.services.document.golden_ear.wave.open", lambda *a, **k: _ZeroRate()
     )
-    assert _wav_duration_sec(sample_wav) is None
+    assert _wav_frames_and_rate(sample_wav) is None
     monkeypatch.undo()
+    assert _wav_frames_and_rate(sample_wav)[1] > 0
     assert min_gated_n_for(1) == 1
     assert answers_have_preferences(tmp_path / "nope.csv") is False
     empty = tmp_path / "empty-out"
     empty.mkdir()
     assert _out_has_content(empty) is False
     assert _out_has_content(tmp_path / "missing-out") is False
-    assert _pad_edit_to_leave(junk, sample_wav) is True
+    assert _equalize_clip_lengths(junk, sample_wav) is True
     monkeypatch.setattr(FFmpegEngine, "check_available", lambda self: (False, "missing"))
     short = tmp_path / "short.wav"
     _shorten_wav(sample_wav, short, 0.3)
-    assert _pad_edit_to_leave(sample_wav, short) is False
+    assert _equalize_clip_lengths(sample_wav, short) is False
     monkeypatch.setattr(FFmpegEngine, "check_available", lambda self: (True, "ok"))
 
     def boom(self, *args, **kwargs):
         raise ValueError("pad fail")
 
     monkeypatch.setattr(FFmpegEngine, "pad_end_silence", boom)
-    assert _pad_edit_to_leave(sample_wav, short) is False
+    assert _equalize_clip_lengths(sample_wav, short) is False
+    assert _equalize_clip_lengths(short, sample_wav) is False
     staging = tmp_path / "pair.partial"
     staging.mkdir()
     (staging / "1.wav").write_bytes(b"a")
@@ -888,7 +957,8 @@ def test_render_clears_partial_and_skips_pad_failure(tmp_path, sample_wav, monke
     assert rendered is not None
     assert not partial.exists()
     monkeypatch.setattr(
-        "podcast_mcp.services.document.golden_ear._pad_edit_to_leave", lambda *args, **kwargs: False
+        "podcast_mcp.services.document.golden_ear._equalize_clip_lengths",
+        lambda *args, **kwargs: False,
     )
     skipped_dir = tmp_path / "pair_001"
     skipped = _render_pair_wavs(
