@@ -149,13 +149,20 @@ export function rangeEditMode(
   return "none";
 }
 
-/** Host or guest with ``suggest``/``edit`` may nudge pending / suggest cuts. */
-export function canSuggestOrNudge(
+/**
+ * Mirrors the server's ``authorize_pending_update``: host or ``edit`` retimes any
+ * pending edit; a ``suggest``-only guest retimes only guest suggestions.
+ */
+export function canRetimePendingEdit(
   projectPath: string,
-  guestMode: string | null,
-  capabilities?: string[] | null,
+  capabilities: string[] | null | undefined,
+  reason: string | null | undefined,
 ): boolean {
-  return canSuggestStructural(projectPath, guestMode, capabilities);
+  if (canApplyPass12(projectPath, null, capabilities)) return true;
+  return (
+    canSuggestStructural(projectPath, null, capabilities) &&
+    (reason ?? "").startsWith("guest:suggest")
+  );
 }
 
 /** Host-only mutations (envelopes, markers, transcript, FX). */

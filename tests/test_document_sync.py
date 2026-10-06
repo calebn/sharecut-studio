@@ -1427,7 +1427,7 @@ def test_document_set_transcript_words_ignored(minimal_project):
     ws3 = ProjectWorkspace.open(minimal_project)
     assert not any(w.ignored for w in ws3.project.transcripts[0].words)
 
-    assert "SetTranscriptWordsIgnored" not in document_command_types_for_caps(["edit"])
+    assert "SetTranscriptWordsIgnored" not in document_command_types_for_caps(["view", "edit"])
 
 
 def test_document_markers_envelope_and_suggest(envelope_project):
@@ -1707,31 +1707,31 @@ def test_authorize_document_command_caps():
     )
 
     authorize_document_command(None, "SetEnvelope")
-    authorize_document_command(["edit"], "ApproveEdits")
-    authorize_document_command(["edit"], "SetEffectBypass")
-    authorize_document_command(["suggest"], "SuggestPendingEdit")
-    authorize_document_command(["edit"], "SplitAtTime")
-    authorize_document_command(["suggest"], "SplitAtTime")
-    authorize_document_command(["edit"], "PasteSegment")
-    authorize_document_command(["edit"], "RippleDeleteRange")
-    authorize_document_command(["edit"], "AddTrack")
-    authorize_document_command(["edit"], "SetTrackMedia")
-    authorize_document_command(["edit"], "SetTrackMeta")
-    authorize_document_command(["edit"], "RemoveTrack")
-    authorize_document_command(["edit"], "ReorderTrack")
-    authorize_document_command(["edit"], "MoveClips")
+    authorize_document_command(["view", "edit"], "ApproveEdits")
+    authorize_document_command(["view", "edit"], "SetEffectBypass")
+    authorize_document_command(["view", "suggest"], "SuggestPendingEdit")
+    authorize_document_command(["view", "edit"], "SplitAtTime")
+    authorize_document_command(["view", "suggest"], "SplitAtTime")
+    authorize_document_command(["view", "edit"], "PasteSegment")
+    authorize_document_command(["view", "edit"], "RippleDeleteRange")
+    authorize_document_command(["view", "edit"], "AddTrack")
+    authorize_document_command(["view", "edit"], "SetTrackMedia")
+    authorize_document_command(["view", "edit"], "SetTrackMeta")
+    authorize_document_command(["view", "edit"], "RemoveTrack")
+    authorize_document_command(["view", "edit"], "ReorderTrack")
+    authorize_document_command(["view", "edit"], "MoveClips")
     with pytest.raises(PermissionError):
-        authorize_document_command(["suggest"], "AddTrack")
+        authorize_document_command(["view", "suggest"], "AddTrack")
     with pytest.raises(PermissionError):
-        authorize_document_command(["suggest"], "ReorderTrack")
+        authorize_document_command(["view", "suggest"], "ReorderTrack")
     with pytest.raises(PermissionError):
-        authorize_document_command(["suggest"], "MoveClips")
+        authorize_document_command(["view", "suggest"], "MoveClips")
     with pytest.raises(PermissionError):
-        authorize_document_command(["suggest"], "PasteSegment")
+        authorize_document_command(["view", "suggest"], "PasteSegment")
     with pytest.raises(PermissionError):
-        authorize_document_command(["suggest"], "ApproveEdits")
+        authorize_document_command(["view", "suggest"], "ApproveEdits")
     with pytest.raises(PermissionError):
-        authorize_document_command(["suggest"], "SetEffectBypass")
+        authorize_document_command(["view", "suggest"], "SetEffectBypass")
     with pytest.raises(PermissionError):
         authorize_document_command(["view"], "UpdatePendingEdit")
     with pytest.raises(PermissionError):

@@ -256,7 +256,7 @@ def command(selection, action="cut"):
     [
         (None, "propose", None),
         (["view", "play", "suggest"], "apply", None),
-        (["edit"], "apply", "propose"),
+        (["view", "edit"], "apply", "propose"),
     ],
     ids=["agent", "suggest-guest", "edit-guest-offline"],
 )
@@ -304,7 +304,7 @@ def test_agents_suggest_guests_and_offline_edits_propose(
 
 
 @pytest.mark.parametrize("action", ["cut", "mute"])
-@pytest.mark.parametrize("caps", [["edit"], ["view", "play", "comment", "suggest", "edit"]])
+@pytest.mark.parametrize("caps", [["view", "edit"], ["view", "play", "comment", "suggest", "edit"]])
 def test_edit_guest_range_applies_with_one_undo(minimal_project, caps, action):
     ws = ProjectWorkspace.open(minimal_project)
     fixture(ws.project)

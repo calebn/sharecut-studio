@@ -14,7 +14,7 @@ Connect a remote MCP client (e.g. Cursor) to a **review share token** so an agen
 ## When to use
 
 - Collaborator needs an agent against a shared episode without host filesystem access
-- Share already (or will) include `mcp` plus `view` / `comment` / `suggest` / `edit` as appropriate
+- Share already (or will) include `mcp` plus `view` / `comment` / `suggest` / `edit` as appropriate. `guest_submit_document_command` needs `view` with `suggest` or `edit`, as the browser route does. A `suggest` agent may retime only guest suggestions
 
 ## Host checklist
 

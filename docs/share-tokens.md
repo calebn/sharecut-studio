@@ -173,17 +173,21 @@ is omitted. Browser and share MCP always share one capability set — see
 [host-online-relay.md](host-online-relay.md) § Share capabilities.
 
 Selected-range edits (transcript words or a timeline range) follow the same
-capabilities. No separate transcript permission exists.
+capabilities. No separate transcript permission exists. Every document command
+needs `view`, on the browser route and the guest MCP alike: a share with
+`suggest` or `edit` but no `view` can run none.
 
-| Capabilities | Transcript **Select** and timed words | Range Cut / Mute |
-|--------------|----------------------------------------|------------------|
-| `edit` | Yes | **Cut** / **Mute** apply at once, one History step |
-| `suggest` (no `edit`) | Yes | **Suggest cut** / **Suggest mute** create a pending edit for host review |
-| `view` / `play` / `comment` / `reply` only | No (untimed utterance text) | Refused by the document-command gate |
+| Capabilities | Transcript **Select** and timed words | Range Cut / Mute | Retime a pending edit |
+|--------------|----------------------------------------|------------------|-----------------------|
+| `view` + `edit` | Yes | **Cut** / **Mute** apply at once, one History step; a guest MCP agent proposes | Any pending edit |
+| `view` + `suggest` (no `edit`) | Yes | **Suggest cut** / **Suggest mute** create a pending edit for host review | Only guest suggestions (`guest:suggest*` reasons) |
+| `view` / `play` / `comment` / `reply` only | No (untimed utterance text) | Refused by the document-command gate | Refused |
 
 The document-command gate (`authorize_document_command` plus
-`policy.resolve_range_mode`) enforces the table; the Studio reads it from
-`rangeEditMode` in `gui/web/src/shareMode.ts` only to choose affordances.
+`policy.resolve_range_mode` and `policy.authorize_pending_update`) enforces the
+table; the Studio reads it from `rangeEditMode` and `canRetimePendingEdit` in
+`gui/web/src/shareMode.ts` only to choose affordances. Guest suggestions carry no
+per-share author, so a `suggest` guest may retime any guest's suggestion.
 
 **Login policy:** production public shares are **link only**. Restricted /
 `require_sign_in` minting is refused unless `PODCAST_SHARE_ACCOUNTS=1` (stub

@@ -27,3 +27,8 @@ LABELLED_REASON_CODES: tuple[str, ...] = (
     NL_WORDS_REASON,
 )
 LABELLED_REASON_PREFIXES: tuple[str, ...] = (NL_MATCH_REASON_PREFIX, NL_UTTERANCE_REASON_PREFIX)
+
+
+def is_guest_suggestion(reason: str | None) -> bool:
+    """True when a share guest proposed this pending edit (every ``guest:suggest*`` code)."""
+    return reason is not None and reason.startswith(GUEST_SUGGEST_REASON)

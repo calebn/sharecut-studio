@@ -388,10 +388,10 @@ def _render_remote_tools() -> str:
     from podcast_mcp.services.remote_mcp import (
         ACTION_TOOLS,
         COMMENT_TOOLS,
+        DOCUMENT_COMMAND_TOOLS,
         EDIT_TOOLS,
         PLAY_AND_VIEW_TOOLS,
         PLAY_TOOLS,
-        SUGGEST_TOOLS,
         VIEW_TOOLS,
     )
 
@@ -412,8 +412,8 @@ def _render_remote_tools() -> str:
         f"| `+view` | {fmt(VIEW_TOOLS - PLAY_TOOLS)} |",
         f"| `+comment` / `reply` | {fmt(COMMENT_TOOLS - PLAY_TOOLS)} |",
         f"| `+action` | {fmt(ACTION_TOOLS)} |",
-        f"| `+suggest` / `+edit` | {fmt(SUGGEST_TOOLS)} |",
-        f"| `+edit` only | {fmt(EDIT_TOOLS - SUGGEST_TOOLS)} |",
+        f"| `view` + (`suggest` / `edit`) | {fmt(DOCUMENT_COMMAND_TOOLS)} |",
+        f"| `+edit` only | {fmt(EDIT_TOOLS)} |",
         "",
         REMOTE_END,
         "",

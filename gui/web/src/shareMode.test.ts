@@ -6,8 +6,8 @@ import {
   canHostMutate,
   canRefreshMix,
   canReply,
+  canRetimePendingEdit,
   canSetAction,
-  canSuggestOrNudge,
   canSuggestStructural,
   commentRole,
   guestHearsMixOnly,
@@ -40,17 +40,34 @@ describe("shareMode", () => {
     const host = "/tmp/ep.project.json";
     const share = shareProjectKey("tok");
     expect(canApplyPass12(host, null)).toBe(true);
-    expect(canSuggestOrNudge(host, null)).toBe(true);
     expect(canHostMutate(host)).toBe(true);
 
     expect(canApplyPass12(share, "edit")).toBe(false);
     expect(canApplyPass12(share, "edit", editCaps)).toBe(true);
-    expect(canSuggestOrNudge(share, "edit", editCaps)).toBe(true);
     expect(canApplyPass12(share, "suggest", suggestCaps)).toBe(false);
-    expect(canSuggestOrNudge(share, "suggest", suggestCaps)).toBe(true);
     expect(canApplyPass12(share, "view", ["play", "view"])).toBe(false);
-    expect(canSuggestOrNudge(share, "view", ["play", "view"])).toBe(false);
     expect(canHostMutate(share)).toBe(false);
+  });
+
+  it("lets suggest guests retime only guest suggestions", () => {
+    const host = "/tmp/ep.project.json";
+    const share = shareProjectKey("tok");
+    const reasons = [null, "nl:range", "guest:suggest", "guest:suggest_split"];
+    expect(reasons.map((r) => canRetimePendingEdit(host, null, r))).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ]);
+    expect(
+      reasons.map((r) => canRetimePendingEdit(share, editCaps, r)),
+    ).toEqual([true, true, true, true]);
+    expect(
+      reasons.map((r) => canRetimePendingEdit(share, suggestCaps, r)),
+    ).toEqual([false, false, true, true]);
+    expect(
+      reasons.map((r) => canRetimePendingEdit(share, ["play", "view"], r)),
+    ).toEqual([false, false, false, false]);
   });
 
   it("gates structural apply vs suggest", () => {

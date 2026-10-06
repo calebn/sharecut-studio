@@ -668,22 +668,21 @@ def test_share_daw_document_command_caps(minimal_project, sample_wav, tmp_worksp
     )
     ws.save()
 
-    nudged = client.post(
-        f"/api/review/{sug_tok}/daw/document/command",
-        json={
-            "client_id": "t",
-            "client_seq": 2,
-            "role": "guest",
-            "type": "UpdatePendingEdit",
-            "payload": {
-                "id": "pend-share-1",
-                "start": 0.55,
-                "end": 1.05,
-                "snap": False,
+    def nudge(edit_id: str, seq: int):
+        return client.post(
+            f"/api/review/{sug_tok}/daw/document/command",
+            json={
+                "client_id": "t",
+                "client_seq": seq,
+                "role": "guest",
+                "type": "UpdatePendingEdit",
+                "payload": {"id": edit_id, "start": 0.55, "end": 1.05, "snap": False},
             },
-        },
-    )
-    assert nudged.status_code == 200
+        )
+
+    assert nudge("pend-share-1", 2).status_code == 403
+    own = next(e.id for e in load_project(minimal_project).edit_decisions if e.id != "pend-share-1")
+    assert nudge(own, 2).status_code == 200
 
     approve_blocked = client.post(
         f"/api/review/{sug_tok}/daw/document/command",
