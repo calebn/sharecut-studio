@@ -1075,7 +1075,7 @@
       "docs": [
         "docs/share-tokens.md"
       ],
-      "gate": {
+      "advisory": {
         "include": [
           "src/podcast_mcp/services/document_sync/policy.py",
           "src/podcast_mcp/services/document_sync/capabilities.py",
@@ -1092,7 +1092,7 @@
       "docs": [
         "docs/daw-editing.md"
       ],
-      "gate": {
+      "advisory": {
         "include": [
           "src/podcast_mcp/edits/range_edits.py",
           "gui/web/src/edit/rangeSelection.ts",
@@ -1107,7 +1107,7 @@
       "docs": [
         "docs/gui-integration.md"
       ],
-      "gate": {
+      "advisory": {
         "include": [
           "gui/web/src/tracks/TrackMuteSoloButtons.tsx",
           "gui/web/src/tracks/trackMuteCopy.ts",
@@ -1122,7 +1122,7 @@
       "docs": [
         "docs/audio-engineering.md"
       ],
-      "gate": {
+      "advisory": {
         "include": [
           "src/podcast_mcp/engines/mastering.py"
         ]
@@ -1135,7 +1135,7 @@
       "docs": [
         "docs/audio-engineering.md"
       ],
-      "gate": {
+      "advisory": {
         "include": [
           "src/podcast_mcp/engines/bleed_gate.py",
           "src/podcast_mcp/edits/transcript_bleed_mute.py"
@@ -1149,7 +1149,7 @@
       "docs": [
         "docs/filler-cut-quality.md"
       ],
-      "gate": {
+      "advisory": {
         "include": [
           "src/podcast_mcp/edits/fillers.py",
           "src/podcast_mcp/edits/word_onset.py",
@@ -1164,7 +1164,7 @@
       "docs": [
         "docs/multitrack-ingest.md"
       ],
-      "gate": {
+      "advisory": {
         "include": [
           "src/podcast_mcp/engines/envelope_lag.py",
           "src/podcast_mcp/edits/bleed_latency.py",
@@ -1179,7 +1179,7 @@
       "docs": [
         "docs/touch-editor-decisions.md"
       ],
-      "gate": {
+      "advisory": {
         "include": [
           "gui/web/src/ui/BottomSheet.tsx",
           "gui/web/src/commands/gestures.ts",

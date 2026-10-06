@@ -270,7 +270,7 @@ date: 2026-10-06
 decided-by: calebn
 evidence:
 - #1007 owner requirement: "The final master levels must be user-configurable, with the sensible defaults we picked"
-- #1008 owner listening on loudness-matched lab and demo clips: limiter master preferred; "The default target stays −16 LUFS"
+- #1008 owner listening on loudness-matched lab and demo clips: limiter master slightly preferred; "The default target stays −16 LUFS"
 - #1008: the crest-taming retry it replaced left the demo at −17.2 LUFS; the limiter plan gives −16.0 LUFS / −1.7 dBTP
 - #1009 retarget table: −19 LUFS staged re-masters to −19.0, back to −16 re-masters, unchanged settings hit the cache
 enforced-by:
