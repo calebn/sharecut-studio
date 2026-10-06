@@ -129,6 +129,8 @@ class ShareRegistryProtocol(Protocol):
 
     def get_active(self, token: str) -> dict[str, Any] | None: ...
 
+    def list_active_for_workspace(self, project_workspace: str) -> list[dict[str, Any]]: ...
+
     def claim_active(self, share: dict[str, Any]) -> None: ...
 
     def release_claim(self, token: str) -> bool: ...
@@ -224,6 +226,15 @@ class SqliteShareRegistry:
             if row is None:
                 return None
             return self._active_row_to_dict(row)
+
+    def list_active_for_workspace(self, project_workspace: str) -> list[dict[str, Any]]:
+        """Active rows minted for one episode workspace (the host's share list)."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM active_shares WHERE project_workspace = ?",
+                (project_workspace,),
+            ).fetchall()
+            return [self._active_row_to_dict(row) for row in rows]
 
     def claim_active(self, share: dict[str, Any]) -> None:
         """Insert an active share with its ``id``. Raises ``ValueError`` if token is reserved."""

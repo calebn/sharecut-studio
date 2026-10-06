@@ -108,9 +108,10 @@ def test_host_shares_http_list_create_revoke(
     assert revoked.status_code == 200
     assert revoked.json() == {"revoked": True, "token": token}
     after = client.get("/api/shares", params={"path": path})
-    live = [r for r in after.json()["shares"] if r["token"] == token]
-    assert live[0]["usable"] is False
-    assert live[0]["revoked"] is True
+    assert token not in {r["token"] for r in after.json()["shares"]}
+    revoked_row = next(r for r in ShareService(ws).list() if r["id"] == share["id"])
+    assert revoked_row["revoked"] is True
+    assert "token" not in revoked_row
 
     assert ShareService(ws).list()
 
@@ -222,3 +223,50 @@ def test_host_shares_binding_prefix():
     assert path_requires_host_binding("/api/shares/tok/revoke")
     assert path_requires_host_binding("/api/record/command")
     assert not path_requires_host_binding("/api/review/tok/project")
+
+
+def _files_holding(root: Path, needle: str) -> list[str]:
+    return sorted(
+        str(path.relative_to(root))
+        for path in root.rglob("*")
+        if path.is_file() and needle.encode() in path.read_bytes()
+    )
+
+
+def test_share_token_never_lands_in_the_workspace(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import json
+
+    from podcast_mcp.edits.review_shares import shares_path
+
+    monkeypatch.delenv("PODCAST_SESSION_AUTHZ", raising=False)
+    ws = _seed_premix(minimal_project, sample_wav)
+    workspace = ws.project.workspace_path()
+    path = str(minimal_project)
+    client = TestClient(create_app(served_project=Path(minimal_project)))
+    created = client.post("/api/shares", json={"path": path, "role": "editor"}).json()["share"]
+    token = created["token"]
+
+    assert _files_holding(workspace, token) == []
+    listed = client.get("/api/shares", params={"path": path}).json()["shares"]
+    assert [row["url"].rsplit("/", 1)[-1] for row in listed] == [token]
+    guest = client.get(f"/api/review/{token}/project")
+    assert guest.status_code == 200
+    assert guest.json()["capabilities"] == created["capabilities"]
+    comment = client.post(
+        f"/api/review/{token}/comments",
+        json={"body": "nice", "author": "g", "timeline_start": 0.1},
+    )
+    assert comment.status_code == 200
+    assert _files_holding(workspace, token) == []
+
+    sidecar = shares_path(ws.project)
+    rows = json.loads(sidecar.read_text(encoding="utf-8"))
+    rows[0]["token"] = "stale-old-token"
+    sidecar.write_text(json.dumps(rows), encoding="utf-8")
+    assert [row["token"] for row in ShareService(ws).list()] == [token]
+    assert client.get("/api/review/stale-old-token/project").status_code == 404
+    assert client.post(f"/api/shares/{token}/revoke", json={"path": path}).status_code == 200
+    assert _files_holding(workspace, "stale-old-token") == []
+    assert _files_holding(workspace, token) == []

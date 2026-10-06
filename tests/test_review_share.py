@@ -2173,6 +2173,7 @@ def test_guest_waveform_deleted_version_revokes_share(minimal_project, sample_wa
     from podcast_mcp.edits.review_shares import list_shares_for_workspace, resolve_share
 
     client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
+    share_id = resolve_share(token)["id"]
     key = client.get(f"/api/review/{token}/daw/waveform/status").json()["media"]["track:host"][
         "key"
     ]
@@ -2188,13 +2189,14 @@ def test_guest_waveform_deleted_version_revokes_share(minimal_project, sample_wa
     assert denied.headers["cache-control"] == "no-store"
     assert resolve_share(token) is None
     side = next(
-        row for row in list_shares_for_workspace(minimal_project.parent) if row["token"] == token
+        row for row in list_shares_for_workspace(minimal_project.parent) if row["id"] == share_id
     )
     assert side["revoked"] is True
+    assert "token" not in side
 
 
 def test_guest_waveform_live_sidecar_access_and_capability(minimal_project, sample_wav):
-    from podcast_mcp.edits.review_shares import shares_path_for_workspace
+    from podcast_mcp.edits.review_shares import resolve_share, shares_path_for_workspace
 
     client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
     key = client.get(f"/api/review/{token}/daw/waveform/status").json()["media"]["track:host"][
@@ -2204,14 +2206,15 @@ def test_guest_waveform_live_sidecar_access_and_capability(minimal_project, samp
     params = {"ref": "track:host", "level": 0, "start": 0}
     assert client.get(url, params=params).status_code == 200
 
+    share_id = resolve_share(token)["id"]
     path = shares_path_for_workspace(minimal_project.parent)
     rows = json.loads(path.read_text(encoding="utf-8"))
-    next(row for row in rows if row["token"] == token)["require_sign_in"] = True
+    next(row for row in rows if row["id"] == share_id)["require_sign_in"] = True
     path.write_text(json.dumps(rows), encoding="utf-8")
     sign_in = client.get(url, params=params)
     assert sign_in.status_code == 401
 
-    row = next(row for row in rows if row["token"] == token)
+    row = next(row for row in rows if row["id"] == share_id)
     row["require_sign_in"] = False
     row["capabilities"] = ["play"]
     path.write_text(json.dumps(rows), encoding="utf-8")
@@ -2225,7 +2228,7 @@ def test_guest_waveform_symlinked_project_uses_target_sidecar(
 ):
     import podcast_mcp.services.app.workspace as workspace
     import podcast_mcp.services.collaboration.share as sharing
-    from podcast_mcp.edits.review_shares import shares_path_for_workspace
+    from podcast_mcp.edits.review_shares import resolve_share, shares_path_for_workspace
     from podcast_mcp.edits.share_registry import get_share_registry
 
     client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
@@ -2238,7 +2241,8 @@ def test_guest_waveform_symlinked_project_uses_target_sidecar(
 
     target_sidecar = shares_path_for_workspace(minimal_project.parent)
     rows = json.loads(target_sidecar.read_text(encoding="utf-8"))
-    target_row = next(row for row in rows if row["token"] == token)
+    share_id = resolve_share(token)["id"]
+    target_row = next(row for row in rows if row["id"] == share_id)
     target_row["require_sign_in"] = True
     target_row["last_used_at"] = "2000-01-01T00:00:00+00:00"
     target_sidecar.write_text(json.dumps(rows), encoding="utf-8")
@@ -2265,7 +2269,7 @@ def test_guest_waveform_symlinked_project_uses_target_sidecar(
     assert review_load.call_count == 0
     refreshed = json.loads(target_sidecar.read_text(encoding="utf-8"))
     assert (
-        next(row for row in refreshed if row["token"] == token)["last_used_at"]
+        next(row for row in refreshed if row["id"] == target_row["id"])["last_used_at"]
         != target_row["last_used_at"]
     )
     assert not shares_path_for_workspace(alias).exists()

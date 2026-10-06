@@ -1105,7 +1105,7 @@ category gap — say it in lobby copy.
 ## Where state lives
 
 Token metadata: share registry + `artifacts/review/shares.json` hold `kind`,
-`session_id`, and role. Live-room state lives in existing
+`session_id`, and role (the token itself only in the registry). Live-room state lives in existing
 `artifacts/session/sync.db` via `services/record/` on a prefixed `SyncStore`
 (`record_commands`, `record_snapshot`, `record_clients`) plus
 `record_participants` (lease **hashes** only). All record stores share the
