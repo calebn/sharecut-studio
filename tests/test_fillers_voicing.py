@@ -264,23 +264,50 @@ def _continuous_voice_project(tmp_path: Path) -> EpisodeProject:
     return _project(tmp_path, samples, words)
 
 
-def test_word_cut_with_voice_running_through_both_edges_is_reviewed(tmp_path: Path) -> None:
+def test_filler_with_voice_running_on_from_the_kept_word_before_is_skipped(
+    tmp_path: Path,
+) -> None:
     project = _continuous_voice_project(tmp_path)
+    skips: dict[str, int] = {}
+
+    decisions = analyze_fillers_and_pauses(
+        project, project.transcripts[0], CONTINUOUS_VOICE_DEFAULTS, skip_counts=skips
+    )
+
+    # Neither "like" nor "um" starts out of quiet after the kept word before it (#1061).
+    assert [d.reason for d in decisions] == []
+    assert skips == {"filler_onset": 2}
+
+
+def _fused_voice_project(tmp_path: Path) -> EpisodeProject:
+    """ "kind of ... um edits": the "um" runs straight into the kept "edits"."""
+    samples = np.zeros(4 * RATE, dtype=np.float32)
+    _voice(samples, 0.5, 1.1)
+    _voice(samples, 1.5, 2.2)
+    words = [
+        TranscriptWord(text="kind", start=0.5, end=0.9),
+        TranscriptWord(text="of", start=0.95, end=1.1),
+        TranscriptWord(text="um", start=1.55, end=1.8),
+        TranscriptWord(text="edits", start=1.85, end=2.2),
+    ]
+    return _project(tmp_path, samples, words)
+
+
+def test_filler_cut_ending_in_a_kept_word_voice_is_reviewed(tmp_path: Path) -> None:
+    project = _fused_voice_project(tmp_path)
 
     decisions = analyze_fillers_and_pauses(
         project, project.transcripts[0], CONTINUOUS_VOICE_DEFAULTS
     )
 
-    # The optimized "like" cut no longer covers half its target span.
-    assert [d.reason for d in decisions] == ["filler:um:voiced_edge"]
-    assert all(d.review_required for d in decisions)
+    assert [(d.reason, d.review_required) for d in decisions] == [("filler:um:voiced_edge", True)]
 
 
 def test_reproposal_regenerates_its_own_review_flagged_hits(tmp_path: Path) -> None:
     """Find hits on an unchanged project converges (#995): a generated review flag
     such as ``voiced_edge`` is not ownership, so re-proposal replaces that pending
     hit and reports it again instead of keeping the stale copy and dropping it."""
-    project = _continuous_voice_project(tmp_path)
+    project = _fused_voice_project(tmp_path)
 
     runs = []
     for _ in range(3):
@@ -509,7 +536,7 @@ def test_unvoiced_material_inside_a_pause_is_not_dead_air(tmp_path: Path) -> Non
     assert apply_tighten_decisions(project) == 0
 
 
-def test_voice_before_a_filler_with_no_word_is_reviewed_not_widened(tmp_path: Path) -> None:
+def test_voice_before_a_filler_word_start_moves_the_cut_to_its_onset(tmp_path: Path) -> None:
     host = np.zeros(4 * RATE, dtype=np.float32)
     _voice(host, 0.30, 0.70)
     _voice(host, 0.90, 1.10)
@@ -531,15 +558,15 @@ def test_voice_before_a_filler_with_no_word_is_reviewed_not_widened(tmp_path: Pa
 
     um, uh = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
 
-    assert um.reason == "filler:um:voiced_edge"
-    assert um.review_required is True
-    assert um.start == pytest.approx(0.475, abs=0.011)
-    assert um.start >= 0.46
+    # The "um" voices from 0.30 s, 200 ms before its word start (#1061).
+    assert um.reason == "filler:um"
+    assert um.review_required is False
+    assert um.start == pytest.approx(0.28, abs=0.005)
     assert um.end == pytest.approx(0.701, abs=0.005)
     assert uh.reason == "filler:uh"
     assert uh.review_required is False
     assert uh.start == pytest.approx(0.740, abs=0.011)
-    assert apply_tighten_decisions(project) == 1
+    assert apply_tighten_decisions(project) == 2
 
 
 def test_voice_after_a_filler_with_no_word_is_reviewed_not_widened(tmp_path: Path) -> None:
