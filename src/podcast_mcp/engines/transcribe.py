@@ -331,12 +331,13 @@ def flag_anomalous_asr_durations(
 
     Whisper sometimes emits one token spanning many seconds of real speech.
     Clamping ``end`` would invent false boundaries; instead keep timestamps
-    and surface the span for refine / audition.
+    and surface the span for refine / audition. A word the span trim marked
+    ``overlong`` (#979) is that case under the duration cap, so it is flagged too.
     """
     flags: list[dict[str, Any]] = []
     for i, w in enumerate(words):
         dur = w.end - w.start
-        if not word_duration_is_anomalous(dur, max_word_sec):
+        if not (w.overlong or word_duration_is_anomalous(dur, max_word_sec)):
             continue
         # Only fill None; a rescan does not upgrade an existing status.
         if mutate and w.audibility_status is None:

@@ -17,6 +17,7 @@ from podcast_mcp.engines.asr_timing import (
     ANOMALOUS_WORD_DURATION_REASON,
     DEFAULT_MAX_SHORT_TOKEN_SEC,
     DEFAULT_MAX_WORD_DURATION_SEC,
+    DEFAULT_WORD_SPAN_END_SLACK_SEC,
     word_duration_is_anomalous,
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline, TimelineClipSpan
@@ -59,6 +60,8 @@ class AnalysisPolicy:
     max_word_audibility_sec: float = DEFAULT_MAX_WORD_DURATION_SEC
     # Filler, backchannel and discourse tokens longer than this are trimmed (#979).
     max_short_token_sec: float = DEFAULT_MAX_SHORT_TOKEN_SEC
+    # The trim looks this far past a word's end for its voice (#979).
+    word_span_end_slack_sec: float = DEFAULT_WORD_SPAN_END_SLACK_SEC
     ml_backend: str = "off"
     transcript_mode: str = "reconcile"
     reconcile_on_render: bool = True
@@ -85,6 +88,9 @@ class AnalysisPolicy:
                 heur.get("max_word_audibility_sec", DEFAULT_MAX_WORD_DURATION_SEC)
             ),
             max_short_token_sec=float(heur.get("max_short_token_sec", DEFAULT_MAX_SHORT_TOKEN_SEC)),
+            word_span_end_slack_sec=float(
+                heur.get("word_span_end_slack_sec", DEFAULT_WORD_SPAN_END_SLACK_SEC)
+            ),
             ml_backend=str(cfg.get("ml_backend", "off")).lower(),
             transcript_mode=str(cfg.get("transcript_mode", "reconcile")),
             reconcile_on_render=bool(cfg.get("reconcile_on_render", True)),

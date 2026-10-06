@@ -352,10 +352,12 @@ analysis:
     bleed_min_other_rms_db: -50.0
     # Word-span plausibility caps (#979). Whisper and the forced aligner stretch a
     # word across digital silence on a gated track (lab: a 5.84 s "-huh.", a 5.98 s
-    # "Uh"). At the end of transcribe_tracks a word longer than its cap is trimmed
-    # onto its own recording's voiced runs nearest the span's end that fit in the
-    # cap, or to the span's last cap seconds when none is voiced; the old span is
-    # kept in the word's trimmed_from. 0 turns a class off.
+    # "Uh"). At the end of transcribe_tracks a word longer than its cap whose voiced
+    # audio fits the cap is trimmed onto its own recording's voiced runs nearest the
+    # span's end that fit in the cap, or to the span's last cap seconds when none is
+    # voiced; the old span is kept in the word's trimmed_from. A word holding more
+    # voice than its cap covers missing words: it keeps its times, is marked
+    # overlong, and goes to the refine queue. 0 turns a class off.
     #
     # Ordinary words. Skip full-span mean RMS, auto-suppress, and text-match
     # suppress when ASR word duration exceeds this. A word the trim could not
@@ -367,9 +369,14 @@ analysis:
     # tighten.discourse_markers ("uh", "huh", "mm", "like", "you", "know"). They
     # are a syllable or two. On the lab recording every one longer than 1.0 s
     # covered at most 0.91 s of its speaker's voiced audio, except in one stretch
-    # (Lana, 1571-1604) where she kept voicing past what the transcript holds, up
-    # to 2.34 s unbroken; those words keep their last 1.0 s.
+    # (Lana, 1571-1604) where she kept voicing past what the transcript holds;
+    # those words are overlong.
     max_short_token_sec: 1.0
+    # How far past a word's end the trim looks for its voice, never into the next
+    # word. Whisper ends spans early on gated tracks: its 5.84 s "-huh." ends 40 ms
+    # before Lana's real uh-huh at 1444.36 s. A trimmed span may end up to this far
+    # past the old end.
+    word_span_end_slack_sec: 0.3
     bleed_text_match_enabled: true
     bleed_text_match_min_overlap_sec: 0.02
     bleed_ratio_warn_threshold: 0.2

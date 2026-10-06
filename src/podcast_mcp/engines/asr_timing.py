@@ -12,6 +12,8 @@ DEFAULT_MAX_WORD_DURATION_SEC = 2.0
 # lab measurement behind 1.0 s is in .agents/defaults/pipeline.yaml
 # (analysis.heuristics.max_short_token_sec).
 DEFAULT_MAX_SHORT_TOKEN_SEC = 1.0
+# #979: Whisper ends spans early on gated tracks (lab: 40 ms before the real uh-huh).
+DEFAULT_WORD_SPAN_END_SLACK_SEC = 0.3
 ANOMALOUS_WORD_DURATION_REASON = "anomalous_word_duration"
 
 
