@@ -350,10 +350,26 @@ analysis:
     audibility_rms_db: -42.0
     bleed_dominance_db: 6.0
     bleed_min_other_rms_db: -50.0
-    # Skip full-span mean RMS, auto-suppress, and text-match suppress when ASR
-    # word duration exceeds this. Transcribe also soft-flags those spans
-    # (deferred + artifacts/transcript_timing.json) without rewriting start/end.
+    # Word-span plausibility caps (#979). Whisper and the forced aligner stretch a
+    # word across digital silence on a gated track (lab: a 5.84 s "-huh.", a 5.98 s
+    # "Uh"). At the end of transcribe_tracks a word longer than its cap is trimmed
+    # onto its own recording's voiced runs nearest the span's end that fit in the
+    # cap, or to the span's last cap seconds when none is voiced; the old span is
+    # kept in the word's trimmed_from. 0 turns a class off.
+    #
+    # Ordinary words. Skip full-span mean RMS, auto-suppress, and text-match
+    # suppress when ASR word duration exceeds this. A word the trim could not
+    # reach (its recording does not decode) is soft-flagged instead (deferred +
+    # artifacts/transcript_timing.json). 2.0 s is the #715 measurement
+    # (engines/asr_timing.py): real long words run 1-1.5 s.
     max_word_audibility_sec: 2.0
+    # Every token of tighten.filler_words, tighten.backchannels and
+    # tighten.discourse_markers ("uh", "huh", "mm", "like", "you", "know"). They
+    # are a syllable or two. On the lab recording every one longer than 1.0 s
+    # covered at most 0.91 s of its speaker's voiced audio, except in one stretch
+    # (Lana, 1571-1604) where she kept voicing past what the transcript holds, up
+    # to 2.34 s unbroken; those words keep their last 1.0 s.
+    max_short_token_sec: 1.0
     bleed_text_match_enabled: true
     bleed_text_match_min_overlap_sec: 0.02
     bleed_ratio_warn_threshold: 0.2

@@ -8,6 +8,10 @@ from __future__ import annotations
 # bleed / precorrect checks, nothing measured supports a lower value for unaligned
 # words, and real long words run 1-1.5 s.
 DEFAULT_MAX_WORD_DURATION_SEC = 2.0
+# #979: fillers, backchannel halves and discourse tokens are a syllable or two; the
+# lab measurement behind 1.0 s is in .agents/defaults/pipeline.yaml
+# (analysis.heuristics.max_short_token_sec).
+DEFAULT_MAX_SHORT_TOKEN_SEC = 1.0
 ANOMALOUS_WORD_DURATION_REASON = "anomalous_word_duration"
 
 

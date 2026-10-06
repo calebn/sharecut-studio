@@ -239,6 +239,20 @@ def _discourse_marker_set(tighten: dict[str, Any]) -> set[str]:
     return _lexicon(raw)
 
 
+def lexicon_tokens(tighten: dict[str, Any]) -> frozenset[str]:
+    """Every token of the filler, backchannel and discourse lexicons, one ASR word each.
+
+    ASR splits entries across words (``uh huh`` -> ``Uh`` + ``-huh.``), so a token
+    matches one word in :func:`lexicon_form`.
+    """
+    entries = (
+        _lexicon(tighten.get("filler_words", []))
+        | _backchannel_set(tighten)
+        | _discourse_marker_set(tighten)
+    )
+    return frozenset(token for entry in entries for token in entry.split())
+
+
 def _prev_nonsuppressed(words: list[TranscriptWord], index: int) -> int | None:
     for j in range(index - 1, -1, -1):
         if not words[j].suppressed and words[j].end > words[j].start:
@@ -730,7 +744,7 @@ def _peer_voiced_in_gap(
     floor = _audibility_floor_db(defaults)
     margin = _bleed_dominance_db(defaults)
     for cache in peer_caches:
-        for run in voiced_runs(cache, gap_start, gap_end, floor_db=floor):
+        for run in voiced_runs(cache.waveform, gap_start, gap_end, floor_db=floor):
             own_db = rms_db(own_cache.window(*run))
             peer_db = rms_db(cache.window(*run))
             if own_db - peer_db < margin:
@@ -1469,8 +1483,8 @@ def _check_voiced_speech(
     floor = _audibility_floor_db(defaults)
     reach = _EDGE_NUDGE_MAX_SEC + _VOICE_EDGE_PAD_SEC + FRAME_SEC
     window_lo, window_hi = cut_start - reach, cut_end + reach
-    own_runs = voiced_runs(audio_cache, window_lo, window_hi, floor_db=floor)
-    peer_runs = [voiced_runs(c, window_lo, window_hi, floor_db=floor) for c in peer_caches]
+    own_runs = voiced_runs(audio_cache.waveform, window_lo, window_hi, floor_db=floor)
+    peer_runs = [voiced_runs(c.waveform, window_lo, window_hi, floor_db=floor) for c in peer_caches]
     span_lo = min(candidate.start, cut_start)
     span_hi = max(candidate.end, cut_end)
 
@@ -1512,7 +1526,9 @@ def _check_voiced_speech(
     ):
         return _VoicedSpeechCheck(cut_start, cut_end, "interior_speech")
     if candidate.cut_kind == "pause" and any(
-        voiced_sec_inside(audible_runs(c, cut_start, cut_end, floor_db=floor), cut_start, cut_end)
+        voiced_sec_inside(
+            audible_runs(c.waveform, cut_start, cut_end, floor_db=floor), cut_start, cut_end
+        )
         >= _INTERIOR_SPEECH_MIN_SEC
         for c in (audio_cache, *peer_caches)
     ):

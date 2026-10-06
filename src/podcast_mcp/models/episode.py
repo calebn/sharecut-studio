@@ -165,6 +165,8 @@ class TranscriptWord(BaseModel):
     # Mean CTC posterior (0..1) of the frames the forced aligner used for this word;
     # None = not force-aligned (Whisper's times). Near 0 = no acoustic evidence (#195).
     alignment_score: float | None = None
+    # The ASR/aligner span before the word-span plausibility trim shortened it (#979).
+    trimmed_from: tuple[float, float] | None = None
     # Text-and-audio hide: struck through in the transcript and muted at render time
     # without a cut, pending edit, or EditDecision (#633). Distinct from `suppressed`
     # (a bleed/wrong-mic word dropped from the combined transcript text).

@@ -20,7 +20,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from podcast_mcp.edits.audio_cache import TrackAudioCache
+from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.util.dsp import bool_runs, bridge_short_dips, frame_rms_db, voicing_probes
 
 VoicedRun = tuple[float, float]
@@ -38,7 +38,7 @@ _MIN_VOICED_FRAMES = 3
 
 
 def audible_runs(
-    cache: TrackAudioCache, start: float, end: float, *, floor_db: float
+    audio: TrackRmsCache, start: float, end: float, *, floor_db: float
 ) -> list[VoicedRun]:
     """Runs of frames at or above ``floor_db`` inside ``[start, end)``, voiced or not.
 
@@ -48,11 +48,11 @@ def audible_runs(
     surely drops outside ``[run.start, run.end]``. Dips shorter than a stop closure
     do not end a run.
     """
-    sr = int(cache.waveform.sample_rate)
+    sr = int(audio.sample_rate)
     frame = max(1, round(sr * FRAME_SEC))
     hop = max(1, round(sr * HOP_SEC))
     t0 = math.floor(max(0.0, start) / HOP_SEC) * HOP_SEC
-    levels = frame_rms_db(cache.window(t0, end), frame, hop)
+    levels = frame_rms_db(audio.window(t0, end), frame, hop)
     if levels.size == 0:
         return []
     active = bridge_short_dips(levels >= floor_db, max(1, round(_BRIDGE_SEC / HOP_SEC)))
@@ -60,14 +60,14 @@ def audible_runs(
 
 
 def voiced_runs(
-    cache: TrackAudioCache, start: float, end: float, *, floor_db: float
+    audio: TrackRmsCache, start: float, end: float, *, floor_db: float
 ) -> list[VoicedRun]:
     """The :func:`audible_runs` that carry a clear speech-pitch peak in three probes."""
-    sr = int(cache.waveform.sample_rate)
+    sr = int(audio.sample_rate)
     runs: list[VoicedRun] = []
-    for run in audible_runs(cache, start, end, floor_db=floor_db):
+    for run in audible_runs(audio, start, end, floor_db=floor_db):
         probes = voicing_probes(
-            cache.window(*run),
+            audio.window(*run),
             sr,
             probe_sec=_PROBE_SEC,
             hop_sec=HOP_SEC,

@@ -113,6 +113,7 @@ For bleed-overlap homophones or both tracks garble differently, hand off to [pod
 | in sight fear | inciting fear |
 | wazoo | Wazzu |
 | Deferred `anomalous_word_duration` (multi-second token) | Listen to the full `[start,end)` span; restore missing words — do **not** invent tighter ASR ends |
+| Word with `trimmed_from` (span trimmed as implausible, #979) | Its span now sits on its own voice; if the old `trimmed_from` span held more speech, restore the missing words there |
 
 Add episode-specific entries to `show_glossary.yaml`.
 
