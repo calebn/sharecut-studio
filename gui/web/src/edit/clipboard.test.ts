@@ -146,18 +146,24 @@ describe("selectionClipboard", () => {
     expect(extracts[0]?.mute_regions).toEqual([{ start_s: 1.2, end_s: 1.8 }]);
   });
 
-  it("keeps a mute's room-tone fill on the clipped span", () => {
+  it("copies a cut-through mute whole, so the copy has no fade at the cut", () => {
     const project = sampleProject();
     const fill = { start_s: 4, end_s: 4.5, source_id: null };
     const host = project.clips?.tracks.host?.[0];
     if (!host) {
       throw new Error("sample project has a host clip");
     }
-    host.mute_regions = [{ start_s: 1.2, end_s: 1.8, fill }];
+    const mute = {
+      start_s: 1.2,
+      end_s: 1.8,
+      fill,
+      fade_out_ms: 5,
+      fade_in_ms: 120,
+    };
+    host.mute_regions = [mute, { start_s: 3.2, end_s: 3.4 }];
     const extracts = extractClipsInRange(project, 1.5, 3, ["host"]);
-    expect(extracts[0]?.mute_regions).toEqual([
-      { start_s: 1.5, end_s: 1.8, fill },
-    ]);
+    expect(extracts[0]?.source_start).toBe(1.5);
+    expect(extracts[0]?.mute_regions).toEqual([mute]);
   });
 
   it("builds payload from clip selection", () => {
