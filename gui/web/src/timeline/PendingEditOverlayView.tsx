@@ -26,6 +26,7 @@ import {
 import { pendingEditTimingFieldId } from "../utils/pendingEditTimingField";
 import { formatTimeMs } from "../utils/time";
 import { clipsForOriginTrack } from "../utils/timebase";
+import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";
 import {
   type PendingActionPlacement,
   placePendingActionbar,
@@ -799,6 +800,12 @@ function PendingEditRegion({
       <button
         type="button"
         className={`pending-handle ${edge}`}
+        {...hitTargetProps(
+          edge === "start" ? "pending-start" : "pending-end",
+          edit.id,
+          edge === "start" ? start : end,
+          { selected, detail: edit.type },
+        )}
         aria-label={`Adjust pending ${edit.type} ${edge} edge`}
         aria-describedby={edgeHintId}
         onClick={(event) => {
@@ -1009,6 +1016,12 @@ function PendingEditRegion({
         <button
           type="button"
           className="pending-hit"
+          {...(isSplit
+            ? hitTargetProps("pending-flag", edit.id, start, {
+                selected,
+                detail: edit.type,
+              })
+            : HIT_SURFACE_PROPS)}
           aria-label={`Pending ${edit.type} edit, ${regionLabel}`}
           aria-pressed={selected}
           onClick={(event) => {

@@ -34,6 +34,7 @@ import { useLaneWaveformStatus } from "../waveform/statusStore";
 import { AppliedEditOverlay } from "./AppliedEditOverlay";
 import { ClipBlock } from "./ClipBlock";
 import { EnvelopeOverlay } from "./EnvelopeOverlay";
+import { HIT_SURFACE_PROPS } from "./hitTargets";
 import { JoinEditor } from "./JoinEditor";
 import { laneColor } from "./laneColors";
 import { PendingEditOverlay } from "./PendingEditOverlay";
@@ -265,6 +266,7 @@ export function TrackLaneView({
         ref={seekRef}
         className="lane-seek"
         role="presentation"
+        {...HIT_SURFACE_PROPS}
         onClick={(e) => onSeek(e.clientX, e.currentTarget)}
       />
       <div className="lane-inner" style={{ width }}>

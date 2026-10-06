@@ -16,6 +16,7 @@ describe("JoinBadgeView", () => {
   it("renders a named button for the fade glyph at the seam", async () => {
     const { container } = render(
       <JoinBadgeView
+        clipId="clip-b"
         glyph="fade"
         blocked={false}
         seamSec={2}
@@ -44,6 +45,7 @@ describe("JoinBadgeView", () => {
   ] as const)("draws the %s glyph", async (glyph, path, word) => {
     const { container } = render(
       <JoinBadgeView
+        clipId="clip-b"
         glyph={glyph}
         blocked={false}
         seamSec={2}
@@ -62,6 +64,7 @@ describe("JoinBadgeView", () => {
   it("marks a blocked crossfade in its class and name", async () => {
     const { container } = render(
       <JoinBadgeView
+        clipId="clip-b"
         glyph="crossfade"
         blocked
         seamSec={2}
@@ -80,6 +83,7 @@ describe("JoinBadgeView", () => {
   it("announces itself as a popover trigger", () => {
     render(
       <JoinBadgeView
+        clipId="clip-b"
         glyph="fade"
         blocked={false}
         seamSec={2}
@@ -96,6 +100,7 @@ describe("JoinBadgeView", () => {
   it("rounds the label and positions in px", () => {
     render(
       <JoinBadgeView
+        clipId="clip-b"
         glyph="fade"
         blocked={false}
         seamSec={65.25}
