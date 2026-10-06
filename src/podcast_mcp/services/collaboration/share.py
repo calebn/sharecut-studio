@@ -28,11 +28,12 @@ from podcast_mcp.edits.share_capabilities import (
     CAP_MCP,
     CAP_PLAY,
     CAP_VIEW,
-    docs_role_for_capabilities,
+    capabilities_for_role,
     guest_mode,
     has_capability,
     normalize_capabilities,
-    resolve_share_capabilities,
+    record_capabilities_for_role,
+    review_role_for_capabilities,
     share_author,
 )
 from podcast_mcp.edits.share_registry import (
@@ -125,7 +126,9 @@ def present_share(
         "record_role": row.get("role") if kind == SHARE_KIND_RECORD else None,
         "session_id": row.get("session_id") if kind == SHARE_KIND_RECORD else None,
         "guest_mode": guest_mode(cap_list) if kind == SHARE_KIND_REVIEW else None,
-        "docs_role": (docs_role_for_capabilities(cap_list) if kind == SHARE_KIND_REVIEW else None),
+        "docs_role": (
+            review_role_for_capabilities(cap_list) if kind == SHARE_KIND_REVIEW else None
+        ),
         "mcp_url": (
             f"{base}/mcp/{token}/mcp"
             if (kind == SHARE_KIND_REVIEW and token and has_capability(cap_list, CAP_MCP))
@@ -245,11 +248,10 @@ class ShareService:
         review_version_id: str | None = None,
         public_base_url: str | None = None,
     ) -> dict[str, Any]:
-        """Mint a link share from a Docs-like role; publish a mix when none exists."""
-        from podcast_mcp.edits.share_capabilities import resolve_share_capabilities
+        """Mint a link share from a review role; publish a mix when none exists."""
         from podcast_mcp.services.collaboration.review import ReviewService
 
-        caps = resolve_share_capabilities(role=role, with_mcp=with_mcp)
+        caps = capabilities_for_role(role, with_mcp=with_mcp)
         with _create_for_host_lock:
             if not review_version_id:
                 self.ws.reload()
@@ -278,7 +280,7 @@ class ShareService:
         """Mint one kind=record token. No object storage upload, proxies, or mix version."""
         if require_room and not list_room_shares(self.ws.project, session_id):
             raise KeyError(f"record room not found: {session_id}")
-        caps = resolve_share_capabilities(role=role, kind=SHARE_KIND_RECORD)
+        caps = record_capabilities_for_role(role)
         row = create_share(
             self.ws.project,
             review_version_id=RECORD_REVIEW_VERSION_SENTINEL,

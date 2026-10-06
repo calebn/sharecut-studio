@@ -25,6 +25,7 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.edits.timeline_ops import ripple_delete
 from podcast_mcp.engines import play_audit
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, _rms_for_track_at_timeline
@@ -966,7 +967,7 @@ def test_document_commands_apply_and_send_a_mix_delta(minimal_project: Path) -> 
 @pytest.mark.parametrize("command", ["SetTrackFader", "SetTrackMute"])
 def test_only_the_host_and_editors_may_change_the_mix(command: str) -> None:
     authorize_document_command(None, command)
-    authorize_document_command(["view", "edit"], command)
+    authorize_document_command(capabilities_for_role("editor"), command)
     for caps in (["suggest"], ["view"], ["comment"], []):
         with pytest.raises(PermissionError):
             authorize_document_command(caps, command)

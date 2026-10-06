@@ -60,6 +60,7 @@ def main() -> int:
 
     os.environ["PODCAST_SHARE_REGISTRY"] = str(args.registry.resolve())
 
+    from podcast_mcp.edits.share_capabilities import capabilities_for_role
     from podcast_mcp.services.app import ProjectWorkspace
     from podcast_mcp.services.collaboration import ReviewService, ShareService
 
@@ -84,7 +85,7 @@ def main() -> int:
     daw_view = share_svc.create(
         review_version_id=ver_id,
         public_base_url=args.base_url,
-        capabilities=["play", "view", "comment", "suggest"],
+        capabilities=capabilities_for_role("commenter"),
     )
 
     manifest = {

@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.media.media_store import (
@@ -291,7 +292,7 @@ def _guest_share_client(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     )["token"]
     edit_tok = ShareService(ws).create(
         review_version_id=ver["id"],
-        capabilities=["play", "view", "edit", "mcp"],
+        capabilities=capabilities_for_role("editor", with_mcp=True),
     )["token"]
     return TestClient(create_app()), view_tok, edit_tok
 

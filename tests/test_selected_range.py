@@ -12,6 +12,7 @@ from podcast_mcp.edits.range_edits import (
     range_geometry,
     range_media_seal,
 )
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.models import Clip, EpisodeProject, Track, load_project, save_project
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
@@ -255,10 +256,10 @@ def command(selection, action="cut"):
     ("caps", "range_policy", "structural_mode"),
     [
         (None, "propose", None),
-        (["view", "play", "suggest"], "apply", None),
-        (["view", "edit"], "apply", "propose"),
+        (capabilities_for_role("commenter"), "apply", None),
+        (capabilities_for_role("editor"), "apply", "propose"),
     ],
-    ids=["agent", "suggest-guest", "edit-guest-offline"],
+    ids=["agent", "commenter", "editor-offline"],
 )
 def test_agents_suggest_guests_and_offline_edits_propose(
     minimal_project, caps, range_policy, structural_mode
@@ -304,7 +305,9 @@ def test_agents_suggest_guests_and_offline_edits_propose(
 
 
 @pytest.mark.parametrize("action", ["cut", "mute"])
-@pytest.mark.parametrize("caps", [["view", "edit"], ["view", "play", "comment", "suggest", "edit"]])
+@pytest.mark.parametrize(
+    "caps", [capabilities_for_role("editor"), capabilities_for_role("editor", with_mcp=True)]
+)
 def test_edit_guest_range_applies_with_one_undo(minimal_project, caps, action):
     ws = ProjectWorkspace.open(minimal_project)
     fixture(ws.project)

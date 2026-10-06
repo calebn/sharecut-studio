@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.review import create_review_share_tool
 from podcast_mcp.models import load_project, save_project
@@ -226,9 +227,9 @@ def test_share_capabilities_and_remote_mcp(minimal_project, sample_wav, tmp_work
         str(minimal_project),
         ver["id"],
         public_base_url="http://relay.test",
-        capabilities="play,view,suggest,edit",
+        role="editor",
     )
-    assert "suggest" in tool_json or "edit" in tool_json
+    assert json.loads(tool_json)["docs_role"] == "editor"
 
 
 def test_sanitize_guest_project_view_strips_paths():
@@ -597,7 +598,7 @@ def test_guest_tells_its_own_suggestions_from_the_author_ref(
     client = TestClient(create_app())
     tokens = [
         ShareService(ws).create(
-            review_version_id=ver["id"], capabilities=["play", "view", "suggest"]
+            review_version_id=ver["id"], capabilities=capabilities_for_role("commenter")
         )["token"]
         for _ in range(2)
     ]
@@ -684,7 +685,7 @@ def test_share_daw_document_command_caps(minimal_project, sample_wav, tmp_worksp
 
     suggest_share = ShareService(ws).create(
         review_version_id=ver["id"],
-        capabilities=["play", "view", "suggest"],
+        capabilities=capabilities_for_role("commenter"),
     )
     sug_tok = suggest_share["token"]
     suggested = client.post(
@@ -750,7 +751,7 @@ def test_share_daw_document_command_caps(minimal_project, sample_wav, tmp_worksp
 
     edit_share = ShareService(ws).create(
         review_version_id=ver["id"],
-        capabilities=["play", "view", "edit"],
+        capabilities=capabilities_for_role("editor"),
     )
     edit_tok = edit_share["token"]
     approved = client.post(
@@ -801,7 +802,7 @@ def test_guest_render_preview_requires_edit(
     )
     edit_tok = ShareService(ws).create(
         review_version_id=ver["id"],
-        capabilities=["play", "view", "edit"],
+        capabilities=capabilities_for_role("editor"),
     )["token"]
     ok = client.post(f"/api/review/{edit_tok}/daw/render-preview")
     assert ok.status_code == 202
@@ -840,7 +841,7 @@ def test_guest_render_and_upload_follow_the_document_command_gate(
         "token"
     ]
     edit_tok = ShareService(ws).create(
-        review_version_id=ver["id"], capabilities=["play", "view", "edit"]
+        review_version_id=ver["id"], capabilities=capabilities_for_role("editor")
     )["token"]
     wav = sample_wav.read_bytes()
 
@@ -880,7 +881,7 @@ def test_guest_render_preview_disabled_by_default(
     client = TestClient(create_app())
     edit_tok = ShareService(ws).create(
         review_version_id=ver["id"],
-        capabilities=["play", "view", "edit"],
+        capabilities=capabilities_for_role("editor"),
     )["token"]
     denied = client.post(f"/api/review/{edit_tok}/daw/render-preview")
     assert denied.status_code == 403
@@ -903,7 +904,7 @@ def test_guest_render_preview_returns_before_render_finishes(
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="RenderAsync")
     token = ShareService(ws).create(
-        review_version_id=ver["id"], capabilities=["play", "view", "edit"]
+        review_version_id=ver["id"], capabilities=capabilities_for_role("editor")
     )["token"]
     started = threading.Event()
     release = threading.Event()
@@ -963,7 +964,7 @@ def test_guest_render_preview_conflict_when_host_job_running(
     )
     edit_tok = ShareService(ws).create(
         review_version_id=ver["id"],
-        capabilities=["play", "view", "edit"],
+        capabilities=capabilities_for_role("editor"),
     )["token"]
     job = app.state.jobs.start_render_preview(ws.path)
     assert started.wait(timeout=5)

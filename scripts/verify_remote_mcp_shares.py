@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.project_io import copy_relocated_workspace
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import ReviewService, ShareService
@@ -36,13 +37,10 @@ _ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROJECT = _ROOT / "tests" / "fixtures" / "aligned_dialogue" / "episode.project.json"
 
 TIERS: list[tuple[str, list[str]]] = [
-    ("A_play", ["play", "mcp"]),
-    ("B_view", ["play", "view", "mcp"]),
-    ("C_comment", ["play", "view", "comment", "reply", "mcp"]),
-    ("D_action", ["play", "view", "comment", "action", "mcp"]),
-    ("E_suggest", ["play", "view", "suggest", "mcp"]),
-    ("F_edit", ["play", "view", "edit", "mcp"]),
-    ("G_no_mcp", ["play", "view"]),
+    ("viewer", capabilities_for_role("viewer", with_mcp=True)),
+    ("commenter", capabilities_for_role("commenter", with_mcp=True)),
+    ("editor", capabilities_for_role("editor", with_mcp=True)),
+    ("viewer_no_mcp", capabilities_for_role("viewer")),
 ]
 
 

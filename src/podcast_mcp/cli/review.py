@@ -6,7 +6,7 @@ from pathlib import Path
 import typer
 
 from podcast_mcp.cli.timed import timed_command
-from podcast_mcp.edits.share_capabilities import resolve_share_capabilities
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import ReviewService, ShareService
 
@@ -85,22 +85,14 @@ def _cli_create_record_share(
     session_id: str | None,
     expires_at: str | None,
     role: str | None,
-    capabilities: str,
     with_mcp: bool,
     general_access: str,
     require_sign_in: bool,
     invite: list[str] | None,
 ) -> None:
-    _DEFAULT_CAPS = "play,comment,reply,action"
-    if (
-        with_mcp
-        or general_access != "link"
-        or require_sign_in
-        or invite
-        or capabilities != _DEFAULT_CAPS
-    ):
+    if with_mcp or general_access != "link" or require_sign_in or invite:
         typer.echo(
-            "record links do not support --capabilities, --with-mcp, "
+            "record links do not support --with-mcp, "
             "--general-access restricted, --require-sign-in, or --invite",
             err=True,
         )
@@ -170,21 +162,16 @@ def review_share_cmd(
     role: str | None = typer.Option(
         None,
         "--role",
-        help=("review: viewer|commenter|editor; record: guest|producer (only with --session-id)"),
-    ),
-    capabilities: str = typer.Option(
-        "play,comment,reply,action",
-        "--capabilities",
         help=(
-            "Comma-separated: play,view,comment,reply,action,"
-            "suggest,edit,mcp. Ignored when --role is set. Grant mcp via "
-            "--with-mcp or include mcp in this list."
+            "review: viewer (view, play), commenter (default; also comment and "
+            "suggest edits), or editor (also edit and approve suggestions); "
+            "record: guest|producer (only with --session-id)"
         ),
     ),
     with_mcp: bool = typer.Option(
         False,
         "--with-mcp/--no-with-mcp",
-        help="Also grant capability-scoped remote MCP on this share",
+        help="Also mint an MCP URL with this link's permissions",
     ),
     general_access: str = typer.Option(
         "link",
@@ -211,7 +198,6 @@ def review_share_cmd(
             session_id=session_id,
             expires_at=expires_at,
             role=role,
-            capabilities=capabilities,
             with_mcp=with_mcp,
             general_access=general_access,
             require_sign_in=require_sign_in,
@@ -224,12 +210,9 @@ def review_share_cmd(
     if not version:
         typer.echo("--version is required for review shares", err=True)
         raise typer.Exit(2)
+    review_role = role or "commenter"
     try:
-        caps = resolve_share_capabilities(
-            role=role,
-            capabilities=capabilities,
-            with_mcp=with_mcp,
-        )
+        caps = capabilities_for_role(review_role, with_mcp=with_mcp)
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
@@ -250,10 +233,9 @@ def review_share_cmd(
         from podcast_mcp.services.share_auth import get_identity_store
 
         store = get_identity_store()
-        acl_role = role or row.get("docs_role") or "commenter"
         invites = []
         for email in invite:
-            invites.append(store.invite_to_share(row["token"], email=email, role=str(acl_role)))
+            invites.append(store.invite_to_share(row["token"], email=email, role=review_role))
         row = {**row, "invites": invites}
     typer.echo(json.dumps(row, indent=2))
     typer.echo(f"\nShare URL: {row['url']}", err=True)

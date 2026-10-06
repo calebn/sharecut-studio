@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.engines.waveform_pyramid import wait_pyramid_jobs
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import EditDecision, EditDecisionType, save_project
@@ -170,17 +171,17 @@ def test_host_preview_checks_host_and_project_binding(pending_workspace, minimal
     assert forbidden.json()["detail"] == "project path not allowed for this server instance"
 
 
-@pytest.mark.parametrize("capability", ["suggest", "edit"])
+@pytest.mark.parametrize("role", ["commenter", "editor"])
 def test_guest_preview_requires_view_and_editing_capability(
-    pending_workspace, published_share, capability
+    pending_workspace, published_share, role
 ):
     client = TestClient(create_app())
-    _, _, view_share = published_share(capabilities=["view"])
+    _, _, view_share = published_share(capabilities=capabilities_for_role("viewer"))
     denied = client.get(
         f"/api/review/{view_share['token']}/daw/pending-edits/pending/cut-suggestion"
     )
     assert denied.status_code == 403
-    _, _, share = published_share(capabilities=["view", capability])
+    _, _, share = published_share(capabilities=capabilities_for_role(role))
     with patch(
         "podcast_mcp.edits.inaudible_cuts._snap_boundary_to_waveform",
         side_effect=[1.975, 8.035],

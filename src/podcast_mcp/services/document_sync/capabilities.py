@@ -1,16 +1,27 @@
-"""Capability allowlists for guest document commands on review shares."""
+"""Which guest document commands each review-link role may run.
+
+A share's capabilities resolve to a review role (``REVIEW_ROLE_CAPABILITIES``);
+the role decides the command set. Viewers run none, Commenters suggest, and
+Editors also apply and decide suggestions. A share that holds no role in full
+runs none. ``policy`` asks these predicates whether a guest applies or proposes.
+"""
 
 from __future__ import annotations
 
-from podcast_mcp.edits.share_capabilities import (
-    CAP_EDIT,
-    CAP_SUGGEST,
-    CAP_VIEW,
-    has_capability,
-)
-from podcast_mcp.services.document_sync.policy import STRUCTURAL_COMMANDS
+from collections.abc import Mapping
 
-# Pass 1-2 apply set (guest ``edit``).
+from podcast_mcp.edits.share_capabilities import ReviewRole, review_role_for_capabilities
+
+# Structural ops share one command type; policy chooses apply vs propose.
+STRUCTURAL_COMMANDS: frozenset[str] = frozenset(
+    {
+        "SplitAtTime",
+        "DeleteClip",
+        "RippleDeleteClip",
+    }
+)
+
+# Editor apply set (Pass 1-2 and structural edits).
 EDIT_COMMANDS: frozenset[str] = frozenset(
     {
         "EditSelectedRange",
@@ -43,7 +54,7 @@ EDIT_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
-# Suggest-without-apply (guest ``suggest``) - structural commands propose.
+# Commenter suggest set: structural commands and selected ranges propose.
 SUGGEST_COMMANDS: frozenset[str] = frozenset(
     {
         "EditSelectedRange",
@@ -53,30 +64,34 @@ SUGGEST_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
+ROLE_DOCUMENT_COMMANDS: Mapping[ReviewRole, frozenset[str]] = {
+    ReviewRole.VIEWER: frozenset(),
+    ReviewRole.COMMENTER: SUGGEST_COMMANDS,
+    ReviewRole.EDITOR: EDIT_COMMANDS | SUGGEST_COMMANDS,
+}
+
 
 def document_command_types_for_caps(caps: list[str] | None) -> frozenset[str]:
     """Document command types allowed for a share's capability set.
 
-    Every document command needs ``view`` (the guest sees the timeline it edits),
-    on the browser and the guest MCP surface alike.
+    The same set applies on the browser and the guest MCP surface.
     """
-    out: set[str] = set()
-    if not has_capability(caps, CAP_VIEW):
-        return frozenset()
-    if has_capability(caps, CAP_EDIT):
-        out |= set(EDIT_COMMANDS)
-    if has_capability(caps, CAP_SUGGEST):
-        out |= set(SUGGEST_COMMANDS)
-    return frozenset(out)
+    role = review_role_for_capabilities(caps)
+    return ROLE_DOCUMENT_COMMANDS[role] if role is not None else frozenset()
 
 
 def edit_commands_allowed(caps: list[str] | None) -> bool:
-    """Whether the gate allows every ``edit`` command (``view`` + ``edit``).
+    """Whether the share is an Editor: it applies edits and decides suggestions.
 
     Edit-only side surfaces (render preview, media upload) follow this, so they
     match the commands the guest can run.
     """
     return document_command_types_for_caps(caps) >= EDIT_COMMANDS
+
+
+def suggestions_allowed(caps: list[str] | None) -> bool:
+    """Whether the share may propose edits (Commenter or Editor)."""
+    return "SuggestPendingEdit" in document_command_types_for_caps(caps)
 
 
 def authorize_document_command(

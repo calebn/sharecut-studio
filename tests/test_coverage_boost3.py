@@ -232,8 +232,7 @@ def test_review_cli_versions_and_shares(minimal_project, sample_wav, tmp_workspa
             vid,
             "--base-url",
             "http://r.test",
-            "--capabilities",
-            "play,comment,mcp",
+            "--with-mcp",
         ],
     )
     assert share.exit_code == 0, share.output
