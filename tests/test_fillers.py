@@ -15,7 +15,7 @@ from podcast_mcp.edits.cut_quality import (
     recommend_cut_fade_ms,
     word_margin_violation_sec,
 )
-from podcast_mcp.edits.fillers import analyze_fillers_and_pauses
+from podcast_mcp.edits.fillers import _CutRejected, analyze_fillers_and_pauses
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -814,7 +814,7 @@ def test_repeat_cut_dropped_when_it_barely_touches_the_reparandum():
             cand,
             {"tighten": {"filler_words": [], "leave_in_if_risky": True}},
         )
-    assert result is None
+    assert result == _CutRejected("reparandum")
 
 
 def test_repetition_candidates_are_bounded_and_review_required():
@@ -1977,7 +1977,7 @@ def test_pause_analyze_does_not_pad_when_next_word_is_flush():
     assert result.replace_gap_sec is None
 
 
-def test_analyze_returns_none_when_max_end_collapses_span():
+def test_analyze_rejects_when_max_end_collapses_span():
     from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
 
     project = _project_with_transcript([TranscriptWord(text="um", start=1.0, end=1.2)])
@@ -1993,10 +1993,10 @@ def test_analyze_returns_none_when_max_end_collapses_span():
         ),
         {"tighten": {}},
     )
-    assert result is None
+    assert result == _CutRejected("bounds")
 
 
-def test_analyze_returns_none_when_cut_scope_is_skipped():
+def test_analyze_rejects_when_cut_scope_is_skipped():
     from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
 
     project = _project_with_transcript(
@@ -2020,7 +2020,7 @@ def test_analyze_returns_none_when_cut_scope_is_skipped():
             ),
             {"tighten": {}},
         )
-    assert result is None
+    assert result == _CutRejected("scope")
 
 
 def test_analyze_marks_review_when_peer_speech_requires_it():
@@ -2088,7 +2088,7 @@ def test_analyze_drops_pause_when_peer_speech_forces_track_local(action):
         return_value=("track", guard),
     ):
         result = _analyze_candidate(project, cand, {"tighten": {}})
-    assert result is None
+    assert result == _CutRejected("other_speaking")
 
     # Same candidate with no peer in the way proposes normally (#783): the
     # drop above is specifically the guard forcing a useless track-local

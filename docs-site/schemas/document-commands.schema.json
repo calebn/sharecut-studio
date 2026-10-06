@@ -1135,11 +1135,22 @@
       "type": "object"
     },
     "ClipMuteRegion": {
-      "description": "Source-media span rendered as silence inside a clip (mute-in-place).",
+      "description": "Source-media span muted inside a clip (mute-in-place).\n\nRender fades the clip out of and back into the span; ``fill`` is the room tone\nlaid under it (``tighten.filler_pad_mode: room_tone``), digital silence when None.",
       "properties": {
         "end_s": {
           "title": "End S",
           "type": "number"
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoomToneFill"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "start_s": {
           "title": "Start S",
@@ -3866,6 +3877,38 @@
         "expected_token"
       ],
       "title": "RollClipJoinPayload",
+      "type": "object"
+    },
+    "RoomToneFill": {
+      "description": "Room tone tiled under a muted span: this stretch of ``source_id``'s audio.\n\n``source_id`` names a ``sources[]`` entry (a recorded room-tone bed); ``None`` is\nair sampled from the track's own media.",
+      "properties": {
+        "end_s": {
+          "title": "End S",
+          "type": "number"
+        },
+        "source_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Id"
+        },
+        "start_s": {
+          "minimum": 0,
+          "title": "Start S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "start_s",
+        "end_s"
+      ],
+      "title": "RoomToneFill",
       "type": "object"
     },
     "SetActionDoneCommand": {

@@ -24,7 +24,7 @@ from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.audio_audit import measure_window_rms_db
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
-from podcast_mcp.engines.timeline_render import render_track_from_timeline
+from podcast_mcp.engines.timeline_render import render_track_from_timeline, render_track_segment
 from podcast_mcp.models import (
     Clip,
     ClipMuteRegion,
@@ -118,6 +118,56 @@ def test_merge_and_intersect_mute_regions():
     assert clip.mute_regions == []
     assert subtract_source_mute(clip, 0.2, 0.4) is False
     assert FFmpegEngine()._mute_chain(0.5, ((1.4, 1.6),), sample_rate=48000) == []
+
+
+def test_mute_region_fill_travels_with_its_span():
+    from podcast_mcp.edits.mute_regions import mute_regions_payload, muted_source_spans
+    from podcast_mcp.edits.timeline_ops import paste_segment
+    from podcast_mcp.models import RoomToneFill
+
+    tone = RoomToneFill(start_s=8.0, end_s=8.5)
+    clip = Clip(id="c1", track_id="host", source_start=0.0, source_end=4.0, timeline_start=0.0)
+    add_source_mute(clip, 1.0, 2.0, fill=tone)
+    add_source_mute(clip, 1.5, 2.5)
+
+    def spans(regions):
+        return [(r.start_s, r.end_s, r.fill) for r in regions]
+
+    # The later silent mute replaces the room tone under 1.5-2.0.
+    assert spans(clip.mute_regions) == [(1.0, 1.5, tone), (1.5, 2.5, None)]
+    assert spans(intersect_mute_regions(clip.mute_regions, 1.2, 1.8)) == [
+        (1.2, 1.5, tone),
+        (1.5, 1.8, None),
+    ]
+    assert mute_regions_payload(clip.mute_regions) == [
+        {"start_s": 1.0, "end_s": 1.5, "fill": {"start_s": 8.0, "end_s": 8.5, "source_id": None}},
+        {"start_s": 1.5, "end_s": 2.5},
+    ]
+    project = EpisodeProject.create("p", "/tmp/ws")
+    project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
+    project.clips = [clip]
+    assert spans(muted_source_spans(project)["host"]) == [(1.0, 2.5, None)]
+
+    assert subtract_source_mute(clip, 1.1, 1.2) is True
+    assert spans(clip.mute_regions) == [(1.0, 1.1, tone), (1.2, 1.5, tone), (1.5, 2.5, None)]
+    assert add_source_mute(clip, 1.05, 1.25, fill=tone) is True
+    assert spans(clip.mute_regions) == [(1.0, 1.5, tone), (1.5, 2.5, None)]
+
+    paste_segment(
+        project,
+        insert_at=5.0,
+        duration=4.0,
+        extracts=[
+            {
+                "track_id": "host",
+                "source_start": 0.0,
+                "source_end": 4.0,
+                "mute_regions": mute_regions_payload(clip.mute_regions),
+            }
+        ],
+    )
+    pasted = next(c for c in project.clips if abs(c.timeline_start - 5.0) < 1e-6)
+    assert spans(pasted.mute_regions) == spans(clip.mute_regions)
 
 
 def test_mute_mode_skips_pause_candidates():
@@ -243,30 +293,30 @@ def test_mute_analyze_join_fail_and_pacing_skip():
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=5),
         patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=None),
     ):
-        assert analyze_fillers_and_pauses(project, project.transcripts[0], defaults) == []
-    with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=_opt),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=5),
-        patch(
-            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
-            return_value=SimpleNamespace(verdict="fail"),
-        ),
-    ):
-        assert analyze_fillers_and_pauses(project, project.transcripts[0], defaults) == []
-    with (
-        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=_opt),
-        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=5),
-        patch(
-            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
-            return_value=SimpleNamespace(verdict="review"),
-        ),
-    ):
-        reviewed = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
-    assert reviewed
-    assert all(d.review_required for d in reviewed)
-    assert all(":join_review" in (d.reason or "") for d in reviewed)
+        skips: dict[str, int] = {}
+        assert (
+            analyze_fillers_and_pauses(project, project.transcripts[0], defaults, skip_counts=skips)
+            == []
+        )
+    assert skips["pacing"] == 2
+    # A mute butts nothing together, so the join continuity gate never scores it.
+    for verdict in ("fail", "review"):
+        with (
+            patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=_opt),
+            patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+            patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=5),
+            patch(
+                "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+                return_value=SimpleNamespace(verdict=verdict),
+            ) as assess,
+        ):
+            muted = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+        assert [(d.type, d.reason, d.review_required) for d in muted] == [
+            (EditDecisionType.MUTE, "filler:um", False),
+            (EditDecisionType.MUTE, "filler:uh", False),
+        ]
+        assert assess.call_count == 0
+        project.edit_decisions = []
 
 
 def test_invalid_edit_mode_falls_back_to_ripple():
@@ -408,13 +458,19 @@ def _noise_floor_project(tmp_path: Path) -> EpisodeProject:
 
 
 # rms_db floors digital silence at -80 dB.
-@pytest.mark.parametrize(("pad_mode", "inside_db"), [("room_tone", -60.0), ("silence", -80.0)])
-def test_approved_mute_is_filled_like_the_ripple_pad(tmp_path, pad_mode, inside_db):
+@pytest.mark.parametrize(
+    ("pad_mode", "fill", "inside_db"),
+    # The leading air after the mute, as a ripple pad samples its right clip.
+    [("room_tone", (1.3, 1.6), -60.0), ("silence", None, -80.0)],
+)
+def test_approved_mute_is_filled_like_the_ripple_pad(tmp_path, pad_mode, fill, inside_db):
     from unittest.mock import patch
 
     project = _noise_floor_project(tmp_path)
     with patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value=pad_mode):
         assert approve_edits(project, ["m1"]) == 1
+    (region,) = project.clips[0].mute_regions
+    assert (None if region.fill is None else (region.fill.start_s, region.fill.end_s)) == fill
     out = Path(project.workspace_dir) / "artifacts" / "host.wav"
     render_track_from_timeline(project, project.tracks[0], out, {})
 
@@ -422,6 +478,11 @@ def test_approved_mute_is_filled_like_the_ripple_pad(tmp_path, pad_mode, inside_
     assert measure_window_rms_db(out, 0.2, 0.8) == pytest.approx(-60.0, abs=1.5)
     assert measure_window_rms_db(out, 1.5, 3.5) == pytest.approx(-60.0, abs=1.5)
     assert project.timeline.duration_sec == pytest.approx(4.0)
+    # A window starting inside the mute (playback, bounce) lays the same fill.
+    window = Path(project.workspace_dir) / "artifacts" / "window.wav"
+    render_track_segment(project, "host", 1.1, 2.0, window, {})
+    assert measure_window_rms_db(window, 0.0, 0.18) == pytest.approx(inside_db, abs=1.5)
+    assert measure_window_rms_db(window, 0.4, 0.9) == pytest.approx(-60.0, abs=1.5)
 
 
 def test_approve_reject_undo_mute(tmp_path, sample_wav):
@@ -473,8 +534,11 @@ def test_approve_reject_undo_mute(tmp_path, sample_wav):
 def test_clip_mute_regions_schema_round_trip(tmp_path, sample_wav):
     import jsonschema
 
+    from podcast_mcp.models import RoomToneFill
+
     project = _project_with_audio(tmp_path, sample_wav)
     add_source_mute(project.clips[0], 0.2, 0.4)
+    add_source_mute(project.clips[0], 0.6, 0.7, fill=RoomToneFill(start_s=1.5, end_s=1.6))
     dumped = json.loads(project.model_dump_json())
     schema = json.loads(
         (
@@ -491,7 +555,8 @@ def test_clip_mute_regions_schema_round_trip(tmp_path, sample_wav):
     store = ProjectStore(path)
     store.commit(project)
     loaded = store.load()
-    assert loaded.clips[0].mute_regions[0].end_s == pytest.approx(0.4)
+    assert loaded.clips[0].mute_regions == project.clips[0].mute_regions
+    assert loaded.clips[0].mute_regions[1].fill == RoomToneFill(start_s=1.5, end_s=1.6)
 
 
 def test_extract_segment_honours_mute_spans(tmp_path, sample_wav):

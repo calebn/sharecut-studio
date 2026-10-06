@@ -8,7 +8,12 @@ from podcast_mcp.edits.clips_ops import (
     crossfade_ms_at_join,
     uses_crossfade_join,
 )
-from podcast_mcp.edits.mute_regions import IgnoredWordRegions, mute_spans_for_source_window
+from podcast_mcp.edits.mute_regions import (
+    MUTE_FADE_SEC,
+    IgnoredWordRegions,
+    mute_spans_for_source_window,
+    room_tone_fills_for_source_window,
+)
 from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.models import Clip, ClipJoinMode, EditDecision, EpisodeProject, Track
@@ -39,17 +44,54 @@ def resolve_clip_audio_path(
 
     Resolved paths must stay under the project workspace.
     """
-    if clip.source_id:
-        src = project.source_by_id(clip.source_id)
+    return _source_audio_path(project, track, clip.source_id, owner=f"clip {clip.id}")
+
+
+def _source_audio_path(
+    project: EpisodeProject, track: Track, source_id: str | None, *, owner: str
+) -> Path:
+    if source_id:
+        src = project.source_by_id(source_id)
         if src is None:
-            raise ValueError(f"clip {clip.id} source_id {clip.source_id!r} is not in sources[]")
+            raise ValueError(f"{owner} source_id {source_id!r} is not in sources[]")
         path = resolve_under_workspace(project, src.path)
         if not path.is_file():
-            raise FileNotFoundError(f"clip {clip.id} source {clip.source_id!r} is missing: {path}")
+            raise FileNotFoundError(f"{owner} source {source_id!r} is missing: {path}")
         return path
     if not track.media:
         raise ValueError(f"track {track.id} has no media")
     return resolve_under_workspace(project, track.media.path)
+
+
+def _room_tone_under_mutes(
+    project: EpisodeProject, track: Track, clip: Clip, src_start: float, src_end: float
+) -> list[PlacedSegment]:
+    """Room-tone tiles for ``clip``'s filled mutes in the segment ``[src_start, src_end)``.
+
+    Placed right after that segment, each tile overlaps back into it and is mixed over
+    the faded-out hole; its fades cross the clip's own ``MUTE_FADE_SEC`` fades at the
+    region's edges.
+    """
+    seg_dur = src_end - src_start
+    tiles: list[PlacedSegment] = []
+    for rel_start, rel_end, fill in room_tone_fills_for_source_window(clip, src_start, src_end):
+        path = _source_audio_path(project, track, fill.source_id, owner=f"clip {clip.id} fill")
+        piece = fill.end_s - fill.start_s
+        t, end = max(0.0, rel_start), min(seg_dur, rel_end)
+        while t < end - 1e-6:
+            use = min(piece, end - t)
+            tiles.append(
+                PlacedSegment(
+                    src_start=fill.start_s,
+                    src_end=fill.start_s + use,
+                    fade_in_sec=MUTE_FADE_SEC if t == rel_start else 0.0,
+                    fade_out_sec=MUTE_FADE_SEC if t + use >= rel_end - 1e-6 else 0.0,
+                    overlap_prev_sec=seg_dur - t,
+                    source_path=path,
+                )
+            )
+            t += use
+    return tiles
 
 
 def timeline_duration_sec(project: EpisodeProject) -> float:
@@ -205,6 +247,15 @@ def render_track_from_timeline(
                     ),
                 )
             )
+            placed.extend(
+                _room_tone_under_mutes(
+                    project,
+                    track,
+                    clip,
+                    seg.start + clip.source_start,
+                    seg.end + clip.source_start,
+                )
+            )
 
     lead_in = track_clips[0].timeline_start if track_clips else 0.0
     eng.render_timeline(
@@ -324,6 +375,7 @@ def _render_placed_track(
                     source_path=src,
                 )
             )
+            placed.extend(_room_tone_under_mutes(project, track, clip, src_start, src_end))
             duration = src_end - src_start
             if running_end is None:
                 running_end = gap_before + duration

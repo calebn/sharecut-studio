@@ -7,6 +7,7 @@ import re
 from bisect import bisect_left
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
+from enum import Enum
 from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
@@ -1255,7 +1256,7 @@ def _add_acoustic_candidates(
 
 def _resolve_analyzed_cuts(
     candidates: list[_CutCandidate],
-    results: list[_AnalyzedCut | _CutRejected | None],
+    results: list[_AnalyzedCut | _CutRejected],
     *,
     existing: Iterable[EditDecision] = (),
     muted: Mapping[str, Sequence[ClipMuteRegion]] | None = None,
@@ -1278,7 +1279,8 @@ def _resolve_analyzed_cuts(
     * A pause trim is replaced only by an acoustic cut that *survived* analysis;
       when the acoustic candidate is rejected the pause trim still stands.
 
-    A :class:`_CutRejected` result counts its skip and is otherwise a rejection.
+    A :class:`_CutRejected` result counts its skip (``acoustic:{skip}`` for a strictly
+    bounded candidate) and is otherwise a rejection.
     """
     applied_spans: dict[str, list[tuple[float, float]]] = {}
     held_ids: set[str] = set()
@@ -1290,10 +1292,10 @@ def _resolve_analyzed_cuts(
         tid: HalfOpenIntervalIndex.build(spans) for tid, spans in applied_spans.items()
     }
     pairs: list[tuple[_CutCandidate, _AnalyzedCut | None]] = []
-    already_muted: set[int] = set()
-    for idx, (candidate, outcome) in enumerate(zip(candidates, results, strict=True)):
+    for candidate, outcome in zip(candidates, results, strict=True):
         if isinstance(outcome, _CutRejected):
-            _count_skip(skip_counts, outcome.skip)
+            prefix = "acoustic:" if candidate.strictly_bounded else ""
+            _count_skip(skip_counts, f"{prefix}{outcome.skip}")
         result = outcome if isinstance(outcome, _AnalyzedCut) else None
         index = applied_index.get(candidate.track_id)
         if result is not None and index is not None and index.overlaps(result.start, result.end):
@@ -1307,7 +1309,6 @@ def _resolve_analyzed_cuts(
             )
         ):
             _count_skip(skip_counts, "already_muted")
-            already_muted.add(idx)
             result = None
         if result is not None and result.hit_id in held_ids:
             _count_skip(skip_counts, "same_hit")
@@ -1324,11 +1325,7 @@ def _resolve_analyzed_cuts(
     dropped: set[int] = set()
     bounded_spans: dict[str, list[tuple[float, float]]] = {}
     for idx, (candidate, result) in enumerate(pairs):
-        if not candidate.strictly_bounded:
-            continue
-        if result is None:
-            if idx not in already_muted:
-                _count_skip(skip_counts, "acoustic:rejected")
+        if not candidate.strictly_bounded or result is None:
             continue
         index = word_index.get(candidate.track_id)
         if index is not None and index.overlaps(result.start, result.end):
@@ -1373,59 +1370,103 @@ class _CutRejected:
     skip: str
 
 
+class _Join(Enum):
+    """How approving a cut joins the audio on either side of it."""
+
+    # A ripple without a pad (a track punch, a pause trim, a cut with no flanking
+    # word): the audio before ``start`` butts against the audio after ``end``.
+    SPLICE = "splice"
+    # A session ripple with a pad (``decisions._apply_replace_gap_pad``): the left
+    # edge fades out into the pad and the right edge fades in after it (#978).
+    PADDED = "padded"
+    # Mute in place (``edits/mute_regions.py``): nothing moves; each edge fades
+    # (``MUTE_FADE_SEC``) against the fill at its own position.
+    MUTE = "mute"
+
+
 @dataclass(frozen=True)
 class _EdgeChecks:
-    """The checks a cut's two edges get, chosen once from its :class:`_CutPlan`."""
+    """The checks a cut's two edges get, chosen by its :class:`_Join`."""
 
-    # A butt splice joins the audio before ``start`` to the audio after ``end``:
-    # breath protection, the cut-risk level-jump terms and the join continuity gate
-    # score that join.
+    # A splice joins the audio before ``start`` to the audio after ``end``: breath
+    # protection, the cut-risk level-jump terms and the join continuity gate score
+    # that join.
     protect_breaths: bool
     score_joins: bool
-    # A pad puts silence between the edges, so each one fades against silence and
-    # the right edge fades in on whatever follows it: that must be the next word's
-    # first phoneme, whole, and no kept word may vanish inside the span.
+    # A faded edge fades against fill, so the right edge fades in on whatever
+    # follows it: that must be the next word's first phoneme, whole, and no kept
+    # word may vanish inside the span.
     end_before_next_onset: bool
     keep_whole_words: bool
+    # The post-pad fade-in is long enough to reach a plosive burst after the cut, so
+    # the decision carries the burst for approval to end the fade before it. A
+    # mute's fade-in ends at the cut end, inside the onset guard: nothing to cap.
+    carry_next_burst: bool
 
 
-_SPLICE_EDGE_CHECKS = _EdgeChecks(
-    protect_breaths=True, score_joins=True, end_before_next_onset=False, keep_whole_words=False
-)
-_PADDED_EDGE_CHECKS = _EdgeChecks(
-    protect_breaths=False, score_joins=False, end_before_next_onset=True, keep_whole_words=True
-)
+_EDGE_CHECKS = {
+    _Join.SPLICE: _EdgeChecks(
+        protect_breaths=True,
+        score_joins=True,
+        end_before_next_onset=False,
+        keep_whole_words=False,
+        carry_next_burst=False,
+    ),
+    _Join.PADDED: _EdgeChecks(
+        protect_breaths=False,
+        score_joins=False,
+        end_before_next_onset=True,
+        keep_whole_words=True,
+        carry_next_burst=True,
+    ),
+    _Join.MUTE: _EdgeChecks(
+        protect_breaths=False,
+        score_joins=False,
+        end_before_next_onset=True,
+        keep_whole_words=True,
+        carry_next_burst=False,
+    ),
+}
 
 
 @dataclass(frozen=True)
 class _CutPlan:
-    """The span a cut removes and the pad approving puts in its place.
+    """The span a cut removes, the join approving ships, and the pad a ripple inserts.
 
-    Built from the cut's final scope: the scope decides the pad (a track punch or a
-    mute keeps none) and the pad decides which edge checks the span gets. With a pad,
-    approving never butts the edges together (``decisions._apply_replace_gap_pad``):
-    the left edge fades out into the pad and the right edge fades in after it, so the
-    owner hears clean cuts that splice scorers reject (#978).
+    Built by :meth:`for_cut` from the edit mode and the cut's final scope; the join
+    decides which edge checks the span gets, so the owner hears clean cuts that
+    splice scorers reject (#978, #1024).
     """
 
     start: float
     end: float
-    replace_gap_sec: float | None
+    join: _Join
+    replace_gap_sec: float | None = None
     # Where a plosive burst begins, once the right edge has been fitted to the next
     # word's onset; the decision carries it so the post-pad fade-in ends before it.
     # A gradual onset is not carried: a fade-in may cover it.
     next_burst: float | None = None
 
+    @classmethod
+    def for_cut(
+        cls, start: float, end: float, *, mute: bool, scope: str, pad: float | None
+    ) -> _CutPlan:
+        """The plan for a ripple (``pad`` from pacing; a track punch keeps none) or a mute."""
+        if mute:
+            return cls(start, end, _Join.MUTE)
+        gap = None if scope == "track" else pad
+        join = _Join.PADDED if gap is not None and gap > 0 else _Join.SPLICE
+        return cls(start, end, join, gap)
+
     @property
     def checks(self) -> _EdgeChecks:
-        padded = self.replace_gap_sec is not None and self.replace_gap_sec > 0
-        return _PADDED_EDGE_CHECKS if padded else _SPLICE_EDGE_CHECKS
+        return _EDGE_CHECKS[self.join]
 
 
-# The right edge of a padded cut stops this far before the next word's onset, which
-# is also the shortest fade-in the post-pad ramp is cut down to.
+# The right edge of a padded cut or a mute stops this far before the next word's
+# onset, which is also the shortest fade-in the post-pad ramp is cut down to.
 _ONSET_GUARD_SEC = 0.01
-# Word ends carry about a frame of jitter either way: a padded cut that stops within
+# Word ends carry about a frame of jitter either way: a faded edge that stops within
 # two 20 ms frames of the filler's word end has removed the filler.
 _FILLER_END_SLACK_SEC = 0.04
 
@@ -1448,8 +1489,9 @@ def _shrink_to_next_onset(
 ) -> _CutPlan | _CutRejected:
     """End ``plan`` before the next word's acoustic onset; refuse it if the filler stays.
 
-    A burst onset stays on the plan, so approval can end the post-pad fade-in before
-    it; a gradual onset moves the edge but leaves the fade-in free.
+    On a padded plan a burst onset stays on the plan, so approval can end the
+    post-pad fade-in before it; a gradual onset moves the edge but leaves the fade-in
+    free. The scan reach is the same for every join, so the onset found is too.
     """
     guard = max(_ONSET_GUARD_SEC, join_micro_fade_ms(defaults) / 1000.0)
     # Look as far as the longest post-pad fade-in could reach: an onset there does
@@ -1463,7 +1505,8 @@ def _shrink_to_next_onset(
     )
     if onset is None:
         return plan
-    burst = onset.sec if onset.kind is OnsetKind.BURST else None
+    carried = plan.checks.carry_next_burst and onset.kind is OnsetKind.BURST
+    burst = onset.sec if carried else None
     if onset.sec >= plan.end + guard:
         return replace(plan, next_burst=burst)
     end = min(plan.end, onset.sec - guard)
@@ -1656,7 +1699,7 @@ def _gate_cut_edges(
     audio_cache: TrackAudioCache | None,
     audio_caches: Mapping[str, TrackAudioCache] | None,
     word_index: CutWordIndex | None,
-) -> _GatedCut | _CutRejected | None:
+) -> _GatedCut | _CutRejected:
     """Run the edge checks ``plan.checks`` selects, then resolve the span's final scope.
 
     The returned scope may differ from ``scope`` when the checks moved the span;
@@ -1709,16 +1752,16 @@ def _gate_cut_edges(
             word_index=word_index,
         )
         if breath_safe is None:
-            return None
+            return _CutRejected("breath")
         cut_start, cut_end = breath_safe
     protected = cut_start, cut_end
     minimum = (
         _ACOUSTIC_MIN_CUT_SEC if candidate.reason == ACOUSTIC_FILLER_REASON else MIN_PACED_CUT_SEC
     )
     if cut_end - cut_start + 1e-9 < minimum:
-        return None
+        return _CutRejected("too_short")
     if candidate.cut_kind != "pause" and not _cut_covers_reparandum(candidate, cut_start, cut_end):
-        return None
+        return _CutRejected("reparandum")
     if checks.keep_whole_words:
         covered = _covered_kept_word(project, candidate, cut_start, cut_end)
         if covered is not None:
@@ -1728,9 +1771,9 @@ def _gate_cut_edges(
             project, track_id, cut_start, cut_end, defaults=defaults
         )
     except ValueError:
-        return None
+        return _CutRejected("scope")
     if guard is not None and guard.blocked and candidate.cut_kind == "pause":
-        return None
+        return _CutRejected("other_speaking")
     plan = replace(plan, start=cut_start, end=cut_end)
     if final_scope != scope:
         return _GatedCut(plan, final_scope, guard, voiced_flag)
@@ -1745,7 +1788,7 @@ def _gate_cut_edges(
             peer_caches=_peer_audio_caches(project, track_id, scope, audio_caches),
         )
         if (settled.start, settled.end) != protected:
-            return None
+            return _CutRejected("unsettled_edges")
         voiced_flag = settled.flag
     return _GatedCut(plan, scope, guard, voiced_flag)
 
@@ -1760,7 +1803,7 @@ def _analyze_candidate(
     word_index: CutWordIndex | None = None,
     peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
-) -> _AnalyzedCut | _CutRejected | None:
+) -> _AnalyzedCut | _CutRejected:
     """Waveform-optimize, risk-assess, and fade-size one candidate. Read-only w.r.t.
     project (no mutation) -- safe to call from multiple threads concurrently, as
     long as each call gets its own jump-measurement cache (below); audio_cache
@@ -1793,7 +1836,7 @@ def _analyze_candidate(
         # must never expand it back onto an ASR word.
         snapped = _clamp_to_candidate(candidate, cut_start, cut_end)
         if snapped is None:
-            return None
+            return _CutRejected("bounds")
         cut_start, cut_end = snapped
 
     breaths = detect_adjacent_breath(
@@ -1807,7 +1850,7 @@ def _analyze_candidate(
     )
     extended = _clamp_to_candidate(candidate, *extend_cut_for_breaths(cut_start, cut_end, breaths))
     if extended is None:
-        return None
+        return _CutRejected("bounds")
     cut_start, cut_end = extended
 
     if _cut_span_is_bleed_not_owner(
@@ -1818,7 +1861,7 @@ def _analyze_candidate(
         speaker_context=speaker_context,
         word_index=word_index,
     ):
-        return None
+        return _CutRejected("not_owner")
 
     paced = apply_filler_pacing(
         project,
@@ -1832,10 +1875,10 @@ def _analyze_candidate(
         allow_gap_expand=not candidate.strictly_bounded,
     )
     if paced is None:
-        return None
+        return _CutRejected("pacing")
     paced_span = _clamp_to_candidate(candidate, paced.start, paced.end)
     if paced_span is None:
-        return None
+        return _CutRejected("bounds")
     cut_start, cut_end = paced_span
     from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
 
@@ -1843,17 +1886,15 @@ def _analyze_candidate(
     try:
         scope, _ = resolve_cut_scope(project, track_id, cut_start, cut_end, defaults=defaults)
     except ValueError:
-        return None
-    # The scope decides the pad and the pad decides the edge checks, but the checks
-    # move the span and a moved span can change the scope. Gate under the scope the
-    # span settles on: a flip re-gates once under the other plan, a second flip is an
-    # unstable cut. Everything below reads this plan, never the first scope.
+        return _CutRejected("scope")
+    # The edit mode and scope decide the join and the join decides the edge checks,
+    # but the checks move the span and a moved span can change the scope. Gate under
+    # the scope the span settles on: a flip re-gates once under the other plan, a
+    # second flip is an unstable cut. Everything below reads this plan, never the
+    # first scope.
     for _attempt in range(2):
-        # A track punch or a mute keeps no pad; the plan says which join approving ships.
-        plan = _CutPlan(
-            cut_start,
-            cut_end,
-            None if mute_mode or scope == "track" else paced.replace_gap_sec,
+        plan = _CutPlan.for_cut(
+            cut_start, cut_end, mute=mute_mode, scope=scope, pad=paced.replace_gap_sec
         )
         gated = _gate_cut_edges(
             project,
@@ -1871,7 +1912,7 @@ def _analyze_candidate(
             break
         scope = gated.scope
     else:
-        return None
+        return _CutRejected("unstable_scope")
     plan, guard, voiced_flag = gated.plan, gated.guard, gated.voiced_flag
     checks = plan.checks
     cut_start, cut_end = plan.start, plan.end
@@ -1938,7 +1979,7 @@ def _analyze_candidate(
 
     if risk.too_risky:
         if leave_in:
-            return None
+            return _CutRejected("risky")
         review_required = True
         reason = f"{reason}:risky"
 
@@ -1965,7 +2006,7 @@ def _analyze_candidate(
                 audio_caches={track_id: audio_cache} if audio_cache is not None else None,
             )
             if jc.verdict == "fail":
-                return None
+                return _CutRejected("join_continuity")
             if jc.verdict == "review":
                 review_required = True
                 reason = f"{reason}:join_review"
@@ -1983,7 +2024,8 @@ def _analyze_candidate(
         cache=jump_cache,
         audio_cache=audio_cache,
     )
-    if mute_mode:
+    mute = plan.join is _Join.MUTE
+    if mute:
         from podcast_mcp.edits.mute_regions import MUTE_FADE_SEC
 
         fade_ms = min(fade_ms, round(MUTE_FADE_SEC * 1000))
@@ -2001,7 +2043,7 @@ def _analyze_candidate(
         replace_gap_sec=replace_gap,
         next_burst_sec=plan.next_burst,
         scope=scope,
-        decision_type="mute" if mute_mode else "remove",
+        decision_type="mute" if mute else "remove",
     )
 
 

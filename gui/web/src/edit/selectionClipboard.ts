@@ -1,4 +1,9 @@
-import type { ClipRow, ProjectView, Selection } from "../types/project";
+import type {
+  ClipMuteRegion,
+  ClipRow,
+  ProjectView,
+  Selection,
+} from "../types/project";
 import { findTranscriptWord, transcriptWordRange } from "../utils/transcript";
 import type { ClipboardExtract, ClipboardPayload } from "./clipboard";
 
@@ -14,18 +19,18 @@ function findClip(project: ProjectView, id: string): ClipRow | null {
   return null;
 }
 
-/** Keep mute holes that overlap [srcStart, srcEnd). */
+/** Keep mute holes that overlap [srcStart, srcEnd), each with its fill. */
 function intersectMuteRegions(
-  regions: { start_s: number; end_s: number }[] | undefined,
+  regions: ClipMuteRegion[] | undefined,
   srcStart: number,
   srcEnd: number,
-): { start_s: number; end_s: number }[] {
-  const out: { start_s: number; end_s: number }[] = [];
+): ClipMuteRegion[] {
+  const out: ClipMuteRegion[] = [];
   for (const region of regions ?? []) {
     const start = Math.max(region.start_s, srcStart);
     const end = Math.min(region.end_s, srcEnd);
     if (end > start + 1e-9) {
-      out.push({ start_s: start, end_s: end });
+      out.push({ ...region, start_s: start, end_s: end });
     }
   }
   return out;

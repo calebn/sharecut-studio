@@ -23,6 +23,7 @@ from podcast_mcp.edits.fillers import (
     _AnalyzedCut,
     _collect_candidates,
     _CutCandidate,
+    _CutRejected,
     _resolve_analyzed_cuts,
     analyze_fillers_and_pauses,
 )
@@ -594,10 +595,12 @@ def test_pause_trim_survives_when_acoustic_analysis_rejects_the_run() -> None:
     skips: dict[str, int] = {}
     pause = _analyzed(0.4, 1.6, "pause:1.60s")
 
-    kept = _resolve_analyzed_cuts([_PAUSE, _ACOUSTIC], [pause, None], skip_counts=skips)
+    kept = _resolve_analyzed_cuts(
+        [_PAUSE, _ACOUSTIC], [pause, _CutRejected("breath")], skip_counts=skips
+    )
 
     assert kept == [pause]
-    assert skips == {"acoustic:rejected": 1}
+    assert skips == {"acoustic:breath": 1}
 
 
 def test_surviving_acoustic_run_replaces_overlapping_pause_trim() -> None:
@@ -776,7 +779,7 @@ def test_propose_suppresses_acoustic_candidate_without_retained_level_profile(
     proposal = propose_tighten_edits(project, _e2e_defaults())
 
     assert proposal.decisions == []
-    assert proposal.skip_counts == {"acoustic:rejected": 1}
+    assert proposal.skip_counts == {"acoustic:breath": 1}
     assert project.edit_decisions == []
 
 
@@ -880,7 +883,9 @@ def test_bounded_candidate_with_empty_window_is_dropped_before_analysis(
         review_only=True,
     )
 
-    assert fillers._analyze_candidate(project, impossible, _e2e_defaults()) is None
+    assert fillers._analyze_candidate(project, impossible, _e2e_defaults()) == _CutRejected(
+        "bounds"
+    )
 
 
 def test_summary_reports_acoustic_proposals_and_skips_separately() -> None:
@@ -889,7 +894,7 @@ def test_summary_reports_acoustic_proposals_and_skips_separately() -> None:
         _decision("b", 0.5, 0.7, "filler:acoustic", review=True),
     ]
     assert (
-        format_tighten_propose_summary(decisions, {"acoustic:rejected": 2})
+        format_tighten_propose_summary(decisions, {"acoustic:breath": 2})
         == "2 proposed (1 filler, 0 pause, 1 acoustic (review), 2 acoustic skipped)"
     )
 
