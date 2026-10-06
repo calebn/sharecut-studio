@@ -935,6 +935,45 @@ def test_master_loudness_skips_crest_tame_when_disabled(minimal_project, sample_
     assert "crest_tame_af" not in qc
 
 
+@pytest.mark.xfail(strict=True, reason="#8: dynamic loudnorm under-shoots a peaky premix")
+def test_master_loudness_limits_a_peaky_premix_onto_the_target(
+    minimal_project, peaky_wav, tmp_workspace
+):
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    proj = _dialogue_project(minimal_project, peaky_wav, tmp_workspace)
+    defaults = load_defaults()
+    steps.ingest_tracks(proj, defaults)
+    steps.assemble_timeline(proj, defaults)
+    summary = steps.master_loudness(proj, defaults)
+    qc = json.loads((proj.artifacts_dir() / "master_qc.json").read_text(encoding="utf-8"))
+    assert summary == "mastered to -16.0 LUFS (gain + limiter, within tolerance)"
+    assert qc["issues"] == []
+    assert qc["within_tolerance"] is True
+    # The real premix stats, not a processed intermediate: +8.3 dB would put
+    # its -1.0 dBTP peaks at +7.3 dBTP.
+    assert qc["premix_input"] == {
+        "input_i": -24.3,
+        "input_tp": -1.0,
+        "input_lra": 1.3,
+        "input_thresh": -34.3,
+        "target_offset": 0.0,
+    }
+    assert qc["plan"] == "limit"
+    assert qc["normalization_type"] is None
+    assert qc["limiter"] == {
+        "gain_db": 8.3,
+        "drive_db": 10.0,
+        "limit_db": -2.0,
+        "renders": 2,
+        "trim_db": 0.2,
+        "peak_reduction_db": 11.0,
+        "loudness_reduction_lu": 1.9,
+    }
+    assert (qc["measured"]["integrated_lufs"], qc["measured"]["true_peak_db"]) == (-16.0, -1.8)
+
+
 def test_export_deliverables_without_combined_transcript(
     minimal_project, sample_wav, tmp_workspace
 ):
