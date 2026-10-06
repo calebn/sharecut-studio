@@ -16,7 +16,7 @@ Hub: [podcast-transcript-workflow](../podcast-transcript-workflow/SKILL.md). Thi
 
 The transcript is a **derived view** of audio. Reconciliation measures word-level RMS on every dialogue track and updates suppression metadata — it never modifies waveforms or word text.
 
-**Guards:** words longer than `analysis.heuristics.max_word_audibility_sec` (default 2 s) are `deferred` (ASR stretch — do not mean-RMS or text-match suppress). `transcribe_tracks` trims most of them first (`trimmed_from`, #979); this guard catches what an undecodable recording left. Zero-duration words between normal neighbors stay in the combined transcript (`sandwiched_zero_duration_word`).
+**Guards:** words longer than `analysis.heuristics.max_word_audibility_sec` (default 2 s) are `deferred` (ASR stretch — do not mean-RMS or text-match suppress). `transcribe_tracks` trims stretched ones first (`trimmed_from`, #979) and leaves ones holding more voice than their cap in place as `overlong`; this guard catches those and what an undecodable recording left. Zero-duration words between normal neighbors stay in the combined transcript (`sandwiched_zero_duration_word`).
 
 ## Tools
 

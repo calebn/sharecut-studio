@@ -167,6 +167,9 @@ class TranscriptWord(BaseModel):
     alignment_score: float | None = None
     # The ASR/aligner span before the word-span plausibility trim shortened it (#979).
     trimmed_from: tuple[float, float] | None = None
+    # Over its class cap but holding more of its speaker's voice than the cap: words
+    # missing from the transcript, not one stretched token. Times kept, queued for refine.
+    overlong: bool = False
     # Text-and-audio hide: struck through in the transcript and muted at render time
     # without a cut, pending edit, or EditDecision (#633). Distinct from `suppressed`
     # (a bleed/wrong-mic word dropped from the combined transcript text).

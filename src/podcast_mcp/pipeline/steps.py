@@ -216,7 +216,7 @@ def transcribe_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> Step
     summary = f"{len(transcripts) - len(plan.retime)} transcribed, {len(plan.reused)} reused, {words} words"
     if plan.overwrite_edited:
         summary += f", {len(plan.overwrite_edited)} edited overwritten"
-    if trimmed := sum(span_trims.values()):
+    if trimmed := sum(c.trimmed for c in span_trims.values()):
         summary += f", {trimmed} implausible word span(s) trimmed"
     if timing_flags:
         summary += f", {len(timing_flags)} timing flags"

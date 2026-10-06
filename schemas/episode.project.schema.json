@@ -324,6 +324,11 @@
           "maxItems": 2,
           "description": "[start, end] before transcribe_tracks trimmed this word's implausibly long span onto its voiced audio (#979); null = never trimmed."
         },
+        "overlong": {
+          "type": "boolean",
+          "default": false,
+          "description": "Longer than its token class can last and holding more of its speaker's voice than that cap, so words are missing from the transcript (#979). transcribe_tracks keeps its times and the refine queue carries it as anomalous_word_duration."
+        },
         "ignored": { "type": "boolean", "default": false },
         "audibility_status": { "type": ["string", "null"] },
         "dominant_track": { "type": ["string", "null"] },
