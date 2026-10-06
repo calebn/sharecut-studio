@@ -2297,6 +2297,47 @@ def test_analyze_skips_when_filler_pacing_returns_none():
     assert decisions == []
 
 
+@pytest.mark.parametrize(
+    ("target", "kwargs", "skip"),
+    [
+        ("apply_filler_pacing", {"return_value": None}, "pacing"),
+        ("_cut_span_is_bleed_not_owner", {"return_value": True}, "not_owner"),
+        ("assess_cut_risk", {"return_value": CutRisk(score=1.5, reasons=["jump"])}, "risky"),
+        ("_clamp_to_candidate", {"return_value": None}, "bounds"),
+        (
+            "speech_energy_guard.resolve_cut_scope",
+            {"side_effect": ValueError("no clip")},
+            "scope",
+        ),
+    ],
+)
+@pytest.mark.parametrize("edit_mode", ["ripple", "mute"])
+def test_a_rejected_filler_is_counted_under_its_reason(target, kwargs, skip, edit_mode):
+    words = [
+        TranscriptWord(text="so", start=0.0, end=0.1),
+        TranscriptWord(text="uh", start=1.0, end=1.2),
+        TranscriptWord(text="okay.", start=2.0, end=2.3),
+    ]
+    project = _project_with_transcript(words)
+    module = "podcast_mcp.edits" if "." in target else "podcast_mcp.edits.fillers"
+    skips: dict[str, int] = {}
+    with patch(f"{module}.{target}", **kwargs):
+        decisions = analyze_fillers_and_pauses(
+            project,
+            project.transcripts[0],
+            {
+                "tighten": {
+                    "filler_words": ["uh"],
+                    "max_pause_sec": 99.0,
+                    "acoustic_gap_filler": {"enabled": False},
+                    "edit_mode": edit_mode,
+                }
+            },
+            skip_counts=skips,
+        )
+    assert (decisions, skips) == ([], {skip: 1})
+
+
 def test_join_continuity_verdicts_and_scorer_errors():
     from types import SimpleNamespace
 
@@ -2469,7 +2510,9 @@ def test_analyze_fillers_and_pauses_resolves_intensity(monkeypatch):
     assert seen[-1]["intensity"] == "light"
 
 
-def _uh_with_overshoot(words: list[TranscriptWord], opt_span: tuple[float, float]):
+def _uh_with_overshoot(
+    words: list[TranscriptWord], opt_span: tuple[float, float], *, edit_mode: str = "ripple"
+):
     """Analyze the lone ``uh`` with waveform optimization moved to ``opt_span``."""
     project = _project_with_transcript(words)
     skips: dict[str, int] = {}
@@ -2485,6 +2528,7 @@ def _uh_with_overshoot(words: list[TranscriptWord], opt_span: tuple[float, float
                     "filler_words": ["uh"],
                     "max_pause_sec": 99.0,
                     "acoustic_gap_filler": {"enabled": False},
+                    "edit_mode": edit_mode,
                 }
             },
             skip_counts=skips,
@@ -2492,14 +2536,18 @@ def _uh_with_overshoot(words: list[TranscriptWord], opt_span: tuple[float, float
     return [(d.reason, d.start, d.end, d.replace_gap_sec) for d in decisions], skips
 
 
-def test_padded_cut_covering_a_whole_kept_word_is_rejected():
+@pytest.mark.parametrize("edit_mode", ["ripple", "mute"])
+def test_padded_cut_or_mute_covering_a_whole_kept_word_is_rejected(edit_mode):
     words = [
         TranscriptWord(text="so", start=0.0, end=0.1),
         TranscriptWord(text="uh", start=1.0, end=1.2),
         TranscriptWord(text="we", start=1.22, end=1.4),
         TranscriptWord(text="okay.", start=5.0, end=5.3),
     ]
-    assert _uh_with_overshoot(words, (1.0, 1.45)) == ([], {"kept_word:we": 1})
+    assert _uh_with_overshoot(words, (1.0, 1.45), edit_mode=edit_mode) == (
+        [],
+        {"kept_word:we": 1},
+    )
 
 
 def test_padded_cut_partly_over_a_kept_word_is_proposed():
@@ -2537,14 +2585,58 @@ def test_only_unpadded_cuts_go_through_the_splice_gates(gate):
     with rejecting:
         for name, words in (("unpadded", unpadded), ("padded", padded)):
             project = _project_with_transcript(words)
-            results[name] = [
-                (d.reason, round(d.start, 3), round(d.end, 3), d.replace_gap_sec)
-                for d in analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
-            ]
+            skips: dict[str, int] = {}
+            decisions = analyze_fillers_and_pauses(
+                project, project.transcripts[0], defaults, skip_counts=skips
+            )
+            results[name] = (
+                [
+                    (d.reason, round(d.start, 3), round(d.end, 3), d.replace_gap_sec)
+                    for d in decisions
+                ],
+                skips,
+            )
     assert results == {
-        "unpadded": [],
-        "padded": [("filler:uh", 0.14, 1.92, 1.0)],
+        "unpadded": (
+            [],
+            {"acoustic:no_audio": 1, {"breath": "breath", "join": "join_continuity"}[gate]: 1},
+        ),
+        "padded": ([("filler:uh", 0.14, 1.92, 1.0)], {"acoustic:no_audio": 1}),
     }
+
+
+@pytest.mark.parametrize("gate", ["breath", "join"])
+def test_a_mute_fades_each_edge_in_place_so_the_splice_gates_skip_it(gate):
+    from types import SimpleNamespace
+
+    defaults = {
+        "tighten": {
+            "filler_words": ["uh"],
+            "max_pause_sec": 99.0,
+            "join_continuity_gate": True,
+            "edit_mode": "mute",
+        }
+    }
+    rejecting = {
+        "breath": patch("podcast_mcp.edits.fillers.protect_cut_breaths", return_value=None),
+        "join": patch(
+            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+            return_value=SimpleNamespace(verdict="fail"),
+        ),
+    }[gate]
+    words = [
+        TranscriptWord(text="so", start=0.0, end=0.1),
+        TranscriptWord(text="uh", start=1.0, end=1.2),
+        TranscriptWord(text="okay.", start=2.0, end=2.3),
+    ]
+    project = _project_with_transcript(words)
+    with rejecting:
+        decisions = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+
+    assert [
+        (d.type.value, d.reason, round(d.start, 3), round(d.end, 3), d.replace_gap_sec)
+        for d in decisions
+    ] == [("mute", "filler:uh", 0.14, 1.92, None)]
 
 
 def _write_wav(path, segments: list[tuple[float, object]], *, rate: int = 16_000) -> None:
@@ -2658,6 +2750,79 @@ def test_audio_padded_filler_cut_ends_before_a_plosive_burst(tmp_path):
 
     assert (decision.reason, decision.replace_gap_sec) == ("filler:uh", pytest.approx(0.935))
     assert decision.end == pytest.approx(1.40)
+
+
+def test_audio_mute_ends_before_a_plosive_burst_and_carries_no_fade_cap(tmp_path):
+    import numpy as np
+
+    from podcast_mcp.config import load_defaults
+
+    noise = np.random.default_rng(3).standard_normal(round(0.1 * 16_000))
+    project = _audio_project(
+        tmp_path,
+        [
+            (0.3, _voice(0.3)),
+            (1.0, _voice(0.3)),
+            (1.42, noise[: round(0.008 * 16_000)] * 10 ** (-50 / 20)),
+            (1.43, noise * 10 ** (-48 / 20)),
+            (1.53, _voice(0.3, level_db=-18)),
+        ],
+        [
+            TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+            TranscriptWord(text="uh,", start=1.0, end=1.3, confidence=0.9),
+            TranscriptWord(text="pat.", start=1.7, end=1.9, confidence=0.95),
+        ],
+    )
+    defaults = load_defaults()
+    defaults["tighten"]["edit_mode"] = "mute"
+
+    (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+
+    # A mute's own 5 ms fade-in ends at the cut end, 10 ms before the burst, so there
+    # is no post-pad fade-in for the burst to cap.
+    assert (decision.type.value, decision.reason, decision.replace_gap_sec) == (
+        "mute",
+        "filler:uh",
+        None,
+    )
+    assert decision.end == pytest.approx(1.40)
+    assert decision.next_burst_sec is None
+
+
+@pytest.mark.parametrize("edit_mode", ["ripple", "mute"])
+def test_audio_cut_that_would_stop_inside_the_filler_is_dropped_as_next_onset(tmp_path, edit_mode):
+    import numpy as np
+
+    from podcast_mcp.config import load_defaults
+
+    noise = np.random.default_rng(3).standard_normal(round(0.1 * 16_000))
+    project = _audio_project(
+        tmp_path,
+        [
+            (0.3, _voice(0.3)),
+            (1.0, _voice(0.3)),
+            (1.33, noise[: round(0.008 * 16_000)] * 10 ** (-50 / 20)),
+            (1.34, noise * 10 ** (-48 / 20)),
+            (1.44, _voice(0.3, level_db=-26)),
+        ],
+        [
+            TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+            # Whisper ran the filler 100 ms late, over the next word's burst at 1.33 s.
+            TranscriptWord(text="uh,", start=1.0, end=1.4, confidence=0.9),
+            TranscriptWord(text="pat.", start=1.7, end=1.9, confidence=0.95),
+        ],
+    )
+    defaults = load_defaults()
+    defaults["tighten"]["edit_mode"] = edit_mode
+    defaults["tighten"]["acoustic_gap_filler"] = {"enabled": False}
+    skips: dict[str, int] = {}
+
+    decisions = analyze_fillers_and_pauses(
+        project, project.transcripts[0], defaults, skip_counts=skips
+    )
+
+    assert decisions == []
+    assert skips == {"next_onset": 1}
 
 
 def test_approved_padded_cut_leaves_the_plosive_burst_unattenuated(tmp_path):
@@ -2933,6 +3098,7 @@ def test_a_scope_that_never_settles_is_not_proposed():
         TranscriptWord(text="okay.", start=2.0, end=2.3),
     ]
     project = _project_with_transcript(words)
+    skips: dict[str, int] = {}
     with patch(
         "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
         side_effect=lambda *_a, **_k: _scope_result(next(flip)),
@@ -2940,5 +3106,13 @@ def test_a_scope_that_never_settles_is_not_proposed():
         assert not analyze_fillers_and_pauses(
             project,
             project.transcripts[0],
-            {"tighten": {"filler_words": ["uh"], "max_pause_sec": 99.0}},
+            {
+                "tighten": {
+                    "filler_words": ["uh"],
+                    "max_pause_sec": 99.0,
+                    "acoustic_gap_filler": {"enabled": False},
+                }
+            },
+            skip_counts=skips,
         )
+    assert skips == {"unstable_scope": 1}

@@ -361,6 +361,69 @@ def test_rendered_mute_is_silent_inside_and_unchanged_outside(tmp_path, sample_w
     assert MUTE_FADE_SEC <= 0.005
 
 
+def _noise_floor_project(tmp_path: Path) -> EpisodeProject:
+    """A 4 s mic track: white noise at -60 dBFS RMS, with a -20 dBFS ``uh`` at 1.0-1.3 s."""
+    import wave
+
+    rate = 48_000
+    samples = np.random.default_rng(11).standard_normal(4 * rate) * 10 ** (-60 / 20)
+    t = np.arange(round(0.3 * rate)) / rate
+    samples[rate : rate + t.size] += np.sin(2 * np.pi * 180.0 * t) * np.sqrt(2) * 10 ** (-20 / 20)
+    ws = tmp_path / "ws"
+    (ws / "raw").mkdir(parents=True)
+    with wave.open(str(ws / "raw" / "host.wav"), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(rate)
+        handle.writeframes((np.clip(samples, -1.0, 1.0) * 32767).astype("<i2").tobytes())
+    project = EpisodeProject.create("room-tone", str(ws))
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=4.0),
+        )
+    ]
+    project.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=4.0, timeline_start=0.0)
+    ]
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="uh", start=1.0, end=1.3)])
+    ]
+    project.timeline.duration_sec = 4.0
+    project.edit_decisions = [
+        EditDecision(
+            id="m1",
+            track_id="host",
+            type=EditDecisionType.MUTE,
+            start=1.0,
+            end=1.3,
+            reason="filler:uh",
+            review_required=False,
+            applied=False,
+        )
+    ]
+    return project
+
+
+# rms_db floors digital silence at -80 dB.
+@pytest.mark.parametrize(("pad_mode", "inside_db"), [("room_tone", -60.0), ("silence", -80.0)])
+def test_approved_mute_is_filled_like_the_ripple_pad(tmp_path, pad_mode, inside_db):
+    from unittest.mock import patch
+
+    project = _noise_floor_project(tmp_path)
+    with patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value=pad_mode):
+        assert approve_edits(project, ["m1"]) == 1
+    out = Path(project.workspace_dir) / "artifacts" / "host.wav"
+    render_track_from_timeline(project, project.tracks[0], out, {})
+
+    assert measure_window_rms_db(out, 1.01, 1.29) == pytest.approx(inside_db, abs=1.5)
+    assert measure_window_rms_db(out, 0.2, 0.8) == pytest.approx(-60.0, abs=1.5)
+    assert measure_window_rms_db(out, 1.5, 3.5) == pytest.approx(-60.0, abs=1.5)
+    assert project.timeline.duration_sec == pytest.approx(4.0)
+
+
 def test_approve_reject_undo_mute(tmp_path, sample_wav):
     project = _project_with_audio(tmp_path, sample_wav)
     path = tmp_path / "ws" / "episode.project.json"
