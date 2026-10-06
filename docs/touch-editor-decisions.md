@@ -402,3 +402,21 @@ reveals a field below pinned chrome rather than under it. The sheet still has
 one scroll owner. `e2e-compat/touch-peek.spec.ts` taps Expand and Collapse
 with a finger at 360×800 and 844×390 and checks that the finger lands on the
 button; the sideways case failed on the round 3 build.
+
+### The strip over shell rows (#1051 round 4)
+
+Sideways, the status row (where the Pipeline chip sits) floated over the
+strip and moved as the page scrolled. iOS rubber-bands the page when a scroll
+reaches an edge: in-flow rows move while the fixed sheet stays, and the
+status and nav rows (`--z-shell-chrome`) drew over the sheet
+(`--z-sheet`). Two changes:
+
+- The editor no longer scrolls as a page: `html[data-shell]` and its body
+  set `overscroll-behavior: none`, and the timeline scroller sets `contain`.
+- The compact sheet's root stacks at `--z-sheet-docked`, above the shell rows,
+  and clips its own slot, so neither the row draws over the strip nor the
+  strip's slide (entering, stowing) over the row.
+
+`e2e-compat/touch-strip-stacking.spec.ts` moves the shell as a bounce does
+and freezes the stow slide halfway, in Chromium and WebKit at 360×800 and
+844×390. On the round 3 build the row covered the strip's bottom edge.

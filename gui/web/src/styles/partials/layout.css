@@ -1,4 +1,13 @@
 /* Shell layout, transport, tabs, track headers */
+/* The editor never scrolls as a page. Without this, a scroll that reaches an
+ * edge rubber-bands the document on iOS: the shell's rows move while fixed
+ * sheets stay put, so the status or nav row slid over the compact strip
+ * (#1051 round 4). */
+html[data-shell],
+html[data-shell] body {
+  overscroll-behavior: none;
+}
+
 /* Named rows: banner rows are always present and `auto` (0 when empty), so a
  * layout or a banner never shifts another child. Layouts change only
  * --shell-main-row / --shell-tabs-row (responsive.css). */
@@ -167,6 +176,9 @@
   background: var(--bg-timeline-scroll);
   /* Scroll OK; browser pinch-zoom off — JS claims pinch via non-passive listeners. */
   touch-action: pan-x pan-y;
+  /* A scroll that reaches the timeline's end stops there; it does not carry
+     on into the page (see the html[data-shell] rule at the top). */
+  overscroll-behavior: contain;
   /* Room under the last lane as deep as the compact inspector covers the
      scroller, so any selection can scroll clear of it (useCompactInspector). */
   padding-block-end: var(--sheet-clearance, 0);
