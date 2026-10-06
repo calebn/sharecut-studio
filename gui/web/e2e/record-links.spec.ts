@@ -41,7 +41,6 @@ test.describe("record links", () => {
             pageA.getByRole("heading", { name: "Join the recording" }),
           ).toBeVisible();
           await expect(pageA.locator(".daw-shell")).toHaveCount(0);
-          await expect(pageA.locator(".review-compose")).toHaveCount(0);
 
           await pageB.goto(`/rec/${producer}`);
           await expect(

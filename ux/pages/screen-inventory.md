@@ -347,13 +347,13 @@ The transport layout control maximizes/restores (named **Maximize timeline** or 
 
 ## Guest / share (`/r/{token}`)
 
-Which UI loads depends on whether the share holds `view`. Every review role (Viewer, Commenter, Editor) holds it, so every role opens Sharecut Studio guest.
+Every review role (Viewer, Commenter, Editor) holds `view`, so every role opens Sharecut Studio guest. There is one guest surface for review links.
 
 ```mermaid
 flowchart LR
   shareLink["Share link /r/token"] --> hasView{Has view?}
-  hasView -->|no, no role mints this today| reviewApp[ReviewApp]
   hasView -->|yes, every role| dawGuest[Sharecut Studio guest]
+  hasView -->|no, API-only share| noPage[Error: link does not open the project]
 ```
 
 ### Which surface?
@@ -361,7 +361,7 @@ flowchart LR
 | Share setup | Surface | What the guest sees |
 |-------------|---------|---------------------|
 | Viewer, Commenter (default) or Editor | **Sharecut Studio guest** | Timeline / Listen / Text / More gated by role. Mode **banner** at top. |
-| `play` + `comment` without `view` (no role mints this today) | **ReviewApp** | Frozen review mix + comments. Header shows episode name and `mode {guest_mode}`. No Sharecut Studio mode banner. |
+| Any capability set without `view` (API only, no role mints one) | **Error screen** | "This link does not open the project." |
 
 Step flows: [Guest journeys](#/journeys).
 
@@ -369,7 +369,7 @@ Step flows: [Guest journeys](#/journeys).
 
 | Cap | Guest can… |
 |-----|------------|
-| `play` | Hear the review mix (ReviewApp) or session audio (Sharecut Studio) |
+| `play` | Hear the review mix or session audio in Sharecut Studio |
 | `view` | Open Sharecut Studio guest (timeline, transcript, sanitized project) |
 | `comment` | Leave time-anchored comments |
 | `reply` | Reply in a comment thread |
@@ -416,7 +416,7 @@ Journeys: [Guest journeys § 6–7](#/journeys).
 | **Host offline** | Recorded guest | “Host offline: still recording locally.” Keeper stays open. **Shipped with keepers.** |
 | **Native close confirmation** | Host or recorded guest in the desktop app | During REC, PAUSED, or finalizing, closing the native window asks for confirmation. Host copy warns that the session stops for everyone; guest copy warns about the local keeper. This is local desktop protection and sends no remote close command. The macOS app menu and **Cmd+Q** use the confirmation path; Dock **Quit** and OS shutdown remain best-effort. |
 
-Not ReviewApp. Prefix `/rec/` 404s a review token.
+Prefix `/rec/` 404s a review token.
 
 ---
 

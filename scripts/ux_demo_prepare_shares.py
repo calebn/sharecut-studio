@@ -77,11 +77,6 @@ def main() -> int:
         ver_id = ver["id"]
 
     share_svc = ShareService(ws)
-    review_app = share_svc.create(
-        review_version_id=ver_id,
-        public_base_url=args.base_url,
-        capabilities=["play", "comment", "reply", "action"],
-    )
     daw_view = share_svc.create(
         review_version_id=ver_id,
         public_base_url=args.base_url,
@@ -92,12 +87,6 @@ def main() -> int:
         "share_registry": str(args.registry.resolve()),
         "project": str(args.project.resolve()),
         "review_version_id": ver_id,
-        "review_app": {
-            "token": review_app["token"],
-            "url": review_app["url"],
-            "guest_mode": review_app.get("guest_mode"),
-            "capabilities": review_app.get("capabilities"),
-        },
         "daw_guest": {
             "token": daw_view["token"],
             "url": daw_view["url"],

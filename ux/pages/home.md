@@ -29,7 +29,7 @@ Raw sources also live in the repo under [`ux/pages/`](https://github.com/calebn/
 ## Live product context
 
 - **UI reference:** [See the UI](#/demo) / fixture [`sharecut_ux_demo`](https://github.com/calebn/sharecut-studio/tree/main/tests/fixtures/sharecut_ux_demo)
-- Guest share (Viewer / Commenter / Editor roles, ReviewApp, banners, proxy listen, offline conflicts): [Screens → Guest / share](#/screens) · [Guest journeys](#/journeys)
+- Guest share (Viewer / Commenter / Editor roles, banners, proxy listen, offline conflicts): [Screens → Guest / share](#/screens) · [Guest journeys](#/journeys)
 - Engineer mobile IA: [docs/gui-mobile.md](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-mobile.md)
 - Share / proxy / relay: [docs/host-online-relay.md](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md)
 - API & contracts: [docs.sharecut.studio](https://docs.sharecut.studio/) (document commands, share HTTP, remote MCP)

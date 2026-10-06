@@ -17,7 +17,6 @@ function projectPath(): string {
 }
 
 interface GuestTokens {
-  review_app: { token: string };
   daw_guest: { token: string };
 }
 
@@ -77,9 +76,7 @@ test.describe("UX demo screenshots", () => {
     await desktop.close();
   });
 
-  test("capture guest ReviewApp + Sharecut Studio share", async ({
-    browser,
-  }) => {
+  test("capture guest Sharecut Studio share", async ({ browser }) => {
     test.skip(
       !process.env.UX_DEMO_SCREENSHOTS,
       "Set UX_DEMO_SCREENSHOTS=1 to refresh ux/assets/screens",
@@ -93,15 +90,6 @@ test.describe("UX demo screenshots", () => {
     const phone = await browser.newPage({
       viewport: { width: 390, height: 844 },
     });
-    await phone.goto(`/r/${tokens!.review_app.token}`);
-    await expect(phone.locator(".review-shell")).toBeVisible({
-      timeout: 30_000,
-    });
-    await phone.screenshot({
-      path: path.join(screensDir, "guest-reviewapp.png"),
-      fullPage: true,
-    });
-
     await phone.goto(`/r/${tokens!.daw_guest.token}`);
     await expect(phone.locator(".daw-shell-guest")).toBeVisible({
       timeout: 30_000,

@@ -22,9 +22,9 @@ Status key: **Now** (shape decisions) · **Next** (after Now) · **Later** (stra
 
 **Problem:** Guests arrive cold on phone. Capability tiers must feel obvious without host chrome.
 
-**Shipped (engineering):** Google Docs review roles (Viewer, Commenter by default, Editor), each opening Sharecut Studio guest; ReviewApp for a share without `view`; mode banner on Sharecut Studio guest; proxy MP3 guest playback; offline edit queue + **Needs attention**; capability-scoped remote MCP URL; relay host-offline page. Documented in [Screens](#/screens) + [Guest journeys](#/journeys).
+**Shipped (engineering):** Google Docs review roles (Viewer, Commenter by default, Editor), each opening Sharecut Studio guest; mode banner on Sharecut Studio guest; proxy MP3 guest playback; offline edit queue + **Needs attention**; capability-scoped remote MCP URL; relay host-offline page. Documented in [Screens](#/screens) + [Guest journeys](#/journeys).
 
-**Still open for UX:** First-run orientation copy; comment vs suggest-cut IA; whether ReviewApp stays now that no role mints it; plain-language Needs attention bodies; revoked/expired link copy.
+**Still open for UX:** First-run orientation copy; comment vs suggest-cut IA; plain-language Needs attention bodies; revoked/expired link copy.
 
 **Touches:** Guest banner, Listen mode, Comments, transport Menu, relay offline page, Needs attention.
 
@@ -58,7 +58,7 @@ Status key: **Now** (shape decisions) · **Next** (after Now) · **Later** (stra
 
 ### 6. Pipeline progress for humans
 
-Engineering contract: shared `progress_task` / choke-point wraps / `make progress-check` warn mode ([docs/progress.md](../../docs/progress.md)). **Studio chrome (Pipeline tab + StatusBar + phone Listen chip):** honest determinate bar vs pulse while running, phase headline, elapsed companion, distinct fail/cancel, **stale “last update Ns ago”** when domain heartbeats stop — no progress log panel ([gui-integration.md](../../docs/gui-integration.md) § Progress). Guests see the same Activity chip on ReviewApp and phone Listen (live region without elapsed ticks). **Consumer fan-out:** `compose_progress` attaches only live sinks (CLI TTY/JSON, MCP `progressToken` over Streamable HTTP SSE, in-process publish-only SSE on a live job, in-process **agent jobs** from host `/mcp` onto the same job/SSE plane, guest WS for the initiating share token). Instant tools never flash a chip; StatusBar shows the most recent live job plus a count badge when N>1. Chip/Listen open Pipeline only for slot jobs; agent **Activity** chips are status-only until the activity-history drawer. **Activity** copy for bounce/export/agent/render-preview; Pipeline tab summary stays pipeline-only, with Run disabled + Cancel while a slot job is busy. Instant ops live in `contracts/progress-exemptions.json` (partial set; remaining mute ops still warn); rich ops in `contracts/progress-richness.json`. Remaining: **cross-process CLI job adopt** (Typer is not installed by the GUI); activity-history drawer. Track rows in [ROADMAP.md § Progress UX](../../ROADMAP.md#progress-ux).
+Engineering contract: shared `progress_task` / choke-point wraps / `make progress-check` warn mode ([docs/progress.md](../../docs/progress.md)). **Studio chrome (Pipeline tab + StatusBar + phone Listen chip):** honest determinate bar vs pulse while running, phase headline, elapsed companion, distinct fail/cancel, **stale “last update Ns ago”** when domain heartbeats stop — no progress log panel ([gui-integration.md](../../docs/gui-integration.md) § Progress). Guests see the same Activity chip on phone Listen (live region without elapsed ticks). **Consumer fan-out:** `compose_progress` attaches only live sinks (CLI TTY/JSON, MCP `progressToken` over Streamable HTTP SSE, in-process publish-only SSE on a live job, in-process **agent jobs** from host `/mcp` onto the same job/SSE plane, guest WS for the initiating share token). Instant tools never flash a chip; StatusBar shows the most recent live job plus a count badge when N>1. Chip/Listen open Pipeline only for slot jobs; agent **Activity** chips are status-only until the activity-history drawer. **Activity** copy for bounce/export/agent/render-preview; Pipeline tab summary stays pipeline-only, with Run disabled + Cancel while a slot job is busy. Instant ops live in `contracts/progress-exemptions.json` (partial set; remaining mute ops still warn); rich ops in `contracts/progress-richness.json`. Remaining: **cross-process CLI job adopt** (Typer is not installed by the GUI); activity-history drawer. Track rows in [ROADMAP.md § Progress UX](../../ROADMAP.md#progress-ux).
 
 **Related roadmap:** MCP host notification polish, guest display, hard `progress-check` gate.
 
@@ -95,11 +95,11 @@ Audio candidates exist; video ingest, 9:16 export, captions, active-speaker — 
 
 **Recruit:** 2 hosts (edit podcasts), 3 guests (smart phone users, not DAW experts). 25–30 minutes each.
 
-**Setup:** Host Sharecut Studio demo fixture + one ReviewApp link + one Commenter link (see [Demo](#/demo)).
+**Setup:** Host Sharecut Studio demo fixture + one Commenter link (see [Demo](#/demo)).
 
 | # | Task | Success looks like |
 |---|------|--------------------|
-| 1 | Open ReviewApp share; leave one comment | Comment posts without coaching; &lt; 5 min |
+| 1 | Open the Commenter share; leave one comment | Comment posts without coaching; &lt; 5 min |
 | 2 | Open Sharecut Studio guest; say what you can do | Mentions banner / listen / suggest correctly |
 | 3 | Find and audition a pending cut (host phone) | Reaches Play around without Impact confusion |
 | 4 | (Optional) Simulate offline conflict → Needs attention | Notices banner; can dismiss |
@@ -114,6 +114,7 @@ Audio candidates exist; video ingest, 9:16 export, captions, active-speaker — 
 
 | Date | Decision | Owner | Links |
 |------|----------|-------|-------|
+| 2026-10-06 | ReviewApp (the listen-and-comment page) is deleted. Every review role holds `view` and opens Sharecut Studio guest; a share without `view` shows an error. Guest journey 1 is now the Commenter cold open in Sharecut Studio | Eng | [Screens](#/screens), [Journeys](#/journeys) |
 | 2026-10-06 | Tunnel status: `podcast tunnel` prints one line per connection state change (connecting, connected, disconnected with reason, reconnecting with backoff, failed) and exits on an auth or config failure; Share says whether guests can open your links (“Reconnecting…” with a retry countdown, “Not reachable online” with How to fix, “Online sharing is off”; nothing on a local-only host) from the same state (#1091) | Eng | [host-online-relay](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md), [Screens](#/screens) |
 | 2026-09-27 | Host document WS `/api/document/ws` is server→client only (hello Snapshot + Applied fan-out); edits always go through `POST /api/document/command`; `authorize_client` re-checks every 30s and a revoked grant closes `4403` and the host tab stops reconnecting; a failed fan-out pump closes `1011` so the client reconnects (#565) | Eng | [session-sync](https://github.com/calebn/sharecut-studio/blob/main/docs/session-sync.md) |
 | 2026-09-14 | Whole-DAW follow: Look/Hear/Do rubric; chrome ghosts via `data-presence-anchor`; guests degrade host-only tabs and non-Mix audition in the banner; mute/solo/audition do not unfollow | Eng | [session-sync](https://github.com/calebn/sharecut-studio/blob/main/docs/session-sync.md), [gui-integration](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-integration.md) |

@@ -15,7 +15,7 @@ Sharecut is a studio you would send a guest into: calm, listen-first, no “AI�
 
 | Room | Surfaces | Type |
 |------|----------|------|
-| Reading | sharecut.studio, `/download/`, sudo.science, HomeScreen, ReviewApp | Body ≥ `1rem`, line-height ~1.4–1.5 |
+| Reading | sharecut.studio, `/download/`, sudo.science, HomeScreen, record lobby | Body ≥ `1rem`, line-height ~1.4–1.5 |
 | Mixing | Sharecut Studio with a project open | `--font-size-ui` (~0.8125rem) |
 
 Same `--color-*` roles in both rooms. Shared scale + brand colors live in [`deploy/brand/brand-tokens.css`](https://github.com/calebn/sharecut-studio/blob/main/deploy/brand/brand-tokens.css) (synced to Sharecut Studio `gui/web/src/styles/theme/`). Light/dark: `data-theme` on `<html>` wins, else OS `prefers-color-scheme` (`:root:not([data-theme])`). Sharecut Studio preference API is [`useTheme`](https://github.com/calebn/sharecut-studio/blob/main/gui/web/src/hooks/useTheme.ts). Playhead and clip hues are **functional**, not brand paint.

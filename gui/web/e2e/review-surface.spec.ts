@@ -36,7 +36,6 @@ for (const theme of ["light", "dark"] as const) {
           await openHostShare(host, projectPath);
           const token = await createReviewShare(host, projectPath, "commenter");
           await openGuestShare(guest, token);
-          await expect(guest.locator(".review-shell")).toHaveCount(0);
           await expect(
             guest.getByText(COMMENTER_BANNER, { exact: true }),
           ).toBeVisible();
@@ -94,7 +93,6 @@ for (const theme of ["light", "dark"] as const) {
           await openHostShare(host, projectPath);
           const token = await createReviewShare(host, projectPath, "commenter");
           await openGuestShare(guest, token);
-          await expect(guest.locator(".review-shell")).toHaveCount(0);
           await expect(
             guest.getByText(COMMENTER_BANNER, { exact: true }),
           ).toBeVisible();

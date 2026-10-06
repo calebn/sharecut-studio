@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { guestProgressToJob, guestProgressWsUrl } from "./guestProgress";
+import { describe, expect, it } from "vitest";
+import { guestProgressToJob } from "./guestProgress";
 
 describe("guestProgressToJob", () => {
   it("maps a running event to an Activity job snapshot without host paths", () => {
@@ -242,17 +242,5 @@ describe("guestProgressToJob", () => {
       prevDone,
     );
     expect(next?.message).toBe("Mute bleed");
-  });
-});
-
-describe("guestProgressWsUrl", () => {
-  it("builds the token-scoped progress socket", () => {
-    vi.stubGlobal("window", {
-      location: { protocol: "https:", host: "share.example" },
-    });
-    expect(guestProgressWsUrl("cool-name")).toBe(
-      "wss://share.example/api/review/cool-name/progress/ws",
-    );
-    vi.unstubAllGlobals();
   });
 });

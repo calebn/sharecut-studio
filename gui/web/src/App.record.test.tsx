@@ -30,7 +30,7 @@ describe("App record route", () => {
     resetFeaturesCache();
   });
 
-  it("renders RecordApp and never ReviewApp or /api/review/", async () => {
+  it("renders RecordApp and never fetches /api/review/", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = urlOf(input);
       if (url.includes("/api/review/")) {
@@ -57,7 +57,6 @@ describe("App record route", () => {
         screen.getByRole("heading", { name: "Join the recording" }),
       ).toBeInTheDocument();
     });
-    expect(screen.queryByRole("main", { name: /review/i })).toBeNull();
     expect(
       fetchMock.mock.calls.some((call) =>
         urlOf(call[0] as RequestInfo | URL).includes("/api/review/"),
