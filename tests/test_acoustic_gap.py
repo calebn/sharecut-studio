@@ -564,6 +564,7 @@ def test_collect_candidates_alone_never_scans_audio() -> None:
 
 def _analyzed(start: float, end: float, reason: str) -> _AnalyzedCut:
     return _AnalyzedCut(
+        hit_id=f"cut_{reason}_{start}_{end}",
         track_id="host",
         start=start,
         end=end,

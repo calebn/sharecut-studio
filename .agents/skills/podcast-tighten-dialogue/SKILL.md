@@ -104,7 +104,8 @@ prints the summary text only. Report `skip_counts`
 acknowledgments kept”, and `filler:acoustic` hits
 separately (“N acoustic, review each”). Proposing again replaces every pending
 generated hit, review-flagged and nudged ones included, so an unchanged project
-returns the same hits each run.
+returns the same hits, under the same ids, each run. An Ask thread
+(`edit_decision_id`) on a hit stays attached across re-runs.
 
 4. Review each pending decision listen-first:
    - Sharecut Studio **Tighten** tab (host): search/filter filler (incl. `filler:acoustic`), pause, repetition, and restart hits,

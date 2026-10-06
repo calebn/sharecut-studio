@@ -79,6 +79,8 @@ To ask about a **pending cut**: `add_comment_tool(..., edit_decision_id="<id>")`
 
 Listen-first review keeps the conversation on the pending inspector (current timeline, not a modal). The first Ask creates `review.comments[]` with `edit_decision_id`; later notes are `replies[]`. Selecting that comment while the decision is still pending opens **PendingEditInspector** (not a generic comment inspector). See [daw-editing.md](daw-editing.md) § Listen-first pending preview.
 
+A thread on a generated tighten hit (filler, pause, repetition, restart, acoustic) survives **Find hits** / `propose_edits` re-runs: re-proposal replaces the pending decision but derives its id from the hit's track, kind and target span, so the fresh decision carries the id the thread links to, even when intensity moves its edges. A hit that no longer comes back (the transcript under it changed, or analysis dropped it) leaves its thread unlinked. See [filler-cut-quality.md § CLI / MCP](filler-cut-quality.md#cli--mcp).
+
 The Ask compose and the public review page default the author to the same session display name as the Comments tab (saved name, else Host for the host and Guest for a share guest). A blank name field falls back to that same display name for posts, replies, resolves and action items, so a guest never acts under a host's saved `Host` (or the reverse).
 
 ## DAW viewer

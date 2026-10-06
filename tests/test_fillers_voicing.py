@@ -383,7 +383,7 @@ def test_a_pause_hit_keeps_its_id_when_intensity_moves_its_end(tmp_path: Path) -
         for level in ("light", "medium", "aggressive")
     ]
 
-    assert [end for _id, _start, end in pauses] == [3.25, 3.45, 3.66]
+    assert [end for _id, _start, end in pauses] == pytest.approx([3.25, 3.45, 3.66])
     assert len({hit_id for hit_id, _start, _end in pauses}) == 1
 
 
@@ -402,6 +402,17 @@ def test_distinct_hits_never_share_an_id(tmp_path: Path) -> None:
         ("guest", 2.0, 3.45, "pause"),
     ]
     assert len({d.id for d in project.edit_decisions}) == 4
+
+
+def test_proposing_without_replacing_never_adds_a_hit_twice(tmp_path: Path) -> None:
+    project = _filler_and_pause_project(tmp_path)
+    first = propose_tighten_edits(project, FILLER_AND_PAUSE_DEFAULTS)
+
+    again = propose_tighten_edits(project, FILLER_AND_PAUSE_DEFAULTS, replace_existing=False)
+
+    assert again.decisions == []
+    assert again.skip_counts == {"same_hit": 2}
+    assert project.edit_decisions == first.decisions
 
 
 def test_hit_ids_separate_track_kind_and_span() -> None:

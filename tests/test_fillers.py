@@ -1067,6 +1067,7 @@ def test_periodic_phrase_restart_stays_bounded_after_proposal_coalescing(monkeyp
 
     def analyze(_project, candidate, _defaults, *, audio_cache=None, **_context):
         return _AnalyzedCut(
+            hit_id=candidate.hit_id,
             track_id=candidate.track_id,
             start=candidate.start,
             end=candidate.end,
