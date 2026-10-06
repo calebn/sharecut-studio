@@ -230,23 +230,23 @@ rejected.
 Two axes (Google Docs–shaped):
 
 1. **General access** — default **Anyone with the link** (coolname bearer; login-free comments). Optional **Restricted** requires a signed-in principal on the ACL ([share-tokens.md](share-tokens.md) § Identity).
-2. **Role** — Docs-like presets expand to the capability bits below. Browser `/r/{token}` and share MCP `/mcp/{token}` always expose the **same** capability set.
+2. **Role** — Viewer, Commenter or Editor, as in Google Docs. Each role expands to the capability bits below (`REVIEW_ROLE_CAPABILITIES` in `edits/share_capabilities.py`). Browser `/r/{token}` and share MCP `/mcp/{token}` always expose the **same** capability set.
 
-### Docs-like roles → caps
+### Review roles → caps
 
-| Role | Caps (approx.) | Guest UI |
-|------|----------------|----------|
-| **Viewer** | `play` + `view` | Sharecut Studio read-only |
-| **Commenter** (default) | `play` + `comment`/`reply`/`action` | ReviewApp (or Sharecut Studio + comments if `view` added) — **no login** on link shares |
-| **Editor** | `EDITOR_CAPABILITIES` (`play`/`view`/comments + `suggest`/`edit`) | suggest/edit; add `--with-mcp` for agents |
+| Role | Caps | Guest UI |
+|------|------|----------|
+| **Viewer** | `play`, `view` | Sharecut Studio, read-only |
+| **Commenter** (default) | Viewer + `comment`, `reply`, `action`, `suggest` | Sharecut Studio with comments and Suggest cut. Suggestions wait for an Editor or the host. **No login** on link shares |
+| **Editor** | Commenter + `edit` | Sharecut Studio; edits directly and approves or rejects suggestions |
 | **Owner** | Host laptop only | full stdio MCP **or** GUI `http://127.0.0.1:8765/mcp` (not a guest share) |
+
+`mcp` is not part of any role. `--with-mcp` adds it to the chosen role. The role decides which document commands a guest runs (`ROLE_DOCUMENT_COMMANDS` in `services/document_sync/capabilities.py`), so a capability set that holds no role in full runs none. There is no `--capabilities` flag.
 
 ```bash
 podcast review share --role viewer --project … --version <id> --base-url https://sharecut.studio
 podcast review share --role commenter --with-mcp …
 podcast review share --role editor --with-mcp …
-# Raw caps still work when --role is omitted:
-podcast review share --capabilities play,view,comment,mcp …
 podcast review share --kind record --project … --base-url https://sharecut.studio
 podcast review share --kind record --session-id <id> --role producer --expires-at …
 ```
@@ -261,14 +261,11 @@ podcast review share --kind record --session-id <id> --role producer --expires-a
 | `reply`    | Reply to existing comments |
 | `join`     | Be recorded in a record room (no MCP) |
 | `monitor`  | Hear a record room (producer or guest; no MCP) |
-| `suggest`  | Propose pending edits (`SuggestPendingEdit`), retime only its own suggestions (`UpdatePendingEdit` on edits whose `author` is this share; other guests', host and agent edits are refused), and **propose** structural ops (`SplitAtTime`, `DeleteClip`, `RippleDeleteClip`) and selected ranges (`EditSelectedRange`, incl. transcript Select) — cannot approve/apply |
-| `edit`     | Apply Pass 1–2 document commands (approve/reject any pending edit including exact range proposals, restore, fades, join, clip body move / `MoveClips`, undo/redo) **and apply** structural ops and selected ranges (`EditSelectedRange`) on the guest document route and guest MCP alike |
+| `suggest`  | Commenter and Editor. Propose pending edits (`SuggestPendingEdit`), retime only its own suggestions (`UpdatePendingEdit` on edits whose `author` is this share; other guests', host and agent edits are refused), and **propose** structural ops (`SplitAtTime`, `DeleteClip`, `RippleDeleteClip`) and selected ranges (`EditSelectedRange`, incl. transcript Select) — cannot approve/apply |
+| `edit`     | Editor only. Apply Pass 1–2 document commands (approve/reject any pending edit including exact range proposals, restore, fades, join, clip body move / `MoveClips`, undo/redo) **and apply** structural ops and selected ranges (`EditSelectedRange`) on the guest document route and guest MCP alike |
 | `mcp`      | Allow **capability-scoped** remote MCP at `{base}/mcp/{token}/mcp` (same powers as the other caps on this token — not the full host MCP surface) |
 
-Default for new shares: **commenter** (`play` + `comment` + reply/action) → **ReviewApp** (audio + comments), Anyone with the link.
-
-When `view` is granted, `/r/{token}` loads the **read-only Sharecut Studio** instead of ReviewApp.
-Add `comment`/`reply` to allow posting from the Comments tab inside Sharecut Studio.
+Default for new shares: **Commenter**, Anyone with the link. Every role holds `view`, so `/r/{token}` opens Sharecut Studio for all three. ReviewApp (review mix + comments, no timeline) is the listen page for a share without `view`. No role, CLI flag, MCP tool or Share dialog option mints one today.
 
 ```bash
 # Read-only full DAW (timeline + playback)
@@ -276,22 +273,12 @@ podcast review share --role viewer \
   --project episode.project.json --version <id> \
   --base-url https://sharecut.studio
 
-# Sharecut Studio + comments (raw caps)
-podcast review share --capabilities play,view,comment,reply \
-  --project episode.project.json --version <id> \
-  --base-url https://sharecut.studio
-
-# ReviewApp only (no timeline) — default commenter
+# Comments + Suggest cut (the default role)
 podcast review share --role commenter \
   --project episode.project.json --version <id> \
   --base-url https://sharecut.studio
 
-# Sharecut Studio + suggest (propose/nudge pending only)
-podcast review share --capabilities play,view,suggest \
-  --project episode.project.json --version <id> \
-  --base-url https://sharecut.studio
-
-# Sharecut Studio + edit (Pass 1–2 apply)
+# Edit directly and approve suggestions
 podcast review share --role editor \
   --project episode.project.json --version <id> \
   --base-url https://sharecut.studio
@@ -341,19 +328,19 @@ All under `/api/review/{token}/…` (proxied by the relay; **no** `?project=` pa
 | `GET …/daw/meta` | `view` | mtime/size + document `server_seq` for poll reload (`server_seq` omitted when `document.db` is unreadable) |
 | `GET …/daw/waveform/status` | `view` | Waveform pyramid status for **raw** media only (`track:` / `source:` refs; stems stay host-only); `no-store`; read rate class. Same shape as host `GET /api/waveform/status` ([waveform.md § API](waveform.md#api)) |
 | `GET …/daw/waveform/tiles/{key}?ref=&level=&start=&count=` | `view` | Binary min/max/RMS pyramid tiles; `track:`/`source:` refs only and only the ref's live key (else 404). `Cache-Control: private, max-age=31536000, immutable`. **Audio** rate class (no RPM, holds an audio concurrency slot). There is no guest PCM route: raw samples never go to guests |
-| `GET …/daw/waveform-snap` | `view` + a gate that allows `EditSelectedRange` (`suggest` or `edit`) | Windowed snap ticks for the DAW overlay; view-only guests get the quiet wash only |
-| `GET …/daw/pending-edits/{edit_id}/cut-suggestion` | `view` + a gate that allows `UpdatePendingEdit` (`suggest` or `edit`) | Read-only silence-boundary suggestion for a complete pending source cut or mute. No-store; read rate class. Missing, applied, split, or non-source decisions are refused. |
-| `POST …/daw/boundary/context` | `view` + `edit` (`edit_commands_allowed`) | Validate visible clip geometry and return source-safe trim/roll limits plus the revision required by the edit command; guest rendered boundary audition is unavailable. |
+| `GET …/daw/waveform-snap` | Commenter or Editor (the gate allows `EditSelectedRange`) | Windowed snap ticks for the DAW overlay; Viewers get the quiet wash only |
+| `GET …/daw/pending-edits/{edit_id}/cut-suggestion` | Commenter or Editor (the gate allows `UpdatePendingEdit`) | Read-only silence-boundary suggestion for a complete pending source cut or mute. No-store; read rate class. Missing, applied, split, or non-source decisions are refused. |
+| `POST …/daw/boundary/context` | Editor (`edit_commands_allowed`) | Validate visible clip geometry and return source-safe trim/roll limits plus the revision required by the edit command; guest rendered boundary audition is unavailable. |
 | `GET …/daw/audio?kind=` | `play` | Whitelist: `premix`, `stem`, `processed`, `review`. Rejects `raw` and `rerender=true` |
 | `GET …/daw/pending-preview` | `play` + `view` | Listen-first Current / Suggested / A/B WAV (Suggested renders the approved edit; not host speakers). First hit is FFmpeg (mutate RPM); cached GET uses audio concurrency. |
 | `GET …/daw/pending-preview-image` | `play` + `view` | Waveform (`kind=wave`) or spectrogram (`kind=spec`) of that extract |
-| `POST …/daw/document/command` | `view` + command allowlist | `suggest` → SuggestPendingEdit, UpdatePendingEdit on its own suggestions only (`EditDecision.author`, `policy.authorize_pending_update`), structural and selected-range propose; `edit` → Pass 1–2 apply + structural and selected-range (`EditSelectedRange`) apply + track ingest (`AddTrack` / `SetTrackMedia` / `SetTrackMeta` / `RemoveTrack` / `ReorderTrack`) + saved mix (`SetTrackFader` / `SetTrackMute`) via `document_command_types_for_caps` / `authorize_document_command` + `policy.resolve_structural_mode` / `policy.resolve_range_mode`. A guest's capabilities decide apply vs propose on every surface: `edit` applies a range on this route and through the guest MCP `guest_submit_document_command`, `suggest` proposes on both, and `structural_mode: "propose"` (offline replay) still demotes to a proposal. `edit` guests approve and reject any pending edit, exact range proposals included (`policy.may_decide_exact_range`); only the host's own MCP/CLI agents are refused exact decisions. Typed payloads: `schemas/document-commands.schema.json`. |
-| `POST …/daw/media/upload` | `view` + `edit` (`edit_commands_allowed`) | Chunked audio into host `raw/` (allowlist + assembled size cap); then guest submits `SetTrackMedia` / `AddTrack`. Not for `suggest`/`view`. Not the record keeper route. |
+| `POST …/daw/document/command` | `view` + role command set | Commenter → SuggestPendingEdit, UpdatePendingEdit on its own suggestions only (`EditDecision.author`, `policy.authorize_pending_update`), structural and selected-range propose; Editor → Pass 1–2 apply + structural and selected-range (`EditSelectedRange`) apply + track ingest (`AddTrack` / `SetTrackMedia` / `SetTrackMeta` / `RemoveTrack` / `ReorderTrack`) + saved mix (`SetTrackFader` / `SetTrackMute`) via `document_command_types_for_caps` / `authorize_document_command` + `policy.resolve_structural_mode` / `policy.resolve_range_mode`. A guest's review role decides apply vs propose on every surface: an Editor applies a range on this route and through the guest MCP `guest_submit_document_command`, a Commenter proposes on both, and `structural_mode: "propose"` (offline replay) still demotes to a proposal. Editors approve and reject any pending edit, exact range proposals included (`policy.may_decide_exact_range`); only the host's own MCP/CLI agents are refused exact decisions. Typed payloads: `schemas/document-commands.schema.json`. |
+| `POST …/daw/media/upload` | Editor (`edit_commands_allowed`) | Chunked audio into host `raw/` (allowlist + assembled size cap); then guest submits `SetTrackMedia` / `AddTrack`. Not for Commenters or Viewers. Not the record keeper route. |
 | `GET /api/rec/{token}/upload` | record `join` | Own keeper chunk ACK status (lease required; host removal revokes it and returns 403 `invalid lease`) |
 | `POST /api/rec/{token}/upload` | record `join` | Keeper PCM parts (5 MB / 30 s); resume on the same token. Keeper parts only for takes the participant consented to; `kind=room_tone` only while consented (403 `consent required`). Host removal revokes the lease (403 `invalid lease`). Not `…/daw/media/upload`. |
 | `DELETE /api/rec/{token}/upload` | record `join` | Revoke an ACK'd room-tone bed (`kind=room_tone`) |
-| `POST …/daw/render-preview` | `view` + `edit` (`edit_commands_allowed`) | Start a stem/premix render via the host `PipelineJobManager` lock. Returns **202** with a job ID immediately; **409** if the slot is busy. |
-| `GET …/daw/render-preview/{job_id}` | `view` + `edit` (`edit_commands_allowed`) | Read a job's status for this share's project. Response includes only safe progress fields, with no host paths. |
+| `POST …/daw/render-preview` | Editor (`edit_commands_allowed`) | Start a stem/premix render via the host `PipelineJobManager` lock. Returns **202** with a job ID immediately; **409** if the slot is busy. |
+| `GET …/daw/render-preview/{job_id}` | Editor (`edit_commands_allowed`) | Read a job's status for this share's project. Response includes only safe progress fields, with no host paths. |
 | `GET …/audio` | `play` | ReviewApp frozen mix — prefers `mix.mp3`; **302** to an object-store presigned URL when configured |
 | `POST …/comments` | `comment` | Timeline comment (body max **8000** chars) |
 | `POST …/comments/{id}/replies` | `reply` | Reply (same body max) |
@@ -423,7 +410,7 @@ Revoke deletes the object when no other active shares reference that version.
 - The share API is a **token-scoped facade** over `ShareService` + `DocumentSyncService` — guests never supply a project path. MCP and HTTP use the same document sanitizer.
 - Local review and DAW media streams open the authorized resolved file with no-follow directory descriptors and retain that descriptor through HTTP byte-range and HEAD handling. Object-store review and proxy uploads likewise send pinned file objects, and retry encoding gives FFmpeg a private, separate-inode WAV clone or copy from the pinned descriptor. This prevents a symlink replacement after path validation from redirecting those reads and an in-place source write from changing FFmpeg's retry input; platforms lacking descriptor-relative no-follow opens fail closed, except that on Windows these media reads (`open_pinned_media`) take a weaker path-based fallback with link and descriptor/path identity checks ([share-tokens.md](share-tokens.md)). Review-version publishing and its staging cleanup still need POSIX descriptors and are unavailable on Windows ([persistence.md § Inventory](persistence.md#inventory)).
 - Capability checks are enforced on the **host**; the relay is a pass-through. Tunnel registration never defaults missing caps to all capabilities. The relay refuses to remap a live token owned by another host and allowlists response headers (drops `Set-Cookie`).
-- Guest `render_preview` (HTTP + MCP) is **opt-in** (`PODCAST_GUEST_RENDER=1`); default off so editor shares cannot burn host FFmpeg silently. Starts use the shared job lock and mutate rate class; status reads use the read rate class. MCP `guest_render_preview_job` polls by job ID.
+- Guest `render_preview` (HTTP + MCP) is **opt-in** (`PODCAST_GUEST_RENDER=1`); default off so Editor links cannot burn host FFmpeg silently. Starts use the shared job lock and mutate rate class; status reads use the read rate class. MCP `guest_render_preview_job` polls by job ID.
 - Guest uploads are probed with FFmpeg `-protocol_whitelist file,crypto,data`. Chunk uploads cap `total_chunks`, sweep stale `.uploads/`, and enforce a pending-bytes quota.
 - Restricted / guest accounts are **fail-closed**: `/auth` is not mounted and Restricted minting is refused unless `PODCAST_SHARE_ACCOUNTS=1` (stub testing only). Leftover Restricted tokens stay 401 via `ShareIdentityMiddleware`; Restricted share HTML never embeds object-store/OG audio.
 - `PODCAST_REVIEW_CORS_ORIGINS` is parsed once at GUI startup by the same exact-origin normalizer as `public_base_url` (`runtime_config.normalize_exact_origin`). The GUI sets `allow_credentials`, so the list must never reflect arbitrary origins: `*`, wildcards, paths, query, fragment, user info, and non-loopback `http://` fail startup with an error that names the variable and never echoes the value. A trailing `/` is normalized away. See [setup.md](setup.md#public-review-share-optional).
@@ -432,7 +419,7 @@ Revoke deletes the object when no other active shares reference that version.
 - Token lifecycle (usable vs cooldown 404, revoke, host-chosen `expires_at`; idle time never ends a link): [share-tokens.md](share-tokens.md).
 - Share links do not expire unless the host chose a date ([decision](share-tokens.md#decision-share-links-never-expire-unless-the-host-chooses-an-expiry)); end one with `podcast review revoke-share`.
 - Do not put `/?project=/abs/path` on the public relay.
-- Guest media upload (`…/daw/media/upload`) requires **`view` + `edit`** (the document-command gate's `edit_commands_allowed`), streams into workspace `raw/` only (extension allowlist + assembled size cap). Chunk each request under the relay JSON body limit ([`body_limits.py`](../src/podcast_mcp/util/body_limits.py)); never create/open a different project from a share.
+- Guest media upload (`…/daw/media/upload`) requires the **Editor** role (the document-command gate's `edit_commands_allowed`), streams into workspace `raw/` only (extension allowlist + assembled size cap). Chunk each request under the relay JSON body limit ([`body_limits.py`](../src/podcast_mcp/util/body_limits.py)); never create/open a different project from a share.
 - Object-store credentials stay on the host (`relay.yaml` / `PODCAST_OBJECT_STORE_*`); the relay
   relay never needs them. Bucket stays private; only presigned URLs are handed out.
 
@@ -460,9 +447,9 @@ HTTPS while the host tunnel is up. Powers match the **other** capabilities on th
 token (web guest parity) — not the full local `podcast-mcp` stdio tool surface
 (or the owner GUI URL `http://127.0.0.1:8765/mcp`).
 
-**Share agent = share user:** a collaborator with `edit` (or any cap set) who connects
-MCP to that share should be able to take the same actions they can in Sharecut Studio/ReviewApp
-at those caps. `play` means both can hear: humans use in-browser transport; agents use
+**Share agent = share user:** a collaborator with any role who connects
+MCP to that share should be able to take the same actions they can in Sharecut Studio
+with that role. `play` means both can hear: humans use in-browser transport; agents use
 share HTTP URLs plus a windowed hear-context bundle (captions, waveform/spectrogram)
 — not host `afplay`. HTTP is the source of truth (same routes the GUI uses);
 remote MCP is a thin façade (`guest_submit_document_command`, `guest_pending_preview`,
@@ -506,13 +493,13 @@ Do not put `guest_*` names in the host manifest MCP column. Share agents never c
 | `+view` | `guest_get_project`, clips / pending / applied edits, transcript search, render status, `guest_get_session_presence` (live roster; agent twin of the DAW WS, no extra HTTP) |
 | `+comment` / `reply` | `guest_add_comment`, `guest_add_reply` |
 | `+action` | `guest_set_action_done` |
-| `view` + (`suggest` / `edit`) | `guest_submit_document_command` (offered only when `document_command_types_for_caps` allows a command, so `suggest` or `edit` without `view` gets none, as on the browser route) |
-| `view` + `edit` | `guest_render_preview` (start render job), `guest_render_preview_job` (read status); `guest_upload_media` (HTTP twin: `POST …/daw/media/upload`). Offered only when `edit_commands_allowed` (the document-command gate) allows every `edit` command, so `edit` without `view` gets none |
+| Commenter or Editor | `guest_submit_document_command` (offered only when `document_command_types_for_caps` allows a command, so a Viewer or a share that holds no role in full gets none, as on the browser route) |
+| Editor | `guest_render_preview` (start render job), `guest_render_preview_job` (read status); `guest_upload_media` (HTTP twin: `POST …/daw/media/upload`). Offered only when `edit_commands_allowed` (the document-command gate) allows every Editor command |
 | without `mcp` | Relay/host **403** |
 | record `join` / `monitor` | **no MCP** — `/rec/{token}` lobby; `join` also unlocks `GET`/`POST`/`DELETE /api/rec/{token}/upload` |
 | record `monitor` WS | **no MCP by design** — `WS /api/rec/{token}/ws` (record room / live comments / WebRTC signal). Record MCP twins remain a product decision, not a missing-twin bug. Parity CI (`check_share_http_mcp_parity`) requires a curated `http-only:` note. |
 
-**Denied even when `mcp` is set:** pipeline run, full ingest consolidate, episode create (never on guest), host-speaker `play`, FX/envelope/transcript host-only mutations, absolute paths / history dumps, **comment resolve** (host-only: no share HTTP or guest MCP). Share **`edit`** may still use `guest_submit_document_command` for track CRUD (`AddTrack` / `SetTrackMedia` / …) and `guest_upload_media` / the HTTP chunked media upload route; that is not the host `ingest_*` / `episode_create` surface. Owner GUI REST/WS routes (project, pipeline, export, diagnostics, bootstrap, record, shares, transcript, comments, session/document sync) require the **host role** (`require_host` / `authorize_host`, #393): relay-tunneled requests never satisfy it, even on loopback or in non-strict mode. See § Security notes.
+**Denied even when `mcp` is set:** pipeline run, full ingest consolidate, episode create (never on guest), host-speaker `play`, FX/envelope/transcript host-only mutations, absolute paths / history dumps, **comment resolve** (host-only: no share HTTP or guest MCP). An **Editor** link may still use `guest_submit_document_command` for track CRUD (`AddTrack` / `SetTrackMedia` / …) and `guest_upload_media` / the HTTP chunked media upload route; that is not the host `ingest_*` / `episode_create` surface. Owner GUI REST/WS routes (project, pipeline, export, diagnostics, bootstrap, record, shares, transcript, comments, session/document sync) require the **host role** (`require_host` / `authorize_host`, #393): relay-tunneled requests never satisfy it, even on loopback or in non-strict mode. See § Security notes.
 
 **Audio:** `guest_audio_info` (full-file stream URLs), `guest_pending_preview` (pending cut), and `guest_audition_context` (arbitrary timeline window: captions + windowed hum/clip in `warnings`; per-track `prosody` + top-level `prosody_notes` read from the host's cached `analyze_prosody` profile, where guests get an allowlisted copy: a `missing`/`stale` window carries only its `status`, an `unavailable` one adds the generic `error: "prosody unavailable"`, and never the host rerun hint or exception text; optional wave/spec PNG) return relative share URLs (`/api/review/{token}/…`). Agents must stream via HTTP — remote MCP does **not** play on the host laptop. Sharecut Studio plays the same share-route render for a human guest's Suggested; `guest_pending_preview` is its agent twin (optional `visual` waveform/spectrogram PNGs). The hear-context contract is additive (new fields later without a new cap bit). Host `audition_context_tool` puts the same DSP in typed `hypotheses[]`.
 
@@ -606,7 +593,7 @@ uv run python scripts/verify_remote_mcp_shares.py \
   --project /path/to/episode.project.json
 ```
 
-The script creates short-lived shares for tiers A–G (play → edit, plus no-`mcp`), checks
+The script creates short-lived shares for the tiers `viewer`, `commenter` and `editor` (each with `mcp`) plus `viewer_no_mcp`, checks
 `tools/list` exact allowlists, exercises allowed `tools/call`s (path-sanitized payloads),
 asserts denied tools return capability errors, and revokes tokens on success (use
 `--keep-shares` to leave them). Exit non-zero on any matrix failure.
@@ -618,7 +605,7 @@ copies it into a temporary relocated workspace (`copy_relocated_workspace`) and
 publishes there, so `tests/fixtures/` is never written. The host resolves those
 share tokens through the share registry, so it can keep serving any project.
 
-Optional: with `podcast tunnel` up, recreate one `play,view,mcp` share with
+Optional: with `podcast tunnel` up, recreate one `--role viewer --with-mcp` share with
 `--base-url https://<relay>` and repeat `tools/list` against the printed `mcp_url`.
 
 Modules: `gui/routes/remote_mcp.py`, `services/remote_mcp/`, `mcp/tools/guest/`.
@@ -693,7 +680,7 @@ src/podcast_mcp/
   gui/routes/tunnel.py    # GET /api/tunnel/status (tunnel.status)
   runtime_config.py       # validated relay/object-store configuration
   cli/tunnel.py           # podcast tunnel CLI
-  edits/share_capabilities.py  # CAP_* constants, normalize_capabilities, guest_mode
+  edits/share_capabilities.py  # CAP_* constants, REVIEW_ROLE_CAPABILITIES, guest_mode
   gui/routes/remote_mcp.py     # /mcp/{token} info + JSON-RPC bridge
   services/remote_mcp/         # context, allowlist, guest tools, protocol
   mcp/tools/guest/             # re-exports guest tool registry
@@ -775,7 +762,7 @@ Product follow-up: [ROADMAP.md](../ROADMAP.md). Provider product details are mai
 
 ### Guest WebSocket (shipped)
 
-Guests with `view` connect to `WS /api/review/{token}/daw/ws` on the host (and the same path on the public relay). ReviewApp / commenters without `view` connect to `WS /api/review/{token}/progress/ws` for guest-initiated progress only. Record guests with `monitor` connect to `WS /api/rec/{token}/ws`. The relay multiplexes guest sockets over the host tunnel with:
+Guests with `view` connect to `WS /api/review/{token}/daw/ws` on the host (and the same path on the public relay). ReviewApp guests (a share without `view`) connect to `WS /api/review/{token}/progress/ws` for guest-initiated progress only. Record guests with `monitor` connect to `WS /api/rec/{token}/ws`. The relay multiplexes guest sockets over the host tunnel with:
 
 | Frame | Direction | Fields |
 |-------|-----------|--------|

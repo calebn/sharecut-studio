@@ -86,9 +86,9 @@ When the user asks you to note something for later (or for a human):
 
 Before inviting guests, freeze a mix: `publish_review_version_tool` / `podcast review publish-version --label "…"`. New comments stamp `review_version_id` while that version is active. Publishing refuses a stale premix (`render_preview` / Refresh first) and, while a premix exists, a master not mastered from the current premix (export first, or publish the premix); an episode with only `mastered.wav` publishes it as-is.
 
-Share: `podcast review share --role commenter --version <vid> --base-url https://host:8765` → `/r/fantastic-acoustic-whale` (coolname slug; see [share-tokens.md](../../docs/share-tokens.md)). Prefer relay + `podcast tunnel` ([host-online-relay.md](../../docs/host-online-relay.md)). Bind with `--host 0.0.0.0` only for LAN-only sharing; revoke with `podcast review revoke-share`. Default link shares stay **login-free** for comments. `--kind record` mints studio `/rec/` links; live comments during REC/PAUSED use the record Comment command (not this review share).
+Share: `podcast review share --role commenter --version <vid> --base-url https://host:8765` → `/r/fantastic-acoustic-whale` (coolname slug; see [share-tokens.md](../../docs/share-tokens.md)). Prefer relay + `podcast tunnel` ([host-online-relay.md](../../docs/host-online-relay.md)). Bind with `--host 0.0.0.0` only for LAN-only sharing; revoke with `podcast review revoke-share`. `--role` is Viewer, Commenter (default; comments and Suggest cut) or Editor (also edits and approves suggestions); every role opens Sharecut Studio. Default link shares stay **login-free** for comments. `--kind record` mints studio `/rec/` links; live comments during REC/PAUSED use the record Comment command (not this review share).
 
-To let an **agent** use the same powers as the share recipient, add `--with-mcp` (or `mcp` to `--capabilities`) plus the role/caps needed. Host must run with `PODCAST_REMOTE_MCP=1`. CLI prints `MCP URL` (`{base}/mcp/{token}/mcp`). See skill **podcast-remote-mcp**.
+To let an **agent** use the same powers as the share recipient, add `--with-mcp` to the role the agent needs. Host must run with `PODCAST_REMOTE_MCP=1`. CLI prints `MCP URL` (`{base}/mcp/{token}/mcp`). See skill **podcast-remote-mcp**.
 
 ## Related skills
 

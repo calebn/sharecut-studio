@@ -6,9 +6,9 @@ Plain-language steps for `/r/{token}`. Public share URLs are
 
 ---
 
-## 1. Cold open → listen → comment (default ReviewApp)
+## 1. Cold open → listen → comment (ReviewApp)
 
-**Setup:** Host creates a share with default caps (`play` + `comment`). Guest opens the link on a phone.
+**Setup:** A share with `play` + `comment` and no `view`. No review role, CLI flag or Share dialog option mints one today: every role opens Sharecut Studio (journeys 2 and 3). Guest opens the link on a phone.
 
 ```mermaid
 flowchart TD
@@ -35,24 +35,24 @@ page scrolling. Native field sizing stays within the column rather than widening
 
 ---
 
-## 2. Suggest a cut (Sharecut Studio guest)
+## 2. Suggest a cut (Commenter)
 
-Suggest and edit guests turn on transcript **Select** and pick words (for
+Commenters and Editors turn on transcript **Select** and pick words (for
 example a stray "Um."), or select a timeline passage, then choose the intended
-occurrence when it repeats. A suggest guest sees **Play full mix, Suggest cut,
+occurrence when it repeats. A Commenter sees **Play full mix, Suggest cut,
 Suggest mute, Comment, Bounce**; the suggestion leaves clips unchanged until the
-host selects the pending overlay and approves it. An edit guest sees **Cut** and
+host or an Editor selects the pending overlay and approves it. An Editor sees **Cut** and
 **Mute** instead, and they apply at once, exactly as for the host. Either way one
 History Undo restores the whole action. Disabled actions explain permissions;
 Bounce is host-only. Changed selected audio requires reselection.
 
 Phone users open Timeline and arm **Select range** on its tool rail for a touch
-drag, or use numeric In/Out and lanes. View guests can select a timeline range and
+drag, or use numeric In/Out and lanes. Viewers can select a timeline range and
 play a fresh full mix but cannot suggest edits, and get no transcript Select. Stale range playback asks for host Refresh; guests
 receive no isolated selected-track audio through this action.
 
 
-**Setup:** Share includes `view` + `suggest` (+ usually `play` / `comment`).
+**Setup:** A Commenter link, the default role.
 
 ```mermaid
 flowchart TD
@@ -60,20 +60,20 @@ flowchart TD
   daw --> listen[Listen or Timeline]
   listen --> select[Select a region / pending]
   select --> propose[Propose cut - not hard apply]
-  propose --> host[Host reviews pending suggestion]
+  propose --> host[Host or Editor reviews pending suggestion]
 ```
 
-1. Banner reads *Shared suggest view* (or similar).
+1. Banner reads *Shared comment view · You can comment and suggest edits*.
 2. Guest can propose structural cuts; they become **pending**, not committed.
-3. A suggest guest retimes only its own suggestions: the drag handles and timing fields appear only on those, and the server refuses another guest's. Other guests' suggestions and host and agent pending edits show their timing read-only. For a guest's ordinary source proposal, compare current/suggested bounds; **Use suggestion** applies them after typed timing is applied. **Snap to silence** snaps those source bounds. Exact range proposals keep their sealed timeline footprint and have no source timing controls.
-4. With `play`, select **Suggested** or **A/B** and **Play around** to hear an exact range proposal in the full mix before the host decides. The preview does not change the project.
-5. Guests need `edit` to approve or reject any proposal, exact range proposals included. A suggest guest's Approve and Reject controls on an exact range proposal explain this and stay disabled.
+3. A Commenter retimes only its own suggestions: the drag handles and timing fields appear only on those, and the server refuses another guest's. Other guests' suggestions and host and agent pending edits show their timing read-only. For a guest's ordinary source proposal, compare current/suggested bounds; **Use suggestion** applies them after typed timing is applied. **Snap to silence** snaps those source bounds. Exact range proposals keep their sealed timeline footprint and have no source timing controls.
+4. With `play`, select **Suggested** or **A/B** and **Play around** to hear an exact range proposal in the full mix before the host or an Editor decides. The preview does not change the project.
+5. Only an Editor or the host approves or rejects a proposal, exact range proposals included. A Commenter's Approve and Reject controls on an exact range proposal explain this and stay disabled.
 
 ---
 
-## 3. Edit guest approves on phone
+## 3. Editor approves on phone
 
-**Setup:** Share includes `view` + `edit`.
+**Setup:** An Editor link.
 
 This journey covers every pending proposal, exact selected-range proposals
 included. The host can undo each decision from History.
@@ -137,16 +137,16 @@ Product still needs polished “link died” copy and free-tier TTL story ([Back
 
 | Guest intent | Need on the token | UI |
 |--------------|-------------------|-----|
-| Listen + comment only | `play`, `comment` | ReviewApp |
-| See timeline / transcript | + `view` | Sharecut Studio guest |
-| Propose cuts (transcript Select or timeline range) | + `suggest` | Sharecut Studio guest |
-| Apply cuts directly, approve cuts | + `edit` | Sharecut Studio guest (transcript Select, Timeline, inspector) |
+| Listen + comment only | `play`, `comment`, no `view` (no role mints this today) | ReviewApp |
+| See timeline / transcript | Viewer | Sharecut Studio guest |
+| Comment, propose cuts (transcript Select or timeline range) | Commenter (default) | Sharecut Studio guest |
+| Apply cuts directly, approve cuts | Editor | Sharecut Studio guest (transcript Select, Timeline, inspector) |
 | Hear Suggested (agent) | `play` + `view` + `mcp` | `guest_pending_preview` → share HTTP WAV/PNG |
 | Hear a span (agent) | `play` + `view` + `mcp` | `guest_audition_context` → captions + windowed hum/clip warnings; optional wave/spec |
 | Join a record session | record `join` + `monitor` + `comment` | Record lobby / room (`/rec/{token}`) |
 | Produce a record session | record `monitor` + `comment` | Record lobby / room (not recorded) |
-| Reply / check off actions | `reply` / `action` | ReviewApp + Sharecut Studio (same HTTP as the agent) |
-| Agent tools | + `mcp` | External client → `{base}/mcp/{token}/mcp` (SSE `notifications/progress` when `progressToken` is set + guest WS chip) |
+| Reply / check off actions | Commenter or Editor (`reply` / `action`) | ReviewApp + Sharecut Studio (same HTTP as the agent) |
+| Agent tools | Any role + `mcp` (`--with-mcp`) | External client → `{base}/mcp/{token}/mcp` (SSE `notifications/progress` when `progressToken` is set + guest WS chip) |
 
 ---
 

@@ -40,21 +40,21 @@ using MCP; REST `/comments*` remains for ReviewApp-style clients.
 | `GET` | `…/daw/audio` | `play` | Whitelist: premix, stem, processed, review |
 | `GET` | `…/daw/audition-context` | `play + view` | Windowed captions + PNG URLs (agent hear channel v1) |
 | `GET` | `…/daw/audition-context-image` | `play + view` | Waveform or spectrogram of a timeline window |
-| `POST` | `…/daw/boundary/context` | `edit` | Source-safe trim/roll limits and revision for a visible boundary |
-| `POST` | `…/daw/document/command` | `view + command allowlist` | Typed body — see Document commands |
+| `POST` | `…/daw/boundary/context` | `Editor` | Source-safe trim/roll limits and revision for a visible boundary |
+| `POST` | `…/daw/document/command` | `role's command set` | Typed body — see Document commands |
 | `GET` | `…/daw/document/state` | `view` | Atomic sanitized document state with sequence and opaque basis token |
-| `POST` | `…/daw/media/upload` | `edit` | Chunked audio into host raw/ |
+| `POST` | `…/daw/media/upload` | `Editor` | Chunked audio into host raw/ |
 | `GET` | `…/daw/meta` | `view` | mtime/size + document server_seq for poll reload (server_seq omitted when document.db is unreadable) |
-| `GET` | `…/daw/pending-edits/{edit_id}/cut-suggestion` | `view + (suggest or edit)` | Read-only full-source pending cut suggestion; no-store; read rate class |
+| `GET` | `…/daw/pending-edits/{edit_id}/cut-suggestion` | `Commenter or Editor` | Read-only full-source pending cut suggestion; no-store; read rate class |
 | `GET` | `…/daw/pending-preview` | `play + view` | Listen-first Current/Suggested/A/B WAV (not host speakers) |
 | `GET` | `…/daw/pending-preview-image` | `play + view` | Waveform or spectrogram of the listen-first extract |
 | `GET` | `…/daw/project` | `view` | Sanitized ProjectView (no host paths) |
 | `GET` | `…/daw/proxy/manifest` | `play` | Proxy chunk manifest |
 | `GET` | `…/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}` | `play` | Content-addressed proxy media |
 | `POST` | `…/daw/range-audio` | `play` | Exact timeline islands from the full mix, with silent gaps. Never isolated stems. |
-| `POST` | `…/daw/render-preview` | `edit` | Start stem/premix render job (opt-in PODCAST_GUEST_RENDER) |
-| `GET` | `…/daw/render-preview/{job_id}` | `edit` | Read project-scoped render job status (no host paths) |
-| `GET` | `…/daw/waveform-snap` | `suggest or edit` | Windowed snap ticks; view-only gets wash only |
+| `POST` | `…/daw/render-preview` | `Editor` | Start stem/premix render job (opt-in PODCAST_GUEST_RENDER) |
+| `GET` | `…/daw/render-preview/{job_id}` | `Editor` | Read project-scoped render job status (no host paths) |
+| `GET` | `…/daw/waveform-snap` | `Commenter or Editor` | Windowed snap ticks; a Viewer gets the wash only |
 | `GET` | `…/daw/waveform/status` | `view` | Waveform pyramid status (raw media) |
 | `GET` | `…/daw/waveform/tiles/{key}` | `view` | Binary min/max/RMS pyramid tiles |
 | `WEBSOCKET` | `…/daw/ws` | `view` | Receive-only session+document fanout (progress plane too) |

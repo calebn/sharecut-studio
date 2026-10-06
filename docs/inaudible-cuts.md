@@ -19,7 +19,7 @@ This is **not** effect/plugin smoothing — it only moves cut boundaries and fad
 
 ## DAW snap overlay
 
-Sharecut Studio paints a **quiet wash** from the loaded peak-pyramid tiles (max-pooled per CSS pixel over the mounted tile range, at 8 px/s and above) and **snap ticks** from `GET /api/waveform-snap` / guest `daw/waveform-snap` (`EditService.waveform_snap_window`). That reuses `preview_inaudible_cut` and windowed `silence_islands_from_hops` — not a second snapper. Blade/trim/pending-edge drag magnets to those ticks (`snap=true` on `UpdatePendingEdit` is the same optimizer). View-only guests get the wash; `suggest`/`edit` get ticks + magnet. Ticks load around the dragged trim edge, else the blade hover inside the clip, else the paused playhead inside it, after an 80 ms debounce; a playing playhead does not fetch ticks. Overlay fetches abort when that focus moves and must not stall pointer or play.
+Sharecut Studio paints a **quiet wash** from the loaded peak-pyramid tiles (max-pooled per CSS pixel over the mounted tile range, at 8 px/s and above) and **snap ticks** from `GET /api/waveform-snap` / guest `daw/waveform-snap` (`EditService.waveform_snap_window`). That reuses `preview_inaudible_cut` and windowed `silence_islands_from_hops` — not a second snapper. Blade/trim/pending-edge drag magnets to those ticks (`snap=true` on `UpdatePendingEdit` is the same optimizer). Viewers get the wash; Commenters and Editors get ticks + magnet. Ticks load around the dragged trim edge, else the blade hover inside the clip, else the paused playhead inside it, after an 80 ms debounce; a playing playhead does not fetch ticks. Overlay fetches abort when that focus moves and must not stall pointer or play.
 
 ## Fade vs crossfade
 

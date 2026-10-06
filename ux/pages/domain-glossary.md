@@ -9,7 +9,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | Term | What it means for a host or guest |
 |------|-----------------------------------|
 | **Episode / project** | The session you’re editing or reviewing |
-| **Mix sheet** | Phone More → Mix controls all tracks. Hosts/editors save M and Volume; other guests use local M. S is local for everyone |
+| **Mix sheet** | Phone More → Mix controls all tracks. Hosts and Editors save M and Volume; other guests use local M. S is local for everyone |
 | **Track** | One speaker mic (or music bed) |
 | **Clip** | A kept stretch of audio on the session |
 | **Pending cut** | A suggested remove not yet approved |
@@ -17,9 +17,10 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Comment** | A note at a time on the mix |
 | **Review mix** | Frozen listen file for guests (ReviewApp) |
 | **Share link** | `/r/…` URL with limited powers |
-| **ReviewApp** | Light guest UI: play mix + comments (default share) |
-| **Sharecut Studio guest** | Full-ish timeline UI when the share includes “view” |
-| **Mode banner** | Top strip naming Shared edit / suggest / read-only / comment view |
+| **Viewer / Commenter / Editor** | Review-link roles, as in Google Docs. Viewer views and plays; Commenter (default) also comments and suggests edits; Editor also edits directly and approves or rejects suggestions |
+| **ReviewApp** | Light guest UI: play mix + comments, for a share without “view” (no role mints one today) |
+| **Sharecut Studio guest** | Full-ish timeline UI; every review role opens it |
+| **Mode banner** | Top strip naming Shared edit / comment / read-only view |
 | **Proxy listen** | Short MP3 chunks for guest playback (faster than full WAVs) |
 | **Needs attention** | Host pending edits and host/guest offline conflicts |
 | **Offline queue** | Guest edits waiting until the network returns |
@@ -54,7 +55,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 |---------|---------------------|---------|---------|
 | **Episode / project** | The session being edited | `episode.project.json` (`meta`, …) | All |
 | **Host home** | New / Open before a project is loaded | `POST /api/project/create\|open\|pick` | Loopback Sharecut Studio only (not guests) |
-| **Mix sheet** | Phone More → Mix controls all tracks. Hosts/editors save M and Volume; other guests use local M. S is local for everyone | Existing track mix and listen state | Phone full-height sheet |
+| **Mix sheet** | Phone More → Mix controls all tracks. Hosts and Editors save M and Volume; other guests use local M. S is local for everyone | Existing track mix and listen state | Phone full-height sheet |
 | **Track** | One speaker/mic (or bed) | `timeline.tracks` (+ sources) | Timeline headers, Mix, FX inspector |
 | **Clip** | Kept audio placed on the session | `timeline.clips` | Timeline lanes, body-drag move, fade/join inspector |
 | **Fade / join** | Soft edge between kept regions | `fade_*_ms`, `join_in_mode` | Clip edges, inspector |
@@ -69,7 +70,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Envelope** | Volume automation over time | `mix.automation_envelopes` | Volume envelope overlay, track volume workspace |
 | **Volume (fader)** | A track's saved level, on top of the staging gain Balance sets | `timeline.tracks[].fader_db` (+ `gain_db`) | Track inspector / sheet fader; header's **Out** readout shows the sum |
 | **Balance status** | Whether the last dialogue loudness measurement still matches the media revision, ordered FX chain, and kept speech spans; status is not measured before the first successful balance run, current while those inputs match, and stale when they change. The displayed LUFS is the measured level, and “ungated” indicates the measurement fell back from speech gating | `timeline.tracks[].balance_basis` + derived render status | Track inspector below the Volume fader |
-| **Mute / solo** | M removes a track from the saved mix (host and editors); S, and a guest's M, change only what you hear | `timeline.tracks[].muted`; solo and listen-only mute are per-listener | Track headers, inspector, sheet (solid = saved, dashed = only you) |
+| **Mute / solo** | M removes a track from the saved mix (host and Editors); S, and a guest's M, change only what you hear | `timeline.tracks[].muted`; solo and listen-only mute are per-listener | Track headers, inspector, sheet (solid = saved, dashed = only you) |
 | **Comment** | Time-anchored review note (+ replies, action items) | `review.comments[]` | Listen, Comments, ReviewApp |
 | **Review version** | Frozen mix for guests | `review.versions[]` | Share / ReviewApp |
 | **Chapter / social clip** | Markers / short-form candidates | chapters / `social` | Markers layer, Mix/marker CRUD; **Menu › Markers → Add chapter at playhead** (`edit.addChapter`, host only) adds one at the playhead |

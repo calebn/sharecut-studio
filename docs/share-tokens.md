@@ -210,12 +210,16 @@ Shares have two independent axes (like Google Drive):
 | Axis | Values | Default |
 |------|--------|---------|
 | **General access** | `link` (Anyone with the link) · `restricted` (ACL + sign-in) | `link` |
-| **Role** | `viewer` · `commenter` · `editor` (presets over caps) | commenter-like caps |
+| **Role** | Viewer · Commenter · Editor, as in Google Docs | Commenter |
 
-Role presets expand in `edits/share_capabilities.py` (`ROLE_PRESETS` /
-`resolve_share_capabilities`). Raw `--capabilities` still works when `--role`
-is omitted. Browser and share MCP always share one capability set — see
-[host-online-relay.md](host-online-relay.md) § Share capabilities.
+Each role expands to one capability set in `edits/share_capabilities.py`
+(`REVIEW_ROLE_CAPABILITIES`). Viewer holds `play` and `view`. Commenter adds
+`comment`, `reply`, `action` and `suggest`. Editor adds `edit`. `mcp` is an
+opt-in on any role (`--with-mcp`). `review_role_for_capabilities` returns the
+highest role whose whole set a share holds, else none, and the role decides the
+document commands (`ROLE_DOCUMENT_COMMANDS`). Browser and share MCP always share
+one capability set. See [host-online-relay.md](host-online-relay.md) § Share
+capabilities.
 
 ### Decision: Review-link roles follow Google Docs
 
@@ -227,14 +231,18 @@ decided-by: calebn
 evidence:
 - #1038 owner review: "These follow Google Docs: a Commenter can suggest."
 - #1050: "Make Commenter grant comment and suggest. Delete the standalone suggest-only level."
-enforcement: pending #1050
+enforced-by:
+- tests/test_share_roles.py::test_review_roles_follow_google_docs
+- tests/test_guest_document_gate.py::test_each_role_runs_exactly_its_document_commands
+- tests/test_guest_document_gate.py::test_a_commenter_suggests_a_cut_and_an_editor_applies_it
+- tests/test_guest_document_gate.py::test_commenters_retime_only_their_own_suggestions
+- docs-sync: decision-sharing
 -->
 
 A Viewer can view and play. A Commenter can also comment and suggest. An
 Editor can also edit directly and approve or reject suggestions. There is no
-suggest-only level. Until #1050 lands, the `commenter` preset
-(`COMMENTER_CAPABILITIES`) still lacks `view` and `suggest`, and
-`docs_role_for_capabilities` labels a suggest-only share Editor.
+suggest-only level: a share that holds `suggest` without the rest of the
+Commenter set is a Viewer and runs no document command.
 
 ### Decision: Guest powers follow the share's capabilities
 
@@ -248,43 +256,42 @@ evidence:
 - #1004 owner: "if someone has edit ability, they are trusted to approve." and "the host can undo it from History."
 - #1006, #1011: a 2026-10-03 Chromium run found no guest transcript Select and guest MCP cuts that only proposed; both fixed
 enforced-by:
-- tests/test_guest_document_gate.py::test_only_edit_guests_decide_pending_suggestions
-- tests/test_guest_document_gate.py::test_host_undoes_each_edit_guest_mcp_change
-- tests/test_guest_document_gate.py::test_selected_range_mode_follows_capabilities_on_every_surface
+- tests/test_guest_document_gate.py::test_only_editors_decide_pending_suggestions
+- tests/test_guest_document_gate.py::test_host_undoes_each_editor_mcp_change
+- tests/test_guest_document_gate.py::test_selected_range_mode_follows_the_role_on_every_surface
 - tests/test_selected_range.py::test_view_play_comment_guest_cannot_edit_or_suggest
 - docs-sync: decision-sharing
 supersedes: D-exact-range-guests-propose
 -->
 
-An `edit` guest edits and approves, a `suggest` guest only suggests, and a
-`view`, `play` or `comment` guest does neither, on every surface. No new
-permission level exists for this.
+An Editor edits and approves, a Commenter only suggests, and a Viewer does
+neither, on every surface. The role is read from the share's capabilities
+(`review_role_for_capabilities`). No new permission level exists for this.
 
-Selected-range edits (transcript words or a timeline range) follow the same
-capabilities. No separate transcript permission exists. Every document command
-needs `view`, on the browser route and the guest MCP alike: a share with
-`suggest` or `edit` but no `view` can run none. The guest MCP derives its
-tool list from the same gate: `guest_submit_document_command` needs a command
-the gate allows, and the `edit` tools (render preview, media upload) need every
-`edit` command (`edit_commands_allowed`), so an `edit` share without `view` is
-offered neither. The browser render preview, render job, boundary context and
-media upload routes call the same `edit_commands_allowed` (through
-`require_share_edit`), so both surfaces refuse an `edit` share without `view`.
+Selected-range edits (transcript words or a timeline range) follow the share's
+role. No separate transcript permission exists. A share that holds no role in
+full runs no document command, on the browser route and the guest MCP alike. The
+guest MCP derives its tool list from the same gate: `guest_submit_document_command`
+needs a command the gate allows, and the Editor tools (render preview, media
+upload) need every Editor command (`edit_commands_allowed`). The browser render
+preview, render job, boundary context and media upload routes call the same
+`edit_commands_allowed` (through `require_share_edit`), so both surfaces refuse
+everyone but an Editor.
 
-| Capabilities | Transcript **Select** and timed words | Range Cut / Mute (DAW, transcript, guest MCP) | Retime a pending edit | Approve / Reject pending edits |
+| Role | Transcript **Select** and timed words | Range Cut / Mute (DAW, transcript, guest MCP) | Retime a pending edit | Approve / Reject pending edits |
 |--------------|----------------------------------------|-----------------------------------------------|-----------------------|--------------------------------|
-| `view` + `edit` | Yes | **Cut** / **Mute** apply at once, one History step | Any pending edit | Any, exact range proposals included |
-| `view` + `suggest` (no `edit`) | Yes | **Suggest cut** / **Suggest mute** create a pending edit for review | Only its own suggestions (pending edits its share authored) | Refused |
-| `view` / `play` / `comment` / `reply` only | No (untimed utterance text) | Refused by the document-command gate | Refused | Refused |
+| Editor | Yes | **Cut** / **Mute** apply at once, one History step | Any pending edit | Any, exact range proposals included |
+| Commenter | Yes | **Suggest cut** / **Suggest mute** create a pending edit for review | Only its own suggestions (pending edits its share authored) | Refused |
+| Viewer, or a share with no role | No (untimed utterance text) | Refused by the document-command gate | Refused | Refused |
 
-An `edit` guest is trusted to approve: approving applies an edit. The host can
-undo every change an `edit` guest makes (applied cut or mute, approval,
+An Editor is trusted to approve: approving applies an edit. The host can
+undo every change an Editor makes (applied cut or mute, approval,
 rejection, retime) with one History Undo each.
 
 The document-command gate (`authorize_document_command` plus
 `policy.resolve_range_mode`, `policy.may_decide_exact_range` and
 `policy.authorize_pending_update`) enforces the table from the share's
-capabilities, whatever the surface; the Studio reads it from `rangeEditMode` and `canRetimePendingEdit` in
+role, whatever the surface; the Studio reads it from `rangeEditMode` and `canRetimePendingEdit` in
 `gui/web/src/shareMode.ts`, plus `canReviewPendingEdit` for Approve / Reject,
 only to choose affordances. Every pending edit a guest's document command creates
 records `EditDecision.author`, `share:` plus the share's opaque registry `id`
@@ -294,13 +301,13 @@ token, so nothing in the author is derived from the token and a copied project
 leaks no share credential. The id belongs to one share, not its slug: revoking and
 recreating a link, or a coolname recycled after cooldown, gets a new id, and the
 old suggestions belong to no guest. Host and agent edits, and edits saved before
-authorship, have no author and belong to no guest. A `suggest` guest retimes only
+authorship, have no author and belong to no guest. A Commenter retimes only
 edits whose author is its own share, and coalescing never merges pending edits
 with different authors (`transcript_cuts.coalesce_edits`). Every pending-edit row
 in the projection carries its `author`, the same row for every guest, and the guest
 bootstrap (`GET /api/review/{token}/project`) returns the guest's own `author`.
 The Studio shows Retime on a suggestion only when the two match
-(`canRetimePendingEdit`), so a `suggest` guest sees it on its own suggestions and
+(`canRetimePendingEdit`), so a Commenter sees it on its own suggestions and
 nowhere else. The id is random and grants nothing: every guest route and the guest
 MCP look a share up by its token, never by `id`, so another guest who sees an
 author learns only which suggestions came from the same share.
@@ -366,7 +373,7 @@ passkeys, and agent credentials when accounts are enabled. See
 
 ## Operator quick path
 
-**Sharecut Studio (host):** Menu → **Share…** (`share.manage`) lists live links, mints a coolname URL (role viewer / commenter / editor, optional MCP), and stops sharing. If no review mix exists, Create link publishes **Share mix** first. If the premix is behind the project (edits, volume or mute since the last Refresh), the typed conflict offers **Refresh mix**; the dialog waits for the existing render job to finish successfully, then retries the captured Create link request once. A failed or cancelled refresh leaves the recovery action available, and a second stale response requires another explicit refresh. A stale master instead explains that it must be re-mastered; preview refresh does not claim to fix it. Same `ShareService` as CLI.
+**Sharecut Studio (host):** Menu → **Share…** (`share.manage`) lists live links, mints a coolname URL (role Viewer / Commenter / Editor, optional MCP), and stops sharing. If no review mix exists, Create link publishes **Share mix** first. If the premix is behind the project (edits, volume or mute since the last Refresh), the typed conflict offers **Refresh mix**; the dialog waits for the existing render job to finish successfully, then retries the captured Create link request once. A failed or cancelled refresh leaves the recovery action available, and a second stale response requires another explicit refresh. A stale master instead explains that it must be re-mastered; preview refresh does not claim to fix it. Same `ShareService` as CLI.
 
 CLI:
 

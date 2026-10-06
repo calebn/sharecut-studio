@@ -112,7 +112,7 @@ Shipped record caps: `join` (be recorded), `monitor` (hear the room), `comment`
 see only their own until landing). Later: `control` (start/stop/pause), `talk`
 (producer push-to-talk), `video`. Roles are a **kind-scoped** map
 (`RECORD_ROLE_PRESETS` in `share_capabilities.py` / `contracts/caps.json`), not
-keys stuffed into review `ROLE_PRESETS`: **guest** = `join monitor comment`;
+keys stuffed into review `REVIEW_ROLE_CAPABILITIES`: **guest** = `join monitor comment`;
 **producer** = `monitor comment`; **host** = all.
 
 Chunk upload is on for `join` tokens (`build.upload: true`). Producer tokens
@@ -1327,7 +1327,7 @@ Shipped in `feat/recording-links`:
 - [x] Prefix ↔ kind: `/r/` 404s a `record` row; `/rec/` 404s a `review` row.
 - [x] `podcast review share --kind record` (room mint) and `--session-id --role guest|producer` (re-invite).
 - [x] Kind-scoped `RECORD_ROLE_PRESETS` (`guest`, `producer`) **beside** review
-  `ROLE_PRESETS` — resolver takes `kind`.
+  `REVIEW_ROLE_CAPABILITIES`; `record_capabilities_for_role` resolves them.
 - [x] `contracts/caps.json` + `ALL_CAPABILITIES` for `join` / `monitor`;
   `comment` stays one name with kind-scoped ACL.
 - [x] `shares.json` `kind` + role + `session_id`.

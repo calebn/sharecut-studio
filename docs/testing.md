@@ -535,6 +535,7 @@ Failed-spec traces remain separate `playwright-test-results-<name>` artifacts.
 | Document-command contract (schema + boundary rejects) | `test_document_command_payloads.py`, `test_document_command_boundary.py` (HTTP/WS/MCP 422/-32602 + OpenAPI↔schema) |
 | Share HTTP / MCP / WS parity | `test_share_http_mcp_parity.py` (`scripts/export_docs_site_contract.py`; WS discovery + curated notes for `/api/rec/` and `/api/review/`) |
 | Document handlers / caps | `test_document_delta.py`, `test_document_sync.py`, `test_review_share.py`, `test_remote_mcp.py`, `test_structural_policy.py` |
+| Review roles (Viewer / Commenter / Editor) | `test_share_roles.py` (role → capabilities, CLI and MCP mint by role only, guest MCP allowlist per role), `test_guest_document_gate.py::test_each_role_runs_exactly_its_document_commands` (role × document command matrix) |
 | Document submit crash consistency (every store handoff, lock contention) | `test_document_submit_crash_recovery.py`, `test_project_commit_lock.py` (spawned children are reaped with `tests/process_helpers.py` `reap`, which kills a child that hangs) |
 | GUI / timeline inspector APIs | `test_gui_api.py`, `test_waveform_zoom.py` |
 | Zoom-matched waveforms | `test_timeline_zoom.py`, `test_waveform_pyramid.py`, `test_waveform_service.py`, `test_waveform_routes.py`, `test_waveform_snap.py` (incl. guest snap ACL), `gui/web/src/waveform/*.test.ts` (tile geometry, envelope reduction vs brute force, shared CPU/GL shading, stores, worker), `gui/web/src/timeline/WaveformLayer.test.tsx`, Playwright `e2e/waveform.spec.ts` (host tiles, WebGL2 + raster parity on Chromium, guest tiles through the share route with no PCM) and the compat matrix (`webgl2` or `cpu-worker`; `deep-zoom.spec.ts` geometry at the 15 M px ceiling on Chromium and WebKit) |
@@ -623,11 +624,11 @@ sync timing.
 at desktop, tablet and phone widths in both themes with WCAG A/AA contrast
 checks. It also covers long comments and vocabulary announcements, phone
 Pipeline parameters/model-download focus handoff, and repeated menu-trigger
-clicks. `gui/web/e2e/review-surface.spec.ts` exercises real guest comment/reply
-persistence, audio readiness, overflow and contrast in both themes at 1440px
-and 320px. The intermediate 360px review cases use the same reading layout and
-are omitted. The smallest case enlarges native fields' preferred sizes to
-exercise intrinsic-width overflow across platforms.
+clicks. `gui/web/e2e/review-surface.spec.ts` checks that a Commenter link opens
+Sharecut Studio, not ReviewApp, in both themes: at 1440px the guest posts a
+comment and a reply, and at 320px Comments sit one action away under More. Both
+widths check overflow and axe. ReviewApp keeps its Vitest coverage
+(`gui/web/src/review/ReviewApp.test.tsx`); no review role opens it.
 `gui/web/e2e/comment-undo.spec.ts` checks host Resolve and Undo persistence,
 sticky toast bounds and hit testing after two interior panel scrolls, and Dismiss
 focus without changing panel, ancestor, or window scroll offsets. It runs at
@@ -2067,11 +2068,11 @@ gesture and shared-action suites cover resolution, permissions and live guards.
 Undo, host repeated-copy Cut/Mute, phone armed clip-body selection, orphan edit
 reachability after inspector collapse, and desktop/phone action-surface axe.
 
-The suggest-only scenario mints a link through `podcast review share` with
-`play,view,suggest,comment` capabilities. It checks the guest banner, an unapplied
-proposal, denied approval, Suggested audio playback, host review in Impact, and
-the guest's refreshed clip geometry after approval. The editor scenario remains
-separate because editor links exercise a different capability set.
+The Commenter scenarios mint a Commenter link through `POST /api/shares` with
+`role: "commenter"`. They check the guest banner, an unapplied proposal, denied
+approval, Suggested audio playback, host review in Impact, and the guest's
+refreshed clip geometry after approval. The Editor scenario remains separate
+because an Editor applies instead of proposing.
 
 `useProxyTransport.test.tsx` runs the proxy and HTML audio hooks together to
 check preview ownership, a paused proxy, unchanged session playhead and playback

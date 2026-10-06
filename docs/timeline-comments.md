@@ -197,15 +197,17 @@ Agents do not need a separate remap call after tighten/NL ripple cuts.
 Requires the FOSS `collaboration` extension (default; disable with `PODCAST_EXTENSIONS=`). Internet guests also need the FOSS relay + `podcast tunnel` — see [host-online-relay.md](host-online-relay.md). A hosted account provider is optional.
 
 1. Publish a frozen mix: `podcast review publish-version --label "Guest pass"`
-2. Create a link: `podcast review share --role commenter --project … --version <vid> --base-url https://host:8765` (or raw `--capabilities …`). Default is **Anyone with the link** — login-free comments. Studio links use `--kind record` (not for comments yet).
+2. Create a link: `podcast review share --role commenter --project … --version <vid> --base-url https://host:8765` (`--role viewer|commenter|editor`, default Commenter). Default is **Anyone with the link** — login-free comments. Studio links use `--kind record` (not for comments yet).
 3. Optional Restricted: `--general-access restricted --invite a@b.com` (sign-in; `podcast review revoke-invite` removes a person without rotating the coolname). Optional `--require-sign-in` on link shares for high sensitivity.
 4. **Preferred (internet):** run the FOSS Docker relay + `podcast tunnel` so guests use the relay origin — see [host-online-relay.md](host-online-relay.md). LAN-only: bind GUI with `podcast gui --host 0.0.0.0` and set `PODCAST_REVIEW_CORS_ORIGINS` to exact `https://` origins as needed (no `*`; see [setup.md](setup.md#public-review-share-optional)).
 5. Guests open `/r/{token}` only (no filesystem paths) — coolname slug, e.g. `/r/fantastic-acoustic-whale`:
-   - **`--role viewer` / `view`** → read-only Sharecut Studio (timeline + premix)
-   - **commenter (default)** → ReviewApp (frozen review MP3 + comments; object storage bypass when configured)
+   - **Viewer** → read-only Sharecut Studio (timeline + premix)
+   - **Commenter (default)** → Sharecut Studio with comments and Suggest cut; suggestions wait for an Editor or the host
+   - **Editor** → Sharecut Studio that also edits directly and approves or rejects suggestions
+   - ReviewApp (frozen review MP3 + comments; object storage bypass when configured) opens for a share without `view`. No role mints one today.
    - Document `<title>` and Open Graph / Twitter meta (`og:title`, `og:audio`, …) are injected server-side from the episode name and review mix so Messages / social previews show the episode title and can offer inline audio when `play` is granted (prefer HTTPS object storage URL when uploaded; otherwise `{public}/api/review/{token}/audio`).
 6. Host sees comments in the DAW via project poll / document sync.
-7. Optional **remote MCP**: `--with-mcp` (plus the role/caps the agent should have). With `PODCAST_REMOTE_MCP=1` and `podcast tunnel`, clients connect to `{base}/mcp/{token}/mcp` with the **same powers as the web guest** — see [host-online-relay.md](host-online-relay.md) § Remote MCP. Restricted shares need `POST /auth/agent-credential` Bearer tokens.
+7. Optional **remote MCP**: `--with-mcp` (plus the role the agent should have). With `PODCAST_REMOTE_MCP=1` and `podcast tunnel`, clients connect to `{base}/mcp/{token}/mcp` with the **same powers as the web guest** — see [host-online-relay.md](host-online-relay.md) § Remote MCP. Restricted shares need `POST /auth/agent-credential` Bearer tokens.
 
 Token algorithm, roles, Restricted identity: **[share-tokens.md](share-tokens.md)**. Revoke: `podcast review revoke-share --token …`. Threat model: on link shares the token is the capability set; on Restricted shares the coolname alone is insufficient. Host workspace metadata and object storage keys stay private. Comment and reply text is returned as authored, including path-like text. Remote MCP guests never receive `project_path` and cannot call host-only tools (pipeline, ingest, laptop play).
 
