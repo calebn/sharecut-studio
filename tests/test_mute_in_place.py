@@ -1203,3 +1203,143 @@ def test_paste_skips_invalid_mute_region_entries():
     pasted = [c for c in project.clips if abs(c.timeline_start - 3.0) < 1e-6]
     assert pasted
     assert [(r.start_s, r.end_s) for r in pasted[0].mute_regions] == [(0.1, 0.3)]
+
+
+def _um_uh_project() -> tuple[EpisodeProject, dict]:
+    project = EpisodeProject.create("p", "/tmp/ws")
+    project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
+    project.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0)
+    ]
+    project.transcripts = [
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="um", start=0.5, end=0.7),
+                TranscriptWord(text="uh", start=0.75, end=0.95),
+                TranscriptWord(text="hello", start=3.0, end=3.3),
+            ],
+        )
+    ]
+    defaults = {
+        "tighten": {
+            "filler_words": ["um", "uh"],
+            "breath_handling": {"enabled": False},
+            "min_filler_cluster": 2,
+            "join_continuity_gate": True,
+        }
+    }
+    return project, defaults
+
+
+def _propose_with_stubbed_dsp(project: EpisodeProject, defaults: dict, edit_mode: str):
+    from unittest.mock import patch
+
+    from podcast_mcp.edits.cut_quality import CutRisk
+    from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
+
+    def _opt(project, track_id, start, end, **kw):
+        range_ = OptimizedCutRange(
+            start=start,
+            end=end,
+            mode="vocal_transcript_guided",
+            shifted_start_ms=0.0,
+            shifted_end_ms=0.0,
+            confidence=0.9,
+            details={},
+        )
+        return range_, CutRisk(score=0.1, reasons=[])
+
+    with (
+        patch("podcast_mcp.edits.fillers.optimize_and_assess", side_effect=_opt),
+        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=5),
+        patch("podcast_mcp.edits.join_continuity.assess_proposed_cut", side_effect=RuntimeError),
+    ):
+        return propose_tighten_edits(project, defaults, edit_mode=edit_mode)
+
+
+def test_mute_mode_does_not_repropose_an_approved_mute():
+    project, defaults = _um_uh_project()
+    first = _propose_with_stubbed_dsp(project, defaults, "mute")
+    assert [d.type for d in first.decisions] == [EditDecisionType.MUTE]
+    assert "already_muted" not in first.skip_counts
+
+    assert approve_edits(project, [d.id for d in first.decisions]) == 1
+    assert project.clips[0].mute_regions
+
+    again = _propose_with_stubbed_dsp(project, defaults, "mute")
+    assert again.decisions == []
+    assert [e for e in project.edit_decisions if not e.applied] == []
+    # "um" and "uh" are two candidates that coalesced into the one approved mute.
+    assert again.skip_counts["already_muted"] == 2
+
+
+def test_mute_mode_still_proposes_a_filler_outside_the_muted_span():
+    project, defaults = _um_uh_project()
+    project.clips[0].mute_regions = [ClipMuteRegion(start_s=0.5, end_s=0.6)]
+
+    proposed = _propose_with_stubbed_dsp(project, defaults, "mute")
+
+    assert len(proposed.decisions) == 1
+    assert "already_muted" not in proposed.skip_counts
+
+
+def test_ripple_mode_ignores_existing_mute_regions():
+    project, defaults = _um_uh_project()
+    project.clips[0].mute_regions = [ClipMuteRegion(start_s=0.4, end_s=1.0)]
+
+    proposed = _propose_with_stubbed_dsp(project, defaults, "ripple")
+
+    assert [d.type for d in proposed.decisions] == [EditDecisionType.REMOVE]
+    assert "already_muted" not in proposed.skip_counts
+
+
+def test_already_muted_covers_acoustic_candidates_and_is_per_track():
+    from podcast_mcp.edits.fillers import _AnalyzedCut, _CutCandidate, _resolve_analyzed_cuts
+
+    def _cut(track: str, start: float, end: float) -> _AnalyzedCut:
+        return _AnalyzedCut(
+            track_id=track,
+            start=start,
+            end=end,
+            reason="filler:acoustic",
+            review_required=True,
+            crossfade_ms=5,
+            cut_confidence=0.9,
+            boundary_mode="test",
+            decision_type="mute",
+        )
+
+    def _candidate(track: str) -> _CutCandidate:
+        return _CutCandidate(
+            track,
+            0.8,
+            1.2,
+            "filler:acoustic",
+            "filler",
+            max_end=1.25,
+            min_start=0.75,
+            review_only=True,
+        )
+
+    candidates = [_candidate("host"), _candidate("guest")]
+    muted = {"host": [ClipMuteRegion(start_s=0.78, end_s=1.22)]}
+    skips: dict[str, int] = {}
+
+    kept = _resolve_analyzed_cuts(
+        candidates,
+        [_cut("host", 0.8, 1.2), _cut("guest", 0.8, 1.2)],
+        muted=muted,
+        skip_counts=skips,
+    )
+
+    assert [(c.track_id, c.start, c.end) for c in kept] == [("guest", 0.8, 1.2)]
+    assert skips == {"already_muted": 1}
+
+    skips = {}
+    partial = _resolve_analyzed_cuts(
+        candidates[:1], [_cut("host", 0.8, 1.4)], muted=muted, skip_counts=skips
+    )
+    assert len(partial) == 1
+    assert skips == {}
