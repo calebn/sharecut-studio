@@ -47,7 +47,7 @@ never contain a host token or share token (see § Redaction).
 | `disconnected` | `Tunnel disconnected (network: connection lost)` | `reconnecting` |
 | `reconnecting` | `Tunnel reconnecting in 2.3s (attempt 2)` | `reconnecting` |
 | `failed` | `Tunnel failed (auth: relay rejected the host token or host id). Check the host token …` | `offline` |
-| `stopped` | `Tunnel stopped` (Ctrl-C) | `off` |
+| `stopped` | `Tunnel stopped` (Ctrl-C, SIGTERM, or any exit that is not a failure) | `off` |
 
 ```text
 15:29:41 Tunnel connecting to relay.example.com:8443
@@ -88,7 +88,11 @@ depend on `--config` or `PODCAST_RELAY_CONFIG`, and two tunnels for different ho
 relays never overwrite each other (two with the same identity share a file, as they
 would share a registration on the relay). Each file refreshes `updated_at` every 15 s
 and holds the phase, relay host, public base URL, share count, redacted reason, the
-next retry time (`retry_at`) and timestamps.
+next retry time (`retry_at`), timestamps and the writing process id (`pid`). SIGINT and
+SIGTERM cancel the tunnel, so the file ends in the `stopped` phase before the process
+exits; only a failure keeps its `failed` phase, so the host still sees why. A killed
+process (SIGKILL, a crash, a closed terminal) cannot write, which is why the reader
+checks the `pid` and the age too.
 
 The `tunnel.status` feature serves `GET /api/tunnel/status` (host role only; the tunnel
 never maps `/api/tunnel`). It reads every file and reports one `state`:
@@ -98,12 +102,42 @@ never maps `/api/tunnel`). It reads every file and reports one `state`:
 | `online` | A tunnel is connected | Guests can open your links |
 | `connecting` | Starting up | Connecting… guests can open your links once you're online |
 | `reconnecting` | Dropped and retrying | Reconnecting… guests may see a brief interruption, then "Trying again in N s" (a still "Next try at" clock time under reduced motion) |
-| `offline` | Failed (auth, config, gave up) or a live snapshot older than 45 s (killed process, sleeping laptop) | Not reachable online: guests can't open links until you're back online, with a "How to fix" disclosure and a link to this section |
-| `off` | Stopped with Ctrl-C, or no snapshot yet while relay settings exist (`relay.yaml` at the default path, `PODCAST_RELAY_URL` or `PODCAST_RELAY_HOST_TOKEN`) | Online sharing is off, with "How to turn it on" |
+| `offline` | Failed (auth, config, gave up), or a live snapshot not refreshed for 45 s to 10 minutes whose process is not known to be gone (a frozen process, a sleeping laptop) | Not reachable online: guests can't open links until you're back online, with a "How to fix" disclosure and a link to this section |
+| `off` | Stopped (Ctrl-C, SIGTERM, or any exit but a failure), a live snapshot whose process is gone (killed, crashed), a file nothing has written for 10 minutes, or no snapshot yet while relay settings exist (`relay.yaml` at the default path, `PODCAST_RELAY_URL` or `PODCAST_RELAY_HOST_TOKEN`) | Online sharing is off, with "How to turn it on" |
 | `not_set_up` | No snapshot and no relay settings: a local-only host | No line |
 
+**One table derives the state of each file.** A file outlives its tunnel, so the phase
+it holds is only a claim. `read_tunnel_status` checks the phase kind (live, failed or
+stopped), whether the recorded `pid` still runs, and the age of `updated_at`, then takes
+the first matching row (`_RULES` in `tunnel_status.py`):
+
+| Phase kind | Process | Age of `updated_at` | `state` |
+|------------|---------|---------------------|---------|
+| stopped | any | any | `off` |
+| live (connecting, connected, disconnected, reconnecting) | gone | any | `off` |
+| any | any | over 10 minutes | `off`, and the file is deleted |
+| live | running or unknown | over 45 s | `offline` ("stopped responding") |
+| any | any | any | the phase's own state |
+
+Failed is the one kind a missing process does not touch: `podcast tunnel` exits on an
+auth or config failure, so its process is gone by design and the fix stays on screen
+until the file is abandoned. "Unknown" is a file with no usable `pid`, or a platform
+that cannot be probed (Windows); the age rows decide. A reused pid reads as running and
+falls to the age rows too.
+
+**Why 45 s and 10 minutes.** A running tunnel rewrites its file every 15 s, also while
+it backs off, so three missed beats (45 s) means something is wrong: that is an outage
+and it keeps the alarm. A file nothing has written for 10 minutes is not an outage a
+host is watching but a tunnel they left behind. Ten minutes is long enough to fix a
+real problem with the alarm still up, and short enough that an abandoned host sees the
+calm "Online sharing is off" in the same sitting, not forever. Every read deletes the
+files past 10 minutes (`unlink` that tolerates a file another reader already removed
+and a cache it cannot write), so the directory stays small. A live tunnel that was only
+frozen recreates its file on the next heartbeat.
+
 With several tunnels, the best state wins (online, reconnecting, connecting, offline,
-off), then the most recently updated. The dialog copy follows the
+off), then the most recently updated, so a tunnel that is up outranks stopped or
+abandoned ones, and a real outage outranks both. The dialog copy follows the
 [communication philosophy](communication-philosophy.md#terminology): it names what
 guests can do and never says tunnel, relay or host token. To fix a `Not reachable
 online` line: for an `auth` failure, get a new host token from the relay operator and
