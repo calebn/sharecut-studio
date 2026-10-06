@@ -466,3 +466,28 @@ visible above the inspector:
 | 390×844 portrait | 180 (second lane covered) | 586 | 296 |
 | 800×360 sideways | none (timeline covered) | 125 | 107 |
 | 844×390 sideways | none (timeline covered) | 155 | 107 |
+
+### Pinch never edits (#1051 round 4)
+
+On a phone, a pinch to zoom also moved a clip edge: the first finger had
+started a trim, the second finger zoomed, and the trim saved on release. The
+rule now holds for every target, in the router (`timeline/hitRouting.ts`),
+not per target.
+
+The moment a second finger lands anywhere on the timeline (ruler and headers
+included), the router sends each finger's press a `pointercancel`. Every drag
+owner already treats that as "drop the draft, save nothing": trims, fades,
+rolls, clip moves, envelope points, pending edges, chapters, ranges, a chip
+grab and a press the press layer is still deciding. A press the router replayed
+on another target is cancelled there too. The selection goes back to what it
+was before the first finger, so a press that selected a clip on the way down
+is undone. Until every finger lifts, their pointer events stop at the router,
+and the pinch (touch events, `timelineZoomGestures.ts`) owns the gesture. An
+open chooser closes. Mouse and pen pointers are not affected.
+
+CDP drives two real touch points in `e2e/touch-pinch.spec.ts`: one finger
+drags a fade corner, a trim handle or presses a clip body, a second lands and
+both spread. On the round 3 build the same cases saved `TrimClipEdge`,
+`MoveClips` or `RollClipJoin`; now they send no document command, the saved
+clip is unchanged, the selection is what it was, and the zoom grows by about
+2.3× (portrait and sideways, lab on; portrait, lab off).

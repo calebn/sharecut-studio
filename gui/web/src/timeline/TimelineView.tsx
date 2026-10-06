@@ -250,6 +250,14 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
               : null,
         ),
       onTarget: (hit) => useDawStore.getState().setSelectionHit(hit),
+      snapshot: () => {
+        const { selection, selectionHit } = useDawStore.getState();
+        return () => {
+          const s = useDawStore.getState();
+          if (s.selection !== selection) s.setSelection(selection);
+          if (s.selectionHit !== selectionHit) s.setSelectionHit(selectionHit);
+        };
+      },
     });
     const detachDragWatch = attachDragWatch(root, (dragging) =>
       useDawStore.getState().setTimelineDragging(dragging),
