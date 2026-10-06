@@ -20,7 +20,7 @@ description: >-
   - `noise_reduction_rnnoise` uses FFmpeg's `arnndn` filter (a small recurrent-network denoiser); needs a one-time `podcast bootstrap --component rnnoise` to fetch its model. Often a real upgrade over `noise_reduction`/`afftdn` for room noise/HVAC hiss.
 - `remove_effect_tool`, `list_effects_tool`
 - `set_effect_bypass_tool(project_path, effect_index=…, bypass=…, speaker=…)` — A/B without removing the chain entry (Sharecut Studio Track inspector Bypass toggles use the same path via `SetEffectBypass`)
-- `fill_with_room_tone_tool` — fill clip gaps with room tone from the track
+- `fill_with_room_tone_tool` — fill clip gaps with room tone from the track: its recorded bed, else a steady stretch at its noise floor near each gap. A Zoom-gated track has none, so its gaps stay silent
 - After adding or removing effects, re-run `balance_tracks`: it measures loudness through the track's chain.
 - `check_loudness_tool` — measure LUFS on export/premix; for tracked project audio, its
   `balance` map also reports per-dialogue-track measurement freshness

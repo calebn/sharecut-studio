@@ -94,16 +94,6 @@ def test_apply_filler_pacing_shrink_skips_tight_gap():
     assert paced is None
 
 
-def test_room_tone_source_span_edge_cases():
-    from podcast_mcp.edits.timeline_ops import _room_tone_source_span
-
-    project = _project([TranscriptWord(text="hi", start=0.0, end=0.2)], duration=5.0)
-    left = project.clips[0]
-    assert _room_tone_source_span(project, "host", left, duration_sec=0) is None
-    project.tracks[0].media = None
-    assert _room_tone_source_span(project, "host", left, duration_sec=0.2) is None
-
-
 def test_insert_room_tone_pad_tiles_short_sample():
     p = _project([TranscriptWord(text="hi", start=0.0, end=0.1)], duration=10.0)
     p.clips = [
@@ -122,7 +112,11 @@ def test_insert_room_tone_pad_tiles_short_sample():
             timeline_start=0.15,
         ),
     ]
-    insert_room_tone_pad(p, 0.15, 0.4, sample_duration_sec=0.1)
+    with patch(
+        "podcast_mcp.edits.timeline_ops.room_tone_span", return_value=(3.0, 3.1, None)
+    ) as span:
+        insert_room_tone_pad(p, 0.15, 0.4, sample_duration_sec=0.1)
+    span.assert_called_once_with(p, "host", near_sec=0.15, duration_sec=0.1)
     host = sorted([c for c in p.clips if c.track_id == "host"], key=lambda c: c.timeline_start)
     # Multiple pad tiles between left and shifted right
     assert len(host) >= 4
@@ -586,7 +580,8 @@ def test_insert_room_tone_pad_fills_gap():
             timeline_start=3.0,
         ),
     ]
-    summary = insert_room_tone_pad(p, 3.0, 0.28)
+    with patch("podcast_mcp.edits.timeline_ops.room_tone_span", return_value=(5.0, 5.28, None)):
+        summary = insert_room_tone_pad(p, 3.0, 0.28)
     assert summary["operation"] == "insert_room_tone_pad"
     host = sorted([c for c in p.clips if c.track_id == "host"], key=lambda c: c.timeline_start)
     assert len(host) >= 3
@@ -660,9 +655,9 @@ def test_approve_edits_applies_room_tone_pad_when_configured():
             reason="nl:range",
         )
     ]
-    with patch(
-        "podcast_mcp.edits.decisions.filler_pad_mode",
-        return_value="room_tone",
+    with (
+        patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value="room_tone"),
+        patch("podcast_mcp.edits.timeline_ops.room_tone_span", return_value=(6.0, 6.28, None)),
     ):
         removed = approve_edits(project, ["cut_1"])
     assert removed == 1

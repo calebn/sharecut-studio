@@ -18,7 +18,7 @@ from filelock import Timeout as FileLockTimeout
 from podcast_mcp.edits.clipping_regions import clipping_regions_from_ms
 from podcast_mcp.edits.clips_ops import new_clip_id
 from podcast_mcp.edits.comments import add_comment, delete_comment
-from podcast_mcp.edits.timeline_ops import room_tone_source_id
+from podcast_mcp.edits.room_tone import room_tone_source_id
 from podcast_mcp.edits.track_ids import slug_track_id
 from podcast_mcp.edits.track_media import refresh_timeline_duration
 from podcast_mcp.engines.render_invalidations import record_invalidation

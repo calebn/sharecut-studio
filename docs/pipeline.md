@@ -227,6 +227,7 @@ Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-
 | `tighten.isolated_filler_candidates` | `true` | Propose a lone hard filler (not a discourse marker) without a cluster; `light` turns this off |
 | `tighten.min_filler_cluster` | `2` | Min lexicon hits in a gap cluster before a discourse marker (or, with isolated candidates off, a hard filler) is a candidate |
 | `tighten.max_pause_sec` | `1.2` | Inter-word gap before pause trim |
+| `tighten.filler_pad_mode` | `silence` | Fill for ripple pads and approved mutes: `silence`, or `room_tone` (the recorded bed, else a steady stretch at the track's noise floor chosen from its audio; [filler-cut-quality.md](filler-cut-quality.md) § Where room tone comes from) |
 | `tighten.acoustic_gap_filler.enabled` | `true` | Review-only `filler:acoustic` proposals for voiced audio inside ASR gaps (never auto-applied) |
 | `tighten.acoustic_gap_filler.min_gap_sec` | `0.35` | Shortest gap scanned (floor `0.35`) |
 | `tighten.acoustic_gap_filler.max_run_sec` | `1.5` | Longest voiced run proposed (ceiling `1.5`) |
@@ -430,6 +431,10 @@ further concurrency gains for this step. Parallelism still matters more for
 `assemble_timeline` (real per-track rendering work, not just tiny reads) and for
 episodes with more dialogue tracks.
 
+
+### Room-tone levels
+
+With `tighten.filler_pad_mode: room_tone`, the first pad or mute fill on a track streams its source audio once at 16 kHz into 10 ms frame levels (`edits/room_tone.py`), cached in-process per file version. Each pick then reads one window of the length it needs and runs Silero on it. On the lab tape's three 28-minute tracks the level pass takes about 1.2 s per track, nearly all of it `ffmpeg` decode (8 kHz decodes no faster). Approving every proposal took 5.5 s (ripple, 26 edits) and 4.5 s (mute, 54) against 3.7 s and 1.8 s for the word-gap sampler it replaced. The level pass (3.6 s for three tracks) is most of that; the picks themselves cost less than the old per-window reads. The default `silence` reads nothing.
 
 ### Conservative bleed planning cost
 

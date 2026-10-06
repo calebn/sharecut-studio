@@ -88,7 +88,7 @@ Do **not** loosen global `absorb_trailing_silence_retain_sec` for this — hando
 
 Audition ~10–15s around the join before resolving review comments. Prefer existing room tone over `insert_gap` of pure silence unless the user asks.
 
-**Pad source order** when `filler_pad_mode: room_tone` (an approved mute's fill uses the same order): (1) recorded `track.room_tone` bed from the lobby capture (abutting tiles if the pad is longer than the bed: fade-in on the first tile, fade-out on the last); (2) stolen stem air that is free of own-track words and peer-track speech; (3) skip the pad rather than tiling dialogue, bleed, or digital silence. Default `filler_pad_mode` stays **`silence`**. A near-silent recorded bed (below `room_tone_min_rms_db`) is treated as missing.
+**Pad source order** when `filler_pad_mode: room_tone` (an approved mute's fill uses the same order): (1) recorded `track.room_tone` bed from the lobby capture (abutting tiles if the pad is longer than the bed: fade-in on the first tile, fade-out on the last); (2) a steady stretch of the track's own audio at its noise floor, at least 30 dB under its speech level and voice-free, nearest the cut, chosen from the audio and not from word times (#1054; rules in [filler-cut-quality.md](filler-cut-quality.md) § Where room tone comes from); (3) skip the pad rather than tiling dialogue, bleed, or digital silence. Default `filler_pad_mode` stays **`silence`**. A digitally silent recorded bed is treated as missing.
 
 ## Configuration
 

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-
 from pydantic import ValidationError
 
 from podcast_mcp.edits.clipping_regions import clip_clipping_payload, clip_clipping_truncated
@@ -38,7 +36,8 @@ from podcast_mcp.edits.inaudible_cuts import (
     recommend_micro_fades,
 )
 from podcast_mcp.edits.mute_regions import mute_regions_overlapping, mute_regions_payload
-from podcast_mcp.edits.ranges import merge_intervals, merge_timeline_ranges
+from podcast_mcp.edits.ranges import merge_timeline_ranges
+from podcast_mcp.edits.room_tone import room_tone_span
 from podcast_mcp.edits.transcript_cuts import TranscriptMatch, search_transcript
 from podcast_mcp.edits.transcript_sync import (
     apply_batch_transcript_removes,
@@ -48,7 +47,6 @@ from podcast_mcp.edits.transcript_sync import (
 )
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
-    clip_source_to_timeline_shift,
     origin_track_id_for_clip,
 )
 from podcast_mcp.models import (
@@ -998,331 +996,6 @@ def list_clips(project: EpisodeProject, track_id: str | None = None) -> dict:
     return {"tracks": by_track, "clip_count": len(clips)}
 
 
-def _merge_occupied_intervals(
-    intervals: list[tuple[float, float]],
-) -> list[tuple[float, float]]:
-    return merge_intervals(intervals, gap=1e-9)
-
-
-def _expand_intervals(
-    intervals: list[tuple[float, float]],
-    *,
-    margin_sec: float,
-    clip_start: float,
-    clip_end: float,
-) -> list[tuple[float, float]]:
-    """Pad each interval so we do not sample speech tails / onsets / bleed skirts."""
-    if margin_sec <= 0:
-        return list(intervals)
-    out: list[tuple[float, float]] = []
-    for start, end in intervals:
-        a = max(clip_start, start - margin_sec)
-        b = min(clip_end, end + margin_sec)
-        if b > a + 1e-9:
-            out.append((a, b))
-    return out
-
-
-def _gaps_from_occupied(
-    clip_start: float,
-    clip_end: float,
-    occupied: list[tuple[float, float]],
-) -> list[tuple[float, float]]:
-    gaps: list[tuple[float, float]] = []
-    cursor = clip_start
-    for start, end in _merge_occupied_intervals(occupied):
-        if start > cursor + 1e-9:
-            gaps.append((cursor, start))
-        cursor = max(cursor, end)
-    if clip_end > cursor + 1e-9:
-        gaps.append((cursor, clip_end))
-    return gaps
-
-
-def _own_word_source_occupancy(
-    project: EpisodeProject, track_id: str, clip: Clip
-) -> list[tuple[float, float]]:
-    """Source intervals inside ``clip`` covered by this track's words.
-
-    Suppressed words still have audible audio, so they count as occupied.
-    """
-    tr = project.transcript_for_track(track_id)
-    occupied: list[tuple[float, float]] = []
-    if not tr:
-        return occupied
-    for w in tr.words:
-        if w.end <= w.start:
-            continue
-        if w.end <= clip.source_start or w.start >= clip.source_end:
-            continue
-        occupied.append((max(clip.source_start, w.start), min(clip.source_end, w.end)))
-    return occupied
-
-
-def _peer_speech_source_occupancy(
-    project: EpisodeProject, track_id: str, clip: Clip
-) -> list[tuple[float, float]]:
-    """Source intervals inside ``clip`` where another dialogue track has words.
-
-    Peer speech on the session clock bleeds into this mic even when this
-    track's transcript is empty - tiling that air repeats the other speaker.
-    """
-    from podcast_mcp.util.timebase import TimelineSec
-
-    st = SessionTimeline(project)
-    clip_tl0 = float(clip.timeline_start)
-    clip_tl1 = float(clip.timeline_end)
-    occupied: list[tuple[float, float]] = []
-    for peer_id in dialogue_track_ids(project):
-        if peer_id == track_id:
-            continue
-        tr = project.transcript_for_track(peer_id)
-        if not tr:
-            continue
-        # Narrow to peer source near this clip's timeline window (aligned remotes).
-        peer_lo: float | None = None
-        peer_hi: float | None = None
-        for tl in (clip_tl0, clip_tl1):
-            mapped = st.timeline_to_source(peer_id, TimelineSec(tl))
-            if mapped is None:
-                continue
-            v = float(mapped)
-            peer_lo = v if peer_lo is None else min(peer_lo, v)
-            peer_hi = v if peer_hi is None else max(peer_hi, v)
-        words = [
-            w
-            for w in tr.words
-            if w.end > w.start
-            and not (
-                peer_lo is not None
-                and peer_hi is not None
-                and (w.end < peer_lo - 1.0 or w.start > peer_hi + 1.0)
-            )
-        ]
-        mapped_spans = st.map_source_spans(
-            peer_id, [(SourceSec(w.start), SourceSec(w.end)) for w in words]
-        )
-        for spans in mapped_spans:
-            for tl_a, tl_b in spans:
-                a = max(float(tl_a), clip_tl0)
-                b = min(float(tl_b), clip_tl1)
-                if b <= a + 1e-9:
-                    continue
-                occupied.append(
-                    (
-                        clip.source_start + (a - clip_tl0),
-                        clip.source_start + (b - clip_tl0),
-                    )
-                )
-    return occupied
-
-
-def _room_tone_edge_margin_sec(defaults: dict | None = None) -> float:
-    from podcast_mcp.config import load_defaults
-
-    cfg = defaults if defaults is not None else load_defaults()
-    raw = (cfg.get("tighten") or {}).get("room_tone_edge_margin_sec", 0.15)
-    try:
-        return max(0.0, float(raw))
-    except (TypeError, ValueError):
-        return 0.15
-
-
-def _room_tone_min_rms_db(defaults: dict | None = None) -> float:
-    """Reject digital-silence 'air' below this RMS (dB). Missing audio → skip check."""
-    from podcast_mcp.config import load_defaults
-
-    cfg = defaults if defaults is not None else load_defaults()
-    raw = (cfg.get("tighten") or {}).get("room_tone_min_rms_db", -65.0)
-    try:
-        return float(raw)
-    except (TypeError, ValueError):
-        return -65.0
-
-
-def _room_tone_span_has_audible_air(
-    project: EpisodeProject,
-    track_id: str,
-    src_start: float,
-    src_end: float,
-    *,
-    min_rms_db: float | None = None,
-) -> bool:
-    """True when the sample has measurable room noise (not digital silence).
-
-    When RMS cannot be measured (missing fixture media), allow the span so unit
-    tests and offline paths keep prior behavior.
-    """
-    from pathlib import Path
-
-    from podcast_mcp.engines.audio_audit import measure_window_rms_db
-
-    track = project.track_by_id(track_id)
-    if not track or not track.media:
-        return False
-    path = Path(track.media.path)
-    if not path.is_absolute():
-        path = Path(project.workspace_dir) / track.media.path
-    floor = float(min_rms_db) if min_rms_db is not None else _room_tone_min_rms_db()
-    rms = measure_window_rms_db(path, src_start, src_end)
-    if rms is None:
-        return True
-    return rms >= floor
-
-
-def _room_tone_safe_gaps_in_clip(
-    project: EpisodeProject,
-    track_id: str,
-    clip: Clip,
-    *,
-    edge_margin_sec: float | None = None,
-) -> list[tuple[float, float]]:
-    """Source intervals safe to sample as room tone inside ``clip``.
-
-    Excludes this track's words (including suppressed) and peer-track speech
-    mapped onto the same timeline window (bleed risk). Word edges are padded by
-    ``edge_margin_sec`` so inter-word micro-gaps and speech skirts are not tiled.
-    """
-    margin = float(edge_margin_sec) if edge_margin_sec is not None else _room_tone_edge_margin_sec()
-    occupied = _own_word_source_occupancy(project, track_id, clip)
-    occupied.extend(_peer_speech_source_occupancy(project, track_id, clip))
-    occupied = _expand_intervals(
-        occupied,
-        margin_sec=margin,
-        clip_start=clip.source_start,
-        clip_end=clip.source_end,
-    )
-    return _gaps_from_occupied(clip.source_start, clip.source_end, occupied)
-
-
-def _pick_room_tone_from_gaps(
-    gaps: list[tuple[float, float]],
-    *,
-    duration_sec: float,
-    prefer_end: bool,
-    accept: Callable[[float, float], bool] | None = None,
-) -> tuple[float, float] | None:
-    """Take a full ``duration_sec`` from a safe gap; prefer gaps nearest the cut.
-
-    Shorter scraps (inter-word micro-gaps after edge margin) are rejected -
-    tiling them sounds like stuttered speech or bleed, not room tone.
-    ``accept(start, end)`` may reject digital silence or other unusable air.
-    """
-    if prefer_end:
-        ranked = sorted(gaps, key=lambda g: g[1], reverse=True)
-    else:
-        ranked = sorted(gaps, key=lambda g: g[0])
-    for start, end in ranked:
-        if end - start >= duration_sec - 1e-9:
-            span = (end - duration_sec, end) if prefer_end else (start, start + duration_sec)
-            if accept is not None and not accept(span[0], span[1]):
-                continue
-            return span
-    return None
-
-
-def room_tone_source_id(track_id: str) -> str:
-    """Stable ``sources[]`` id for a track's recorded room-tone bed."""
-    return f"room-tone-{track_id}"
-
-
-def _room_tone_bed_span(
-    project: EpisodeProject,
-    track_id: str,
-    *,
-    duration_sec: float,
-) -> tuple[float, float, str] | None:
-    """Return ``(source_start, source_end, source_id)`` from a recorded bed."""
-    if duration_sec <= 0:
-        return None
-    track = project.track_by_id(track_id)
-    if track is None or track.room_tone is None:
-        return None
-    bed_dur = float(track.room_tone.duration_sec or 0.0)
-    if bed_dur <= 0:
-        return None
-    source_id = room_tone_source_id(track_id)
-    if project.source_by_id(source_id) is None:
-        return None
-    use = min(bed_dur, duration_sec)
-    if use <= 0:
-        return None
-    from pathlib import Path
-
-    from podcast_mcp.engines.audio_audit import measure_window_rms_db
-
-    path = Path(track.room_tone.path)
-    if not path.is_absolute():
-        path = Path(project.workspace_dir) / track.room_tone.path
-    rms = measure_window_rms_db(path, 0.0, use)
-    if rms is not None and rms < _room_tone_min_rms_db():
-        return None
-    return (0.0, use, source_id)
-
-
-def _room_tone_source_span(
-    project: EpisodeProject,
-    track_id: str,
-    left: Clip,
-    *,
-    duration_sec: float,
-    right: Clip | None = None,
-    edge_margin_sec: float | None = None,
-) -> tuple[float, float, str | None] | None:
-    """Pick ``duration_sec`` of near-cut air for a room-tone pad.
-
-    Prefers a recorded ``track.room_tone`` bed when present (returns its
-    ``source_id``). Otherwise only samples **safe** stem air: no own-track
-    words (suppressed still sound) and no peer-track speech on the session
-    clock (bleed). Word edges are padded so inter-word micro-gaps are not
-    stolen. Prefers leading air on ``right``, then gaps in ``left`` nearest
-    the cut. Never falls back to "last N seconds of left" when that overlaps
-    speech or bleed (tiling either sounds like stuttering / repeating the
-    other mic). Stem-steal spans return ``source_id=None``.
-    """
-    bed = _room_tone_bed_span(project, track_id, duration_sec=duration_sec)
-    if bed is not None:
-        return bed
-    if duration_sec <= 0:
-        return None
-    track = project.track_by_id(track_id)
-    if not track or not track.media:
-        return None
-    margin = float(edge_margin_sec) if edge_margin_sec is not None else _room_tone_edge_margin_sec()
-    min_rms = _room_tone_min_rms_db()
-
-    def _accept(s: float, e: float) -> bool:
-        return _room_tone_span_has_audible_air(project, track_id, s, e, min_rms_db=min_rms)
-
-    # 1) Leading air on the right clip (quiet before the next word).
-    if right is not None and right.source_end > right.source_start:
-        right_gaps = _room_tone_safe_gaps_in_clip(project, track_id, right, edge_margin_sec=margin)
-        # Only the gap that starts at the clip head is "leading air".
-        leading = [g for g in right_gaps if abs(g[0] - right.source_start) < 1e-6]
-        span = _pick_room_tone_from_gaps(
-            leading,
-            duration_sec=duration_sec,
-            prefer_end=False,
-            accept=_accept,
-        )
-        if span is not None:
-            return (*span, None)
-
-    # 2) Safe gaps in the left clip, preferring air nearest the cut.
-    left_gaps = _room_tone_safe_gaps_in_clip(project, track_id, left, edge_margin_sec=margin)
-    span = _pick_room_tone_from_gaps(
-        left_gaps,
-        duration_sec=duration_sec,
-        prefer_end=True,
-        accept=_accept,
-    )
-    if span is not None:
-        return (*span, None)
-
-    # 3) No safe air - skip rather than tile dialogue, bleed, or digital silence.
-    return None
-
-
 def fill_with_room_tone(
     project: EpisodeProject,
     track_id: str,
@@ -1330,10 +1003,11 @@ def fill_with_room_tone(
     sample_duration_sec: float = 0.25,
     min_gap_sec: float = JOIN_GAP_TOLERANCE_SEC,
 ) -> dict:
-    """Fill timeline gaps between clips using audio from a nearby non-speech sample.
+    """Fill timeline gaps between clips with the track's room tone (``edits/room_tone.py``).
 
     Only gaps wider than ``min_gap_sec`` are filled; the default is the shared join
-    tolerance, so pairs that already render as a join are left alone.
+    tolerance, so pairs that already render as a join are left alone. A gap with no
+    room tone near it stays a gap.
     """
     clips = clips_for_track(project, track_id)
     if len(clips) < 2:
@@ -1342,8 +1016,7 @@ def fill_with_room_tone(
     track = project.track_by_id(track_id)
     if not track:
         raise ValueError(f"track {track_id} not found")
-    bed = _room_tone_bed_span(project, track_id, duration_sec=sample_duration_sec)
-    if not track.media and bed is None:
+    if not track.media and track.room_tone is None:
         raise ValueError(f"track {track_id} has no media")
 
     new_clips: list[Clip] = []
@@ -1356,20 +1029,15 @@ def fill_with_room_tone(
         gap = gap_end - gap_start
         if gap <= min_gap_sec:
             continue
-        source_id: str | None = None
-        if bed is not None:
-            sample_src, src_end, source_id = bed
-        else:
-            span = _room_tone_source_span(
-                project,
-                track_id,
-                clip,
-                duration_sec=min(sample_duration_sec, gap),
-                right=clips[i + 1],
-            )
-            if span is None:
-                continue
-            sample_src, src_end, source_id = span
+        span = room_tone_span(
+            project,
+            track_id,
+            near_sec=clip.source_end,
+            duration_sec=min(sample_duration_sec, gap),
+        )
+        if span is None:
+            continue
+        sample_src, src_end, source_id = span
         piece = max(1e-3, src_end - sample_src)
         t = gap_start
         while t < gap_end - 1e-6:
@@ -1404,22 +1072,13 @@ def mute_room_tone_fill(
 ) -> RoomToneFill | None:
     """Room tone to lay under ``clip``'s muted ``[src_start, src_end)``, as a ripple pad picks it.
 
-    The clip's audio after the mute stands in for a pad's right clip and its audio
-    before for the left one, so stem air comes from nearest the mute. None when the
-    track has no bed and no safe, audible air (a gated track): the mute stays silent,
-    as a ripple pad does.
+    None when the track has no bed and no room tone near the mute (a gated track): the
+    mute stays silent, as a ripple pad does.
     """
     lo, hi = max(src_start, clip.source_start), min(src_end, clip.source_end)
     if hi <= lo:
         return None
-    before = clip.model_copy(update={"source_end": lo})
-    after = clip.model_copy(
-        update={
-            "source_start": hi,
-            "timeline_start": hi + clip_source_to_timeline_shift(clip),
-        }
-    )
-    span = _room_tone_source_span(project, clip.track_id, before, duration_sec=hi - lo, right=after)
+    span = room_tone_span(project, clip.track_id, near_sec=(lo + hi) / 2.0, duration_sec=hi - lo)
     if span is None:
         return None
     start, end, source_id = span
@@ -1460,23 +1119,15 @@ def insert_room_tone_pad(
         after = [c for c in clips if c.timeline_start >= at_time + duration_sec - 1e-3]
         if after:
             right = min(after, key=lambda c: c.timeline_start)
-        source_id: str | None = None
-        bed = _room_tone_bed_span(project, tid, duration_sec=min(sample_dur, duration_sec))
-        if bed is not None:
-            sample_src, src_end, source_id = bed
-        elif left is None:
+        near = left.source_end if left else right.source_start if right else None
+        if near is None:
             continue
-        else:
-            span = _room_tone_source_span(
-                project,
-                tid,
-                left,
-                duration_sec=min(sample_dur, duration_sec),
-                right=right,
-            )
-            if span is None:
-                continue
-            sample_src, src_end, source_id = span
+        span = room_tone_span(
+            project, tid, near_sec=near, duration_sec=min(sample_dur, duration_sec)
+        )
+        if span is None:
+            continue
+        sample_src, src_end, source_id = span
         # Tile short samples across the pad when source room tone is shorter.
         fills: list[Clip] = []
         t = at_time
