@@ -75,8 +75,11 @@ value and, for a clip's fade or trim, 44 px nudges at the keyboard's steps.
 returns to the strip, and the last choice opens the next selection. The
 timeline scrolls the selection above the strip or sheet, and any timeline drag
 stows it until release. A phone held sideways (tablet shell, at most 40rem
-tall) gets the same compact inspector in place of the bottom tabs. Decision and
-measurements: [touch-editor-decisions.md § Compact inspector](touch-editor-decisions.md#compact-inspector-1051-round-3).
+tall) gets the same compact inspector in place of the bottom tabs. Its name,
+**Expand** or **Collapse** and **Close** stay pinned at the top while the
+expanded inspector scrolls. Decision and
+measurements: [touch-editor-decisions.md § Compact inspector](touch-editor-decisions.md#compact-inspector-1051-round-3)
+and [§ Collapse stays in reach](touch-editor-decisions.md#collapse-stays-in-reach-1051-round-4).
 
 Modifier inspector sheets use one scroll owner for their complete content, including sheet chrome, actions, fields, errors, related commands, and audition footer. The content has natural height, so enlarged headers cannot compress a separate field scroller. Scroll to the top to reach **Expand**, **Collapse**, and **Close**. Desktop modifier inspectors also scroll as one aside; their fields and errors flow with the header and footer. Envelope focus transitions reveal the current control within its sheet or inspector without scrolling the page or timeline. The taller half peek applies to every modifier inspector. Sheets remain transient with no stacking. Deferred mutation errors across shell remount, Firefox layout CI, and overlapping Approve remain in [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up).
 
