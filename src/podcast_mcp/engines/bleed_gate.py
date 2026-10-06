@@ -42,14 +42,15 @@ from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 BLEED_GATE_REV = 9
 EVIDENCE_RATE = 8000
 # Gain ramps inside each reduced span, after a hold at full level around the lane's
-# own speech. On the lab tape (#945) the bed just outside Caleb's reduced spans reads
-# -45 dBFS with no hold and falls to his mic's -57 dBFS bed with 20 ms before and
-# 40 ms after own speech, where it stays out to 80/150 ms: his onsets and tails
-# reach that far past the protection. The hold doubles that (40 ms before, 80 ms
-# after) for plosive bursts (#978) and slow releases, and keeps the copy at full
-# level for 10 s of Audra's 280 s of speech, half what 80/150 ms keeps. The 20 ms
-# ramp is the editor's recommended join fade: long enough not to click, short
-# enough to keep the copy out.
+# own speech. On the lab tape (#945) the level just outside Caleb's reduced spans is
+# his own onsets and tails until the hold covers them, then his mic's bed. With
+# forced-aligner word times it reads -42 dBFS with no hold, -48 dBFS at 40 ms
+# before and after, and reaches the -57 dBFS bed at 40 ms before and 80 ms after,
+# where longer holds leave it. Whisper's looser word times reach it at 20/40 ms. So
+# the hold is 40 ms before and 80 ms after, which also covers plosive bursts (#978).
+# It keeps the copy at full level for 10 s of Audra's 280 s of speech, half what
+# 80/150 ms would. The 20 ms ramp is the editor's recommended join fade: long enough
+# not to click, short enough to keep the copy out.
 GATE_FADE_SEC = 0.02
 _ONSET_HOLD_SEC = 0.04
 _TAIL_HOLD_SEC = 0.08
@@ -58,8 +59,10 @@ _LEVEL_FRAME_SEC = 0.1
 # _EDGE_FLOOR_SEC, away from its own speech) is digital silence, which the evidence
 # levels read at their -90 dB floor: a call app's gate holds the lane shut there,
 # so a mute cannot pump. Any bed above it is attenuated instead, so it stays steady.
-# On the lab tape Caleb's edges are silent 46% of the time and otherwise carry room
-# tone and Audra's tails at -71 to -80 dBFS: -56 dBFS power mean, so attenuate.
+# On the lab tape Caleb's edges are digital silence 51% of the time and otherwise
+# carry room tone (-82 to -74 dBFS interquartile) and louder tails of Audra's voice:
+# -57 dBFS power mean, so attenuate. Audra's and Lana's tracks carry no verified
+# copy, so nothing on them is reduced.
 _GATED_FLOOR_DB = LEVEL_FLOOR_DB
 _EDGE_FLOOR_SEC = 0.5
 _MAX_PATH_LAG_SEC = 0.3
