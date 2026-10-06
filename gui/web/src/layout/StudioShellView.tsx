@@ -177,6 +177,7 @@ export function StudioShellView({
           title="Inspector"
           expanded={inspector.sheet.expanded}
           onExpandedChange={inspector.sheet.onExpandedChange}
+          {...inspector.sheet.compact}
         >
           {inspector.sheet.content}
         </BottomSheet>

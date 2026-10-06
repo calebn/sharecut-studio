@@ -2,6 +2,10 @@ import type { StateCreator } from "zustand";
 import { cssViewportWidth } from "../hooks/useViewportClass";
 import type { ProjectView, Selection } from "../types/project";
 import {
+  readCompactInspectorView,
+  writeCompactInspectorView,
+} from "../utils/compactInspectorPref";
+import {
   readLaneHeightPref,
   stepLaneHeightPx,
   writeLaneHeightPref,
@@ -171,6 +175,9 @@ type UiSlice = Pick<
   | "moreDestination"
   | "layoutMode"
   | "sheetExpanded"
+  | "compactInspectorView"
+  | "selectionHit"
+  | "timelineDragging"
   | "laneHeightMode"
   | "laneHeightPx"
   | "drawnLaneHeightPx"
@@ -210,6 +217,9 @@ type UiSlice = Pick<
   | "setMoreDestination"
   | "setLayoutMode"
   | "setSheetExpanded"
+  | "setCompactInspectorView"
+  | "setSelectionHit"
+  | "setTimelineDragging"
   | "setLaneHeightMode"
   | "toggleFitTracksHeight"
   | "stepLaneHeight"
@@ -368,6 +378,9 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     laneHeightPx: lanePref.px,
     drawnLaneHeightPx: null as number | null,
     sheetExpanded: false,
+    compactInspectorView: readCompactInspectorView(),
+    selectionHit: null,
+    timelineDragging: false,
     setZoomPxPerSec: (zoomPxPerSec) =>
       set({
         zoomPxPerSec: clampZoomPxPerSec(zoomPxPerSec, sessionSecOf(get())),
@@ -664,6 +677,15 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
       });
     },
     setSheetExpanded: (sheetExpanded) => set({ sheetExpanded }),
+    setCompactInspectorView: (compactInspectorView) => {
+      set({ compactInspectorView });
+      writeCompactInspectorView(compactInspectorView);
+    },
+    setSelectionHit: (selectionHit) => set({ selectionHit }),
+    setTimelineDragging: (timelineDragging) => {
+      if (get().timelineDragging !== timelineDragging)
+        set({ timelineDragging });
+    },
     setLaneHeightMode: (laneHeightMode: LaneHeightMode) => {
       set({ laneHeightMode });
       writeLaneHeightPref({ mode: laneHeightMode, px: get().laneHeightPx });

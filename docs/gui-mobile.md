@@ -63,6 +63,16 @@ While `project === null` (progressive load), Listen keeps its hero with disabled
 
 Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/BottomSheet.tsx) wrapping the desktop inspector views. It retains `aria-modal="false"`, Escape, focus restoration, and an interactive timeline background. It has no Tab trap or drag resize handle. **Expand** and **Collapse** change view size only; these actions and **Close** use the sheet-scoped `--touch-min` floor.
 
+With the `touchChooser` lab on, a timeline selection in Timeline mode opens the
+**compact inspector** instead: a peek strip with the target's name, its key
+value and, for a clip's fade or trim, 44 px nudges at the keyboard's steps.
+**Expand** opens the full inspector at no more than half the slot, **Collapse**
+returns to the strip, and the last choice opens the next selection. The
+timeline scrolls the selection above the strip or sheet, and any timeline drag
+stows it until release. A phone held sideways (tablet shell, at most 40rem
+tall) gets the same compact inspector in place of the bottom tabs. Decision and
+measurements: [touch-editor-decisions.md § Compact inspector](touch-editor-decisions.md#compact-inspector-1051-round-3).
+
 Modifier inspector sheets use one scroll owner for their complete content, including sheet chrome, actions, fields, errors, related commands, and audition footer. The content has natural height, so enlarged headers cannot compress a separate field scroller. Scroll to the top to reach **Expand**, **Collapse**, and **Close**. Desktop modifier inspectors also scroll as one aside; their fields and errors flow with the header and footer. Envelope focus transitions reveal the current control within its sheet or inspector without scrolling the page or timeline. The taller half peek applies to every modifier inspector. Sheets remain transient with no stacking. Deferred mutation errors across shell remount, Firefox layout CI, and overlapping Approve remain in [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up).
 
 **More → Mix** opens one full-height non-modal sheet for every role. Rows follow
