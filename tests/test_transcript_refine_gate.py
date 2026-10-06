@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -37,6 +38,14 @@ from podcast_mcp.pipeline.runner import PipelineRunner
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.media.transcript_refine import TranscriptRefineService
+from podcast_mcp.services.pipeline.service import PipelineService
+
+LAB_CASE = Path(__file__).parent / "fixtures" / "lab_tighten" / "caleb_um_pause"
+
+
+def _lab_case(tmp_path: Path) -> ProjectWorkspace:
+    shutil.copytree(LAB_CASE, tmp_path / "episode")
+    return ProjectWorkspace.open(tmp_path / "episode" / "episode.project.json")
 
 
 def _with_words(minimal_project: Path) -> object:
@@ -234,6 +243,63 @@ def test_status_write_times_out_on_held_status_lock(minimal_project, monkeypatch
         thread.join(timeout=5)
     assert load_status(proj) == before
     assert mark_refine_done(proj, source="user")["status"] == "done"
+
+
+@pytest.mark.refine_gate
+def test_suppression_flag_change_keeps_waiver_clear(minimal_project):
+    proj = _with_words(minimal_project)
+    mark_refine_waived(proj, reason="host accepted", source="user")
+    proj.transcripts[0].words[0].suppressed = True
+    proj.transcripts[0].words[1].audibility_status = "inaudible"
+    assert refine_status_report(proj)["clear"] is True
+
+
+@pytest.mark.refine_gate
+def test_waiver_survives_approving_a_tighten_cut(tmp_path):
+    ws = _lab_case(tmp_path)
+    refine = TranscriptRefineService(ws)
+    refine.waive(reason="host accepted the transcript", source="user")
+    PipelineService(ws).run(
+        only_step="analyze_fillers_pauses", config={"tighten": {"enabled": True}}
+    )
+    pending = {e.reason.split(":")[0]: e.id for e in ws.project.edit_decisions if not e.applied}
+    assert sorted(pending) == ["filler", "pause"]
+    edits = EditService(ws)
+
+    assert edits.approve([pending["filler"]]) == 1
+    assert "Um." not in [w.text for w in ws.project.transcript_for_track("caleb").words]
+    assert refine.status()["clear"] is True
+    assert edits.approve([pending["pause"]]) == 1
+    assert refine.status()["clear"] is True
+
+
+@pytest.mark.refine_gate
+def test_waiver_survives_premix_render(tmp_path):
+    ws = _lab_case(tmp_path)
+    refine = TranscriptRefineService(ws)
+    refine.waive(reason="host accepted the transcript", source="user")
+
+    def suppressed() -> int:
+        return sum(w.suppressed for tr in ws.project.transcripts for w in tr.words)
+
+    assert suppressed() == 0
+    assert PipelineService(ws).render_preview()["ok"] is True
+    assert suppressed() == 4
+    assert refine.status()["clear"] is True
+
+
+@pytest.mark.refine_gate
+def test_word_correction_stales_waiver(tmp_path):
+    ws = _lab_case(tmp_path)
+    refine = TranscriptRefineService(ws)
+    refine.waive(reason="host accepted the transcript", source="user")
+
+    EditService(ws).correct_word("caleb", 0, "Its", expected_text="It's")
+
+    status = refine.status()
+    assert (status["clear"], status["stale"]) == (False, True)
+    with pytest.raises(TranscriptRefineRequiredError):
+        EditService(ws).propose_tighten()
 
 
 @pytest.mark.refine_gate
