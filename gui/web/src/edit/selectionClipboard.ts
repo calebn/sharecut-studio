@@ -1,11 +1,7 @@
-import type {
-  ClipMuteRegion,
-  ClipRow,
-  ProjectView,
-  Selection,
-} from "../types/project";
+import type { ClipRow, ProjectView, Selection } from "../types/project";
 import { findTranscriptWord, transcriptWordRange } from "../utils/transcript";
 import type { ClipboardExtract, ClipboardPayload } from "./clipboard";
+import { muteRegionsOverlapping } from "./muteRegions";
 
 function findClip(project: ProjectView, id: string): ClipRow | null {
   const tracks = project.clips?.tracks ?? {};
@@ -19,20 +15,6 @@ function findClip(project: ProjectView, id: string): ClipRow | null {
   return null;
 }
 
-/**
- * Mutes that overlap [srcStart, srcEnd), whole: a copy cut through a mute stays
- * silent up to the cut and fades only at the mute's own edges.
- */
-function muteRegionsOverlapping(
-  regions: ClipMuteRegion[] | undefined,
-  srcStart: number,
-  srcEnd: number,
-): ClipMuteRegion[] {
-  return (regions ?? []).filter(
-    (region) =>
-      region.end_s > srcStart + 1e-9 && region.start_s < srcEnd - 1e-9,
-  );
-}
 function clipOverlapToSource(
   clip: ClipRow,
   ovStart: number,
