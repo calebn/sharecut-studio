@@ -18,14 +18,14 @@ import { TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { selectUnmappedPending, UNMAPPED_PENDING_TITLE } from "../utils/edits";
 
 export function ImpactPanel() {
-  const { project, projectPath, guestMode, shareCapabilities, setSelection } =
-    useDaw((s) => ({
+  const { project, projectPath, shareCapabilities, setSelection } = useDaw(
+    (s) => ({
       project: s.project,
       projectPath: s.projectPath,
-      guestMode: s.guestMode,
       shareCapabilities: s.shareCapabilities,
       setSelection: s.setSelection,
-    }));
+    }),
+  );
   const { busy, error, errorCode, setError, run } = useProjectMutation();
   const { notice: queuedNotice, setQueued } =
     useQueuedReviewNotice(projectPath);
@@ -52,37 +52,16 @@ export function ImpactPanel() {
   const unmappable = selectUnmappedPending(project.pending_edits);
   const reviewRequired = project.pending_edits.filter((e) => e.review_required);
 
-  const canReviewAll = reviewRequired.every(
-    (e) =>
-      !e.exact_range ||
-      canReviewPendingEdit(
-        projectPath,
-        guestMode,
-        shareCapabilities,
-        Boolean(e.exact_range),
-      ),
-  );
+  const canReviewAll = canReviewPendingEdit(projectPath, shareCapabilities);
   const reviewReason = canReviewAll
     ? undefined
-    : "Exact range proposals require host review.";
+    : "Only the host or an edit guest can review suggestions.";
 
   const runBulk = async (action: "approve" | "reject") => {
     const live = useDawStore.getState();
     if (live.projectPath !== projectPath || !live.project) return;
     const pending = live.project.pending_edits.filter((e) => e.review_required);
-    if (
-      !pending.every(
-        (e) =>
-          !e.exact_range ||
-          canReviewPendingEdit(
-            live.projectPath,
-            live.guestMode,
-            live.shareCapabilities,
-            Boolean(e.exact_range),
-          ),
-      )
-    )
-      return;
+    if (!canReviewPendingEdit(live.projectPath, live.shareCapabilities)) return;
     const ids = pending.map((e) => e.id);
     if (ids.length === 0) {
       return;

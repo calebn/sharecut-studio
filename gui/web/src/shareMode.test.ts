@@ -7,6 +7,7 @@ import {
   canRefreshMix,
   canReply,
   canRetimePendingEdit,
+  canReviewPendingEdit,
   canSetAction,
   canSuggestStructural,
   commentRole,
@@ -68,6 +69,14 @@ describe("shareMode", () => {
     expect(
       reasons.map((r) => canRetimePendingEdit(share, ["play", "view"], r)),
     ).toEqual([false, false, false, false]);
+  });
+
+  it("lets the host and edit guests review every pending edit", () => {
+    const share = shareProjectKey("tok");
+    expect(canReviewPendingEdit("/tmp/ep.project.json", null)).toBe(true);
+    expect(canReviewPendingEdit(share, editCaps)).toBe(true);
+    expect(canReviewPendingEdit(share, suggestCaps)).toBe(false);
+    expect(canReviewPendingEdit(share, ["play", "view"])).toBe(false);
   });
 
   it("gates structural apply vs suggest", () => {

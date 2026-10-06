@@ -69,9 +69,13 @@ describe("ImpactPanel transcript refine recovery", () => {
     useDawStore.setState({ guestMode: null, shareCapabilities: [] });
   });
 
-  it.each(["/tmp/p.json", shareProjectKey("exact")])(
-    "blocks exact bulk review for edit guest at %s",
-    (path) => {
+  it.each([
+    ["/tmp/p.json", null, null, true],
+    [shareProjectKey("exact"), "edit", ["view", "edit"], true],
+    [shareProjectKey("exact"), "suggest", ["view", "suggest"], false],
+  ] as const)(
+    "gates exact bulk review at %s for guest mode %s",
+    (path, guestMode, capabilities, canReview) => {
       const pending = project();
       pending.pending_edits[0].source_start = null;
       pending.pending_edits[0].source_end = null;
@@ -82,16 +86,28 @@ describe("ImpactPanel transcript refine recovery", () => {
         clips: [],
         media_seals: { host: "seal" },
       };
-      useDawStore.getState().hydrate(path, pending);
-      useDawStore.setState({ guestMode: "edit", shareCapabilities: ["edit"] });
+      useDawStore
+        .getState()
+        .hydrate(
+          path,
+          pending,
+          guestMode,
+          capabilities ? [...capabilities] : null,
+        );
       render(<ImpactPanel />);
-      expect(
-        screen.getByRole("button", { name: /Approve all/ }),
-      ).toBeDisabled();
-      expect(screen.getByRole("button", { name: /Reject all/ })).toBeDisabled();
-      expect(
-        screen.getByRole("button", { name: /Approve all/ }),
-      ).toHaveAttribute("title", "Exact range proposals require host review.");
+      const approveAll = screen.getByRole("button", { name: /Approve all/ });
+      const rejectAll = screen.getByRole("button", { name: /Reject all/ });
+      if (canReview) {
+        expect(approveAll).toBeEnabled();
+        expect(rejectAll).toBeEnabled();
+        return;
+      }
+      expect(approveAll).toBeDisabled();
+      expect(rejectAll).toBeDisabled();
+      expect(approveAll).toHaveAttribute(
+        "title",
+        "Only the host or an edit guest can review suggestions.",
+      );
       expect(approveEdits).not.toHaveBeenCalled();
     },
   );
@@ -218,13 +234,12 @@ describe("ImpactPanel transcript refine recovery", () => {
   it("does not show host waiver recovery for share guests", async () => {
     const user = userEvent.setup();
     vi.mocked(approveEdits).mockRejectedValue(new Error(blocked));
-    useDawStore
-      .getState()
-      .hydrate(shareProjectKey("tok"), project(), "suggest", ["view"]);
     render(
       <DawProvider
         projectPath={shareProjectKey("tok")}
         initialProject={project()}
+        guestMode="edit"
+        shareCapabilities={["view", "edit"]}
       >
         <ImpactPanel />
       </DawProvider>,

@@ -37,12 +37,7 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
     guestMode,
     shareCapabilities,
   );
-  const canApply = canReviewPendingEdit(
-    projectPath,
-    guestMode,
-    shareCapabilities,
-    false,
-  );
+  const canApply = canReviewPendingEdit(projectPath, shareCapabilities);
   const onCommitSpan = useCallback<PendingEditOverlayViewProps["onCommitSpan"]>(
     async (
       capturedPath,
@@ -95,12 +90,7 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
       state.projectEpoch !== capturedEpoch ||
       state.selection?.kind !== "pending" ||
       state.selection.id !== editId ||
-      !canReviewPendingEdit(
-        state.projectPath,
-        state.guestMode,
-        state.shareCapabilities,
-        Boolean(current.exact_range),
-      )
+      !canReviewPendingEdit(state.projectPath, state.shareCapabilities)
     ) {
       throw new Error(
         "You do not have permission to review this pending edit.",

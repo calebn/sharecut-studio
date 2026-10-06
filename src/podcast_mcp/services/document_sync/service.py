@@ -715,6 +715,7 @@ class DocumentSyncService:
         from podcast_mcp.services.document_sync.policy import (
             STRUCTURAL_COMMANDS,
             authorize_pending_update,
+            may_decide_exact_range,
             range_reason,
             resolve_range_mode,
             resolve_structural_mode,
@@ -724,15 +725,6 @@ class DocumentSyncService:
             from podcast_mcp.services.document_sync.payloads import validate_payload
 
             command = replace(command, payload=validate_payload(command.type, command.payload))
-        if (capabilities is not None or range_policy != "apply") and command.type in {
-            "ApproveEdits",
-            "RejectEdits",
-        }:
-            ids = set(command.payload.get("ids", []))
-            if any(
-                e.id in ids and e.exact_range is not None for e in self.ws.project.edit_decisions
-            ):
-                raise PermissionError("Only the host can decide exact range proposals")
         if command.type == "UpdatePendingEdit":
             edit_id = command.payload.get("id")
             target = next((e for e in self.ws.project.edit_decisions if e.id == edit_id), None)
@@ -740,7 +732,7 @@ class DocumentSyncService:
                 authorize_pending_update(capabilities, target.reason)
         payload = dict(command.payload)
         if command.type in {"ApproveEdits", "RejectEdits"}:
-            payload["_allow_exact"] = capabilities is None and range_policy == "apply"
+            payload["_allow_exact"] = may_decide_exact_range(capabilities, range_policy)
         if command.type == "EditSelectedRange":
             from podcast_mcp.services.document_sync.payloads import validate_payload
 

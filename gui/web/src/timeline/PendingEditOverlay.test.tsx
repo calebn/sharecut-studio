@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { updatePendingEdit, waiveTranscriptRefine } from "../api";
 import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
+import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject } from "../test/fixtures";
@@ -93,9 +94,13 @@ describe("PendingEditOverlay handles", () => {
       .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
   });
 
-  it.each([null, "edit"])(
-    "presents exact islands without source handles or guest review in mode %s",
-    async (guestMode) => {
+  it.each([
+    ["/tmp/p.json", null, null, true],
+    [shareProjectKey("tok"), "edit", ["view", "edit"], true],
+    [shareProjectKey("tok"), "suggest", ["view", "suggest"], false],
+  ] as const)(
+    "presents exact islands without source handles at %s in mode %s",
+    async (path, guestMode, capabilities, canReview) => {
       const exact = {
         ...edit,
         source_start: null,
@@ -121,10 +126,13 @@ describe("PendingEditOverlay handles", () => {
       };
       useDawStore
         .getState()
-        .hydrate("/tmp/p.json", minimalProject({ pending_edits: [exact] }));
+        .hydrate(
+          path,
+          minimalProject({ pending_edits: [exact] }),
+          guestMode,
+          capabilities ? [...capabilities] : null,
+        );
       useDawStore.setState({
-        guestMode,
-        shareCapabilities: ["edit"],
         selection: { kind: "pending", id: exact.id, trackId: "host" },
       });
       const { container } = render(
@@ -148,13 +156,15 @@ describe("PendingEditOverlay handles", () => {
       await waitFor(() => {
         const buttons = screen.getAllByRole("button", { name: "Approve" });
         for (const button of buttons) {
-          if (guestMode === null) expect(button).toBeEnabled();
+          if (canReview) expect(button).toBeEnabled();
           else expect(button).toBeDisabled();
         }
       });
-      if (guestMode !== null)
+      if (!canReview)
         expect(
-          screen.getByText("Only the host can review exact range proposals."),
+          screen.getByText(
+            "Only the host or an edit guest can review exact range proposals.",
+          ),
         ).toBeVisible();
       expect(updatePendingEdit).not.toHaveBeenCalled();
     },

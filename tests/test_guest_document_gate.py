@@ -22,7 +22,7 @@ from podcast_mcp.services.document_sync import DocumentCommand, DocumentSyncServ
 from podcast_mcp.services.document_sync.capabilities import authorize_document_command
 from podcast_mcp.services.remote_mcp.allowlist import tools_for_capabilities
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
-from test_selected_range import fixture
+from test_selected_range import command, fixture, target
 
 LISTEN = ["play", "comment", "reply", "action"]
 VIEW = [*LISTEN, "view"]
@@ -140,3 +140,174 @@ def test_guest_mcp_needs_view_like_the_browser(minimal_project, sample_wav, monk
     assert "error" not in allowed, allowed
     assert json.loads(allowed["result"]["content"][0]["text"])["ok"] is True
     assert len(load_project(minimal_project).edit_decisions) == 4
+
+
+def range_project(minimal_project) -> DocumentSyncService:
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    save_project(ws.project)
+    return DocumentSyncService.open(minimal_project)
+
+
+@pytest.mark.parametrize("action", ["cut", "mute"])
+@pytest.mark.parametrize(
+    ("caps", "range_policy", "outcome"),
+    [
+        (VIEW, "apply", None),
+        (VIEW, "propose", None),
+        (SUGGEST, "apply", "guest:suggest"),
+        (SUGGEST, "propose", "guest:suggest"),
+        (EDIT, "apply", "applied"),
+        (EDIT, "propose", "applied"),
+        ([*SUGGEST, "edit"], "propose", "applied"),
+        (None, "apply", "applied"),
+        (None, "propose", "agent:range"),
+    ],
+    ids=[
+        "view-daw",
+        "view-mcp",
+        "suggest-daw",
+        "suggest-mcp",
+        "edit-daw",
+        "edit-mcp",
+        "editor-mcp",
+        "host-daw",
+        "host-agent",
+    ],
+)
+def test_selected_range_mode_follows_capabilities_on_every_surface(
+    minimal_project, caps, range_policy, outcome, action
+):
+    svc = range_project(minimal_project)
+    before = deepcopy(svc.ws.project.clips)
+    cmd = command(target(svc.ws.project), action)
+    if outcome is None:
+        with pytest.raises(PermissionError, match="EditSelectedRange"):
+            svc.submit(cmd, capabilities=caps, range_policy=range_policy)
+        assert load_project(minimal_project).clips == before
+        return
+    svc.submit(cmd, capabilities=caps, range_policy=range_policy)
+    project = load_project(minimal_project)
+    if outcome == "applied":
+        assert project.edit_decisions == []
+        assert project.editorial.edit_log[-1].params["action"] == action
+        assert project.clips != before
+    else:
+        assert [d.reason for d in project.edit_decisions] == [outcome]
+        assert project.clips == before
+
+
+def suggest_both_kinds(svc: DocumentSyncService) -> dict[str, str]:
+    """One exact selected-range and one source suggestion, both from a suggest guest."""
+    exact = command(target(svc.ws.project))
+    svc.submit(exact, capabilities=SUGGEST, range_policy="apply")
+    svc.submit(
+        guest_command("SuggestPendingEdit", {"track_id": "c", "start": 15.0, "end": 15.5}),
+        capabilities=SUGGEST,
+        range_policy="apply",
+    )
+    source = next(e.id for e in svc.ws.project.edit_decisions if e.exact_range is None)
+    return {"exact": exact.command_id, "source": source}
+
+
+@pytest.mark.parametrize("kind", ["exact", "source"])
+@pytest.mark.parametrize("decide", ["ApproveEdits", "RejectEdits"])
+@pytest.mark.parametrize("range_policy", ["apply", "propose"], ids=["daw", "mcp"])
+@pytest.mark.parametrize(
+    ("caps", "allowed"),
+    [(VIEW, False), (SUGGEST, False), (EDIT, True)],
+    ids=["view", "suggest", "edit"],
+)
+def test_only_edit_guests_decide_pending_suggestions(
+    minimal_project, caps, allowed, range_policy, decide, kind
+):
+    svc = range_project(minimal_project)
+    edit_id = suggest_both_kinds(svc)[kind]
+    before = deepcopy(load_project(minimal_project))
+    decision = guest_command(decide, {"ids": [edit_id]})
+    if not allowed:
+        with pytest.raises(PermissionError):
+            svc.submit(decision, capabilities=caps, range_policy=range_policy)
+        assert load_project(minimal_project).edit_decisions == before.edit_decisions
+        return
+    svc.submit(decision, capabilities=caps, range_policy=range_policy)
+    project = load_project(minimal_project)
+    assert edit_id not in {e.id for e in project.edit_decisions}
+    assert len(project.edit_decisions) == 1
+    if decide == "RejectEdits":
+        assert project.clips == before.clips
+    else:
+        assert project.clips != before.clips
+
+
+def host_undo(minimal_project) -> None:
+    DocumentSyncService.open(minimal_project).submit(
+        DocumentCommand(
+            type="UndoHistory", payload={}, client_id="host", client_seq=None, role="viewer"
+        ),
+        range_policy="apply",
+    )
+
+
+def saved_state(minimal_project):
+    project = load_project(minimal_project)
+    return (
+        [e.model_dump() for e in project.edit_decisions],
+        [c.model_dump() for c in project.clips],
+        [r.model_dump() for r in project.editorial.edit_log],
+    )
+
+
+@pytest.mark.parametrize("change", ["approve", "reject", "cut", "mute", "retime"])
+def test_host_undoes_each_edit_guest_mcp_change(minimal_project, change):
+    svc = range_project(minimal_project)
+    ids = suggest_both_kinds(svc)
+    host = append_remove_decision(svc.ws.project, "c", 1.0, 1.5, reason="")
+    host.reason = None
+    save_project(svc.ws.project)
+    svc = DocumentSyncService.open(minimal_project)
+    before = saved_state(minimal_project)
+    lane = target(svc.ws.project, intervals=((2, 3),), tracks=("c",))
+    commands = {
+        "approve": guest_command("ApproveEdits", {"ids": [ids["exact"]]}),
+        "reject": guest_command("RejectEdits", {"ids": [ids["exact"]]}),
+        "cut": command(lane, "cut"),
+        "mute": command(lane, "mute"),
+        "retime": guest_command(
+            "UpdatePendingEdit", {"id": host.id, "start": 4.0, "end": 4.25, "snap": False}
+        ),
+    }
+    svc.submit(commands[change], capabilities=EDIT, range_policy="propose")
+    assert saved_state(minimal_project) != before
+    host_undo(minimal_project)
+    assert saved_state(minimal_project) == before
+
+
+@pytest.mark.parametrize(
+    ("caps", "outcome"),
+    [
+        (["play", "view", "suggest", "mcp"], "proposed"),
+        (["play", "view", "edit", "mcp"], "applied"),
+    ],
+    ids=["suggest", "edit"],
+)
+def test_guest_mcp_range_cut_follows_the_share(
+    minimal_project, sample_wav, monkeypatch, caps, outcome
+):
+    svc = range_project(minimal_project)
+    before = deepcopy(svc.ws.project.clips)
+    cut = command(target(svc.ws.project))
+    token = _mcp_share(minimal_project, sample_wav, monkeypatch, caps)
+    out = _mcp_call(
+        token,
+        "guest_submit_document_command",
+        {"type": cut.type, "payload": cut.payload, "command_id": cut.command_id},
+    )
+    assert "error" not in out, out
+    project = load_project(minimal_project)
+    if outcome == "applied":
+        assert project.edit_decisions == []
+        assert project.clips != before
+    else:
+        assert [d.reason for d in project.edit_decisions] == ["guest:suggest"]
+        assert project.clips == before

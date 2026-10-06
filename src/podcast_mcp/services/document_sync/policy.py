@@ -1,8 +1,10 @@
 """Apply-vs-propose policy for structural and selected-range document commands.
 
 Host (``caps is None``) and guests with ``edit`` **apply** immediately (undo via
-History). Guests with ``suggest`` only **propose** pending decisions for host
-approval. View/comment-only shares are denied.
+History) and may approve or reject pending decisions. Guests with ``suggest``
+only **propose** pending decisions for review. View/comment-only shares are
+denied. A guest's capabilities decide on every surface (DAW, transcript, guest
+MCP); only the host's own agents are told apart by surface.
 """
 
 from __future__ import annotations
@@ -56,13 +58,24 @@ def resolve_range_mode(
 ) -> StructuralMutationMode:
     """Apply/propose for ``EditSelectedRange``.
 
-    An interactive DAW (``range_policy == "apply"``) follows the structural policy,
-    so a host or ``edit`` guest applies and a ``suggest`` guest proposes. Any other
-    caller (MCP agents) always proposes.
+    A guest follows the structural policy on every surface: ``edit`` applies and
+    ``suggest`` proposes. The host applies from the interactive DAW
+    (``range_policy == "apply"``); the host's own MCP/CLI agents always propose.
     """
-    if range_policy != "apply":
+    if caps is None and range_policy != "apply":
         return StructuralMutationMode.PROPOSE
     return resolve_structural_mode(caps, requested)
+
+
+def may_decide_exact_range(caps: list[str] | None, range_policy: str) -> bool:
+    """Whether ``ApproveEdits`` / ``RejectEdits`` may decide exact range proposals.
+
+    Approving applies the edit, so the interactive host and ``edit`` guests (any
+    surface) may; the host's own MCP/CLI agents may not.
+    """
+    if caps is None:
+        return range_policy == "apply"
+    return has_capability(caps, CAP_EDIT)
 
 
 def authorize_pending_update(caps: list[str] | None, reason: str | None) -> None:

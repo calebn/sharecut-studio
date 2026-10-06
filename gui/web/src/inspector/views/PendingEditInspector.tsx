@@ -95,12 +95,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     shareCapabilities: s.shareCapabilities,
     setSelection: s.setSelection,
   }));
-  const canApply = canReviewPendingEdit(
-    projectPath,
-    guestMode,
-    shareCapabilities,
-    Boolean(edit.exact_range),
-  );
+  const canApply = canReviewPendingEdit(projectPath, shareCapabilities);
   const canNudge =
     !edit.exact_range &&
     edit.source_start != null &&
@@ -257,12 +252,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
       live.projectPath !== projectPath ||
       live.projectEpoch !== projectEpoch ||
       !currentEdit ||
-      !canReviewPendingEdit(
-        live.projectPath,
-        live.guestMode,
-        live.shareCapabilities,
-        Boolean(currentEdit.exact_range),
-      )
+      !canReviewPendingEdit(live.projectPath, live.shareCapabilities)
     )
       return;
     const selection = live.selection;
@@ -504,7 +494,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 variant: "primary" as const,
                 disabled: timingBusy || !canApply,
                 title: !canApply
-                  ? "Only the host can review exact range proposals"
+                  ? "Only the host or an edit guest can review exact range proposals"
                   : undefined,
                 onClick: () => void runAction("approve"),
               },
@@ -513,7 +503,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 variant: "danger" as const,
                 disabled: timingBusy || !canApply,
                 title: !canApply
-                  ? "Only the host can review exact range proposals"
+                  ? "Only the host or an edit guest can review exact range proposals"
                   : undefined,
                 onClick: () => void runAction("reject"),
               },
@@ -540,7 +530,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     >
       {edit.exact_range && !canApply ? (
         <p className="ui-field-hint">
-          Only the host can review exact range proposals.
+          Only the host or an edit guest can review exact range proposals.
         </p>
       ) : null}
       <DefinitionList>

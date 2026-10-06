@@ -114,9 +114,13 @@ describe("PendingEditInspector", () => {
     });
   });
 
-  it.each([null, "edit"])(
-    "shows exact timeline islands and host-only review for guest mode %s",
-    async (guestMode) => {
+  it.each([
+    ["/tmp/p.json", null, null, true],
+    [shareProjectKey("tok"), "edit", ["view", "edit"], true],
+    [shareProjectKey("tok"), "suggest", ["view", "suggest"], false],
+  ] as const)(
+    "shows exact timeline islands and review at %s for guest mode %s",
+    async (path, guestMode, capabilities, canReview) => {
       const exact = {
         ...sessionCut,
         source_start: null,
@@ -139,8 +143,12 @@ describe("PendingEditInspector", () => {
       };
       useDawStore
         .getState()
-        .hydrate("/tmp/p.json", minimalProject({ pending_edits: [exact] }));
-      useDawStore.setState({ guestMode, shareCapabilities: ["edit"] });
+        .hydrate(
+          path,
+          minimalProject({ pending_edits: [exact] }),
+          guestMode,
+          capabilities ? [...capabilities] : null,
+        );
       render(<PendingEditInspector edit={exact} />);
       expect(
         screen.getByText("0:11.000 – 0:12.000 · 0:13.000 – 0:14.000"),
@@ -160,14 +168,16 @@ describe("PendingEditInspector", () => {
         screen.queryByRole("button", { name: "Use suggestion" }),
       ).toBeNull();
       expect(loadPendingCutSuggestion).not.toHaveBeenCalled();
-      if (guestMode === null)
+      if (canReview)
         await waitFor(() =>
           expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled(),
         );
       else {
         expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
         expect(
-          screen.getByText("Only the host can review exact range proposals."),
+          screen.getByText(
+            "Only the host or an edit guest can review exact range proposals.",
+          ),
         ).toBeVisible();
       }
     },
