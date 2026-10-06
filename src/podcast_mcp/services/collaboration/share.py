@@ -52,6 +52,7 @@ from podcast_mcp.services.document import CommentService, run_comment_mutation_w
 from podcast_mcp.services.document_sync import (
     document_command_types_for_caps,
     document_poll_meta,
+    edit_commands_allowed,
     notify_comments_changed,
     parse_view_projection,
 )
@@ -548,6 +549,14 @@ def require_share_cap(
     row, ws = open_share_workspace(token, kind=kind)
     if not has_capability(row.get("capabilities"), cap):
         raise PermissionError(f"share does not allow {cap}")
+    return row, ws
+
+
+def require_share_edit(token: str) -> tuple[dict[str, Any], ProjectWorkspace]:
+    """Lookup share workspace and require the gate's ``edit`` command set."""
+    row, ws = open_share_workspace(token)
+    if not edit_commands_allowed(row.get("capabilities")):
+        raise PermissionError("share does not allow edit")
     return row, ws
 
 
@@ -1395,7 +1404,7 @@ def share_upload_media(
     """Chunked upload into host ``raw/`` (requires ``edit``)."""
     from podcast_mcp.services.media import write_upload_chunk
 
-    _row, ws = require_share_cap(token, CAP_EDIT)
+    _row, ws = require_share_edit(token)
     return write_upload_chunk(
         ws.project.workspace_path(),
         filename=filename,

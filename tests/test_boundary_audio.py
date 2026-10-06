@@ -364,17 +364,20 @@ def test_edit_share_gets_guarded_context(
     version = ReviewService(ws).publish(label="boundary-share")
     view = ShareService(ws).create(review_version_id=version["id"], capabilities=["view"])
     edit = ShareService(ws).create(review_version_id=version["id"], capabilities=["view", "edit"])
+    blind = ShareService(ws).create(review_version_id=version["id"], capabilities=["edit"])
     target = RollBoundaryTarget(left_clip_id="left", right_clip_id="right")
     geometry = [item.model_dump() for item in boundary_context(ws.project, target).geometry]
     body = {"target": target.model_dump(), "expected_geometry": geometry}
     with TestClient(create_app()) as client:
         denied = client.post(f"/api/review/{view['token']}/daw/boundary/context", json=body)
+        blind_denied = client.post(f"/api/review/{blind['token']}/daw/boundary/context", json=body)
         allowed = client.post(f"/api/review/{edit['token']}/daw/boundary/context", json=body)
         stale = client.post(
             f"/api/review/{edit['token']}/daw/boundary/context",
             json={**body, "expected_geometry": []},
         )
     assert denied.status_code == 403
+    assert blind_denied.status_code == 403
     assert allowed.status_code == 200
     assert allowed.json()["token"]
     assert stale.status_code == 409

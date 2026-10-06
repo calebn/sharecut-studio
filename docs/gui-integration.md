@@ -151,7 +151,7 @@ Host and share **`edit`** guests may add tracks, attach/replace audio, edit trac
 | `POST /api/project/create` · `POST /api/project/open` · `POST /api/project/close` | Host loopback — create empty episode, open existing `episode.project.json` (basename required; workspace **directory** also accepted), or unpin `served_project` (Studio New project). CLI `--project`, MCP, and `open_project` still load any JSON path. |
 | `POST /api/project/pick` | Host loopback — OS file dialog (Finder / Explorer / zenity); returns a path without pinning `served_project`. Browse / Mod+O use this then `open`. Overlapping pick returns **409**. Cancelled responses may include `detail` (timeout). Paste path remains when the dialog is unavailable. |
 | `POST /api/media/upload` | Host — stream audio into `raw/` (allowlisted extensions; size via `PODCAST_GUI_MEDIA_*`) |
-| `POST /api/review/{token}/daw/media/upload` | Guest **`edit`** — chunked upload (relay JSON body cap); same assembler |
+| `POST /api/review/{token}/daw/media/upload` | Guest **`view` + `edit`** (`edit_commands_allowed`) — chunked upload (relay JSON body cap); same assembler |
 | Document commands `AddTrack` / `SetTrackMedia` / `SetTrackMeta` / `RemoveTrack` | JSON mutations via existing document command routes (never file bytes) |
 | Document commands `SetTrackFader` / `SetTrackMute` | Saved mix (#386): a track's volume (`fader_db`, −60 to +12 dB on top of the staging `gain_db`) and mix mute; host and `edit` guests only (`canEditMix`). Applied as the `mix` projection (`tracks` + `render_status`) |
 
@@ -554,8 +554,8 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit session width) require *
 | `POST /api/pipeline/cancel` | Cancel running job between steps |
 | `POST /api/pipeline/render-preview` | Start render-preview job (stems + premix) |
 | `GET /api/pipeline/events` | SSE progress for the active/last job: per-subscriber queue via `stream_job_events` (connect snapshot, live events, 1s keepalive snapshot, terminal `done`) |
-| `POST /api/review/{token}/daw/render-preview` | Guest Docs Editor (`edit`) — starts a `PipelineJobManager` render and returns 202 with a job ID (409 if busy) |
-| `GET /api/review/{token}/daw/render-preview/{job_id}` | Guest Docs Editor (`edit`) — polls status for this share's project; paths sanitized |
+| `POST /api/review/{token}/daw/render-preview` | Guest Docs Editor (`view` + `edit`, `edit_commands_allowed`) — starts a `PipelineJobManager` render and returns 202 with a job ID (409 if busy) |
+| `GET /api/review/{token}/daw/render-preview/{job_id}` | Guest Docs Editor (`view` + `edit`) — polls status for this share's project; paths sanitized |
 | `POST /api/comments` | Create timeline comment (`CommentCreateRequest`) |
 | `PATCH /api/comments/{id}` | Resolve or update body |
 | `POST /api/comments/{id}/actions/{action_id}/done` | Check/uncheck action item with `by` |

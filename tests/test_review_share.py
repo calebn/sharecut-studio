@@ -770,6 +770,48 @@ def test_guest_render_preview_requires_edit(
     assert client.get(f"/api/review/{edit_tok}/daw/render-preview/{job_id}").status_code == 404
 
 
+def test_guest_render_and_upload_follow_the_document_command_gate(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+) -> None:
+    from podcast_mcp.services.collaboration.review import ReviewService
+    from podcast_mcp.services.collaboration.share import ShareService
+
+    monkeypatch.setenv("PODCAST_GUEST_RENDER", "1")
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.PipelineService.render_preview",
+        lambda self, **_kwargs: {"ok": True},
+    )
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label="EditGate")
+    client = TestClient(create_app())
+    blind_tok = ShareService(ws).create(review_version_id=ver["id"], capabilities=["play", "edit"])[
+        "token"
+    ]
+    edit_tok = ShareService(ws).create(
+        review_version_id=ver["id"], capabilities=["play", "view", "edit"]
+    )["token"]
+    wav = sample_wav.read_bytes()
+
+    def upload(token: str):
+        return client.post(
+            f"/api/review/{token}/daw/media/upload?filename=g.wav",
+            content=wav,
+            headers={"Content-Type": "application/octet-stream"},
+        )
+
+    assert client.post(f"/api/review/{blind_tok}/daw/render-preview").status_code == 403
+    assert upload(blind_tok).status_code == 403
+
+    render = client.post(f"/api/review/{edit_tok}/daw/render-preview")
+    assert render.status_code == 202
+    job_id = render.json()["job"]["id"]
+    assert client.get(f"/api/review/{edit_tok}/daw/render-preview/{job_id}").status_code == 200
+    assert client.get(f"/api/review/{blind_tok}/daw/render-preview/{job_id}").status_code == 403
+    uploaded = upload(edit_tok)
+    assert uploaded.status_code == 200, uploaded.text
+    assert uploaded.json()["complete"] is True
+
+
 def test_guest_render_preview_disabled_by_default(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ) -> None:
