@@ -59,8 +59,10 @@ def envelope_lag(
 ) -> EnvelopeLag | None:
     """Correlate ``own[frames]`` with ``peer[frames + lag]`` for ``|lag| <= reach`` hops.
 
-    None when too few frames stay in range. A lag without at least one shifted null
-    in range is reported with null correlation 1.0, so it is never supported.
+    None when too few frames stay in range, or when the best lag is not a peak: it
+    sits on the search boundary (the true lag is probably outside it) or a neighbouring
+    lag correlates as well (flat). A lag without at least one shifted null in range is
+    reported with null correlation 1.0, so it is never supported.
     """
 
     def correlation(shift: int) -> float | None:
@@ -78,6 +80,9 @@ def envelope_lag(
     if not scored:
         return None
     best, lag = max(scored)
+    around = (correlation(lag - 1), correlation(lag + 1))
+    if abs(lag) >= reach or any(side is None or side >= best for side in around):
+        return None
     nulls = [
         value
         for shift in NULL_SHIFTS_SEC
