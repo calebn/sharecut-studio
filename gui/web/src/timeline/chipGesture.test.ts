@@ -59,6 +59,8 @@ describe("a finger that came down on a chip", () => {
         anchor: { x: 102, y: 64 },
         since: 16,
         pressed: false,
+        last: { x: 102, y: 64 },
+        rest: null,
       },
     });
     expect(isArmed(step.finger, 20)).toBe(false);
@@ -94,6 +96,19 @@ describe("a finger that slid onto a chip", () => {
         [1, 140, 52, 116],
       ]),
     ).toEqual([false, false, false, true]);
+  });
+
+  it("measures the slide from where the finger came to rest, not where it arrived", () => {
+    // It arrives at the chip's edge moving down, creeps on 9.8 px within the
+    // slop, rests, then slides 12 px right. From the arrival point that move
+    // would be 16 px across and 9 px down, off the time axis.
+    const grabs = replay(AWAY, "x", [
+      [1, 213, 180, 0],
+      [1, 217, 189, 20],
+      [1, 223, 189, 200],
+      [1, 229, 189, 216],
+    ]);
+    expect(grabs).toEqual([false, false, false, true]);
   });
 
   it("does not grab a settled chip on a vertical move", () => {
