@@ -29,6 +29,14 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   bottom: var(--status-height);
 }
 
+/* The compact strip stacks above the shell's rows, so the status or nav row
+   beside it never draws over it, and its slot clips it, so its own slide
+   (entering, stowing) never draws over them (#1051 round 4). */
+.bottom-sheet-root:has(.bottom-sheet--compact) {
+  z-index: var(--z-sheet-docked);
+  overflow: clip;
+}
+
 .bottom-sheet-scrim {
   position: absolute;
   inset: 0;

@@ -77,7 +77,8 @@ timeline scrolls the selection above the strip or sheet, and any timeline drag
 stows it until release. A phone held sideways (tablet shell, at most 40rem
 tall) gets the same compact inspector in place of the bottom tabs. Its name,
 **Expand** or **Collapse** and **Close** stay pinned at the top while the
-expanded inspector scrolls. Decision and
+expanded inspector scrolls, and the strip stacks above the nav or status row
+beside it (`--z-sheet-docked`); the editor page never rubber-bands. Decision and
 measurements: [touch-editor-decisions.md § Compact inspector](touch-editor-decisions.md#compact-inspector-1051-round-3)
 and [§ Collapse stays in reach](touch-editor-decisions.md#collapse-stays-in-reach-1051-round-4).
 
