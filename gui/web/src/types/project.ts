@@ -10,6 +10,7 @@ export interface RoomToneFill {
   source_id: string | null;
 }
 
+/** May run past the clip's source edges: a clip cut through a mute keeps it whole. */
 export interface ClipMuteRegion {
   start_s: number;
   end_s: number;

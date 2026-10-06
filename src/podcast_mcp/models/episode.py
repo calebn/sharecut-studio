@@ -80,7 +80,9 @@ class ClipMuteRegion(SourceSpan):
     Render fades the clip out over the span's first ``fade_out_ms`` and back in over
     its last ``fade_in_ms`` (an approved tighten mute widens the span by the padded
     cut's fades, so the cut itself is silent). ``fill`` is the room tone laid under it
-    (``tighten.filler_pad_mode: room_tone``), digital silence when None.
+    (``tighten.filler_pad_mode: room_tone``), digital silence when None. A clip cut
+    through the region keeps it whole, so the span may run past the clip's source
+    edges and the clip stays silent up to its cut edge.
     """
 
     fill: RoomToneFill | None = None

@@ -4,6 +4,10 @@ Applied MUTE decisions write ``Clip.mute_regions`` instead of rippling. Render
 fades the clip out over the start of each region and back in over its end, at the
 region's own fade lengths, and lays the region's room-tone ``fill`` under it
 (digital silence without one), so timeline length is unchanged.
+
+Only muting and unmuting move a region's edges. A clip cut through a region (split,
+trim, roll, ripple delete, partial copy) keeps the region whole, past its own source
+edges, so each piece stays silent up to the cut and fades only where the region does.
 """
 
 from __future__ import annotations
@@ -12,7 +16,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from podcast_mcp.edits.ranges import clamp_spans, subtract_ranges_from_intervals
+from podcast_mcp.edits.ranges import subtract_ranges_from_intervals
 from podcast_mcp.models import Clip, ClipMuteRegion, EpisodeProject, RoomToneFill
 
 
@@ -57,18 +61,15 @@ def _envelopes(regions: Sequence[ClipMuteRegion], origin: float) -> list[MuteEnv
     return out
 
 
-def intersect_mute_regions(
+def mute_regions_overlapping(
     regions: list[ClipMuteRegion],
     src_start: float,
     src_end: float,
 ) -> list[ClipMuteRegion]:
-    """Keep the overlap of ``regions`` with ``[src_start, src_end)``, each with its fill."""
-    clamped = [
-        _with_span(region, s, e)
-        for region in regions
-        for s, e in clamp_spans([(region.start_s, region.end_s)], src_start, src_end)
-    ]
-    return merge_mute_regions(clamped)
+    """``regions`` that overlap ``[src_start, src_end)``, whole, for a clip over that range."""
+    return merge_mute_regions(
+        [r for r in regions if r.end_s > src_start + 1e-9 and r.start_s < src_end - 1e-9]
+    )
 
 
 def merge_mute_regions(regions: list[ClipMuteRegion]) -> list[ClipMuteRegion]:
@@ -123,12 +124,10 @@ def add_source_mute(clip: Clip, region: ClipMuteRegion) -> bool:
 
     The new span replaces whatever fill an existing region had under it.
     """
-    extra = intersect_mute_regions([region], clip.source_start, clip.source_end)
-    if not extra:
+    if not mute_regions_overlapping([region], clip.source_start, clip.source_end):
         return False
-    (added,) = extra
-    kept = _without_span(clip.mute_regions, added.start_s, added.end_s)
-    clip.mute_regions = merge_mute_regions([*kept, added])
+    kept = _without_span(clip.mute_regions, region.start_s, region.end_s)
+    clip.mute_regions = merge_mute_regions([*kept, region])
     return True
 
 
@@ -224,8 +223,8 @@ class IgnoredWordRegions:
         return cached
 
     def for_clip(self, clip: Clip) -> list[ClipMuteRegion]:
-        """Ignored spans for ``clip``'s transcript, clamped to its source range."""
+        """Ignored spans for ``clip``'s transcript that overlap its source range."""
         raw = self._raw_for(clip.track_id, clip.source_id)
         if not raw:
             return []
-        return intersect_mute_regions(raw, clip.source_start, clip.source_end)
+        return mute_regions_overlapping(raw, clip.source_start, clip.source_end)

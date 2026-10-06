@@ -1135,7 +1135,7 @@
       "type": "object"
     },
     "ClipMuteRegion": {
-      "description": "Source-media span muted inside a clip (mute-in-place).\n\nRender fades the clip out over the span's first ``fade_out_ms`` and back in over\nits last ``fade_in_ms`` (an approved tighten mute widens the span by the padded\ncut's fades, so the cut itself is silent). ``fill`` is the room tone laid under it\n(``tighten.filler_pad_mode: room_tone``), digital silence when None.",
+      "description": "Source-media span muted inside a clip (mute-in-place).\n\nRender fades the clip out over the span's first ``fade_out_ms`` and back in over\nits last ``fade_in_ms`` (an approved tighten mute widens the span by the padded\ncut's fades, so the cut itself is silent). ``fill`` is the room tone laid under it\n(``tighten.filler_pad_mode: room_tone``), digital silence when None. A clip cut\nthrough the region keeps it whole, so the span may run past the clip's source\nedges and the clip stays silent up to its cut edge.",
       "properties": {
         "end_s": {
           "title": "End S",
