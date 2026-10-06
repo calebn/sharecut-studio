@@ -40,7 +40,7 @@ export function TrackMixView(props: TrackMixViewProps) {
   }
   const { rows, access, preview, soloStatus, onMute, onSolo } = props;
   return (
-    <div className="track-mix">
+    <div className="track-mix" tabIndex={-1}>
       {soloStatus}
       <p id={descriptionId} className="track-mix-note">
         {access.kind === "edit"

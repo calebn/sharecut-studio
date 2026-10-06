@@ -916,6 +916,48 @@ describe("MobileShell", () => {
     expect(live?.textContent).toBe("Solo off. Every track plays again.");
   });
 
+  it("keeps keyboard focus in the shell when the status-row chip clears solo", async () => {
+    const user = userEvent.setup();
+    const project = minimalProject({
+      tracks: [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    act(() => useDawStore.getState().setSoloMap({ host: true }));
+    const statusRow = container.querySelector(".mobile-status-row");
+    const clearFromStatusRow = async () => {
+      within(statusRow as HTMLElement)
+        .getByRole("button", { name: "Solo on · Clear solo" })
+        .focus();
+      await user.keyboard("{Enter}");
+    };
+
+    await clearFromStatusRow();
+    expect(useDawStore.getState().soloTracks).toEqual({});
+    expect(container.querySelector("main.mobile-mode-body")).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "Timeline" }));
+    act(() => useDawStore.getState().setSoloMap({ guest: true }));
+    await clearFromStatusRow();
+    expect(useDawStore.getState().soloTracks).toEqual({});
+    expect(screen.getByRole("button", { name: "Solo guest" })).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(screen.getByRole("button", { name: "Mix" }));
+    const mix = screen.getByRole("dialog", { name: "Mix" });
+    act(() => useDawStore.getState().setSoloMap({ host: true }));
+    within(mix).getByRole("button", { name: "Solo on · Clear solo" }).focus();
+    await user.keyboard("{Enter}");
+    expect(useDawStore.getState().soloTracks).toEqual({});
+    expect(
+      within(mix).getByRole("button", { name: "Solo host" }),
+    ).toHaveFocus();
+  });
+
   it("announces a Bounce result on the phone shell (#704)", () => {
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>

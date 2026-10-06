@@ -211,6 +211,21 @@ describe("TrackHeadersColumn Solo on chip", () => {
     expect(
       screen.queryByRole("button", { name: "Solo on · Clear solo" }),
     ).toBeNull();
+    expect(screen.getByRole("button", { name: "Solo Host" })).toHaveFocus();
+  });
+
+  it("sends focus to the first S button when several tracks were soloed", async () => {
+    const user = userEvent.setup();
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={twoTrackProject()}>
+        <TrackHeadersColumn showSoloChip />
+      </DawProvider>,
+    );
+    act(() => useDawStore.getState().setSoloMap({ host: true, guest: true }));
+    screen.getByRole("button", { name: "Solo on · Clear solo" }).focus();
+    await user.keyboard(" ");
+    expect(useDawStore.getState().soloTracks).toEqual({});
+    expect(screen.getByRole("button", { name: "Solo Host" })).toHaveFocus();
   });
 
   it("leaves the phone rail corner empty: phone shows Solo on in its status row", () => {
