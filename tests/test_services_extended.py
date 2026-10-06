@@ -12,8 +12,9 @@ from filelock import Timeout
 
 from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 from podcast_mcp.edits.transcript_cuts import TranscriptMatch
+from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.play_audit import (
-    master_source_hash,
+    master_fingerprint,
     mastered_hash_path,
     mastered_path,
     mix_gains,
@@ -1538,7 +1539,7 @@ def test_loudness_reports_artifact_freshness_without_rendering(minimal_project, 
 
         master = mastered_path(project)
         master.write_bytes(sample_wav.read_bytes())
-        write_mastered_hash(project, master_source_hash(project))
+        write_mastered_hash(project, MasterTarget(), master_fingerprint(project, MasterTarget()))
         assert service.check_loudness()["stale_reason"] == "export_older_than_master"
         os.utime(export, ns=(master.stat().st_atime_ns, master.stat().st_mtime_ns + 1))
         fresh = service.check_loudness()
@@ -1548,7 +1549,7 @@ def test_loudness_reports_artifact_freshness_without_rendering(minimal_project, 
 
         mastered_hash_path(project).unlink()
         assert service.check_loudness()["stale_reason"] == "master_stale"
-        write_mastered_hash(project, master_source_hash(project))
+        write_mastered_hash(project, MasterTarget(), master_fingerprint(project, MasterTarget()))
         os.utime(export, ns=(master.stat().st_atime_ns, master.stat().st_mtime_ns + 1))
 
         project.track_by_id("host").fader_db = -3.0

@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from podcast_mcp.config import load_defaults
 from podcast_mcp.models import AutomationEnvelope, AutomationPoint, PipelineRun, PipelineStepLog
 from podcast_mcp.pipeline import PipelineRunner
 from podcast_mcp.pipeline import steps as pipeline_steps
@@ -70,9 +69,44 @@ class PipelineRunResult:
         }
 
 
+@dataclass(frozen=True)
+class AudioExportResult:
+    """The files an export wrote, and the master they were encoded from."""
+
+    paths: list[Path]
+    # ``master_qc.json``: the configured target and ceiling, the measured master and the
+    # verdict. None when the master has no QC report.
+    master: dict[str, Any] | None
+
+    def master_summary(self) -> str:
+        """One line naming the configured target and ceiling and what the master measured."""
+        if not self.master:
+            return "Master QC report missing"
+        target = (
+            f"{self.master['target_integrated_lufs']} LUFS / "
+            f"{self.master['target_true_peak_db']} dBTP"
+        )
+        measured = self.master.get("measured") or {}
+        if measured.get("integrated_lufs") is None:
+            return f"Mastered to target {target} (loudness unmeasured)"
+        return (
+            f"Mastered to target {target}; measured {measured['integrated_lufs']} LUFS / "
+            f"{measured.get('true_peak_db')} dBTP"
+        )
+
+    def job_result(self) -> dict[str, Any]:
+        return {"paths": [str(p) for p in self.paths], "master": self.master}
+
+
 class PipelineService:
     def __init__(self, workspace: ProjectWorkspace) -> None:
         self.ws = workspace
+
+    def _run_defaults(self) -> dict[str, Any]:
+        """The config a run or export uses: the Pipeline tab's staged working set, else shipped defaults."""
+        from podcast_mcp.services.pipeline.config import run_defaults_for
+
+        return run_defaults_for(self.ws.path)
 
     def run(
         self,
@@ -208,7 +242,9 @@ class PipelineService:
         # project as saved when it ends (#482). The steps' own render_lock re-enters this hold.
         with render_lock(self.ws.project):
             self.ws.checkpoint()
-            PipelineRunner().run(self.ws.project, from_step="master_loudness")
+            PipelineRunner(defaults=self._run_defaults()).run(
+                self.ws.project, from_step="master_loudness"
+            )
             self.ws.save_merged()
         from podcast_mcp.export.names import sanitize_export_stem
 
@@ -220,8 +256,8 @@ class PipelineService:
         formats: list[dict] | None = None,
         *,
         cancel_check: Callable[[], bool] | None = None,
-    ) -> list[Path]:
-        defaults = load_defaults()
+    ) -> AudioExportResult:
+        defaults = self._run_defaults()
         export_cfg = dict(defaults.get("export", {}))
         if formats is not None:
             export_cfg["formats"] = formats
@@ -252,5 +288,6 @@ class PipelineService:
                     max_workers=defaults.get("performance", {}).get("max_workers"),
                 )
             self.ws.save_merged()
-            prog.advance(1, message="Export complete")
-            return paths
+            result = AudioExportResult(paths, pipeline_steps.read_master_qc(self.ws.project))
+            prog.advance(1, message=f"Export complete. {result.master_summary()}")
+            return result

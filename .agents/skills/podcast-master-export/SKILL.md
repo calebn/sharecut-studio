@@ -97,7 +97,7 @@ From the CLI, `podcast pipeline run` already prints this verdict as an `Export Q
 
 ## Workflow
 
-Export re-mixes a stale premix and re-masters when `artifacts/mastered.hash` doesn't match, so no manual Refresh is needed before Export. A `master.*` config change still needs `--only master_loudness` (the hash covers the premix, not the config).
+Export re-mixes a stale premix and re-masters when `artifacts/mastered.hash` doesn't match, so no manual Refresh is needed before Export. A change to `master.integrated_lufs`, `master.true_peak_db` or `master.lra` also re-masters on the next Export (the hash covers those, not the QC tolerances, which only re-judge `master_qc.json`).
 
 Export checks every unmuted track included in the mix. An edit to music, intro, outro, or
 sound effects, or a selected media change, rebuilds that track's stem before remixing.
@@ -156,7 +156,7 @@ Re-encode without full pipeline:
 podcast pipeline export-audio --project episode.project.json
 ```
 
-MCP: `export_audio_tool(project_path, formats_json?)` — optional JSON array overrides `formats` for that run.
+MCP: `export_audio_tool(project_path, formats_json?)` — optional JSON array overrides `formats` for that run. Returns `{"paths": [...], "master": {...}}`; `master` is `master_qc.json` (check `target_integrated_lufs`, `target_true_peak_db` and `within_tolerance`).
 
 ## Configurable caption cue limits
 

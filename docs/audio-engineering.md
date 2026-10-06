@@ -10,8 +10,8 @@ FFmpeg filters and `numpy` — no extra installs required.
 |------|----------------|-------|
 | `podcast edit audio-diagnostics --track <id> [--start --end]` | Spectrogram PNG + waveform PNG + `astats` health + hum flag, bundled for one track (or window) | `audio_diagnostics_tool` MCP / CLI |
 | `podcast edit analyze-cleanup` | Per-track `health` block (astats + hum) alongside existing gate/bleed/fade findings | `analyze_cleanup_tool` MCP / CLI |
-| `artifacts/mastered.hash` | Fingerprint of the premix the master was built from; a mismatch re-masters on export | written by the `master_loudness` pipeline step after `mastered.wav` is swapped in whole; cleared (with `master_qc.json`) when a master starts |
-| `artifacts/master_qc.json` | Post-master loudness verification (measured vs. target, pass/fail), the premix input stats, the mastering plan, and the limiter gain reduction | written by the `master_loudness` pipeline step |
+| `artifacts/mastered.hash` | Fingerprint of the premix and the audio `master.*` settings (`integrated_lufs`, `true_peak_db`, `lra`) the master was built from, then on a second line the settings it was mastered at; a mismatch re-masters on export (see [Mastering cache](#mastering-cache)) | written by the `master_loudness` pipeline step after `mastered.wav` is swapped in whole; cleared (with `master_qc.json`) when a master starts |
+| `artifacts/master_qc.json` | Post-master loudness verification (the configured target and ceiling, measured vs. target, pass/fail), the premix input stats, the mastering plan, and the limiter gain reduction | written by the `master_loudness` pipeline step; the pass/fail verdict is re-derived when only the QC tolerances change |
 
 When `--start` / `--end` (or MCP `start_sec` / `end_sec`) are set, `astats` and
 `hum` are measured on **that extracted window**, not the whole stem. Do not treat
@@ -253,6 +253,30 @@ Tolerances are configurable (`master.qc_lufs_tolerance_lu`, default `0.5` LU;
 [`.agents/defaults/pipeline.yaml`](../.agents/defaults/pipeline.yaml). **Always read this
 file after mastering** and surface `within_tolerance: false` to the user before export —
 don't just trust that mastering ran without checking what it actually achieved.
+
+`target_integrated_lufs` and `target_true_peak_db` are the levels that were configured
+(default −16 LUFS, −1.5 dBTP; the Pipeline tab's *Master LUFS* and *True peak*), so a
+reader can tell which level a master was made for. `PipelineService.export_audio` returns
+them with the written files (`AudioExportResult.master`, the `master` key of the MCP
+`export_audio_tool` JSON, the CLI `export-audio` JSON and the Studio export job's
+`result`).
+
+### Mastering cache
+
+`mastered.wav` is reused on export while `mastered.hash` still matches
+`play_audit.master_fingerprint(project, MasterTarget)`: the premix (`master_source_hash`)
+plus the settings that change the audio, `master.integrated_lufs`, `master.true_peak_db`
+and `master.lra` (`engines/mastering.py::MasterTarget`). Changing any of them re-masters
+on the next export; leaving them alone reuses the file (no re-render). The QC tolerances
+only judge the result, so they stay out of the fingerprint: when they change,
+`ensure_current_master` re-derives `issues` / `within_tolerance` from the stored
+measurement and rewrites `master_qc.json` without mastering again.
+
+An export reads `master.*` from the same config a pipeline run would: the Pipeline tab's
+staged working set when one was staged (see [pipeline.md § Configurable
+run](pipeline.md#configurable-run-gui--mcp)), else the shipped defaults. The hash records
+the settings the master was made at, so callers with no run config (review publish)
+judge only the premix.
 
 `export_deliverables` goes one step further and writes `artifacts/export_qc.json`,
 rolling up `master_qc.json`'s issues **plus** transcript reconciliation staleness

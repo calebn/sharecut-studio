@@ -10,6 +10,7 @@ from podcast_mcp.config import mix_peak_ceiling_db
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.mute_regions import IgnoredWordRegions, mute_regions_payload
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
+from podcast_mcp.engines.mastering import MasterTarget
 from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 from podcast_mcp.models import AutomationEnvelope, Clip, EpisodeProject, Track
@@ -611,34 +612,69 @@ def master_source_hash(project: EpisodeProject) -> str | None:
     return short_digest(raw)
 
 
+def master_fingerprint(project: EpisodeProject, target: MasterTarget) -> str | None:
+    """Fingerprint everything the master is built from, or None with no premix.
+
+    The premix (``master_source_hash``) and the ``master.*`` settings that change the
+    audio (``target``). The one place that decides whether ``mastered.wav`` is current.
+    """
+    source = master_source_hash(project)
+    if source is None:
+        return None
+    return short_digest(f"{source}\n{target.to_json()}")
+
+
+def _mastered_sidecar(project: EpisodeProject) -> list[str]:
+    """``mastered.hash`` split into ``[fingerprint, the target it was mastered at]``."""
+    raw = _read_hash(mastered_hash_path(project))
+    return raw.split() if raw else []
+
+
 def read_mastered_hash(project: EpisodeProject) -> str | None:
-    return _read_hash(mastered_hash_path(project))
+    parts = _mastered_sidecar(project)
+    return parts[0] if parts else None
+
+
+def read_mastered_target(project: EpisodeProject) -> MasterTarget | None:
+    """The ``master.*`` settings ``mastered.wav`` was mastered at, or None when not recorded."""
+    parts = _mastered_sidecar(project)
+    return MasterTarget.from_json(parts[1]) if len(parts) > 1 else None
 
 
 def clear_mastered_hash(project: EpisodeProject) -> None:
     _clear_hash(mastered_hash_path(project))
 
 
-def write_mastered_hash(project: EpisodeProject, source_hash: str | None) -> str | None:
-    """Record the premix ``mastered.wav`` was mastered from.
+def write_mastered_hash(
+    project: EpisodeProject, target: MasterTarget, fingerprint: str | None
+) -> str | None:
+    """Record what ``mastered.wav`` was mastered from, and at which ``target``.
 
-    ``source_hash`` is ``master_source_hash`` captured before mastering. If the
-    premix changed since (a Refresh while loudnorm ran), nothing is recorded, so
-    the master stays stale instead of vouching for a premix it never read.
+    ``fingerprint`` is ``master_fingerprint(project, target)`` captured before
+    mastering. If the premix changed since (a Refresh while loudnorm ran), nothing is
+    recorded, so the master stays stale instead of vouching for a premix it never read.
     """
-    if source_hash is None or master_source_hash(project) != source_hash:
+    if fingerprint is None or master_fingerprint(project, target) != fingerprint:
         clear_mastered_hash(project)
         return None
-    return _write_hash(mastered_hash_path(project), source_hash)
+    _write_hash(mastered_hash_path(project), f"{fingerprint}\n{target.to_json()}")
+    return fingerprint
 
 
-def mastered_is_fresh(project: EpisodeProject) -> bool:
-    """True when ``mastered.wav`` was mastered from the current ``premix.wav``.
+def mastered_is_fresh(project: EpisodeProject, target: MasterTarget | None = None) -> bool:
+    """True when ``mastered.wav`` was mastered from the current ``premix.wav`` at ``target``.
+
+    ``target`` is the ``master.*`` config the next master would use. With None (review
+    publish, loudness check: no run config at hand) the target recorded in
+    ``mastered.hash`` is used, so only the premix is judged, as ``premix_stale_vs_mix``
+    does with the recorded ceiling.
 
     A master with no hash (mastered before it existed, or whose last master
     failed) is stale: export re-masters it, and publishing refuses it until then
     while ``premix.wav`` exists (with no premix, publish ships ``mastered.wav``).
     """
-    return _hash_sidecar_matches(
-        mastered_path(project), mastered_hash_path(project), master_source_hash(project)
-    )
+    target = target or read_mastered_target(project)
+    if target is None or not mastered_path(project).is_file():
+        return False
+    fingerprint = master_fingerprint(project, target)
+    return fingerprint is not None and read_mastered_hash(project) == fingerprint

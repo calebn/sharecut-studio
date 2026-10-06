@@ -17,6 +17,7 @@ from podcast_mcp.models import (
     save_project,
 )
 from podcast_mcp.services.document import EditService
+from podcast_mcp.services.pipeline import AudioExportResult
 
 
 def test_comment_tools_mcp(tmp_path):
@@ -148,14 +149,14 @@ def test_episode_create_and_track_add(tmp_path, sample_wav):
     with patch("podcast_mcp.mcp.tools.pipeline.PipelineService") as pipe:
         pipe.return_value.render_preview.return_value = {"path": "/tmp/p.wav"}
         pipe.return_value.render_final.return_value = Path("/tmp/f.wav")
-        pipe.return_value.export_audio.return_value = [Path("/tmp/e.wav")]
+        pipe.return_value.export_audio.return_value = AudioExportResult([Path("/tmp/e.wav")], None)
         prev = json.loads(mcp_server.render_preview(path))
         assert "path" in prev
         assert str(mcp_server.render_final(path)).endswith("f.wav")
         ex = json.loads(mcp_server.export_audio_tool(path))
-        assert len(ex) == 1
+        assert ex == {"paths": ["/tmp/e.wav"], "master": None}
         ex2 = json.loads(mcp_server.export_audio_tool(path, formats_json='[{"format":"mp3"}]'))
-        assert len(ex2) == 1
+        assert ex2["paths"] == ["/tmp/e.wav"]
     with patch("podcast_mcp.mcp.tools.speaker.SpeakerService") as sp:
         sp.return_value.attribute.return_value = {"ok": True}
         # speaker tools may not all be re-exported; skip if missing

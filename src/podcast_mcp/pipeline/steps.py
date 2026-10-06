@@ -13,7 +13,12 @@ from uuid import uuid4
 from podcast_mcp.config import mix_peak_ceiling_db
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.engines import TranscriptionEngine
-from podcast_mcp.engines.mastering import MasterResult
+from podcast_mcp.engines.mastering import (
+    MasterQcLimits,
+    MasterResult,
+    MasterTarget,
+    master_qc_issues,
+)
 from podcast_mcp.engines.waveform_media import ensure_project_waveforms, schedule_stem_waveforms
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -907,9 +912,42 @@ def ensure_current_master(project: EpisodeProject, defaults: dict[str, Any]) -> 
 
     # The cheap hash check first: master_loudness checks the premix itself, so
     # the premix is checked here only when the master looks fresh.
-    if not mastered_is_fresh(project) or premix_is_stale(project, defaults):
+    if not mastered_is_fresh(project, MasterTarget.from_defaults(defaults)) or premix_is_stale(
+        project, defaults
+    ):
         master_loudness(project, defaults)
+    else:
+        _rejudge_master_qc(project, defaults)
     return mastered_path(project)
+
+
+def read_master_qc(project: EpisodeProject) -> dict[str, Any] | None:
+    """``master_qc.json``, or None when it is missing or unreadable."""
+    try:
+        qc = json.loads(artifact(project, "master_qc.json").read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    return qc if isinstance(qc, dict) else None
+
+
+def _rejudge_master_qc(project: EpisodeProject, defaults: dict[str, Any]) -> None:
+    """Re-derive the verdict of a cached master from its stored measurement.
+
+    The QC tolerances judge the master without changing its audio, so a change to them
+    does not re-master. The stored report would still carry the old verdict.
+    """
+    qc = read_master_qc(project)
+    if not qc or not qc.get("measured"):
+        return
+    issues = master_qc_issues(
+        qc["measured"],
+        MasterTarget.from_defaults(defaults),
+        MasterQcLimits.from_defaults(defaults),
+        qc.get("limiter"),
+    )
+    if qc.get("issues") != issues:
+        qc.update(issues=issues, within_tolerance=not issues)
+        artifact(project, "master_qc.json").write_text(json.dumps(qc, indent=2), encoding="utf-8")
 
 
 def _media_seconds_reporter(
@@ -943,65 +981,42 @@ def _media_seconds_reporter(
 def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.engines.play_audit import (
         clear_mastered_hash,
-        master_source_hash,
+        master_fingerprint,
         mastered_path,
         premix_path,
         write_mastered_hash,
     )
 
-    master_cfg = defaults.get("master", {})
+    target = MasterTarget.from_defaults(defaults)
+    limits = MasterQcLimits.from_defaults(defaults)
     ensure_current_premix(project, defaults)
     premix = premix_path(project)
-    # Fingerprint the premix before mastering it: a Refresh that swaps it while
-    # loudnorm runs must leave this master stale, not vouch for it.
-    source_hash = master_source_hash(project)
+    # Fingerprint the premix and target before mastering: a Refresh that swaps the
+    # premix while loudnorm runs must leave this master stale, not vouch for it.
+    fingerprint = master_fingerprint(project, target)
     eng = ffmpeg()
     mastered = mastered_path(project)
     qc_path = artifact(project, "master_qc.json")
     # A failed or cancelled master must not leave a hash or QC report vouching for it.
     clear_mastered_hash(project)
     qc_path.unlink(missing_ok=True)
-    target_lufs = float(master_cfg.get("integrated_lufs", -16))
-    target_tp = float(master_cfg.get("true_peak_db", -1.5))
-    target_lra = float(master_cfg.get("lra", 11.0))
-    lufs_tolerance = float(master_cfg.get("qc_lufs_tolerance_lu", 0.5))
-    tp_tolerance = float(master_cfg.get("qc_true_peak_tolerance_db", 0.3))
 
     def _qc(measured: dict[str, float | None] | None, result: MasterResult) -> dict[str, Any]:
+        limiter = asdict(result.limiter) if result.limiter else None
         qc: dict[str, Any] = {
-            "target_integrated_lufs": target_lufs,
-            "target_true_peak_db": target_tp,
+            "target_integrated_lufs": target.integrated_lufs,
+            "target_true_peak_db": target.true_peak_db,
             "measured": measured,
             "within_tolerance": None,
             "issues": [],
         }
         if measured:
-            issues = []
-            integrated = measured.get("integrated_lufs")
-            if integrated is not None and abs(integrated - target_lufs) > lufs_tolerance:
-                limiter = result.limiter
-                if limiter is not None and not limiter.converged:
-                    issues.append(
-                        f"Limiter did not converge after {limiter.renders} renders "
-                        f"({integrated} LUFS, target {target_lufs})"
-                    )
-                else:
-                    issues.append(
-                        f"Integrated loudness {integrated} LUFS misses "
-                        f"target {target_lufs} by more than {lufs_tolerance} LU"
-                    )
-            true_peak = measured.get("true_peak_db")
-            if true_peak is not None and true_peak > target_tp + tp_tolerance:
-                issues.append(
-                    f"True peak {true_peak} dBTP exceeds target {target_tp} "
-                    f"by more than {tp_tolerance} dB"
-                )
-            qc["issues"] = issues
-            qc["within_tolerance"] = not issues
+            qc["issues"] = master_qc_issues(measured, target, limits, limiter)
+            qc["within_tolerance"] = not qc["issues"]
         qc["premix_input"] = result.input_stats
         qc["plan"] = result.plan.kind
         qc["normalization_type"] = result.normalization_type
-        qc["limiter"] = asdict(result.limiter) if result.limiter else None
+        qc["limiter"] = limiter
         return qc
 
     measured: dict[str, float | None] | None = None
@@ -1020,9 +1035,9 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
                 result = eng.master_loudness(
                     premix,
                     tmp,
-                    integrated_lufs=target_lufs,
-                    true_peak_db=target_tp,
-                    lra=target_lra,
+                    integrated_lufs=target.integrated_lufs,
+                    true_peak_db=target.true_peak_db,
+                    lra=target.lra,
                     on_measure_progress=_media_seconds_reporter(
                         sub, verb="Measuring", pass_index=0, passes=2
                     ),
@@ -1046,7 +1061,7 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
         render_atomic(mastered, _master_into, reap_partials=True)
         prog.set_phase("qc", "Writing master QC…")
         qc_path.write_text(json.dumps(qc, indent=2), encoding="utf-8")
-        write_mastered_hash(project, source_hash)
+        write_mastered_hash(project, target, fingerprint)
 
     if measured and measured.get("integrated_lufs") is not None:
         lufs = measured["integrated_lufs"]
@@ -1167,15 +1182,9 @@ def write_export_qc(
             "re-export before shipping."
         )
 
-    master_qc_path = artifact(project, "master_qc.json")
-    master_qc: dict[str, Any] | None = None
-    if master_qc_path.is_file():
-        try:
-            master_qc = json.loads(master_qc_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            master_qc = None
-        if master_qc and master_qc.get("issues"):
-            issues.extend(master_qc["issues"])
+    master_qc = read_master_qc(project)
+    if master_qc and master_qc.get("issues"):
+        issues.extend(master_qc["issues"])
 
     issues.extend(timebase["issues"])
     alignment = alignment_drift_report(project, defaults=defaults)

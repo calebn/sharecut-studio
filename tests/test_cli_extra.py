@@ -21,6 +21,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.services.document.history import HistoryRerenderError
+from podcast_mcp.services.pipeline import AudioExportResult
 
 runner = CliRunner()
 
@@ -409,7 +410,7 @@ def test_transcript_precorrect_dry_run(tmp_path):
 def test_pipeline_export_audio_cli(tmp_path, sample_wav):
     project = _init_project(tmp_path)
     with patch("podcast_mcp.cli.pipeline.PipelineService.export_audio") as export:
-        export.return_value = [tmp_path / "out.mp3"]
+        export.return_value = AudioExportResult([tmp_path / "out.mp3"], None)
         result = runner.invoke(
             app,
             [
