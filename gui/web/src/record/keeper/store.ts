@@ -1,3 +1,4 @@
+import { randomUuid } from "../../utils/randomUuid";
 import { type KeeperClipRegion, parseClipRegions } from "./clipRegions";
 import { openGuardedKeeperStream } from "./deletionGuard";
 import {
@@ -639,11 +640,7 @@ export async function createOpfsSink(
 }
 
 function probeFileName(): string {
-  const id =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-  return `.sharecut-opfs-probe-${id}`;
+  return `.sharecut-opfs-probe-${randomUuid()}`;
 }
 
 async function assertOpfsWritable(

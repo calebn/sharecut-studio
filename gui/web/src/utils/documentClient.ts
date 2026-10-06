@@ -1,5 +1,7 @@
 /** Stable document-plane client identity + monotonic client_seq for the DAW tab. */
 
+import { randomUuid } from "./randomUuid";
+
 const CLIENT_ID_KEY = "daw_client_id";
 const CLIENT_SEQ_KEY = "daw_document_client_seq";
 
@@ -8,7 +10,7 @@ export function documentClientId(): string {
   if (existing) {
     return existing;
   }
-  const id = `viewer-${crypto.randomUUID().slice(0, 8)}`;
+  const id = `viewer-${randomUuid().slice(0, 8)}`;
   sessionStorage.setItem(CLIENT_ID_KEY, id);
   return id;
 }
@@ -26,5 +28,5 @@ export function allocateDocumentClientSeq(): number {
 }
 
 export function newCommandId(): string {
-  return crypto.randomUUID().replace(/-/g, "");
+  return randomUuid().replace(/-/g, "");
 }
