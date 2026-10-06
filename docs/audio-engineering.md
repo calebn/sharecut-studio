@@ -158,7 +158,10 @@ measurement, and renders the plan:
    loudnorm cannot reach the target under the ceiling, and its dynamic fallback
    under-shoots on peaky premixes (the demo premix, −21.1 LUFS / −1.0 dBTP, mastered to
    −17.2 LUFS that way). The plan is decided from the measured stats before any render.
-   Unmeasurable stats keep single-pass loudnorm.
+   Unusable stats keep single-pass loudnorm (`LoudnormPlan(two_pass=False)`, no
+   `measured_*` values): missing stats, an integrated loudness at the −70 LUFS gating
+   floor, or a premix shorter than the 400 ms gate (`LOUDNESS_GATE_SEC`). Those would plan
+   a gain of tens of dB.
 3. **Loudnorm plan.** `loudnorm` with `linear=true` and the pass-1 values fed back in
    (`measured_I`, `measured_TP`, `measured_LRA`, `measured_thresh`, `offset`) and
    `print_format=json`. This is the same command as before the limiter plan existed, so
@@ -178,7 +181,13 @@ measurement, and renders the plan:
      ceiling (at most the 0.5 dB margin). A larger shortfall is added to the gain into
      the limiter and the limiter runs again, at most three renders
      (`LIMITER_MAX_RENDERS`). Then the trim is applied: the measured shortfall, capped at
-     the measured headroom, so the final true peak stays under the ceiling.
+     the measured headroom, so the final true peak stays under the ceiling. `ebur128`
+     prints the true peak to one decimal, so the headroom is cut by half that
+     (`TRUE_PEAK_PRINT_ROUNDING_DB`, 0.05 dB); a 192 kHz re-measure then stays at or under
+     the ceiling.
+   - If the third render still leaves a shortfall the headroom cannot cover, `converged`
+     is `false` and the QC issue says the limiter did not converge (dense clicks every
+     ~10 ms are the pathological case: each re-drive only limits harder).
    - The demo premix took two renders: +5.9 dB into the limiter, 6.9 dB of peak gain
      reduction, 1.1 LU of loudness reduction, +0.3 dB trim, and mastered to −16.0 LUFS /
      −1.7 dBTP. The lab recording (−20.0 LUFS / −1.0 dBTP) took one render: +4.0 dB,
@@ -215,6 +224,7 @@ After mastering, the `master_loudness` pipeline step re-measures the output
     "drive_db": 5.9,
     "limit_db": -2.0,
     "renders": 2,
+    "converged": true,
     "trim_db": 0.3,
     "peak_reduction_db": 6.9,
     "loudness_reduction_lu": 1.1
@@ -230,7 +240,10 @@ After mastering, the `master_loudness` pipeline step re-measures the output
   dynamically. It is `null` for the limit plan.
 - `limiter` is `null` for the loudnorm plan. For the limit plan: `gain_db` is the planned
   gain, `drive_db` the gain into the limiter after re-drives, `limit_db` the limiter
-  ceiling, `trim_db` the gain after it. `peak_reduction_db` is the limiter's gain
+  ceiling, `renders` the limiter renders run, `converged` whether the trim reached the
+  target under the ceiling (`false` adds the issue "Limiter did not converge after 3
+  renders (-17.7 LUFS, target -16.0)" in place of the generic loudness miss), `trim_db`
+  the gain after it. `peak_reduction_db` is the limiter's gain
   reduction on the loudest true peak (`input_tp + drive_db` minus the limited true peak).
   `loudness_reduction_lu` is its average reduction, as the integrated loudness it took
   (`input_i + drive_db` minus the limited loudness).

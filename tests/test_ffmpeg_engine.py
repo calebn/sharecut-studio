@@ -767,7 +767,7 @@ def test_master_loudness_two_pass_uses_measured_values(tmp_path: Path):
     assert "print_format=json" in af
     assert second_cmd[second_cmd.index("-ar") + 1] == "44100"
     assert second_cmd[second_cmd.index("-ac") + 1] == "1"
-    assert result.plan == LoudnormPlan()
+    assert result.plan == LoudnormPlan(two_pass=True)
     assert result.normalization_type == "dynamic"
     assert result.input_stats is not None
     assert result.input_stats["input_i"] == -23.7
@@ -794,7 +794,7 @@ def test_master_loudness_falls_back_when_measure_fails(tmp_path: Path):
     assert af == "loudnorm=I=-16.0:TP=-1.5:LRA=11.0:print_format=json"
     assert cmd[cmd.index("-ar") + 1] == "48000"
     assert cmd[cmd.index("-ac") + 1] == "2"
-    assert result.plan == LoudnormPlan()
+    assert result.plan == LoudnormPlan(two_pass=False)
     assert result.normalization_type is None
 
 

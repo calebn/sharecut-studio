@@ -19,8 +19,10 @@ import numpy as np
 from podcast_mcp.engines.mastering import (
     LIMITER_MARGIN_DB,
     LIMITER_MAX_RENDERS,
+    TRUE_PEAK_PRINT_ROUNDING_DB,
     LimiterPlan,
     LimiterReport,
+    LoudnormPlan,
     MasterResult,
     limiter_af,
     plan_master,
@@ -1406,7 +1408,12 @@ class FFmpegEngine:
         stats = self.loudnorm_input_stats(
             input_path, on_progress=on_measure_progress, total_sec=probe.duration_sec
         )
-        plan = plan_master(stats, integrated_lufs=integrated_lufs, true_peak_db=true_peak_db)
+        plan = plan_master(
+            stats,
+            integrated_lufs=integrated_lufs,
+            true_peak_db=true_peak_db,
+            duration_sec=probe.duration_sec,
+        )
         render = functools.partial(
             self._render_af, total_sec=probe.duration_sec, on_progress=on_progress
         )
@@ -1424,7 +1431,7 @@ class FFmpegEngine:
             )
             return MasterResult(output_path, plan, stats, None, limiter)
         base = f"loudnorm=I={integrated_lufs}:TP={true_peak_db}:LRA={lra}"
-        if stats is None:
+        if stats is None or (isinstance(plan, LoudnormPlan) and not plan.two_pass):
             af = f"{base}:print_format=json"
         else:
             af = (
@@ -1469,8 +1476,9 @@ class FFmpegEngine:
                 if lufs is None or peak is None:
                     raise RuntimeError(f"ebur128 could not measure the limited master {limited}")
                 shortfall = round(integrated_lufs - lufs, 2)
-                headroom = round(true_peak_db - peak, 2)
-                if shortfall <= headroom or renders == LIMITER_MAX_RENDERS:
+                headroom = round(true_peak_db - peak - TRUE_PEAK_PRINT_ROUNDING_DB, 2)
+                converged = shortfall <= headroom
+                if converged or renders == LIMITER_MAX_RENDERS:
                     break
                 drive_db = round(drive_db + shortfall, 2)
             trim_db = min(shortfall, headroom)
@@ -1480,6 +1488,7 @@ class FFmpegEngine:
             drive_db=drive_db,
             limit_db=limit_db,
             renders=renders,
+            converged=converged,
             trim_db=trim_db,
             peak_reduction_db=round(stats["input_tp"] + drive_db - peak, 2),
             loudness_reduction_lu=round(stats["input_i"] + drive_db - lufs, 2),

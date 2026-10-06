@@ -39,14 +39,16 @@ mastering** before telling the user the episode is ready:
   "premix_input": {"input_i": -21.1, "input_tp": -1.0, "input_lra": 7.0, "input_thresh": -32.0, "target_offset": 0.0},
   "plan": "limit",
   "normalization_type": null,
-  "limiter": {"gain_db": 5.1, "drive_db": 5.9, "limit_db": -2.0, "renders": 2, "trim_db": 0.3, "peak_reduction_db": 6.9, "loudness_reduction_lu": 1.1}
+  "limiter": {"gain_db": 5.1, "drive_db": 5.9, "limit_db": -2.0, "renders": 2, "converged": true, "trim_db": 0.3, "peak_reduction_db": 6.9, "loudness_reduction_lu": 1.1}
 }
 ```
 
 `premix_input` is the premix as measured, before any mastering. If `plan` is `"limit"`,
 tell the user the premix was too peaky for a static gain and report the limiter's
 `peak_reduction_db` (gain reduction on the loudest peak) and `loudness_reduction_lu`
-(its average reduction); several dB of loudness reduction is worth a listen. If the plan
+(its average reduction); several dB of loudness reduction is worth a listen. `converged: false` (QC issue
+"Limiter did not converge after 3 renders") means the limiter could not reach the target
+under the ceiling; the master is quieter than requested, so report it. If the plan
 is `"loudnorm"` and `normalization_type` is `"dynamic"`, the premix LRA exceeded
 `master.lra` and loudnorm compressed it dynamically.
 

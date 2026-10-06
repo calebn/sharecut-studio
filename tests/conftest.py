@@ -208,6 +208,26 @@ def peaky_wav(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 @pytest.fixture(scope="session")
+def dense_clicks_wav(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Clicks every 10 ms: every re-drive just limits harder, so the limiter never reaches -16 LUFS."""
+    return _lavfi_wav(
+        tmp_path_factory.mktemp("audio") / "dense_clicks.wav",
+        "aevalsrc='0.01*sin(2*PI*220*t)"
+        "+if(lt(mod(t,0.01),0.0005),0.9*sin(2*PI*1000*t),0)':s=48000:d=6",
+    )
+
+
+@pytest.fixture(scope="session")
+def short_peaky_wav(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Shorter than the 400 ms loudness gate, so ebur128 reports no integrated loudness."""
+    return _lavfi_wav(
+        tmp_path_factory.mktemp("audio") / "short_peaky.wav",
+        "aevalsrc='0.02*sin(2*PI*220*t)+if(lt(mod(t,0.1),0.003),0.85*sin(2*PI*1000*t),0)'"
+        ":s=48000:d=0.3",
+    )
+
+
+@pytest.fixture(scope="session")
 def gentle_wav(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """-26 LUFS, -20 dBTP, 1.8 LU range: linear loudnorm reaches -16 LUFS."""
     return _lavfi_wav(
