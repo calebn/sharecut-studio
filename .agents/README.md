@@ -17,7 +17,7 @@ Canonical agent configuration for **any** MCP-capable client (Cursor, Claude Cod
 ## MCP
 
 1. Run `./install.sh` so `podcast-mcp` is on your PATH.
-2. Open the repo in a client that loads project agents from `.agents/` (Cursor does this by default).
+2. Open the repo in a client that loads project agents from `.agents/`. Cursor, Codex and OpenCode read it directly. Claude Code reads `.claude/skills`, a committed symlink to `skills/` here, so every client sees the same skills.
 3. Reload MCP servers after install if the IDE was already running.
 
 See [docs/setup.md](../docs/setup.md) for details.
@@ -44,7 +44,7 @@ Apache-2.0 [license](skills/impeccable/LICENSE). Its skill version lives in
 and Codex hook trust: [design hooks](../docs/setup.md#impeccable-design-hooks).
 Repo engineering rules govern any changes or detector suppressions it suggests.
 
-Repo skills live under `skills/`. Optional install into a global skills dir:
+Repo skills live under `skills/`, the single source for every client; `.claude/skills` only points here. Optional install into a global skills dir:
 
 ```bash
 podcast setup --global-skills
