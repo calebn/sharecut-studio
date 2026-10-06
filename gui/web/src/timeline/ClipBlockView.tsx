@@ -218,7 +218,7 @@ export function ClipBlockView({
       }
       data-clip-id={clip.id}
       className={`clip-block${selected ? " selected" : ""}${isCrossfadeJoin(clip) ? " join-crossfade" : ""}${fadeDragEdge ? " fade-dragging" : ""}${trimDragging ? " trim-dragging" : ""}${moving ? " clip-moving" : ""}${previewHidden ? " clip-move-hidden" : ""}${!interactive ? " clip-move-ghost" : ""}`}
-      style={{ left, width, background: color }}
+      style={{ left, width, backgroundColor: color }}
       aria-hidden={!interactive}
       title={title}
     >

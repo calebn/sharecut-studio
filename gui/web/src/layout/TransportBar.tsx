@@ -25,7 +25,6 @@ import {
   guestHearsMixOnly,
 } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import { SoloChip } from "../tracks/SoloChip";
 import {
   CommandButton,
   CommandMenuItem,
@@ -67,8 +66,8 @@ type Props = {
   compact?: boolean;
   /** Show Fit as a primary icon; false on phone Listen mode. */
   showFit?: boolean;
-  /** Phone shell places recording and solo status above the mode body. */
-  showStatusChips?: boolean;
+  /** Phone shell places recording status above the mode body. */
+  showRecordingChip?: boolean;
   /** Desktop/tablet: layout toggle, restore chip, View › Layout radios. */
   showLayout?: boolean;
 };
@@ -76,7 +75,7 @@ type Props = {
 export function TransportBar({
   compact = false,
   showFit = true,
-  showStatusChips = true,
+  showRecordingChip = true,
   showLayout = false,
 }: Props) {
   const {
@@ -350,12 +349,11 @@ export function TransportBar({
             {...transportPlayHandlers}
           />
         </div>
-        {showStatusChips ? <RecordTransportChip /> : null}
+        {showRecordingChip ? <RecordTransportChip /> : null}
         <TransportTimecode durationSec={duration} showTotal={!collapsed} />
         {!collapsed ? auditionGroup() : null}
       </TransportZone>
       <TransportZone position="end">
-        {showStatusChips ? <SoloChip /> : null}
         {ingestBusy ? (
           <Pill tone="warning" title="Importing audio…">
             {collapsed ? "…" : "Importing…"}

@@ -59,17 +59,20 @@ describe("TrackHeaderView", () => {
     );
   });
 
-  it("dims every unheard row, dashes only-you rows, and keeps metadata readable", () => {
+  it("greys every unheard row, dashes only-you rows, and never fades text", () => {
     const css = partial("layout.css");
     const dim = rule(css, ".track-header-row:is(.muted, .mute-implied)");
-    expect(dim).toMatch(/background:\s*var\(--color-timeline-lane-muted\)/);
+    expect(dim).toMatch(/background:\s*var\(--color-track-muted\)/);
     expect(dim).not.toMatch(/opacity:/);
     expect(
       rule(css, ".track-header-row:is(.mute-listen, .mute-implied)").trim(),
     ).toBe("border-inline-start-style: dashed;");
-    expect(
-      rule(css, ".track-header-row:is(.muted, .mute-implied) .track-chip"),
-    ).toMatch(/opacity:\s*var\(--mute-dim-opacity\)/);
+    const chip = rule(
+      css,
+      ".track-header-row:is(.muted, .mute-implied) .track-chip",
+    );
+    expect(chip).toMatch(/--track-chip-fill:\s*var\(--color-track-muted\)/);
+    expect(chip).not.toMatch(/opacity:/);
     expect(
       rule(
         css,

@@ -68,7 +68,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Deselect all tracks | `track.deselectAll` | `Mod+Shift+A` | `trackHeadersWell` | — | — | — | — | none · none |
 | Toggle track mute | `track.muteToggle` | `M` | `trackHeader`, `trackInspector` | `track_set_mute_tool` | `podcast episode set-track-mute` | — | — | anchor · hear |
 | Toggle track solo | `track.soloToggle` | `S` | `trackHeader`, `trackInspector` | — | — | — | — | anchor · hear |
-| Clear solo | `track.clearSolo` | — (not industry-standard; the Solo on chip clears every solo) | `transport.soloChip`, `mobileShell.statusRow`, `trackMix` | — | — | — | — | none · hear |
+| Clear solo | `track.clearSolo` | — (not industry-standard; the Solo on chip clears every solo) | `trackHeaders.soloChip`, `mobileShell.statusRow`, `trackMix` | — | — | — | — | none · hear |
 | Set track volume | `track.setVolume` | — (slider: arrow keys step the focused fader) | `trackInspector` | `track_set_volume_tool` | `podcast episode set-track-volume` | — | — | none · none |
 | Zoom in | `view.zoomIn` | `=` | `transport.menu` | — | — | — | — | none · look |
 | Zoom out | `view.zoomOut` | `-` | `transport.menu` | — | — | — | — | none · look |

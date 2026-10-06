@@ -371,6 +371,46 @@
   z-index: 0;
 }
 
+/* Solo on · Clear solo sits in the corner above the tracks it silences, where
+   DAWs put solo-clear, above the deselect hit area. The hairline matches the
+   active S, so it reads as a button rather than a status pill. */
+.track-headers-chrome .solo-chip {
+  position: relative;
+  z-index: var(--z-content);
+  align-self: center;
+  margin-inline-end: auto;
+  min-block-size: 1.5rem;
+  max-inline-size: 100%;
+  border: 1px solid var(--warning);
+  text-align: start;
+}
+
+/* The tablet-density rail is too narrow for one line: state over action. */
+@container timeline (inline-size < 68.75rem) {
+  .track-headers-chrome .solo-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    line-height: 1.2;
+  }
+
+  .track-headers-chrome .solo-chip-dot {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (pointer: coarse) {
+  .track-headers-chrome .solo-chip {
+    min-block-size: var(--touch-min);
+  }
+}
+
 .track-headers-chrome .track-headers-well {
   flex: 1 1 auto;
   min-block-size: 0.5rem;
@@ -864,11 +904,17 @@
   z-index: var(--z-local-chrome);
 }
 
-/* A track this listener doesn't hear dims like the lane beside it. Solid =
-   muted in the saved mix; dashed = only this listener hears it that way (a
-   listen-only mute, or a track their own solo silences). */
+/* A track this listener doesn't hear goes grey like the lane beside it.
+   Solid = muted in the saved mix; dashed = only this listener hears it that
+   way (a listen-only mute, or a track their own solo silences). */
 .track-header-row:is(.muted, .mute-implied) {
-  background: var(--color-timeline-lane-muted);
+  --color-track-hover: color-mix(
+    in srgb,
+    var(--track-identity-color) 11%,
+    var(--color-track-muted)
+  );
+
+  background: var(--color-track-muted);
 }
 
 .track-header-row:is(.mute-listen, .mute-implied) {
@@ -906,7 +952,7 @@
 
 /* Initials chip: shown only in the narrow (phone) rail, see the
    @container timeline block below. Tinted lane color with full ink, so it
-   reads on every lane color; muted tracks dash and dim it. */
+   reads on every lane color; an unheard track greys its fill. */
 .track-chip {
   --track-chip-fill: color-mix(
     in srgb,
@@ -931,7 +977,7 @@
 }
 
 .track-header-row:is(.muted, .mute-implied) .track-chip {
-  opacity: var(--mute-dim-opacity);
+  --track-chip-fill: var(--color-track-muted);
 }
 
 .track-header-row:is(.mute-listen, .mute-implied) .track-chip {

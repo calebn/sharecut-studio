@@ -549,7 +549,7 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
           follow: <FollowBanner />,
         },
         announcement: statusAnnouncement,
-        transport: <TransportBar compact showFit showStatusChips={false} />,
+        transport: <TransportBar compact showFit showRecordingChip={false} />,
         status: (
           <>
             <RecordTransportChip />

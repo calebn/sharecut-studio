@@ -141,7 +141,7 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Bounce selected range | `range.bounce` | Project loaded |  |
 | Select a range | `range.arm` | Project loaded |  |
 | Set track volume | `track.setVolume` | Host or shared edit mode | Args: { trackId?, db }: SetTrackFader, the saved volume on top of staging gain (-60 to +12 dB) |
-| Clear solo | `track.clearSolo` | Project loaded | Unsolo every track: the transport Solo on chip, phone status row and Mix sheet (listen-only, no key) |
+| Clear solo | `track.clearSolo` | Project loaded | Unsolo every track: the Solo on chip above the track headers, phone status row and Mix sheet (listen-only, no key) |
 | Fit tracks to window height | `view.fitTracksHeight` | Always (when not typing in an input) | Toggle: fill the stage height, or a fixed track height |
 | Share… | `share.manage` | Loaded host project | Open host share dialog: live links, create, revoke |
 | Start recording | `record.start` | Host project management |  |

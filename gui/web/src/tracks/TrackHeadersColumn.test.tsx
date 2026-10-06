@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands, execute } from "../commands/execute";
@@ -161,6 +161,68 @@ describe("TrackHeadersColumn deselect well", () => {
       screen.getByRole("button", { name: /Open track details, Guest/i }),
     );
     expect(useDawStore.getState().selectedTrackIds).toEqual(["guest"]);
+  });
+});
+
+describe("TrackHeadersColumn Solo on chip", () => {
+  beforeEach(() => {
+    clearRegisteredCommands();
+    registerDawCommands();
+    useDawStore.getState().hydrate("/tmp/p.json", twoTrackProject());
+    useDawStore.getState().setSoloMap({});
+  });
+
+  afterEach(() => {
+    useDawStore.getState().setSoloMap({});
+    clearRegisteredCommands();
+  });
+
+  it("shows Solo on · Clear solo in the ruler corner above the tracks while any track is soloed", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={twoTrackProject()}>
+        <TrackHeadersColumn showSoloChip />
+      </DawProvider>,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Solo on · Clear solo" }),
+    ).toBeNull();
+
+    act(() => useDawStore.getState().setSoloMap({ host: true }));
+    const chip = screen.getByRole("button", { name: "Solo on · Clear solo" });
+    const corner = screen
+      .getByRole("group", { name: "Tracks" })
+      .querySelector(":scope > .track-headers-chrome");
+    expect(chip.parentElement).toBe(corner);
+    expect(corner?.nextElementSibling).toHaveClass("track-header-row");
+    expect(chip).toHaveAttribute(
+      "title",
+      "Other tracks are silent for you only. Clear solo plays every track again",
+    );
+    await expectNoA11yViolations(container);
+
+    await user.tab();
+    expect(chip).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(useDawStore.getState().soloTracks).toEqual({});
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Solo off. Every track plays again.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Solo on · Clear solo" }),
+    ).toBeNull();
+  });
+
+  it("leaves the phone rail corner empty: phone shows Solo on in its status row", () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={twoTrackProject()}>
+        <TrackHeadersColumn />
+      </DawProvider>,
+    );
+    act(() => useDawStore.getState().setSoloMap({ host: true }));
+    expect(
+      screen.queryByRole("button", { name: "Solo on · Clear solo" }),
+    ).toBeNull();
   });
 });
 

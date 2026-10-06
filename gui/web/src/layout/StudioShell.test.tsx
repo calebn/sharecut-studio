@@ -204,6 +204,26 @@ describe("StudioShell tablet peek", () => {
     expect(skeleton.style.height).toBe(chrome.style.height);
   });
 
+  it("puts Solo on · Clear solo in the ruler corner above the tracks, not the transport", () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={tabletProject()}>
+        <StudioShell />
+      </DawProvider>,
+    );
+    act(() => useDawStore.getState().setSoloMap({ guest: true }));
+    const chip = screen.getByRole("button", { name: "Solo on · Clear solo" });
+    expect(
+      chip.closest(".timeline-scroll .track-headers > .track-headers-chrome"),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(".daw-shell-transport .solo-chip"),
+    ).toBeNull();
+    act(() => useDawStore.getState().setSoloMap({}));
+    expect(
+      screen.queryByRole("button", { name: "Solo on · Clear solo" }),
+    ).toBeNull();
+  });
+
   it("hosts headers in the timeline for an empty session without ingest", () => {
     useDawStore.getState().hydrate("share:tok", minimalProject({ tracks: [] }));
     render(

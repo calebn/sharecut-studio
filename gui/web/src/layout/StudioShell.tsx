@@ -128,6 +128,7 @@ function StudioShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
     () => (
       <TrackHeadersColumn
         showAddTrack
+        showSoloChip
         addDropOver={addDropOver}
         addFileCount={addFileCount}
         onAddDropOverChange={(over, fileCount) => {

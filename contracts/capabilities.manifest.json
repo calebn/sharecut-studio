@@ -911,7 +911,7 @@
       "surfaces": {
         "command": "track.clearSolo",
         "gui": [
-          "transport.soloChip",
+          "trackHeaders.soloChip",
           "mobileShell.statusRow",
           "trackMix"
         ]

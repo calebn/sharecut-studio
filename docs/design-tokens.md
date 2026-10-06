@@ -235,6 +235,21 @@ in `design-polish.spec.ts` hold this. Forced colors hide the strips. They are
 not `--color-timeline-vignette`, the empty stage's inset hover shadow
 (transparent in the light theme).
 
+**Unheard tracks.** A track this listener doesn't hear (a saved mute, a
+listen-only mute, or a track their solo silences) goes grey, as DAWs grey a
+muted region (#1102). `--color-track-muted` fills its header row, lane, phone
+initials chip and Mix-sheet row (light `--primitive-neutral-225`, dark
+`--primitive-neutral-975`); text on it stays at least 4.5:1.
+`--color-clip-muted` (light `--primitive-neutral-650`, dark
+`--primitive-neutral-750`) is painted over each clip's lane colour as a
+`background-image`, with the sheen dropped, so the white `--color-clip-label`
+stays at least 4.5:1 and the waveform still reads its tint from the clip's
+`background-color`. The waveform turns grayscale at `--mute-waveform-opacity`
+(0.5, in `tokens.css`). Text never fades. Solid versus dashed outlines, not
+colour, tell a saved mute from an only-you mute.
+`test_muted_track_keeps_text_contrast` checks the contrast, the clip fill's
+near-zero saturation, and the row's separation from `--color-bg-base`.
+
 **Transport.** The transport is fixed dark in both themes (`--color-transport-*`,
 `--bg-transport`, `--shadow-transport-*`). Play is the only orange control and
 glows only while playing (static, never pulsing); selected audition segments
