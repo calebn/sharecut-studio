@@ -35,6 +35,7 @@ SHARE_KIND_RECORD = "record"
 SHARE_KINDS = frozenset({SHARE_KIND_REVIEW, SHARE_KIND_RECORD})
 RECORD_REVIEW_VERSION_SENTINEL = ""
 
+# How long a slug stays reserved after its link ends (revoke or expiry).
 SHARE_COOLDOWN_DAYS = 365
 LAST_USED_TOUCH_MIN_INTERVAL = timedelta(hours=1)
 
@@ -365,7 +366,7 @@ class SqliteShareRegistry:
             if row is None:
                 return False
             last_used = _parse_iso(row["last_used_at"]) or moment
-            reserved_until = last_used + timedelta(days=cooldown_days)
+            reserved_until = moment + timedelta(days=cooldown_days)
             self._conn.execute("DELETE FROM active_shares WHERE token = ?", (token,))
             self._conn.execute(
                 """
@@ -493,23 +494,6 @@ def backup_share_registry(
     return reg.backup_to(Path(dest))
 
 
-_NEVER_USED = datetime.min.replace(tzinfo=UTC)
-
-
-def share_last_used_at(row: dict[str, Any]) -> datetime:
-    """Effective last-used clock.
-
-    Registry rows always carry ``last_used_at`` (NOT NULL column), but project
-    sidecar rows are not schema-enforced: fall back to ``created_at``, and when
-    neither parses fail closed (``datetime.min``) so the share reads inactive.
-    """
-    return (
-        _parse_iso(str(row.get("last_used_at") or ""))
-        or _parse_iso(str(row.get("created_at") or ""))
-        or _NEVER_USED
-    )
-
-
 def share_hard_expired(row: dict[str, Any], *, now: datetime | None = None) -> bool:
     exp = _parse_iso(str(row.get("expires_at") or "") if row.get("expires_at") else None)
     if exp is None:
@@ -517,25 +501,6 @@ def share_hard_expired(row: dict[str, Any], *, now: datetime | None = None) -> b
     return (now or _now()) >= exp
 
 
-def share_inactive(
-    row: dict[str, Any],
-    *,
-    now: datetime | None = None,
-    cooldown_days: int = SHARE_COOLDOWN_DAYS,
-) -> bool:
-    """True when the usable window has lapsed (last_used + cooldown_days)."""
-    last = share_last_used_at(row)
-    return (now or _now()) >= last + timedelta(days=cooldown_days)
-
-
-def share_is_usable(
-    row: dict[str, Any],
-    *,
-    now: datetime | None = None,
-    cooldown_days: int = SHARE_COOLDOWN_DAYS,
-) -> bool:
-    if row.get("revoked"):
-        return False
-    if share_hard_expired(row, now=now):
-        return False
-    return not share_inactive(row, now=now, cooldown_days=cooldown_days)
+def share_is_usable(row: dict[str, Any], *, now: datetime | None = None) -> bool:
+    """A link works until the host revokes it or its host-chosen ``expires_at`` passes."""
+    return not row.get("revoked") and not share_hard_expired(row, now=now)

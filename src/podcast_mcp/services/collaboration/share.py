@@ -451,7 +451,7 @@ class ShareService:
 
 
 def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
-    """Resolve a usable active share; demote expired/inactive; touch last_used.
+    """Resolve a usable active share; demote it once expired; touch last_used.
 
     When *kind* is set, a mismatch raises the same KeyError as a missing token
     so prefix↔kind checks leak nothing.
@@ -463,9 +463,8 @@ def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
     row_kind = str(row.get("kind") or SHARE_KIND_REVIEW)
     if kind is not None and row_kind != kind:
         raise KeyError("invalid or revoked share token")
-    if not share_is_usable(row):
-        reason = "expired" if share_hard_expired(row) else "inactive"
-        reg.demote_to_cooldown(token, reason=reason)
+    if share_hard_expired(row):
+        reg.demote_to_cooldown(token, reason="expired")
         raise KeyError("invalid or revoked share token")
     workspace = Path(str(row.get("project_workspace") or ""))
     candidate = workspace / EPISODE_PROJECT_FILENAME

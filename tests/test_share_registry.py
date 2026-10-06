@@ -24,9 +24,7 @@ from podcast_mcp.edits.share_registry import (
     SqliteShareRegistry,
     claim_with_mint_retry,
     get_share_registry,
-    share_inactive,
     share_is_usable,
-    share_last_used_at,
 )
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
@@ -307,7 +305,7 @@ def test_upsert_active_metadata_updates_kind_fields(registry: SqliteShareRegistr
     assert row["capabilities"] == ["monitor", "comment"]
 
 
-def test_share_is_usable_inactive_and_expired():
+def test_share_is_usable_until_revoked_or_expired():
     now = datetime.now(UTC)
     base = {
         "token": "x",
@@ -316,53 +314,10 @@ def test_share_is_usable_inactive_and_expired():
         "revoked": False,
         "expires_at": None,
     }
-    assert not share_is_usable(base, now=now)
-    fresh = {
-        **base,
-        "created_at": _iso(now),
-        "last_used_at": _iso(now),
-        "expires_at": _iso(now - timedelta(seconds=1)),
-    }
-    assert not share_is_usable(fresh, now=now)
-    ok = {
-        **base,
-        "created_at": _iso(now),
-        "last_used_at": _iso(now),
-        "expires_at": None,
-    }
-    assert share_is_usable(ok, now=now)
-
-
-def test_share_last_used_falls_back_to_created_at_when_missing():
-    now = datetime(2026, 1, 1, tzinfo=UTC)
-    created = now - timedelta(days=400)
-    row = {"token": "x", "created_at": _iso(created), "revoked": False}
-    assert share_last_used_at(row) == created
-    # Caller's clock decides inactivity (not wall-clock now).
-    assert share_inactive(row, now=now)
-    assert not share_is_usable(row, now=now)
-    assert share_is_usable(row, now=created + timedelta(days=1))
-
-
-def test_share_last_used_malformed_falls_back_to_created_at():
-    now = datetime(2026, 1, 1, tzinfo=UTC)
-    created = now - timedelta(days=2)
-    row = {"token": "x", "created_at": _iso(created), "last_used_at": "not-a-date"}
-    assert share_last_used_at(row) == created
-    assert not share_inactive(row, now=now)
-    assert share_is_usable(row, now=now)
-
-
-def test_share_last_used_fails_closed_without_timestamps():
-    now = datetime(2026, 1, 1, tzinfo=UTC)
-    for row in (
-        {"token": "x"},
-        {"token": "x", "created_at": "garbage", "last_used_at": ""},
-    ):
-        assert share_last_used_at(row) == datetime.min.replace(tzinfo=UTC)
-        assert share_inactive(row, now=now)
-        assert not share_is_usable(row, now=now)
-        assert not share_is_usable(row)
+    assert share_is_usable(base, now=now)
+    assert share_is_usable({"token": "x"}, now=now)
+    assert not share_is_usable({**base, "expires_at": _iso(now - timedelta(seconds=1))}, now=now)
+    assert share_is_usable({**base, "expires_at": _iso(now + timedelta(seconds=1))}, now=now)
 
 
 def _seed_premix(minimal_project, sample_wav):
@@ -793,24 +748,13 @@ def test_resolve_share_exception(monkeypatch, tmp_path: Path):
     assert resolve_share("x", registry_path=tmp_path / "x.sqlite") is None
 
 
-def test_lookup_inactive_and_missing_workspace(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
-):
-    from podcast_mcp.edits.share_registry import get_share_registry
+def test_lookup_missing_workspace(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     from podcast_mcp.services.collaboration.share import _mark_share_revoked
 
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="Inact")
-    row = create_share(ws.project, review_version_id=ver["id"])
-    old = _iso(datetime.now(UTC) - timedelta(days=400))
-    get_share_registry()._conn.execute(
-        "UPDATE active_shares SET last_used_at = ?, created_at = ? WHERE token = ?",
-        (old, old, row["token"]),
-    )
-    with pytest.raises(KeyError):
-        lookup_share(row["token"])
 
-    # Remint + lookup when workspace path missing → touch without ProjectWorkspace
+    # Lookup when workspace path missing → touch without ProjectWorkspace
     row3 = create_share(ws.project, review_version_id=ver["id"])
     get_share_registry()._conn.execute(
         "UPDATE active_shares SET project_workspace = ? WHERE token = ?",
