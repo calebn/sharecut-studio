@@ -967,3 +967,40 @@ def test_speaker_meta_updates_all_track_turns_and_undo_preserves_sources(
         "Guest",
         "Host",
     ]
+
+
+def test_standalone_transcribe_trims_stretched_word_spans(tmp_path):
+    """#979: the MCP/CLI transcribe path trims like the transcribe_tracks step."""
+    from podcast_mcp.models import EpisodeProject, MediaAsset, Track, TrackRole, save_project
+    from test_word_spans import _track, _write_wav
+
+    _write_wav(tmp_path / "raw" / "lana.wav", _track(9.0, (7.6, 8.0)))
+    project = EpisodeProject.create("trim", str(tmp_path))
+    project.tracks.append(
+        Track(
+            id="lana",
+            label="Lana",
+            role=TrackRole.DIALOGUE,
+            speaker="Lana",
+            media=MediaAsset(path="raw/lana.wav"),
+        )
+    )
+    project_file = tmp_path / "episode.project.json"
+    save_project(project, project_file)
+    ws = ProjectWorkspace.open(project_file)
+    stretched = Transcript(
+        track_id="lana", words=[TranscriptWord(text="-huh.", start=2.0, end=8.0)]
+    )
+
+    def plan_ran(project, *_args, **_kwargs):
+        project.transcripts = [stretched]
+        return [stretched]
+
+    with (
+        patch("podcast_mcp.services.media.transcript.TranscriptionEngine"),
+        patch("podcast_mcp.services.media.transcript.run_transcribe_plan", side_effect=plan_ran),
+    ):
+        TranscriptService(ws).transcribe()
+
+    (word,) = ws.project.transcripts[0].words
+    assert (word.start, word.end, word.trimmed_from) == (7.59, 8.01, (2.0, 8.0))
