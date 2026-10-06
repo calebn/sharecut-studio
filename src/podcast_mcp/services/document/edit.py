@@ -372,6 +372,7 @@ class EditService:
         propose: bool,
         reason: str,
         action_id: str,
+        author: str | None = None,
     ) -> RangeEditResult:
         from podcast_mcp.edits.range_edits import edit_selected_range
 
@@ -379,7 +380,13 @@ class EditService:
             "before selected range",
             "after selected range",
             lambda p: edit_selected_range(
-                p, target, action, propose=propose, reason=reason, action_id=action_id
+                p,
+                target,
+                action,
+                propose=propose,
+                reason=reason,
+                action_id=action_id,
+                author=author,
             ),
             operation="edit_selected_range",
             params={"action_id": action_id, "action": action},
@@ -1111,6 +1118,7 @@ class EditService:
         *,
         propose: bool = False,
         reason: str | None = None,
+        author: str | None = None,
     ) -> dict:
         """Blade cut: apply split or append pending ``type=split`` proposal."""
         from podcast_mcp.util.tracks import dialogue_track_ids
@@ -1125,6 +1133,7 @@ class EditService:
                     float(at_time),
                     tids,
                     reason=reason or GUEST_SUGGEST_SPLIT_REASON,
+                    author=author,
                 )
                 return {"operation": "propose_split", "edit": decision.model_dump()}
             return split_clips_at(p, float(at_time), tids)
@@ -1142,6 +1151,7 @@ class EditService:
         ripple: bool = False,
         propose: bool = False,
         reason: str | None = None,
+        author: str | None = None,
     ) -> dict:
         """Delete clips (punch) or ripple-delete their spans; optional propose."""
 
@@ -1170,6 +1180,7 @@ class EditService:
                         review_required=True,
                         applied=False,
                         scope="session" if ripple else "track",
+                        author=author,
                     )
                     edits.append(decision.model_dump())
                 return {
@@ -1498,6 +1509,7 @@ class EditService:
         *,
         reason: str | None = None,
         edit_type: str | None = None,
+        author: str | None = None,
     ) -> dict:
         """Guest/host suggest: pending remove or mute decision (review_required)."""
         from podcast_mcp.models import EditDecisionType
@@ -1517,6 +1529,7 @@ class EditService:
                 review_required=True,
                 applied=False,
                 decision_type=decision_type,
+                author=author,
             )
             return decision.model_dump()
 

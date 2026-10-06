@@ -184,6 +184,7 @@ def append_remove_decision(
     scope: str = "session",
     decision_type: EditDecisionType = EditDecisionType.REMOVE,
     decision_id: str | None = None,
+    author: str | None = None,
 ) -> EditDecision:
     """Append a remove or mute decision without waveform optimization or coalescing.
 
@@ -208,6 +209,7 @@ def append_remove_decision(
         replace_gap_sec=replace_gap_sec,
         next_burst_sec=next_burst_sec,
         scope=scope,
+        author=author,
     )
     project.edit_decisions.append(decision)
     return decision
@@ -220,6 +222,7 @@ def append_split_decision(
     *,
     reason: str = GUEST_SUGGEST_SPLIT_REASON,
     review_required: bool = True,
+    author: str | None = None,
 ) -> EditDecision:
     """Append a pending blade/split decision (timeline clock, start == end)."""
     if not track_ids:
@@ -237,6 +240,7 @@ def append_split_decision(
         track_ids=list(track_ids),
         timebase="timeline",
         boundary_mode="timeline_split",
+        author=author,
     )
     project.edit_decisions.append(decision)
     return decision

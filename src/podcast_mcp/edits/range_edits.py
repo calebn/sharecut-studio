@@ -221,6 +221,7 @@ def edit_selected_range(
     propose: bool,
     reason: str,
     action_id: str,
+    author: str | None = None,
 ) -> RangeEditResult:
     target = resolve_range(project, target)
     if not target.clips:
@@ -237,6 +238,7 @@ def edit_selected_range(
         review_required=propose,
         applied=False,
         reason=reason,
+        author=author,
         exact_range=target,
     )
     if propose:

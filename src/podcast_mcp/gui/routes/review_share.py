@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
-from podcast_mcp.edits.share_capabilities import CAP_EDIT, CAP_VIEW
+from podcast_mcp.edits.share_capabilities import CAP_EDIT, CAP_VIEW, share_author
 from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pinned_audio_response
@@ -603,6 +603,7 @@ def post_daw_document_command(token: str, body: DocumentCommandRequest) -> dict[
                 capabilities=list(row.get("capabilities") or []),
                 range_policy="apply",
                 structural_mode=body.structural_mode,
+                author=share_author(token),
             )
         )
     except Exception as exc:

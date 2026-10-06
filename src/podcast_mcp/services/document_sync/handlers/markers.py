@@ -83,4 +83,5 @@ def suggest_pending_edit(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, A
         float(p["end"]),
         reason=str(p["reason"]) if p.get("reason") is not None else None,
         edit_type=str(p["edit_type"]) if p.get("edit_type") is not None else None,
+        author=p.get("_author"),
     )

@@ -7,13 +7,16 @@ command needs ``view`` on both the browser and the guest MCP surface.
 
 from __future__ import annotations
 
+import itertools
 import json
 from copy import deepcopy
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
+from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
@@ -37,7 +40,8 @@ def guest_command(command_type: str, payload: dict) -> DocumentCommand:
 
 
 def pending_project(minimal_project) -> DocumentSyncService:
-    """Pending edits from the host (no reason), an agent (``nl:range``) and a guest."""
+    """Pending edits from the host (no reason), an agent (``nl:range``) and a guest
+    suggestion saved without an author (as before #1010)."""
     ws = ProjectWorkspace.open(minimal_project)
     project = fixture(ws.project)
     for edit_id, reason, start in (("host", None, 1.0), ("agent", "nl:range", 2.0)):
@@ -65,7 +69,7 @@ def retime(svc: DocumentSyncService, caps: list[str], edit_id: str) -> None:
     ("caps", "allowed"),
     [
         (VIEW, set()),
-        (SUGGEST, {"guest"}),
+        (SUGGEST, set()),
         (EDIT, {"host", "agent", "guest"}),
     ],
     ids=["view", "suggest", "edit"],
@@ -81,6 +85,87 @@ def test_retiming_a_pending_edit_follows_its_author(minimal_project, caps, allow
     with pytest.raises(PermissionError):
         retime(svc, caps, edit_id)
     assert load_project(minimal_project).edit_decisions == before
+
+
+@pytest.mark.parametrize("surface", ["browser", "mcp"])
+def test_suggest_guests_retime_only_their_own_suggestions(
+    minimal_project, sample_wav, monkeypatch, surface
+):
+    pending_project(minimal_project)
+    shares = {
+        who: _mcp_share(minimal_project, sample_wav, monkeypatch, [*caps, "mcp"])
+        for who, caps in (("ann", SUGGEST), ("bob", SUGGEST), ("editor", EDIT))
+    }
+    client = TestClient(create_app())
+    seq = itertools.count(1)
+
+    def submit(who: str, command_type: str, payload: dict) -> bool:
+        body = {
+            "type": command_type,
+            "payload": payload,
+            "client_id": f"{surface}-{who}",
+            "client_seq": next(seq),
+        }
+        if surface == "mcp":
+            return "error" not in _mcp_call(shares[who], "guest_submit_document_command", body)
+        response = client.post(
+            f"/api/review/{shares[who]}/daw/document/command", json={**body, "role": "guest"}
+        )
+        assert response.status_code in (200, 403), response.text
+        return response.status_code == 200
+
+    for who, start in (("ann", 5.0), ("bob", 6.0)):
+        assert submit(
+            who, "SuggestPendingEdit", {"track_id": "c", "start": start, "end": start + 0.5}
+        )
+    by_start = {e.start: e.id for e in load_project(minimal_project).edit_decisions}
+    suggestion = {"ann": by_start[5.0], "bob": by_start[6.0]}
+
+    def retime(who: str, whose: str, start: float) -> bool:
+        payload = {"id": suggestion[whose], "start": start, "end": start + 0.5, "snap": False}
+        return submit(who, "UpdatePendingEdit", payload)
+
+    outcome = {
+        (who, whose): retime(who, whose, start)
+        for (who, whose), start in zip(
+            itertools.product(("ann", "bob", "editor"), ("ann", "bob")),
+            (7.0, 8.0, 9.0, 10.0, 11.0, 12.0),
+            strict=True,
+        )
+    }
+    assert outcome == {
+        ("ann", "ann"): True,
+        ("ann", "bob"): False,
+        ("bob", "ann"): False,
+        ("bob", "bob"): True,
+        ("editor", "ann"): True,
+        ("editor", "bob"): True,
+    }
+    host = DocumentSyncService.open(minimal_project)
+    for whose, start in (("ann", 13.0), ("bob", 14.0)):
+        host.submit(
+            DocumentCommand(
+                type="UpdatePendingEdit",
+                payload={
+                    "id": suggestion[whose],
+                    "start": start,
+                    "end": start + 0.5,
+                    "snap": False,
+                },
+                client_id="host",
+                client_seq=None,
+                role="viewer",
+            ),
+            range_policy="apply",
+        )
+    starts = {e.id: e.start for e in load_project(minimal_project).edit_decisions}
+    assert (starts[suggestion["ann"]], starts[suggestion["bob"]]) == (13.0, 14.0)
+
+    state = client.get(f"/api/review/{shares['ann']}/daw/document/state?phase=full").json()
+    rows = state["project"]["pending_edits"]
+    assert {row["id"] for row in rows} >= set(suggestion.values())
+    assert all("author" not in row for row in rows)
+    assert "share:" not in json.dumps(state)
 
 
 @pytest.mark.parametrize(

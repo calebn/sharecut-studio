@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from podcast_mcp.edits.edit_reasons import GUEST_SUGGEST_REASON, is_guest_suggestion
+from podcast_mcp.edits.edit_reasons import GUEST_SUGGEST_REASON
 from podcast_mcp.edits.share_capabilities import CAP_EDIT, CAP_SUGGEST, has_capability
 
 # Structural ops share one command type; policy chooses apply vs propose.
@@ -21,6 +21,11 @@ STRUCTURAL_COMMANDS: frozenset[str] = frozenset(
         "DeleteClip",
         "RippleDeleteClip",
     }
+)
+
+# Commands that can create a pending edit; ``_apply`` stamps the submitter's author.
+AUTHORED_COMMANDS: frozenset[str] = frozenset(
+    {"SuggestPendingEdit", "EditSelectedRange", *STRUCTURAL_COMMANDS}
 )
 
 
@@ -78,17 +83,20 @@ def may_decide_exact_range(caps: list[str] | None, range_policy: str) -> bool:
     return has_capability(caps, CAP_EDIT)
 
 
-def authorize_pending_update(caps: list[str] | None, reason: str | None) -> None:
-    """Raise PermissionError unless *caps* may retime a pending edit with *reason*.
+def authorize_pending_update(
+    caps: list[str] | None, author: str | None, edit_author: str | None
+) -> None:
+    """Raise PermissionError unless *caps* / *author* may retime a pending edit.
 
     Host and ``edit`` guests retime any pending edit. A ``suggest``-only guest
-    retimes only guest suggestions; retiming a host or agent edit is editing.
+    retimes only the suggestions its own share made (``edit_author == author``);
+    an edit with no author belongs to no guest.
     """
     if caps is None or has_capability(caps, CAP_EDIT):
         return
-    if has_capability(caps, CAP_SUGGEST) and is_guest_suggestion(reason):
+    if has_capability(caps, CAP_SUGGEST) and author is not None and edit_author == author:
         return
-    raise PermissionError("suggest-only shares may retime only guest suggestions")
+    raise PermissionError("suggest-only shares may retime only their own suggestions")
 
 
 def range_reason(

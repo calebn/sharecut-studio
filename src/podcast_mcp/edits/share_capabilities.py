@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+
 CAP_VIEW = "view"
 CAP_PLAY = "play"
 CAP_COMMENT = "comment"
@@ -186,3 +188,12 @@ def docs_role_for_capabilities(caps: list[str] | None) -> str:
     if mode == "view":
         return "viewer"
     return "none"
+
+
+def share_author(token: str) -> str:
+    """``EditDecision.author`` for a share guest: a fingerprint, never the raw token.
+
+    Host-side only. Coolname tokens are short enough to brute-force from it, so
+    guest projections never carry it.
+    """
+    return "share:" + hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]

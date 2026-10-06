@@ -149,8 +149,10 @@ export function rangeEditMode(
 }
 
 /**
- * Mirrors the server's ``authorize_pending_update``: host or ``edit`` retimes any
- * pending edit; a ``suggest``-only guest retimes only guest suggestions.
+ * Approximates the server's ``authorize_pending_update``: host or ``edit`` retimes
+ * any pending edit; a ``suggest``-only guest retimes only its own suggestions. Guest
+ * projections carry no author, so the Studio offers retime on every guest
+ * suggestion and the gate refuses another guest's.
  */
 export function canRetimePendingEdit(
   projectPath: string,
