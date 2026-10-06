@@ -7,6 +7,7 @@ syllable rhythm both tracks share; the best lag is tested against shifted nulls.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 import numpy as np
@@ -24,13 +25,20 @@ def level_envelope_db(
     samples: np.ndarray, *, sample_rate: int, frame_sec: float, hop_sec: float
 ) -> np.ndarray:
     """Frame RMS in dB on a ``hop_sec`` grid, floored so gated digital silence is one value."""
-    frame, hop = round(frame_sec * sample_rate), round(hop_sec * sample_rate)
-    levels = frame_rms_db_stream(
+    return stream_level_envelope_db(
         (samples[first : first + sample_rate] for first in range(0, samples.size, sample_rate)),
-        frame,
-        hop,
+        sample_rate=sample_rate,
+        frame_sec=frame_sec,
+        hop_sec=hop_sec,
     )
-    return np.maximum(levels, LEVEL_FLOOR_DB)
+
+
+def stream_level_envelope_db(
+    chunks: Iterable[np.ndarray], *, sample_rate: int, frame_sec: float, hop_sec: float
+) -> np.ndarray:
+    """:func:`level_envelope_db` over a forward-only chunk stream (a whole track at full rate)."""
+    frame, hop = round(frame_sec * sample_rate), round(hop_sec * sample_rate)
+    return np.maximum(frame_rms_db_stream(chunks, frame, hop), LEVEL_FLOOR_DB)
 
 
 @dataclass(frozen=True)

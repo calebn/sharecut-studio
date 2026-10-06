@@ -48,13 +48,9 @@ StepSummary = str | None
 
 def align_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.align_accept_status import mark_align_done, mark_align_pending
-    from podcast_mcp.edits.conversation_align import (
-        restore_clip_geometry,
-        run_conversation_align,
-        snapshot_clip_geometry,
-    )
+    from podcast_mcp.edits.conversation_align import run_conversation_align
 
-    snap = snapshot_clip_geometry(project)
+    clips = [clip.model_copy(deep=True) for clip in project.clips]
     try:
         result = run_conversation_align(project, defaults=defaults)
         if result.skipped_reason:
@@ -66,7 +62,7 @@ def align_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumma
             return result.skipped_reason
         mark_align_pending(project, notes="after align_tracks")
     except Exception:
-        restore_clip_geometry(project, snap)
+        project.clips = clips
         raise
     return result.summary()
 
