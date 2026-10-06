@@ -730,12 +730,17 @@ def test_reproposal_regenerates_pending_and_ordinary_applied_edits(minimal_proje
         _decision("applied-acoustic", 0.8, 1.0, "filler:acoustic", applied=True, review=True),
         _decision("applied-um", 1.2, 1.3, "filler:um", applied=True),
         _decision("risky-um", 1.4, 1.5, "filler:um:risky", review=True),
+        _decision("applied-risky-um", 1.52, 1.58, "filler:um:risky", applied=True, review=True),
         _decision("manual", 1.6, 1.7, "nl:range", applied=True),
     ]
 
     propose_tighten_edits(project, {"tighten": {"max_pause_sec": 99.0}})
 
-    assert {d.id for d in project.edit_decisions} == {"applied-acoustic", "risky-um", "manual"}
+    assert {d.id for d in project.edit_decisions} == {
+        "applied-acoustic",
+        "applied-risky-um",
+        "manual",
+    }
 
 
 def test_propose_does_not_mutate_decisions_when_analysis_raises(
