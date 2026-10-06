@@ -237,7 +237,7 @@ test("idle desktop reaches an edit in removed audio through the status chip", as
   );
 });
 
-test("guest suggests a range, host approves, and one Undo restores every occurrence", async ({
+test("editor guest cuts a range and one host Undo restores every occurrence", async ({
   browser,
   page,
 }) => {
@@ -246,6 +246,60 @@ test("guest suggests a range, host approves, and one Undo restores every occurre
       await openHostShare(page, projectPath);
       const before = geometry(projectPath);
       const token = await createReviewShare(page, projectPath, "editor");
+      const guestContext = await browser.newContext({
+        viewport: { width: 1440, height: 900 },
+      });
+      try {
+        const guest = await guestContext.newPage();
+        await openGuestShare(guest, token);
+        const range = await selectRange(guest);
+        await expect(
+          range.getByRole("button", { name: "Suggest cut", exact: true }),
+        ).toHaveCount(0);
+        await rangeAxe(guest);
+        await range.getByRole("button", { name: "Cut", exact: true }).click();
+        await expect
+          .poll(() =>
+            geometry(projectPath)
+              .filter((c: { track_id: string }) => c.track_id === "reference")
+              .map(
+                (c: {
+                  source_start: number;
+                  source_end: number;
+                  timeline_start: number;
+                }) => [c.source_start, c.source_end, c.timeline_start],
+              ),
+          )
+          .toEqual([
+            [0, 5, 0],
+            [0, 1, 10],
+            [2, 5, 12],
+          ]);
+        expect(
+          JSON.parse(fs.readFileSync(projectPath, "utf8")).editorial
+            .edit_decisions,
+        ).toHaveLength(0);
+        await page.reload();
+        await undo(page);
+        await expect.poll(() => geometry(projectPath)).toEqual(before);
+      } finally {
+        await guestContext.close();
+      }
+    },
+    undefined,
+    repeatedProject,
+  );
+});
+
+test("suggest-only guest proposes a range, host approves, and one Undo restores every occurrence", async ({
+  browser,
+  page,
+}) => {
+  await withShareableProject(
+    async (projectPath) => {
+      await openHostShare(page, projectPath);
+      const before = geometry(projectPath);
+      const token = await createSuggestOnlyShare(page, projectPath);
       const guestContext = await browser.newContext({
         viewport: { width: 1440, height: 900 },
       });
