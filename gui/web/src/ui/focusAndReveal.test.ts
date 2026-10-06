@@ -69,6 +69,18 @@ describe("focusAndReveal", () => {
     expect(input).toHaveFocus();
   });
 
+  it("reveals a field above the sheet's view below its pinned chrome", () => {
+    const { sheet, input } = fixture();
+    const chrome = document.createElement("div");
+    chrome.style.position = "sticky";
+    sheet.prepend(chrome);
+    chrome.getBoundingClientRect = () => bounds(100, 50);
+    sheet.scrollTop = 400;
+    focusAndReveal(input);
+    // The label (top 360 at scrollTop 0) lands just under the 50 px chrome.
+    expect(sheet.scrollTop).toBe(210);
+  });
+
   it("includes the focus ring without scrolling unrelated ancestors", () => {
     const { sheet, input } = fixture();
     input.style.outlineWidth = "2px";

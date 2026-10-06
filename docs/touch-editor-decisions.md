@@ -491,3 +491,16 @@ both spread. On the round 3 build the same cases saved `TrimClipEdge`,
 `MoveClips` or `RollClipJoin`; now they send no document command, the saved
 clip is unchanged, the selection is what it was, and the zoom grows by about
 2.3× (portrait and sideways, lab on; portrait, lab off).
+
+### Collapse stays in reach (#1051 round 4)
+
+With the inspector expanded on a phone held sideways, picking another target
+opened it expanded (as asked) and revealed its first field by scrolling the
+sheet, which carried Collapse and Close out of view above the timeline. The
+owner's Collapse never reached the button, so the next selection still opened
+expanded. The compact sheet's chrome (name, Expand or Collapse, Close) is now
+pinned at the top of the sheet's single scroller, and `ui/focusAndReveal.ts`
+reveals a field below pinned chrome rather than under it. The sheet still has
+one scroll owner. `e2e-compat/touch-peek.spec.ts` taps Expand and Collapse
+with a finger at 360×800 and 844×390 and checks that the finger lands on the
+button; the sideways case failed on the round 3 build.
