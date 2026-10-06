@@ -642,7 +642,7 @@ def test_build_rejects_unknown_intensity(tmp_path):
     assert not (out / "key.json").exists()
 
 
-def test_build_real_aligned_dialogue_smoke(tmp_path):
+def test_build_real_aligned_dialogue_smoke(tmp_path, monkeypatch):
     eng = FFmpegEngine()
     ok, _ = eng.check_available()
     if not ok:
@@ -653,18 +653,24 @@ def test_build_real_aligned_dialogue_smoke(tmp_path):
     source = copy_relocated_project(FIXTURE, tmp_path / "source")
     source_store = ProjectStore(source)
     source_project = source_store.load()
-    source_project.edit_decisions = [
-        EditDecision(
-            id="real-pause",
-            track_id="reference",
-            type=EditDecisionType.REMOVE,
-            start=14.0,
-            end=34.0,
-            reason="pause:20.00s",
-            review_required=True,
-            applied=False,
-        )
-    ]
+    real_pause = EditDecision(
+        id="real-pause",
+        track_id="reference",
+        type=EditDecisionType.REMOVE,
+        start=14.0,
+        end=34.0,
+        reason="pause:20.00s",
+        review_required=True,
+        applied=False,
+    )
+
+    # Find hits regenerates pending hits (#995), so the pause comes from the stubbed
+    # proposal rather than a pre-seeded pending decision; the pair render stays real.
+    def propose(self, *_args, **_kwargs):
+        self.ws.project.edit_decisions = [real_pause.model_copy()]
+        self.ws.save()
+
+    monkeypatch.setattr(EditService, "propose_tighten", propose)
     for track in ("reference", "guest"):
         with wave.open(str(source.parent / "raw" / f"{track}.wav"), "rb") as handle:
             handle.setpos(round(14.0 * handle.getframerate()))
