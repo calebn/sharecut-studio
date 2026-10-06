@@ -38,6 +38,12 @@ def diff_snapshots(
     a_dec = {d["id"]: d for d in after.editorial.get("edit_decisions", [])}
     decisions_added = [a_dec[k] for k in sorted(a_dec.keys() - b_dec.keys())]
     decisions_removed = [b_dec[k] for k in sorted(b_dec.keys() - a_dec.keys())]
+    # Generated hits keep their id across re-proposal (#999), so moved edges show here.
+    decisions_changed: list[dict[str, Any]] = []
+    for k in sorted(b_dec.keys() & a_dec.keys()):
+        fields = _diff_dicts(b_dec[k], a_dec[k])
+        if fields:
+            decisions_changed.append({"id": k, "fields": fields})
 
     b_log = {r["id"]: r for r in before.editorial.get("edit_log", [])}
     a_log = {r["id"]: r for r in after.editorial.get("edit_log", [])}
@@ -64,6 +70,7 @@ def diff_snapshots(
         "edit_decisions": {
             "added": decisions_added,
             "removed": decisions_removed,
+            "changed": decisions_changed,
         },
         "edit_log": {"added": edit_log_added},
         "tracks": {"changed": track_changes},

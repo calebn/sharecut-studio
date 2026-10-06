@@ -137,12 +137,15 @@ def summarize_diff(
     decisions = diff.get("edit_decisions") or {}
     d_add = len(decisions.get("added") or [])
     d_rem = len(decisions.get("removed") or [])
-    if d_add or d_rem:
+    d_chg = len(decisions.get("changed") or [])
+    if d_add or d_rem or d_chg:
         dec_bits: list[str] = []
         if d_add:
             dec_bits.append(f"{d_add} pending edit{'s' if d_add != 1 else ''} added")
         if d_rem:
             dec_bits.append(f"{d_rem} pending edit{'s' if d_rem != 1 else ''} removed")
+        if d_chg:
+            dec_bits.append(f"{d_chg} pending edit{'s' if d_chg != 1 else ''} changed")
         lines.append(", ".join(dec_bits))
 
     track_changes = (diff.get("tracks") or {}).get("changed") or []
