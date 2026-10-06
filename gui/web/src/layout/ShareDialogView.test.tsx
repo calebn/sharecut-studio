@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -121,6 +121,44 @@ describe("ShareDialogView", () => {
     expect(screen.queryByText(/offline/i)).not.toBeInTheDocument();
   });
 
+  it("offers each review-link role with what it can do; axe-clean", async () => {
+    const props = baseProps();
+    const { baseElement: container } = render(<ShareDialogView {...props} />);
+    const roles = screen.getByRole("group", {
+      name: "Anyone with the link",
+    });
+    const offered = within(roles)
+      .getAllByRole("radio")
+      .map((radio) => [
+        radio.getAttribute("value"),
+        (radio as HTMLInputElement).checked,
+      ]);
+    expect(offered).toEqual([
+      ["viewer", false],
+      ["commenter", true],
+      ["editor", false],
+    ]);
+    expect(
+      screen.getByRole("radio", { name: "Viewer" }),
+    ).toHaveAccessibleDescription("Views and plays the project.");
+    expect(
+      screen.getByRole("radio", { name: "Commenter" }),
+    ).toHaveAccessibleDescription(
+      "Also comments and suggests edits for you or an Editor to approve.",
+    );
+    expect(
+      screen.getByRole("radio", { name: "Editor" }),
+    ).toHaveAccessibleDescription(
+      "Also edits directly and approves or rejects suggestions.",
+    );
+    expect(
+      screen.getByText(
+        "Everyone with the link sees your cursor, selection, playhead, and viewport while they are in the session.",
+      ),
+    ).toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
   it("shows empty states; axe-clean", async () => {
     const props = baseProps();
     props.rows = [];
@@ -150,10 +188,7 @@ describe("ShareDialogView", () => {
     const props = baseProps();
     render(<ShareDialogView {...props} />);
 
-    await user.selectOptions(
-      screen.getByLabelText("Anyone with the link"),
-      "editor",
-    );
+    await user.click(screen.getByRole("radio", { name: "Editor" }));
     expect(props.onRoleChange).toHaveBeenCalledWith("editor");
 
     await user.click(screen.getByLabelText("Allow agent (MCP)"));
@@ -265,7 +300,9 @@ describe("ShareDialogView", () => {
       }
       expect(button).toBeDisabled();
     }
-    expect(screen.getByLabelText("Anyone with the link")).toBeDisabled();
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).toBeDisabled();
+    }
     expect(screen.getByLabelText("Allow agent (MCP)")).toBeDisabled();
   });
 

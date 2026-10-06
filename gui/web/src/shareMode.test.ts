@@ -18,9 +18,10 @@ import {
   shareProjectKey,
   shareTokenFromKey,
 } from "./shareMode";
+import { COMMENTER_CAPABILITIES } from "./test/fixtures";
 
-const editCaps = ["play", "view", "edit"];
-const suggestCaps = ["play", "view", "suggest"];
+const editCaps = [...COMMENTER_CAPABILITIES, "edit"];
+const suggestCaps = COMMENTER_CAPABILITIES;
 const commentCaps = ["play", "comment", "reply"];
 
 describe("shareMode", () => {
@@ -45,7 +46,7 @@ describe("shareMode", () => {
 
     expect(canApplyPass12(share, "edit")).toBe(false);
     expect(canApplyPass12(share, "edit", editCaps)).toBe(true);
-    expect(canApplyPass12(share, "suggest", suggestCaps)).toBe(false);
+    expect(canApplyPass12(share, "comment", suggestCaps)).toBe(false);
     expect(canApplyPass12(share, "view", ["play", "view"])).toBe(false);
     expect(canHostMutate(share)).toBe(false);
   });
@@ -90,8 +91,8 @@ describe("shareMode", () => {
     expect(canSuggestStructural(host, null)).toBe(true);
     expect(canApplyStructural(share, "edit", editCaps)).toBe(true);
     expect(canSuggestStructural(share, "edit", editCaps)).toBe(true);
-    expect(canApplyStructural(share, "suggest", suggestCaps)).toBe(false);
-    expect(canSuggestStructural(share, "suggest", suggestCaps)).toBe(true);
+    expect(canApplyStructural(share, "comment", suggestCaps)).toBe(false);
+    expect(canSuggestStructural(share, "comment", suggestCaps)).toBe(true);
     expect(canSuggestStructural(share, "view", ["play", "view"])).toBe(false);
   });
 
@@ -106,9 +107,10 @@ describe("shareMode", () => {
     expect(guestShareBannerLabel("edit")).toBe(
       "Shared edit view · You can add tracks and audio",
     );
-    expect(guestShareBannerLabel("suggest")).toBe("Shared suggest view");
     expect(guestShareBannerLabel("view")).toBe("Shared read-only view");
-    expect(guestShareBannerLabel("comment")).toBe("Shared comment view");
+    expect(guestShareBannerLabel("comment")).toBe(
+      "Shared comment view · You can comment and suggest edits",
+    );
     expect(guestShareBannerLabel(null)).toBe("Shared view");
   });
 
@@ -117,7 +119,7 @@ describe("shareMode", () => {
     const share = shareProjectKey("tok");
     expect(canRefreshMix(host, null)).toBe(true);
     expect(canRefreshMix(share, "edit", editCaps)).toBe(true);
-    expect(canRefreshMix(share, "suggest", suggestCaps)).toBe(false);
+    expect(canRefreshMix(share, "comment", suggestCaps)).toBe(false);
     expect(canRefreshMix(share, "view", ["play", "view"])).toBe(false);
     expect(canRefreshMix(share, "comment", commentCaps)).toBe(false);
   });
@@ -127,14 +129,9 @@ describe("shareMode", () => {
     const share = shareProjectKey("tok");
     expect(canComment(host, null)).toBe(true);
     expect(canComment(share, "edit")).toBe(false);
-    expect(canComment(share, "suggest")).toBe(false);
     expect(canComment(share, "comment")).toBe(false);
-    expect(canComment(share, "suggest", ["play", "view", "suggest"])).toBe(
-      false,
-    );
-    expect(
-      canComment(share, "suggest", ["play", "view", "comment", "suggest"]),
-    ).toBe(true);
+    expect(canComment(share, "view", ["play", "view"])).toBe(false);
+    expect(canComment(share, "comment", COMMENTER_CAPABILITIES)).toBe(true);
     expect(canComment(share, "comment", ["play", "reply"])).toBe(false);
     expect(canReply(share, "comment", ["play", "reply"])).toBe(true);
     expect(canReply(share, "comment", ["play", "view", "comment"])).toBe(true);
