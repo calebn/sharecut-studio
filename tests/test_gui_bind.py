@@ -273,3 +273,36 @@ def test_cors_preflight_allows_only_listed_origins(monkeypatch: pytest.MonkeyPat
     assert preflight("http://127.0.0.1:5173") == (200, "http://127.0.0.1:5173")
     assert preflight("https://evil.example.test") == (400, None)
     assert preflight("https://review.example.test.evil.test") == (400, None)
+
+
+_CORS_ENV = "PODCAST_REVIEW_CORS_ORIGINS"
+_EVIL_ORIGIN = "https://evil.example"
+
+
+def test_cors_wildcard_env_fails_closed_instead_of_reflecting_origin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.runtime_config import RuntimeConfigError
+
+    monkeypatch.setenv(_CORS_ENV, "*")
+    try:
+        app = create_app()
+    except RuntimeConfigError as exc:
+        assert _CORS_ENV in str(exc)
+        return
+    client = TestClient(app)
+    preflight = client.options(
+        "/api/health",
+        headers={"Origin": _EVIL_ORIGIN, "Access-Control-Request-Method": "GET"},
+    )
+    credentialed = client.get("/api/health", headers={"Origin": _EVIL_ORIGIN})
+    pytest.fail(
+        f"startup accepted {_CORS_ENV}='*' and reflected {_EVIL_ORIGIN}: "
+        f"preflight allow-origin={preflight.headers.get('access-control-allow-origin')!r}, "
+        f"credentialed allow-origin={credentialed.headers.get('access-control-allow-origin')!r}, "
+        f"allow-credentials={credentialed.headers.get('access-control-allow-credentials')!r}"
+    )
