@@ -17,6 +17,7 @@ LEVEL_FLOOR_DB = -90.0
 NULL_SHIFTS_SEC = (-2.0, -1.0, 1.0, 2.0)
 MIN_CORRELATION = 0.4
 MIN_NULL_MARGIN = 0.15
+_BLOCK_ELEMENTS = 1 << 18
 
 
 def level_envelope_db(
@@ -48,6 +49,53 @@ class EnvelopeLag:
         )
 
 
+def _pearson_rows(
+    x: np.ndarray, peer: np.ndarray, frames: np.ndarray, shifts: np.ndarray
+) -> np.ndarray:
+    """Pearson correlation of ``x`` with ``peer[frames + shift]`` per shift, 0.0 when flat.
+
+    Every ``frames + shift`` must be in range. Shifts go in blocks so the (shifts x frames)
+    work arrays hold about ``_BLOCK_ELEMENTS`` values however many frames a window has.
+    """
+    scores = np.zeros(shifts.size)
+    dx = x - x.mean()
+    var_x = float(dx @ dx)
+    if var_x == 0:
+        return scores
+    block = max(1, _BLOCK_ELEMENTS // frames.size)
+    for first in range(0, shifts.size, block):
+        y = peer[frames[None, :] + shifts[first : first + block, None]]
+        y -= y.mean(axis=1, keepdims=True)
+        var_y = np.einsum("ij,ij->i", y, y)
+        live = var_y > 0
+        r = (y @ dx) / np.sqrt(var_x * np.where(live, var_y, 1.0))
+        scores[first : first + block] = np.where(live, np.clip(r, -1.0, 1.0), 0.0)
+    return scores
+
+
+def _correlations(
+    own: np.ndarray, peer: np.ndarray, frames: np.ndarray, shifts: np.ndarray, min_frames: int
+) -> np.ndarray:
+    """Correlation of ``own[frames]`` with ``peer[frames + shift]`` per shift.
+
+    NaN where fewer than ``min_frames`` frames stay in range. Shifts that keep every frame
+    in range, which is every lag within reach of a window, are scored in one batch; the
+    rare shift that clips frames (a null near the track end) is scored on its usable frames.
+    """
+    own, peer = np.asarray(own, dtype=float), np.asarray(peer, dtype=float)
+    scores = np.full(shifts.size, np.nan)
+    if frames.size == 0:
+        return scores
+    whole = (shifts >= -frames.min()) & (shifts < peer.size - frames.max())
+    if frames.size >= min_frames and whole.any():
+        scores[whole] = _pearson_rows(own[frames], peer, frames, shifts[whole])
+    for i in np.flatnonzero(~whole):
+        usable = frames[(frames + shifts[i] >= 0) & (frames + shifts[i] < peer.size)]
+        if usable.size >= min_frames and usable.size > 0:
+            scores[i] = _pearson_rows(own[usable], peer, usable, shifts[i : i + 1])[0]
+    return scores
+
+
 def envelope_lag(
     own: np.ndarray,
     peer: np.ndarray,
@@ -62,30 +110,17 @@ def envelope_lag(
     None when too few frames stay in range, or when the best lag is not a peak: it
     sits on the search boundary (the true lag is probably outside it) or a neighbouring
     lag correlates as well (flat). A lag without at least one shifted null in range is
-    reported with null correlation 1.0, so it is never supported.
+    reported with null correlation 1.0, so it is never supported. Equal best
+    correlations resolve to the larger lag.
     """
-
-    def correlation(shift: int) -> float | None:
-        usable = frames[(frames + shift >= 0) & (frames + shift < peer.size)]
-        if usable.size < min_frames:
-            return None
-        x, y = own[usable], peer[usable + shift]
-        if x.std() == 0 or y.std() == 0:
-            return 0.0
-        return float(np.corrcoef(x, y)[0, 1])
-
-    scored = [
-        (value, lag) for lag in range(-reach, reach + 1) if (value := correlation(lag)) is not None
-    ]
-    if not scored:
+    scores = _correlations(own, peer, frames, np.arange(-reach, reach + 1), min_frames)
+    if np.isnan(scores).all():
         return None
-    best, lag = max(scored)
-    around = (correlation(lag - 1), correlation(lag + 1))
-    if abs(lag) >= reach or any(side is None or side >= best for side in around):
+    best = float(np.nanmax(scores))
+    index = int(np.flatnonzero(scores == best)[-1])
+    lag = index - reach
+    if abs(lag) >= reach or not (scores[index - 1] < best and scores[index + 1] < best):
         return None
-    nulls = [
-        value
-        for shift in NULL_SHIFTS_SEC
-        if (value := correlation(lag + round(shift / hop_sec))) is not None
-    ]
-    return EnvelopeLag(lag, best, max(nulls, default=1.0))
+    null_shifts = np.array([lag + round(shift / hop_sec) for shift in NULL_SHIFTS_SEC])
+    nulls = _correlations(own, peer, frames, null_shifts, min_frames)
+    return EnvelopeLag(lag, best, float(np.nanmax(nulls)) if not np.isnan(nulls).all() else 1.0)
