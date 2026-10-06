@@ -25,10 +25,8 @@ from podcast_mcp.edits.review_shares import (
 )
 from podcast_mcp.edits.review_versions import get_version, version_audio_path
 from podcast_mcp.edits.share_capabilities import (
-    CAP_EDIT,
     CAP_MCP,
     CAP_PLAY,
-    CAP_SUGGEST,
     CAP_VIEW,
     docs_role_for_capabilities,
     guest_mode,
@@ -563,6 +561,19 @@ def require_share_edit(token: str) -> tuple[dict[str, Any], ProjectWorkspace]:
     return row, ws
 
 
+def require_share_command(token: str, command_type: str) -> tuple[dict[str, Any], ProjectWorkspace]:
+    """Lookup share workspace and require the gate to allow *command_type*.
+
+    For guest reads that exist to author one command (a snap tick before a range
+    selection, a boundary preview before a retime): whoever may run the command
+    may read what it needs, and nobody else.
+    """
+    row, ws = open_share_workspace(token)
+    if command_type not in document_command_types_for_caps(row.get("capabilities")):
+        raise PermissionError(f"share does not allow {command_type}")
+    return row, ws
+
+
 def _sanitize_guest_tracks(tracks: Any) -> list[dict[str, Any]]:
     tracks_out: list[dict[str, Any]] = []
     for track in tracks or []:
@@ -902,15 +913,12 @@ def share_daw_waveform_tiles(
 
 
 def share_pending_cut_suggestion(token: str, edit_id: str) -> dict[str, Any]:
-    """Read a complete pending source cut through the share's edit capabilities."""
+    """Read a complete pending source cut for a guest who may retime pending edits."""
     from dataclasses import asdict
 
     from podcast_mcp.services.document import EditService
 
-    row, ws = require_share_cap(token, CAP_VIEW)
-    caps = row.get("capabilities")
-    if not has_capability(caps, CAP_SUGGEST) and not has_capability(caps, CAP_EDIT):
-        raise PermissionError("share does not allow cut suggestions")
+    _row, ws = require_share_command(token, "UpdatePendingEdit")
     return asdict(EditService(ws).preview_pending_cut(edit_id))
 
 
@@ -925,10 +933,7 @@ def share_daw_waveform_snap(
 ) -> dict[str, Any]:
     from podcast_mcp.services.document import EditService
 
-    row, ws = require_share_cap(token, CAP_VIEW)
-    caps = row.get("capabilities")
-    if not has_capability(caps, CAP_SUGGEST) and not has_capability(caps, CAP_EDIT):
-        raise PermissionError("share does not allow waveform snap ticks")
+    _row, ws = require_share_command(token, "EditSelectedRange")
     return EditService(ws).waveform_snap_window(
         track_id=track_id,
         start=start,
