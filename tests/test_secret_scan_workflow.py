@@ -411,3 +411,73 @@ def test_public_tree_reports_known_server_ipv4_once_in_text(tmp_path: Path) -> N
     (tmp_path / "notes.md").write_text(f"relay {server}\n")
     subprocess.run(["git", "add", "notes.md"], cwd=tmp_path, check=True)
     assert _public_tree_violations(tmp_path) == [f"notes.md: public IPv4 literal {server}"]
+
+
+_SIBLING_VIOLATION = "docs/guide.md:1: sibling-repo path outside the public tree"
+
+
+def _tracked_repo(root: Path, files: dict[str, str]) -> None:
+    _init_git_repo(root)
+    for name, text in files.items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "--", *files], check=True)
+
+
+def test_public_tree_reports_sibling_repo_path_in_docs_and_scripts(tmp_path: Path) -> None:
+    profile = "PODCAST_DISTRIBUTION_PROFILE=../acme-overlay/config/distribution.production.json"
+    _tracked_repo(
+        tmp_path,
+        {
+            "docs/guide.md": profile + " \\\n  make build\n",
+            "scripts/run.sh": "cd ../acme-overlay && ./go\n",
+            "Makefile": "build:\n\tcp ../../acme-overlay/x .\n",
+        },
+    )
+
+    assert sorted(_public_tree_violations(tmp_path)) == [
+        "Makefile:2: sibling-repo path outside the public tree",
+        _SIBLING_VIOLATION,
+        "scripts/run.sh:1: sibling-repo path outside the public tree",
+    ]
+
+
+def test_public_tree_sibling_violation_names_the_location_not_the_sibling(tmp_path: Path) -> None:
+    _tracked_repo(tmp_path, {"docs/guide.md": "run ../acme-overlay/bin/tool\n"})
+
+    assert _public_tree_violations(tmp_path) == [_SIBLING_VIOLATION]
+
+
+def test_public_tree_allows_in_tree_relative_links_and_placeholders(tmp_path: Path) -> None:
+    _tracked_repo(
+        tmp_path,
+        {
+            "docs/guide.md": (
+                "[script](../scripts/run.sh) [web](../gui/web/README.md) "
+                "profile ../<your-overlay>/dist.json parent ../.. "
+                "nested a/../b and ./../c and https://example.test/../d\n"
+            ),
+            "scripts/run.sh": "echo hi\n",
+            "gui/web/README.md": "web\n",
+        },
+    )
+
+    assert _public_tree_violations(tmp_path) == []
+
+
+def test_public_tree_sibling_scan_skips_source_code_traversal_fixtures(tmp_path: Path) -> None:
+    _tracked_repo(
+        tmp_path,
+        {
+            "tests/test_paths.py": 'BAD = "../acme-overlay/x"\n',
+            "gui/web/src/a.test.ts": 'const bad = "../acme-overlay/x"\n',
+        },
+    )
+
+    assert _public_tree_violations(tmp_path) == []
+
+
+def test_public_tree_has_no_sibling_repo_paths() -> None:
+    hits = [hit for hit in _public_tree_violations(ROOT) if "sibling-repo path" in hit]
+    assert not hits, "sibling-repo paths remain:\n" + "\n".join(hits)
