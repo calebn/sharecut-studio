@@ -62,9 +62,9 @@ def test_backchannel_over_silence_is_trimmed_onto_its_voice_at_the_end() -> None
         TranscriptWord(text="-huh.", start=2.0, end=8.0),
     ]
 
-    assert trim_implausible_words(words, audio, CAPS) == 1
+    assert trim_implausible_words(words, audio, CAPS) == (1, 0)
 
-    assert _spans(words) == [("hair.", 1.0, 1.4), ("-huh.", 7.59, 8.0)]
+    assert _spans(words) == [("hair.", 1.0, 1.4), ("-huh.", 7.59, 8.01)]
     assert words[1].trimmed_from == (2.0, 8.0)
     assert words[0].trimmed_from is None
 
@@ -73,7 +73,7 @@ def test_stretch_with_no_voice_inside_keeps_the_last_cap_of_the_span() -> None:
     audio = TrackRmsCache(_track(9.0, (8.3, 8.6)), RATE)
     words = [TranscriptWord(text="Uh", start=2.0, end=7.98)]
 
-    assert trim_implausible_words(words, audio, CAPS) == 1
+    assert trim_implausible_words(words, audio, CAPS) == (1, 0)
 
     assert _spans(words) == [("Uh", 6.98, 7.98)]
 
@@ -96,34 +96,81 @@ def test_ordinary_word_and_held_word_under_the_cap_are_untouched() -> None:
     ]
     before = [w.model_dump() for w in words]
 
-    assert trim_implausible_words(words, audio, CAPS) == 0
+    assert trim_implausible_words(words, audio, CAPS) == (0, 0)
 
     assert [w.model_dump() for w in words] == before
 
 
-def test_held_word_over_the_ordinary_cap_keeps_its_last_two_seconds() -> None:
-    audio = TrackRmsCache(_track(5.0, (0.5, 3.5)), RATE)
-    words = [TranscriptWord(text="soooo", start=0.5, end=3.5)]
+def test_voice_just_past_the_span_end_is_where_the_token_lands() -> None:
+    audio = TrackRmsCache(_track(14.0, (2.0, 2.1), (2.7, 2.8), (8.04, 8.7)), RATE)
+    words = [
+        TranscriptWord(text="-huh.", start=2.0, end=8.0),
+        TranscriptWord(text="Big", start=13.0, end=13.4),
+    ]
+
+    assert trim_implausible_words(words, audio, CAPS) == (1, 0)
+
+    assert _spans(words) == [("-huh.", 8.03, 8.3), ("Big", 13.0, 13.4)]
+
+
+def test_voice_past_the_span_end_that_the_next_word_starts_on_stays_with_it() -> None:
+    audio = TrackRmsCache(_track(10.0, (7.6, 7.8), (8.04, 8.7)), RATE)
+    words = [
+        TranscriptWord(text="Uh", start=2.0, end=8.0),
+        TranscriptWord(text="-huh.", start=8.04, end=8.7),
+    ]
 
     trim_implausible_words(words, audio, CAPS)
 
-    assert _spans(words) == [("soooo", 1.5, 3.5)]
+    assert _spans(words) == [("Uh", 7.59, 7.81), ("-huh.", 8.04, 8.7)]
+
+
+def test_token_holding_more_voice_than_its_cap_is_untouched_and_marked_overlong() -> None:
+    audio = TrackRmsCache(_track(7.0, (2.0, 2.4), (3.0, 5.0)), RATE)
+    words = [
+        TranscriptWord(text="-huh.", start=1.0, end=6.0),
+        TranscriptWord(text="soooo", start=6.0, end=6.5),
+    ]
+
+    assert trim_implausible_words(words, audio, CAPS) == (0, 1)
+
+    assert _spans(words) == [("-huh.", 1.0, 6.0), ("soooo", 6.0, 6.5)]
+    assert [(w.overlong, w.trimmed_from) for w in words] == [(True, None), (False, None)]
+
+
+def test_ordinary_word_voiced_past_its_cap_is_marked_overlong() -> None:
+    audio = TrackRmsCache(_track(5.0, (0.5, 3.5)), RATE)
+    words = [TranscriptWord(text="soooo", start=0.5, end=3.5)]
+
+    assert trim_implausible_words(words, audio, CAPS) == (0, 1)
+
+    assert _spans(words) == [("soooo", 0.5, 3.5)]
+    assert words[0].overlong is True
 
 
 def test_second_pass_changes_nothing() -> None:
-    audio = TrackRmsCache(_track(20.0, (7.6, 8.0), (18.0, 18.2)), RATE)
+    audio = TrackRmsCache(_track(30.0, (7.6, 8.0), (18.0, 18.2), (20.0, 23.0), (25.04, 25.5)), RATE)
     words = [
         TranscriptWord(text="-huh.", start=2.0, end=8.0),
         TranscriptWord(text="Uh", start=9.0, end=15.0),
         TranscriptWord(text="anyway", start=15.0, end=18.25),
+        TranscriptWord(text="-huh.", start=19.5, end=23.5),
+        TranscriptWord(text="Uh", start=23.6, end=25.0),
     ]
-    trim_implausible_words(words, audio, CAPS)
+    assert trim_implausible_words(words, audio, CAPS) == (4, 1)
     once = [w.model_dump() for w in words]
 
-    assert trim_implausible_words(words, audio, CAPS) == 0
+    assert trim_implausible_words(words, audio, CAPS) == (0, 1)
 
     assert [w.model_dump() for w in words] == once
-    assert [w.trimmed_from for w in words] == [(2.0, 8.0), (9.0, 15.0), (15.0, 18.25)]
+    assert [w.trimmed_from for w in words] == [
+        (2.0, 8.0),
+        (9.0, 15.0),
+        (15.0, 18.25),
+        None,
+        (23.6, 25.0),
+    ]
+    assert _spans(words)[-1] == ("Uh", 25.03, 25.3)
 
 
 def _write_wav(path: Path, samples: np.ndarray) -> None:
@@ -163,8 +210,8 @@ def test_project_pass_trims_each_dialogue_transcript_from_its_recording(
 
     words = project.transcripts[0].words
     if readable:
-        assert counts == {"Track lana": 1}
-        assert _spans(words) == [("-huh.", 7.59, 8.0)]
+        assert counts == {"Track lana": (1, 0)}
+        assert _spans(words) == [("-huh.", 7.59, 8.01)]
     else:
         assert counts == {}
         assert _spans(words) == [("-huh.", 2.0, 8.0)]

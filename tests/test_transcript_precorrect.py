@@ -818,6 +818,27 @@ def test_precorrect_enqueues_anomalous_word_duration(tmp_path) -> None:
     assert p.transcripts[0].words[0].audibility_status is None
 
 
+def test_precorrect_enqueues_an_overlong_word_for_refine(tmp_path) -> None:
+    p = EpisodeProject.create("precorrect-overlong", str(tmp_path))
+    p.ensure_dirs()
+    p.transcripts = [
+        Transcript(
+            track_id="lana",
+            words=[TranscriptWord(text="-huh.", start=1.0, end=2.5, overlong=True)],
+        ),
+    ]
+    ctx = _ctx(speaker_id=SpeakerIdConfig(mode="never"))
+    with patch(
+        "podcast_mcp.edits.transcript_precorrect.run_cross_track_sync",
+        return_value={"count": 0, "fixes": [], "deferred_low_similarity": []},
+    ):
+        result = run_precorrect_transcript(p, dry_run=True, context=ctx)
+
+    assert [
+        (x["kind"], x["text"], x["start"], x["end"]) for x in result.report["deferred_queue"]
+    ] == [("anomalous_word_duration", "-huh.", 1.0, 2.5)]
+
+
 def test_precorrect_apply_marks_anomalous_word_duration(tmp_path) -> None:
     p = EpisodeProject.create("precorrect-timing-apply", str(tmp_path))
     p.ensure_dirs()
