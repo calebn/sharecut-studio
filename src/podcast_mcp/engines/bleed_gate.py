@@ -12,6 +12,14 @@ from typing import Any
 import numpy as np
 
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
+from podcast_mcp.engines.envelope_lag import (
+    LEVEL_FLOOR_DB,
+    MIN_CORRELATION,
+    MIN_NULL_MARGIN,
+    NULL_SHIFTS_SEC,
+    envelope_lag,
+    level_envelope_db,
+)
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     clip_source_to_timeline_shift,
@@ -35,11 +43,7 @@ BLEED_GATE_REV = 8
 EVIDENCE_RATE = 8000
 GATE_FADE_SEC = 0.012
 _LEVEL_FRAME_SEC = 0.1
-_LEVEL_FLOOR_DB = -90.0
 _MAX_PATH_LAG_SEC = 0.3
-_NULL_SHIFTS_SEC = (-2.0, -1.0, 1.0, 2.0)
-_MIN_PATH_CORRELATION = 0.4
-_MIN_NULL_MARGIN = 0.15
 _MIN_PATH_FRAMES = 3000
 _CONTOUR_SEC = 0.5
 _PEER_OPEN_DB = -60.0
@@ -249,13 +253,9 @@ def _owner_protection(
 
 def _levels_db(samples: np.ndarray) -> np.ndarray:
     """Level envelope on the owner hop grid, long enough to span a syllable."""
-    frame, hop = round(_LEVEL_FRAME_SEC * EVIDENCE_RATE), round(_OWNER_HOP_SEC * EVIDENCE_RATE)
-    levels = frame_rms_db_stream(
-        (samples[first : first + EVIDENCE_RATE] for first in range(0, samples.size, EVIDENCE_RATE)),
-        frame,
-        hop,
+    return level_envelope_db(
+        samples, sample_rate=EVIDENCE_RATE, frame_sec=_LEVEL_FRAME_SEC, hop_sec=_OWNER_HOP_SEC
     )
-    return np.maximum(levels, _LEVEL_FLOOR_DB)
 
 
 def _hop_mask(size: int, spans: list[tuple[float, float]], pad_sec: float = 0.0) -> np.ndarray:
@@ -286,35 +286,18 @@ def _path_lag(own: np.ndarray, peer: np.ndarray, spans: list[tuple[float, float]
     words. In synthetic trials of 200 pairs each, independent voices and voices that
     start and stop together never passed with 30 s, whether the words were scattered
     or one long phrase, and true copies always did. At 20 s, 8 in 200 co-timed long
-    phrases still passed. Below the minimum the detector abstains.
+    phrases still passed. Below the minimum the detector abstains, as it does when
+    the best lag is not a peak inside the search (#1068).
     """
-    own, peer = _syllable_contour(own), _syllable_contour(peer)
-    frames = np.flatnonzero(_hop_mask(own.size, spans, _MAX_PATH_LAG_SEC))
-    reach = round(_MAX_PATH_LAG_SEC / _OWNER_HOP_SEC)
-
-    def correlation(shift: int) -> float | None:
-        usable = frames[(frames + shift >= 0) & (frames + shift < peer.size)]
-        if usable.size < _MIN_PATH_FRAMES:
-            return None
-        x, y = own[usable], peer[usable + shift]
-        if x.std() == 0 or y.std() == 0:
-            return 0.0
-        return float(np.corrcoef(x, y)[0, 1])
-
-    scored = [
-        (value, lag) for lag in range(-reach, reach + 1) if (value := correlation(lag)) is not None
-    ]
-    if not scored:
-        return None
-    best, lag = max(scored)
-    nulls = [
-        value
-        for shift in _NULL_SHIFTS_SEC
-        if (value := correlation(lag + round(shift / _OWNER_HOP_SEC))) is not None
-    ]
-    if not nulls or best < _MIN_PATH_CORRELATION or best - max(nulls) < _MIN_NULL_MARGIN:
-        return None
-    return lag
+    found = envelope_lag(
+        _syllable_contour(own),
+        _syllable_contour(peer),
+        np.flatnonzero(_hop_mask(own.size, spans, _MAX_PATH_LAG_SEC)),
+        reach=round(_MAX_PATH_LAG_SEC / _OWNER_HOP_SEC),
+        hop_sec=_OWNER_HOP_SEC,
+        min_frames=_MIN_PATH_FRAMES,
+    )
+    return found.lag if found is not None and found.supported else None
 
 
 def _frame_spans(runs: list[tuple[int, int]], *, whole_frame: bool) -> list[tuple[float, float]]:
@@ -362,7 +345,7 @@ class _PeerCopy:
 
     def direct(self, size: int) -> np.ndarray:
         """The peer's direct-track levels moved onto this lane's clock."""
-        out = np.full(size, _LEVEL_FLOOR_DB)
+        out = np.full(size, LEVEL_FLOOR_DB)
         lo, hi = max(0, -self.lag), min(size, self.levels.size - self.lag)
         out[lo:hi] = self.levels[lo + self.lag : hi + self.lag]
         return out
@@ -397,7 +380,7 @@ class _PeerCopy:
 
 
 def _sliding_max(levels: np.ndarray, before: int, after: int) -> np.ndarray:
-    padded = np.pad(levels, (before, after), constant_values=_LEVEL_FLOOR_DB)
+    padded = np.pad(levels, (before, after), constant_values=LEVEL_FLOOR_DB)
     return np.lib.stride_tricks.sliding_window_view(padded, before + after + 1).max(axis=1)
 
 
@@ -425,7 +408,7 @@ def _peer_copy(
         _hop_mask(own.size, spans)
         & ~_hop_mask(own.size, own_words, _MAX_PATH_LAG_SEC)
         & (reach > _PEER_OPEN_DB)
-        & (own > _LEVEL_FLOOR_DB)
+        & (own > LEVEL_FLOOR_DB)
     )
     if not frames.any():
         return None
@@ -453,9 +436,9 @@ def _own_voice(
     Transcript words play no part, so untranscribed backchannels, laughs, and words
     reconciliation gave to a peer are kept too.
     """
-    opened = own[own > _LEVEL_FLOOR_DB]
+    opened = own[own > LEVEL_FLOOR_DB]
     noise = 10 ** (
-        (float(np.percentile(opened, _OWNER_FLOOR_PERCENTILE)) if opened.size else _LEVEL_FLOOR_DB)
+        (float(np.percentile(opened, _OWNER_FLOOR_PERCENTILE)) if opened.size else LEVEL_FLOOR_DB)
         / 10
     )
     reach = sum((copy.power(own.size, held=True) for copy in copies), np.zeros(own.size))
@@ -720,11 +703,11 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
             "dominance_db": policy.bleed_dominance_db,
             "evidence_rate": EVIDENCE_RATE,
             "level_frame_sec": _LEVEL_FRAME_SEC,
-            "level_floor_db": _LEVEL_FLOOR_DB,
+            "level_floor_db": LEVEL_FLOOR_DB,
             "max_path_lag_sec": _MAX_PATH_LAG_SEC,
-            "null_shifts_sec": list(_NULL_SHIFTS_SEC),
-            "min_path_correlation": _MIN_PATH_CORRELATION,
-            "min_null_margin": _MIN_NULL_MARGIN,
+            "null_shifts_sec": list(NULL_SHIFTS_SEC),
+            "min_path_correlation": MIN_CORRELATION,
+            "min_null_margin": MIN_NULL_MARGIN,
             "min_path_frames": _MIN_PATH_FRAMES,
             "contour_sec": _CONTOUR_SEC,
             "peer_open_db": _PEER_OPEN_DB,
