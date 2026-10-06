@@ -1,47 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearRegisteredCommands, registerCommand } from "../commands/execute";
 import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
-import { registerDawWebMcpTools, registerReviewWebMcpTools } from "./webmcp";
+import { registerDawWebMcpTools } from "./webmcp";
 
 type CapturedTool = {
   name: string;
   execute: (args: Record<string, unknown>) => unknown;
 };
-
-describe("review WebMCP tools", () => {
-  it("no-ops when modelContext is missing", () => {
-    const cleanup = registerReviewWebMcpTools({
-      playPause: vi.fn(),
-      seek: vi.fn(),
-      canComment: false,
-      addComment: vi.fn(),
-    });
-    expect(typeof cleanup).toBe("function");
-    cleanup();
-  });
-
-  it("registers tools when modelContext.registerTool exists", () => {
-    const registerTool = vi.fn();
-    Object.defineProperty(navigator, "modelContext", {
-      configurable: true,
-      value: { registerTool },
-    });
-    registerReviewWebMcpTools({
-      playPause: vi.fn(),
-      seek: vi.fn(),
-      canComment: true,
-      addComment: vi.fn(),
-    });
-    expect(registerTool).toHaveBeenCalled();
-    const names = registerTool.mock.calls.map((c) => c[0].name);
-    expect(names).toEqual(
-      expect.arrayContaining(["play_pause", "seek_timeline", "add_comment"]),
-    );
-    Reflect.deleteProperty(navigator, "modelContext");
-  });
-});
 
 describe("DAW WebMCP tools", () => {
   let registered: CapturedTool[] = [];

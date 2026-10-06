@@ -1,8 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
-import "../styles/partials/review-entry.css";
-import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { CommentCompose } from "./CommentCompose";
 
 type Args = Parameters<typeof CommentCompose>[0];
@@ -35,16 +33,6 @@ function ComposeHarness({
           : undefined
       }
     />
-  );
-}
-
-function GuestCompose(args: Args) {
-  return (
-    <div className="cover review-shell">
-      <div className="cover-center center stack">
-        <ComposeHarness {...args} className="review-compose box elevated" />
-      </div>
-    </div>
   );
 }
 
@@ -116,28 +104,6 @@ export const DraftAndPost: Story = {
   },
 };
 
-export const GuestFeedback: Story = {
-  render: (args) => (
-    <GuestCompose key={JSON.stringify([args.body, args.author])} {...args} />
-  ),
-  parameters: { layout: "fullscreen" },
-  args: {
-    body: "The opening sounds clear.",
-    author: "Mira",
-    onAuthorChange: fn(),
-    bodyPlaceholder: "Leave feedback…",
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.getByRole("textbox", { name: "Your name" }),
-    ).toHaveValue("Mira");
-    await expect(canvas.getByRole("textbox", { name: "Comment" })).toHaveValue(
-      "The opening sounds clear.",
-    );
-  },
-};
-
 export const Posting: Story = {
   args: { body: "Check the opening.", busy: true },
   play: async ({ canvasElement }) => {
@@ -145,19 +111,5 @@ export const Posting: Story = {
     await expect(
       canvas.getByRole("button", { name: "Posting…" }),
     ).toBeDisabled();
-  },
-};
-
-export const MobileGuestFeedback: Story = {
-  render: (args) => (
-    <GuestCompose key={JSON.stringify([args.body, args.author])} {...args} />
-  ),
-  parameters: { ...recordMobileViewport.parameters, layout: "fullscreen" },
-  globals: recordMobileViewport.globals,
-  args: {
-    body: "The pause before the second answer makes the scene easier to follow.",
-    author: "Bo",
-    onAuthorChange: fn(),
-    bodyPlaceholder: "Leave feedback…",
   },
 };

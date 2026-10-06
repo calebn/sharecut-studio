@@ -18,9 +18,6 @@ void import("./dawApp");
 const DawApp = lazy(() =>
   import("./dawApp").then((m) => ({ default: m.DawApp })),
 );
-const ReviewApp = lazy(() =>
-  import("./review/ReviewApp").then((m) => ({ default: m.ReviewApp })),
-);
 
 const RecordApp = lazy(() =>
   import("./record/RecordApp").then((m) => ({ default: m.RecordApp })),
@@ -60,7 +57,6 @@ function AppInner() {
     null,
   );
   const [shareAuthor, setShareAuthor] = useState<string | null>(null);
-  const [useReviewApp, setUseReviewApp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shareBootstrapping, setShareBootstrapping] = useState(
     Boolean(reviewToken),
@@ -78,7 +74,6 @@ function AppInner() {
       return;
     }
     if (recordToken) {
-      setUseReviewApp(false);
       setShareKey(null);
       setGuestMode(null);
       setShareCapabilities(null);
@@ -98,19 +93,14 @@ function AppInner() {
           if (cancelled) {
             return;
           }
-          if (caps.includes("view")) {
-            setShareKey(shareProjectKey(reviewToken));
-            setGuestMode(bootstrap.guest_mode ?? "view");
-            setShareCapabilities(caps);
-            setShareAuthor(bootstrap.author ?? null);
-            setUseReviewApp(false);
-          } else {
-            setUseReviewApp(true);
-            setShareKey(null);
-            setGuestMode(null);
-            setShareCapabilities(null);
-            setShareAuthor(null);
+          if (!caps.includes("view")) {
+            setError("This link does not open the project.");
+            return;
           }
+          setShareKey(shareProjectKey(reviewToken));
+          setGuestMode(bootstrap.guest_mode ?? "view");
+          setShareCapabilities(caps);
+          setShareAuthor(bootstrap.author ?? null);
         } catch (e: unknown) {
           if (cancelled) {
             return;
@@ -123,7 +113,6 @@ function AppInner() {
             setGuestMode("view");
             setShareCapabilities(null);
             setShareAuthor(null);
-            setUseReviewApp(false);
             setError(null);
             return;
           }
@@ -160,14 +149,6 @@ function AppInner() {
     return (
       <Suspense fallback={<LoadingScreen label="Loading studio…" />}>
         <RecordApp token={recordToken} />
-      </Suspense>
-    );
-  }
-
-  if (reviewToken && useReviewApp) {
-    return (
-      <Suspense fallback={<LoadingScreen label="Loading review…" />}>
-        <ReviewApp token={reviewToken} />
       </Suspense>
     );
   }

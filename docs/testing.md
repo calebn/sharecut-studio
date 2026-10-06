@@ -609,7 +609,7 @@ The beta user stories come from `ux/pages/brief.md`, `ux/pages/screen-inventory.
 | US-4 | #4 | Automated | `gui/web/e2e/transcript-inline-edit.spec.ts`, `gui/web/e2e/transcript-ignore.spec.ts`, `gui/web/e2e/transcript-refine-recovery.spec.ts`, `gui/web/e2e/sharecut.mobile.spec.ts`, `gui/web/src/panels/TranscriptPanel.test.tsx`, `gui/web/src/transcript/TranscriptTurnView.test.tsx`, `gui/web/src/layout/StatusBar.test.tsx`, `tests/test_transcript_correct.py`, `tests/test_transcript_reconcile.py` | Listening by ear |
 | US-5 | #5 | Automated | `gui/web/e2e/sharecut.smoke.spec.ts`, `gui/web/src/panels/TightenPanel.test.tsx`, `gui/web/src/inspector/views/PendingEditInspector.test.tsx`, `gui/web/src/panels/ImpactPanel.test.tsx`, `tests/test_tighten.py`, `tests/test_mute_in_place.py` | Listening by ear |
 | US-6 | #6 | Partial | `gui/web/e2e/fade-curves.spec.ts`, `gui/web/e2e/applied-edit-seams.spec.ts`, `gui/web/e2e/transcript-inline-edit.spec.ts`, `gui/web/src/panels/HistoryPanel.test.tsx`, `tests/test_history.py`, `tests/test_pending_preview.py` | Listening by ear, a mid-run Cancel |
-| US-7 | #7 | Partial | `gui/web/e2e/review-surface.spec.ts`, `gui/web/src/review/ReviewApp.test.tsx`, `tests/test_review_share.py`, `tests/test_relay_proxy.py` | Host visibility of time-anchored playback feedback and host-offline fallback |
+| US-7 | #7 | Partial | `gui/web/e2e/review-surface.spec.ts`, `tests/test_review_share.py`, `tests/test_relay_proxy.py` | Host visibility of time-anchored playback feedback and host-offline fallback |
 | US-8 | #11 | Partial | `gui/web/src/shareMode.test.ts`, `tests/test_share_pending_preview.py` | Two-browser suggest/approve |
 | US-9 | #8 | Partial | `gui/web/src/panels/PipelinePanel.test.tsx`, `gui/web/e2e/pipeline-warning-layout.spec.ts`, `tests/test_pipeline_run_result.py`, `tests/test_gui_export_jobs.py`, `tests/test_bounce.py` | A mid-run Cancel |
 
@@ -625,10 +625,10 @@ at desktop, tablet and phone widths in both themes with WCAG A/AA contrast
 checks. It also covers long comments and vocabulary announcements, phone
 Pipeline parameters/model-download focus handoff, and repeated menu-trigger
 clicks. `gui/web/e2e/review-surface.spec.ts` checks that a Commenter link opens
-Sharecut Studio, not ReviewApp, in both themes: at 1440px the guest posts a
+Sharecut Studio in both themes: at 1440px the guest posts a
 comment and a reply, and at 320px Comments sit one action away under More. Both
-widths check overflow and axe. ReviewApp keeps its Vitest coverage
-(`gui/web/src/review/ReviewApp.test.tsx`); no review role opens it.
+widths check overflow and axe. `gui/web/src/App.review.test.tsx` pins that a share
+without `view` shows an error instead of a listen page.
 `gui/web/e2e/comment-undo.spec.ts` checks host Resolve and Undo persistence,
 sticky toast bounds and hit testing after two interior panel scrolls, and Dismiss
 focus without changing panel, ancestor, or window scroll offsets. It runs at

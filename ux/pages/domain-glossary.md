@@ -15,10 +15,9 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Pending cut** | A suggested remove not yet approved |
 | **Approve / Reject** | Commit or discard a pending cut |
 | **Comment** | A note at a time on the mix |
-| **Review mix** | Frozen listen file for guests (ReviewApp) |
+| **Review mix** | Frozen listen file for guests (link previews and agents) |
 | **Share link** | `/r/…` URL with limited powers |
 | **Viewer / Commenter / Editor** | Review-link roles, as in Google Docs. Viewer views and plays; Commenter (default) also comments and suggests edits; Editor also edits directly and approves or rejects suggestions |
-| **ReviewApp** | Light guest UI: play mix + comments, for a share without “view” (no role mints one today) |
 | **Sharecut Studio guest** | Full-ish timeline UI; every review role opens it |
 | **Mode banner** | Top strip naming Shared edit / comment / read-only view |
 | **Proxy listen** | Short MP3 chunks for guest playback (faster than full WAVs) |
@@ -71,13 +70,13 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Volume (fader)** | A track's saved level, on top of the staging gain Balance sets | `timeline.tracks[].fader_db` (+ `gain_db`) | Track inspector / sheet fader; header's **Out** readout shows the sum |
 | **Balance status** | Whether the last dialogue loudness measurement still matches the media revision, ordered FX chain, and kept speech spans; status is not measured before the first successful balance run, current while those inputs match, and stale when they change. The displayed LUFS is the measured level, and “ungated” indicates the measurement fell back from speech gating | `timeline.tracks[].balance_basis` + derived render status | Track inspector below the Volume fader |
 | **Mute / solo** | M removes a track from the saved mix (host and Editors); S, and a guest's M, change only what you hear | `timeline.tracks[].muted`; solo and listen-only mute are per-listener | Track headers, inspector, sheet (solid = saved, dashed = only you) |
-| **Comment** | Time-anchored review note (+ replies, action items) | `review.comments[]` | Listen, Comments, ReviewApp |
-| **Review version** | Frozen mix for guests | `review.versions[]` | Share / ReviewApp |
+| **Comment** | Time-anchored review note (+ replies, action items) | `review.comments[]` | Listen, Comments |
+| **Review version** | Frozen mix for guests | `review.versions[]` | Share |
 | **Chapter / social clip** | Markers / short-form candidates | chapters / `social` | Markers layer, Mix/marker CRUD; **Menu › Markers → Add chapter at playhead** (`edit.addChapter`, host only) adds one at the playhead |
 | **History snapshot** | Undoable full editable state | `history/` + project cursor | History panel (host) |
 | **Artifact / premix** | Rendered audio for listen | `artifacts/`, `render` | Transport audition, Listen |
 | **Export** | Deliverables + bounce | `export/`, `export/bounces/` | Ship: Pipeline / `Mod+Shift+E`. Lightweight stems/range: Bounce… / `Mod+Shift+B` |
-| **Share token** | Guest access + capabilities | relay / review routes (pass-through; audio/media may transit, not stored on the relay; object storage stores mix/proxy when configured) | ReviewApp or Sharecut Studio guest |
+| **Share token** | Guest access + capabilities | relay / review routes (pass-through; audio/media may transit, not stored on the relay; object storage stores mix/proxy when configured) | Sharecut Studio guest |
 | **Guest banner** | Labels Sharecut Studio share mode | share bootstrap `guest_mode` | Top of Sharecut Studio guest / phone shell |
 | **Proxy media** | Guest listen chunks (MP3) | `timeline.tracks[].proxy` + CDN/local URLs | Guest transport |
 | **Offline edit queue** | Host or guest commands waiting for reconnect | browser storage `host-queue:{projectPath}` / `queue:{token}` | Host pending count → Needs attention; conflicts → Needs attention; each replay keeps its command id and sequence, and a different edit reusing a sequence comes back as a conflict in Needs attention; overlapping replay triggers (reconnect, `online`) join one running replay instead of sending twice; a replay of an edit the server saved just before it stopped is recognized as applied, never applied twice |
@@ -85,7 +84,7 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Still sending** | Approve or Reject that stayed in the offline queue instead of being applied | browser storage `host-queue-count:{projectPath}` / `queue:{token}` | Status under the button (Tighten Apply / Skip announce it instead); clears when the queue is empty (sent, or refused into Needs attention) |
 | **Presence** | Connected viewers/agents | session `clients[]` | Transport avatar stack, ghost cursors, status bar names, phone More → People |
 | **Remote MCP URL** | Agent entry for a share | share row `mcp_url` → `{base}/mcp/{token}/mcp` | External MCP clients only |
-| **Record link** | Studio join URL (shipped) | `/rec/{token}` + share `kind` | Record lobby / room (not ReviewApp); keepers + mix-minus + landing shipped |
+| **Record link** | Studio join URL (shipped) | `/rec/{token}` + share `kind` | Record lobby / room; keepers + mix-minus + landing shipped |
 | **Keeper** | Local dry WAV per recorded participant | guest OPFS / host `raw/` after ACK | Record session; timeline clips after landing; landing verifies keepers before taking the project lock, so edits stay responsive while a large take lands |
 | **Mix-minus** | Monitor plays remotes only (shipped) | Web Audio speaker bus + WebRTC mesh | Record lobby / live room |
 | **Consent gate** | Per-person step before any keeper bytes (shipped) | `record_snapshot` in `sync.db` | Record lobby |

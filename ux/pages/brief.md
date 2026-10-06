@@ -13,8 +13,6 @@ requirements for reviewable edits, recovery, export, and a free core workflow.
 
 **Sharecut Studio** is the web DAW / review UI for an episode: listen, inspect timeline and transcript, approve agent-suggested cuts, leave time-anchored comments, and (on share links) collaborate as a guest.
 
-**ReviewApp** is the lighter listen page: frozen review mix + comments, no full timeline. It opens only for a share without `view`, which no review role mints today.
-
 It is **not** a full Pro Tools replacement. It is closer to **Descript + a Reaper-style session inspector**, with an AI agent that proposes the same kinds of mutations a human can approve.
 
 ---
@@ -87,7 +85,7 @@ the [UI philosophy](https://github.com/calebn/sharecut-studio/blob/main/docs/ui-
 | Metric | Target |
 |--------|--------|
 | Time to first comment on a cold share link | &lt; 5 minutes for 4/5 hallway testers |
-| Mode understanding | ≥ 4/5 guests correctly say what they can do after reading the banner / ReviewApp header |
+| Mode understanding | ≥ 4/5 guests correctly say what they can do after reading the banner |
 | Offline conflict recovery | Guest can dismiss/recover from **Needs attention** without host coaching |
 
 ---
@@ -146,7 +144,7 @@ flowchart LR
 | Transcript | Host + agent | Wrong-mic bleed, garbled names, fear of cutting |
 | Edit | Host + agent | Clicky joins, over-tightening, opaque “why cut?” |
 | Approve | Host (often phone) | Can’t audition / approve without laptop DAW density |
-| Review | Guest | Unclear ReviewApp vs Sharecut Studio; unclear powers; host offline; offline edit conflicts |
+| Review | Guest | Unclear powers; host offline; offline edit conflicts |
 | Export | Host | Loudness / chapters / transcript mismatch |
 
 Guest step flows: [Guest journeys](#/journeys).
@@ -158,7 +156,6 @@ Guest step flows: [Guest journeys](#/journeys).
 | Surface | Audience | Notes |
 |---------|----------|-------|
 | **Sharecut Studio host** | Editor | Full project; document commands + pipeline |
-| **ReviewApp** | Guest on a share without `view` (no role mints one today) | Mix + comments; published review MP3 (often CDN) |
 | **Sharecut Studio guest** | Every review role | Mode banner; role gates; proxy MP3 when available; no Impact/History/Pipeline |
 | **CLI / MCP** | Agent + power user | Same domain services; not a parallel product |
 | **Remote MCP (share)** | Agent as guest | Same caps as the share; `{base}/mcp/{token}/mcp` |

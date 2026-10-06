@@ -51,8 +51,3 @@ export function guestProgressToJob(
     steps: prev?.steps ?? [],
   };
 }
-
-export function guestProgressWsUrl(token: string): string {
-  const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${proto}://${window.location.host}/api/review/${encodeURIComponent(token)}/progress/ws`;
-}

@@ -6,32 +6,30 @@ Plain-language steps for `/r/{token}`. Public share URLs are
 
 ---
 
-## 1. Cold open → listen → comment (ReviewApp)
+## 1. Cold open → listen → comment (Commenter)
 
-**Setup:** A share with `play` + `comment` and no `view`. No review role, CLI flag or Share dialog option mints one today: every role opens Sharecut Studio (journeys 2 and 3). Guest opens the link on a phone.
+**Setup:** A Commenter link, the default role. Every review role opens Sharecut Studio; there is no separate listen page. Guest opens the link on a phone or a laptop.
 
 ```mermaid
 flowchart TD
-  open[Open share link] --> app[ReviewApp loads]
-  app --> play[Play frozen review mix]
+  open[Open share link] --> daw[Sharecut Studio guest + banner]
+  daw --> play[Play the review mix]
   play --> scrub[Scrub to a moment]
-  scrub --> note[Leave a comment at playhead]
+  scrub --> note[Comment at the anchor]
   note --> done[Host sees comment in Sharecut Studio]
 ```
 
-1. Guest lands on **ReviewApp** (not the full DAW).
-2. Header shows episode name, review mix label, and `mode …`. When the guest (or their remote MCP agent on this token) starts long work, an **Activity** chip appears; status/message are announced in a visually-hidden live region (no elapsed ticks). Same chrome as Sharecut Studio, no host paths.
-3. Guest plays audio, scrubs, types a note, posts.
-4. After the host resolves feedback in Sharecut Studio, the guest sees its resolved state. **Open comments only** hides addressed threads; clearing it shows the full conversation. The host can reopen a thread. Anonymous guests cannot resolve threads from the share link.
-5. If the host laptop sleeps / tunnel drops → offline page (not a broken blank app).
+1. Guest lands in Sharecut Studio under the banner "Shared comment view · You can comment and suggest edits".
+2. Guest plays the mix and scrubs. On a phone, **Comments** sit one action away under **More**; the panel says "Commenting as Guest".
+3. Guest picks **Comment**, sets the time anchor, types a note and chooses **Post comment**. Replies and action-item check-offs work on the same thread.
+4. After the host resolves feedback in Sharecut Studio, the guest sees its resolved state. The host can reopen a thread. Anonymous guests cannot resolve threads from the share link.
+5. If the host laptop sleeps / tunnel drops, the guest sees an offline page (not a broken blank app).
 
-Lightweight review comments update through the review socket while the page is connected. Posting a comment or reply does not reload the full review when that stream is healthy. If the connection drops, the visible page refreshes every 15 seconds and reconnects automatically. An unavailable or revoked link shows an error.
-If the frozen review audio disappears before playback begins, the audio request returns a 404 response.
+An unavailable or revoked link shows an error. A share built without `view` (API only, no role mints one) opens the same kind of error: "This link does not open the project."
 
-The review reading column and comment fields fit narrow phones without horizontal
-page scrolling. Native field sizing stays within the column rather than widening it.
+The comment fields fit narrow phones without horizontal page scrolling.
 
-**Success:** First useful comment in under five minutes without explaining “Sharecut Studio.”
+**Success:** First useful comment in under five minutes without explaining "Sharecut Studio."
 
 ---
 
@@ -137,7 +135,7 @@ Product still needs polished “link died” copy and free-tier TTL story ([Back
 
 | Guest intent | Need on the token | UI |
 |--------------|-------------------|-----|
-| Listen + comment only | `play`, `comment`, no `view` (no role mints this today) | ReviewApp |
+| Listen + comment | Commenter (default) | Sharecut Studio guest |
 | See timeline / transcript | Viewer | Sharecut Studio guest |
 | Comment, propose cuts (transcript Select or timeline range) | Commenter (default) | Sharecut Studio guest |
 | Apply cuts directly, approve cuts | Editor | Sharecut Studio guest (transcript Select, Timeline, inspector) |
@@ -145,7 +143,7 @@ Product still needs polished “link died” copy and free-tier TTL story ([Back
 | Hear a span (agent) | `play` + `view` + `mcp` | `guest_audition_context` → captions + windowed hum/clip warnings; optional wave/spec |
 | Join a record session | record `join` + `monitor` + `comment` | Record lobby / room (`/rec/{token}`) |
 | Produce a record session | record `monitor` + `comment` | Record lobby / room (not recorded) |
-| Reply / check off actions | Commenter or Editor (`reply` / `action`) | ReviewApp + Sharecut Studio (same HTTP as the agent) |
+| Reply / check off actions | Commenter or Editor (`reply` / `action`) | Sharecut Studio guest (same HTTP as the agent) |
 | Agent tools | Any role + `mcp` (`--with-mcp`) | External client → `{base}/mcp/{token}/mcp` (SSE `notifications/progress` when `progressToken` is set + guest WS chip) |
 
 ---
@@ -186,7 +184,7 @@ flowchart TD
   opfs --> done[Tracks on host timeline]
 ```
 
-1. Guest lands on the record lobby (not ReviewApp).
+1. Guest lands on the record lobby.
 2. Name and headphones check, then browser **Allow microphone** (explicit
    grant; Consent stays disabled until granted **and** headphones are checked),
    then mic test and device picker. Your own peak meter (sample peak only)
