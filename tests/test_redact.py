@@ -173,3 +173,19 @@ def test_sanitize_resolve_oserror(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(Path, "resolve", boom)
     assert sanitize("/Users/host/cache", home=home) == "~/cache"
+
+
+def test_redact_secrets_masks_literals_and_share_paths_but_keeps_hosts():
+    from podcast_mcp.util.redact import redact_secrets
+
+    out = redact_secrets(
+        "dial relay.example.test 192.168.1.7 with sekrit-value at /r/fantastic-acoustic-whale/x",
+        ["sekrit-value", ""],
+    )
+    assert out == "dial relay.example.test 192.168.1.7 with <redacted> at /r/<share-token>/x"
+
+
+def test_redact_secrets_masks_the_longer_secret_first():
+    from podcast_mcp.util.redact import redact_secrets
+
+    assert redact_secrets("a-b-secret", ["a-b", "a-b-secret"]) == "<redacted>"

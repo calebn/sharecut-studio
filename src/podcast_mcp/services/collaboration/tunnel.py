@@ -8,13 +8,31 @@ import binascii
 import contextlib
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from podcast_mcp.edits.review_shares import list_usable_shares
 from podcast_mcp.edits.share_capabilities import normalize_capabilities
 from podcast_mcp.models import load_project
-from podcast_mcp.runtime_config import RelayConfig, load_relay_config
+from podcast_mcp.runtime_config import RelayConfig, load_relay_config, tunnel_status_path
+from podcast_mcp.services.collaboration.tunnel_failure import (
+    FailureKind,
+    TunnelError,
+    TunnelFailure,
+    classify_failure,
+    relay_rejection,
+)
+from podcast_mcp.services.collaboration.tunnel_status import (
+    HEARTBEAT_INTERVAL_SEC,
+    LineListener,
+    StatusFileListener,
+    StatusListener,
+    TunnelPhase,
+    TunnelStatusTracker,
+    heartbeat_loop,
+)
 from podcast_mcp.util.body_limits import relay_ws_max_size
 from podcast_mcp.util.proxy_paths import (
     RELAYED_REQUEST_HEADER,
@@ -144,6 +162,13 @@ def _map_local_path(path_suffix: str, share_token: str) -> str:
     return assert_allowed_local_gui_path(mapped, share_token)
 
 
+def _relay_host(relay_url: str) -> str:
+    """``host[:port]`` of the relay URL; user info and path never reach a status line."""
+    parsed = urlparse(relay_url)
+    host = parsed.hostname or "unknown"
+    return f"{host}:{parsed.port}" if parsed.port else host
+
+
 class TunnelClient:
     """Outbound WebSocket tunnel connecting the host to the relay server."""
 
@@ -151,9 +176,23 @@ class TunnelClient:
         self,
         cfg: RelayConfig,
         project_path: Path | None = None,
+        *,
+        listeners: list[StatusListener] | None = None,
+        sleep: Callable[[float], Awaitable[None]] | None = None,
     ) -> None:
         self._cfg = cfg
         self._project_path = project_path
+        self._sleep = sleep
+        self._tracker = TunnelStatusTracker(
+            relay_host=_relay_host(cfg.relay_url),
+            public_base_url=cfg.public_base_url,
+            listeners=listeners if listeners is not None else [LineListener()],
+            secrets=[cfg.host_token],
+        )
+
+    @property
+    def tracker(self) -> TunnelStatusTracker:
+        return self._tracker
 
     def _build_shares(self) -> list[dict[str, Any]]:
         if self._project_path is None:
@@ -170,6 +209,7 @@ class TunnelClient:
                 for row in list_usable_shares(proj)
                 if row.get("token")
             ]
+            self._tracker.add_secrets([row["token"] for row in rows])
             secret = self._cfg.host_token
             if not secret:
                 return rows
@@ -205,7 +245,7 @@ class TunnelClient:
                 raise ValueError("invalid relay request body")
             body = base64.b64decode(body_b64, validate=True) if body_b64 else None
         except (ValueError, binascii.Error) as exc:
-            log.warning("Rejected malformed relay HTTP request: %s", exc)
+            log.warning("Rejected malformed relay HTTP request: %s", self._tracker.redact(str(exc)))
             await send(
                 msg(
                     "http_response",
@@ -223,7 +263,11 @@ class TunnelClient:
         try:
             local_path = _map_local_path(path_suffix, share_token)
         except UnsafeProxyPath as exc:
-            log.warning("Rejected unsafe proxy path %r: %s", path_suffix, exc)
+            log.warning(
+                "Rejected unsafe proxy path %r: %s",
+                self._tracker.redact(path_suffix),
+                self._tracker.redact(str(exc)),
+            )
             await send(
                 msg(
                     "http_response",
@@ -317,7 +361,12 @@ class TunnelClient:
                     final["headers"] = resp_headers
                 await send(final)
         except Exception as exc:
-            log.warning("Proxy error for %s %s: %s", method, url, exc)
+            log.warning(
+                "Proxy error for %s %s: %s",
+                method,
+                self._tracker.redact(url),
+                self._tracker.redact(str(exc)),
+            )
             await send(
                 msg(
                     "http_response",
@@ -349,7 +398,11 @@ class TunnelClient:
         try:
             local_path = _map_local_path(path_suffix, share_token)
         except UnsafeProxyPath as exc:
-            log.warning("Rejected unsafe guest WS path %r: %s", path_suffix, exc)
+            log.warning(
+                "Rejected unsafe guest WS path %r: %s",
+                self._tracker.redact(path_suffix),
+                self._tracker.redact(str(exc)),
+            )
             await send(msg("ws_close", id=stream_id, code=4400, reason="unsafe path"))
             return
 
@@ -429,7 +482,11 @@ class TunnelClient:
         except Exception as exc:
             close_code = 1011
             close_reason = "proxy failed"
-            log.warning("Guest WS proxy error for %s: %s", url, exc)
+            log.warning(
+                "Guest WS proxy error for %s: %s",
+                self._tracker.redact(url),
+                self._tracker.redact(str(exc)),
+            )
         finally:
             streams.pop(stream_id, None)
             with contextlib.suppress(Exception):  # pragma: no cover
@@ -444,7 +501,6 @@ class TunnelClient:
 
         cfg = self._cfg
         shares = self._build_shares()
-        log.info("Connecting tunnel to %s (host_id=%s)", cfg.relay_url, cfg.host_id)
 
         async with websockets.connect(
             cfg.relay_url,
@@ -463,11 +519,32 @@ class TunnelClient:
             writer = SerializedWsWriter(write, close)
             send = writer.send
 
-            await self._register(ws, send, shares)
+            share_count = await self._register(ws, send, shares)
+            self._tracker.connected(share_count=share_count)
             async with httpx.AsyncClient() as http_client:
                 await self._serve_messages(ws, http_client, send)
 
-    async def _register(self, ws: Any, send: Any, shares: list[dict[str, Any]]) -> None:
+    @staticmethod
+    def _expect_ack(ack: dict[str, Any], expected: str) -> dict[str, Any]:
+        """Return ``ack`` when it is the ok ``expected`` frame, else raise the classified failure."""
+        if ack.get("type") == expected and ack.get("ok"):
+            return ack
+        if ack.get("type") == "error":
+            retry_after = ack.get("retry_after_sec")
+            raise TunnelError(
+                relay_rejection(
+                    str(ack.get("detail") or ""),
+                    retry_after_sec=float(retry_after)
+                    if isinstance(retry_after, int | float)
+                    else 0.0,
+                )
+            )
+        raise TunnelError(
+            TunnelFailure(FailureKind.ERROR, f"Relay rejected {expected}: unexpected reply")
+        )
+
+    async def _register(self, ws: Any, send: Any, shares: list[dict[str, Any]]) -> int:
+        """Hello, then register ``shares``. Returns how many shares the relay accepted."""
         cfg = self._cfg
         await send(
             msg(
@@ -477,12 +554,11 @@ class TunnelClient:
                 protocol_version=PROTOCOL_VERSION,
             )
         )
-        ack = json.loads(await ws.recv())
-        if ack.get("type") != "hello" or not ack.get("ok"):
-            raise RuntimeError(f"Relay rejected hello: {ack}")
+        self._expect_ack(json.loads(await ws.recv()), "hello")
         await send(msg("register", shares=shares))
-        reg_ack = json.loads(await ws.recv())
-        log.info("Registered %d shares (relay ack: %s)", len(shares), reg_ack)
+        reg_ack = self._expect_ack(json.loads(await ws.recv()), "register")
+        accepted = reg_ack.get("share_count")
+        return accepted if isinstance(accepted, int) else len(shares)
 
     async def _serve_messages(self, ws: Any, http_client: Any, send: Any) -> None:
         tasks: set[asyncio.Task[None]] = set()
@@ -512,9 +588,10 @@ class TunnelClient:
                             except asyncio.QueueFull:
                                 stream.close(1013, "host backlog full", discard=True)
                 elif mtype == "ping":
+                    log.debug("Relay ping answered")
                     await send(msg("pong"))
                 elif mtype == "error":
-                    log.error("Relay error: %s", raw.get("detail"))
+                    log.error("Relay error: %s", self._tracker.redact(str(raw.get("detail"))))
                 else:
                     log.debug("Unhandled relay message type: %s", mtype)
                 if task is not None:
@@ -536,37 +613,62 @@ class TunnelClient:
         initial_delay_sec: float = 1.0,
         max_delay_sec: float = 60.0,
     ) -> None:
-        """Connect to the relay; reconnect with backoff until cancelled.
+        """Connect to the relay; reconnect with backoff until cancelled or a fatal failure.
 
-        ``max_attempts`` limits reconnect tries after the first failure (None =
-        unlimited). Clean cancellation propagates without reconnecting.
+        ``max_attempts`` limits consecutive failed tries (None = unlimited); a session
+        that reached Connected resets the count and the backoff. Auth and config
+        failures raise ``TunnelError`` at once. Cancellation propagates without
+        reconnecting and leaves the status Stopped.
         """
+        heartbeat = asyncio.create_task(heartbeat_loop(self._tracker, HEARTBEAT_INTERVAL_SEC))
+        try:
+            await self._reconnect_loop(max_attempts, initial_delay_sec, max_delay_sec)
+        except asyncio.CancelledError:
+            self._tracker.stopped()
+            raise
+        finally:
+            heartbeat.cancel()
+            await asyncio.gather(heartbeat, return_exceptions=True)
+
+    async def _reconnect_loop(
+        self, max_attempts: int | None, initial_delay_sec: float, max_delay_sec: float
+    ) -> None:
         import secrets
 
-        attempt = 0
-        delay = initial_delay_sec
+        tracker = self._tracker
         rng = secrets.SystemRandom()
+        failures = 0
+        delay = initial_delay_sec
+        tracker.connecting()
         while True:
-            attempt += 1
+            error: Exception | None = None
             try:
                 await self._run_once()
-            except asyncio.CancelledError:
+                failure = TunnelFailure(FailureKind.RELAY_CLOSED, "relay ended the session")
+            except (asyncio.CancelledError, ImportError):
                 raise
             except Exception as exc:
-                log.warning(
-                    "Tunnel disconnected (%s); reconnecting in %.1fs (attempt %d)",
-                    exc,
-                    delay,
-                    attempt,
-                )
-                if max_attempts is not None and attempt >= max_attempts:
-                    raise
-            else:
-                log.info("Tunnel session ended; reconnecting")
-                if max_attempts is not None and attempt >= max_attempts:
-                    return
-            jitter = rng.uniform(0, min(1.0, delay * 0.25))
-            await asyncio.sleep(delay + jitter)
+                error = exc
+                failure = classify_failure(exc)
+            if tracker.status.phase is TunnelPhase.CONNECTED:
+                failures = 0
+                delay = initial_delay_sec
+            failures += 1
+            if failure.fatal:
+                tracker.failed(failure)
+                if isinstance(error, TunnelError):
+                    raise error
+                raise TunnelError(failure) from error
+            tracker.disconnected(failure)
+            if max_attempts is not None and failures >= max_attempts:
+                tracker.failed(failure, gave_up_after=failures)
+                if error is not None:
+                    raise error
+                return
+            wait = max(delay, failure.retry_after_sec)
+            wait += rng.uniform(0, min(1.0, wait * 0.25))
+            tracker.reconnecting(attempt=failures, delay_sec=wait)
+            await (self._sleep or asyncio.sleep)(wait)
             delay = min(max_delay_sec, delay * 2.0)
 
 
@@ -578,8 +680,14 @@ def run_tunnel_sync(
     public_base_url: str | None = None,
     local_gui_url: str | None = None,
     config_path: Path | None = None,
+    emit: Callable[[str], None] | None = None,
 ) -> None:
-    """Block the calling thread running the tunnel client event loop."""
+    """Block the calling thread running the tunnel client event loop.
+
+    ``emit`` receives one line per connection state change (default: ``log.info``).
+    The live status snapshot the GUI reads is written next to ``relay.yaml``.
+    Raises ``TunnelError`` on an auth or config failure that retrying cannot fix.
+    """
     cfg = load_relay_config(
         config_path,
         relay_url=relay_url,
@@ -587,4 +695,8 @@ def run_tunnel_sync(
         public_base_url=public_base_url,
         local_gui_url=local_gui_url,
     )
-    asyncio.run(TunnelClient(cfg, project_path=project_path).run())
+    listeners: list[StatusListener] = [
+        LineListener(emit),
+        StatusFileListener(tunnel_status_path(config_path)),
+    ]
+    asyncio.run(TunnelClient(cfg, project_path=project_path, listeners=listeners).run())
