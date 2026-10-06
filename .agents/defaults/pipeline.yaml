@@ -363,6 +363,12 @@ analysis:
     audibility_rms_db: -42.0
     bleed_dominance_db: 6.0
     bleed_min_other_rms_db: -50.0
+    # Transcript gate (`podcast edit apply-bleed-mute`): how many dB another speaker's
+    # voice is turned down on a lane where that speaker owns the words and the lane's
+    # own speaker is silent. A fixed cut, not a gate to silence, so the lane's room
+    # tone stays and nothing pumps (#945). The owner's own track is never replaced by
+    # the copy, even where its gate opened late.
+    bleed_attenuation_db: 20.0
     # Word-span plausibility caps (#979). Whisper and the forced aligner stretch a
     # word across digital silence on a gated track (lab: a 5.84 s "-huh.", a 5.98 s
     # "Uh"). At the end of transcribe_tracks a word longer than its cap whose voiced

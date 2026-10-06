@@ -50,6 +50,8 @@ class AnalysisPolicy:
     audibility_rms_db: float = -42.0
     bleed_dominance_db: float = 6.0
     bleed_min_other_rms_db: float = -50.0
+    # How far the transcript gate turns down another speaker's voice on a lane (#945).
+    bleed_attenuation_db: float = 20.0
     gate_onset_drop_db: float = 15.0
     boundary_jump_db: float = 12.0
     min_fade_ms: int = 10
@@ -79,6 +81,7 @@ class AnalysisPolicy:
             audibility_rms_db=float(heur.get("audibility_rms_db", -42.0)),
             bleed_dominance_db=float(heur.get("bleed_dominance_db", 6.0)),
             bleed_min_other_rms_db=float(heur.get("bleed_min_other_rms_db", -50.0)),
+            bleed_attenuation_db=float(heur.get("bleed_attenuation_db", 20.0)),
             gate_onset_drop_db=float(heur.get("gate_onset_drop_db", 15.0)),
             boundary_jump_db=float(heur.get("boundary_jump_db", 12.0)),
             min_fade_ms=int(heur.get("min_fade_ms", 10)),

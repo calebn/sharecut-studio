@@ -150,11 +150,11 @@ def test_gate_stem_window_matches_gate_across_stream_chunk(tmp_path: Path) -> No
     with wave.open(str(output), "rb") as wav:
         actual = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16)
     np.testing.assert_array_equal(actual[:43_200], pcm[:43_200])
-    np.testing.assert_array_equal(actual[43_776:52_225], np.zeros(8_449, dtype=np.int16))
+    np.testing.assert_array_equal(actual[43_776:52_225], np.full(8_449, 100, dtype=np.int16))
     np.testing.assert_array_equal(actual[52_801:], pcm[52_801:])
     np.testing.assert_array_equal(
         actual[[43_200, 43_488, 43_776, 47_999, 48_000, 48_001, 52_224, 52_512, 52_800]],
-        [1000, 500, 0, 0, 0, 0, 0, 500, 1000],
+        [1000, 550, 100, 100, 100, 100, 100, 550, 1000],
     )
 
 

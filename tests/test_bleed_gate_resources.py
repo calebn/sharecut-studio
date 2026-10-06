@@ -21,7 +21,7 @@ def test_owner_activity_analysis_bounds_each_rms_allocation(monkeypatch):
 
     monkeypatch.setattr(np, "square", measured)
     samples = np.ones(60 * bleed_gate.EVIDENCE_RATE, dtype=np.float32) * 0.01
-    bleed_gate._owner_protection(samples, [(1, 2)])
+    bleed_gate._owner_protection(samples, [(1, 2)], [])
     assert shapes
     assert max(rows for rows, _ in shapes) <= 1000
 
@@ -52,17 +52,19 @@ def test_repeated_audition_planning_reuses_evidence_until_media_changes(tmp_path
 
 def test_unavailable_evidence_is_retried_without_changing_project_or_media(tmp_path, monkeypatch):
     project = _episode(tmp_path)
-    original = bleed_gate.raw_timeline_window
+    original = bleed_gate.raw_timeline_samples
 
-    def unavailable(*args, **kwargs):
-        raise OSError("temporary read failure")
+    def peer_unavailable(project, track_id, **kwargs):
+        if track_id == "guest":
+            raise OSError("temporary read failure")
+        return original(project, track_id, **kwargs)
 
-    monkeypatch.setattr(bleed_gate, "raw_timeline_window", unavailable)
+    monkeypatch.setattr(bleed_gate, "raw_timeline_samples", peer_unavailable)
     failed = bleed_gate.build_bleed_gate_plan(project, "host")
     assert failed.attenuation_spans == ()
-    assert "unavailable_full_band_evidence" in failed.reasons
-    monkeypatch.setattr(bleed_gate, "raw_timeline_window", original)
-    assert bleed_gate.build_bleed_gate_plan(project, "host").attenuation_spans
+    assert failed.reasons == ("unavailable_peer_source",)
+    monkeypatch.setattr(bleed_gate, "raw_timeline_samples", original)
+    assert bleed_gate.build_bleed_gate_plan(project, "host").attenuation_spans == ((2.0, 2.6),)
 
 
 @pytest.mark.parametrize("replaced_track", ["host", "guest"])
@@ -82,9 +84,9 @@ def test_atomic_media_replacement_preserving_time_and_size_rechecks_owner_and_pe
     lo, hi = round(2 * RATE), round(2.6 * RATE)
     if replaced_track == "host":
         clock = np.arange(hi - lo) / RATE
-        samples[lo:hi] += 0.06 * np.sin(2 * np.pi * 11003 * clock)
+        samples[lo:hi] += 0.5 * np.sin(2 * np.pi * 191 * clock)
     else:
-        samples[lo:hi] = np.random.default_rng(497).normal(0, 0.15, hi - lo)
+        samples[lo:hi] = 0.0
     replacement = path.with_name("replacement.wav")
     _write_pcm(replacement, samples)
     os.utime(replacement, ns=(before.st_atime_ns, before.st_mtime_ns))

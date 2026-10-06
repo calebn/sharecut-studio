@@ -98,7 +98,9 @@ existing source/primary media references.
 Transcript bleed gating plans bounded foreign attenuation in
 `engines/bleed_gate.py` from ungated selected media, mapped by
 `engines/ungated_audio.py`. An immutable `BleedGatePlan` carries protected phrases,
-verified attenuation spans, and abstention reasons.
+verified attenuation spans, the attenuation in dB (`analysis.heuristics.bleed_attenuation_db`,
+read through `AnalysisPolicy`), and abstention reasons. Evidence is each lane's level
+envelope; the peer's direct track is read at the lag the envelopes measure.
 Project playback and rendering apply those conservative plans to rendered audio.
 
 `engines/transcript_gated_play.py` uses absolute transition positions so segment
