@@ -471,8 +471,9 @@ def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
             resolved_workspace = resolve_project_path(candidate).parent
             touch_share_last_used_for_workspace(resolved_workspace, token)
             for side in list_shares_for_workspace(resolved_workspace):
-                if side.get("token") == token:
-                    # Sidecar holds general_access / require_sign_in.
+                if side.get("token") == token and not side.get("revoked"):
+                    # Sidecar holds general_access / require_sign_in. A revoked
+                    # row is an earlier share whose coolname was recycled.
                     row = {**row, **side}
                     break
         except Exception:

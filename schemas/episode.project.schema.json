@@ -371,7 +371,7 @@
         "end": { "type": "number" },
         "crossfade_ms": { "type": "integer" },
         "reason": { "type": ["string", "null"] },
-        "author": { "type": ["string", "null"], "pattern": "^share:[0-9a-f]{16}$", "default": null },
+        "author": { "type": ["string", "null"], "pattern": "^share:[0-9a-f]+$", "description": "share: plus the opaque per-share registry id of the guest share that created the decision; null for host and agent edits", "default": null },
         "review_required": { "type": "boolean" },
         "applied": { "type": "boolean" },
         "cut_confidence": { "type": ["number", "null"] },

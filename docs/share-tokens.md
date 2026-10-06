@@ -78,7 +78,7 @@ Demotion is **lazy** (on mint / lookup). There is no background sweeper in this 
 
 Tables (portable schema contract for a future relay backend):
 
-- `active_shares(token PRIMARY KEY, project_workspace, review_version_id, created_at, last_used_at, expires_at, capabilities)` — planned: `kind` (`review` \| `record`; default `review`)
+- `active_shares(token PRIMARY KEY, id, project_workspace, review_version_id, created_at, last_used_at, expires_at, capabilities, kind, role, session_id)`: `id` is the random per-share id (`EditDecision.author`); `kind` is `review` \| `record` (default `review`)
 - `cooldown_shares(token PRIMARY KEY, last_used_at, reserved_until, reason, project_workspace)`
 
 Access layer: `ShareRegistryProtocol` in `edits/share_registry.py` (`get_active`,
@@ -197,12 +197,17 @@ The document-command gate (`authorize_document_command` plus
 capabilities, whatever the surface; the Studio reads it from `rangeEditMode` and `canRetimePendingEdit` in
 `gui/web/src/shareMode.ts`, plus `canReviewPendingEdit` for Approve / Reject,
 only to choose affordances. Every pending edit a guest's document command creates
-records `EditDecision.author`, a fingerprint of the share token
-(`share_capabilities.share_author`), on the browser route and the guest MCP alike;
-host and agent edits, and edits saved before authorship, have none and belong to
-no guest. A `suggest` guest retimes only edits whose author is its own share. The
-author stays host-side: guest projections never carry it, so the Studio offers
-retime on every guest suggestion and the gate refuses another guest's.
+records `EditDecision.author`, `share:` plus the share's opaque registry `id`
+(`share_capabilities.share_author`), on the browser route and the guest MCP alike.
+`create_share` mints that id at random and the registry stores it beside the
+token, so nothing in the author is derived from the token and a copied project
+leaks no share credential. The id belongs to one share, not its slug: revoking and
+recreating a link, or a coolname recycled after cooldown, gets a new id, and the
+old suggestions belong to no guest. Host and agent edits, and edits saved before
+authorship, have no author and belong to no guest. A `suggest` guest retimes only
+edits whose author is its own share. The author stays host-side: guest
+projections never carry it, so the Studio offers retime on every guest suggestion
+and the gate refuses another guest's.
 
 **Login policy:** production public shares are **link only**. Restricted /
 `require_sign_in` minting is refused unless `PODCAST_SHARE_ACCOUNTS=1` (stub

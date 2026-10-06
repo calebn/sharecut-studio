@@ -41,6 +41,7 @@ LAST_USED_TOUCH_MIN_INTERVAL = timedelta(hours=1)
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS active_shares (
   token TEXT PRIMARY KEY,
+  id TEXT,
   project_workspace TEXT NOT NULL,
   review_version_id TEXT NOT NULL,
   created_at TEXT NOT NULL,
@@ -62,6 +63,7 @@ CREATE TABLE IF NOT EXISTS cooldown_shares (
 """
 
 _ACTIVE_SHARE_COLUMN_MIGRATIONS: dict[str, str] = {
+    "id": "TEXT",
     "kind": "TEXT NOT NULL DEFAULT 'review'",
     "role": "TEXT",
     "session_id": "TEXT",
@@ -224,7 +226,7 @@ class SqliteShareRegistry:
             return self._active_row_to_dict(row)
 
     def claim_active(self, share: dict[str, Any]) -> None:
-        """Insert an active share. Raises ``ValueError`` if token is reserved."""
+        """Insert an active share with its ``id``. Raises ``ValueError`` if token is reserved."""
         token = str(share["token"])
         now = _now()
         created = str(share.get("created_at") or _iso(now))
@@ -243,13 +245,14 @@ class SqliteShareRegistry:
                 self._conn.execute(
                     """
                     INSERT INTO active_shares (
-                      token, project_workspace, review_version_id,
+                      token, id, project_workspace, review_version_id,
                       created_at, last_used_at, expires_at, capabilities,
                       kind, role, session_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         token,
+                        str(share["id"]),
                         str(share["project_workspace"]),
                         str(share["review_version_id"]),
                         created,
@@ -397,6 +400,7 @@ class SqliteShareRegistry:
             caps = []
         return {
             "token": row["token"],
+            "id": row["id"],
             "project_workspace": row["project_workspace"],
             "review_version_id": row["review_version_id"],
             "created_at": row["created_at"],

@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextvars import ContextVar
 from dataclasses import dataclass
 
+from podcast_mcp.edits.share_capabilities import share_author
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import open_share_workspace, share_allows_mcp
 
@@ -18,6 +19,8 @@ class RemoteMcpContext:
     token: str
     capabilities: list[str]
     workspace: ProjectWorkspace
+    # ``EditDecision.author`` stamped on this share's edits (``share_author``).
+    author: str
 
     @property
     def project_path(self) -> str:
@@ -31,7 +34,7 @@ def resolve_remote_mcp_context(token: str) -> RemoteMcpContext:
         raise PermissionError("share does not allow mcp")
     row, ws = open_share_workspace(token)
     caps = list(row.get("capabilities") or [])
-    return RemoteMcpContext(token=token, capabilities=caps, workspace=ws)
+    return RemoteMcpContext(token=token, capabilities=caps, workspace=ws, author=share_author(row))
 
 
 def set_remote_mcp_context(ctx: RemoteMcpContext | None) -> None:

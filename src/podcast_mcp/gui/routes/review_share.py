@@ -603,7 +603,7 @@ def post_daw_document_command(token: str, body: DocumentCommandRequest) -> dict[
                 capabilities=list(row.get("capabilities") or []),
                 range_policy="apply",
                 structural_mode=body.structural_mode,
-                author=share_author(token),
+                author=share_author(row),
             )
         )
     except Exception as exc:

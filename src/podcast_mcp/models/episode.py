@@ -398,8 +398,8 @@ class EditDecision(BaseModel):
     end: float
     crossfade_ms: int = 10
     reason: str | None = None
-    # The share guest whose document command created this decision
-    # (``share_author``, a token fingerprint). None: the host or an agent.
+    # The share guest whose document command created this decision: ``share:``
+    # plus the share's opaque registry id (``share_author``). None: the host or an agent.
     author: str | None = None
     review_required: bool = False
     applied: bool = True

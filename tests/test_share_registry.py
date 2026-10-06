@@ -44,6 +44,7 @@ def registry(tmp_path: Path) -> SqliteShareRegistry:
 def _share_template(**extra):
     now = datetime.now(UTC)
     row = {
+        "id": "share-id",
         "project_workspace": "/tmp/ws",
         "review_version_id": "v1",
         "created_at": _iso(now),
@@ -69,6 +70,7 @@ def test_claim_with_mint_retry_skips_active_and_cooldown(registry: SqliteShareRe
     registry.claim_active(
         {
             "token": reserved[0],
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": "v1",
             "created_at": _iso(now),
@@ -80,6 +82,7 @@ def test_claim_with_mint_retry_skips_active_and_cooldown(registry: SqliteShareRe
     registry.claim_active(
         {
             "token": reserved[1],
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": "v1",
             "created_at": _iso(now),
@@ -105,6 +108,7 @@ def test_cooldown_blocks_remint_until_reserved_until(registry: SqliteShareRegist
     registry.claim_active(
         {
             "token": token,
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": "v1",
             "created_at": _iso(now),
@@ -120,6 +124,7 @@ def test_cooldown_blocks_remint_until_reserved_until(registry: SqliteShareRegist
         registry.claim_active(
             {
                 "token": token,
+                "id": "share-id",
                 "project_workspace": "/tmp/ws",
                 "review_version_id": "v2",
                 "created_at": _iso(now),
@@ -133,6 +138,7 @@ def test_cooldown_blocks_remint_until_reserved_until(registry: SqliteShareRegist
     registry.claim_active(
         {
             "token": token,
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": "v2",
             "created_at": _iso(after),
@@ -149,6 +155,7 @@ def test_touch_last_used_throttled(registry: SqliteShareRegistry):
     registry.claim_active(
         {
             "token": token,
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": "v1",
             "created_at": _iso(now),
@@ -225,6 +232,7 @@ def test_claim_active_record_kind_round_trip(registry: SqliteShareRegistry):
     registry.claim_active(
         {
             "token": token,
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": RECORD_REVIEW_VERSION_SENTINEL,
             "created_at": _iso(now),
@@ -250,6 +258,7 @@ def test_claim_active_rejects_unknown_kind(registry: SqliteShareRegistry):
         registry.claim_active(
             {
                 "token": "bad-kind-slug",
+                "id": "share-id",
                 "project_workspace": "/tmp/ws",
                 "review_version_id": "v1",
                 "created_at": _iso(now),
@@ -266,6 +275,7 @@ def test_upsert_active_metadata_updates_kind_fields(registry: SqliteShareRegistr
     registry.claim_active(
         {
             "token": token,
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": "v1",
             "created_at": _iso(now),
@@ -479,6 +489,7 @@ def test_claim_integrity_error(registry: SqliteShareRegistry):
     now = datetime.now(UTC)
     row = {
         "token": "dup-token-slug",
+        "id": "share-id",
         "project_workspace": "/tmp/ws",
         "review_version_id": "v1",
         "created_at": _iso(now),
@@ -506,6 +517,7 @@ def test_bad_capabilities_json(registry: SqliteShareRegistry):
     registry.claim_active(
         {
             "token": token,
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": "v1",
             "created_at": _iso(now),
@@ -531,6 +543,7 @@ def test_generate_token_exhausted(registry: SqliteShareRegistry):
         registry.claim_active(
             {
                 "token": "always-taken-slug",
+                "id": "share-id",
                 "project_workspace": "/tmp/ws",
                 "review_version_id": "v1",
                 "created_at": _iso(datetime.now(UTC)),
@@ -602,6 +615,7 @@ def test_second_connection_claim_raises(tmp_path: Path):
     now = datetime.now(UTC)
     row = {
         "token": "shared-slug-token",
+        "id": "share-id",
         "project_workspace": "/tmp/ws",
         "review_version_id": "v1",
         "created_at": _iso(now),
@@ -621,6 +635,7 @@ def test_demote_leaves_cooldown_not_active(registry: SqliteShareRegistry):
     registry.claim_active(
         {
             "token": token,
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": "v1",
             "created_at": _iso(now),
@@ -640,6 +655,7 @@ def test_claim_with_mint_retry_on_collision(registry: SqliteShareRegistry):
     registry.claim_active(
         {
             "token": "first-taken-slug",
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": "v1",
             "created_at": _iso(now),
@@ -655,6 +671,7 @@ def test_claim_with_mint_retry_on_collision(registry: SqliteShareRegistry):
     with patch("podcast_mcp.edits.share_registry.generate_slug", side_effect=_fake_slug):
         row = claim_with_mint_retry(
             {
+                "id": "share-id",
                 "project_workspace": "/tmp/ws",
                 "review_version_id": "v2",
                 "created_at": _iso(now),
@@ -676,6 +693,7 @@ def test_backup_share_registry(registry: SqliteShareRegistry, tmp_path: Path):
     registry.claim_active(
         {
             "token": "backup-me-slug",
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": "v1",
             "created_at": _iso(now),
@@ -698,6 +716,7 @@ def test_release_claim(registry: SqliteShareRegistry):
     registry.claim_active(
         {
             "token": token,
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": "v1",
             "created_at": _iso(now),
@@ -741,6 +760,7 @@ def test_touch_share_and_register_paths(minimal_project, sample_wav, tmp_workspa
     # Claim via register when absent from active (not reserved)
     orphan = {
         "token": "orphan-register-slug",
+        "id": "orphan-id",
         "project_workspace": str(ws.project.workspace_dir),
         "review_version_id": ver["id"],
         "created_at": _iso(datetime.now(UTC)),
@@ -809,6 +829,7 @@ def test_touch_missing_token_and_bad_last_used(registry: SqliteShareRegistry):
     registry.claim_active(
         {
             "token": token,
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": "v1",
             "created_at": _iso(now),
@@ -926,6 +947,7 @@ def test_failed_commit_rolls_back_release_claim(registry: SqliteShareRegistry):
     registry.claim_active(
         {
             "token": "commit-fail-token",
+            "id": "share-id",
             "project_workspace": "/tmp/ws",
             "review_version_id": "v1",
             "created_at": _iso(now),
