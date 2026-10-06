@@ -2297,21 +2297,27 @@ def test_analyze_skips_when_filler_pacing_returns_none():
     assert decisions == []
 
 
+_REJECTIONS = [
+    ("apply_filler_pacing", {"return_value": None}, "pacing"),
+    ("_cut_span_is_bleed_not_owner", {"return_value": True}, "not_owner"),
+    ("assess_cut_risk", {"return_value": CutRisk(score=1.5, reasons=["jump"])}, "risky"),
+    ("_clamp_to_candidate", {"return_value": None}, "bounds"),
+]
+_SCOPE_REJECTION = (
+    "speech_energy_guard.resolve_cut_scope",
+    {"side_effect": ValueError("no clip")},
+    "scope",
+)
+
+
 @pytest.mark.parametrize(
-    ("target", "kwargs", "skip"),
+    ("target", "kwargs", "skip", "edit_mode"),
     [
-        ("apply_filler_pacing", {"return_value": None}, "pacing"),
-        ("_cut_span_is_bleed_not_owner", {"return_value": True}, "not_owner"),
-        ("assess_cut_risk", {"return_value": CutRisk(score=1.5, reasons=["jump"])}, "risky"),
-        ("_clamp_to_candidate", {"return_value": None}, "bounds"),
-        (
-            "speech_energy_guard.resolve_cut_scope",
-            {"side_effect": ValueError("no clip")},
-            "scope",
-        ),
+        *((*rejection, mode) for rejection in _REJECTIONS for mode in ("ripple", "mute")),
+        # A mute never asks the peers for a scope: it changes only its own track.
+        (*_SCOPE_REJECTION, "ripple"),
     ],
 )
-@pytest.mark.parametrize("edit_mode", ["ripple", "mute"])
 def test_a_rejected_filler_is_counted_under_its_reason(target, kwargs, skip, edit_mode):
     words = [
         TranscriptWord(text="so", start=0.0, end=0.1),
@@ -2605,8 +2611,7 @@ def test_only_unpadded_cuts_go_through_the_splice_gates(gate):
     }
 
 
-@pytest.mark.parametrize("gate", ["breath", "join"])
-def test_a_mute_fades_each_edge_in_place_so_the_splice_gates_skip_it(gate):
+def test_a_mute_fades_each_edge_against_fill_so_the_join_gate_skips_it():
     from types import SimpleNamespace
 
     defaults = {
@@ -2617,26 +2622,22 @@ def test_a_mute_fades_each_edge_in_place_so_the_splice_gates_skip_it(gate):
             "edit_mode": "mute",
         }
     }
-    rejecting = {
-        "breath": patch("podcast_mcp.edits.fillers.protect_cut_breaths", return_value=None),
-        "join": patch(
-            "podcast_mcp.edits.join_continuity.assess_proposed_cut",
-            return_value=SimpleNamespace(verdict="fail"),
-        ),
-    }[gate]
     words = [
         TranscriptWord(text="so", start=0.0, end=0.1),
         TranscriptWord(text="uh", start=1.0, end=1.2),
         TranscriptWord(text="okay.", start=2.0, end=2.3),
     ]
     project = _project_with_transcript(words)
-    with rejecting:
+    with patch(
+        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+        return_value=SimpleNamespace(verdict="fail"),
+    ):
         decisions = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
 
     assert [
-        (d.type.value, d.reason, round(d.start, 3), round(d.end, 3), d.replace_gap_sec)
+        (d.type.value, d.reason, round(d.start, 3), round(d.end, 3), d.replace_gap_sec, d.scope)
         for d in decisions
-    ] == [("mute", "filler:uh", 0.14, 1.92, None)]
+    ] == [("mute", "filler:uh", 0.14, 1.92, None, "track")]
 
 
 def _write_wav(path, segments: list[tuple[float, object]], *, rate: int = 16_000) -> None:
@@ -2752,7 +2753,7 @@ def test_audio_padded_filler_cut_ends_before_a_plosive_burst(tmp_path):
     assert decision.end == pytest.approx(1.40)
 
 
-def test_audio_mute_ends_before_a_plosive_burst_and_carries_no_fade_cap(tmp_path):
+def test_audio_mute_ends_before_a_plosive_burst_and_carries_it(tmp_path):
     import numpy as np
 
     from podcast_mcp.config import load_defaults
@@ -2778,15 +2779,103 @@ def test_audio_mute_ends_before_a_plosive_burst_and_carries_no_fade_cap(tmp_path
 
     (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
 
-    # A mute's own 5 ms fade-in ends at the cut end, 10 ms before the burst, so there
-    # is no post-pad fade-in for the burst to cap.
+    # The mute fades back in after the cut like a padded cut, so approval ends that
+    # fade-in before the burst.
     assert (decision.type.value, decision.reason, decision.replace_gap_sec) == (
         "mute",
         "filler:uh",
         None,
     )
     assert decision.end == pytest.approx(1.40)
-    assert decision.next_burst_sec is None
+    assert decision.next_burst_sec == pytest.approx(1.41)
+
+
+@pytest.mark.parametrize(
+    ("level_db", "proposed", "skips"),
+    [
+        (-20.0, [("mute", "filler:acoustic", 1.48, 1.915)], {"acoustic:voiced_edge": 1}),
+        (-50.0, [], {"acoustic:voiced_edge": 1, "acoustic:inaudible": 1}),
+    ],
+)
+def test_audio_mute_proposes_only_audible_acoustic_runs_apart_from_kept_words(
+    tmp_path, level_db, proposed, skips
+):
+    from podcast_mcp.config import load_defaults
+
+    project = _audio_project(
+        tmp_path,
+        [
+            # "So" runs on, voiced, 300 ms past its word time: the run in the gap
+            # after it is the word's own sound.
+            (0.3, _voice(0.6)),
+            (1.5, _voice(0.4, level_db=level_db)),
+            (2.6, _voice(0.4)),
+        ],
+        [
+            TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+            TranscriptWord(text="okay.", start=2.6, end=3.0, confidence=0.95),
+        ],
+    )
+    defaults = load_defaults()
+    defaults["tighten"]["edit_mode"] = "mute"
+    found: dict[str, int] = {}
+
+    decisions = analyze_fillers_and_pauses(
+        project, project.transcripts[0], defaults, skip_counts=found
+    )
+
+    assert [(d.type.value, d.reason, round(d.start, 3), round(d.end, 3)) for d in decisions] == (
+        proposed
+    )
+    assert found == skips
+
+
+def test_audio_mute_is_the_same_whoever_else_is_talking(tmp_path):
+    from podcast_mcp.config import load_defaults
+
+    def proposal(*, guest_talking: bool):
+        project = _audio_project(
+            tmp_path / str(guest_talking),
+            [(0.3, _voice(0.3)), (1.0, _voice(0.3)), (2.4, _voice(0.4))],
+            [
+                TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+                TranscriptWord(text="uh,", start=1.0, end=1.3, confidence=0.9),
+                TranscriptWord(text="okay.", start=2.4, end=2.8, confidence=0.95),
+            ],
+        )
+        ws = tmp_path / str(guest_talking) / "ws"
+        _write_wav(ws / "raw" / "guest.wav", [(0.7, _voice(1.5, level_db=-18))])
+        project.tracks.append(
+            Track(
+                id="guest",
+                label="Guest",
+                role=TrackRole.DIALOGUE,
+                media=MediaAsset(path="raw/guest.wav", duration_sec=4.0),
+            )
+        )
+        project.clips.append(
+            Clip(id="c2", track_id="guest", source_start=0.0, source_end=4.0, timeline_start=0.0)
+        )
+        guest_words = [
+            TranscriptWord(text="well", start=0.7, end=1.4, confidence=0.9),
+            TranscriptWord(text="then", start=1.5, end=2.2, confidence=0.9),
+        ]
+        project.transcripts.append(
+            Transcript(track_id="guest", words=guest_words if guest_talking else [])
+        )
+        if not guest_talking:
+            _write_wav(ws / "raw" / "guest.wav", [])
+        defaults = load_defaults()
+        defaults["tighten"]["edit_mode"] = "mute"
+        defaults["tighten"]["acoustic_gap_filler"] = {"enabled": False}
+        return [
+            (d.type.value, d.reason, d.review_required, d.scope, round(d.start, 3), round(d.end, 3))
+            for d in analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+        ]
+
+    expected = [("mute", "filler:uh", False, "track", 0.64, 2.32)]
+    assert proposal(guest_talking=True) == expected
+    assert proposal(guest_talking=False) == expected
 
 
 @pytest.mark.parametrize("edit_mode", ["ripple", "mute"])

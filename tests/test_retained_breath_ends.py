@@ -543,3 +543,103 @@ def test_final_breath_shrink_respects_existing_pacing_minimum() -> None:
         assert _analyze_candidate(
             _host_project(), candidate, {"tighten": {}}, audio_cache=cache
         ) == _CutRejected("too_short")
+
+
+@pytest.mark.parametrize("backend", ["heuristic", "silero"])
+@pytest.mark.parametrize(
+    "bounds, expected",
+    [
+        ((4.90, 5.05), (4.90, 5.00)),
+        ((5.30, 5.60), (5.36, 5.60)),
+        ((5.00, 5.36), None),
+        ((4.90, 5.36), None),
+    ],
+)
+def test_a_faded_edge_keeps_breaths_whole_and_never_removes_one(backend, bounds, expected) -> None:
+    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+
+    cache = _cache_with_breaths((5.00, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
+    with patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=_BreathFixtureVad()):
+        actual = protect_cut_breaths(
+            _host_project(),
+            "host",
+            *bounds,
+            defaults={"tighten": {"breath_handling": {"vad_backend": backend}}},
+            audio_cache=cache,
+            strict=False,
+        )
+    assert actual == (expected if expected is None else pytest.approx(expected))
+
+
+def test_a_faded_edge_never_removes_a_breath_run_whose_onset_runs_on() -> None:
+    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+
+    # A long quiet lead-in keeps the breath from being traced back to room tone; its
+    # in-band run alone still fills most of the cut.
+    cache = _cache_with_breaths((4.40, 5.10, 0.0008), (5.10, 5.24, 0.026))
+    assert (
+        protect_cut_breaths(_host_project(), "host", 5.08, 5.26, audio_cache=cache, strict=False)
+        is None
+    )
+    assert protect_cut_breaths(
+        _host_project(), "host", 4.90, 5.26, audio_cache=cache, strict=False
+    ) == (4.90, 5.26)
+
+
+@pytest.mark.parametrize("evidence", ["missing", "silent", "longer_than_a_breath"])
+def test_a_faded_edge_may_sit_where_no_breath_is_found(evidence) -> None:
+    from podcast_mcp.edits.breath_detect import protect_cut_breaths
+
+    cache = _cache_with_breaths((5.0, 5.60, 0.026))
+    if evidence == "silent":
+        cache.waveform.samples[:] = 0.0
+    with patch("podcast_mcp.edits.breath_detect.load_mono_window", side_effect=OSError("missing")):
+        actual = protect_cut_breaths(
+            _host_project(),
+            "host",
+            5.12,
+            5.40,
+            audio_cache=None if evidence == "missing" else cache,
+            strict=False,
+        )
+    assert actual == (5.12, 5.40)
+
+
+def _mute(cache: TrackAudioCache, candidate: _CutCandidate, paced: tuple[float, float]):
+    with (
+        patch(
+            "podcast_mcp.edits.fillers.optimize_and_assess",
+            return_value=(_passthrough_opt(candidate.start, candidate.end), _safe_risk()),
+        ),
+        patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
+        patch(
+            "podcast_mcp.edits.fillers.apply_filler_pacing",
+            return_value=FillerPacingResult(*paced),
+        ),
+        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
+        patch("podcast_mcp.edits.fillers.next_onset", return_value=None),
+    ):
+        return _analyze_candidate(
+            _host_project(), candidate, {"tighten": {"edit_mode": "mute"}}, audio_cache=cache
+        )
+
+
+def test_a_mute_edge_never_chops_a_breath() -> None:
+    from test_breath_detect import _harmonic_tone
+
+    cache = _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026))
+    cache.waveform.samples[round(4.6 * 16000) : round(4.72 * 16000)] = _harmonic_tone(1920, 0.026)
+
+    result = _mute(cache, _CutCandidate("host", 4.6, 4.8, "filler:uh", "filler"), (4.6, 5.15))
+
+    assert not isinstance(result, _CutRejected)
+    assert (result.decision_type, result.start, result.end) == ("mute", 4.6, pytest.approx(5.0))
+
+
+def test_a_mute_never_proposes_a_breath_as_an_acoustic_filler() -> None:
+    cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
+    candidate = _CutCandidate(
+        "host", 5.0, 5.36, "filler:acoustic", "filler", min_start=5.0, max_end=5.36
+    )
+
+    assert _mute(cache, candidate, (5.0, 5.36)) == _CutRejected("breath")

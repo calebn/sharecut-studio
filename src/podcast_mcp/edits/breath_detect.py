@@ -796,20 +796,27 @@ def protect_cut_breaths(
     sample_rate: int = 16000,
     audio_cache: TrackAudioCache | None = None,
     word_index: CutWordIndex | None = None,
+    strict: bool = True,
 ) -> tuple[float, float] | None:
     """Shrink final edges around complete breaths, or suppress uncertain cuts.
 
-    Missing evidence and protected connected activity are not clean boundaries.
-    Disabled handling returns the input without reading audio. Source seconds.
+    ``strict`` (a splice): missing evidence and protected connected activity are
+    not clean boundaries, so either suppresses the cut. Otherwise (an edge that
+    fades against fill) only a breath matters: an edge inside a complete breath
+    moves out of it, keeping the breath whole, an edge with no breath found stays
+    put, and a cut that is mostly breath is suppressed. A cut that a breath fills
+    edge to edge is suppressed either way. Disabled handling returns the input
+    without reading audio. Source seconds.
     """
     if not (math.isfinite(start) and math.isfinite(end) and start < end):
         return None
     cfg = _breath_cfg(defaults)
     if not cfg["enabled"]:
         return start, end
+    no_evidence = None if strict else (start, end)
     read = _audio_reader(project, track_id, sample_rate, audio_cache)
     if read is None:
-        return None
+        return no_evidence
     context_start = max(
         0.0, math.floor((start - _LEVEL_CONTEXT_SEC) / _LEVEL_FRAME_SEC + 1e-9) * _LEVEL_FRAME_SEC
     )
@@ -819,10 +826,10 @@ def protect_cut_breaths(
     after = _read_evidence(read, after_start, _LEVEL_CONTEXT_SEC)
     context = np.concatenate([before, after])
     if not np.all(np.isfinite(context)):
-        return None
+        return no_evidence
     profile = level_profile(context, sample_rate)
     if profile is None:
-        return None
+        return no_evidence
     words = word_index or CutWordIndex.build(project, track_id)
     windows = []
     for edge in (start, end):
@@ -852,16 +859,81 @@ def protect_cut_breaths(
         inspect(edge, window, (start, end))
         for edge, window in zip((start, end), windows, strict=True)
     ]
-    if any(isinstance(item, _UncertainEdge) for item in evidence):
+    if strict and any(isinstance(item, _UncertainEdge) for item in evidence):
         return None
     new_start = evidence[0].span.end if isinstance(evidence[0], _CompleteEdgeBreath) else start
     new_end = evidence[1].span.start if isinstance(evidence[1], _CompleteEdgeBreath) else end
     if new_start >= new_end:
         return None
-    for edge, window in zip((start, end), windows, strict=True):
-        if isinstance(inspect(edge, window, (new_start, new_end)), _UncertainEdge):
-            return None
+    if strict:
+        for edge, window in zip((start, end), windows, strict=True):
+            if isinstance(inspect(edge, window, (new_start, new_end)), _UncertainEdge):
+                return None
+    elif _mostly_breath(
+        new_start,
+        new_end,
+        read=read,
+        words=words,
+        profile=profile,
+        cfg=cfg,
+        sample_rate=sample_rate,
+    ):
+        # Keeping breaths whole also means not removing one that is most of the cut.
+        return None
     return new_start, new_end
+
+
+def _mostly_breath(
+    start: float,
+    end: float,
+    *,
+    read: Callable[[float, float], np.ndarray],
+    words: CutWordIndex,
+    profile: tuple[float, float],
+    cfg: dict,
+    sample_rate: int,
+) -> bool:
+    """Whether a breath covers at least half of ``[start, end)``.
+
+    The breath run inside the span counts, and so does a complete breath traced to
+    room tone. Any span covering half of the cut contains its midpoint, so the edge
+    evidence at the midpoint finds the complete breath.
+    """
+    mid = (start + end) / 2
+    origin = max(
+        0.0, math.floor((mid - _LEVEL_CONTEXT_SEC) / _LEVEL_FRAME_SEC + 1e-9) * _LEVEL_FRAME_SEC
+    )
+    samples = _read_evidence(read, origin, mid + _LEVEL_CONTEXT_SEC - origin)
+    if not samples.size or not np.all(np.isfinite(samples)):
+        return False
+    keep_out = _kept_spans(words, origin, origin + samples.size / sample_rate, start, end)
+    evidence = _edge_evidence(
+        samples,
+        origin,
+        mid,
+        sample_rate=sample_rate,
+        profile=profile,
+        cfg=cfg,
+        keep_out=keep_out,
+    )
+    if isinstance(evidence, _CompleteEdgeBreath):
+        breath: BreathSpan | None = evidence.span
+    else:
+        breath = classify_breath_samples(
+            samples,
+            origin,
+            sample_rate=sample_rate,
+            vad_backend=cfg["vad_backend"],
+            min_duration_sec=cfg["min_duration_ms"] / 1000.0,
+            max_duration_sec=cfg["max_duration_ms"] / 1000.0,
+            speech_reference_rms=profile[1],
+            noise_floor_rms=profile[0],
+            keep_out=keep_out,
+            search_sec=(start, end),
+        )
+    if breath is None:
+        return False
+    return min(breath.end, end) - max(breath.start, start) >= (end - start) / 2
 
 
 def extend_cut_for_breaths(
