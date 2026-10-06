@@ -157,7 +157,7 @@ After `text_match_count == 0` and combined transcript is clean:
 
 1. Ensure stems are **fresh and not longer than the session timeline** (`assemble_timeline` / `render_dialogue_stems`). `stem_is_fresh` rejects source-length stems (wrong clock).
 2. `podcast edit apply-bleed-mute --dry-run` — inspect `attenuation_count` and `gate_reasons` per stem (skips stale/overlong stems). The compatibility field `interval_count` counts retained transcript spans, not justified attenuation.
-3. `podcast edit apply-bleed-mute` — attenuate independently verified foreign-only copies in `artifacts/tracks/*.wav`. A suppressed word alone does not authorize acoustic removal.
+3. `podcast edit apply-bleed-mute` — turn down acoustically verified foreign copies in `artifacts/tracks/*.wav` by `analysis.heuristics.bleed_attenuation_db` (default 20 dB). A suppressed word alone does not authorize attenuation.
 4. Audition with `play --compare`; re-run mix/premix after gating.
 
 MCP: `apply_transcript_gate_tool`. Transcript word flags are unchanged; this sets
@@ -168,14 +168,39 @@ scope selects nothing. Apply rebuilds from ungated selected media before atomica
 publishing a stem, so repeated applies do not multiply fade envelopes. Undo restores
 both fields; processed playback and rerendering derive the same absolute envelope.
 
-The gate defaults to unity gain. Retained owner words protect connected raw activity;
-unresolved audio, other suppression statuses, unavailable evidence, and unsupported
-evidence formats remain audible. Automatic hard attenuation requires a suppressed
-`bleed` word with a different dominant track, a matching raw peer copy that beats a
-time-shifted null, and an absolute residual below three PCM16 quantization steps.
-Coarse owner-activity evidence runs at 8 kHz. Bounded 48 kHz raw windows verify the proposed peer-copy residual across the wider band. They do not independently detect owner activity. Supported hard-gate evidence is mono PCM16 WAV at up to 48 kHz. Crossfade layouts abstain because their rendered clock can diverge from raw placements.
-Real room coloration or network delays can make every candidate abstain; this is
-reported in `gate_reasons`, and applying the flag does not prove bleed was reduced.
+The gate defaults to unity gain. Inside its spans it turns the lane down by
+`analysis.heuristics.bleed_attenuation_db` (default 20 dB), with 12 ms ramps, rather
+than gating to silence: the lane's room tone stays and nothing pumps (#945).
+
+A span starts from suppressed `bleed` words whose dominant track is another lane. The
+gate then measures both lanes' audio at 8 kHz (100 ms level frames every 10 ms) and
+needs three things:
+
+- **A copy path.** Over the pair's candidate words, the lane's level envelope must
+  follow the peer's at one lag within ±300 ms, with correlation at least 0.4 and
+  0.15 above the same lag shifted by ±1 s and ±2 s. Envelopes survive room coloration
+  and stereo downmix, where sample-exact residuals never did. A remote speaker's own
+  Zoom track can trail their voice on an in-room mic. On the lab tape Audra's track
+  trails her copy on Caleb's mic by 140 to 150 ms. No path means `uncertain_foreign_ownership`.
+- **Where the peer owns the audio.** Each word grows through adjacent frames where the
+  peer's open direct track, read at that lag, out-levels the lane by
+  `bleed_dominance_db`, because ASR word spans miss the copy between words.
+- **Where the lane's own speaker is silent.** Unsuppressed own words protect their
+  connected voiced runs, but those runs stop at foreign spans. Inside a foreign span,
+  100 ms or more louder than the open direct track by `bleed_dominance_db` is the
+  lane's own speaker overlapping, and is protected. Untranscribed placements stay
+  protected.
+
+A direct track still gated shut is no evidence either way. Where the owner's own
+track gates open late, the copy on this lane is still turned down. Bleed is never
+kept as the main audio for another speaker, so the first moments of a late-gated
+word can be quieter in the mix (#945). The lane's own sound that is quieter than
+the copy is turned down with it unless an own word covers it. Words reconcile left
+unsuppressed on this lane stay protected even when they are really the peer's, so
+those copies stay at full level. Unavailable evidence abstains
+and is reported in `gate_reasons`. Crossfade layouts abstain because their rendered
+clock can diverge from raw placements. Applying the flag does not prove bleed was
+reduced, so compare stems before and after.
 
 For PCM16 output, gating streams one second of WAV frames at a time and preserves
 all channels. Transitions lie inside justified attenuation regions; segment playback

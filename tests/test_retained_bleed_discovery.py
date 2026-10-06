@@ -7,7 +7,12 @@ import pytest
 
 from podcast_mcp.edits import retained_bleed_alignment as api
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
-from test_retained_bleed_alignment import RATE, _episode, _read, _write
+from test_retained_bleed_alignment import RATE, _episode, _read, _write, gate_abstains
+
+
+@pytest.fixture(autouse=True)
+def _gate_leaves_the_uncertain_lane(monkeypatch: pytest.MonkeyPatch) -> None:
+    gate_abstains(monkeypatch)
 
 
 def _unseeded(tmp_path: Path):

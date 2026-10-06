@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.engines.bleed_gate import BleedGatePlan, build_bleed_gate_plan
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from podcast_mcp.models import (
     Clip,
@@ -18,6 +19,27 @@ from podcast_mcp.models import (
 )
 
 RATE = 48_000
+
+
+def gate_abstains(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Alignment is the fallback for retained copies the transcript gate leaves alone.
+
+    Since #945 the gate turns down a verified copy of another speaker wherever the
+    lane's own speaker is silent, so these fixtures state the case alignment exists
+    for: a lane the gate abstains on.
+    """
+    from podcast_mcp.edits import retained_bleed_alignment
+
+    monkeypatch.setattr(
+        retained_bleed_alignment,
+        "build_bleed_gate_plan",
+        lambda *args, **kwargs: BleedGatePlan(reasons=("uncertain_foreign_ownership",)),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _gate_leaves_the_uncertain_lane(monkeypatch: pytest.MonkeyPatch) -> None:
+    gate_abstains(monkeypatch)
 
 
 def _write(path: Path, samples: np.ndarray) -> None:
@@ -384,6 +406,7 @@ def test_foreign_copy_fully_covered_by_safe_gate_does_not_retime_direct_phrase(
     word = p.transcripts[1].words[0]
     word.start, word.end = 1.2, 3.2
     api = _api()
+    monkeypatch.setattr(api, "build_bleed_gate_plan", build_bleed_gate_plan)
 
     def unexpected(*args, **kwargs):
         raise AssertionError("hard-eliminable copy should never trigger local retiming")

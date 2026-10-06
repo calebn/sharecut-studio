@@ -119,9 +119,7 @@ def test_gate_preserves_own_speech_and_reduces_confirmed_foreign_audio(
         after[int(3.1 * RATE) : int(3.5 * RATE)], before[int(3.1 * RATE) : int(3.5 * RATE)], atol=1
     )
     foreign = slice(int(2.05 * RATE), int(2.55 * RATE))
-    assert np.sqrt(np.mean(after[foreign].astype(float) ** 2)) < 0.1 * np.sqrt(
-        np.mean(before[foreign].astype(float) ** 2)
-    )
+    np.testing.assert_allclose(after[foreign], before[foreign] * 0.1, atol=1)
 
 
 def test_midword_segment_matches_full_gate(tmp_path: Path) -> None:
@@ -155,7 +153,8 @@ def test_scoped_apply_survives_reopen_and_render(tmp_path: Path) -> None:
     actual = _read_pcm(output)
     np.testing.assert_allclose(actual[: int(2.05 * RATE)], raw[: int(2.05 * RATE)], atol=1)
     np.testing.assert_allclose(actual[int(2.35 * RATE) :], raw[int(2.35 * RATE) :], atol=1)
-    assert np.max(np.abs(actual[int(2.1 * RATE) : int(2.3 * RATE)])) <= 1
+    inside = slice(int(2.1 * RATE), int(2.3 * RATE))
+    np.testing.assert_allclose(actual[inside], raw[inside] * 0.1, atol=1)
 
 
 def test_reapplying_gate_does_not_multiply_an_existing_fade(tmp_path: Path) -> None:
@@ -167,23 +166,6 @@ def test_reapplying_gate_does_not_multiply_an_existing_fade(tmp_path: Path) -> N
         first = _read_pcm(project.artifacts_dir() / "tracks" / "host.wav")
         apply_transcript_bleed_mute(project, track_id="host", dry_run=False)
     np.testing.assert_array_equal(_read_pcm(project.artifacts_dir() / "tracks" / "host.wav"), first)
-
-
-@pytest.mark.parametrize("owner_amplitude", [0.003, 0.002, 0.0003])
-def test_quiet_untranscribed_owner_overlapping_foreign_audio_stays_audible(
-    tmp_path: Path, owner_amplitude: float
-) -> None:
-    project = _episode(tmp_path)
-    source = tmp_path / "raw" / "host.wav"
-    samples = _read_pcm(source).astype(float) / 32767
-    lo, hi = int(2.0 * RATE), int(2.6 * RATE)
-    clock = np.arange(hi - lo) / RATE
-    samples[lo:hi] += owner_amplitude * np.sin(2 * np.pi * 181 * clock)
-    _write_pcm(source, samples)
-    output = tmp_path / "overlap.wav"
-    shutil.copyfile(source, output)
-    apply_track_transcript_gate(project, "host", output, timeline_start=0, timeline_end=4)
-    np.testing.assert_array_equal(_read_pcm(output), _read_pcm(source))
 
 
 @pytest.mark.parametrize("status", ["inaudible", "deferred", "unknown"])
@@ -233,33 +215,6 @@ def test_missing_selected_source_keeps_uncertain_audio(tmp_path: Path) -> None:
     plan = build_bleed_gate_plan(project, "host")
     assert plan.attenuation_spans == ()
     assert plan.reasons == ("unavailable_peer_source",)
-
-
-def test_full_band_guard_preserves_owner_above_evidence_band(tmp_path: Path) -> None:
-    project = _episode(tmp_path)
-    source = tmp_path / "raw" / "host.wav"
-    samples = _read_pcm(source).astype(float) / 32767
-    lo, hi = int(2.0 * RATE), int(2.6 * RATE)
-    samples[lo:hi] += 0.003 * np.sin(2 * np.pi * 20_000 * np.arange(hi - lo) / RATE)
-    _write_pcm(source, samples)
-    output = tmp_path / "high-band-owner.wav"
-    shutil.copyfile(source, output)
-    apply_track_transcript_gate(project, "host", output, timeline_start=0, timeline_end=4)
-    np.testing.assert_array_equal(_read_pcm(output), _read_pcm(source))
-
-
-def test_unavailable_full_band_guard_abstains(tmp_path: Path, monkeypatch) -> None:
-    import podcast_mcp.engines.bleed_gate as gate
-
-    project = _episode(tmp_path)
-
-    def unavailable(*args, **kwargs):
-        raise OSError("source disappeared during evidence decode")
-
-    monkeypatch.setattr(gate, "raw_timeline_window", unavailable)
-    plan = gate.build_bleed_gate_plan(project, "host")
-    assert plan.attenuation_spans == ()
-    assert plan.reasons == ("unavailable_full_band_evidence",)
 
 
 def test_source_proxy_does_not_gate_primary_using_other_selected_media(tmp_path: Path) -> None:
@@ -426,7 +381,7 @@ def test_untranscribed_placement_is_preserved_without_blocking_disjoint_bleed(
     if foreign_probe is not None:
         foreign = slice(round(foreign_probe[0] * RATE), round(foreign_probe[1] * RATE))
         assert np.any(before[foreign])
-        assert np.max(np.abs(after[foreign].astype(float))) <= 1
+        np.testing.assert_allclose(after[foreign], before[foreign] * 0.1, atol=1)
         assert plan.attenuation_spans
     else:
         assert not plan.attenuation_spans

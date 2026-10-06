@@ -18,8 +18,9 @@ CLI and MCP ingest commands call `IngestService` through the public
 
 Local retained-bleed alignment addresses a different problem from conversation
 placement: a remote speaker can be present on another mic with a network delay
-even after the recorders share a conversation clock. Where the conservative bleed
-gate must retain mixed audio, the planner may isolate and move one complete
+even after the recorders share a conversation clock. The transcript gate turns such
+a copy down at its measured lag where the remote speaker owns the audio (#945).
+Where the gate must retain mixed audio, the planner may isolate and move one complete
 direct-source phrase inside the requested region. It preserves the mixed lane,
 requires quiet source slack on both ends, and rejects drift, conflicting peer
 delays, or weak evidence. Mix-muted direct or retained lanes are skipped. Quiet destination overlap is

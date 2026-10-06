@@ -180,3 +180,12 @@ def test_level_without_a_matching_copy_is_not_foreign_evidence(tmp_path: Path) -
     plan = build_bleed_gate_plan(project, "host")
     assert plan.attenuation_spans == ()
     assert plan.reasons == ("uncertain_foreign_ownership",)
+
+
+def test_copy_between_asr_word_spans_is_turned_down_with_the_words(tmp_path: Path) -> None:
+    project = _episode(tmp_path, direct_lag_sec=0.14)
+    host_words = project.transcript_for_track("host").words
+    host_words[1].end = 1.6
+    host_words[2].start = 2.4
+    before, after = _gated(project, tmp_path)
+    assert _gain_db(before, after, 1.6, 2.4) == pytest.approx(-20.0, abs=0.2)
