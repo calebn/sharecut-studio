@@ -137,8 +137,7 @@ describe("ShareDialog", () => {
       relay_host: "relay.example.test",
       public_base_url: "https://share.example.test",
       share_count: 1,
-      attempt: 0,
-      retry_in_sec: null,
+      retry_at: null,
     });
     useDawStore.setState({ shareDialogOpen: true });
     const { unmount } = render(<ShareDialog />);
@@ -156,7 +155,7 @@ describe("ShareDialog", () => {
         <ShareDialog />
       </FeaturesContext.Provider>,
     );
-    expect(await screen.findByText("Guests can open your links.")).toBeTruthy();
+    expect(await screen.findByText("Guests can open your links")).toBeTruthy();
   });
 
   it("loads the current scope after StrictMode effect replay", async () => {

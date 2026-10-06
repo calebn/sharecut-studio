@@ -85,6 +85,11 @@ to UX partners; for UI copy, this table wins.
 | Deliverables | Mastered export set | "final export" |
 | Stop sharing | Revoke a review link. Links do not expire, so this is how a review link ends | "delete link" |
 | End room | Shut down a record room (kills guest + producer links) | "close room" |
+| Online sharing | Making this computer's review and record links reachable from the internet while it runs. Share's status line says what guests can do now, with any fix behind "How to fix" and the online sharing guide | "tunnel", "relay", "host token", "relay URL", a CLI command in UI copy |
+| Guests can open your links | Online sharing is connected | "Online", "Connected" as a bare label |
+| Reconnecting… | Online sharing lost its connection and is retrying; the line adds "Trying again in N s" (a still clock time under reduced motion). Guests may see a brief interruption | "Tunnel reconnecting", "Guests see Host offline" |
+| Not reachable online | Online sharing is set up but guests can't open links: it failed, was refused, or stopped responding | "Offline", "Host offline", "Tunnel failed" |
+| Online sharing is off | Set up but not running, or stopped on purpose. Neutral, not an error. A host with no online sharing set up sees no line at all | "Offline", "Disconnected" |
 
 Why this matters: Surface 2's audit found users confusing producer
 (a record-room link) with the review-role dropdown — the table above
@@ -395,3 +400,7 @@ item lives in `docs/contributing.md`. `Dialog` has no `danger` variant;
   recording" replaces "keeper"; Commenter suggests, as in Google Docs (#1050);
   the dense-target pattern for canvas targets (#1051 designs disambiguation);
   terminology slips are a review fix, not a sign-off rule.
+- 2026-10-06 — Online sharing terms (#1091 review): the Share dialog's status
+  line names what guests can do ("Guests can open your links", "Not reachable
+  online", "Online sharing is off") instead of the tunnel, relay or host token,
+  keeps any fix behind "How to fix", and shows nothing to a local-only host.

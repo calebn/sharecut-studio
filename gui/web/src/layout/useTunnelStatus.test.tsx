@@ -13,8 +13,7 @@ function reply(state: TunnelState) {
       relay_host: "relay.example.test",
       public_base_url: "https://share.example.test",
       share_count: 2,
-      attempt: 0,
-      retry_in_sec: null,
+      retry_at: null,
     }),
   };
 }

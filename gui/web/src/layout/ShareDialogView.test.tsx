@@ -90,23 +90,35 @@ describe("ShareDialogView", () => {
       relay_host: "relay.example.test",
       public_base_url: "https://share.example.test",
       share_count: 2,
-      attempt: 1,
-      retry_in_sec: 1,
+      retry_at: null,
     };
     const { baseElement: container } = render(<ShareDialogView {...props} />);
     const note = screen.getByRole("status");
     expect(note).toHaveTextContent(
-      "Reconnecting. Guests see “Host offline” until this says Online.",
+      "Reconnecting… guests may see a brief interruption",
     );
     expect(note.textContent).not.toContain("connection lost");
     await expectNoA11yViolations(container);
   });
 
-  it("shows no tunnel line when the status is unavailable", () => {
+  it("shows no online sharing line when unavailable or for a local-only host", () => {
     const props = baseProps();
     props.tunnel = null;
-    render(<ShareDialogView {...props} />);
+    const { rerender } = render(<ShareDialogView {...props} />);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    props.tunnel = {
+      state: "not_set_up",
+      reason: "online sharing is not set up",
+      reason_kind: null,
+      relay_host: null,
+      public_base_url: null,
+      share_count: null,
+      retry_at: null,
+    };
+    rerender(<ShareDialogView {...props} />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByText(/offline/i)).not.toBeInTheDocument();
   });
 
   it("shows empty states; axe-clean", async () => {
