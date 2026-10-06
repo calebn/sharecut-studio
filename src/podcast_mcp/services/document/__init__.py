@@ -29,14 +29,8 @@ if TYPE_CHECKING:
     )
     from podcast_mcp.services.document.history import HISTORY_RERENDER_ERRORS, HistoryService
     from podcast_mcp.services.document.play import PlayRequest, PlayService, TransportPath
-    from podcast_mcp.services.document.review_comments import (
-        COMMENTS_SANITY_S,
-        ReviewCommentsReplica,
-        review_comments_locked,
-    )
 
 __all__ = [
-    "COMMENTS_SANITY_S",
     "DEFAULT_LIMIT",
     "HISTORY_RERENDER_ERRORS",
     "LISTEN_DIRNAME",
@@ -51,13 +45,11 @@ __all__ = [
     "HistoryService",
     "PlayRequest",
     "PlayService",
-    "ReviewCommentsReplica",
     "TransportPath",
     "TrimBoundaryTarget",
     "build_golden_ear",
     "cross_process_bridge",
     "cross_process_lease",
-    "review_comments_locked",
     "run_comment_mutation_with_file_revisions",
     "score_golden_ear",
 ]
@@ -84,9 +76,6 @@ _MODULE_BY_NAME = {
     "PlayRequest": "play",
     "PlayService": "play",
     "TransportPath": "play",
-    "COMMENTS_SANITY_S": "review_comments",
-    "ReviewCommentsReplica": "review_comments",
-    "review_comments_locked": "review_comments",
 }
 
 

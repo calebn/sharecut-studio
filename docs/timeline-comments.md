@@ -105,7 +105,7 @@ podcast review set-active --project episode.project.json --id <vid>
 
 MCP: `publish_review_version_tool`, `list_review_versions_tool`, `set_active_review_version_tool`.
 
-Versions live under `artifacts/review/{id}/mix.wav` plus `mix.mp3` (guest ReviewApp)
+Versions live under `artifacts/review/{id}/mix.wav` plus `mix.mp3` (link previews and agents)
 with metadata in `review.versions[]` (`mp3_relpath`, optional `object_store_key`).
 Publication copies and encodes into a private `.staging-review-*` directory under the
 pinned review root. Under the project commit lock it atomically promotes the complete
@@ -163,8 +163,8 @@ deletion relative to the pinned directory, so a renamed ancestor cannot redirect
 platforms without descriptor-relative directory operations, cleanup is skipped. A concurrent
 same-name replacement between the last identity check and deletion is a narrow remaining race.
 While `active_version_id` is set, new comments stamp `review_version_id`. Host play via
-`GET /api/audio?kind=review&review_version_id=…` (or `kind=review:<id>`). Guest ReviewApp
-uses `GET /api/review/{token}/audio` (MP3; optional object storage 302 — see
+`GET /api/audio?kind=review&review_version_id=…` (or `kind=review:<id>`). Link previews and guest agents
+use `GET /api/review/{token}/audio` (MP3; optional object storage 302 — see
 [host-online-relay.md](host-online-relay.md)).
 
 **Path containment**: `audio_relpath` and `mp3_relpath` must resolve inside `artifacts/review/`
@@ -204,14 +204,14 @@ Requires the FOSS `collaboration` extension (default; disable with `PODCAST_EXTE
    - **Viewer** → read-only Sharecut Studio (timeline + premix)
    - **Commenter (default)** → Sharecut Studio with comments and Suggest cut; suggestions wait for an Editor or the host
    - **Editor** → Sharecut Studio that also edits directly and approves or rejects suggestions
-   - ReviewApp (frozen review MP3 + comments; object storage bypass when configured) opens for a share without `view`. No role mints one today.
+   - Every role holds `view`, so every review link opens Sharecut Studio. There is no separate listen-and-comment page; a share built without `view` (API only, no role mints one) opens an error.
    - Document `<title>` and Open Graph / Twitter meta (`og:title`, `og:audio`, …) are injected server-side from the episode name and review mix so Messages / social previews show the episode title and can offer inline audio when `play` is granted (prefer HTTPS object storage URL when uploaded; otherwise `{public}/api/review/{token}/audio`).
 6. Host sees comments in the DAW via project poll / document sync.
 7. Optional **remote MCP**: `--with-mcp` (plus the role the agent should have). With `PODCAST_REMOTE_MCP=1` and `podcast tunnel`, clients connect to `{base}/mcp/{token}/mcp` with the **same powers as the web guest** — see [host-online-relay.md](host-online-relay.md) § Remote MCP. Restricted shares need `POST /auth/agent-credential` Bearer tokens.
 
 Token algorithm, roles, Restricted identity: **[share-tokens.md](share-tokens.md)**. Revoke: `podcast review revoke-share --token …`. Threat model: on link shares the token is the capability set; on Restricted shares the coolname alone is insufficient. Host workspace metadata and object storage keys stay private. Comment and reply text is returned as authored, including path-like text. Remote MCP guests never receive `project_path` and cannot call host-only tools (pipeline, ingest, laptop play).
 
-**Comment resolve is host-only.** The host can resolve or reopen a thread in the Comments tab; that state lives in the project and persists when the host publishes another review version. ReviewApp labels each thread Open or Resolved and offers **Open comments only** to hide resolved threads temporarily; clearing the filter makes them readable again. The lightweight review socket pushes comments without the Studio `view` capability. It sends an initial comments replacement, then ordered changes with an opaque per-connection revision. The server also reads current comments every 30 seconds to recover missed notifications. A visible guest page refreshes the full review every 15 seconds only while the comments stream is disconnected or not initialized. Own successful REST edits wait briefly for push when the stream is healthy; they use an immediate refresh otherwise. Guests (human and agent) may add comments, replies, and toggle action items when those caps are on the token. There is no share HTTP or `guest_*` tool to resolve/reopen a thread. Anonymous link shares have no verified per-guest identity for own-thread resolve; if guest resolve is added later, it must ship HTTP and MCP together.
+**Comment resolve is host-only.** The host can resolve or reopen a thread in the Comments tab; that state lives in the project and persists when the host publishes another review version. Guests (human and agent) may add comments, replies, and toggle action items when those caps are on the token. There is no share HTTP or `guest_*` tool to resolve/reopen a thread. Anonymous link shares have no verified per-guest identity for own-thread resolve; if guest resolve is added later, it must ship HTTP and MCP together.
 
 The host Comments panel keeps the latest resolved comment in panel-local toast
 state. Successful Undo clears that toast and announces `Comment reopened` while

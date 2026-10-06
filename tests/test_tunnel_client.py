@@ -70,10 +70,6 @@ def test_map_api_review_daw_ws():
     assert _map_local_path("api/review/daw/ws", "tok") == "/api/review/tok/daw/ws"
 
 
-def test_map_api_review_progress_ws():
-    assert _map_local_path("api/review/progress/ws", "tok") == "/api/review/tok/progress/ws"
-
-
 def test_map_api_review_root():
     assert _map_local_path("api/review/", "tok") == "/api/review/tok"
 

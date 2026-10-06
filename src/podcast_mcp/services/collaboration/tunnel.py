@@ -286,7 +286,7 @@ class TunnelClient:
             url = url + "?" + query
 
         try:
-            # Do not follow redirects: ReviewApp /audio may 302 to object storage so the
+            # Do not follow redirects: the share /audio route may 302 to object storage so the
             # browser fetches media outside the WebSocket tunnel.
             async with http_client.stream(
                 method,

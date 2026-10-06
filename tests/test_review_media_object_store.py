@@ -1,4 +1,4 @@
-"""Review MP3 + optional object-store bypass for guest ReviewApp audio."""
+"""Review MP3 + optional object-store bypass for guest audio."""
 
 from __future__ import annotations
 

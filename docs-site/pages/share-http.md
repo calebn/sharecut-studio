@@ -23,7 +23,7 @@ Full narrative: [docs/host-online-relay.md](https://github.com/calebn/sharecut-s
 | `mcp` | Capability-scoped remote MCP at `/mcp/{token}/mcp` |
 
 Comments: prefer [document commands](#/document-commands) (`AddComment`, …) when also
-using MCP; REST `/comments*` remains for ReviewApp-style clients.
+using MCP; REST `/comments*` is the HTTP twin for clients that do not use document commands.
 
 <!-- share-http-routes:generated -->
 
@@ -33,7 +33,7 @@ using MCP; REST `/comments*` remains for ReviewApp-style clients.
 
 | Method | Route | Cap | Notes |
 |--------|-------|-----|-------|
-| `GET` | `…/audio` | `play` | ReviewApp frozen mix |
+| `GET` | `…/audio` | `play` | Frozen review mix (link previews, agents) |
 | `POST` | `…/comments` | `comment` | Timeline comment (REST) |
 | `POST` | `…/comments/{comment_id}/actions/{action_id}/done` | `action` | HTTP twin for MCP guest_set_action_done |
 | `POST` | `…/comments/{comment_id}/replies` | `reply` | Reply (REST) |
@@ -59,8 +59,7 @@ using MCP; REST `/comments*` remains for ReviewApp-style clients.
 | `GET` | `…/daw/waveform/tiles/{key}` | `view` | Binary min/max/RMS pyramid tiles |
 | `WEBSOCKET` | `…/daw/ws` | `view` | Receive-only session+document fanout (progress plane too) |
 | `GET` | `…/features` | `view` | Extension / feature manifest |
-| `WEBSOCKET` | `…/progress/ws` | `token` | Guest-initiated progress plane for ReviewApp (no view cap, no host paths) |
-| `GET` | `…/project` | `view` | Legacy ReviewApp project JSON |
+| `GET` | `…/project` | `token` | Review-share project JSON: capabilities, guest mode, review version |
 | `GET` | `…rec/bootstrap` | `kind=record` | Record lobby bootstrap JSON (no review mix) |
 | `GET` | `…rec/features` | `kind=record` | Extension / feature manifest |
 | `DELETE` | `…rec/upload` | `join` | Revoke an ACK'd room-tone bed (kind=room_tone) |

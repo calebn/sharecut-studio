@@ -66,7 +66,7 @@ CLI prints `Share URL` and `MCP URL` (e.g. `https://…/r/fantastic-acoustic-wha
 POST JSON-RPC with `Accept: application/json` (`initialize`, `tools/list`, `tools/call`).
 Claude may also send `Accept: application/json, text/event-stream`.
 
-Pass `params._meta.progressToken` on `tools/call` to receive MCP `notifications/progress` (headline, optional units) as Streamable HTTP SSE `event: message` frames, then the JSON-RPC result. Requests without a token stay JSON. The same wrap fans a `plane: "progress"` event to **this** share’s guest WS so ReviewApp / Studio share mode show an Activity chip. Host jobs and other tokens never appear. Payloads never include host filesystem paths.
+Pass `params._meta.progressToken` on `tools/call` to receive MCP `notifications/progress` (headline, optional units) as Streamable HTTP SSE `event: message` frames, then the JSON-RPC result. Requests without a token stay JSON. The same wrap fans a `plane: "progress"` event to **this** share’s guest WS so Studio share mode shows an Activity chip. Host jobs and other tokens never appear. Payloads never include host filesystem paths.
 
 ## Client config (Claude.ai custom connector)
 

@@ -440,8 +440,6 @@ mutations and snapshots to services on worker threads, and serializes output thr
 the bounded WebSocket writer. Teardown shields finite subscription and membership
 cleanup from cancellation using AnyIO.
 
-Lightweight review comments use `services/document/review_comments.py` for locked current comment reads and one per-connection ordered replica. The existing review progress socket shares its guarded writer with that replica and holds a cross-process watcher lease. Its comments producer also reads every 30 seconds, without assembling project views, history, or document certificates. Client REST fallback display remains separate from the socket revision basis.
-
 ## Testing
 
 Pytest runs with a **95% coverage floor** (`pyproject.toml` → `[tool.pytest.ini_options]` / `[tool.coverage.report]`). See [testing.md](testing.md).

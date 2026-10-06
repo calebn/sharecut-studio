@@ -747,7 +747,7 @@ def create_relay_app() -> FastAPI:
         token: str,
         *,
         path: str,
-        required_cap: str | None,
+        required_cap: str,
     ) -> None:
         """Bridge a guest WS through the host tunnel (text frames only)."""
 
@@ -760,7 +760,7 @@ def create_relay_app() -> FastAPI:
             await _reject(1013, "host offline")
             return
         caps = session.capabilities.get(token) or []
-        if required_cap and caps and required_cap not in caps:
+        if caps and required_cap not in caps:
             await _reject(4403, f"share does not allow {required_cap}")
             return
 
@@ -869,10 +869,6 @@ def create_relay_app() -> FastAPI:
     @app.websocket("/api/review/{token}/daw/ws")
     async def guest_daw_ws(websocket: WebSocket, token: str) -> None:
         await _bridge_guest_ws(websocket, token, path="api/review/daw/ws", required_cap="view")
-
-    @app.websocket("/api/review/{token}/progress/ws")
-    async def guest_progress_ws(websocket: WebSocket, token: str) -> None:
-        await _bridge_guest_ws(websocket, token, path="api/review/progress/ws", required_cap=None)
 
     @app.websocket("/api/rec/{token}/ws")
     async def record_guest_ws(websocket: WebSocket, token: str) -> None:

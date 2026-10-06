@@ -174,7 +174,6 @@ async def test_stop_tasks_cancels_and_logs_failures(caplog):
 
 GUEST_WS_PATHS = (
     "/api/review/{token}/daw/ws",
-    "/api/review/{token}/progress/ws",
     "/api/rec/{token}/ws",
 )
 

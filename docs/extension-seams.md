@@ -27,7 +27,7 @@ Living checklist of interactions between `podcast-mcp` (FOSS DAW plus collaborat
 
 ## Locked hole decisions
 
-1. **FOSS share without a provider:** FOSS ships share **mint** + guest ReviewApp/Sharecut Studio + tunnel **client**. Users point the tunnel at **any** self-hosted `podcast-relay` (generic Compose under `deploy/relay`). Provider defaults, accounts, quotas, and branded downloads are outside this repository and are not required to edit or to share.
+1. **FOSS share without a provider:** FOSS ships share **mint** + guest Sharecut Studio + tunnel **client**. Users point the tunnel at **any** self-hosted `podcast-relay` (generic Compose under `deploy/relay`). Provider defaults, accounts, quotas, and branded downloads are outside this repository and are not required to edit or to share.
 2. **Tunnel client:** stays in FOSS (`podcast tunnel`) as protocol-only; a provider integration may add its own account or quota workflow.
 3. **Guest SPA:** separate `/r/{token}` entry served only when `share.ui.routes` is contributed; host chrome uses Slots.
 4. **LAN shares:** no public share URLs in default FOSS path without a relay; LAN bind remains for local Sharecut Studio only.

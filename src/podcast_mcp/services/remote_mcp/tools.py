@@ -34,7 +34,7 @@ def _require_tool(name: str) -> None:
 
 
 def guest_get_review_summary() -> dict[str, Any]:
-    """ReviewApp-level project summary (no host paths)."""
+    """Project summary (no host paths)."""
     _require_tool("guest_get_review_summary")
     ctx = get_remote_mcp_context()
     return share_project_view(ctx.token)

@@ -366,14 +366,23 @@ async def test_handle_mcp_jsonrpc_progress_token_uses_guest_context(
     assert captured[0].notifications[0]["params"]["progressToken"] == "pt-wire"
 
 
-def test_progress_ws_commenter_without_view_receives_own_events(
+def _next_progress_frame(socket, *, limit: int = 40) -> dict:
+    """Read daw/ws frames until the progress plane delivers one."""
+    for _ in range(limit):
+        frame = socket.receive_json()
+        if frame.get("plane") == "progress":
+            return frame
+    raise AssertionError("no progress frame on the guest socket")
+
+
+def test_daw_ws_forwards_scrubbed_guest_progress_for_its_own_token(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     workspace = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(workspace).publish(label="ProgressWS")
     share = ShareService(workspace).create(
         review_version_id=ver["id"],
-        capabilities=["play", "comment"],
+        capabilities=["play", "view"],
     )
     token = share["token"]
     client = TestClient(create_app())
@@ -385,27 +394,17 @@ def test_progress_ws_commenter_without_view_receives_own_events(
         return {"ok": True}
 
     wrapped = install_guest_tool_progress(impl)
-    with client.websocket_connect(f"/api/review/{token}/progress/ws") as guest_ws:
-        assert guest_ws.receive_json()["plane"] == "comments"
+    with client.websocket_connect(f"/api/review/{token}/daw/ws") as guest_ws:
         set_guest_progress_context(token=token)
         try:
             wrapped("guest_render_preview", {})
         finally:
             clear_guest_progress_context()
-        msg = guest_ws.receive_json()
-        assert msg["plane"] == "progress"
+        msg = _next_progress_frame(guest_ws)
         assert msg["status"] in {"running", "ok"}
         blob = json.dumps(msg)
         assert "/Users/" not in blob
         assert "stem.wav" not in blob
-
-
-def test_progress_ws_rejects_invalid_token():
-    client = TestClient(create_app())
-    with client.websocket_connect("/api/review/no-such-token/progress/ws") as ws:
-        payload = ws.receive()
-    assert payload["type"] == "websocket.close"
-    assert payload["code"] == 4403
 
 
 @pytest.mark.asyncio
@@ -501,62 +500,6 @@ def test_clear_guest_progress_sinks_and_sink_without_listeners():
     assert guest_progress_sinks(None) == []
 
 
-def test_progress_ws_concurrency_rejected(minimal_project, sample_wav, tmp_workspace, monkeypatch):
-    from podcast_mcp.services.remote_mcp.limits import (
-        get_host_limiters,
-        reset_host_limiters_for_tests,
-    )
-
-    monkeypatch.setenv("PODCAST_GUEST_WS_CONCURRENT", "1")
-    reset_host_limiters_for_tests()
-    workspace = _seed_premix(minimal_project, sample_wav)
-    ver = ReviewService(workspace).publish(label="ProgressGate")
-    share = ShareService(workspace).create(
-        review_version_id=ver["id"],
-        capabilities=["play", "comment"],
-    )
-    token = share["token"]
-    lim = get_host_limiters()
-    held = 0
-    while lim.guest_ws_concurrent.try_enter(token).allowed:
-        held += 1
-        if held > 64:
-            break
-    client = TestClient(create_app())
-    try:
-        with client.websocket_connect(f"/api/review/{token}/progress/ws") as guest_ws:
-            payload = guest_ws.receive()
-            assert payload["type"] == "websocket.close"
-            assert payload["code"] == 4429
-    finally:
-        for _ in range(held):
-            lim.guest_ws_concurrent.exit(token)
-
-
-def test_share_progress_still_valid_without_view(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
-):
-    from unittest.mock import MagicMock
-
-    from podcast_mcp.gui.routes.review_share import (
-        _share_progress_still_valid,
-        _share_token_present,
-    )
-
-    workspace = _seed_premix(minimal_project, sample_wav)
-    ver = ReviewService(workspace).publish(label="Present")
-    share = ShareService(workspace).create(
-        review_version_id=ver["id"],
-        capabilities=["play", "comment"],
-    )
-    token = share["token"]
-    assert _share_token_present(token) is True
-    assert _share_token_present("missing-token-xyz") is False
-    ws = MagicMock()
-    assert _share_progress_still_valid(token, restricted=False, websocket=ws) is True
-    assert _share_progress_still_valid("missing-token-xyz", restricted=False, websocket=ws) is False
-
-
 def _sse_payloads(text: str) -> list[dict]:
     out: list[dict] = []
     for block in text.split("\n\n"):
@@ -619,18 +562,18 @@ def test_mcp_progress_token_streams_sse_notifications(
     assert "/Users/" not in blob
 
 
-def test_progress_ws_isolates_two_share_tokens(
+def test_daw_ws_isolates_guest_progress_between_two_share_tokens(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     workspace = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(workspace).publish(label="DualTok")
     share_a = ShareService(workspace).create(
         review_version_id=ver["id"],
-        capabilities=["play", "comment"],
+        capabilities=["play", "view"],
     )
     share_b = ShareService(workspace).create(
         review_version_id=ver["id"],
-        capabilities=["play", "comment"],
+        capabilities=["play", "view"],
     )
     tok_a, tok_b = share_a["token"], share_b["token"]
     client = TestClient(create_app())
@@ -646,23 +589,21 @@ def test_progress_ws_isolates_two_share_tokens(
         current_progress().end(name, message="done")
         return {"ok": True}
 
-    with client.websocket_connect(f"/api/review/{tok_a}/progress/ws") as ws_a:
-        with client.websocket_connect(f"/api/review/{tok_b}/progress/ws") as ws_b:
-            assert ws_a.receive_json()["plane"] == "comments"
-            assert ws_b.receive_json()["plane"] == "comments"
+    with client.websocket_connect(f"/api/review/{tok_a}/daw/ws") as ws_a:
+        with client.websocket_connect(f"/api/review/{tok_b}/daw/ws") as ws_b:
             set_guest_progress_context(token=tok_a)
             try:
                 install_guest_tool_progress(impl_a)("guest_render_preview", {})
             finally:
                 clear_guest_progress_context()
-            msg_a = ws_a.receive_json()
+            msg_a = _next_progress_frame(ws_a)
             assert "alpha-only" in json.dumps(msg_a)
             set_guest_progress_context(token=tok_b)
             try:
                 install_guest_tool_progress(impl_b)("guest_render_preview", {})
             finally:
                 clear_guest_progress_context()
-            msg_b = ws_b.receive_json()
+            msg_b = _next_progress_frame(ws_b)
             blob_b = json.dumps(msg_b)
             assert "beta-only" in blob_b
             assert "alpha-only" not in blob_b
