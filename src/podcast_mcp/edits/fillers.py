@@ -38,6 +38,7 @@ from podcast_mcp.edits.voiced_runs import (
     voiced_sec_inside,
 )
 from podcast_mcp.edits.word_onset import OnsetKind, next_onset
+from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.models import (
     EditDecision,
     EditDecisionType,
@@ -45,7 +46,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
-from podcast_mcp.util.dsp import db_to_amplitude
+from podcast_mcp.util.dsp import db_to_amplitude, rms_db
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.text import lexicon_form, normalize_text
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -709,19 +710,32 @@ def _peer_speaking_in_gap(
 
 
 def _peer_voiced_in_gap(
+    own_cache: TrackAudioCache,
     peer_caches: Sequence[TrackAudioCache],
     gap_start: float,
     gap_end: float,
     defaults: dict[str, Any],
 ) -> bool:
-    """True when a peer's own track has voiced audio inside the gap.
+    """True when a peer's own track carries voice of its own inside the gap.
 
     Peer occupancy is measured from peer audio, never from its ASR word spans: a
     mistimed word can span seconds of digital silence on a gated track. The runs
-    are the same voiced-run evidence the cut gate reads at cut edges.
+    are the same voiced-run evidence the cut gate reads at cut edges. A peer run
+    that sits ``analysis.heuristics.bleed_dominance_db`` or more under the cut
+    track's own level over the same frames is that track's voice bleeding onto
+    the peer's mic, the audit's own bleed test seen from the other side (#994). A
+    quiet or gated cut track never explains a peer run, so a peer carrying a
+    voice the cut track lost still blocks (#945).
     """
     floor = _audibility_floor_db(defaults)
-    return any(voiced_runs(cache, gap_start, gap_end, floor_db=floor) for cache in peer_caches)
+    margin = _bleed_dominance_db(defaults)
+    for cache in peer_caches:
+        for run in voiced_runs(cache, gap_start, gap_end, floor_db=floor):
+            own_db = rms_db(own_cache.window(*run))
+            peer_db = rms_db(cache.window(*run))
+            if own_db - peer_db < margin:
+                return True
+    return False
 
 
 def _clip_containing_source(project: EpisodeProject, track_id: str, src: float):
@@ -1111,7 +1125,7 @@ def _collect_acoustic_candidates(
             _count_skip(skip_counts, "acoustic:not_owner")
             continue
         # A peer voiced in the gap makes voiced energy here most likely bleed.
-        if _peer_voiced_in_gap(peer_caches, gap_start, gap_end, defaults or {}):
+        if _peer_voiced_in_gap(audio_cache, peer_caches, gap_start, gap_end, defaults or {}):
             _count_skip(skip_counts, "acoustic:peer_speaking")
             continue
         reference = _flanking_speech_rms(audio_cache, word, nxt, defaults or {})
@@ -1358,6 +1372,11 @@ _FILLER_END_SLACK_SEC = 0.04
 
 def _audibility_floor_db(defaults: dict[str, Any]) -> float:
     return float(defaults.get("analysis", {}).get("heuristics", {}).get("audibility_rms_db", -42.0))
+
+
+def _bleed_dominance_db(defaults: dict[str, Any]) -> float:
+    heuristics = defaults.get("analysis", {}).get("heuristics", {})
+    return float(heuristics.get("bleed_dominance_db", AnalysisPolicy.bleed_dominance_db))
 
 
 def _shrink_to_next_onset(

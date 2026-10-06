@@ -227,6 +227,16 @@ Detection (`edits/acoustic_gap.py`, shared DSP in `util/dsp.py`):
   355 acoustic skips. A peer word over silent audio does not block a gap; an
   untranscribed peer voice does. A peer whose track did not decode supplies no
   evidence.
+  A peer run is not peer speech when it is the cut track's own voice bleeding
+  onto the peer's mic (#994). The run's RMS is compared with the cut track's RMS
+  over the same frames, and a peer at least `analysis.heuristics.bleed_dominance_db`
+  (6 dB) under the cut track is bleed, the same test the word audit applies from
+  the other side. On the lab tape Caleb's mic carries Audra's voice on purpose, so
+  her own hesitations were blocked by it (about 14 gaps with the peer 15-35 dB
+  under her own level). A quiet or gated cut track never explains a peer run: a
+  speaker whose own track is shut while their voice survives only on another
+  track still blocks (#945), and so do independent voices at similar levels.
+  `_peer_voiced_in_gap` is the single decision for peer occupancy.
 - Frame levels (25 ms / 10 ms hop) must show real contrast: the loudest frame
   must sit at least 12 dB above the gap's 20th-percentile noise estimate, so
   flat hum, HVAC, or steady rumble never yields a candidate. Active frames must
