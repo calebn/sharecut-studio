@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.edits.range_edits import range_media_seal
 from podcast_mcp.engines.play_audit import (
     changed_render_hashes,
     clear_invalidations_if_current,
@@ -39,6 +41,7 @@ from podcast_mcp.models import (
     Track,
     TrackRole,
 )
+from podcast_mcp.util.workspace_paths import resolve_within
 
 
 def test_envelope_ids_do_not_change_audio_hashes(tmp_path) -> None:
@@ -519,3 +522,36 @@ def test_media_probe_cache_is_bounded_by_the_named_size() -> None:
 
     info = media_probe._cached_media_probe.cache_info()
     assert info.maxsize == media_probe.MEDIA_PROBE_CACHE_SIZE == 1024
+
+
+@pytest.mark.parametrize("media_hash", [track_render_hash, range_media_seal])
+def test_media_hashes_resolve_each_source_once_not_each_clip(tmp_path, media_hash) -> None:
+    """A long edit splits one recording into thousands of clips (#1041).
+
+    Each path resolution is a realpath plus a stat, and every document command
+    hashes every dialogue track several times, so per-clip resolution made a
+    10k-clip edit take seconds.
+    """
+    project = EpisodeProject.create("many-clips", str(tmp_path))
+    for name in ("host.wav", "alt.wav"):
+        (tmp_path / name).write_bytes(name.encode())
+    project.tracks = [
+        Track(id="host", label="Host", role=TrackRole.DIALOGUE, media=MediaAsset(path="host.wav"))
+    ]
+    project.sources = [SourceRecording(id="alt", path="alt.wav")]
+    project.clips = [
+        Clip(
+            id=f"c{i}",
+            track_id="host",
+            source_start=i * 0.2,
+            source_end=i * 0.2 + 0.1,
+            timeline_start=i * 0.2,
+            source_id="alt" if i % 2 else None,
+        )
+        for i in range(2000)
+    ]
+    with patch("podcast_mcp.util.workspace_paths.resolve_within", wraps=resolve_within) as resolved:
+        before = media_hash(project, "host")
+    assert resolved.call_count == 2
+    (tmp_path / "alt.wav").write_bytes(b"replaced alt take")
+    assert media_hash(project, "host") != before
