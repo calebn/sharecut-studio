@@ -9,7 +9,8 @@ Only muting and unmuting move a region's edges. A clip cut through a region (spl
 trim, roll, ripple delete, partial copy) keeps the region whole, past its own source
 edges, so each piece stays silent up to the cut and fades only where the region does.
 A trim keeps even a region its clip no longer overlaps: render ignores the part outside
-the window, and extending the edge back plays the mute again.
+the window, and extending the edge back plays the mute again. A roll gives both clips
+over one recording the union of their regions, so a mute the join crosses stays silent.
 """
 
 from __future__ import annotations

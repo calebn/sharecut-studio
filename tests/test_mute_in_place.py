@@ -1156,12 +1156,13 @@ def test_paste_trim_and_roll_keep_overlapping_mute_regions_whole():
     left = next(c for c in project.clips if c.id == "c1")
     right = next(c for c in project.clips if c.id == "c2")
     assert (left.source_end, right.source_start) == (pytest.approx(1.2), pytest.approx(4.2))
-    assert [(r.start_s, r.end_s) for r in left.mute_regions] == [(1.0, 3.0)]
-    assert [(r.start_s, r.end_s) for r in right.mute_regions] == [(5.0, 5.4)]
+    shared = [(1.0, 3.0), (5.0, 5.4)]
+    assert [(r.start_s, r.end_s) for r in left.mute_regions] == shared
+    assert [(r.start_s, r.end_s) for r in right.mute_regions] == shared
 
     roll_clip_join(project, "c1", "c2", -0.2)
     left = next(c for c in project.clips if c.id == "c1")
-    assert left.mute_regions == []
+    assert [(r.start_s, r.end_s) for r in left.mute_regions] == shared
 
 
 def test_coalesce_merges_same_track_mute():
@@ -1749,7 +1750,11 @@ def test_roll_past_a_mute_keeps_the_span_silent(tmp_path, split_at, delta):
     assert right.source_start == pytest.approx(split_at + delta)
     rendered = _render_samples(ws.project)
     assert np.count_nonzero(_samples(rendered, silent_start, silent_end)) == 0
-    assert np.max(np.abs(rendered - whole)) < 1e-4
+    # Only the join's own micro-fade may differ from the unrolled mute.
+    join = split_at + delta
+    away = np.ones(rendered.size, dtype=bool)
+    away[round((join - 0.05) * 48_000) : round((join + 0.05) * 48_000)] = False
+    assert np.max(np.abs(rendered - whole)[away]) < 1e-4
     assert all(regions == [(region.start_s, region.end_s)] for regions in _clip_regions(ws))
 
 
@@ -1758,6 +1763,7 @@ def test_roll_past_a_mute_undo_and_redo_are_exact(tmp_path):
     states = [[c.model_dump() for c in ws.project.clips]]
 
     _roll(ws, -1.2)
+    assert _clip_regions(ws) == [[(region.start_s, region.end_s)]] * 2
     states.append([c.model_dump() for c in ws.project.clips])
     _roll(ws, 1.2)
     states.append([c.model_dump() for c in ws.project.clips])
