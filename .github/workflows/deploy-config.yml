@@ -1,0 +1,30 @@
+name: deploy-config
+
+on:
+  pull_request:
+    paths: &deploy-paths
+      - "deploy/**"
+      - "scripts/check_deploy_config.sh"
+      - ".github/workflows/deploy-config.yml"
+  push:
+    branches: [main]
+    paths: *deploy-paths
+
+concurrency:
+  group: deploy-config-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate Caddyfiles and Compose files
+        run: ./scripts/check_deploy_config.sh

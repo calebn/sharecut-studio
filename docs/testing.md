@@ -64,6 +64,27 @@ API routes after normalization; unsafe suffixes may raise `UnsafeProxyPath`.
 Run the focused check with
 `.venv/bin/python -m pytest -q --no-cov tests/test_proxy_paths.py`.
 
+### Deploy config validation
+
+The path-filtered `.github/workflows/deploy-config.yml` (`deploy/**`, the workflow and its script) runs
+`scripts/check_deploy_config.sh` on Linux. It covers every `Caddyfile*` and `docker-compose*.yml` found under
+`deploy/`, so a new file is checked without editing the script:
+
+- `caddy validate --adapter caddyfile` runs inside the official `caddy` image, pinned by manifest-list digest in
+  `CADDY_IMAGE` (bump it by hand; Dependabot does not read it). `RELAY_DOMAIN` is a placeholder so
+  `Caddyfile.prod`'s `{$RELAY_DOMAIN}` resolves.
+- `docker compose -f <file> config -q` runs for each Compose file, plus the production file with the build overlay
+  (the documented `-f docker-compose.prod.yml -f docker-compose.build.yml` invocation). Placeholder values for
+  `RELAY_DOMAIN`, `RELAY_IMAGE` and `PODCAST_RELAY_HOST_TOKENS` are non-secret strings; never put a real token in the script.
+- Production fails closed: with each of those three variables unset in turn, `docker-compose.prod.yml` must be
+  rejected with its `set <VAR>` message.
+
+`tests/test_relay_caddyfile.py` still string-checks the Caddyfiles and Compose files for content the tools
+cannot judge (no `file_server`, redaction pattern behavior, the shell secret guard). Its `${VAR:?...}` substring
+assertions were removed because the fail-closed step now exercises them through real Compose.
+`tests/test_deploy_config_workflow.py` pins the workflow trigger paths, the digest pin and the file discovery.
+Run the same check locally (needs a Docker daemon) with `./scripts/check_deploy_config.sh`.
+
 ### Credential history scanning
 
 `.github/workflows/secret-scan.yml` runs Gitleaks with complete checkout history on every
@@ -1416,6 +1437,8 @@ contain guest record-share tokens (`/rec/<token>` URLs and
 artifact upload for `gui/web/test-results/` or `playwright-report/` without
 redacting those tokens.
 
+The path-filtered `.github/workflows/deploy-config.yml` validates `deploy/` with real `caddy` and `docker compose` (see [§ Deploy config validation](#deploy-config-validation)).
+
 The path-filtered `.github/workflows/desktop.yml` also builds the web distribution,
 runs the portable desktop scaffold checks on Linux, and runs `cargo check` for the
 Windows desktop binary. The Windows job compiles WebView2-only adapters that macOS
@@ -1426,6 +1449,7 @@ Local mirrors:
 
 ```bash
 make lint-py format-py-check typecheck  # Python static gates
+./scripts/check_deploy_config.sh  # caddy validate + docker compose config for deploy/ (Docker required)
 make test         # Python coverage gate
 make test-web     # Sharecut Studio lint + format:check + typecheck + vitest + build
 make test-web-e2e # Playwright smoke + full-page axe + Chromium/WebKit compat matrix (requires `[gui]` extra / uv)

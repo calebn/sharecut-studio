@@ -48,16 +48,11 @@ def test_local_compose_is_a_relay_only_development_stack() -> None:
 
 def test_production_compose_requires_operator_configuration() -> None:
     compose = (ROOT / "deploy/relay/docker-compose.prod.yml").read_text(encoding="utf-8")
-    build_compose = (ROOT / "deploy/relay/docker-compose.build.yml").read_text(encoding="utf-8")
-    assert "${RELAY_DOMAIN:?set RELAY_DOMAIN}" in compose
-    assert "${RELAY_IMAGE:?set RELAY_IMAGE}" in compose
-    assert "${PODCAST_RELAY_HOST_TOKENS:?set PODCAST_RELAY_HOST_TOKENS}" in compose
     assert "dev-host-token" in compose
     assert "at least 32 characters" in compose
     assert "each PODCAST_RELAY_HOST_TOKENS secret must be at least 32 characters" in compose
     assert "file_server" not in compose
     assert "/var/www" not in compose
-    assert "${RELAY_IMAGE:?set RELAY_IMAGE}" in build_compose
 
 
 def _run_production_secret_guard(tokens: str) -> subprocess.CompletedProcess[str]:
