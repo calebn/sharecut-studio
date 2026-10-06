@@ -2349,6 +2349,58 @@ def test_api_pipeline_run_and_events(minimal_project, monkeypatch) -> None:
         assert payload["job"]["id"] == job_id
 
 
+def test_api_pipeline_run_job_pushes_proposed_edits_to_open_tabs(
+    minimal_project, monkeypatch
+) -> None:
+    """A finished Find hits job reaches an open tab as a document event, not the 30 s poll."""
+    pytest.importorskip("fastapi")
+    import asyncio
+
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.edits.transcript_cuts import append_remove_decision
+    from podcast_mcp.gui.server import create_app
+    from podcast_mcp.models import PipelineRun, PipelineStepLog, load_project
+    from podcast_mcp.services.document_sync import document_hub_key
+    from podcast_mcp.services.pipeline.service import PipelineRunner
+    from podcast_mcp.services.session_sync.hub import get_hub
+
+    def run(self, project, *, on_step_complete=None, **_kwargs):
+        append_remove_decision(project, "host", 1.0, 1.5, reason="find-hits-proof")
+        if on_step_complete is not None:
+            on_step_complete("analyze_fillers_pauses")
+        return PipelineRun(
+            id="run1",
+            started_at="t",
+            steps=[PipelineStepLog(step="analyze_fillers_pauses", started_at="t")],
+        )
+
+    monkeypatch.setattr(PipelineRunner, "run", run)
+    key = document_hub_key(load_project(minimal_project))
+    loop = asyncio.new_event_loop()
+    queue = get_hub().subscribe(key, loop)
+    try:
+        client = TestClient(create_app())
+        res = client.post(
+            "/api/pipeline/run",
+            json={"path": str(minimal_project), "only_step": "analyze_fillers_pauses"},
+        )
+        assert res.status_code == 200
+
+        async def next_event() -> dict:
+            return await asyncio.wait_for(queue.get(), 5.0)
+
+        event = loop.run_until_complete(next_event())
+        _wait_pipeline_idle(client)
+    finally:
+        get_hub().unsubscribe(key, queue)
+        loop.close()
+
+    assert event["command"]["type"] == "ExternalMutate"
+    pending = event["snapshot"]["project"]["pending_edits"]
+    assert [p["reason"] for p in pending] == ["find-hits-proof"]
+
+
 def test_api_pipeline_events_status_snapshots_while_running(minimal_project, monkeypatch) -> None:
     """Quiet steps should still get ~1s SSE status snapshots with fresh elapsed."""
     pytest.importorskip("fastapi")
