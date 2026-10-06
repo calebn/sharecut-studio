@@ -13,6 +13,7 @@ import {
 } from "../ingest/dropLabels";
 import { ingestFiles } from "../ingest/ingestFiles";
 import { Inspector } from "../inspector/Inspector";
+import { InspectorPeek } from "../inspector/InspectorPeek";
 import { displayShortcutFor } from "../keymap/registry";
 import { CommentsPanel } from "../panels/CommentsPanel";
 import { HistoryPanel } from "../panels/HistoryPanel";
@@ -36,6 +37,7 @@ import { MobileShell } from "./MobileShell";
 import { StatusBar } from "./StatusBar";
 import { StudioShellView, type StudioWorkspace } from "./StudioShellView";
 import { TransportBar } from "./TransportBar";
+import { compactSheetProps, useCompactInspector } from "./useCompactInspector";
 
 function StudioShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
   const importShortcut = displayShortcutFor("media.import") ?? "Menu";
@@ -141,6 +143,7 @@ function StudioShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
     ),
     [addDropOver, addFileCount],
   );
+  const compact = useCompactInspector(shell === "tablet" ? "tablet" : null);
 
   if (shell === "phone") {
     return <MobileShell guestShare={guestShare} />;
@@ -259,12 +262,18 @@ function StudioShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
               sheet: {
                 open: sheetOpen,
                 expanded: sheetExpanded,
-                content: <Inspector />,
+                content:
+                  compact?.view === "strip" ? (
+                    <InspectorPeek peek={compact.peek} />
+                  ) : (
+                    <Inspector />
+                  ),
                 onClose: () => {
                   setSelection(null);
                   setSheetExpanded(false);
                 },
                 onExpandedChange: setSheetExpanded,
+                compact: compact ? compactSheetProps(compact) : undefined,
               },
             }
           : { kind: "desktop", content: showInspector ? <Inspector /> : null }
