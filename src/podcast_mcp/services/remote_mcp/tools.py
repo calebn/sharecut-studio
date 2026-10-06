@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from podcast_mcp.edits.share_capabilities import CAP_PLAY, CAP_VIEW, has_capability, share_author
+from podcast_mcp.edits.share_capabilities import CAP_PLAY, CAP_VIEW, has_capability
 from podcast_mcp.services.collaboration import (
     share_add_comment,
     share_add_reply,
@@ -266,7 +266,7 @@ def guest_submit_document_command(**kwargs: Any) -> dict[str, Any]:
         cmd,
         capabilities=list(ctx.capabilities),
         structural_mode=data.get("structural_mode"),
-        author=share_author(ctx.token),
+        author=ctx.author,
     )
     if isinstance(result, dict):
         return sanitize_guest_document_event(result)

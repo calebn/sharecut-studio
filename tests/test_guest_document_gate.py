@@ -7,17 +7,22 @@ command needs ``view`` on both the browser and the guest MCP surface.
 
 from __future__ import annotations
 
+import hashlib
 import itertools
 import json
+from collections.abc import Callable
 from copy import deepcopy
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.edits.share_capabilities import share_author
+from podcast_mcp.edits.share_registry import SHARE_COOLDOWN_DAYS, get_share_registry
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.gui.server import create_app
-from podcast_mcp.models import load_project, save_project
+from podcast_mcp.models import EditDecision, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
@@ -87,6 +92,38 @@ def test_retiming_a_pending_edit_follows_its_author(minimal_project, caps, allow
     assert load_project(minimal_project).edit_decisions == before
 
 
+def guest_submitter(surface: str) -> Callable[[str, str, dict], bool]:
+    """Submit a guest document command on *surface*; True when the gate allows it."""
+    client = TestClient(create_app())
+    seq = itertools.count(1)
+    client_ids: dict[str, str] = {}
+
+    def submit(token: str, command_type: str, payload: dict) -> bool:
+        body = {
+            "type": command_type,
+            "payload": payload,
+            "client_id": client_ids.setdefault(token, f"{surface}-{len(client_ids)}"),
+            "client_seq": next(seq),
+        }
+        if surface == "mcp":
+            return "error" not in _mcp_call(token, "guest_submit_document_command", body)
+        response = client.post(
+            f"/api/review/{token}/daw/document/command", json={**body, "role": "guest"}
+        )
+        assert response.status_code in (200, 403), response.text
+        return response.status_code == 200
+
+    return submit
+
+
+def registry_author(token: str) -> str:
+    return f"share:{get_share_registry().get_active(token)['id']}"
+
+
+def edit_at(minimal_project, start: float) -> EditDecision:
+    return next(e for e in load_project(minimal_project).edit_decisions if e.start == start)
+
+
 @pytest.mark.parametrize("surface", ["browser", "mcp"])
 def test_suggest_guests_retime_only_their_own_suggestions(
     minimal_project, sample_wav, monkeypatch, surface
@@ -96,23 +133,10 @@ def test_suggest_guests_retime_only_their_own_suggestions(
         who: _mcp_share(minimal_project, sample_wav, monkeypatch, [*caps, "mcp"])
         for who, caps in (("ann", SUGGEST), ("bob", SUGGEST), ("editor", EDIT))
     }
-    client = TestClient(create_app())
-    seq = itertools.count(1)
+    submit_as = guest_submitter(surface)
 
     def submit(who: str, command_type: str, payload: dict) -> bool:
-        body = {
-            "type": command_type,
-            "payload": payload,
-            "client_id": f"{surface}-{who}",
-            "client_seq": next(seq),
-        }
-        if surface == "mcp":
-            return "error" not in _mcp_call(shares[who], "guest_submit_document_command", body)
-        response = client.post(
-            f"/api/review/{shares[who]}/daw/document/command", json={**body, "role": "guest"}
-        )
-        assert response.status_code in (200, 403), response.text
-        return response.status_code == 200
+        return submit_as(shares[who], command_type, payload)
 
     for who, start in (("ann", 5.0), ("bob", 6.0)):
         assert submit(
@@ -161,11 +185,69 @@ def test_suggest_guests_retime_only_their_own_suggestions(
     starts = {e.id: e.start for e in load_project(minimal_project).edit_decisions}
     assert (starts[suggestion["ann"]], starts[suggestion["bob"]]) == (13.0, 14.0)
 
+    client = TestClient(create_app())
     state = client.get(f"/api/review/{shares['ann']}/daw/document/state?phase=full").json()
     rows = state["project"]["pending_edits"]
     assert {row["id"] for row in rows} >= set(suggestion.values())
     assert all("author" not in row for row in rows)
     assert "share:" not in json.dumps(state)
+
+
+@pytest.mark.parametrize("surface", ["browser", "mcp"])
+def test_guest_edit_author_is_the_share_registry_id_not_the_token(
+    minimal_project, sample_wav, monkeypatch, surface
+):
+    pending_project(minimal_project)
+    ann, bob = (
+        _mcp_share(minimal_project, sample_wav, monkeypatch, [*SUGGEST, "mcp"]) for _ in "ab"
+    )
+    submit = guest_submitter(surface)
+
+    forged = {"track_id": "c", "start": 5.0, "end": 5.5, "author": registry_author(ann)}
+    assert submit(bob, "SuggestPendingEdit", forged)
+    suggestion = edit_at(minimal_project, 5.0)
+    assert suggestion.author == registry_author(bob)
+    retime = {"id": suggestion.id, "start": 6.0, "end": 6.5, "snap": False}
+    assert not submit(ann, "UpdatePendingEdit", retime)
+    assert submit(bob, "UpdatePendingEdit", retime)
+
+    saved = Path(minimal_project).read_text(encoding="utf-8")
+    assert registry_author(bob) in saved
+    for token in (ann, bob):
+        assert token not in saved
+        assert hashlib.sha256(token.encode()).hexdigest()[:16] not in saved
+
+
+def test_a_share_without_a_registry_id_cannot_author_edits():
+    assert share_author({"token": "a-b-c", "id": "0f3a9c21d4e7"}) == "share:0f3a9c21d4e7"
+    with pytest.raises(KeyError):
+        share_author({"token": "a-b-c", "id": None})
+
+
+def test_a_recycled_share_slug_does_not_inherit_the_old_author(
+    minimal_project, sample_wav, monkeypatch
+):
+    pending_project(minimal_project)
+    monkeypatch.setattr(
+        "podcast_mcp.edits.share_registry.generate_slug", lambda _words=3: "recycled-cool-slug"
+    )
+    submit = guest_submitter("browser")
+    first = _mcp_share(minimal_project, sample_wav, monkeypatch, SUGGEST)
+    assert submit(first, "SuggestPendingEdit", {"track_id": "c", "start": 5.0, "end": 5.5})
+    old = edit_at(minimal_project, 5.0)
+
+    ShareService(ProjectWorkspace.open(minimal_project)).revoke(first)
+    after_cooldown = datetime.now(UTC) + timedelta(days=SHARE_COOLDOWN_DAYS + 1)
+    get_share_registry().purge_expired_cooldown(now=after_cooldown)
+    second = _mcp_share(minimal_project, sample_wav, monkeypatch, SUGGEST)
+    assert second == first
+
+    retime = {"id": old.id, "start": 6.0, "end": 6.5, "snap": False}
+    assert not submit(second, "UpdatePendingEdit", retime)
+    assert submit(second, "SuggestPendingEdit", {"track_id": "c", "start": 7.0, "end": 7.5})
+    authors = (edit_at(minimal_project, 5.0).author, edit_at(minimal_project, 7.0).author)
+    assert authors == (old.author, registry_author(second))
+    assert old.author != registry_author(second)
 
 
 @pytest.mark.parametrize(

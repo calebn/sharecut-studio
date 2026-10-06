@@ -794,6 +794,7 @@ def test_guest_get_session_presence_requires_view(minimal_project, monkeypatch):
         token="t",
         capabilities=["play", "mcp"],
         workspace=ProjectWorkspace.open(minimal_project),
+        author="share:t",
     )
     set_remote_mcp_context(ctx)
     try:

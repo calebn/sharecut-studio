@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import hashlib
+from collections.abc import Mapping
+from typing import Any
 
 CAP_VIEW = "view"
 CAP_PLAY = "play"
@@ -190,10 +191,14 @@ def docs_role_for_capabilities(caps: list[str] | None) -> str:
     return "none"
 
 
-def share_author(token: str) -> str:
-    """``EditDecision.author`` for a share guest: a fingerprint, never the raw token.
+def share_author(share: Mapping[str, Any]) -> str:
+    """``EditDecision.author`` for a share guest: ``share:`` plus the share's registry id.
 
-    Host-side only. Coolname tokens are short enough to brute-force from it, so
-    guest projections never carry it.
+    The id is minted at random when the share is created, so it reveals nothing
+    about the token, and a coolname recycled from cooldown gets a new one. A
+    share without an id cannot author edits.
     """
-    return "share:" + hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+    share_id = share.get("id")
+    if not share_id:
+        raise KeyError("invalid or revoked share token")
+    return f"share:{share_id}"
