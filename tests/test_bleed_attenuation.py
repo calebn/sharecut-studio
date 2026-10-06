@@ -256,10 +256,11 @@ def _talking_over(
     own: tuple[str, float, float, float] | None = None,
     talk_end: float = 31.0,
     transcribed_at: tuple[float, float] | None = None,
+    lag_sec: float = LAB_LAG_SEC,
 ) -> EpisodeProject:
     """The peer talks from 1 s to ``talk_end``; the host mic carries a coloured copy 16 dB down.
 
-    The peer's direct track runs 140 ms late, as on the lab tape. ``own`` adds the
+    The peer's direct track runs ``lag_sec`` late, 140 ms by default as on the lab tape. ``own`` adds the
     host's own sound (kind, start, end, level in dB against the direct track) on top
     of the copy.
     """
@@ -283,7 +284,7 @@ def _talking_over(
         }.get(kind, lambda: _voiced(clock, start, end, {"mm": 1, "uh-huh": 2, "talk": 5}[kind]))()
         window = slice(round(start * RATE), round(end * RATE))
         host += sound * 10 ** ((level_db + _db(voice[talk]) - _db(sound[window])) / 20)
-    direct = np.roll(voice, round(LAB_LAG_SEC * RATE))
+    direct = np.roll(voice, round(lag_sec * RATE))
     for track_id, samples in (("host", host), ("guest", direct)):
         _write_pcm(tmp_path / "raw" / f"{track_id}.wav", samples)
         project.timeline.tracks.append(
@@ -325,7 +326,7 @@ def _talking_over(
         Transcript(
             track_id="guest",
             words=[
-                TranscriptWord(text=f"w{n}", start=start + LAB_LAG_SEC, end=end + LAB_LAG_SEC)
+                TranscriptWord(text=f"w{n}", start=start + lag_sec, end=end + lag_sec)
                 for n, (start, end) in enumerate(words)
             ],
         ),
@@ -401,3 +402,10 @@ def test_copy_path_needs_thirty_seconds_of_peer_speech(
     plan = build_bleed_gate_plan(_talking_over(tmp_path, talk_end=talk_end), "host")
     assert bool(plan.attenuation_spans) is attenuated
     assert plan.reasons == (() if attenuated else ("uncertain_foreign_ownership",))
+
+
+@pytest.mark.parametrize("lag_sec", [0.3, 0.32])
+def test_copy_lag_at_or_beyond_the_search_edge_abstains(tmp_path: Path, lag_sec: float) -> None:
+    plan = build_bleed_gate_plan(_talking_over(tmp_path, lag_sec=lag_sec), "host")
+    assert plan.attenuation_spans == ()
+    assert plan.reasons == ("uncertain_foreign_ownership",)
