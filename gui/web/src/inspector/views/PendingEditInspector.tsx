@@ -86,6 +86,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     projectEpoch,
     guestMode,
     shareCapabilities,
+    shareAuthor,
     setSelection,
   } = useDaw((s) => ({
     project: s.project,
@@ -93,6 +94,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     projectEpoch: s.projectEpoch,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
+    shareAuthor: s.shareAuthor,
     setSelection: s.setSelection,
   }));
   const canApply = canReviewPendingEdit(projectPath, shareCapabilities);
@@ -100,7 +102,12 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     !edit.exact_range &&
     edit.source_start != null &&
     edit.source_end != null &&
-    canRetimePendingEdit(projectPath, shareCapabilities, edit.reason);
+    canRetimePendingEdit(
+      projectPath,
+      shareCapabilities,
+      shareAuthor,
+      edit.author,
+    );
   const mayAsk = canComment(projectPath, guestMode, shareCapabilities);
   const mayReply = canReply(projectPath, guestMode, shareCapabilities);
   const { busy, error, errorCode, setError, run } = useProjectMutation();

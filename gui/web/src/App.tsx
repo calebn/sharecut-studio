@@ -59,6 +59,7 @@ function AppInner() {
   const [shareCapabilities, setShareCapabilities] = useState<string[] | null>(
     null,
   );
+  const [shareAuthor, setShareAuthor] = useState<string | null>(null);
   const [useReviewApp, setUseReviewApp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shareBootstrapping, setShareBootstrapping] = useState(
@@ -81,6 +82,7 @@ function AppInner() {
       setShareKey(null);
       setGuestMode(null);
       setShareCapabilities(null);
+      setShareAuthor(null);
       setError(null);
       setShareBootstrapping(false);
       return;
@@ -100,12 +102,14 @@ function AppInner() {
             setShareKey(shareProjectKey(reviewToken));
             setGuestMode(bootstrap.guest_mode ?? "view");
             setShareCapabilities(caps);
+            setShareAuthor(bootstrap.author ?? null);
             setUseReviewApp(false);
           } else {
             setUseReviewApp(true);
             setShareKey(null);
             setGuestMode(null);
             setShareCapabilities(null);
+            setShareAuthor(null);
           }
         } catch (e: unknown) {
           if (cancelled) {
@@ -118,6 +122,7 @@ function AppInner() {
             setCachedGuestProject(cachedProject);
             setGuestMode("view");
             setShareCapabilities(null);
+            setShareAuthor(null);
             setUseReviewApp(false);
             setError(null);
             return;
@@ -174,6 +179,7 @@ function AppInner() {
         initialProject={cachedGuestProject}
         guestMode={guestMode}
         shareCapabilities={shareCapabilities}
+        shareAuthor={shareAuthor}
       >
         <Suspense fallback={<LoadingScreen label="Loading project…" />}>
           <DawApp guestShare />

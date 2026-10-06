@@ -149,20 +149,21 @@ export function rangeEditMode(
 }
 
 /**
- * Approximates the server's ``authorize_pending_update``: host or ``edit`` retimes
- * any pending edit; a ``suggest``-only guest retimes only its own suggestions. Guest
- * projections carry no author, so the Studio offers retime on every guest
- * suggestion and the gate refuses another guest's.
+ * Mirrors the server's ``authorize_pending_update``: host or ``edit`` retimes any
+ * pending edit; a ``suggest``-only guest retimes only edits its own share
+ * authored (``editAuthor`` equals this session's ``shareAuthor``).
  */
 export function canRetimePendingEdit(
   projectPath: string,
   capabilities: string[] | null | undefined,
-  reason: string | null | undefined,
+  shareAuthor: string | null | undefined,
+  editAuthor: string | null | undefined,
 ): boolean {
   if (canApplyPass12(projectPath, null, capabilities)) return true;
   return (
     canSuggestStructural(projectPath, null, capabilities) &&
-    (reason ?? "").startsWith("guest:suggest")
+    shareAuthor != null &&
+    editAuthor === shareAuthor
   );
 }
 

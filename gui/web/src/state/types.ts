@@ -142,6 +142,8 @@ export interface DawState {
   guestMode: string | null;
   /** Share capability list from bootstrap; null for host. */
   shareCapabilities: string[] | null;
+  /** This guest's share author (``PendingEditView.author``) from bootstrap; null for host. */
+  shareAuthor: string | null;
   playheadSec: number;
   playheadSeekRevision: number;
   zoomPxPerSec: number;
@@ -427,5 +429,6 @@ export interface DawStore extends DawState {
     initialProject: ProjectView | null,
     guestMode?: string | null,
     shareCapabilities?: string[] | null,
+    shareAuthor?: string | null,
   ) => void;
 }

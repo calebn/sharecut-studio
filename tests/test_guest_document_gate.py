@@ -189,8 +189,14 @@ def test_suggest_guests_retime_only_their_own_suggestions(
     state = client.get(f"/api/review/{shares['ann']}/daw/document/state?phase=full").json()
     rows = state["project"]["pending_edits"]
     assert {row["id"] for row in rows} >= set(suggestion.values())
-    assert all("author" not in row for row in rows)
-    assert "share:" not in json.dumps(state)
+    authors = {row["id"]: row["author"] for row in rows}
+    own = {
+        who: client.get(f"/api/review/{shares[who]}/project").json()["author"]
+        for who in ("ann", "bob")
+    }
+    assert own["ann"] != own["bob"]
+    assert {who: authors[suggestion[who]] for who in ("ann", "bob")} == own
+    assert not any(token in json.dumps(state) for token in shares.values())
 
 
 @pytest.mark.parametrize("surface", ["browser", "mcp"])

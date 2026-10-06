@@ -12,16 +12,31 @@ export function DawProvider({
   initialProject,
   guestMode = null,
   shareCapabilities = null,
+  shareAuthor = null,
 }: {
   children: ReactNode;
   projectPath: string;
   initialProject: ProjectView | null;
   guestMode?: string | null;
   shareCapabilities?: string[] | null;
+  shareAuthor?: string | null;
 }) {
   const hydrate = useDawStore((s) => s.hydrate);
   useEffect(() => {
-    hydrate(projectPath, initialProject, guestMode, shareCapabilities);
-  }, [hydrate, projectPath, initialProject, guestMode, shareCapabilities]);
+    hydrate(
+      projectPath,
+      initialProject,
+      guestMode,
+      shareCapabilities,
+      shareAuthor,
+    );
+  }, [
+    hydrate,
+    projectPath,
+    initialProject,
+    guestMode,
+    shareCapabilities,
+    shareAuthor,
+  ]);
   return <>{children}</>;
 }

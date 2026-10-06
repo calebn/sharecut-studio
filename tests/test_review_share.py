@@ -575,6 +575,58 @@ def test_share_expired_token(minimal_project, sample_wav, tmp_workspace, monkeyp
     assert client.get(f"/api/review/{share['token']}/daw/project").status_code == 404
 
 
+def test_guest_tells_its_own_suggestions_from_the_author_ref(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ws.project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=10.0),
+        )
+    ]
+    ws.project.timeline.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0)
+    ]
+    ws.save()
+    ver = ReviewService(ws).publish(label="Authors")
+    client = TestClient(create_app())
+    tokens = [
+        ShareService(ws).create(
+            review_version_id=ver["id"], capabilities=["play", "view", "suggest"]
+        )["token"]
+        for _ in range(2)
+    ]
+    for seq, (token, start) in enumerate(zip(tokens, (0.2, 2.0), strict=True), start=1):
+        suggested = client.post(
+            f"/api/review/{token}/daw/document/command",
+            json={
+                "client_id": token,
+                "client_seq": seq,
+                "role": "guest",
+                "type": "SuggestPendingEdit",
+                "payload": {"track_id": "host", "start": start, "end": start + 0.3},
+            },
+        )
+        assert suggested.status_code == 200, suggested.text
+
+    authors = [client.get(f"/api/review/{t}/project").json()["author"] for t in tokens]
+    assert len(set(authors)) == 2
+    for token, author in zip(tokens, authors, strict=True):
+        assert author.startswith("share:")
+        assert token not in author
+        assert client.get(f"/api/review/{author.removeprefix('share:')}/project").status_code == 404
+        state = client.get(f"/api/review/{token}/daw/document/state?phase=full").json()
+        by_start = {
+            round(e["source_start"], 3): e["author"] for e in state["project"]["pending_edits"]
+        }
+        assert by_start == {0.2: authors[0], 2.0: authors[1]}
+
+
 def test_share_daw_document_command_caps(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     from podcast_mcp.models import (
         Clip,

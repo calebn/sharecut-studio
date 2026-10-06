@@ -59,7 +59,8 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
         !canRetimePendingEdit(
           state.projectPath,
           state.shareCapabilities,
-          current.reason,
+          state.shareAuthor,
+          current.author,
         ) ||
         current.exact_range ||
         current.source_start !== expectedSourceStart ||

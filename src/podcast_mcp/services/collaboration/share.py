@@ -35,6 +35,7 @@ from podcast_mcp.edits.share_capabilities import (
     has_capability,
     normalize_capabilities,
     resolve_share_capabilities,
+    share_author,
 )
 from podcast_mcp.edits.share_registry import (
     RECORD_REVIEW_VERSION_SENTINEL,
@@ -798,6 +799,7 @@ def share_project_view(token: str) -> dict[str, Any]:
         "mode": "review",
         "guest_mode": guest_mode(caps),
         "token": token,
+        "author": share_author(row),
         "meta": {"name": project.meta.name},
         "timeline_duration_sec": float(duration),
         "review_version": ver_dump,
