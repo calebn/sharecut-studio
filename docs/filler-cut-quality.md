@@ -92,7 +92,8 @@ Hard joins (`join_in_mode=cut`, zero fades) use plain concat. See [inaudible-cut
 Omit track and speaker for a session handoff to require quiet across all dialogue lanes, including muted lanes. Explicit selectors analyze one lane. Results list the analyzed `track_ids`. Missing or incomplete evidence cannot qualify a hop as quiet; each proposed boundary must lie in a shared measured quiet island. See [Narrative handoffs](inaudible-cuts.md#narrative-handoffs) for evidence and locking bounds.
 
 - `podcast propose-edits` / `propose_edits` — proposals include optimized boundaries and per-cut `crossfade_ms`. The MCP payload is `{operation, edits, skip_counts, summary}` (`operation` is `propose_edits`; not a bare array). `skip_counts` maps `discourse:{token}` → kept uses, including isolated cluster-size rejects, `backchannel:{phrase}` → acknowledgments left in, `kept_word:{word}` → padded cuts dropped for covering a whole kept word, and `next_onset` → padded cuts dropped because ending before the next word's onset would leave the filler. CLI prints `proposal.summary()`.
-- Re-proposing (CLI, MCP, or Sharecut Studio **Find hits**) replaces every pending generated `filler:` / `pause:` / repetition / restart / acoustic hit, including ones the generator flagged for review (`:voiced_edge`, `:risky`, `:other_speaking`, `:join_review`) and ones a human nudged. Applied hits and manual, NL and focus edits stay. Re-running on an unchanged project returns the same hits in the same order (#995).
+- Re-proposing (CLI, MCP, or Sharecut Studio **Find hits**) replaces every pending generated `filler:` / `pause:` / repetition / restart / acoustic hit, including ones the generator flagged for review (`:voiced_edge`, `:risky`, `:other_speaking`, `:join_review`) and ones a human nudged. Applied hits and manual, NL and focus edits stay. Re-running on an unchanged project returns the same hits in the same order (#995), with the same ids (#999).
+- A generated hit's id is its identity, not a random token: `cut_<kind>_<start ms>_<end ms>_<track digest>`, from the hit's track, its kind (`filler` (lexical or acoustic), `pause`, `repeat`, `restart`) and the source span it targets (the filler, repeated or restarted words, the acoustic run, or a pause's whole word gap). Cut edges, review flags and a pause's trim end are analysis output, so a hit keeps its id when intensity or analysis moves them, and an Ask thread on it stays attached. A fresh hit whose id an existing decision already holds (an applied copy, or a pending one under `replace_existing=False`) is skipped as `same_hit`. Editing the transcript under a hit gives it a new id.
 - `podcast apply-edits` / `apply_edits` — applies via batch ripple + per-join fades (`apply_join_fades_from_decisions`).
 
 Tune behavior in `.agents/defaults/pipeline.yaml` (or a project-local override). Full guide below.
@@ -273,9 +274,10 @@ Interaction with other proposals:
   still proposed.
 - Coalescing keeps `filler:acoustic` separate from neighbouring cuts (like
   repetition/restart), and never merges decisions whose `applied` flags differ.
-- Re-proposal (`replace_existing`) regenerates pending acoustic hits and keeps
-  ones a human already applied; new proposals that overlap an applied decision
-  are skipped (`applied_overlap`).
+- Re-proposal (`replace_existing`) regenerates pending acoustic hits under the
+  same ids and keeps ones a human already applied; new proposals that overlap an
+  applied decision are skipped (`applied_overlap`), as are ones whose id an
+  applied decision holds (`same_hit`).
 - Propose summaries report acoustic hits separately (`N acoustic (review)`) and
   count skipped scans and candidates (`acoustic:*` skip reasons such as
   `no_audio`, `peer_speaking` (a peer voiced in the gap), `breath`, `rejected`,

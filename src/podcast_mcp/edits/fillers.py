@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import math
 import re
@@ -382,10 +383,28 @@ class _CutCandidate:
     min_start: float | None = None
     # Proposal-only regardless of risk (never auto-applied).
     review_only: bool = False
+    # Pause candidates: the next word's onset. The pause is the whole word gap;
+    # ``end`` is only where the retain floor trims it.
+    gap_end: float | None = None
 
     @property
     def strictly_bounded(self) -> bool:
         return self.min_start is not None
+
+    @property
+    def hit_id(self) -> str:
+        """The id of every decision proposed for this hit, on every run (#999).
+
+        A hit is its track, its kind and the source material it targets: the
+        filler, repeated or restarted words, the acoustic run, or a pause's whole
+        word gap. Analysis output (cut edges, review flags, the pause's trim end)
+        is not identity, so re-proposal hands an unchanged hit its id back and
+        Ask threads linked to it keep resolving. Same-kind hits on one track
+        never share a span, so distinct hits never share an id.
+        """
+        end = self.end if self.gap_end is None else self.gap_end
+        track = hashlib.sha256(self.track_id.encode()).hexdigest()[:10]
+        return f"cut_{self.cut_kind}_{round(self.start * 1000)}_{round(end * 1000)}_{track}"
 
 
 def _candidate_order(candidate: _CutCandidate) -> tuple[float, float, str]:
@@ -675,6 +694,7 @@ class _AnalyzedCut:
     gather many of these concurrently and apply them afterward in a fixed order.
     """
 
+    hit_id: str
     track_id: str
     start: float
     end: float
@@ -1002,6 +1022,7 @@ def _collect_candidates(
                             reason=tag,
                             cut_kind="pause",
                             max_end=trim_end,
+                            gap_end=gap_end,
                         )
                     )
     return sorted(candidates, key=_candidate_order)
@@ -1245,6 +1266,9 @@ def _resolve_analyzed_cuts(
       same track is dropped: applying does not suppress transcript words, so
       re-proposal would otherwise stack a pending duplicate over approved audio
       (coalescing never merges across ``applied``).
+    * A cut whose hit id (:attr:`_CutCandidate.hit_id`) a decision in
+      ``existing`` or an earlier cut already holds is dropped: it is that same hit
+      again, and decision ids stay unique.
     * A strictly bounded (acoustic) cut overlapping a surviving word-based cut on
       the same track is dropped -- pacing may have widened ``filler:um`` across
       the gap.
@@ -1254,7 +1278,9 @@ def _resolve_analyzed_cuts(
     A :class:`_CutRejected` result counts its skip and is otherwise a rejection.
     """
     applied_spans: dict[str, list[tuple[float, float]]] = {}
+    held_ids: set[str] = set()
     for decision in existing:
+        held_ids.add(decision.id)
         if decision.applied:
             applied_spans.setdefault(decision.track_id, []).append((decision.start, decision.end))
     applied_index = {
@@ -1269,6 +1295,11 @@ def _resolve_analyzed_cuts(
         if result is not None and index is not None and index.overlaps(result.start, result.end):
             _count_skip(skip_counts, "applied_overlap")
             result = None
+        if result is not None and result.hit_id in held_ids:
+            _count_skip(skip_counts, "same_hit")
+            result = None
+        if result is not None:
+            held_ids.add(result.hit_id)
         pairs.append((candidate, result))
     word_spans: dict[str, list[tuple[float, float]]] = {}
     for candidate, result in pairs:
@@ -1892,6 +1923,7 @@ def _analyze_candidate(
         fade_ms = min(fade_ms, round(MUTE_FADE_SEC * 1000))
         replace_gap = None
     return _AnalyzedCut(
+        hit_id=candidate.hit_id,
         track_id=track_id,
         start=cut_start,
         end=cut_end,
@@ -1926,6 +1958,7 @@ def _apply_analyzed_cut(project: EpisodeProject, result: _AnalyzedCut) -> EditDe
         next_burst_sec=result.next_burst_sec,
         scope=result.scope,
         decision_type=decision_type,
+        decision_id=result.hit_id,
     )
 
 

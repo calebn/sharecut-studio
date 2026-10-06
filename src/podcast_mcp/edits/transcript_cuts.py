@@ -183,14 +183,18 @@ def append_remove_decision(
     next_burst_sec: float | None = None,
     scope: str = "session",
     decision_type: EditDecisionType = EditDecisionType.REMOVE,
+    decision_id: str | None = None,
 ) -> EditDecision:
-    """Append a remove or mute decision without waveform optimization or coalescing."""
+    """Append a remove or mute decision without waveform optimization or coalescing.
+
+    ``decision_id`` is the generator's stable hit id; omitted, the id is random.
+    """
     if end <= start:
         raise ValueError("end must be greater than start")
     if decision_type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE):
         raise ValueError("decision_type must be remove or mute")
     decision = EditDecision(
-        id=f"cut_{uuid.uuid4().hex[:8]}",
+        id=decision_id or f"cut_{uuid.uuid4().hex[:8]}",
         track_id=track_id,
         type=decision_type,
         start=start,
