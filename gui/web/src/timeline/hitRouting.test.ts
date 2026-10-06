@@ -223,6 +223,8 @@ describe("attachHitRouting", () => {
     press(fade, "pointermove", 180, 117);
     press(surface, "pointermove", 360, 140, 8);
     press(fade, "pointerup", 180, 117);
+    // The first finger to lift is not a tap, though the other is still down.
+    fade.click();
     press(surface, "pointerup", 360, 140, 8);
     fade.click();
 
