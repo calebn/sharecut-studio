@@ -43,6 +43,10 @@ retain saved local choices through source pinning and reopening.
 
 After `transcribe_tracks`, the default-on **`align_tracks`** step places dialogue clips on one session clock (bleed phrase Δt, else own-speech/VAD gaps; N speakers). **`require_align_accept`** gates later steps until listen/`podcast align done` (or unattended waive; never for moves above `align.large_move_sec`). Equal-length and manifest-pinned stems are locked (`hold`/`manual`) unless `align.realign`. Uncheck Align in the Pipeline pane when files are not one conversation. See [pipeline.md](pipeline.md) and skill **podcast-align-audio**.
 
+### Recorder latency from bleed
+
+Equal-length files share one container clock, not one latency. Each recorder track reaches that clock after its own capture and network delay. On the lab Zoom tape, Audra's track trails her bleed on Caleb's mic by 143 ms, so the mix carried an early copy of her voice under the direct one. The last `align_tracks` stage measures each lane's lag behind its own bleed on the other mics, for every ordered pair, from level envelopes in 30 s windows. It then solves one latency per lane across all pairs (weighted least squares, reference at 0). A `hold` or scored lane moves by its latency when every pair touching it agrees within 40 ms (method `bleed_lag`). A lane whose pairs conflict, or whose lag drifts across the episode, is flagged in the step summary and left in place. A manifest-pinned lane keeps its placement and gets the shift as a proposed `candidate_offset_sec`. Bleed is evidence of timing only; it is never used as audio for another speaker. Thresholds and the artifact fields are in [pipeline.md § Conversation align](pipeline.md#conversation-align-align_tracks--gate).
+
 Human acceptance covers the current alignment plan as well as clip placement. A new plan, including a held acoustic candidate, needs a fresh review even when clip geometry is unchanged. If every acoustic confirmation window fails to decode, the large move remains an unconfirmed candidate held at identity for review.
 
 ## Record-session landing drift

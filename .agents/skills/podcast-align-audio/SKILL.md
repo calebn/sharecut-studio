@@ -24,7 +24,7 @@ Order: `transcribe_tracks` → **`align_tracks`** → **`require_align_accept`**
 
 | Step | Who | Behavior |
 |------|-----|----------|
-| `align_tracks` | Deterministic scorer | Locks first (`hold` when every dialogue stem is equal length, manifest `manual`); bleed phrase Δt when at least 5 weighted matches agree; moves above `align.large_move_sec` need waveform confirmation else `unconfirmed_hold`; else own-speech/VAD gaps; else late-join = first speech into a host silence (clear win vs identity); N speakers; whole-file clips re-placed, split/trimmed tracks slip source by the delta (edit points kept; ambiguous → track skipped with `skipped_reason`) |
+| `align_tracks` | Deterministic scorer | Locks first (`hold` when every dialogue stem is equal length, manifest `manual`); bleed phrase Δt when at least 5 weighted matches agree; moves above `align.large_move_sec` need waveform confirmation else `unconfirmed_hold`; else own-speech/VAD gaps; else late-join = first speech into a host silence (clear win vs identity); then bleed latency on every lane (its lag behind its own bleed on other mics, solved per lane across all pairs; moves a lane whose pairs agree within 40 ms as `bleed_lag`); N speakers; whole-file clips re-placed, split/trimmed tracks slip source by the delta (edit points kept; ambiguous → track skipped with `skipped_reason`) |
 | `require_align_accept` | Gate | Blocks until done/waived; `--unattended` auto-waives small moves when `align.accept.mode=waive_unattended` but stops on any move above `align.large_move_sec` |
 
 ### Gate (interactive / MCP)
@@ -42,6 +42,8 @@ Order: `transcribe_tracks` → **`align_tracks`** → **`require_align_accept`**
 4. **`align done`** (or waive with reason). Re-running `align_tracks` resets pending.
 
 Reading the brief: `hold` / `manual` stems are locked (equal length or manifest-pinned) and keep their placement; set `align.realign` to re-score: CLI `podcast pipeline run --realign`; MCP `pipeline_run(..., config_json='{"align": {"realign": true}}')` or `pipeline_set_config_tool(config_json=...)` (GUI: Pipeline pane "Re-align locked stems"). `unconfirmed_hold` rows keep the scorer's `candidate_offset_sec` at offset 0 because waveform xcorr did not confirm it; `align brief` lists `large_moves`. Listen, nudge with `move_clips_tool` if the candidate is real, then `align done`. Export QC flags an unaccepted `unconfirmed_hold` candidate until `align done`.
+
+`bleed_lag` rows moved a lane by its measured recorder latency. Equal-length Zoom tracks can still trail their own bleed (the lab tape: Audra by 143 ms), which sounds like an echo or doubling on that voice. A/B the voice with `play --compare` before `align done`. A summary note `bleed lag pairs conflict: <track>` or `bleed lag drifting: <track>` means that lane was left in place: its pairs disagree (often a remote voice reaching a room mic through a speaker) or its lag changes across the episode. Read `bleed_latency.pairs` in the artifact. On a manifest-pinned lane the shift is only proposed (`candidate_offset_sec`, summary `bleed lag ... proposed`); `--realign` applies it.
 
 Upgrading: bleed now needs 5 clustered n-grams (was 2) plus `align.bleed_min_share`, so re-running align on an older project can give different offsets. `config_json='{"align": {"min_bleed_matches": 2, "bleed_min_share": 0}}'` restores the old bleed trust.
 
