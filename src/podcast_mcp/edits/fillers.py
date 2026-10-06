@@ -39,7 +39,7 @@ from podcast_mcp.edits.voiced_runs import (
     voiced_runs,
     voiced_sec_inside,
 )
-from podcast_mcp.edits.word_onset import OnsetKind, next_onset
+from podcast_mcp.edits.word_onset import OnsetKind, filler_onset, next_onset
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.models import (
     ClipMuteRegion,
@@ -1472,6 +1472,44 @@ def _shrink_to_next_onset(
     return replace(plan, end=end, next_burst=burst)
 
 
+# How far before its word start a filler's voice is looked for: word times drift by
+# up to ~1.2 s on the lab tape.
+_FILLER_ONSET_REACH_SEC = 2.0
+
+
+def _start_at_filler_onset(
+    project: EpisodeProject,
+    plan: _CutPlan,
+    candidate: _CutCandidate,
+    *,
+    audio_cache: TrackAudioCache,
+    defaults: dict[str, Any],
+) -> _CutPlan | _CutRejected:
+    """Start ``plan`` before the filler's acoustic onset; refuse it if a kept word runs into it.
+
+    The walk back never passes the previous kept word's end. When the level stays
+    audible all the way there, the filler and that word share one stretch of voice:
+    an edge at the word's end cuts its tail (lab "to like" at 424.6: the vowel of
+    "to" runs 80 ms past its word end into "like"), and an edge at the word start
+    leaves the filler's head, so the cut is skipped.
+    """
+    floor = candidate.start - _FILLER_ONSET_REACH_SEC
+    tr = project.transcript_for_track(candidate.track_id)
+    for w in tr.words if tr else ():
+        if w.suppressed or w.end <= w.start or candidate.start <= w.start:
+            continue
+        floor = max(floor, min(w.end, candidate.start))
+    onset = filler_onset(
+        audio_cache, candidate.start, floor, quiet_db=_audibility_floor_db(defaults)
+    )
+    if onset is None:
+        return _CutRejected("filler_onset")
+    start = max(floor, onset - _ONSET_GUARD_SEC)
+    if onset < candidate.start and start < plan.start:
+        return replace(plan, start=start)
+    return plan
+
+
 def _covered_kept_word(
     project: EpisodeProject, candidate: _CutCandidate, start: float, end: float
 ) -> str | None:
@@ -1628,6 +1666,19 @@ def _gate_cut_edges(
 
     track_id = candidate.track_id
     checks = plan.checks
+    # Every join starts a word filler at its voice, not its word time; acoustic runs
+    # are bounded by audio already.
+    if (
+        audio_cache is not None
+        and candidate.cut_kind == "filler"
+        and not candidate.strictly_bounded
+    ):
+        started = _start_at_filler_onset(
+            project, plan, candidate, audio_cache=audio_cache, defaults=defaults
+        )
+        if isinstance(started, _CutRejected):
+            return started
+        plan = started
     if checks.end_before_next_onset and audio_cache is not None:
         shrunk = _shrink_to_next_onset(plan, candidate, audio_cache=audio_cache, defaults=defaults)
         if isinstance(shrunk, _CutRejected):

@@ -1,4 +1,10 @@
-"""Where the next word starts after a filler, read from the audio (#978).
+"""Where a filler's voice begins, and where the next word starts after it, read from
+the audio (#978, #1061).
+
+A cut's left edge has the mirror problem. The aligner starts a filler late: both lab
+"um"s voice 320-350 ms before their word start (616.26, 713.00), so a cut from the
+word start leaves the head of the "um" audible. :func:`filler_onset` walks back
+from the word start to the last quiet frame before the filler's voice.
 
 A padded filler cut fades back in on whatever follows its right edge, so that edge
 must keep the next word's first phoneme and a plosive's burst whole. Word times
@@ -72,6 +78,38 @@ class Onset:
 
     sec: float
     kind: OnsetKind
+
+
+def filler_onset(
+    cache: TrackAudioCache, filler_start: float, floor: float, *, quiet_db: float
+) -> float | None:
+    """Where the filler's voice begins (source seconds), walking back from its word start.
+
+    The walk stops at the first frame under ``quiet_db``; the onset is the start of
+    the audible frame after it. It does not bridge short dips the way voiced runs do:
+    the "ss" of "digress." falls under the floor for only 20 ms before the
+    owner-approved "uh" at 706.02 on the lab tape. ``filler_start`` comes back when
+    the voice begins at or after the word start, or inside the frame holding it.
+    ``None`` means the level never drops under ``quiet_db`` back to ``floor`` (the
+    previous kept word's end), so the filler's voice runs on from that word with no
+    quiet frame to cut in.
+    """
+    sr = int(cache.waveform.sample_rate)
+    frame = max(1, round(sr * FRAME_SEC))
+    hop = max(1, round(sr * HOP_SEC))
+    t0 = math.floor(max(0.0, floor) / HOP_SEC) * HOP_SEC
+    levels = frame_rms_db(cache.window(t0, filler_start + FRAME_SEC), frame, hop)
+    k = min(levels.size - 1, math.floor((filler_start - t0) / HOP_SEC + 1e-9))
+    if k < 0 or levels[k] < quiet_db:
+        return filler_start
+    while k > 0 and levels[k - 1] >= quiet_db:
+        k -= 1
+    if k == 0:
+        return None
+    onset = t0 + k * hop / sr
+    # The onset frame holds the voice somewhere in its 20 ms; only a frame wholly
+    # before the word start shows the voice began earlier.
+    return onset if onset + FRAME_SEC <= filler_start + 1e-9 else filler_start
 
 
 def next_onset(
