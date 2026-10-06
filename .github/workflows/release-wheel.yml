@@ -1,0 +1,76 @@
+# Release Python wheel with the Sharecut Studio web build inside (#1085).
+# hatch_build.py packages gui/web/dist only when it exists, so the web build
+# runs first. Callers that publish the wheel take the `podcast-mcp-wheel` artifact.
+
+name: release-wheel
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    paths: &wheel-paths
+      - "pyproject.toml"
+      - "hatch_build.py"
+      - "src/podcast_mcp/gui/static_assets.py"
+      - "scripts/check_wheel_web_build.py"
+      - "gui/web/package.json"
+      - "gui/web/package-lock.json"
+      - "gui/web/vite.config.ts"
+      - ".github/workflows/release-wheel.yml"
+  push:
+    branches: [main]
+    paths: *wheel-paths
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-wheel-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wheel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: gui/web/package-lock.json
+
+      - uses: astral-sh/setup-uv@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Build Sharecut Studio web dist
+        working-directory: gui/web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build sdist and wheel
+        run: uv build --out-dir dist
+
+      - name: Install the wheel into a clean venv
+        run: |
+          uv venv "$RUNNER_TEMP/wheel-venv"
+          uv pip install --python "$RUNNER_TEMP/wheel-venv/bin/python" "$(ls dist/*.whl)[gui]"
+
+      - name: Wheel ships the web build and serves it at /
+        run: |
+          python scripts/check_wheel_web_build.py dist/*.whl \
+            --podcast "$RUNNER_TEMP/wheel-venv/bin/podcast"
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v7
+        with:
+          name: podcast-mcp-wheel
+          path: dist/
+          if-no-files-found: error
