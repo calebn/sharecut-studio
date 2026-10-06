@@ -8,9 +8,15 @@ on another mic from level envelopes, tested against shifted nulls. Reuse it for
 any other copy-lag measurement instead of a private estimator.
 `edits/bleed_latency.py` measures every ordered lane pair in windows, rejects
 scattered or drifting pairs, and solves one latency per lane by weighted least
-squares with a residual per pair. `edits/conversation_align.py` loads the lane
-envelopes at their planned placement and folds agreeing latencies into the plans
-(`bleed_lag`).
+squares with a residual per pair. Each lane gets one decision from its reason
+(`DECISIONS`): `apply` only when pairs a path delay cannot explain (the direct
+track trails its copy) connect it to the reference, `propose` when only later
+copies do, `flag` on conflict or drift, else `keep`. `edits/conversation_align.py`
+loads the lane envelopes near their planned placement (`measure_bleed_latency`
+reports lags back where each lane sits, where direction is judged), folds the
+decisions into the plans (`bleed_lag`, or `candidate_offset_sec` with a `proposal`), and keeps a lane
+whose corrected placement is within `align.bleed_lag_deadband_sec` of where it
+sits (`bleed_lag_kept`).
 
 Retained mixed bleed has a separate, conservative local alignment path.
 `engines/bleed_delay.py` measures signed copy delays with extended reference
