@@ -65,6 +65,7 @@ import { CommentPlaybackBubble } from "./CommentPlaybackBubble";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
 import { clippingFlags } from "./clippingFlags";
 import { selectFollowColorIndex } from "./followTarget";
+import { attachHitRouting } from "./hitRouting";
 import {
   appliedRecordTrackIds,
   envelopeTrackIds,
@@ -220,6 +221,12 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const areaRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lanesRef = useRef<HTMLDivElement>(null);
+  // The routed region (marker lane plus lanes) mounts once a project loads.
+  const hitRootRef = useCallback(
+    (root: HTMLDivElement | null) =>
+      root ? attachHitRouting(root) : undefined,
+    [],
+  );
   const applyZoomAtRef = useRef<(nextZoom: number, clientX: number) => void>(
     () => undefined,
   );
@@ -836,7 +843,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                     runPointerCommand("view.fit");
                   }}
                 />
-                <div style={{ position: "relative", width }}>
+                <div ref={hitRootRef} style={{ position: "relative", width }}>
                   <MarkerLane
                     chapters={chapters}
                     socialClips={socialClips}

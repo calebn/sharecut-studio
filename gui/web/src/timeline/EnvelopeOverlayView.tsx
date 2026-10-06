@@ -10,6 +10,7 @@ import {
 } from "../utils/envelopes";
 import { formatTime } from "../utils/time";
 import { VIEWPORT_CHUNK_PX } from "../utils/timelineViewport";
+import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";
 import { timelineTestIds } from "./selectors";
 
 type EnvelopeDrag = {
@@ -225,6 +226,7 @@ export function EnvelopeOverlayView({
       <div
         className="envelope-hit"
         role="presentation"
+        {...HIT_SURFACE_PROPS}
         onClick={(e) => {
           e.stopPropagation();
           onSelectTrack();
@@ -262,6 +264,10 @@ export function EnvelopeOverlayView({
                 r={selected ? 7 : editable ? 5 : 2.5}
                 fill="var(--envelope-line)"
                 className={selected ? "envelope-point-selected" : undefined}
+                {...hitTargetProps("envelope-point", p.id, p.time, {
+                  selected,
+                  detail: p.value.toFixed(2),
+                })}
                 style={{ cursor: editable ? "grab" : "pointer" }}
                 role="button"
                 tabIndex={0}
