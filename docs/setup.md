@@ -611,6 +611,8 @@ podcast review share --project episode.project.json --version <id> \
 
 The global share index / registry is written mode `0600` (see [share-tokens.md](share-tokens.md)).
 
+`PODCAST_REVIEW_CORS_ORIGINS` is a comma-separated list of **exact origins** (`https://host[:port]`, or `http://` on loopback only) added to the loopback defaults (`127.0.0.1` / `localhost` on ports `5173` and `8765`). The GUI allows credentialed cross-origin requests from these origins, so `*`, wildcards, paths, query strings, fragments, user info, and non-loopback `http://` entries are refused and `podcast gui` fails to start with an error naming the variable. A trailing slash and letter case are normalized (`https://A.example/` becomes `https://a.example`). Unset or blank keeps the defaults. Same-origin pages (the GUI's own host) need no entry.
+
 Guests use `/r/{token}` or `/rec/{token}` only (no `?project=` paths). Use `--role viewer` (or `--capabilities play,view`) for Sharecut Studio; default commenter gets ReviewApp. Mint a recording room with `--kind record` (prints guest + producer `/rec/` URLs). Grant `--with-mcp` for capability-scoped remote MCP at `{base}/mcp/{token}/mcp` — host needs `PODCAST_REMOTE_MCP=1` and usually `podcast tunnel`. (`/r/{token}/mcp` is an accepted alias of the MCP bridge.) Restricted ACL + Google/GitHub login: [share-tokens.md](share-tokens.md) § Identity. See [timeline-comments.md](timeline-comments.md) § Public review share and [host-online-relay.md](host-online-relay.md) § Remote MCP. Share/MCP traffic is rate-limited by default (generous budgets; `PODCAST_RATE_LIMIT=0` / `PODCAST_RELAY_RATE_LIMIT=0` to disable) — see [host-online-relay.md](host-online-relay.md) § Rate limiting.
 
 ```bash

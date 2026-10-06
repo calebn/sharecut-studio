@@ -45,6 +45,7 @@ from podcast_mcp.gui.routes.deps import project_busy_exception_handler, require_
 from podcast_mcp.gui.routes.session import apply_ws_client_message, apply_ws_viewer_state
 from podcast_mcp.gui.static_assets import ImmutableAssetsStaticFiles, resolve_gui_static_root
 from podcast_mcp.gui.validation_errors import format_validation_errors
+from podcast_mcp.runtime_config import normalize_exact_origin
 from podcast_mcp.services.document import cross_process_bridge
 from podcast_mcp.util.body_limits import MaxBodySizeMiddleware, gui_max_body_bytes
 from podcast_mcp.util.progress import register_guest_progress_sink, register_progress_sink
@@ -54,7 +55,15 @@ __all__ = ["apply_ws_client_message", "apply_ws_viewer_state", "create_app"]
 log = logging.getLogger(__name__)
 
 
+CORS_ORIGINS_ENV = "PODCAST_REVIEW_CORS_ORIGINS"
+
+
 def _cors_origins() -> list[str]:
+    """Loopback defaults plus exact origins from ``PODCAST_REVIEW_CORS_ORIGINS``.
+
+    Credentials are allowed, so every entry must be an exact origin: a wildcard
+    or malformed entry raises ``RuntimeConfigError`` and the GUI does not start.
+    """
     import os
 
     defaults = [
@@ -63,10 +72,10 @@ def _cors_origins() -> list[str]:
         "http://127.0.0.1:8765",
         "http://localhost:8765",
     ]
-    extra = os.environ.get("PODCAST_REVIEW_CORS_ORIGINS", "").strip()
-    if not extra:
-        return defaults
-    return defaults + [o.strip() for o in extra.split(",") if o.strip()]
+    extra = os.environ.get(CORS_ORIGINS_ENV, "")
+    return defaults + [
+        normalize_exact_origin(CORS_ORIGINS_ENV, o.strip()) for o in extra.split(",") if o.strip()
+    ]
 
 
 def _project_mismatch(requested: str, served: Path) -> bool:
