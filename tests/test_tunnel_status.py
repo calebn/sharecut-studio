@@ -508,7 +508,7 @@ def test_live_snapshot_turns_offline_once_the_heartbeat_is_older_than_the_ttl(tm
     assert (past_ttl["relay_host"], past_ttl["since"]) == ("relay.example.test", 1000.0)
 
 
-def test_read_status_keeps_a_failed_snapshot_as_is_however_old(tmp_path: Path):
+def test_read_status_keeps_a_failed_snapshot_until_it_is_abandoned(tmp_path: Path):
     _write(
         tmp_path / "a.json",
         phase="failed",
@@ -516,7 +516,7 @@ def test_read_status_keeps_a_failed_snapshot_as_is_however_old(tmp_path: Path):
         reason="auth: relay rejected the host token or host id",
         reason_kind="auth",
     )
-    report = _status(directory=tmp_path, now=9e9)
+    report = _status(directory=tmp_path, now=1600.0)
     assert (report["state"], report["reason_kind"]) == ("offline", "auth")
 
 
