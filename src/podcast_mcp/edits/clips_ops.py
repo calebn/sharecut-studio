@@ -7,7 +7,7 @@ from itertools import pairwise
 from typing import Any, Literal
 
 from podcast_mcp.config import join_micro_fade_ms
-from podcast_mcp.edits.mute_regions import mute_regions_overlapping
+from podcast_mcp.edits.mute_regions import merge_mute_regions, mute_regions_overlapping
 from podcast_mcp.edits.ranges import subtract_ranges_from_intervals
 from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
@@ -532,7 +532,8 @@ def roll_clip_join(
     Both edges move by the same source delta (left ``source_end``, right
     ``source_start``). Clips stay timeline-flush; the pair's total duration is
     unchanged so later clips do not ripple. Cutaway gap size is preserved when
-    both edges move equally.
+    both edges move equally. Clips over one recording share the union of their mute
+    regions, since the join can hand a muted span from one to the other.
     """
     if not math.isfinite(delta_sec):
         raise ValueError("delta_sec must be finite")
@@ -546,12 +547,10 @@ def roll_clip_join(
     left.source_end += delta
     right.source_start += delta
     right.timeline_start = left.timeline_end
-    left.mute_regions = mute_regions_overlapping(
-        left.mute_regions, left.source_start, left.source_end
-    )
-    right.mute_regions = mute_regions_overlapping(
-        right.mute_regions, right.source_start, right.source_end
-    )
+    if _same_recording(project, left, right):
+        shared = merge_mute_regions(left.mute_regions + right.mute_regions)
+        left.mute_regions = shared
+        right.mute_regions = [r.model_copy() for r in shared]
     update_timeline_duration(project)
     return left, right
 
