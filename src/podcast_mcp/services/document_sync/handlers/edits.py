@@ -110,6 +110,7 @@ def split_at_time(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         tids,
         propose=mode is StructuralMutationMode.PROPOSE,
         reason=reason,
+        author=p.get("_author"),
     )
 
 
@@ -131,6 +132,7 @@ def delete_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         ripple=False,
         propose=mode is StructuralMutationMode.PROPOSE,
         reason=reason,
+        author=p.get("_author"),
     )
 
 
@@ -152,6 +154,7 @@ def ripple_delete_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any
         ripple=True,
         propose=mode is StructuralMutationMode.PROPOSE,
         reason=reason,
+        author=p.get("_author"),
     )
 
 
@@ -205,5 +208,6 @@ def edit_selected_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, An
             propose=p.get("_range_policy") != "apply",
             reason=p.get("_range_reason", "agent:range"),
             action_id=p["_action_id"],
+            author=p.get("_author"),
         )
     )

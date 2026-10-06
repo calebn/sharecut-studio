@@ -371,6 +371,7 @@
         "end": { "type": "number" },
         "crossfade_ms": { "type": "integer" },
         "reason": { "type": ["string", "null"] },
+        "author": { "type": ["string", "null"], "pattern": "^share:[0-9a-f]{16}$", "default": null },
         "review_required": { "type": "boolean" },
         "applied": { "type": "boolean" },
         "cut_confidence": { "type": ["number", "null"] },

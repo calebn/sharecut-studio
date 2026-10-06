@@ -65,7 +65,7 @@ flowchart TD
 
 1. Banner reads *Shared suggest view* (or similar).
 2. Guest can propose structural cuts; they become **pending**, not committed.
-3. A suggest guest retimes only guest suggestions. Host and agent pending edits show their timing read-only. For a guest's ordinary source proposal, compare current/suggested bounds; **Use suggestion** applies them after typed timing is applied. **Snap to silence** snaps those source bounds. Exact range proposals keep their sealed timeline footprint and have no source timing controls.
+3. A suggest guest retimes only its own suggestions; the server refuses another guest's. Host and agent pending edits show their timing read-only. For a guest's ordinary source proposal, compare current/suggested bounds; **Use suggestion** applies them after typed timing is applied. **Snap to silence** snaps those source bounds. Exact range proposals keep their sealed timeline footprint and have no source timing controls.
 4. With `play`, select **Suggested** or **A/B** and **Play around** to hear an exact range proposal in the full mix before the host decides. The preview does not change the project.
 5. Guests need `edit` to approve or reject any proposal, exact range proposals included. A suggest guest's Approve and Reject controls on an exact range proposal explain this and stay disabled.
 

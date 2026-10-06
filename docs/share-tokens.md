@@ -180,7 +180,7 @@ needs `view`, on the browser route and the guest MCP alike: a share with
 | Capabilities | Transcript **Select** and timed words | Range Cut / Mute (DAW, transcript, guest MCP) | Retime a pending edit | Approve / Reject pending edits |
 |--------------|----------------------------------------|-----------------------------------------------|-----------------------|--------------------------------|
 | `view` + `edit` | Yes | **Cut** / **Mute** apply at once, one History step | Any pending edit | Any, exact range proposals included |
-| `view` + `suggest` (no `edit`) | Yes | **Suggest cut** / **Suggest mute** create a pending edit for review | Only guest suggestions (`guest:suggest*` reasons) | Refused |
+| `view` + `suggest` (no `edit`) | Yes | **Suggest cut** / **Suggest mute** create a pending edit for review | Only its own suggestions (pending edits its share authored) | Refused |
 | `view` / `play` / `comment` / `reply` only | No (untimed utterance text) | Refused by the document-command gate | Refused | Refused |
 
 An `edit` guest is trusted to approve: approving applies an edit. The host can
@@ -192,8 +192,13 @@ The document-command gate (`authorize_document_command` plus
 `policy.authorize_pending_update`) enforces the table from the share's
 capabilities, whatever the surface; the Studio reads it from `rangeEditMode` and `canRetimePendingEdit` in
 `gui/web/src/shareMode.ts`, plus `canReviewPendingEdit` for Approve / Reject,
-only to choose affordances. Guest suggestions carry no
-per-share author, so a `suggest` guest may retime any guest's suggestion.
+only to choose affordances. Every pending edit a guest's document command creates
+records `EditDecision.author`, a fingerprint of the share token
+(`share_capabilities.share_author`), on the browser route and the guest MCP alike;
+host and agent edits, and edits saved before authorship, have none and belong to
+no guest. A `suggest` guest retimes only edits whose author is its own share. The
+author stays host-side: guest projections never carry it, so the Studio offers
+retime on every guest suggestion and the gate refuses another guest's.
 
 **Login policy:** production public shares are **link only**. Restricted /
 `require_sign_in` minting is refused unless `PODCAST_SHARE_ACCOUNTS=1` (stub

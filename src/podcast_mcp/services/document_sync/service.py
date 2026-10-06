@@ -492,6 +492,7 @@ class DocumentSyncService:
         capabilities: list[str] | None = None,
         range_policy: str = "propose",
         structural_mode: str | None = None,
+        author: str | None = None,
         audience: str = "host",
     ) -> dict[str, Any]:
         if capabilities is not None:
@@ -565,6 +566,7 @@ class DocumentSyncService:
                 capabilities=capabilities,
                 range_policy=range_policy,
                 structural_mode=structural_mode,
+                author=author,
             )
             row, _snap, claimed = store.append_and_apply(
                 command_id=command.command_id,
@@ -711,8 +713,10 @@ class DocumentSyncService:
         capabilities: list[str] | None = None,
         range_policy: str = "propose",
         structural_mode: str | None = None,
+        author: str | None = None,
     ) -> dict[str, Any]:
         from podcast_mcp.services.document_sync.policy import (
+            AUTHORED_COMMANDS,
             STRUCTURAL_COMMANDS,
             authorize_pending_update,
             may_decide_exact_range,
@@ -729,7 +733,7 @@ class DocumentSyncService:
             edit_id = command.payload.get("id")
             target = next((e for e in self.ws.project.edit_decisions if e.id == edit_id), None)
             if target is not None:
-                authorize_pending_update(capabilities, target.reason)
+                authorize_pending_update(capabilities, author, target.author)
         payload = dict(command.payload)
         if command.type in {"ApproveEdits", "RejectEdits"}:
             payload["_allow_exact"] = may_decide_exact_range(capabilities, range_policy)
@@ -744,6 +748,8 @@ class DocumentSyncService:
         if command.type in STRUCTURAL_COMMANDS:
             mode = resolve_structural_mode(capabilities, structural_mode)
             payload["_structural_mode"] = mode.value
+        if command.type in AUTHORED_COMMANDS:
+            payload["_author"] = author
         try:
             return apply_command(self.ws, command.type, payload)
         except STALE_TARGET_ERRORS as exc:
@@ -779,6 +785,7 @@ class DocumentSyncService:
         capabilities: list[str] | None = None,
         range_policy: str = "propose",
         structural_mode: str | None = None,
+        author: str | None = None,
     ) -> dict[str, Any]:
         """Apply ``command``, saving it as ``document_sync.last_command`` on the same commit.
 
@@ -804,6 +811,7 @@ class DocumentSyncService:
                 capabilities=capabilities,
                 range_policy=range_policy,
                 structural_mode=structural_mode,
+                author=author,
             )
         except BaseException:
             # A failed history render calls discard_changes; re-read the (possibly
