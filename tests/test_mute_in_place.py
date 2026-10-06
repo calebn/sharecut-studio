@@ -1300,6 +1300,7 @@ def test_already_muted_covers_acoustic_candidates_and_is_per_track():
 
     def _cut(track: str, start: float, end: float) -> _AnalyzedCut:
         return _AnalyzedCut(
+            hit_id=f"cut_filler_{round(start * 1000)}_{round(end * 1000)}_{track}",
             track_id=track,
             start=start,
             end=end,
