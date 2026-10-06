@@ -362,7 +362,7 @@ def test_word_automatic_then_reconcile_reaches_computed_target(tmp_path: Path):
 
 @pytest.mark.refine_gate
 @_ROOM_PAIR_MEASURED
-def test_pipeline_refreshes_waiver_after_real_reconciliation(tmp_path: Path):
+def test_waiver_stays_clear_after_real_reconciliation(tmp_path: Path):
     project = _two_track_project(tmp_path)
     project_path = tmp_path / "episode.project.json"
     save_project(project, project_path)

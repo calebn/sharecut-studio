@@ -71,8 +71,7 @@ On a raw session, remove the dead start, off-topic runs and meta talk **before**
    - Off-topic run or meta talk (latest first): `suggest_handoff_cut_tool(keep_left_end, keep_right_start)` → `ripple_delete_tool(cut_start, cut_end, use_inaudible_opt=false)` (CLI `podcast edit suggest-handoff-cut` then `podcast edit ripple-delete … --no-inaudible-opt`).
    - Dead start, last (it is the leftmost cut and shifts everything after it): `search_transcript_tool` → first kept line's `timeline_start` → `ripple_delete_tool(start=0, end=timeline_start-0.5)` (CLI `podcast edit ripple-delete --start 0 --end …`).
    - Not `cut_time_range_tool` / `apply_edit_plan_tool`: with peer speech in the window they become a track-local punch.
-3. After a ripple that removes words: `transcript_refine_waive_tool(reason="content cut: structural edit")` (CLI `podcast transcript refine-waive --reason …`). Dropped words make the waive stale, and the next edit raises `TranscriptRefineRequiredError`.
-4. Then `propose_edits` (**podcast-tighten-dialogue**). The removed words are gone, so proposals fall only in the kept range; there is no range argument. Reject tighten proposals made before the cut (`reject_edits_tool`).
+3. Then `propose_edits` (**podcast-tighten-dialogue**). The removed words are gone, so proposals fall only in the kept range; there is no range argument. Reject tighten proposals made before the cut (`reject_edits_tool`). The refine waive stays clear: cuts and renders never stale it, only a change to word text does.
 
 `analyze_focus_cuts` (pipeline) writes an outline, not a cut list, and is skipped when `focus.enabled` is false. See [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
 

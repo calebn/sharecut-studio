@@ -50,16 +50,9 @@ export_deliverables
 
 `precorrect_transcript` runs **once** (after pass 1 reconcile). Pass 2 reconcile updates suppression metadata only. Precorrect apply resets `artifacts/transcript_refine_status.json` to **pending**.
 
-After a successful unattended pipeline run that executes an active refine gate,
-the gate's current `source: unattended` waiver is refreshed if later steps
-change suppression metadata without changing transcript text or word structure.
-The status must still be the same gate decision at completion; a newer explicit
-refine decision wins. Partial runs that skip the gate, runs with refine mode
-`off`, pending, done, and explicit user/agent/CLI/MCP waivers remain stale and
-require a new intentional refine decision. A lock beside the status file
-coordinates status writers across local processes. The post-run refresh is
-best effort: if that lock stays busy past its 30 s limit, the run still
-succeeds, logs a warning and leaves the waiver stale.
+Pass 2 reconcile, and the reconcile a premix render runs, change only
+audibility flags, so they never stale a refine decision (see
+[§ What stales a refine decision](#what-stales-a-refine-decision)).
 
 In the host GUI, an approval blocked by this gate offers a **Waive with
 reason** recovery form. The waiver is recorded as a user decision; it does not
@@ -143,7 +136,7 @@ See [testing.md § Lab tape: alignment testing grounds](testing.md#lab-tape-alig
 | `{workspace}/transcript_context.yaml` | Guest names, skip spans, episode overrides |
 | `artifacts/transcript_timing.json` | Stretched ASR word flags from transcribe (no time rewrite) + `forced_alignment` per-job outcomes (each freshly-aligned job also carries `align_sec`, the wall time `WordAligner.align` took; a cache hit or a kept-Whisper failure has no `align_sec`; `no_evidence_words` counts words below `min_word_score` when the floor is on, #195) |
 | `artifacts/transcript_precorrect_report.json` | Glossary/cross-track fixes, `deferred_queue`, `garble_hits` |
-| `artifacts/transcript_refine_status.json` | Gate: `pending` / `done` / `waived` + precorrect fingerprint; successful unattended runs that execute the gate refresh only its stale waivers |
+| `artifacts/transcript_refine_status.json` | Gate: `pending` / `done` / `waived` + `transcript_fingerprint` of the reviewed word text |
 
 The Studio Pipeline tab edits per-project **Terms** and **Guest names** in
 `transcript_context.yaml`. These values join the show title in Whisper's
@@ -519,7 +512,7 @@ Show-specific names belong here, not in global `.agents/defaults/transcript_glos
 
 ## Agent gate (`require_transcript_refine`)
 
-After `precorrect_transcript`, the pipeline step **`require_transcript_refine`** blocks until status is **done** or **waived** (fingerprint must match the latest precorrect apply).
+After `precorrect_transcript`, the pipeline step **`require_transcript_refine`** blocks until status is **done** or **waived** and its fingerprint still matches the reviewed transcript text.
 
 1. `transcript refine-brief` / `transcript_refine_brief_tool`
 2. Whole-episode context pass + `deferred_queue` / `garble_hits` (skill **podcast-transcript-refine**)
@@ -537,7 +530,19 @@ Mode (`analysis.transcript_refine.mode` in pipeline.yaml):
 
 Focus/tighten/NL service entry points also call the same assert so agents cannot bypass via direct tools.
 
-Cuts that remove words change the precorrect fingerprint, which hashes track IDs, word order, text, and suppressed state. A `done` or `waived` status goes stale after word removal. Timing and clip placement alone do not change the fingerprint. A ripple that removes no words preserves clearance after saving and reopening. After word removal, re-waive (`refine-waive --reason …`) or run `refine-done` before the next edit. See [pipeline.md § Long raw sessions](pipeline.md#long-raw-sessions-content-cut-before-tighten).
+### What stales a refine decision
+
+`done` and `waived` record `transcript_fingerprint`, a digest of the text the refine pass reviewed (`reviewed_transcript_fingerprint` in `edits/transcript_refine_status.py`, the one function every gate check uses). It hashes, per transcript (track ID and source ID), each word's text in original order. Words a cut archived (`archived_words`) still count at their original positions.
+
+| Change | Stales the decision? |
+|--------|----------------------|
+| Correcting or replacing word text (`correct_word`, `correct_phrase`, replace, precorrect apply) | Yes |
+| Re-transcription or any other ASR change to word text | Yes |
+| Approving a Tighten, focus, or NL cut; ripple or punch deletes; apply-all | No. The removed words are archived and still count |
+| A render's reconcile (`play --rerender`, pending preview, Refresh), pass 2 reconcile, and `suppressed`, `audibility_status`, or `ignored` changes | No |
+| Word timing and clip placement | No |
+
+A host who waives once can approve hits one at a time, apply all, and render without re-waiving.
 
 ## Decision tree
 

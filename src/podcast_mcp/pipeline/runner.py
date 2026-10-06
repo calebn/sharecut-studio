@@ -4,20 +4,8 @@ import logging
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
-
-from filelock import Timeout
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.pipeline_unattended import is_unattended
-from podcast_mcp.edits.transcript_refine_status import (
-    load_status,
-    precorrect_fingerprint,
-    refine_mode_from_defaults,
-    refresh_unattended_waiver,
-    status_is_clear_payload,
-    transcript_text_fingerprint,
-)
 from podcast_mcp.engines.reconciliation_state import mark_reconciliation_stale
 from podcast_mcp.models import (
     EpisodeProject,
@@ -270,8 +258,6 @@ class PipelineRunner:
             step_defaults["_pipeline_unattended"] = True
         if cancel_check is not None:
             step_defaults["_pipeline_cancel_check"] = cancel_check
-        gate_status: dict[str, Any] | None = None
-        gate_text_fingerprint: str | None = None
 
         with (
             bind_progress(reporter),
@@ -314,21 +300,6 @@ class PipelineRunner:
                         if summary:
                             log.message = summary
                         log.finished_at = datetime.now(UTC).isoformat()
-                        if name == "require_transcript_refine" and (
-                            refine_mode_from_defaults(step_defaults) != "off"
-                        ):
-                            candidate = load_status(project)
-                            if (
-                                candidate is not None
-                                and candidate.get("status") == "waived"
-                                and candidate.get("source") == "unattended"
-                                and status_is_clear_payload(
-                                    candidate,
-                                    fingerprint=precorrect_fingerprint(project),
-                                )
-                            ):
-                                gate_status = candidate
-                                gate_text_fingerprint = transcript_text_fingerprint(project)
                         if name in AUDIO_AFFECTING_STEPS:
                             mark_reconciliation_stale(project)
                         if on_step_complete is None:
@@ -352,28 +323,6 @@ class PipelineRunner:
                         log.finished_at = datetime.now(UTC).isoformat()
                         raise
 
-        if (
-            gate_status is not None
-            and gate_text_fingerprint is not None
-            and is_unattended(
-                flag=unattended,
-                defaults=step_defaults,
-            )
-        ):
-            # Best effort: every step already finished, so a busy refine status lock must
-            # not fail the run. The waiver then stays stale, as when a later step changes it.
-            try:
-                refresh_unattended_waiver(
-                    project,
-                    gate_status=gate_status,
-                    gate_text_fingerprint=gate_text_fingerprint,
-                )
-            except Timeout:
-                logger.warning(
-                    "pipeline run %s finished, but the refine status lock stayed busy; "
-                    "its unattended refine waiver was not refreshed",
-                    run.id,
-                )
         return _current_run(project, run)
 
     def _select_steps(

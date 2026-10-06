@@ -60,13 +60,8 @@ The default pipeline cuts no content: focus and tighten are off, so a raw sessio
    podcast edit ripple-delete --project episode.project.json --start 0 --end <timeline_start-0.5>
    ```
    MCP: `suggest_handoff_cut_tool`, `ripple_delete_tool`, `search_transcript_tool`.
-2. **Re-clear the refine gate after a ripple removes words.** Dropped words make the waive stale: `podcast transcript refine-status` shows `"stale": true`, and the next edit raises `TranscriptRefineRequiredError`.
-   ```bash
-   podcast transcript refine-waive --project episode.project.json --reason "content cut: structural edit"
-   ```
-   MCP: `transcript_refine_waive_tool` (or `refine-done` / `transcript_refine_done_tool` after a real refine pass).
-3. **Tighten the kept range:** `podcast propose-edits --project episode.project.json` (**podcast-tighten-dialogue**). Removed words are gone, so proposals fall only in kept material. Reject tighten proposals made before the cut (`podcast edit reject --ids …`).
-4. `analyze_focus_cuts` is an outline, not a cut list (see step 11 above). Use **podcast-focus-episode** for the editorial judgment.
+2. **Tighten the kept range:** `podcast propose-edits --project episode.project.json` (**podcast-tighten-dialogue**). Removed words are gone, so proposals fall only in kept material. Reject tighten proposals made before the cut (`podcast edit reject --ids …`). The refine decision stays clear: cuts and renders never stale it.
+3. `analyze_focus_cuts` is an outline, not a cut list (see step 11 above). Use **podcast-focus-episode** for the editorial judgment.
 
 Rationale and details: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
 
