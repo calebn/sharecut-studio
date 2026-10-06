@@ -113,7 +113,7 @@ def test_bulk_exact_approval_composes_same_clip_baseline_and_one_undo(
             role="viewer",
             client_seq=None,
         ),
-        range_policy="host_apply",
+        range_policy="apply",
     )
     expected = [(0, 1, 10), (0, 5, 0), (2, 5, 12), (21, 23, 12)]
     if second_action == "cut":
@@ -251,18 +251,31 @@ def command(selection, action="cut"):
     )
 
 
-@pytest.mark.parametrize("caps", [None, ["suggest"], ["edit"], ["suggest", "edit"]])
-def test_default_and_all_guests_propose(minimal_project, caps):
+@pytest.mark.parametrize(
+    ("caps", "range_policy", "structural_mode"),
+    [
+        (None, "propose", None),
+        (["view", "play", "suggest"], "apply", None),
+        (["edit"], "apply", "propose"),
+    ],
+    ids=["agent", "suggest-guest", "edit-guest-offline"],
+)
+def test_agents_suggest_guests_and_offline_edits_propose(
+    minimal_project, caps, range_policy, structural_mode
+):
     ws = ProjectWorkspace.open(minimal_project)
     fixture(ws.project)
     save_project(ws.project)
     svc = DocumentSyncService.open(minimal_project)
     cmd = command(target(svc.ws.project))
     before = deepcopy(svc.ws.project.clips)
-    result = svc.submit(cmd, capabilities=caps, range_policy="host_apply" if caps else "propose")
+    result = svc.submit(
+        cmd, capabilities=caps, range_policy=range_policy, structural_mode=structural_mode
+    )
     assert result["ok"]
     assert svc.ws.project.clips == before
-    assert len(svc.ws.project.edit_decisions) == 1
+    [proposal] = svc.ws.project.edit_decisions
+    assert proposal.reason == ("agent:range" if caps is None else "guest:suggest")
     if caps:
         with pytest.raises(PermissionError):
             svc.submit(
@@ -282,12 +295,62 @@ def test_default_and_all_guests_propose(minimal_project, caps):
         client_seq=None,
         role="viewer",
     )
-    svc.submit(approve, range_policy="host_apply")
+    svc.submit(approve, range_policy="apply")
     assert not svc.ws.project.edit_decisions
     assert spans(svc.ws.project, "b") == [(30, 31, 10), (32, 33, 12), (34, 35, 14)]
     HistoryService(svc.ws).undo()
     assert svc.ws.project.clips == before
     assert len(svc.ws.project.edit_decisions) == 1
+
+
+@pytest.mark.parametrize("action", ["cut", "mute"])
+@pytest.mark.parametrize("caps", [["edit"], ["view", "play", "comment", "suggest", "edit"]])
+def test_edit_guest_range_applies_with_one_undo(minimal_project, caps, action):
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    save_project(ws.project)
+    svc = DocumentSyncService.open(minimal_project)
+    before = deepcopy(svc.ws.project.clips)
+    svc.submit(command(target(svc.ws.project), action), capabilities=caps, range_policy="apply")
+    assert not svc.ws.project.edit_decisions
+    assert svc.ws.project.editorial.edit_log[-1].params["action"] == action
+    if action == "cut":
+        assert spans(svc.ws.project, "b") == [(30, 31, 10), (32, 33, 12), (34, 35, 14)]
+    else:
+        assert [
+            (r.start_s, r.end_s)
+            for r in next(c for c in svc.ws.project.clips if c.id == "moved").mute_regions
+        ] == [(31, 32), (33, 34)]
+    HistoryService(svc.ws).undo()
+    assert svc.ws.project.clips == before
+
+
+@pytest.mark.parametrize(
+    ("command_type", "payload"),
+    [
+        ("EditSelectedRange", None),
+        ("SuggestPendingEdit", {"track_id": "a", "start": 11.0, "end": 12.0}),
+    ],
+)
+def test_view_play_comment_guest_cannot_edit_or_suggest(minimal_project, command_type, payload):
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    save_project(ws.project)
+    svc = DocumentSyncService.open(minimal_project)
+    before = deepcopy(svc.ws.project.clips)
+    cmd = command(target(svc.ws.project))
+    if payload is not None:
+        cmd = DocumentCommand(
+            type=command_type, payload=payload, client_id="guest", client_seq=None, role="guest"
+        )
+    with pytest.raises(PermissionError, match=command_type):
+        svc.submit(
+            cmd,
+            capabilities=["view", "play", "comment", "reply", "action"],
+            range_policy="apply",
+        )
+    assert svc.ws.project.clips == before
+    assert not svc.ws.project.edit_decisions
 
 
 def test_host_atomic_undo_and_idempotent_replay(minimal_project):
@@ -297,9 +360,9 @@ def test_host_atomic_undo_and_idempotent_replay(minimal_project):
     svc = DocumentSyncService.open(minimal_project)
     before = deepcopy(svc.ws.project.clips)
     cmd = command(target(svc.ws.project))
-    svc.submit(cmd, range_policy="host_apply")
+    svc.submit(cmd, range_policy="apply")
     assert not svc.ws.project.edit_decisions
-    assert svc.submit(cmd, range_policy="host_apply")["idempotent"] is True
+    assert svc.submit(cmd, range_policy="apply")["idempotent"] is True
     HistoryService(svc.ws).undo()
     assert svc.ws.project.clips == before
 
@@ -307,7 +370,7 @@ def test_host_atomic_undo_and_idempotent_replay(minimal_project):
 @pytest.mark.parametrize("field", ["apply", "scope", "authority", "_range_policy"])
 def test_wire_cannot_elevate(minimal_project, field):
     project = fixture(load_project(minimal_project))
-    payload = command(target(project)).payload | {field: "host_apply"}
+    payload = command(target(project)).payload | {field: "apply"}
     with pytest.raises(ValidationError):
         validate_payload("EditSelectedRange", payload)
 
@@ -320,9 +383,7 @@ def test_service_stale_conflict(minimal_project):
     ws.project.clips[1].timeline_start = 20
     save_project(ws.project)
     with pytest.raises(DocumentConflictError):
-        DocumentSyncService.open(minimal_project).submit(
-            command(selection), range_policy="host_apply"
-        )
+        DocumentSyncService.open(minimal_project).submit(command(selection), range_policy="apply")
 
 
 def test_full_lane_cut_reload_render_and_undo(minimal_project):
@@ -346,7 +407,7 @@ def test_full_lane_cut_reload_render_and_undo(minimal_project):
     ws.project.timeline.duration_sec = 1
     save_project(ws.project)
     svc = DocumentSyncService.open(minimal_project)
-    svc.submit(command(target(svc.ws.project, ((0, 1),), ("a",))), range_policy="host_apply")
+    svc.submit(command(target(svc.ws.project, ((0, 1),), ("a",))), range_policy="apply")
     project = load_project(minimal_project)
     assert project.tracks[0].timeline_empty is True
     assert project.clips == []
@@ -457,9 +518,9 @@ def test_saved_receipt_replay_has_no_result_or_second_history(minimal_project):
         svc.store, "_conn", FailingConnection(svc.store._conn, "INSERT INTO commands")
     ):
         with pytest.raises(sqlite3.OperationalError):
-            svc.submit(cmd, range_policy="host_apply")
+            svc.submit(cmd, range_policy="apply")
     retry = DocumentSyncService.open(minimal_project)
-    result = retry.submit(cmd, range_policy="host_apply")
+    result = retry.submit(cmd, range_policy="apply")
     assert result["idempotent"] is True
     assert result["command"]["payload"]["result"] is None
     assert retry.ws.project.editorial.edit_log[-1].params["action_id"] == cmd.command_id

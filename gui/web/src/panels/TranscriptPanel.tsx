@@ -11,7 +11,7 @@ import {
   resolvePresenceAnchor,
 } from "../presence/anchors";
 import { useProsodyOverlay } from "../prosody/useProsodyOverlay";
-import { canIngestMedia, isShareProjectKey } from "../shareMode";
+import { canIngestMedia, isShareProjectKey, rangeEditMode } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { isDetachedWordFailureMoot } from "../transcript/detachedWordFailure";
@@ -43,6 +43,7 @@ import {
 import {
   TRANSCRIPT_AUDIBILITY_LOCKED_TIP,
   TRANSCRIPT_CUT_AWAY_WORD_TIP,
+  TRANSCRIPT_GUEST_SELECT_HINT,
   TRANSCRIPT_IGNORED_WORD_TIP,
   TRANSCRIPT_INLINE_SAVING_STATUS,
   TRANSCRIPT_MODE_HINT,
@@ -259,6 +260,7 @@ export function TranscriptPanel() {
     selection: Selection;
   } | null>(null);
   const hostEditable = !isShareProjectKey(projectPath);
+  const rangeMode = rangeEditMode(projectPath, shareCapabilities);
   const wordsHydrated = project?.meta.hydration?.transcript_words !== false;
   /** Touch gestures only open correction where the Correct toggle could. */
   const canCorrect = hostEditable && wordsHydrated;
@@ -909,36 +911,38 @@ export function TranscriptPanel() {
               </CommandButton>
             </div>
           )}
-          {hostEditable && (
+          {rangeMode !== "none" && (
             <div
               className="transcript-mode-group"
               role="group"
               aria-label="Transcript mode"
             >
-              <ToggleButton
-                pressed={intent === "correct"}
-                disabled={!wordsHydrated}
-                className="transcript-follow-btn transcript-correct-btn"
-                title={
-                  wordsHydrated
-                    ? capabilityTooltip("daw.transcript.correct", {
-                        pressed: intent === "correct",
-                      })
-                    : "Loading transcript words…"
-                }
-                aria-label={
-                  wordsHydrated
-                    ? capabilityTooltip("daw.transcript.correct", {
-                        pressed: intent === "correct",
-                      })
-                    : "Loading transcript words…"
-                }
-                onClick={() =>
-                  setIntent((v) => (v === "correct" ? "navigate" : "correct"))
-                }
-              >
-                Correct
-              </ToggleButton>
+              {hostEditable && (
+                <ToggleButton
+                  pressed={intent === "correct"}
+                  disabled={!wordsHydrated}
+                  className="transcript-follow-btn transcript-correct-btn"
+                  title={
+                    wordsHydrated
+                      ? capabilityTooltip("daw.transcript.correct", {
+                          pressed: intent === "correct",
+                        })
+                      : "Loading transcript words…"
+                  }
+                  aria-label={
+                    wordsHydrated
+                      ? capabilityTooltip("daw.transcript.correct", {
+                          pressed: intent === "correct",
+                        })
+                      : "Loading transcript words…"
+                  }
+                  onClick={() =>
+                    setIntent((v) => (v === "correct" ? "navigate" : "correct"))
+                  }
+                >
+                  Correct
+                </ToggleButton>
+              )}
               <ToggleButton
                 pressed={intent === "select"}
                 className="transcript-follow-btn"
@@ -954,7 +958,7 @@ export function TranscriptPanel() {
               >
                 Select
               </ToggleButton>
-              {intent === "select" && (
+              {hostEditable && intent === "select" && (
                 <CommandButton
                   commandId="transcript.ignoreWords"
                   className="transcript-follow-btn"
@@ -995,6 +999,11 @@ export function TranscriptPanel() {
           </ToggleButton>
         </div>
       </div>
+      {!hostEditable && rangeMode !== "none" && intent === "select" ? (
+        <p className="transcript-mode-hint">
+          {TRANSCRIPT_GUEST_SELECT_HINT[rangeMode]}
+        </p>
+      ) : null}
       {canCorrect ? (
         <>
           <p className="transcript-mode-hint">{toolbarHint}</p>

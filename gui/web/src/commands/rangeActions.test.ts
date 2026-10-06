@@ -93,9 +93,12 @@ describe("shared range action policy and commands", () => {
       ["comment", "Comment", null],
       ["bounce", "Bounce", null],
     ]));
-  it.each(["suggest", "edit"])(
-    "all %s guests suggest and cannot bounce",
-    (mode) => {
+  it.each([
+    ["suggest", "Suggest cut", "Suggest mute"],
+    ["edit", "Cut", "Mute"],
+  ])(
+    "a %s guest gets %s / %s and cannot bounce",
+    (mode, cutLabel, muteLabel) => {
       useDawStore.setState({
         projectPath: "share:token",
         guestMode: mode,
@@ -108,8 +111,8 @@ describe("shared range action policy and commands", () => {
         ]),
       ).toEqual([
         ["Play full mix", null],
-        ["Suggest cut", null],
-        ["Suggest mute", null],
+        [cutLabel, null],
+        [muteLabel, null],
         ["Comment", null],
         ["Bounce", "Only the host can export selected tracks"],
       ]);

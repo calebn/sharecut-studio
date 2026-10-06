@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.collaboration.share import (
         ShareService,
         drop_absolute_path_strings,
+        guest_selects_transcript_words,
         lookup_share,
         open_share_workspace,
         require_share_cap,
@@ -66,6 +67,7 @@ __all__ = [
     "build_share_head_tags",
     "drop_absolute_path_strings",
     "guest_progress_hub",
+    "guest_selects_transcript_words",
     "guest_ws_progress_sink",
     "inject_share_document_head",
     "lookup_share",
@@ -118,6 +120,7 @@ _MODULE_BY_NAME = {
     "build_share_head_tags": "share_page",
     "drop_absolute_path_strings": "share",
     "guest_progress_hub": "guest_progress",
+    "guest_selects_transcript_words": "share",
     "guest_ws_progress_sink": "guest_progress",
     "inject_share_document_head": "share_page",
     "lookup_share": "share",

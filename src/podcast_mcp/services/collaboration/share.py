@@ -54,6 +54,7 @@ from podcast_mcp.services.document_sync import (
     notify_comments_changed,
     parse_view_projection,
 )
+from podcast_mcp.services.document_sync.capabilities import document_command_types_for_caps
 from podcast_mcp.services.media import (
     delete_object_store_object_if_unused,
     review_guest_audio_path,
@@ -612,14 +613,23 @@ def _guest_view_is_full(view: dict[str, Any]) -> bool:
     return "project_path" in view
 
 
-def sanitize_guest_project_view(view: dict[str, Any]) -> dict[str, Any]:
+def guest_selects_transcript_words(caps: Sequence[str] | None) -> bool:
+    """A guest the document-command gate lets submit ``EditSelectedRange`` (``suggest``
+    or ``edit``) receives timed transcript words to select a range from."""
+    return "EditSelectedRange" in document_command_types_for_caps(list(caps or []))
+
+
+def sanitize_guest_project_view(
+    view: dict[str, Any], *, transcript_words: bool = False
+) -> dict[str, Any]:
     """Strip host filesystem paths from a ProjectView-shaped dict for guests.
 
     Size (words[]) is handled by named projections. This keeps **privacy** only.
     TRACKS/DETAIL/CLIPS/FX/ENVELOPES patches sanitize existing keys and do not
-    inject full-view stubs.
+    inject full-view stubs. ``transcript_words`` keeps unsuppressed timed words
+    (see ``guest_selects_transcript_words``); otherwise they are dropped.
     """
-    from podcast_mcp.gui.mapper import omit_transcript_words
+    from podcast_mcp.gui.mapper import guest_transcript
 
     out = dict(view)
     full = _guest_view_is_full(view)
@@ -628,9 +638,10 @@ def sanitize_guest_project_view(view: dict[str, Any]) -> dict[str, Any]:
     if full or "meta" in out:
         meta = dict(out.get("meta") or {})
         meta.pop("workspace_dir", None)
-        guest_meta: dict[str, Any] = {"name": meta.get("name")}
-        if "hydration" in meta:
-            guest_meta["hydration"] = meta["hydration"]
+        # A patch's meta (DETAIL: hydration only) must not blank the merged name.
+        guest_meta: dict[str, Any] = {k: meta[k] for k in ("name", "hydration") if k in meta}
+        if full:
+            guest_meta.setdefault("name", None)
         out["meta"] = guest_meta
     if "tracks" in out:
         out["tracks"] = _sanitize_guest_tracks(out.get("tracks"))
@@ -643,12 +654,13 @@ def sanitize_guest_project_view(view: dict[str, Any]) -> dict[str, Any]:
     if full or "social_clips" in out:
         out["social_clips"] = []
     if isinstance(out.get("transcript"), dict):
-        out["transcript"] = omit_transcript_words(out["transcript"])
-        meta = dict(out.get("meta") or {})
-        hydra = dict(meta.get("hydration") or {})
-        hydra["transcript_words"] = False
-        meta["hydration"] = hydra
-        out["meta"] = meta
+        out["transcript"] = guest_transcript(out["transcript"], words=transcript_words)
+        if not transcript_words:
+            meta = dict(out.get("meta") or {})
+            hydra = dict(meta.get("hydration") or {})
+            hydra["transcript_words"] = False
+            meta["hydration"] = hydra
+            out["meta"] = meta
     if "render_status" in out:
         out["render_status"] = _sanitize_guest_render_status(out.get("render_status"))
     return _drop_absolute_path_strings(out)
@@ -666,7 +678,9 @@ def _guest_file_signature(value: Any) -> dict[str, int] | None:
     return {"mtime_ns": mtime_ns, "size": size}
 
 
-def sanitize_guest_document_event(event: dict[str, Any]) -> dict[str, Any]:
+def sanitize_guest_document_event(
+    event: dict[str, Any], *, transcript_words: bool = False
+) -> dict[str, Any]:
     """Sanitize a document-plane hub event for share guests.
 
     Drops host filesystem paths from ``snapshot.project`` / ``snapshot.patch``
@@ -687,10 +701,11 @@ def sanitize_guest_document_event(event: dict[str, Any]) -> dict[str, Any]:
         snap = dict(snap)
         if isinstance(snap.get("delta"), dict) and snap["delta"].get("audience") != "guest":
             snap = {"server_seq": snap.get("server_seq", 0), "resync": True}
-        if isinstance(snap.get("project"), dict):
-            snap["project"] = sanitize_guest_project_view(snap["project"])
-        if isinstance(snap.get("patch"), dict):
-            snap["patch"] = sanitize_guest_project_view(snap["patch"])
+        for key in ("project", "patch"):
+            if isinstance(snap.get(key), dict):
+                snap[key] = sanitize_guest_project_view(
+                    snap[key], transcript_words=transcript_words
+                )
         snap.pop("history", None)
         for key in ("file", "file_before"):
             if key in snap:

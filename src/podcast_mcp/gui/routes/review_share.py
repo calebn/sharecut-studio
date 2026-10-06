@@ -51,6 +51,7 @@ from podcast_mcp.gui.schemas import DocumentCommandRequest, ShareActionDoneReque
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import (
     guest_progress_hub,
+    guest_selects_transcript_words,
     lookup_share,
     open_share_workspace,
     require_share_cap,
@@ -557,9 +558,12 @@ def get_daw_document_state(
     _check_token(token)
     _rate_limit(token, "read")
     try:
-        _row, ws = require_share_cap(token, CAP_VIEW)
+        row, ws = require_share_cap(token, CAP_VIEW)
         snapshot = DocumentSyncService(ws).document_snapshot(projection=phase)
-        return sanitize_guest_document_event({"snapshot": snapshot})["snapshot"]
+        return sanitize_guest_document_event(
+            {"snapshot": snapshot},
+            transcript_words=guest_selects_transcript_words(row.get("capabilities")),
+        )["snapshot"]
     except Exception as exc:
         raise _map_share_exc(exc) from exc
 
@@ -597,6 +601,7 @@ def post_daw_document_command(token: str, body: DocumentCommandRequest) -> dict[
                 cmd,
                 audience="guest",
                 capabilities=list(row.get("capabilities") or []),
+                range_policy="apply",
                 structural_mode=body.structural_mode,
             )
         )
