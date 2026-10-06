@@ -52,9 +52,67 @@ Implementation: `edits/fillers.py`, `edits/cut_quality.py`, `edits/join_continui
 - **Filler pacing floor** — After filler / NL hesitation cuts, default `filler_room_tone_replace: true` removes the inter-word hesitation and inserts a paced pad: `clamp(min_gap_after_filler_sec, gap × filler_gap_retain_fraction, filler_replace_gap_max_sec)` (defaults **0.35 / 0.85 / 1.0 s**). Expand keeps previous-word release via **`recommend_prev_word_lead_out_ms`** (energy to quiet floor, ~40–250 ms — fixed 60 ms still cut mid-nasal) and `filler_next_word_lead_in_ms` (~80 ms) before the next onset — unless ASR tokens overlap the filler. After the pad, `filler_pre_pad_fade_out_ms` (~5 ms) declicks into silence and **`recommend_post_pad_fade_in_ms`** sizes the resume fade from look-ahead energy (quiet air → `filler_post_pad_fade_in_min_ms` ~15 ms; hot/late onset → up to `filler_post_pad_fade_in_max_ms` ~120 ms). Default pad fill is **`filler_pad_mode: silence`**. Set `filler_pad_mode: room_tone` to prefer a recorded `track.room_tone` bed (abutting tiles with fade-in on the first tile and fade-out on the last when the pad is longer), else sample stem air that is free of **own-track words** (including suppressed) and **peer-track speech** on the session clock (bleed), with **`room_tone_edge_margin_sec`** (~0.15 s) clear of word edges so inter-word micro-gaps are not tiled, and **`room_tone_min_rms_db`** (~-65 dB) so digital silence / gated pre-roll is not tiled as a fake bed. If no bed and no safe audible air exists near the cut, the pad is skipped rather than tiling dialogue/bleed/silence. Set `filler_room_tone_replace: false` to shrink the cut and keep original air instead.
 - **Speech-energy guard** — Before session-wide ripple, `tighten.speech_energy_guard` measures other dialogue stems in the cut window. If a peer is audibly speaking (even when ASR missed the word), default `on_conflict: track_local` punches a silence hole on the **cut track only** (`EditDecision.scope=track`) so overlapping dialogue is not mid-word chopped. `skip` refuses the cut; `review` still uses track-local and marks `review_required`. A `pause:` candidate is **dropped** instead of demoted, under either `on_conflict` setting: a track-local punch never ripples, so it cannot shorten the timeline, which is the only reason a pause cut exists (#772).
 
+### Decision: Filler cuts follow the owner's listening rules
+
+<!-- decision
+id: D-filler-cuts-by-ear
+status: accepted
+date: 2026-10-05
+decided-by: calebn
+evidence:
+- #977 owner: uh-huh and mm-hmm are acknowledgments to preserve
+- #978 owner: "keep the first phoneme for the word after, plosives will be important to keep all of"
+- #978 owner, on a cut that removed all of "we": "not acceptable, just cut the uh"
+- #987: a 10 ms fade onto "she" was harsh, so a gradual onset keeps the full fade; the owner judged "like I'm doing again now" one to keep
+- #987 lab: filler hits went from 0 to exactly the five the owner approved, none on a kept word or an uh-huh
+- #1061, #1075 owner listening check (2026-10-06): starting at the filler's voice approved, removing 330 ms and 310 ms of audible "uh"
+enforced-by:
+- tests/test_fillers.py::test_split_uh_huh_is_a_backchannel_skip_not_a_filler
+- tests/test_lab_tighten_fixtures.py::test_cut_filler_verdict_gets_filler_hit
+- tests/test_fillers.py::test_audio_padded_filler_cut_ends_before_a_plosive_burst
+- tests/test_fillers.py::test_gradual_onset_after_a_padded_cut_keeps_the_full_post_pad_fade_in
+- tests/test_fillers.py::test_discourse_like_before_subject_pronoun_kept_despite_low_confidence
+- tests/test_fillers.py::test_filler_cut_starts_before_the_voice_an_aligner_timed_late
+- docs-sync: decision-filler-cuts
+-->
+
+The owner set these rules by listening to the lab tape. Backchannels stay
+(**Backchannels are speech**). A real `um` or `uh` goes, alone or not
+(**Isolated hard fillers**). The next word keeps its first phoneme, a plosive
+stays whole, and a gradual onset gets the full fade-in (**Padded cuts are two
+faded edges**). The cut starts at the filler's voice (**Filler left edge**).
+A content `like` stays (**Discourse-safe selection**). Open listening notes:
+the review-only `like` cut at 16.45 s sounds rough (#1079), and the pad is not
+resized after the left edge widens (#1074).
+
 ## Mute vs cut
 
 `tighten.edit_mode` (default **`ripple`**) still proposes `EditDecisionType.REMOVE` and applies via session ripple or track-local punch. Set **`edit_mode: mute`** (config, or `propose_edits(..., edit_mode="mute")` / `--edit-mode mute`) to propose **`MUTE`** decisions instead: the same filler candidate pipeline and `filler:` reasons, same `review_required` gating, but apply/approve writes **`Clip.mute_regions`** (`{start_s, end_s, fade_out_ms, fade_in_ms, fill?}` source-media seconds) and does **not** move clips or change `timeline.duration_sec`. Render fades the clip out over each region's first `fade_out_ms` and back in over its last `fade_in_ms` (5 ms each unless set) and lays the region's fill under it, so the hole does not click.
+
+### Decision: Ripple by default; mute in place for timing-locked work
+
+<!-- decision
+id: D-mute-in-place-opt-in
+status: accepted
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #1024 owner: "Mute stays opt-in for timing-locked work."
+- #1024 owner: "A mute should honour the existing `tighten.filler_pad_mode`"
+- #1065 owner direction: "silence in place is for timing-locked work, with the gap filled the way a cut's gap is"
+- #1065 owner listening on 9 A/B clips: 6 approved; 2 started mid-um (fixed by #1075), 1 was bleed (#1071)
+enforced-by:
+- tests/test_mute_in_place.py::test_approved_mute_is_filled_like_the_ripple_pad
+- tests/test_mute_in_place.py::test_approved_mute_fades_like_a_padded_cut
+- tests/test_mute_in_place.py::test_invalid_edit_mode_falls_back_to_ripple
+- tests/test_fillers.py::test_a_mute_fades_each_edge_against_fill_so_the_join_gate_skips_it
+- docs-sync: decision-filler-cuts
+-->
+
+Ripple stays the default. Mute keeps the timeline length for work locked to
+picture or other timing, and fills its gap the way a ripple pad fills a cut
+(**Fill, not hole** below). The fill default stays `silence` until #1054 stops
+the room-tone sampler picking speech.
 
 **A mute is two faded edges on one track, not a splice** (#1024) — Nothing butts together and no other track changes: approving a mute renders the padded cut's edges (`decisions._apply_mute_edit`). The clip fades out over `filler_pre_pad_fade_out_ms` ending at the cut start and back in over `recommend_post_pad_fade_in_ms` from the cut end, cut down to end before the decision's `next_burst_sec`, so the fades fall on the kept audio either side exactly where a padded cut puts them and the cut itself is silent end to end. The region stored is the cut widened by those fades (revert subtracts all of it). On the lab tape three of the six word fillers resume into sound 10-28 dB under speech (`uh` 646.84, `uh` 706.00, `you know` 1440.88), where the recommendation is 92-120 ms; a fixed 5 ms ramp there starts the next word abruptly. The checks that score a join (the cut-risk level-jump terms and the join continuity gate) therefore skip a mute, as they skip a padded cut, and the padded-cut checks run: the right edge stops 10 ms before the next word's acoustic onset (dropped as `next_onset` when that would leave the filler), a burst within reach travels on the decision as `next_burst_sec`, and a mute may not cover a whole kept word (`kept_word:{word}`). Four more checks follow from what a mute is (`_EDGE_CHECKS` in `edits/fillers.py`):
 

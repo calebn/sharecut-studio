@@ -325,6 +325,34 @@ When the timeline / transport / track headers **or the Transcript tab** are focu
 
 Audio is served by `GET /api/audio?path=&kind=premix|stem|raw&track_id=` with HTTP Range support and an `ETag` (mtime+size) so Range revalidation can hit the browser cache. Resolution of full files goes through **`PlayService.resolve_transport_path`**. Optional `rerender=true` matches CLI `--rerender`. A premix re-render merges its save (`ProjectWorkspace.save_merged`). If a concurrent edit changed the same value, the route answers 409 with the "re-run it" message instead of serving audio. The Sharecut Studio FX transport passes `rerender=true` (plus a cache-bust `v=`) when a track’s stem is stale — e.g. after Track inspector **Bypass** toggles — so A/B audition hears the new chain. While another render holds the render lock, a rerender request serves the existing premix/stem with `X-Sharecut-Render-Busy: 1`, or returns 503 `project_busy` when there is none. The header is an API signal for scripts and agents: the Sharecut Studio transport loads audio through `<audio src>` and does not read response headers. A busy fallback does not rebuild the stem, so its hash stays stale (`stem_is_fresh: false`) and the Mix out of date indicators stay until a later Refresh or rerender succeeds. Generated audition WAVs in `artifacts/play_cache/` are retained for at least one hour after creation or reuse, including during count-based cleanup; cache maintenance and reuse serialize across processes with a cache lock. Last use is the file's atime, so an external reader (Spotlight, a backup or sync agent) also counts as use and can keep an unserved WAV ahead of more recently served ones during count-based cleanup; the file-count caps still bound the cache.
 
+#### Decision: Mute is saved mix state; solo is listen-only
+
+<!-- decision
+id: D-mute-saved-solo-listen-only
+status: accepted
+date: 2026-09-24
+decided-by: calebn
+evidence:
+- #386 owner: "Volume is saved." and "S stays listen-only for everyone, like Pro Tools' AFL/PFL solo"
+- #386 owner: listen-only solo "avoids the known 'exported while soloed' trap"
+- #414 browser QA: the fader saves to the file, Cmd+Z reverts M, solo shows the implied mute
+- #936 phone Mix sheet: an independent verifier passed 16 of 16 live cases
+enforced-by:
+- tests/test_track_mix.py::test_output_gain_adds_the_fader_to_the_staging_gain
+- tests/test_track_mix.py::test_only_the_host_and_editors_may_change_the_mix
+- gui/web/src/tracks/TrackMuteSoloButtons.test.tsx::marks solo as listen-only
+- gui/web/src/tracks/TrackMuteSoloButtons.test.tsx::shows a track silenced by your solo as an implied mute
+- docs-sync: decision-track-mix
+-->
+
+Volume and M follow the DAW convention: they are the saved mix, so the host
+and `edit` guests change them for everyone, and each change is undoable. S
+never changes the saved mix or an export, because a saved solo in a shared
+session would silence tracks for every collaborator and every export. A solid
+chip means saved; a dashed chip means only this listener hears it that way.
+The 2026-09-24 decision called that style "dim"; #414 shipped it dashed. The
+owner chose not to add a separate listen-only mute for editors.
+
 ### Waveforms (pyramid tiles)
 
 Clip waveforms come from a min/max/RMS **peak pyramid** per media file (`.wfpk`, [waveform.md](waveform.md)), which the host builds when tracks are added, re-pointed, ingested or landed, and when stems render. Knobs live in the `waveform` block of [`contracts/timeline-zoom.json`](../contracts/timeline-zoom.json) (generated into `gui/web/src/utils/timelineZoom.generated.ts`).

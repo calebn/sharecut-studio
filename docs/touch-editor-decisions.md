@@ -1,6 +1,8 @@
 # Touch editor decisions
 
-The original #951 decision below records the touch affordance repair shipped
+The [touch input grammar](#decision-one-touch-input-grammar-for-timeline-editing)
+(#1051) is the current rule for every timeline touch interaction. The original
+#951 decision below records the touch affordance repair shipped
 in #958, before the #950 envelope controls landed in #959. It retains the #878
 interaction inventory in `docs/editor-interactions.md` and its qualified evidence.
 The [#961 follow-up](#responsive-inspector-follow-up-961) records the later
@@ -9,7 +11,89 @@ alters controlled `half`/`full` state. Physical mobile and assistive-technology
 acceptance for the repaired envelope workflow remains #960; named-device
 profiling remains #879.
 
-## Decision
+## Decision: One touch input grammar for timeline editing
+
+<!-- decision
+id: D-touch-input-grammar
+status: accepted
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #1051 owner: "The input grammar is approved" and "Swipeable drawer approved"
+- #1051 owner: "Envelopes for edit guests: default applied, pending owner override."
+- #1051 phone test, round 3: pinch also moved a clip edge, dense clusters were guesswork, and the inspector covered the timeline
+- #1051 owner asked for one input framework "so the input language becomes familiar"
+- #1051 round 1: candidate A (fan-out chooser) chosen; the offset loupe and hold-to-zoom cannot separate targets at one time position
+enforcement: pending #1096
+supersedes: D-sheet-no-drag
+-->
+
+The owner tested the timeline on a phone and approved one input grammar for
+all timeline editing. Portrait phone is the primary target.
+
+- One finger moving scrolls and never edits.
+- A tap selects and opens the peek strip. On a crowded spot it picks the most
+  likely target.
+- A long press arms a target, through the fan-out chooser when the spot is
+  crowded. Only an armed target drags, and only along its own axes: an
+  envelope point moves in time and level, an edge moves in time.
+- A long press on empty space opens a create menu: envelope point, split,
+  marker, comment.
+- A second finger means pinch or pan. It cancels and rolls back any
+  uncommitted single-finger action, so a pinch never edits.
+- Nudges in the strip repeat while held.
+
+Hard limits always stop a change: source bounds, a fade longer than its clip,
+and envelope points passing each other in time. Soft boundaries are neighbour
+clip edges, adjacent pending edges, markers and the playhead. A held nudge
+stops at one with a visible, accessible bump, and a fresh press crosses it. A
+drag pauses briefly at a soft boundary. The bottom strip is a swipeable drawer
+with peek, half and full heights, and it keeps its buttons. The grammar lets
+`edit` guests edit envelopes on the timeline by default; today the Studio shows
+a shared project's envelopes view-only. If the owner overrides that default,
+envelopes stay locked for guests. This grammar replaces the #951 deferral of
+global gesture changes below.
+
+#1096 builds the checks: a governance test that only the shared router attaches
+pointer or touch listeners to timeline targets, one `HIT_KINDS` table of each
+target's axes, limits and actions, generated touch conformance tests for every
+kind, and a touch column in `contracts/capabilities.manifest.json` checked by
+`make capabilities-check`. None of them is on `main` yet.
+
+### Superseded decision: Sheets have no drag gesture
+
+<!-- decision
+id: D-sheet-no-drag
+status: superseded
+date: 2026-10-04
+decided-by: calebn
+evidence:
+- #951, shipped in #958: remove the inert grip; Expand, Collapse and Close are the only sheet size controls
+superseded-by: D-touch-input-grammar
+-->
+
+#951 removed the sheet grip that had no drag handler and left the visible
+buttons as the only way to resize a sheet (the BottomSheet row below). The
+grammar above replaces that rule with a swipeable drawer that keeps the
+buttons. Until the drawer ships, sheets still resize only through the buttons.
+
+## Decision: Pair each touch gesture with a visible control
+
+<!-- decision
+id: D-touch-visible-equivalents
+status: accepted
+date: 2026-10-04
+decided-by: calebn
+evidence:
+- #951: "familiar gestures paired with visible controls"
+- #958 and #963 (#961) shipped the repair; physical device acceptance stays in #960 and #301
+- docs/gui-audit-decisions.tsv: the 2026-09-30 audit trail for edit-boundary touch drag (reflow, cancel, precision)
+enforced-by:
+- gui/web/src/ui/GesturesSheet.test.tsx::describes two-finger Undo as an optional Sharecut shortcut
+- gui/web/src/ui/BottomSheet.test.tsx::keeps fixed sheets closable without a resize action or drag cue
+- gui/web/e2e/touch-affordances.spec.ts::sheet affordances remain available at 200% text scale
+- docs-sync: decision-touch-input
+-->
 
 Remove the inert BottomSheet grab element and its selector. It had no pointer
 handler, while the controlled Expand/Collapse action already changes the
@@ -167,6 +251,24 @@ advantage, responsiveness, or performance improvement is claimed. A future
 representative native-versus-`@use-gesture/react` adapter spike must measure
 bundle delta, actual responsiveness, Strict Mode listener cleanup, compatibility,
 license, and maintenance before adoption.
+
+### Proposed decision: Native pointer events with platform constants for the timeline
+
+<!-- decision
+id: D-timeline-native-pointer-events
+status: proposed
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #1078 owner, after the #1051 phone test: "are we not using a library for these gestures?"
+- #1078 React Aria prototype: +6,923 B gzip, no pointer code removed, router grew from 503 to 571 lines
+- #1078: the library could not express movement slop, second-finger cancel, sliding onto a chip, or tap on release
+-->
+
+The leading option is native Pointer Events with shared platform constants
+for timeline gestures: the UIKit 10 pt slop and 0.5 s long press, and the
+Android 8 dp slop and 400 to 500 ms long press. A library may still suit
+ordinary buttons. No gesture package is adopted until #1078 concludes.
 
 ## Responsive inspector follow-up #961
 

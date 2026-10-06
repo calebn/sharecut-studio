@@ -261,6 +261,30 @@ them with the written files (`AudioExportResult.master`, the `master` key of the
 `export_audio_tool` JSON, the CLI `export-audio` JSON and the Studio export job's
 `result`).
 
+### Decision: Master levels are user-configurable
+
+<!-- decision
+id: D-master-levels-configurable
+status: accepted
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #1007 owner requirement: "The final master levels must be user-configurable, with the sensible defaults we picked"
+- #1008 owner listening on loudness-matched lab and demo clips: limiter master preferred; "The default target stays −16 LUFS"
+- #1008: the crest-taming retry it replaced left the demo at −17.2 LUFS; the limiter plan gives −16.0 LUFS / −1.7 dBTP
+- #1009 retarget table: −19 LUFS staged re-masters to −19.0, back to −16 re-masters, unchanged settings hit the cache
+enforced-by:
+- tests/test_master_retarget.py::test_a_changed_loudness_target_re_masters_the_next_export
+- tests/test_master_retarget.py::test_each_audio_setting_of_the_master_re_masters_a_cached_master
+- tests/test_mastering.py::test_plan_master_limits_only_when_linear_gain_crosses_the_ceiling
+- tests/test_pipeline_config.py::test_param_field_default_matches_yaml
+- docs-sync: decision-mastering
+-->
+
+The host sets the master's integrated loudness and true-peak ceiling on the
+Pipeline tab (`master.integrated_lufs`, `master.true_peak_db`). The defaults
+are −16 LUFS and −1.5 dBTP. A changed level re-masters on the next export.
+
 ### Mastering cache
 
 `mastered.wav` is reused on export while `mastered.hash` still matches
@@ -557,7 +581,86 @@ review-window twin).
 
 ## Retained bleed during overlapping speech
 
-If a dialogue mic contains both its owner and another speaker, removing that bleed can remove the owner too. Wherever the other speaker's own track is talking and the owner is silent, the transcript gate reduces the copy per `analysis.heuristics.bleed_handling`: `auto` (default) mutes it on a lane gated to digital silence between words and turns it down by `bleed_attenuation_db` (20 dB) on a lane whose room bed stays above the 16-bit floor once turned down, with a 40/80 ms hold around the owner's speech ([transcript reconcile](transcript-reconcile.md#acoustic-follow-up-preserve-speech-while-reducing-verified-bleed)). Elsewhere the default is to preserve uncertain audio and attempt local alignment of the other speaker's complete direct phrase; the transcript-seeded planner skips copies the gate would already reduce. `apply_transcript_gate_tool` and `podcast edit apply-bleed-mute` include this check. Alignment does not move the uncertain mixed lane, ripple other material, or stretch voiced audio.
+### Decision: Each track keeps only its own speaker
+
+<!-- decision
+id: D-bleed-own-speaker-only
+status: accepted
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #945 owner: "Each track keeps only its own speaker." and "Bleed is never the source for another speaker's audio."
+- #945 owner: alignment is the intended fix for the bleed under the speaker's own voice
+- #1053 review round 1: judging own speech against the peer's track cut "your" and "thinking"; an expected-copy-level model then touched 0 of 2,393 Caleb words
+- lab tape: Caleb's mic carries intentional Audra bleed, and Zoom gates each track to digital silence between words
+enforced-by:
+- tests/test_bleed_attenuation.py::test_late_gate_on_the_direct_track_still_mutes_the_foreign_copy
+- tests/test_bleed_attenuation.py::test_track_speakers_own_speech_is_untouched
+- tests/test_bleed_attenuation.py::test_quiet_untranscribed_owner_overlapping_foreign_audio_stays_audible
+- docs-sync: decision-bleed
+supersedes: D-bleed-keep-onset-copies
+-->
+
+If a dialogue mic contains both its owner and another speaker, removing that bleed can remove the owner too. Wherever the other speaker's own track is talking and the owner is silent, the transcript gate reduces the copy, with a 40/80 ms hold around the owner's speech ([transcript reconcile](transcript-reconcile.md#acoustic-follow-up-preserve-speech-while-reducing-verified-bleed)). The copy is never used as the other speaker's audio, even where their own track's gate opened late. Where both talk at once, the owner's speech stays and the fix is alignment ([recorder latency from bleed](multitrack-ingest.md#recorder-latency-from-bleed)), not muting: the default is to preserve uncertain audio and attempt local alignment of the other speaker's complete direct phrase; the transcript-seeded planner skips copies the gate would already reduce. `apply_transcript_gate_tool` and `podcast edit apply-bleed-mute` include this check. Alignment does not move the uncertain mixed lane, ripple other material, or stretch voiced audio. About 19 s of Audra-pitched audio still survives as Caleb's own on the lab tape (#1066).
+
+### Superseded decision: Keep bleed that carries a late-gated onset
+
+<!-- decision
+id: D-bleed-keep-onset-copies
+status: superseded
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #945: the first default kept bleed carrying a speaker's onset where their direct track was still gated
+superseded-by: D-bleed-own-speaker-only
+-->
+
+The first #945 default kept a copy that carried a speaker's first syllable
+while their own track's gate was still closed. The owner replaced it the same
+day with the rule above and accepted the clipped onset. Alignment (#1060) later
+moved the lab example, Audra's "And" at 1653.25 s, onto her own track.
+
+### Decision: Bleed handling defaults to auto
+
+<!-- decision
+id: D-bleed-auto-mode
+status: accepted
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #1053 owner listening, round 1: "All tracks still have bleed audio still slightly ahead of the speaker's main audio making an echo sound."
+- #945 owner: "The quieter result was an improvement, but the echo remained."
+- #1053 lab, Caleb stem 1611.40 to 1619.40 s: −36.1 to −56.2 dB, own speech at 1506.84 s unchanged
+- #1053 review round 3: a floor read from copy tails kept Zoom lanes from muting; a median bed fixed it
+- #1053 owner listening, round 4: "Clips 1, 2, 4, 5 and 6 sound great or good."
+enforced-by:
+- tests/test_bleed_attenuation.py::test_foreign_copy_on_a_gated_lane_is_muted
+- tests/test_bleed_attenuation.py::test_lane_with_a_room_floor_is_turned_down_20_db_not_muted
+- tests/test_bleed_attenuation.py::test_lane_whose_bed_cannot_survive_attenuation_is_muted
+- tests/test_bleed_attenuation.py::test_explicit_bleed_handling_overrides_auto
+- docs-sync: decision-bleed
+supersedes: D-bleed-attenuate-everywhere
+-->
+
+`analysis.heuristics.bleed_handling` picks how the gate reduces a copy. `auto` (default) mutes it on a lane gated to digital silence between words and turns it down by `bleed_attenuation_db` (20 dB) on a lane whose room bed stays above the 16-bit floor once turned down. A hard gate on a lane with a room bed makes the bed vanish. `mute` and `attenuate` override `auto` for every lane.
+
+### Superseded decision: Turn bleed down 20 dB on every lane
+
+<!-- decision
+id: D-bleed-attenuate-everywhere
+status: superseded
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #945: "Attenuate, don't gate" by about 20 dB, because full removal risks gating artifacts
+superseded-by: D-bleed-auto-mode
+-->
+
+The first default turned every copy down about 20 dB. On the gated Zoom lanes
+the owner still heard the copy as an echo ahead of the speaker, so those lanes
+now mute.
+
+### Aligning retained bleed
 
 Preview with `align_retained_bleed_tool(apply=False)` or `podcast edit align-retained-bleed --dry-run`. Supply a timeline window and select the lane carrying the bleed. Proposals require quiet boundary space, independent delay evidence, consistent held-out probes, and agreement from other known retained copies. The evidence reports sampled residuals; it does not certify every sample or exclude competing room reflections. Unsupported or inconsistent regions remain unchanged and appear in `skipped`. An applied gate flag or successful command does not mean those regions are aligned.
 

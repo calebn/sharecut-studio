@@ -1067,6 +1067,127 @@
         "docs/decisions/README.md"
       ],
       "advisory": null
+    },
+    {
+      "id": "decision-sharing",
+      "when": "Decision: guest powers, review-link roles, share-link expiry",
+      "update": "The decision blocks in `docs/share-tokens.md`; a waiver names the decision it keeps",
+      "docs": [
+        "docs/share-tokens.md"
+      ],
+      "gate": {
+        "include": [
+          "src/podcast_mcp/services/document_sync/policy.py",
+          "src/podcast_mcp/services/document_sync/capabilities.py",
+          "src/podcast_mcp/edits/share_capabilities.py",
+          "src/podcast_mcp/edits/review_shares.py",
+          "gui/web/src/shareMode.ts"
+        ]
+      }
+    },
+    {
+      "id": "decision-exact-ranges",
+      "when": "Decision: exact selected range targets",
+      "update": "The decision blocks in `docs/daw-editing.md`; a waiver names the decision it keeps",
+      "docs": [
+        "docs/daw-editing.md"
+      ],
+      "gate": {
+        "include": [
+          "src/podcast_mcp/edits/range_edits.py",
+          "gui/web/src/edit/rangeSelection.ts",
+          "gui/web/src/commands/rangeActions.ts"
+        ]
+      }
+    },
+    {
+      "id": "decision-track-mix",
+      "when": "Decision: saved mute and volume, listen-only solo",
+      "update": "The decision blocks in `docs/gui-integration.md`; a waiver names the decision it keeps",
+      "docs": [
+        "docs/gui-integration.md"
+      ],
+      "gate": {
+        "include": [
+          "gui/web/src/tracks/TrackMuteSoloButtons.tsx",
+          "gui/web/src/tracks/trackMuteCopy.ts",
+          "gui/web/src/tracks/TrackMix.tsx"
+        ]
+      }
+    },
+    {
+      "id": "decision-mastering",
+      "when": "Decision: configurable master levels",
+      "update": "The decision blocks in `docs/audio-engineering.md`; a waiver names the decision it keeps",
+      "docs": [
+        "docs/audio-engineering.md"
+      ],
+      "gate": {
+        "include": [
+          "src/podcast_mcp/engines/mastering.py"
+        ]
+      }
+    },
+    {
+      "id": "decision-bleed",
+      "when": "Decision: bleed handling",
+      "update": "The decision blocks in `docs/audio-engineering.md`; a waiver names the decision it keeps",
+      "docs": [
+        "docs/audio-engineering.md"
+      ],
+      "gate": {
+        "include": [
+          "src/podcast_mcp/engines/bleed_gate.py",
+          "src/podcast_mcp/edits/transcript_bleed_mute.py"
+        ]
+      }
+    },
+    {
+      "id": "decision-filler-cuts",
+      "when": "Decision: filler cut rules and mute mode",
+      "update": "The decision blocks in `docs/filler-cut-quality.md`; a waiver names the decision it keeps",
+      "docs": [
+        "docs/filler-cut-quality.md"
+      ],
+      "gate": {
+        "include": [
+          "src/podcast_mcp/edits/fillers.py",
+          "src/podcast_mcp/edits/word_onset.py",
+          "src/podcast_mcp/edits/mute_regions.py"
+        ]
+      }
+    },
+    {
+      "id": "decision-alignment",
+      "when": "Decision: alignment from bleed lag",
+      "update": "The decision blocks in `docs/multitrack-ingest.md`; a waiver names the decision it keeps",
+      "docs": [
+        "docs/multitrack-ingest.md"
+      ],
+      "gate": {
+        "include": [
+          "src/podcast_mcp/engines/envelope_lag.py",
+          "src/podcast_mcp/edits/bleed_latency.py",
+          "src/podcast_mcp/edits/bleed_lag_segments.py"
+        ]
+      }
+    },
+    {
+      "id": "decision-touch-input",
+      "when": "Decision: touch input grammar and visible equivalents",
+      "update": "The decision blocks in `docs/touch-editor-decisions.md`; a waiver names the decision it keeps",
+      "docs": [
+        "docs/touch-editor-decisions.md"
+      ],
+      "gate": {
+        "include": [
+          "gui/web/src/ui/BottomSheet.tsx",
+          "gui/web/src/commands/gestures.ts",
+          "gui/web/src/timeline/timelineZoomGestures.ts",
+          "gui/web/src/hooks/touchGestureTiming.ts",
+          "gui/web/src/hooks/useLongPress.ts"
+        ]
+      }
     }
   ]
 }
