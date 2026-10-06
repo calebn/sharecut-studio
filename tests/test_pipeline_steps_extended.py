@@ -623,10 +623,33 @@ def test_transcribe_records_started_revision_when_vocabulary_changes_during_run(
     assert load_transcript_context(proj.workspace_path()).vocabulary_revision == "revision-two"
 
 
+def test_transcribe_tracks_trims_a_stretched_word_onto_its_audio(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    stretched = Transcript(
+        track_id="host",
+        words=[TranscriptWord(text="don't", start=1.0, end=10.0)],
+    )
+    with patch("podcast_mcp.pipeline.steps.TranscriptionEngine") as eng_cls:
+        eng_cls.return_value.transcribe_all_dialogue.return_value = [stretched]
+        summary = steps.transcribe_tracks(proj, load_defaults())
+
+    word = proj.transcript_for_track("host").words[0]
+    assert (word.start, round(word.end, 2), word.trimmed_from) == (1.0, 2.0, (1.0, 10.0))
+    assert "1 implausible word span(s) trimmed" in summary
+    data = json.loads((proj.artifacts_dir() / "transcript_timing.json").read_text("utf-8"))
+    assert data["flag_count"] == 0
+
+
 def test_transcribe_tracks_writes_timing_report(minimal_project, sample_wav, tmp_workspace):
     from podcast_mcp.models import Transcript, TranscriptWord
 
     proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
+    # An undecodable recording leaves the stretched word to the anomalous-duration flag.
+    (tmp_workspace / "raw" / "host.wav").write_bytes(b"not audio")
     stretched = Transcript(
         track_id="host",
         words=[TranscriptWord(text="don't", start=1.0, end=10.0)],
