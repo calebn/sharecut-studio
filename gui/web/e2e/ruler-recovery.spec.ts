@@ -1240,12 +1240,25 @@ test("numeric range refuses invalid bounds and maps chosen lanes to one Mute and
                 (clip) => clip.track_id === "reference",
               )?.mute_regions,
           )
-          .toEqual([{ start_s: 2, end_s: 3 }]);
+          .toEqual([
+            { start_s: 2, end_s: 3, fade_in_ms: 5, fade_out_ms: 5, fill: null },
+          ]);
         const expectedDomain = {
           ...beforeFullDomain,
           clips: beforeFullDomain.clips.map((clip) =>
             clip.track_id === "reference"
-              ? { ...clip, mute_regions: [{ start_s: 2, end_s: 3 }] }
+              ? {
+                  ...clip,
+                  mute_regions: [
+                    {
+                      start_s: 2,
+                      end_s: 3,
+                      fade_in_ms: 5,
+                      fade_out_ms: 5,
+                      fill: null,
+                    },
+                  ],
+                }
               : clip,
           ),
         };
