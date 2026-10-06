@@ -618,6 +618,9 @@ export function attachHitRouting(
     const owned = phase;
     setPhase(IDLE);
     gesture.multi = true;
+    // No click belongs to a pinch: a finger lifting before the other is not
+    // a tap. The window closes once the last finger lifts.
+    suppressClickUntil = Number.POSITIVE_INFINITY;
     for (const [pointerId, down] of gesture.pointers) {
       // Each owner cancels on its own pointer's pointercancel, without saving:
       // whatever the finger pressed, and a target the router replayed it on.
