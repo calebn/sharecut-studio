@@ -99,6 +99,17 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   height: min(50%, 26.25rem, 100% - 13rem);
 }
 
+/* The compact inspector keeps its name, Collapse and Close in reach. A new
+   selection reveals its fields by scrolling the sheet, which used to carry
+   Collapse out of view (#1051 round 4); focusAndReveal reveals fields below
+   this pinned chrome. */
+.bottom-sheet--compact .bottom-sheet-chrome {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-local-chrome);
+  background: var(--color-bg-overlay);
+}
+
 /* Out of the way while the user drags what it describes. */
 .bottom-sheet-root.is-stowed .bottom-sheet {
   translate: 0 100%;
