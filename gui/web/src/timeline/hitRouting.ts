@@ -321,30 +321,38 @@ export function attachHitRouting(
     const { candidate, element } = phase.view.hits[index];
     grab(element, source, candidate, anchor, at);
   };
-  /** The open chooser's finger is now `finger`; restarts its timers on a new anchor. */
+  /** The open chooser's finger is now `finger`; a new anchor restarts its timers. */
   const setFinger = (finger: ChipFinger, source: PointerEvent) => {
     if (phase.kind !== "open") return;
     const open = phase;
-    if (finger !== open.finger) {
-      for (const timer of open.timers) clearTimeout(timer);
-      open.timers = [];
-      if (finger.kind === "over") {
-        const { index, anchor } = finger;
-        open.timers.push(
-          setTimeout(() => grabChip(index, source, anchor), LONG_PRESS_MS),
-        );
-        if (!finger.pressed) {
-          open.timers.push(
-            setTimeout(() => {
-              if (phase !== open || open.finger !== finger) return;
-              open.view = { ...open.view, armed: true };
-              emit(open.view);
-            }, CHIP_SETTLE_MS),
-          );
-        }
-      }
-    }
+    const prev = open.finger;
     open.finger = finger;
+    const anchor = finger.kind === "over" ? finger.anchor : null;
+    if (anchor === (prev.kind === "over" ? prev.anchor : null)) return;
+    for (const timer of open.timers) clearTimeout(timer);
+    open.timers = [];
+    if (finger.kind !== "over") return;
+    const current = () =>
+      phase === open &&
+      open.finger.kind === "over" &&
+      open.finger.anchor === anchor
+        ? open.finger
+        : null;
+    open.timers.push(
+      setTimeout(() => {
+        const f = current();
+        if (f) grabChip(f.index, source, f.rest ?? f.last);
+      }, LONG_PRESS_MS),
+    );
+    if (!finger.pressed) {
+      open.timers.push(
+        setTimeout(() => {
+          if (!current()) return;
+          open.view = { ...open.view, armed: true };
+          emit(open.view);
+        }, CHIP_SETTLE_MS),
+      );
+    }
   };
 
   const onDown = (event: PointerEvent) => {
@@ -441,12 +449,11 @@ export function attachHitRouting(
             ? "none"
             : HIT_KINDS[phase.view.hits[index].candidate.kind].axis;
         const now = Date.now();
-        const { finger } = phase;
-        const step = moveOnChips(finger, index, axis, at, now);
-        if (step.grab && finger.kind === "over") {
-          // Measured from where the finger settled, so the slop's travel
+        const step = moveOnChips(phase.finger, index, axis, at, now);
+        if (step.grab && step.finger.kind === "over" && step.finger.rest) {
+          // Measured from where the finger rested, so the slop's travel
           // moves the target too.
-          grabChip(finger.index, event, finger.anchor, at);
+          grabChip(step.finger.index, event, step.finger.rest, at);
           return;
         }
         setFinger(step.finger, event);
