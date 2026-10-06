@@ -1,6 +1,7 @@
 import type { Ref } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
 import { type JoinGlyph, joinSeamLabel } from "../edit/joinRender";
+import { hitTargetProps } from "./hitTargets";
 
 /** | cut, ╲╱ fade, ✕ crossfade in a 12 × 12 box. */
 const GLYPH_PATH: Record<JoinGlyph, string> = {
@@ -10,6 +11,8 @@ const GLYPH_PATH: Record<JoinGlyph, string> = {
 };
 
 export interface JoinBadgeViewProps {
+  /** The clip whose incoming join this badge edits. */
+  clipId: string;
   glyph: JoinGlyph;
   /** A crossfade render cannot blend (`join_crossfade_blocked`). */
   blocked: boolean;
@@ -26,6 +29,7 @@ export interface JoinBadgeViewProps {
 
 /** One glyph per drawn join, at the top of the seam (#690); a button that opens the join popover. */
 export function JoinBadgeView({
+  clipId,
   glyph,
   blocked,
   seamSec,
@@ -40,6 +44,10 @@ export function JoinBadgeView({
       ref={ref}
       type="button"
       className={`join-badge join-badge--${glyph}${blocked ? " join-badge--blocked" : ""}`}
+      {...hitTargetProps("join", clipId, seamSec, {
+        selected: expanded,
+        detail: glyph,
+      })}
       style={{ left: seamSec * zoomPxPerSec }}
       aria-label={`${joinSeamLabel(glyph, seamSec)}${blocked ? ", will not blend" : ""}`}
       aria-haspopup="dialog"
