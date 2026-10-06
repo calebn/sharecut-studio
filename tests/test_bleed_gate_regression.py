@@ -29,16 +29,21 @@ RATE = 48_000
 
 
 def _write_pcm(path: Path, samples: np.ndarray) -> None:
+    """Mono from a 1-D array, or one channel per column of a (frames, channels) array."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    channels = 1 if samples.ndim == 1 else samples.shape[1]
     with wave.open(str(path), "wb") as output:
-        output.setparams((1, 2, RATE, 0, "NONE", "not compressed"))
+        output.setparams((channels, 2, RATE, 0, "NONE", "not compressed"))
         output.writeframes(np.round(samples * 32767).astype("<i2").tobytes())
 
 
 def _read_pcm(path: Path) -> np.ndarray:
+    """Samples per frame: 1-D for mono, (frames, channels) otherwise."""
     with wave.open(str(path), "rb") as source:
         assert source.getframerate() == RATE
-        return np.frombuffer(source.readframes(source.getnframes()), dtype="<i2")
+        data = np.frombuffer(source.readframes(source.getnframes()), dtype="<i2")
+        channels = source.getnchannels()
+    return data if channels == 1 else data.reshape(-1, channels)
 
 
 def _episode(tmp_path: Path, style: str = "voiced") -> EpisodeProject:
@@ -253,7 +258,7 @@ def test_preview_reports_each_lanes_resolved_reduction(tmp_path: Path) -> None:
     project = _episode(tmp_path)
     preview = apply_transcript_bleed_mute(project, track_id="host", dry_run=True)
     candidate = preview["candidates"][0]
-    assert (candidate["bleed_reduction"], candidate["bleed_floor_db"]) == ("mute", -90.0)
+    assert (candidate["bleed_reduction"], candidate["bleed_bed_db"]) == ("mute", -90.0)
 
 
 def test_segment_beginning_inside_attenuation_fade_matches_full_render(tmp_path):
