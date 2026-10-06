@@ -12,6 +12,7 @@ import {
   joinModeLabel,
   joinRenderNote,
 } from "../../edit/joinRender";
+import { muteRegionsOverlapping } from "../../edit/muteRegions";
 import { useProjectMutation } from "../../hooks/useProjectMutation";
 import { canApplyPass12, canSuggestStructural } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
@@ -157,6 +158,12 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
     clipIdsBeforeCut(s.project?.clips?.tracks?.[clip.track_id] ?? []).has(
       clip.id,
     ),
+  );
+  // A trim keeps mutes the clip no longer covers; list only those it plays.
+  const playedMutes = muteRegionsOverlapping(
+    clip.mute_regions,
+    clip.source_start,
+    clip.source_end,
   );
   const currentClip = (capture: FadeCapture) => {
     const state = useDawStore.getState();
@@ -537,9 +544,9 @@ export function ClipInspector({ clip }: { clip: ClipRow }) {
         {clip.source_id ? (
           <DefItem label="Source ID">{clip.source_id}</DefItem>
         ) : null}
-        {(clip.mute_regions ?? []).length > 0 ? (
+        {playedMutes.length > 0 ? (
           <DefItem label="Mute regions">
-            {(clip.mute_regions ?? [])
+            {playedMutes
               .map(
                 (region) =>
                   `${region.start_s.toFixed(3)}–${region.end_s.toFixed(3)} s`,
