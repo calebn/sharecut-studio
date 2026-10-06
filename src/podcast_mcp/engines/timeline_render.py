@@ -9,7 +9,6 @@ from podcast_mcp.edits.clips_ops import (
     uses_crossfade_join,
 )
 from podcast_mcp.edits.mute_regions import (
-    MUTE_FADE_SEC,
     IgnoredWordRegions,
     mute_spans_for_source_window,
     room_tone_fills_for_source_window,
@@ -69,23 +68,23 @@ def _room_tone_under_mutes(
     """Room-tone tiles for ``clip``'s filled mutes in the segment ``[src_start, src_end)``.
 
     Placed right after that segment, each tile overlaps back into it and is mixed over
-    the faded-out hole; its fades cross the clip's own ``MUTE_FADE_SEC`` fades at the
-    region's edges.
+    the hole: the fill fades in while the clip fades out at the region's start and
+    fades out while the clip fades back in at its end.
     """
     seg_dur = src_end - src_start
     tiles: list[PlacedSegment] = []
-    for rel_start, rel_end, fill in room_tone_fills_for_source_window(clip, src_start, src_end):
+    for env, fill in room_tone_fills_for_source_window(clip, src_start, src_end):
         path = _source_audio_path(project, track, fill.source_id, owner=f"clip {clip.id} fill")
         piece = fill.end_s - fill.start_s
-        t, end = max(0.0, rel_start), min(seg_dur, rel_end)
+        t, end = max(0.0, env.start), min(seg_dur, env.end)
         while t < end - 1e-6:
             use = min(piece, end - t)
             tiles.append(
                 PlacedSegment(
                     src_start=fill.start_s,
                     src_end=fill.start_s + use,
-                    fade_in_sec=MUTE_FADE_SEC if t == rel_start else 0.0,
-                    fade_out_sec=MUTE_FADE_SEC if t + use >= rel_end - 1e-6 else 0.0,
+                    fade_in_sec=env.fade_out_sec if t == env.start else 0.0,
+                    fade_out_sec=env.fade_in_sec if t + use >= env.end - 1e-6 else 0.0,
                     overlap_prev_sec=seg_dur - t,
                     source_path=path,
                 )

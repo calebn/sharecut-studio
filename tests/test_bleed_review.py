@@ -408,6 +408,7 @@ def test_unavailable_named_peer_raw_mapping_refuses_review(tmp_path: Path, layou
 def test_shared_source_seek_and_trim_envelope_uses_actual_ramp_origin(
     tmp_path: Path, seek_start: float, count: int
 ) -> None:
+    from podcast_mcp.edits.mute_regions import MuteEnvelope
     from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
 
     raw = tmp_path / "ramp.wav"
@@ -426,7 +427,7 @@ def test_shared_source_seek_and_trim_envelope_uses_actual_ramp_origin(
     FFmpegEngine().render_timeline(raw, before, placed, "anull")
     plain = read_pcm(before)
     assert plain[48, 0] == 24144
-    placed[1].mute_spans = ((0.5 - source_start, 0.6 - source_start),)
+    placed[1].mute_spans = (MuteEnvelope(0.5 - source_start, 0.6 - source_start, 0.005, 0.005),)
     after = tmp_path / "ramp-after.wav"
     FFmpegEngine().render_timeline(raw, after, placed, "anull")
     muted = read_pcm(after)

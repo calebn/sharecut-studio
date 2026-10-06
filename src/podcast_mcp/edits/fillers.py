@@ -1380,7 +1380,8 @@ class _Join(Enum):
     # edge fades out into the pad and the right edge fades in after it (#978).
     PADDED = "padded"
     # Mute in place (``edits/mute_regions.py``): nothing moves and no other track
-    # changes; the clip fades out into the hole and back in after it.
+    # changes; the clip fades out into the hole and back in after it with the padded
+    # cut's fades (``decisions._apply_mute_edit``).
     MUTE = "mute"
 
 
@@ -2061,22 +2062,22 @@ def _analyze_candidate(
             # Scorer/infra errors: do not discard the cut; existing risk gate remains.
             log.debug("join continuity scoring skipped: %s", exc)
 
-    fade_ms = recommend_cut_fade_ms(
-        project,
-        track_id,
-        cut_start,
-        cut_end,
-        cut_kind=candidate.cut_kind,
-        defaults=defaults,
-        cache=jump_cache,
-        audio_cache=audio_cache,
-    )
     mute = plan.join is _Join.MUTE
     if mute:
-        from podcast_mcp.edits.mute_regions import MUTE_FADE_SEC
-
-        fade_ms = min(fade_ms, round(MUTE_FADE_SEC * 1000))
+        # Approval fades the clip into the hole as a padded cut fades into its pad.
+        fade_ms = int(tighten.get("filler_pre_pad_fade_out_ms", 5))
         replace_gap = None
+    else:
+        fade_ms = recommend_cut_fade_ms(
+            project,
+            track_id,
+            cut_start,
+            cut_end,
+            cut_kind=candidate.cut_kind,
+            defaults=defaults,
+            cache=jump_cache,
+            audio_cache=audio_cache,
+        )
     return _AnalyzedCut(
         hit_id=candidate.hit_id,
         track_id=track_id,

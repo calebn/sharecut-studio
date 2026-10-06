@@ -71,14 +71,21 @@ class RoomToneFill(SourceSpan):
     source_id: str | None = None
 
 
+MUTE_FADE_MS = 5
+
+
 class ClipMuteRegion(SourceSpan):
     """Source-media span muted inside a clip (mute-in-place).
 
-    Render fades the clip out of and back into the span; ``fill`` is the room tone
-    laid under it (``tighten.filler_pad_mode: room_tone``), digital silence when None.
+    Render fades the clip out over the span's first ``fade_out_ms`` and back in over
+    its last ``fade_in_ms`` (an approved tighten mute widens the span by the padded
+    cut's fades, so the cut itself is silent). ``fill`` is the room tone laid under it
+    (``tighten.filler_pad_mode: room_tone``), digital silence when None.
     """
 
     fill: RoomToneFill | None = None
+    fade_out_ms: int = Field(default=MUTE_FADE_MS, ge=0)
+    fade_in_ms: int = Field(default=MUTE_FADE_MS, ge=0)
 
 
 class MediaAsset(BaseModel):

@@ -31,13 +31,22 @@ function sameSourceSpans(
   if (!a || !b) {
     return false;
   }
-  // A mute's room-tone fill is part of the region; clipping regions have none.
-  return sameItems<{ start_s: number; end_s: number; fill?: unknown }>(
+  // A mute's room-tone fill and fades are part of the region; clipping regions
+  // have none.
+  return sameItems<{
+    start_s: number;
+    end_s: number;
+    fill?: unknown;
+    fade_out_ms?: number;
+    fade_in_ms?: number;
+  }>(
     a,
     b,
     (r, s) =>
       r.start_s === s.start_s &&
       r.end_s === s.end_s &&
+      r.fade_out_ms === s.fade_out_ms &&
+      r.fade_in_ms === s.fade_in_ms &&
       jsonEqual(r.fill, s.fill),
   );
 }

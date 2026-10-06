@@ -26,7 +26,9 @@ from podcast_mcp.edits.timeline_ops import (
 from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
+    MUTE_FADE_MS,
     ClipJoinMode,
+    ClipMuteRegion,
     EditDecision,
     EditDecisionType,
     EpisodeProject,
@@ -152,12 +154,11 @@ def _apply_replace_gap_pad(project: EpisodeProject, edit: EditDecision, tl_start
     else:
         # Default: hard silence beat (dry rooms; avoid mismatched stolen air).
         insert_gap(project, at, gap)
-    cfg = _tighten_cfg()
     defaults = _defaults_all()
     # Left edge: ripple often stamps a ~15ms fade-out while clips still abut,
     # then the pad opens a hole - that fade swallows consonant releases (N in
     # "mean"). Keep only a tiny declick into silence.
-    pre_fade = int(cfg.get("filler_pre_pad_fade_out_ms", 5))
+    pre_fade = _pre_pad_fade_out_ms()
     for tid in dialogue_track_ids(project):
         for clip in clips_for_track(project, tid):
             if abs(clip.timeline_end - at) <= _PAD_EDGE_MATCH_SEC:
@@ -251,29 +252,58 @@ def _apply_remove_edit(
     )
 
 
+def _pre_pad_fade_out_ms() -> int:
+    return int(_tighten_cfg().get("filler_pre_pad_fade_out_ms", 5))
+
+
 def _apply_mute_edit(
     project: EpisodeProject,
     edit: EditDecision,
 ) -> tuple[float, float, list[str], dict]:
-    """Mute ``edit``'s source span in place, over the fill a ripple pad would get.
+    """Mute ``edit``'s source span in place, with the fill and fades a ripple pad gets.
 
-    Clips do not move.
+    The region spans the edit plus its fades, so the edit itself is silent: the clip
+    fades out into it as a padded cut fades into its pad, and back in after it over
+    the post-pad fade-in, which ends before ``edit.next_burst_sec``. Clips do not move.
     """
     tl_start, tl_end = _edit_to_timeline_range(project, edit)
     room_tone = filler_pad_mode() == "room_tone"
+    fade_out = _pre_pad_fade_out_ms()
+    fade_in = (
+        recommend_post_pad_fade_in_ms(
+            project,
+            edit.track_id,
+            edit.end,
+            next_burst_sec=edit.next_burst_sec,
+            defaults=_defaults_all(),
+        )
+        or MUTE_FADE_MS
+    )
+    span = (max(0.0, edit.start - fade_out / 1000.0), edit.end + fade_in / 1000.0)
     written = False
     for clip in clips_for_track(project, edit.track_id):
         if edit.end <= clip.source_start or edit.start >= clip.source_end:
             continue
-        fill = mute_room_tone_fill(project, clip, edit.start, edit.end) if room_tone else None
-        if add_source_mute(clip, edit.start, edit.end, fill=fill):
+        region = ClipMuteRegion(
+            start_s=span[0],
+            end_s=span[1],
+            fill=mute_room_tone_fill(project, clip, edit.start, edit.end) if room_tone else None,
+            fade_out_ms=fade_out,
+            fade_in_ms=fade_in,
+        )
+        if add_source_mute(clip, region):
             written = True
     track_ids = [edit.track_id] if written else []
     return (
         tl_start,
         tl_end,
         track_ids,
-        {"scope": getattr(edit, "scope", "session") or "session", "mute": True},
+        {
+            "scope": getattr(edit, "scope", "session") or "session",
+            "mute": True,
+            # What reverting subtracts: the muted region, fades included.
+            "per_track_source": {edit.track_id: list(span)} if written else {},
+        },
     )
 
 
