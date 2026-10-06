@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from podcast_mcp.gui import static_assets
 from podcast_mcp.gui.static_assets import repo_gui_dist, resolve_gui_static_root
 
 
@@ -14,6 +15,36 @@ def test_repo_layout_is_gui_web_dist(monkeypatch: pytest.MonkeyPatch) -> None:
     root = repo_gui_dist()
     assert root.parts[-3:] == ("gui", "web", "dist")
     assert resolve_gui_static_root() == root
+
+
+@pytest.fixture
+def packaged_dist(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Where an installed wheel keeps the web build ``hatch_build.py`` copied in."""
+    dist = tmp_path / "site-packages" / "podcast_mcp" / "gui" / "web_dist"
+    monkeypatch.setattr(static_assets, "_PACKAGED_GUI_DIST", dist)
+    monkeypatch.delenv("PODCAST_GUI_DIST", raising=False)
+    return dist
+
+
+def test_wheel_web_build_resolves_before_repo_layout(packaged_dist: Path) -> None:
+    packaged_dist.mkdir(parents=True)
+    (packaged_dist / "index.html").write_text("<html>wheel</html>", encoding="utf-8")
+    assert resolve_gui_static_root() == packaged_dist
+
+
+def test_wheel_without_web_build_falls_back_to_repo_layout(packaged_dist: Path) -> None:
+    packaged_dist.mkdir(parents=True)
+    assert resolve_gui_static_root() == repo_gui_dist()
+
+
+def test_podcast_gui_dist_overrides_wheel_web_build(
+    packaged_dist: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    packaged_dist.mkdir(parents=True)
+    (packaged_dist / "index.html").write_text("<html>wheel</html>", encoding="utf-8")
+    override = tmp_path / "override"
+    monkeypatch.setenv("PODCAST_GUI_DIST", str(override))
+    assert resolve_gui_static_root() == override.resolve()
 
 
 def test_podcast_gui_dist_overrides_repo_layout(

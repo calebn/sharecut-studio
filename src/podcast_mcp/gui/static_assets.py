@@ -10,7 +10,17 @@ from starlette.responses import HTMLResponse, Response
 from starlette.staticfiles import StaticFiles
 from starlette.types import Scope
 
+_PACKAGED_GUI_DIST = Path(__file__).resolve().parent / "web_dist"
 _REPO_GUI_DIST = Path(__file__).resolve().parents[3] / "gui" / "web" / "dist"
+
+
+def packaged_gui_dist() -> Path:
+    """Sharecut Studio web build inside an installed wheel.
+
+    ``hatch_build.py`` copies ``gui/web/dist`` here (``wheel-web-dist`` in
+    ``pyproject.toml``) when the wheel is built after ``npm run build``.
+    """
+    return _PACKAGED_GUI_DIST
 
 
 def repo_gui_dist() -> Path:
@@ -21,12 +31,15 @@ def repo_gui_dist() -> Path:
 def resolve_gui_static_root() -> Path:
     """Directory FastAPI serves for ``/`` and ``/assets``.
 
-    Frozen desktop sidecars set ``PODCAST_GUI_DIST`` to the bundled ``web-dist``.
-    An explicit ``create_app(static_dir=…)`` still wins over this helper.
+    Order: ``PODCAST_GUI_DIST`` (frozen desktop sidecars point it at the bundled
+    ``web-dist``), then the build packaged in the wheel, then the checkout's
+    ``gui/web/dist``. An explicit ``create_app(static_dir=…)`` still wins.
     """
     raw = os.environ.get("PODCAST_GUI_DIST", "").strip()
     if raw:
         return Path(raw).expanduser().resolve()
+    if static_bundle_ready(packaged_gui_dist()):
+        return packaged_gui_dist()
     return repo_gui_dist()
 
 
@@ -38,12 +51,12 @@ def static_bundle_ready(root: Path) -> bool:
 def missing_bundle_message(root: Path) -> str:
     """One line saying how to get the web build when ``root`` has none.
 
-    The Python wheel ships no web build, so a wheel install always lands here
-    until the build from a source checkout is pointed at with ``PODCAST_GUI_DIST``.
+    Release wheels ship the build; a wheel built without ``npm run build`` does
+    not, and lands here until ``PODCAST_GUI_DIST`` points at a checkout's build.
     """
     return (
         f"Sharecut Studio web build not found at {root}. "
-        "The Python package does not include it: from a source checkout run "
+        "This install does not include it: from a source checkout run "
         "`cd gui/web && npm ci && npm run build`, then start `podcast gui` with "
         "PODCAST_GUI_DIST=<checkout>/gui/web/dist."
     )

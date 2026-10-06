@@ -20,9 +20,10 @@ from pathlib import Path
 from typing import Any
 
 import podcast_mcp
-from podcast_mcp.config import cache_dir, repo_root, whisper_cache_dir
+from podcast_mcp.config import cache_dir, whisper_cache_dir
 from podcast_mcp.distribution import runtime_distribution_metadata
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.services.app import resolve_gui_static_root
 from podcast_mcp.services.pipeline import component_status
 from podcast_mcp.services.support.doctor import (
     ffmpeg_probe_info,
@@ -274,9 +275,7 @@ def _redact_kwargs(*, home: Path, workspace: Path | None) -> dict[str, Any]:
 
 
 def _gui_dist_present() -> bool:
-    raw = os.environ.get("PODCAST_GUI_DIST", "").strip()
-    root = Path(raw).expanduser() if raw else repo_root() / "gui" / "web" / "dist"
-    return (root / "index.html").is_file()
+    return (resolve_gui_static_root() / "index.html").is_file()
 
 
 def _sanitize_job_snapshots(
