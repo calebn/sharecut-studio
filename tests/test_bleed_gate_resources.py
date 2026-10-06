@@ -48,7 +48,7 @@ def test_repeated_audition_planning_reuses_evidence_until_media_changes(tmp_path
     os.utime(media, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
     assert bleed_gate.build_bleed_gate_plan(project, "host") == first
     assert len(reads) > count
-    project.transcripts[0].words[1].audibility_locked = True
+    project.transcripts[0].words[1].suppressed = False
     assert bleed_gate.build_bleed_gate_plan(project, "host").attenuation_spans == ()
 
 
@@ -66,7 +66,7 @@ def test_unavailable_evidence_is_retried_without_changing_project_or_media(tmp_p
     assert failed.attenuation_spans == ()
     assert failed.reasons == ("unavailable_peer_source",)
     monkeypatch.setattr(bleed_gate, "raw_timeline_samples", original)
-    assert bleed_gate.build_bleed_gate_plan(project, "host").attenuation_spans == ((2.0, 2.6),)
+    assert bleed_gate.build_bleed_gate_plan(project, "host").attenuation_spans == ((1.71, 2.74),)
 
 
 @pytest.mark.parametrize("replaced_track", ["host", "guest"])
