@@ -6,10 +6,10 @@ import {
 } from "react";
 import {
   GHOST_CLICK_MS,
-  LONG_PRESS_MOVE_CANCEL_PX,
   LONG_PRESS_MS,
+  TOUCH_SLOP_PX,
   withinGhostClick,
-} from "./touchGestureTiming";
+} from "./gestureConstants";
 
 export type LongPressHandlers = {
   onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
@@ -80,7 +80,7 @@ export function useLongPress(
       origin &&
       (origin.id !== event.pointerId ||
         Math.hypot(event.clientX - origin.x, event.clientY - origin.y) >
-          LONG_PRESS_MOVE_CANCEL_PX)
+          TOUCH_SLOP_PX)
     ) {
       disarm();
     }

@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { LONG_PRESS_MS } from "../src/hooks/touchGestureTiming";
+import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
 import { timelineTestIds } from "../src/timeline/selectors";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";

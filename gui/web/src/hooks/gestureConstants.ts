@@ -1,0 +1,75 @@
+/**
+ * Shared gesture thresholds. Every recognizer (timeline hit routing and target
+ * chooser, clip and handle drags, long-press, swipe, transcript double-tap)
+ * reads these, so tuning one value keeps them in step.
+ *
+ * The hold and slop values follow the platforms' own long-press conventions.
+ * A CSS px on a phone is a device-independent pixel, the same unit as an iOS
+ * point and an Android dp.
+ * - iOS `UILongPressGestureRecognizer`: `minimumPressDuration` "The default
+ *   duration is 0.5 seconds"; `allowableMovement` "The default distance is 10
+ *   points".
+ *   https://developer.apple.com/documentation/uikit/uilongpressgesturerecognizer/minimumpressduration
+ *   https://developer.apple.com/documentation/uikit/uilongpressgesturerecognizer/allowablemovement
+ * - Android `ViewConfiguration`: `TOUCH_SLOP` is 8 dp, the "distance a touch
+ *   can wander before we think the user is scrolling"; `DEFAULT_LONG_PRESS_TIMEOUT`
+ *   is 400 ms (500 ms before Android 12).
+ *   https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/java/android/view/ViewConfiguration.java
+ *   https://developer.android.com/develop/ui/views/touch-and-input/gestures/viewgroup
+ */
+
+/**
+ * Hold duration before a touch press counts as a long-press: iOS's 0.5 s,
+ * inside Android's 400-500 ms. The target chooser opens after this hold, and
+ * resting on a chip this long grabs its target, so one rhythm serves both.
+ */
+export const LONG_PRESS_MS = 500;
+
+/**
+ * How far a held finger may drift and still count as still (px). iOS allows
+ * 10 pt; Android starts a scroll after 8 dp. The browser applies its own
+ * scroll slop, so this only judges a still finger, and the looser value keeps
+ * natural drift from killing a hold.
+ */
+export const TOUCH_SLOP_PX = 10;
+
+/**
+ * Pointer thresholds that tell a click from a drag, in CSS px at the current
+ * zoom, so edits behave the same at any zoom (docs/waveform.md § Precision).
+ * Handles (fade, trim, roll, pending-cut edges, social-clip markers) are thin,
+ * one-axis targets: 3 px of net horizontal movement is a drag. A clip body is
+ * a wide, two-axis target that can also change lanes, so a press must travel
+ * 5 px (any direction) before a move starts. That absorbs press jitter.
+ */
+export const HANDLE_DRAG_MIN_PX = 3;
+
+/** A clip-body press must travel this far (any direction) before it becomes a move. */
+export const MOVE_THRESHOLD_PX = 5;
+
+/**
+ * Window after a touch gesture in which the browser's synthesized click is
+ * ignored (also the fallback delay for browsers that omit that click).
+ */
+export const GHOST_CLICK_MS = 500;
+
+/** Max gap between two taps on the same word to count as a double-tap. */
+export const DOUBLE_TAP_MS = 350;
+
+/** Min leftward travel (px) for swipe-to-resolve. */
+export const SWIPE_MIN_DX_PX = 48;
+
+/** Vertical travel (px) that turns a swipe into a scroll. */
+export const SWIPE_MAX_DY_PX = 24;
+
+/** Max leftward visual offset (px) of a card while it is being swiped. */
+export const SWIPE_MAX_TRANSLATE_PX = SWIPE_MIN_DX_PX * 2;
+
+/** Card offset for a horizontal drag delta: leftward only, capped. */
+export function swipeDragOffset(dx: number): number {
+  return Math.max(-SWIPE_MAX_TRANSLATE_PX, Math.min(0, dx));
+}
+
+/** True while `at` (a `Date.now()` stamp) is inside the ghost-click window. */
+export function withinGhostClick(at: number, now = Date.now()): boolean {
+  return now - at < GHOST_CLICK_MS;
+}

@@ -39,7 +39,7 @@ import type { ProsodyOverlayTrack } from "../types/prosody";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import { pendingEditTrackIds } from "../utils/edits";
 import { EMPTY_ARR, EMPTY_CLIPS } from "../utils/empty";
-import { isLabEnabled } from "../utils/labFlags";
+import { isLabEnabled, useLabFlag } from "../utils/labFlags";
 import {
   COMPACT_LANE_HEIGHT,
   FIT_GUTTER,
@@ -64,6 +64,7 @@ import { WaveformStatusSync } from "../waveform/WaveformStatusSync";
 import { AuditionOverlay } from "./AuditionOverlay";
 import { CommentPlaybackBubble } from "./CommentPlaybackBubble";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
+import { visibleBox } from "./chooserLayout";
 import { clippingFlags } from "./clippingFlags";
 import { selectFollowColorIndex } from "./followTarget";
 import {
@@ -101,6 +102,7 @@ import {
   useFixedPlayheadScroll,
 } from "./useFixedPlayheadScroll";
 import { useRangeGesture } from "./useRangeGesture";
+import { useTouchPress } from "./useTouchPress";
 
 type Props = {
   /** Phone Timeline mode: playhead fixed at viewport center; scrub by scrolling. */
@@ -236,7 +238,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const hitRootRef = useCallback((root: HTMLDivElement | null) => {
     if (!root) return;
     const router = attachHitRouting(root, {
-      chooserEnabled: () => isLabEnabled("touchChooser"),
+      touchLab: () => isLabEnabled("touchChooser"),
       onChooser: (view) =>
         setChooser((prev) =>
           view
@@ -254,6 +256,8 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     };
   }, []);
   const clearChooser = useCallback(() => setChooser(null), []);
+  const touchLab = useLabFlag("touchChooser");
+  const touchPress = useTouchPress(touchLab ? hitRouter : null);
   const applyZoomAtRef = useRef<(nextZoom: number, clientX: number) => void>(
     () => undefined,
   );
@@ -870,7 +874,13 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                     runPointerCommand("view.fit");
                   }}
                 />
-                <div ref={hitRootRef} style={{ position: "relative", width }}>
+                <div
+                  ref={hitRootRef}
+                  className="timeline-hit-root"
+                  data-touch-press={touchLab ? "" : undefined}
+                  style={{ position: "relative", width }}
+                  {...(touchLab ? touchPress : {})}
+                >
                   <MarkerLane
                     chapters={chapters}
                     socialClips={socialClips}
@@ -1047,6 +1057,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
               view={chooser.view}
               closing={chooser.closing}
               router={hitRouter}
+              bounds={visibleBox(scrollRef.current)}
               onClosed={clearChooser}
             />
           ) : null}

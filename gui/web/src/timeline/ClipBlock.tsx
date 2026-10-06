@@ -17,11 +17,8 @@ import {
   type ClipSelectMods,
   waveformTicksToTimeline,
 } from "../edit/clipMove";
-import {
-  isHandleDrag,
-  MOVE_THRESHOLD_PX,
-  ROLL_COMMIT_MIN_PX,
-} from "../edit/dragThreshold";
+import { isHandleDrag, ROLL_COMMIT_MIN_PX } from "../edit/dragThreshold";
+import { MOVE_THRESHOLD_PX } from "../hooks/gestureConstants";
 import { useSnapTicks } from "../hooks/useSnapTicks";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
