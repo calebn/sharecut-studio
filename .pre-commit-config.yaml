@@ -14,6 +14,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^(contracts/docs-sync\.json|schemas/docs-sync\.schema\.json|scripts/docs_sync\.py|AGENTS\.md)$
+      - id: decisions-index
+        name: Decision blocks are valid and their index is generated
+        entry: python3 scripts/decisions_index.py --check
+        language: system
+        pass_filenames: false
+        files: ^(docs/.*\.md|scripts/decisions_index\.py|contracts/docs-sync\.json|Makefile|tests/.*\.py|gui/web/(src|e2e)/.*\.(test|spec)\.tsx?)$
       - id: keymap-cheatsheet
         name: Keymap cheatsheet docs stay generated
         entry: bash -c 'cd gui/web && npx vite-node scripts/generate-keymap-cheatsheet.ts --check'

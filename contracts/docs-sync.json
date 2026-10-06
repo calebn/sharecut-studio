@@ -1058,6 +1058,15 @@
           "src/podcast_mcp/gui/audio.py"
         ]
       }
+    },
+    {
+      "id": "decision-blocks",
+      "when": "Decision blocks (a heading plus a decision comment) in a doc",
+      "update": "`docs/decisions/README.md`: regenerate it with `make decisions-index`",
+      "docs": [
+        "docs/decisions/README.md"
+      ],
+      "advisory": null
     }
   ]
 }
