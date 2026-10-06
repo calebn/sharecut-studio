@@ -18,8 +18,7 @@ class TranscriptService:
 
     def transcribe(self, track_id: str | None = None) -> list[str]:
         from podcast_mcp.edits.word_spans import trim_project_word_spans
-        from podcast_mcp.services.pipeline import asr_options_for
-        from podcast_mcp.services.pipeline.config import run_defaults_for
+        from podcast_mcp.services.pipeline import asr_options_for, run_defaults_for
 
         # Same transcribe.* settings as pipeline_run (staged working set, else defaults).
         self._engine.options = asr_options_for(self.ws.path)
