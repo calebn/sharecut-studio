@@ -21,7 +21,7 @@ export type CommandContext = {
   canApplyPass12: boolean;
   canRefreshMix: boolean;
   canIngestMedia: boolean;
-  /** Host or edit guest: may change the saved mix (volume, mute). */
+  /** Host or Editor: may change the saved mix (volume, mute). */
   canEditMix: boolean;
   canManageProjects: boolean;
   hasProject: boolean;

@@ -5,7 +5,11 @@ import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject, sampleTrack } from "../test/fixtures";
+import {
+  COMMENTER_CAPABILITIES,
+  minimalProject,
+  sampleTrack,
+} from "../test/fixtures";
 import type { TrackView } from "../types/project";
 import { TrackFader } from "./TrackFader";
 
@@ -150,7 +154,7 @@ describe("TrackFader (#386)", () => {
   it("is read-only for guests without edit", () => {
     const { slider } = renderFader({
       projectPath: "share:tok",
-      shareCapabilities: ["view", "suggest"],
+      shareCapabilities: COMMENTER_CAPABILITIES,
     });
     expect(slider).toBeDisabled();
     expect(screen.queryByRole("button", { name: /Reset/ })).toBeNull();

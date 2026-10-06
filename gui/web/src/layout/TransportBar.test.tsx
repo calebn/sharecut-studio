@@ -628,7 +628,6 @@ describe("TransportBar wide layout", () => {
 
   it.each([
     ["view", "Help"],
-    ["suggest", "Help"],
     ["comment", "Help"],
     ["edit", "Media and help"],
   ])(

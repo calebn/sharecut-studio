@@ -196,8 +196,8 @@ def test_stale_http_command_replay_returns_conflict_and_keeps_newer_edit(
 ):
     client = TestClient(create_app())
     if guest:
-        # An edit guest may retime the host's pending edit; a suggest-only guest is
-        # refused by the permission gate before any staleness check (#1005).
+        # An Editor may retime the host's pending edit; a Commenter is refused by
+        # the permission gate before any staleness check (#1005).
         _, _, share = published_share(capabilities=capabilities_for_role("editor"))
         url = f"/api/review/{share['token']}/daw/document/command"
     else:

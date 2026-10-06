@@ -6,7 +6,12 @@ import { registerRangeCommands } from "../commands/rangeActions";
 import { setClipboard } from "../edit/clipboard";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
-import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import {
+  COMMENTER_CAPABILITIES,
+  clipRow,
+  minimalProject,
+  sampleTrack,
+} from "../test/fixtures";
 import { RangeActions } from "../timeline/RangeActions";
 import { TranscriptPanel } from "./TranscriptPanel";
 
@@ -49,9 +54,9 @@ const project = minimalProject({
   },
 });
 
-const VIEW = ["view", "play", "comment", "reply"];
-const SUGGEST = [...VIEW, "suggest"];
-const EDIT = [...SUGGEST, "edit"];
+const VIEW = ["play", "view"];
+const SUGGEST = COMMENTER_CAPABILITIES;
+const EDIT = [...COMMENTER_CAPABILITIES, "edit"];
 
 function openShare(capabilities: string[]) {
   useDawStore.setState({
@@ -60,7 +65,7 @@ function openShare(capabilities: string[]) {
     guestMode: capabilities.includes("edit")
       ? "edit"
       : capabilities.includes("suggest")
-        ? "suggest"
+        ? "comment"
         : "view",
     shareCapabilities: capabilities,
     projectEpoch: 1,

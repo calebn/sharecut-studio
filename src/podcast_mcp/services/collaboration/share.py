@@ -639,8 +639,8 @@ def _guest_view_is_full(view: dict[str, Any]) -> bool:
 
 
 def guest_selects_transcript_words(caps: Sequence[str] | None) -> bool:
-    """A guest the document-command gate lets submit ``EditSelectedRange`` (``suggest``
-    or ``edit``) receives timed transcript words to select a range from."""
+    """A guest the document-command gate lets submit ``EditSelectedRange`` (Commenter
+    or Editor) receives timed transcript words to select a range from."""
     return "EditSelectedRange" in document_command_types_for_caps(list(caps or []))
 
 

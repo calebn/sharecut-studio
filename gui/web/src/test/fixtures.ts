@@ -280,7 +280,7 @@ export function pipelineJobSnapshot(
 }
 
 /** A Commenter review link's capabilities (`REVIEW_ROLE_CAPABILITIES` on the server). */
-export const COMMENTER_CAPABILITIES: readonly string[] = [
+export const COMMENTER_CAPABILITIES: string[] = [
   "play",
   "view",
   "comment",

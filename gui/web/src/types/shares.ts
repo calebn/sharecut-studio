@@ -1,5 +1,29 @@
 export type ShareRole = "viewer" | "commenter" | "editor";
 
+/** Review-link roles, as in Google Docs; each holds the one before it and more. */
+export const REVIEW_ROLES: readonly {
+  id: ShareRole;
+  label: string;
+  description: string;
+}[] = [
+  {
+    id: "viewer",
+    label: "Viewer",
+    description: "Views and plays the project.",
+  },
+  {
+    id: "commenter",
+    label: "Commenter",
+    description:
+      "Also comments and suggests edits for you or an Editor to approve.",
+  },
+  {
+    id: "editor",
+    label: "Editor",
+    description: "Also edits directly and approves or rejects suggestions.",
+  },
+];
+
 export type HostShareKind = "review" | "record";
 
 export type HostShareRow = {

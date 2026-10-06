@@ -3,7 +3,11 @@ import * as api from "../api";
 import { useDawStore } from "../state/dawStore";
 import { SANITY_POLL_MS } from "../state/syncCadence";
 import { deferred } from "../test/deferred";
-import { minimalProject, sampleTrack } from "../test/fixtures";
+import {
+  COMMENTER_CAPABILITIES,
+  minimalProject,
+  sampleTrack,
+} from "../test/fixtures";
 import type { TrackView } from "../types/project";
 import { clearRegisteredCommands, execute } from "./execute";
 import {
@@ -229,7 +233,7 @@ describe("track mix commands (#386)", () => {
   it("refuses volume changes from guests without edit", async () => {
     useDawStore.setState({
       projectPath: "share:tok",
-      shareCapabilities: ["view", "suggest"],
+      shareCapabilities: COMMENTER_CAPABILITIES,
     });
     const result = await execute("track.setVolume", { db: -6 });
     expect(result.status).toBe("disabled");

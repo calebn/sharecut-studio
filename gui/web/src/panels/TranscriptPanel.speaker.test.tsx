@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject, sampleTrack } from "../test/fixtures";
+import {
+  COMMENTER_CAPABILITIES,
+  minimalProject,
+  sampleTrack,
+} from "../test/fixtures";
 import { TranscriptPanel } from "./TranscriptPanel";
 
 describe("Transcript speaker control", () => {
@@ -44,7 +48,7 @@ describe("Transcript speaker control", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("combobox")).toBeNull();
   });
-  it.each([null, ["view"], ["suggest"], ["comment"]])(
+  it.each([null, ["view"], COMMENTER_CAPABILITIES])(
     "hides mutation for shares with %s",
     (shareCapabilities) => {
       useDawStore.setState({

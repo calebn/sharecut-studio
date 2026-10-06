@@ -501,7 +501,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 variant: "primary" as const,
                 disabled: timingBusy || !canApply,
                 title: !canApply
-                  ? "Only the host or an edit guest can review exact range proposals"
+                  ? "Only the host or an Editor can review exact range proposals"
                   : undefined,
                 onClick: () => void runAction("approve"),
               },
@@ -510,7 +510,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
                 variant: "danger" as const,
                 disabled: timingBusy || !canApply,
                 title: !canApply
-                  ? "Only the host or an edit guest can review exact range proposals"
+                  ? "Only the host or an Editor can review exact range proposals"
                   : undefined,
                 onClick: () => void runAction("reject"),
               },
@@ -537,7 +537,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     >
       {edit.exact_range && !canApply ? (
         <p className="ui-field-hint">
-          Only the host or an edit guest can review exact range proposals.
+          Only the host or an Editor can review exact range proposals.
         </p>
       ) : null}
       <DefinitionList>
