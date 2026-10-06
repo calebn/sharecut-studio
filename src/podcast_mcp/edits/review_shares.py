@@ -138,7 +138,7 @@ def create_share(
             rows.append(row)
             _save(path, rows)
     except Exception:
-        # Release without 365d cooldown - flaky disk must not burn coolnames.
+        # Release without the slug cooldown - flaky disk must not burn coolnames.
         reg.release_claim(token)
         raise
     return row
@@ -180,7 +180,7 @@ def list_room_shares(project: EpisodeProject, session_id: str) -> list[dict[str,
 
 
 def list_usable_shares(project: EpisodeProject) -> list[dict[str, Any]]:
-    """Shares that guests may still use (not revoked / expired / inactive)."""
+    """Shares that guests may still use (not revoked or past a host-chosen expiry)."""
     return [row for row in list_shares(project) if share_is_usable(row)]
 
 

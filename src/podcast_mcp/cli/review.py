@@ -165,7 +165,7 @@ def review_share_cmd(
     expires_at: str | None = typer.Option(
         None,
         "--expires-at",
-        help="ISO 8601 expiry for the minted token(s)",
+        help="ISO 8601 date the minted link(s) stop working; without it they never expire",
     ),
     role: str | None = typer.Option(
         None,
