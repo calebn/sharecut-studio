@@ -113,6 +113,7 @@ A few things live in different places on mobile:
 - **History, Tighten, and Pipeline** are all under More
 - **Gestures** has a reference list under More
 - **Mute/Solo and Volume** for a track: tap its header row on the left side of Timeline
+- **Solo on · Clear solo** sits above every tab while a track is soloed, so you can see why other voices are silent and turn solo off in one tap
 - **Audition and export** are in the compact transport Menu outside Listen
 
 The phone layout groups controls by task so they fit a smaller screen.

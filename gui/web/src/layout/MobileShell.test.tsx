@@ -7,7 +7,7 @@ import { useRecordHostStore } from "../record/hostStore";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { minimalProject, recordSnapshot } from "../test/fixtures";
+import { minimalProject, recordSnapshot, sampleTrack } from "../test/fixtures";
 import { CheatsheetDialogs } from "./CheatsheetDialogs";
 import { MobileShell } from "./MobileShell";
 
@@ -129,7 +129,7 @@ describe("MobileShell", () => {
       </DawProvider>,
     );
     const led = container.querySelector(
-      ".mobile-record-status [data-testid='clip-led']",
+      ".mobile-status-row [data-testid='clip-led']",
     );
     expect(led).toHaveAttribute("data-lit", "true");
     useRecordHostStore.getState().setTakeClipping(null);
@@ -875,6 +875,45 @@ describe("MobileShell", () => {
     const live = document.querySelector(".daw-shell--phone .sr-only");
     expect(live?.getAttribute("aria-live")).toBe("polite");
     expect(live?.textContent).toBe("Following Ada");
+  });
+
+  it("shows Solo on above every mode and in Mix, and Clear solo announces", async () => {
+    const user = userEvent.setup();
+    const project = minimalProject({
+      tracks: [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
+    });
+    useDawStore.getState().hydrate("/tmp/p.json", project, null);
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    const statusRow = container.querySelector(".mobile-status-row");
+    expect(statusRow?.textContent).toBe("");
+    act(() => useDawStore.getState().setSoloMap({ host: true }));
+    const chip = within(statusRow as HTMLElement).getByRole("button", {
+      name: "Solo on · Clear solo",
+    });
+    expect(chip.tagName).toBe("BUTTON");
+    expect(chip).toHaveClass("pill", "warning", "pill--action", "solo-chip");
+    await expectNoA11yViolations(container);
+
+    await user.click(screen.getByRole("button", { name: "More" }));
+    await user.click(screen.getByRole("button", { name: "Mix" }));
+    const mix = screen.getByRole("dialog", { name: "Mix" });
+    expect(
+      within(mix).getByRole("button", { name: "Solo on · Clear solo" }),
+    ).toBeVisible();
+    await user.click(within(mix).getByRole("button", { name: "Close" }));
+
+    chip.focus();
+    await user.keyboard("{Enter}");
+    expect(useDawStore.getState().soloTracks).toEqual({});
+    expect(
+      screen.queryByRole("button", { name: "Solo on · Clear solo" }),
+    ).toBeNull();
+    const live = document.querySelector(".daw-shell--phone .sr-only");
+    expect(live?.textContent).toBe("Solo off. Every track plays again.");
   });
 
   it("announces a Bounce result on the phone shell (#704)", () => {

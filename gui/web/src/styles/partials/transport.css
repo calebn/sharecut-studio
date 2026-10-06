@@ -664,7 +664,8 @@
   }
 }
 
-.layout-chip {
+.layout-chip,
+.solo-chip {
   white-space: nowrap;
   flex: 0 0 auto;
 }

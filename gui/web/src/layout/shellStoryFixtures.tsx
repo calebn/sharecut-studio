@@ -136,7 +136,7 @@ export function ShellStoryHeaders({
         track={shellProject.tracks[0]}
         trackIndex={0}
         selected={selected}
-        muted={false}
+        muteState="off"
         stemClass="fresh"
         wholeReasons={[]}
         hasRegional={false}

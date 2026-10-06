@@ -9,6 +9,7 @@ import {
 } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
+import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import { TransportBar } from "./TransportBar";
 
@@ -40,6 +41,55 @@ describe("TransportBar renders", () => {
 
   afterEach(() => {
     setBladeCommandRunner(null);
+  });
+
+  it("leads the end zone with Solo on · Clear solo while any track is soloed", async () => {
+    const user = userEvent.setup();
+    const { container, rerender } = render(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ timeline_duration_sec: 100 })}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    expect(container.querySelector(".solo-chip")).toBeNull();
+    act(() => useDawStore.getState().setSoloMap({ host: true }));
+    const chip = screen.getByRole("button", { name: "Solo on · Clear solo" });
+    expect(
+      container.querySelector(".transport-zone--end")?.firstElementChild,
+    ).toBe(chip);
+    expect(chip).toHaveAttribute(
+      "title",
+      "Other tracks are silent for you only. Clear solo plays every track again",
+    );
+    await expectNoA11yViolations(container);
+
+    rerender(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ timeline_duration_sec: 100 })}
+      >
+        <TransportBar showStatusChips={false} />
+      </DawProvider>,
+    );
+    expect(container.querySelector(".solo-chip")).toBeNull();
+    rerender(
+      <DawProvider
+        projectPath="/tmp/p.json"
+        initialProject={minimalProject({ timeline_duration_sec: 100 })}
+      >
+        <TransportBar />
+      </DawProvider>,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Solo on · Clear solo" }),
+    );
+    expect(useDawStore.getState().soloTracks).toEqual({});
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Solo off. Every track plays again.",
+    );
+    expect(container.querySelector(".solo-chip")).toBeNull();
   });
 
   it("does not re-render on playhead ticks; the timecode leaf still updates", () => {

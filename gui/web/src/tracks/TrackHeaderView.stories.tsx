@@ -40,7 +40,7 @@ const meta: Meta<typeof TrackHeaderView> = {
     track: exampleTrack,
     trackIndex: 0,
     selected: false,
-    muted: false,
+    muteState: "off",
     stemClass: "fresh",
     wholeReasons: [],
     hasRegional: false,
@@ -98,7 +98,7 @@ export const Selected: Story = {
 
 export const SavedMute: Story = {
   args: {
-    muted: true,
+    muteState: "saved",
     mixer: (
       <TrackMuteSoloButtonsView
         trackId={exampleTrack.id}
@@ -119,7 +119,7 @@ export const SavedMute: Story = {
 
 export const ListenMuteAndSolo: Story = {
   args: {
-    muted: true,
+    muteState: "listen",
     mixer: (
       <TrackMuteSoloButtonsView
         trackId={exampleTrack.id}
@@ -160,6 +160,7 @@ export const Soloed: Story = {
 
 export const ImpliedMute: Story = {
   args: {
+    muteState: "implied",
     mixer: (
       <TrackMuteSoloButtonsView
         trackId={exampleTrack.id}
@@ -177,6 +178,9 @@ export const ImpliedMute: Story = {
     });
     await expect(mute).toHaveAttribute("data-mute-state", "implied");
     await expect(mute.title).toContain("soloed another track");
+    await expect(canvasElement.querySelector(".track-header-row")).toHaveClass(
+      "mute-implied",
+    );
   },
 };
 

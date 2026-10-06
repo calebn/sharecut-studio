@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**110** capabilities · **94** Sharecut Studio commands · **54** keyed · **171** MCP tools · **17** skills on rows (+ **19** hub skills).
+**111** capabilities · **95** Sharecut Studio commands · **54** keyed · **171** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -68,6 +68,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Deselect all tracks | `track.deselectAll` | `Mod+Shift+A` | `trackHeadersWell` | — | — | — | — | none · none |
 | Toggle track mute | `track.muteToggle` | `M` | `trackHeader`, `trackInspector` | `track_set_mute_tool` | `podcast episode set-track-mute` | — | — | anchor · hear |
 | Toggle track solo | `track.soloToggle` | `S` | `trackHeader`, `trackInspector` | — | — | — | — | anchor · hear |
+| Clear solo | `track.clearSolo` | — (not industry-standard; the Solo on chip clears every solo) | `transport.soloChip`, `mobileShell.statusRow`, `trackMix` | — | — | — | — | none · hear |
 | Set track volume | `track.setVolume` | — (slider: arrow keys step the focused fader) | `trackInspector` | `track_set_volume_tool` | `podcast episode set-track-volume` | — | — | none · none |
 | Zoom in | `view.zoomIn` | `=` | `transport.menu` | — | — | — | — | none · look |
 | Zoom out | `view.zoomOut` | `-` | `transport.menu` | — | — | — | — | none · look |

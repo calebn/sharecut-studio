@@ -2,8 +2,8 @@ import { runPointerCommand } from "../commands/pointer";
 import { displayShortcutFor } from "../keymap/registry";
 import { canEditMix } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import { trackMuteState } from "../utils/audio";
 import { TrackMuteSoloButtonsView } from "./TrackMuteSoloButtonsView";
+import { useTrackMuteState } from "./useTrackMuteState";
 
 /**
  * Mute/Solo toggles shared by the track gutter and the inspector sheet mixer.
@@ -14,30 +14,18 @@ import { TrackMuteSoloButtonsView } from "./TrackMuteSoloButtonsView";
  * everyone and every export; dashed means only you hear it that way.
  */
 export function TrackMuteSoloButtons({ trackId }: { trackId: string }) {
-  const {
-    viewerMute,
-    soloTracks,
-    project,
-    projectPath,
-    guestMode,
-    shareCapabilities,
-  } = useDaw((s) => ({
-    viewerMute: s.viewerMute,
-    soloTracks: s.soloTracks,
-    project: s.project,
-    projectPath: s.projectPath,
-    guestMode: s.guestMode,
-    shareCapabilities: s.shareCapabilities,
-  }));
+  const { solo, project, projectPath, guestMode, shareCapabilities } = useDaw(
+    (s) => ({
+      solo: Boolean(s.soloTracks[trackId]),
+      project: s.project,
+      projectPath: s.projectPath,
+      guestMode: s.guestMode,
+      shareCapabilities: s.shareCapabilities,
+    }),
+  );
   const track = project?.tracks.find((t) => t.id === trackId);
   const editsMix = canEditMix(projectPath, guestMode, shareCapabilities);
-  const solo = Boolean(soloTracks[trackId]);
-  const state = trackMuteState(
-    trackId,
-    Boolean(track?.muted),
-    viewerMute,
-    soloTracks,
-  );
+  const state = useTrackMuteState(trackId, Boolean(track?.muted));
   return (
     <TrackMuteSoloButtonsView
       trackId={trackId}

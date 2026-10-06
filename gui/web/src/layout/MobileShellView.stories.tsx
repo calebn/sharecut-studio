@@ -157,7 +157,7 @@ function PhonePreview(args: PreviewProps) {
               onPlayingChange={onPlayingChange}
             />
           ),
-          recording: null,
+          status: null,
           overlay: null,
         }}
         screen={screen}

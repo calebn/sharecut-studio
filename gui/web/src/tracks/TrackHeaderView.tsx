@@ -10,8 +10,14 @@ import { initials } from "../presence/colors";
 import { laneColor } from "../timeline/laneColors";
 import type { TrackView } from "../types/project";
 import { Icon } from "../ui";
-import { formatGainDb, trackFaderDb, trackOutputGainDb } from "../utils/audio";
+import {
+  formatGainDb,
+  type MuteState,
+  trackFaderDb,
+  trackOutputGainDb,
+} from "../utils/audio";
 import { REGIONAL_CHIP_LABEL, reasonChipLabel } from "../utils/staleRender";
+import { MUTE_STATE_ROW_CLASS } from "./muteRowClass";
 import {
   outputGainTitle,
   reorderHandleTitle,
@@ -24,7 +30,7 @@ export interface TrackHeaderViewProps {
   track: TrackView;
   trackIndex: number;
   selected: boolean;
-  muted: boolean;
+  muteState: MuteState;
   stemClass: "" | "fresh" | "stale";
   wholeReasons: string[];
   hasRegional: boolean;
@@ -49,7 +55,7 @@ export function TrackHeaderView({
   track,
   trackIndex,
   selected,
-  muted,
+  muteState,
   stemClass,
   wholeReasons,
   hasRegional,
@@ -83,7 +89,7 @@ export function TrackHeaderView({
         : "";
   return (
     <div
-      className={`track-header-row${muted ? " muted" : ""}${selected ? " selected" : ""}${headerHighlight ? " stale-highlight" : ""}${wholeReasons.length ? " stale-whole-track" : ""}${dropHighlight ? " lane-drop-target" : ""}${dragging ? " dragging" : ""}${edgeClass}${mayReorder ? " reorderable" : ""}`}
+      className={`track-header-row${MUTE_STATE_ROW_CLASS[muteState]}${selected ? " selected" : ""}${headerHighlight ? " stale-highlight" : ""}${wholeReasons.length ? " stale-whole-track" : ""}${dropHighlight ? " lane-drop-target" : ""}${dragging ? " dragging" : ""}${edgeClass}${mayReorder ? " reorderable" : ""}`}
       style={identityStyle}
       {...presenceAnchorProps(presenceAnchor("track", track.id))}
       onDragOver={onDragOver}

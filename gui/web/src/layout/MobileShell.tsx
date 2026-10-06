@@ -28,6 +28,7 @@ import {
 import { useDaw } from "../state/useDaw";
 import { RangeActions } from "../timeline/RangeActions";
 import { TimelineView } from "../timeline/TimelineView";
+import { SoloChip } from "../tracks/SoloChip";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import { TrackMix } from "../tracks/TrackMix";
 import type { PresenceTab } from "../types/session";
@@ -548,8 +549,13 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
           follow: <FollowBanner />,
         },
         announcement: statusAnnouncement,
-        transport: <TransportBar compact showFit showRecordingChip={false} />,
-        recording: <RecordTransportChip />,
+        transport: <TransportBar compact showFit showStatusChips={false} />,
+        status: (
+          <>
+            <RecordTransportChip />
+            <SoloChip />
+          </>
+        ),
         overlay: <PresenceGhostLayer rootRef={shellRef} />,
       }}
       screen={screen}
