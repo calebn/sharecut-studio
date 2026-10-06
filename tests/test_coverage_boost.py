@@ -145,8 +145,8 @@ def test_normalize_capabilities_variants():
     assert guest_mode(["play", "view", "comment", "reply", "action", "suggest", "edit"]) == "edit"
     assert guest_mode(["play", "view", "comment", "reply", "action", "suggest"]) == "comment"
     assert guest_mode(["play", "view", "suggest"]) == "view"
-    assert guest_mode(["play", "comment"]) == "comment"
-    assert guest_mode(["play"]) == "view"
+    assert guest_mode(["play", "comment"]) == "none"
+    assert guest_mode(["play"]) == "none"
     assert guest_mode([]) == "none"
     assert has_capability(["view"], "play")
     assert has_capability(["comment"], "reply")

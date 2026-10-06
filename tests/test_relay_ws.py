@@ -479,45 +479,6 @@ def test_guest_daw_ws_emits_ws_open(monkeypatch):
             tunnel.close()
 
 
-def test_guest_progress_ws_emits_ws_open(monkeypatch):
-    with _live_relay(monkeypatch) as base:
-        tunnel = _tunnel_hello_register(
-            base,
-            host_id="host-progress",
-            token="progws",
-            capabilities=["play", "comment"],
-        )
-        try:
-            with ws_connect(
-                f"{base}/api/review/progws/progress/ws", open_timeout=5, close_timeout=5
-            ) as guest:
-                open_msg = _ws_recv(tunnel)
-                assert open_msg["type"] == "ws_open"
-                assert open_msg["path"] == "api/review/progress/ws"
-                assert open_msg["share_token"] == "progws"
-                stream_id = open_msg["id"]
-                _ws_send(
-                    tunnel,
-                    {
-                        "type": "ws_data",
-                        "id": stream_id,
-                        "text": json.dumps(
-                            {
-                                "type": "progress",
-                                "plane": "progress",
-                                "status": "running",
-                            }
-                        ),
-                    },
-                )
-                got = guest.recv(timeout=5)
-                if isinstance(got, bytes):
-                    got = got.decode("utf-8")
-                assert '"plane": "progress"' in got or '"plane":"progress"' in got
-        finally:
-            tunnel.close()
-
-
 def test_record_ws_bridged(monkeypatch):
     with _live_relay(monkeypatch) as base:
         tunnel = _tunnel_hello_register(

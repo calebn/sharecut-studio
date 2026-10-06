@@ -15,7 +15,7 @@ from podcast_mcp.services.document_sync import (
     edit_commands_allowed,
 )
 
-# Read / listen (ReviewApp-level summary without full Sharecut Studio).
+# Read / listen (project summary without full Sharecut Studio).
 PLAY_TOOLS: frozenset[str] = frozenset(
     {
         "guest_get_review_summary",

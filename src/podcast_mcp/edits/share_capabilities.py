@@ -171,17 +171,10 @@ _ROLE_GUEST_MODE: Mapping[ReviewRole, str] = {
 def guest_mode(caps: list[str] | None) -> str:
     """Guest UI mode: ``edit``, ``comment`` or ``view`` from the review role.
 
-    A link with no review role (no ``view``) opens the listen page: ``comment``
-    when it may comment, ``view`` when it may only play, else ``none``.
+    A link with no review role (no ``view``, so no page to open) is ``none``.
     """
     role = review_role_for_capabilities(caps)
-    if role is not None:
-        return _ROLE_GUEST_MODE[role]
-    if any(has_capability(caps, cap) for cap in (CAP_COMMENT, CAP_REPLY, CAP_ACTION)):
-        return "comment"
-    if has_capability(caps, CAP_PLAY):
-        return "view"
-    return "none"
+    return _ROLE_GUEST_MODE[role] if role is not None else "none"
 
 
 def share_author(share: Mapping[str, Any]) -> str:

@@ -476,5 +476,5 @@ class GuestWsProgressReporter(ElapsedProgressMixin):
 
 
 def guest_ws_progress_sink(token: str) -> ProgressReporter | None:
-    """Always attach so last-value replay can catch a late ReviewApp subscriber."""
+    """Always attach so last-value replay can catch a late guest socket subscriber."""
     return GuestWsProgressReporter(guest_progress_hub(), token)

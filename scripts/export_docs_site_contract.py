@@ -39,9 +39,12 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "play",
         "Exact timeline islands from the full mix, with silent gaps. Never isolated stems.",
     ),
-    ("GET", "/api/review/{token}/project"): ("view", "Legacy ReviewApp project JSON"),
+    ("GET", "/api/review/{token}/project"): (
+        "token",
+        "Review-share project JSON: capabilities, guest mode, review version",
+    ),
     ("GET", "/api/review/{token}/features"): ("view", "Extension / feature manifest"),
-    ("GET", "/api/review/{token}/audio"): ("play", "ReviewApp frozen mix"),
+    ("GET", "/api/review/{token}/audio"): ("play", "Frozen review mix (link previews, agents)"),
     ("GET", "/api/review/{token}/daw/project"): ("view", "Sanitized ProjectView (no host paths)"),
     ("GET", "/api/review/{token}/daw/document/state"): (
         "view",
@@ -119,10 +122,6 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
         "view",
         "Receive-only session+document fanout (progress plane too)",
     ),
-    ("WEBSOCKET", "/api/review/{token}/progress/ws"): (
-        "token",
-        "Guest-initiated progress plane for ReviewApp (no view cap, no host paths)",
-    ),
     ("GET", "/api/rec/{token}/bootstrap"): (
         "kind=record",
         "Record lobby bootstrap JSON (no review mix)",
@@ -195,9 +194,6 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ),
     ("WEBSOCKET", "/api/review/{token}/daw/ws"): (
         "http-only: playhead/presence; agents do not need guest session WS"
-    ),
-    ("WEBSOCKET", "/api/review/{token}/progress/ws"): (
-        "http-only: guest progress chip; MCP uses notifications/progress when progressToken is set"
     ),
     ("GET", "/api/rec/{token}/bootstrap"): (
         "http-only: record lobby JSON; no MCP until later recording PRs"

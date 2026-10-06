@@ -198,7 +198,7 @@ host_id: host-1
 # Env equivalent: PODCAST_SHARE_REGISTRY=~/.podcast_mcp/share_registry.sqlite
 # (relay.yaml does not load this key yet — export the env in your shell/launchd.)
 
-# Optional: any S3-compatible object store for ReviewApp audio bypass.
+# Optional: any S3-compatible object store for review-mix audio bypass.
 # Credentials stay on the host — never on the relay configuration committed to git.
 # Install: pip install 'podcast-mcp[object-store]' (also pulled in by [gui]).
 object_store:
@@ -265,7 +265,7 @@ podcast review share --kind record --session-id <id> --role producer --expires-a
 | `edit`     | Editor only. Apply Pass 1–2 document commands (approve/reject any pending edit including exact range proposals, restore, fades, join, clip body move / `MoveClips`, undo/redo) **and apply** structural ops and selected ranges (`EditSelectedRange`) on the guest document route and guest MCP alike |
 | `mcp`      | Allow **capability-scoped** remote MCP at `{base}/mcp/{token}/mcp` (same powers as the other caps on this token — not the full host MCP surface) |
 
-Default for new shares: **Commenter**, Anyone with the link. Every role holds `view`, so `/r/{token}` opens Sharecut Studio for all three. ReviewApp (review mix + comments, no timeline) is the listen page for a share without `view`. No role, CLI flag, MCP tool or Share dialog option mints one today.
+Default for new shares: **Commenter**, Anyone with the link. Every role holds `view`, so `/r/{token}` opens Sharecut Studio for all three. There is no separate listen page: a share without `view` has no page, and no role, CLI flag, MCP tool or Share dialog option mints one.
 
 ```bash
 # Read-only full DAW (timeline + playback)
@@ -341,18 +341,17 @@ All under `/api/review/{token}/…` (proxied by the relay; **no** `?project=` pa
 | `DELETE /api/rec/{token}/upload` | record `join` | Revoke an ACK'd room-tone bed (`kind=room_tone`) |
 | `POST …/daw/render-preview` | Editor (`edit_commands_allowed`) | Start a stem/premix render via the host `PipelineJobManager` lock. Returns **202** with a job ID immediately; **409** if the slot is busy. |
 | `GET …/daw/render-preview/{job_id}` | Editor (`edit_commands_allowed`) | Read a job's status for this share's project. Response includes only safe progress fields, with no host paths. |
-| `GET …/audio` | `play` | ReviewApp frozen mix — prefers `mix.mp3`; **302** to an object-store presigned URL when configured |
+| `GET …/audio` | `play` | Frozen review mix for link previews and agents — prefers `mix.mp3`; **302** to an object-store presigned URL when configured |
 | `POST …/comments` | `comment` | Timeline comment (body max **8000** chars) |
 | `POST …/comments/{id}/replies` | `reply` | Reply (same body max) |
 | `POST …/comments/{id}/actions/{aid}/done` | `action` | HTTP twin for MCP `guest_set_action_done` |
 | `WS …/daw/ws` | `view` | Dual-plane session+document fanout; also carries `plane: "progress"` for work this token started |
-| `WS …/progress/ws` | review token (no `view`) | ReviewApp progress chip; same payload as the daw/ws progress plane |
 | `WS /api/rec/{token}/ws` | record `monitor` | Record room / live comments / WebRTC signal; no MCP by design |
 
-### ReviewApp audio (MP3 + object-store bypass)
+### Review audio (MP3 + object-store bypass)
 
 Publishing a review version writes both `artifacts/review/{id}/mix.wav` and `mix.mp3`
-(~128 kbps). ReviewApp (`GET /api/review/{token}/audio`) serves the MP3 by default.
+(~128 kbps). `GET /api/review/{token}/audio` serves the MP3 by default.
 
 When an S3-compatible object store is configured on the **host**:
 
@@ -762,11 +761,11 @@ Product follow-up: [ROADMAP.md](../ROADMAP.md). Provider product details are mai
 
 ### Guest WebSocket (shipped)
 
-Guests with `view` connect to `WS /api/review/{token}/daw/ws` on the host (and the same path on the public relay). ReviewApp guests (a share without `view`) connect to `WS /api/review/{token}/progress/ws` for guest-initiated progress only. Record guests with `monitor` connect to `WS /api/rec/{token}/ws`. The relay multiplexes guest sockets over the host tunnel with:
+Guests with `view` connect to `WS /api/review/{token}/daw/ws` on the host (and the same path on the public relay). Record guests with `monitor` connect to `WS /api/rec/{token}/ws`. The relay multiplexes guest sockets over the host tunnel with:
 
 | Frame | Direction | Fields |
 |-------|-----------|--------|
-| `ws_open` | relay → host | `id`, `path` (`api/review/daw/ws`, `api/review/progress/ws`, or `api/rec/ws`), `share_token` |
+| `ws_open` | relay → host | `id`, `path` (`api/review/daw/ws` or `api/rec/ws`), `share_token` |
 | `ws_data` | both | `id`, `text` (JSON text frame) |
 | `ws_close` | both | `id`, `code`, `reason` |
 

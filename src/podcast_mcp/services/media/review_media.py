@@ -42,7 +42,7 @@ def _object_store_client(
 
 
 def review_guest_audio_path(project: EpisodeProject, version_id: str) -> Path:
-    """Prefer frozen mix.mp3 for guest ReviewApp; fall back to mix.wav."""
+    """Prefer frozen mix.mp3 for guests; fall back to mix.wav."""
     mp3 = version_mp3_path(project, version_id)
     if mp3 is not None:
         return mp3
