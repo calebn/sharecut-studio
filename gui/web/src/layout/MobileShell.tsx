@@ -7,6 +7,7 @@ import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { useTimelineFocusRegion } from "../hooks/useTimelineFocusRegion";
 import { useTwoFingerTap } from "../hooks/useTwoFingerTap";
 import { Inspector } from "../inspector/Inspector";
+import { InspectorPeek } from "../inspector/InspectorPeek";
 import { RelatedCommands } from "../inspector/RelatedCommands";
 import { CommentsPanel } from "../panels/CommentsPanel";
 import { HistoryPanel } from "../panels/HistoryPanel";
@@ -54,6 +55,7 @@ import { TransportPlayControls } from "./TransportPlayControls";
 import { TransportTimecode } from "./TransportTimecode";
 import { TAB_LABELS } from "./tabLabels";
 import { transportPlayHandlers } from "./transportPlay";
+import { compactSheetProps, useCompactInspector } from "./useCompactInspector";
 
 function MoreHub({
   guestShare,
@@ -425,6 +427,7 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
     project != null &&
     canApplyPass12(projectPath, guestMode, shareCapabilities);
   useTwoFingerTap(shellRef, { enabled: undoEnabled });
+  const compact = useCompactInspector("phone");
   usePresenceCursorSource(shellRef);
 
   useEffect(() => {
@@ -500,6 +503,7 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
         (mobileMode === "more" &&
           moreDestination === "impact" &&
           selection.kind === "pending")));
+  const strip = compact?.view === "strip" ? compact.peek : null;
   const sheet: MobileSheet = inspectorOpen
     ? {
         kind: "inspector",
@@ -509,16 +513,21 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
           setRangeArmed(false);
           closeSheet();
         },
-        content: (
-          <>
-            <Inspector />
-            {rangeArmed ? (
-              <RangeActions sheet />
-            ) : (
-              <RelatedCommands selection={selection} />
-            )}
-          </>
-        ),
+        compact:
+          compact && !rangeArmed ? compactSheetProps(compact) : undefined,
+        content:
+          strip && !rangeArmed ? (
+            <InspectorPeek peek={strip} />
+          ) : (
+            <>
+              <Inspector />
+              {rangeArmed ? (
+                <RangeActions sheet />
+              ) : (
+                <RelatedCommands selection={selection} />
+              )}
+            </>
+          ),
       }
     : mixEligible
       ? {

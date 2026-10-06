@@ -118,7 +118,7 @@ Every interactive library component has Vitest coverage including `expectNoA11yV
 | `InlineError` | Inline failure text |
 | `Dialog` | Modal scrim + panel + header; uses `useDialogModal` |
 | `Menu` / `CommandMenuItem` | Popup menu + command items |
-| `BottomSheet` | Phone/tablet peek sheet (non-modal) with optional Expand/Collapse controls and no drag handle |
+| `BottomSheet` | Phone/tablet peek sheet (non-modal) with optional Expand/Collapse controls and no drag handle; sizes `peek` (content-height strip), `half`, `full`, and `stowed` slides it away during a drag |
 | `CloseButton` | Shared close affordance for `Dialog` and `BottomSheet`: named "Close" (Esc also dismisses) |
 | `UndoToast` | Polite `role="status"` toast with Undo / Dismiss; auto-dismiss pauses on hover, focus, or a disabled Undo |
 | `useDialogModal` | Focus trap / Escape / inert / restore (`mode: modal \| sheet`; `returnFocusRef` picks where focus returns) |

@@ -181,4 +181,49 @@ describe("BottomSheet", () => {
     expect(dialog.querySelector(".bottom-sheet-grab")).toBeNull();
     await expectNoA11yViolations(dialog);
   });
+
+  it("peeks as a strip, expands one size up with named actions, and stows without losing focus", async () => {
+    const user = userEvent.setup();
+    function Strip({ stowed }: { stowed: boolean }) {
+      const [expanded, setExpanded] = useState(false);
+      return (
+        <BottomSheet
+          open
+          onClose={() => undefined}
+          backgroundPolicy="interactive"
+          title="Fade in"
+          size="peek"
+          expandedSize="half"
+          expanded={expanded}
+          onExpandedChange={setExpanded}
+          resizeLabels={{
+            expand: "Expand to the full inspector",
+            collapse: "Collapse to the strip",
+          }}
+          stowed={stowed}
+        >
+          <p>300 ms</p>
+        </BottomSheet>
+      );
+    }
+    const { rerender } = render(<Strip stowed={false} />);
+    const dialog = screen.getByRole("dialog", { name: "Fade in" });
+    expect(dialog).toHaveClass("bottom-sheet--peek");
+    await expectNoA11yViolations(dialog);
+    await user.click(
+      screen.getByRole("button", { name: "Expand to the full inspector" }),
+    );
+    expect(dialog).toHaveClass("bottom-sheet--half");
+    const collapse = screen.getByRole("button", {
+      name: "Collapse to the strip",
+    });
+    collapse.focus();
+    rerender(<Strip stowed />);
+    expect(dialog.closest(".bottom-sheet-root")).toHaveClass("is-stowed");
+    expect(collapse).toHaveFocus();
+    rerender(<Strip stowed={false} />);
+    expect(dialog.closest(".bottom-sheet-root")).not.toHaveClass("is-stowed");
+    await user.click(collapse);
+    expect(dialog).toHaveClass("bottom-sheet--peek");
+  });
 });

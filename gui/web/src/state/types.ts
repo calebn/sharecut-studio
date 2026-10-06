@@ -1,4 +1,5 @@
 import type { PresenceDeltaChanges, SessionRoster } from "../presence/roster";
+import type { RoutedTarget } from "../timeline/hitRouting";
 import type { PendingJobResults, PipelineJobSnapshot } from "../types/pipeline";
 import type {
   ProjectView,
@@ -14,6 +15,7 @@ import type {
   SessionState,
   ViewerSessionSnapshot,
 } from "../types/session";
+import type { CompactInspectorView } from "../utils/compactInspectorPref";
 import type { LaneHeightMode } from "../utils/laneHeightPref";
 import type { WaveformScaleMode } from "../waveform/types";
 
@@ -212,6 +214,12 @@ export interface DawState {
   moreDestination: MoreDestination;
   layoutMode: LayoutMode;
   sheetExpanded: boolean;
+  /** Compact (phone) inspector: open as the peek strip or expanded; persisted. */
+  compactInspectorView: CompactInspectorView;
+  /** The timeline target the last press went to (touch chooser lab). */
+  selectionHit: RoutedTarget | null;
+  /** A timeline drag is under way; the compact inspector stows itself. */
+  timelineDragging: boolean;
   laneHeightMode: LaneHeightMode;
   laneHeightPx: number;
   /** Lane height the mounted timeline last resolved (fit or fixed); null with no timeline. Stepping from fit mode starts here. */
@@ -392,6 +400,9 @@ export interface DawState {
   setMoreDestination: (dest: MoreDestination) => void;
   setLayoutMode: (mode: LayoutMode) => void;
   setSheetExpanded: (on: boolean) => void;
+  setCompactInspectorView: (view: CompactInspectorView) => void;
+  setSelectionHit: (hit: RoutedTarget | null) => void;
+  setTimelineDragging: (on: boolean) => void;
   setLaneHeightMode: (mode: LaneHeightMode) => void;
   toggleFitTracksHeight: () => void;
   stepLaneHeight: (direction: "up" | "down") => void;

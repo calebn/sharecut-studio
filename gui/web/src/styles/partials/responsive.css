@@ -37,6 +37,19 @@
   display: none;
 }
 
+/* A phone held sideways (short tablet shell) with the compact inspector open:
+   the sheet sits where the bottom tabs were, and the timeline takes their row
+   so the selection has room above it (useCompactInspector). */
+html[data-shell="tablet"]:has(.bottom-sheet--compact) .daw-shell {
+  --shell-tabs-row: 0;
+}
+
+html[data-shell="tablet"]:has(.bottom-sheet--compact)
+  .daw-shell
+  > .bottom-tabs {
+  display: none;
+}
+
 .daw-shell--layout-text {
   --shell-main-row: minmax(7.5rem, 28vh);
   --shell-tabs-row: minmax(0, 1fr);

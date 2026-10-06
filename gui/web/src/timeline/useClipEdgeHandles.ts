@@ -6,14 +6,14 @@ import {
   useRef,
   useState,
 } from "react";
-import { setClipFade, trimClipEdge } from "../api";
-import { loadBoundaryContext } from "../api/boundary";
 import { execute } from "../commands/execute";
 import {
   type ClipHandleAction,
   registerFocusedClipHandle,
 } from "../commands/focusedClipHandle";
 import { clampTrimSourceSec, type TrimEdge } from "../edit/clipEdgePreview";
+import { saveClipEdge } from "../edit/clipEdgeSave";
+import { CLIP_HANDLE_STEPS } from "../edit/clipHandleSteps";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
 import { canApplyPass12 } from "../shareMode";
@@ -251,34 +251,20 @@ export function useClipEdgeHandles(context: Context) {
     const owner: Draft = { ...d, phase: "committing" };
     publish(owner);
     try {
-      if (d.kind === "fade") {
-        await setClipFade(
-          c.projectPath,
-          clip.id,
-          d.preview.inMs,
-          d.preview.outMs,
-        );
-      } else {
-        const target = {
-          kind: "trim" as const,
-          clip_id: clip.id,
-          edge: d.edge,
-        };
-        const { id, source_start, source_end, timeline_start, source_id } =
-          clip;
-        const boundary = await loadBoundaryContext(c.projectPath, target, [
-          { id, source_start, source_end, timeline_start, source_id },
-        ]);
-        if (!fresh(c)) return;
-        await trimClipEdge(
-          c.projectPath,
-          clip.id,
-          d.edge,
-          d.edge === "in" ? d.preview.sourceStart : d.preview.sourceEnd,
-          "ripple",
-          boundary.token,
-        );
-      }
+      const sent = await saveClipEdge(
+        c.projectPath,
+        clip,
+        d.kind === "fade"
+          ? { kind: "fade", inMs: d.preview.inMs, outMs: d.preview.outMs }
+          : {
+              kind: "trim",
+              edge: d.edge,
+              sourceSec:
+                d.edge === "in" ? d.preview.sourceStart : d.preview.sourceEnd,
+            },
+        () => fresh(c),
+      );
+      if (!sent) return;
       if (fresh(c))
         useDawStore
           .getState()
@@ -327,8 +313,7 @@ export function useClipEdgeHandles(context: Context) {
         : d.edge === "in"
           ? d.preview.sourceStart
           : d.preview.sourceEnd;
-    const step =
-      d.kind === "fade" ? (action.shift ? 10 : 1) : action.shift ? 0.1 : 0.01;
+    const step = CLIP_HANDLE_STEPS[d.kind][action.shift ? "large" : "small"];
     const direction =
       d.kind === "fade" && d.edge === "out"
         ? -action.direction
