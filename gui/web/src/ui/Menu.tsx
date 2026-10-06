@@ -2,28 +2,12 @@ import {
   type ReactNode,
   type RefObject,
   useCallback,
-  useEffect,
   useId,
   useLayoutEffect,
   useRef,
 } from "react";
-import { noteMenuOpen } from "./menuGate";
-import { listFocusable } from "./useDialogModal";
+import { useMenuKeyboard } from "./useMenuKeyboard";
 import { useOutsidePointerDown } from "./useOutsidePointerDown";
-
-function menuItems(panel: HTMLElement): HTMLElement[] {
-  return listFocusable(panel).filter(
-    (el) =>
-      el.getAttribute("role") === "menuitem" ||
-      el.getAttribute("role") === "menuitemcheckbox" ||
-      el.getAttribute("role") === "menuitemradio",
-  );
-}
-
-function focusMenuItem(el: HTMLElement): void {
-  el.focus();
-  el.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-}
 
 function layoutOpenMenuPanel(trigger: HTMLElement, panel: HTMLElement): void {
   const triggerBottom = trigger.getBoundingClientRect().bottom;
@@ -63,8 +47,8 @@ type MenuProps = {
 };
 
 /**
- * Popup menu: Escape, outside click, arrow keys, focus restore.
- * GOVERNANCE: window keydown — allowlisted via this module.
+ * Popup menu: outside click closes it; `useMenuKeyboard` owns Escape, arrow
+ * keys and focus restore.
  */
 export function Menu({
   open,
@@ -79,21 +63,10 @@ export function Menu({
   const menuId = menuIdProp ?? autoId;
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
 
   const close = useCallback(() => {
     onOpenChange(false);
   }, [onOpenChange]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    noteMenuOpen(true);
-    return () => {
-      noteMenuOpen(false);
-    };
-  }, [open]);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -114,75 +87,7 @@ export function Menu({
     };
   }, [open]);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    restoreRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-
-    const focusFirst = () => {
-      const panel = panelRef.current;
-      if (!panel) {
-        return;
-      }
-      const items = menuItems(panel);
-      const first = items[0] ?? listFocusable(panel)[0];
-      if (first) {
-        focusMenuItem(first);
-      }
-    };
-    const raf = requestAnimationFrame(focusFirst);
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        close();
-        return;
-      }
-      const panel = panelRef.current;
-      if (!panel || !panel.contains(document.activeElement)) {
-        return;
-      }
-      const items = menuItems(panel);
-      if (items.length === 0) {
-        return;
-      }
-      const idx = items.indexOf(document.activeElement as HTMLElement);
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        focusMenuItem(items[(idx + 1 + items.length) % items.length]);
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        focusMenuItem(items[(idx - 1 + items.length) % items.length]);
-      } else if (e.key === "Home") {
-        e.preventDefault();
-        focusMenuItem(items[0]);
-      } else if (e.key === "End") {
-        e.preventDefault();
-        focusMenuItem(items[items.length - 1]);
-      }
-    };
-
-    window.addEventListener("keydown", onKey);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("keydown", onKey);
-      // Take focus back only when it left with the panel. When another menu's
-      // trigger took it (exclusive menus), stealing it back would make that
-      // menu record this trigger as the place Escape returns to.
-      const active = document.activeElement;
-      const focusLost =
-        !active || active === document.body || !active.isConnected;
-      const restore = restoreRef.current;
-      if (focusLost && restore?.isConnected) {
-        restore.focus();
-      }
-    };
-  }, [open, close]);
+  useMenuKeyboard({ open, panelRef, close });
 
   useOutsidePointerDown([panelRef, triggerRef], close, open);
 

@@ -208,6 +208,14 @@ exposes arrows, Shift for larger steps, Escape cancellation and Enter reset.
 The measured pointer strip remains 10 px high; keyboard resizing is the available
 alternative, and physical touch comfort remains a manual validation gap.
 
+### Crowded timeline targets
+
+Small timeline targets compete through one shared hit resolver instead of CSS
+z-order: a press on a target with two or more targets in reach is replayed on
+the best-ranked one, and with the `touchChooser` lab on, a held touch on a
+crowded spot opens a target chooser. Data shape, ranking, routing and the
+chooser contract: [touch-editor-decisions.md](touch-editor-decisions.md#shared-hit-resolver-1051).
+
 ### Clip join fields
 
 `list_clips` / the project view give every clip row the effective render of its incoming join as flat fields: `join_left_clip_id` (null for a track's first clip), `join_render_mode`, `join_crossfade_ms` and `join_crossfade_blocked` (`not_abutting` | `no_fade_out` | `no_fade_in`). They come from `edits/clips_ops.py` (`join_render_fields`, the same functions render uses), so the inspector states what render will do. The inspector's Join control and the timeline join popover set a join with the `SetClipJoin` document command (mode plus both fades, one undo step); `SetJoinMode` changes the mode only and returns the same `join_*` fields, so a caller sees when a crossfade has nothing to blend.
