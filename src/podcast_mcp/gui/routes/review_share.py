@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
-from podcast_mcp.edits.share_capabilities import CAP_EDIT, CAP_VIEW, share_author
+from podcast_mcp.edits.share_capabilities import CAP_VIEW, share_author
 from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pinned_audio_response
@@ -55,6 +55,7 @@ from podcast_mcp.services.collaboration import (
     lookup_share,
     open_share_workspace,
     require_share_cap,
+    require_share_edit,
     resolve_share_audio_redirect,
     sanitize_guest_document_event,
     sanitize_guest_session_event,
@@ -514,7 +515,7 @@ def post_daw_render_preview(token: str, request: Request) -> dict[str, Any]:
     _rate_limit(token, "mutate")
     try:
         require_guest_render()
-        _row, ws = require_share_cap(token, CAP_EDIT)
+        _row, ws = require_share_edit(token)
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except Exception as exc:
@@ -540,7 +541,7 @@ def get_daw_render_preview(token: str, job_id: str, request: Request) -> dict[st
     _check_token(token)
     _rate_limit(token, "read")
     try:
-        _row, ws = require_share_cap(token, CAP_EDIT)
+        _row, ws = require_share_edit(token)
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except Exception as exc:
@@ -574,7 +575,7 @@ def post_daw_boundary_context(token: str, body: BoundaryContextInput) -> dict[st
     _check_token(token)
     _rate_limit(token, "read")
     try:
-        _row, ws = require_share_cap(token, CAP_EDIT)
+        _row, ws = require_share_edit(token)
         with ws.transaction():
             return (
                 EditService(ws)

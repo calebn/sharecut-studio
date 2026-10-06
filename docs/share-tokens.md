@@ -179,7 +179,9 @@ needs `view`, on the browser route and the guest MCP alike: a share with
 tool list from the same gate: `guest_submit_document_command` needs a command
 the gate allows, and the `edit` tools (render preview, media upload) need every
 `edit` command (`edit_commands_allowed`), so an `edit` share without `view` is
-offered neither.
+offered neither. The browser render preview, render job, boundary context and
+media upload routes call the same `edit_commands_allowed` (through
+`require_share_edit`), so both surfaces refuse an `edit` share without `view`.
 
 | Capabilities | Transcript **Select** and timed words | Range Cut / Mute (DAW, transcript, guest MCP) | Retime a pending edit | Approve / Reject pending edits |
 |--------------|----------------------------------------|-----------------------------------------------|-----------------------|--------------------------------|
