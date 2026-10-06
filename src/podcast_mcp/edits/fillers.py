@@ -1379,52 +1379,78 @@ class _Join(Enum):
     # A session ripple with a pad (``decisions._apply_replace_gap_pad``): the left
     # edge fades out into the pad and the right edge fades in after it (#978).
     PADDED = "padded"
-    # Mute in place (``edits/mute_regions.py``): nothing moves; each edge fades
-    # (``MUTE_FADE_SEC``) against the fill at its own position.
+    # Mute in place (``edits/mute_regions.py``): nothing moves and no other track
+    # changes; the clip fades out into the hole and back in after it.
     MUTE = "mute"
+
+
+class _BreathEdges(Enum):
+    """What a cut's edges owe the breaths around them."""
+
+    # A splice: an edge must sit in a complete breath (moved out of it) or in clear
+    # audio; connected activity of any other kind suppresses the cut.
+    PROTECT = "protect"
+    # A mute fades each edge against fill: an edge must not chop a breath, so it moves
+    # out of one and keeps it whole, and a span that is mostly breath is no filler.
+    # An edge may sit in any other activity.
+    KEEP_WHOLE = "keep_whole"
+    # A padded cut renders a pad between its faded edges (#978).
+    IGNORE = "ignore"
 
 
 @dataclass(frozen=True)
 class _EdgeChecks:
     """The checks a cut's two edges get, chosen by its :class:`_Join`."""
 
-    # A splice joins the audio before ``start`` to the audio after ``end``: breath
-    # protection, the cut-risk level-jump terms and the join continuity gate score
-    # that join.
-    protect_breaths: bool
+    breaths: _BreathEdges
+    # A splice joins the audio before ``start`` to the audio after ``end``: the
+    # cut-risk level-jump terms and the join continuity gate score that join.
     score_joins: bool
     # A faded edge fades against fill, so the right edge fades in on whatever
     # follows it: that must be the next word's first phoneme, whole, and no kept
-    # word may vanish inside the span.
+    # word may vanish inside the span. The fade-in can reach a plosive burst after
+    # the cut, so the decision carries the burst for approval to end the fade before it.
     end_before_next_onset: bool
     keep_whole_words: bool
-    # The post-pad fade-in is long enough to reach a plosive burst after the cut, so
-    # the decision carries the burst for approval to end the fade before it. A
-    # mute's fade-in ends at the cut end, inside the onset guard: nothing to cap.
-    carry_next_burst: bool
+    # An acoustic run has no word label, so voiced audio that runs from its edge on
+    # into a kept word is that word's sound. A splice's breath protection refuses
+    # such an edge; a join that keeps breaths whole must refuse it here.
+    refuse_attached_runs: bool
+    # A ripple also removes time, so it is worth proposing over inaudible audio; a
+    # mute keeps the time, so it must silence something a listener can hear.
+    audible_only: bool
+    # A ripple moves every track in session scope, so peer speech decides the scope
+    # and is checked at the edges. A mute changes only its own track.
+    peer_scoped: bool
 
 
 _EDGE_CHECKS = {
     _Join.SPLICE: _EdgeChecks(
-        protect_breaths=True,
+        breaths=_BreathEdges.PROTECT,
         score_joins=True,
         end_before_next_onset=False,
         keep_whole_words=False,
-        carry_next_burst=False,
+        refuse_attached_runs=False,
+        audible_only=False,
+        peer_scoped=True,
     ),
     _Join.PADDED: _EdgeChecks(
-        protect_breaths=False,
+        breaths=_BreathEdges.IGNORE,
         score_joins=False,
         end_before_next_onset=True,
         keep_whole_words=True,
-        carry_next_burst=True,
+        refuse_attached_runs=False,
+        audible_only=False,
+        peer_scoped=True,
     ),
     _Join.MUTE: _EdgeChecks(
-        protect_breaths=False,
+        breaths=_BreathEdges.KEEP_WHOLE,
         score_joins=False,
         end_before_next_onset=True,
         keep_whole_words=True,
-        carry_next_burst=False,
+        refuse_attached_runs=True,
+        audible_only=True,
+        peer_scoped=False,
     ),
 }
 
@@ -1443,7 +1469,7 @@ class _CutPlan:
     join: _Join
     replace_gap_sec: float | None = None
     # Where a plosive burst begins, once the right edge has been fitted to the next
-    # word's onset; the decision carries it so the post-pad fade-in ends before it.
+    # word's onset; the decision carries it so the fade-in after the cut ends before it.
     # A gradual onset is not carried: a fade-in may cover it.
     next_burst: float | None = None
 
@@ -1489,9 +1515,8 @@ def _shrink_to_next_onset(
 ) -> _CutPlan | _CutRejected:
     """End ``plan`` before the next word's acoustic onset; refuse it if the filler stays.
 
-    On a padded plan a burst onset stays on the plan, so approval can end the
-    post-pad fade-in before it; a gradual onset moves the edge but leaves the fade-in
-    free. The scan reach is the same for every join, so the onset found is too.
+    A burst onset stays on the plan, so approval can end the fade-in after the cut
+    before it; a gradual onset moves the edge but leaves the fade-in free.
     """
     guard = max(_ONSET_GUARD_SEC, join_micro_fade_ms(defaults) / 1000.0)
     # Look as far as the longest post-pad fade-in could reach: an onset there does
@@ -1505,8 +1530,7 @@ def _shrink_to_next_onset(
     )
     if onset is None:
         return plan
-    carried = plan.checks.carry_next_burst and onset.kind is OnsetKind.BURST
-    burst = onset.sec if carried else None
+    burst = onset.sec if onset.kind is OnsetKind.BURST else None
     if onset.sec >= plan.end + guard:
         return replace(plan, next_burst=burst)
     end = min(plan.end, onset.sec - guard)
@@ -1689,6 +1713,23 @@ def _peer_audio_caches(
     ]
 
 
+def _cut_scope(
+    project: EpisodeProject,
+    track_id: str,
+    start: float,
+    end: float,
+    *,
+    peer_scoped: bool,
+    defaults: dict[str, Any],
+) -> tuple[str, SpeechEnergyGuardResult | None]:
+    """The scope approving ``[start, end)`` acts in: peer speech decides a ripple's."""
+    if not peer_scoped:
+        return "track", None
+    from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
+
+    return resolve_cut_scope(project, track_id, start, end, defaults=defaults)
+
+
 def _gate_cut_edges(
     project: EpisodeProject,
     candidate: _CutCandidate,
@@ -1705,8 +1746,6 @@ def _gate_cut_edges(
     The returned scope may differ from ``scope`` when the checks moved the span;
     the caller then re-gates under the plan the new scope implies.
     """
-    from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
-
     track_id = candidate.track_id
     checks = plan.checks
     # Every join starts a word filler at its voice, not its word time; acoustic runs
@@ -1741,7 +1780,7 @@ def _gate_cut_edges(
         )
         cut_start, cut_end, voiced_flag = voiced.start, voiced.end, voiced.flag
     before_protection = cut_start, cut_end
-    if checks.protect_breaths:
+    if checks.breaths is not _BreathEdges.IGNORE:
         breath_safe = protect_cut_breaths(
             project,
             track_id,
@@ -1750,14 +1789,14 @@ def _gate_cut_edges(
             defaults=defaults,
             audio_cache=audio_cache,
             word_index=word_index,
+            strict=checks.breaths is _BreathEdges.PROTECT,
         )
         if breath_safe is None:
             return _CutRejected("breath")
         cut_start, cut_end = breath_safe
     protected = cut_start, cut_end
-    minimum = (
-        _ACOUSTIC_MIN_CUT_SEC if candidate.reason == ACOUSTIC_FILLER_REASON else MIN_PACED_CUT_SEC
-    )
+    acoustic = candidate.reason == ACOUSTIC_FILLER_REASON
+    minimum = _ACOUSTIC_MIN_CUT_SEC if acoustic else MIN_PACED_CUT_SEC
     if cut_end - cut_start + 1e-9 < minimum:
         return _CutRejected("too_short")
     if candidate.cut_kind != "pause" and not _cut_covers_reparandum(candidate, cut_start, cut_end):
@@ -1766,9 +1805,15 @@ def _gate_cut_edges(
         covered = _covered_kept_word(project, candidate, cut_start, cut_end)
         if covered is not None:
             return _CutRejected(f"kept_word:{covered}")
+    if (
+        checks.audible_only
+        and audio_cache is not None
+        and rms_db(audio_cache.window(cut_start, cut_end)) < _audibility_floor_db(defaults)
+    ):
+        return _CutRejected("inaudible")
     try:
-        final_scope, guard = resolve_cut_scope(
-            project, track_id, cut_start, cut_end, defaults=defaults
+        final_scope, guard = _cut_scope(
+            project, track_id, cut_start, cut_end, peer_scoped=checks.peer_scoped, defaults=defaults
         )
     except ValueError:
         return _CutRejected("scope")
@@ -1790,6 +1835,8 @@ def _gate_cut_edges(
         if (settled.start, settled.end) != protected:
             return _CutRejected("unsettled_edges")
         voiced_flag = settled.flag
+    if checks.refuse_attached_runs and acoustic and voiced_flag == "voiced_edge":
+        return _CutRejected("voiced_edge")
     return _GatedCut(plan, scope, guard, voiced_flag)
 
 
@@ -1880,11 +1927,11 @@ def _analyze_candidate(
     if paced_span is None:
         return _CutRejected("bounds")
     cut_start, cut_end = paced_span
-    from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
-
     mute_mode = _edit_mode(tighten) == "mute"
     try:
-        scope, _ = resolve_cut_scope(project, track_id, cut_start, cut_end, defaults=defaults)
+        scope, _ = _cut_scope(
+            project, track_id, cut_start, cut_end, peer_scoped=not mute_mode, defaults=defaults
+        )
     except ValueError:
         return _CutRejected("scope")
     # The edit mode and scope decide the join and the join decides the edge checks,
