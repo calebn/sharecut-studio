@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LONG_PRESS_MS, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
 import type { HitRect } from "./hitCandidates";
 import {
   attachHitRouting,
   CHOOSER_ITEM_ATTR,
   type ChooserView,
   type HitRouter,
+  isReplayed,
 } from "./hitRouting";
 import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";
 
@@ -54,10 +56,13 @@ let router: HitRouter;
 let log: string[];
 let views: (ChooserView | null)[];
 let labOn: boolean;
+/** Log only what the router dispatched: the activations it decided. */
+let onlyReplays: boolean;
 
 function record(name: string, el: Element): void {
   for (const type of ["pointerdown", "pointermove", "pointerup", "click"]) {
     el.addEventListener(type, (e) => {
+      if (onlyReplays && !isReplayed(e)) return;
       const p = e as PointerEvent;
       log.push(`${name}:${type}@${p.clientX},${p.clientY}`);
     });
@@ -69,10 +74,11 @@ beforeEach(() => {
   log = [];
   views = [];
   labOn = false;
+  onlyReplays = false;
   root = document.createElement("div");
   document.body.append(root);
   router = attachHitRouting(root, {
-    chooserEnabled: () => labOn,
+    touchLab: () => labOn,
     onChooser: (view) => views.push(view),
   });
 });
@@ -217,47 +223,36 @@ function edgeCluster() {
 describe("touch chooser lab", () => {
   beforeEach(() => {
     labOn = true;
+    onlyReplays = true;
+    // jsdom does no layout: no chip is under any point unless a test says so.
+    document.elementFromPoint = () => null;
+    // What the press layer (useTouchPress) does with a deferred touch.
+    root.addEventListener(
+      "pointerdown",
+      (e) => {
+        if (router.defers(e)) e.stopPropagation();
+      },
+      true,
+    );
   });
 
-  it("opens after a still 250 ms hold, ranked, without pressing any target", () => {
+  it("hands an unselected touch to the press layer, pressing nothing while it moves", () => {
     const { fade } = edgeCluster();
-    press(fade, "pointerdown", 204, 117);
-    vi.advanceTimersByTime(249);
-    expect(views).toEqual([]);
-    press(fade, "pointermove", 206, 118);
-    vi.advanceTimersByTime(1);
+    const down = press(fade, "pointerdown", 204, 117);
+    press(fade, "pointermove", 260, 117);
+    vi.runAllTimers();
 
+    expect(router.defers(down)).toBe(true);
+    expect(views).toEqual([]);
     expect(log).toEqual([]);
-    expect(
-      views.map((v) => ({
-        kinds: v?.hits.map((h) => h.candidate.kind),
-        fingerDown: v?.fingerDown,
-        page: v?.page,
-      })),
-    ).toEqual([{ kinds: ["trim-in", "fade-in"], fingerDown: true, page: 0 }]);
   });
 
-  it("drags the winner from the origin when the finger moves first", () => {
+  it("taps the winner on a release within the slop, while the pointer is live", () => {
     const { fade } = edgeCluster();
     press(fade, "pointerdown", 204, 117);
-    press(fade, "pointermove", 208, 117);
+    press(fade, "pointerup", 206, 118);
     vi.runAllTimers();
 
-    expect(views).toEqual([]);
-    expect(log).toEqual([
-      "trim:pointerdown@204,117",
-      "trim:pointermove@208,117",
-    ]);
-  });
-
-  it("taps the winner on a quick lift", () => {
-    const { fade } = edgeCluster();
-    press(fade, "pointerdown", 204, 117);
-    press(fade, "pointerup", 204, 117);
-    fade.click();
-    vi.runAllTimers();
-
-    expect(views).toEqual([]);
     expect(log).toEqual([
       "trim:pointerdown@204,117",
       "trim:pointerup@204,117",
@@ -265,16 +260,121 @@ describe("touch chooser lab", () => {
     ]);
   });
 
-  it("stays open after a lift at the origin, then taps the picked target at its real place", () => {
+  it("drops a tap or hold whose finger slid past the slop", () => {
     const { fade } = edgeCluster();
     press(fade, "pointerdown", 204, 117);
-    vi.advanceTimersByTime(250);
+    press(fade, "pointerup", 204 + TOUCH_SLOP_PX + 1, 117);
+    press(fade, "pointerdown", 204, 117, 8);
+    press(fade, "pointermove", 204, 117 + TOUCH_SLOP_PX + 1, 8);
+    router.longPress();
+    vi.runAllTimers();
+
+    expect(views).toEqual([]);
+    expect(log).toEqual([]);
+  });
+
+  it("drops a hold once a second finger joins", () => {
+    const { fade } = edgeCluster();
+    press(fade, "pointerdown", 204, 117);
+    press(fade, "pointerdown", 260, 117, 9);
+    router.longPress();
+    vi.runAllTimers();
+
+    expect(views).toEqual([]);
+    expect(log).toEqual([]);
+  });
+
+  it("opens the chooser on a long press over 2+ targets, ranked, without pressing any", () => {
+    const { fade } = edgeCluster();
+    press(fade, "pointerdown", 204, 117);
+    router.longPress();
+
+    expect(log).toEqual([]);
+    expect(
+      views.map((v) => ({
+        kinds: v?.hits.map((h) => h.candidate.kind),
+        fingerDown: v?.fingerDown,
+      })),
+    ).toEqual([{ kinds: ["trim-in", "fade-in"], fingerDown: true }]);
+  });
+
+  it("grabs a lone target on a long press; released in place, it is a tap", () => {
+    const fade = button(hitTargetProps("fade-in", "clip-b", 2.3), {
+      left: 200,
+      top: 106,
+      right: 212,
+      bottom: 118,
+    });
+    root.append(fade);
+    record("fade", fade);
+    press(fade, "pointerdown", 206, 112);
+    router.longPress();
+    press(fade, "pointermove", 208, 112);
+    press(fade, "pointerup", 208, 112);
+    vi.runAllTimers();
+    press(fade, "pointerdown", 206, 112, 8);
+    router.longPress();
+    press(fade, "pointermove", 240, 112, 8);
+    press(fade, "pointerup", 240, 112, 8);
+    vi.runAllTimers();
+
+    expect(log).toEqual([
+      "fade:pointerdown@206,112",
+      "fade:pointermove@208,112",
+      "fade:pointerup@208,112",
+      "fade:click@208,112",
+      "fade:pointerdown@206,112",
+      "fade:pointermove@240,112",
+      "fade:pointerup@240,112",
+    ]);
+  });
+
+  it("lets a selected target under the finger take the touch at once", () => {
+    onlyReplays = false;
+    const { fade } = edgeCluster();
+    fade.setAttribute("data-hit-selected", "true");
+    const down = press(fade, "pointerdown", 204, 117);
+
+    expect(router.defers(down)).toBe(false);
+    expect(log).toEqual(["fade:pointerdown@204,117"]);
+  });
+
+  it("still defers a touch on an unselected target beside a selected one", () => {
+    const { trim, fade } = edgeCluster();
+    trim.setAttribute("data-hit-selected", "true");
+    const down = press(fade, "pointerdown", 210, 112);
+    expect(router.defers(down)).toBe(true);
+    router.longPress();
+
+    expect(views.at(-1)?.hits.map((h) => h.candidate.kind)).toEqual([
+      "trim-in",
+      "fade-in",
+    ]);
+  });
+
+  it("leaves an armed Select range its touches", () => {
+    const { fade } = edgeCluster();
+    root.setAttribute("data-range-armed", "true");
+    const down = press(fade, "pointerdown", 204, 117);
+
+    expect(router.defers(down)).toBe(false);
+  });
+
+  it("stays open after the lift, then taps the picked target at its real place", () => {
+    const { fade } = edgeCluster();
+    press(fade, "pointerdown", 204, 117);
+    router.longPress();
     press(fade, "pointerup", 204, 117);
     expect(views.at(-1)?.fingerDown).toBe(false);
 
-    const chipTap = press(document.body, "pointerup", 120, 40, 9);
-    router.choose(1, chipTap);
+    const chip = document.createElement("button");
+    chip.setAttribute(CHOOSER_ITEM_ATTR, "1");
+    document.body.append(chip);
+    document.elementFromPoint = () => chip;
+    press(chip, "pointerdown", 120, 40, 9);
+    press(chip, "pointerup", 120, 40, 9);
     vi.runAllTimers();
+    chip.remove();
 
     expect(views.at(-1)).toBeNull();
     expect(log).toEqual([
@@ -284,29 +384,25 @@ describe("touch chooser lab", () => {
     ]);
   });
 
-  it("closes with no change on cancel, a second finger, or close()", () => {
+  it("closes with no change on pointercancel or close()", () => {
     const { fade } = edgeCluster();
     press(fade, "pointerdown", 204, 117);
-    vi.advanceTimersByTime(250);
+    router.longPress();
     press(fade, "pointercancel", 204, 117);
     expect(views.at(-1)).toBeNull();
 
-    press(fade, "pointerdown", 204, 117, 8);
-    press(fade, "pointerdown", 260, 117, 9);
-    vi.runAllTimers();
-    expect(views.length).toBe(2);
-
     press(fade, "pointerdown", 204, 117, 10);
-    vi.advanceTimersByTime(250);
+    router.longPress();
     router.close();
     expect(views.at(-1)).toBeNull();
-    expect(log).toEqual(["fade:pointerdown@260,117"]);
+    expect(log).toEqual([]);
   });
 
   it("swallows the click of the tap that closed it", () => {
+    onlyReplays = false;
     const { fade } = edgeCluster();
     press(fade, "pointerdown", 204, 117);
-    vi.advanceTimersByTime(250);
+    router.longPress();
     press(fade, "pointerup", 204, 117);
     vi.advanceTimersByTime(1000);
     router.close();
@@ -314,7 +410,7 @@ describe("touch chooser lab", () => {
     expect(log).toEqual([]);
   });
 
-  it("grabs a chip rested on for 250 ms and forwards the drag from the target", () => {
+  it("marks a rested-on chip, then grabs it after a long press and drags from the target", () => {
     const { fade } = edgeCluster();
     const chip = document.createElement("button");
     chip.setAttribute(CHOOSER_ITEM_ATTR, "1");
@@ -322,9 +418,12 @@ describe("touch chooser lab", () => {
     document.elementFromPoint = (x: number) => (x > 230 ? chip : null);
 
     press(fade, "pointerdown", 204, 117);
-    vi.advanceTimersByTime(250);
+    router.longPress();
     press(fade, "pointermove", 236, 53);
-    vi.advanceTimersByTime(250);
+    expect(views.at(-1)?.over).toBe(1);
+    vi.advanceTimersByTime(LONG_PRESS_MS - 1);
+    expect(log).toEqual([]);
+    vi.advanceTimersByTime(1);
     press(fade, "pointermove", 246, 53);
     press(fade, "pointerup", 246, 53);
     vi.runAllTimers();
@@ -336,5 +435,23 @@ describe("touch chooser lab", () => {
       "fade:pointerup@216,112",
     ]);
     chip.remove();
+  });
+
+  it("cancels scrolling only while it owns the finger", () => {
+    const { fade } = edgeCluster();
+    const scroll = () => {
+      const event = new Event("touchmove", { bubbles: true, cancelable: true });
+      fade.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    press(fade, "pointerdown", 204, 117);
+    const whilePressing = scroll();
+    router.longPress();
+    const whileOpen = scroll();
+
+    expect({ whilePressing, whileOpen }).toEqual({
+      whilePressing: false,
+      whileOpen: true,
+    });
   });
 });

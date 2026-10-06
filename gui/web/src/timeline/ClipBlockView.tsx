@@ -241,7 +241,7 @@ export function ClipBlockView({
         <button
           type="button"
           className="join-seam"
-          {...hitTargetProps("roll", clip.id, savedStart)}
+          {...hitTargetProps("roll", clip.id, savedStart, { selected })}
           title={`${rollTip} · join: ${clip.join_in_mode}`}
           aria-label={rollTip}
           onPointerDown={(e) => onHandlePointerDown?.("roll", e)}
@@ -282,7 +282,7 @@ export function ClipBlockView({
             clip.id,
             savedStart + clip.fade_in_ms / 1000,
             {
-              selected: fadeDragEdge === "in",
+              selected: selected || fadeDragEdge === "in",
             },
           )}
           style={{ left: fadeInPx }}
@@ -308,7 +308,7 @@ export function ClipBlockView({
             clip.id,
             savedEnd - clip.fade_out_ms / 1000,
             {
-              selected: fadeDragEdge === "out",
+              selected: selected || fadeDragEdge === "out",
             },
           )}
           style={{ right: fadeOutPx }}
@@ -341,7 +341,7 @@ export function ClipBlockView({
           <button
             type="button"
             className="trim-handle in"
-            {...hitTargetProps("trim-in", clip.id, savedStart)}
+            {...hitTargetProps("trim-in", clip.id, savedStart, { selected })}
             title={`${trimTip} · start`}
             aria-label={`${trimTip} · start. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
             onPointerDown={(e) => onHandlePointerDown?.("trim-in", e)}
@@ -358,7 +358,7 @@ export function ClipBlockView({
             type="button"
             data-testid={timelineTestIds.trimOut}
             className="trim-handle out"
-            {...hitTargetProps("trim-out", clip.id, savedEnd)}
+            {...hitTargetProps("trim-out", clip.id, savedEnd, { selected })}
             title={`${trimTip} · end`}
             aria-label={`${trimTip} · end. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
             onPointerDown={(e) => onHandlePointerDown?.("trim-out", e)}

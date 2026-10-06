@@ -7,19 +7,23 @@
  * unchanged. One target in reach, or a press on a plain surface, passes
  * through untouched.
  *
- * With the touch chooser lab on, a touch with 2+ targets in reach (on a
- * target or a surface) is held instead. Moving first replays it on the winner
- * (the surface itself when the finger is on no target); holding still opens
- * the chooser, whose chips commit a pick by replaying a tap, or a grab by
- * replaying the press and forwarding the drag, on the real target.
+ * With the touch chooser lab on, a touch on a target or surface that is not
+ * already selected is handed to the press layer (`useTouchPress`, React Aria)
+ * instead, and reaches no target while it decides. A touch the browser takes
+ * to scroll ends in pointercancel and does nothing. A long press (the layer
+ * calls `longPress`) opens the chooser over 2+ targets, or grabs the winner.
+ * A release within the slop is a tap, replayed on the winner at once: React
+ * Aria reports a press only from the click that follows, when the pointer is
+ * no longer live and an owner that captures it would refuse the press. The
+ * chooser's chips commit a pick the same way, or a grab by replaying the
+ * press and forwarding the drag, on the real target.
  */
-import { HANDLE_DRAG_MIN_PX } from "../edit/dragThreshold";
-import { GHOST_CLICK_MS } from "../hooks/touchGestureTiming";
 import {
-  CHOOSER_GRAB_MS,
-  CHOOSER_HOLD_MS,
-  CHOOSER_STILL_PX,
-} from "./chooserLayout";
+  GHOST_CLICK_MS,
+  HANDLE_DRAG_MIN_PX,
+  LONG_PRESS_MS,
+  TOUCH_SLOP_PX,
+} from "../hooks/gestureConstants";
 import type { HitPoint } from "./hitCandidates";
 import {
   closestHitSurface,
@@ -101,7 +105,10 @@ export interface ChooserView {
   page: number;
   /** The opening finger is still down: lifting on a chip picks it. */
   fingerDown: boolean;
-  /** The chip under that finger: a hit index, "more", or none. */
+  /**
+   * The chip under that finger: a hit index, "more", or none. A hit chip under
+   * the finger is about to be grabbed: resting `LONG_PRESS_MS` on it grabs.
+   */
   over: number | "more" | null;
 }
 
@@ -109,14 +116,22 @@ export interface ChooserView {
 export const CHOOSER_ITEM_ATTR = "data-chooser-item";
 
 export interface HitRoutingOptions {
-  chooserEnabled?: () => boolean;
+  /** The touch chooser lab: touch goes through the press layer and chooser. */
+  touchLab?: () => boolean;
   onChooser?: (view: ChooserView | null) => void;
 }
 
 export interface HitRouter {
   dispose: () => void;
-  /** Commits chip `index`: a tap replay with `via`, or keyboard activation. */
-  choose: (index: number, via: PointerEvent | null) => void;
+  /** True when the press layer owns `down`, a touch the router deferred. */
+  defers: (down: PointerEvent) => boolean;
+  /** The press layer saw a long press: open the chooser, or grab the winner. */
+  longPress: () => void;
+  /**
+   * Commits chip `index`: a tap replay for a pointer pick, or the target's
+   * own activation for a keyboard or assistive-technology pick (`null`).
+   */
+  choose: (index: number, pointerType: string | null) => void;
   nextPage: () => void;
   /** Closes the chooser with no change. */
   close: () => void;
@@ -130,14 +145,17 @@ type Phase =
       element: Element;
       origin: HitPoint;
       moved: boolean;
+      touch: boolean;
     }
   | {
-      kind: "holding";
+      kind: "pressing";
       down: PointerEvent;
       origin: HitPoint;
+      at: HitPoint;
       hits: ResolvedHit[];
       winner: Element;
-      timer: ReturnType<typeof setTimeout>;
+      /** Another finger joined: a pinch or two-finger tap, never a pick. */
+      multi: boolean;
     }
   | {
       kind: "open";
@@ -154,6 +172,8 @@ type Phase =
       pointerId: number;
       element: Element;
       offset: HitPoint;
+      origin: HitPoint;
+      moved: boolean;
     };
 
 const IDLE: Phase = { kind: "idle" };
@@ -169,24 +189,28 @@ export function attachHitRouting(
   const doc = root.ownerDocument;
   let phase: Phase = IDLE;
   let suppressClickUntil = 0;
+  /** The last real press, the source for a pick made on a chip. */
+  let lastDown: PointerEvent | null = null;
 
-  // A touch that began on a scrollable surface would otherwise pan the
-  // timeline (and cancel the pointer) once it moves.
-  const blockScroll = (event: TouchEvent) => {
-    if (event.cancelable) event.preventDefault();
+  // Registered for the router's lifetime, not per gesture: WebKit only lets a
+  // touch listener cancel scrolling if it was there when the touch began.
+  const onTouchMove = (event: TouchEvent) => {
+    const owned =
+      phase.kind === "open" ||
+      phase.kind === "grabbed" ||
+      (phase.kind === "routed" && phase.touch);
+    if (owned && event.cancelable) event.preventDefault();
   };
-  const holdScroll = (on: boolean) => {
-    if (on) doc.addEventListener("touchmove", blockScroll, { passive: false });
-    else doc.removeEventListener("touchmove", blockScroll);
-  };
+  root.addEventListener("touchmove", onTouchMove as EventListener, {
+    passive: false,
+  });
+
   const emit = (view: ChooserView | null) => options.onChooser?.(view);
   const setPhase = (next: Phase) => {
-    if (phase.kind === "holding") clearTimeout(phase.timer);
     if (phase.kind === "open") {
       if (phase.rest) clearTimeout(phase.rest.timer);
       if (next.kind !== "open") emit(null);
     }
-    if (next.kind === "idle") holdScroll(false);
     phase = next;
   };
   const stop = (event: Event) => {
@@ -221,12 +245,29 @@ export function attachHitRouting(
     if (item == null) return null;
     return item === "more" ? "more" : Number(item);
   };
+  /** Presses `element` at `target`; the finger, `offset` away, drives it. */
+  const grab = (
+    element: Element,
+    source: PointerEvent,
+    target: HitPoint,
+    finger: HitPoint,
+  ) => {
+    setPhase({
+      kind: "grabbed",
+      pointerId: source.pointerId,
+      element,
+      offset: { x: target.x - finger.x, y: target.y - finger.y },
+      origin: finger,
+      moved: false,
+    });
+    replayPointer("pointerdown", element, source, target);
+  };
 
   const onDown = (event: PointerEvent) => {
     if (isReplayed(event)) return;
-    if (phase.kind === "holding" && phase.down.pointerId !== event.pointerId) {
-      // A second finger: no pick, and the new press passes through.
-      setPhase(IDLE);
+    lastDown = event;
+    if (phase.kind === "pressing" && phase.down.pointerId !== event.pointerId) {
+      phase.multi = true;
       return;
     }
     if (
@@ -240,80 +281,51 @@ export function attachHitRouting(
     if (!hit && !closestHitSurface(event.target)) return;
     const origin = pointOf(event);
     const hits = resolveHits(root, origin, event.pointerType, hit);
-    if (hits.length < 2) return;
     const winner = hit ? hits[0].element : event.target;
-    if (event.pointerType === "touch" && options.chooserEnabled?.()) {
-      stop(event);
-      holdScroll(true);
+    const touch = event.pointerType === "touch";
+    // Select first, then drag: the finger on a selected target drags it at
+    // once, and an armed Select range owns every touch. Anything else, even a
+    // spot where a selected neighbour would win a tap, waits for the press
+    // layer, so a hold there still opens the chooser.
+    const onSelected = hits.some(
+      (h) => h.element === hit && h.candidate.selected,
+    );
+    if (
+      touch &&
+      options.touchLab?.() &&
+      !onSelected &&
+      !event.target.closest("[data-range-armed]")
+    ) {
       phase = {
-        kind: "holding",
+        kind: "pressing",
         down: event,
         origin,
+        at: origin,
         hits,
         winner,
-        timer: setTimeout(open, CHOOSER_HOLD_MS),
+        multi: false,
       };
       return;
     }
-    if (winner === event.target || winner === hit) return;
+    if (hits.length < 2 || winner === event.target || winner === hit) return;
     stop(event);
-    if (event.pointerType === "touch") holdScroll(true);
     phase = {
       kind: "routed",
       pointerId: event.pointerId,
       element: winner,
       origin,
       moved: false,
+      touch,
     };
     replayPointer("pointerdown", winner, event);
-  };
-
-  const open = () => {
-    if (phase.kind !== "holding") return;
-    const { down, origin, hits } = phase;
-    clearTimeout(phase.timer);
-    phase = {
-      kind: "open",
-      pointerId: down.pointerId,
-      rest: null,
-      view: { origin, hits, page: 0, fingerDown: true, over: null },
-    };
-    emit(phase.view);
-  };
-
-  const grab = (source: PointerEvent) => {
-    if (phase.kind !== "open" || !phase.rest) return;
-    const { candidate, element } = phase.view.hits[phase.rest.index];
-    const target = { x: candidate.x, y: candidate.y };
-    const pointerId = phase.pointerId;
-    setPhase({
-      kind: "grabbed",
-      pointerId,
-      element,
-      offset: { x: target.x - source.clientX, y: target.y - source.clientY },
-    });
-    replayPointer("pointerdown", element, source, target);
   };
 
   const onMove = (event: PointerEvent) => {
     if (isReplayed(event)) return;
     const at = pointOf(event);
     switch (phase.kind) {
-      case "holding": {
-        if (event.pointerId !== phase.down.pointerId) return;
-        stop(event);
-        if (travel(at, phase.origin) <= CHOOSER_STILL_PX) return;
-        const { down, origin, winner } = phase;
-        clearTimeout(phase.timer);
-        phase = {
-          kind: "routed",
-          pointerId: down.pointerId,
-          element: winner,
-          origin,
-          moved: true,
-        };
-        replayPointer("pointerdown", winner, down, origin);
-        replayPointer("pointermove", winner, event);
+      case "pressing": {
+        if (event.pointerId === phase.down.pointerId) phase.at = at;
         return;
       }
       case "open": {
@@ -328,13 +340,13 @@ export function attachHitRouting(
         } else if (
           !rest ||
           rest.index !== over ||
-          travel(rest.at, at) > CHOOSER_STILL_PX
+          travel(rest.at, at) > TOUCH_SLOP_PX
         ) {
           if (rest) clearTimeout(rest.timer);
           phase.rest = {
             index: over,
             at,
-            timer: setTimeout(() => grab(event), CHOOSER_GRAB_MS),
+            timer: setTimeout(() => grabChip(event), LONG_PRESS_MS),
           };
         }
         if (over !== phase.view.over) {
@@ -346,6 +358,7 @@ export function attachHitRouting(
       case "grabbed": {
         if (event.pointerId !== phase.pointerId) return;
         stop(event);
+        if (travel(at, phase.origin) >= HANDLE_DRAG_MIN_PX) phase.moved = true;
         replayPointer("pointermove", phase.element, event, {
           x: at.x + phase.offset.x,
           y: at.y + phase.offset.y,
@@ -365,27 +378,43 @@ export function attachHitRouting(
     }
   };
 
+  const grabChip = (source: PointerEvent) => {
+    if (phase.kind !== "open" || !phase.rest) return;
+    const { candidate, element } = phase.view.hits[phase.rest.index];
+    grab(element, source, candidate, pointOf(source));
+  };
+
   const onUp = (event: PointerEvent) => {
     if (isReplayed(event)) return;
     const at = pointOf(event);
     switch (phase.kind) {
-      case "holding": {
+      case "pressing": {
         if (event.pointerId !== phase.down.pointerId) return;
-        const { down, origin, winner } = phase;
-        stop(event);
-        setPhase(IDLE);
-        tapOn(winner, down, event, origin);
+        // A tap, replayed while the pointer is live. The press layer stops
+        // the browser's own click, so no target sees two.
+        phase.at = at;
+        const press = settle();
+        if (!press) return;
+        const { winner, down, origin } = press;
+        replayPointer("pointerdown", winner, down, origin);
+        replayPointer("pointerup", winner, event, origin);
+        setTimeout(() => replayClick(winner, event, origin), 0);
         return;
       }
       case "open": {
-        if (event.pointerId !== phase.pointerId || !phase.view.fingerDown)
+        if (!phase.view.fingerDown) {
+          // A tap on a chip left open: pick while the pointer is live.
+          const over = itemAt(at);
+          if (typeof over === "number") router.choose(over, event.pointerType);
           return;
+        }
+        if (event.pointerId !== phase.pointerId) return;
         stop(event);
         if (phase.rest) clearTimeout(phase.rest.timer);
         phase.rest = null;
         const over = itemAt(at);
         if (typeof over === "number") {
-          router.choose(over, event);
+          router.choose(over, event.pointerType);
           return;
         }
         // Lifting anywhere but a chip leaves the chips open to tap.
@@ -401,12 +430,13 @@ export function attachHitRouting(
       }
       case "grabbed": {
         if (event.pointerId !== phase.pointerId) return;
-        const { element, offset } = phase;
+        const { element, offset, moved } = phase;
         stop(event);
         setPhase(IDLE);
         const to = { x: at.x + offset.x, y: at.y + offset.y };
         replayPointer("pointerup", element, event, to);
-        replaceClick(element, event, to, false);
+        // A hold released where it started is a slow tap.
+        replaceClick(element, event, to, !moved);
         return;
       }
       case "routed": {
@@ -421,7 +451,8 @@ export function attachHitRouting(
   };
 
   const onCancel = (event: PointerEvent) => {
-    if (isReplayed(event)) return;
+    // React Aria's long press cancels its own press with an untyped event.
+    if (isReplayed(event) || !event.pointerType) return;
     if (phase.kind === "grabbed" && phase.pointerId === event.pointerId) {
       const { element } = phase;
       setPhase(IDLE);
@@ -429,7 +460,7 @@ export function attachHitRouting(
       return;
     }
     const pointerId =
-      phase.kind === "holding"
+      phase.kind === "pressing"
         ? phase.down.pointerId
         : phase.kind === "idle"
           ? null
@@ -439,6 +470,13 @@ export function attachHitRouting(
 
   const onClick = (event: MouseEvent) => {
     if (isReplayed(event) || Date.now() >= suppressClickUntil) return;
+    // A chip's own press needs its click.
+    if (
+      event.target instanceof Element &&
+      event.target.closest(`[${CHOOSER_ITEM_ATTR}]`)
+    ) {
+      return;
+    }
     suppressClickUntil = 0;
     event.stopPropagation();
     event.preventDefault();
@@ -455,22 +493,56 @@ export function attachHitRouting(
     doc.addEventListener(type, listener as EventListener, true);
   }
 
+  /** The deferred press, if the finger stayed within the slop and alone. */
+  const settle = () => {
+    if (phase.kind !== "pressing") return null;
+    const press = phase;
+    setPhase(IDLE);
+    return !press.multi && travel(press.at, press.origin) <= TOUCH_SLOP_PX
+      ? press
+      : null;
+  };
+
   const router: HitRouter = {
     dispose() {
       setPhase(IDLE);
+      root.removeEventListener("touchmove", onTouchMove as EventListener);
       for (const [type, listener] of listeners) {
         doc.removeEventListener(type, listener as EventListener, true);
       }
     },
-    choose(index, via) {
+    defers(down) {
+      return phase.kind === "pressing" && phase.down === down;
+    },
+    longPress() {
+      const press = settle();
+      if (!press) return;
+      const { down, origin, hits, winner } = press;
+      if (hits.length < 2) {
+        grab(winner, down, origin, origin);
+        return;
+      }
+      phase = {
+        kind: "open",
+        pointerId: down.pointerId,
+        rest: null,
+        view: { origin, hits, page: 0, fingerDown: true, over: null },
+      };
+      emit(phase.view);
+    },
+    choose(index, pointerType) {
       if (phase.kind !== "open") return;
       const hit = phase.view.hits[index];
       if (!hit) return;
       setPhase(IDLE);
       const { element, candidate } = hit;
       const at = { x: candidate.x, y: candidate.y };
-      if (via) {
-        tapOn(element, via, via, at);
+      const pointer =
+        pointerType === "touch" ||
+        pointerType === "mouse" ||
+        pointerType === "pen";
+      if (pointer && lastDown) {
+        tapOn(element, lastDown, lastDown, at);
       } else if (element instanceof HTMLElement) {
         element.click();
       } else {

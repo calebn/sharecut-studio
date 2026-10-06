@@ -322,28 +322,51 @@ opening the app with `?lab=touch-chooser`; `?lab=-touch-chooser` turns it
 off. The choice persists per browser in `localStorage` (`sharecut.labs`,
 `utils/labFlags.ts`) and is not project state.
 
-With the lab on, a touch with two or more targets in reach is held by
-`attachHitRouting`, whether the finger is on a target or on a surface:
+With the lab on, every touch on a timeline target or surface that is not
+already selected goes to a press layer (`timeline/useTouchPress.ts`, React
+Aria's `usePress` and `useLongPress`), and no target sees it until the layer
+decides. Timing comes from `hooks/gestureConstants.ts`: a 500 ms long press
+and a 10 px slop, after the iOS and Android long-press defaults it cites.
 
-- **Move first.** Travel beyond 3 px (`CHOOSER_STILL_PX`) before 250 ms
-  (`CHOOSER_HOLD_MS`) replays the press on the resolver's winner, or on the
-  surface itself when the finger is on no target, and the drag continues there.
-- **Quick tap.** Lifting before 250 ms taps the winner.
-- **Hold still.** After 250 ms the chooser opens (`timeline/TargetChooser.tsx`).
-  Chips of `--touch-min` fan out on an arc 64 px above the finger, below it
-  near the top, and swing away from side edges (`timeline/chooserLayout.ts`).
-  Each chip draws its target's glyph at twice its size on the clip colour under
-  it, with a leader line and ring at the real position. Chips read left to right
-  by real x; more than five page through "More". One caption names the chip
-  under the finger, else the focused chip, else the best-ranked one; envelope
-  chips also show their gain.
+- **Scroll.** A finger that moves is a pan. The browser scrolls, the press
+  ends without a tap, and no target is selected, opened or edited. A tap or
+  hold whose finger slid past the slop is dropped even where the timeline has
+  no room left to scroll.
+- **Tap.** Lifting within the slop before the long press taps the resolver's
+  winner, or the surface itself when the finger is on no target. A quick tap on
+  a crowded spot picks the obvious target and never opens the chooser.
+- **Select first, then drag.** A selected target under the finger (a selected
+  clip's fade, trim and roll handles, a selected envelope point or pending
+  edit's edges) takes the touch at once and drags, as before. Unselected
+  targets let the finger scroll (`touch-action: pan-x pan-y`).
+- **Hold still.** After the long press, two or more targets in reach open the
+  chooser (`timeline/TargetChooser.tsx`); one target, or a surface, is grabbed
+  and the drag continues on it, and released in place it is a slow tap. Chips
+  of `--touch-min` fan out on an arc 64 px above the finger, below it when
+  there is no room above, and swing away from side edges
+  (`timeline/chooserLayout.ts`). Chips and caption stay inside the timeline's
+  visible box, clear of the transport bar, tabs and sheets. Each chip draws its
+  target's glyph at twice its size on the clip colour under it, with a leader
+  line and ring at the real position. Chips read left to right by real x; more
+  than five page through "More". One caption names the chip under the finger,
+  else the focused chip, else the best-ranked one; envelope chips also show
+  their gain.
 - **Commit.** Lifting on a chip replays a tap on its target at the target's own
-  position and focuses it. Resting 250 ms (`CHOOSER_GRAB_MS`) on a chip replays
-  the press on the target and forwards the rest of the drag offset by the
-  chip-to-target distance, so the target moves without jumping to the finger.
+  position and focuses it. A chip under the held finger shows it is about to
+  grab: an accent ring closes in on it over the long press (shown at once
+  under reduced motion), and the caption adds "Hold to drag · lift to select".
+  Resting that long, within the slop, replays the press on the target and
+  forwards the rest of the drag offset by the chip-to-target distance, so the
+  target moves without jumping to the finger. Chips take taps through
+  `usePress`, so touch, mouse, keyboard and assistive-technology presses pick.
 - **Cancel.** Lifting anywhere but a chip leaves the chips open to tap. A tap
-  on the dimmed timeline, Escape, a second finger or `pointercancel` closes the
-  chooser with no change; the closing tap's click is swallowed.
+  on the dimmed timeline, Escape, a second finger before the hold ends, or
+  `pointercancel` closes the chooser or drops the hold with no change; the
+  closing tap's click is swallowed.
+
+The marker lane and lanes set `user-select: none` and
+`-webkit-touch-callout: none` with the lab on or off, so a held or sliding
+finger starts no text selection or iOS callout over the timeline.
 
 The chooser is a `role="menu"` of `menuitemradio` chips (checked marks the
 currently selected target, with an accent edge and corner notch). It announces
@@ -358,7 +381,8 @@ spec asked for 100 ms). Under reduced motion the chips appear in place with no
 animation, because reduced motion may only stop motion here; the spec's 100 ms
 fade in place is not used.
 
-Open questions for physical testing: whether 3 px of stillness and a 250 ms
-rest-to-grab survive real finger drift and reading time (platform touch slop is
-8 to 10 px), and whether a quick tap on a cluster should open the chooser
-instead of tapping the winner.
+Open questions for physical testing: whether the platform hold (500 ms) feels
+slow for the chooser and the rest-to-grab, and whether the lab's
+scroll-first rule should replace today's select-on-press for every touch.
+With the lab off, a touch dragged across a clip still selects it on the way
+(the #1051 round-two repro found this on `main`).

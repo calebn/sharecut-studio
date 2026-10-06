@@ -1,25 +1,35 @@
 import fs from "node:fs";
-import path from "node:path";
 import { AxeBuilder } from "@axe-core/playwright";
-import {
-  type BrowserContext,
-  type CDPSession,
-  expect,
-  type Page,
-  type TestInfo,
-  test,
-} from "@playwright/test";
+import { type CDPSession, expect, type Page, test } from "@playwright/test";
+import { LONG_PRESS_MS } from "../src/hooks/gestureConstants";
 import { STUDIO_AXE_DISABLED_RULES } from "./axe";
 import { rulerWidthPx } from "./deepZoom";
-import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
 } from "./liveProject";
-import { openPhoneTimeline } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
-import { setTheme, type Theme } from "./theme";
+import type { Theme } from "./theme";
+import {
+  buildFixture as buildTouchFixture,
+  centerOf,
+  json,
+  lane,
+  newTouchPage,
+  openTimeline as openTouchTimeline,
+  type Point,
+  pickState,
+  projectJson as readProject,
+  SESSION_SEC,
+  save,
+  setZoom,
+  shot,
+  touch,
+  VIEWPORTS,
+  type ViewportName,
+  watchCommands,
+} from "./touchTimeline";
 
 /*
  * Touch target chooser (#1051 candidate A, lab "touch-chooser") on the real
@@ -29,15 +39,8 @@ import { setTheme, type Theme } from "./theme";
  */
 
 const CLIENT_ID = "e2e-touch-chooser";
-const TRACK = "reference";
-const EVIDENCE_DIR = process.env.TOUCH_CHOOSER_EVIDENCE_DIR;
-const SESSION_SEC = 60;
-
-const VIEWPORTS = {
-  phone: { width: 360, height: 800 },
-  tablet: { width: 820, height: 1180 },
-} as const;
-type ViewportName = keyof typeof VIEWPORTS;
+/** A hold past the long press, with room for the frame that opens it. */
+const HOLD_MS = LONG_PRESS_MS + 150;
 /** `=` presses from Fit. */
 const ZOOMS = [0, 3, 6] as const;
 const CLUSTERS = ["edge", "join-point", "join", "pending"] as const;
@@ -62,73 +65,11 @@ test.afterEach(async ({ page }) => {
   if (workspaceDir) removeRelocatedE2eProject(workspaceDir);
 });
 
-/**
- * Clusters on the reference track:
- * - edge (t=10): a clip join with a 300 ms fade-in and an envelope point on
- *   the edge, its neighbours, the roll seam and join badge;
- * - join-point (t=40): a join badge, its roll seam and an envelope point;
- * - join (t=50): a join badge over its roll seam;
- * - pending (t=24): two adjacent pending cuts, the first selected (a coarse
- *   pointer shows only the selected edit's edge handles).
- */
-async function buildFixture(page: Page): Promise<void> {
-  const run = (type: string, payload: Record<string, unknown>) =>
-    postDocumentCommand(page, CLIENT_ID, type, payload, projectPath);
-  for (const at_time of [10, 40, 50]) {
-    await run("SplitAtTime", { at_time, track_ids: [TRACK] });
-  }
-  const right = (await projectJson(page)).clips.tracks[TRACK].find(
-    (c) => c.timeline_start === 10,
-  );
-  if (!right) throw new Error("split at 10 s missing");
-  await run("SetClipFade", {
-    clip_id: right.id,
-    fade_in_ms: 300,
-    fade_out_ms: 0,
-  });
-  await run("SetEnvelope", {
-    track_id: TRACK,
-    expected_points: [],
-    points: [
-      { id: "env-a", time: 5, value: 1 },
-      { id: "env-edge", time: 10, value: 0.8 },
-      { id: "env-c", time: 16, value: 1 },
-      { id: "env-join", time: 40, value: 1.2 },
-    ],
-  });
-  await run("SuggestPendingEdit", { track_id: TRACK, start: 20, end: 24 });
-  await run("SuggestPendingEdit", { track_id: TRACK, start: 24, end: 28 });
-}
-
-type ProjectJson = {
-  clips: { tracks: Record<string, { id: string; timeline_start: number }[]> };
-  pending_edits: { id: string; source_start: number }[];
-};
-
-async function projectJson(page: Page): Promise<ProjectJson> {
-  const res = await page.request.get(
-    `/api/project?path=${encodeURIComponent(projectPath)}&phase=full`,
-  );
-  return (await res.json()) as ProjectJson;
-}
-
-type Command = { type: string; payload: Record<string, unknown> };
-
-/** Document commands the page posts. */
-function watchCommands(page: Page): Command[] {
-  const seen: Command[] = [];
-  page.on("request", (req) => {
-    if (
-      req.url().includes("/api/document/command") &&
-      req.method() === "POST"
-    ) {
-      const body = req.postDataJSON() as Partial<Command> | null;
-      if (body?.type)
-        seen.push({ type: body.type, payload: body.payload ?? {} });
-    }
-  });
-  return seen;
-}
+const buildFixture = (page: Page) =>
+  buildTouchFixture(page, projectPath, CLIENT_ID);
+const projectJson = (page: Page) => readProject(page, projectPath);
+const openTimeline = (page: Page, viewport: ViewportName, theme: Theme) =>
+  openTouchTimeline(page, projectPath, viewport, theme);
 
 /** Chip label prefix → the target kind it names. */
 const KIND_BY_LABEL: [string, string][] = [
@@ -152,36 +93,6 @@ function labelTarget(label: string): { kind: string; time: number } {
   return { kind, time: Number(mm) * 60 + Number(ss) };
 }
 
-type Point = { x: number; y: number };
-
-async function touch(
-  cdp: CDPSession,
-  type: "touchStart" | "touchMove" | "touchEnd" | "touchCancel",
-  points: Point[] = [],
-): Promise<void> {
-  await cdp.send("Input.dispatchTouchEvent", {
-    type,
-    touchPoints: points.map((p, id) => ({ x: p.x, y: p.y, id })),
-  });
-}
-
-function save(info: TestInfo, name: string, data: string | Buffer): void {
-  const file = info.outputPath(name);
-  fs.writeFileSync(file, data);
-  if (EVIDENCE_DIR) {
-    fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
-    fs.copyFileSync(file, path.join(EVIDENCE_DIR, name));
-  }
-}
-
-async function shot(info: TestInfo, page: Page, name: string): Promise<void> {
-  save(info, `${name}.png`, await page.screenshot());
-}
-
-function json(info: TestInfo, name: string, value: unknown): void {
-  save(info, `${name}.json`, `${JSON.stringify(value, null, 2)}\n`);
-}
-
 const chooser = (page: Page) =>
   page.locator(".target-chooser:not(.is-closing)");
 const chips = (page: Page) => page.getByRole("menuitemradio");
@@ -191,49 +102,6 @@ async function chipLabels(page: Page): Promise<string[]> {
     els.map((e) => e.getAttribute("aria-label") ?? ""),
   );
 }
-
-async function openTimeline(
-  page: Page,
-  viewport: ViewportName,
-  theme: Theme,
-): Promise<void> {
-  await page.setViewportSize(VIEWPORTS[viewport]);
-  await page.goto(
-    `/?project=${encodeURIComponent(projectPath)}&lab=touch-chooser`,
-  );
-  await expect(page.locator(".daw-shell")).toBeVisible();
-  if (viewport === "phone") await openPhoneTimeline(page);
-  await setTheme(page, theme);
-  await expect(
-    page.locator('circle[aria-label^="Envelope point 2"]'),
-  ).toBeVisible();
-}
-
-/** Fit, then `steps` zoom-ins; returns px per second. */
-async function setZoom(page: Page, steps: number): Promise<number> {
-  await page
-    .locator(".time-ruler")
-    .first()
-    .click({ position: { x: 4, y: 4 } });
-  await page.keyboard.press("\\");
-  for (let i = 0; i < steps; i += 1) await page.keyboard.press("=");
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(150);
-  return Math.round((await rulerWidthPx(page)) / SESSION_SEC);
-}
-
-async function centerOf(page: Page, selector: string): Promise<Point> {
-  const el = page.locator(selector).first();
-  await el.evaluate((node) =>
-    node.scrollIntoView({ block: "center", inline: "center" }),
-  );
-  await page.waitForTimeout(100);
-  const box = await el.boundingBox();
-  if (!box) throw new Error(`${selector} has no box`);
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
-
-const lane = `.lane-row[data-track-id="${TRACK}"]`;
 
 /** Where a finger lands on each cluster. */
 async function clusterPoint(page: Page, cluster: Cluster): Promise<Point> {
@@ -273,7 +141,7 @@ async function openAt(
   at: Point,
 ): Promise<boolean> {
   await touch(cdp, "touchStart", [at]);
-  await page.waitForTimeout(320);
+  await page.waitForTimeout(HOLD_MS);
   const opened = (await chooser(page).count()) > 0;
   await touch(cdp, "touchEnd");
   // Let the entrance finish before anything measures or screenshots it.
@@ -284,13 +152,6 @@ async function openAt(
 async function closeChooser(page: Page): Promise<void> {
   await page.keyboard.press("Escape");
   await expect(page.locator(".target-chooser")).toHaveCount(0);
-}
-
-async function newTouchPage(
-  context: BrowserContext,
-): Promise<{ page: Page; cdp: CDPSession }> {
-  const page = await context.newPage();
-  return { page, cdp: await context.newCDPSession(page) };
 }
 
 test("clusters open the chooser at every size and zoom", async ({
@@ -372,7 +233,7 @@ test("unambiguous touches never open the chooser", async ({
       for (const spot of spots) {
         for (const gesture of ["hold", "tap"] as const) {
           await touch(cdp, "touchStart", [spot]);
-          await p.waitForTimeout(gesture === "hold" ? 400 : 60);
+          await p.waitForTimeout(gesture === "hold" ? HOLD_MS : 60);
           const opened = (await chooser(p).count()) > 0;
           await touch(cdp, "touchEnd");
           rows.push({
@@ -399,23 +260,6 @@ test("unambiguous touches never open the chooser", async ({
 });
 
 /** What a pick changes: selection, open join popover, focus. */
-async function pickState(page: Page) {
-  return page.evaluate(() => ({
-    pressedPoint:
-      document
-        .querySelector('circle[aria-pressed="true"]')
-        ?.getAttribute("data-hit-id") ?? null,
-    selectedClips: [...document.querySelectorAll(".clip-block.selected")].map(
-      (el) => el.getAttribute("data-clip-id"),
-    ),
-    openJoin:
-      document
-        .querySelector('.join-badge[aria-expanded="true"]')
-        ?.getAttribute("data-hit-id") ?? null,
-    focused: document.activeElement?.getAttribute("data-hit-kind") ?? null,
-  }));
-}
-
 test("each chip picks its own target", async ({ page }, info) => {
   const cdp = await page.context().newCDPSession(page);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
@@ -466,9 +310,9 @@ test("each chip picks its own target", async ({ page }, info) => {
       const after = await pickState(page);
       const picked =
         want.kind === "envelope-point"
-          ? after.pressedPoint === id
+          ? after.pressedPointId === id
           : want.kind === "join"
-            ? after.openJoin === id
+            ? after.openJoinId === id
             : after.selectedClips.includes(id);
       results.push({
         cluster,
@@ -484,7 +328,7 @@ test("each chip picks its own target", async ({ page }, info) => {
   expect(results.filter((r) => !r.picked)).toEqual([]);
 });
 
-test("cancel paths close with no change; an early move drags the winner", async ({
+test("cancel paths close with no change; an early move edits nothing", async ({
   page,
 }, info) => {
   const cdp = await page.context().newCDPSession(page);
@@ -509,30 +353,34 @@ test("cancel paths close with no change; an early move drags the winner", async 
   results.tapOutside = (await chooser(page).count()) === 0;
   await page.waitForTimeout(200);
 
+  // A second finger before the hold ends: a pinch, never a pick.
   await touch(cdp, "touchStart", [at]);
-  await page.waitForTimeout(320);
+  await page.waitForTimeout(LONG_PRESS_MS / 2);
   await touch(cdp, "touchStart", [at, { x: at.x + 60, y: at.y + 80 }]);
+  await page.waitForTimeout(HOLD_MS);
   results.secondFinger = (await chooser(page).count()) === 0;
   await touch(cdp, "touchEnd");
   await page.waitForTimeout(200);
 
   await touch(cdp, "touchStart", [at]);
-  await page.waitForTimeout(320);
+  await page.waitForTimeout(LONG_PRESS_MS / 2);
   await touch(cdp, "touchCancel");
+  await page.waitForTimeout(HOLD_MS);
   results.pointercancel = (await chooser(page).count()) === 0;
   await page.waitForTimeout(200);
 
-  results.commandsAfterCancels = commands.map((c) => c.type);
-  results.projectUnchanged = JSON.stringify(await projectJson(page)) === before;
-
+  // Moving past the slop before the hold ends is a scroll: no chooser, no
+  // edit, even where the timeline has no room left to scroll.
   await touch(cdp, "touchStart", [at]);
   await touch(cdp, "touchMove", [{ x: at.x, y: at.y - 6 }]);
   await touch(cdp, "touchMove", [{ x: at.x, y: at.y - 20 }]);
-  await page.waitForTimeout(320);
+  await page.waitForTimeout(HOLD_MS);
   results.earlyMoveOpened = (await chooser(page).count()) > 0;
   await touch(cdp, "touchEnd");
-  await expect.poll(() => commands.length).toBeGreaterThan(0);
-  results.earlyMoveCommands = commands.map((c) => c.type);
+  await page.waitForTimeout(600);
+
+  results.commands = commands.map((c) => c.type);
+  results.projectUnchanged = JSON.stringify(await projectJson(page)) === before;
 
   json(info, "cancel", results);
   expect(results).toMatchObject({
@@ -540,9 +388,9 @@ test("cancel paths close with no change; an early move drags the winner", async 
     tapOutside: true,
     secondFinger: true,
     pointercancel: true,
-    commandsAfterCancels: [],
-    projectUnchanged: true,
     earlyMoveOpened: false,
+    commands: [],
+    projectUnchanged: true,
   });
 });
 
@@ -558,8 +406,7 @@ test("resting on a chip grabs its target and keeps dragging", async ({
   const at = await clusterPoint(page, "edge");
   commands.length = 0;
   await touch(cdp, "touchStart", [at]);
-  await page.waitForTimeout(320);
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(HOLD_MS + 250);
   const chip = page.getByRole("menuitemradio", {
     name: /Envelope point 0\.80×/,
   });
@@ -569,7 +416,14 @@ test("resting on a chip grabs its target and keeps dragging", async ({
     { x: (at.x + onChip.x) / 2, y: (at.y + onChip.y) / 2 },
   ]);
   await touch(cdp, "touchMove", [onChip]);
-  await page.waitForTimeout(320);
+  // Halfway through the rest: the chip shows it is about to grab.
+  await page.waitForTimeout(LONG_PRESS_MS / 2);
+  const arming = await page
+    .locator(".target-chip.is-arming")
+    .getAttribute("aria-label");
+  const hint = await page.locator(".target-chooser-hint").textContent();
+  await shot(info, page, "phone-about-to-grab-dark");
+  await page.waitForTimeout(LONG_PRESS_MS / 2 + 150);
   const closedOnGrab = (await chooser(page).count()) === 0;
   await touch(cdp, "touchMove", [{ x: onChip.x, y: onChip.y - 10 }]);
   await touch(cdp, "touchMove", [{ x: onChip.x, y: onChip.y - 20 }]);
@@ -585,7 +439,16 @@ test("resting on a chip grabs its target and keeps dragging", async ({
   }[];
   const edge = points.find((pt) => pt.id === "env-edge");
   const pxPerSec = Math.round((await rulerWidthPx(page)) / SESSION_SEC);
-  json(info, "grab", { closedOnGrab, pxPerSec, commands, envEdge: edge });
+  json(info, "grab", {
+    arming,
+    hint,
+    closedOnGrab,
+    pxPerSec,
+    commands,
+    envEdge: edge,
+  });
+  expect(arming).toMatch(/^Envelope point 0\.80× at /);
+  expect(hint).toBe("Hold to drag · lift to select");
   expect(closedOnGrab).toBe(true);
   // Grabbed from the chip 64 px away, the point keeps its time (to a pixel)
   // and rises with the 20 px drag instead of jumping to the finger.
@@ -613,34 +476,54 @@ test("axe, themes and reduced motion with the chooser open", async ({
         await setZoom(page, 0);
         const at = await clusterPoint(page, "edge");
         await touch(cdp, "touchStart", [at]);
-        await page.waitForTimeout(270);
+        await page.waitForTimeout(LONG_PRESS_MS + 20);
         const animations = await page.evaluate(() =>
           [...document.querySelectorAll(".target-chip")].reduce(
             (n, el) => n + el.getAnimations().length,
             0,
           ),
         );
-        await touch(cdp, "touchEnd");
         if (reduced) {
           await shot(info, page, "phone-reduced-motion-dark");
           results.reducedMotionChipAnimations = animations;
-        } else {
-          await page.waitForTimeout(250);
-          await shot(info, page, `${viewport}-edge-${theme}`);
-          const axe = await new AxeBuilder({ page })
-            .include(".target-chooser")
-            .disableRules([...STUDIO_AXE_DISABLED_RULES])
-            .analyze();
-          const contrast = await new AxeBuilder({ page })
-            .include(".target-chooser-caption")
-            .withRules(["color-contrast"])
-            .analyze();
-          results[`${viewport}-${theme}`] = {
-            animationsWhileOpening: animations,
-            axeViolations: axe.violations.map((v) => v.id),
-            labelContrastViolations: contrast.violations.map((v) => v.id),
-          };
+          // About to grab, without motion: the ring shows at once, still.
+          const box = (await chips(page).first().boundingBox())!;
+          await touch(cdp, "touchMove", [
+            { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+          ]);
+          await page.waitForTimeout(100);
+          results.reducedMotionArming = await page.evaluate(() => {
+            const chip = document.querySelector(".target-chip.is-arming");
+            return chip
+              ? {
+                  ring: getComputedStyle(chip, "::before").borderTopStyle,
+                  animations: chip.getAnimations({ subtree: true }).length,
+                }
+              : null;
+          });
+          await shot(info, page, "phone-about-to-grab-reduced-motion-dark");
+          await touch(cdp, "touchEnd");
+          await page.waitForTimeout(300);
+          await page.keyboard.press("Escape");
+          await expect(page.locator(".target-chooser")).toHaveCount(0);
+          continue;
         }
+        await touch(cdp, "touchEnd");
+        await page.waitForTimeout(250);
+        await shot(info, page, `${viewport}-edge-${theme}`);
+        const axe = await new AxeBuilder({ page })
+          .include(".target-chooser")
+          .disableRules([...STUDIO_AXE_DISABLED_RULES])
+          .analyze();
+        const contrast = await new AxeBuilder({ page })
+          .include(".target-chooser-caption")
+          .withRules(["color-contrast"])
+          .analyze();
+        results[`${viewport}-${theme}`] = {
+          animationsWhileOpening: animations,
+          axeViolations: axe.violations.map((v) => v.id),
+          labelContrastViolations: contrast.violations.map((v) => v.id),
+        };
         await closeChooser(page);
       }
     }
@@ -648,6 +531,7 @@ test("axe, themes and reduced motion with the chooser open", async ({
   }
   json(info, "a11y-motion", results);
   expect(results.reducedMotionChipAnimations).toBe(0);
+  expect(results.reducedMotionArming).toEqual({ ring: "solid", animations: 0 });
   for (const key of [
     "phone-dark",
     "phone-light",
@@ -688,11 +572,11 @@ test("video: open, pick and grab in both themes", async ({ browser }, info) => {
     await touch(cdp, "touchEnd");
     await page.waitForTimeout(900);
     await touch(cdp, "touchStart", [at]);
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(HOLD_MS + 100);
     const env = page.getByRole("menuitemradio", {
       name: /^Envelope point .* at 00:(09\.99|10\.0)/,
     });
-    const e = (await env.boundingBox())!;
+    const e = (await env.boundingBox({ timeout: 10_000 }))!;
     const onChip = { x: e.x + e.width / 2, y: e.y + e.height / 2 };
     for (let k = 1; k <= 6; k += 1) {
       await touch(cdp, "touchMove", [
@@ -703,7 +587,7 @@ test("video: open, pick and grab in both themes", async ({ browser }, info) => {
       ]);
       await page.waitForTimeout(40);
     }
-    await page.waitForTimeout(450);
+    await page.waitForTimeout(LONG_PRESS_MS + 150);
     for (let k = 1; k <= 8; k += 1) {
       await touch(cdp, "touchMove", [{ x: onChip.x, y: onChip.y - k * 3 }]);
       await page.waitForTimeout(50);
