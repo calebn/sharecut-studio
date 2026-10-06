@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from podcast_mcp.edits.range_edits import range_geometry, range_media_seal
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     Clip,
@@ -25,9 +26,9 @@ from podcast_mcp.models import (
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
 
-VIEW = ["view", "play", "comment", "reply"]
-SUGGEST = [*VIEW, "suggest"]
-EDIT = [*SUGGEST, "edit"]
+VIEW = capabilities_for_role("viewer")
+SUGGEST = capabilities_for_role("commenter")
+EDIT = capabilities_for_role("editor")
 
 
 @pytest.fixture
@@ -102,7 +103,7 @@ def _clip_spans(project_path) -> list[tuple[float, float]]:
 @pytest.mark.parametrize(
     ("capabilities", "words"),
     [(VIEW, None), (SUGGEST, ["Um.", "welcome"]), (EDIT, ["Um.", "welcome"])],
-    ids=["view", "suggest", "edit"],
+    ids=["viewer", "commenter", "editor"],
 )
 def test_detail_words_follow_capabilities_and_never_include_suppressed(guest, capabilities, words):
     client, open_share, _path = guest

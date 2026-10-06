@@ -715,9 +715,9 @@ class DocumentSyncService:
         structural_mode: str | None = None,
         author: str | None = None,
     ) -> dict[str, Any]:
+        from podcast_mcp.services.document_sync.capabilities import STRUCTURAL_COMMANDS
         from podcast_mcp.services.document_sync.policy import (
             AUTHORED_COMMANDS,
-            STRUCTURAL_COMMANDS,
             authorize_pending_update,
             may_decide_exact_range,
             range_reason,

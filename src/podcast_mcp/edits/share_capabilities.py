@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from enum import StrEnum
 from typing import Any
 
 CAP_VIEW = "view"
@@ -29,41 +30,44 @@ ALL_CAPABILITIES: list[str] = [
     CAP_MONITOR,
 ]
 
-DEFAULT_CAPABILITIES: list[str] = [
-    CAP_PLAY,
-    CAP_COMMENT,
-    CAP_REPLY,
-    CAP_ACTION,
-]
-VIEWER_CAPABILITIES: list[str] = [
-    CAP_PLAY,
-    CAP_VIEW,
-]
-COMMENTER_CAPABILITIES: list[str] = [
-    CAP_PLAY,
-    CAP_COMMENT,
-    CAP_REPLY,
-    CAP_ACTION,
-]
-EDITOR_CAPABILITIES: list[str] = [
-    CAP_PLAY,
-    CAP_VIEW,
-    CAP_COMMENT,
-    CAP_REPLY,
-    CAP_ACTION,
-    CAP_SUGGEST,
-    CAP_EDIT,
-]
 
-# Docs-like role presets → capability lists (link shares stay login-free).
-ROLE_PRESETS: dict[str, list[str]] = {
-    "viewer": list(VIEWER_CAPABILITIES),
-    "commenter": list(COMMENTER_CAPABILITIES),
-    "editor": list(EDITOR_CAPABILITIES),
+class ReviewRole(StrEnum):
+    """Review-link roles, as in Google Docs (communication philosophy § Terminology)."""
+
+    VIEWER = "viewer"
+    COMMENTER = "commenter"
+    EDITOR = "editor"
+
+
+# The one role table (#1050). Each role holds the previous role's capabilities and
+# more: a Commenter comments and suggests, and suggestions wait for an Editor or
+# the host. Every gate (document commands, guest MCP tools, guest mode) derives
+# from it.
+REVIEW_ROLE_CAPABILITIES: Mapping[ReviewRole, tuple[str, ...]] = {
+    ReviewRole.VIEWER: (CAP_PLAY, CAP_VIEW),
+    ReviewRole.COMMENTER: (
+        CAP_PLAY,
+        CAP_VIEW,
+        CAP_COMMENT,
+        CAP_REPLY,
+        CAP_ACTION,
+        CAP_SUGGEST,
+    ),
+    ReviewRole.EDITOR: (
+        CAP_PLAY,
+        CAP_VIEW,
+        CAP_COMMENT,
+        CAP_REPLY,
+        CAP_ACTION,
+        CAP_SUGGEST,
+        CAP_EDIT,
+    ),
 }
 
+# A share minted without naming capabilities is a Commenter link.
+DEFAULT_CAPABILITIES: list[str] = list(REVIEW_ROLE_CAPABILITIES[ReviewRole.COMMENTER])
+
 _KNOWN = frozenset(ALL_CAPABILITIES)
-_ROLES = frozenset(ROLE_PRESETS)
 
 RECORD_ROLE_GUEST = "guest"
 RECORD_ROLE_PRODUCER = "producer"
@@ -93,24 +97,39 @@ def record_role_for_capabilities(caps: list[str] | None) -> str | None:
 
 
 def capabilities_for_role(role: str, *, with_mcp: bool = False) -> list[str]:
-    """Expand a Docs-like role name to a capability list.
+    """Expand a review-link role name to its capability list.
 
     Raises ``ValueError`` for unknown roles. When *with_mcp* is true, appends
-    ``mcp`` if not already present (Editor+agent, etc.).
+    ``mcp`` (the opt-in MCP URL is orthogonal to the role).
     """
-    key = str(role or "").strip().lower()
-    if key not in _ROLES:
-        raise ValueError(f"unknown share role {role!r}; expected one of {sorted(_ROLES)}")
-    caps = list(ROLE_PRESETS[key])
-    if with_mcp and CAP_MCP not in caps:
+    try:
+        key = ReviewRole(str(role or "").strip().lower())
+    except ValueError:
+        raise ValueError(
+            f"unknown share role {role!r}; expected one of {[r.value for r in ReviewRole]}"
+        ) from None
+    caps = list(REVIEW_ROLE_CAPABILITIES[key])
+    if with_mcp:
         caps.append(CAP_MCP)
     return caps
+
+
+def review_role_for_capabilities(caps: list[str] | None) -> ReviewRole | None:
+    """The highest review role whose whole capability set *caps* holds, else ``None``.
+
+    ``mcp`` plays no part. A set that holds no role in full (a listen-only link
+    without ``view``, a record link) has no review role.
+    """
+    for role in reversed(ReviewRole):
+        if all(has_capability(caps, cap) for cap in REVIEW_ROLE_CAPABILITIES[role]):
+            return role
+    return None
 
 
 def normalize_capabilities(caps: list[str] | str | None) -> list[str]:
     """Return a deduplicated, validated capability list.
 
-    ``None`` or empty input returns ``DEFAULT_CAPABILITIES`` (commenter-like).
+    ``None`` or empty input returns ``DEFAULT_CAPABILITIES`` (a Commenter link).
     String input is split on commas. Unknown capability names are silently dropped.
     ``view`` implies ``play`` for streaming.
     """
@@ -128,28 +147,6 @@ def normalize_capabilities(caps: list[str] | str | None) -> list[str]:
     return out if out else list(DEFAULT_CAPABILITIES)
 
 
-def resolve_share_capabilities(
-    *,
-    role: str | None = None,
-    capabilities: list[str] | str | None = None,
-    with_mcp: bool = False,
-    kind: str = "review",
-) -> list[str]:
-    """Resolve CLI/MCP inputs: role preset wins when set; else raw capabilities."""
-    if kind == "record":
-        if not role:
-            raise ValueError("record shares require --role guest or producer")
-        return record_capabilities_for_role(role)
-    if kind != "review":
-        raise ValueError(f"unknown share kind {kind!r}")
-    if role:
-        return normalize_capabilities(capabilities_for_role(role, with_mcp=with_mcp))
-    caps = normalize_capabilities(capabilities)
-    if with_mcp and CAP_MCP not in caps:
-        caps = [*caps, CAP_MCP]
-    return caps
-
-
 def has_capability(caps: list[str] | None, cap: str) -> bool:
     """Return True if *cap* is granted (with view→play and comment→reply aliases)."""
     s = set(caps or [])
@@ -160,34 +157,26 @@ def has_capability(caps: list[str] | None, cap: str) -> bool:
     return cap in s
 
 
+_ROLE_GUEST_MODE: Mapping[ReviewRole, str] = {
+    ReviewRole.VIEWER: "view",
+    ReviewRole.COMMENTER: "comment",
+    ReviewRole.EDITOR: "edit",
+}
+
+
 def guest_mode(caps: list[str] | None) -> str:
-    """Return the highest-privilege guest mode implied by a capability list.
+    """Guest UI mode: ``edit``, ``comment`` or ``view`` from the review role.
 
-    Hierarchy: ``edit`` > ``suggest`` > ``comment`` / ``reply`` / ``action`` > ``view``.
+    A link with no review role (no ``view``) opens the listen page: ``comment``
+    when it may comment, ``view`` when it may only play, else ``none``.
     """
-    c = caps or []
-    if CAP_EDIT in c:
-        return "edit"
-    if CAP_SUGGEST in c:
-        return "suggest"
-    if CAP_COMMENT in c or CAP_REPLY in c or CAP_ACTION in c:
+    role = review_role_for_capabilities(caps)
+    if role is not None:
+        return _ROLE_GUEST_MODE[role]
+    if any(has_capability(caps, cap) for cap in (CAP_COMMENT, CAP_REPLY, CAP_ACTION)):
         return "comment"
-    if CAP_PLAY in c or CAP_VIEW in c:
+    if has_capability(caps, CAP_PLAY):
         return "view"
-    return "none"
-
-
-def docs_role_for_capabilities(caps: list[str] | None) -> str:
-    """Best-effort Docs-like role label for a capability list (for UI/docs)."""
-    mode = guest_mode(caps)
-    if mode == "edit":
-        return "editor"
-    if mode == "suggest":
-        return "editor"
-    if mode == "comment":
-        return "commenter"
-    if mode == "view":
-        return "viewer"
     return "none"
 
 

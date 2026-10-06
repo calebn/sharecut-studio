@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools import guest as guest_tools_pkg
 from podcast_mcp.models import load_project, save_project
@@ -73,11 +74,13 @@ def test_tools_for_capabilities_matrix() -> None:
     assert "guest_pending_preview" not in comment
     assert "guest_get_review_summary" in comment
 
-    suggest = tools_for_capabilities(["play", "view", "suggest", "mcp"])
+    suggest = tools_for_capabilities(capabilities_for_role("commenter", with_mcp=True))
     assert "guest_submit_document_command" in suggest
-    assert tool_allowed(["play", "view", "suggest", "mcp"], "guest_submit_document_command")
+    assert tool_allowed(
+        capabilities_for_role("commenter", with_mcp=True), "guest_submit_document_command"
+    )
 
-    edit = tools_for_capabilities(["play", "view", "edit", "mcp"])
+    edit = tools_for_capabilities(capabilities_for_role("editor", with_mcp=True))
     assert "guest_submit_document_command" in edit
     assert "guest_render_preview" in edit
     assert "guest_upload_media" in edit
@@ -86,10 +89,12 @@ def test_tools_for_capabilities_matrix() -> None:
 
     assert tools_for_capabilities([]) == frozenset()
     assert tools_for_capabilities(["mcp"]) == frozenset()
-    assert "ApproveEdits" in document_command_types_for_caps(["view", "edit"])
-    assert "SuggestPendingEdit" in document_command_types_for_caps(["view", "suggest"])
-    assert "SplitAtTime" in document_command_types_for_caps(["view", "edit"])
-    assert "SplitAtTime" in document_command_types_for_caps(["view", "suggest"])
+    assert "ApproveEdits" in document_command_types_for_caps(capabilities_for_role("editor"))
+    assert "SuggestPendingEdit" in document_command_types_for_caps(
+        capabilities_for_role("commenter")
+    )
+    assert "SplitAtTime" in document_command_types_for_caps(capabilities_for_role("editor"))
+    assert "SplitAtTime" in document_command_types_for_caps(capabilities_for_role("commenter"))
     assert document_command_types_for_caps(["suggest", "edit"]) == frozenset()
     assert document_command_types_for_caps(["play"]) == frozenset()
 
@@ -279,7 +284,13 @@ def test_guest_tool_surface_and_protocol_edges(
 
 def test_suggest_only_denies_approve(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_premix(minimal_project, sample_wav)
-    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "suggest", "mcp"], label="sug")
+    share = _share(
+        ws,
+        monkeypatch,
+        tmp_workspace,
+        capabilities_for_role("commenter", with_mcp=True),
+        label="sug",
+    )
     token = share["token"]
     denied = _call(
         token,
@@ -625,7 +636,9 @@ def test_document_command_sanitizes_snapshot_project(
     from podcast_mcp.services.remote_mcp import tools as rt
 
     ws = _seed_premix(minimal_project, sample_wav)
-    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "edit", "mcp"], label="san")
+    share = _share(
+        ws, monkeypatch, tmp_workspace, capabilities_for_role("editor", with_mcp=True), label="san"
+    )
 
     class FakeSvc:
         def __init__(self, *_a, **_k):
@@ -668,7 +681,9 @@ def test_guest_render_preview_strips_host_paths(monkeypatch):
     monkeypatch.setattr(
         rt,
         "get_remote_mcp_context",
-        lambda: type("C", (), {"capabilities": ["edit"], "workspace": FakeWs()})(),
+        lambda: type(
+            "C", (), {"capabilities": capabilities_for_role("editor"), "workspace": FakeWs()}
+        )(),
     )
 
     class FakeJob:
@@ -706,7 +721,9 @@ def test_guest_render_preview_requires_opt_in(monkeypatch):
     monkeypatch.setattr(
         rt,
         "get_remote_mcp_context",
-        lambda: type("C", (), {"capabilities": ["edit"], "workspace": object()})(),
+        lambda: type(
+            "C", (), {"capabilities": capabilities_for_role("editor"), "workspace": object()}
+        )(),
     )
     with pytest.raises(PermissionError, match="PODCAST_GUEST_RENDER"):
         rt.guest_render_preview()
@@ -723,7 +740,10 @@ def test_guest_render_preview_busy_is_runtime_error(monkeypatch):
         lambda: type(
             "C",
             (),
-            {"capabilities": ["edit"], "workspace": type("W", (), {"path": Path("/tmp/x")})()},
+            {
+                "capabilities": capabilities_for_role("editor"),
+                "workspace": type("W", (), {"path": Path("/tmp/x")})(),
+            },
         )(),
     )
 
@@ -748,7 +768,9 @@ def test_guest_render_preview_non_dict_ok(monkeypatch):
     monkeypatch.setattr(
         rt,
         "get_remote_mcp_context",
-        lambda: type("C", (), {"capabilities": ["edit"], "workspace": FakeWs()})(),
+        lambda: type(
+            "C", (), {"capabilities": capabilities_for_role("editor"), "workspace": FakeWs()}
+        )(),
     )
 
     class FakeJob:
@@ -808,7 +830,9 @@ def test_guest_submit_without_client_seq_applies_each_command(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):
     ws = _seed_premix(minimal_project, sample_wav)
-    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "edit", "mcp"], label="seq")
+    share = _share(
+        ws, monkeypatch, tmp_workspace, capabilities_for_role("editor", with_mcp=True), label="seq"
+    )
     for _ in range(2):
         out = _call(
             share["token"],

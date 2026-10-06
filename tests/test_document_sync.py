@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from filelock import Timeout
 from pydantic import ValidationError
 
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -1427,7 +1428,9 @@ def test_document_set_transcript_words_ignored(minimal_project):
     ws3 = ProjectWorkspace.open(minimal_project)
     assert not any(w.ignored for w in ws3.project.transcripts[0].words)
 
-    assert "SetTranscriptWordsIgnored" not in document_command_types_for_caps(["view", "edit"])
+    assert "SetTranscriptWordsIgnored" not in document_command_types_for_caps(
+        capabilities_for_role("editor")
+    )
 
 
 def test_document_markers_envelope_and_suggest(envelope_project):
@@ -1707,31 +1710,31 @@ def test_authorize_document_command_caps():
     )
 
     authorize_document_command(None, "SetEnvelope")
-    authorize_document_command(["view", "edit"], "ApproveEdits")
-    authorize_document_command(["view", "edit"], "SetEffectBypass")
-    authorize_document_command(["view", "suggest"], "SuggestPendingEdit")
-    authorize_document_command(["view", "edit"], "SplitAtTime")
-    authorize_document_command(["view", "suggest"], "SplitAtTime")
-    authorize_document_command(["view", "edit"], "PasteSegment")
-    authorize_document_command(["view", "edit"], "RippleDeleteRange")
-    authorize_document_command(["view", "edit"], "AddTrack")
-    authorize_document_command(["view", "edit"], "SetTrackMedia")
-    authorize_document_command(["view", "edit"], "SetTrackMeta")
-    authorize_document_command(["view", "edit"], "RemoveTrack")
-    authorize_document_command(["view", "edit"], "ReorderTrack")
-    authorize_document_command(["view", "edit"], "MoveClips")
+    authorize_document_command(capabilities_for_role("editor"), "ApproveEdits")
+    authorize_document_command(capabilities_for_role("editor"), "SetEffectBypass")
+    authorize_document_command(capabilities_for_role("commenter"), "SuggestPendingEdit")
+    authorize_document_command(capabilities_for_role("editor"), "SplitAtTime")
+    authorize_document_command(capabilities_for_role("commenter"), "SplitAtTime")
+    authorize_document_command(capabilities_for_role("editor"), "PasteSegment")
+    authorize_document_command(capabilities_for_role("editor"), "RippleDeleteRange")
+    authorize_document_command(capabilities_for_role("editor"), "AddTrack")
+    authorize_document_command(capabilities_for_role("editor"), "SetTrackMedia")
+    authorize_document_command(capabilities_for_role("editor"), "SetTrackMeta")
+    authorize_document_command(capabilities_for_role("editor"), "RemoveTrack")
+    authorize_document_command(capabilities_for_role("editor"), "ReorderTrack")
+    authorize_document_command(capabilities_for_role("editor"), "MoveClips")
     with pytest.raises(PermissionError):
-        authorize_document_command(["view", "suggest"], "AddTrack")
+        authorize_document_command(capabilities_for_role("commenter"), "AddTrack")
     with pytest.raises(PermissionError):
-        authorize_document_command(["view", "suggest"], "ReorderTrack")
+        authorize_document_command(capabilities_for_role("commenter"), "ReorderTrack")
     with pytest.raises(PermissionError):
-        authorize_document_command(["view", "suggest"], "MoveClips")
+        authorize_document_command(capabilities_for_role("commenter"), "MoveClips")
     with pytest.raises(PermissionError):
-        authorize_document_command(["view", "suggest"], "PasteSegment")
+        authorize_document_command(capabilities_for_role("commenter"), "PasteSegment")
     with pytest.raises(PermissionError):
-        authorize_document_command(["view", "suggest"], "ApproveEdits")
+        authorize_document_command(capabilities_for_role("commenter"), "ApproveEdits")
     with pytest.raises(PermissionError):
-        authorize_document_command(["view", "suggest"], "SetEffectBypass")
+        authorize_document_command(capabilities_for_role("commenter"), "SetEffectBypass")
     with pytest.raises(PermissionError):
         authorize_document_command(["view"], "UpdatePendingEdit")
     with pytest.raises(PermissionError):

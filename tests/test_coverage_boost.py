@@ -132,20 +132,26 @@ def test_summarize_diff_more_branches():
 def test_normalize_capabilities_variants():
     assert normalize_capabilities(None) == [
         "play",
+        "view",
         "comment",
         "reply",
         "action",
+        "suggest",
     ]
     assert "edit" in normalize_capabilities("play,edit,unknown")
     assert "play" in normalize_capabilities(["view"])
     assert normalize_capabilities(["nope"]) == [
         "play",
+        "view",
         "comment",
         "reply",
         "action",
+        "suggest",
     ]
-    assert guest_mode(["edit"]) == "edit"
-    assert guest_mode(["suggest"]) == "suggest"
+    assert guest_mode(["play", "view", "comment", "reply", "action", "suggest", "edit"]) == "edit"
+    assert guest_mode(["play", "view", "comment", "reply", "action", "suggest"]) == "comment"
+    assert guest_mode(["play", "view", "suggest"]) == "view"
+    assert guest_mode(["play", "comment"]) == "comment"
     assert guest_mode(["play"]) == "view"
     assert guest_mode([]) == "none"
     assert has_capability(["view"], "play")
@@ -279,8 +285,7 @@ def test_review_share_cli(minimal_project, sample_wav, tmp_workspace, monkeypatc
             ver["id"],
             "--base-url",
             "http://relay.test",
-            "--capabilities",
-            "play,comment,mcp",
+            "--with-mcp",
         ],
     )
     assert result.exit_code == 0
@@ -313,9 +318,9 @@ def test_create_review_share_tool(minimal_project, sample_wav, tmp_workspace, mo
         str(minimal_project),
         vid,
         public_base_url="http://r.test",
-        capabilities="play,view,suggest,edit",
+        role="editor",
     )
-    assert "suggest" in out or "edit" in out
+    assert json.loads(out)["guest_mode"] == "edit"
 
 
 def test_share_object_store_warning_and_daw_meta(

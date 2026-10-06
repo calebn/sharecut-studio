@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
@@ -19,8 +20,14 @@ from podcast_mcp.services.document_sync.policy import (
 
 
 def test_resolve_structural_mode_propose_override():
-    assert resolve_structural_mode(["edit"], "propose") is StructuralMutationMode.PROPOSE
-    assert resolve_structural_mode(["suggest"], None) is StructuralMutationMode.PROPOSE
+    assert (
+        resolve_structural_mode(capabilities_for_role("editor"), "propose")
+        is StructuralMutationMode.PROPOSE
+    )
+    assert (
+        resolve_structural_mode(capabilities_for_role("commenter"), None)
+        is StructuralMutationMode.PROPOSE
+    )
     assert resolve_structural_mode(None, None) is StructuralMutationMode.APPLY
 
 
@@ -59,8 +66,8 @@ def test_same_seq_idempotent(minimal_project, sample_wav):
         client_seq=1,
         command_id="cmd-1",
     )
-    r1 = svc.submit(cmd, capabilities=["view", "suggest"])
-    r2 = svc.submit(cmd, capabilities=["view", "suggest"])
+    r1 = svc.submit(cmd, capabilities=capabilities_for_role("commenter"))
+    r2 = svc.submit(cmd, capabilities=capabilities_for_role("commenter"))
     assert r1["ok"] is True
     assert r2.get("idempotent") is True
     assert r1["server_seq"] == r2["server_seq"]
@@ -99,7 +106,7 @@ def test_structural_mode_propose_from_edit_cap(
     ver = ReviewService(ws).publish(label="Propose")
     share = ShareService(ws).create(
         review_version_id=ver["id"],
-        capabilities=["play", "view", "edit"],
+        capabilities=capabilities_for_role("editor"),
     )
     client = TestClient(create_app())
     r = client.post(

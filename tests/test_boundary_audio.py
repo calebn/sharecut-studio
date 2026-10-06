@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from filelock import Timeout
 
 from podcast_mcp.config import load_defaults, mix_peak_ceiling_db
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.edits.timeline_ops import roll_clip_join
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import mix_gains, write_premix_hash
@@ -363,7 +364,9 @@ def test_edit_share_gets_guarded_context(
     write_premix_hash(ws.project, mix_gains(ws.project), trim_db=0.0)
     version = ReviewService(ws).publish(label="boundary-share")
     view = ShareService(ws).create(review_version_id=version["id"], capabilities=["view"])
-    edit = ShareService(ws).create(review_version_id=version["id"], capabilities=["view", "edit"])
+    edit = ShareService(ws).create(
+        review_version_id=version["id"], capabilities=capabilities_for_role("editor")
+    )
     blind = ShareService(ws).create(review_version_id=version["id"], capabilities=["edit"])
     target = RollBoundaryTarget(left_clip_id="left", right_clip_id="right")
     geometry = [item.model_dump() for item in boundary_context(ws.project, target).geometry]

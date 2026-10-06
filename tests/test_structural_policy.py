@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.edits.timeline_ops import split_clips_at
 from podcast_mcp.models import (
     Clip,
@@ -73,9 +74,15 @@ def _seed_dialogue_clips(project_path, sample_wav) -> ProjectWorkspace:
 
 def test_resolve_structural_mode():
     assert resolve_structural_mode(None) is StructuralMutationMode.APPLY
-    assert resolve_structural_mode(["edit"]) is StructuralMutationMode.APPLY
-    assert resolve_structural_mode(["suggest"]) is StructuralMutationMode.PROPOSE
-    assert resolve_structural_mode(["edit", "suggest"]) is StructuralMutationMode.APPLY
+    assert resolve_structural_mode(capabilities_for_role("editor")) is StructuralMutationMode.APPLY
+    assert (
+        resolve_structural_mode(capabilities_for_role("commenter"))
+        is StructuralMutationMode.PROPOSE
+    )
+    assert (
+        resolve_structural_mode(capabilities_for_role("editor", with_mcp=True))
+        is StructuralMutationMode.APPLY
+    )
     with pytest.raises(PermissionError):
         resolve_structural_mode(["view"])
     with pytest.raises(PermissionError):
@@ -83,10 +90,10 @@ def test_resolve_structural_mode():
 
 
 def test_authorize_structural_commands():
-    authorize_document_command(["view", "edit"], "SplitAtTime")
-    authorize_document_command(["view", "suggest"], "SplitAtTime")
-    authorize_document_command(["view", "edit"], "DeleteClip")
-    authorize_document_command(["view", "suggest"], "RippleDeleteClip")
+    authorize_document_command(capabilities_for_role("editor"), "SplitAtTime")
+    authorize_document_command(capabilities_for_role("commenter"), "SplitAtTime")
+    authorize_document_command(capabilities_for_role("editor"), "DeleteClip")
+    authorize_document_command(capabilities_for_role("commenter"), "RippleDeleteClip")
     with pytest.raises(PermissionError):
         authorize_document_command(["view"], "SplitAtTime")
 
@@ -128,7 +135,7 @@ def test_split_at_time_suggest_proposes(minimal_project, sample_wav):
         role="guest",
         client_seq=1,
     )
-    out = svc.submit(cmd, capabilities=["view", "suggest"])
+    out = svc.submit(cmd, capabilities=capabilities_for_role("commenter"))
     assert out["ok"]
     assert len(svc.ws.project.clips) == before_clips
     pending = [e for e in svc.ws.project.edit_decisions if e.type == EditDecisionType.SPLIT]
@@ -158,7 +165,7 @@ def test_delete_clip_apply_and_suggest(minimal_project, sample_wav):
         role="guest",
         client_seq=10,
     )
-    out = svc.submit(cmd, capabilities=["view", "suggest"])
+    out = svc.submit(cmd, capabilities=capabilities_for_role("commenter"))
     assert out["ok"]
     pending = [e for e in svc.ws.project.edit_decisions if not e.applied]
     assert pending
@@ -194,7 +201,7 @@ def test_ripple_delete_clip_apply(minimal_project, sample_wav):
         role="viewer",
         client_seq=20,
     )
-    out = svc.submit(cmd, capabilities=["view", "edit"])
+    out = svc.submit(cmd, capabilities=capabilities_for_role("editor"))
     assert out["ok"]
     assert svc.ws.project.timeline.duration_sec < before_dur
 
@@ -243,7 +250,7 @@ def test_ripple_delete_clip_suggest(minimal_project, sample_wav):
         role="guest",
         client_seq=30,
     )
-    out = svc.submit(cmd, capabilities=["view", "suggest"])
+    out = svc.submit(cmd, capabilities=capabilities_for_role("commenter"))
     assert out["ok"]
     assert len(svc.ws.project.clips) == before
     assert any(not e.applied for e in svc.ws.project.edit_decisions)
@@ -266,7 +273,7 @@ def test_update_pending_split_and_skipped_track(minimal_project, sample_wav):
         role="guest",
         client_seq=40,
     )
-    svc.submit(cmd, capabilities=["view", "suggest"])
+    svc.submit(cmd, capabilities=capabilities_for_role("commenter"))
     pending = next(e for e in svc.ws.project.edit_decisions if e.type == EditDecisionType.SPLIT)
     updated = EditService(svc.ws).update_pending(
         pending.id, start=4.5, end=4.5, snap=False, track_ids=["host"]
@@ -310,7 +317,7 @@ def test_delete_clip_via_clip_ids_payload(minimal_project, sample_wav):
         role="viewer",
         client_seq=50,
     )
-    out = svc.submit(cmd, capabilities=["view", "edit"])
+    out = svc.submit(cmd, capabilities=capabilities_for_role("editor"))
     assert out["ok"]
     assert left.id not in {c.id for c in svc.ws.project.clips}
 

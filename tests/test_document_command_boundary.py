@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools.agent_document import submit_host_document_command
 from podcast_mcp.models import load_project, save_project
@@ -53,7 +54,7 @@ def _edit_share(ws: ProjectWorkspace, monkeypatch, tmp_workspace) -> dict:
     return ShareService(ws).create(
         review_version_id=ver["id"],
         public_base_url="https://share.example",
-        capabilities=["play", "view", "edit", "comment", "action", "mcp"],
+        capabilities=capabilities_for_role("editor", with_mcp=True),
     )
 
 

@@ -43,8 +43,7 @@ def create_review_share_tool(
     project_path: str,
     version_id: str,
     public_base_url: str = "http://127.0.0.1:8765",
-    capabilities: str = "play,comment,reply,action",
-    role: str | None = None,
+    role: str = "commenter",
     with_mcp: bool = False,
     general_access: str = "link",
     require_sign_in: bool = False,
@@ -52,22 +51,19 @@ def create_review_share_tool(
 ) -> str:
     """Create a review share URL (Anyone with the link by default).
 
-    role: optional Docs-like preset viewer|commenter|editor (overrides capabilities).
-    capabilities: comma-separated play,view,comment,reply,action,suggest,edit,mcp.
-    with_mcp: also grant capability-scoped remote MCP ({base}/mcp/{token}/mcp).
+    role: review-link role, as in Google Docs. viewer views and plays; commenter
+    also comments and suggests edits that wait for an editor or the host; editor
+    also edits directly and approves or rejects suggestions.
+    with_mcp: also mint an MCP URL ({base}/mcp/{token}/mcp) with the role's powers.
     general_access: link (default) or restricted (ACL + sign-in).
     require_sign_in: force login even on link shares.
     invite_emails: comma-separated emails to add to the ACL.
     """
-    from podcast_mcp.edits.share_capabilities import resolve_share_capabilities
+    from podcast_mcp.edits.share_capabilities import capabilities_for_role
     from podcast_mcp.services.collaboration import ShareService
     from podcast_mcp.services.share_auth import get_identity_store
 
-    caps = resolve_share_capabilities(
-        role=role,
-        capabilities=capabilities,
-        with_mcp=with_mcp,
-    )
+    caps = capabilities_for_role(role, with_mcp=with_mcp)
     ws = ProjectWorkspace.open(project_path)
     row = ShareService(ws).create(
         review_version_id=version_id,
@@ -79,12 +75,9 @@ def create_review_share_tool(
     emails = [e.strip() for e in invite_emails.split(",") if e.strip()]
     if emails:
         store = get_identity_store()
-        acl_role = role or row.get("docs_role") or "commenter"
         row = {
             **row,
-            "invites": [
-                store.invite_to_share(row["token"], email=e, role=str(acl_role)) for e in emails
-            ],
+            "invites": [store.invite_to_share(row["token"], email=e, role=role) for e in emails],
         }
     return to_json(row)
 

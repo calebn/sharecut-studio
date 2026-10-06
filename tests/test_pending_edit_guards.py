@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from podcast_mcp.edits.decisions import PendingEditBaseline, PendingEditChangedError
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
     Clip,
@@ -197,7 +198,7 @@ def test_stale_http_command_replay_returns_conflict_and_keeps_newer_edit(
     if guest:
         # An edit guest may retime the host's pending edit; a suggest-only guest is
         # refused by the permission gate before any staleness check (#1005).
-        _, _, share = published_share(capabilities=["view", "edit"])
+        _, _, share = published_share(capabilities=capabilities_for_role("editor"))
         url = f"/api/review/{share['token']}/daw/document/command"
     else:
         url = f"/api/document/command?path={pending_project}"
