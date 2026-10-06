@@ -5,20 +5,30 @@
  * the kind's priority.
  */
 
-/** Every hit-testable timeline target kind, with its tie-break priority. */
+/**
+ * How a target's own drag moves it: along time (`x`), in time and value
+ * (`xy`), or not at all (`none`, a target that only takes taps). The chooser
+ * grabs a chip only for a move along this axis (`chipGesture.ts`).
+ */
+export type DragAxis = "x" | "xy" | "none";
+
+/** Every hit-testable timeline target kind: tie-break priority, label, drag axis. */
 export const HIT_KINDS = {
-  join: { priority: 10, label: "Join" },
-  "envelope-point": { priority: 9, label: "Envelope point" },
-  "pending-start": { priority: 8, label: "Pending start" },
-  "pending-end": { priority: 8, label: "Pending end" },
-  "pending-flag": { priority: 7, label: "Pending split" },
-  roll: { priority: 6, label: "Roll" },
-  "fade-in": { priority: 5, label: "Fade in" },
-  "fade-out": { priority: 5, label: "Fade out" },
-  "trim-in": { priority: 4, label: "Trim start" },
-  "trim-out": { priority: 4, label: "Trim end" },
-  chapter: { priority: 3, label: "Chapter" },
-} as const;
+  join: { priority: 10, label: "Join", axis: "none" },
+  "envelope-point": { priority: 9, label: "Envelope point", axis: "xy" },
+  "pending-start": { priority: 8, label: "Pending start", axis: "x" },
+  "pending-end": { priority: 8, label: "Pending end", axis: "x" },
+  "pending-flag": { priority: 7, label: "Pending split", axis: "none" },
+  roll: { priority: 6, label: "Roll", axis: "x" },
+  "fade-in": { priority: 5, label: "Fade in", axis: "x" },
+  "fade-out": { priority: 5, label: "Fade out", axis: "x" },
+  "trim-in": { priority: 4, label: "Trim start", axis: "x" },
+  "trim-out": { priority: 4, label: "Trim end", axis: "x" },
+  chapter: { priority: 3, label: "Chapter", axis: "x" },
+} as const satisfies Record<
+  string,
+  { priority: number; label: string; axis: DragAxis }
+>;
 
 export type HitKind = keyof typeof HIT_KINDS;
 

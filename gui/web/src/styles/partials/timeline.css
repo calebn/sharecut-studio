@@ -1347,8 +1347,9 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 }
 
 /* About to grab: the finger rests on this chip, and a long press here picks
-   the target up. An accent ring closes in on the chip over that hold; with
-   reduced motion it simply shows. Lifting first still picks. */
+   the target up (a slide along its axis does sooner, once armed). An accent
+   ring closes in on the chip over that hold; with reduced motion it simply
+   shows. Lifting first still picks. */
 /* A tinted halo inside the ring, so it never reads as the focus outline. */
 .target-chip.is-arming {
   border-color: var(--accent);
@@ -1361,6 +1362,21 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   inset: calc(-1 * (var(--space-1) + var(--focus-ring-width)));
   border: var(--focus-ring-width) solid var(--accent);
   border-radius: var(--radius-lg);
+  pointer-events: none;
+}
+
+/* Armed: a slide along the target's axis drags it now. Chevrons on the
+   chip's edges point the ways it moves. */
+.target-chip-axis {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   pointer-events: none;
 }
 
@@ -1532,5 +1548,9 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   /* Linear, so the ring lands on the chip exactly when the grab happens. */
   .target-chip.is-arming::before {
     animation: chooser-arming var(--motion-long-press) linear;
+  }
+
+  .target-chip-axis {
+    animation: fade-in var(--motion-press) var(--motion-ease-out);
   }
 }

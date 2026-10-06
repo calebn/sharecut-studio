@@ -43,6 +43,15 @@ export const TOUCH_SLOP_PX = 10;
  */
 export const HANDLE_DRAG_MIN_PX = 3;
 
+/**
+ * How long a finger that slid onto a chooser chip must stay within
+ * `TOUCH_SLOP_PX` before a slide along the target's axis drags it. A finger
+ * passing over chips on the way to another never settles, so it never grabs.
+ * Android's `TAP_TIMEOUT` (100 ms), the wait "to see if a touch event is a tap
+ * or a scroll", in the `ViewConfiguration` source cited above.
+ */
+export const CHIP_SETTLE_MS = 100;
+
 /** A clip-body press must travel this far (any direction) before it becomes a move. */
 export const MOVE_THRESHOLD_PX = 5;
 
