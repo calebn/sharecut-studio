@@ -482,15 +482,18 @@ grab and a press the press layer is still deciding. A press the router replayed
 on another target is cancelled there too. The selection goes back to what it
 was before the first finger, so a press that selected a clip on the way down
 is undone. Until every finger lifts, their pointer events stop at the router,
-and the pinch (touch events, `timelineZoomGestures.ts`) owns the gesture. An
-open chooser closes. Mouse and pen pointers are not affected.
+and the pinch (touch events, `timelineZoomGestures.ts`) owns the gesture. No
+click comes of it either: a finger that lifts before the other is not a tap.
+An open chooser closes. Mouse and pen pointers are not affected.
 
-CDP drives two real touch points in `e2e/touch-pinch.spec.ts`: one finger
-drags a fade corner, a trim handle or presses a clip body, a second lands and
-both spread. On the round 3 build the same cases saved `TrimClipEdge`,
-`MoveClips` or `RollClipJoin`; now they send no document command, the saved
-clip is unchanged, the selection is what it was, and the zoom grows by about
-2.3× (portrait and sideways, lab on; portrait, lab off).
+`e2e-compat/touch-pinch.spec.ts` puts one finger on a fade corner, a trim
+handle or a clip body, drags it, lands a second finger and spreads both:
+Chromium with two real CDP touch points, WebKit (no touch input in
+Playwright) with touch-typed pointer events plus the touch events a pinch
+fires. On the round 3 build the same cases saved `TrimClipEdge`, `MoveClips`
+or `RollClipJoin`; now they send no document command, the saved clip is
+unchanged, the selection is what it was, and the zoom grows by about 2.3×
+(portrait and sideways, lab on; portrait, lab off).
 
 ### Collapse stays in reach (#1051 round 4)
 
