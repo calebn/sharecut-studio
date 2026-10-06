@@ -8,7 +8,6 @@ import pytest
 from podcast_mcp.engines.ffmpeg import AudioProbe, FFmpegEngine
 from podcast_mcp.engines.mastering import (
     LimiterPlan,
-    LimiterReport,
     LoudnormPlan,
     plan_master,
 )
@@ -64,29 +63,37 @@ def test_peaky_premix_is_limited_onto_the_target_under_the_ceiling(
     out = tmp_path / "out" / "mastered.wav"
     result = eng.master_loudness(peaky_wav, out, integrated_lufs=-16.0, true_peak_db=-1.5)
 
-    assert result.plan == LimiterPlan(gain_db=6.0)
+    # ffmpeg builds round ebur128 readings differently; measured values get that slack.
+    measured_value = pytest.approx
+    assert result.plan == LimiterPlan(gain_db=measured_value(6.0, abs=0.2))
     assert result.input_stats == {
-        "input_i": -22.0,
-        "input_tp": -0.5,
-        "input_lra": 0.0,
-        "input_thresh": -32.0,
+        "input_i": measured_value(-22.0, abs=0.2),
+        "input_tp": measured_value(-0.5, abs=0.2),
+        "input_lra": measured_value(0.0, abs=0.2),
+        "input_thresh": measured_value(-32.0, abs=0.2),
         "target_offset": 0.0,
     }
     assert result.normalization_type is None
-    assert result.limiter == LimiterReport(
-        gain_db=6.0,
-        drive_db=7.7,
-        limit_db=-2.0,
-        renders=2,
-        converged=True,
-        trim_db=0.2,
-        peak_reduction_db=9.2,
-        loudness_reduction_lu=1.9,
+    limiter = result.limiter
+    assert limiter is not None
+    assert (limiter.limit_db, limiter.renders, limiter.converged) == (-2.0, 2, True)
+    assert (
+        limiter.gain_db,
+        limiter.drive_db,
+        limiter.trim_db,
+        limiter.peak_reduction_db,
+        limiter.loudness_reduction_lu,
+    ) == (
+        measured_value(6.0, abs=0.2),
+        measured_value(7.7, abs=0.3),
+        measured_value(0.2, abs=0.2),
+        measured_value(9.2, abs=0.3),
+        measured_value(1.9, abs=0.3),
     )
     measured = eng.measure_loudness_full(out)
     assert measured is not None
-    assert measured["integrated_lufs"] == -16.0
-    assert measured["true_peak_db"] == -1.8
+    assert measured["integrated_lufs"] == measured_value(-16.0, abs=0.1)
+    assert measured["true_peak_db"] <= -1.5
     assert eng.probe(out) == AudioProbe(
         duration_sec=6.0, sample_rate=48000, channels=1, audio_duration_sec=6.0
     )
@@ -102,7 +109,8 @@ def test_gentle_premix_keeps_linear_loudnorm(eng: FFmpegEngine, gentle_wav: Path
     assert result.limiter is None
     measured = eng.measure_loudness_full(out)
     assert measured is not None
-    assert (measured["integrated_lufs"], measured["true_peak_db"]) == (-16.0, -10.0)
+    assert measured["integrated_lufs"] == pytest.approx(-16.0, abs=0.1)
+    assert measured["true_peak_db"] == pytest.approx(-10.0, abs=0.2)
 
 
 def test_an_unmeasurable_limited_master_raises(eng: FFmpegEngine, peaky_wav: Path, tmp_path: Path):
