@@ -190,6 +190,8 @@ def test_short_bed_is_tiled_across_a_ripple_pad(tmp_path: Path) -> None:
         pytest.approx((4.2, 0.0, 0.2)),
         pytest.approx((4.4, 0.0, 0.1)),
     ]
+    # Tiles abut: only the pad's outer edges fade, so the seams carry no dip.
+    assert [(c.fade_in_ms, c.fade_out_ms) for c in pads] == [(10, 0), (0, 0), (0, 10)]
 
 
 @pytest.mark.parametrize(
@@ -212,6 +214,30 @@ def test_unusable_bed_falls_back_to_track_air(
     assert fill == RoomToneFill(start_s=5.0, end_s=5.5, source_id=None)
 
 
+def test_sampled_tiles_fade_only_at_the_pad_edges(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+    project.clips = [
+        Clip(id="a", track_id="host", source_start=0.0, source_end=4.0, timeline_start=0.0),
+        Clip(id="b", track_id="host", source_start=4.5, source_end=10.0, timeline_start=4.0),
+    ]
+
+    # A 0.5 s sample tiled across a 1.3 s pad.
+    insert_room_tone_pad(project, 4.0, 1.3, sample_duration_sec=0.5)
+
+    pads = sorted(
+        (c for c in project.clips if c.id not in {"a", "b"} and c.track_id == "host"),
+        key=lambda c: c.timeline_start,
+    )
+    assert [(c.timeline_start, c.source_end - c.source_start) for c in pads] == [
+        pytest.approx((4.0, 0.5)),
+        pytest.approx((4.5, 0.5)),
+        pytest.approx((5.0, 0.3)),
+    ]
+    assert len({(c.source_start) for c in pads}) == 1
+    # Tiles abut: only the pad's outer edges fade, so the seams carry no dip.
+    assert [(c.fade_in_ms, c.fade_out_ms) for c in pads] == [(10, 0), (0, 0), (0, 10)]
+
+
 def test_no_room_tone_without_audio_or_length(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
     assert room_tone_span(project, "host", near_sec=4.25, duration_sec=0.0) is None
@@ -227,5 +253,38 @@ def test_floor_too_close_to_speech_is_not_room_tone(tmp_path: Path) -> None:
     # A -40 dBFS floor under -20 dBFS speech: 20 dB of contrast, too little to tell
     # room noise from soft voice, so the mute stays silent.
     project = _project(tmp_path, host=_host_audio(floor_db=-40.0))
+
+    assert mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5) is None
+
+
+@pytest.mark.parametrize("bleed_db", [-62.0, -58.0, -45.0])
+def test_bleed_in_the_nearest_gap_is_not_room_tone(tmp_path: Path, bleed_db: float) -> None:
+    # A peer's voice leaks into the host's mic after "you": 8 to 25 dB over the -70 floor
+    # and 38 to 60 dB under the host's own speech. It is the nearest stretch to the cut,
+    # so only the sampler's checks stand between it and the fill.
+    host = _host_audio()
+    _add_voice(host, 5.0, 7.0, bleed_db)
+    project = _project(tmp_path, host=host)
+
+    fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
+
+    # The floor before the untranscribed speech is the nearest stretch that is not bleed.
+    assert fill is not None
+    assert (fill.start_s, fill.end_s, fill.source_id) == (
+        pytest.approx(2.1),
+        pytest.approx(2.6),
+        None,
+    )
+
+
+def test_a_failing_voice_detector_leaves_the_fill_silent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class BrokenVad:
+        def speech_probs(self, audio: np.ndarray) -> np.ndarray:
+            raise RuntimeError("onnx session failed")
+
+    monkeypatch.setattr("podcast_mcp.engines.vad_silero.get_shared_vad", lambda: BrokenVad())
+    project = _project(tmp_path, host=_host_audio())
 
     assert mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5) is None
