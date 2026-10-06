@@ -17,10 +17,13 @@ class TranscriptService:
         self._engine = TranscriptionEngine(resolve_whisper_model(requested=model))
 
     def transcribe(self, track_id: str | None = None) -> list[str]:
+        from podcast_mcp.edits.word_spans import trim_project_word_spans
         from podcast_mcp.services.pipeline import asr_options_for
+        from podcast_mcp.services.pipeline.config import run_defaults_for
 
         # Same transcribe.* settings as pipeline_run (staged working set, else defaults).
         self._engine.options = asr_options_for(self.ws.path)
+        defaults = run_defaults_for(self.ws.path)
         # Same fail-fast as transcribe_tracks: forced alignment explicitly on needs a model
         # that verifies and loads, before any transcript changes.
         self._engine.options.forced_alignment.require()
@@ -41,6 +44,8 @@ class TranscriptService:
                 use_cache=True,
                 language=self._engine.options.language,
             )
+            # Word times are final here, as at the end of the transcribe_tracks step.
+            trim_project_word_spans(p, defaults)
             return list(dict.fromkeys(t.track_id for t in transcripts))
 
         return self.ws.mutate("before transcribe", "after transcribe", mutate)

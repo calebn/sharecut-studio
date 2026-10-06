@@ -431,7 +431,8 @@ def _staged_config(project_path: Path | str) -> dict[str, Any] | None:
     return staged.config if staged is not None and staged.edited else None
 
 
-def _staged_or_default_config(project_path: Path | str) -> dict[str, Any]:
+def run_defaults_for(project_path: Path | str) -> dict[str, Any]:
+    """Config ``pipeline_run`` would use: the staged working set, else shipped defaults."""
     staged = _staged_config(project_path)
     return staged if staged is not None else load_defaults()
 
@@ -441,7 +442,7 @@ def asr_options_for(project_path: Path | str) -> AsrOptions:
 
     Read-only: an unstaged project gets no working-set entry.
     """
-    return AsrOptions.from_defaults(_staged_or_default_config(project_path))
+    return AsrOptions.from_defaults(run_defaults_for(project_path))
 
 
 def prosody_params_for(project_path: Path | str) -> ProsodyParams | None:
