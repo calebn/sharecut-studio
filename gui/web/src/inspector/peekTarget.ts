@@ -1,28 +1,24 @@
 /**
- * What the phone peek strip shows for a timeline selection (#1051 round 3):
- * the target's name, its key value, and, for a clip's fade or trim, nudges at
- * the keyboard's steps. `null` for a selection that is not a timeline target;
- * that one opens the full inspector as before.
+ * What the phone peek strip shows for a timeline selection (#1051 rounds 3
+ * and 4): the target's name, its key value, and the values nudges can step
+ * at the keyboard's steps: a clip's fade or trim, a pending edit's start and
+ * end, an envelope point's time and level. `null` for a selection that is
+ * not a timeline target; that one opens the full inspector as before.
  */
-import type { TrimEdge } from "../edit/clipEdgePreview";
-import { clipEdgeValue } from "../edit/clipEdgeSave";
-import {
-  CLIP_HANDLE_STEPS,
-  type ClipHandleStepKind,
-} from "../edit/clipHandleSteps";
+import { type NudgeField, nudgeAxis } from "../edit/nudge";
 import { HIT_KINDS, type HitKind } from "../timeline/hitCandidates";
 import type { RoutedTarget } from "../timeline/hitRouting";
 import type { ClipRow, ProjectView, Selection } from "../types/project";
 import { clipIdentityTrack, clipSpeakerLabel } from "../utils/clipLabels";
 import { formatTime } from "../utils/time";
 
-export interface PeekNudge {
-  kind: ClipHandleStepKind;
-  edge: TrimEdge;
-  clip: ClipRow;
-  /** Small then large step, in `unit`, as the arrow keys and Shift+arrows step. */
-  steps: readonly [number, number];
-  unit: "ms" | "s";
+/** One value of the target the strip's nudge buttons step. */
+export interface PeekNudgeRow {
+  field: NudgeField;
+  /** The row's label when the target has several: "Start", "Level". */
+  label: string | null;
+  /** The value's name in button labels and announcements: "Trim start". */
+  name: string;
 }
 
 export interface PeekTarget {
@@ -32,7 +28,8 @@ export interface PeekTarget {
   owner: string | null;
   /** Its key value: "300 ms", "00:10.000 to 00:24.000". */
   value: string;
-  nudge: PeekNudge | null;
+  /** What nudges can step, before permissions (the strip checks those). */
+  nudges: PeekNudgeRow[];
   /** Selector of the timeline element the strip must leave in view. */
   locate: string;
 }
@@ -44,13 +41,18 @@ const hitSelector = (kind: HitKind, id: string) =>
   `${attr("data-hit-kind", kind)}${attr("data-hit-id", id)}`;
 
 const CLIP_EDGES: Partial<
-  Record<HitKind, { kind: ClipHandleStepKind; edge: TrimEdge }>
+  Record<HitKind, { kind: "fade" | "trim"; edge: "in" | "out" }>
 > = {
   "fade-in": { kind: "fade", edge: "in" },
   "fade-out": { kind: "fade", edge: "out" },
   "trim-in": { kind: "trim", edge: "in" },
   "trim-out": { kind: "trim", edge: "out" },
 };
+
+/** `rows` whose fields exist in `project` (a pending split has no edges). */
+function present(project: ProjectView, rows: PeekNudgeRow[]): PeekNudgeRow[] {
+  return rows.filter((row) => nudgeAxis(project, row.field) != null);
+}
 
 function clipPeek(
   project: ProjectView,
@@ -65,13 +67,21 @@ function clipPeek(
   })} clip`;
   const edge = hit?.id === clip.id ? CLIP_EDGES[hit.kind] : undefined;
   if (hit && edge) {
-    const { small, large, unit } = CLIP_HANDLE_STEPS[edge.kind];
-    const value = clipEdgeValue(clip, edge.kind, edge.edge);
+    const title = HIT_KINDS[hit.kind].label;
+    const field: NudgeField = {
+      ...edge,
+      trackId: clip.track_id,
+      clipId: clip.id,
+    };
+    const value =
+      edge.kind === "fade"
+        ? `${edge.edge === "in" ? clip.fade_in_ms : clip.fade_out_ms} ms`
+        : formatTime(edge.edge === "in" ? clip.source_start : clip.source_end);
     return {
-      title: HIT_KINDS[hit.kind].label,
+      title,
       owner,
-      value: edge.kind === "fade" ? `${value} ms` : formatTime(value),
-      nudge: { ...edge, clip, steps: [small, large], unit },
+      value,
+      nudges: present(project, [{ field, label: null, name: title }]),
       locate: hitSelector(hit.kind, clip.id),
     };
   }
@@ -79,7 +89,7 @@ function clipPeek(
     title: owner,
     owner: null,
     value: `${formatTime(clip.timeline_start)} to ${formatTime(clip.timeline_end)}`,
-    nudge: null,
+    nudges: [],
     locate: attr("data-clip-id", clip.id),
   };
 }
@@ -102,11 +112,22 @@ export function peekTarget(
         return null;
       }
       const track = project.tracks.find((t) => t.id === edit.track_id);
+      const title = `Pending ${edit.type}`;
+      const edge = (e: "start" | "end", label: string): PeekNudgeRow => ({
+        field: {
+          kind: "pending",
+          trackId: edit.track_id,
+          editId: edit.id,
+          edge: e,
+        },
+        label,
+        name: `${title} ${e}`,
+      });
       return {
-        title: `Pending ${edit.type}`,
+        title,
         owner: track?.label ?? "Track",
         value: `${formatTime(edit.timeline_start)} to ${formatTime(edit.timeline_end)}`,
-        nudge: null,
+        nudges: present(project, [edge("start", "Start"), edge("end", "End")]),
         locate: attr("data-pending-id", edit.id),
       };
     }
@@ -116,11 +137,24 @@ export function peekTarget(
         ?.points.find((p) => p.id === selection.pointId);
       if (!point) return null;
       const track = project.tracks.find((t) => t.id === selection.trackId);
+      const title = HIT_KINDS["envelope-point"].label;
+      const ids = { trackId: selection.trackId, pointId: point.id };
       return {
-        title: HIT_KINDS["envelope-point"].label,
+        title,
         owner: track?.label ?? "Track",
         value: `${point.value.toFixed(2)}× at ${formatTime(point.time)}`,
-        nudge: null,
+        nudges: present(project, [
+          {
+            field: { kind: "envelope-time", ...ids },
+            label: "Time",
+            name: title,
+          },
+          {
+            field: { kind: "envelope-level", ...ids },
+            label: "Level",
+            name: `${title} level`,
+          },
+        ]),
         locate: hitSelector("envelope-point", point.id),
       };
     }
@@ -129,7 +163,7 @@ export function peekTarget(
         title: HIT_KINDS.chapter.label,
         owner: selection.id,
         value: formatTime(selection.time),
-        nudge: null,
+        nudges: [],
         locate: hitSelector("chapter", `${selection.time}-${selection.id}`),
       };
     default:

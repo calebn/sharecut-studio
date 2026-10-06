@@ -437,10 +437,10 @@ held sideways). Taller tablets and desktop keep their inspector.
   (`inspector/peekTarget.ts`), for example "Fade in" and "300 ms", or a trim's
   source time. A clip's fade or trim adds four nudge buttons of at least
   `--touch-min` at the keyboard's steps (1 and 10 ms; 0.01 and 0.1 s,
-  `edit/clipHandleSteps.ts`). Each nudge saves at once through the same save
-  the handle drag uses (`edit/clipEdgeSave.ts`). Pending edits, envelope
-  points and chapters show their value without nudges; their fields stay in
-  the full inspector.
+  `edit/clipHandleSteps.ts`). Round 4 adds nudge rows for pending edits and
+  envelope points, hold-to-repeat, and one save per run; see
+  [Strip nudges](#strip-nudges-and-hold-to-repeat-1051-round-4). Chapters
+  show their value without nudges; their fields stay in the full inspector.
 - **Expand and Collapse.** One tap on Expand opens the full inspector, one
   tap on Collapse returns to the strip. Both are visible buttons; the sheet
   still has no drag gesture. The last choice opens the next selection
@@ -525,3 +525,49 @@ status and nav rows (`--z-shell-chrome`) drew over the sheet
 `e2e-compat/touch-strip-stacking.spec.ts` moves the shell as a bounce does
 and freezes the stow slide halfway, in Chromium and WebKit at 360×800 and
 844×390. On the round 3 build the row covered the strip's bottom edge.
+
+### Strip nudges and hold-to-repeat (#1051 round 4)
+
+The owner asked for the strip's nudges as "a pattern worth repeating for a
+consistent visual language", and for press-and-hold to repeat them.
+
+- **One row per value.** `inspector/InspectorPeek.tsx` draws the same row for
+  every value a target has: four buttons of at least `--touch-min`, smaller
+  steps inside, earlier or shorter on the left. A clip's fade (1 and 10 ms)
+  or trim (0.01 and 0.1 s) has one row beside its key value. A pending edit
+  gets Start and End rows (0.01 and 0.1 s of source time) and an envelope
+  point gets Time (0.01 and 0.1 s) and Level (0.01 and 0.1) rows, each row
+  labelled with its value. On a phone the rows stack; sideways they share a
+  line. `edit/nudge.ts` holds what each field steps, its hard limits, its
+  preview and its save. Envelope rows show only for the host; edit guests
+  still cannot change envelopes (an open owner call).
+- **Hold to repeat.** A held finger, pen or mouse steps again after the
+  long-press hold (500 ms), then every 100 ms, and every 50 ms after four
+  repeats (`nudgeRepeatDelayMs` in `hooks/gestureConstants.ts`, after
+  Android's key-repeat timing). Release, cancel, sliding off the button or
+  blur stop it. A held Enter or Space follows the system's own key repeat,
+  and an assistive-technology click steps once.
+- **One edit per run.** Each step previews in the project, so the timeline
+  draws it, and the run saves once when it ends: one document command and
+  one Undo (`inspector/useNudgeRun.ts`). A failed save puts the saved value
+  back.
+- **Boundaries.** Hard limits always stop a run: source bounds, a fade's
+  room in its clip, envelope points keeping their order (1 ms apart) and the
+  level's 0 to 1.5 range. Soft boundaries (`edit/nudgeBoundaries.ts`) are the
+  playhead, chapter markers, and the clip and pending-edit edges on the
+  target's track; a ripple trim leaves out what it carries along. A held step
+  that would reach or cross one stops exactly on it: the value gets an accent
+  ring and a short bump (the ring alone under reduced motion), and the live
+  region says, for example, "Envelope point stopped at a clip edge", then
+  "Envelope point saved at a clip edge" on release. The first step of a
+  fresh press, a tap or a key press, crosses it. A trim's start has no moving
+  point on the timeline (a ripple trim keeps the clip's start), so only its
+  hard limits apply. Drags do not stop at soft boundaries yet; they can ask
+  `softBoundaries` and `firstBoundaryCrossed` for detents next round.
+
+`e2e-compat/touch-nudge.spec.ts` holds a finger on the strip in Chromium and
+WebKit: the value moves during the hold, the run sends one `SetEnvelope`, and
+one Undo restores it; a held point stops at the clip edge at 50 s and a held
+pending start at the previous cut's end, and a fresh press crosses each; at
+360×800 and 844×390 in both themes the pending and envelope rows have 44 px
+targets in view and no axe violations.

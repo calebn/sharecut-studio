@@ -481,18 +481,80 @@ html[data-shell="phone"]
   font-variant-numeric: tabular-nums;
 }
 
-.inspector-peek-nudges {
+/* One nudge row per value. A lone row sits beside the key value. Labelled
+   rows (a pending edit's start and end, a point's time and level) take a
+   line each on a phone and share one when the strip is wide (sideways), so
+   the strip stays short. */
+.nudge-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+}
+
+.nudge-row:has(.nudge-row-reading) {
+  flex: 1 1 19rem;
+}
+
+/* Label over value: a narrow column, so the four buttons fit beside it. */
+.nudge-row-reading {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 4.5rem;
+}
+
+.nudge-row-label {
+  font-size: var(--font-size-small);
+  color: var(--text-dim);
+}
+
+.nudge-row-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.nudge-row-buttons {
   display: flex;
   gap: var(--space-1);
 }
 
-.inspector-peek-nudge {
+.nudge-button {
   min-inline-size: var(--touch-min);
   min-block-size: var(--touch-min);
   font-variant-numeric: tabular-nums;
+  /* A held finger repeats the step; it must not start a text selection or
+     the iOS callout. */
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* Shorter or earlier on the left, longer or later on the right. */
-.inspector-peek-nudge:nth-child(3) {
+.nudge-button:nth-child(3) {
   margin-inline-start: var(--space-3);
+}
+
+/* A held nudge stopped at a boundary or limit: the value it stopped on is
+   ringed (and bumps, motion allowing) while the note is read out. */
+.nudge-row[data-bump] .nudge-row-value,
+.inspector-peek-value[data-bump] {
+  border-radius: var(--radius-xs);
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nudge-row[data-bump] .nudge-row-value,
+  .inspector-peek-value[data-bump] {
+    animation: nudge-bump var(--motion-state) var(--motion-ease-out);
+  }
+}
+
+@keyframes nudge-bump {
+  30% {
+    translate: 0.1875rem 0;
+  }
+  60% {
+    translate: -0.125rem 0;
+  }
 }

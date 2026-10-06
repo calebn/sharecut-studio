@@ -441,6 +441,10 @@ test("the strip and the expanded inspector leave the selection in view", async (
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await buildFixture(page, projectPath, CLIENT_ID);
   const finger = await newFinger(context, page, browserName);
+  // The lanes may still be loading after the fixture's commands.
+  await expect(
+    page.locator(".lane-row").nth(1).locator(".clip-block").first(),
+  ).toBeAttached();
   const guestClip = await page.evaluate(
     () =>
       document
@@ -688,18 +692,16 @@ test("axe, both themes and reduced motion with the strip open", async ({
       const transition = await sheet(page).evaluate(
         (el) => getComputedStyle(el).transitionDuration,
       );
-      const nudges = await page
-        .locator(".inspector-peek-nudge")
-        .evaluateAll((els) =>
-          els.map((e) => {
-            const r = e.getBoundingClientRect();
-            return {
-              label: e.getAttribute("aria-label"),
-              w: Math.round(r.width),
-              h: Math.round(r.height),
-            };
-          }),
-        );
+      const nudges = await page.locator(".nudge-button").evaluateAll((els) =>
+        els.map((e) => {
+          const r = e.getBoundingClientRect();
+          return {
+            label: e.getAttribute("aria-label"),
+            w: Math.round(r.width),
+            h: Math.round(r.height),
+          };
+        }),
+      );
       await page
         .getByRole("button", { name: "Expand to the full inspector" })
         .click();
