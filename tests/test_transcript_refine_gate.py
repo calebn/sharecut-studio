@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import json
-import logging
 import shutil
-import threading
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -19,12 +16,10 @@ from podcast_mcp.edits.transcript_refine_status import (
     mark_refine_done,
     mark_refine_pending,
     mark_refine_waived,
-    precorrect_fingerprint,
     refine_status_report,
-    refresh_unattended_waiver,
     require_or_waive_unattended,
+    reviewed_transcript_fingerprint,
     status_is_clear,
-    transcript_text_fingerprint,
 )
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (
@@ -85,164 +80,6 @@ def test_fingerprint_stale_after_text_change(minimal_project):
     report = refine_status_report(proj)
     assert report["status"] == "pending"
     assert report["stale"] is True
-
-
-@pytest.mark.refine_gate
-def test_refreshes_stale_unattended_waiver(minimal_project):
-    proj = _with_words(minimal_project)
-    mark_refine_waived(proj, reason="batch", source="unattended")
-    original = load_status(proj)
-    gate_text_fingerprint = transcript_text_fingerprint(proj)
-    proj.transcripts[0].words[0].suppressed = True
-
-    assert (
-        refresh_unattended_waiver(
-            proj, gate_status=original, gate_text_fingerprint=gate_text_fingerprint
-        )
-        is True
-    )
-    refreshed = load_status(proj)
-    assert refreshed is not None
-    assert refreshed["status"] == "waived"
-    assert refreshed["source"] == "unattended"
-    assert refreshed["notes"] == original["notes"]
-    assert refreshed["precorrect_fingerprint"] == precorrect_fingerprint(proj)
-    assert status_is_clear(proj)
-
-
-@pytest.mark.refine_gate
-def test_refresh_does_not_waive_post_gate_text_change(minimal_project):
-    proj = _with_words(minimal_project)
-    mark_refine_waived(proj, reason="batch", source="unattended")
-    original = load_status(proj)
-    gate_text_fingerprint = transcript_text_fingerprint(proj)
-    proj.transcripts[0].words[0].text = "hola"
-
-    assert not refresh_unattended_waiver(
-        proj, gate_status=original, gate_text_fingerprint=gate_text_fingerprint
-    )
-    assert load_status(proj) == original
-    assert not status_is_clear(proj)
-
-
-@pytest.mark.refine_gate
-@pytest.mark.parametrize(
-    ("status", "source"),
-    [
-        ("pending", "precorrect"),
-        ("done", "agent"),
-        ("done", "unattended"),
-        ("waived", "user"),
-        ("waived", "cli"),
-        ("waived", "mcp"),
-    ],
-)
-def test_refresh_does_not_change_non_unattended_waivers_or_pending(minimal_project, status, source):
-    proj = _with_words(minimal_project)
-    if status == "pending":
-        mark_refine_pending(proj, source=source)
-    elif status == "done":
-        mark_refine_done(proj, source=source)
-    else:
-        mark_refine_waived(proj, reason="explicit", source=source)
-    before = load_status(proj)
-    gate_text_fingerprint = transcript_text_fingerprint(proj)
-    proj.transcripts[0].words[0].text = "hola"
-
-    assert (
-        refresh_unattended_waiver(
-            proj, gate_status=before, gate_text_fingerprint=gate_text_fingerprint
-        )
-        is False
-    )
-    assert load_status(proj) == before
-
-
-@pytest.mark.refine_gate
-def test_refresh_does_not_rewrite_current_unattended_waiver(minimal_project, monkeypatch):
-    proj = _with_words(minimal_project)
-    mark_refine_waived(proj, reason="batch", source="unattended")
-    gate_status = load_status(proj)
-    gate_text_fingerprint = transcript_text_fingerprint(proj)
-
-    import podcast_mcp.edits.transcript_refine_status as refine_mod
-
-    monkeypatch.setattr(refine_mod, "_write_status", pytest.fail)
-    assert not refresh_unattended_waiver(
-        proj, gate_status=gate_status, gate_text_fingerprint=gate_text_fingerprint
-    )
-
-
-@pytest.mark.refine_gate
-def test_refresh_does_not_overwrite_concurrent_explicit_decision(minimal_project, monkeypatch):
-    proj = _with_words(minimal_project)
-    mark_refine_waived(proj, reason="batch", source="unattended")
-    gate_status = load_status(proj)
-    gate_text_fingerprint = transcript_text_fingerprint(proj)
-    proj.transcripts[0].words[0].suppressed = True
-
-    import podcast_mcp.edits.transcript_refine_status as refine_mod
-
-    refresh_writing = threading.Event()
-    allow_refresh_write = threading.Event()
-    original_write = refine_mod._write_status
-
-    def pause_refresh(project, payload):
-        if threading.current_thread().name == "refine_0":
-            refresh_writing.set()
-            assert allow_refresh_write.wait(timeout=5)
-        return original_write(project, payload)
-
-    monkeypatch.setattr(refine_mod, "_write_status", pause_refresh)
-    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="refine") as pool:
-        refresh = pool.submit(
-            refresh_unattended_waiver,
-            proj,
-            gate_status=gate_status,
-            gate_text_fingerprint=gate_text_fingerprint,
-        )
-        assert refresh_writing.wait(timeout=5)
-        explicit = pool.submit(mark_refine_done, proj, source="user")
-        try:
-            with pytest.raises(TimeoutError):
-                explicit.result(timeout=0.2)
-        finally:
-            allow_refresh_write.set()
-        assert refresh.result(timeout=5)
-        assert explicit.result(timeout=5)["source"] == "user"
-
-    assert load_status(proj)["status"] == "done"
-    assert load_status(proj)["source"] == "user"
-
-
-def test_status_write_times_out_on_held_status_lock(minimal_project, monkeypatch):
-    from filelock import Timeout
-
-    import podcast_mcp.edits.transcript_refine_status as refine_mod
-
-    assert refine_mod._STATUS_LOCK_TIMEOUT_SEC > 0
-    proj = _with_words(minimal_project)
-    before = load_status(proj)
-    monkeypatch.setattr(refine_mod, "_STATUS_LOCK_TIMEOUT_SEC", 0.05)
-    started = threading.Event()
-    release = threading.Event()
-
-    def hold() -> None:
-        with refine_mod._status_lock(proj):
-            started.set()
-            release.wait(timeout=5)
-
-    thread = threading.Thread(target=hold)
-    thread.start()
-    try:
-        assert started.wait(timeout=5)
-        with pytest.raises(Timeout):
-            mark_refine_done(proj, source="user")
-    finally:
-        release.set()
-        thread.join(timeout=5)
-    assert load_status(proj) == before
-    assert mark_refine_done(proj, source="user")["status"] == "done"
 
 
 @pytest.mark.refine_gate
@@ -397,32 +234,6 @@ def test_runner_unattended_flag_waives(minimal_project):
 
 
 @pytest.mark.refine_gate
-def test_runner_waiver_refresh_lock_timeout_is_best_effort(minimal_project, monkeypatch, caplog):
-    from filelock import Timeout
-
-    import podcast_mcp.pipeline.runner as runner_mod
-
-    proj = _with_words(minimal_project)
-    mark_refine_pending(proj)
-    calls: list[dict] = []
-
-    def busy(project, **kwargs):
-        calls.append(kwargs)
-        raise Timeout("transcript_refine_status.json.lock")
-
-    monkeypatch.setattr(runner_mod, "refresh_unattended_waiver", busy)
-    runner = PipelineRunner(
-        defaults={"analysis": {"transcript_refine": {"mode": "waive_unattended"}}}
-    )
-    with caplog.at_level(logging.WARNING, logger="podcast_mcp.pipeline.runner"):
-        run = runner.run(proj, only_step="require_transcript_refine", unattended=True)
-    assert calls
-    assert run.steps[0].status == "ok"
-    assert "refine status lock stayed busy" in caplog.text
-    assert load_status(proj)["status"] == "waived"
-
-
-@pytest.mark.refine_gate
 def test_cli_service_done_waive_brief(minimal_project):
     proj = _with_words(minimal_project)
     mark_refine_pending(proj)
@@ -473,7 +284,7 @@ def test_mcp_refine_tools(tmp_path):
     save_project(proj2, Path(path))
     waived = json.loads(mcp_server.transcript_refine_waive_tool(path, reason="test waive"))
     assert waived["status"] == "waived"
-    assert precorrect_fingerprint(load_project(Path(path)))
+    assert reviewed_transcript_fingerprint(load_project(Path(path)))
 
 
 @pytest.mark.refine_gate
@@ -708,16 +519,16 @@ def test_no_word_ripples_preserve_refine_clearance_after_reopen(minimal_project,
     for word in proj.transcripts[0].words:
         word.start += 3
         word.end += 3
-    fingerprint = precorrect_fingerprint(proj)
+    fingerprint = reviewed_transcript_fingerprint(proj)
     save_project(proj, minimal_project)
     EditService(ProjectWorkspace.open(minimal_project)).ripple_delete(1, 2, use_inaudible_opt=False)
     reopened = ProjectWorkspace.open(minimal_project)
-    assert precorrect_fingerprint(reopened.project) == fingerprint
+    assert reviewed_transcript_fingerprint(reopened.project) == fingerprint
     assert refine_status_report(reopened.project)["clear"] is True
     assert load_status(reopened.project)["status"] == clearance
     EditService(reopened).ripple_delete(0.6, 1.6, use_inaudible_opt=False)
     again = load_project(minimal_project)
-    assert precorrect_fingerprint(again) == fingerprint
+    assert reviewed_transcript_fingerprint(again) == fingerprint
     assert status_is_clear(again)
     assert [word.text for word in again.transcripts[0].words] == ["hello", "world"]
 
@@ -730,7 +541,7 @@ def test_no_word_ripples_preserve_refine_clearance_after_reopen(minimal_project,
 
 @pytest.mark.refine_gate
 @pytest.mark.parametrize("clearance", ["done", "waived"])
-def test_word_removing_ripple_stales_refine_and_blocks_next_edit(minimal_project, clearance):
+def test_word_removing_ripple_keeps_refine_clearance_after_reopen(minimal_project, clearance):
     from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 
     proj = _with_words(minimal_project)
@@ -755,6 +566,6 @@ def test_word_removing_ripple_stales_refine_and_blocks_next_edit(minimal_project
     )
     reopened = ProjectWorkspace.open(minimal_project)
     assert [word.text for word in reopened.project.transcripts[0].words] == ["world"]
-    assert refine_status_report(reopened.project)["stale"] is True
-    with pytest.raises(TranscriptRefineRequiredError):
-        EditService(reopened).ripple_delete(1, 2, use_inaudible_opt=False)
+    assert refine_status_report(reopened.project)["clear"] is True
+    EditService(reopened).ripple_delete(1, 2, use_inaudible_opt=False)
+    assert load_status(reopened.project)["status"] == clearance

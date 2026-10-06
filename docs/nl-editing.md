@@ -101,7 +101,6 @@ podcast edit cut-text --project ... --query "coffee"
 podcast edit preview-cut --project ... --track host --start 32.4 --end 34.8
 podcast edit suggest-handoff-cut --project ... --keep-left-end 2154.0 --keep-right-start 2167.0
 podcast edit ripple-delete --project ... --start 0 --end 1289.5          # content cut: dead start
-podcast transcript refine-waive --project ... --reason "content cut: structural edit"
 podcast edit approve --project ... --ids cut_abc123
 podcast edit impact --project ...
 podcast render-preview --project ...
@@ -133,8 +132,7 @@ Omit track and speaker for a session handoff to require quiet across all dialogu
 On a long raw session, cut content before tightening:
 
 1. Content-cut from the end of the episode toward the start with `ripple_delete_tool`. Off-topic runs and meta talk first (latest first): `suggest_handoff_cut_tool` → `ripple_delete_tool(use_inaudible_opt=false)`. The dead start (`start=0`) goes last, because it shifts everything after it.
-2. Re-waive the refine gate after a ripple removes words (`transcript_refine_waive_tool`). A ripple that removes no words preserves done or waived clearance after saving and reopening.
-3. Only then run `propose_edits`. It sees only the kept words, so reject any tighten proposal made before the cut.
+2. Then run `propose_edits`. A done or waived refine stays clear through the ripple, because cut words still count as reviewed text ([transcript-workflow.md § What stales a refine decision](transcript-workflow.md#what-stales-a-refine-decision)). It sees only the kept words, so reject any tighten proposal made before the cut.
 
 `analyze_focus_cuts` writes an outline, not a cut list, and is skipped when `focus.enabled` is false. Full order, CLI commands and rationale: [pipeline.md § Long raw sessions](pipeline.md#long-raw-sessions-content-cut-before-tighten).
 

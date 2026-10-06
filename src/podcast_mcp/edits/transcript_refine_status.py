@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 import json
-from contextlib import AbstractContextManager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from filelock import FileLock
-
 from podcast_mcp.edits.pipeline_unattended import is_unattended
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
-from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.workspace_paths import workspace_relpath
 
@@ -40,22 +36,21 @@ def status_path(project: EpisodeProject) -> Path:
     return project.artifacts_dir() / STATUS_FILENAME
 
 
-def precorrect_fingerprint(project: EpisodeProject) -> str:
-    parts: list[str] = []
-    for tr in sorted(project.transcripts, key=lambda t: t.track_id):
-        for i, w in enumerate(tr.words or []):
-            suppressed = bool(getattr(w, "suppressed", False))
-            parts.append(f"{tr.track_id}:{i}:{w.text}:{suppressed}")
-    raw = "|".join(parts)
-    return short_digest(raw)
+def reviewed_transcript_fingerprint(project: EpisodeProject) -> str:
+    """Digest of the transcript text a refine pass reviews.
 
-
-def transcript_text_fingerprint(project: EpisodeProject) -> str:
-    """Fingerprint word text and structure without audibility flags."""
-    tracks = [
-        (tr.track_id, [w.text for w in tr.words or []])
-        for tr in sorted(project.transcripts, key=lambda t: t.track_id)
-    ]
+    Words a cut archived still count, in their original order, and audibility flags do
+    not, so the host's own approved cuts and a render's reconcile never stale a refine
+    decision. A change to word text (a correction, a re-transcription) does.
+    """
+    tracks = []
+    for tr in sorted(project.transcripts, key=lambda t: (t.track_id, t.source_id or "")):
+        words = [
+            *tr.active_words_with_ordinals(),
+            *((a.ordinal, a.word) for a in tr.archived_words),
+        ]
+        words.sort(key=lambda item: item[0])
+        tracks.append((tr.track_id, tr.source_id, [w.text for _, w in words]))
     raw = json.dumps(tracks, ensure_ascii=False, separators=(",", ":"))
     return short_digest(raw)
 
@@ -72,57 +67,22 @@ def load_status(project: EpisodeProject) -> dict[str, Any] | None:
     return load_json_object(status_path(project))
 
 
-def _write_status(project: EpisodeProject, payload: dict[str, Any]) -> Path:
-    return write_json_atomic(status_path(project), payload)
-
-
-# Bounded: holders only write a small JSON (or fingerprint-check then write), so a writer that
-# waits this long means a leaked or wedged holder; raise filelock.Timeout instead of hanging.
-_STATUS_LOCK_TIMEOUT_SEC = 30.0
-
-
-def _status_lock(project: EpisodeProject) -> AbstractContextManager[FileLock]:
-    return hold_shared_file_lock(
-        Path(f"{status_path(project)}.lock"), timeout=_STATUS_LOCK_TIMEOUT_SEC
-    )
-
-
-def _write_status_unlocked(
-    project: EpisodeProject,
-    *,
-    status: RefineStatusValue,
-    source: RefineSource,
-    notes: str | None,
-    fingerprint: str | None,
-) -> dict[str, Any]:
-    fp = fingerprint if fingerprint is not None else precorrect_fingerprint(project)
-    payload: dict[str, Any] = {
-        "status": status,
-        "updated_at": datetime.now(UTC).isoformat(),
-        "source": source,
-        "notes": notes or "",
-        "precorrect_fingerprint": fp,
-    }
-    _write_status(project, payload)
-    return payload
-
-
 def write_status(
     project: EpisodeProject,
     *,
     status: RefineStatusValue,
     source: RefineSource,
     notes: str | None = None,
-    fingerprint: str | None = None,
 ) -> dict[str, Any]:
-    with _status_lock(project):
-        return _write_status_unlocked(
-            project,
-            status=status,
-            source=source,
-            notes=notes,
-            fingerprint=fingerprint,
-        )
+    payload: dict[str, Any] = {
+        "status": status,
+        "updated_at": datetime.now(UTC).isoformat(),
+        "source": source,
+        "notes": notes or "",
+        "transcript_fingerprint": reviewed_transcript_fingerprint(project),
+    }
+    write_json_atomic(status_path(project), payload)
+    return payload
 
 
 def mark_refine_pending(
@@ -170,13 +130,13 @@ def status_is_clear_payload(
     status = data.get("status")
     if status not in ("done", "waived"):
         return False
-    return data.get("precorrect_fingerprint") == fingerprint
+    return data.get("transcript_fingerprint") == fingerprint
 
 
 def status_is_clear(project: EpisodeProject) -> bool:
     return status_is_clear_payload(
         load_status(project),
-        fingerprint=precorrect_fingerprint(project),
+        fingerprint=reviewed_transcript_fingerprint(project),
     )
 
 
@@ -186,9 +146,9 @@ def refine_status_report(
     defaults: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     mode = refine_mode_from_defaults(defaults)
-    fp = precorrect_fingerprint(project)
+    fp = reviewed_transcript_fingerprint(project)
     data = load_status(project)
-    stored_fp = (data or {}).get("precorrect_fingerprint")
+    stored_fp = (data or {}).get("transcript_fingerprint")
     status = (data or {}).get("status") or "pending"
     fingerprint_match = bool(data) and stored_fp == fp
     clear = status_is_clear_payload(data, fingerprint=fp)
@@ -215,41 +175,6 @@ def refine_status_report(
     }
 
 
-def refresh_unattended_waiver(
-    project: EpisodeProject,
-    *,
-    gate_status: dict[str, Any],
-    gate_text_fingerprint: str,
-) -> bool:
-    """Refresh a stale waiver created by an unattended pipeline run.
-
-    The full pipeline performs a second reconciliation after the refine gate,
-    which can change suppression flags included in the precorrect fingerprint.
-    Only that pipeline-owned waiver may follow those changes automatically;
-    explicit pending, done, and user/agent waivers must remain stale so they
-    still require an intentional refine decision.
-    """
-    with _status_lock(project):
-        data = load_status(project)
-        if data != gate_status:
-            return False
-        if data.get("status") != "waived" or data.get("source") != "unattended":
-            return False
-        if transcript_text_fingerprint(project) != gate_text_fingerprint:
-            return False
-        fingerprint = precorrect_fingerprint(project)
-        if data.get("precorrect_fingerprint") == fingerprint:
-            return False
-        _write_status_unlocked(
-            project,
-            status="waived",
-            source="unattended",
-            notes=str(data.get("notes") or "unattended pipeline"),
-            fingerprint=fingerprint,
-        )
-        return True
-
-
 def assert_refine_clear(
     project: EpisodeProject,
     *,
@@ -274,7 +199,7 @@ def require_or_waive_unattended(
     if mode == "off":
         return "skipped (analysis.transcript_refine.mode=off)"
     data = load_status(project)
-    fp = precorrect_fingerprint(project)
+    fp = reviewed_transcript_fingerprint(project)
     if status_is_clear_payload(data, fingerprint=fp):
         return f"{(data or {}).get('status', 'done')} (fingerprint ok)"
 
