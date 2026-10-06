@@ -181,27 +181,39 @@ def tmp_workspace(tmp_path: Path) -> Path:
     return ws
 
 
-@pytest.fixture(scope="session")
-def sample_wav(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    out = tmp_path_factory.mktemp("audio") / "tone.wav"
-    cmd = [
-        resolve_ffmpeg(),
-        "-y",
-        "-f",
-        "lavfi",
-        "-i",
-        "sine=frequency=440:duration=2",
-        "-ar",
-        "48000",
-        "-ac",
-        "1",
-        str(out),
-    ]
+def _lavfi_wav(out: Path, source: str) -> Path:
+    cmd = [resolve_ffmpeg(), "-y", "-f", "lavfi", "-i", source, "-ar", "48000", "-ac", "1"]
     try:
-        subprocess.run(cmd, check=True, capture_output=True)
+        subprocess.run([*cmd, str(out)], check=True, capture_output=True)
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
         pytest.skip(f"ffmpeg required for audio fixtures: {exc}")
     return out
+
+
+@pytest.fixture(scope="session")
+def sample_wav(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return _lavfi_wav(
+        tmp_path_factory.mktemp("audio") / "tone.wav", "sine=frequency=440:duration=2"
+    )
+
+
+@pytest.fixture(scope="session")
+def peaky_wav(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """-22 LUFS with -0.5 dBTP clicks: +6 dB to -16 LUFS would put peaks at +5.5 dBTP."""
+    return _lavfi_wav(
+        tmp_path_factory.mktemp("audio") / "peaky.wav",
+        "aevalsrc='0.1*sin(2*PI*220*t)"
+        "+if(lt(mod(t,0.5),0.003),0.85*sin(2*PI*1000*t),0)':s=48000:d=6",
+    )
+
+
+@pytest.fixture(scope="session")
+def gentle_wav(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """-26 LUFS, -20 dBTP, 1.8 LU range: linear loudnorm reaches -16 LUFS."""
+    return _lavfi_wav(
+        tmp_path_factory.mktemp("audio") / "gentle.wav",
+        "aevalsrc='(0.05+0.05*gte(mod(t,4),2))*sin(2*PI*220*t)':s=48000:d=8",
+    )
 
 
 @pytest.fixture
