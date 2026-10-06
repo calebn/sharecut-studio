@@ -370,9 +370,13 @@ def _words(shift: float) -> list[TranscriptWord]:
     ]
 
 
-def test_realign_after_alignment_makes_no_move(late_audra: ProjectWorkspace) -> None:
+@pytest.mark.parametrize("first_realign", [False, True])
+def test_realign_lands_on_the_latency_and_then_makes_no_move(
+    late_audra: ProjectWorkspace, first_realign: bool
+) -> None:
     # The re-scored placement lands 44 ms early and off the 5 ms envelope grid, like the
-    # lab's -182 ms waveform match; the bleed solve brings it back within its own noise.
+    # lab's -182 ms waveform match. Seen from where Audra sits, her direct track trails
+    # her copy, so the bleed solve corrects the overshoot; after that nothing moves.
     late_audra.project.transcripts.append(Transcript(track_id="caleb", words=_words(0.0)))
     late_audra.project.transcripts.append(Transcript(track_id="audra", words=_words(0.1637)))
     rescored = {
@@ -382,7 +386,7 @@ def test_realign_after_alignment_makes_no_move(late_audra: ProjectWorkspace) -> 
         ),
     }
 
-    run_conversation_align(late_audra.project)
+    run_conversation_align(late_audra.project, defaults=rescored if first_realign else None)
     aligned = _geometry(late_audra, "audra")
     run_conversation_align(late_audra.project, defaults=rescored)
     once = _geometry(late_audra, "audra")
