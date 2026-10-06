@@ -137,8 +137,8 @@ def propose_tighten_edits(
             cfg,
             project=project,
             audio_cache=audio_caches.get(transcript.track_id),
+            audio_caches=audio_caches,
             skip_counts=counts,
-            peer_indexes=peer_indexes,
         )
         return found, counts
 
