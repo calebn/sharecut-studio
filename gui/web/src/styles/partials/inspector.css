@@ -501,6 +501,8 @@ html[data-shell="phone"]
 .nudge-row-reading {
   display: flex;
   flex-direction: column;
+  /* Room for the bump ring between the label and the value. */
+  gap: var(--space-1);
   min-inline-size: 4.5rem;
 }
 
