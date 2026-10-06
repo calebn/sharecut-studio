@@ -16,6 +16,7 @@ import {
   sameEnvelopePoints,
   sortedVolumePoints,
 } from "../../utils/envelopes";
+import { randomUuid } from "../../utils/randomUuid";
 import {
   type EnvelopeError,
   type EnvelopeForm,
@@ -102,7 +103,7 @@ export function EnvelopeWorkspace({
       origin,
       form: {
         kind,
-        pointId: kind === "edit" ? selected!.id : crypto.randomUUID(),
+        pointId: kind === "edit" ? selected!.id : randomUuid(),
         time: String(time),
         ...(kind === "add" && origin.length > 0 && time !== playheadSec
           ? {

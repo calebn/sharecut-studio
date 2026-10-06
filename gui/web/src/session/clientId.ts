@@ -1,11 +1,12 @@
 /** Stable per-tab DAW client id (sessionStorage). */
 
 import { documentClientId } from "../utils/documentClient";
+import { randomUuid } from "../utils/randomUuid";
 
 export function newClientId(): string {
   try {
     return documentClientId();
   } catch {
-    return `viewer-${crypto.randomUUID().slice(0, 8)}`;
+    return `viewer-${randomUuid().slice(0, 8)}`;
   }
 }
