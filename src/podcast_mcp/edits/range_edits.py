@@ -34,7 +34,8 @@ def range_media_seal(project: EpisodeProject, track_id: str) -> str:
     track = project.track_by_id(track_id)
     if track is None:
         raise RangeChangedError("Selected tracks changed. Select the range again.")
-    clips: list[Clip | None] = [c for c in project.clips if c.track_id == track_id]
+    one_clip_per_source = {c.source_id: c for c in project.clips if c.track_id == track_id}
+    clips: list[Clip | None] = list(one_clip_per_source.values())
     identities = []
     for clip in clips or [None]:
         try:

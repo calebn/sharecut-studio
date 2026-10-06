@@ -58,10 +58,13 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
     ]
     clips = []
     ignored_lookup = IgnoredWordRegions(project)
+    media_by_source: dict[str | None, dict[str, Any]] = {}
     for c in clips_for_track(project, track_id):
+        if c.source_id not in media_by_source:
+            media_by_source[c.source_id] = _selected_media_identity(project, track, c)
         clip_payload: dict[str, Any] = {
             "source_id": c.source_id,
-            "media": _selected_media_identity(project, track, c),
+            "media": media_by_source[c.source_id],
             "source_start": c.source_start,
             "source_end": c.source_end,
             "timeline_start": c.timeline_start,
