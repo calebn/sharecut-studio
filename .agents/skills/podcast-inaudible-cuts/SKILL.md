@@ -70,6 +70,6 @@ Checklist:
 2. `suggest_handoff_cut_tool` (or CLI `podcast edit suggest-handoff-cut`).
 3. Ripple `[cut_start, cut_end]` with `use_inaudible_opt=false` so local snap does not pull onto speech / um blobs.
 4. `render_preview` → `play context` on the join (required: it flags `speech_crosses_cut` when a clip edge sits in voiced speech, which word times cannot show) → play ~10–15s around the join before resolving review comments.
-5. Prefer keeping **existing room tone**; do not “fix” with `insert_gap` of pure silence unless the user asks. When `filler_pad_mode: room_tone`, pads prefer a recorded `track.room_tone` bed from the lobby capture, then stolen stem air, then skip.
+5. Prefer keeping **existing room tone**; do not “fix” with `insert_gap` of pure silence unless the user asks. When `filler_pad_mode: room_tone`, pads prefer a recorded `track.room_tone` bed from the lobby capture, then a steady stretch of the track's own audio at its noise floor (chosen from the audio, not word times), then skip.
 
 See [docs/inaudible-cuts.md](../../docs/inaudible-cuts.md).
