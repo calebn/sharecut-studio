@@ -57,7 +57,10 @@ remote-MCP contexts expose their current workflows through lazy facades.
 When a service context changes, migrate callers and test patch targets together,
 delete old paths, and update the explicit facade exports. Extend
 `tests/test_service_boundaries.py` when adding a context. Its registry rejects
-unregistered packages and flat service modules.
+unregistered packages and flat service modules. The `service-boundaries`
+pre-commit hook runs that test whenever a commit stages files under
+`src/podcast_mcp/services/`, so a direct submodule import fails at commit time
+rather than in CI.
 
 Patch test dependencies where the consumer imports them. When an adapter imports
 a facade export inside a handler, patch that export on the facade.

@@ -38,6 +38,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^(src/podcast_mcp/services/document_sync/payloads\.py|scripts/export_document_command_schema\.py|schemas/document-commands\.schema\.json|docs-site/pages/document-commands\.md|docs-site/schemas/document-commands\.schema\.json)
+      - id: service-boundaries
+        name: Service contexts import each other through public facades
+        entry: uv run --frozen pytest -q --no-cov -p no:randomly tests/test_service_boundaries.py
+        language: system
+        pass_filenames: false
+        files: ^(src/podcast_mcp/services/|tests/test_service_boundaries\.py)
       - id: docs-site-contract
         name: Docs-site share/MCP tables + guest OpenAPI stay generated
         entry: python3 scripts/export_docs_site_contract.py --check
