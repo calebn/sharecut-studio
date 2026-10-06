@@ -43,7 +43,12 @@ from podcast_mcp.gui.routes import (
 )
 from podcast_mcp.gui.routes.deps import project_busy_exception_handler, require_host
 from podcast_mcp.gui.routes.session import apply_ws_client_message, apply_ws_viewer_state
-from podcast_mcp.gui.static_assets import ImmutableAssetsStaticFiles, resolve_gui_static_root
+from podcast_mcp.gui.static_assets import (
+    ImmutableAssetsStaticFiles,
+    missing_bundle_response,
+    resolve_gui_static_root,
+    static_bundle_ready,
+)
 from podcast_mcp.gui.validation_errors import format_validation_errors
 from podcast_mcp.runtime_config import normalize_exact_origin
 from podcast_mcp.services.document import cross_process_bridge
@@ -284,7 +289,7 @@ def create_app(
         return registry.to_manifest()
 
     static_root = static_dir or resolve_gui_static_root()
-    if static_root.is_dir():
+    if static_bundle_ready(static_root):
         assets_dir = static_root / "assets"
         if assets_dir.is_dir():
             app.mount(
@@ -420,6 +425,12 @@ def create_app(
                     index_path,
                     headers={"Cache-Control": "no-cache"},
                 )
+
+    else:
+
+        @app.get("/")
+        def missing_web_build() -> Any:
+            return missing_bundle_response(static_root)
 
     # Exact ``/mcp`` last: guest ``/mcp/{token}`` stays on the share router.
     mount_host_mcp(app, enabled=is_bind_loopback(bind_host))
