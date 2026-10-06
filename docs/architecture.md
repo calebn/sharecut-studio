@@ -17,7 +17,11 @@ loads the lane envelopes near their planned placement (`measure_bleed_latency`
 reports lags back where each lane sits, where direction is judged), folds the
 decisions into the plans (`bleed_lag`, or `candidate_offset_sec` with a `proposal`), and keeps a lane
 whose corrected placement is within `align.bleed_lag_deadband_sec` of where it
-sits (`bleed_lag_kept`).
+sits (`bleed_lag_kept`). `edits/bleed_lag_segments.py` then finds where such a
+lane's latency steps against the reference mic, in the lane's source time, with
+each step in a silence of its full-band envelope. `conversation_align.py` turns the
+segments into per-clip plans with `steps`, and `apply_alignment_plans` splits those
+clips (`split_clip_at`) before slipping each piece.
 
 Retained mixed bleed has a separate, conservative local alignment path.
 `engines/bleed_delay.py` measures signed copy delays with extended reference
