@@ -105,6 +105,8 @@ export interface PendingEditView {
   track_ids?: string[];
   type: string;
   reason: string | null;
+  /** ``share:`` plus the authoring share's opaque id; null for host and agent edits. */
+  author?: string | null;
   source_start: number | null;
   source_end: number | null;
   /** Timeline clock of the stored source start, or null when clipped. */

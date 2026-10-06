@@ -50,24 +50,28 @@ describe("shareMode", () => {
     expect(canHostMutate(share)).toBe(false);
   });
 
-  it("lets suggest guests retime only guest suggestions", () => {
+  it("lets suggest guests retime only their own share's suggestions", () => {
     const host = "/tmp/ep.project.json";
     const share = shareProjectKey("tok");
-    const reasons = [null, "nl:range", "guest:suggest", "guest:suggest_split"];
-    expect(reasons.map((r) => canRetimePendingEdit(host, null, r))).toEqual([
-      true,
-      true,
-      true,
-      true,
-    ]);
+    const mine = "share:aaaaaaaaaaaa";
+    const theirs = "share:bbbbbbbbbbbb";
+    const authors = [mine, theirs, null, undefined];
     expect(
-      reasons.map((r) => canRetimePendingEdit(share, editCaps, r)),
+      authors.map((a) => canRetimePendingEdit(host, null, null, a)),
     ).toEqual([true, true, true, true]);
     expect(
-      reasons.map((r) => canRetimePendingEdit(share, suggestCaps, r)),
-    ).toEqual([false, false, true, true]);
+      authors.map((a) => canRetimePendingEdit(share, editCaps, mine, a)),
+    ).toEqual([true, true, true, true]);
     expect(
-      reasons.map((r) => canRetimePendingEdit(share, ["play", "view"], r)),
+      authors.map((a) => canRetimePendingEdit(share, suggestCaps, mine, a)),
+    ).toEqual([true, false, false, false]);
+    expect(
+      authors.map((a) => canRetimePendingEdit(share, suggestCaps, null, a)),
+    ).toEqual([false, false, false, false]);
+    expect(
+      authors.map((a) =>
+        canRetimePendingEdit(share, ["play", "view"], mine, a),
+      ),
     ).toEqual([false, false, false, false]);
   });
 

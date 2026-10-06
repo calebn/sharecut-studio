@@ -15,6 +15,7 @@ type ProjectSlice = Pick<
   | "projectEpoch"
   | "guestMode"
   | "shareCapabilities"
+  | "shareAuthor"
   | "setProject"
   | "setGuestMode"
   | "setPipelineJob"
@@ -37,6 +38,7 @@ export const createProjectSlice: StateCreator<
   projectEpoch: 0,
   guestMode: null as string | null,
   shareCapabilities: null as string[] | null,
+  shareAuthor: null as string | null,
   setProject: (project) => {
     set({ project, ...zoomReclampPatch(get(), sessionSecOf({ project })) });
   },
@@ -56,6 +58,7 @@ export const createProjectSlice: StateCreator<
     initialProject,
     guestMode = null,
     shareCapabilities = null,
+    shareAuthor = null,
   ) => {
     const samePath = get().projectPath === projectPath;
     if (!samePath) {
@@ -68,6 +71,7 @@ export const createProjectSlice: StateCreator<
       project: initialProject,
       guestMode,
       shareCapabilities,
+      shareAuthor,
       sessionClients: samePath ? get().sessionClients : EMPTY_ROSTER,
       sessionRosterVersion: samePath ? get().sessionRosterVersion : 0,
       followingClientId: samePath ? get().followingClientId : null,

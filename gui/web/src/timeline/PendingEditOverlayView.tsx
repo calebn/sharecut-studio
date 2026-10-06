@@ -418,7 +418,8 @@ function PendingEditRegion({
       canRetimePendingEdit(
         state.projectPath,
         state.shareCapabilities,
-        current?.reason,
+        state.shareAuthor,
+        current?.author,
       ) &&
       current?.source_start === capture.sourceStart &&
       current.source_end === capture.sourceEnd &&
@@ -737,7 +738,8 @@ function PendingEditRegion({
         !canRetimePendingEdit(
           state.projectPath,
           state.shareCapabilities,
-          edit.reason,
+          state.shareAuthor,
+          edit.author,
         )
       ) {
         return;
@@ -1044,6 +1046,7 @@ export function PendingEditOverlayView({
 }: PendingEditOverlayViewProps) {
   const projectEpoch = useDawStore((state) => state.projectEpoch);
   const shareCapabilities = useDawStore((state) => state.shareCapabilities);
+  const shareAuthor = useDawStore((state) => state.shareAuthor);
   return (
     <>
       {edits
@@ -1069,7 +1072,8 @@ export function PendingEditOverlayView({
                 canRetimePendingEdit(
                   projectPath,
                   shareCapabilities,
-                  edit.reason,
+                  shareAuthor,
+                  edit.author,
                 ) &&
                 !edit.exact_range &&
                 edit.source_start != null &&

@@ -845,27 +845,54 @@ describe("PendingEditInspector", () => {
       },
     );
 
-    it("lets a suggest guest retime only guest suggestions", () => {
-      const guestCut = { ...sessionCut, reason: "guest:suggest" };
-      useDawStore
-        .getState()
-        .hydrate(
-          shareProjectKey("tok"),
-          minimalProject({ pending_edits: [sessionCut, guestCut] }),
-          "suggest",
-          ["view", "suggest"],
-        );
-      const { unmount } = render(<PendingEditInspector edit={sessionCut} />);
-      expect(screen.queryByLabelText("Source start")).toBeNull();
-      unmount();
-      render(<PendingEditInspector edit={guestCut} />);
-      expect(screen.getByLabelText("Source start")).toBeVisible();
+    it("lets a suggest guest retime only its own share's suggestions", () => {
+      const mine = { ...sessionCut, id: "mine", author: "share:aaaaaaaaaaaa" };
+      const theirs = {
+        ...sessionCut,
+        id: "theirs",
+        author: "share:bbbbbbbbbbbb",
+      };
+      const edits = [sessionCut, mine, theirs];
+      const retimeable = (
+        path: string,
+        mode: string | null,
+        caps: string[] | null,
+        author: string | null,
+      ) => {
+        useDawStore
+          .getState()
+          .hydrate(
+            path,
+            minimalProject({ pending_edits: edits }),
+            mode,
+            caps,
+            author,
+          );
+        return edits.map((edit) => {
+          const { unmount } = render(<PendingEditInspector edit={edit} />);
+          const shown = screen.queryByLabelText("Source start") !== null;
+          unmount();
+          return shown;
+        });
+      };
+      const share = shareProjectKey("tok");
+      expect(
+        retimeable(share, "suggest", ["view", "suggest"], mine.author),
+      ).toEqual([false, true, false]);
+      expect(
+        retimeable(share, "edit", ["view", "edit"], "share:cccccccccccc"),
+      ).toEqual([true, true, true]);
+      expect(retimeable("/tmp/ep.project.json", null, null, null)).toEqual([
+        true,
+        true,
+        true,
+      ]);
     });
 
     it("hides a ready suggestion when capabilities are revoked", async () => {
       loadPendingCutSuggestion.mockResolvedValue(proposal());
       const key = shareProjectKey("tok");
-      const guestCut = { ...sessionCut, reason: "guest:suggest" };
+      const guestCut = { ...sessionCut, author: "share:aaaaaaaaaaaa" };
       useDawStore
         .getState()
         .hydrate(
@@ -873,6 +900,7 @@ describe("PendingEditInspector", () => {
           minimalProject({ pending_edits: [guestCut] }),
           "suggest",
           ["view", "suggest"],
+          guestCut.author,
         );
       render(<PendingEditInspector edit={guestCut} />);
       expect(await screen.findByText("0:09.97525 to 0:12.03525")).toBeVisible();

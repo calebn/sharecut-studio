@@ -101,6 +101,7 @@ def map_pending_edits_to_timeline(
                 if decision.exact_range
                 else None,
                 "id": decision.id,
+                "author": decision.author,
                 "track_id": decision.track_id,
                 "track_ids": track_ids,
                 "type": type_val,

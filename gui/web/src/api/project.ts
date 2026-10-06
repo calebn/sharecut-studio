@@ -11,6 +11,7 @@ import { withAbortTimeout } from "../utils/abortTimeout";
 import { readApiError } from "../utils/apiError";
 
 export async function loadReviewBootstrap(token: string): Promise<{
+  author?: string;
   capabilities: string[];
   guest_mode?: string;
   meta: { name?: string };
@@ -20,6 +21,7 @@ export async function loadReviewBootstrap(token: string): Promise<{
     throw new Error(await readApiError(res));
   }
   return res.json() as Promise<{
+    author?: string;
     capabilities: string[];
     guest_mode?: string;
     meta: { name?: string };

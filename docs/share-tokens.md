@@ -208,9 +208,14 @@ recreating a link, or a coolname recycled after cooldown, gets a new id, and the
 old suggestions belong to no guest. Host and agent edits, and edits saved before
 authorship, have no author and belong to no guest. A `suggest` guest retimes only
 edits whose author is its own share, and coalescing never merges pending edits
-with different authors (`transcript_cuts.coalesce_edits`). The author stays
-host-side: guest projections never carry it, so the Studio offers retime on every
-guest suggestion and the gate refuses another guest's.
+with different authors (`transcript_cuts.coalesce_edits`). Every pending-edit row
+in the projection carries its `author`, the same row for every guest, and the guest
+bootstrap (`GET /api/review/{token}/project`) returns the guest's own `author`.
+The Studio shows Retime on a suggestion only when the two match
+(`canRetimePendingEdit`), so a `suggest` guest sees it on its own suggestions and
+nowhere else. The id is random and grants nothing: every guest route and the guest
+MCP look a share up by its token, never by `id`, so another guest who sees an
+author learns only which suggestions came from the same share.
 
 **Login policy:** production public shares are **link only**. Restricted /
 `require_sign_in` minting is refused unless `PODCAST_SHARE_ACCOUNTS=1` (stub
