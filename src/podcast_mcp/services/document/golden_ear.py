@@ -181,33 +181,37 @@ def _write_answers_template(path: Path, pair_ids: list[str]) -> None:
             )
 
 
-def _wav_duration_sec(path: Path) -> float | None:
+def _wav_frames_and_rate(path: Path) -> tuple[int, int] | None:
     try:
         with wave.open(str(path), "rb") as handle:
             rate = handle.getframerate()
-            if rate <= 0:
-                return None
-            return handle.getnframes() / float(rate)
+            return (handle.getnframes(), rate) if rate > 0 else None
     except (OSError, wave.Error):
         return None
 
 
-def _pad_edit_to_leave(leave_wav: Path, edit_wav: Path) -> bool:
-    """Pad Suggested to Current duration. Return False if padding is required but fails."""
-    leave_dur = _wav_duration_sec(leave_wav)
-    edit_dur = _wav_duration_sec(edit_wav)
-    if leave_dur is None or edit_dur is None:
+def _equalize_clip_lengths(first: Path, second: Path) -> bool:
+    """Pad the shorter clip with trailing silence to the longer one's frame count.
+
+    Neither side is trimmed, so a blind listener cannot tell Current from
+    Suggested by length whichever is longer. Return False if padding is required
+    but fails.
+    """
+    first_size = _wav_frames_and_rate(first)
+    second_size = _wav_frames_and_rate(second)
+    if first_size is None or second_size is None or first_size == second_size:
         return True
-    if edit_dur + 0.02 >= leave_dur:
-        return True
+    (short_path, (_, rate)), (_, (long_frames, _)) = sorted(
+        ((first, first_size), (second, second_size)), key=lambda clip: clip[1][0]
+    )
     engine = FFmpegEngine()
     ok, _ = engine.check_available()
     if not ok:
         return False
-    padded = edit_wav.with_suffix(".pad.wav")
+    padded = short_path.with_suffix(".pad.wav")
     try:
-        engine.pad_end_silence(edit_wav, padded, leave_dur)
-        os.replace(padded, edit_wav)
+        engine.pad_end_silence(short_path, padded, long_frames / rate)
+        os.replace(padded, short_path)
     except JOIN_ERRORS:
         padded.unlink(missing_ok=True)
         return False
@@ -254,7 +258,7 @@ def _render_pair_wavs(
     edit_name = "2.wav" if edit_is_two else "1.wav"
     shutil.copy2(leave.wav_path, staging / leave_name)
     shutil.copy2(edited.wav_path, staging / edit_name)
-    if not _pad_edit_to_leave(staging / leave_name, staging / edit_name):
+    if not _equalize_clip_lengths(staging / leave_name, staging / edit_name):
         shutil.rmtree(staging, ignore_errors=True)
         return None
     _publish_pair_dir(staging, pair_dir)
