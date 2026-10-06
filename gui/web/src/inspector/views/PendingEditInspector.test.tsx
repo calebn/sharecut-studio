@@ -835,18 +835,36 @@ describe("PendingEditInspector", () => {
       },
     );
 
+    it("lets a suggest guest retime only guest suggestions", () => {
+      const guestCut = { ...sessionCut, reason: "guest:suggest" };
+      useDawStore
+        .getState()
+        .hydrate(
+          shareProjectKey("tok"),
+          minimalProject({ pending_edits: [sessionCut, guestCut] }),
+          "suggest",
+          ["view", "suggest"],
+        );
+      const { unmount } = render(<PendingEditInspector edit={sessionCut} />);
+      expect(screen.queryByLabelText("Source start")).toBeNull();
+      unmount();
+      render(<PendingEditInspector edit={guestCut} />);
+      expect(screen.getByLabelText("Source start")).toBeVisible();
+    });
+
     it("hides a ready suggestion when capabilities are revoked", async () => {
       loadPendingCutSuggestion.mockResolvedValue(proposal());
       const key = shareProjectKey("tok");
+      const guestCut = { ...sessionCut, reason: "guest:suggest" };
       useDawStore
         .getState()
         .hydrate(
           key,
-          minimalProject({ pending_edits: [sessionCut] }),
+          minimalProject({ pending_edits: [guestCut] }),
           "suggest",
           ["view", "suggest"],
         );
-      render(<PendingEditInspector edit={sessionCut} />);
+      render(<PendingEditInspector edit={guestCut} />);
       expect(await screen.findByText("0:09.97525 to 0:12.03525")).toBeVisible();
       act(() => useDawStore.setState({ shareCapabilities: ["view"] }));
       expect(

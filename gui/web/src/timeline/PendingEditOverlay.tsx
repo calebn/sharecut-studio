@@ -1,6 +1,10 @@
 import { useCallback } from "react";
 import { approveEdits, rejectEdits, updatePendingEdit } from "../api";
-import { canReviewPendingEdit, canSuggestOrNudge } from "../shareMode";
+import {
+  canRetimePendingEdit,
+  canReviewPendingEdit,
+  canSuggestStructural,
+} from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { EMPTY_OBJ } from "../utils/empty";
@@ -28,7 +32,7 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
   const clipsByTrack = useDawStore(
     (state) => state.project?.clips.tracks ?? EMPTY_OBJ,
   );
-  const canAdjust = canSuggestOrNudge(
+  const canAdjust = canSuggestStructural(
     projectPath,
     guestMode,
     shareCapabilities,
@@ -50,22 +54,18 @@ export function PendingEditOverlay(props: PendingEditOverlayProps) {
       sourceEnd,
     ) => {
       const state = useDawStore.getState();
-      if (
-        state.projectPath !== capturedPath ||
-        state.projectEpoch !== capturedEpoch ||
-        !canSuggestOrNudge(
-          state.projectPath,
-          state.guestMode,
-          state.shareCapabilities,
-        )
-      ) {
-        return;
-      }
       const current = state.project?.pending_edits.find(
         (edit) => edit.id === editId,
       );
       if (
+        state.projectPath !== capturedPath ||
+        state.projectEpoch !== capturedEpoch ||
         !current ||
+        !canRetimePendingEdit(
+          state.projectPath,
+          state.shareCapabilities,
+          current.reason,
+        ) ||
         current.exact_range ||
         current.source_start !== expectedSourceStart ||
         current.source_end !== expectedSourceEnd

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from podcast_mcp.edits.edit_reasons import GUEST_SUGGEST_REASON
+from podcast_mcp.edits.edit_reasons import GUEST_SUGGEST_REASON, is_guest_suggestion
 from podcast_mcp.edits.share_capabilities import CAP_EDIT, CAP_SUGGEST, has_capability
 
 # Structural ops share one command type; policy chooses apply vs propose.
@@ -63,6 +63,19 @@ def resolve_range_mode(
     if range_policy != "apply":
         return StructuralMutationMode.PROPOSE
     return resolve_structural_mode(caps, requested)
+
+
+def authorize_pending_update(caps: list[str] | None, reason: str | None) -> None:
+    """Raise PermissionError unless *caps* may retime a pending edit with *reason*.
+
+    Host and ``edit`` guests retime any pending edit. A ``suggest``-only guest
+    retimes only guest suggestions; retiming a host or agent edit is editing.
+    """
+    if caps is None or has_capability(caps, CAP_EDIT):
+        return
+    if has_capability(caps, CAP_SUGGEST) and is_guest_suggestion(reason):
+        return
+    raise PermissionError("suggest-only shares may retime only guest suggestions")
 
 
 def range_reason(

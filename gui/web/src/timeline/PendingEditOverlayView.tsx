@@ -9,8 +9,8 @@ import {
 } from "../inspector/TranscriptRefineRecovery";
 import { useQueuedReviewNotice } from "../inspector/useQueuedReviewNotice";
 import {
+  canRetimePendingEdit,
   canReviewPendingEdit,
-  canSuggestOrNudge,
   isShareProjectKey,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -419,10 +419,10 @@ function PendingEditRegion({
     return (
       state.projectPath === capture.projectPath &&
       state.projectEpoch === capture.projectEpoch &&
-      canSuggestOrNudge(
+      canRetimePendingEdit(
         state.projectPath,
-        state.guestMode,
         state.shareCapabilities,
+        current?.reason,
       ) &&
       current?.source_start === capture.sourceStart &&
       current.source_end === capture.sourceEnd &&
@@ -738,10 +738,10 @@ function PendingEditRegion({
         state.projectEpoch !== initialEpoch ||
         state.selection?.kind !== "pending" ||
         state.selection.id !== edit.id ||
-        !canSuggestOrNudge(
+        !canRetimePendingEdit(
           state.projectPath,
-          state.guestMode,
           state.shareCapabilities,
+          edit.reason,
         )
       ) {
         return;
@@ -1071,6 +1071,11 @@ export function PendingEditOverlayView({
               clipsByTrack={clipsByTrack}
               canAdjust={
                 canAdjust &&
+                canRetimePendingEdit(
+                  projectPath,
+                  shareCapabilities,
+                  edit.reason,
+                ) &&
                 !edit.exact_range &&
                 edit.source_start != null &&
                 edit.source_end != null

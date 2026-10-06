@@ -8,10 +8,10 @@ from podcast_mcp.edits.share_capabilities import (
     CAP_EDIT,
     CAP_PLAY,
     CAP_REPLY,
-    CAP_SUGGEST,
     CAP_VIEW,
     has_capability,
 )
+from podcast_mcp.services.document_sync.capabilities import document_command_types_for_caps
 
 # Read / listen (ReviewApp-level summary without full Sharecut Studio).
 PLAY_TOOLS: frozenset[str] = frozenset(
@@ -59,8 +59,8 @@ ACTION_TOOLS: frozenset[str] = frozenset(
     }
 )
 
-# Mutations go through the shared document-command allowlists.
-SUGGEST_TOOLS: frozenset[str] = frozenset(
+# Offered whenever the document-command gate allows any command for the share.
+DOCUMENT_COMMAND_TOOLS: frozenset[str] = frozenset(
     {
         "guest_submit_document_command",
     }
@@ -68,7 +68,6 @@ SUGGEST_TOOLS: frozenset[str] = frozenset(
 
 EDIT_TOOLS: frozenset[str] = frozenset(
     {
-        "guest_submit_document_command",
         "guest_render_preview",
         "guest_upload_media",
         "guest_render_preview_job",
@@ -81,7 +80,7 @@ ALL_GUEST_TOOLS: frozenset[str] = (
     | PLAY_AND_VIEW_TOOLS
     | COMMENT_TOOLS
     | ACTION_TOOLS
-    | SUGGEST_TOOLS
+    | DOCUMENT_COMMAND_TOOLS
     | EDIT_TOOLS
 )
 
@@ -99,8 +98,8 @@ def tools_for_capabilities(caps: list[str] | None) -> frozenset[str]:
         out |= COMMENT_TOOLS
     if has_capability(caps, CAP_ACTION):
         out |= ACTION_TOOLS
-    if has_capability(caps, CAP_SUGGEST):
-        out |= SUGGEST_TOOLS
+    if document_command_types_for_caps(caps):
+        out |= DOCUMENT_COMMAND_TOOLS
     if has_capability(caps, CAP_EDIT):
         out |= EDIT_TOOLS
     return frozenset(out)

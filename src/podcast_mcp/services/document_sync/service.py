@@ -714,6 +714,7 @@ class DocumentSyncService:
     ) -> dict[str, Any]:
         from podcast_mcp.services.document_sync.policy import (
             STRUCTURAL_COMMANDS,
+            authorize_pending_update,
             range_reason,
             resolve_range_mode,
             resolve_structural_mode,
@@ -732,6 +733,11 @@ class DocumentSyncService:
                 e.id in ids and e.exact_range is not None for e in self.ws.project.edit_decisions
             ):
                 raise PermissionError("Only the host can decide exact range proposals")
+        if command.type == "UpdatePendingEdit":
+            edit_id = command.payload.get("id")
+            target = next((e for e in self.ws.project.edit_decisions if e.id == edit_id), None)
+            if target is not None:
+                authorize_pending_update(capabilities, target.reason)
         payload = dict(command.payload)
         if command.type in {"ApproveEdits", "RejectEdits"}:
             payload["_allow_exact"] = capabilities is None and range_policy == "apply"

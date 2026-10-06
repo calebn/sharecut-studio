@@ -966,7 +966,7 @@ def test_document_commands_apply_and_send_a_mix_delta(minimal_project: Path) -> 
 @pytest.mark.parametrize("command", ["SetTrackFader", "SetTrackMute"])
 def test_only_the_host_and_editors_may_change_the_mix(command: str) -> None:
     authorize_document_command(None, command)
-    authorize_document_command(["edit"], command)
+    authorize_document_command(["view", "edit"], command)
     for caps in (["suggest"], ["view"], ["comment"], []):
         with pytest.raises(PermissionError):
             authorize_document_command(caps, command)

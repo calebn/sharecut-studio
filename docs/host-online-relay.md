@@ -142,7 +142,7 @@ podcast review share --kind record --session-id <id> --role producer --expires-a
 | `reply`    | Reply to existing comments |
 | `join`     | Be recorded in a record room (no MCP) |
 | `monitor`  | Hear a record room (producer or guest; no MCP) |
-| `suggest`  | Propose/nudge pending edits (`SuggestPendingEdit`, `UpdatePendingEdit`) and **propose** structural ops (`SplitAtTime`, `DeleteClip`, `RippleDeleteClip`) and selected ranges (`EditSelectedRange`, incl. transcript Select) — cannot approve/apply |
+| `suggest`  | Propose pending edits (`SuggestPendingEdit`), retime guest suggestions only (`UpdatePendingEdit` on `guest:suggest*` reasons; host and agent edits are refused), and **propose** structural ops (`SplitAtTime`, `DeleteClip`, `RippleDeleteClip`) and selected ranges (`EditSelectedRange`, incl. transcript Select) — cannot approve/apply |
 | `edit`     | Apply Pass 1–2 document commands (approve/reject/restore, fades, join, clip body move / `MoveClips`, undo/redo) **and apply** structural ops and selected ranges (`EditSelectedRange`) via guest document route |
 | `mcp`      | Allow **capability-scoped** remote MCP at `{base}/mcp/{token}/mcp` (same powers as the other caps on this token — not the full host MCP surface) |
 
@@ -228,7 +228,7 @@ All under `/api/review/{token}/…` (proxied by the relay; **no** `?project=` pa
 | `GET …/daw/audio?kind=` | `play` | Whitelist: `premix`, `stem`, `processed`, `review`. Rejects `raw` and `rerender=true` |
 | `GET …/daw/pending-preview` | `play` + `view` | Listen-first Current / Suggested / A/B WAV (Suggested renders the approved edit; not host speakers). First hit is FFmpeg (mutate RPM); cached GET uses audio concurrency. |
 | `GET …/daw/pending-preview-image` | `play` + `view` | Waveform (`kind=wave`) or spectrogram (`kind=spec`) of that extract |
-| `POST …/daw/document/command` | `view` + command allowlist | `suggest` → Suggest/UpdatePending + structural and selected-range propose; `edit` → Pass 1–2 apply + structural and selected-range (`EditSelectedRange`) apply + track ingest (`AddTrack` / `SetTrackMedia` / `SetTrackMeta` / `RemoveTrack` / `ReorderTrack`) + saved mix (`SetTrackFader` / `SetTrackMute`) via `document_command_types_for_caps` / `authorize_document_command` + `policy.resolve_structural_mode` / `policy.resolve_range_mode`. The route requests interactive range apply; the policy demotes it to a proposal without `edit` or when the client sends `structural_mode: "propose"` (offline replay). The guest MCP `guest_submit_document_command` keeps the agent default, so its ranges always propose. Typed payloads: `schemas/document-commands.schema.json`. |
+| `POST …/daw/document/command` | `view` + command allowlist | `suggest` → SuggestPendingEdit, UpdatePendingEdit on guest suggestions only (`policy.authorize_pending_update`), structural and selected-range propose; `edit` → Pass 1–2 apply + structural and selected-range (`EditSelectedRange`) apply + track ingest (`AddTrack` / `SetTrackMedia` / `SetTrackMeta` / `RemoveTrack` / `ReorderTrack`) + saved mix (`SetTrackFader` / `SetTrackMute`) via `document_command_types_for_caps` / `authorize_document_command` + `policy.resolve_structural_mode` / `policy.resolve_range_mode`. The route requests interactive range apply; the policy demotes it to a proposal without `edit` or when the client sends `structural_mode: "propose"` (offline replay). The guest MCP `guest_submit_document_command` keeps the agent default, so its ranges always propose. Typed payloads: `schemas/document-commands.schema.json`. |
 | `POST …/daw/media/upload` | `edit` | Chunked audio into host `raw/` (allowlist + assembled size cap); then guest submits `SetTrackMedia` / `AddTrack`. Not for `suggest`/`view`. Not the record keeper route. |
 | `GET /api/rec/{token}/upload` | record `join` | Own keeper chunk ACK status (lease required; host removal revokes it and returns 403 `invalid lease`) |
 | `POST /api/rec/{token}/upload` | record `join` | Keeper PCM parts (5 MB / 30 s); resume on the same token. Keeper parts only for takes the participant consented to; `kind=room_tone` only while consented (403 `consent required`). Host removal revokes the lease (403 `invalid lease`). Not `…/daw/media/upload`. |
@@ -386,7 +386,7 @@ Do not put `guest_*` names in the host manifest MCP column. Share agents never c
 | `+view` | `guest_get_project`, clips / pending / applied edits, transcript search, render status, `guest_get_session_presence` (live roster; agent twin of the DAW WS, no extra HTTP) |
 | `+comment` / `reply` | `guest_add_comment`, `guest_add_reply` |
 | `+action` | `guest_set_action_done` |
-| `+suggest` / `+edit` | `guest_submit_document_command` (same allowlists as `authorize_document_command`) |
+| `view` + (`suggest` / `edit`) | `guest_submit_document_command` (offered only when `document_command_types_for_caps` allows a command, so `suggest` or `edit` without `view` gets none, as on the browser route) |
 | `+edit` only | `guest_render_preview` (start render job), `guest_render_preview_job` (read status); `guest_upload_media` (HTTP twin: `POST …/daw/media/upload`) |
 | without `mcp` | Relay/host **403** |
 | record `join` / `monitor` | **no MCP** — `/rec/{token}` lobby; `join` also unlocks `GET`/`POST`/`DELETE /api/rec/{token}/upload` |

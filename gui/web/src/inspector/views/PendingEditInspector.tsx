@@ -14,8 +14,8 @@ import { useProjectMutation } from "../../hooks/useProjectMutation";
 import {
   canComment,
   canReply,
+  canRetimePendingEdit,
   canReviewPendingEdit,
-  canSuggestOrNudge,
   commentRole,
   isShareProjectKey,
 } from "../../shareMode";
@@ -105,7 +105,7 @@ export function PendingEditInspector({ edit }: { edit: PendingEditView }) {
     !edit.exact_range &&
     edit.source_start != null &&
     edit.source_end != null &&
-    canSuggestOrNudge(projectPath, guestMode, shareCapabilities);
+    canRetimePendingEdit(projectPath, shareCapabilities, edit.reason);
   const mayAsk = canComment(projectPath, guestMode, shareCapabilities);
   const mayReply = canReply(projectPath, guestMode, shareCapabilities);
   const { busy, error, errorCode, setError, run } = useProjectMutation();

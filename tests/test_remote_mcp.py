@@ -86,10 +86,11 @@ def test_tools_for_capabilities_matrix() -> None:
 
     assert tools_for_capabilities([]) == frozenset()
     assert tools_for_capabilities(["mcp"]) == frozenset()
-    assert "ApproveEdits" in document_command_types_for_caps(["edit"])
-    assert "SuggestPendingEdit" in document_command_types_for_caps(["suggest"])
-    assert "SplitAtTime" in document_command_types_for_caps(["edit"])
-    assert "SplitAtTime" in document_command_types_for_caps(["suggest"])
+    assert "ApproveEdits" in document_command_types_for_caps(["view", "edit"])
+    assert "SuggestPendingEdit" in document_command_types_for_caps(["view", "suggest"])
+    assert "SplitAtTime" in document_command_types_for_caps(["view", "edit"])
+    assert "SplitAtTime" in document_command_types_for_caps(["view", "suggest"])
+    assert document_command_types_for_caps(["suggest", "edit"]) == frozenset()
     assert document_command_types_for_caps(["play"]) == frozenset()
 
 

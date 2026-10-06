@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from podcast_mcp.edits.share_capabilities import CAP_EDIT, CAP_SUGGEST, has_capability
+from podcast_mcp.edits.share_capabilities import (
+    CAP_EDIT,
+    CAP_SUGGEST,
+    CAP_VIEW,
+    has_capability,
+)
 from podcast_mcp.services.document_sync.policy import STRUCTURAL_COMMANDS
 
 # Pass 1-2 apply set (guest ``edit``).
@@ -50,8 +55,14 @@ SUGGEST_COMMANDS: frozenset[str] = frozenset(
 
 
 def document_command_types_for_caps(caps: list[str] | None) -> frozenset[str]:
-    """Document command types allowed for a share's capability set."""
+    """Document command types allowed for a share's capability set.
+
+    Every document command needs ``view`` (the guest sees the timeline it edits),
+    on the browser and the guest MCP surface alike.
+    """
     out: set[str] = set()
+    if not has_capability(caps, CAP_VIEW):
+        return frozenset()
     if has_capability(caps, CAP_EDIT):
         out |= set(EDIT_COMMANDS)
     if has_capability(caps, CAP_SUGGEST):
