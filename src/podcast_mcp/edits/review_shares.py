@@ -2,6 +2,9 @@
 
 Public ``/r/{token}`` IDs are coolname slugs. Uniqueness across **active** and
 **cooldown** pools is enforced by ``share_registry`` (see docs/share-tokens.md).
+The token is a live credential, so only the host registry stores it: sidecar
+rows are keyed by the share's random ``id`` and the host's share list joins the
+token back from the registry.
 """
 
 from __future__ import annotations
@@ -58,10 +61,16 @@ def _load(path: Path) -> list[dict[str, Any]]:
 
 def _save(path: Path, rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    persisted = [{k: v for k, v in row.items() if k != "token"} for row in rows]
     path.write_text(
-        json.dumps(rows, indent=2, ensure_ascii=False) + "\n",
+        json.dumps(persisted, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+
+
+def _active_share_id(token: str) -> str | None:
+    row = get_share_registry().get_active(token)
+    return str(row["id"]) if row is not None and row.get("id") else None
 
 
 def create_share(
@@ -140,7 +149,26 @@ def list_shares(project: EpisodeProject) -> list[dict[str, Any]]:
 
 
 def list_shares_for_workspace(workspace: Path) -> list[dict[str, Any]]:
-    return _load(shares_path_for_workspace(workspace))
+    """Host view: sidecar rows plus the token of each still-active share from the registry."""
+    tokens = {
+        str(row["id"]): str(row["token"])
+        for row in get_share_registry().list_active_for_workspace(str(workspace.resolve()))
+    }
+    rows = []
+    for row in _load(shares_path_for_workspace(workspace)):
+        row.pop("token", None)
+        token = tokens.get(str(row.get("id") or ""))
+        rows.append({**row, "token": token} if token else row)
+    return rows
+
+
+def sidecar_share(workspace: Path, share_id: str) -> dict[str, Any] | None:
+    """The sidecar row for one share id (no token)."""
+    for row in _load(shares_path_for_workspace(workspace)):
+        if row.get("id") == share_id:
+            row.pop("token", None)
+            return row
+    return None
 
 
 def list_room_shares(project: EpisodeProject, session_id: str) -> list[dict[str, Any]]:
@@ -161,12 +189,15 @@ def revoke_share(project: EpisodeProject, token: str) -> bool:
 
 
 def revoke_share_for_workspace(workspace: Path, token: str) -> bool:
+    share_id = _active_share_id(token)
+    if share_id is None:
+        return False
     path = shares_path_for_workspace(workspace)
     with _sidecar_lock:
         rows = _load(path)
         found = False
         for row in rows:
-            if row.get("token") == token:
+            if row.get("id") == share_id:
                 row["revoked"] = True
                 found = True
         if found:
@@ -178,14 +209,16 @@ def revoke_share_for_workspace(workspace: Path, token: str) -> bool:
 
 def drop_share(project: EpisodeProject, token: str) -> bool:
     """Remove a sidecar row and release the registry claim (no cooldown)."""
+    share_id = _active_share_id(token)
     path = shares_path(project)
     found = False
-    with _sidecar_lock:
-        rows = _load(path)
-        kept = [row for row in rows if row.get("token") != token]
-        found = len(kept) != len(rows)
-        if found:
-            _save(path, kept)
+    if share_id is not None:
+        with _sidecar_lock:
+            rows = _load(path)
+            kept = [row for row in rows if row.get("id") != share_id]
+            found = len(kept) != len(rows)
+            if found:
+                _save(path, kept)
     released = get_share_registry().release_claim(token)
     return found or released
 
@@ -199,12 +232,13 @@ def touch_share_last_used_for_workspace(workspace: Path, token: str) -> str | No
     ts = get_share_registry().touch_last_used(token)
     if ts is None:
         return None
+    share_id = _active_share_id(token)
     path = shares_path_for_workspace(workspace)
     with _sidecar_lock:
         rows = _load(path)
         changed = False
         for row in rows:
-            if row.get("token") == token:
+            if share_id is not None and row.get("id") == share_id:
                 row["last_used_at"] = ts
                 changed = True
         if changed:

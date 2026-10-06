@@ -5,8 +5,11 @@ from `coolname.generate_slug(3)` (e.g. `fantastic-acoustic-whale`, or
 `spiffy-urchin-of-forgiveness` when a connector word is included).
 
 Uniqueness and reuse are enforced by a **host sqlite registry** with two pools.
-Episode-bound metadata (capabilities, review version, workspace) stays in the
-project sidecar `artifacts/review/shares.json`. See also [persistence.md](persistence.md).
+Tokens are live credentials, so only that registry stores them, outside every
+project workspace. Episode-bound metadata (share `id`, capabilities, review
+version, access policy, revoked state) stays in the project sidecar
+`artifacts/review/shares.json`, keyed by the share `id`. See also
+[persistence.md](persistence.md).
 
 Local host and guest review media responses open the authorized file through
 no-follow directory descriptors before streaming. Byte ranges, HEAD, and cache
@@ -54,7 +57,7 @@ stateDiagram-v2
 | Step | Behavior |
 |------|----------|
 | **Mint** | `claim_with_mint_retry`: coolname slug → `claim_active` under `BEGIN IMMEDIATE`; remint on reservation race; then write project sidecar; `last_used_at = created_at` |
-| **Guest use** | `lookup_share` checks the active registry row on each request, touches `last_used_at` (throttle **1 hour**), and reads the same project `shares.json` sidecar directly for current access policy. The project JSON need not be parsed for this lookup |
+| **Guest use** | `lookup_share` checks the active registry row on each request, touches `last_used_at` (throttle **1 hour**), and reads the project `shares.json` row with the registry row's `id` directly for current access policy. The project JSON need not be parsed for this lookup |
 | **Demote** | On revoke, hard `expires_at`, or `now ≥ last_used_at + 365d` → move to cooldown with `reserved_until = last_used_at + 365d` (single transaction) |
 | **Create rollback** | Sidecar write failure → `release_claim` (delete active, **no** 365d cooldown) so flaky disk does not burn coolnames |
 | **Remint** | Allowed only if token absent from active and (absent from cooldown or `reserved_until` passed) |
@@ -82,7 +85,7 @@ Tables (portable schema contract for a future relay backend):
 - `cooldown_shares(token PRIMARY KEY, last_used_at, reserved_until, reason, project_workspace)`
 
 Access layer: `ShareRegistryProtocol` in `edits/share_registry.py` (`get_active`,
-`is_reserved`, `claim_active`, `release_claim`, `upsert_active_metadata`,
+`list_active_for_workspace`, `is_reserved`, `claim_active`, `release_claim`, `upsert_active_metadata`,
 `touch_last_used`, `demote_to_cooldown`, `purge_expired_cooldown`, `backup_to`,
 `close`). Host backend: `SqliteShareRegistry` (WAL, `busy_timeout=5000`,
 `BEGIN IMMEDIATE` on claim/demote/release). Wired through `edits/review_shares.py`
@@ -106,9 +109,20 @@ tunnel / CLI using the registry, replace the file at `PODCAST_SHARE_REGISTRY`
 
 ## Project sidecar
 
-`artifacts/review/shares.json` — list of share rows for one episode (token, caps,
-version id, revoked, timestamps). Rich record for the host; the registry is the
-**global UNIQUE(token)** authority on one laptop.
+`artifacts/review/shares.json` — list of share rows for one episode, keyed by the
+share `id`: caps, version id, `general_access` / `require_sign_in`, record `kind` /
+`role` / `session_id`, revoked state and timestamps. It never holds a token, so a
+copied workspace (backup, collaborator, bug report) carries no working link. Every
+sidecar write drops a `token` field, and readers ignore one left in an older file.
+The registry is the **global UNIQUE(token)** authority on one laptop and the only
+place a token lives.
+
+The host's share list (`ShareService.list` / `list_presented`, `GET /api/shares`,
+`podcast review list-shares`) joins each row's token from the registry's active
+rows for that workspace (`list_active_for_workspace`), and Copy link uses the URL
+built from it. A revoked or demoted share has no active row, so it has no token or
+link; the Share dialog lists only live links. Revoke and drop map a token to its
+`id` through the registry before touching the sidecar.
 
 ## Record sessions
 
@@ -128,7 +142,7 @@ A second share **kind** (`review` | `record`) lives on the same coolname
 registry — same active + cooldown pools and rate limits, no third token index.
 Record URLs are `{base}/rec/{token}` (review stays `/r/{token}`). Registry
 columns: `kind`, `role` (record role or NULL), `session_id` (NULL for review).
-Sidecar rows stay in `artifacts/review/shares.json` with the same fields.
+Sidecar rows stay in `artifacts/review/shares.json` with the same fields (no token).
 Mint a room (`session_id` + guest + producer tokens) with
 `podcast review share --kind record` or `POST /api/shares/record`; end it with
 `podcast review revoke-share --session-id` / `POST /api/shares/rooms/{session_id}/revoke`

@@ -16,11 +16,11 @@ from podcast_mcp.edits.review_shares import (
     drop_share,
     list_room_shares,
     list_shares,
-    list_shares_for_workspace,
     register_share_globally,
     resolve_share,
     revoke_share,
     revoke_share_for_workspace,
+    sidecar_share,
     touch_share_last_used_for_workspace,
 )
 from podcast_mcp.edits.review_versions import get_version, version_audio_path
@@ -208,6 +208,9 @@ class ShareService:
         labels = {v.id: v.label for v in list_versions(self.ws.project)}
         presented: list[dict[str, Any]] = []
         for row in list_shares(self.ws.project):
+            if not row.get("token"):
+                # Revoked or demoted: the registry no longer holds a link for it.
+                continue
             kind = str(row.get("kind") or SHARE_KIND_REVIEW)
             label = (
                 labels.get(str(row.get("review_version_id") or ""))
@@ -472,12 +475,11 @@ def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
         try:
             resolved_workspace = resolve_project_path(candidate).parent
             touch_share_last_used_for_workspace(resolved_workspace, token)
-            for side in list_shares_for_workspace(resolved_workspace):
-                if side.get("token") == token and not side.get("revoked"):
-                    # Sidecar holds general_access / require_sign_in. A revoked
-                    # row is an earlier share whose coolname was recycled.
-                    row = {**row, **side}
-                    break
+            side = sidecar_share(resolved_workspace, str(row.get("id") or ""))
+            if side is not None and not side.get("revoked"):
+                # Sidecar holds general_access / require_sign_in; the token lives only
+                # in the registry row.
+                row = {**row, **side, "token": token}
         except Exception:
             log.debug("share last_used touch failed for %s", token, exc_info=True)
             reg.touch_last_used(token)

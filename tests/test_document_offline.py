@@ -283,7 +283,7 @@ def test_open_share_auto_revokes_missing_version(
                 encoding="utf-8"
             )
         )
-        if row.get("token") == token
+        if row.get("id") == share["id"]
     ]
     assert sidecar and sidecar[0].get("revoked") is True
     # Second lookup fails as revoked without another auto-revoke pass.
