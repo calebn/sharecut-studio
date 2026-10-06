@@ -8,6 +8,7 @@ import binascii
 import contextlib
 import json
 import logging
+import signal
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -619,17 +620,17 @@ class TunnelClient:
         ``max_attempts`` limits consecutive failed tries (None = unlimited); a session
         that reached Connected resets the count and the backoff. Auth and config
         failures raise ``TunnelError`` at once. Cancellation propagates without
-        reconnecting and leaves the status Stopped.
+        reconnecting. Every exit but a failure leaves the status Stopped; a failure
+        stays Failed so the host still sees why.
         """
         heartbeat = asyncio.create_task(heartbeat_loop(self._tracker, HEARTBEAT_INTERVAL_SEC))
         try:
             await self._reconnect_loop(max_attempts, initial_delay_sec, max_delay_sec)
-        except asyncio.CancelledError:
-            self._tracker.stopped()
-            raise
         finally:
             heartbeat.cancel()
             await asyncio.gather(heartbeat, return_exceptions=True)
+            if self._tracker.status.phase is not TunnelPhase.FAILED:
+                self._tracker.stopped()
 
     async def _reconnect_loop(
         self, max_attempts: int | None, initial_delay_sec: float, max_delay_sec: float
@@ -673,6 +674,31 @@ class TunnelClient:
             delay = min(max_delay_sec, delay * 2.0)
 
 
+async def _run_until_signalled(client: TunnelClient) -> None:
+    """Run ``client`` until SIGINT or SIGTERM, then return once it wrote its final status.
+
+    The signal cancels the run, so the status file says Stopped before the process
+    exits. Where the loop cannot take signal handlers (Windows, a non-main thread) the
+    default behavior stays and a killed process is told apart by its recorded pid.
+    """
+    loop = asyncio.get_running_loop()
+    running = asyncio.ensure_future(client.run())
+    handled: list[signal.Signals] = []
+    for stop in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(stop, running.cancel)
+        except (NotImplementedError, RuntimeError):
+            continue
+        handled.append(stop)
+    try:
+        await running
+    except asyncio.CancelledError:
+        pass
+    finally:
+        for stop in handled:
+            loop.remove_signal_handler(stop)
+
+
 def run_tunnel_sync(
     project_path: Path | None = None,
     *,
@@ -687,7 +713,8 @@ def run_tunnel_sync(
 
     ``emit`` receives one line per connection state change (default: ``log.info``).
     The live status snapshot the GUI reads is written to ``tunnel_status_path(cfg)``
-    under the machine cache, whatever ``config_path`` is.
+    under the machine cache, whatever ``config_path`` is. SIGINT and SIGTERM stop the
+    tunnel cleanly: the snapshot ends Stopped and this function returns.
     Raises ``TunnelError`` on an auth or config failure that retrying cannot fix.
     """
     cfg = load_relay_config(
@@ -701,4 +728,5 @@ def run_tunnel_sync(
         LineListener(emit),
         StatusFileListener(tunnel_status_path(cfg)),
     ]
-    asyncio.run(TunnelClient(cfg, project_path=project_path, listeners=listeners).run())
+    client = TunnelClient(cfg, project_path=project_path, listeners=listeners)
+    asyncio.run(_run_until_signalled(client))
