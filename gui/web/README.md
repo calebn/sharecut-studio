@@ -245,9 +245,10 @@ Keep component state, validation and mocked error recovery in Vitest. Browser
 specs should protect layout/native input/media/storage/network seams or complete
 user outcomes. Before pruning a browser case, name its remaining coverage owner.
 See [Browser test scope and runtime](../../docs/testing.md#browser-test-scope-and-runtime)
-for placement rules and the CI `playwright-reports-main` and
-`playwright-reports-compat` timing artifacts. Each suite's live project is shared,
-so Playwright requires one worker. CI runs the suites on separate runners; the existing `frontend-e2e` check requires both
+for placement rules and the CI `playwright-reports-<name>` timing artifacts
+(`main-1of4` ... `main-4of4`, `compat`). Each suite's live project is shared,
+so Playwright requires one worker. CI shards the main suite and runs the compat
+suite on separate runners; the existing `frontend-e2e` check requires every one
 to succeed.
 
 Transcript word lookup and inclusive timeline ranges for clipboard, inspector, and

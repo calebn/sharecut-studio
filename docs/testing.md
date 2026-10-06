@@ -444,22 +444,38 @@ Do not raise `workers` or enable `fullyParallel` until each worker owns its GUI
 server, project, share registry and output directory. Retries are failure
 recovery, not a runtime optimization.
 
-CI runs the main and compatibility suites concurrently in separate
-`frontend-e2e-suites` matrix jobs. Each runner owns its checkout, server, project
-and artifacts. The existing required `frontend-e2e` check waits for both and
-fails for any failed, cancelled or skipped suite. `fail-fast: false` lets both
-suites finish and report failures. Local wrappers still run sequentially within
-one checkout.
+CI runs the main suite as four shards (`main-1of4` ... `main-4of4`, each
+`npm run test:e2e -- --shard=i/4`) and the compatibility suite concurrently in
+separate `frontend-e2e-suites` matrix jobs. Each runner owns its checkout,
+server, project and artifacts, so the serial-within-one-server assumption above
+holds inside every shard. With `fullyParallel: false` Playwright shards by spec
+file and balances shards by test count, not duration. Four shards bounded the
+slowest shard at about 5 minutes of test time against 17 minutes for the whole
+suite (from the 2026-10-06 `main` timing report, whose heaviest file is
+`inspector-responsive.spec.ts` at about 3 minutes); the single-job form was
+hitting its 20-minute timeout (#1022). Re-check the split from the timing
+reports when specs are added, and raise the shard count in `test.yml` (keep
+every `i/n` present) before any shard nears the job timeout. Specs must not
+depend on state left by another spec: which specs share a shard changes with
+the shard count.
 
-CI uploads `playwright-reports-main` and `playwright-reports-compat` on successful
-and failed runs. Their `main.json` and `compat.json` include per-test durations,
-retries and errors. The matrix sets `PLAYWRIGHT_JSON_OUTPUT_FILE` for each suite.
-Download both with `gh run download <run-id> --pattern 'playwright-reports-*'`.
-Compare successful runs at the same test scope, and separate browser execution
-from dependency install and server/build setup. A local timing run can use
-`PLAYWRIGHT_JSON_OUTPUT_FILE=/tmp/main.json npm run test:e2e -- --reporter=json`.
-Failed-spec traces remain separate `playwright-test-results-main` and
-`playwright-test-results-compat` artifacts.
+The existing required `frontend-e2e` check waits for every matrix job and fails
+for any failed, cancelled or skipped one. `fail-fast: false` lets all of them
+finish and report failures. Local wrappers still run sequentially within one
+checkout.
+
+CI uploads one `playwright-reports-<name>` artifact per matrix job
+(`playwright-reports-main-1of4` ... `playwright-reports-main-4of4` and
+`playwright-reports-compat`) on successful and failed runs. Each holds
+`<name>.json` with per-test durations, retries and errors. The matrix sets
+`PLAYWRIGHT_JSON_OUTPUT_FILE` for each job. Download them all with
+`gh run download <run-id> --pattern 'playwright-reports-*'` and sum durations
+per spec file across the shard reports. Compare successful runs at the same
+test scope, and separate browser execution from dependency install and
+server/build setup. A local timing run can use
+`PLAYWRIGHT_JSON_OUTPUT_FILE=/tmp/main.json npm run test:e2e -- --reporter=json`,
+and `npm run test:e2e -- --shard=2/4` reproduces one CI shard.
+Failed-spec traces remain separate `playwright-test-results-<name>` artifacts.
 
 ## What to test where
 
@@ -1091,7 +1107,7 @@ two browser-suite jobs in parallel on push and pull requests to `main`. **All mu
 |-----|------|
 | `pytest` | `ruff check` + `ruff format --check` + `bandit` + `vulture` + `deptry` + `mypy` + `pytest -n auto -m "not e2e_slow and not e2e_real"` (Python coverage gate) |
 | `frontend` | In `gui/web`: `npm ci`, `npm audit --omit=dev --audit-level=high` (advisory, `continue-on-error`, failures noted in the job summary; see [§ Dependency updates and audit](#dependency-updates-and-audit)), `npm run lint` (oxlint + Stylelint tokens/rem/`@container`; `!important`/`@layer` consent-gated), `npm run format:check` (Biome), `npm run typecheck` (strict `tsc`), `npm test` (Vitest + `axe-core` via `expectNoA11yViolations`; all `.stories.ts` and `.stories.tsx` modules are discovered, rendered with Storybook preview annotations, played, and axe-checked including body portals by `gui/web/src/test/allStories.test.tsx`; keeper PCM/WAV/segment bars in `gui/web/src/record/keeper/`; mix-minus MM1–MM9 in `gui/web/src/audio/mixMinus.test.ts`; stories/Storybook/test helpers never imported by app code or root build configs in `gui/web/src/test/storyGovernance.test.ts`), `npm run build` (Vite module-ID guard rejects story/Storybook inputs in every app build) |
-| `frontend-e2e-suites` → `frontend-e2e` | Separate main/compat matrix runners build Sharecut Studio, install Chromium + WebKit (`--with-deps`), Playwright smoke against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from the fixture WAVs; the copy keeps nothing under `artifacts/` and skips `history/`, `export/`, `_build/`, `.git`, and sync sqlite — see [§ Fixture hygiene](#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and explicitly provide each temporary `?project=` path, allowing share and record scenarios to use a fresh relocated fixture. `npm run test:e2e` deletes the live copy after Playwright terminates its web server (sqlite stays in the temp workspace — never rewritten in place). Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH to publish the share mix. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest follow banner's text truncation and Stop following fit (`e2e/presence-follow.spec.ts`). Full-page axe via `expectPageAxeClean` in `gui/web/e2e/axe.ts`. The compatibility runner executes the Chromium/WebKit compatibility matrix (`npm run test:e2e:compat`; see [§ Browser compatibility matrix](#browser-compatibility-matrix)). When a step fails, the job uploads `gui/web/test-results/` (Playwright traces for failed specs; a WebKit trace records a WebSocket's handshake but not its frames, so read record-room state from DOM snapshots and the host snapshot the failure message prints) as the `playwright-test-results-main` or `playwright-test-results-compat` artifact, kept for 7 days. Successful and failed runs also upload per-test JSON timing reports. The required `frontend-e2e` aggregate rejects any failed, cancelled or skipped matrix result. Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#follow-up) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home load `/?home=1`. |
+| `frontend-e2e-suites` → `frontend-e2e` | Separate main-shard and compat matrix runners build Sharecut Studio, install Chromium + WebKit (`--with-deps`), Playwright smoke against a **temp copy** of `aligned_dialogue` (no committed waveform data: pyramids build on demand from the fixture WAVs; the copy keeps nothing under `artifacts/` and skips `history/`, `export/`, `_build/`, `.git`, and sync sqlite — see [§ Fixture hygiene](#fixture-hygiene)). Ordinary loopback Playwright launches leave `podcast gui` unpinned and explicitly provide each temporary `?project=` path, allowing share and record scenarios to use a fresh relocated fixture. `npm run test:e2e` (CI passes `-- --shard=i/4`) deletes the live copy after Playwright terminates its web server (sqlite stays in the temp workspace — never rewritten in place). Host→guest follow seeds a temp premix and needs `ffmpeg` on PATH to publish the share mix. Presence follow also covers tab follow, chrome ghosts, lane-bottom no-jump, guest Pipeline/FX degrade, and the 360px phone guest follow banner's text truncation and Stop following fit (`e2e/presence-follow.spec.ts`). Full-page axe via `expectPageAxeClean` in `gui/web/e2e/axe.ts`. The compatibility runner executes the Chromium/WebKit compatibility matrix (`npm run test:e2e:compat`; see [§ Browser compatibility matrix](#browser-compatibility-matrix)). When a step fails, the job uploads `gui/web/test-results/` (Playwright traces for failed specs; a WebKit trace records a WebSocket's handshake but not its frames, so read record-room state from DOM snapshots and the host snapshot the failure message prints) as the `playwright-test-results-<name>` artifact (`main-1of4` ... `main-4of4` or `compat`), kept for 7 days. Successful and failed runs also upload per-test JSON timing reports. The required `frontend-e2e` aggregate rejects any failed, cancelled or skipped matrix result (the four main shards and compat). Firefox pending-inspector layout remains [Follow-up](../ROADMAP.md#follow-up) (original #155 report was Firefox @ 1280). `e2e/root-pin.spec.ts` checks that `/` with a pinned project redirects to it and never POSTs `/api/project/close`; specs that need Home load `/?home=1`. |
 
 The Playwright job and `make test-web-e2e` build with `VITE_SHARECUT_E2E=1` so
 recording test hooks are available. Ordinary `npm run build` omits them; its
@@ -1247,9 +1263,9 @@ Not covered, so still manual:
 `playwright.compat.config.ts`: a project for that engine that does not
 `testIgnore` the spec means "Pass". It also fails if a compat spec uses
 `test.skip`, `fixme`, `fail` or `only`, if the compat config's `retries` is not
-0, if the `frontend-e2e-suites` matrix stops running either complete suite or
+0, if the `frontend-e2e-suites` matrix stops running the complete main shard set or the compat suite, or
 installing an engine with a Pass cell, if the `frontend-e2e` aggregate can pass
-without both suites succeeding, or if one of #30's areas (Audio
+without every matrix job succeeding, or if one of #30's areas (Audio
 playback, getUserMedia, WebSocket, IndexedDB, CSS / layout) loses its last row
 passing on both Chromium and WebKit. It reads the spec and config sources with
 regexes, so it fails loudly on shapes it cannot read: a spec that mixes
@@ -1270,8 +1286,8 @@ waveform tiles, ruler ticks, and envelope chunks through the same hooks.
 
 The `frontend-e2e-suites` compatibility job runs the focused
 `gui/web/e2e-compat/` matrix (`playwright.compat.config.ts`) in bundled Chromium
-and Playwright WebKit, concurrently with the full main Chromium suite on a
-separate runner. The required `frontend-e2e` check gates both suites. It covers
+and Playwright WebKit, concurrently with the sharded main Chromium suite on
+separate runners. The required `frontend-e2e` check gates every shard and compat. It covers
 fixture Raw audition playback
 time advancing and staying fixed after Pause (the disposable fixture has no premix), a host
 comment queued in IndexedDB across reload and replayed with the original

@@ -2,7 +2,7 @@
 
 A "Pass" cell claims the required `frontend-e2e-suites` matrix runs that check
 on that engine with no retry and no skip; the aggregate `frontend-e2e` gate
-makes a green `main` require both suites to pass. "Not run" means no compat
+makes a green `main` require every main shard and the compat suite to pass. "Not run" means no compat
 project runs it. Rows and cells are derived from the specs in
 gui/web/e2e-compat/, playwright.compat.config.ts and the CI workflow.
 """
@@ -27,6 +27,7 @@ WORKFLOW = REPO_ROOT / ".github" / "workflows" / "test.yml"
 CI_SUITES_JOB = "frontend-e2e-suites"
 CI_GATE_JOB = "frontend-e2e"
 MAIN_COMMAND = "npm run test:e2e"
+MAIN_SHARD_RE = re.compile(r"^npm run test:e2e -- --shard=(\d+)/(\d+)$")
 COMPAT_COMMAND = "npm run test:e2e:compat"
 
 PASS = "Pass"
@@ -235,12 +236,24 @@ def test_ci_runs_both_browser_suites_unconditionally_on_every_passing_engine() -
 
     job = workflow["jobs"][CI_SUITES_JOB]
     assert job["strategy"]["fail-fast"] is False
-    assert job["strategy"]["matrix"] == {
-        "include": [
-            {"suite": "main", "command": MAIN_COMMAND},
-            {"suite": "compat", "command": COMPAT_COMMAND},
-        ]
-    }
+    include = job["strategy"]["matrix"]["include"]
+    assert job["strategy"]["matrix"].keys() == {"include"}
+    assert [entry["name"] for entry in include if entry["command"] == COMPAT_COMMAND] == ["compat"]
+    shards = [
+        MAIN_SHARD_RE.match(entry["command"]) for entry in include if entry["name"] != "compat"
+    ]
+    assert all(shards), f"main shards must run `{MAIN_COMMAND} -- --shard=i/n`: {include}"
+    totals = {shard[2] for shard in shards if shard}
+    assert len(totals) == 1, f"main shards disagree on the shard count: {totals}"
+    count = int(totals.pop())
+    assert [int(shard[1]) for shard in shards if shard] == list(range(1, count + 1)), (
+        "main shards must cover --shard=1/n through n/n exactly once"
+    )
+    assert [entry["name"] for entry in include] == [
+        *(f"main-{i}of{count}" for i in range(1, count + 1)),
+        "compat",
+    ]
+    assert len({entry["name"] for entry in include}) == len(include)
     steps = _frontend_e2e_steps()
     runner_steps = [
         step for step in steps if str(step.get("run", "")).strip() == "${{ matrix.command }}"

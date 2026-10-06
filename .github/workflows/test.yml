@@ -121,19 +121,28 @@ jobs:
         run: npm run cheatsheet:check
 
   frontend-e2e-suites:
-    name: frontend-e2e-${{ matrix.suite }}
+    name: frontend-e2e-${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
+        # The main suite runs every spec in series against one web server, so
+        # it is split across shards (Playwright shards by spec file here).
+        # Keep the --shard=i/n numerators complete when changing n.
         include:
-          - suite: main
-            command: npm run test:e2e
-          - suite: compat
+          - name: main-1of4
+            command: npm run test:e2e -- --shard=1/4
+          - name: main-2of4
+            command: npm run test:e2e -- --shard=2/4
+          - name: main-3of4
+            command: npm run test:e2e -- --shard=3/4
+          - name: main-4of4
+            command: npm run test:e2e -- --shard=4/4
+          - name: compat
             command: npm run test:e2e:compat
     env:
-      PLAYWRIGHT_JSON_OUTPUT_FILE: playwright-report/${{ matrix.suite }}.json
+      PLAYWRIGHT_JSON_OUTPUT_FILE: playwright-report/${{ matrix.name }}.json
     steps:
       - uses: actions/checkout@v7
 
@@ -169,7 +178,7 @@ jobs:
         working-directory: gui/web
         run: VITE_SHARECUT_E2E=1 npm run build
 
-      - name: Playwright ${{ matrix.suite }} suite
+      - name: Playwright ${{ matrix.name }}
         working-directory: gui/web
         run: ${{ matrix.command }}
 
@@ -177,7 +186,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-reports-${{ matrix.suite }}
+          name: playwright-reports-${{ matrix.name }}
           path: gui/web/playwright-report/
           retention-days: 7
           if-no-files-found: ignore
@@ -186,7 +195,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-test-results-${{ matrix.suite }}
+          name: playwright-test-results-${{ matrix.name }}
           path: gui/web/test-results/
           retention-days: 7
           if-no-files-found: ignore
