@@ -8,6 +8,7 @@ All changes to this repo must follow **SOLID** and **DRY**, include **tests as y
 - [docs/contributing.md](docs/contributing.md) — where new code goes; no duplicated I/O in adapters
 - [docs/ui-philosophy.md](docs/ui-philosophy.md) — binding trust-first beta UI principles; distinguish requirements from shipped behavior
 - [docs/communication-philosophy.md](docs/communication-philosophy.md) — voice, terminology, control placement, and mobile checklist for user-facing copy and controls; ui-philosophy wins on conflict
+- [docs/decisions/README.md](docs/decisions/README.md) — the generated index of product and design decisions. Each decision lives in the doc it governs as a decision block that names its evidence and its enforcement (a test, docs-sync rule or make target); a later decision supersedes it in place
 
 ## Beta interfaces
 
@@ -111,6 +112,7 @@ Update documentation **in the same change** when behavior, layout, or workflows 
 | Roadmap / future work | `ROADMAP.md`; native apps + BYOK agent detail: `docs/cross-platform-byok.md` |
 | UX onboarding pack (shareable site) | `ux/` (`pages/*.md` incl. styling guidelines `ux/pages/brand.md`, site shell); [ux/README.md](ux/README.md); live https://ux.sharecut.studio/; demo fixture `tests/fixtures/sharecut_ux_demo/`; enforced by the `ux-pack` docs-sync gate (triggers: GUI shells, keymap, command catalog, UX-facing docs, episode schema) |
 | Play modes (raw / processed / premix) | `docs/setup.md` — `processed:<id>` for FX+edits, `track:<id>` for raw |
+| Decision blocks (a heading plus a decision comment) in a doc | `docs/decisions/README.md`: regenerate it with `make decisions-index` |
 <!-- /docs-sync:generated -->
 
 If a doc would mislead the next agent or contributor, fix it before finishing the task.

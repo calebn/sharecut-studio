@@ -47,6 +47,7 @@ make format-py        # ruff format (write)
 make format-py-check  # ruff format --check
 make capabilities-check
 make progress-check   # progress framework compliance (warn by default)
+make decisions-index-check  # decision blocks in docs/ are valid and docs/decisions/README.md is current
 make hooks            # lint-staged formats staged Ruff/Biome; check-only pre-commit hooks (incl. service-boundaries)
 make worktree-setup   # new git worktree: hooks + venv + gui/web node_modules (pre-commit self-provisions)
 make typecheck        # mypy (strict on timebase modules)

@@ -1,4 +1,4 @@
-.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export schema-check capabilities-check progress-check docs-sync docs-sync-table docs-sync-replay golden-ear
+.PHONY: setup doctor hooks worktree-setup test test-fast test-quick test-e2e test-e2e-slow test-e2e-real test-web test-web-e2e test-desktop desktop-build desktop-linux-appimage-docker ci typecheck lint-py format-py format-py-check install ux-demo ux-demo-screens cheatsheet cheatsheet-check schema-export schema-check capabilities-check progress-check docs-sync docs-sync-table docs-sync-replay decisions-index decisions-index-check golden-ear
 
 setup:
 	./install.sh
@@ -73,7 +73,7 @@ desktop-linux-appimage-docker:
 ci:
 	@$(MAKE) --no-print-directory ci-body
 
-ci-body: lint-py format-py-check typecheck schema-check capabilities-check progress-check docs-sync test test-web test-web-e2e
+ci-body: lint-py format-py-check typecheck schema-check capabilities-check progress-check docs-sync decisions-index-check test test-web test-web-e2e
 
 # Regenerate docs/daw-shortcuts.md + ux/pages/shortcuts.md from KEYMAP_COMMANDS.
 cheatsheet:
@@ -100,6 +100,14 @@ docs-sync:
 # Regenerate AGENTS.md § Docs in sync from contracts/docs-sync.json.
 docs-sync-table:
 	uv run python scripts/docs_sync.py table
+
+# Regenerate the decision index in docs/decisions/README.md from the decision blocks in docs/.
+decisions-index:
+	uv run python scripts/decisions_index.py
+
+# Fail on an invalid decision block or a stale decision index.
+decisions-index-check:
+	uv run python scripts/decisions_index.py --check
 
 # Replay the working-tree contract over the last LIMIT merged PRs (default and max 100) for
 # triage. Needs gh and full history (`git fetch --unshallow`). The units go through a temp

@@ -254,6 +254,19 @@ The bullets below add how-to detail for rows that need more than a doc path.
 
 If you would need to explain the change in a PR comment because the docs are wrong, update the docs instead.
 
+### Decisions
+
+A product or design decision lives in the doc it governs as a decision block:
+a `Decision: ` heading followed by a comment that holds its id, status, date,
+evidence and enforcement. Write one when the owner settles a question the next
+contributor could reopen. An accepted block names a test, docs-sync rule or
+make target that fails when the behaviour changes, or says why only a person
+can review it. A new decision enters the PR as a proposed block, and the
+owner's approval makes it accepted. A later decision supersedes it in place,
+next to the old block. Run `make decisions-index` after adding or editing a
+block. The format, lifecycle and generated index are in
+[decisions/README.md](decisions/README.md).
+
 ## MCP tool names
 
 Do not rename existing MCP tools without updating `.agents/skills/` and `docs/nl-editing.md`. Skills and external agents depend on stable tool identifiers.
