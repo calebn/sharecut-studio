@@ -205,9 +205,10 @@ leaks no share credential. The id belongs to one share, not its slug: revoking a
 recreating a link, or a coolname recycled after cooldown, gets a new id, and the
 old suggestions belong to no guest. Host and agent edits, and edits saved before
 authorship, have no author and belong to no guest. A `suggest` guest retimes only
-edits whose author is its own share. The author stays host-side: guest
-projections never carry it, so the Studio offers retime on every guest suggestion
-and the gate refuses another guest's.
+edits whose author is its own share, and coalescing never merges pending edits
+with different authors (`transcript_cuts.coalesce_edits`). The author stays
+host-side: guest projections never carry it, so the Studio offers retime on every
+guest suggestion and the gate refuses another guest's.
 
 **Login policy:** production public shares are **link only**. Restricted /
 `require_sign_in` minting is refused unless `PODCAST_SHARE_ACCOUNTS=1` (stub
