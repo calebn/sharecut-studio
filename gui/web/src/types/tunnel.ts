@@ -1,5 +1,15 @@
-/** `GET /api/tunnel/status`: what `podcast tunnel` last reported on this computer. */
-export type TunnelState = "online" | "connecting" | "reconnecting" | "offline";
+/**
+ * `GET /api/tunnel/status`: whether guests can reach this computer's links.
+ * `not_set_up` is a local-only host (no online sharing settings and no status
+ * ever written); the Share dialog shows nothing for it.
+ */
+export type TunnelState =
+  | "online"
+  | "connecting"
+  | "reconnecting"
+  | "offline"
+  | "off"
+  | "not_set_up";
 
 export type TunnelReasonKind =
   | "network"
@@ -17,6 +27,6 @@ export type TunnelStatus = {
   relay_host: string | null;
   public_base_url: string | null;
   share_count: number | null;
-  attempt: number;
-  retry_in_sec: number | null;
+  /** Wall-clock seconds (Unix epoch) of the next reconnect try while reconnecting. */
+  retry_at: number | null;
 };

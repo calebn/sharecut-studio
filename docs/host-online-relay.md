@@ -40,14 +40,14 @@ without reaching the local GUI.
 line each, so a host or agent can tell what happened and for how long. The lines
 never contain a host token or share token (see § Redaction).
 
-| Phase | Line | GUI state |
-|-------|------|-----------|
-| `connecting` | `Tunnel connecting to relay.example.com:8443` (relay host only) | Connecting |
-| `connected` | `Tunnel connected: https://share.example.com (3 shares)` (public base URL, shares the relay accepted) | Online |
-| `disconnected` | `Tunnel disconnected (network: connection lost)` | Reconnecting |
-| `reconnecting` | `Tunnel reconnecting in 2.3s (attempt 2)` | Reconnecting |
-| `failed` | `Tunnel failed (auth: relay rejected the host token or host id). Check the host token …` | Offline |
-| `stopped` | `Tunnel stopped` (Ctrl-C) | Offline |
+| Phase | Line | GUI `state` |
+|-------|------|-------------|
+| `connecting` | `Tunnel connecting to relay.example.com:8443` (relay host only) | `connecting` |
+| `connected` | `Tunnel connected: https://share.example.com (3 shares)` (public base URL, shares the relay accepted) | `online` |
+| `disconnected` | `Tunnel disconnected (network: connection lost)` | `reconnecting` |
+| `reconnecting` | `Tunnel reconnecting in 2.3s (attempt 2)` | `reconnecting` |
+| `failed` | `Tunnel failed (auth: relay rejected the host token or host id). Check the host token …` | `offline` |
+| `stopped` | `Tunnel stopped` (Ctrl-C) | `off` |
 
 ```text
 15:29:41 Tunnel connecting to relay.example.com:8443
@@ -81,16 +81,34 @@ frame (logger `podcast_mcp.services.collaboration.tunnel`) and the 15 s status h
 (`…collaboration.tunnel_status`) are debug-level logs only, never status lines.
 
 **Host GUI.** The tunnel is a separate process from `podcast gui`, so
-`TunnelStatusTracker` also persists the current phase to `tunnel_status.json` next to
-`relay.yaml` (`PODCAST_RELAY_CONFIG` moves both) and refreshes `updated_at` every 15 s.
-The `tunnel.status` feature serves it at `GET /api/tunnel/status` (host role only;
-the tunnel never maps `/api/tunnel`), and the Share dialog shows **Online**,
-**Connecting**, **Reconnecting** or **Offline** from it. A snapshot not refreshed for
-45 s (killed process, sleeping laptop) and a missing file both read **Offline**. The
-file holds the phase, relay host, public base URL, share count, redacted reason,
-attempt, backoff and timestamps. A tunnel started with a custom `--config` writes
-beside that file, so set `PODCAST_RELAY_CONFIG` for both processes to keep the GUI
-in sync.
+`TunnelStatusTracker` also persists the current phase to one JSON file per tunnel under
+the machine cache: `~/.cache/podcast_mcp/tunnel/<key>.json` (`PODCAST_MCP_CACHE` moves
+the cache). `<key>` hashes the tunnel's `host_id` and relay URL, so the path does not
+depend on `--config` or `PODCAST_RELAY_CONFIG`, and two tunnels for different hosts or
+relays never overwrite each other (two with the same identity share a file, as they
+would share a registration on the relay). Each file refreshes `updated_at` every 15 s
+and holds the phase, relay host, public base URL, share count, redacted reason, the
+next retry time (`retry_at`) and timestamps.
+
+The `tunnel.status` feature serves `GET /api/tunnel/status` (host role only; the tunnel
+never maps `/api/tunnel`). It reads every file and reports one `state`:
+
+| `state` | When | Share dialog line |
+|---------|------|-------------------|
+| `online` | A tunnel is connected | Guests can open your links |
+| `connecting` | Starting up | Connecting… guests can open your links once you're online |
+| `reconnecting` | Dropped and retrying | Reconnecting… guests may see a brief interruption, then "Trying again in N s" (a still "Next try at" clock time under reduced motion) |
+| `offline` | Failed (auth, config, gave up) or a live snapshot older than 45 s (killed process, sleeping laptop) | Not reachable online: guests can't open links until you're back online, with a "How to fix" disclosure and a link to this section |
+| `off` | Stopped with Ctrl-C, or no snapshot yet while relay settings exist (`relay.yaml` at the default path, `PODCAST_RELAY_URL` or `PODCAST_RELAY_HOST_TOKEN`) | Online sharing is off, with "How to turn it on" |
+| `not_set_up` | No snapshot and no relay settings: a local-only host | No line |
+
+With several tunnels, the best state wins (online, reconnecting, connecting, offline,
+off), then the most recently updated. The dialog copy follows the
+[communication philosophy](communication-philosophy.md#terminology): it names what
+guests can do and never says tunnel, relay or host token. To fix a `Not reachable
+online` line: for an `auth` failure, get a new host token from the relay operator and
+rerun `podcast tunnel`; for `config`, correct `relay_url`; otherwise check the network
+and restart `podcast tunnel` if it exited.
 
 **Redaction.** The tracker redacts the host token and every advertised share token
 (literal match) plus any `/r/…`, `/rec/…`, `/api/review/…`, `/mcp/…` path segment

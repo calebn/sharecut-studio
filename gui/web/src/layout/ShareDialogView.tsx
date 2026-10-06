@@ -7,7 +7,7 @@ import {
   type ShareCopyKind,
   shareCopyKey,
 } from "./shareCopyKey";
-import { tunnelStatusCopy } from "./tunnelStatusCopy";
+import { TunnelStatusLine } from "./TunnelStatusLine";
 
 const ROLES: { id: ShareRole; label: string }[] = [
   { id: "viewer", label: "Viewer" },
@@ -51,15 +51,6 @@ function groupRecordRooms(rows: readonly HostShareRow[]): RecordRoomGroup[] {
   return [...map.values()];
 }
 
-function TunnelStatusNote({ status }: { status: TunnelStatus }) {
-  const { label, detail } = tunnelStatusCopy(status);
-  return (
-    <p className="share-dialog-status" role="status">
-      <strong>{label}.</strong> {detail}
-    </p>
-  );
-}
-
 export type ShareDialogViewProps = {
   open: boolean;
   onClose: () => void;
@@ -87,7 +78,7 @@ export type ShareDialogViewProps = {
   onEndRoom: (sessionId: string) => void;
   onReplaceRecordInvite: (sourceToken: string) => void;
   onOpenRoomPanel: () => void;
-  /** Host tunnel state; omitted when the tunnel indicator is unavailable. */
+  /** Online sharing state; omitted when the `tunnel.status` feature is unavailable. */
   tunnel?: TunnelStatus | null;
 };
 
@@ -146,7 +137,7 @@ export function ShareDialogView(props: ShareDialogViewProps) {
       panelClassName="share-dialog-panel"
     >
       <div className="share-dialog-body">
-        {tunnel ? <TunnelStatusNote status={tunnel} /> : null}
+        {tunnel ? <TunnelStatusLine status={tunnel} /> : null}
         <Field label="Anyone with the link" htmlFor={roleId}>
           <select
             id={roleId}

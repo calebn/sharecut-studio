@@ -6,6 +6,7 @@ import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { DialogLauncher } from "../test/DialogLauncher";
 import { hostShareRow } from "../test/fixtures";
 import { openDialogByLauncher, useArgState } from "../test/storyDialog";
+import type { TunnelStatus } from "../types/tunnel";
 import { ShareDialogView } from "./ShareDialogView";
 import { type ShareCopiedKey, shareCopyKey } from "./shareCopyKey";
 
@@ -221,6 +222,72 @@ export const ClipboardError: Story = {
     const dialog = await openDialog(canvasElement);
     await expect(
       within(dialog).getByText("Clipboard unavailable"),
+    ).toBeVisible();
+  },
+};
+
+const tunnelBase: TunnelStatus = {
+  state: "online",
+  reason: null,
+  reason_kind: null,
+  relay_host: "relay.example.test",
+  public_base_url: "https://share.example.test",
+  share_count: 2,
+  retry_at: null,
+};
+
+export const OnlineSharingOn: Story = {
+  args: { rows: [reviewRow], tunnel: tunnelBase },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await expect(
+      within(dialog).getByText("Guests can open your links"),
+    ).toBeVisible();
+  },
+};
+
+export const OnlineSharingReconnecting: Story = {
+  args: {
+    rows: [reviewRow],
+    tunnel: {
+      ...tunnelBase,
+      state: "reconnecting",
+      reason_kind: "network",
+      retry_at: Date.now() / 1000 + 30,
+    },
+  },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await expect(
+      within(dialog).getByText(/Trying again|Next try at/),
+    ).toBeVisible();
+  },
+};
+
+export const OnlineSharingNotReachable: Story = {
+  args: {
+    rows: [reviewRow],
+    tunnel: { ...tunnelBase, state: "offline", reason_kind: "auth" },
+  },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await userEvent.click(within(dialog).getByText("How to fix"));
+    await expect(
+      within(dialog).getByRole("link", { name: /Online sharing guide/ }),
+    ).toBeVisible();
+  },
+};
+
+export const OnlineSharingOff: Story = {
+  args: { rows: [], tunnel: { ...tunnelBase, state: "off" } },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await expect(
+      within(dialog).getByText("Online sharing is off"),
     ).toBeVisible();
   },
 };

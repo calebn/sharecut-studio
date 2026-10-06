@@ -25,6 +25,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Offline queue** | Guest edits waiting until the network returns |
 | **Presence** | Who is in the session (avatars, ghost cursors). Click to follow. |
 | **Follow** | Slave viewport (desktop/tablet) or listen-along with a centered playhead (phone); Esc or local navigation (including keyboard seek) stops |
+| **Online sharing** | The host's computer making its links reachable from the internet. Share says “Guests can open your links”, “Reconnecting…”, “Not reachable online” or “Online sharing is off”; a local-only host sees no line |
 | **Remote agent link** | MCP URL for an external agent: `{base}/mcp/{token}/mcp` |
 | **Full mix / Edited stems / Original** | What you’re hearing: all tracks mixed with edits and effects, each track on its own (not mixed) with edits and effects, or the source audio without edits or effects |
 | **Source vs timeline time** | Original recording time vs “when you hear it on the mix” |
