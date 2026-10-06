@@ -15,12 +15,15 @@ import {
 } from "../api";
 import { execute } from "../commands/execute";
 import type { ExecuteResult } from "../commands/types";
+import { useHasFeature } from "../extensions/FeaturesContext";
+import { FEATURE_TUNNEL_STATUS } from "../extensions/features";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { HostShareRow, ShareRole } from "../types/shares";
 import { ApiError, errorMessage } from "../utils/apiError";
 import { type ShareCreateRecovery, ShareDialogView } from "./ShareDialogView";
 import { type ShareCopiedKey, shareCopyKey } from "./shareCopyKey";
+import { useTunnelStatus } from "./useTunnelStatus";
 
 const COPIED_MS = 2000;
 
@@ -61,6 +64,9 @@ export function ShareDialog() {
     projectEpoch: s.projectEpoch,
     announceStatus: s.announceStatus,
   }));
+  const tunnel = useTunnelStatus(
+    useHasFeature(FEATURE_TUNNEL_STATUS) && shareDialogOpen,
+  );
   const [role, setRole] = useState<ShareRole>("commenter");
   const [withMcp, setWithMcp] = useState(false);
   const [rows, setRows] = useState<HostShareRow[]>([]);
@@ -539,6 +545,7 @@ export function ShareDialog() {
       error={error}
       status={status}
       copiedKey={copiedKey}
+      tunnel={tunnel}
       onCreate={() => void onCreate()}
       onRefreshMix={() => void onRefreshMix()}
       onCreateRecord={() => void onCreateRecord()}

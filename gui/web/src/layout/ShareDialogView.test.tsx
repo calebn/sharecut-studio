@@ -81,6 +81,34 @@ describe("ShareDialogView", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("tells the host whether guests can reach their links; axe-clean", async () => {
+    const props = baseProps();
+    props.tunnel = {
+      state: "reconnecting",
+      reason: "network: connection lost",
+      reason_kind: "network",
+      relay_host: "relay.example.test",
+      public_base_url: "https://share.example.test",
+      share_count: 2,
+      attempt: 1,
+      retry_in_sec: 1,
+    };
+    const { baseElement: container } = render(<ShareDialogView {...props} />);
+    const note = screen.getByRole("status");
+    expect(note).toHaveTextContent(
+      "Reconnecting. Guests see “Host offline” until this says Online.",
+    );
+    expect(note.textContent).not.toContain("connection lost");
+    await expectNoA11yViolations(container);
+  });
+
+  it("shows no tunnel line when the status is unavailable", () => {
+    const props = baseProps();
+    props.tunnel = null;
+    render(<ShareDialogView {...props} />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("shows empty states; axe-clean", async () => {
     const props = baseProps();
     props.rows = [];

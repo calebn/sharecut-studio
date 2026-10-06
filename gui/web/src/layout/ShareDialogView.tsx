@@ -1,11 +1,13 @@
 import { useId } from "react";
 import type { HostShareRow, ShareRole } from "../types/shares";
+import type { TunnelStatus } from "../types/tunnel";
 import { Button, Dialog, EmptyState, Field, InlineError } from "../ui";
 import {
   type ShareCopiedKey,
   type ShareCopyKind,
   shareCopyKey,
 } from "./shareCopyKey";
+import { tunnelStatusCopy } from "./tunnelStatusCopy";
 
 const ROLES: { id: ShareRole; label: string }[] = [
   { id: "viewer", label: "Viewer" },
@@ -49,6 +51,15 @@ function groupRecordRooms(rows: readonly HostShareRow[]): RecordRoomGroup[] {
   return [...map.values()];
 }
 
+function TunnelStatusNote({ status }: { status: TunnelStatus }) {
+  const { label, detail } = tunnelStatusCopy(status);
+  return (
+    <p className="share-dialog-status" role="status">
+      <strong>{label}.</strong> {detail}
+    </p>
+  );
+}
+
 export type ShareDialogViewProps = {
   open: boolean;
   onClose: () => void;
@@ -76,6 +87,8 @@ export type ShareDialogViewProps = {
   onEndRoom: (sessionId: string) => void;
   onReplaceRecordInvite: (sourceToken: string) => void;
   onOpenRoomPanel: () => void;
+  /** Host tunnel state; omitted when the tunnel indicator is unavailable. */
+  tunnel?: TunnelStatus | null;
 };
 
 export type ShareCreateRecovery =
@@ -111,6 +124,7 @@ export function ShareDialogView(props: ShareDialogViewProps) {
     onEndRoom,
     onReplaceRecordInvite,
     onOpenRoomPanel,
+    tunnel,
   } = props;
   const roleId = useId();
   const mcpId = useId();
@@ -132,6 +146,7 @@ export function ShareDialogView(props: ShareDialogViewProps) {
       panelClassName="share-dialog-panel"
     >
       <div className="share-dialog-body">
+        {tunnel ? <TunnelStatusNote status={tunnel} /> : null}
         <Field label="Anyone with the link" htmlFor={roleId}>
           <select
             id={roleId}
