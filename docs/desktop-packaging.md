@@ -157,7 +157,7 @@ wrapper resolves a relative path from the caller's directory and mounts an
 external profile read-only inside the container:
 
 ```bash
-PODCAST_DISTRIBUTION_PROFILE=../sharecut-ops/config/distribution.production.json \
+PODCAST_DISTRIBUTION_PROFILE=../<your-overlay>/config/distribution.production.json \
   make desktop-linux-appimage-docker
 ```
 
