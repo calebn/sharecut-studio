@@ -83,7 +83,7 @@ to UX partners; for UI copy, this table wins.
 | Blade cut | Split at the playhead on the timeline | "slice" |
 | Bounce | Render the current mix | "export mix" |
 | Deliverables | Mastered export set | "final export" |
-| Stop sharing | Revoke a review link. Links do not expire, so this is how a review link ends | "delete link" |
+| Stop sharing | Revoke a review link. Links do not expire unless the host chose a date, so this is how a review link ends | "delete link" |
 | End room | Shut down a record room (kills guest + producer links) | "close room" |
 | Online sharing | Making this computer's review and record links reachable from the internet while it runs. Share's status line says what guests can do now, with any fix behind "How to fix" and the online sharing guide | "tunnel", "relay", "host token", "relay URL", a CLI command in UI copy |
 | Guests can open your links | Online sharing is connected | "Online", "Connected" as a bare label |

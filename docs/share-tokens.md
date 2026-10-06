@@ -39,8 +39,8 @@ desktop sidecar's version).
 ```mermaid
 stateDiagram-v2
   [*] --> Active: create_share_coolname
-  Active --> Active: guest_use_refreshes_last_used_at
-  Active --> Cooldown: revoke_or_hard_expiry_or_inactive_365d
+  Active --> Active: guest_use_updates_last_used_at_for_display
+  Active --> Cooldown: revoke_or_host_chosen_expires_at_passed
   Active --> Free: create_failed_release_claim
   Cooldown --> Free: reserved_until_elapsed
   Free --> Active: new_create_reuses_slug
@@ -58,21 +58,21 @@ stateDiagram-v2
 |------|----------|
 | **Mint** | `claim_with_mint_retry`: coolname slug → `claim_active` under `BEGIN IMMEDIATE`; remint on reservation race; then write project sidecar; `last_used_at = created_at` |
 | **Guest use** | `lookup_share` checks the active registry row on each request, touches `last_used_at` (throttle **1 hour**), and reads the project `shares.json` row with the registry row's `id` directly for current access policy. The project JSON need not be parsed for this lookup |
-| **Demote** | On revoke, hard `expires_at`, or `now ≥ last_used_at + 365d` → move to cooldown with `reserved_until = last_used_at + 365d` (single transaction) |
-| **Create rollback** | Sidecar write failure → `release_claim` (delete active, **no** 365d cooldown) so flaky disk does not burn coolnames |
+| **Demote** | On revoke, or when the host-chosen `expires_at` has passed → move to cooldown with `reserved_until = now + 365d`, counted from when the link ends, not from its last use (single transaction). Idle time never demotes a link |
+| **Create rollback** | Sidecar write failure → `release_claim` (delete active, **no** cooldown) so flaky disk does not burn coolnames |
 | **Remint** | Allowed only if token absent from active and (absent from cooldown or `reserved_until` passed) |
 | **Tunnel** | Advertise **usable** active tokens only (`list_usable_shares`) |
 
 ### Clocks
 
-- `SHARE_COOLDOWN_DAYS = 365` (`edits/share_registry.py`)
-- Hard expiry: optional ISO `expires_at` on the share row
-- Activity window: sliding via `last_used_at`. Registry rows always carry it (NOT NULL column); project sidecar rows are not schema-enforced, so `share_last_used_at` falls back to `created_at` and, when neither parses, fails **closed** (the share reads inactive / unusable)
+- `SHARE_COOLDOWN_DAYS = 365` (`edits/share_registry.py`): how long a slug stays reserved after its link ends. It never limits how long a live link works
+- Expiry: optional ISO `expires_at` on the share row, chosen by the host (CLI `--expires-at`, MCP `expires_at`, the shares API). Unset means the link never expires
+- `last_used_at`: display only ("last opened ..."), never part of usability. A link idle for years still opens
 - Touch throttle: `LAST_USED_TOUCH_MIN_INTERVAL = 1h` (avoids write storms on poll)
 
 Demotion is **lazy** (on mint / lookup). There is no background sweeper in this release.
 
-### Decision: Share links never expire; the host revokes them
+### Decision: Share links never expire unless the host chooses an expiry
 
 <!-- decision
 id: D-share-links-never-expire
@@ -83,15 +83,25 @@ evidence:
 - #80 owner: "Links stay non-expiring with manual revoke. The per-row Extend proposal is dropped."
 - #80 owner: "Share copy and docs must say this consistently."
 - #1038 put the wording in docs/communication-philosophy.md (Stop sharing)
-enforcement: pending #1027
+- #1101 owner: share links never expire by default; the host may opt in to an expiry date; the silent 365-day inactivity cutoff is removed, so a link never ends without the host asking
+enforced-by:
+- tests/test_share_registry.py::test_registry_and_sidecar_agree_on_whether_a_share_is_usable
+- tests/test_share_registry.py::test_a_share_unused_for_over_a_year_keeps_its_last_used_date_for_display
+- tests/test_share_registry.py::test_a_link_that_ends_after_a_long_idle_keeps_its_slug_reserved
+- tests/test_share_registry.py::test_share_is_usable_until_revoked_or_expired
+- docs-sync: decision-sharing
 -->
 
-A review link works until the host stops sharing it. There is no per-link
-Extend. Product copy says links do not expire and calls revoking **Stop
-sharing** ([communication philosophy](communication-philosophy.md#terminology)).
-The code still accepts an optional hard `expires_at`, and the 365-day
-inactivity demotion above still applies. Whether either one stays is open in
-#1027, which also removes the Share dialog's "keeps the original expiry" copy.
+A review link works until the host stops sharing it, and nothing else ends it.
+Idle time never does: a link nobody opened for years still opens, and
+`last_used_at` is kept only so the host can see when it was last opened. A host
+may choose an expiry date when minting a link (`expires_at`). It is opt-in, and
+no link gets one by default. Once it passes, the link stops working as if it
+were revoked. There is no per-link Extend. Product copy says links do not
+expire and calls revoking **Stop sharing**
+([communication philosophy](communication-philosophy.md#terminology)). The
+Share dialog has no expiry control; #1027 decides whether it gets one and
+removes its "keeps the original expiry" copy.
 
 ## Host registry (sqlite)
 
@@ -341,9 +351,9 @@ passkeys, and agent credentials when accounts are enabled. See
   `view` can see the host's cursor and viewport — the Share dialog states this.
 - On **restricted** leftovers the coolname alone does not grant powers; identity
   middleware keeps them 401 until accounts ship.
-- Links do not expire
-  ([decision](#decision-share-links-never-expire-the-host-revokes-them)); end
-  one with `podcast review revoke-share --token …`.
+- Links do not expire unless the host chose a date
+  ([decision](#decision-share-links-never-expire-unless-the-host-chooses-an-expiry));
+  end one with `podcast review revoke-share --token …`.
 - Guest JSON never includes host absolute paths; episode JSON stores
   workspace-relative paths only (`workspace_dir: "."` on disk). Rate limits:
   [host-online-relay.md](host-online-relay.md) § Rate limiting.
