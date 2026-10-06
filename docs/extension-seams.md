@@ -9,7 +9,7 @@ Living checklist of interactions between `podcast-mcp` (FOSS DAW plus collaborat
 | A2b | MCP/CLI registrars use host `mcp`/`app` (progress wrap) | unit | progress install + [docs/progress.md](progress.md) |
 | A3 | Absent extensions (`PODCAST_EXTENSIONS=`) | unit + guard | `tests/test_extensions.py` (GUI routes, MCP mint, CLI share) |
 | A3b | Each composition (none, `collaboration`, default) registers every feature ID, OpenAPI operation, middleware, MCP tool and CLI command once | integration | `tests/test_extension_matrix.py` |
-| A4 | Example community extension | unit | example + test |
+| A4 | Example community extension loads only when `PODCAST_EXTENSIONS` names `example`; default and `collaboration` never include `extension.status.0` | unit + integration | `tests/test_extensions.py`, `tests/test_extension_matrix.py` |
 | B1 | Host OpenAPI + `/api/features` | integration | `tests/test_extensions.py` |
 | B2 | Session/document command schemas | contract | FOSS schemas (existing) |
 | B3 | Guest routes only with collaboration | integration | create_app with/without extensions |
@@ -38,6 +38,8 @@ Living checklist of interactions between `podcast-mcp` (FOSS DAW plus collaborat
 
 - `PODCAST_EXTENSIONS=` → no `/api/review`, no share MCP mint tool, no `podcast review share*` CLI, empty `/api/features`.
 - `PODCAST_EXTENSIONS=collaboration` → all self-hosted share/record/remote-MCP surfaces and no `online.account`.
+- Unset `PODCAST_EXTENSIONS` → the same surfaces as `collaboration`; the `example` extension and `extension.status.0` are absent.
+- `PODCAST_EXTENSIONS=collaboration,example` → collaboration plus `extension.status.0`.
 - With an installed `online` provider, `PODCAST_EXTENSIONS=collaboration,online` → the same collaboration surfaces exactly once plus provider account/auth.
 - With an installed `online` provider, `PODCAST_EXTENSIONS=online` → provider account/auth only; it never implies collaboration.
 - FOSS always keeps: Sharecut Studio core routes, `podcast review publish-version|list-versions|set-active`, `podcast tunnel`, document commands.

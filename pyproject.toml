@@ -117,7 +117,6 @@ Issues = "https://github.com/calebn/sharecut-studio/issues"
 
 [project.entry-points."podcast_mcp.extensions"]
 collaboration = "podcast_mcp.extensions.collaboration:create"
-example = "podcast_mcp.extensions.example:create"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/podcast_mcp", "src/podcast_relay"]
