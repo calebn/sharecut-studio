@@ -83,7 +83,7 @@ to UX partners; for UI copy, this table wins.
 | Blade cut | Split at the playhead on the timeline | "slice" |
 | Bounce | Render the current mix | "export mix" |
 | Deliverables | Mastered export set | "final export" |
-| Stop sharing | Revoke a review link. Links do not expire, so this is how a review link ends | "delete link" |
+| Stop sharing | Revoke a review link. Links do not expire unless the host chose a date, so this is how a review link ends | "delete link" |
 | End room | Shut down a record room (kills guest + producer links) | "close room" |
 
 Why this matters: Surface 2's audit found users confusing producer
