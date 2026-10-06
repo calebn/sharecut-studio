@@ -43,10 +43,10 @@ class CollaborationExtension:
 
         try:
             self._contribute_gui(registry)
-        except ImportError:
+        except ImportError as exc:
             logger.info(
-                "collaboration: skipping GUI share mounts (gui extra / FastAPI unavailable)",
-                exc_info=True,
+                'collaboration: skipping GUI share mounts; the gui extra is not installed (%s). Install it with: pip install "podcast-mcp[gui]"',
+                exc,
             )
 
     def _contribute_gui(self, registry: FeatureRegistry) -> None:
