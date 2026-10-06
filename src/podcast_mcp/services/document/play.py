@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import logging
@@ -33,6 +34,7 @@ from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV, FFmpegEngine
 from podcast_mcp.engines.play_audit import (
     clear_invalidations_if_current,
     mix_gains,
+    mix_render_hash,
     premix_is_stale,
     premix_path,
     publish_stem,
@@ -99,6 +101,12 @@ _PLAY_RENDER_LOCK_TIMEOUT_SEC = 2.0
 _BOUNDARY_CATALOG_MAX = 128
 _BOUNDARY_CATALOG_TTL_SEC = 10 * 60
 _boundary_catalog_lock = threading.Lock()
+# Pending-preview sides each mode renders.
+_PENDING_SIDES = {
+    "current": ("current",),
+    "suggested": ("suggested",),
+    "ab": ("current", "suggested"),
+}
 
 
 @dataclass(frozen=True)
@@ -132,6 +140,14 @@ def _wav_peak_abs(path: Path) -> float | None:
         return max(abs(s) for s in samples) / 32768.0
     except Exception:
         return None
+
+
+@functools.lru_cache(maxsize=64)
+def _stem_mix_trim_db(stems: tuple[tuple[Path, float, str], ...], ceiling_db: float) -> float:
+    """Headroom trim of ``(stem, gain, stem hash)`` mixed at those gains.
+
+    The stem hash (``track_render_hash``) keys the cache on the stem's content."""
+    return FFmpegEngine().peak_trim_db([(path, gain) for path, gain, _hash in stems], ceiling_db)
 
 
 @dataclass
@@ -1500,82 +1516,42 @@ class PlayService:
     ) -> PlayResult:
         """Current / Suggested / A/B full mix around a pending edit.
 
-        Current plays the premix. Suggested renders the window after approving the
-        edit on a snapshot, so it is what approving ships.
+        Each side mixes its window from per-track segment renders at the headroom trim the
+        premix gets for the current mix (``mix_trim_db``): Current from the project as it
+        is, Suggested after approving the edit on a snapshot, so it is what approving ships.
+        Neither reads ``premix.wav``.
         """
         kind = (mode or "suggested").strip().lower()
-        if kind not in {"current", "suggested", "ab"}:
+        if kind not in _PENDING_SIDES:
             raise ValueError("mode must be current, suggested, or ab")
         window = resolve_pending_preview(self.project, edit_id, pad_sec=pad_sec)
         if kind != "current" and window.suggest_reason:
             raise ValueError(window.suggest_reason)
-        # Both sides read the premix (Current plays it, Suggested mixes at its trim),
-        # so a premix older than the mix settings would put them at different levels.
-        if premix_path(self.project).is_file() and premix_is_stale(self.project, self._defaults):
-            self._ensure_premix(rerender=True)
-
-        current_wav: Path | None = None
-        if kind in {"current", "ab"}:
-            silent = self._pending_silent_current_path(window)
-            if silent is not None:
-                render_atomic(
-                    silent,
-                    lambda temporary: FFmpegEngine().silence(
-                        temporary, window.play_end - window.play_start
-                    ),
-                )
-                current_wav = silent
-            else:
-                current_wav = self.play(
-                    PlayRequest(
-                        source="premix",
-                        start_sec=window.play_start,
-                        end_sec=window.play_end,
-                        rerender=rerender,
-                    ),
-                    dry_run=True,
-                    publish_audition=False,
-                ).wav_path
-            if kind == "current":
-                self._mark_play_cache_used(current_wav)
-                cmd = None if dry_run else self._player_command(player, current_wav)
-                if cmd:
-                    run(cmd, check=True)
-                return PlayResult(
-                    wav_path=current_wav,
-                    player_cmd=cmd,
-                    source_label=f"pending:{kind}",
-                    start_sec=window.play_start,
-                    end_sec=window.play_end,
-                    tier="pending_current",
-                )
-
-        suggested = self._pending_suggested_wav(window, rerender=rerender)
-        if kind == "suggested":
-            self._mark_play_cache_used(suggested)
-            cmd = None if dry_run else self._player_command(player, suggested)
-            if cmd:
-                run(cmd, check=True)
-            return PlayResult(
-                wav_path=suggested,
-                player_cmd=cmd,
-                source_label=f"pending:{kind}",
+        wavs = [
+            self._pending_window_wav(window, side, rerender=rerender)
+            for side in _PENDING_SIDES[kind]
+        ]
+        if kind == "ab":
+            return self.play_ab_wavs(
+                wavs[0],
+                wavs[1],
+                gap_sec=gap_sec if gap_sec is not None else DEFAULT_AB_GAP_SEC,
+                dry_run=dry_run,
+                player=player,
+                publish_audition=False,
                 start_sec=window.play_start,
                 end_sec=window.play_end,
-                tier="pending_suggested",
             )
-
-        if current_wav is None:
-            raise ValueError("mode must be current, suggested, or ab")
-        return self.play_ab_wavs(
-            current_wav,
-            suggested,
-            gap_sec=gap_sec if gap_sec is not None else DEFAULT_AB_GAP_SEC,
-            dry_run=dry_run,
-            player=player,
-            publish_audition=False,
+        cmd = None if dry_run else self._player_command(player, wavs[0])
+        if cmd:
+            run(cmd, check=True)
+        return PlayResult(
+            wav_path=wavs[0],
+            player_cmd=cmd,
+            source_label=f"pending:{kind}",
             start_sec=window.play_start,
             end_sec=window.play_end,
+            tier=f"pending_{kind}",
         )
 
     def pending_preview_cached_wav(
@@ -1588,47 +1564,21 @@ class PlayService:
     ) -> Path | None:
         """Return the pending-preview WAV if it already exists (no FFmpeg)."""
         kind = (mode or "suggested").strip().lower()
-        if kind not in {"current", "suggested", "ab"}:
+        if kind not in _PENDING_SIDES:
             raise ValueError("mode must be current, suggested, or ab")
         window = resolve_pending_preview(self.project, edit_id, pad_sec=pad_sec)
         if kind != "current" and window.suggest_reason:
             raise ValueError(window.suggest_reason)
-        if kind == "current":
-            silent = self._pending_silent_current_path(window)
-            if silent is not None:
-                self._mark_play_cache_used(silent)
-                return silent if silent.is_file() else None
-            premix = premix_path(self.project)
-            if not premix.is_file():
-                return None
-            path = self._cache_path("premix", window.play_start, window.play_end, premix)
-            self._mark_play_cache_used(path)
-            return path if path.is_file() else None
-        suggested = self._pending_suggested_path(window)
-        if kind == "suggested":
-            self._mark_play_cache_used(suggested)
-            return suggested if suggested.is_file() else None
-        current = self.pending_preview_cached_wav(
-            edit_id,
-            mode="current",
-            pad_sec=pad_sec,
-        )
-        if current is None or not suggested.is_file():
+        paths = [self._pending_window_path(window, side) for side in _PENDING_SIDES[kind]]
+        if not all(path.is_file() for path in paths):
             return None
-        gap = gap_sec if gap_sec is not None else DEFAULT_AB_GAP_SEC
-        out = self._ab_concat_path(current, suggested, max(0.0, float(gap)))
+        if kind == "ab":
+            gap = gap_sec if gap_sec is not None else DEFAULT_AB_GAP_SEC
+            out = self._ab_concat_path(paths[0], paths[1], max(0.0, float(gap)))
+        else:
+            out = paths[0]
         self._mark_play_cache_used(out)
         return out if out.is_file() else None
-
-    def _pending_silent_current_path(self, window: PendingPreviewWindow) -> Path | None:
-        from podcast_mcp.edits.range_edits import resolve_range
-
-        edit = next((e for e in self.project.edit_decisions if e.id == window.edit_id), None)
-        if edit is None or edit.exact_range is None or mix_gains(self.project):
-            return None
-        resolve_range(self.project, edit.exact_range)
-        suggested = self._pending_suggested_path(window)
-        return suggested.with_name(suggested.name.replace("pending_suggested_", "pending_current_"))
 
     def _ab_concat_path(self, wav_a: Path, wav_b: Path, gap: float) -> Path:
         key = (
@@ -1641,59 +1591,83 @@ class PlayService:
         self._play_cache_dir(wav_a, wav_b, path)
         return path
 
-    def _pending_suggested_path(self, window: PendingPreviewWindow) -> Path:
+    def _mix_key(self) -> str:
+        """What the mix plays: the mix hash, and each mixed track's stem hash."""
+        gains = mix_gains(self.project)
+        return json.dumps(
+            {
+                "mix": mix_render_hash(gains, mix_peak_ceiling_db(self._defaults)),
+                "stems": {
+                    track_id: track_render_hash(self.project, track_id) for track_id in gains
+                },
+            },
+            sort_keys=True,
+        )
+
+    def mix_trim_db(self) -> float:
+        """The headroom trim ``premix.hash`` would record for the current mix, without mixing.
+
+        A fresh premix already records it. Otherwise the premix's own ``peak_trim_db``
+        measures the current stems (rendering any that are stale), cached in memory by the
+        stems' hashes, gains and the ceiling.
+        """
+        gains = mix_gains(self.project)
+        if not gains:
+            return 0.0
+        if premix_path(self.project).is_file() and not premix_is_stale(
+            self.project, self._defaults
+        ):
+            recorded = read_premix_trim_db(self.project)
+            if recorded is not None:
+                return recorded
+        for track_id in gains:
+            if not stem_is_fresh(self.project, track_id):
+                self.ensure_stem(track_id)
+        return _stem_mix_trim_db(
+            tuple(
+                (stem_path(self.project, track_id), gain, track_render_hash(self.project, track_id))
+                for track_id, gain in gains.items()
+            ),
+            mix_peak_ceiling_db(self._defaults),
+        )
+
+    def _pending_window_path(self, window: PendingPreviewWindow, side: str) -> Path:
         edit = next(e for e in self.project.edit_decisions if e.id == window.edit_id)
         key = json.dumps(
             {
                 "window": [window.play_start, window.play_end],
                 "edit": edit.model_dump(mode="json"),
-                "tracks": [
-                    (
-                        t.id,
-                        track_render_hash(self.project, t.id),
-                        t.fader_db,
-                        t.output_gain_db,
-                        t.muted,
-                    )
-                    for t in self.project.tracks
-                ],
+                "mix": self._mix_key(),
                 "defaults": self._defaults,
-                "premix_trim_db": read_premix_trim_db(self.project),
             },
             sort_keys=True,
         )
         out_dir = self.project.artifacts_dir() / "play_cache"
-        path = out_dir / f"pending_suggested_{short_digest(key)}.wav"
+        path = out_dir / f"pending_{side}_{short_digest(key)}.wav"
         self._play_cache_dir(path)
         return path
 
-    def _premix_trim_db(self) -> float:
-        """Headroom trim ``premix.wav`` was mixed at; mixes a premix that has none recorded."""
-        trim = read_premix_trim_db(self.project) if premix_path(self.project).is_file() else None
-        if trim is None:
-            self._ensure_premix(rerender=True)
-            trim = read_premix_trim_db(self.project)
-        if trim is None:
-            raise FileNotFoundError("premix.hash records no headroom trim; render the preview")
-        return trim
-
-    def _pending_suggested_wav(self, window: PendingPreviewWindow, *, rerender: bool) -> Path:
-        # Suggested mixes at the premix's headroom trim so it plays at Current's level.
-        trim = self._premix_trim_db() if mix_gains(self.project) else 0.0
-        out = self._pending_suggested_path(window)
+    def _pending_window_wav(
+        self, window: PendingPreviewWindow, side: str, *, rerender: bool
+    ) -> Path:
+        out = self._pending_window_path(window, side)
         if out.is_file() and not rerender:
             self._mark_play_cache_used(out)
             return out
-        proposed = snapshot_project(self.project)
-        play_end = apply_for_suggested(proposed, window)
+        if side == "suggested":
+            project = snapshot_project(self.project)
+            play_end = apply_for_suggested(project, window)
+        else:
+            project, play_end = self.project, window.play_end
+        trim = self.mix_trim_db()
         with tempfile.TemporaryDirectory(dir=out.parent) as directory:
             segments: list[tuple[Path, float]] = []
-            for track in proposed.tracks:
+            for track in project.tracks:
                 if track.muted or track.media is None:
                     continue
                 segment = Path(directory) / f"{track.id}.wav"
                 render_track_segment(
-                    proposed, track.id, window.play_start, play_end, segment, self._defaults
+                    project, track.id, window.play_start, play_end, segment, self._defaults
                 )
                 segments.append((segment, track.fader_db))
             if segments:
@@ -1708,6 +1682,7 @@ class PlayService:
                         temporary, play_end - window.play_start
                     ),
                 )
+        self._mark_play_cache_used(out)
         return out
 
     def _write_ab_concat(self, wav_a: Path, wav_b: Path, out: Path, *, gap_sec: float) -> Path:

@@ -16,6 +16,7 @@ from typing import IO, Any
 
 import numpy as np
 
+from podcast_mcp.engines.mix_spans import quiet_spans
 from podcast_mcp.models import (
     AutomationEnvelope,
     EditDecision,
@@ -29,6 +30,7 @@ from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.binaries import FFmpegPair, resolve_ffmpeg_pair
 from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.model_assets import resolve_rnnoise_model
+from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.process import PIPE, CalledProcessError, TimeoutExpired, popen, run
 
 # Raw float32 PCM decode (waveform pyramid builds and deep-zoom windows). The
@@ -1125,15 +1127,27 @@ class FFmpegEngine:
         return output_path
 
     @staticmethod
-    def _sum_graph(track_wavs: list[tuple[Path, float]], tail: str | None) -> list[str]:
+    def _sum_graph(
+        track_wavs: list[tuple[Path, float]],
+        tail: str | None,
+        span: tuple[float, float | None] = (0.0, None),
+    ) -> list[str]:
         """ffmpeg input + filtergraph args: each input at its gain, summed at unity (amix
-        normalize=0, not 1/N), then ``tail`` (e.g. a trim or ebur128), ending at ``[out]``."""
+        normalize=0, not 1/N), then ``tail`` (e.g. a trim or ebur128), ending at ``[out]``.
+
+        ``span`` is the ``(start, end)`` seconds of every input to read; ``end`` None is EOF.
+        """
+        start, end = span
+        seek = [
+            *(["-ss", f"{start:.6f}"] if start else []),
+            *(["-t", f"{end - start:.6f}"] if end is not None else []),
+        ]
         inputs: list[str] = []
         filters: list[str] = []
         n = len(track_wavs)
         suffix = f",{tail}" if tail else ""
         for i, (wav, gain_db) in enumerate(track_wavs):
-            inputs.extend(["-i", str(wav)])
+            inputs.extend([*seek, "-i", str(wav)])
             label = f"{suffix}[out]" if n == 1 else f"[a{i}]"
             filters.append(f"[{i}:a]volume={gain_db}dB{label}")
         if n > 1:
@@ -1148,13 +1162,15 @@ class FFmpegEngine:
         cmd = [self.ffmpeg, "-y", *self._sum_graph(track_wavs, tail), str(output_path)]
         run(cmd, check=True, capture_output=True)
 
-    def _sum_true_peak_db(self, track_wavs: list[tuple[Path, float]]) -> float | None:
-        """True peak (dBTP) of the unity sum, measured on the float graph (no file written)."""
+    def _sum_true_peak_db(
+        self, track_wavs: list[tuple[Path, float]], span: tuple[float, float | None]
+    ) -> float | None:
+        """True peak (dBTP) of the unity sum over ``span``, measured on the float graph."""
         cmd = [
             self.ffmpeg,
             "-hide_banner",
             "-nostats",
-            *self._sum_graph(track_wavs, "ebur128=peak=true"),
+            *self._sum_graph(track_wavs, "ebur128=peak=true", span),
             "-f",
             "null",
             "-",
@@ -1222,9 +1238,13 @@ class FFmpegEngine:
     def peak_trim_db(self, track_wavs: list[tuple[Path, float]], ceiling_db: float) -> float:
         """Gain (<= 0 dB) that brings the unity sum's true peak down to ``ceiling_db``.
 
-        Measures the true peak on the float graph (ebur128 to a null output).
+        Measures the true peak on the float graph (ebur128 to a null output), one span per
+        worker in parallel. The spans meet in quiet blocks (``mix_spans.quiet_spans``), so
+        their loudest peak is the single-pass peak.
         """
-        peak = self._sum_true_peak_db(track_wavs)
+        spans = quiet_spans(track_wavs, ceiling_db)
+        peaks = run_parallel(spans, lambda span: self._sum_true_peak_db(track_wavs, span))
+        peak = None if None in peaks else max(p for p in peaks if p is not None)
         if peak is None:
             log.warning(
                 "mix true peak not measured; mixing untrimmed (ceiling %s dBTP)", ceiling_db
