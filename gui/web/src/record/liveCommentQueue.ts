@@ -1,3 +1,4 @@
+import { randomUuid } from "../utils/randomUuid";
 export const MARKER_BODY = "Marker";
 export const HOST_COMMENT_QUEUE_TOKEN = "host";
 export const LIVE_COMMENT_QUEUE_MAX = 500;
@@ -17,10 +18,7 @@ export function commentsQueueKey(token: string): string {
 }
 
 function newCommentId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `${LIVE_COMMENT_ID_PREFIX}${crypto.randomUUID()}`;
-  }
-  return `${LIVE_COMMENT_ID_PREFIX}c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${LIVE_COMMENT_ID_PREFIX}${randomUuid()}`;
 }
 
 export function buildLiveComment(opts: {
