@@ -156,8 +156,8 @@ Reconcile updates **transcript metadata only** by default. For acoustic follow-u
 After `text_match_count == 0` and combined transcript is clean:
 
 1. Ensure stems are **fresh and not longer than the session timeline** (`assemble_timeline` / `render_dialogue_stems`). `stem_is_fresh` rejects source-length stems (wrong clock).
-2. `podcast edit apply-bleed-mute --dry-run` — inspect `attenuation_count` and `gate_reasons` per stem (skips stale/overlong stems). The compatibility field `interval_count` counts retained transcript spans, not justified attenuation.
-3. `podcast edit apply-bleed-mute` — turn down acoustically verified foreign copies in `artifacts/tracks/*.wav` by `analysis.heuristics.bleed_attenuation_db` (default 20 dB). A suppressed word alone does not authorize attenuation.
+2. `podcast edit apply-bleed-mute --dry-run` — inspect `attenuation_count`, `bleed_reduction`, `bleed_floor_db` and `gate_reasons` per stem (skips stale/overlong stems). The compatibility field `interval_count` counts retained transcript spans, not justified attenuation.
+3. `podcast edit apply-bleed-mute` — mute or turn down acoustically verified foreign copies in `artifacts/tracks/*.wav` per `analysis.heuristics.bleed_handling` (below). A suppressed word alone does not authorize a reduction; a verified copy path does.
 4. Audition with `play --compare`; re-run mix/premix after gating.
 
 MCP: `apply_transcript_gate_tool`. Transcript word flags are unchanged; this sets
@@ -168,58 +168,87 @@ scope selects nothing. Apply rebuilds from ungated selected media before atomica
 publishing a stem, so repeated applies do not multiply fade envelopes. Undo restores
 both fields; processed playback and rerendering derive the same absolute envelope.
 
-The gate defaults to unity gain. Inside its spans it turns the lane down by
-`analysis.heuristics.bleed_attenuation_db` (default 20 dB), with 12 ms ramps, rather
-than gating to silence: the lane's room tone stays and nothing pumps (#945).
+The gate defaults to unity gain. Where it acts it reduces the copy by
+`analysis.heuristics.bleed_handling` (#945):
 
-A span starts from suppressed `bleed` words whose dominant track is another lane. The
-gate then measures both lanes' audio at 8 kHz (100 ms level frames every 10 ms) and
-needs three things:
+| `bleed_handling` | Inside a reduced span |
+|---|---|
+| `auto` (default) | `mute` on a lane whose bed just outside the copies is digital silence, else `attenuate` |
+| `mute` | silence |
+| `attenuate` | turned down by `bleed_attenuation_db` (default 20 dB) |
 
-- **A copy path.** Over the pair's candidate words, the lane's syllable contour (its
-  level less the half-second mean) must follow the peer's at one lag within ±300 ms,
-  with correlation at least 0.4 and 0.15 above the same lag shifted by ±1 s and ±2 s,
-  over at least 30 s of frames around the peer's words. The contour drops the shared
-  on/off timing of two people who start and stop talking together. In synthetic
-  trials (200 pairs per case) independent and co-timed voices never passed with 30 s
-  of evidence and true copies always did; with 20 s, 4% of co-timed long phrases
-  still passed. A remote speaker's own Zoom track can trail their voice on an in-room
-  mic. On the lab tape Audra's track trails her copy on Caleb's mic by 140 to 150 ms.
-  No path means `uncertain_foreign_ownership`.
-- **Where the peer owns the audio.** Each word grows through adjacent frames where the
-  peer's open direct track, read at that lag, out-levels the lane by
-  `bleed_dominance_db`, because ASR word spans miss the copy between words.
+`auto` reads the lane's level within 0.5 s outside the copy spans, away from its own
+speech and hold, as a power mean. A call app that gates each track to digital
+silence reads at the −90 dB level floor, so a mute there cannot pump. Anything above
+it is a bed (room tone, a mic left open on the copy's tails) that a mute would make
+vanish and return at every span edge, so the lane is attenuated and the bed stays
+steady. On the lab tape Caleb's track is digital silence at 51% of those frames and
+otherwise carries room tone (−82 to −74 dBFS interquartile) and louder tails:
+−57 dBFS power mean, so it resolves to `attenuate`. Audra's and Lana's tracks carry
+no verified copy, so nothing on them is reduced. The plan and the apply preview
+report each lane's `bleed_reduction` and `bleed_floor_db`.
+
+Around the lane's own speech the gate holds full level for 40 ms before and 80 ms
+after, then ramps over 20 ms. On the lab tape the level just outside Caleb's
+reduced spans is his own onsets and tails until the hold covers them, then his
+mic's bed. With forced-aligner word times it reads −42 dBFS with no hold, −48 dBFS
+at 40/40 ms, and reaches the −57 dBFS bed at 40 ms before and 80 ms after, where
+longer holds leave it; Whisper's looser word times reach it at 20/40 ms. The hold
+also covers plosive bursts before a word's vowel (#978). It keeps 10 s of Audra's
+280 s of speech at full level on Caleb's mic, half what 80/150 ms would.
+
+The gate measures each lane against every other dialogue track's audio at 8 kHz
+(100 ms level frames every 10 ms):
+
+- **A copy path.** Over the peer's own speech (its track open above −60 dBFS), the
+  lane's syllable contour (its level less the half-second mean) must follow the
+  peer's at one lag within ±300 ms, with correlation at least 0.4 and 0.15 above the
+  same lag shifted by ±1 s and ±2 s, over at least 30 s of frames. The lag is found
+  by the shared `engines/envelope_lag.py` estimator and must be a peak at least one
+  hop inside the search (#1068). The contour drops the shared on/off timing of two
+  people who start and stop talking together. In synthetic trials (200 pairs per
+  case) independent and co-timed voices never passed with 30 s of evidence and true
+  copies always did; with 20 s, 4% of co-timed long phrases still passed. A remote
+  speaker's own Zoom track can trail their voice on an in-room mic. On the lab tape
+  Audra's track trails her copy on Caleb's mic by 140 ms. No path means
+  `uncertain_foreign_ownership`.
+- **Where the peer is talking.** Every frame the peer's open direct track, read at
+  that lag, can reach on the lane is foreign, whether or not the lane's transcript
+  has a word there. Spans used to grow only from suppressed `bleed` words on the
+  lane, which on the lab tape left about 40 s of Audra's speech with no Caleb-track
+  word at full level.
 - **Where the lane's own speaker is silent.** Own speech is judged against the
   **expected copy level** on this mic, not the peer's direct track. With the path,
   the gate measures the coupling: the median of lane level minus direct level over
-  the louder half of the peer's frames, away from the lane's own words (−19.0 dB for
+  the louder half of the peer's frames, away from the lane's own words (−20.6 dB for
   Audra on Caleb's mic, reading the direct track held ±50 ms and, where its gate is
   just opening, up to 200 ms ahead). The expected level is the direct track plus the
   coupling, power-summed over peers and with the mic's noise floor. A frame 4 dB over
   it for 50 ms starts a candidate, which holds through frames 2 dB over it and dips
   up to 150 ms, so a short "mm" is kept whole. Level alone cannot decide: on the lab
   the copy's own level wanders several dB with the peer's phonemes and the call's
-  noise suppression (in loud Audra-only frames the 75th percentile is 4.6 dB over the
-  expected level and the 95th 7.8 dB, and whole words reach 10 dB). So a candidate counts as the copy only
-  when its fine spectrum, the log spectrum less its smooth envelope, matches the
-  peer's direct track at least 0.9 times as well as the copy's median frame does
-  (0.42 on the lab). Another voice brings its own harmonics: the candidates holding Caleb's
-  "your" (0.33) and "thinking" (0.05) fall below the 0.38 cut, Audra's copy runs
-  0.43–0.57. Kept candidates are
-  protected with or without a transcript word, so untranscribed backchannels, laughs,
-  and own words reconcile gave to the peer stay at full level. Unsuppressed own
-  words protect their connected voiced runs, which stop at foreign spans, and
+  noise suppression (its lane-to-direct level has a 10 dB interquartile range). So a
+  candidate counts as the copy when the median fine-spectrum match of its loud
+  frames (the log spectrum less its smooth envelope, against the peer's direct
+  track) reaches the copy's likeness, the 40th percentile of that match on frames at
+  the copy's level (0.35 on the lab; the median is 0.41). Judging only loud frames
+  keeps the copy a held run reaches into from outvoting the lane's own sound.
+  Another voice brings its own harmonics, so Caleb's "your" and "thinking", which
+  reconcile gave to Audra, stay bit-identical on the lab. Kept candidates are protected
+  with or without a transcript word, so untranscribed backchannels, laughs, and own
+  words reconcile gave to the peer stay at full level. Unsuppressed own words
+  protect their connected voiced runs, which stop where a peer is talking, and
   untranscribed placements stay protected.
 
 A direct track still gated shut is no evidence of the lane's speaker. Where the
-owner's own track gates open late, the copy on this lane is still turned down. Bleed
-is never kept as the main audio for another speaker, so the first moments of a
-late-gated word can be quieter in the mix (#945). Own sound less than about 4 dB over
-the copy cannot be told from it and is turned down with it. Words reconcile left
-unsuppressed on this lane stay protected even when they are really the peer's, so
-those copies stay at full level, and a third speaker's copy with no candidate words
-of its own is protected as not the peer's. Unavailable evidence abstains
-and is reported in `gate_reasons`. Crossfade layouts abstain because their rendered
+owner's own track gates open late, the copy on this lane is still reduced. Bleed is
+never kept as the main audio for another speaker, so the first moments of a
+late-gated word can be quieter in the mix (#945). During crosstalk the lane's own
+speech is protected and its copy of the peer stays with it; retained-bleed
+alignment handles that. Own sound less than about 4 dB over the copy cannot be told
+from it and is reduced with it. Words reconcile left unsuppressed on this lane stay
+protected even when they are really the peer's, so those copies stay at full level.
+Unavailable evidence abstains and is reported in `gate_reasons`. Crossfade layouts abstain because their rendered
 clock can diverge from raw placements. Applying the flag does not prove bleed was
 reduced, so compare stems before and after.
 
