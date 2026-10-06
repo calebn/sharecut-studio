@@ -135,9 +135,15 @@ describe("TightenPanel on a server-side job commit", () => {
     });
     expect(within(table).getAllByRole("row")).toHaveLength(3);
     expect(screen.getByText(/^2 of 2 hits/)).toBeTruthy();
-    const polled = fetchSpy.mock.calls.filter(([url]) =>
-      String(url).includes("/api/document/state"),
-    );
+    const polled = fetchSpy.mock.calls.filter(([input]) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      return url.includes("/api/document/state");
+    });
     expect(polled).toEqual([]);
   });
 });
