@@ -60,3 +60,14 @@ def test_design_hooks_enabled_with_portable_launcher_and_private_state() -> None
         check=True,
     )
     assert result.stdout.splitlines() == private_paths
+
+
+def test_claude_code_discovers_the_repo_skills() -> None:
+    claude_skills = ROOT / ".claude/skills"
+    assert claude_skills.is_symlink()
+    assert claude_skills.resolve() == (ROOT / ".agents/skills").resolve()
+    assert (
+        (claude_skills / "impeccable/SKILL.md")
+        .read_text(encoding="utf-8")
+        .startswith("---\nname: impeccable\n")
+    )

@@ -379,6 +379,12 @@ and cache write access before using sandboxed hooks. A preinstalled engine can
 also be supplied through `IMPECCABLE_BIN`. Platform binaries, local consent,
 and hook caches are ignored by Git.
 
+Claude Code reads project skills from `.claude/skills`, a committed symlink
+to `.agents/skills`, so `/impeccable` and the podcast skills load in a new
+Claude Code session. The automatic design hooks are Codex-only; in Claude Code,
+run `/impeccable` (for example a critique or audit) explicitly. On Windows,
+clone with `core.symlinks=true` so the link checks out as a directory.
+
 Supported web edits get focused feedback after a write and a broader check
 at turn completion. These are agent design checks; existing Git hooks,
 Stylelint, accessibility tests, and CI still apply. Do not suppress a finding
