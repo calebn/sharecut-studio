@@ -276,7 +276,7 @@ def test_agents_suggest_guests_and_offline_edits_propose(
     assert svc.ws.project.clips == before
     [proposal] = svc.ws.project.edit_decisions
     assert proposal.reason == ("agent:range" if caps is None else "guest:suggest")
-    if caps:
+    if caps and "edit" not in caps:
         with pytest.raises(PermissionError):
             svc.submit(
                 DocumentCommand(

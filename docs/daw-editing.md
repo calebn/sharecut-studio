@@ -137,7 +137,7 @@ Shipped:
 - One `TimelineComment` thread per pending decision (`edit_decision_id`, unique). First Ask creates the root; later notes are replies. Approve/Reject does **not** auto-resolve the thread. Find hits re-proposes a generated hit under the same id, so its thread stays on the pending inspector ([timeline-comments.md § Ask threads](timeline-comments.md#ask-threads-pending-edits)).
 - Mobile Listen **Pending** chip selects the first review-required pending (else first pending) and switches to Timeline (sheet opens from selection).
 - MCP `play_pending_preview_tool` / CLI `podcast play pending-preview` (`current` | `suggested` | `ab`), the rendered pending preview behind `GET /api/pending-preview` and the share route: Current renders the window from the project as it is. Suggested approves the edit on a snapshot (`approve_edits`, so the same ripple, `replace_gap_sec` paced pad, fades and mute) and renders that window, so it is what approving ships. Both go through the per-track segment mix at the headroom trim the premix gets for the current mix (`PlayService.mix_trim_db`: the trim `premix.hash` records while the premix is fresh, else measured from the current stems), so they play at the same level and neither waits on a premix re-mix. The window ends where the post-roll lands after the edit, so a cut with a pad longer than itself plays longer than Current. Removes (session or track), mutes and exact ranges all render; a split or an unmapped edit has no Suggested side. Full mix only. Does not mutate the project. Skill: **podcast-play-audition**. Host speakers only.
-- Exact range pending previews: selected islands alone receive Cut/Mute; gaps and other lanes remain audible. Exact proposals show timeline islands and lanes, with source-bound timing controls omitted and guest Approve/Reject disabled with a host-only reason.
+- Exact range pending previews: selected islands alone receive Cut/Mute; gaps and other lanes remain audible. Exact proposals show timeline islands and lanes, with source-bound timing controls omitted. Approve/Reject is enabled for the host and `edit` guests and disabled with a reason for other guests.
 - Share HTTP / guest MCP: `GET /api/review/{token}/daw/pending-preview` (+ optional `-image`) and `guest_pending_preview` (`play`+`view`). Relative URLs; never `afplay` on the host. See [host-online-relay.md](host-online-relay.md) § Remote MCP.
 
 **Done when:** an approver can hear Suggested (as approving ships it) vs Current on a pending edit, then Approve, Reject, or Ask in that inspector thread.
@@ -357,10 +357,10 @@ premix and asks for host Refresh when it is stale. Disjoint islands preserve
 timeline distance as silence. Bounce opens the format dialog with a
 fixed target. Comment carries exact islands and lanes into its draft.
 Host and `edit` guest Cut/Mute apply; `suggest` guests create one pending action
-(Suggest cut / Suggest mute). Offline guest range edits replay as proposals, and
-MCP agents (host or guest) always propose. Disabled
-controls explain missing capabilities. Export and exact approval/rejection are
-host-only. Manual ranges and exact-only approval do not require transcript
+(Suggest cut / Suggest mute). Offline guest range edits replay as proposals. A
+guest MCP agent follows its share (`edit` applies, `suggest` proposes); host MCP
+agents always propose. Disabled controls explain missing capabilities. Export is
+host-only; exact approval/rejection needs the host or an `edit` guest. Manual ranges and exact-only approval do not require transcript
 refinement; source and narrative workflows retain their existing gate.
 
 Cut uses canonical microfades at new hole edges and preserves outer fades,

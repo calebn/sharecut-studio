@@ -354,7 +354,9 @@ test("suggest-only guest proposes a range, host approves, and one Undo restores 
         await guest.locator(".pending-overlay").first().click();
         await expect(
           guest
-            .getByText("Only the host can review exact range proposals.")
+            .getByText(
+              "Only the host or an edit guest can review exact range proposals.",
+            )
             .first(),
         ).toBeVisible();
         if (process.env.RANGE_CONFIRMATION_SCREENSHOTS) {
@@ -376,7 +378,7 @@ test("suggest-only guest proposes a range, host approves, and one Undo restores 
         expect(footerBounds).not.toBeNull();
         for (const fact of [
           inspector.getByText(
-            "Only the host can review exact range proposals.",
+            "Only the host or an edit guest can review exact range proposals.",
             { exact: true },
           ),
           inspector.getByText("0:11.000 – 0:12.000", { exact: true }),
@@ -508,7 +510,7 @@ test("suggest-only guest proposes for host review and sees the approved cut", as
         await expect(guestApprove).toBeDisabled();
         await expect(guestApprove).toHaveAttribute(
           "title",
-          "Only the host can review exact range proposals",
+          "Only the host or an edit guest can review exact range proposals",
         );
         await expect(guestReject).toBeDisabled();
         await guestInspector

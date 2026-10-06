@@ -393,7 +393,9 @@ class EditService:
             if not allow_exact and any(
                 e.id in ids and e.exact_range is not None for e in p.edit_decisions
             ):
-                raise PermissionError("Only the interactive host can approve exact range proposals")
+                raise PermissionError(
+                    "Only the interactive host or an edit guest can approve exact range proposals"
+                )
             return approve_edits(p, ids)
 
         return self.ws.mutate(
@@ -409,7 +411,9 @@ class EditService:
             if not allow_exact and any(
                 e.id in ids and e.exact_range is not None for e in p.edit_decisions
             ):
-                raise PermissionError("Only the interactive host can reject exact range proposals")
+                raise PermissionError(
+                    "Only the interactive host or an edit guest can reject exact range proposals"
+                )
             return reject_edits(p, ids)
 
         return self.ws.mutate("before reject edits", "after reject edits", mutate)

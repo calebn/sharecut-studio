@@ -8,11 +8,7 @@ import {
   TranscriptRefineRecovery,
 } from "../inspector/TranscriptRefineRecovery";
 import { useQueuedReviewNotice } from "../inspector/useQueuedReviewNotice";
-import {
-  canRetimePendingEdit,
-  canReviewPendingEdit,
-  isShareProjectKey,
-} from "../shareMode";
+import { canRetimePendingEdit, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow, PendingEditView } from "../types/project";
 import { Button } from "../ui/Button";
@@ -908,7 +904,7 @@ function PendingEditRegion({
                   }
                   title={
                     !canApply
-                      ? "Only the host can review exact range proposals"
+                      ? "Only the host or an edit guest can review exact range proposals"
                       : undefined
                   }
                   onClick={() => void runReviewAction("approve")}
@@ -924,7 +920,7 @@ function PendingEditRegion({
                   }
                   title={
                     !canApply
-                      ? "Only the host can review exact range proposals"
+                      ? "Only the host or an edit guest can review exact range proposals"
                       : undefined
                   }
                   onClick={() => void runReviewAction("reject")}
@@ -935,7 +931,7 @@ function PendingEditRegion({
             ) : null}
             {edit.exact_range && !canApply ? (
               <p className="ui-field-hint">
-                Only the host can review exact range proposals.
+                Only the host or an edit guest can review exact range proposals.
               </p>
             ) : null}
             {actionState.kind === "busy" ? (
@@ -1047,7 +1043,6 @@ export function PendingEditOverlayView({
   onReviewAction,
 }: PendingEditOverlayViewProps) {
   const projectEpoch = useDawStore((state) => state.projectEpoch);
-  const guestMode = useDawStore((state) => state.guestMode);
   const shareCapabilities = useDawStore((state) => state.shareCapabilities);
   return (
     <>
@@ -1080,15 +1075,7 @@ export function PendingEditOverlayView({
                 edit.source_start != null &&
                 edit.source_end != null
               }
-              canApply={
-                canApply &&
-                canReviewPendingEdit(
-                  projectPath,
-                  guestMode,
-                  shareCapabilities,
-                  Boolean(edit.exact_range),
-                )
-              }
+              canApply={canApply}
               onSelect={onSelect}
               onCommitSpan={onCommitSpan}
               onReviewAction={onReviewAction}

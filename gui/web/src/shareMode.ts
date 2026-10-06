@@ -94,16 +94,15 @@ export function canApplyPass12(
   return shareGranted(projectPath, capabilities, "edit");
 }
 
+/**
+ * Approve / Reject any pending edit, exact ranges included. Approving applies an
+ * edit, so it mirrors the server's ``may_decide_exact_range``: host or ``edit``.
+ */
 export function canReviewPendingEdit(
   projectPath: string,
-  guestMode: string | null,
   capabilities: string[] | null | undefined,
-  exactRange: boolean,
 ): boolean {
-  return (
-    canApplyPass12(projectPath, guestMode, capabilities) &&
-    (!exactRange || (!isShareProjectKey(projectPath) && guestMode === null))
-  );
+  return rangeEditMode(projectPath, capabilities) === "edit";
 }
 
 /** Host / edit apply structural timeline ops; suggest-only proposes. */
