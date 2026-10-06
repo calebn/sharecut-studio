@@ -219,7 +219,9 @@ def test_failed_run_still_pushes_the_steps_that_saved(minimal_project: Path, mon
     queue = get_hub().subscribe(key, loop)
     try:
         with pytest.raises(RuntimeError, match="later step failed"):
-            PipelineService(ProjectWorkspace.open(minimal_project)).run()
+            PipelineService(ProjectWorkspace.open(minimal_project)).run(
+                only_step="analyze_fillers_pauses"
+            )
         event = _next_document_event(queue, loop)
     finally:
         get_hub().unsubscribe(key, queue)
