@@ -5,13 +5,15 @@ from __future__ import annotations
 from podcast_mcp.edits.share_capabilities import (
     CAP_ACTION,
     CAP_COMMENT,
-    CAP_EDIT,
     CAP_PLAY,
     CAP_REPLY,
     CAP_VIEW,
     has_capability,
 )
-from podcast_mcp.services.document_sync import document_command_types_for_caps
+from podcast_mcp.services.document_sync import (
+    document_command_types_for_caps,
+    edit_commands_allowed,
+)
 
 # Read / listen (ReviewApp-level summary without full Sharecut Studio).
 PLAY_TOOLS: frozenset[str] = frozenset(
@@ -66,6 +68,7 @@ DOCUMENT_COMMAND_TOOLS: frozenset[str] = frozenset(
     }
 )
 
+# Offered when the gate allows every ``edit`` command (``view`` + ``edit``).
 EDIT_TOOLS: frozenset[str] = frozenset(
     {
         "guest_render_preview",
@@ -100,7 +103,7 @@ def tools_for_capabilities(caps: list[str] | None) -> frozenset[str]:
         out |= ACTION_TOOLS
     if document_command_types_for_caps(caps):
         out |= DOCUMENT_COMMAND_TOOLS
-    if has_capability(caps, CAP_EDIT):
+    if edit_commands_allowed(caps):
         out |= EDIT_TOOLS
     return frozenset(out)
 

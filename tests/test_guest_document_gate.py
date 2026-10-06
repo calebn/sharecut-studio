@@ -227,6 +227,30 @@ def test_guest_mcp_needs_view_like_the_browser(minimal_project, sample_wav, monk
     assert len(load_project(minimal_project).edit_decisions) == 4
 
 
+@pytest.mark.parametrize(
+    ("caps", "offered"),
+    [(["play", "edit", "mcp"], set()), (["play", "view", "edit", "mcp"], {"render", "upload"})],
+    ids=["edit-without-view", "edit-with-view"],
+)
+def test_guest_mcp_offers_edit_tools_only_when_the_gate_allows_edit(
+    minimal_project, sample_wav, monkeypatch, caps, offered
+):
+    token = _mcp_share(minimal_project, sample_wav, monkeypatch, caps)
+    listed = handle_mcp_jsonrpc(
+        token, {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
+    )
+    names = {tool["name"] for tool in listed["result"]["tools"]}
+    edit_tools = {
+        "guest_render_preview": "render",
+        "guest_render_preview_job": "render",
+        "guest_upload_media": "upload",
+    }
+    assert {kind for name, kind in edit_tools.items() if name in names} == offered
+    upload = _mcp_call(token, "guest_upload_media", {"filename": "x.wav", "data_base64": ""})
+    refused = upload.get("error", {}).get("code") == -32003
+    assert refused is not bool(offered), upload
+
+
 def range_project(minimal_project) -> DocumentSyncService:
     ws = ProjectWorkspace.open(minimal_project)
     fixture(ws.project)

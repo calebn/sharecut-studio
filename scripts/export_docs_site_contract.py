@@ -413,7 +413,7 @@ def _render_remote_tools() -> str:
         f"| `+comment` / `reply` | {fmt(COMMENT_TOOLS - PLAY_TOOLS)} |",
         f"| `+action` | {fmt(ACTION_TOOLS)} |",
         f"| `view` + (`suggest` / `edit`) | {fmt(DOCUMENT_COMMAND_TOOLS)} |",
-        f"| `+edit` only | {fmt(EDIT_TOOLS)} |",
+        f"| `view` + `edit` | {fmt(EDIT_TOOLS)} |",
         "",
         REMOTE_END,
         "",

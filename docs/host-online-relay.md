@@ -387,7 +387,7 @@ Do not put `guest_*` names in the host manifest MCP column. Share agents never c
 | `+comment` / `reply` | `guest_add_comment`, `guest_add_reply` |
 | `+action` | `guest_set_action_done` |
 | `view` + (`suggest` / `edit`) | `guest_submit_document_command` (offered only when `document_command_types_for_caps` allows a command, so `suggest` or `edit` without `view` gets none, as on the browser route) |
-| `+edit` only | `guest_render_preview` (start render job), `guest_render_preview_job` (read status); `guest_upload_media` (HTTP twin: `POST …/daw/media/upload`) |
+| `view` + `edit` | `guest_render_preview` (start render job), `guest_render_preview_job` (read status); `guest_upload_media` (HTTP twin: `POST …/daw/media/upload`). Offered only when `edit_commands_allowed` (the document-command gate) allows every `edit` command, so `edit` without `view` gets none |
 | without `mcp` | Relay/host **403** |
 | record `join` / `monitor` | **no MCP** — `/rec/{token}` lobby; `join` also unlocks `GET`/`POST`/`DELETE /api/rec/{token}/upload` |
 | record `monitor` WS | **no MCP by design** — `WS /api/rec/{token}/ws` (record room / live comments / WebRTC signal). Record MCP twins remain a product decision, not a missing-twin bug. Parity CI (`check_share_http_mcp_parity`) requires a curated `http-only:` note. |

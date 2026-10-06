@@ -70,6 +70,15 @@ def document_command_types_for_caps(caps: list[str] | None) -> frozenset[str]:
     return frozenset(out)
 
 
+def edit_commands_allowed(caps: list[str] | None) -> bool:
+    """Whether the gate allows every ``edit`` command (``view`` + ``edit``).
+
+    Edit-only side surfaces (render preview, media upload) follow this, so they
+    match the commands the guest can run.
+    """
+    return document_command_types_for_caps(caps) >= EDIT_COMMANDS
+
+
 def authorize_document_command(
     caps: list[str] | None,
     command_type: str,
