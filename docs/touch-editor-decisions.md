@@ -210,3 +210,53 @@ identical press on the winner, so the winner's own capture, drag, commit,
 cancel and History paths run unchanged. The browser's following click is
 replaced with a click on the winner. One target in reach, or a press on a
 surface, passes through untouched.
+
+## Touch target chooser prototype (#1051, lab)
+
+Candidate A from the #1051 research ships as a prototype behind the
+`touchChooser` lab flag. It is off by default. Turn it on from View › Labs ›
+Touch target chooser (the phone Menu carries the same View sections) or by
+opening the app with `?lab=touch-chooser`; `?lab=-touch-chooser` turns it
+off. The choice persists per browser in `localStorage` (`sharecut.labs`,
+`utils/labFlags.ts`) and is not project state.
+
+With the lab on, a touch with two or more targets in reach is held by
+`attachHitRouting`, whether the finger is on a target or on a surface:
+
+- **Move first.** Travel beyond 3 px (`CHOOSER_STILL_PX`) before 250 ms
+  (`CHOOSER_HOLD_MS`) replays the press on the resolver's winner, or on the
+  surface itself when the finger is on no target, and the drag continues there.
+- **Quick tap.** Lifting before 250 ms taps the winner.
+- **Hold still.** After 250 ms the chooser opens (`timeline/TargetChooser.tsx`).
+  Chips of `--touch-min` fan out on an arc 64 px above the finger, below it
+  near the top, and swing away from side edges (`timeline/chooserLayout.ts`).
+  Each chip draws its target's glyph at twice its size on the clip colour under
+  it, with a leader line and ring at the real position. Chips read left to right
+  by real x; more than five page through "More". One caption names the chip
+  under the finger, else the focused chip, else the best-ranked one; envelope
+  chips also show their gain.
+- **Commit.** Lifting on a chip replays a tap on its target at the target's own
+  position and focuses it. Resting 250 ms (`CHOOSER_GRAB_MS`) on a chip replays
+  the press on the target and forwards the rest of the drag offset by the
+  chip-to-target distance, so the target moves without jumping to the finger.
+- **Cancel.** Lifting anywhere but a chip leaves the chips open to tap. A tap
+  on the dimmed timeline, Escape, a second finger or `pointercancel` closes the
+  chooser with no change; the closing tap's click is swallowed.
+
+The chooser is a `role="menu"` of `menuitemradio` chips (checked marks the
+currently selected target, with an accent edge and corner notch). It announces
+"N targets here", moves with Left/Right/Home/End, and Escape returns focus.
+`ui/useMenuKeyboard.ts` owns that keyboard and focus contract for every popup
+menu, so the chooser adds no keydown listener.
+
+Motion follows the repo's motion rules rather than the research spec's exact
+times: chips fly out from the finger on `--motion-hover` (150 ms; the spec
+asked for 160 ms) and the chooser fades out on `--motion-press` (80 ms; the
+spec asked for 100 ms). Under reduced motion the chips appear in place with no
+animation, because reduced motion may only stop motion here; the spec's 100 ms
+fade in place is not used.
+
+Open questions for physical testing: whether 3 px of stillness and a 250 ms
+rest-to-grab survive real finger drift and reading time (platform touch slop is
+8 to 10 px), and whether a quick tap on a cluster should open the chooser
+instead of tapping the winner.

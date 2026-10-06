@@ -187,7 +187,9 @@ export function ClipBlockView({
   } = geometry;
 
   const timelineStart = left / zoomPxPerSec;
-  const timelineEnd = timelineStart + durationSec;
+  // Saved times for the hit targets: the chooser names a target by them.
+  const savedStart = clip.timeline_start;
+  const savedEnd = savedStart + (clip.source_end - clip.source_start);
   const labels = clipLabels({
     clip: {
       source_start: sourceStart,
@@ -239,7 +241,7 @@ export function ClipBlockView({
         <button
           type="button"
           className="join-seam"
-          {...hitTargetProps("roll", clip.id, timelineStart)}
+          {...hitTargetProps("roll", clip.id, savedStart)}
           title={`${rollTip} · join: ${clip.join_in_mode}`}
           aria-label={rollTip}
           onPointerDown={(e) => onHandlePointerDown?.("roll", e)}
@@ -278,7 +280,7 @@ export function ClipBlockView({
           {...hitTargetProps(
             "fade-in",
             clip.id,
-            timelineStart + fadeInMs / 1000,
+            savedStart + clip.fade_in_ms / 1000,
             {
               selected: fadeDragEdge === "in",
             },
@@ -304,7 +306,7 @@ export function ClipBlockView({
           {...hitTargetProps(
             "fade-out",
             clip.id,
-            timelineEnd - fadeOutMs / 1000,
+            savedEnd - clip.fade_out_ms / 1000,
             {
               selected: fadeDragEdge === "out",
             },
@@ -339,7 +341,7 @@ export function ClipBlockView({
           <button
             type="button"
             className="trim-handle in"
-            {...hitTargetProps("trim-in", clip.id, timelineStart)}
+            {...hitTargetProps("trim-in", clip.id, savedStart)}
             title={`${trimTip} · start`}
             aria-label={`${trimTip} · start. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
             onPointerDown={(e) => onHandlePointerDown?.("trim-in", e)}
@@ -356,7 +358,7 @@ export function ClipBlockView({
             type="button"
             data-testid={timelineTestIds.trimOut}
             className="trim-handle out"
-            {...hitTargetProps("trim-out", clip.id, timelineEnd)}
+            {...hitTargetProps("trim-out", clip.id, savedEnd)}
             title={`${trimTip} · end`}
             aria-label={`${trimTip} · end. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
             onPointerDown={(e) => onHandlePointerDown?.("trim-out", e)}

@@ -1239,3 +1239,247 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 .join-blend path {
   vector-effect: non-scaling-stroke;
 }
+
+/* Touch target chooser (#1051, lab): portaled to <body> above the shell like
+   a menu. Chips are 44 px (--touch-min) and placed at computed px centres
+   (chooserLayout.ts); the arc, leaders and rings are viewport geometry. */
+.target-chooser {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-menu);
+}
+
+.target-chooser.is-closing {
+  pointer-events: none;
+}
+
+.target-chooser-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  touch-action: none;
+}
+
+.target-chooser-leaders {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.target-chooser-leaders line {
+  stroke: var(--text);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.target-chooser-leaders circle {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.target-chooser-menu {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.target-chip {
+  position: absolute;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  inline-size: var(--touch-min);
+  block-size: var(--touch-min);
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--chip-surface, var(--color-timeline-lane));
+  color: var(--color-timeline-text);
+  box-shadow: 0 0.25rem 0.75rem var(--shadow);
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: none;
+  appearance: none;
+}
+
+/* Accent marks only the current selection (edge plus a corner notch, so it
+   does not rest on colour alone) and focus. */
+.target-chip[aria-checked="true"] {
+  border-color: var(--accent);
+}
+
+.target-chip[aria-checked="true"]::after {
+  content: "";
+  position: absolute;
+  inset-block-start: var(--space-0);
+  inset-inline-end: var(--space-0);
+  inline-size: 0.375rem;
+  block-size: 0.375rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Under the finger: lifted, not recoloured. */
+.target-chip.is-over {
+  scale: 1.12;
+  border-color: var(--text);
+  box-shadow: 0 0.5rem 1.25rem var(--shadow);
+}
+
+.target-chip:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.target-chip.has-tag {
+  grid-template-rows: auto auto;
+  align-content: center;
+  gap: 0;
+}
+
+.target-chip.has-tag .target-glyph {
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+}
+
+/* White on near-black like .fade-readout, so text reads over any lane or
+   clip colour in either theme. */
+.target-chip-tag,
+.target-chooser-caption {
+  border-radius: var(--radius-xs);
+  background: var(--color-overlay-black-90);
+  color: var(--color-clip-label);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.target-chip-tag {
+  padding: 0 var(--space-0);
+  font-size: var(--font-size-micro);
+  line-height: 1.2;
+}
+
+/* One caption for the active chip, on the side of the arc away from the
+   finger. */
+.target-chooser-caption {
+  position: absolute;
+  translate: -50% -100%;
+  max-inline-size: 15rem;
+  margin: 0;
+  padding: var(--space-0) var(--space-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.target-chooser[data-placement="below"] .target-chooser-caption {
+  translate: -50% 0;
+}
+
+.target-chip-more {
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.target-glyph {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  overflow: visible;
+}
+
+.target-glyph--envelope-point circle {
+  fill: var(--envelope-line);
+}
+
+.target-glyph-line {
+  fill: none;
+  stroke: var(--color-overlay-white-55);
+  stroke-width: 1.5;
+}
+
+.target-glyph-handle {
+  fill: var(--color-overlay-white-25);
+  stroke: var(--color-overlay-white-55);
+  stroke-width: 1;
+}
+
+.target-glyph-seam {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.target-glyph-badge {
+  fill: var(--color-bg-overlay);
+  stroke: var(--border);
+}
+
+.target-glyph-badge-path {
+  fill: none;
+  stroke: var(--color-text-on-overlay);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.target-glyph-region {
+  fill: var(--pending-edit);
+}
+
+.target-glyph-edge {
+  stroke: var(--danger);
+  stroke-width: 2;
+}
+
+.target-glyph--mute .target-glyph-region {
+  fill: var(--pending-mute);
+}
+
+.target-glyph--mute .target-glyph-edge {
+  stroke: var(--accent);
+}
+
+.target-glyph-flag {
+  fill: var(--warning);
+}
+
+.target-glyph-diamond {
+  fill: var(--marker);
+}
+
+/* Chips fly out from the finger and the room dims; closing fades. Reduced
+   motion shows the chips in place at once. */
+@keyframes chooser-chip-in {
+  from {
+    transform: translate(var(--chip-from-x), var(--chip-from-y)) scale(0.4);
+  }
+}
+
+@keyframes chooser-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .target-chooser-scrim,
+  .target-chooser-leaders {
+    animation: fade-in var(--motion-hover) var(--motion-ease-out);
+  }
+
+  .target-chip {
+    animation: chooser-chip-in var(--motion-hover) var(--motion-ease-out);
+    transition: scale var(--motion-press) var(--motion-ease-out);
+  }
+
+  .target-chooser.is-closing {
+    animation: chooser-out var(--motion-press) var(--motion-ease-out) forwards;
+  }
+}
