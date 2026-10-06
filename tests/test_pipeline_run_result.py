@@ -150,3 +150,82 @@ def test_format_export_qc_lines_and_job_result(tmp_path: Path) -> None:
         format_export_qc_lines({"ok": False, "issues": ["a", "b"], "warnings": []}, "qc.json")[0]
         == "Export QC: FAILED (2 issues), 0 warnings (qc.json)"
     )
+
+
+def _propose_pending_edit(monkeypatch, *, fail_after: bool = False) -> None:
+    """Stub the runner so a step proposes one pending edit and saves, as Find hits does."""
+    from podcast_mcp.edits.transcript_cuts import append_remove_decision
+
+    def run(self, project, *, on_step_complete=None, **_kwargs):
+        append_remove_decision(project, "host", 1.0, 1.5, reason="find-hits-proof")
+        if on_step_complete is not None:
+            on_step_complete("analyze_fillers_pauses")
+        if fail_after:
+            raise RuntimeError("later step failed")
+        return _stub_run([PipelineStepLog(step="analyze_fillers_pauses", started_at="t")])
+
+    monkeypatch.setattr(PipelineRunner, "run", run)
+
+
+def _next_document_event(queue, loop, timeout_s: float = 2.0) -> dict:
+    import asyncio
+
+    async def wait() -> dict:
+        return await asyncio.wait_for(queue.get(), timeout_s)
+
+    return loop.run_until_complete(wait())
+
+
+def test_run_pushes_proposed_pending_edits_to_document_subscribers(
+    minimal_project: Path, monkeypatch
+) -> None:
+    import asyncio
+
+    from podcast_mcp.services.document_sync import document_hub_key
+    from podcast_mcp.services.pipeline import PipelineService
+    from podcast_mcp.services.session_sync.hub import get_hub
+
+    _propose_pending_edit(monkeypatch)
+    key = document_hub_key(load_project(minimal_project))
+    loop = asyncio.new_event_loop()
+    queue = get_hub().subscribe(key, loop)
+    try:
+        PipelineService(ProjectWorkspace.open(minimal_project)).run(
+            only_step="analyze_fillers_pauses"
+        )
+        event = _next_document_event(queue, loop)
+    finally:
+        get_hub().unsubscribe(key, queue)
+        loop.close()
+
+    assert event["type"] == "Applied"
+    assert event["command"]["type"] == "ExternalMutate"
+    pending = event["snapshot"]["project"]["pending_edits"]
+    assert [p["reason"] for p in pending] == ["find-hits-proof"]
+
+
+def test_failed_run_still_pushes_the_steps_that_saved(minimal_project: Path, monkeypatch) -> None:
+    import asyncio
+
+    import pytest
+
+    from podcast_mcp.services.document_sync import document_hub_key
+    from podcast_mcp.services.pipeline import PipelineService
+    from podcast_mcp.services.session_sync.hub import get_hub
+
+    _propose_pending_edit(monkeypatch, fail_after=True)
+    key = document_hub_key(load_project(minimal_project))
+    loop = asyncio.new_event_loop()
+    queue = get_hub().subscribe(key, loop)
+    try:
+        with pytest.raises(RuntimeError, match="later step failed"):
+            PipelineService(ProjectWorkspace.open(minimal_project)).run()
+        event = _next_document_event(queue, loop)
+    finally:
+        get_hub().unsubscribe(key, queue)
+        loop.close()
+
+    assert event["command"]["type"] == "ExternalMutate"
+    assert [p["reason"] for p in event["snapshot"]["project"]["pending_edits"]] == [
+        "find-hits-proof"
+    ]

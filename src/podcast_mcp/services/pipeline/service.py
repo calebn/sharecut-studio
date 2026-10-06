@@ -101,17 +101,24 @@ class PipelineService:
         self.ws.save_merged(history_label="before pipeline run")
         defaults = merge_pipeline_config(config) if config is not None else None
         runner = PipelineRunner(defaults=defaults)
-        pipeline_run = runner.run(
-            self.ws.project,
-            from_step=from_step,
-            only_step=only_step,
-            skip_steps=skip_steps,
-            on_step_complete=lambda step: self.ws.save_merged(history_label=f"after {step}"),
-            progress=progress,
-            unattended=unattended,
-            cancel_check=cancel_check,
-        )
-        self.ws.save_merged(history_label="after pipeline run")
+        try:
+            pipeline_run = runner.run(
+                self.ws.project,
+                from_step=from_step,
+                only_step=only_step,
+                skip_steps=skip_steps,
+                on_step_complete=lambda step: self.ws.save_merged(history_label=f"after {step}"),
+                progress=progress,
+                unattended=unattended,
+                cancel_check=cancel_check,
+            )
+            self.ws.save_merged(history_label="after pipeline run")
+        finally:
+            # Steps save as they finish, so a failed or cancelled run still changed the file.
+            # Imported here because document_sync's marker handlers import this module.
+            from podcast_mcp.services.document_sync import after_agent_mutation
+
+            after_agent_mutation(self.ws)
         return self._run_result(pipeline_run)
 
     def _run_result(self, pipeline_run: PipelineRun) -> PipelineRunResult:
