@@ -1,8 +1,16 @@
-import { act, renderHook } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { stubMatchMedia } from "../test/matchMedia";
+import { BottomSheet } from "../ui/BottomSheet";
+import { readCompactInspectorView } from "../utils/compactInspectorPref";
 import { setLabEnabled } from "../utils/labFlags";
 import {
   compactSheetProps,
@@ -93,6 +101,57 @@ describe("useCompactInspector", () => {
     expect(compactSheetProps(result.current!).stowed).toBe(true);
     act(() => compactSheetProps(result.current!).onExpandedChange?.(false));
     expect(localStorage.getItem("sharecut.compactInspector")).toBe("strip");
+  });
+});
+
+function CompactSheet() {
+  const compact = useCompactInspector("phone");
+  return compact ? (
+    <BottomSheet
+      open
+      onClose={() => undefined}
+      backgroundPolicy="interactive"
+      {...compactSheetProps(compact)}
+    >
+      {compact.view}
+    </BottomSheet>
+  ) : null;
+}
+
+describe("the compact sheet's Expand and Collapse", () => {
+  const select = (hit: "trim-in" | "fade-in") =>
+    act(() =>
+      useDawStore.setState({
+        selection: { kind: "clip", id: "c2", trackId: "host" },
+        selectionHit: { kind: hit, id: "c2" },
+      }),
+    );
+  const size = () =>
+    document
+      .querySelector(".bottom-sheet")
+      ?.className.match(/bottom-sheet--(peek|half|full)/)?.[1];
+
+  it("opens the next selection expanded after Expand, and as the strip after Collapse", () => {
+    const { unmount } = render(<CompactSheet />);
+    expect(size()).toBe("peek");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Expand to the full inspector" }),
+    );
+    select("fade-in");
+    expect({ size: size(), pref: readCompactInspectorView() }).toEqual({
+      size: "half",
+      pref: "inspector",
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse to the strip" }),
+    );
+    select("trim-in");
+    expect({
+      size: size(),
+      pref: readCompactInspectorView(),
+      title: screen.getByRole("heading").textContent,
+    }).toEqual({ size: "peek", pref: "strip", title: "Trim start" });
+    unmount();
   });
 });
 

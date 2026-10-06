@@ -1,3 +1,18 @@
+/**
+ * How far sticky children pinned at the top of `scroller` (a sheet's chrome)
+ * cover its viewport: a control revealed under them would still be hidden.
+ */
+function stickyInset(scroller: HTMLElement): number {
+  const top = scroller.getBoundingClientRect().top + scroller.clientTop;
+  let inset = 0;
+  for (const child of scroller.children) {
+    if (getComputedStyle(child).position !== "sticky") continue;
+    const rect = child.getBoundingClientRect();
+    if (rect.top <= top + 1) inset = Math.max(inset, rect.bottom - top);
+  }
+  return inset;
+}
+
 /** Focus and minimally reveal a control inside its inspector, never the page
  * or timeline. Callers retain ownership of selection and lifecycle timing. */
 export function focusAndReveal(target: HTMLElement | null): void {
@@ -27,7 +42,7 @@ export function focusAndReveal(target: HTMLElement | null): void {
   ) {
     const overflow = getComputedStyle(parent);
     const viewport = parent.getBoundingClientRect();
-    const top = viewport.top + parent.clientTop;
+    const top = viewport.top + parent.clientTop + stickyInset(parent);
     const left = viewport.left + parent.clientLeft;
     const labelRect = label?.getBoundingClientRect();
     let rect: Pick<DOMRect, "top" | "bottom" | "left" | "right"> =
