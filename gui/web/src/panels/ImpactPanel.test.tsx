@@ -6,7 +6,12 @@ import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
-import { appliedEditRecord, clipRow, minimalProject } from "../test/fixtures";
+import {
+  appliedEditRecord,
+  COMMENTER_CAPABILITIES,
+  clipRow,
+  minimalProject,
+} from "../test/fixtures";
 import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { ImpactPanel } from "./ImpactPanel";
 
@@ -72,7 +77,7 @@ describe("ImpactPanel transcript refine recovery", () => {
   it.each([
     ["/tmp/p.json", null, null, true],
     [shareProjectKey("exact"), "edit", ["view", "edit"], true],
-    [shareProjectKey("exact"), "suggest", ["view", "suggest"], false],
+    [shareProjectKey("exact"), "comment", COMMENTER_CAPABILITIES, false],
   ] as const)(
     "gates exact bulk review at %s for guest mode %s",
     (path, guestMode, capabilities, canReview) => {
@@ -106,7 +111,7 @@ describe("ImpactPanel transcript refine recovery", () => {
       expect(rejectAll).toBeDisabled();
       expect(approveAll).toHaveAttribute(
         "title",
-        "Only the host or an edit guest can review suggestions.",
+        "Only the host or an Editor can review suggestions.",
       );
       expect(approveEdits).not.toHaveBeenCalled();
     },

@@ -12,7 +12,11 @@ import { useWaveformSnapTicks } from "../hooks/useWaveformSnapTicks";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
-import { clipRow, minimalProject } from "../test/fixtures";
+import {
+  COMMENTER_CAPABILITIES,
+  clipRow,
+  minimalProject,
+} from "../test/fixtures";
 import type { PendingEditView } from "../types/project";
 import { ApiError, TRANSCRIPT_REFINE_REQUIRED_CODE } from "../utils/apiError";
 import { PENDING_REVIEW_QUEUED_MESSAGE } from "../utils/pendingEditLabels";
@@ -97,7 +101,7 @@ describe("PendingEditOverlay handles", () => {
   it.each([
     ["/tmp/p.json", null, null, true],
     [shareProjectKey("tok"), "edit", ["view", "edit"], true],
-    [shareProjectKey("tok"), "suggest", ["view", "suggest"], false],
+    [shareProjectKey("tok"), "comment", COMMENTER_CAPABILITIES, false],
   ] as const)(
     "presents exact islands without source handles at %s in mode %s",
     async (path, guestMode, capabilities, canReview) => {
@@ -163,7 +167,7 @@ describe("PendingEditOverlay handles", () => {
       if (!canReview)
         expect(
           screen.getByText(
-            "Only the host or an edit guest can review exact range proposals.",
+            "Only the host or an Editor can review exact range proposals.",
           ),
         ).toBeVisible();
       expect(updatePendingEdit).not.toHaveBeenCalled();

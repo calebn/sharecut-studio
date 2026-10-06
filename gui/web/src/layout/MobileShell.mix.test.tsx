@@ -83,7 +83,7 @@ describe("MobileShell Mix", () => {
     clearRegisteredCommands();
   });
 
-  it.each([null, "edit", "view", "suggest"])(
+  it.each([null, "edit", "view", "comment"])(
     "offers Mix for %s with one full sheet and Close/Escape restoration",
     async (guestMode) => {
       const user = userEvent.setup();

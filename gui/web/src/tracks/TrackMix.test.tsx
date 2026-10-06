@@ -82,7 +82,7 @@ describe("TrackMix", () => {
     ]);
     expect(useDawStore.getState().selection).toBeNull();
   });
-  it.each(["view", "suggest", "edit"])(
+  it.each(["view", "comment", "edit"])(
     "uses actual capabilities for %s volume access",
     async (guestMode) => {
       const view = setup(guestMode, ["view"]);

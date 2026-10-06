@@ -2,7 +2,8 @@
 
 export const SHARE_PREFIX = "share:";
 
-export type GuestMode = "edit" | "suggest" | "view" | "comment" | "none";
+/** Server ``guest_mode``: Editor ``edit``, Commenter ``comment``, Viewer ``view``. */
+export type GuestMode = "edit" | "comment" | "view" | "none";
 
 export function shareProjectKey(token: string): string {
   return `${SHARE_PREFIX}${token}`;
@@ -74,18 +75,16 @@ export function guestShareBannerLabel(guestMode: string | null): string {
   switch (guestMode) {
     case "edit":
       return "Shared edit view · You can add tracks and audio";
-    case "suggest":
-      return "Shared suggest view";
     case "view":
       return "Shared read-only view";
     case "comment":
-      return "Shared comment view";
+      return "Shared comment view · You can comment and suggest edits";
     default:
       return "Shared view";
   }
 }
 
-/** Host (non-share) or guest with ``edit`` may apply Pass 1–2 mutations. */
+/** Host (non-share) or an Editor (``edit``) may apply Pass 1–2 mutations. */
 export function canApplyPass12(
   projectPath: string,
   _guestMode: string | null,
@@ -96,7 +95,7 @@ export function canApplyPass12(
 
 /**
  * Approve / Reject any pending edit, exact ranges included. Approving applies an
- * edit, so it mirrors the server's ``may_decide_exact_range``: host or ``edit``.
+ * edit, so it mirrors the server's ``may_decide_exact_range``: host or Editor.
  */
 export function canReviewPendingEdit(
   projectPath: string,
@@ -105,7 +104,7 @@ export function canReviewPendingEdit(
   return rangeEditMode(projectPath, capabilities) === "edit";
 }
 
-/** Host / edit apply structural timeline ops; suggest-only proposes. */
+/** Host / Editor apply structural timeline ops; a Commenter proposes. */
 export function canApplyStructural(
   projectPath: string,
   guestMode: string | null,
@@ -114,7 +113,7 @@ export function canApplyStructural(
   return canApplyPass12(projectPath, guestMode, capabilities);
 }
 
-/** Host or suggest/edit may run structural commands (apply or propose). */
+/** Host, Commenter or Editor may run structural commands (apply or propose). */
 export function canSuggestStructural(
   projectPath: string,
   _guestMode: string | null,
@@ -134,8 +133,8 @@ export function canSuggestStructural(
 
 /**
  * What a selected range (timeline or transcript words) can do in this session.
- * Mirrors the server's ``resolve_range_mode``: host or ``edit`` applies,
- * ``suggest`` proposes for host review, anything else cannot select for edits.
+ * Mirrors the server's ``resolve_range_mode``: host or Editor applies, a
+ * Commenter proposes for review, anything else cannot select for edits.
  */
 export type RangeEditMode = "edit" | "suggest" | "none";
 
@@ -149,9 +148,9 @@ export function rangeEditMode(
 }
 
 /**
- * Mirrors the server's ``authorize_pending_update``: host or ``edit`` retimes any
- * pending edit; a ``suggest``-only guest retimes only edits its own share
- * authored (``editAuthor`` equals this session's ``shareAuthor``).
+ * Mirrors the server's ``authorize_pending_update``: host or Editor retimes any
+ * pending edit; a Commenter retimes only edits its own share authored
+ * (``editAuthor`` equals this session's ``shareAuthor``).
  */
 export function canRetimePendingEdit(
   projectPath: string,
@@ -181,7 +180,7 @@ export function canRefreshMix(
   return canApplyPass12(projectPath, guestMode, capabilities);
 }
 
-/** Host or guest ``edit`` may change the saved mix (track volume, mute). */
+/** Host or an Editor may change the saved mix (track volume, mute). */
 export function canEditMix(
   projectPath: string,
   guestMode: string | null,
@@ -190,7 +189,7 @@ export function canEditMix(
   return canApplyPass12(projectPath, guestMode, capabilities);
 }
 
-/** Host or guest ``edit`` may add tracks / import audio. */
+/** Host or an Editor may add tracks / import audio. */
 export function canIngestMedia(
   projectPath: string,
   guestMode: string | null,

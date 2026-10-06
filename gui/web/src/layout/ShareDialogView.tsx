@@ -1,19 +1,17 @@
 import { useId } from "react";
-import type { HostShareRow, ShareRole } from "../types/shares";
+import {
+  type HostShareRow,
+  REVIEW_ROLES,
+  type ShareRole,
+} from "../types/shares";
+import { Button, Dialog, EmptyState, InlineError } from "../ui";
 import type { TunnelStatus } from "../types/tunnel";
-import { Button, Dialog, EmptyState, Field, InlineError } from "../ui";
 import {
   type ShareCopiedKey,
   type ShareCopyKind,
   shareCopyKey,
 } from "./shareCopyKey";
 import { TunnelStatusLine } from "./TunnelStatusLine";
-
-const ROLES: { id: ShareRole; label: string }[] = [
-  { id: "viewer", label: "Viewer" },
-  { id: "commenter", label: "Commenter" },
-  { id: "editor", label: "Editor" },
-];
 
 function formatWhen(iso: string | null | undefined): string {
   if (!iso) {
@@ -117,7 +115,7 @@ export function ShareDialogView(props: ShareDialogViewProps) {
     onOpenRoomPanel,
     tunnel,
   } = props;
-  const roleId = useId();
+  const roleName = useId();
   const mcpId = useId();
   const recordHeadingId = useId();
   const reviewLinksHeadingId = useId();
@@ -138,23 +136,36 @@ export function ShareDialogView(props: ShareDialogViewProps) {
     >
       <div className="share-dialog-body">
         {tunnel ? <TunnelStatusLine status={tunnel} /> : null}
-        <Field label="Anyone with the link" htmlFor={roleId}>
-          <select
-            id={roleId}
-            className="share-dialog-select"
-            value={role}
-            disabled={busy}
-            onChange={(e) => onRoleChange(e.target.value as ShareRole)}
-          >
-            {ROLES.map((opt) => (
-              <option key={opt.id} value={opt.id}>
+        <fieldset className="share-dialog-roles" disabled={busy}>
+          <legend className="share-dialog-legend">Anyone with the link</legend>
+          {REVIEW_ROLES.map((opt) => (
+            <div key={opt.id} className="share-dialog-role">
+              <input
+                id={`${roleName}-${opt.id}`}
+                type="radio"
+                name={roleName}
+                value={opt.id}
+                checked={role === opt.id}
+                aria-describedby={`${roleName}-${opt.id}-description`}
+                onChange={() => onRoleChange(opt.id)}
+              />
+              <label
+                className="share-dialog-role-name"
+                htmlFor={`${roleName}-${opt.id}`}
+              >
                 {opt.label}
-              </option>
-            ))}
-          </select>
-        </Field>
+              </label>
+              <span
+                id={`${roleName}-${opt.id}-description`}
+                className="share-dialog-role-description"
+              >
+                {opt.description}
+              </span>
+            </div>
+          ))}
+        </fieldset>
         <p className="share-dialog-note">
-          Anyone with view can see your cursor, selection, playhead, and
+          Everyone with the link sees your cursor, selection, playhead, and
           viewport while they are in the session.
         </p>
         <label className="share-dialog-check" htmlFor={mcpId}>
@@ -225,8 +236,8 @@ export function ShareDialogView(props: ShareDialogViewProps) {
                     <div className="share-dialog-row-main">
                       <span className="share-dialog-token">{row.token}</span>
                       <span className="share-dialog-meta">
-                        {ROLES.find((r) => r.id === row.docs_role)?.label ??
-                          row.docs_role}
+                        {REVIEW_ROLES.find((r) => r.id === row.docs_role)
+                          ?.label ?? row.docs_role}
                         {row.review_version_label
                           ? ` · ${row.review_version_label}`
                           : ""}

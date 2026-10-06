@@ -19,6 +19,7 @@ import { shareProjectKey } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
 import {
+  COMMENTER_CAPABILITIES,
   minimalProject,
   sampleComment,
   wavResponse,
@@ -117,7 +118,7 @@ describe("PendingEditInspector", () => {
   it.each([
     ["/tmp/p.json", null, null, true],
     [shareProjectKey("tok"), "edit", ["view", "edit"], true],
-    [shareProjectKey("tok"), "suggest", ["view", "suggest"], false],
+    [shareProjectKey("tok"), "comment", COMMENTER_CAPABILITIES, false],
   ] as const)(
     "shows exact timeline islands and review at %s for guest mode %s",
     async (path, guestMode, capabilities, canReview) => {
@@ -176,7 +177,7 @@ describe("PendingEditInspector", () => {
         expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
         expect(
           screen.getByText(
-            "Only the host or an edit guest can review exact range proposals.",
+            "Only the host or an Editor can review exact range proposals.",
           ),
         ).toBeVisible();
       }
@@ -368,15 +369,15 @@ describe("PendingEditInspector", () => {
     );
   });
 
-  it("hides Ask compose when a suggest guest lacks comment", () => {
+  it("hides Ask compose from a Viewer, who cannot comment", () => {
     const key = shareProjectKey("tok");
     useDawStore
       .getState()
       .hydrate(
         key,
         { ...minimalProject(), pending_edits: [sessionCut] },
-        "suggest",
-        ["play", "view", "suggest"],
+        "view",
+        ["play", "view"],
       );
     render(<PendingEditInspector edit={sessionCut} />);
     expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
@@ -877,7 +878,7 @@ describe("PendingEditInspector", () => {
       };
       const share = shareProjectKey("tok");
       expect(
-        retimeable(share, "suggest", ["view", "suggest"], mine.author),
+        retimeable(share, "comment", COMMENTER_CAPABILITIES, mine.author),
       ).toEqual([false, true, false]);
       expect(
         retimeable(share, "edit", ["view", "edit"], "share:cccccccccccc"),
@@ -898,8 +899,8 @@ describe("PendingEditInspector", () => {
         .hydrate(
           key,
           minimalProject({ pending_edits: [guestCut] }),
-          "suggest",
-          ["view", "suggest"],
+          "comment",
+          COMMENTER_CAPABILITIES,
           guestCut.author,
         );
       render(<PendingEditInspector edit={guestCut} />);

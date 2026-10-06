@@ -906,7 +906,7 @@ function PendingEditRegion({
                   }
                   title={
                     !canApply
-                      ? "Only the host or an edit guest can review exact range proposals"
+                      ? "Only the host or an Editor can review exact range proposals"
                       : undefined
                   }
                   onClick={() => void runReviewAction("approve")}
@@ -922,7 +922,7 @@ function PendingEditRegion({
                   }
                   title={
                     !canApply
-                      ? "Only the host or an edit guest can review exact range proposals"
+                      ? "Only the host or an Editor can review exact range proposals"
                       : undefined
                   }
                   onClick={() => void runReviewAction("reject")}
@@ -933,7 +933,7 @@ function PendingEditRegion({
             ) : null}
             {edit.exact_range && !canApply ? (
               <p className="ui-field-hint">
-                Only the host or an edit guest can review exact range proposals.
+                Only the host or an Editor can review exact range proposals.
               </p>
             ) : null}
             {actionState.kind === "busy" ? (

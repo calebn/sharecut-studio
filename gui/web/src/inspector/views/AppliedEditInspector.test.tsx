@@ -4,7 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { restoreAppliedEdit } from "../../api";
 import { useDawStore } from "../../state/dawStore";
 import { expectNoA11yViolations } from "../../test/a11y";
-import { appliedEditRecord, minimalProject } from "../../test/fixtures";
+import {
+  appliedEditRecord,
+  COMMENTER_CAPABILITIES,
+  minimalProject,
+} from "../../test/fixtures";
 import { AppliedEditInspector } from "./AppliedEditInspector";
 
 vi.mock("../../api", () => ({
@@ -45,8 +49,7 @@ describe("AppliedEditInspector restore", () => {
   it.each([
     { capabilities: null },
     { capabilities: ["view"] },
-    { capabilities: ["suggest"] },
-    { capabilities: ["comment"] },
+    { capabilities: COMMENTER_CAPABILITIES },
   ])(
     "explains limited access for a share with capabilities %j",
     async ({ capabilities }) => {

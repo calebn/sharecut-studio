@@ -55,7 +55,7 @@ export function ImpactPanel() {
   const canReviewAll = canReviewPendingEdit(projectPath, shareCapabilities);
   const reviewReason = canReviewAll
     ? undefined
-    : "Only the host or an edit guest can review suggestions.";
+    : "Only the host or an Editor can review suggestions.";
 
   const runBulk = async (action: "approve" | "reject") => {
     const live = useDawStore.getState();

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { canIngestMedia, canManageProjects } from "../shareMode";
+import { COMMENTER_CAPABILITIES } from "../test/fixtures";
 
 describe("ingest permissions", () => {
   it("allows host ingest and project manage", () => {
@@ -12,11 +13,11 @@ describe("ingest permissions", () => {
     expect(canManageProjects("share:tok")).toBe(false);
   });
 
-  it("blocks view/suggest ingest", () => {
+  it("blocks Viewer and Commenter ingest", () => {
     expect(canIngestMedia("share:tok", "view", ["play", "view"])).toBe(false);
-    expect(
-      canIngestMedia("share:tok", "suggest", ["play", "view", "suggest"]),
-    ).toBe(false);
+    expect(canIngestMedia("share:tok", "comment", COMMENTER_CAPABILITIES)).toBe(
+      false,
+    );
     expect(canIngestMedia("share:tok", "edit")).toBe(false);
   });
 });
