@@ -203,7 +203,7 @@ Not fetched by Python bootstrap. After the `gui` extra:
 cd gui/web && npm ci && npm run build
 ```
 
-Produces `gui/web/dist/` (`index.html` + assets). Required for `podcast gui` HTML UI; CLI/MCP editing works without it. The Python wheel does not include it (see [Wheel installs](#wheel-installs-have-no-web-build)).
+Produces `gui/web/dist/` (`index.html` + assets). Required for `podcast gui` HTML UI; CLI/MCP editing works without it. A wheel built after this step includes it; one built without it does not (see [Web build in wheels](#web-build-in-wheels)).
 
 The development-only component catalog uses the same frontend dependencies:
 
@@ -572,14 +572,34 @@ podcast gui --project /path/to/episode.project.json --background
 podcast gui
 ```
 
-### Wheel installs have no web build
+### Web build in wheels
 
-The wheel carries the Python package only. The web build is about 1.9 MB
-uncompressed (about 0.8 MB zipped, against a wheel of about 1.2 MB), but a wheel
-build would have to run `npm run build` first, and a hatch `force-include` of
-`gui/web/dist` fails every `uv sync` or editable install in a tree without that
-build. So the build stays a source-checkout artifact, and the product says so
-when it is missing:
+A wheel ships the web build when `gui/web/dist` exists at build time. The custom
+hatch hook in `hatch_build.py` adds it then, and only then, because a static
+`force-include` of a missing `gui/web/dist` fails every `uv build` and `uv sync`
+in a tree without an npm build. Paths live in `[tool.hatch.build.hooks.custom]`
+in `pyproject.toml`:
+
+| Build | Web build |
+| --- | --- |
+| `uv build` after `npm run build` | wheel `podcast_mcp/gui/web_dist/`; sdist `gui/web/dist/`, so a wheel built from the sdist keeps it |
+| `uv build` with no `gui/web/dist` | absent; the build succeeds |
+| `uv sync` / editable install | never copied; the checkout's `gui/web/dist` is served live |
+
+The web build adds about 0.8 MB to a wheel of about 1.2 MB. Build one locally:
+
+```bash
+(cd gui/web && npm ci && npm run build)
+uv build --wheel
+```
+
+The server resolves its static root in this order (`gui/static_assets.py`:
+`resolve_gui_static_root`): `create_app(static_dir=...)`, then `PODCAST_GUI_DIST`,
+then the wheel's `podcast_mcp/gui/web_dist` (`packaged_gui_dist`), then the
+checkout's `gui/web/dist`.
+
+When none of them holds `index.html` (a source tree before `npm run build`, or a
+wheel built without one), the product says so:
 
 - `podcast gui` prints one `Warning: Sharecut Studio web build not found at <dir>. ...`
   line on stderr before `Viewer: <url>` and keeps serving the API and host MCP.
@@ -588,7 +608,7 @@ when it is missing:
 - MCP `open_gui_tool` / `podcast gui --background` return `static_built: false`
   and the same text as `hint`.
 
-To get the UI with a wheel install, build it from a source checkout and point
+To add the UI to such a wheel install, build it from a source checkout and point
 the launcher at it:
 
 ```bash
@@ -598,9 +618,7 @@ PODCAST_GUI_DIST="$PWD/dist" podcast gui
 ```
 
 The check is "`index.html` exists in the resolved static root"
-(`gui/static_assets.py`: `static_bundle_ready`, `missing_bundle_message`,
-`missing_bundle_response`); `PODCAST_GUI_DIST` and `create_app(static_dir=...)`
-resolve as before.
+(`static_bundle_ready`, `missing_bundle_message`, `missing_bundle_response`).
 
 Agents can call MCP `open_gui_tool` (skill `podcast-open-gui`) instead of blocking on a foreground server.
 Background CLI launch and MCP `open_gui_tool` use `services.app.ensure_viewer`.

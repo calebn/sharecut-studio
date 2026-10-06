@@ -39,6 +39,8 @@ dev = [
     "vulture>=2.14",
     "deptry>=0.23.0",
     "pre-commit>=4.0.0",
+    "hatchling>=1.27.0",
+    "editables>=0.5",
 ]
 speaker = [
     "torch>=2.0.0",
@@ -117,6 +119,12 @@ Issues = "https://github.com/calebn/sharecut-studio/issues"
 
 [project.entry-points."podcast_mcp.extensions"]
 collaboration = "podcast_mcp.extensions.collaboration:create"
+
+# hatch_build.py adds the web build to the sdist and wheel when it has been built.
+# Runtime twin of wheel-web-dist: podcast_mcp.gui.static_assets.packaged_gui_dist().
+[tool.hatch.build.hooks.custom]
+web-dist = "gui/web/dist"
+wheel-web-dist = "podcast_mcp/gui/web_dist"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/podcast_mcp", "src/podcast_relay"]
@@ -272,6 +280,8 @@ extend_exclude = [
     "gui/web",
     "deploy",
     "ux",
+    # Build backend hook; hatchling comes from [build-system].requires.
+    "hatch_build.py",
 ]
 
 [tool.deptry.package_module_name_map]
