@@ -448,7 +448,7 @@ test("resting on a chip grabs its target and keeps dragging", async ({
     envEdge: edge,
   });
   expect(arming).toMatch(/^Envelope point 0\.80× at /);
-  expect(hint).toBe("Hold to drag · lift to select");
+  expect(hint).toBe("Slide to drag · lift to select");
   expect(closedOnGrab).toBe(true);
   // Grabbed from the chip 64 px away, the point keeps its time (to a pixel)
   // and rises with the 20 px drag instead of jumping to the finger.
