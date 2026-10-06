@@ -167,6 +167,9 @@
   background: var(--bg-timeline-scroll);
   /* Scroll OK; browser pinch-zoom off — JS claims pinch via non-passive listeners. */
   touch-action: pan-x pan-y;
+  /* Room under the last lane as deep as the compact inspector covers the
+     scroller, so any selection can scroll clear of it (useCompactInspector). */
+  padding-block-end: var(--sheet-clearance, 0);
 }
 
 /* Sticky identity + time Reel; nowrap is intentional (Sidebar wrap would stack headers above lanes). */

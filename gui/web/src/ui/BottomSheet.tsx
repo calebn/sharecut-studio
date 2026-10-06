@@ -4,7 +4,8 @@ import { Button } from "./Button";
 import { CloseButton } from "./CloseButton";
 import { useDialogModal } from "./useDialogModal";
 
-export type BottomSheetSize = "half" | "full";
+/** `peek`: a content-height strip; `half` and `full`: fixed shares of the slot. */
+export type BottomSheetSize = "peek" | "half" | "full";
 export type BottomSheetBackgroundPolicy = "interactive" | "dismiss";
 
 type Props = {
@@ -12,17 +13,30 @@ type Props = {
   onClose: () => void;
   backgroundPolicy: BottomSheetBackgroundPolicy;
   title?: string;
+  /** Size while not expanded. */
   size?: BottomSheetSize;
+  /** Size while expanded. */
+  expandedSize?: BottomSheetSize;
   children: ReactNode;
-  /** When true, expand to full height (user or parent). */
+  /** When true, show `expandedSize` (user or parent). */
   expanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
+  /** Accessible names of the Expand and Collapse actions. */
+  resizeLabels?: { expand: string; collapse: string };
+  /**
+   * Moved off screen and click-through, still mounted, while the user drags
+   * what it describes; it slides back when they let go.
+   */
+  stowed?: boolean;
+  /** Extra class on the panel (the compact inspector's strip and sheet). */
+  className?: string;
 };
 
 /**
  * Transient bottom sheet for phone/tablet inspector and quick actions.
  * Peek / non-modal: Escape + focus restore; no chrome inert / Tab trap.
  * NN/G: visible Close, no stacking (parent must not nest sheets).
+ * No drag gesture: Expand and Collapse are visible buttons.
  */
 export function BottomSheet({
   open,
@@ -30,14 +44,19 @@ export function BottomSheet({
   backgroundPolicy,
   title,
   size = "half",
+  expandedSize = "full",
   children,
   expanded,
   onExpandedChange,
+  resizeLabels,
+  stowed = false,
+  className,
 }: Props) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const isFull = expanded ?? size === "full";
+  const isExpanded = expanded ?? size === expandedSize;
+  const current = isExpanded ? expandedSize : size;
 
   const dismiss = useCallback(() => {
     onClose();
@@ -57,7 +76,10 @@ export function BottomSheet({
   }
 
   return createPortal(
-    <div className="bottom-sheet-root" role="presentation">
+    <div
+      className={`bottom-sheet-root${stowed ? " is-stowed" : ""}`}
+      role="presentation"
+    >
       {backgroundPolicy === "interactive" ? (
         <div
           className="bottom-sheet-scrim bottom-sheet-scrim--interactive"
@@ -73,7 +95,7 @@ export function BottomSheet({
       )}
       <div
         ref={panelRef}
-        className={`bottom-sheet${isFull ? " bottom-sheet--full" : " bottom-sheet--half"}`}
+        className={`bottom-sheet bottom-sheet--${current}${className ? ` ${className}` : ""}`}
         role="dialog"
         aria-modal="false"
         aria-labelledby={title ? titleId : undefined}
@@ -93,9 +115,12 @@ export function BottomSheet({
                   className="bottom-sheet-resize-action"
                   variant="link"
                   type="button"
-                  onClick={() => onExpandedChange(!isFull)}
+                  aria-label={
+                    isExpanded ? resizeLabels?.collapse : resizeLabels?.expand
+                  }
+                  onClick={() => onExpandedChange(!isExpanded)}
                 >
-                  {isFull ? "Collapse" : "Expand"}
+                  {isExpanded ? "Collapse" : "Expand"}
                 </Button>
               ) : null}
               <CloseButton ref={closeRef} onClick={dismiss} />

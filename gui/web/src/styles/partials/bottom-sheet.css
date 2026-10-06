@@ -23,6 +23,12 @@ html[data-shell="tablet"][data-layout="timeline"] .bottom-sheet-root {
   bottom: var(--status-height);
 }
 
+/* A phone held sideways gets the tablet shell; its compact inspector takes
+   the bottom tabs' place (responsive.css hides them), not the timeline's. */
+html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
+  bottom: var(--status-height);
+}
+
 .bottom-sheet-scrim {
   position: absolute;
   inset: 0;
@@ -73,6 +79,39 @@ html[data-shell="tablet"][data-layout="timeline"] .bottom-sheet-root {
 
 .bottom-sheet--full {
   height: min(100%, 56.25rem);
+}
+
+/* A strip as tall as its content: the selection's name, value and nudges. */
+.bottom-sheet--peek {
+  height: auto;
+}
+
+.bottom-sheet--peek .bottom-sheet-header {
+  padding-block: var(--space-1);
+}
+
+/* Compact inspector expanded on a phone-sized screen: half the slot at most,
+   never the taller modifier share, and short enough to leave the transport,
+   ruler, marker lane and one coarse-pointer lane (104 px) above it, so the
+   selection stays in view (the inspector scrolls inside). */
+.bottom-sheet--compact.bottom-sheet--half,
+.bottom-sheet--compact.bottom-sheet--half:has(.modifier-inspector) {
+  height: min(50%, 26.25rem, 100% - 13rem);
+}
+
+/* Out of the way while the user drags what it describes. */
+.bottom-sheet-root.is-stowed .bottom-sheet {
+  translate: 0 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bottom-sheet-root .bottom-sheet--compact {
+    transition:
+      translate var(--motion-panel) var(--motion-ease-out),
+      opacity var(--motion-panel) var(--motion-ease-out);
+  }
 }
 
 /* stylelint-disable-next-line media-feature-name-disallowed-list -- user-approved: tablet short viewport for portaled sheets */
