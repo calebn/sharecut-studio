@@ -12,13 +12,18 @@ description: >-
 
 - **-16 LUFS** integrated, **-1.5 dBTP** true peak (podcast / Apple-friendly)
 - Configured in `.agents/defaults/pipeline.yaml` under `master`
-- Mastering measures with one `ebur128` pass (I, TP, LRA, gate threshold), then runs
-  FFmpeg's `loudnorm` in linear mode fed those values — accurate to a few tenths of a LU, not the 1-2+ LU drift and
-  pumping that single-pass `loudnorm` can produce. Details: [docs/audio-engineering.md](../../../docs/audio-engineering.md).
-- Mastered WAV keeps the premix sample rate/channels (loudnorm's internal 192 kHz path is
-  not left in deliverables).
-- If first-pass QC under-shoots integrated LUFS on a peaky premix, the step retries once
-  after `master.crest_tame_af` (default `dynaudnorm=…`) before writing `master_qc.json`.
+- Mastering measures the premix with one `ebur128` pass (I, TP, LRA, gate threshold) and
+  picks a plan from it:
+  - **`loudnorm`** when the gain to the target keeps the true peak under the ceiling:
+    FFmpeg's `loudnorm` in linear mode fed those values, accurate to a few tenths of a LU
+    without the 1-2+ LU drift and pumping of single-pass `loudnorm`.
+  - **`limit`** when that gain would push peaks over the ceiling (a peaky premix): the
+    same static gain into a 4x-oversampled `alimiter` 0.5 dB under the ceiling, then a
+    trim onto the target. It re-drives the limiter when it took more loudness than the
+    trim can restore.
+  Details: [docs/audio-engineering.md § Mastering plan](../../../docs/audio-engineering.md#mastering-plan--mastering-qc).
+- Mastered WAV keeps the premix sample rate/channels (neither loudnorm's internal 192 kHz
+  path nor the limiter's oversampling is left in deliverables).
 
 ## Verify after mastering
 
@@ -28,15 +33,22 @@ mastering** before telling the user the episode is ready:
 ```json
 {
   "target_integrated_lufs": -16.0,
-  "measured": {"integrated_lufs": -16.1, "true_peak_db": -1.6, "lra": 7.2},
+  "measured": {"integrated_lufs": -16.0, "true_peak_db": -1.7, "lra": 7.9},
   "within_tolerance": true,
   "issues": [],
-  "normalization_type": "linear",
-  "loudnorm_input": {"input_i": -20.1, "input_tp": -3.0, "input_lra": 6.0, "input_thresh": -30.5, "target_offset": 0.0}
+  "premix_input": {"input_i": -21.1, "input_tp": -1.0, "input_lra": 7.0, "input_thresh": -32.0, "target_offset": 0.0},
+  "plan": "limit",
+  "normalization_type": null,
+  "limiter": {"gain_db": 5.1, "drive_db": 5.9, "limit_db": -2.0, "renders": 2, "trim_db": 0.3, "peak_reduction_db": 6.9, "loudness_reduction_lu": 1.1}
 }
 ```
 
-If `normalization_type` is `"dynamic"`, tell the user the master needed dynamic limiting.
+`premix_input` is the premix as measured, before any mastering. If `plan` is `"limit"`,
+tell the user the premix was too peaky for a static gain and report the limiter's
+`peak_reduction_db` (gain reduction on the loudest peak) and `loudness_reduction_lu`
+(its average reduction); several dB of loudness reduction is worth a listen. If the plan
+is `"loudnorm"` and `normalization_type` is `"dynamic"`, the premix LRA exceeded
+`master.lra` and loudnorm compressed it dynamically.
 
 If `within_tolerance` is `false`, read `issues` and flag it to the user before export —
 don't proceed silently. Tolerances: `master.qc_lufs_tolerance_lu` (default `0.5` LU),

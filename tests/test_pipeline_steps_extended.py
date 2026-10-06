@@ -849,7 +849,7 @@ def test_master_loudness_writes_qc_report(minimal_project, sample_wav, tmp_works
     assert qc["target_integrated_lufs"] == -16.0
     assert qc["target_true_peak_db"] == -1.5
     assert "issues" in qc
-    assert qc["normalization_type"] in {"linear", "dynamic", None}
+    assert (qc["plan"], qc["normalization_type"], qc["limiter"]) == ("loudnorm", "linear", None)
 
 
 def test_master_loudness_qc_flags_out_of_tolerance(minimal_project, sample_wav, tmp_workspace):
@@ -868,7 +868,6 @@ def test_master_loudness_qc_flags_out_of_tolerance(minimal_project, sample_wav, 
     qc = json.loads((proj.artifacts_dir() / "master_qc.json").read_text(encoding="utf-8"))
     assert qc["within_tolerance"] is False
     assert len(qc["issues"]) == 2
-    assert qc.get("crest_tame_af")
 
 
 def test_master_loudness_reports_both_passes_on_one_bar(minimal_project, sample_wav, tmp_workspace):
@@ -912,30 +911,6 @@ def test_master_loudness_reports_both_passes_on_one_bar(minimal_project, sample_
     assert qc_updates
 
 
-def test_master_loudness_skips_crest_tame_when_disabled(minimal_project, sample_wav, tmp_workspace):
-    eng = FFmpegEngine()
-    if not eng.check_available()[0]:
-        pytest.skip("ffmpeg not available")
-    proj = _dialogue_project(minimal_project, sample_wav, tmp_workspace)
-    defaults = load_defaults()
-    defaults = {**defaults, "master": {**defaults.get("master", {}), "crest_tame_af": ""}}
-    steps.ingest_tracks(proj, defaults)
-    steps.assemble_timeline(proj, defaults)
-    with (
-        patch(
-            "podcast_mcp.engines.ffmpeg.FFmpegEngine.measure_loudness_full",
-            return_value={"integrated_lufs": -20.0, "true_peak_db": -1.5, "lra": 5.0},
-        ),
-        patch.object(FFmpegEngine, "filter_audio") as filter_audio,
-    ):
-        steps.master_loudness(proj, defaults)
-    filter_audio.assert_not_called()
-    qc = json.loads((proj.artifacts_dir() / "master_qc.json").read_text(encoding="utf-8"))
-    assert qc["within_tolerance"] is False
-    assert "crest_tame_af" not in qc
-
-
-@pytest.mark.xfail(strict=True, reason="#8: dynamic loudnorm under-shoots a peaky premix")
 def test_master_loudness_limits_a_peaky_premix_onto_the_target(
     minimal_project, peaky_wav, tmp_workspace
 ):

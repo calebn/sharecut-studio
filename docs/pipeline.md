@@ -22,7 +22,7 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 18. `assemble_timeline` — Final stems after edits + FX
 19. `reconcile_transcript` — Pass 2: post-FX audibility refresh
 20. `mix_with_music` — Intro/outro/bed + ducking envelopes
-21. `master_loudness` — two-pass loudnorm to podcast target (pass 1 is `ebur128`; `master_qc.json` records `normalization_type`); rebuilds a missing or stale premix first; writes `artifacts/master_qc.json` verification report and `artifacts/mastered.hash`. Progress: `master_loudnorm` / `master_qc_measure` children in media seconds (ffmpeg `-progress`).
+21. `master_loudness` — masters to the podcast target from one `ebur128` pass over the premix: linear two-pass loudnorm when the gain fits under the true-peak ceiling, otherwise the gain into a 4x-oversampled limiter plus a trim onto the target ([audio-engineering.md § Mastering plan](audio-engineering.md#mastering-plan--mastering-qc); `master_qc.json` records `premix_input`, `plan`, `normalization_type` and `limiter`); rebuilds a missing or stale premix first; writes `artifacts/master_qc.json` verification report and `artifacts/mastered.hash`. Progress: `master_loudnorm` / `master_qc_measure` children in media seconds (ffmpeg `-progress`).
 22. `export_deliverables` — re-masters when `mastered.hash` doesn't match the current premix. A master with no hash (mastered before #425) is re-mastered once, and an imported or legacy episode with only `mastered.wav` and no `premix.wav` is re-assembled, re-mixed and re-mastered instead of exported as-is; audio (WAV + configured FFmpeg formats), SRT, MD; writes `artifacts/export_qc.json` (reconciliation staleness + mastering QC + unaccepted relative align drift rollup — check `ok` before shipping; a clean run is `ok` — `mix_with_music` does not stale reconciliation (#621))
 
 Transcript quality runs **before** focus/tighten so search and narrative edits use reconciled, precorrected, refined text.
@@ -350,8 +350,8 @@ performance:
 
 Set `max_workers: 1` to force fully serial, single-threaded execution — useful when
 debugging a specific cut/render issue and you want deterministic, reproducible
-single-threaded behavior. `master_loudness`'s two-pass loudnorm is not parallelized
-(pass 2 depends on the ebur128 pass-1 measurement of the same file).
+single-threaded behavior. `master_loudness` is not parallelized
+(its plan and renders depend on the ebur128 pass-1 measurement of the same file).
 
 ### Single-pass timeline render
 

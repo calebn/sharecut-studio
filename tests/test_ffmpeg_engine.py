@@ -17,6 +17,7 @@ from podcast_mcp.engines.ffmpeg import (
     _effect_filter,
     _escape_drawtext,
 )
+from podcast_mcp.engines.mastering import LoudnormPlan
 from podcast_mcp.models import (
     AutomationEnvelope,
     AutomationPoint,
@@ -691,7 +692,7 @@ def test_measure_loudness_full_uses_given_total_without_probing(tmp_path: Path):
     assert run_with_progress.call_args.kwargs["total_sec"] == 7.5
 
 
-def test_master_loudnorm_probes_input_once_for_both_passes(tmp_path: Path):
+def test_master_loudness_probes_input_once_for_both_passes(tmp_path: Path):
     eng = FFmpegEngine()
     src = tmp_path / "premix.wav"
     src.write_bytes(b"x")
@@ -704,10 +705,10 @@ def test_master_loudnorm_probes_input_once_for_both_passes(tmp_path: Path):
             eng, "_run_with_progress", side_effect=[_EBUR128_SUMMARY, _LOUDNORM_JSON_STDERR]
         ) as rwp,
     ):
-        eng.master_loudnorm(
+        eng.master_loudness(
             src,
             out,
-            integrated_lufs=-16.0,
+            integrated_lufs=-20.0,
             true_peak_db=-1.5,
             on_progress=MagicMock(),
             on_measure_progress=MagicMock(),
@@ -716,7 +717,7 @@ def test_master_loudnorm_probes_input_once_for_both_passes(tmp_path: Path):
     assert [c.kwargs["total_sec"] for c in rwp.call_args_list] == [2.0, 2.0]
 
 
-def test_master_loudnorm_forwards_measure_progress(tmp_path: Path):
+def test_master_loudness_forwards_measure_progress(tmp_path: Path):
     eng = FFmpegEngine()
     src = tmp_path / "premix.wav"
     src.write_bytes(b"x")
@@ -732,14 +733,14 @@ def test_master_loudnorm_forwards_measure_progress(tmp_path: Path):
         patch("podcast_mcp.engines.ffmpeg.run") as run,
     ):
         run.return_value = MagicMock(stderr="", returncode=0)
-        eng.master_loudnorm(
+        eng.master_loudness(
             src, out, integrated_lufs=-16.0, true_peak_db=-1.5, on_measure_progress=cb
         )
     assert stats.call_args.kwargs["on_progress"] is cb
     assert stats.call_args.kwargs["total_sec"] == 1.0
 
 
-def test_master_loudnorm_two_pass_uses_measured_values(tmp_path: Path):
+def test_master_loudness_two_pass_uses_measured_values(tmp_path: Path):
     eng = FFmpegEngine()
     src = tmp_path / "premix.wav"
     src.write_bytes(b"x")
@@ -756,7 +757,7 @@ def test_master_loudnorm_two_pass_uses_measured_values(tmp_path: Path):
             MagicMock(stderr=_EBUR128_SUMMARY, stdout="", returncode=0),
             MagicMock(stderr=_LOUDNORM_JSON_STDERR, stdout="", returncode=0),
         ]
-        result = eng.master_loudnorm(src, out, integrated_lufs=-16.0, true_peak_db=-1.5)
+        result = eng.master_loudness(src, out, integrated_lufs=-20.0, true_peak_db=-1.5)
     assert run.call_count == 2
     second_cmd = run.call_args_list[1][0][0]
     af = second_cmd[second_cmd.index("-af") + 1]
@@ -766,12 +767,13 @@ def test_master_loudnorm_two_pass_uses_measured_values(tmp_path: Path):
     assert "print_format=json" in af
     assert second_cmd[second_cmd.index("-ar") + 1] == "44100"
     assert second_cmd[second_cmd.index("-ac") + 1] == "1"
+    assert result.plan == LoudnormPlan()
     assert result.normalization_type == "dynamic"
-    assert result.measured_input is not None
-    assert result.measured_input["input_i"] == -23.7
+    assert result.input_stats is not None
+    assert result.input_stats["input_i"] == -23.7
 
 
-def test_master_loudnorm_falls_back_when_measure_fails(tmp_path: Path):
+def test_master_loudness_falls_back_when_measure_fails(tmp_path: Path):
     eng = FFmpegEngine()
     src = tmp_path / "premix.wav"
     src.write_bytes(b"x")
@@ -786,12 +788,13 @@ def test_master_loudnorm_falls_back_when_measure_fails(tmp_path: Path):
     ):
         with patch("podcast_mcp.engines.ffmpeg.run") as run:
             run.return_value = MagicMock(stderr="", returncode=0)
-            result = eng.master_loudnorm(src, out, integrated_lufs=-16.0, true_peak_db=-1.5)
+            result = eng.master_loudness(src, out, integrated_lufs=-16.0, true_peak_db=-1.5)
     cmd = run.call_args[0][0]
     af = cmd[cmd.index("-af") + 1]
     assert af == "loudnorm=I=-16.0:TP=-1.5:LRA=11.0:print_format=json"
     assert cmd[cmd.index("-ar") + 1] == "48000"
     assert cmd[cmd.index("-ac") + 1] == "2"
+    assert result.plan == LoudnormPlan()
     assert result.normalization_type is None
 
 
