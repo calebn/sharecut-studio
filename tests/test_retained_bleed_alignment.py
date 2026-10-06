@@ -18,6 +18,8 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 
+pytestmark = pytest.mark.usefixtures("one_phrase_copy_evidence")
+
 RATE = 48_000
 
 

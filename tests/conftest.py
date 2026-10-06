@@ -175,6 +175,18 @@ def _isolate_host_object_store(
 
 
 @pytest.fixture
+def one_phrase_copy_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Let the bleed gate trust a copy path from one short foreign phrase.
+
+    The gate needs 30 s of the peer's speech before it trusts a copy path, which
+    ``test_bleed_attenuation`` pins. Fixtures with one phrase test other behaviour.
+    """
+    from podcast_mcp.engines import bleed_gate
+
+    monkeypatch.setattr(bleed_gate, "_MIN_PATH_FRAMES", 50)
+
+
+@pytest.fixture
 def tmp_workspace(tmp_path: Path) -> Path:
     ws = tmp_path / "episode_ws"
     ws.mkdir()
