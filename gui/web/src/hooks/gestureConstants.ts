@@ -52,6 +52,25 @@ export const HANDLE_DRAG_MIN_PX = 3;
  */
 export const CHIP_SETTLE_MS = 100;
 
+/**
+ * Hold-to-repeat for nudge buttons. A held button steps again after the
+ * long-press hold, Android's `getKeyRepeatTimeout()` (its long-press timeout),
+ * then every 100 ms, and after `NUDGE_ACCELERATE_AFTER` repeats every 50 ms,
+ * Android's `getKeyRepeatDelay()`, in the `ViewConfiguration` source cited
+ * above. Keyboard users get their system's own key repeat instead.
+ */
+export const NUDGE_REPEAT_MS = 100;
+export const NUDGE_REPEAT_FAST_MS = 50;
+export const NUDGE_ACCELERATE_AFTER = 4;
+
+/** Wait before the next step of a held nudge, after `repeats` repeats so far. */
+export function nudgeRepeatDelayMs(repeats: number): number {
+  if (repeats === 0) return LONG_PRESS_MS;
+  return repeats < NUDGE_ACCELERATE_AFTER
+    ? NUDGE_REPEAT_MS
+    : NUDGE_REPEAT_FAST_MS;
+}
+
 /** A clip-body press must travel this far (any direction) before it becomes a move. */
 export const MOVE_THRESHOLD_PX = 5;
 

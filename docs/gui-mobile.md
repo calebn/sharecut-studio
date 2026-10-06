@@ -65,7 +65,11 @@ Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/
 
 With the `touchChooser` lab on, a timeline selection in Timeline mode opens the
 **compact inspector** instead: a peek strip with the target's name, its key
-value and, for a clip's fade or trim, 44 px nudges at the keyboard's steps.
+value and rows of 44 px nudges at the keyboard's steps: a clip's fade or
+trim, a pending edit's start and end, and (for the host) an envelope point's
+time and level. Holding a nudge repeats it, faster after a few steps, and the
+run saves as one edit; a held run stops at a soft boundary (the playhead, a
+chapter, a clip or pending edge) and a fresh press goes past it.
 **Expand** opens the full inspector at no more than half the slot, **Collapse**
 returns to the strip, and the last choice opens the next selection. The
 timeline scrolls the selection above the strip or sheet, and any timeline drag
