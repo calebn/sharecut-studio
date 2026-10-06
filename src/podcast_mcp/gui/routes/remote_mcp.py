@@ -93,14 +93,6 @@ def mcp_info(token: str) -> dict[str, Any]:
     }
 
 
-@router.api_route(
-    "/mcp/{token}/mcp",
-    methods=["GET", "POST", "OPTIONS"],
-)
-@router.api_route(
-    "/r/{token}/mcp",
-    methods=["GET", "POST", "OPTIONS"],
-)
 async def mcp_bridge(token: str, request: Request) -> Any:
     """Capability-scoped guest MCP endpoint (JSON-RPC over Streamable HTTP)."""
     _require_mcp_capability(token)
@@ -193,3 +185,10 @@ async def mcp_bridge(token: str, request: Request) -> Any:
     if response is None:
         return Response(status_code=202)
     return JSONResponse(response, media_type="application/json")
+
+
+# One route per method: FastAPI names every operation of a multi-method route after
+# its first method, so a shared handler would emit duplicate operationIds.
+for _path in ("/mcp/{token}/mcp", "/r/{token}/mcp"):
+    for _method in ("GET", "POST", "OPTIONS"):
+        router.add_api_route(_path, mcp_bridge, methods=[_method])
