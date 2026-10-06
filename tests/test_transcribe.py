@@ -325,6 +325,16 @@ def test_flag_anomalous_asr_durations_marks_deferred_without_clamping() -> None:
     assert flags[0]["duration_sec"] == 9.3
 
 
+def test_flag_anomalous_asr_durations_flags_an_overlong_word_under_the_cap() -> None:
+    words = [
+        TranscriptWord(text="-huh.", start=1.0, end=2.5, overlong=True),
+        TranscriptWord(text="-huh.", start=3.0, end=4.5),
+    ]
+    flags = flag_anomalous_asr_durations(words, max_word_sec=2.0, track_id="lana")
+    assert [(f["word_index"], f["start"], f["end"]) for f in flags] == [(0, 1.0, 2.5)]
+    assert [w.audibility_status for w in words] == ["deferred", None]
+
+
 def test_flag_anomalous_asr_durations_skips_mutation_when_requested() -> None:
     words = [TranscriptWord(text="don't", start=1.0, end=10.3)]
     flags = flag_anomalous_asr_durations(words, max_word_sec=2.0, mutate=False)
