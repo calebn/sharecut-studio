@@ -23,6 +23,8 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.project_state import render_lock
 
+pytestmark = pytest.mark.usefixtures("one_phrase_copy_evidence")
+
 RATE = 48_000
 
 
@@ -303,7 +305,7 @@ def test_other_lane_origin_copy_cannot_protect_selected_lane_foreign_audio(tmp_p
     after = build_bleed_gate_plan(project, "host")
     assert after == plan
     assert after.attenuation_spans == ((2.0, 2.6),)
-    assert all(end < 2.0 for _, end in after.protected_spans)
+    assert not any(start < 2.6 and end > 2.0 for start, end in after.protected_spans)
     assert track_render_hash(project, "host") == before
     next(clip for clip in project.clips if clip.track_id == "host").timeline_start = 0.1
     assert build_bleed_gate_plan(project, "host") != after

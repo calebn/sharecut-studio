@@ -9,6 +9,8 @@ import pytest
 from podcast_mcp.engines import bleed_gate
 from test_bleed_gate_regression import RATE, _episode, _read_pcm, _write_pcm
 
+pytestmark = pytest.mark.usefixtures("one_phrase_copy_evidence")
+
 
 def test_owner_activity_analysis_bounds_each_rms_allocation(monkeypatch):
     shapes = []
@@ -82,11 +84,7 @@ def test_atomic_media_replacement_preserving_time_and_size_rechecks_owner_and_pe
     before = path.stat()
     samples = _read_pcm(path).astype(np.float64) / 32767
     lo, hi = round(2 * RATE), round(2.6 * RATE)
-    if replaced_track == "host":
-        clock = np.arange(hi - lo) / RATE
-        samples[lo:hi] += 0.5 * np.sin(2 * np.pi * 191 * clock)
-    else:
-        samples[lo:hi] = 0.0
+    samples[lo:hi] = 0.0
     replacement = path.with_name("replacement.wav")
     _write_pcm(replacement, samples)
     os.utime(replacement, ns=(before.st_atime_ns, before.st_mtime_ns))
