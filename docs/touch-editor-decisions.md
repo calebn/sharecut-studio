@@ -288,3 +288,27 @@ clear-clip entry need disjoint regions sized through the common lane geometry.
 The existing interactive background, controlled Expand/Collapse, modal policy,
 permission and envelope commit/cancel contracts remain the boundaries. Physical
 mobile and assistive-technology acceptance remains #960.
+
+## Shared hit resolver (#1051)
+
+Dense timeline targets no longer compete by CSS z-index and DOM order. Each
+small target marks itself with `hitTargetProps` (`timeline/hitTargets.ts`):
+envelope points, fade corners, trim strips, roll seams, join badges, pending
+edit edges and split flags, and chapter markers. Plain hit areas behind them
+(clip body, lane seek, envelope lane, wide pending region) carry
+`HIT_SURFACE_PROPS`.
+
+The resolver's data shape is `HitCandidate` in `timeline/hitCandidates.ts`:
+`{kind, id, x, y, distance, priority, selected}`, in viewport pixels. A touch
+reaches every target whose box is within 22 px (`TOUCH_HIT_RADIUS_PX`); mouse
+and pen reach only the boxes under the pointer. Candidates rank selected
+first, then by distance to the target's core (a square's centre, a thin
+strip's centre line), then by the kind priority in `HIT_KINDS`.
+
+`attachHitRouting` (`timeline/hitRouting.ts`) listens for `pointerdown` at the
+document in the capture phase. When the press lands on a marked target and
+two or more targets are in reach, it stops the original event and replays an
+identical press on the winner, so the winner's own capture, drag, commit,
+cancel and History paths run unchanged. The browser's following click is
+replaced with a click on the winner. One target in reach, or a press on a
+surface, passes through untouched.

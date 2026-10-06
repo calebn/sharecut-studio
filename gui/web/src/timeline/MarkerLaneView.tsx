@@ -11,6 +11,7 @@ import { MARKER_ROW_HEIGHT } from "../utils/layout";
 import { formatTimeShort } from "../utils/time";
 import { chapterLabelRoomPx } from "./chapterLabels";
 import type { ClippingFlag } from "./clippingFlags";
+import { hitTargetProps } from "./hitTargets";
 import { type SocialDragMode, socialSpanAfterDrag } from "./socialDrag";
 import type { MarkerRows } from "./timelineMetrics";
 
@@ -188,6 +189,11 @@ export function MarkerLaneView({
                 key={`${ch.time}-${ch.title}`}
                 type="button"
                 className="chapter-marker"
+                {...hitTargetProps(
+                  "chapter",
+                  `${ch.time}-${ch.title}`,
+                  ch.time,
+                )}
                 style={
                   {
                     left: ch.time * zoomPxPerSec - MARKER_HALF,
