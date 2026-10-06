@@ -210,7 +210,7 @@ def review_share_cmd(
     if not version:
         typer.echo("--version is required for review shares", err=True)
         raise typer.Exit(2)
-    review_role = role or "commenter"
+    review_role = "commenter" if role is None else role
     try:
         caps = capabilities_for_role(review_role, with_mcp=with_mcp)
     except ValueError as exc:

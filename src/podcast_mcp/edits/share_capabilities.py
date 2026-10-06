@@ -129,22 +129,26 @@ def review_role_for_capabilities(caps: list[str] | None) -> ReviewRole | None:
 def normalize_capabilities(caps: list[str] | str | None) -> list[str]:
     """Return a deduplicated, validated capability list.
 
-    ``None`` or empty input returns ``DEFAULT_CAPABILITIES`` (a Commenter link).
-    String input is split on commas. Unknown capability names are silently dropped.
-    ``view`` implies ``play`` for streaming.
+    ``None`` (capabilities omitted) is the explicit default, a Commenter link
+    (``DEFAULT_CAPABILITIES``). Anything else must name at least one capability and
+    only known ones: an empty list or an unknown name raises ``ValueError`` rather
+    than minting a link with powers nobody asked for. String input is split on
+    commas. ``view`` implies ``play`` for streaming.
     """
-    if not caps:
+    if caps is None:
         return list(DEFAULT_CAPABILITIES)
     raw = [c.strip() for c in caps.split(",") if c.strip()] if isinstance(caps, str) else list(caps)
-    seen: set[str] = set()
-    out: list[str] = []
-    for c in raw:
-        if c in _KNOWN and c not in seen:
-            out.append(c)
-            seen.add(c)
-    if CAP_VIEW in seen and CAP_PLAY not in seen:
+    if not raw:
+        raise ValueError(f"share capabilities are empty; expected some of {ALL_CAPABILITIES}")
+    unknown = sorted({c for c in raw if c not in _KNOWN})
+    if unknown:
+        raise ValueError(
+            f"unknown share capabilities {unknown}; expected some of {ALL_CAPABILITIES}"
+        )
+    out = list(dict.fromkeys(raw))
+    if CAP_VIEW in out and CAP_PLAY not in out:
         out.insert(0, CAP_PLAY)
-    return out if out else list(DEFAULT_CAPABILITIES)
+    return out
 
 
 def has_capability(caps: list[str] | None, cap: str) -> bool:
