@@ -2806,6 +2806,70 @@ def test_gradual_onset_after_a_padded_cut_keeps_the_full_post_pad_fade_in(tmp_pa
     assert resumed.fade_in_ms == recommended
 
 
+def _late_filler_defaults(join: str) -> dict:
+    from podcast_mcp.config import load_defaults
+
+    defaults = load_defaults()
+    defaults["tighten"]["filler_room_tone_replace"] = join == "padded"
+    # The fillers alone: the word gaps after them are not pause hits.
+    defaults["tighten"]["max_pause_sec"] = 99.0
+    return defaults
+
+
+@pytest.mark.parametrize("join", ["padded", "splice"])
+@pytest.mark.parametrize(
+    ("word_start", "cut_start"),
+    [
+        # The "um" voices from 0.90 s; the aligner starts it 300 ms late (lab 616.26
+        # and 713.00, #1061).
+        (1.2, 0.88),
+        # A word start on the voice onset keeps its edge.
+        (0.9, 0.90),
+    ],
+)
+def test_filler_cut_starts_before_the_voice_an_aligner_timed_late(
+    tmp_path, join, word_start, cut_start
+):
+    project = _audio_project(
+        tmp_path,
+        [(0.2, _voice(0.3)), (0.9, _voice(0.4)), (3.4, _voice(0.3))],
+        [
+            TranscriptWord(text="So", start=0.2, end=0.5, confidence=0.95),
+            TranscriptWord(text="um,", start=word_start, end=1.3, confidence=0.9),
+            TranscriptWord(text="okay.", start=3.4, end=3.7, confidence=0.95),
+        ],
+    )
+
+    (decision,) = analyze_fillers_and_pauses(
+        project, project.transcripts[0], _late_filler_defaults(join)
+    )
+
+    assert (decision.reason, decision.review_required) == ("filler:um", False)
+    assert decision.start == pytest.approx(cut_start, abs=0.005)
+
+
+@pytest.mark.parametrize("join", ["padded", "splice"])
+def test_filler_whose_voice_runs_on_from_a_kept_word_is_skipped(tmp_path, join):
+    project = _audio_project(
+        tmp_path,
+        # "So" runs straight into the "uh" with no quiet between (lab "to like" at 424.6).
+        [(0.2, _voice(1.1)), (3.4, _voice(0.3))],
+        [
+            TranscriptWord(text="So", start=0.2, end=0.8, confidence=0.95),
+            TranscriptWord(text="uh,", start=1.0, end=1.3, confidence=0.9),
+            TranscriptWord(text="okay.", start=3.4, end=3.7, confidence=0.95),
+        ],
+    )
+    skips: dict[str, int] = {}
+
+    decisions = analyze_fillers_and_pauses(
+        project, project.transcripts[0], _late_filler_defaults(join), skip_counts=skips
+    )
+
+    assert [d.reason for d in decisions] == []
+    assert skips == {"filler_onset": 1}
+
+
 def _scope_result(scope: str):
     from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
 
