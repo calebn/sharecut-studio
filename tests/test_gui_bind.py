@@ -306,3 +306,100 @@ def test_cors_wildcard_env_fails_closed_instead_of_reflecting_origin(
         f"credentialed allow-origin={credentialed.headers.get('access-control-allow-origin')!r}, "
         f"allow-credentials={credentialed.headers.get('access-control-allow-credentials')!r}"
     )
+
+
+_DEFAULT_CORS_ORIGINS = [
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+    "http://127.0.0.1:8765",
+    "http://localhost:8765",
+]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "*",
+        "https://ok.example,*",
+        "https://*.example",
+        "https://a.example/app",
+        "https://a.example?x=1",
+        "https://a.example#frag",
+        "ftp://a.example",
+        "http://a.example",
+        "https://user:pw@a.example",
+        "a.example",
+    ],
+)
+def test_cors_origins_env_rejects_non_exact_origins(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    pytest.importorskip("fastapi")
+    from podcast_mcp.gui.server import _cors_origins
+    from podcast_mcp.runtime_config import RuntimeConfigError
+
+    monkeypatch.setenv(_CORS_ENV, value)
+    with pytest.raises(RuntimeConfigError, match=_CORS_ENV) as exc:
+        _cors_origins()
+    assert "pw" not in str(exc.value)
+
+
+def test_cors_origins_env_normalizes_trailing_slash_and_case(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("fastapi")
+    from podcast_mcp.gui.server import _cors_origins
+
+    monkeypatch.setenv(
+        _CORS_ENV, "https://A.example/, http://localhost:9000/ ,, https://b.example:8443"
+    )
+    assert _cors_origins() == [
+        *_DEFAULT_CORS_ORIGINS,
+        "https://a.example",
+        "http://localhost:9000",
+        "https://b.example:8443",
+    ]
+
+
+@pytest.mark.parametrize("value", [None, "", "  ", " , "])
+def test_cors_origins_env_unset_or_blank_keeps_loopback_defaults(
+    monkeypatch: pytest.MonkeyPatch, value: str | None
+) -> None:
+    pytest.importorskip("fastapi")
+    from podcast_mcp.gui.server import _cors_origins
+
+    if value is None:
+        monkeypatch.delenv(_CORS_ENV, raising=False)
+    else:
+        monkeypatch.setenv(_CORS_ENV, value)
+    assert _cors_origins() == _DEFAULT_CORS_ORIGINS
+
+
+def test_cors_allows_only_listed_origins_with_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    monkeypatch.setenv(_CORS_ENV, "https://listed.example/")
+    client = TestClient(create_app())
+
+    def preflight(origin: str) -> dict[str, str | None]:
+        res = client.options(
+            "/api/health",
+            headers={"Origin": origin, "Access-Control-Request-Method": "GET"},
+        )
+        return {
+            "origin": res.headers.get("access-control-allow-origin"),
+            "credentials": res.headers.get("access-control-allow-credentials"),
+        }
+
+    assert preflight("https://listed.example") == {
+        "origin": "https://listed.example",
+        "credentials": "true",
+    }
+    assert preflight(_EVIL_ORIGIN)["origin"] is None
+    refused = client.get("/api/health", headers={"Origin": _EVIL_ORIGIN})
+    assert "access-control-allow-origin" not in refused.headers

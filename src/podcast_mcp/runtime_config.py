@@ -240,6 +240,24 @@ def _validate_url(
     return value.rstrip("/") if required_path is None else value
 
 
+def normalize_exact_origin(name: str, value: str) -> str:
+    """Return ``value`` as a lowercase ``scheme://host[:port]`` browser origin.
+
+    ``https`` only, or ``http`` on loopback. A trailing ``/`` is dropped; a path,
+    query, fragment, user info, or wildcard raises ``RuntimeConfigError`` naming
+    ``name``. The message never echoes ``value``.
+    """
+    if "*" in value:
+        raise RuntimeConfigError(f"{name} must list exact origins, not wildcards")
+    return _validate_url(
+        name,
+        value,
+        secure_scheme="https",
+        loopback_scheme="http",
+        exact_origin=True,
+    )
+
+
 def validate_relay_config(config: RelayConfig) -> RelayConfig:
     relay_url = _validate_url(
         "relay_url",
@@ -248,13 +266,7 @@ def validate_relay_config(config: RelayConfig) -> RelayConfig:
         loopback_scheme="ws",
         required_path="/tunnel",
     )
-    public_base_url = _validate_url(
-        "public_base_url",
-        config.public_base_url,
-        secure_scheme="https",
-        loopback_scheme="http",
-        exact_origin=True,
-    )
+    public_base_url = normalize_exact_origin("public_base_url", config.public_base_url)
     local_gui_url = _validate_url(
         "local_gui_url",
         config.local_gui_url,

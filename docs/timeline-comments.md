@@ -199,7 +199,7 @@ Requires the FOSS `collaboration` extension (default; disable with `PODCAST_EXTE
 1. Publish a frozen mix: `podcast review publish-version --label "Guest pass"`
 2. Create a link: `podcast review share --role commenter --project … --version <vid> --base-url https://host:8765` (or raw `--capabilities …`). Default is **Anyone with the link** — login-free comments. Studio links use `--kind record` (not for comments yet).
 3. Optional Restricted: `--general-access restricted --invite a@b.com` (sign-in; `podcast review revoke-invite` removes a person without rotating the coolname). Optional `--require-sign-in` on link shares for high sensitivity.
-4. **Preferred (internet):** run the FOSS Docker relay + `podcast tunnel` so guests use the relay origin — see [host-online-relay.md](host-online-relay.md). LAN-only: bind GUI with `podcast gui --host 0.0.0.0` and set `PODCAST_REVIEW_CORS_ORIGINS` as needed.
+4. **Preferred (internet):** run the FOSS Docker relay + `podcast tunnel` so guests use the relay origin — see [host-online-relay.md](host-online-relay.md). LAN-only: bind GUI with `podcast gui --host 0.0.0.0` and set `PODCAST_REVIEW_CORS_ORIGINS` to exact `https://` origins as needed (no `*`; see [setup.md](setup.md#public-review-share-optional)).
 5. Guests open `/r/{token}` only (no filesystem paths) — coolname slug, e.g. `/r/fantastic-acoustic-whale`:
    - **`--role viewer` / `view`** → read-only Sharecut Studio (timeline + premix)
    - **commenter (default)** → ReviewApp (frozen review MP3 + comments; object storage bypass when configured)
