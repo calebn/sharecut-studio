@@ -60,6 +60,7 @@ Other values lint should not swallow:
 - Shell product breakpoints (phone / tablet / desktop) stay JS `useViewportClass` (`PHONE_MAX_PX` 767, `TABLET_MAX_PX` 1100) + `data-shell`. Do not duplicate that as CSS viewport-width queries.
 - Do **not** make the DAW mixer a maximally intrinsic stack. Track headers stay `flex-wrap: nowrap` beside lanes.
 - Capability media (`hover`, `pointer`, `prefers-*`) may stay `@media`.
+- Control placement (bottom zone for doing), the 44 CSS px target floor, phone bottom-sheet dialogs, and copy rules live in [docs/communication-philosophy.md](../../docs/communication-philosophy.md) § Control placement rules and § Mobile ergonomics checklist.
 
 ## Units
 

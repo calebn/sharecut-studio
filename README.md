@@ -112,6 +112,7 @@ Host MCP agents can read and replace it with revision checks. See the
 - [Recording session (design)](docs/recording-session.md) — record links, local WAV keepers, mix-minus monitor, consent
 - [UX onboarding pack](ux/README.md) — shareable brief, screens, glossary, backlog ([live site](https://ux.sharecut.studio/); [See the UI](https://ux.sharecut.studio/#/demo))
 - [UI philosophy](docs/ui-philosophy.md) — trust-first beta design principles for automation, recovery, and the free core workflow
+- [Communication philosophy](docs/communication-philosophy.md) — voice, terminology, control placement, and the mobile ergonomics checklist for user-facing UI
 - [Setup](docs/setup.md) — install, extras, optional downloads, MCP, bootstrap, play, GUI
 - [Architecture](docs/architecture.md) — layers and timebase
 - [Contributing](docs/contributing.md) — where new code goes; [Git workflow](docs/contributing.md#git-workflow) (feature branch → PR → `main`)

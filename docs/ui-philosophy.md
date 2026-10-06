@@ -6,10 +6,11 @@ planning a feature, reviewing a screen, or deciding how automation appears to
 an editor. Track missing surfaces as follow-up work rather than treating these
 principles as evidence that they have shipped.
 
-The companion [interaction and communication work in issue #80](https://github.com/calebn/sharecut-studio/issues/80)
-covers voice, copy, placement, and ergonomics. Its communication philosophy is
-still a draft; do not treat it as a landed document. If its guidance conflicts
-with this document, call out the conflict in the PR for a decision.
+The companion [communication philosophy](communication-philosophy.md) covers
+voice, copy, terminology, placement, and ergonomics. This document wins where
+the two overlap. If a change to either creates a conflict, call it out in the
+PR for a decision and record the outcome in the communication philosophy's
+§ Reconciled with ui-philosophy.
 
 ## 1. Show and undo every automated change
 
@@ -43,7 +44,7 @@ preview and Approve or Skip for each hit. Provide reviewed-pass approval and
 one-action pass undo. Flag low-confidence hits and keep them out of bulk
 approval until reviewed. The queue must be reachable on desktop, tablet, and
 phone; the phone design uses a bottom sheet. Use the terms “tighten hit” and
-“pending edit” consistently with issue #80's communication guidance.
+“pending edit” as the [communication philosophy terminology](communication-philosophy.md#terminology) defines them.
 
 ## 4. Give each screen one job
 
@@ -78,8 +79,12 @@ Waveform editing should support pinch zoom, persistent zoom controls, and
 snap-to-silence boundary selection. Design precision controls for touch and
 stylus input, including Apple Pencil-style interaction, and for accessibility
 from the start. Phone actions should use thumb-reachable placement, bottom
-sheet dialogs, and touch targets of at least 44 px, in line with issue #80's
-mobile checklist.
+sheet dialogs, and touch targets of at least 44 px, in line with the
+[mobile ergonomics checklist](communication-philosophy.md#mobile-ergonomics-checklist). Dense canvas targets
+(envelope points, short-clip edges, pending handles) may draw smaller only
+through that checklist's dense-target pattern: an invisible hit area toward
+44 px, nearest-target resolution with a way to pick the exact target, full-size
+inspector controls for every edit, zoom, and keyboard stepping.
 
 ## 8. Make the free core trustworthy
 
