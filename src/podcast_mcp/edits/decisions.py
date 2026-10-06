@@ -18,6 +18,7 @@ from podcast_mcp.edits.mute_regions import add_source_mute
 from podcast_mcp.edits.timeline_ops import (
     insert_gap,
     insert_room_tone_pad,
+    mute_room_tone_fill,
     punch_delete,
     ripple_delete,
     split_clips_at,
@@ -254,11 +255,18 @@ def _apply_mute_edit(
     project: EpisodeProject,
     edit: EditDecision,
 ) -> tuple[float, float, list[str], dict]:
-    """Silence ``edit``'s source span in place; do not move clips."""
+    """Mute ``edit``'s source span in place, over the fill a ripple pad would get.
+
+    Clips do not move.
+    """
     tl_start, tl_end = _edit_to_timeline_range(project, edit)
+    room_tone = filler_pad_mode() == "room_tone"
     written = False
     for clip in clips_for_track(project, edit.track_id):
-        if add_source_mute(clip, edit.start, edit.end):
+        if edit.end <= clip.source_start or edit.start >= clip.source_end:
+            continue
+        fill = mute_room_tone_fill(project, clip, edit.start, edit.end) if room_tone else None
+        if add_source_mute(clip, edit.start, edit.end, fill=fill):
             written = True
     track_ids = [edit.track_id] if written else []
     return (

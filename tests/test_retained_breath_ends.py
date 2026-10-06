@@ -6,7 +6,7 @@ import pytest
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.filler_pacing import FillerPacingResult
-from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate
+from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate, _CutRejected
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 from test_breath_detect import _fake_windows, _host_project, _shaped_noise
 from test_fillers import _passthrough_opt, _safe_risk
@@ -122,7 +122,7 @@ def test_final_cut_end_retreats_to_retained_breath_onset(adjustment: str, kind: 
         )
 
     if kind == "filler":
-        assert result is None
+        assert result == _CutRejected("reparandum")
         return
     assert result is not None
     assert (result.start, result.end) == pytest.approx((5.0, 5.1))
@@ -154,7 +154,7 @@ def test_retreat_that_removes_entire_cut_skips_proposal(start: float) -> None:
         )
 
     if start > 5.1:
-        assert result is None
+        assert result == _CutRejected("breath")
     else:
         assert result is not None
         assert (result.start, result.end) == pytest.approx((5.0, 5.1))
@@ -205,7 +205,7 @@ def test_final_crossing_suppresses_when_quiet_onset_cannot_be_refined(
 
     result = _proposal(cache, 5.15, backend)
 
-    assert result is None
+    assert result == _CutRejected("breath")
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -237,7 +237,7 @@ def test_final_connected_protected_activity_suppresses_proposal(peak: float) -> 
             max(1, (samples.size - min(samples.size, 640)) // 160 + 1), peak
         ),
     ):
-        assert _proposal(cache, 5.15, "heuristic") is None
+        assert _proposal(cache, 5.15, "heuristic") == _CutRejected("breath")
 
 
 @pytest.mark.parametrize("adjustment", ["min_start", "pacing", "voiced"])
@@ -540,7 +540,6 @@ def test_final_breath_shrink_respects_existing_pacing_minimum() -> None:
             return_value=("session", None),
         ),
     ):
-        assert (
-            _analyze_candidate(_host_project(), candidate, {"tighten": {}}, audio_cache=cache)
-            is None
-        )
+        assert _analyze_candidate(
+            _host_project(), candidate, {"tighten": {}}, audio_cache=cache
+        ) == _CutRejected("too_short")

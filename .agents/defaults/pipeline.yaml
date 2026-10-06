@@ -70,9 +70,11 @@ tighten:
   # (discourse "like" over-cut + broken splice flow). Manual propose/apply still works.
   # See docs/filler-cut-quality.md § Default pipeline status.
   enabled: false
-  # ripple = session/track REMOVE (default). mute = silence the filler window
-  # in place (Clip.mute_regions); pause candidates are skipped (muting a pause
-  # is a no-op). See docs/filler-cut-quality.md § Mute vs cut.
+  # ripple = session/track REMOVE (default). mute = mute the filler window in
+  # place (Clip.mute_regions) over filler_pad_mode's fill; each edge fades, so a
+  # mute gets the padded-cut checks below, not the splice checks. Pause
+  # candidates are skipped (muting a pause is a no-op). See
+  # docs/filler-cut-quality.md § Mute vs cut.
   edit_mode: ripple
   # light | medium | aggressive. medium = the values below unchanged; light /
   # aggressive override only the keys they name, and only where the run config
@@ -135,10 +137,12 @@ tighten:
   # splice checks below (breath protection, cut-risk level jumps, the join gate)
   # skip it. Its right edge instead stops 10 ms before the next word's acoustic
   # onset (a plosive's burst kept whole), and it may not cover a whole kept word
-  # (skip counts next_onset, kept_word:{word}; #978).
+  # (skip counts next_onset, kept_word:{word}; #978). Mutes get the same checks
+  # (#1024).
   filler_room_tone_replace: true
   # silence = hard gap (default; good for dry rooms). room_tone = sample air
-  # from the stem (needs a matching bed — see ROADMAP room-tone finder).
+  # from the stem (needs a matching bed — see ROADMAP room-tone finder). Also
+  # the fill laid under an approved mute.
   filler_pad_mode: silence
   # Cap how far replace may expand a cut toward flanking words.
   filler_room_tone_max_expand_sec: 2.0

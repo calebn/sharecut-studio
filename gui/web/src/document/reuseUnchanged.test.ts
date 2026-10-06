@@ -102,6 +102,17 @@ describe("reuseUnchanged", () => {
     expect(reuseUnchanged(prev, moved).clips.tracks.host![0]).not.toBe(
       prev.clips.tracks.host![0],
     );
+    const filled = fresh(prev);
+    filled.clips.tracks.host![0]!.mute_regions = [
+      {
+        start_s: 0.1,
+        end_s: 0.2,
+        fill: { start_s: 3, end_s: 3.1, source_id: null },
+      },
+    ];
+    expect(reuseUnchanged(prev, filled).clips.tracks.host![0]).not.toBe(
+      prev.clips.tracks.host![0],
+    );
   });
 
   it("compares clipping regions element by element", () => {

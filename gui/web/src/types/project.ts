@@ -3,9 +3,18 @@ export interface TimelineSpan {
   end: number;
 }
 
+/** Room tone tiled under a mute: this stretch of a source (track media when null). */
+export interface RoomToneFill {
+  start_s: number;
+  end_s: number;
+  source_id: string | null;
+}
+
 export interface ClipMuteRegion {
   start_s: number;
   end_s: number;
+  /** Absent or null: the mute renders as digital silence. */
+  fill?: RoomToneFill | null;
 }
 
 /** Encoder-detected sample-peak clipping, in source seconds. */

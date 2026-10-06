@@ -46,8 +46,19 @@ from podcast_mcp.edits.transcript_sync import (
     restore_archived_words,
     timeline_removes_by_transcript,
 )
-from podcast_mcp.engines.session_timeline import SessionTimeline, origin_track_id_for_clip
-from podcast_mcp.models import Clip, ClipJoinMode, ClipMuteRegion, EpisodeProject, TranscriptKey
+from podcast_mcp.engines.session_timeline import (
+    SessionTimeline,
+    clip_source_to_timeline_shift,
+    origin_track_id_for_clip,
+)
+from podcast_mcp.models import (
+    Clip,
+    ClipJoinMode,
+    ClipMuteRegion,
+    EpisodeProject,
+    RoomToneFill,
+    TranscriptKey,
+)
 from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -664,20 +675,9 @@ def paste_segment(
         parsed_mutes: list[ClipMuteRegion] = []
         if isinstance(mute_raw, list):
             for item in mute_raw:
-                if not isinstance(item, dict):
-                    continue
-                start_raw = item.get("start_s")
-                end_raw = item.get("end_s")
-                if start_raw is None or end_raw is None:
-                    continue
                 try:
-                    start = float(start_raw)
-                    end = float(end_raw)
-                except (TypeError, ValueError):
-                    continue
-                try:
-                    parsed_mutes.append(ClipMuteRegion(start_s=start, end_s=end))
-                except (TypeError, ValueError, ValidationError):
+                    parsed_mutes.append(ClipMuteRegion.model_validate(item))
+                except ValidationError:
                     continue
         by_track.setdefault(tid, []).append(
             Clip(
@@ -1397,6 +1397,33 @@ def fill_with_room_tone(
     # Fill clips duplicate existing source audio; word times are untouched.
     rebuild_combined(project)
     return change_summary(project, operation="fill_with_room_tone", affected_tracks=[track_id])
+
+
+def mute_room_tone_fill(
+    project: EpisodeProject, clip: Clip, src_start: float, src_end: float
+) -> RoomToneFill | None:
+    """Room tone to lay under ``clip``'s muted ``[src_start, src_end)``, as a ripple pad picks it.
+
+    The clip's audio after the mute stands in for a pad's right clip and its audio
+    before for the left one, so stem air comes from nearest the mute. None when the
+    track has no bed and no safe, audible air (a gated track): the mute stays silent,
+    as a ripple pad does.
+    """
+    lo, hi = max(src_start, clip.source_start), min(src_end, clip.source_end)
+    if hi <= lo:
+        return None
+    before = clip.model_copy(update={"source_end": lo})
+    after = clip.model_copy(
+        update={
+            "source_start": hi,
+            "timeline_start": hi + clip_source_to_timeline_shift(clip),
+        }
+    )
+    span = _room_tone_source_span(project, clip.track_id, before, duration_sec=hi - lo, right=after)
+    if span is None:
+        return None
+    start, end, source_id = span
+    return RoomToneFill(start_s=start, end_s=end, source_id=source_id)
 
 
 def insert_room_tone_pad(

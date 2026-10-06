@@ -146,6 +146,20 @@ describe("selectionClipboard", () => {
     expect(extracts[0]?.mute_regions).toEqual([{ start_s: 1.2, end_s: 1.8 }]);
   });
 
+  it("keeps a mute's room-tone fill on the clipped span", () => {
+    const project = sampleProject();
+    const fill = { start_s: 4, end_s: 4.5, source_id: null };
+    const host = project.clips?.tracks.host?.[0];
+    if (!host) {
+      throw new Error("sample project has a host clip");
+    }
+    host.mute_regions = [{ start_s: 1.2, end_s: 1.8, fill }];
+    const extracts = extractClipsInRange(project, 1.5, 3, ["host"]);
+    expect(extracts[0]?.mute_regions).toEqual([
+      { start_s: 1.5, end_s: 1.8, fill },
+    ]);
+  });
+
   it("builds payload from clip selection", () => {
     const sel: Selection = { kind: "clip", id: "c1", trackId: "host" };
     const payload = payloadFromSelection(sampleProject(), sel, "cut");

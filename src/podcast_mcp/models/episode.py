@@ -47,17 +47,38 @@ class ClipJoinMode(StrEnum):
     CUT = "cut"
 
 
-class ClipMuteRegion(BaseModel):
-    """Source-media span rendered as silence inside a clip (mute-in-place)."""
+class SourceSpan(BaseModel):
+    """``[start_s, end_s)`` in source-media seconds."""
 
     start_s: float = Field(allow_inf_nan=False)
     end_s: float = Field(allow_inf_nan=False)
 
     @model_validator(mode="after")
-    def _end_after_start(self) -> ClipMuteRegion:
+    def _end_after_start(self) -> SourceSpan:
         if self.end_s <= self.start_s:
             raise ValueError("end_s must be greater than start_s")
         return self
+
+
+class RoomToneFill(SourceSpan):
+    """Room tone tiled under a muted span: this stretch of ``source_id``'s audio.
+
+    ``source_id`` names a ``sources[]`` entry (a recorded room-tone bed); ``None`` is
+    air sampled from the track's own media.
+    """
+
+    start_s: float = Field(ge=0, allow_inf_nan=False)
+    source_id: str | None = None
+
+
+class ClipMuteRegion(SourceSpan):
+    """Source-media span muted inside a clip (mute-in-place).
+
+    Render fades the clip out of and back into the span; ``fill`` is the room tone
+    laid under it (``tighten.filler_pad_mode: room_tone``), digital silence when None.
+    """
+
+    fill: RoomToneFill | None = None
 
 
 class MediaAsset(BaseModel):
@@ -87,7 +108,7 @@ class BalanceBasis(BaseModel):
     speech_gated: bool
 
 
-class TranscriptGateScope(ClipMuteRegion):
+class TranscriptGateScope(SourceSpan):
     """Selected source audio for a transcript gate, retained across timeline edits."""
 
     start_s: float = Field(ge=0, allow_inf_nan=False)
@@ -570,7 +591,7 @@ class TimelineSection(BaseModel):
     clips: list[Clip] = Field(default_factory=list)
 
 
-class RetainedBleedAlignmentDecision(ClipMuteRegion):
+class RetainedBleedAlignmentDecision(SourceSpan):
     """Source-scoped timing choice, preserved with editable project history."""
 
     id: str
