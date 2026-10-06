@@ -62,6 +62,20 @@ def add_source_mute(clip: Clip, start: float, end: float) -> bool:
     return True
 
 
+def muted_source_spans(project: EpisodeProject) -> dict[str, list[ClipMuteRegion]]:
+    """Merged ``clip.mute_regions`` per track: the source spans render silences."""
+    by_track: dict[str, list[ClipMuteRegion]] = {}
+    for clip in project.clips:
+        if clip.mute_regions:
+            by_track.setdefault(clip.track_id, []).extend(clip.mute_regions)
+    return {track_id: merge_mute_regions(regions) for track_id, regions in by_track.items()}
+
+
+def source_span_is_muted(regions: Sequence[ClipMuteRegion], start: float, end: float) -> bool:
+    """True when merged ``regions`` fully cover ``[start, end)`` (within 1 ms)."""
+    return any(r.start_s <= start + 1e-3 and r.end_s >= end - 1e-3 for r in regions)
+
+
 def subtract_source_mute(clip: Clip, start: float, end: float) -> bool:
     """Remove overlap of ``[start, end)`` from ``clip.mute_regions``."""
     if end <= start + 1e-9 or not clip.mute_regions:

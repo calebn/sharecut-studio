@@ -16,6 +16,7 @@ from podcast_mcp.edits.fillers import (
     normalize_edit_mode,
 )
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
+from podcast_mcp.edits.mute_regions import muted_source_spans
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import (
     REPETITION_REASON_PREFIX,
@@ -181,6 +182,7 @@ def propose_tighten_edits(
         candidates,
         results,
         existing=retained if retained is not None else list(project.edit_decisions),
+        muted=muted_source_spans(project),
         skip_counts=skip_counts,
     )
 
