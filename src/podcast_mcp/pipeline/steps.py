@@ -5,6 +5,7 @@ import json
 import logging
 import math
 from collections.abc import Callable, Mapping
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -12,7 +13,7 @@ from uuid import uuid4
 from podcast_mcp.config import mix_peak_ceiling_db
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
 from podcast_mcp.engines import TranscriptionEngine
-from podcast_mcp.engines.ffmpeg import LoudnormResult
+from podcast_mcp.engines.mastering import MasterResult
 from podcast_mcp.engines.waveform_media import ensure_project_waveforms, schedule_stem_waveforms
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -956,7 +957,6 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
     source_hash = master_source_hash(project)
     eng = ffmpeg()
     mastered = mastered_path(project)
-    tame_path = artifact(project, "premix_premaster.wav")
     qc_path = artifact(project, "master_qc.json")
     # A failed or cancelled master must not leave a hash or QC report vouching for it.
     clear_mastered_hash(project)
@@ -966,10 +966,8 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
     target_lra = float(master_cfg.get("lra", 11.0))
     lufs_tolerance = float(master_cfg.get("qc_lufs_tolerance_lu", 0.5))
     tp_tolerance = float(master_cfg.get("qc_true_peak_tolerance_db", 0.3))
-    raw_crest = master_cfg.get("crest_tame_af", "dynaudnorm=f=150:g=15")
-    crest_tame_af = str(raw_crest).strip() if raw_crest is not None else ""
 
-    def _qc(measured: dict[str, float | None] | None, loudnorm: LoudnormResult) -> dict[str, Any]:
+    def _qc(measured: dict[str, float | None] | None, result: MasterResult) -> dict[str, Any]:
         qc: dict[str, Any] = {
             "target_integrated_lufs": target_lufs,
             "target_true_peak_db": target_tp,
@@ -993,85 +991,65 @@ def master_loudness(project: EpisodeProject, defaults: dict[str, Any]) -> StepSu
                 )
             qc["issues"] = issues
             qc["within_tolerance"] = not issues
-        qc["normalization_type"] = loudnorm.normalization_type
-        qc["loudnorm_input"] = loudnorm.measured_input
+        qc["premix_input"] = result.input_stats
+        qc["plan"] = result.plan.kind
+        qc["normalization_type"] = result.normalization_type
+        qc["limiter"] = asdict(result.limiter) if result.limiter else None
         return qc
 
     measured: dict[str, float | None] | None = None
     qc: dict[str, Any] = {}
-    try:
-        with resolve_progress_task(
-            "master_loudness",
-            "Mastering loudness",
-            prefer_parent=True,
-        ) as prog:
-            loudnorm: LoudnormResult | None = None
+    result: MasterResult | None = None
+    with resolve_progress_task(
+        "master_loudness",
+        "Mastering loudness",
+        prefer_parent=True,
+    ) as prog:
 
-            def _loudnorm(src: Path, dest: Path) -> LoudnormResult:
-                with prog.child("master_loudnorm", "Measuring and normalizing loudness") as sub:
-                    result = eng.master_loudnorm(
-                        src,
-                        dest,
-                        integrated_lufs=target_lufs,
-                        true_peak_db=target_tp,
-                        lra=target_lra,
-                        on_measure_progress=_media_seconds_reporter(
-                            sub, verb="Measuring", pass_index=0, passes=2
-                        ),
-                        on_progress=_media_seconds_reporter(
-                            sub, verb="Normalizing", pass_index=1, passes=2
-                        ),
-                    )
-                    if sub.total:
-                        # Both passes finished; -progress stops short of the last second.
-                        sub.advance_to(sub.total)
-                    return result
+        def _master_into(tmp: Path) -> None:
+            nonlocal measured, qc, result
+            prog.set_phase("loudnorm", "Measuring premix, then normalizing loudness…")
+            with prog.child("master_loudnorm", "Measuring and normalizing loudness") as sub:
+                result = eng.master_loudness(
+                    premix,
+                    tmp,
+                    integrated_lufs=target_lufs,
+                    true_peak_db=target_tp,
+                    lra=target_lra,
+                    on_measure_progress=_media_seconds_reporter(
+                        sub, verb="Measuring", pass_index=0, passes=2
+                    ),
+                    on_progress=_media_seconds_reporter(
+                        sub, verb="Normalizing", pass_index=1, passes=2
+                    ),
+                )
+                if sub.total:
+                    # Both passes finished; -progress stops short of the last second.
+                    sub.advance_to(sub.total)
+            prog.set_phase("measure", "Measuring loudness…")
+            with prog.child("master_qc_measure", "Measuring mastered loudness") as sub:
+                measured = eng.measure_loudness_full(
+                    tmp, on_progress=_media_seconds_reporter(sub, verb="Measured")
+                )
+                if sub.total:
+                    sub.advance_to(sub.total)
+            qc = _qc(measured, result)
 
-            def _measure(path: Path) -> dict[str, float | None] | None:
-                with prog.child("master_qc_measure", "Measuring mastered loudness") as sub:
-                    measured = eng.measure_loudness_full(
-                        path, on_progress=_media_seconds_reporter(sub, verb="Measured")
-                    )
-                    if sub.total:
-                        sub.advance_to(sub.total)
-                    return measured
-
-            def _master_into(tmp: Path) -> None:
-                nonlocal measured, qc, loudnorm
-                prog.set_phase("loudnorm", "Measuring premix, then normalizing loudness…")
-                loudnorm = _loudnorm(premix, tmp)
-                prog.set_phase("measure", "Measuring loudness…")
-                measured = _measure(tmp)
-                qc = _qc(measured, loudnorm)
-                # Peak-limited / high-crest premixes often under-shoot I under loudnorm alone.
-                # Tame crest, then remaster once before writing QC.
-                if (
-                    crest_tame_af
-                    and measured
-                    and qc.get("within_tolerance") is False
-                    and any("Integrated loudness" in i for i in (qc.get("issues") or []))
-                ):
-                    prog.set_phase("crest_tame", "Taming crest then remastering…")
-                    eng.filter_audio(premix, tame_path, crest_tame_af)
-                    loudnorm = _loudnorm(tame_path, tmp)
-                    measured = _measure(tmp)
-                    qc = _qc(measured, loudnorm)
-                    qc["crest_tame_af"] = crest_tame_af
-
-            # Master beside it and swap in whole; its hash was already dropped above.
-            render_atomic(mastered, _master_into, reap_partials=True)
-            prog.set_phase("qc", "Writing master QC…")
-            qc_path.write_text(json.dumps(qc, indent=2), encoding="utf-8")
-            write_mastered_hash(project, source_hash)
-    finally:
-        tame_path.unlink(missing_ok=True)
+        # Master beside it and swap in whole; its hash was already dropped above.
+        render_atomic(mastered, _master_into, reap_partials=True)
+        prog.set_phase("qc", "Writing master QC…")
+        qc_path.write_text(json.dumps(qc, indent=2), encoding="utf-8")
+        write_mastered_hash(project, source_hash)
 
     if measured and measured.get("integrated_lufs") is not None:
         lufs = measured["integrated_lufs"]
-        kind = (loudnorm.normalization_type if loudnorm else None) or "unknown"
+        if result is not None and result.limiter is not None:
+            kind = "gain + limiter"
+        else:
+            kind = f"{(result.normalization_type if result else None) or 'unknown'} loudnorm"
         if qc["within_tolerance"]:
-            return f"mastered to {lufs} LUFS ({kind} loudnorm, within tolerance)"
-        return f"mastered to {lufs} LUFS ({kind} loudnorm, {len(qc['issues'])} QC issues)"
+            return f"mastered to {lufs} LUFS ({kind}, within tolerance)"
+        return f"mastered to {lufs} LUFS ({kind}, {len(qc['issues'])} QC issues)"
     return "mastered (loudness unmeasured)"
 
 

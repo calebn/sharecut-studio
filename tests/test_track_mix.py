@@ -29,7 +29,7 @@ from podcast_mcp.edits.timeline_ops import ripple_delete
 from podcast_mcp.engines import play_audit
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, _rms_for_track_at_timeline
 from podcast_mcp.engines.balance import balance_basis_digest
-from podcast_mcp.engines.ffmpeg import LoudnormResult
+from podcast_mcp.engines.mastering import LoudnormPlan, MasterResult
 from podcast_mcp.engines.play_audit import (
     mastered_is_fresh,
     mastered_path,
@@ -146,9 +146,9 @@ def _mastering_engine() -> MagicMock:
 
     def _fake_master(src, dst, **_kw):
         shutil.copyfile(src, dst)
-        return LoudnormResult(Path(dst), "dynamic", None)
+        return MasterResult(Path(dst), LoudnormPlan(), None, "dynamic", None)
 
-    eng.master_loudnorm.side_effect = _fake_master
+    eng.master_loudness.side_effect = _fake_master
     eng.measure_loudness_full.return_value = None
     return eng
 
@@ -258,7 +258,7 @@ def test_an_unchanged_project_reuses_the_master(minimal_project: Path) -> None:
         steps.master_loudness(ws.project, defaults)
     _export(ws, eng)
     _export(ws, eng)
-    assert eng.master_loudnorm.call_count == 1
+    assert eng.master_loudness.call_count == 1
 
 
 def test_a_stem_behind_its_edits_stales_the_premix(minimal_project: Path) -> None:
@@ -330,7 +330,7 @@ def test_a_master_without_a_matching_hash_is_stale(minimal_project: Path) -> Non
         assert mastered_is_fresh(ws.project) is False
         steps.master_loudness(ws.project, defaults)
         assert mastered_is_fresh(ws.project) is True
-        eng.master_loudnorm.side_effect = RuntimeError("ffmpeg died")
+        eng.master_loudness.side_effect = RuntimeError("ffmpeg died")
         with pytest.raises(RuntimeError):
             steps.master_loudness(ws.project, defaults)
     assert read_mastered_hash(ws.project) is None
@@ -1065,11 +1065,11 @@ def test_a_premix_swapped_mid_master_leaves_the_master_stale(minimal_project: Pa
         premix = premix_path(ws.project)
         st = premix.stat()
         os.utime(premix, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
-        return LoudnormResult(Path(dst), "dynamic", None)
+        return MasterResult(Path(dst), LoudnormPlan(), None, "dynamic", None)
 
     with patch.object(steps, "ffmpeg", return_value=eng):
         steps.mix_with_music(ws.project, defaults)
-        eng.master_loudnorm.side_effect = master_then_refresh
+        eng.master_loudness.side_effect = master_then_refresh
         steps.master_loudness(ws.project, defaults)
     assert mastered_path(ws.project).is_file()
     assert read_mastered_hash(ws.project) is None
@@ -1092,32 +1092,13 @@ def test_a_failed_master_keeps_the_last_master_and_drops_its_qc(minimal_project:
             Path(dst).write_bytes(b"half")
             raise RuntimeError("ffmpeg died")
 
-        eng.master_loudnorm.side_effect = half_written
+        eng.master_loudness.side_effect = half_written
         with pytest.raises(RuntimeError):
             steps.master_loudness(ws.project, defaults)
     assert mastered_path(ws.project).read_bytes() == before
     assert not (art / "master_qc.json").exists()
     assert list(art.glob("*.partial.wav")) == []
     assert read_mastered_hash(ws.project) is None
-
-
-def test_mastering_removes_the_crest_tame_intermediate(minimal_project: Path) -> None:
-    ws = _two_tracks(minimal_project)
-    _fresh_stems(ws.project)
-    eng = _mastering_engine()
-    eng.measure_loudness_full.return_value = {
-        "integrated_lufs": -30.0,
-        "true_peak_db": -3.0,
-        "lra": 5.0,
-    }
-    eng.filter_audio.side_effect = lambda src, dst, _af: shutil.copyfile(src, dst)
-    defaults = load_defaults()
-    with patch.object(steps, "ffmpeg", return_value=eng):
-        steps.mix_with_music(ws.project, defaults)
-        steps.master_loudness(ws.project, defaults)
-    assert eng.filter_audio.called
-    assert not (ws.project.artifacts_dir() / "premix_premaster.wav").exists()
-    assert mastered_is_fresh(ws.project)
 
 
 def test_master_after_a_fresh_mix_does_not_mix_again(minimal_project: Path) -> None:
@@ -1150,7 +1131,7 @@ def test_exporting_an_unchanged_project_checks_the_premix_once(minimal_project: 
     ) as check:
         _export(ws, eng)
     assert check.call_count == 1
-    assert eng.master_loudnorm.call_count == 1
+    assert eng.master_loudness.call_count == 1
 
 
 def test_a_premix_that_stays_stale_after_a_rebuild_warns(
@@ -1281,7 +1262,7 @@ def test_export_and_render_preview_serialize_their_mix(minimal_project, caplog):
     assert errors == []
     assert state["max"] == 1
     assert eng.mix_tracks.call_count == 2
-    assert eng.master_loudnorm.call_count == 1
+    assert eng.master_loudness.call_count == 1
 
 
 def test_master_qc_records_normalization_type(minimal_project: Path) -> None:
@@ -1293,6 +1274,8 @@ def test_master_qc_records_normalization_type(minimal_project: Path) -> None:
         steps.mix_with_music(ws.project, defaults)
         summary = steps.master_loudness(ws.project, defaults)
     qc = json.loads((ws.project.artifacts_dir() / "master_qc.json").read_text(encoding="utf-8"))
+    assert qc["plan"] == "loudnorm"
     assert qc["normalization_type"] == "dynamic"
-    assert "loudnorm_input" in qc
+    assert qc["premix_input"] is None
+    assert qc["limiter"] is None
     assert summary is not None

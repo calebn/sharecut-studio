@@ -33,8 +33,8 @@ def test_master_and_mp3(two_wavs: tuple[Path, Path], tmp_path: Path):
     a, _ = two_wavs
     eng = FFmpegEngine()
     mastered = tmp_path / "master.wav"
-    result = eng.master_loudnorm(a, mastered, integrated_lufs=-16, true_peak_db=-1.5)
-    assert result.normalization_type in {"linear", "dynamic"}
+    result = eng.master_loudness(a, mastered, integrated_lufs=-16, true_peak_db=-1.5)
+    assert result.path == mastered
     mp3 = tmp_path / "out.mp3"
     eng.export_mp3(mastered, mp3, bitrate_kbps=128)
     assert mp3.is_file() and mp3.stat().st_size > 100
@@ -105,7 +105,7 @@ def test_master_loudnorm_reports_ffmpeg_progress(two_wavs: tuple[Path, Path], tm
     eng = FFmpegEngine()
     calls: list[tuple[float, float]] = []
     out = tmp_path / "prog.wav"
-    eng.master_loudnorm(
+    eng.master_loudness(
         a,
         out,
         integrated_lufs=-16,
@@ -153,7 +153,7 @@ def test_master_loudnorm_reports_measure_progress(two_wavs: tuple[Path, Path], t
     eng = FFmpegEngine()
     calls: list[tuple[float, float]] = []
     out = tmp_path / "measure_prog.wav"
-    eng.master_loudnorm(
+    eng.master_loudness(
         a,
         out,
         integrated_lufs=-16,

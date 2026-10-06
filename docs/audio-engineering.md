@@ -11,7 +11,7 @@ FFmpeg filters and `numpy` — no extra installs required.
 | `podcast edit audio-diagnostics --track <id> [--start --end]` | Spectrogram PNG + waveform PNG + `astats` health + hum flag, bundled for one track (or window) | `audio_diagnostics_tool` MCP / CLI |
 | `podcast edit analyze-cleanup` | Per-track `health` block (astats + hum) alongside existing gate/bleed/fade findings | `analyze_cleanup_tool` MCP / CLI |
 | `artifacts/mastered.hash` | Fingerprint of the premix the master was built from; a mismatch re-masters on export | written by the `master_loudness` pipeline step after `mastered.wav` is swapped in whole; cleared (with `master_qc.json`) when a master starts |
-| `artifacts/master_qc.json` | Post-master loudness verification (measured vs. target, pass/fail) | written by the `master_loudness` pipeline step |
+| `artifacts/master_qc.json` | Post-master loudness verification (measured vs. target, pass/fail), the premix input stats, the mastering plan, and the limiter gain reduction | written by the `master_loudness` pipeline step |
 
 When `--start` / `--end` (or MCP `start_sec` / `end_sec`) are set, `astats` and
 `hum` are measured on **that extracted window**, not the whole stem. Do not treat
@@ -143,46 +143,59 @@ persisted. `check_loudness_tool` includes the same per-dialogue-track state in i
 map when it measures tracked project audio, so an agent can spot a stale balance while
 checking a premix or export.
 
-## Two-pass loudness + mastering QC
+## Mastering plan + mastering QC
 
-`master_loudnorm` now runs FFmpeg's `loudnorm` filter **twice**, as FFmpeg's own docs
-recommend:
+`FFmpegEngine.master_loudness` measures the premix once, picks a plan from that
+measurement, and renders the plan:
 
-1. **Pass 1** (`loudnorm_input_stats`) is one `ebur128` pass that reads the input's
+1. **Pass 1** (`loudnorm_input_stats`) is one `ebur128` pass that reads the premix's
    integrated loudness, true peak, loudness range and gate threshold. It replaces a
    loudnorm measure pass, which resamples to 192 kHz and dominated the step's wall time.
    `target_offset` is passed as 0: loudnorm only uses it in dynamic mode.
-2. **Pass 2** re-runs `loudnorm` with `linear=true` and the pass-1 measured values fed
-   back in (`measured_I`, `measured_TP`, `measured_LRA`, `measured_thresh`, `offset`) and
-   `print_format=json`. loudnorm falls back to **dynamic** mode when `TP + gain` would
-   exceed the TP target or the LRA exceeds `master.lra` (or the measured LRA is 0); the
-   printed `normalization_type` (`linear` / `dynamic`) says which ran.
-   Both passes run with `-progress pipe:1` and share one `master_loudnorm`
-   child bar in media seconds: pass 1 fills the first half, pass 2 the
-   second. Both passes use the one input probe for their length. The
-   post-master QC measure reports on a `master_qc_measure`
-   child.
-   This produces a static (non-pumping) gain instead of single-pass `loudnorm`'s
-   dynamic/frame-by-frame correction, and lands much closer to the target LUFS (typically
-   within a few tenths of a LU, versus 1-2+ LU drift from single-pass).
-3. **Delivery rate restore** — FFmpeg's loudnorm path upsamples to 192 kHz for true-peak
-   work. `master_loudnorm` always writes `-ar`/`-ac` matching the premix (or an explicit
-   override) so mastered/export WAVs stay at podcast rates (e.g. 44.1/48 kHz), not 192 kHz.
+2. **Plan** (`engines/mastering.py::plan_master`). Reaching the target takes a static gain
+   of `master.integrated_lufs - input_i`. When `input_tp` plus that gain stays at or under
+   `master.true_peak_db`, the plan is **loudnorm**. Otherwise it is **limit**: linear
+   loudnorm cannot reach the target under the ceiling, and its dynamic fallback
+   under-shoots on peaky premixes (the demo premix, −21.1 LUFS / −1.0 dBTP, mastered to
+   −17.2 LUFS that way). The plan is decided from the measured stats before any render.
+   Unmeasurable stats keep single-pass loudnorm.
+3. **Loudnorm plan.** `loudnorm` with `linear=true` and the pass-1 values fed back in
+   (`measured_I`, `measured_TP`, `measured_LRA`, `measured_thresh`, `offset`) and
+   `print_format=json`. This is the same command as before the limiter plan existed, so
+   such a premix masters byte for byte as it did. loudnorm still falls back to
+   **dynamic** mode when the LRA exceeds `master.lra` (or the measured LRA is 0); the
+   printed `normalization_type` (`linear` / `dynamic`) says which ran. This produces a
+   static (non-pumping) gain instead of single-pass `loudnorm`'s frame-by-frame
+   correction, and lands within a few tenths of a LU of the target.
+4. **Limit plan.** The planned gain, then `alimiter` at `true_peak_db - 0.5` dB
+   (`LIMITER_MARGIN_DB`), then a gain trim onto the target:
+   - `alimiter` limits sample peaks, so it runs on 4x-oversampled audio (`aresample` up,
+     limit, back down), where sample peaks track `ebur128`'s true peak. `level=disabled`
+     stops it normalizing back up to 0 dBFS; `latency=1` removes its lookahead delay so
+     the master stays sample-aligned with the premix. Attack is 5 ms, release 50 ms.
+   - Limiting lowers the integrated loudness. `ebur128` measures the limited render. The
+     trim can make up the shortfall only within the true-peak headroom left under the
+     ceiling (at most the 0.5 dB margin). A larger shortfall is added to the gain into
+     the limiter and the limiter runs again, at most three renders
+     (`LIMITER_MAX_RENDERS`). Then the trim is applied: the measured shortfall, capped at
+     the measured headroom, so the final true peak stays under the ceiling.
+   - The demo premix took two renders: +5.9 dB into the limiter, 6.9 dB of peak gain
+     reduction, 1.1 LU of loudness reduction, +0.3 dB trim, and mastered to −16.0 LUFS /
+     −1.7 dBTP. The lab recording (−20.0 LUFS / −1.0 dBTP) took one render: +4.0 dB,
+     5.0 dB of peak reduction, no loudness reduction, −16.0 LUFS / −2.0 dBTP.
+5. **Delivery rate.** FFmpeg's loudnorm upsamples to 192 kHz for true-peak work, and the
+   limiter oversamples. Both plans write `-ar`/`-ac` matching the premix (or an explicit
+   override), so mastered and export WAVs stay at podcast rates (e.g. 44.1/48 kHz).
 
-If QC shows integrated LUFS still low while true peak sits on the `TP` ceiling, the
-limiter—not the two-pass math—is the constraint. High-crest premixes (very loud peaks
-relative to integrated loudness) cannot take the gain needed for `-16` LUFS without
-violating TP. `master_loudness` then retries once after `master.crest_tame_af`
-(default `dynaudnorm=f=150:g=15`) and records that filter on `master_qc.json`. The crest-tamed intermediate
-(`artifacts/premix_premaster.wav`) is deleted after every master, successful or not, so
-`crest_tame_af` on `master_qc.json` is the only record that the retry ran; re-run the
-filter by hand on `premix.wav` to inspect it. Set
-`crest_tame_af: ""` to disable. Loosen `master.true_peak_db` (e.g. `-1.0`) only when
-you intentionally accept hotter peaks.
+Pass 1 and the renders run with `-progress pipe:1` and share one `master_loudnorm` child
+bar in media seconds: pass 1 fills the first half and the first render the second; a
+re-drive or trim render holds the bar full. Both use the one input probe for their
+length. The post-master QC measure reports on a `master_qc_measure` child.
 
-If premix LRA (from pass-1 `measured_LRA` / `loudnorm_input.input_lra`) exceeds `master.lra`
-(default `11`), raise `master.lra` toward the measured range or compress first — this
-is secondary to crest/TP for most dialogue masters.
+Loosen `master.true_peak_db` (e.g. `-1.0`) only when you intentionally accept hotter
+peaks. If the premix LRA (`premix_input.input_lra`) exceeds `master.lra` (default `11`)
+and the plan is loudnorm, loudnorm masters dynamically; raise `master.lra` toward the
+measured range or compress first.
 
 After mastering, the `master_loudness` pipeline step re-measures the output
 (`measure_loudness_full`, via `ebur128`+`astats`) and writes `artifacts/master_qc.json`:
@@ -191,23 +204,42 @@ After mastering, the `master_loudness` pipeline step re-measures the output
 {
   "target_integrated_lufs": -16.0,
   "target_true_peak_db": -1.5,
-  "measured": {"integrated_lufs": -16.1, "true_peak_db": -1.6, "lra": 7.2},
+  "measured": {"integrated_lufs": -16.0, "true_peak_db": -1.7, "lra": 7.9, "integrated_threshold_lufs": -26.9},
   "within_tolerance": true,
   "issues": [],
-  "normalization_type": "linear",
-  "loudnorm_input": {"input_i": -20.1, "input_tp": -3.0, "input_lra": 6.0, "input_thresh": -30.5, "target_offset": 0.0}
+  "premix_input": {"input_i": -21.1, "input_tp": -1.0, "input_lra": 7.0, "input_thresh": -32.0, "target_offset": 0.0},
+  "plan": "limit",
+  "normalization_type": null,
+  "limiter": {
+    "gain_db": 5.1,
+    "drive_db": 5.9,
+    "limit_db": -2.0,
+    "renders": 2,
+    "trim_db": 0.3,
+    "peak_reduction_db": 6.9,
+    "loudness_reduction_lu": 1.1
+  }
 }
 ```
 
-`normalization_type: "dynamic"` means loudnorm could not apply one static gain within the
-TP/LRA limits, so it limited or compressed dynamically. `loudnorm_input` is the pass-1 stats
-(`null` when loudnorm ran single-pass).
+- `premix_input` is the premix's own pass-1 stats (`null` when ebur128 could not measure
+  them and loudnorm ran single-pass).
+- `plan` is `loudnorm` or `limit`.
+- `normalization_type` is loudnorm's own report for the loudnorm plan: `"dynamic"` means
+  loudnorm could not apply one static gain within the LRA limit, so it compressed
+  dynamically. It is `null` for the limit plan.
+- `limiter` is `null` for the loudnorm plan. For the limit plan: `gain_db` is the planned
+  gain, `drive_db` the gain into the limiter after re-drives, `limit_db` the limiter
+  ceiling, `trim_db` the gain after it. `peak_reduction_db` is the limiter's gain
+  reduction on the loudest true peak (`input_tp + drive_db` minus the limited true peak).
+  `loudness_reduction_lu` is its average reduction, as the integrated loudness it took
+  (`input_i + drive_db` minus the limited loudness).
 
 Tolerances are configurable (`master.qc_lufs_tolerance_lu`, default `0.5` LU;
 `master.qc_true_peak_tolerance_db`, default `0.3` dB) in
 [`.agents/defaults/pipeline.yaml`](../.agents/defaults/pipeline.yaml). **Always read this
 file after mastering** and surface `within_tolerance: false` to the user before export —
-don't just trust that `master_loudnorm` ran without checking what it actually achieved.
+don't just trust that mastering ran without checking what it actually achieved.
 
 `export_deliverables` goes one step further and writes `artifacts/export_qc.json`,
 rolling up `master_qc.json`'s issues **plus** transcript reconciliation staleness

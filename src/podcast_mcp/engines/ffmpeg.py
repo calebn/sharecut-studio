@@ -16,6 +16,15 @@ from typing import IO, Any
 
 import numpy as np
 
+from podcast_mcp.engines.mastering import (
+    LIMITER_MARGIN_DB,
+    LIMITER_MAX_RENDERS,
+    LimiterPlan,
+    LimiterReport,
+    MasterResult,
+    limiter_af,
+    plan_master,
+)
 from podcast_mcp.engines.mix_spans import quiet_spans
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -279,13 +288,6 @@ class AudioProbe:
     channels: int
     duration_estimated: bool = False
     audio_duration_sec: float | None = None
-
-
-@dataclass(frozen=True)
-class LoudnormResult:
-    path: Path
-    normalization_type: str | None  # "linear" | "dynamic"; None when loudnorm printed no JSON
-    measured_input: dict[str, float] | None  # pass-1 stats fed to loudnorm (None = single pass)
 
 
 def _read_exact(stream: IO[bytes], size: int) -> bytearray:
@@ -1368,7 +1370,7 @@ class FFmpegEngine:
             raise CalledProcessError(rc, cmd, stderr=text)
         return text
 
-    def master_loudnorm(
+    def master_loudness(
         self,
         input_path: Path,
         output_path: Path,
@@ -1380,31 +1382,47 @@ class FFmpegEngine:
         channels: int | None = None,
         on_progress: Callable[[float, float], None] | None = None,
         on_measure_progress: Callable[[float, float], None] | None = None,
-    ) -> LoudnormResult:
-        """Two-pass loudnorm, then restore delivery sample rate/channels.
+    ) -> MasterResult:
+        """Master to ``integrated_lufs`` under ``true_peak_db``, at the delivery rate.
 
-        Pass 1 is ebur128 (I, TP, LRA, gate threshold); pass 2 is loudnorm in linear
-        mode with those values. loudnorm falls back to dynamic mode when
-        ``TP + gain > TP target`` or ``LRA > lra`` (or the measured LRA is 0);
-        ``normalization_type`` says which ran. FFmpeg's loudnorm upsamples to 192 kHz
-        for true-peak work; without an explicit ``-ar``/``-ac`` that rate would leak
-        into mastered/export WAVs.
+        Pass 1 is ebur128 (I, TP, LRA, gate threshold), and ``plan_master`` picks
+        the plan from it. The loudnorm plan is pass 2: loudnorm in linear mode with
+        those values. loudnorm still falls back to dynamic mode when ``LRA > lra``
+        (or the measured LRA is 0); ``normalization_type`` says which ran. The
+        limiter plan, for a gain that would push peaks over the ceiling, runs
+        ``_limit_to_target``. FFmpeg's loudnorm upsamples to 192 kHz for true-peak
+        work; without an explicit ``-ar``/``-ac`` that rate would leak into
+        mastered/export WAVs.
 
-        ``on_measure_progress`` reports pass 1 (ebur128) and ``on_progress`` pass 2,
-        each as (done_sec, total_sec) of the input. Both use the one input probe, so
-        they share a per-pass total.
-
-        If the premix loudness range exceeds ``lra``, loudnorm will under-shoot
-        ``integrated_lufs`` to honor the LRA/TP ceilings - raise ``lra`` (or
-        compress first) when QC shows a systematic LU miss.
+        ``on_measure_progress`` reports pass 1 (ebur128) and ``on_progress`` each
+        render, as (done_sec, total_sec) of the input. Both use the one input
+        probe, so they share a per-pass total.
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
         probe = self.probe(input_path)
         out_rate = sample_rate if sample_rate is not None else probe.sample_rate
         out_ch = channels if channels is not None else probe.channels
+        delivery = ("-ar", str(out_rate), "-ac", str(out_ch))
         stats = self.loudnorm_input_stats(
             input_path, on_progress=on_measure_progress, total_sec=probe.duration_sec
         )
+        plan = plan_master(stats, integrated_lufs=integrated_lufs, true_peak_db=true_peak_db)
+        render = functools.partial(
+            self._render_af, total_sec=probe.duration_sec, on_progress=on_progress
+        )
+        if isinstance(plan, LimiterPlan) and stats is not None:
+            limiter = self._limit_to_target(
+                input_path,
+                output_path,
+                plan,
+                stats,
+                integrated_lufs=integrated_lufs,
+                true_peak_db=true_peak_db,
+                sample_rate=out_rate,
+                delivery=delivery,
+                render=render,
+            )
+            return MasterResult(output_path, plan, stats, None, limiter)
         base = f"loudnorm=I={integrated_lufs}:TP={true_peak_db}:LRA={lra}"
         if stats is None:
             af = f"{base}:print_format=json"
@@ -1414,28 +1432,73 @@ class FFmpegEngine:
                 f"measured_LRA={stats['input_lra']}:measured_thresh={stats['input_thresh']}:"
                 f"offset={stats['target_offset']}:linear=true:print_format=json"
             )
-        cmd = [
-            self.ffmpeg,
-            "-y",
-            "-i",
-            str(input_path),
-            "-af",
-            af,
-            "-ar",
-            str(out_rate),
-            "-ac",
-            str(out_ch),
-            str(output_path),
-        ]
-        if on_progress is None:
-            stderr = run(cmd, check=True, capture_output=True, text=True).stderr or ""
-        else:
-            stderr = self._run_with_progress(
-                cmd, total_sec=probe.duration_sec, on_progress=on_progress
-            )
-        report = _loudnorm_json(stderr) or {}
+        report = _loudnorm_json(render(input_path, output_path, af, *delivery)) or {}
         norm = report.get("normalization_type")
-        return LoudnormResult(output_path, str(norm) if norm else None, stats)
+        return MasterResult(output_path, plan, stats, str(norm) if norm else None, None)
+
+    def _limit_to_target(
+        self,
+        input_path: Path,
+        output_path: Path,
+        plan: LimiterPlan,
+        stats: dict[str, float],
+        *,
+        integrated_lufs: float,
+        true_peak_db: float,
+        sample_rate: int,
+        delivery: tuple[str, ...],
+        render: Callable[..., str],
+    ) -> LimiterReport:
+        """Gain into an oversampled limiter under the ceiling, then trim onto the target.
+
+        Limiting lowers the integrated loudness. The trim after the limiter can make
+        up at most the true-peak headroom left under ``true_peak_db``; a larger
+        shortfall is added to the gain into the limiter, and the limiter runs again.
+        """
+        limit_db = round(true_peak_db - LIMITER_MARGIN_DB, 2)
+        drive_db = plan.gain_db
+        renders = 0
+        with tempfile.TemporaryDirectory(dir=output_path.parent) as tmp:
+            limited = Path(tmp) / "limited.wav"
+            while True:
+                renders += 1
+                af = limiter_af(drive_db, limit_db, sample_rate)
+                render(input_path, limited, af, "-c:a", "pcm_f32le")
+                level = self.measure_loudness_full(limited) or {}
+                lufs, peak = level.get("integrated_lufs"), level.get("true_peak_db")
+                if lufs is None or peak is None:
+                    raise RuntimeError(f"ebur128 could not measure the limited master {limited}")
+                shortfall = round(integrated_lufs - lufs, 2)
+                headroom = round(true_peak_db - peak, 2)
+                if shortfall <= headroom or renders == LIMITER_MAX_RENDERS:
+                    break
+                drive_db = round(drive_db + shortfall, 2)
+            trim_db = min(shortfall, headroom)
+            render(limited, output_path, f"volume={trim_db}dB", *delivery)
+        return LimiterReport(
+            gain_db=plan.gain_db,
+            drive_db=drive_db,
+            limit_db=limit_db,
+            renders=renders,
+            trim_db=trim_db,
+            peak_reduction_db=round(stats["input_tp"] + drive_db - peak, 2),
+            loudness_reduction_lu=round(stats["input_i"] + drive_db - lufs, 2),
+        )
+
+    def _render_af(
+        self,
+        input_path: Path,
+        output_path: Path,
+        af: str,
+        *out_args: str,
+        total_sec: float,
+        on_progress: Callable[[float, float], None] | None,
+    ) -> str:
+        """Run ``ffmpeg -i input -af af *out_args output`` and return its stderr."""
+        cmd = [self.ffmpeg, "-y", "-i", str(input_path), "-af", af, *out_args, str(output_path)]
+        if on_progress is None:
+            return run(cmd, check=True, capture_output=True, text=True).stderr or ""
+        return self._run_with_progress(cmd, total_sec=total_sec, on_progress=on_progress)
 
     def filter_audio(
         self,

@@ -10,12 +10,12 @@ performance:
 
 master:
   integrated_lufs: -16.0
+  # True-peak ceiling. A premix whose peaks would cross it at the gain to
+  # integrated_lufs is limited instead of linear-loudnormed (no setting; see
+  # docs/audio-engineering.md § Mastering plan).
   true_peak_db: -1.5
   # loudnorm LRA ceiling (pass-through to FFmpeg loudnorm LRA=).
   lra: 11.0
-  # When first-pass loudnorm under-shoots I on peaky premixes, remaster after this
-  # crest-tame filter (empty string disables the retry).
-  crest_tame_af: "dynaudnorm=f=150:g=15"
   qc_lufs_tolerance_lu: 0.5
   qc_true_peak_tolerance_db: 0.3
 

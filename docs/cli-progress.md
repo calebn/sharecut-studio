@@ -77,7 +77,7 @@ For `pipeline run`, each step emits `Running {step}` / `Completed {step}: {summa
 | `transcribe` | Per-track transcription | wrap / leaf |
 | `transcribe_audio` | Whisper decode of one track | child; audio seconds, `segment.end / duration` |
 | `audibility` / `low-audibility` / `gate-overreach` | Word-scale audit | child (not the wrap’s unit scale) |
-| `master_loudnorm` | Loudness measure + normalize | child; media seconds over measure + normalize, total = 2 × duration |
+| `master_loudnorm` | Loudness measure + normalize or limit | child; media seconds over measure + first render, total = 2 × duration (a limiter re-drive or trim holds it full) |
 | `master_qc_measure` | Post-master loudness re-measure | child; media seconds |
 
 Common ids in the table are **child** ids when nested. They collapse onto the wrap id only for wrap/leaf entrypoints that pass `prefer_parent=True`.
