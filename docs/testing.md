@@ -1174,6 +1174,12 @@ frame. These checks preserve intentional scrolling inside production panes.
 Docs frames are mounted, including an OS preference opposite to the explicit
 toolbar choice. The Docs page and its stories must follow the chosen theme.
 
+A Storybook spec that scans a story frame with `AxeBuilder` must load the story
+with the `a11y.manual:!true` global (`track-mix.spec.ts` does). The Storybook
+a11y addon otherwise runs its own axe instance in every story frame and replaces
+`window.axe` when it loads, so an overlapping scan fails with "Axe is already
+running" (#1120).
+
 ### Shared live project in Playwright
 
 Specs share one live project with `workers: 1`, so rows from earlier specs (for
