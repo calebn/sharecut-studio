@@ -5,7 +5,7 @@ import { setByPath } from "../src/utils/configPath";
 import { postDocumentCommand } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { openTransportMenu } from "./overlayReachability";
-import { openPhoneTimeline } from "./phoneTimeline";
+import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { setTheme } from "./theme";
 
 const VIEWPORTS = [
@@ -180,6 +180,9 @@ for (const viewport of VIEWPORTS) {
           { time: 1, title },
         );
         try {
+          if (viewport.name === "phone") {
+            await rememberInspectorDetent(page, "half");
+          }
           await page.goto(`/?project=${encodeURIComponent(e2eProjectPath)}`);
           await setTheme(page, theme);
           if (viewport.name === "phone") await openPhoneTimeline(page);

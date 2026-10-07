@@ -239,7 +239,17 @@ export async function exposeControl(
     }
     const first =
       geometry.measured.find((item) => !item.full) ?? geometry.measured[0];
-    const direction = first.rect.top < first.clip.top ? -1 : 1;
+    // In view but covered: a pinned sheet header covers the top of the
+    // scroll, so scroll the content down to it; anything else covers it
+    // from below.
+    const covered = geometry.fullyVisible && !geometry.hitsControl;
+    const direction = covered
+      ? geometry.point.y < (page.viewportSize()?.height ?? 0) / 2
+        ? -1
+        : 1
+      : first.rect.top < first.clip.top
+        ? -1
+        : 1;
     await wheelInspector(page, receipts, direction * 100);
   }
   const geometry = await controlGeometry(control);

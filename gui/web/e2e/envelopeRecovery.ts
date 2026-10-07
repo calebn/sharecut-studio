@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, type Page, type TestInfo } from "@playwright/test";
 import { createRelocatedE2eProject } from "./liveProject";
-import { openPhoneTimeline } from "./phoneTimeline";
+import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { setTheme, type Theme } from "./theme";
 
@@ -67,9 +67,10 @@ export async function exerciseEnvelopeRecovery(
 ): Promise<void> {
   await withShareableProject(
     async (projectPath) => {
-      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
       const width = page.viewportSize()!.width;
       const shell = width < 720 ? "phone" : width < 1100 ? "tablet" : "desktop";
+      if (shell === "phone") await rememberInspectorDetent(page, "half");
+      await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
       await expect(page.locator(`.daw-shell--${shell}`)).toBeVisible();
       if (shell === "phone") await openPhoneTimeline(page);
       const lane = page.locator(".lane-row").first();
