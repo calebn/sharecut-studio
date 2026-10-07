@@ -18,7 +18,10 @@ import { type PeekTarget, peekTarget } from "../inspector/peekTarget";
 import { useDaw } from "../state/useDaw";
 import type { BottomSheet } from "../ui/BottomSheet";
 import { useResizeObserver } from "../ui/useResizeObserver";
-import type { CompactInspectorView } from "../utils/compactInspectorPref";
+import {
+  COMPACT_INSPECTOR_VIEWS,
+  type CompactInspectorView,
+} from "../utils/compactInspectorPref";
 import { useLabFlag } from "../utils/labFlags";
 
 /** A phone held sideways: the same short-screen line the sheets use. */
@@ -125,29 +128,24 @@ export function useCompactInspector(
 /** `BottomSheet` props that make the inspector sheet the compact one. */
 export type CompactSheetProps = Pick<
   ComponentProps<typeof BottomSheet>,
-  | "title"
-  | "size"
-  | "expandedSize"
-  | "expanded"
-  | "onExpandedChange"
-  | "resizeLabels"
-  | "stowed"
-  | "className"
+  "title" | "drawer" | "stowed" | "className"
 >;
 
+/**
+ * The compact inspector is a swipeable drawer (#1051 round 4b): the strip at
+ * peek, the full inspector at half and full height. It keeps the target's
+ * name at every detent.
+ */
 export function compactSheetProps(
   compact: CompactInspector,
 ): CompactSheetProps {
   return {
-    title: compact.view === "strip" ? compact.peek.title : "Inspector",
-    size: "peek",
-    expandedSize: "half",
-    expanded: compact.view === "inspector",
-    onExpandedChange: (expanded) =>
-      compact.setView(expanded ? "inspector" : "strip"),
-    resizeLabels: {
-      expand: "Expand to the full inspector",
-      collapse: "Collapse to the strip",
+    title: compact.peek.title,
+    drawer: {
+      detents: COMPACT_INSPECTOR_VIEWS,
+      detent: compact.view,
+      onDetentChange: compact.setView,
+      label: "Inspector height",
     },
     stowed: compact.stowed,
     className: "bottom-sheet--compact",

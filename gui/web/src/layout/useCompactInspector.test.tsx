@@ -39,7 +39,7 @@ beforeEach(() => {
     mobileMode: "timeline",
     selection: { kind: "clip", id: "c2", trackId: "host" },
     selectionHit: { kind: "trim-in", id: "c2" },
-    compactInspectorView: "strip",
+    compactInspectorView: "peek",
     timelineDragging: false,
   });
   setLabEnabled("touchChooser", true);
@@ -57,9 +57,11 @@ describe("useCompactInspector", () => {
     expect(result.current?.peek.title).toBe("Trim start");
     expect(compactSheetProps(result.current!)).toMatchObject({
       title: "Trim start",
-      size: "peek",
-      expandedSize: "half",
-      expanded: false,
+      drawer: {
+        detents: ["peek", "half", "full"],
+        detent: "peek",
+        label: "Inspector height",
+      },
       stowed: false,
       className: "bottom-sheet--compact",
     });
@@ -83,10 +85,12 @@ describe("useCompactInspector", () => {
     );
   });
 
-  it("remembers Expand and Collapse for the next selection, and stows during a drag", () => {
+  it("remembers the drawer's detent for the next selection, and stows during a drag", () => {
     const { result } = renderHook(() => useCompactInspector("phone"));
-    act(() => compactSheetProps(result.current!).onExpandedChange?.(true));
-    expect(localStorage.getItem("sharecut.compactInspector")).toBe("inspector");
+    act(() =>
+      compactSheetProps(result.current!).drawer?.onDetentChange("full"),
+    );
+    expect(localStorage.getItem("sharecut.compactInspector")).toBe("full");
     act(() =>
       useDawStore.setState({
         selection: { kind: "clip", id: "c2", trackId: "host" },
@@ -94,13 +98,15 @@ describe("useCompactInspector", () => {
       }),
     );
     expect(compactSheetProps(result.current!)).toMatchObject({
-      title: "Inspector",
-      expanded: true,
+      title: "host clip",
+      drawer: { detent: "full" },
     });
     act(() => useDawStore.setState({ timelineDragging: true }));
     expect(compactSheetProps(result.current!).stowed).toBe(true);
-    act(() => compactSheetProps(result.current!).onExpandedChange?.(false));
-    expect(localStorage.getItem("sharecut.compactInspector")).toBe("strip");
+    act(() =>
+      compactSheetProps(result.current!).drawer?.onDetentChange("peek"),
+    );
+    expect(localStorage.getItem("sharecut.compactInspector")).toBe("peek");
   });
 });
 
@@ -118,7 +124,7 @@ function CompactSheet() {
   ) : null;
 }
 
-describe("the compact sheet's Expand and Collapse", () => {
+describe("the compact drawer's Expand and Collapse", () => {
   const select = (hit: "trim-in" | "fade-in") =>
     act(() =>
       useDawStore.setState({
@@ -131,26 +137,29 @@ describe("the compact sheet's Expand and Collapse", () => {
       .querySelector(".bottom-sheet")
       ?.className.match(/bottom-sheet--(peek|half|full)/)?.[1];
 
-  it("opens the next selection expanded after Expand, and as the strip after Collapse", () => {
+  it("steps up a detent with Expand, opens the next selection there, and Collapse returns to the strip", () => {
     const { unmount } = render(<CompactSheet />);
     expect(size()).toBe("peek");
     fireEvent.click(
-      screen.getByRole("button", { name: "Expand to the full inspector" }),
+      screen.getByRole("button", { name: "Expand to half height" }),
     );
     select("fade-in");
     expect({ size: size(), pref: readCompactInspectorView() }).toEqual({
       size: "half",
-      pref: "inspector",
+      pref: "half",
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Collapse to the strip" }),
+      screen.getByRole("button", { name: "Expand to full height" }),
     );
+    expect(size()).toBe("full");
+    expect(screen.queryByRole("button", { name: /^Expand/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse to strip" }));
     select("trim-in");
     expect({
       size: size(),
       pref: readCompactInspectorView(),
       title: screen.getByRole("heading").textContent,
-    }).toEqual({ size: "peek", pref: "strip", title: "Trim start" });
+    }).toEqual({ size: "peek", pref: "peek", title: "Trim start" });
     unmount();
   });
 });

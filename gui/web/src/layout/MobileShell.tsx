@@ -506,7 +506,7 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
         (mobileMode === "more" &&
           moreDestination === "impact" &&
           selection.kind === "pending")));
-  const strip = compact?.view === "strip" ? compact.peek : null;
+  const strip = compact?.view === "peek" ? compact.peek : null;
   const sheet: MobileSheet = inspectorOpen
     ? {
         kind: "inspector",
