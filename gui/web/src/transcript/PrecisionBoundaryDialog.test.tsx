@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BoundaryAudition, BoundaryContext } from "../api/boundary";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
+import { waitForDialogFocus } from "../test/dialogFocus";
 import { minimalProject } from "../test/fixtures";
 import { PrecisionBoundaryDialog } from "./PrecisionBoundaryDialog";
 
@@ -132,6 +133,7 @@ describe("PrecisionBoundaryDialog", () => {
     const input = await screen.findByRole("spinbutton", {
       name: "Change boundary by (seconds)",
     });
+    await waitForDialogFocus();
     await user.clear(input);
     expect(input).toHaveValue(null);
     expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
