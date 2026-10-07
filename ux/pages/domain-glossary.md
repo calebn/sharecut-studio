@@ -16,7 +16,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Approve / Reject** | Commit or discard a pending cut |
 | **Comment** | A note at a time on the mix |
 | **Review mix** | Frozen listen file for guests (link previews and agents) |
-| **Share link** | `/r/…` URL with limited powers |
+| **Review link** | `/r/…` URL with limited powers. It works until the host chooses **Stop sharing**; it never expires on its own |
 | **Viewer / Commenter / Editor** | Review-link roles, as in Google Docs. Viewer views and plays; Commenter (default) also comments and suggests edits; Editor also edits directly and approves or rejects suggestions |
 | **Sharecut Studio guest** | Full-ish timeline UI; every review role opens it |
 | **Mode banner** | Top strip naming Shared edit / comment / read-only view |
@@ -26,7 +26,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Presence** | Who is in the session (avatars, ghost cursors). Click to follow. |
 | **Follow** | Slave viewport (desktop/tablet) or listen-along with a centered playhead (phone); Esc or local navigation (including keyboard seek) stops |
 | **Online sharing** | The host's computer making its links reachable from the internet. Share says “Guests can open your links”, “Reconnecting…”, “Not reachable online” or “Online sharing is off”; a local-only host sees no line |
-| **Remote agent link** | MCP URL for an external agent: `{base}/mcp/{token}/mcp` |
+| **MCP URL** | The address an AI assistant (an MCP client such as Claude or ChatGPT) uses for one review link: `{base}/mcp/{token}/mcp`. Share mints it only when the host ticks **Allow AI assistants (MCP)**, and the assistant gets that link's permissions |
 | **Full mix / Edited stems / Original** | What you’re hearing: all tracks mixed with edits and effects, each track on its own (not mixed) with edits and effects, or the source audio without edits or effects |
 | **Source vs timeline time** | Original recording time vs “when you hear it on the mix” |
 | **No mix yet** | No mix has been rendered (never rendered, or a failed render left none), so Full mix plays nothing until the host refreshes it. Shown in place of Mix out of date |

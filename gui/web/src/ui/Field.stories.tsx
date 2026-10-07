@@ -36,16 +36,16 @@ export const WithHint: Story = {
 
 export const WithError: Story = {
   args: {
-    label: "Share link expiry",
-    htmlFor: "sb-expiry",
-    error: "Expiry must be a future date.",
-    errorId: "sb-expiry-error",
+    label: "Chapter start",
+    htmlFor: "sb-chapter-start",
+    error: "Start must fall inside the episode.",
+    errorId: "sb-chapter-start-error",
     children: (
       <input
-        id="sb-expiry"
-        aria-describedby="sb-expiry-error"
+        id="sb-chapter-start"
+        aria-describedby="sb-chapter-start-error"
         aria-invalid
-        defaultValue="2020-01-01"
+        defaultValue="99:00"
       />
     ),
   },
