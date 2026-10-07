@@ -42,6 +42,11 @@ def record_stop_tool(project_path: str) -> str:
     return json.dumps(_ctrl(project_path).stop(), indent=2)
 
 
+def record_marker_tool(project_path: str, body: str = "Marker") -> str:
+    """Host Marker: stamp the open take now; record_land_tool lands it as a comment."""
+    return json.dumps(_ctrl(project_path).marker(body), indent=2)
+
+
 def record_land_tool(project_path: str) -> str:
     """Copy ACK'd keepers into raw/ and land live comments on the timeline."""
     return json.dumps(_ctrl(project_path).land(), indent=2)
@@ -59,5 +64,6 @@ def register(mcp: MCPServer) -> None:
     mcp.tool()(record_pause_tool)
     mcp.tool()(record_resume_tool)
     mcp.tool()(record_stop_tool)
+    mcp.tool()(record_marker_tool)
     mcp.tool()(record_land_tool)
     mcp.tool()(record_discard_take_tool)

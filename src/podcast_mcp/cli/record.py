@@ -84,6 +84,15 @@ def record_stop(project: Path = typer.Option(..., "--project")) -> None:
     _run(project, "stop")
 
 
+@record_app.command("marker")
+def record_marker(
+    project: Path = typer.Option(..., "--project"),
+    body: str = typer.Option("Marker", "--body", help="Comment text"),
+) -> None:
+    """Stamp the open take now; `land` turns it into a timeline comment."""
+    _invoke(project, lambda ctrl: ctrl.marker(body))
+
+
 @record_app.command("land")
 def record_land(project: Path = typer.Option(..., "--project")) -> None:
     """Copy ACK'd keepers into raw/ and place clips on the timeline."""
