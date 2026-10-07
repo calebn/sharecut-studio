@@ -125,6 +125,7 @@ def _gated_track(
     pink: bool = False,
     residue_sec: float = 0.0,
     bleed_db: float | None = None,
+    dc_lsb: float = 0.0,
 ):
     """The guest's gated track over ``_floor(room_db, seed, pink=pink)``.
 
@@ -132,14 +133,15 @@ def _gated_track(
     the gate counts its hold from the end of the ring. With ``residue_sec``, the closed
     gate leaves that long of ±1 LSB rounding residue before the exact zero, as Zoom's does.
     With ``bleed_db``, a peer's voice at that level leaks into the first half of every hold,
-    and into all of every third one.
+    and into all of every third one. With ``dc_lsb``, the open gate's audio sits that many
+    16-bit steps off zero, as Zoom's decoded tracks do, while the closed gate is exact zero.
     """
     rng = np.random.default_rng(seed + 1)
     floor = _floor(room_db, seed, pink=pink)
     out = np.zeros(floor.size)
     for i, (start, end) in enumerate(PHRASES):
         i0, i1 = round((start - OPEN_BEFORE) * SR), round((end + ring_sec + hold) * SR)
-        out[i0:i1] = floor[i0:i1]
+        out[i0:i1] = floor[i0:i1] + dc_lsb / 32767
         v0, v1 = round(start * SR), round(end * SR)
         out[v0:v1] += _voice(v1 - v0, voice_db)
         ring = round(ring_sec * SR)
@@ -177,21 +179,27 @@ def _psd(chunks: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
     return np.mean(np.abs(np.fft.rfft(frames, axis=1)) ** 2, axis=0), np.fft.rfftfreq(n, 1 / SR)
 
 
-def _octave_bands_db(chunks: list[np.ndarray]) -> np.ndarray:
-    """Mean PSD level (dB) in each octave band from 125 Hz up to Nyquist."""
+# A fill's shape is held to the room's from 20 Hz: one band up to 125 Hz, which a 20 ms
+# analysis frame cannot split, then octaves up to Nyquist.
+SHAPE_BANDS = ((20.0, 125.0), *((125.0 * 2**k, 250.0 * 2**k) for k in range(6)))
+
+
+def _bands_db(chunks: list[np.ndarray]) -> np.ndarray:
+    """Mean PSD level (dB) in each of ``SHAPE_BANDS``."""
     psd, f = _psd(chunks)
-    lows = 125.0 * 2.0 ** np.arange(6)
-    return np.array([10 * np.log10(psd[(f >= lo) & (f < 2 * lo)].mean()) for lo in lows])
+    return np.array([10 * np.log10(psd[(f >= lo) & (f < hi)].mean()) for lo, hi in SHAPE_BANDS])
 
 
 def _assert_fill_matches_the_room(
     rendered: np.ndarray, holes: tuple[tuple[float, float], ...], room: np.ndarray
 ) -> None:
     """Inside the holes (past their fades) the fill sits within 2 dB of the room's level,
-    and within 3 dB of its shape in every octave band from 125 Hz up."""
+    within 3 dB of its shape in every band from 20 Hz up, and carries no DC."""
     inside = [_span(rendered, a + 0.02, b - 0.02) for a, b in holes]
-    assert _rms_db(np.concatenate(inside)) == pytest.approx(_rms_db(room), abs=2.0)
-    np.testing.assert_allclose(_octave_bands_db(inside), _octave_bands_db([room]), atol=3.0)
+    fill = np.concatenate(inside)
+    assert _rms_db(fill) == pytest.approx(_rms_db(room), abs=2.0)
+    np.testing.assert_allclose(_bands_db(inside), _bands_db([room]), atol=3.0)
+    assert abs(float(np.mean(fill))) < 10 ** ((_rms_db(room) - 30.0) / 20)
 
 
 def _peer_track(seed: int = 7) -> np.ndarray:
@@ -318,13 +326,19 @@ def test_gated_track_without_a_bed_gets_comfort_noise_at_its_own_floor(tmp_path:
         assert _rms_db(_span(rendered, a + 0.02, b - 0.02)) == pytest.approx(ROOM_DB, abs=4.0)
 
 
+# A short hold is 30 ms: at 20 ms, three or four 5 ms blocks of the closure profile hold the
+# floor, and over this track's 9 closures their scatter reads as a tail's rise on some
+# seeds, which leaves the holes silent rather than wrong.
+SHORT_HOLD = 0.03
+
+
 @pytest.mark.parametrize(
     ("room_db", "hold", "ring_sec", "residue_sec", "bleed_db", "aac"),
     [
         (ROOM_DB, 0.15, 0.0, 0.0, None, False),
         (-82.0, 0.15, 0.0, 0.025, None, False),
-        (ROOM_DB, 0.02, 0.0, 0.025, None, False),
-        (-82.0, 0.02, 0.0, 0.025, None, False),
+        (ROOM_DB, SHORT_HOLD, 0.0, 0.025, None, False),
+        (-82.0, SHORT_HOLD, 0.0, 0.025, None, False),
         (-82.0, 0.12, 0.0, 0.025, -60.0, False),
         (ROOM_DB, 0.25, 0.0, 0.0, None, False),
         (ROOM_DB, 0.15, 0.1, 0.0, None, False),
@@ -372,6 +386,27 @@ def test_comfort_noise_matches_the_room_the_gate_held_open(
     rendered = _render(project, tmp_path, "filled")
     holes = _holes(ring_sec + hold + residue_sec)
     _assert_fill_matches_the_room(rendered, holes, _floor(room_db, pink=True))
+
+
+@pytest.mark.parametrize(
+    ("hold", "residue_sec"),
+    [(0.15, 0.0), (0.15, 0.025), (SHORT_HOLD, 0.025)],
+    ids=["150ms-hold", "residue-tail", "short-hold-residue-tail"],
+)
+def test_a_dc_offset_on_the_open_audio_never_raises_the_fill(
+    tmp_path: Path, hold: float, residue_sec: float
+) -> None:
+    # Zoom's decoded tracks sit about 8 LSB off zero (-72 dBFS) while the gate is open, and
+    # the closed gate is exact zero. The offset is not noise: over a -82 dBFS room it must
+    # not raise the fill, put rumble under it, or carry into it.
+    track = _gated_track(room_db=-82.0, hold=hold, pink=True, residue_sec=residue_sec, dc_lsb=-8.0)
+    project = _project(tmp_path, track)
+
+    fill_gate_holes(project, _defaults())
+
+    assert project.track_by_id("guest").gate_fill is not None
+    rendered = _render(project, tmp_path, "filled")
+    _assert_fill_matches_the_room(rendered, _holes(hold + residue_sec), _floor(-82.0, pink=True))
 
 
 def test_a_dual_mono_tracks_fill_matches_each_channels_room(tmp_path: Path) -> None:
