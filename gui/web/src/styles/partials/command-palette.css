@@ -168,9 +168,10 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
   margin: 0;
 }
 
-.command-palette-section h3 {
+.command-palette-group-label {
   margin: var(--space-4) 0 var(--space-3);
   font-size: var(--font-size-small);
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   opacity: 0.7;
@@ -187,33 +188,52 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-3);
-  padding: var(--space-1) 0;
+  min-block-size: var(--touch-min);
+  padding: var(--space-1) var(--space-3);
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
-/* Two classes: .ui-control centers its content and loads after this partial. */
-.ui-control.command-palette-run {
+.command-palette-remap-row .command-palette-label {
   flex: 1 1 12rem;
-  justify-content: space-between;
-  gap: var(--space-5);
+}
+
+.command-palette-option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
   min-block-size: var(--touch-min);
   padding: var(--space-3);
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: inherit;
-  font-weight: 500;
-  text-align: start;
+  border-bottom: 1px solid var(--color-border-subtle);
+  cursor: pointer;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .ui-control.command-palette-run:hover:not(:disabled) {
+  .command-palette-option:hover:not([aria-disabled="true"]) {
     background: var(--color-hover);
   }
 }
 
-.ui-control.command-palette-run:disabled {
+/* The command Enter runs: Search keeps focus, so mark it like a focused row. */
+.command-palette-option[aria-selected="true"] {
+  background: var(--color-hover);
+  box-shadow: inset 0 0 0 var(--focus-ring-width) var(--color-accent);
+}
+
+.command-palette-option[aria-disabled="true"] {
   cursor: not-allowed;
+}
+
+.command-palette-option-main {
+  display: flex;
+  flex: 1 1 12rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  font-weight: 500;
+}
+
+.command-palette-option[aria-disabled="true"] .command-palette-option-main {
   opacity: 0.55;
 }
 
@@ -231,7 +251,8 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
   color: var(--color-text-secondary);
 }
 
-.command-palette-run kbd {
+.command-palette-option-main kbd,
+.command-palette-remap-row kbd {
   flex: none;
   font-size: var(--font-size-ui);
   color: var(--color-text-secondary);
@@ -240,7 +261,6 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
 .command-palette-note {
   flex: 1 1 100%;
   margin: 0;
-  padding-inline: var(--space-3);
   font-size: var(--font-size-small);
   color: var(--color-text-secondary);
 }

@@ -132,10 +132,10 @@ export const Browse: Story = {
       expect(within(dialog).getByText("Select tool")).toBeVisible(),
     );
     await expect(
-      within(dialog).getByRole("button", { name: /^Export diagnostics…/ }),
-    ).toBeDisabled();
+      within(dialog).getByRole("option", { name: "Export diagnostics…" }),
+    ).toHaveAttribute("aria-disabled", "true");
     await userEvent.click(
-      within(dialog).getByRole("button", { name: /Select tool/ }),
+      within(dialog).getByRole("option", { name: "Select tool" }),
     );
     await expect(args.onRun).toHaveBeenCalledWith("tool.select");
   },
@@ -146,11 +146,11 @@ export const Search: Story = {
     if (viewMode === "docs") return;
     const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
     await userEvent.type(
-      within(dialog).getByRole("searchbox", { name: "Search commands" }),
+      within(dialog).getByRole("combobox", { name: "Search commands" }),
       "export",
     );
     await expect(within(dialog).getByRole("status")).toHaveTextContent(
-      "2 commands",
+      "2 commands. Enter runs Export deliverables…",
     );
     await expect(within(dialog).queryByText("Select tool")).toBeNull();
     await userEvent.keyboard("{Enter}");
@@ -163,7 +163,7 @@ export const NoMatch: Story = {
     if (viewMode === "docs") return;
     const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
     await userEvent.type(
-      within(dialog).getByRole("searchbox", { name: "Search commands" }),
+      within(dialog).getByRole("combobox", { name: "Search commands" }),
       "xylophone",
     );
     await expect(

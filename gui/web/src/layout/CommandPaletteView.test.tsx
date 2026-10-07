@@ -67,14 +67,16 @@ describe("CommandPaletteView", () => {
     const dialog = screen.getByRole("dialog", {
       name: "Commands and shortcuts",
     });
+    const listbox = within(dialog).getByRole("listbox", { name: "Commands" });
     expect(
-      within(dialog)
-        .getAllByRole("heading", { level: 3 })
-        .map((h) => h.textContent),
+      within(listbox)
+        .getAllByRole("group")
+        .map((g) => g.getAttribute("aria-labelledby"))
+        .map((id) => document.getElementById(id ?? "")?.textContent),
     ).toEqual(["Transport", "Tools", "App"]);
     expect(
-      within(dialog).getByRole("button", { name: /^Play \/ pause/ }),
-    ).toBeEnabled();
+      within(listbox).getByRole("option", { name: "Play / pause" }),
+    ).not.toHaveAttribute("aria-disabled");
     await expectNoA11yViolations(baseElement);
   });
 
@@ -82,60 +84,114 @@ describe("CommandPaletteView", () => {
     renderPalette();
     await waitForDialogFocus();
     expect(
-      screen.getByRole("searchbox", { name: "Search commands" }),
+      screen.getByRole("combobox", { name: "Search commands" }),
     ).toHaveFocus();
   });
 
-  it("filters as you type, counts matches and runs the top one on Enter", async () => {
+  it("marks the top runnable match and says Enter runs it", async () => {
     const user = userEvent.setup();
-    const { props } = renderPalette();
+    const { props, baseElement } = renderPalette();
     await waitForDialogFocus();
-    await user.type(
-      screen.getByRole("searchbox", { name: "Search commands" }),
-      "export",
+    const search = screen.getByRole("combobox", { name: "Search commands" });
+    await user.type(search, "export");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "2 commands. Enter runs Export deliverables…",
     );
-    expect(screen.getByRole("status")).toHaveTextContent("2 commands");
-    const rows = screen
-      .getAllByRole("listitem")
-      .map((li) => li.querySelector("button")?.textContent);
-    expect(rows).toEqual([
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
       "Export deliverables…App⌘+Shift+E",
-      "Export diagnostics…App",
+      "Export diagnostics…AppProject create/open is host-only",
     ]);
+    const top = screen.getByRole("option", { name: /^Export deliverables…/ });
+    expect(top).toHaveAttribute("aria-selected", "true");
+    expect(search).toHaveAttribute("aria-activedescendant", top.id);
+    await expectNoA11yViolations(baseElement);
     await user.keyboard("{Enter}");
     expect(props.onRun).toHaveBeenCalledExactlyOnceWith("export.deliverables");
   });
 
-  it("disables a command that cannot run and says why", () => {
-    renderPalette();
-    const row = screen.getByRole("button", { name: "Export diagnostics…" });
-    expect(row).toBeDisabled();
-    expect(row).toHaveAccessibleDescription("Project create/open is host-only");
+  it("finds a command by a catalog keyword", async () => {
+    const user = userEvent.setup();
+    renderPalette({
+      commands: COMMANDS.map((c) =>
+        c.id === "export.deliverables" ? { ...c, keywords: ["mp3"] } : c,
+      ),
+    });
+    await waitForDialogFocus();
+    await user.type(
+      screen.getByRole("combobox", { name: "Search commands" }),
+      "mp3",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "1 command. Enter runs Export deliverables…",
+    );
   });
 
-  it("moves between results with the arrow keys and back up to Search", async () => {
+  it("marks a command that cannot run and says why", () => {
+    const { props } = renderPalette();
+    const row = screen.getByRole("option", { name: "Export diagnostics…" });
+    expect(row).toHaveAttribute("aria-disabled", "true");
+    expect(row).toHaveAccessibleDescription("Project create/open is host-only");
+    row.click();
+    expect(props.onRun).not.toHaveBeenCalled();
+  });
+
+  it("runs a command on click without taking focus from Search", async () => {
     const user = userEvent.setup();
-    renderPalette();
+    const { props } = renderPalette();
     await waitForDialogFocus();
-    const search = screen.getByRole("searchbox", { name: "Search commands" });
+    await user.click(screen.getByRole("option", { name: "Blade tool" }));
+    expect(props.onRun).toHaveBeenCalledExactlyOnceWith("tool.blade");
+    expect(
+      screen.getByRole("combobox", { name: "Search commands" }),
+    ).toHaveFocus();
+  });
+
+  it("steps through every match with the arrows, unavailable ones included", async () => {
+    const user = userEvent.setup();
+    const { props } = renderPalette();
+    await waitForDialogFocus();
+    const search = screen.getByRole("combobox", { name: "Search commands" });
+    const activeName = () =>
+      document
+        .getElementById(search.getAttribute("aria-activedescendant") ?? "")
+        ?.querySelector(".command-palette-label")?.firstChild?.textContent;
     await user.type(search, "e");
+    expect(activeName()).toBe("Export deliverables…");
     await user.keyboard("{ArrowDown}");
-    expect(
-      screen.getByRole("button", { name: /^Export deliverables…/ }),
-    ).toHaveFocus();
+    expect(activeName()).toBe("Export diagnostics…");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Export diagnostics… is unavailable: Project create/open is host-only",
+    );
+    await user.keyboard("{Enter}");
+    expect(props.onRun).not.toHaveBeenCalled();
     await user.keyboard("{ArrowDown}");
-    expect(
-      screen.getByRole("button", { name: /^Play \/ pause/ }),
-    ).toHaveFocus();
-    await user.keyboard("{ArrowUp}{ArrowUp}");
+    expect(activeName()).toBe("Play / pause");
+    await user.keyboard("{ArrowUp}{ArrowUp}{ArrowUp}");
+    expect(activeName()).toBe("Export deliverables…");
     expect(search).toHaveFocus();
+  });
+
+  it("runs nothing on Enter while browsing until a command is picked", async () => {
+    const user = userEvent.setup();
+    const { props } = renderPalette();
+    await waitForDialogFocus();
+    const search = screen.getByRole("combobox", { name: "Search commands" });
+    expect(search).not.toHaveAttribute("aria-activedescendant");
+    await user.keyboard("{Enter}");
+    expect(props.onRun).not.toHaveBeenCalled();
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Enter runs Play / pause",
+    );
+    await user.keyboard("{Enter}");
+    expect(props.onRun).toHaveBeenCalledExactlyOnceWith("transport.togglePlay");
   });
 
   it("offers Clear search when nothing matches", async () => {
     const user = userEvent.setup();
     renderPalette();
     await waitForDialogFocus();
-    const search = screen.getByRole("searchbox", { name: "Search commands" });
+    const search = screen.getByRole("combobox", { name: "Search commands" });
     await user.type(search, "xylophone");
     expect(
       screen.getByText("No commands match “xylophone”."),
@@ -143,15 +199,15 @@ describe("CommandPaletteView", () => {
     await user.click(screen.getByRole("button", { name: "Clear search" }));
     expect(search).toHaveValue("");
     expect(search).toHaveFocus();
-    expect(screen.getByRole("button", { name: /^Play \/ pause/ })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Play / pause" })).toBeTruthy();
   });
 
   it("links a row's collision note through aria-describedby", () => {
     renderPalette();
     expect(
-      screen.getByRole("button", { name: /^Blade tool/ }),
+      screen.getByRole("option", { name: "Blade tool" }),
     ).toHaveAccessibleDescription(
-      "C alone selects the Blade tool; Mod+C is Copy",
+      "C C alone selects the Blade tool; Mod+C is Copy",
     );
   });
 
@@ -185,14 +241,14 @@ describe("CommandPaletteView", () => {
     const { props, rerender } = renderPalette();
     await waitForDialogFocus();
     await user.type(
-      screen.getByRole("searchbox", { name: "Search commands" }),
+      screen.getByRole("combobox", { name: "Search commands" }),
       "blade",
     );
     await user.click(screen.getByLabelText("Show remaps"));
     rerender(<CommandPaletteView {...props} open={false} />);
     rerender(<CommandPaletteView {...props} open />);
     expect(
-      screen.getByRole("searchbox", { name: "Search commands" }),
+      screen.getByRole("combobox", { name: "Search commands" }),
     ).toHaveValue("");
     expect(screen.getByLabelText("Show remaps")).not.toBeChecked();
   });
