@@ -871,7 +871,7 @@ enforced-by:
 - tests/test_bleed_attenuation.py::test_track_speakers_own_speech_is_untouched
 - tests/test_bleed_attenuation.py::test_quiet_untranscribed_owner_overlapping_foreign_audio_stays_audible
 - tests/test_bleed_gate_generality.py::test_own_sound_over_a_voiced_copy_is_untouched
-- tests/test_bleed_gate_generality.py::test_unpitched_own_sound_beside_the_copy_is_touched_no_more_than_level_and_timbre_do
+- tests/test_bleed_gate_generality.py::test_unpitched_own_sound_clearly_over_the_copy_is_untouched
 - tests/test_bleed_gate_generality.py::test_own_voice_is_kept_for_other_speaker_pairs
 - tests/test_bleed_gate_generality.py::test_a_laugh_is_touched_no_more_than_level_and_timbre_do_for_other_speaker_pairs
 - tests/test_bleed_gate_channels.py::test_own_sound_on_one_channel_is_untouched
@@ -885,6 +885,11 @@ enforced-by:
 - tests/test_bleed_gate_channels.py::test_lossy_stereo_with_a_second_voice_on_one_channel_is_two_signals
 - tests/test_reconcile_copy_lag.py::test_crosstalk_keeps_both_words_own
 - tests/test_reconcile_copy_lag.py::test_a_word_at_the_peers_level_stays_own
+- tests/test_bleed_gate_generality.py::test_a_host_who_laughs_again_and_again_keeps_each_laugh
+- tests/test_bleed_gate_generality.py::test_a_laugh_over_the_copy_on_a_mic_with_a_noise_floor_is_untouched
+- tests/test_bleed_gate_generality.py::test_laughs_beside_a_peer_whose_track_opens_late_are_kept
+- tests/test_bleed_gate_generality.py::test_copy_that_leads_the_peers_track_past_the_read_ahead_is_reduced_as_before
+- tests/test_bleed_gate_generality.py::test_a_peer_with_too_few_openings_to_measure_keeps_the_full_read_ahead
 - docs-sync: decision-bleed
 supersedes: D-bleed-keep-onset-copies
 -->
