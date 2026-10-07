@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 import wave
+from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
@@ -30,19 +32,39 @@ from podcast_mcp.project_store import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 
 SR = 16000
-DURATION_SEC = 8.0
+DURATION_SEC = 15.4
 VOICE_DB = -20.0
 ROOM_DB = -66.0
 # The guest's gate opens 30 ms before each phrase and holds 150 ms after it; between
 # phrases its track is digital silence, like Zoom's per-participant recordings.
-PHRASES = ((0.6, 1.2), (2.0, 2.6), (3.4, 4.2), (5.2, 5.8), (6.6, 7.2))
+PHRASES = (
+    (0.6, 1.2),
+    (2.0, 2.6),
+    (3.4, 4.2),
+    (5.2, 5.8),
+    (6.6, 7.2),
+    (8.0, 8.7),
+    (9.6, 10.2),
+    (11.0, 11.8),
+    (12.6, 13.2),
+    (14.0, 14.6),
+)
 OPEN_BEFORE = 0.03
 HOLD = 0.15
-# Interior holes; the silence before the first phrase and after the last is not a gate
-# closing between words (a late joiner, padding), so it is left alone.
-HOLES = ((1.35, 1.97), (2.75, 3.37), (4.35, 5.17), (5.95, 6.57))
+
+
+def _holes(hold: float) -> tuple[tuple[float, float], ...]:
+    """Interior holes; the silence before the first phrase and after the last is not a gate
+    closing between words (a late joiner, padding), so it is left alone."""
+    return tuple(
+        (round(end + hold, 3), round(nxt - OPEN_BEFORE, 3))
+        for (_, end), (nxt, _) in pairwise(PHRASES)
+    )
+
+
+HOLES = _holes(HOLD)
 LEAD_END = 0.57
-TRAIL_START = 7.35
+TRAIL_START = 14.75
 # A 5 ms dropout inside a phrase: shorter than a gate closing, so not a hole.
 DROPOUT = (3.8, 3.805)
 
@@ -75,14 +97,26 @@ def _voice(n: int, level_db: float, f0: float = 140.0) -> np.ndarray:
     return voice
 
 
-def _gated_track(*, room_db: float = ROOM_DB, voice_db: float = VOICE_DB, seed: int = 1111):
+def _gated_track(
+    *,
+    room_db: float = ROOM_DB,
+    voice_db: float = VOICE_DB,
+    seed: int = 1111,
+    hold: float = HOLD,
+    ring_sec: float = 0.0,
+):
+    """The guest's gated track. With ``ring_sec``, each phrase rings on in the room for that
+    long, decaying 20 dB, and the gate counts its hold from the end of the ring."""
     rng = np.random.default_rng(seed)
     out = np.zeros(round(DURATION_SEC * SR))
     for start, end in PHRASES:
-        i0, i1 = round((start - OPEN_BEFORE) * SR), round((end + HOLD) * SR)
+        i0, i1 = round((start - OPEN_BEFORE) * SR), round((end + ring_sec + hold) * SR)
         out[i0:i1] = rng.normal(0.0, 10 ** (room_db / 20), i1 - i0)
         v0, v1 = round(start * SR), round(end * SR)
         out[v0:v1] += _voice(v1 - v0, voice_db)
+        ring = round(ring_sec * SR)
+        decay = 10 ** (-np.arange(ring) / ring) if ring else np.zeros(0)
+        out[v1 : v1 + ring] += rng.normal(0.0, 10 ** (voice_db / 20), ring) * decay
     out[round(DROPOUT[0] * SR) : round(DROPOUT[1] * SR)] = 0.0
     return out
 
@@ -131,6 +165,22 @@ def _project(
         )
     ]
     return project
+
+
+def _encode_aac(project: EpisodeProject) -> None:
+    """Re-encode the guest's media as AAC (Zoom's native format) and point the track at it."""
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
+    from podcast_mcp.util.process import run
+
+    track = project.track_by_id("guest")
+    wav = project.workspace_path() / track.media.path
+    m4a = wav.with_suffix(".m4a")
+    run(
+        [FFmpegEngine().ffmpeg, "-v", "error", "-i", str(wav), "-c:a", "aac", "-y", str(m4a)],
+        check=True,
+        timeout=30,
+    )
+    track.media.path = str(m4a.relative_to(project.workspace_path()))
 
 
 def _defaults(mode: str = "auto") -> dict:
@@ -193,6 +243,43 @@ def test_gated_track_without_a_bed_gets_comfort_noise_at_its_own_floor(tmp_path:
     rendered = _render(project, tmp_path, "filled")
     for a, b in HOLES:
         assert _rms_db(_span(rendered, a + 0.02, b - 0.02)) == pytest.approx(ROOM_DB, abs=4.0)
+
+
+@pytest.mark.parametrize(
+    ("hold", "ring_sec", "aac"),
+    [(0.02, 0.0, False), (0.25, 0.0, False), (0.15, 0.1, False), (0.15, 0.0, True)],
+    ids=["20ms-hold", "250ms-hold", "ringing-room-150ms-hold", "aac-150ms-hold"],
+)
+def test_comfort_noise_is_read_over_the_gates_own_hold(
+    tmp_path: Path, hold: float, ring_sec: float, aac: bool
+) -> None:
+    # A fixed 120 ms window read a 20 ms gate's word tails as noise, 5 dB over its floor.
+    # AAC fades the floor out over its last frame before each closure; the hold is read
+    # from the level floor before that fade.
+    project = _project(tmp_path, _gated_track(hold=hold, ring_sec=ring_sec))
+    if aac:
+        _encode_aac(project)
+
+    summary = fill_gate_holes(project, _defaults())
+
+    assert project.track_by_id("guest").gate_fill is not None
+    measured = re.search(r"read over a (\d+) ms gate hold", summary)
+    assert measured is not None
+    assert 15 <= int(measured.group(1)) <= 1000 * hold
+    rendered = _render(project, tmp_path, "filled")
+    for a, b in _holes(ring_sec + hold):
+        assert _rms_db(_span(rendered, a + 0.02, b - 0.02)) == pytest.approx(ROOM_DB, abs=2.0)
+
+
+def test_a_gate_that_closes_on_a_ringing_voice_leaves_its_holes_silent(tmp_path: Path) -> None:
+    # No hold: each closure cuts the voice's ring 20 dB under the voice, 26 dB over the
+    # room, so the room is never heard and any fill would hiss.
+    project = _project(tmp_path, _gated_track(hold=0.0, ring_sec=0.1))
+
+    summary = fill_gate_holes(project, _defaults())
+
+    assert project.track_by_id("guest").gate_fill is None
+    assert "too short to measure" in summary
 
 
 def test_recorded_room_tone_bed_comes_before_comfort_noise(tmp_path: Path) -> None:
