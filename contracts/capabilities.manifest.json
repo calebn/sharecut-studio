@@ -2725,11 +2725,14 @@
         "gui": [
           "timeline.clip.joinDiamond",
           "transcript.editBoundary"
-        ]
+        ],
+        "mcp": [
+          "roll_clip_join_tool"
+        ],
+        "cli": "podcast edit roll-join"
       },
       "omit": {
-        "keyboard_reason": "pointer join diamond; no industry-standard key",
-        "agent_reason": "TODO #1140"
+        "keyboard_reason": "pointer join diamond; no industry-standard key"
       },
       "presence": {
         "cursor": "time",

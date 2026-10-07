@@ -534,6 +534,38 @@ def edit_trim_clip_cmd(
         )
 
 
+@edit_app.command("roll-join")
+def edit_roll_join_cmd(
+    project: Path = typer.Option(..., "--project"),
+    left: str = typer.Option(..., "--left", help="Left clip id"),
+    right: str = typer.Option(..., "--right", help="Right clip id"),
+    delta_sec: float = typer.Option(
+        ..., "--delta-sec", help="Source seconds to move the join (positive is later)"
+    ),
+) -> None:
+    """Roll a join: both edges move together, the pair keeps its length."""
+    from podcast_mcp.services.document import RollBoundaryTarget
+    from podcast_mcp.services.document_sync import (
+        host_command_result,
+        submit_host_document_command,
+    )
+
+    ws = ProjectWorkspace.open(project)
+    target = RollBoundaryTarget(left_clip_id=left, right_clip_id=right)
+    reply = submit_host_document_command(
+        project,
+        "RollClipJoin",
+        {
+            "left_clip_id": left,
+            "right_clip_id": right,
+            "delta_sec": delta_sec,
+            "expected_token": EditService(ws).boundary_context(target).token,
+        },
+        client_id="cli",
+    )
+    typer.echo(json.dumps(host_command_result(reply), indent=2))
+
+
 @edit_app.command("add-chapter")
 def edit_add_chapter_cmd(
     project: Path = typer.Option(..., "--project"),
