@@ -137,8 +137,12 @@ export function useTwoFingerTap(
     const undo = () => {
       void execute("history.undo")
         .then((result) => {
-          if (result.status !== "ok")
-            reportFailure("reason" in result ? result.reason : "unavailable");
+          if (result.status === "ok") return;
+          if (result.status === "disabled") {
+            if (!result.announced) reportFailure(result.reason);
+            return;
+          }
+          reportFailure("unavailable");
         })
         .catch((error: unknown) => reportFailure(errorMessage(error)));
     };

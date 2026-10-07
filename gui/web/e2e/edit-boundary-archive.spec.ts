@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 import type { ProjectView } from "../src/types/project";
-import { postDocumentCommand, waiveRefineGate } from "./documentCommand";
+import {
+  postDocumentCommand,
+  postHistoryMove,
+  waiveRefineGate,
+} from "./documentCommand";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
 
 const CLIENT_ID = "e2e-edit-boundary-archive";
@@ -132,9 +136,7 @@ test("rolling a cut boundary restores an archived transcript word through histor
         .first(),
     ).toBeVisible();
 
-    await postDocumentCommand(page, CLIENT_ID, "UndoHistory", {
-      rerender: false,
-    });
+    await postHistoryMove(page, CLIENT_ID, "UndoHistory");
     applied -= 1;
     await page.reload();
     const undoneResponse = await page.request.get(
@@ -163,9 +165,7 @@ test("rolling a cut boundary restores an archived transcript word through histor
       "undo restores dissatisfied in the cutaway archive preview",
     ).toBe(true);
 
-    await postDocumentCommand(page, CLIENT_ID, "RedoHistory", {
-      rerender: false,
-    });
+    await postHistoryMove(page, CLIENT_ID, "RedoHistory");
     applied += 1;
     await page.reload();
     const redoneResponse = await page.request.get(
@@ -187,9 +187,7 @@ test("rolling a cut boundary restores an archived transcript word through histor
     ).toBeTruthy();
   } finally {
     for (let index = 0; index < applied; index += 1) {
-      await postDocumentCommand(page, CLIENT_ID, "UndoHistory", {
-        rerender: false,
-      });
+      await postHistoryMove(page, CLIENT_ID, "UndoHistory");
     }
   }
 });

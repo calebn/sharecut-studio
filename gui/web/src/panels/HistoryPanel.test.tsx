@@ -11,7 +11,11 @@ import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
-import type { HistoryDiff, HistoryGroup } from "../types/project";
+import {
+  HISTORY_ROOT_ID,
+  type HistoryDiff,
+  type HistoryGroup,
+} from "../types/project";
 import { historyGroupKey } from "../utils/historyGroupKey";
 import { HistoryPanel } from "./HistoryPanel";
 
@@ -33,7 +37,7 @@ function historyProject(count: number) {
   return minimalProject({
     history: {
       cursor: 0,
-      head_id: null,
+      head_id: HISTORY_ROOT_ID,
       can_undo: true,
       can_redo: false,
       groups,

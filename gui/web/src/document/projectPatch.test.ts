@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { minimalProject, sampleComment, sampleTrack } from "../test/fixtures";
-import type { ProjectView } from "../types/project";
+import { HISTORY_ROOT_ID, type ProjectView } from "../types/project";
 import { transcriptSpanText } from "../utils/transcript";
 import {
   commentFromCommandResult,
@@ -213,7 +213,7 @@ describe("projectFromDocumentSnapshot", () => {
       },
       history: {
         cursor: 1,
-        head_id: null,
+        head_id: HISTORY_ROOT_ID,
         can_undo: true,
         can_redo: false,
         groups: [{ kind: "snapshot", title: "s" }],
@@ -241,7 +241,7 @@ describe("projectFromDocumentSnapshot", () => {
       },
       history: {
         cursor: 1,
-        head_id: null,
+        head_id: HISTORY_ROOT_ID,
         can_undo: true,
         can_redo: false,
         groups: [],
@@ -1163,7 +1163,7 @@ describe("projectFromDocumentSnapshot", () => {
     const prev = minimalProject({
       history: {
         cursor: 0,
-        head_id: null,
+        head_id: HISTORY_ROOT_ID,
         can_undo: false,
         can_redo: false,
         groups: [{ kind: "snapshot", title: "old" }],
@@ -1172,7 +1172,7 @@ describe("projectFromDocumentSnapshot", () => {
     const next = projectFromDocumentSnapshot(prev, {
       history: {
         cursor: 1,
-        head_id: null,
+        head_id: HISTORY_ROOT_ID,
         can_undo: true,
         can_redo: false,
         groups: [{ kind: "mutation", title: "set track meta · on host" }],
@@ -1190,14 +1190,19 @@ describe("projectFromDocumentSnapshot", () => {
     const prev = minimalProject({
       history: {
         cursor: 0,
-        head_id: null,
+        head_id: HISTORY_ROOT_ID,
         can_undo: false,
         can_redo: false,
         groups: [{ kind: "snapshot", title: "old" }],
       },
     });
     const next = projectFromDocumentSnapshot(prev, {
-      history: { cursor: 1, head_id: null, can_undo: true, can_redo: false },
+      history: {
+        cursor: 1,
+        head_id: HISTORY_ROOT_ID,
+        can_undo: true,
+        can_redo: false,
+      },
     });
     expect(next?.history.groups).toEqual([{ kind: "snapshot", title: "old" }]);
     expect(next?.history.cursor).toBe(1);
@@ -1212,7 +1217,7 @@ describe("projectFromDocumentSnapshot", () => {
       },
       history: {
         cursor: 0,
-        head_id: null,
+        head_id: HISTORY_ROOT_ID,
         can_undo: false,
         can_redo: false,
         groups: [{ kind: "snapshot", title: "old" }],
@@ -1226,7 +1231,7 @@ describe("projectFromDocumentSnapshot", () => {
       },
       history: {
         cursor: 0,
-        head_id: null,
+        head_id: HISTORY_ROOT_ID,
         can_undo: false,
         can_redo: false,
         groups: [],
@@ -1236,7 +1241,7 @@ describe("projectFromDocumentSnapshot", () => {
       project: shell,
       history: {
         cursor: 1,
-        head_id: null,
+        head_id: HISTORY_ROOT_ID,
         can_undo: true,
         can_redo: false,
         groups: [{ kind: "mutation", title: "add comment" }],
@@ -1257,7 +1262,7 @@ describe("projectFromDocumentSnapshot", () => {
       },
       history: {
         cursor: 0,
-        head_id: null,
+        head_id: HISTORY_ROOT_ID,
         can_undo: false,
         can_redo: false,
         groups: [],
@@ -1266,7 +1271,7 @@ describe("projectFromDocumentSnapshot", () => {
     const withGroups = projectFromDocumentSnapshot(prev, {
       history: {
         cursor: 1,
-        head_id: null,
+        head_id: HISTORY_ROOT_ID,
         can_undo: true,
         can_redo: false,
         groups: [{ kind: "mutation", title: "add comment" }],
@@ -1285,7 +1290,7 @@ describe("projectFromDocumentSnapshot", () => {
       },
       history: {
         cursor: 0,
-        head_id: null,
+        head_id: HISTORY_ROOT_ID,
         can_undo: false,
         can_redo: false,
         groups: [],

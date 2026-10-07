@@ -226,6 +226,12 @@ export interface AutomationPoint {
 /** A history entry's id: stable for the life of the entry, unlike its index. */
 export type HistoryEntryId = string & { readonly __brand: "HistoryEntryId" };
 
+/**
+ * The head of a history with no entry yet. It never names an entry; an undo
+ * that saw an empty history sends it, and the server refuses once one exists.
+ */
+export const HISTORY_ROOT_ID = "root" as HistoryEntryId;
+
 /** Parse a wire value as a history entry id (null when absent or not a non-empty string). */
 export function parseHistoryEntryId(value: unknown): HistoryEntryId | null {
   return typeof value === "string" && value !== ""
@@ -398,7 +404,7 @@ export interface ProjectView {
   history: {
     cursor: number;
     /** The entry the project holds now; unlike `cursor`, it never names a different entry. */
-    head_id: HistoryEntryId | null;
+    head_id: HistoryEntryId;
     can_undo: boolean;
     can_redo: boolean;
     groups: HistoryGroup[];

@@ -163,6 +163,19 @@ describe("useTwoFingerTap", () => {
     );
   });
 
+  it("leaves a refusal the undo command already announced alone", async () => {
+    const refused =
+      "Can't undo: the project changed since. Nothing was undone.";
+    mockedExecute.mockImplementationOnce(async () => {
+      useDawStore.getState().announceStatus(refused);
+      return { status: "disabled", reason: refused, announced: true };
+    });
+    const { getByTestId } = render(<Harness />);
+    twoFingerTap(getByTestId("tap-target"));
+    await act(async () => {});
+    expect(useDawStore.getState().statusAnnouncement).toBe(refused);
+  });
+
   it("recovers after a single touch, timeout, or cancellation reaches zero contacts", async () => {
     const { getByTestId } = render(<Harness />);
     const target = getByTestId("tap-target");
