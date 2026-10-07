@@ -556,6 +556,73 @@ def update_pending_edit(
     return edit
 
 
+def _apply_auto_removes(
+    project: EpisodeProject,
+    removes: list[EditDecision],
+    *,
+    inaudible_opt: bool,
+    config_key: str,
+) -> set[str]:
+    """Ripple ``removes`` right to left, each counting the others as chosen.
+
+    Returns the ids of the removes held back because they would cut other speech.
+    """
+    batch = _source_extents(removes)
+    held: set[str] = set()
+    for edit in sorted(removes, key=lambda e: e.start, reverse=True):
+        applied = _apply_remove_edit(
+            project,
+            edit,
+            confirm_cut_speech=False,
+            batch=batch,
+            use_inaudible_opt=inaudible_opt and edit.boundary_mode is None,
+            record_log=False,
+        )
+        if isinstance(applied, CutSpeechConfirmation):
+            held.add(edit.id)
+            continue
+        tl_start, tl_end, track_ids, params = applied
+        if not track_ids:
+            continue
+        archive_decision(
+            project,
+            edit,
+            operation="apply_prefix_edits",
+            timeline_start=tl_start,
+            timeline_end=tl_end,
+            track_ids=track_ids,
+            params={**params, "config_key": config_key},
+        )
+    return held
+
+
+def _held_back_removes(
+    project: EpisodeProject,
+    removes: list[EditDecision],
+    *,
+    inaudible_opt: bool,
+    config_key: str,
+) -> set[str]:
+    """Ids of the auto removes that would cut other speech unasked.
+
+    A held-back remove chooses nothing for the rest, so speech only it covered can
+    hold back another. Trial runs on copies repeat until no more is held back.
+    """
+    ids = {e.id for e in removes}
+    held: set[str] = set()
+    while True:
+        trial = project.model_copy(deep=True)
+        newly = _apply_auto_removes(
+            trial,
+            [e for e in trial.edit_decisions if e.id in ids - held],
+            inaudible_opt=inaudible_opt,
+            config_key=config_key,
+        )
+        if not newly:
+            return held
+        held |= newly
+
+
 def apply_prefix_edits(
     project: EpisodeProject,
     reason_prefix: str | tuple[str, ...],
@@ -564,7 +631,8 @@ def apply_prefix_edits(
 ) -> int:
     """Apply auto-approved REMOVE (ripple) or MUTE (in-place) edits for reason prefixes.
 
-    A remove whose ripple would cut other speech stays pending for review.
+    A remove whose ripple would cut other speech stays pending for review, and the
+    speech it covers is chosen by none of the removes that apply.
     """
     prefixes = (reason_prefix,) if isinstance(reason_prefix, str) else reason_prefix
     applied_decisions: list[EditDecision] = []
@@ -591,7 +659,6 @@ def apply_prefix_edits(
 
     mutes = [e for e in applied_decisions if e.type == EditDecisionType.MUTE]
     removes = [e for e in applied_decisions if e.type == EditDecisionType.REMOVE]
-    batch = _source_extents(removes)
     for edit in sorted(mutes, key=lambda e: e.start, reverse=True):
         tl_start, tl_end, track_ids, params = _apply_mute_edit(project, edit)
         if not track_ids:
@@ -606,32 +673,14 @@ def apply_prefix_edits(
             track_ids=track_ids,
             params=params,
         )
-    for edit in sorted(removes, key=lambda e: e.start, reverse=True):
-        applied = _apply_remove_edit(
-            project,
-            edit,
-            confirm_cut_speech=False,
-            batch=batch,
-            use_inaudible_opt=inaudible_opt and edit.boundary_mode is None,
-            record_log=False,
-        )
-        if isinstance(applied, CutSpeechConfirmation):
-            # Auto-apply never cuts other speech unasked: it stays pending for review.
-            applied_decisions.remove(edit)
-            continue
-        tl_start, tl_end, track_ids, params = applied
-        if not track_ids:
-            continue
-        params = {**params, "config_key": config_key}
-        archive_decision(
-            project,
-            edit,
-            operation="apply_prefix_edits",
-            timeline_start=tl_start,
-            timeline_end=tl_end,
-            track_ids=track_ids,
-            params=params,
-        )
+    held = _held_back_removes(project, removes, inaudible_opt=inaudible_opt, config_key=config_key)
+    held |= _apply_auto_removes(
+        project,
+        [e for e in removes if e.id not in held],
+        inaudible_opt=inaudible_opt,
+        config_key=config_key,
+    )
+    applied_decisions = [e for e in applied_decisions if e.id not in held]
 
     apply_join_fades_from_decisions(
         project,
