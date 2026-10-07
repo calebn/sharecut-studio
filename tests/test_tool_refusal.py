@@ -8,10 +8,13 @@ them).
 
 from __future__ import annotations
 
+import pickle
+
 import pytest
 from filelock import Timeout
 
 from podcast_mcp.util.coded_error import (
+    CodedError,
     CodedFileNotFoundError,
     CodedKeyError,
     CodedValueError,
@@ -97,3 +100,26 @@ def test_refusal_and_crash_results_have_the_owner_server_shape() -> None:
     assert crash.is_error is True
     assert [c.text for c in crash.content] == ["Error executing tool get_comment_tool"]
     assert crash.structured_content is None
+
+
+class _NamedGuard(CodedError, ValueError):
+    code = "named_guard"
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        CodedValueError("unknown track_id: 'x'", code="track_not_found"),
+        CodedKeyError("comment not found: c9", code="comment_not_found"),
+        CodedFileNotFoundError("audio file not found: a.wav", code="file_not_found"),
+        _NamedGuard("the transcript changed"),
+    ],
+)
+def test_coded_errors_round_trip_through_pickle(exc: CodedError) -> None:
+    exc.extra = "kept"  # type: ignore[attr-defined]
+    copy = pickle.loads(pickle.dumps(exc))
+    assert type(copy) is type(exc)
+    assert str(copy) == str(exc)
+    assert copy.code == exc.code
+    assert copy.args == exc.args
+    assert copy.extra == "kept"  # type: ignore[attr-defined]
