@@ -28,6 +28,8 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 
 Transcript quality runs **before** focus/tighten so search and narrative edits use reconciled, precorrected, refined text.
 
+**One recording of several speakers.** Splitting a room or phone recording into a lane per speaker is not a pipeline step: run `podcast speaker split` (MCP `speaker_split_tool`) before the pipeline, with the speaker count. The lanes share the recording's media, muted where another speaker owns the audio, and then run through every step above like any multitrack episode: per-lane FX, compression and balance. Equal-length lanes are held by `align_tracks`. See [multitrack-ingest.md § Split one recording by speaker](multitrack-ingest.md#split-one-recording-by-speaker).
+
 ## Gate fill
 
 `fill_gate_holes` (step 15, `group=mix`) fills the holes a recorder's noise gate leaves in

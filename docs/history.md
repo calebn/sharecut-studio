@@ -221,3 +221,7 @@ across every track it moves, so one Undo puts every track back in sync. A ripple
 would cut another track's speech and is not confirmed runs no mutation and records no
 history. Confirmed, it records one action like any other, and its applied-edit record
 keeps the `cut_speech` it confirmed. See [daw-editing.md § Edit modes](daw-editing.md#edit-modes-ripple-and-gap).
+
+## Speaker split
+
+`podcast speaker split --apply` (`speaker_split_tool`, `SpeakerService.split_speakers`) is one `ProjectWorkspace.mutate()` entry, `split_speakers`. Attribution runs first, outside the project lock; the mutation then adds the speaker lanes, their clip copies and mute regions, the per-lane transcripts and `editorial.speaker_splits`. Undo restores the single original lane, its transcript and clips together. No media is written, so nothing outside `episode.project.json` and `history/` needs cleaning up. See [multitrack-ingest.md § Split one recording by speaker](multitrack-ingest.md#split-one-recording-by-speaker).

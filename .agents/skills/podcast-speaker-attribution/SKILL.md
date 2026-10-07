@@ -30,7 +30,8 @@ Before enroll/compare on a new episode, ask how many distinct speakers (and name
 | Normal episode pipeline | Let `precorrect_transcript` gate speaker pass |
 | Same-room bleed cleanup | `enroll` → `gate-track --apply` → [podcast-mute-bleed](podcast-mute-bleed/SKILL.md) |
 | Compare all tracks at one moment | `podcast speaker compare --start X --end Y` |
-| Two people on one mic | `enroll --speaker A --track T --start … --end …` (repeat per person) |
+| Several people on one recording, want a lane each | `split --track T --speakers N --dry-run`, then `--apply` (below) |
+| Two people on one mic, keep one lane | `enroll --speaker A --track T --start … --end …` (repeat per person) |
 | Debug one window | `podcast speaker score` or `speaker_score_tool` |
 | Re-build profiles after stem change | `podcast speaker enroll` then `gate-track --dry-run` |
 | No torch installed | Skip; precorrect continues with glossary + cross-track |
@@ -47,13 +48,24 @@ podcast speaker gate-track --project PATH --apply
 podcast speaker label --project PATH --track T --start S --end E --dry-run
 podcast speaker set-speaker-count --project PATH --speakers N
 podcast speaker attribute --project PATH --dry-run
+podcast speaker split --project PATH --track T --speakers N --dry-run
+podcast speaker split --project PATH --track T --enroll "NAME=START:END" … --apply [--crosstalk lane]
 ```
+
+## Split one recording into a lane per speaker
+
+1. Ask how many people talk and their names. The count is required; never guess it.
+2. Ask the user to confirm a few seconds of only each speaker (source seconds) and pass them as `--enroll NAME=START:END` / `enrollment={"Name": [[s, e]]}`. Enrollment names the lanes and keeps clustering from splitting one voice.
+3. Dry-run first and read `seconds_by_speaker`, `crosstalk_sec` and `low_confidence_sec` back to the user.
+4. `--apply` makes one undo step: the original lane becomes the first speaker's, each other speaker gets a copy that plays the same media, and each lane is muted where another owns the audio.
+5. Crosstalk flags from speaker embeddings are unreliable on real voices (5% precision on the lab tape). With `--crosstalk both` a flagged stretch plays on two lanes, so twice in the mix; offer `--crosstalk lane` when the user hears it. Short backchannels (under 1 s) are the main attribution errors: listen at hand-overs.
+6. Then run the pipeline as for any multitrack episode. Details: [multitrack-ingest.md § Split one recording by speaker](../../../docs/multitrack-ingest.md#split-one-recording-by-speaker).
 
 Progress is automatic on MCP/CLI (relay tool headlines; do not invent status). Spec: [docs/progress.md](../../docs/progress.md). Long CLI attribute/gate passes: `--json-progress`.
 
 ## MCP
 
-`speaker_enroll_tool`, `speaker_compare_window_tool`, `speaker_compare_pair_tool`, `speaker_gate_track_tool`, `speaker_label_tool`, `speaker_set_count_tool`, `speaker_attribute_tool`, `speaker_score_tool`, `speaker_profiles_tool`, `speaker_doctor_tool`
+`speaker_enroll_tool`, `speaker_compare_window_tool`, `speaker_compare_pair_tool`, `speaker_gate_track_tool`, `speaker_label_tool`, `speaker_set_count_tool`, `speaker_attribute_tool`, `speaker_split_tool`, `speaker_score_tool`, `speaker_profiles_tool`, `speaker_doctor_tool`
 
 ## Hand off to audition
 

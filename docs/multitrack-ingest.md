@@ -300,3 +300,118 @@ Waveform PNGs under `artifacts/alignment/` (`showwavespic` via ffmpeg) show whet
 ## Assigning speakers
 
 The tool does not guess speaker names. List **one file per speaker** in `ingest.yaml`. Omit intro/outro/SFX from `speakers`.
+
+## Split one recording by speaker
+
+A room mic or a phone recorder puts several people on one file. `podcast speaker split`
+(MCP `speaker_split_tool`, `SpeakerService.split_speakers`) turns that lane into one
+lane per speaker, so each can be levelled, EQ'd and processed like a multitrack
+episode (#1095). Phase 1 is the engine, service, CLI and MCP; the Studio "Split
+speakers" flow comes after the owner's listening pass.
+
+```bash
+podcast speaker split --project P --track room --speakers 3 --dry-run
+podcast speaker split --project P --track room \
+  --enroll "Caleb=37.6:47.6" --enroll "Audra=428.5:434.1" --enroll "Lana=270.7:278.3" --apply
+podcast speaker split --project P --track room --speakers 2 --crosstalk lane --apply
+```
+
+**Input.** The speaker count is required: from the call, or the one the user saved with
+`set-speaker-count`. It is never inferred from the track count. `--enroll NAME=START:END`
+(source seconds, repeatable) names a few seconds of only that speaker; it sets the names
+and their order, and seeds the clustering. Without it, speakers are named `Speaker 1…N`
+by when each first talks. A real speaker embedding is required (`[speaker]` ECAPA or
+`[speaker-lite]` Resemblyzer); the CI mock is refused.
+
+**Data shape.** `engines/speaker_split.py` returns a `SpeakerAttribution`: turns that
+cover the recording with no gaps, each with its speakers (most likely first, two or
+more is crosstalk) and a confidence. `edits/speaker_split.py` applies it in one
+`ProjectWorkspace.mutate()` entry:
+
+- The original lane becomes the first speaker's lane. Each other speaker gets a copy of
+  it: same `media.path`, same clip geometry, FX chain and envelopes. No audio is copied
+  or decoded into the workspace.
+- Each lane gets `mute_regions` wherever another lane owns the audio. Ownership follows
+  the turns, so outside crosstalk exactly one lane is open at any moment and the lanes
+  sum back to the recording. The 20 ms fades are centred on each hand-over, so one
+  lane's linear fade-out and the next lane's fade-in sum to one.
+- Crosstalk plays on every talking speaker's lane (default `--crosstalk both`; the mix
+  then carries it twice, about +6 dB) or only on a shared `Crosstalk` lane
+  (`--crosstalk lane`, where the sum stays exact).
+- Transcript words of the original lane go to the most likely speaker of the turn that
+  holds their midpoint.
+- `editorial.speaker_splits[]` keeps the turns, so crosstalk is flagged in the project
+  ([episode-format-v2.md](episode-format-v2.md#timeline-and-render)). Doctor and export
+  QC skip that declared crosstalk and muted time when they look for stacked copies.
+- `--room-tone-fill` lays the track's room tone (`edits/room_tone.py`, #1054) under each
+  mute. It is off by default: the open lane already carries the bed, so every fill adds
+  another copy of it to the mix. A gated recording has no room tone and stays silent.
+
+**Attribution.** Silero frames (20 ms) → 1 s windows every 0.25 s that are at least 30%
+voiced → embeddings → spherical k-means seeded from the enrollment spans (or k-means++)
+→ each frame scores each speaker by the mean cosine of the windows covering it → a
+Viterbi pass picks one speaker per frame, with a switch costing 8 (log-odds at cosine /
+0.05) inside voiced frames and 1 in a pause. Crosstalk is a whole window where the
+runner-up reads at least halfway from its own absent level to its own present level.
+
+### Evidence: lab mixdown (#1095)
+
+Truth is the lab tape (rev 3b414c4c): the three aligned Zoom tracks summed into one
+48 kHz mono file. A speaker is talking in a 20 ms frame when their own track is within
+30 dB of its own speech level and the bleed gate's acoustic evidence (`_own_voice` over
+`_foreign_speech`) does not call the frame a peer's copy. That gives 1,013 s with one
+speaker (Caleb 684, Audra 153, Lana 175) and 141 s of crosstalk. Enrollment is
+simulated with each speaker's earliest clean turns, 10 s per speaker.
+
+Frame accuracy on one-speaker frames (crosstalk column: share of crosstalk frames given
+to one of the people talking), per window length, ECAPA:
+
+| Approach | 0.5 s | 1 s | 1.5 s | 3 s | crosstalk (1 s) | CPU s per audio hour (1 s) |
+|---|---|---|---|---|---|---|
+| A. k-means, k = 3, nearest window | 0.887 | 0.941 | 0.949 | 0.929 | 0.943 | 229 |
+| B. enrollment only (10 s each), nearest window | 0.866 | 0.926 | 0.936 | 0.918 | 0.943 | 229 |
+| C1. A + pitch and level edges | 0.912 | 0.949 | 0.951 | 0.936 | 0.934 | 230 |
+| C2. B + pitch and level edges | 0.898 | 0.939 | 0.940 | 0.925 | 0.919 | 230 |
+| D. enrollment-seeded k-means + level edges (shipped) | 0.918 | 0.951 | 0.949 | 0.925 | 0.954 | 230 |
+
+Resemblyzer at 1 s: A 0.943, B 0.947, C 0.942, D 0.954, at 129 s per audio hour. Blind
+k-means with Resemblyzer collapsed at 0.5 s and 1.5 s (0.518 and 0.614: one voice split
+into two clusters); enrollment seeding fixed it. The shipped engine end to end (voice
+detector, embedding, Viterbi) scored 0.951 with ECAPA both seeded and blind, per speaker
+Caleb 0.962, Audra 0.971, Lana 0.888, in about 260 s per audio hour on an M2 Pro (one
+run; embedding is most of it, 5,552 windows at about 20 ms each).
+
+Pitch did not help at 1 s or longer, so the shipped edge refinement is level only: it
+puts 80% of hand-overs in pauses against 61% for per-frame argmax, at the same accuracy.
+
+Rendered lanes against each person's original Zoom track (scaled like the mixdown),
+seeded ECAPA, `--crosstalk both`:
+
+| Lane | SNR vs own stem | mixdown vs own stem | own speech level | other voices left where only others talk |
+|---|---|---|---|---|
+| Caleb | 7.8 dB | 1.4 dB | +0.0 dB | -16.1 dB |
+| Audra | 5.2 dB | -4.1 dB | -0.1 dB | -14.6 dB |
+| Lana | 3.2 dB | -7.8 dB | -1.1 dB | -18.0 dB |
+
+The lanes sum back to the mixdown within -47.7 dB outside flagged crosstalk; the 28 s
+flagged plays twice and brings the whole-tape residual to -22.6 dB. SNR stays low
+because a lane keeps everything in its own turns: crosstalk, and Audra's room copy on
+Caleb's mic, which follows her into her lane.
+
+**Failure modes.**
+
+- *Short talk.* 83% of the errors sit within 0.5 s of a speaker change and 73% inside
+  talk spurts under 1 s (backchannels such as "uh-huh"), which a 1 s window cannot name.
+  Lana, with the most backchannels, scores lowest.
+- *Crosstalk detection does not work with learned embeddings.* On the lab, ECAPA flagged
+  28-30 s as crosstalk at 5% precision and 1% recall: two voices at once read as neither
+  speaker, not both, and 71% of the lab's overlap lasts under 0.5 s. With
+  `--crosstalk both`, those flags play twice in the mix. The rule works where an
+  embedding adds voices (the synthetic test backend). Overlap needs a dedicated detector
+  or source separation (follow-up).
+- *Blind clustering can split one voice.* Seen with Resemblyzer; enroll a few seconds per
+  speaker to avoid it.
+- *Truth limits.* The bleed gate keeps some of Audra's copy on Caleb's mic as his own
+  ([audio-engineering.md](audio-engineering.md)), so part of the Caleb errors and of the
+  Caleb+Audra crosstalk is a truth artefact: 60% of Caleb's errors fall in his quietest
+  quarter of frames.
