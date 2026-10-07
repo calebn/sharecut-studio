@@ -12,7 +12,6 @@ import pytest
 from podcast_mcp.engines.ffmpeg import (
     AudioProbe,
     FFmpegEngine,
-    RenderSegment,
     _annotate_vf,
     _effect_filter,
     _escape_drawtext,
@@ -172,25 +171,6 @@ def test_build_track_filter_envelope():
     )
     filt = eng.build_track_filter(None, env)
     assert "volume" in filt
-
-
-def test_render_single_segment(sample_wav: Path, tmp_path: Path):
-    eng = FFmpegEngine()
-    ok, _ = eng.check_available()
-    if not ok:
-        pytest.skip("ffmpeg not available")
-    out = tmp_path / "cut.wav"
-    from podcast_mcp.engines.ffmpeg import RenderSegment
-
-    eng.render_track_to_file(
-        sample_wav,
-        out,
-        [RenderSegment(0.0, 1.0)],
-        crossfade_ms=5,
-        af_chain="anull",
-    )
-    assert out.is_file()
-    assert eng.probe(out).duration_sec > 0.4
 
 
 def test_apply_gain(sample_wav: Path, tmp_path: Path):
@@ -369,12 +349,6 @@ def test_volume_expression_variants():
     assert "if(lt(t,2.0)" in expr
 
 
-def test_render_track_to_file_no_segments_raises(sample_wav: Path, tmp_path: Path):
-    eng = FFmpegEngine()
-    with pytest.raises(ValueError, match="no segments"):
-        eng.render_track_to_file(sample_wav, tmp_path / "out.wav", [], 0, "anull")
-
-
 def test_render_timeline_no_segments_raises(sample_wav: Path, tmp_path: Path):
     from podcast_mcp.engines.ffmpeg import PlacedSegment
 
@@ -411,32 +385,6 @@ def test_render_timeline_single_segment_applies_fx_once(sample_wav: Path, tmp_pa
     assert len(commands) == 1
     assert "atrim=start=0.0:end=0.5" in commands[0]
     assert "highpass=f=80[out]" in commands[0]
-    assert out.is_file()
-
-
-def test_render_multi_segment_with_fades(sample_wav: Path, tmp_path: Path):
-    eng = FFmpegEngine()
-    out = tmp_path / "multi.wav"
-
-    def fake_run(cmd, **kwargs):
-        out_path = Path(cmd[-1])
-        if out_path.suffix == ".wav":
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            out_path.write_bytes(b"RIFF")
-        return MagicMock(returncode=0)
-
-    segments = [RenderSegment(0.0, 0.5), RenderSegment(0.8, 1.2)]
-    with patch("podcast_mcp.engines.ffmpeg.run", side_effect=fake_run):
-        result = eng.render_track_to_file(
-            sample_wav,
-            out,
-            segments,
-            crossfade_ms=5,
-            af_chain="highpass=f=80",
-            fade_in_sec=0.05,
-            fade_out_sec=0.05,
-        )
-    assert result == out
     assert out.is_file()
 
 
@@ -989,8 +937,8 @@ def test_join_audio_parts_defaults_to_concat(sample_wav: Path, tmp_path: Path):
         pytest.skip("ffmpeg not available")
     p1 = tmp_path / "a.wav"
     p2 = tmp_path / "b.wav"
-    eng.render_track_to_file(sample_wav, p1, [RenderSegment(0.0, 0.5)], 10, "anull")
-    eng.render_track_to_file(sample_wav, p2, [RenderSegment(0.5, 1.0)], 10, "anull")
+    eng.extract_segment(sample_wav, p1, 0.0, 0.5)
+    eng.extract_segment(sample_wav, p2, 0.5, 1.0)
     out = tmp_path / "joined_default.wav"
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         eng.join_audio_parts([p1, p2], out)
@@ -1018,8 +966,8 @@ def test_join_audio_parts_concat_without_crossfade(sample_wav: Path, tmp_path: P
         pytest.skip("ffmpeg not available")
     p1 = tmp_path / "a.wav"
     p2 = tmp_path / "b.wav"
-    eng.render_track_to_file(sample_wav, p1, [RenderSegment(0.0, 0.5)], 10, "anull")
-    eng.render_track_to_file(sample_wav, p2, [RenderSegment(0.5, 1.0)], 10, "anull")
+    eng.extract_segment(sample_wav, p1, 0.0, 0.5)
+    eng.extract_segment(sample_wav, p2, 0.5, 1.0)
     out = tmp_path / "joined_hard.wav"
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         eng.join_audio_parts([p1, p2], out, crossfade_ms_between=[0])
@@ -1036,8 +984,8 @@ def test_join_audio_parts_uses_acrossfade(sample_wav: Path, tmp_path: Path):
         pytest.skip("ffmpeg not available")
     p1 = tmp_path / "a.wav"
     p2 = tmp_path / "b.wav"
-    eng.render_track_to_file(sample_wav, p1, [RenderSegment(0.0, 0.5)], 10, "anull")
-    eng.render_track_to_file(sample_wav, p2, [RenderSegment(0.5, 1.0)], 10, "anull")
+    eng.extract_segment(sample_wav, p1, 0.0, 0.5)
+    eng.extract_segment(sample_wav, p2, 0.5, 1.0)
     out = tmp_path / "joined.wav"
     with patch("podcast_mcp.engines.ffmpeg.run") as run:
         eng.join_audio_parts([p1, p2], out, crossfade_ms_between=[40])

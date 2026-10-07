@@ -36,7 +36,6 @@ from podcast_mcp.pipeline import steps
 class PipelineBenchmarkResult:
     assemble_sec: float = 0.0
     clip_count: int = 0
-    render_track_to_file_calls: int = 0
     ffmpeg_subprocess_calls: int = 0
     reconcile_sec: float = 0.0
     load_mono_full_calls: int = 0
@@ -49,7 +48,6 @@ class PipelineBenchmarkResult:
         return {
             "assemble_sec": round(self.assemble_sec, 3),
             "clip_count": self.clip_count,
-            "render_track_to_file_calls": self.render_track_to_file_calls,
             "ffmpeg_subprocess_calls": self.ffmpeg_subprocess_calls,
             "reconcile_sec": round(self.reconcile_sec, 3),
             "load_mono_full_calls": self.load_mono_full_calls,
@@ -152,28 +150,20 @@ def run_assemble_benchmark(project: EpisodeProject) -> PipelineBenchmarkResult:
     if not eng.check_available()[0]:
         pytest.skip("ffmpeg not available")
 
-    original_render = eng.render_track_to_file
-    render_calls = {"n": 0}
     subprocess_calls = {"n": 0}
     original_run = subprocess.run
-
-    def counting_render(*args, **kwargs):
-        render_calls["n"] += 1
-        return original_render(*args, **kwargs)
 
     def counting_subprocess(cmd, *args, **kwargs):
         if isinstance(cmd, (list, tuple)) and cmd and "ffmpeg" in str(cmd[0]):
             subprocess_calls["n"] += 1
         return original_run(cmd, *args, **kwargs)
 
-    eng.render_track_to_file = counting_render  # type: ignore[method-assign]
     with patch("subprocess.run", side_effect=counting_subprocess):
         t0 = time.perf_counter()
         with patch("podcast_mcp.pipeline.steps.ffmpeg", return_value=eng):
             steps.assemble_timeline(project, defaults)
         result.assemble_sec = time.perf_counter() - t0
 
-    result.render_track_to_file_calls = render_calls["n"]
     result.ffmpeg_subprocess_calls = subprocess_calls["n"]
     for track in project.tracks:
         stem = project.artifacts_dir() / "tracks" / f"{track.id}.wav"
@@ -278,7 +268,6 @@ def test_benchmark_assemble_synthetic(tmp_path: Path, sample_wav: Path):
     assert result.assemble_sec < 60.0
     # Single-pass render: the whole track assembles in one ffmpeg filter_complex
     # invocation, not one subprocess per clip.
-    assert result.render_track_to_file_calls == 0
     assert 0 < result.ffmpeg_subprocess_calls < result.clip_count
     assert "host" in result.track_durations
     assert abs(result.track_durations["host"] - expected_timeline_end) < 0.15
