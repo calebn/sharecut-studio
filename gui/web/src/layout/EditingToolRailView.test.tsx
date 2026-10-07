@@ -15,6 +15,12 @@ function baseProps() {
     bladeConfirmSec: null,
     trackIdsForCut: [],
     toolToggle: <div data-testid="tool-toggle-slot" />,
+    history: { canUndo: true, canRedo: false } as {
+      canUndo: boolean;
+      canRedo: boolean;
+    } | null,
+    onUndo: vi.fn(),
+    onRedo: vi.fn(),
     onAddTrack: vi.fn(),
     onImport: vi.fn(),
     onCutAtPlayhead: vi.fn(),
@@ -30,9 +36,47 @@ describe("EditingToolRailView", () => {
         {...baseProps()}
         bladeAllowed={false}
         mayIngest={false}
+        history={null}
       />,
     );
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("runs Undo and names why Redo is disabled", async () => {
+    const user = userEvent.setup();
+    const props = baseProps();
+    const { container } = render(<EditingToolRailView {...props} />);
+    const group = screen.getByRole("group", { name: "Undo and redo" });
+    expect(group).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(props.onUndo).toHaveBeenCalledTimes(1);
+    const redo = screen.getByRole("button", { name: "Redo" });
+    expect(redo).toBeDisabled();
+    expect(redo).toHaveAccessibleDescription("Nothing to redo");
+    expect(redo).toHaveAttribute("title", "Nothing to redo");
+    await user.click(redo);
+    expect(props.onRedo).not.toHaveBeenCalled();
+    await expectNoA11yViolations(container);
+  });
+
+  it("says there is nothing to undo on a fresh project", async () => {
+    const { container } = render(
+      <EditingToolRailView
+        {...baseProps()}
+        history={{ canUndo: false, canRedo: true }}
+      />,
+    );
+    const undo = screen.getByRole("button", { name: "Undo" });
+    expect(undo).toBeDisabled();
+    expect(undo).toHaveAccessibleDescription("Nothing to undo");
+    expect(screen.getByRole("button", { name: "Redo" })).not.toBeDisabled();
+    await expectNoA11yViolations(container);
+  });
+
+  it("hides Undo and Redo from people who cannot edit", () => {
+    render(<EditingToolRailView {...baseProps()} history={null} />);
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Undo and redo" })).toBeNull();
   });
 
   it("shows the toggle slot and track/import actions and fires callbacks", async () => {
