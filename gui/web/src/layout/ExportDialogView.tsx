@@ -76,10 +76,7 @@ export function ExportDialogView(props: ExportDialogViewProps) {
         ) : null}
         {stage.kind === "done" ? <ExportOutcome stage={stage} /> : null}
         {stage.kind === "failed" ? (
-          <InlineError
-            message={`Export failed: ${stage.reason}`}
-            role="alert"
-          />
+          <InlineError message={`Export failed: ${stage.reason}`} />
         ) : null}
         {stage.kind === "cancelled" ? <ExportCancelled stage={stage} /> : null}
       </div>
@@ -210,7 +207,7 @@ function ExportProgress({
         shows its progress.
       </p>
       {cancelError ? (
-        <InlineError message={`Cancel failed: ${cancelError}`} role="alert" />
+        <InlineError message={`Cancel failed: ${cancelError}`} />
       ) : null}
     </>
   );

@@ -403,7 +403,7 @@ Sharecut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md
 | `useResizeObserver` | Resize → callback (one observer, latest callback, `enabled`); never `new ResizeObserver` inline |
 | `BottomSheet` | Phone/tablet peek sheet (non-modal) |
 | `Field` / `FieldRow` | Labeled control + hint + error; horizontal nudge row. `Field` owns the ids: its children are a function that receives `control` (`id`, `aria-describedby`, `aria-invalid`) to spread on the control, so the hint and error always reach it |
-| `InlineError` | Error lines; always `role="alert"`, so a new error is announced once when it appears |
+| `InlineError` | Error lines. `origin="action"` (default) is `role="alert"`, announced when the error appears. `origin="state"` is for an error kept in loaded or background state (a job, a settings load): announced politely (`role="status"`) only when it arrives while the line is mounted, so a tab switch does not repeat it; mount it unconditionally |
 | `Toast` | Short-lived message with optional Undo and Dismiss; pauses on hover/focus. The app toast is `feedback/FeedbackToast` (below) |
 | `LoadingScreen` / `ErrorScreen` | App boot states |
 | `DefinitionList` / `DefItem` | Inspector `<dl>` rows |

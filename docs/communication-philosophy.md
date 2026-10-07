@@ -209,12 +209,14 @@ the empty state, not a separate discovery task.
 - **Feedback must be visible, not screen-reader-only.** Every
   `announceStatus` shows the same string in the app toast
   (`feedback/FeedbackToast`, built on `ui/Toast`): one toast at a time,
-  centred at the bottom above the status bar or the phone mode nav,
-  while the shell's live region speaks it. Only a status that a
-  persistent control already shows (the job chip, the presence avatars)
-  passes `{ toast: false }`. The Comments panel keeps its own `ui/Toast`
-  for comment resolution. A multi-minute export whose only "done"
-  signal is invisible is a high-severity bug. (Surface 6.)
+  centred at the bottom above the status bar or the phone mode nav
+  (at the top on a phone while a bottom sheet is open, so it never
+  covers the sheet's fields), while the shell's live region speaks it.
+  Only a status that a persistent control already shows (the job chip,
+  the presence avatars) passes `{ toast: false }`. The Comments panel
+  keeps its own `ui/Toast` for comment resolution. A multi-minute
+  export whose only "done" signal is invisible is a high-severity bug.
+  (Surface 6.)
 - **Destructive list actions get toast-with-undo.** Approve, reject,
   skip, blade, trim: after the mutation, a transient confirmation
   with an Undo action. The History tab is the backstop, not the
@@ -233,7 +235,14 @@ the empty state, not a separate discovery task.
   `role="alert"`. Fix the primitives once; every caller inherits it.
   (Surface 6; #1031 moved this into the primitives: `Field` owns the
   ids and hands its control `aria-describedby` and `aria-invalid`
-  through a render prop, and `InlineError` always alerts.)
+  through a render prop.)
+- **Announce each error once, at the urgency it deserves.** An error
+  caused by what the person just did is assertive (`InlineError`'s
+  default, `role="alert"`). An error kept in loaded or background
+  state, such as a failed job or a settings load, is polite
+  (`origin="state"`, `role="status"`) and speaks only when it arrives;
+  showing the saved line again after a tab switch or remount stays
+  silent.
 - **Heavyweight actions get a dialog, not a menu item.** Starting a
   minutes-long mastered export from one menu tap with no cancel is
   the wrong weight for the interaction — give it the bounce-dialog
@@ -469,5 +478,9 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-07 — Feedback primitives (#1031): every announcement shows in the
   app toast with a scoped Undo where history recorded the change; the last
   native dialogs became `askConfirm` / `askText` in `AskDialog`; oxlint
-  `no-alert` is an error; `Field` wires its hint and error and `InlineError`
-  always alerts.
+  `no-alert` is an error; `Field` wires its hint and error. Review round:
+  the toast's Undo names its history entry and the server refuses it once
+  another edit is the latest ("Can't undo: the project changed since.
+  Nothing was undone."); `InlineError` alerts for action errors and
+  speaks saved-state errors politely, once; on phones the toast moves to
+  the top while a bottom sheet is open.
