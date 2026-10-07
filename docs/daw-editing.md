@@ -343,7 +343,7 @@ such words, its own sound at speech level in half-second windows: the
 on another mic does not count (`speech_energy_guard.measure_peer_speech`).
 A word counts only where its own voice sounds inside the removed part, because ASR
 stretches word times over the silence beside a voice
-(`speech_energy_guard.word_voice_sounds_in`). Its own track is read in tighten's
+(`speech_energy_guard.speech_words_in`, via `word_voice_sounds_in`). Its own track is read in tighten's
 20 ms frames every 10 ms. The word's loudest frame is its voice level, and a frame
 in the part is that voice when it is within the speech range of that level
 (`JoinSpeechConfig.speech_dynamic_db`, 25 dB). The selecting speaker's bleed on that
@@ -381,7 +381,9 @@ apply.
 
 Tighten and NL removes first keep their own scope rule: `resolve_cut_scope`
 measures the same own-sound evidence at propose and approve time and turns a cut over
-speaking peers into a track-local punch. A remove that still ripples goes through
+speaking peers into a track-local punch. Where a peer's sound cannot be read (no stem
+or source audio), the same word evidence decides instead
+(`speech_energy_guard.speech_words_in`): a peer word in the cut makes it a punch. A remove that still ripples goes through
 `clear_ripple` like every other ripple: an approval asks, and the pipeline's
 auto-apply (`apply_prefix_edits`) leaves it pending for review instead of cutting
 the other speaker's words. A remove held back that way chooses nothing for the rest
