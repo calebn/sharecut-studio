@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
+from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.pcm_stream import no_audio_decoded_message
 from podcast_mcp.util.process import run
@@ -215,7 +216,7 @@ def load_mono_window(
     """Decode a short mono PCM window for correlation (audio only, no DAW metadata).
 
     8-, 16-, 24-, and 32-bit integer WAV uses ``read_wav_mono_window``; other
-    containers fall through to ffmpeg ``-ss``/``-t``.
+    containers decode through ffmpeg with a ``MediaSeek``.
     """
     try:
         samples, _n = read_wav_mono_window(
@@ -228,16 +229,15 @@ def load_mono_window(
         samples = np.zeros(0, dtype=np.float64)
     if samples.size:
         return np.asarray(samples, dtype=np.float32)
+    seek = MediaSeek.at(max(0.0, start_sec))
     cmd = [
         ffmpeg or resolve_ffmpeg(),
         "-v",
         "error",
-        "-ss",
-        str(max(0.0, start_sec)),
+        *seek.input_args(),
         "-i",
         str(path),
-        "-t",
-        str(max(0.1, duration_sec)),
+        *seek.output_args(max(0.1, duration_sec)),
         "-ac",
         "1",
         "-ar",

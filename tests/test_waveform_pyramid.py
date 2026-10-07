@@ -1071,7 +1071,7 @@ def test_stream_timer_kills_stuck_process(tmp_path):
     assert argv[-7:] == ["-f", "f32le", "-ac", "1", "-ar", "8000", "pipe:1"]
 
 
-def test_window_uses_seek_before_input_and_short_timer(tmp_path):
+def test_window_trims_by_timestamp_and_uses_short_timer(tmp_path):
     payload = np.arange(20, dtype="<f4").tobytes()
     proc = _FakeProc(payload)
     _ImmediateTimer.instances.clear()
@@ -1089,8 +1089,9 @@ def test_window_uses_seek_before_input_and_short_timer(tmp_path):
     assert out.shape == (4, 2)
     np.testing.assert_array_equal(out.ravel(), np.arange(8, dtype=np.float32))
     argv = popen.call_args[0][0]
-    assert argv.index("-ss") < argv.index("-i")
-    assert argv[argv.index("-ss") + 1] == "0.100000000"
+    # 0.1 s is inside the seek pre-roll, so the decode starts at 0 and trims by timestamp.
+    assert argv.index("-ss") > argv.index("-i")
+    assert argv[argv.index("-ss") + 1] == "0.100000"
     assert "-t" in argv
     assert _ImmediateTimer.instances[0].interval == PCM_WINDOW_TIMEOUT_SEC == 30.0
     proc.kill.assert_called_once()  # stopped once the window was full

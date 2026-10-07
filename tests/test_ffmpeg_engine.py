@@ -383,7 +383,7 @@ def test_render_timeline_single_segment_applies_fx_once(sample_wav: Path, tmp_pa
             "highpass=f=80",
         )
     assert len(commands) == 1
-    assert "atrim=start=0.0:end=0.5" in commands[0]
+    assert "atrim=start=0.000000:end=0.500000" in commands[0]
     assert "highpass=f=80[out]" in commands[0]
     assert out.is_file()
 
@@ -851,8 +851,9 @@ def test_extract_segment(sample_wav: Path, tmp_path: Path):
         result = eng.extract_segment(sample_wav, out, 0.5, 1.0)
     assert result == out
     cmd = run.call_args[0][0]
-    assert "-ss" in cmd and "0.5" in cmd
-    assert "-t" in cmd
+    # Within the pre-roll of the file start: decode from 0, trim by timestamp.
+    assert cmd.index("-ss") > cmd.index("-i")
+    assert cmd[cmd.index("-ss") : cmd.index("-ss") + 4] == ["-ss", "0.500000", "-t", "0.500000"]
 
 
 def test_render_showwavespic_with_segment(sample_wav: Path, tmp_path: Path):
@@ -1355,16 +1356,12 @@ def test_render_timeline_reuses_inputs_for_repeated_resolved_sources(
     assert "[0:a]asplit=3" in filter_complex
     assert "[1:a]asplit=2" in filter_complex
     assert filter_complex.count("atrim=") == len(placed)
-    for path, expected_start, expected_duration in (
-        (sample_wav.resolve(), 0.0, 0.5),
-        (other.resolve(), 0.1, 0.3),
-    ):
+    for path, expected_end in ((sample_wav.resolve(), "0.500000"), (other.resolve(), "0.400000")):
         input_index = input_paths.index(path)
         input_position = [i for i, token in enumerate(command) if token == "-i"][input_index]
-        assert command[input_position - 4] == "-ss"
-        assert float(command[input_position - 3]) == pytest.approx(expected_start)
-        assert command[input_position - 2] == "-t"
-        assert float(command[input_position - 1]) == pytest.approx(expected_duration)
+        assert command[input_position - 2 : input_position] == ["-t", expected_end]
+    # Both ranges start inside the seek pre-roll, so each input decodes from 0.
+    assert "-ss" not in command
 
 
 def test_render_timeline_bounded_seek_keeps_nonzero_source_ranges(tmp_path: Path) -> None:

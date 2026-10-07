@@ -12,6 +12,7 @@ from typing import Any
 from podcast_mcp.edits.review_shares import list_shares
 from podcast_mcp.edits.share_capabilities import CAP_PLAY, CAP_VIEW, has_capability
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.play_audit import proxy_render_hash
 from podcast_mcp.engines.timeline_render import render_source_with_chain
 from podcast_mcp.models import EpisodeProject, TrackProxy
@@ -78,15 +79,14 @@ def _encode_chunk(
     bitrate_kbps: int = PROXY_BITRATE_KBPS,
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    seek = MediaSeek.at(max(0.0, start_sec))
     cmd = [
         eng.ffmpeg,
         "-y",
-        "-ss",
-        str(max(0.0, start_sec)),
-        "-t",
-        str(dur_sec),
+        *seek.input_args(),
         "-i",
         str(wav_path),
+        *seek.output_args(dur_sec),
         "-ac",
         "1",
         "-codec:a",
