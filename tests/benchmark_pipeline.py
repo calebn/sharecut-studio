@@ -151,14 +151,14 @@ def run_assemble_benchmark(project: EpisodeProject) -> PipelineBenchmarkResult:
         pytest.skip("ffmpeg not available")
 
     subprocess_calls = {"n": 0}
-    original_run = subprocess.run
+    original_popen = subprocess.Popen
 
     def counting_subprocess(cmd, *args, **kwargs):
         if isinstance(cmd, (list, tuple)) and cmd and "ffmpeg" in str(cmd[0]):
             subprocess_calls["n"] += 1
-        return original_run(cmd, *args, **kwargs)
+        return original_popen(cmd, *args, **kwargs)
 
-    with patch("subprocess.run", side_effect=counting_subprocess):
+    with patch("subprocess.Popen", side_effect=counting_subprocess):
         t0 = time.perf_counter()
         with patch("podcast_mcp.pipeline.steps.ffmpeg", return_value=eng):
             steps.assemble_timeline(project, defaults)

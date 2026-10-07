@@ -45,8 +45,7 @@ def test_measure_astats_returns_expected_keys(sample_wav: Path):
 
 def test_measure_astats_missing_field_returns_none(sample_wav: Path, monkeypatch):
     monkeypatch.setattr(
-        subprocess,
-        "run",
+        "podcast_mcp.engines.audio_audit.run",
         lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="", stderr="no useful data"),
     )
     stats = measure_astats(sample_wav)

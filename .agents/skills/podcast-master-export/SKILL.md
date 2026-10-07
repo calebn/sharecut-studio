@@ -158,7 +158,7 @@ podcast pipeline export-audio --project episode.project.json
 
 MCP: `export_audio_tool(project_path, formats?)` — an optional list of format objects overrides the yaml `formats` for that run. Returns `{"paths": [...], "master": {...}}`; `master` is `master_qc.json` (check `target_integrated_lufs`, `target_true_peak_db` and `within_tolerance`).
 
-Cancelling is safe: files replace `export/` only after every one is written, so a cancelled or failed export leaves the earlier one untouched. In the CLI the first Ctrl+C cancels (stderr `Export cancelled. Files from an earlier export are unchanged.`, exit 130, nothing on stdout). Over MCP, cancel the request (`notifications/cancelled`) and the encode stops; the cancelled request gets no result, so check `export/` or the next call rather than waiting for a reply. Mastering is not interrupted: a cancel during it takes effect once the master is ready.
+Cancelling is safe: files replace `export/` only after every one is written, so a cancelled or failed export leaves the earlier one untouched. In the CLI the first Ctrl+C cancels (stderr `Export cancelled. Files from an earlier export are unchanged.`, exit 130, nothing on stdout); ffmpeg runs in its own session, so the terminal's Ctrl+C does not kill it mid-file. A second Ctrl+C kills ffmpeg and quits at once (exit 130). Over MCP, cancel the request (`notifications/cancelled`) and the encode stops. Do not rely on a reply to the cancelled request (over JSON-RPC there is none; an in-process client may still get the error): check `export/` or make the next call. Mastering is not interrupted by the first cancel: it takes effect once the master is ready.
 
 ## Configurable caption cue limits
 

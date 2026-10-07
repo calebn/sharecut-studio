@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import os
 import sys
 
 import pytest
 
-from podcast_mcp.util.process import CalledProcessError, run
+from podcast_mcp.util.process import (
+    CalledProcessError,
+    TimeoutExpired,
+    detached_children,
+    kill_detached_children,
+    popen,
+    run,
+)
+
+_SLEEP = [sys.executable, "-c", "import time; time.sleep(30)"]
 
 
 def test_run_rejects_non_sequence_argv() -> None:
@@ -36,14 +46,53 @@ def test_run_boolean_options_keep_subprocess_semantics() -> None:
 
 
 def test_popen_rejects_and_runs() -> None:
-    from podcast_mcp.util.process import popen
-
     with pytest.raises(TypeError, match="argv must be a list or tuple"):
         popen("echo hi")  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="argv must not be empty"):
         popen([])
     proc = popen([sys.executable, "-c", "pass"], stdout=None, stderr=None)
     assert proc.wait() == 0
+
+
+def test_run_kills_the_child_on_timeout_and_rejects_mixed_capture() -> None:
+    with pytest.raises(TimeoutExpired):
+        run(_SLEEP, timeout=0.1)
+    with pytest.raises(ValueError, match="capture_output"):
+        run([sys.executable, "-c", "pass"], capture_output=True, stdout=sys.stdout)
+
+
+def test_run_feeds_input() -> None:
+    echo = [sys.executable, "-c", "import sys; print(sys.stdin.read().upper())"]
+    assert run(echo, input="hi", capture_output=True, text=True).stdout.strip() == "HI"
+
+
+@pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX")
+def test_detached_children_start_in_their_own_session_without_the_terminal() -> None:
+    probe = [
+        sys.executable,
+        "-c",
+        "import os, sys; print(os.getsid(0) == os.getpid(), sys.stdin.read() == '')",
+    ]
+    with detached_children():
+        assert run(probe, capture_output=True, text=True).stdout.split() == ["True", "True"]
+    assert run(probe, capture_output=True, text=True, input="x").stdout.split()[0] == "False"
+
+
+@pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX")
+def test_kill_detached_children_kills_only_children_started_detached() -> None:
+    attached = popen(_SLEEP)
+    try:
+        with detached_children():
+            detached = popen(_SLEEP)
+            finished = popen([sys.executable, "-c", "pass"])
+            finished.wait()
+            kill_detached_children()
+            assert detached.wait(timeout=5) != 0
+        kill_detached_children()
+        assert attached.poll() is None
+    finally:
+        attached.kill()
+        attached.wait()
 
 
 def test_specs_from_extensions_skips_blank_and_falls_back() -> None:

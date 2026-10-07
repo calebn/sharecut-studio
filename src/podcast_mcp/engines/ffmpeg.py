@@ -336,7 +336,11 @@ def _mono_chunks(chunks: Generator[np.ndarray, None, None]) -> Generator[np.ndar
 
 
 def _run_cancellable(cmd: list[str], cancel_check: Callable[[], bool]) -> None:
-    """Run ``cmd``; kill it and raise ``CancelledProgress`` once ``cancel_check()`` is true."""
+    """Run ``cmd``; kill it and raise ``CancelledProgress`` once ``cancel_check()`` is true.
+
+    A nonzero exit after a cancel was requested is the cancel too, not a failure: the
+    child may have been stopped by the same interrupt (#1164).
+    """
     with tempfile.TemporaryFile() as err, popen(cmd, stdout=DEVNULL, stderr=err) as proc:
         try:
             while True:
@@ -350,6 +354,7 @@ def _run_cancellable(cmd: list[str], cancel_check: Callable[[], bool]) -> None:
             proc.wait()
             raise
         if rc != 0:
+            raise_if_cancel_requested(cancel_check, ENCODE_CANCELLED)
             err.seek(0)
             raise CalledProcessError(rc, cmd, stderr=err.read())
 

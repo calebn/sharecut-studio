@@ -195,7 +195,8 @@ def test_pair_does_not_rank_versions_or_run_commands(
     monkeypatch.setenv("PATH", os.pathsep.join((str(first), str(later))))
     with (
         patch(
-            "subprocess.run", side_effect=AssertionError("resolution must not inspect a version")
+            "subprocess.Popen",
+            side_effect=AssertionError("resolution must not inspect a version"),
         ),
         patch.object(
             socket,

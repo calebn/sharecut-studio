@@ -8,8 +8,9 @@ to the service call that can stop early (``PipelineService.export_audio``).
 The SDK cancels the handler's scope when the client sends ``notifications/cancelled`` or
 drops the request, and a sync tool's worker thread is never abandoned, so the tool cannot
 see that cancel on its own. A watcher task in the handler's scope sets the flag when it is
-cancelled. The SDK then drops the tool's result or error instead of writing it, because the
-client has stopped waiting.
+cancelled. After ``notifications/cancelled`` the SDK sends no response for the request; an
+in-process ``auto``-mode client that cancels its own call can still receive the tool's
+result or error.
 """
 
 from __future__ import annotations

@@ -14,7 +14,7 @@ from podcast_mcp.pipeline.helpers import ffmpeg
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.progress import ProgressReporter
-from podcast_mcp.util.project_state import render_lock
+from podcast_mcp.util.project_state import render_cancel_scope, render_lock
 from podcast_mcp.util.text import count_noun
 
 EXPORT_CANCELLED = "Export cancelled"
@@ -228,7 +228,8 @@ class PipelineService:
 
             # mutate() re-reads the saved project under the cross-process lock, so Refresh renders it.
             # The render lock comes before mutate()'s project locks (lock order, #482).
-            with render_lock(self.ws.project, cancel_check=cancel_check):
+            # The cancel scope also stops the render between its steps (assemble, mix).
+            with render_cancel_scope(cancel_check), render_lock(self.ws.project):
                 return self.ws.mutate(
                     "before render preview",
                     "after render preview",

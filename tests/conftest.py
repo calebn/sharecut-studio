@@ -272,6 +272,7 @@ class SlowExport:
     project: Path
     export_dir: Path
     previous: dict[str, bytes]
+    master: Path
 
     def wait_until_encoding(self, *, alive: Callable[[], bool] = lambda: True) -> None:
         """Block until ffmpeg is writing its temp file, or ``alive()`` turns false."""
@@ -304,7 +305,7 @@ def slow_export(
     previous = {"test_episode.wav": b"OLD-WAV", "test_episode.mp3": b"OLD-MP3"}
     for name, data in previous.items():
         (export_dir / name).write_bytes(data)
-    return SlowExport(minimal_project, export_dir, previous)
+    return SlowExport(minimal_project, export_dir, previous, master)
 
 
 @pytest.fixture

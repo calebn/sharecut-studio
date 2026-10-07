@@ -27,6 +27,7 @@ from podcast_mcp.util.progress import (
     resolve_progress,
 )
 from podcast_mcp.util.project_state import (
+    current_cancel_check,
     project_commit_lock,
     project_file_revision,
     project_state_lock,
@@ -257,6 +258,9 @@ class PipelineRunner:
         if not selected:
             raise ValueError("no pipeline steps selected to run")
         step_defaults = dict(self.defaults)
+        if cancel_check is None:
+            # A run nested in a cancellable scope (an MCP request, an outer run) keeps its check.
+            cancel_check = current_cancel_check()
         if unattended:
             step_defaults["_pipeline_unattended"] = True
         if cancel_check is not None:
