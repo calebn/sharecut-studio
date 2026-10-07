@@ -262,6 +262,14 @@ speech is protected and its copy of the peer stays with it; retained-bleed
 alignment handles that. Own sound less than about 4 dB over the copy cannot be told
 from it and is reduced with it. Words reconcile left unsuppressed on this lane stay
 protected even when they are really the peer's, so those copies stay at full level.
+A stereo or multichannel lane is judged one channel at a time, because a mixdown
+halves sound on one channel against a copy that reaches them all: a "uh-huh" 10 dB
+down on one channel read as copy there (#1094). A frame is reduced only where every
+channel reads as copy, and the bed that picks mute or attenuate is the loudest
+channel's. A lane whose channels all carry the same samples, such as a call app's
+dual-mono track, is judged once on its stereo downmix, as before. A channel whose copy
+cannot be verified judges its own sound against its noise floor alone and reports
+`uncertain_foreign_ownership`.
 Unavailable evidence abstains and is reported in `gate_reasons`. Crossfade layouts abstain because their rendered
 clock can diverge from raw placements. Applying the flag does not prove bleed was
 reduced, so compare stems before and after.
