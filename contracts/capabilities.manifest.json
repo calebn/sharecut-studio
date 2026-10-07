@@ -1443,7 +1443,7 @@
     },
     {
       "id": "daw.ui.toggleCommandPalette",
-      "label": "Keyboard shortcuts",
+      "label": "Commands and shortcuts",
       "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
@@ -1453,12 +1453,14 @@
       "surfaces": {
         "command": "ui.toggleCommandPalette",
         "gui": [
-          "transport.menu"
+          "transport.menu",
+          "moreHub.searchCommands",
+          "GesturesSheet"
         ],
         "keyboard": "?"
       },
       "omit": {},
-      "tooltip": "Keyboard shortcuts",
+      "tooltip": "Commands and shortcuts",
       "presence": {
         "cursor": "none",
         "follow": "none"

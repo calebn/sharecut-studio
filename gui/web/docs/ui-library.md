@@ -99,7 +99,7 @@ Returns `{ run, enabled, label, def }` from catalog + context.
 
 ### Tabs vs ToggleButton toolbars
 
-- **`role="tablist"` / `tab`:** real exclusive panels (e.g. CommandPalette categories).
+- **`role="tablist"` / `tab`:** real exclusive panels.
 - **`ToggleButton` (`aria-pressed`):** toolbars and mode strips (shell tabs, audition Full mix / Edited stems / Original, Select/Blade). Do not invent a third pattern.
 
 ## A11y bar

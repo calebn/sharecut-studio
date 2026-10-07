@@ -91,8 +91,8 @@ const DIALOG_CASES: DialogCase[] = [
     targetName: "Create diagnostics bundle",
   },
   {
-    name: "Keyboard shortcuts",
-    menuItem: "Keyboard shortcuts",
+    name: "Commands and shortcuts",
+    menuItem: "Commands and shortcuts",
     targetName: "Commands without keys",
   },
 ];
@@ -110,7 +110,7 @@ test.describe("dialog consumers reachability", () => {
         // The shortcuts cheatsheet has no trailing dialog action; target its
         // final command row rather than the final section heading.
         const targetFor =
-          dialogCase.name === "Keyboard shortcuts"
+          dialogCase.name === "Commands and shortcuts"
             ? (dialog: Locator) =>
                 dialog
                   .locator(".command-palette-section")

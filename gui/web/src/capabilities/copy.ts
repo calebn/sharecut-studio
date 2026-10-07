@@ -237,8 +237,8 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     tooltip: "Redo",
   },
   "daw.ui.toggleCommandPalette": {
-    label: "Keyboard shortcuts",
-    tooltip: "Keyboard shortcuts",
+    label: "Commands and shortcuts",
+    tooltip: "Commands and shortcuts",
   },
   "daw.render.refreshMix": {
     label: "Refresh mix",
@@ -510,6 +510,8 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transport.viewMenu.fitTracksHeight": "daw.view.fitTracksHeight",
   historyPanel: "daw.history.redo",
   "mobileShell.gesture.twoFingerTap": "daw.history.undo",
+  "moreHub.searchCommands": "daw.ui.toggleCommandPalette",
+  GesturesSheet: "daw.ui.toggleCommandPalette",
   staleRenderPill: "daw.render.refreshMix",
   BounceDialog: "daw.export.bounce",
   ShareDialog: "daw.share.manage",

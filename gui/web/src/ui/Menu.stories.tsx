@@ -70,7 +70,7 @@ function ShortcutMenu() {
       </MenuSection>
       <MenuSection label="Help">
         <MenuItem shortcut="?" onSelect={() => setOpen(false)}>
-          Keyboard shortcuts
+          Commands and shortcuts
         </MenuItem>
       </MenuSection>
     </Menu>

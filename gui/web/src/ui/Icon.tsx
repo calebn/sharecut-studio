@@ -22,6 +22,7 @@ export type IconName =
   | "fitHeight"
   | "check"
   | "refresh"
+  | "search"
   | "seek"
   | "warning";
 
@@ -36,6 +37,12 @@ type Props = {
 const FILLED = { fill: "currentColor" } as const;
 
 const PATHS: Record<IconName, ReactElement> = {
+  search: (
+    <>
+      <circle cx="8.5" cy="8.5" r="5" />
+      <path d="m12.25 12.25 4.25 4.25" />
+    </>
+  ),
   play: <path {...FILLED} d="m6.5 4.5 9 5.5-9 5.5Z" />,
   pause: (
     <>

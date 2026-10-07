@@ -75,7 +75,7 @@ export const KeyboardShortcutsHandoff: Story = {
       "Gestures",
     );
     await userEvent.click(
-      within(dialog).getByRole("button", { name: "Keyboard shortcuts" }),
+      within(dialog).getByRole("button", { name: "Commands and shortcuts" }),
     );
     await expect(args.onShowKeyboardShortcuts).toHaveBeenCalledOnce();
     await expect(within(document.body).queryByRole("dialog")).toBeNull();

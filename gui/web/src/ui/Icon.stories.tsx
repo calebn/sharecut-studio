@@ -25,6 +25,7 @@ const ICONS = {
   fitHeight: true,
   check: true,
   refresh: true,
+  search: true,
   seek: true,
   warning: true,
 } satisfies Record<IconName, true>;

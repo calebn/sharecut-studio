@@ -1,60 +1,53 @@
 /**
- * Builds CommandPaletteView's rows from the live keymap registry, including
- * remap overrides. It imports the store-bound registry at runtime, so
- * CommandPaletteView.tsx and its stories only `import type` from this module.
+ * Builds the command palette's rows from the command catalog (the single
+ * source), with each command's shortcut and remap from the live keymap
+ * registry. It imports the store-bound registry at runtime, so
+ * CommandPaletteView.tsx and its stories import the store-free model from
+ * `paletteSearch.ts` instead.
  */
 import { COMMANDS, listCatalogIds } from "../commands/catalog";
+import { type CommandContext, evaluateWhen } from "../commands/context";
 import {
   formatShortcutKeys,
   KEYMAP_CATEGORY_ORDER,
-  KEYMAP_COMMANDS,
-  type KeymapCategory,
-  keymapByCategory,
+  keymapCommandById,
 } from "../keymap/registry";
+import type { PaletteCommand } from "./paletteSearch";
 
-export interface CommandPaletteShortcutRow {
-  id: string;
-  label: string;
-  shortcut: string;
-  defaultKey?: string;
-  /** A shared-key collision note (see `KeymapCommand.collision`), shown under the row. */
-  note?: string;
-}
-
-export interface CommandPaletteCategory {
-  category: KeymapCategory;
-  rows: CommandPaletteShortcutRow[];
-}
-
-export interface CommandPaletteAction {
-  id: string;
-  label: string;
-}
-
-/** Keymapped commands grouped by category, in cheatsheet display order, empty ones dropped. */
-export function commandPaletteCategories(): CommandPaletteCategory[] {
-  const byCat = keymapByCategory();
-  return KEYMAP_CATEGORY_ORDER.filter(
-    (category) => (byCat[category] ?? []).length,
-  ).map((category) => ({
-    category,
-    rows: (byCat[category] ?? []).map((cmd) => ({
-      id: cmd.id,
-      label: cmd.label,
-      shortcut: formatShortcutKeys(cmd),
-      defaultKey: cmd.keys[0],
-      note: cmd.collision,
-    })),
-  }));
-}
-
-/** Catalog commands runnable from the palette that have no keyboard binding. */
-export function commandPaletteUnbound(): CommandPaletteAction[] {
-  return listCatalogIds()
+/**
+ * Runnable catalog commands in category order. A palette click runs a command
+ * the way a pointer does, so focus-only keyboard gates (timeline or transcript
+ * focus) count as met; every other `when` gate gives the row its reason.
+ */
+export function paletteCommands(ctx: CommandContext): PaletteCommand[] {
+  const pointerCtx: CommandContext = {
+    ...ctx,
+    timelineFocused: true,
+    editorFocused: true,
+  };
+  const rows = listCatalogIds()
+    .map((id) => COMMANDS[id])
+    // The palette does not list itself.
     .filter(
-      (id) =>
-        COMMANDS[id]?.paletteRunnable !== false &&
-        !KEYMAP_COMMANDS.some((k) => k.id === id),
+      (def) =>
+        def != null &&
+        def.paletteRunnable !== false &&
+        def.id !== "ui.toggleCommandPalette",
     )
-    .map((id) => ({ id, label: COMMANDS[id]?.label ?? id }));
+    .map((def): PaletteCommand => {
+      const keyed = keymapCommandById(def.id);
+      const gate = evaluateWhen(def.when, pointerCtx);
+      return {
+        id: def.id,
+        label: def.label,
+        category: def.category,
+        shortcut: keyed ? formatShortcutKeys(keyed) : null,
+        ...(keyed ? { defaultKey: keyed.keys[0] } : {}),
+        ...(keyed?.collision ? { note: keyed.collision } : {}),
+        disabledReason: gate.ok ? null : gate.reason,
+      };
+    });
+  return KEYMAP_CATEGORY_ORDER.flatMap((category) =>
+    rows.filter((row) => row.category === category),
+  );
 }

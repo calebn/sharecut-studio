@@ -110,41 +110,62 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
   font-size: var(--font-size-small);
 }
 
-.command-palette-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
+.command-palette-dialog {
+  width: min(36rem, calc(100vw - 2rem));
 }
 
-.command-palette-tabs button {
-  font: inherit;
-  font-size: var(--font-size-small);
-  text-transform: capitalize;
-  padding: var(--space-1) var(--space-4);
+.command-palette-search {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: var(--touch-min);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-overlay-white-15);
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
+  background: var(--color-field);
+  color: var(--text);
+  font: inherit;
 }
 
-.command-palette-tabs button.active {
-  background: var(--color-overlay-white-12);
-  border-color: var(--color-overlay-white-35);
+.command-palette-search:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .command-palette-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
   margin-bottom: var(--space-3);
+}
+
+.command-palette-count {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
 }
 
 .command-palette-remap-toggle {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
+  min-block-size: var(--touch-min);
   font-size: var(--font-size-ui);
   opacity: 0.85;
   cursor: pointer;
+}
+
+.command-palette-empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  padding-block: var(--space-4);
+}
+
+.command-palette-empty > p {
+  margin: 0;
 }
 
 .command-palette-section h3 {
@@ -155,40 +176,63 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
   opacity: 0.7;
 }
 
-.command-palette-section ul {
+.command-palette-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.command-palette-section li {
+.command-palette-list li {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-1) var(--space-3);
   padding: var(--space-1) 0;
-  border-bottom: 1px solid var(--color-overlay-white-12);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
-.command-palette-run {
+/* Two classes: .ui-control centers its content and loads after this partial. */
+.ui-control.command-palette-run {
   flex: 1 1 12rem;
-  display: flex;
   justify-content: space-between;
   gap: var(--space-5);
-  padding: var(--space-3) var(--space-3);
+  min-block-size: var(--touch-min);
+  padding: var(--space-3);
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
   color: inherit;
-  cursor: pointer;
-  text-align: left;
+  font-weight: 500;
+  text-align: start;
 }
 
-.command-palette-run:hover {
-  background: var(--color-overlay-white-08);
+@media (hover: hover) and (pointer: fine) {
+  .ui-control.command-palette-run:hover:not(:disabled) {
+    background: var(--color-hover);
+  }
+}
+
+.ui-control.command-palette-run:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.command-palette-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  min-inline-size: 0;
+}
+
+.command-palette-category {
+  font-size: var(--font-size-small);
+  font-weight: 400;
+  color: var(--color-text-secondary);
 }
 
 .command-palette-run kbd {
+  flex: none;
   font-size: var(--font-size-ui);
   color: var(--color-text-secondary);
 }
@@ -196,6 +240,7 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
 .command-palette-note {
   flex: 1 1 100%;
   margin: 0;
+  padding-inline: var(--space-3);
   font-size: var(--font-size-small);
   color: var(--color-text-secondary);
 }

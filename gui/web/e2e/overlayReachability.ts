@@ -135,7 +135,7 @@ export async function expectMenuLastItemReachable(page: Page): Promise<void> {
     }
   }
   const last = menu.getByRole("menuitem", {
-    name: "Keyboard shortcuts",
+    name: "Commands and shortcuts",
   });
   await expect(last).toBeVisible();
   const menuitemCount = await menu.getByRole("menuitem").count();
@@ -148,7 +148,7 @@ export async function expectMenuLastItemReachable(page: Page): Promise<void> {
     .poll(async () =>
       menu.evaluate((el) => {
         const lastEl = [...el.querySelectorAll('[role="menuitem"]')].find((m) =>
-          (m.textContent ?? "").includes("Keyboard shortcuts"),
+          (m.textContent ?? "").includes("Commands and shortcuts"),
         );
         if (!lastEl) {
           return false;

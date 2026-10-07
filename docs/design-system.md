@@ -341,7 +341,7 @@ Their `play` functions open the dialog with
 `openDialogViaLauncher` (`src/storybook/openDialog.ts`), which clicks the
 launcher only when the named dialog is not already open. They cover an
 open episode, the no-episode warning, the gesture sheet's callback handoff
-to keyboard shortcuts, and a 360px phone viewport without app or network
+to Commands and shortcuts, and a 360px phone viewport without app or network
 context.
 
 `Templates/ShareDialog` renders the production `ShareDialogView` that the live
@@ -459,11 +459,12 @@ not mount that store or simulate command execution.
 wrapper so a story's tool/comment/blade-confirm clicks feel live without
 touching the DAW store; `EditingToolRailView` takes its `ToolModeToggle` as a
 `toolToggle` slot, the same pattern as `TrackHeaderView`'s `mixer` slot.
-`CommandPaletteView` takes its shortcut categories and unbound actions as
-props that the live adapter builds with `layout/commandPaletteRows.ts`, a `.ts`
-helper that reads the keymap registry (and its remap overrides) at runtime, so
-`CommandPaletteView.tsx` only type-imports from `keymap/registry` and
-`commandPaletteRows`.
+`CommandPaletteView` takes its rows (`PaletteCommand[]`) as a prop that the
+live adapter builds with `layout/commandPaletteRows.ts`, a `.ts` helper that
+reads the command catalog, the keymap registry (and its remap overrides) and
+the `when` gates at runtime. The view searches and groups those rows with the
+store-free `layout/paletteSearch.ts`, so `CommandPaletteView.tsx` imports
+nothing store-bound.
 The live `ToolModeToggle`, `EditingToolRail` and `CommandPalette` adapters are
 unchanged for callers and continue to read DAW state and dispatch through
 `execute`.

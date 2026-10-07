@@ -444,3 +444,9 @@ shipped, and the text says so. The adjacent MCP note shipped in #1027.
   names, MCP and CLI descriptions) for "full-quality recording" and "this
   device's copy". The status is "Saving to project…", then "Saved to project",
   per participant and segment. Land keeps its meaning.
+- 2026-10-07 — Navigation (#1030): Export deliverables… opens a dialog
+  (formats, progress with Cancel export, then the written files) instead of
+  starting from one menu tap; the phone Listen hero carries the Menu; the Menu
+  keeps Bounce… and Export deliverables… together between New / Open and
+  Share / Record room; the command palette is **Commands and shortcuts**,
+  searchable from **?** or More → **Search commands**.

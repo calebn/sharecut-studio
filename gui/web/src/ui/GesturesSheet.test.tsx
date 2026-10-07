@@ -55,7 +55,7 @@ describe("GesturesSheet", () => {
     expect(container.textContent).not.toContain("Two-finger tap");
   });
 
-  it("opens keyboard shortcuts through the supplied callback", () => {
+  it("opens commands and shortcuts through the supplied callback", () => {
     const onShowKeyboardShortcuts = vi.fn();
     render(
       <GesturesSheet
@@ -64,7 +64,9 @@ describe("GesturesSheet", () => {
         onShowKeyboardShortcuts={onShowKeyboardShortcuts}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Commands and shortcuts" }),
+    );
     expect(onShowKeyboardShortcuts).toHaveBeenCalledOnce();
   });
 

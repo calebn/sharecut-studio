@@ -162,7 +162,7 @@ Host and share **`edit`** guests may add tracks, attach/replace audio, edit trac
 | Document commands `AddTrack` / `SetTrackMedia` / `SetTrackMeta` / `RemoveTrack` | JSON mutations via existing document command routes (never file bytes) |
 | Document commands `SetTrackFader` / `SetTrackMute` | Saved mix (#386): a track's volume (`fader_db`, −60 to +12 dB on top of the staging `gain_db`) and mix mute; host and Editors only (`canEditMix`). Applied as the `mix` projection (`tracks` + `render_status`) |
 
-Sharecut Studio arrange is the import surface: drop on a lane (replace that track’s media), drop below tracks / empty session (new tracks), **Menu → Import Audio…** / **New Track**, inspector Import/Replace. One frontend path: `gui/web/src/ingest/ingestFiles.ts` → upload then `submitDocumentCommand`. Permissions: `canIngestMedia` / `canManageProjects` in `shareMode.ts`. Details: [daw-editing.md](daw-editing.md) § Pass 8.
+Sharecut Studio arrange is the import surface: drop on a lane (replace that track’s media), drop below tracks / empty session (new tracks), **Menu → Import audio…** / **New track**, inspector Import/Replace. One frontend path: `gui/web/src/ingest/ingestFiles.ts` → upload then `submitDocumentCommand`. Permissions: `canIngestMedia` / `canManageProjects` in `shareMode.ts`. Details: [daw-editing.md](daw-editing.md) § Pass 8.
 
 ### Transcript speaker editing
 
