@@ -1513,7 +1513,7 @@
     {
       "id": "daw.record.start",
       "label": "Start recording",
-      "effect": "session",
+      "effect": "project",
       "service": "RecordSessionService",
       "industry_standard_key": false,
       "gates": [
@@ -1544,7 +1544,7 @@
     {
       "id": "daw.record.pause",
       "label": "Pause recording",
-      "effect": "session",
+      "effect": "project",
       "service": "RecordSessionService",
       "industry_standard_key": false,
       "gates": [
@@ -1575,7 +1575,7 @@
     {
       "id": "daw.record.resume",
       "label": "Resume recording",
-      "effect": "session",
+      "effect": "project",
       "service": "RecordSessionService",
       "industry_standard_key": false,
       "gates": [
@@ -1606,7 +1606,7 @@
     {
       "id": "daw.record.stop",
       "label": "Stop recording",
-      "effect": "session",
+      "effect": "project",
       "service": "RecordSessionService",
       "industry_standard_key": false,
       "gates": [
