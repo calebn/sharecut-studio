@@ -24,6 +24,7 @@ from podcast_mcp.models import (
     EpisodeProject,
     GateFillSource,
     MediaAsset,
+    RoomToneFill,
     SourceRecording,
     Track,
     TrackRole,
@@ -391,6 +392,43 @@ def test_segment_render_keeps_own_audio_byte_identical(tmp_path: Path) -> None:
             outside[round(lo * SR) : round(hi * SR)] = False
     assert np.array_equal(plain[outside], filled[outside])
     assert _rms_db(_span(filled, 2.76 - 2.5, 3.36 - 2.5)) == pytest.approx(ROOM_DB, abs=4.0)
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "wav",
+        # Multi-source renders input-seek AAC media up to a frame off an exact decode, while
+        # the fill is seeked exactly, so the fill lands on speech until #1141 lands.
+        pytest.param("m4a", marks=pytest.mark.xfail(reason="#1141", strict=True)),
+    ],
+)
+def test_fill_never_overlaps_speech_in_a_multi_source_render(tmp_path: Path, suffix: str) -> None:
+    # A room-tone-filled mute reads a second stretch of the media, so the render seeks it.
+    clip = Clip(
+        id="c_guest",
+        track_id="guest",
+        source_start=1.2345678,
+        source_end=DURATION_SEC,
+        timeline_start=0.0,
+        mute_regions=[
+            ClipMuteRegion(start_s=5.3, end_s=5.6, fill=RoomToneFill(start_s=1.5, end_s=1.9))
+        ],
+    )
+    project = _project(tmp_path, _gated_track(), clips=[clip])
+    track = project.track_by_id("guest")
+    if suffix == "m4a":
+        _encode_aac(project)
+    plain = _render(project, tmp_path, "plain")
+
+    fill_gate_holes(project, _defaults())
+    filled = _render(project, tmp_path, "filled")
+
+    assert track.gate_fill is not None
+    assert plain.size == filled.size
+    own = plain != 0.0
+    assert np.array_equal(filled[own], plain[own])
+    assert not np.array_equal(filled[~own], plain[~own])
 
 
 def test_guest_proxy_render_carries_the_fill(tmp_path: Path) -> None:
