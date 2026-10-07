@@ -99,16 +99,18 @@ held sideways) compact the editor:
   own (`grid-template-rows: minmax(0, 1fr) auto`), with 2px of block padding
   (`@container app (max-height: 40rem)`).
 
-Measured in Playwright WebKit with the iPhone 17 Pro Max descriptor and the
-timeline maximized (px of lanes above the rail; 2-track demo, so capacity is
-usable height over lane height):
+Measured in Playwright WebKit with the iPhone 17 Pro Max descriptor, the touch
+lab on and the timeline maximized (px of lanes above the rail or the strip;
+2-track demo, so capacity is usable height over lane height). The After column
+was measured again after rebasing onto main with the edit modes (#1154); the
+strip shows a tapped clip's name and span:
 
 | Viewport | Before: lane, usable, capacity | After: lane, usable, capacity |
 |---|---|---|
 | 838×390 sideways, Safari bars | 104, 211, 2 | 72, 234, 3 |
-| 838×390 with the strip open | 104, 151, 1 | 72, 174, 2 |
+| 838×390 with the strip open | 104, 151, 1 | 72, 187, 2 |
 | 932×432 sideways, bars hidden | 104, 253, 2 | 72, 276, 3 |
-| 932×432 with the strip open | 104, 193, 1 | 72, 216, 3 |
+| 932×432 with the strip open | 104, 193, 1 | 72, 229, 3 |
 | 440×763 portrait, Safari bars | 104, 550, 5 | 104, 550, 5 |
 
 Portrait gives up nothing. The first round's Undo and Redo wrapped to a second
