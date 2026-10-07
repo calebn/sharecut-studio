@@ -94,7 +94,8 @@
   "editorial": {
     "edit_decisions": [],
     "edit_log": [],
-    "chapters": []
+    "chapters": [],
+    "speaker_splits": []
   },
   "transcripts": {
     "per_track": [],

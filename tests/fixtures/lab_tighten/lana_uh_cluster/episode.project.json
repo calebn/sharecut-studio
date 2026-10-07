@@ -118,7 +118,8 @@
     "edit_decisions": [],
     "edit_log": [],
     "chapters": [],
-    "retained_bleed_alignments": []
+    "retained_bleed_alignments": [],
+    "speaker_splits": []
   },
   "transcripts": {
     "per_track": [
