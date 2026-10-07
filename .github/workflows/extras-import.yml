@@ -1,0 +1,49 @@
+# Every optional extra installs and imports in a clean, unlocked venv (#1168).
+# `pip install "podcast-mcp[extra]"` ignores uv.lock, so a transitive release can break an
+# extra while the locked suite stays green. The weekly run catches that upstream drift.
+# Runs tests/test_extras_import.py, which owns the extra -> import map.
+
+name: extras-import
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: &extras-paths
+      - "pyproject.toml"
+      - "tests/test_extras_import.py"
+      - ".github/workflows/extras-import.yml"
+  push:
+    branches: [main]
+    paths: *extras-paths
+  schedule:
+    - cron: "41 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extras-import-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  extras:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install the test runner
+        run: pip install pytest pytest-xdist pytest-timeout
+
+      - name: Import each extra in a clean venv
+        env:
+          PODCAST_CHECK_EXTRAS: "1"
+        run: pytest -o addopts="" -n 3 --timeout=1500 -m extras_install tests/test_extras_import.py

@@ -178,6 +178,8 @@ The `pytest` job also runs `actions/setup-node`, so tests that run workflow Java
 
 The path-filtered `.github/workflows/release-wheel.yml` builds the web assets, then the sdist and wheel, installs the wheel into a clean venv, and runs `scripts/check_wheel_web_build.py --podcast`. It fails unless the wheel ships `index.html` plus every file it references and the installed `podcast gui` serves that `index.html` at `/`. `tests/test_wheel_web_build.py` covers the build hook in the ordinary `pytest` job without npm ([setup.md § Web build in wheels](setup.md#web-build-in-wheels)).
 
+The `extras-import` workflow (on `pyproject.toml` changes, `workflow_dispatch`, and a weekly schedule) installs every optional extra into a fresh venv without `uv.lock` and imports its modules (`tests/test_extras_import.py`, marker `extras_install`, enabled by `PODCAST_CHECK_EXTRAS=1`). The locked suite cannot see an upstream release that breaks `pip install "podcast-mcp[extra]"`; the weekly run does. The main `pytest` job skips it because the env var is unset ([setup.md § Pip extras](setup.md#pip-extras)).
+
 ### CI dependency downloads
 
 The `pytest` and browser matrix jobs use `.github/actions/setup-ffmpeg` to install
