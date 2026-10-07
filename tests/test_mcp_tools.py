@@ -779,7 +779,7 @@ def test_render_final_mcp_surfaces_merge_conflict(minimal_project):
 def test_lock_timeout_cause_walks_the_chain():
     from filelock import Timeout
 
-    from podcast_mcp.mcp.busy_errors import lock_timeout_cause
+    from podcast_mcp.mcp.tool_errors import lock_timeout_cause
 
     inner = Timeout("/artifacts/episode.project.json.lock")
     middle = RuntimeError("wrapped")
@@ -792,24 +792,24 @@ def test_lock_timeout_cause_walks_the_chain():
     assert lock_timeout_cause(RuntimeError("no cause")) is None
 
 
-def test_install_busy_errors_is_idempotent():
-    from podcast_mcp.mcp.busy_errors import install_busy_errors
+def test_install_tool_errors_is_idempotent():
+    from podcast_mcp.mcp.tool_errors import install_tool_errors
 
     class FakeServer:
         def __init__(self) -> None:
             self.call_tool = "original"
 
     server = FakeServer()
-    install_busy_errors(server)
+    install_tool_errors(server)
     wrapped = server.call_tool
     assert wrapped != "original"
-    install_busy_errors(server)
+    install_tool_errors(server)
     assert server.call_tool is wrapped
 
 
 @pytest.mark.asyncio
-async def test_install_busy_errors_forwards_extra_call_tool_args():
-    from podcast_mcp.mcp.busy_errors import install_busy_errors
+async def test_install_tool_errors_forwards_extra_call_tool_args():
+    from podcast_mcp.mcp.tool_errors import install_tool_errors
 
     seen = []
 
@@ -819,7 +819,7 @@ async def test_install_busy_errors_forwards_extra_call_tool_args():
             return "ok"
 
     server = FakeServer()
-    install_busy_errors(server)
+    install_tool_errors(server)
     assert await server.call_tool("t", {"a": 1}, None, "extra", flag=True) == "ok"
     assert seen == [("t", {"a": 1}, None, ("extra",), {"flag": True})]
 

@@ -4,9 +4,14 @@ import json
 import shutil
 from pathlib import Path
 
-from podcast_mcp.models.episode import EPISODE_PROJECT_FILENAME, EpisodeProject
+from podcast_mcp.models.episode import (
+    EPISODE_PROJECT_FILENAME,
+    EpisodeProject,
+    project_not_found,
+)
 from podcast_mcp.project_store import ProjectStore
 from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.coded_error import CodedFileNotFoundError
 
 WORKSPACE_COPY_IGNORE = ("artifacts", "history", "_build", ".git")
 
@@ -30,8 +35,10 @@ def require_episode_project_file(path: Path | str) -> Path:
         raise ValueError(f"expected {EPISODE_PROJECT_FILENAME}, got {resolved.name!r}")
     if not resolved.is_file():
         if original.is_dir():
-            raise FileNotFoundError(f"no {EPISODE_PROJECT_FILENAME} in {original.resolve()}")
-        raise FileNotFoundError(f"Project not found: {resolved}")
+            raise CodedFileNotFoundError(
+                f"no {EPISODE_PROJECT_FILENAME} in {original.resolve()}", code="project_not_found"
+            )
+        raise project_not_found(resolved)
     return resolved
 
 

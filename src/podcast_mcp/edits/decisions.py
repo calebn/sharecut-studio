@@ -43,6 +43,7 @@ from podcast_mcp.models import (
     EditDecisionType,
     EpisodeProject,
 )
+from podcast_mcp.util.coded_error import CodedError, CodedKeyError
 from podcast_mcp.util.review import reject_by_id
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -461,8 +462,10 @@ class PendingEditBaseline:
     end: Annotated[float, Field(ge=0, allow_inf_nan=False)]
 
 
-class PendingEditChangedError(ValueError):
+class PendingEditChangedError(CodedError, ValueError):
     """The saved pending decision no longer matches the editor's baseline."""
+
+    code = "pending_edit_changed"
 
 
 def require_pending_edit_baseline(
@@ -494,7 +497,7 @@ def preview_pending_cut_range(project: EpisodeProject, edit_id: str) -> PendingC
     """Suggest source bounds for one complete pending cut without changing it."""
     edit = next((e for e in project.edit_decisions if e.id == edit_id), None)
     if edit is None:
-        raise KeyError(f"edit decision not found: {edit_id}")
+        raise CodedKeyError(f"edit decision not found: {edit_id}", code="edit_not_found")
     if edit.applied:
         raise ValueError("cut suggestions require a pending edit")
     if edit.type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE):
@@ -522,7 +525,7 @@ def update_pending_edit(
     """Update a pending edit decision's range; optionally inaudible-snap."""
     edit = next((e for e in project.edit_decisions if e.id == edit_id), None)
     if edit is None:
-        raise KeyError(f"edit decision not found: {edit_id}")
+        raise CodedKeyError(f"edit decision not found: {edit_id}", code="edit_not_found")
 
     if edit.exact_range is not None:
         raise ValueError("Exact ranges cannot change source timing. Select the range again.")

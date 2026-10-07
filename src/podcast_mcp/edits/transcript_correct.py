@@ -5,6 +5,7 @@ from typing import Any, TypeVar
 
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
+from podcast_mcp.util.coded_error import CodedError, CodedValueError
 from podcast_mcp.util.text import collapse_whitespace, has_meaningful_text
 
 T = TypeVar("T")
@@ -29,8 +30,10 @@ def run_user_transcript_edit(
     return result
 
 
-class TranscriptTextChangedError(ValueError):
+class TranscriptTextChangedError(CodedError, ValueError):
     """A correction's word indices no longer hold the text the client saw (#650)."""
+
+    code = "transcript_changed"
 
 
 def require_word_text(
@@ -69,8 +72,22 @@ def require_word_text(
 def _require_transcript(project: EpisodeProject, track_id: str) -> Transcript:
     transcript = project.transcript_for_track(track_id)
     if transcript is None:
-        raise ValueError(f"no transcript for track {track_id!r}")
+        raise CodedValueError(f"no transcript for track {track_id!r}", code="transcript_not_found")
     return transcript
+
+
+def _require_word_index(tr: Transcript, word_index: int) -> None:
+    if word_index < 0 or word_index >= len(tr.words):
+        raise CodedValueError(
+            f"word_index out of range: {word_index}", code="word_index_out_of_range"
+        )
+
+
+def _require_word_range(tr: Transcript, start_word_index: int, end_word_index: int) -> None:
+    if start_word_index < 0 or end_word_index >= len(tr.words):
+        raise CodedValueError("word index range out of bounds", code="word_index_out_of_range")
+    if end_word_index < start_word_index:
+        raise CodedValueError("end_word_index must be >= start_word_index", code="invalid_range")
 
 
 def correct_word(
@@ -90,10 +107,9 @@ def correct_transcript_word(
     *,
     keep_evidence: bool = False,
 ) -> None:
-    if word_index < 0 or word_index >= len(tr.words):
-        raise ValueError(f"word_index out of range: {word_index}")
+    _require_word_index(tr, word_index)
     if not has_meaningful_text(new_text):
-        raise ValueError("correction text must not be empty")
+        raise CodedValueError("correction text must not be empty", code="empty_text")
     w = tr.words[word_index]
     update: dict[str, object] = {"text": new_text, "confidence": 1.0}
     if new_text != w.text and not keep_evidence:
@@ -124,10 +140,7 @@ def correct_transcript_phrase(
     *,
     keep_evidence: bool = False,
 ) -> None:
-    if start_word_index < 0 or end_word_index >= len(tr.words):
-        raise ValueError("word index range out of bounds")
-    if end_word_index < start_word_index:
-        raise ValueError("end_word_index must be >= start_word_index")
+    _require_word_range(tr, start_word_index, end_word_index)
 
     old_words = tr.words[start_word_index : end_word_index + 1]
     replacement = build_phrase_replacement(
@@ -190,11 +203,8 @@ def set_word_suppressed(
     A direct call locks the word (#768): later reconcile passes leave it alone
     instead of recomputing audibility over the decision.
     """
-    tr = project.transcript_for_track(track_id)
-    if not tr:
-        raise ValueError(f"no transcript for track {track_id!r}")
-    if word_index < 0 or word_index >= len(tr.words):
-        raise ValueError(f"word_index out of range: {word_index}")
+    tr = _require_transcript(project, track_id)
+    _require_word_index(tr, word_index)
     w = tr.words[word_index]
     tr.words[word_index] = w.model_copy(
         update={"suppressed": bool(suppressed), "audibility_locked": True}
@@ -220,11 +230,8 @@ def set_word_automatic(
     honoring the stale explicit decision forever. Does not rebuild the combined
     transcript: ``suppressed`` does not change here, only its later reconcile.
     """
-    tr = project.transcript_for_track(track_id)
-    if not tr:
-        raise ValueError(f"no transcript for track {track_id!r}")
-    if word_index < 0 or word_index >= len(tr.words):
-        raise ValueError(f"word_index out of range: {word_index}")
+    tr = _require_transcript(project, track_id)
+    _require_word_index(tr, word_index)
     w = tr.words[word_index]
     tr.words[word_index] = w.model_copy(update={"audibility_locked": False})
     return {
@@ -254,13 +261,8 @@ def set_words_ignored(
     resolves to it via ``transcript_for_source``, so an extra source's clip on a
     multi-source track is never muted by another source's word times.
     """
-    tr = project.transcript_for_track(track_id)
-    if not tr:
-        raise ValueError(f"no transcript for track {track_id!r}")
-    if start_word_index < 0 or end_word_index >= len(tr.words):
-        raise ValueError("word index range out of bounds")
-    if end_word_index < start_word_index:
-        raise ValueError("end_word_index must be >= start_word_index")
+    tr = _require_transcript(project, track_id)
+    _require_word_range(tr, start_word_index, end_word_index)
 
     changed = 0
     for i in range(start_word_index, end_word_index + 1):

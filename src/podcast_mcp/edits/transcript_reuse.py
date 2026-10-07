@@ -18,14 +18,17 @@ from podcast_mcp.engines.ctc_forced_align import ALIGNMENT_SCORE_METHOD
 from podcast_mcp.engines.transcribe import TranscribeJob, TranscriptionEngine, cached_audio_keys
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptKey
 from podcast_mcp.transcript_context import TranscriptContext, load_transcript_context
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.word_aligner_models import WordAlignerModel, word_aligner_model
 
 log = logging.getLogger(__name__)
 
 
-class TranscriptOverwriteRefused(RuntimeError):
+class TranscriptOverwriteRefused(CodedError, RuntimeError):
     """An unattended run would replace a hand-edited transcript."""
+
+    code = "transcript_overwrite_refused"
 
 
 @dataclass

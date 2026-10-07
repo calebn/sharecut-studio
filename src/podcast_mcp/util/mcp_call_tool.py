@@ -1,6 +1,6 @@
 """One forwarding wrapper for ``MCPServer.call_tool`` shared by every ``call_tool`` installer.
 
-``install_mcp_progress`` (``util/progress.py``), ``install_busy_errors`` (``mcp/busy_errors.py``)
+``install_mcp_progress`` (``util/progress.py``), ``install_tool_errors`` (``mcp/tool_errors.py``)
 and ``install_host_project_injection`` (``gui/host_mcp.py``) each wrap the SDK's ``call_tool``.
 This helper owns the signature and forwards ``context`` plus any extra positional / keyword
 arguments, so a new SDK parameter needs one change here instead of one per installer (#488).

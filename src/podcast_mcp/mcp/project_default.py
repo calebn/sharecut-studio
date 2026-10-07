@@ -17,7 +17,7 @@ Installed once on the MCPServer (same choke-point pattern as
 function keeps its explicit ``project_path`` parameter, but it becomes
 optional in the tool schema and falls back to the env var when omitted.
 An explicit argument always wins. With neither, the tool raises a clear
-error telling the agent what to do.
+refusal (``project_path_required``) telling the agent what to do.
 """
 
 from __future__ import annotations
@@ -28,9 +28,10 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Annotated, Any
 
-from mcp.server.mcpserver.exceptions import ToolError
 from mcp.shared._callable_inspection import is_async_callable
 from pydantic import BeforeValidator, TypeAdapter
+
+from podcast_mcp.util.coded_error import CodedValueError
 
 ENV_VAR = "PODCAST_MCP_PROJECT"
 
@@ -42,10 +43,11 @@ def resolve_project_path(project_path: Any) -> Any:
     default = os.environ.get(ENV_VAR)
     if default:
         return default
-    raise ValueError(
+    raise CodedValueError(
         f"No project_path was provided and {ENV_VAR} is not set. "
         f"Pass project_path to the tool, or set {ENV_VAR} in the MCP "
-        'server environment (the "env" block of your harness MCP config).'
+        'server environment (the "env" block of your harness MCP config).',
+        code="project_path_required",
     )
 
 
@@ -129,13 +131,8 @@ def with_default_project(fn: Callable[..., Any]) -> Callable[..., Any]:
         # callers follow what they see ...
         bound = new_sig.bind_partial(*args, **kwargs)
         if not bound.arguments.get("project_path"):
-            try:
-                bound.arguments["project_path"] = _default_project_value(orig_param.annotation)
-            except ValueError as exc:
-                # MCP SDK 2.2.0 turns non-ToolError exceptions into
-                # UnexpectedToolError, which hides the message from the
-                # agent. Raise ToolError so the helpful text reaches them.
-                raise ToolError(str(exc)) from exc
+            # A CodedError: mcp/tool_errors.py passes its message to the agent.
+            bound.arguments["project_path"] = _default_project_value(orig_param.annotation)
         # ... then rebind by name against the original signature so the
         # underlying function always receives its own parameter order.
         orig_bound = sig.bind_partial(**bound.arguments)

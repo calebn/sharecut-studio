@@ -12,6 +12,8 @@ from podcast_mcp.engines.render_invalidations import record_invalidation
 from podcast_mcp.models import FADER_MAX_DB, FADER_MIN_DB, Track, TrackRole
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import ensure_audio_in_workspace, schedule_track_waveforms
+from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedValueError
+from podcast_mcp.util.tracks import unknown_track
 
 
 class EpisodeService:
@@ -30,7 +32,7 @@ class EpisodeService:
         track_id = slug_track_id(track_id)
         audio_in = Path(file_path).expanduser().resolve()
         if not audio_in.is_file():
-            raise FileNotFoundError(f"audio file not found: {audio_in}")
+            raise CodedFileNotFoundError(f"audio file not found: {audio_in}", code="file_not_found")
         audio, store = ensure_audio_in_workspace(Path(self.ws.project.workspace_dir), audio_in)
 
         def mutate(p) -> None:
@@ -67,7 +69,7 @@ class EpisodeService:
     ) -> dict:
         track_id = slug_track_id(track_id)
         if self.ws.project.track_by_id(track_id) is not None:
-            raise ValueError(f"track already exists: {track_id}")
+            raise CodedValueError(f"track already exists: {track_id}", code="track_exists")
 
         def mutate(p) -> None:
             p.tracks.append(
@@ -92,15 +94,15 @@ class EpisodeService:
     def set_track_media(self, track_id: str, file_path: str) -> dict:
         audio_in = Path(file_path).expanduser().resolve()
         if not audio_in.is_file():
-            raise FileNotFoundError(f"audio file not found: {audio_in}")
+            raise CodedFileNotFoundError(f"audio file not found: {audio_in}", code="file_not_found")
         if self.ws.project.track_by_id(track_id) is None:
-            raise ValueError(f"unknown track: {track_id}")
+            raise unknown_track(track_id)
         audio, store = ensure_audio_in_workspace(Path(self.ws.project.workspace_dir), audio_in)
 
         def mutate(p) -> None:
             track = p.track_by_id(track_id)
             if track is None:
-                raise ValueError(f"unknown track: {track_id}")
+                raise unknown_track(track_id)
             apply_full_span_media(p, track, store_path=store, audio_path=audio)
             record_invalidation(p, track_ids=[track_id], reason="other")
 
@@ -129,14 +131,17 @@ class EpisodeService:
         speaker: str | None = None,
     ) -> dict:
         if self.ws.project.track_by_id(track_id) is None:
-            raise ValueError(f"unknown track: {track_id}")
+            raise unknown_track(track_id)
         if label is None and role is None and speaker is None:
-            raise ValueError("set_track_meta requires at least one of label, role, speaker")
+            raise CodedValueError(
+                "set_track_meta requires at least one of label, role, speaker",
+                code="missing_argument",
+            )
 
         def mutate(p) -> None:
             track = p.track_by_id(track_id)
             if track is None:
-                raise ValueError(f"unknown track: {track_id}")
+                raise unknown_track(track_id)
             if label is not None:
                 track.label = label
             if role is not None:
@@ -167,18 +172,19 @@ class EpisodeService:
     def set_track_volume(self, track_id: str, fader_db: float) -> dict:
         """Set a track's saved volume: the mix plays it at ``gain_db + fader_db``."""
         if self.ws.project.track_by_id(track_id) is None:
-            raise ValueError(f"unknown track: {track_id}")
+            raise unknown_track(track_id)
         value = float(fader_db)
         if not math.isfinite(value) or not FADER_MIN_DB <= value <= FADER_MAX_DB:
-            raise ValueError(
-                f"fader_db must be between {FADER_MIN_DB:g} and {FADER_MAX_DB:g} dB, got {fader_db}"
+            raise CodedValueError(
+                f"fader_db must be between {FADER_MIN_DB:g} and {FADER_MAX_DB:g} dB, got {fader_db}",
+                code="out_of_range",
             )
         value = round(value, 2)
 
         def mutate(p) -> None:
             track = p.track_by_id(track_id)
             if track is None:
-                raise ValueError(f"unknown track: {track_id}")
+                raise unknown_track(track_id)
             track.fader_db = value
 
         self.ws.mutate(
@@ -202,12 +208,12 @@ class EpisodeService:
         The track stays on the timeline, so edits, stems and analysis cover it.
         """
         if self.ws.project.track_by_id(track_id) is None:
-            raise ValueError(f"unknown track: {track_id}")
+            raise unknown_track(track_id)
 
         def mutate(p) -> None:
             track = p.track_by_id(track_id)
             if track is None:
-                raise ValueError(f"unknown track: {track_id}")
+                raise unknown_track(track_id)
             track.muted = bool(muted)
 
         verb = "mute" if muted else "unmute"
@@ -224,7 +230,7 @@ class EpisodeService:
 
     def remove_track(self, track_id: str) -> dict:
         if self.ws.project.track_by_id(track_id) is None:
-            raise ValueError(f"unknown track: {track_id}")
+            raise unknown_track(track_id)
 
         def mutate(p) -> None:
             p.tracks = [t for t in p.tracks if t.id != track_id]
@@ -267,7 +273,7 @@ class EpisodeService:
     def reorder_track(self, track_id: str, index: int) -> dict:
         """Move ``track_id`` to 0-based position ``index`` in ``timeline.tracks``."""
         if self.ws.project.track_by_id(track_id) is None:
-            raise ValueError(f"unknown track: {track_id}")
+            raise unknown_track(track_id)
 
         def mutate(p) -> None:
             tracks = list(p.tracks)

@@ -165,7 +165,7 @@ Each `HistoryEntry` may include:
 - `history_record` — manual snapshot
 - `history_undo` / `history_redo` — navigate history (`rerender=true` optional; stales only the stems the move changed)
 
-A busy `project_commit_lock` or `render_lock` raised by a tool is caught once, server-wide, by `mcp.busy_errors.install_busy_errors` (installed on the `MCPServer` in `mcp/server.py`): it returns a structured `is_error` `CallToolResult` (`structured_content {ok: false, error, error_code: "project_busy"}`) instead of the bare `UnexpectedToolError` crash message (#488).
+A busy `project_commit_lock` or `render_lock` raised by a tool is caught once, server-wide, by `mcp.tool_errors.install_tool_errors` (installed on the `MCPServer` in `mcp/server.py`): it returns a structured `is_error` `CallToolResult` (`structured_content {ok: false, error, error_code: "project_busy"}`) instead of the bare `UnexpectedToolError` crash message (#488). A history refusal such as `ProjectMergeConflict` (`merge_conflict`) or `HistoryRerenderError` (`rerender_failed`) is a `CodedError` and takes the same path with its own code and its advice text (#1178).
 
 ### GUI (Sharecut Studio)
 

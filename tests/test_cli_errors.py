@@ -166,14 +166,15 @@ def test_review_group_help_says_review_links():
     assert "share link" not in result.output.lower()
 
 
-def test_coded_error_prints_its_code_and_exits_1():
-    from podcast_mcp.util.coded_error import CodedError
+@pytest.mark.parametrize("kind", ["CodedValueError", "CodedKeyError", "CodedFileNotFoundError"])
+def test_coded_error_prints_its_code_and_exits_1(kind):
+    from podcast_mcp.util import coded_error
 
     demo = _build_app()
 
     @demo.command("boom-coded")
     def _boom_coded() -> None:
-        raise CodedError("nothing to publish", code="no_mix")
+        raise getattr(coded_error, kind)("nothing to publish", code="no_mix")
 
     result = runner.invoke(demo, ["boom-coded"])
     assert result.exit_code == 1

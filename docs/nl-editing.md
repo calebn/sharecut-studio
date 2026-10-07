@@ -76,9 +76,15 @@ through their owning context facades. Tool names and permissions are unchanged.
 
 List and object arguments are JSON values, not JSON text: `ids=["e1", "e2"]`, `track_ids=["host"]`, `config={"balance": {"dialogue_lufs": -18}}`, `selection={"kind": "clip", "id": "c1"}`. The tool schema gives each shape, and the server validates it before the tool runs. A client that sends the same structure as a JSON string still works. Free-text arguments are taken as written: `body="null"` stores the word "null" and `expected_text="[1]"` compares against "[1]"; send JSON `null` or omit the argument to leave it unset. Contract: [contributing.md § Structured MCP arguments](contributing.md#structured-mcp-arguments).
 
-### Busy project
+### Tool errors
 
-A tool call that waits out a busy `project_commit_lock` or `render_lock` (`ProjectBusyError` / `RenderBusyError`) does not crash with an opaque `Error executing tool <name>`. `mcp.busy_errors.install_busy_errors`, installed once on the server in `mcp/server.py`, catches it and returns a structured `is_error` `CallToolResult` with `structured_content {ok: false, error, error_code: "project_busy"}`, the same code the GUI's HTTP 503 and guest remote MCP's JSON-RPC `-32000` use, so an agent can branch on one string everywhere (#488). A coded refusal (`util/coded_error.py::CodedError`) takes the same path with its own code: `publish_review_version_tool` returns `error_code` `no_mix` (nothing rendered yet; run `render_preview`), `stale_mix` or `stale_master`.
+The mcp SDK passes an exception's text to the client only for its own `ToolError`; anything else reaches the agent as a bare `Error executing tool <name>`. `mcp.tool_errors.install_tool_errors`, installed once on the server in `mcp/server.py`, is the one boundary that decides what the agent sees (#488, #1178):
+
+- **Busy lock.** A tool that waits out a busy `project_commit_lock` or `render_lock` (`ProjectBusyError` / `RenderBusyError`, or a raw `filelock.Timeout`) returns a structured `is_error` `CallToolResult` with `structured_content {ok: false, error, error_code: "project_busy"}`, the same code the GUI's HTTP 503 and guest remote MCP's JSON-RPC `-32000` use, so an agent can branch on one string everywhere.
+- **Refusal.** A `CodedError` (`util/coded_error.py`) returns the same shape with the refusal's own message (the text the CLI prints) and `error_code`. Examples: a stale `expected_text` guard (`transcript_changed`), `word_index_out_of_range`, `transcript_not_found`, `track_not_found`, `comment_not_found`, `edit_not_found`, `clip_not_found`, a missing audio file (`file_not_found`) or project (`project_not_found`), no `project_path` and no `PODCAST_MCP_PROJECT` (`project_path_required`), a pending refine or align step (`transcript_refine_required`, `align_accept_required`), an undo or redo conflict (`merge_conflict`), and `publish_review_version_tool`'s `no_mix` (nothing rendered yet; run `render_preview`), `stale_mix` or `stale_master`. Re-read what the message names and retry; do not retry the same call unchanged.
+- **Crash.** Any other exception is treated as a bug: the agent sees only `Error executing tool <name>`, and the server logs the traceback. A plain `ValueError` is a crash here too, so a refusal an agent can act on is raised as a `CodedError` ([contributing.md § MCP tool errors](contributing.md#mcp-tool-errors)).
+
+Argument validation errors (a wrong type, a missing required argument) are the SDK's own `ToolError` and keep their text.
 
 ## Skills
 

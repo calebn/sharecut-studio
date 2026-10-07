@@ -967,7 +967,7 @@ def test_fill_with_room_tone_missing_track() -> None:
             timeline_start=3.0,
         ),
     ]
-    with pytest.raises(ValueError, match="not found"):
+    with pytest.raises(ValueError, match="unknown track_id"):
         fill_with_room_tone(p, "host")
 
 

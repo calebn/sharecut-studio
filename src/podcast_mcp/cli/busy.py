@@ -5,10 +5,10 @@ Two families land here, both printed as ``Error: <message>`` on stderr with exit
 
 - a ``filelock.Timeout`` (``ProjectBusyError`` / ``RenderBusyError`` or a raw one) from a
   busy project/render lock (#488);
-- a domain guard error — ``ValueError`` / ``RuntimeError``, the base classes most guard
-  exceptions across ``services`` / ``edits`` subclass (``TranscriptRefineRequiredError``,
-  ``AlignAcceptRequiredError``, ``HistoryRerenderError``, ``resolve_track``'s plain
-  ``ValueError``, ...) (#773).
+- a domain guard error — a ``CodedError`` refusal (``util/coded_error.py``: an unknown id,
+  a missing file or project, ``TranscriptRefineRequiredError``, ``AlignAcceptRequiredError``,
+  ...), printed with its ``(code <code>)``, or a plain ``ValueError`` / ``RuntimeError``, the
+  base classes most other guard exceptions across ``services`` / ``edits`` use (#773, #1178).
 
 Set ``PODCAST_DEBUG=1`` to get the original traceback instead of either message — useful
 for a real bug (``TypeError``, a bad unpack) that happens to subclass one of the two
@@ -36,7 +36,7 @@ import typer
 from filelock import Timeout
 from typer.core import TyperGroup
 
-from podcast_mcp.util.coded_error import describe_error
+from podcast_mcp.util.coded_error import CodedError, describe_error
 from podcast_mcp.util.project_state import busy_message
 
 _DEBUG_ENV_VAR = "PODCAST_DEBUG"
@@ -54,7 +54,7 @@ _PASSTHROUGH: tuple[type[BaseException], ...] = (
     RecursionError,
 )
 
-_DOMAIN_ERRORS: tuple[type[BaseException], ...] = (ValueError, RuntimeError)
+_DOMAIN_ERRORS: tuple[type[BaseException], ...] = (CodedError, ValueError, RuntimeError)
 
 
 _DEBUG_TRUE_VALUES = frozenset({"1", "true", "yes", "on"})

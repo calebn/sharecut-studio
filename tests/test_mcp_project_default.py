@@ -10,14 +10,13 @@ import pytest
 
 pytest.importorskip("mcp.client")
 
-from mcp.server.mcpserver.exceptions import ToolError
-
 from podcast_mcp.mcp.project_default import (
     ENV_VAR,
     install_project_default,
     resolve_project_path,
     with_default_project,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def forward_referenced_extension_tool(project_path: Path) -> dict[str, str]:
@@ -91,8 +90,9 @@ def test_wrapper_makes_project_path_optional_and_preserves_metadata(
 def test_wrapper_raises_without_path_or_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(ENV_VAR, raising=False)
     wrapped = with_default_project(_sample_tool)
-    with pytest.raises(ToolError, match=ENV_VAR):
+    with pytest.raises(CodedValueError, match=ENV_VAR) as raised:
         wrapped()
+    assert raised.value.code == "project_path_required"
 
 
 @pytest.mark.asyncio
@@ -111,8 +111,11 @@ async def test_wrapper_supports_async_tools(monkeypatch: pytest.MonkeyPatch) -> 
 def _make_server():
     from mcp.server import MCPServer
 
+    from podcast_mcp.mcp.tool_errors import install_tool_errors
+
     server = MCPServer("test-project-default")
     install_project_default(server)
+    install_tool_errors(server)  # the refusal's message reaches the client, as on the real server
 
     @server.tool()
     def echo_project_tool(project_path: str) -> str:
@@ -325,6 +328,7 @@ async def test_installed_server_errors_helpfully_without_default(
         result = await client.call_tool("echo_project_tool", {})
     assert result.is_error
     assert ENV_VAR in result.content[0].text
+    assert result.structured_content["error_code"] == "project_path_required"
 
 
 def test_real_server_tool_schema_marks_project_path_optional() -> None:

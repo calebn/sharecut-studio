@@ -12,6 +12,7 @@ from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.models import Clip, ClipMuteRegion, EditDecision, EditDecisionType, EpisodeProject
 from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
+from podcast_mcp.util.coded_error import CodedError
 
 RangeAction = Literal["cut", "mute"]
 
@@ -22,8 +23,10 @@ class RangeEditResult(TypedDict):
     edit: dict[str, Any]
 
 
-class RangeChangedError(ValueError):
+class RangeChangedError(CodedError, ValueError):
     """The selected occurrences changed; the whole action needs reselection."""
+
+    code = "range_changed"
 
 
 def range_media_seal(project: EpisodeProject, track_id: str) -> str:

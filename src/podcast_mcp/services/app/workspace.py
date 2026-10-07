@@ -14,7 +14,7 @@ from podcast_mcp.history.rollback import (
     rolled_back_on_failure,
     take_history_checkpoint,
 )
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models.episode import EpisodeProject, project_not_found
 from podcast_mcp.project_io import open_project, resolve_project_path
 from podcast_mcp.project_merge import (
     HISTORY_LINEAGE_CONFLICT,
@@ -55,7 +55,10 @@ class ProjectWorkspace:
     @classmethod
     def open(cls, project_path: Path | str) -> ProjectWorkspace:
         path = resolve_project_path(project_path)
-        before = file_revision(path)
+        try:
+            before = file_revision(path)
+        except FileNotFoundError as exc:
+            raise project_not_found(path) from exc
         _, project = open_project(path)
         ws = cls(path, project)
         signature = file_revision(path)

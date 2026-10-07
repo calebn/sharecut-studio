@@ -78,6 +78,7 @@ from podcast_mcp.services.record.upload import (
     record_artifacts_dir,
 )
 from podcast_mcp.util.atomic_json import copy_file_atomic
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.keyed_lock import KeyedLocks
@@ -193,8 +194,10 @@ def purge_session_land_rollbacks(project: EpisodeProject, session_id: str) -> No
         )
 
 
-class RecordLandingError(ValueError):
+class RecordLandingError(CodedError, ValueError):
     """Refuse to land or discard a take."""
+
+    code = "record_land_refused"
 
 
 class RecordTakeOpenError(RecordLandingError):

@@ -13,6 +13,7 @@ from podcast_mcp.models import (
     TimelineComment,
 )
 from podcast_mcp.models.episode import RangeInterval
+from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 
 COMMENT_BODY_MAX = 8000
@@ -25,9 +26,11 @@ def _new_id() -> str:
 def _require_body(text: str, *, kind: str = "comment") -> str:
     cleaned = (text or "").strip()
     if not cleaned:
-        raise ValueError(f"{kind} body is required")
+        raise CodedValueError(f"{kind} body is required", code="empty_text")
     if len(cleaned) > COMMENT_BODY_MAX:
-        raise ValueError(f"{kind} body exceeds {COMMENT_BODY_MAX} characters")
+        raise CodedValueError(
+            f"{kind} body exceeds {COMMENT_BODY_MAX} characters", code="text_too_long"
+        )
     return cleaned
 
 
@@ -35,7 +38,7 @@ def _normalize_end(start: float, end: float | None) -> float | None:
     if end is None:
         return None
     if end < start:
-        raise ValueError("timeline_end must be >= timeline_start")
+        raise CodedValueError("timeline_end must be >= timeline_start", code="invalid_range")
     if abs(end - start) < 1e-9:
         return None
     return end
@@ -45,7 +48,7 @@ def _validate_tracks(project: EpisodeProject, track_ids: list[str]) -> list[str]
     known = {t.id for t in project.tracks}
     missing = [tid for tid in track_ids if tid not in known]
     if missing:
-        raise ValueError(f"unknown track_id(s): {', '.join(missing)}")
+        raise CodedValueError(f"unknown track_id(s): {', '.join(missing)}", code="track_not_found")
     # Preserve order, drop duplicates
     seen: set[str] = set()
     out: list[str] = []
@@ -72,12 +75,15 @@ def _validate_edit_decision_link(
         return None
     pending_ids = {e.id for e in project.edit_decisions}
     if edit_decision_id not in pending_ids:
-        raise ValueError(f"no pending edit decision: {edit_decision_id}")
+        raise CodedValueError(
+            f"no pending edit decision: {edit_decision_id}", code="edit_not_found"
+        )
     existing = comment_for_edit_decision(project, edit_decision_id)
     if existing is not None:
-        raise ValueError(
+        raise CodedValueError(
             f"edit decision {edit_decision_id} already has a comment thread "
-            f"({existing.id}); reply instead"
+            f"({existing.id}); reply instead",
+            code="comment_thread_exists",
         )
     return edit_decision_id
 
@@ -99,16 +105,16 @@ def add_comment(
     text = _require_body(body)
     who = (author or "").strip()
     if not who:
-        raise ValueError("author is required")
+        raise CodedValueError("author is required", code="missing_argument")
     if timeline_start < 0:
-        raise ValueError("timeline_start must be >= 0")
+        raise CodedValueError("timeline_start must be >= 0", code="invalid_range")
 
     cid = (comment_id or "").strip() or _new_id()
     if comment_id:
         existing = next((item for item in project.comments if item.id == cid), None)
         if existing is not None:
             if existing.author != who:
-                raise ValueError("comment id already exists")
+                raise CodedValueError("comment id already exists", code="comment_exists")
             return existing
 
     end = _normalize_end(timeline_start, timeline_end)
@@ -118,7 +124,10 @@ def add_comment(
         or spans[-1].end != end
         or any(a.end >= b.start for a, b in pairwise(spans))
     ):
-        raise ValueError("Comment intervals must be ordered, disjoint, and match its bounds")
+        raise CodedValueError(
+            "Comment intervals must be ordered, disjoint, and match its bounds",
+            code="invalid_range",
+        )
     tracks = _validate_tracks(project, list(track_ids or []))
     linked = _validate_edit_decision_link(project, edit_decision_id)
     items = [
@@ -164,7 +173,7 @@ def get_comment(project: EpisodeProject, comment_id: str) -> TimelineComment:
     for comment in project.comments:
         if comment.id == comment_id:
             return comment
-    raise KeyError(f"comment not found: {comment_id}")
+    raise CodedKeyError(f"comment not found: {comment_id}", code="comment_not_found")
 
 
 def update_comment(
@@ -183,7 +192,7 @@ def update_comment(
         comment.track_ids = _validate_tracks(project, track_ids)
     if timeline_start is not None:
         if timeline_start < 0:
-            raise ValueError("timeline_start must be >= 0")
+            raise CodedValueError("timeline_start must be >= 0", code="invalid_range")
         comment.timeline_start = timeline_start
     if timeline_end is not None or timeline_start is not None:
         comment.timeline_spans = []
@@ -203,7 +212,7 @@ def resolve_comment(
 ) -> TimelineComment:
     who = (by or "").strip()
     if not who:
-        raise ValueError("resolved_by / by is required")
+        raise CodedValueError("resolved_by / by is required", code="missing_argument")
     comment = get_comment(project, comment_id)
     comment.resolved = resolved
     if resolved:
@@ -232,7 +241,7 @@ def set_action_item_done(
 ) -> CommentActionItem:
     who = (by or "").strip()
     if not who:
-        raise ValueError("completed_by / by is required")
+        raise CodedValueError("completed_by / by is required", code="missing_argument")
     comment = get_comment(project, comment_id)
     for item in comment.action_items:
         if item.id == action_id:
@@ -245,7 +254,7 @@ def set_action_item_done(
                 item.completed_by = None
             comment.updated_at = _now_iso()
             return item
-    raise KeyError(f"action item not found: {action_id}")
+    raise CodedKeyError(f"action item not found: {action_id}", code="action_item_not_found")
 
 
 def add_action_item(
@@ -255,7 +264,7 @@ def add_action_item(
 ) -> CommentActionItem:
     body = (text or "").strip()
     if not body:
-        raise ValueError("action item text is required")
+        raise CodedValueError("action item text is required", code="empty_text")
     comment = get_comment(project, comment_id)
     item = CommentActionItem(id=_new_id(), text=body)
     comment.action_items.append(item)
@@ -273,7 +282,7 @@ def add_reply(
     text = _require_body(body, kind="reply")
     who = (author or "").strip()
     if not who:
-        raise ValueError("author is required")
+        raise CodedValueError("author is required", code="missing_argument")
     comment = get_comment(project, comment_id)
     reply = CommentReply(
         id=_new_id(),
