@@ -242,14 +242,26 @@ def test_align_tracks_splits_the_lane_in_the_silence_and_undo_restores(
     assert _clips(stepped, "audra") == [("clip_audra", 0.0, 240.0, 0.0)]
 
 
+def _methods(ws: ProjectWorkspace) -> dict[str, str]:
+    return {
+        key: entry.align_method for key, entry in (ws.project.meta.ingest_alignment or {}).items()
+    }
+
+
 def test_rerun_keeps_the_pieces_where_they_are(stepped: ProjectWorkspace) -> None:
     PipelineService(stepped).run(only_step="align_tracks", unattended=True)
     once = _clips(stepped, "audra")
+    methods = _methods(stepped)
+    labels = [entry.label for entry in stepped.project.history.entries]
 
     result = PipelineService(stepped).run(only_step="align_tracks", unattended=True)
 
     assert _clips(stepped, "audra") == once
     assert "kept audra" in (result.steps[-1].message or "")
+    # Nothing moved, so the pieces keep the method that placed them and no undo entry is added.
+    assert _methods(stepped) == methods
+    assert sorted(set(methods.values())) == ["bleed_lag", "hold", "reference"]
+    assert [entry.label for entry in stepped.project.history.entries] == labels
 
 
 def test_drifting_lane_is_flagged_and_not_split(tmp_path) -> None:

@@ -191,9 +191,13 @@ def test_rerun_measures_at_the_aligned_placement_and_keeps_it(
     late_audra: ProjectWorkspace,
 ) -> None:
     PipelineService(late_audra).run(only_step="align_tracks", unattended=True)
+    labels = [entry.label for entry in late_audra.project.history.entries]
     PipelineService(late_audra).run(only_step="align_tracks", unattended=True)
 
     assert bh.geometry(late_audra, "audra") == (0.12, 240.0, 0.0)
+    assert late_audra.project.meta.ingest_alignment is not None
+    assert late_audra.project.meta.ingest_alignment["Audra"].align_method == "bleed_lag"
+    assert [entry.label for entry in late_audra.project.history.entries] == labels
     latency = json.loads(
         (late_audra.project.artifacts_dir() / "alignment" / "conversation_align.json").read_text()
     )["bleed_latency"]
