@@ -13,8 +13,11 @@ Per spurt and
 candidate lag the Pearson sums over source-dominant frames are kept, so any run of spurts
 is measured exactly as one window over its frames.
 
-A segment is a run of spurts at its own best lag, with at least ``MIN_SEGMENT_FRAMES``
-frames, correlation at least ``MIN_CORRELATION`` and the peak inside the search. Dynamic
+A segment is a run of spurts at its own best lag, with correlation at least
+``MIN_CORRELATION``, the peak inside the search, and enough evidence to pin it: every lag
+beyond the deadband fits worse by ``CONFIDENCE_NATS`` (its likelihood-ratio interval lies
+inside the deadband). A short phrase with a sharp peak passes; a long stretch with a flat
+correlation does not, so the floor scales with the evidence, not with a frame count. Dynamic
 programming picks the segments that minimise ``sum(n / 2 * log(1 - r^2))`` (``n`` in
 independent frames, ``FRAME_SEC`` apart) plus ``STEP_LLR`` per segment, where the widest
 silence between neighbours holds the step plus ``EDGE_SEC`` on each side. A second pass
@@ -43,7 +46,8 @@ from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB, MIN_CORRELATION
 MIN_GAP_SEC = 0.06
 EDGE_SEC = 0.02
 SEARCH_SEC = 0.1
-MIN_SEGMENT_FRAMES = 200
+# Half the 95% chi-square(1) quantile: the likelihood-ratio interval of a piece's lag.
+CONFIDENCE_NATS = 1.92
 STEP_LLR = 10.0
 
 
@@ -123,19 +127,27 @@ def _pooled_lag(source: np.ndarray, mic: np.ndarray, around: int) -> int | None:
 Run = tuple[int, int, int]
 
 
-def _valid(r: np.ndarray, n: np.ndarray) -> np.ndarray:
-    """Lags a segment may sit at: its own best, inside the search, on enough evidence."""
-    inside = np.ones(r.shape[-1], dtype=bool)
-    inside[[0, -1]] = False
+def _valid(r: np.ndarray, n: np.ndarray, smallest: int) -> np.ndarray:
+    """Lags a segment may sit at: its own best, inside the search, and pinned by its evidence.
+
+    Pinned means every lag ``smallest`` hops or more away (beyond the deadband) fits worse
+    by at least ``CONFIDENCE_NATS``: the likelihood-ratio interval of the lag lies inside
+    the deadband. A short stretch with a sharp peak qualifies; a long one with a flat
+    correlation does not.
+    """
+    size = r.shape[-1]
+    best = np.argmax(r, axis=-1)
+    fit = _log_fit(r, n)
+    far = np.abs(np.arange(size) - best[..., None]) >= smallest
+    worse = fit - np.take_along_axis(fit, best[..., None], axis=-1)
+    pinned = np.where(far, worse, np.inf).min(axis=-1) >= CONFIDENCE_NATS
+    inside = (best > 0) & (best < size - 1)
     return (
-        (r == r.max(axis=-1, keepdims=True))
-        & (n >= MIN_SEGMENT_FRAMES)
-        & (r >= MIN_CORRELATION)
-        & inside
+        (r == r.max(axis=-1, keepdims=True)) & (r >= MIN_CORRELATION) & (pinned & inside)[..., None]
     )
 
 
-def _partition(cum: np.ndarray, largest: np.ndarray) -> list[Run] | None:
+def _partition(cum: np.ndarray, largest: np.ndarray, smallest: int) -> list[Run] | None:
     """Blocks split into runs ``(first, end, lag)`` minimising fit plus ``STEP_LLR`` per run.
 
     A step may be any size its silence holds; whether it is worth applying is
@@ -152,7 +164,7 @@ def _partition(cum: np.ndarray, largest: np.ndarray) -> list[Run] | None:
     entry[0] = 0.0
     for b in range(1, count + 1):
         r, n = _correlation(cum[b] - cum[:b])
-        options = entry[:b] + np.where(_valid(r, n), _log_fit(r, n), np.inf)
+        options = entry[:b] + np.where(_valid(r, n, smallest), _log_fit(r, n), np.inf)
         start[b] = np.argmin(options, axis=0)
         total[b] = options[start[b], np.arange(size)] + STEP_LLR
         if b < count:
@@ -188,7 +200,7 @@ def _keep_steps(
     for i in range(m):
         ends = np.array(bounds[i + 1 :])
         r, n = _correlation(cum[ends] - cum[bounds[i]])
-        valid = _valid(r, n)
+        valid = _valid(r, n, smallest)
         for j, row in zip(range(i + 1, m + 1), valid, strict=True):
             if row.any():
                 lag[i, j] = int(np.argmax(row))
@@ -261,10 +273,11 @@ def lag_segments(
         gap_at[block] = lasts[g] + 1, firsts[g + 1]
     # The largest lag step (hops) each gap holds: the silence less its edges.
     largest = np.floor(((gap_at[:, 1] - gap_at[:, 0]) * HOP_SEC - 2 * EDGE_SEC) / HOP_SEC + 1e-9)
-    runs = _partition(cum, largest)
+    smallest = int(np.floor(deadband_sec / HOP_SEC + 1e-9)) + 1
+    runs = _partition(cum, largest, smallest)
     if runs is None:
         return None
-    runs = _keep_steps(runs, cum, largest, int(np.floor(deadband_sec / HOP_SEC + 1e-9)) + 1)
+    runs = _keep_steps(runs, cum, largest, smallest)
     if runs is None or len(runs) == 1:
         return None
     segments = []
