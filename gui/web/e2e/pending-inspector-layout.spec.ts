@@ -132,8 +132,12 @@ test.describe("Pending inspector layout", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.locator(".daw-shell--phone")).toBeVisible();
     await page.getByRole("button", { name: "Timeline" }).click();
-    const dialog = page.getByRole("dialog", { name: "Inspector" });
+    // The phone timeline opens the compact drawer; at full height it holds
+    // the whole pending inspector.
+    const dialog = page.locator(".bottom-sheet--compact");
     await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Expand to half height" }).click();
+    await dialog.getByRole("button", { name: "Expand to full height" }).click();
     await expect(
       dialog.getByRole("heading", { name: "Pending edit" }),
     ).toBeVisible();
