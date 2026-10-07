@@ -69,6 +69,16 @@ def test_backchannel_over_silence_is_trimmed_onto_its_voice_at_the_end() -> None
     assert words[0].trimmed_from is None
 
 
+def test_a_span_a_person_set_is_never_trimmed() -> None:
+    audio = TrackRmsCache(_track(9.0, (7.6, 8.0)), RATE)
+    words = [TranscriptWord(text="-huh.", start=2.0, end=8.0, timing_edited=True)]
+
+    assert trim_implausible_words(words, audio, CAPS) == (0, 0)
+
+    assert _spans(words) == [("-huh.", 2.0, 8.0)]
+    assert (words[0].timing_edited, words[0].trimmed_from, words[0].overlong) == (True, None, False)
+
+
 def test_stretch_with_no_voice_inside_keeps_the_last_cap_of_the_span() -> None:
     audio = TrackRmsCache(_track(9.0, (8.3, 8.6)), RATE)
     words = [TranscriptWord(text="Uh", start=2.0, end=7.98)]

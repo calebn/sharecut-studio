@@ -340,6 +340,24 @@ def test_apply_word_spans_keeps_unaligned_and_clears_deferred_only_when_retimed(
     assert words[1].audibility_status == "deferred"
 
 
+def test_apply_word_spans_clamps_unaligned_words_through_retime() -> None:
+    # An unaligned word the clamp moves is re-timed like any other (its snap no longer
+    # applies); one it leaves where it was keeps its fields.
+    words = [
+        TranscriptWord(text="a", start=1.0, end=1.4),
+        TranscriptWord(text="b", start=0.5, end=2.0, snapped_from=0.4),
+        TranscriptWord(text="c", start=2.1, end=2.2, snapped_from=2.0),
+        TranscriptWord(text="d", start=2.5, end=2.9),
+    ]
+
+    apply_word_spans(words, [(1.0, 1.4), None, None, (2.5, 2.9)])
+
+    assert [(w.start, w.end, w.snapped_from) for w in words[1:3]] == [
+        (1.4, 2.0, None),
+        (2.1, 2.2, 2.0),
+    ]
+
+
 def test_apply_word_spans_sets_scores_only_on_placed_words() -> None:
     words = [
         TranscriptWord(text="a", start=0.0, end=5.0),

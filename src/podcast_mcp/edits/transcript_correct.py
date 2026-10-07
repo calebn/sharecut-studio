@@ -173,6 +173,7 @@ def build_phrase_replacement(
         flag = any(w.suspect_hallucination for w in old_words)
 
     locked = preserve_audibility_lock and any(word.audibility_locked for word in old_words)
+    timed, snaps = _carried_timing(old_words)
     step = span / len(tokens)
     replacement: list[TranscriptWord] = []
     for i, tok in enumerate(tokens):
@@ -187,9 +188,27 @@ def build_phrase_replacement(
                 alignment_score=score,
                 suspect_hallucination=flag,
                 audibility_locked=locked,
+                timing_edited=timed,
+                snapped_from=snaps.get(s),
             )
         )
     return replacement
+
+
+def _carried_timing(old_words: Sequence[TranscriptWord]) -> tuple[bool, dict[float, float]]:
+    """What a rebuilt phrase keeps of its words' timing provenance (#1059).
+
+    The rebuilt words split the old words' span, so the span is a person's when any old
+    word's timing was (``timing_edited``): every rebuilt word carries the mark and none
+    carries a snap, since ``align_tracks`` never moves a person's start. Otherwise an old
+    word's ``snapped_from`` moves to the rebuilt word that starts where it starts (the
+    first rebuilt word always starts on the first old word), keyed here by that start, so
+    the next ``align_tracks`` run can still put the start back. A snapped word with no
+    rebuilt word on its start loses the snap with its start.
+    """
+    if any(word.timing_edited for word in old_words):
+        return True, {}
+    return False, {w.start: w.snapped_from for w in old_words if w.snapped_from is not None}
 
 
 def set_word_suppressed(

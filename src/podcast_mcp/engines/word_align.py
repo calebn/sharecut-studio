@@ -244,8 +244,9 @@ def _clamp_unaligned_runs(
             hi = lo
         for word in words[i:j]:
             had_length = word.end > word.start
-            word.start = clamp(word.start, lo, hi)
-            word.end = clamp(word.end, lo, hi)
+            span = (clamp(word.start, lo, hi), clamp(word.end, lo, hi))
+            if span != (word.start, word.end):
+                word.retime(*span)
             if had_length and word.end <= word.start and word.audibility_status is None:
                 word.audibility_status = "deferred"
         i = j
