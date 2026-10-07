@@ -461,6 +461,29 @@ def test_copy_of_a_few_words_whose_track_opens_late_is_reduced_as_much_as_before
     assert _copy_at_full_level(before, after, LATE_WORDS) == left
 
 
+@pytest.mark.parametrize(
+    ("late", "floor_db", "most"),
+    [
+        pytest.param(LATE_OPENINGS, -70.0, (11.3, 48), id="30-120ms-late-on-a-70-dbfs-floor"),
+        pytest.param((0.18,), None, (7.27, 37), id="180ms-late-on-every-word"),
+    ],
+)
+def test_copy_beside_a_peer_whose_track_opens_late_on_every_word_leaks_no_more_than_accepted(
+    tmp_path: Path, late: tuple[float, ...], floor_db: float | None, most: tuple[float, int]
+) -> None:
+    """The owner's #1134 trade. Where the lane sounds into a late opening, the copy's
+    level is expected only from where that sound began, so the loud start of a late
+    word can stand over it and be kept as own sound. The 200 ms read-ahead everywhere
+    left 10.06 s in 41 pieces and 7.14 s in 34 here; ``most`` caps the accepted cost so
+    it cannot grow unnoticed. Frames near a -70 dBFS floor flip between platforms
+    (10.82 s in 46 pieces on macOS arm64, 11.07 s in 47 on Linux x86-64), so that
+    cap sits at the -60 dBFS floor's cost, 11.26 s in 46, rounded up."""
+    project = _episode(tmp_path, peer_gate_late=late, room_floor_db=floor_db)
+    before, after = _gated_over(project, tmp_path)
+    seconds, pieces = _copy_at_full_level(before, after, LATE_WORDS)
+    assert seconds <= most[0] and pieces <= most[1], (seconds, pieces)
+
+
 def test_the_lane_is_turned_down_from_200_ms_before_the_peers_track_opens(
     tmp_path: Path,
 ) -> None:
