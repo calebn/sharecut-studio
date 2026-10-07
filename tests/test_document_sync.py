@@ -202,7 +202,8 @@ def test_document_history_move_render_failure_is_a_conflict_with_the_advice(
                     client_seq=3,
                 )
             )
-    assert "ffmpeg failed" in str(exc.value)
+    # The render's own error stays on the host (log + cause), never in the 409's message.
+    assert "ffmpeg failed" not in str(exc.value)
     assert exc.value.conflict is True
 
 
