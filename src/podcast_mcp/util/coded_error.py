@@ -24,6 +24,8 @@ the builtin keep working, or give a named guard class both bases and a class-lev
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class CodedError(Exception):
     """A refusal whose message reaches the caller; ``code`` names it (for example ``no_mix``).
@@ -43,6 +45,21 @@ class CodedError(Exception):
     def __str__(self) -> str:
         # The message as written, also for a KeyError subclass (KeyError quotes its arg).
         return str(self.args[0]) if self.args else ""
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # Exception pickling re-calls ``cls(*args)``, which loses a per-raise ``code`` (it is
+        # keyword-only) and breaks subclasses with their own ``__init__``. Rebuild without
+        # ``__init__`` instead, so a refusal survives a process pool.
+        return (_restore_coded_error, (type(self), self.args, dict(self.__dict__)))
+
+
+def _restore_coded_error(
+    cls: type[CodedError], args: tuple[Any, ...], state: dict[str, Any]
+) -> CodedError:
+    exc = cls.__new__(cls, *args)
+    exc.args = args
+    exc.__dict__.update(state)
+    return exc
 
 
 class CodedValueError(CodedError, ValueError):
