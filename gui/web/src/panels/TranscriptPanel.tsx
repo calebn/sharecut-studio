@@ -1018,10 +1018,7 @@ export function TranscriptPanel() {
       transcriptInlineEditFailure &&
       transcriptInlineEditFailure.projectPath === projectPath ? (
         <div className="transcript-inline-failure">
-          <InlineError
-            role="alert"
-            message={transcriptInlineEditFailure.message}
-          />
+          <InlineError message={transcriptInlineEditFailure.message} />
           <Button
             variant="link"
             onClick={() => setTranscriptInlineEditFailure(null)}

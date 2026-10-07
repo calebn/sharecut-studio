@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import { Button, Field, ToggleButton } from "../ui";
 import "./style-guide.css";
 
@@ -73,7 +73,6 @@ const TYPE = [
 ] as const;
 
 export function StyleGuide() {
-  const fieldId = useId();
   const [selected, setSelected] = useState(false);
   const [saved, setSaved] = useState(false);
   const [quietSelected, setQuietSelected] = useState(false);
@@ -195,15 +194,9 @@ export function StyleGuide() {
         </p>
         <Field
           label="Episode name"
-          htmlFor={fieldId}
-          hintId={`${fieldId}-hint`}
           hint="A label identifies the control; a hint adds useful context."
         >
-          <input
-            id={fieldId}
-            aria-describedby={`${fieldId}-hint`}
-            defaultValue="Field notes"
-          />
+          {(control) => <input {...control} defaultValue="Field notes" />}
         </Field>
       </section>
 

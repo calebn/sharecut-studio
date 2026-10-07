@@ -61,7 +61,7 @@ function SourceProgress({
           }
         />
       )}
-      {error && <InlineError message={error.message} role="alert" />}
+      {error && <InlineError message={error.message} />}
     </>
   );
 }
@@ -343,7 +343,7 @@ function TimingEditor({
   if (state.kind === "error")
     return (
       <>
-        <InlineError message={state.message} role="alert" />
+        <InlineError message={state.message} />
         <Button onClick={() => void reload(word)}>Reload timing</Button>
       </>
     );

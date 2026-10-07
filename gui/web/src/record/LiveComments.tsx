@@ -68,7 +68,6 @@ export function LiveComments({
 }: Props & { me?: RecordParticipant | null }) {
   const open = liveTakeOpen(snapshot.state);
   const headingId = useId();
-  const noteId = useId();
   const announcement = useNewCommentAnnouncement(snapshot, comments, me);
   return (
     <section className="stack record-live-comments" aria-labelledby={headingId}>
@@ -99,13 +98,15 @@ export function LiveComments({
           onSubmitNote();
         }}
       >
-        <Field label="Note" htmlFor={noteId}>
-          <input
-            id={noteId}
-            value={note}
-            onChange={(event) => onNote(event.target.value)}
-            disabled={!open}
-          />
+        <Field label="Note">
+          {(control) => (
+            <input
+              {...control}
+              value={note}
+              onChange={(event) => onNote(event.target.value)}
+              disabled={!open}
+            />
+          )}
         </Field>
         <Button type="submit" disabled={!open || !note.trim()}>
           Add note

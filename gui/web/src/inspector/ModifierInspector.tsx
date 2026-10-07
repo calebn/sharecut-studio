@@ -69,7 +69,7 @@ export const ModifierInspector = forwardRef<
       )}
       <div className="modifier-body">{children}</div>
       {error ? (
-        <div className="modifier-error" role="alert">
+        <div className="modifier-error">
           <InlineError message={error} />
         </div>
       ) : null}

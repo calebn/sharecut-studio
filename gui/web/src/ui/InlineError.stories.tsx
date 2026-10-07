@@ -26,7 +26,7 @@ export const Empty: Story = {
 };
 
 export const Inline: Story = {
-  args: { message: "Text cannot be empty", inline: true, role: "alert" },
+  args: { message: "Text cannot be empty", inline: true },
   parameters: {
     docs: {
       description: {

@@ -18,11 +18,13 @@ export const BesideAField: Story = {
     <div
       style={{ display: "grid", gap: "var(--space-3)", maxInlineSize: "24rem" }}
     >
-      <Field label="Anyone with the link" htmlFor="empty-state-story-role">
-        <select id="empty-state-story-role" defaultValue="commenter">
-          <option value="viewer">Viewer</option>
-          <option value="commenter">Commenter</option>
-        </select>
+      <Field label="Anyone with the link">
+        {(control) => (
+          <select {...control} defaultValue="commenter">
+            <option value="viewer">Viewer</option>
+            <option value="commenter">Commenter</option>
+          </select>
+        )}
       </Field>
       <EmptyState>No live review links.</EmptyState>
     </div>

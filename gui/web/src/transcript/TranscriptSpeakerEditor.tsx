@@ -93,7 +93,7 @@ export function TranscriptSpeakerEditor({
       <Button disabled={busy} onClick={() => onClose(true)}>
         Cancel
       </Button>
-      <InlineError inline role="alert" message={error} />
+      <InlineError inline message={error} />
     </form>
   );
 }

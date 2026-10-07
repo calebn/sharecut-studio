@@ -144,7 +144,7 @@ export function JoinPopoverView({
           {note}
         </p>
       ) : null}
-      <InlineError message={error} role="alert" />
+      <InlineError message={error} />
       {footer}
     </div>
   );
