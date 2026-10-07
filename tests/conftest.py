@@ -20,6 +20,7 @@ from podcast_mcp.services.remote_mcp.limits import reset_host_limiters_for_tests
 from podcast_mcp.util import object_store as object_store_util
 from podcast_mcp.util import pinned_media
 from podcast_mcp.util.binaries import resolve_ffmpeg
+from process_caches import reset_isolated_caches
 
 _REPO_PIPELINE_DEFAULTS = repo_root() / ".agents" / "defaults" / "pipeline.yaml"
 
@@ -88,13 +89,11 @@ def _isolate_relay_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
 
 
 @pytest.fixture(autouse=True)
-def _clear_media_probe_cache() -> Iterator[None]:
-    """A duration one test probed (and maybe mocked) must not answer another's probe."""
-    from podcast_mcp.engines import media_probe
-
-    media_probe._cached_media_probe.cache_clear()
+def _isolate_process_caches() -> Iterator[None]:
+    """No cached answer (Silero unavailable, a mocked probe) outlives the test that made it."""
+    reset_isolated_caches()
     yield
-    media_probe._cached_media_probe.cache_clear()
+    reset_isolated_caches()
 
 
 @pytest.fixture(autouse=True)
