@@ -129,8 +129,6 @@ def apply_word_timing(
     transcript = timing_transcript(project, target)
     word = transcript.words[target.word_index]
     fields: dict[str, Any] = {
-        "start": start,
-        "end": end,
         "alignment_score": None,
         "suspect_hallucination": False,
     }
@@ -142,7 +140,9 @@ def apply_word_timing(
             speaker_match_track=None,
             speaker_match_score=None,
         )
-    transcript.words[target.word_index] = word.model_copy(update=fields)
+    edited = word.model_copy(update=fields)
+    edited.retime(start, end, by_person=True)
+    transcript.words[target.word_index] = edited
     transcript.silence_filter_fingerprint = None
     transcript.user_edited = True
     rebuild_combined(project)

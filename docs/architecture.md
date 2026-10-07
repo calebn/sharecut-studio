@@ -35,7 +35,8 @@ again where the lanes now sit (`measure_pair`), finds words whose start reached 
 mic before their own track opened, moves those starts (old start in `snapped_from`,
 restored and judged again on every run) and keeps `Align tracks` comments in step
 through `edits/comments.py`: one per word, or one per lane when the lane itself sits
-late. It reads only the project and audio, never the solver's internals.
+late. A word a person re-timed (`TranscriptWord.retime(..., by_person=True)`, via
+`apply_word_timing`) carries `timing_edited` and is never judged. It reads only the project and audio, never the solver's internals.
 
 Retained mixed bleed has a separate, conservative local alignment path.
 `engines/bleed_delay.py` measures signed copy delays with extended reference

@@ -246,6 +246,9 @@ class TranscriptWord(BaseModel):
     # because the word's start reached only another mic (#1059). Each align_tracks run
     # puts it back and judges again, so it holds only while the start is still missing.
     snapped_from: float | None = None
+    # A person set this word's start and end (Adjust word timing). align_tracks never moves
+    # or flags the start of a word a person timed; a pass that re-times the word clears it.
+    timing_edited: bool = False
     # Over its class cap but holding more of its speaker's voice than the cap: words
     # missing from the transcript, not one stretched token. Times kept, queued for refine.
     overlong: bool = False
@@ -258,6 +261,17 @@ class TranscriptWord(BaseModel):
     # `ignored`: it leaves audibility_status, dominant_track and suppressed alone so a
     # later reconcile pass can't undo the decision (#768).
     audibility_locked: bool = False
+
+    def retime(self, start: float, end: float, *, by_person: bool = False) -> None:
+        """Set this word's source span, the one place a word's timing changes in place.
+
+        The new start is the word's own: ``snapped_from`` (the start before an
+        ``align_tracks`` move, #1059) no longer applies, so a later run cannot put the old
+        start back. A person's timing also keeps ``align_tracks`` from judging the word.
+        """
+        self.start, self.end = start, end
+        self.snapped_from = None
+        self.timing_edited = by_person
 
     def resolve_auto_suppression(self, would_suppress: bool) -> bool:
         """Value an automatic suppression writer should use for `suppressed`.

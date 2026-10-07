@@ -126,7 +126,7 @@ def trim_implausible_words(
             continue
         if word.trimmed_from is None:
             word.trimmed_from = (word.start, word.end)
-        word.start, word.end = span
+        word.retime(*span)
         trimmed += 1
     return SpanCounts(trimmed, overlong)
 
