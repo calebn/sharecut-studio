@@ -353,7 +353,7 @@ align:
   # tolerance of a pair's median count; a pair residual or an episode-long trend past it
   # flags the lane. 40 ms keeps the lab's honest windows (MAD 7.5 ms) and rejects
   # wrong-syllable peaks (+380..+500 ms). A word's sound that reaches another mic more
-  # than this before the speaker's own track opens is checked as a clipped or late start
+  # than this before the speaker's own track opens is checked as a clipped start
   # (#1059): a shorter lead is the timing error align itself calls aligned, and 40 ms is
   # more than one 30 ms level frame, the grid both onsets are read on.
   bleed_lag_tolerance_sec: 0.04

@@ -24,7 +24,6 @@ from podcast_mcp.pipeline import steps
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.pipeline.service import PipelineService
-from podcast_mcp.util.timebase import clock_label
 
 # A gate that opens this far into a word cuts that much of its start off.
 GATE_LATE_SEC = 0.15
@@ -57,13 +56,6 @@ def _align(ws: ProjectWorkspace, **config: object) -> str:
     return next(s.message for s in result.steps if s.step == "align_tracks") or ""
 
 
-LATE_TAIL = (
-    "on Audra's track but plays that late in the mix, so this is left over from alignment, "
-    "not a clipped start. Aligning Audra's track there would fix it; re-running Align "
-    "tracks then withdraws this comment."
-)
-
-
 def _onset_comments(ws: ProjectWorkspace) -> list[tuple[float, float | None, list[str], str]]:
     return [
         (c.timeline_start, c.timeline_end, c.track_ids, c.body)
@@ -81,6 +73,17 @@ def _state(ws: ProjectWorkspace) -> tuple[list[dict], list[tuple]]:
         if c.author == "Align tracks"
     ]
     return words, comments
+
+
+def _first_word(ws: ProjectWorkspace) -> TranscriptWord:
+    return ws.project.transcript_for_track("audra").words[0]
+
+
+def _demote_other_lanes(ws: ProjectWorkspace) -> None:
+    for track in ws.project.tracks:
+        if track.id != "audra":
+            track.role = TrackRole.MUSIC
+    ws.save()
 
 
 def _gated_ws(
@@ -166,30 +169,23 @@ def _late_word_ws(path: Path) -> tuple[ProjectWorkspace, float]:
     return ws, turn
 
 
-def test_a_word_whole_but_late_on_its_own_track_is_an_alignment_residual(
-    tmp_path: Path,
-) -> None:
+def test_a_word_whole_but_late_on_its_own_track_is_not_flagged(tmp_path: Path) -> None:
+    """Its sound matches the copy shifted back by the lead, so nothing of it is missing."""
     ws, turn = _late_word_ws(tmp_path)
 
+    lanes = [t.id for t in ws.project.tracks if t.role == TrackRole.DIALOGUE]
+    levels = clipped_onsets.timeline_levels(ws.project, lanes)
+    leads = clipped_onsets.copy_leads(
+        levels, clipped_onsets.copy_paths(levels.grid), tolerance_sec=0.04
+    )
     report = flag_clipped_word_starts(ws.project)
 
-    assert report.flagged == []
-    [late] = report.late
-    assert late.lead.late_sec == pytest.approx(LANE_LATE_SEC, abs=0.01)
-    assert late.lead.copy_sec == pytest.approx(turn, abs=0.04)
-    assert (
-        report.note()
-        == "audra: 1 word start late on its own track (150 ms; alignment residual, see comments)"
-    )
+    [lead] = [x for x in leads if x.track_id == "audra" and abs(x.copy_sec - turn) < 0.04]
+    assert lead.late_sec == pytest.approx(LANE_LATE_SEC, abs=0.01)
+    assert lead.missing_sec < 0.04
+    assert (report.flagged, report.note(), ws.project.comments) == ([], "", [])
     word = ws.project.transcript_for_track("audra").words[0]
     assert (word.start, word.snapped_from) == (round(turn + LANE_LATE_SEC, 3), None)
-    [comment] = ws.project.comments
-    assert comment.id.startswith("onset-lane-")
-    assert comment.track_ids == ["audra"]
-    assert comment.body == (
-        "Audra's track runs late against Caleb's mic at 1 word start: "
-        f"{clock_label(late.lead.copy_sec)} “And” (150 ms). The word is whole " + LATE_TAIL
-    )
 
 
 def test_rerun_keeps_one_comment_and_the_snapped_start(
@@ -270,47 +266,34 @@ def unsolved(tmp_path: Path) -> tuple[ProjectWorkspace, list[float]]:
     return _unsolved_ws(tmp_path)
 
 
-def test_a_lane_left_late_gets_one_alignment_comment_and_no_word_moves(
+def test_a_lane_left_late_flags_nothing_and_moves_no_word(
     unsolved: tuple[ProjectWorkspace, list[float]],
 ) -> None:
     ws, turns = unsolved
 
     summary = _align(ws)
 
-    [comment] = [c for c in ws.project.comments if c.author == "Align tracks"]
-    assert comment.id.startswith("onset-lane-")
-    assert comment.track_ids == ["audra"]
-    assert comment.timeline_start == pytest.approx(turns[0] - LANE_LATE_SEC, abs=0.04)
-    assert comment.timeline_end == pytest.approx(turns[0], abs=0.04)
-    assert comment.body.startswith("Audra's track runs late against Caleb's mic at 3 word starts: ")
-    assert comment.body.count(" ms)") == comment.body.count("(150 ms)") == 3
-    assert comment.body.endswith(
-        "Each word is whole on Audra's track but plays that late in the mix, so this is left "
-        "over from alignment, not a clipped start. Aligning Audra's track there would fix "
-        "them; re-running Align tracks then withdraws this comment."
-    )
+    assert _onset_comments(ws) == []
     words = ws.project.transcript_for_track("audra").words
     assert [(w.start, w.snapped_from) for w in words] == [
         (round(t - ASR_EARLY_SEC, 3), None) for t in turns
     ]
-    assert summary.endswith(
-        "; audra: 3 word starts late on its own track (150 ms; alignment residual, see comments)"
-    )
-    assert "missing from" not in summary
+    assert "word start" not in summary
 
 
-def test_aligning_the_lane_withdraws_its_open_flags_and_keeps_resolved_ones(
-    unsolved: tuple[ProjectWorkspace, list[float]],
+def test_a_flag_no_longer_found_keeps_its_resolved_comment(
+    gated: tuple[ProjectWorkspace, float, float],
 ) -> None:
-    ws, _turns = unsolved
+    ws, clipped, _normal = gated
     _align(ws)
     kept = ws.project.comments[0]
     kept.resolved, kept.resolved_by = True, "host"
-    ws.save()
+    _demote_other_lanes(ws)
 
-    _align(ws, realign=True)
+    _align(ws)
 
-    assert [c.id for c in ws.project.comments] == [kept.id]
+    assert [(c.id, c.resolved) for c in ws.project.comments] == [(kept.id, True)]
+    assert (_first_word(ws).start, _first_word(ws).snapped_from) == (round(clipped, 3), None)
 
 
 def test_default_then_realign_equals_a_fresh_realign(tmp_path: Path) -> None:
@@ -332,8 +315,8 @@ def test_default_then_realign_equals_a_fresh_realign(tmp_path: Path) -> None:
 
 
 def _place_audra(ws: ProjectWorkspace, *, aligned: bool) -> None:
-    """Audra's clip where her pin keeps it, or slipped onto her copy on Caleb's mic."""
-    shift = LANE_LATE_SEC if aligned else 0.0
+    """Audra's clip on her copy on Caleb's mic, or 150 ms early, where no copy leads her."""
+    shift = 0.0 if aligned else 0.15
     ws.project.clips = [
         c
         if c.track_id != "audra"
@@ -352,8 +335,8 @@ def _place_audra(ws: ProjectWorkspace, *, aligned: bool) -> None:
 def test_the_pass_depends_only_on_where_the_lanes_sit_now(
     tmp_path: Path, first_aligned: bool
 ) -> None:
-    rerun, _ = _unsolved_ws(tmp_path / "rerun")
-    fresh, _ = _unsolved_ws(tmp_path / "fresh")
+    rerun, _ = _gated_ws(tmp_path / "rerun")
+    fresh, _ = _gated_ws(tmp_path / "fresh")
 
     _place_audra(rerun, aligned=first_aligned)
     flag_clipped_word_starts(rerun.project)
@@ -363,7 +346,8 @@ def test_the_pass_depends_only_on_where_the_lanes_sit_now(
     flag_clipped_word_starts(fresh.project)
 
     assert _state(rerun) == _state(fresh)
-    assert bool(_state(fresh)[1]) is first_aligned
+    # Only the aligned placement shows the clipped start.
+    assert len(_state(fresh)[1]) == (0 if first_aligned else 1)
 
 
 def test_fewer_than_two_dialogue_tracks_withdraws_open_flags_and_restores_starts(
@@ -371,10 +355,7 @@ def test_fewer_than_two_dialogue_tracks_withdraws_open_flags_and_restores_starts
 ) -> None:
     ws, clipped, _normal = gated
     _align(ws)
-    for track in ws.project.tracks:
-        if track.id != "audra":
-            track.role = TrackRole.MUSIC
-    ws.save()
+    _demote_other_lanes(ws)
 
     _align(ws)
 
@@ -392,7 +373,7 @@ def test_unreadable_audio_leaves_flags_and_starts_alone(
     (Path(ws.project.meta.workspace_dir) / "raw" / "caleb.wav").write_bytes(b"not audio")
 
     report = flag_clipped_word_starts(ws.project)
-    assert (report.flagged, report.late) == ([], [])
+    assert report.flagged == []
     assert _state(ws) == before
 
 
@@ -478,10 +459,6 @@ def test_a_third_speaker_in_the_lead_is_not_flagged(tmp_path: Path) -> None:
     _align(ws)
 
     assert [c for c in _onset_comments(ws) if abs(c[0] - turn) < 1.0] == []
-
-
-def _first_word(ws: ProjectWorkspace) -> TranscriptWord:
-    return ws.project.transcript_for_track("audra").words[0]
 
 
 def _edit_by_service(ws: ProjectWorkspace, start: float, end: float) -> None:
@@ -579,13 +556,6 @@ def test_a_phrase_edit_keeps_a_persons_word_timing_through_the_next_align(
     word = _first_word(ws)
     assert (word.start, word.snapped_from, word.timing_edited) == (start, None, True)
     assert _onset_comments(ws) == []
-
-
-def _demote_other_lanes(ws: ProjectWorkspace) -> None:
-    for track in ws.project.tracks:
-        if track.id != "audra":
-            track.role = TrackRole.MUSIC
-    ws.save()
 
 
 @pytest.mark.parametrize("edit", PHRASE_EDITS.values(), ids=PHRASE_EDITS.keys())
