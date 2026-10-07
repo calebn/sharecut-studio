@@ -1,10 +1,17 @@
-"""Where a filler's voice begins, and where the next word starts after it, read from
-the audio (#978, #1061).
+"""Where a voice begins and ends around a cut, and where the next word starts after a
+filler, read from the audio (#978, #1061, #1064).
 
 A cut's left edge has the mirror problem. The aligner starts a filler late: both lab
 "um"s voice 320-350 ms before their word start (616.26, 713.00), so a cut from the
-word start leaves the head of the "um" audible. :func:`filler_onset` walks back
+word start leaves the head of the "um" audible. :func:`voice_onset` walks back
 from the word start to the last quiet frame before the filler's voice.
+
+The kept words either side of a cut have the same problem in reverse. Word times
+end a word before its voice does: the lab "So" at 230.78 voices for 200 ms more and
+decays under the audibility floor only at 230.98, so a mute from 230.805 cut the
+second half of the word. :func:`voice_end` walks forward from a kept word's end to
+its first quiet frame, and :func:`voice_onset` walks back from the next kept word's
+start, so a cut never starts or ends inside either word's voice.
 
 A padded filler cut fades back in on whatever follows its right edge, so that edge
 must keep the next word's first phoneme and a plosive's burst whole. Word times
@@ -80,28 +87,28 @@ class Onset:
     kind: OnsetKind
 
 
-def filler_onset(
-    cache: TrackAudioCache, filler_start: float, floor: float, *, quiet_db: float
+def voice_onset(
+    cache: TrackAudioCache, word_start: float, floor: float, *, quiet_db: float
 ) -> float | None:
-    """Where the filler's voice begins (source seconds), walking back from its word start.
+    """Where a word's voice begins (source seconds), walking back from its word start.
 
+    The word is a filler a cut starts at, or the kept word a cut must end before.
     The walk stops at the first frame under ``quiet_db``; the onset is the start of
     the audible frame after it. It does not bridge short dips the way voiced runs do:
     the "ss" of "digress." falls under the floor for only 20 ms before the
-    owner-approved "uh" at 706.02 on the lab tape. ``filler_start`` comes back when
+    owner-approved "uh" at 706.02 on the lab tape. ``word_start`` comes back when
     the voice begins at or after the word start, or inside the frame holding it.
-    ``None`` means the level never drops under ``quiet_db`` back to ``floor`` (the
-    previous kept word's end), so the filler's voice runs on from that word with no
-    quiet frame to cut in.
+    ``None`` means the level never drops under ``quiet_db`` back to ``floor``, so the
+    voice runs on from whatever lies there with no quiet frame to cut in.
     """
     sr = int(cache.waveform.sample_rate)
     frame = max(1, round(sr * FRAME_SEC))
     hop = max(1, round(sr * HOP_SEC))
     t0 = math.floor(max(0.0, floor) / HOP_SEC) * HOP_SEC
-    levels = frame_rms_db(cache.window(t0, filler_start + FRAME_SEC), frame, hop)
-    k = min(levels.size - 1, math.floor((filler_start - t0) / HOP_SEC + 1e-9))
+    levels = frame_rms_db(cache.window(t0, word_start + FRAME_SEC), frame, hop)
+    k = min(levels.size - 1, math.floor((word_start - t0) / HOP_SEC + 1e-9))
     if k < 0 or levels[k] < quiet_db:
-        return filler_start
+        return word_start
     while k > 0 and levels[k - 1] >= quiet_db:
         k -= 1
     if k == 0:
@@ -109,7 +116,40 @@ def filler_onset(
     onset = t0 + k * hop / sr
     # The onset frame holds the voice somewhere in its 20 ms; only a frame wholly
     # before the word start shows the voice began earlier.
-    return onset if onset + FRAME_SEC <= filler_start + 1e-9 else filler_start
+    return onset if onset + FRAME_SEC <= word_start + 1e-9 else word_start
+
+
+def voice_end(
+    cache: TrackAudioCache, word_end: float, ceiling: float, *, quiet_db: float
+) -> float | None:
+    """Where a kept word's voice ends (source seconds), walking forward from its word end.
+
+    The mirror of :func:`voice_onset`. The walk stops at the first frame under
+    ``quiet_db``; the voice ends with the audible frame before it, where a voiced
+    run's edge would sit. ``word_end`` comes back when the voice ends at or before
+    the word end, or inside the frame holding it. ``None`` means the level never
+    drops under ``quiet_db`` before ``ceiling``: the voice runs on through
+    everything up to there.
+    """
+    sr = int(cache.waveform.sample_rate)
+    frame = max(1, round(sr * FRAME_SEC))
+    hop = max(1, round(sr * HOP_SEC))
+    t0 = math.floor(max(0.0, word_end) / HOP_SEC + 1e-9) * HOP_SEC
+    levels = frame_rms_db(cache.window(t0, max(t0, ceiling) + FRAME_SEC), frame, hop)
+    # Frames that start before the ceiling.
+    last = min(levels.size, math.ceil((ceiling - t0) / HOP_SEC - 1e-9))
+    if last <= 0 or levels[0] < quiet_db:
+        return word_end
+    k = 0
+    while k + 1 < last and levels[k + 1] >= quiet_db:
+        k += 1
+    if k + 1 >= last:
+        return None
+    tail = t0 + k * hop / sr
+    # The voice ends with its last audible frame, as a voiced run does. That frame
+    # holds the voice somewhere in its 20 ms; only a frame wholly after the word end
+    # shows the voice ran on.
+    return tail + FRAME_SEC if tail >= word_end - 1e-9 else word_end
 
 
 def next_onset(
