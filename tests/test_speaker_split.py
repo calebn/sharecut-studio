@@ -23,8 +23,12 @@ from podcast_mcp.engines.speaker_split import (
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.models import (
+    AutomationEnvelope,
+    AutomationPoint,
     Clip,
     MediaAsset,
+    ProcessingChain,
+    ProcessingEffect,
     Track,
     TrackRole,
     Transcript,
@@ -340,6 +344,67 @@ def test_split_record_matches_the_project_schema_and_reloads(
     )
     reloaded = ProjectWorkspace.open(scripted_ws.path).project
     assert reloaded.editorial.speaker_splits == project.editorial.speaker_splits
+
+
+def test_each_lane_keeps_the_original_fx_and_volume(scripted_ws: ProjectWorkspace) -> None:
+    project = scripted_ws.project
+    project.processing_chains.append(
+        ProcessingChain(track_id="room", effects=[ProcessingEffect(effect="highpass")])
+    )
+    project.automation_envelopes.append(
+        AutomationEnvelope(track_id="room", points=[AutomationPoint(id="p1", time=1.0, value=0.5)])
+    )
+    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    assert sorted(c.track_id for c in project.processing_chains) == ["room", "room_ben"]
+    assert sorted(e.track_id for e in project.automation_envelopes) == ["room", "room_ben"]
+
+
+def test_a_lane_id_already_taken_gets_a_suffix(scripted_ws: ProjectWorkspace) -> None:
+    project = scripted_ws.project
+    project.tracks.append(Track(id="room_ben", label="Other"))
+    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    assert project.editorial.speaker_splits[0].lanes == ["room", "room_ben_2"]
+
+
+def test_room_tone_fill_lays_the_tracks_own_air_under_each_mute(
+    scripted_ws: ProjectWorkspace,
+) -> None:
+    project = scripted_ws.project
+    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"], room_tone_fill=True)
+    regions = [r for c in project.clips for r in c.mute_regions]
+    assert regions
+    assert all(r.fill is not None and r.fill.source_id is None for r in regions)
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (lambda p: setattr(p.tracks[0], "media", None), "no media"),
+        (lambda p: p.clips.clear(), "no clips"),
+        (lambda p: setattr(p.clips[0], "source_id", "extra"), "more than one recording"),
+    ],
+)
+def test_split_refuses_a_lane_it_cannot_split(
+    scripted_ws: ProjectWorkspace, change, message: str
+) -> None:
+    project = scripted_ws.project
+    change(project)
+    with pytest.raises(ValueError, match=message):
+        split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+
+
+def test_split_refuses_an_unknown_crosstalk_mode(scripted_ws: ProjectWorkspace) -> None:
+    with pytest.raises(ValueError, match="crosstalk_mode"):
+        split_track_by_speaker(
+            scripted_ws.project, "room", SCRIPTED, names=["Ana", "Ben"], crosstalk_mode="mute"
+        )
+
+
+def test_a_lane_without_a_transcript_still_splits(scripted_ws: ProjectWorkspace) -> None:
+    project = scripted_ws.project
+    project.transcripts.clear()
+    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
+    assert project.transcripts == []
 
 
 def test_split_needs_one_name_per_speaker(scripted_ws: ProjectWorkspace) -> None:
