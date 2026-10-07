@@ -240,18 +240,14 @@ def _owners(removal: RippleRemoval, start: float, end: float) -> frozenset[str]:
 
 def _voiced_in_parts(
     project: EpisodeProject,
-    removal: RippleRemoval,
     track_id: str,
     word: CutSpeechWord,
     parts: list[tuple[float, float]],
-    cfg: dict[str, Any],
 ) -> bool:
     """Whether ``word``'s own voice sounds where it meets one of the removed ``parts``."""
     span = (word.timeline_start, word.timeline_end)
     return any(
-        word_voice_sounds_in(
-            project, track_id, span, (a, b), owner_track_ids=_owners(removal, a, b), defaults=cfg
-        )
+        word_voice_sounds_in(project, track_id, span, (a, b))
         for start, end in parts
         if (a := max(start, span[0])) < (b := min(end, span[1]))
     )
@@ -287,7 +283,7 @@ def assess_cut_speech(
                 continue
             found = _words_in_parts(project, tid, parts, min_overlap)
             if guard_on:
-                found = [w for w in found if _voiced_in_parts(project, removal, tid, w, parts, cfg)]
+                found = [w for w in found if _voiced_in_parts(project, tid, w, parts)]
             if found:
                 words.setdefault(tid, []).extend(found)
             else:
