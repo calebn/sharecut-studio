@@ -52,7 +52,10 @@ def install_request_cancel(server: Any) -> None:
                     tg.cancel_scope.cancel()
         except BaseExceptionGroup as group:
             # anyio wraps the tool's own error; the watcher raises nothing, so there is one.
-            raise group.exceptions[0] from None
+            # Keep its cause: the SDK's UnexpectedToolError carries the tool's real error
+            # there, which install_tool_errors maps and the server log shows.
+            error = group.exceptions[0]
+            raise error from error.__cause__
 
     wrap_call_tool(server, around)
     server._podcast_request_cancel_installed = True
