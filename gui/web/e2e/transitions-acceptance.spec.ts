@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
-import { postDocumentCommand } from "./documentCommand";
+import { postDocumentCommand, postHistoryMove } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import {
   createRelocatedE2eProject,
@@ -270,11 +270,10 @@ test("the seam line rolls one join and Undo restores both clip bounds", async ({
     beforePair.reduce((sum, row) => sum + row.source_end - row.source_start, 0),
     8,
   );
-  await postDocumentCommand(
+  await postHistoryMove(
     page,
     "e2e-transitions-roll",
     "UndoHistory",
-    { rerender: false },
     projectPath,
   );
   await expect
