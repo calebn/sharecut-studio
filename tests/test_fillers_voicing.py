@@ -194,8 +194,8 @@ def test_pause_start_inside_a_word_tail_moves_past_the_voice(tmp_path: Path) -> 
 
     (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], EDGE_DEFAULTS)
 
-    assert decision.reason == "pause:2.00s:solo"
-    assert decision.review_required is False
+    assert decision.reason == "pause:2.00s:solo:air_edges"
+    assert decision.review_required is True
     # Voice edge on the frame grid (1.26) plus 60 ms of air.
     assert decision.start == pytest.approx(1.32, abs=0.011)
     assert decision.end == pytest.approx(2.45)
@@ -214,8 +214,8 @@ def test_pause_end_inside_the_next_word_onset_moves_before_the_voice(tmp_path: P
 
     (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], EDGE_DEFAULTS)
 
-    assert decision.reason == "pause:2.60s:solo"
-    assert decision.review_required is False
+    assert decision.reason == "pause:2.60s:solo:air_edges"
+    assert decision.review_required is True
     assert decision.start == pytest.approx(0.4, abs=0.05)
     # Voice edge on the frame grid (2.29) minus 60 ms of air.
     assert decision.end == pytest.approx(2.23, abs=0.011)
@@ -510,8 +510,8 @@ def test_peer_onset_at_the_pause_end_moves_the_edge_before_it(tmp_path: Path) ->
 
     (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], EDGE_DEFAULTS)
 
-    assert decision.reason == "pause:2.60s:solo"
-    assert decision.review_required is False
+    assert decision.reason == "pause:2.60s:solo:air_edges"
+    assert decision.review_required is True
     # Guest voice edge on the frame grid (2.41) minus 60 ms of air.
     assert decision.end == pytest.approx(2.35, abs=0.011)
 
