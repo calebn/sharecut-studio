@@ -79,6 +79,32 @@ describe("useCompactInspector", () => {
     );
   });
 
+  it("leaves a selection made in the open plain sheet in that sheet until it closes", () => {
+    act(() =>
+      useDawStore.setState({
+        selection: { kind: "track", trackId: "host" },
+        selectionHit: null,
+      }),
+    );
+    const { result } = renderHook(() => useCompactInspector("phone"));
+    expect(result.current).toBeNull();
+    act(() =>
+      useDawStore.setState({
+        selection: { kind: "clip", id: "c2", trackId: "host" },
+      }),
+    );
+    expect(result.current).toBeNull();
+
+    act(() => useDawStore.setState({ selection: null }));
+    act(() =>
+      useDawStore.setState({
+        selection: { kind: "clip", id: "c2", trackId: "host" },
+      }),
+    );
+    expect(result.current?.peek.title).toBe("host clip");
+    expect(result.current?.view).toBe("peek");
+  });
+
   it("remembers the drawer's detent for the next selection, and stows during a drag", () => {
     const { result } = renderHook(() => useCompactInspector("phone"));
     act(() =>
