@@ -18,6 +18,15 @@ LEVEL_FLOOR_DB = -90.0
 NULL_SHIFTS_SEC = (-2.0, -1.0, 1.0, 2.0)
 MIN_CORRELATION = 0.4
 MIN_NULL_MARGIN = 0.15
+# A peer's copy on another mic (``copy_lag``): levels on a COPY_HOP_SEC grid, searched
+# within MAX_COPY_LAG_SEC over frames where the peer's track is open above PEER_OPEN_DB,
+# with MIN_COPY_SEC of them.
+COPY_FRAME_SEC = 0.1
+COPY_HOP_SEC = 0.01
+MAX_COPY_LAG_SEC = 0.3
+MIN_COPY_SEC = 30.0
+CONTOUR_SEC = 0.5
+PEER_OPEN_DB = -60.0
 _BLOCK_ELEMENTS = 1 << 18
 
 
@@ -132,3 +141,46 @@ def envelope_lag(
     null_shifts = np.array([lag + round(shift / hop_sec) for shift in NULL_SHIFTS_SEC])
     nulls = _correlations(own, peer, frames, null_shifts, min_frames)
     return EnvelopeLag(lag, best, float(np.nanmax(nulls)) if not np.isnan(nulls).all() else 1.0)
+
+
+def copy_levels_db(samples: np.ndarray, *, sample_rate: int) -> np.ndarray:
+    """Level envelope on the copy grid: 100 ms frames, long enough to span a syllable."""
+    return level_envelope_db(
+        samples, sample_rate=sample_rate, frame_sec=COPY_FRAME_SEC, hop_sec=COPY_HOP_SEC
+    )
+
+
+def syllable_contour(levels: np.ndarray) -> np.ndarray:
+    """Levels less their half-second mean: syllables, not when someone talks."""
+    clipped = np.maximum(levels, PEER_OPEN_DB)
+    width = round(CONTOUR_SEC / COPY_HOP_SEC) | 1
+    padded = np.pad(clipped, width // 2, mode="edge")
+    return clipped - np.convolve(padded, np.ones(width) / width, mode="valid")
+
+
+def copy_lag(own: np.ndarray, peer: np.ndarray, frames: np.ndarray) -> int | None:
+    """Hops by which the peer's own track trails its copy in ``own``, if levels prove a copy.
+
+    ``own`` and ``peer`` are :func:`copy_levels_db` envelopes and ``frames`` the ``own``
+    frames around the peer's speech. Zoom delivers a remote speaker's track well after
+    the same voice reaches a mic in the room (about 140 ms on the lab tape), and the
+    room colours the copy, so the copy is found in the level envelope at the best lag,
+    against shifted nulls.
+
+    Two voices that start and stop together also correlate in level, so only the
+    syllable contour is compared, and a path needs 30 s of frames around the peer's
+    words. In synthetic trials of 200 pairs each, independent voices and voices that
+    start and stop together never passed with 30 s, whether the words were scattered
+    or one long phrase, and true copies always did. At 20 s, 8 in 200 co-timed long
+    phrases still passed. Below the minimum the estimate abstains, as it does when the
+    best lag is not a peak inside the search (#1068).
+    """
+    found = envelope_lag(
+        syllable_contour(own),
+        syllable_contour(peer),
+        frames,
+        reach=round(MAX_COPY_LAG_SEC / COPY_HOP_SEC),
+        hop_sec=COPY_HOP_SEC,
+        min_frames=round(MIN_COPY_SEC / COPY_HOP_SEC),
+    )
+    return found.lag if found is not None and found.supported else None

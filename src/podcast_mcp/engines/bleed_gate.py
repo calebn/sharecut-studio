@@ -12,13 +12,27 @@ from typing import Any
 import numpy as np
 
 from podcast_mcp.engines.audio_audit import AnalysisPolicy, BleedHandling, BleedReduction
+from podcast_mcp.engines.copy_timbre import (
+    LIKENESS_FRAMES,
+    LIKENESS_PERCENTILE,
+    TIMBRE_BAND_HZ,
+    TIMBRE_SMOOTH_BINS,
+    copy_likeness,
+    copy_similarity,
+)
 from podcast_mcp.engines.envelope_lag import (
+    CONTOUR_SEC,
+    COPY_FRAME_SEC,
+    COPY_HOP_SEC,
     LEVEL_FLOOR_DB,
+    MAX_COPY_LAG_SEC,
+    MIN_COPY_SEC,
     MIN_CORRELATION,
     MIN_NULL_MARGIN,
     NULL_SHIFTS_SEC,
-    envelope_lag,
-    level_envelope_db,
+    PEER_OPEN_DB,
+    copy_lag,
+    copy_levels_db,
 )
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
@@ -55,7 +69,7 @@ EVIDENCE_RATE = 8000
 GATE_FADE_SEC = 0.02
 _ONSET_HOLD_SEC = 0.04
 _TAIL_HOLD_SEC = 0.08
-_LEVEL_FRAME_SEC = 0.1
+_LEVEL_FRAME_SEC = COPY_FRAME_SEC
 # ``auto`` attenuates only a lane whose bed would still be heard once turned down:
 # its median level away from its own speech and the peers' copies, less
 # bleed_attenuation_db, must stay above the evidence level floor (-90 dB, about one
@@ -63,10 +77,6 @@ _LEVEL_FRAME_SEC = 0.1
 # muting changes nothing audible and keeps no echo. A call app's gated track sits at
 # that floor most of the time, so its median is the floor.
 _AUDIBLE_BED_DB = LEVEL_FLOOR_DB
-_MAX_PATH_LAG_SEC = 0.3
-_MIN_PATH_FRAMES = 3000
-_CONTOUR_SEC = 0.5
-_PEER_OPEN_DB = -60.0
 _COPY_HOLD_SEC = 0.05
 _ONSET_REACH_SEC = 0.2
 _OWN_MARGIN_DB = 4.0
@@ -74,13 +84,8 @@ _OWN_HOLD_MARGIN_DB = 2.0
 _MIN_OWN_SEC = 0.05
 _SPREAD_PERCENTILE = 95
 _TIMBRE_WINDOW_SEC = 0.2
-_SIMILARITY_CHUNK = 4096
-_LIKENESS_PERCENTILE = 40
-_TIMBRE_BAND_HZ = (80, 3000)
-_TIMBRE_SMOOTH_BINS = 15
-_LIKENESS_FRAMES = 400
 _OWNER_FRAME_SEC = 0.02
-_OWNER_HOP_SEC = 0.01
+_OWNER_HOP_SEC = COPY_HOP_SEC
 _OWNER_FLOOR_DB = -80.0
 _OWNER_FLOOR_PERCENTILE = 10
 _OWNER_FLOOR_MARGIN_DB = 6
@@ -303,10 +308,7 @@ def _owner_protection(
 
 
 def _levels_db(samples: np.ndarray) -> np.ndarray:
-    """Level envelope on the owner hop grid, long enough to span a syllable."""
-    return level_envelope_db(
-        samples, sample_rate=EVIDENCE_RATE, frame_sec=_LEVEL_FRAME_SEC, hop_sec=_OWNER_HOP_SEC
-    )
+    return copy_levels_db(samples, sample_rate=EVIDENCE_RATE)
 
 
 def _hop_mask(size: int, spans: list[tuple[float, float]], pad_sec: float = 0.0) -> np.ndarray:
@@ -317,38 +319,9 @@ def _hop_mask(size: int, spans: list[tuple[float, float]], pad_sec: float = 0.0)
     return mask
 
 
-def _syllable_contour(levels: np.ndarray) -> np.ndarray:
-    """Levels less their half-second mean: syllables, not when someone talks."""
-    clipped = np.maximum(levels, _PEER_OPEN_DB)
-    width = round(_CONTOUR_SEC / _OWNER_HOP_SEC) | 1
-    padded = np.pad(clipped, width // 2, mode="edge")
-    return clipped - np.convolve(padded, np.ones(width) / width, mode="valid")
-
-
 def _path_lag(own: np.ndarray, peer: np.ndarray, spans: list[tuple[float, float]]) -> int | None:
-    """Hops by which the peer's own track trails its copy here, if levels prove a copy.
-
-    Zoom delivers a remote speaker's track well after the same voice reaches a mic in
-    the room (about 140 ms on the lab tape), and the room colours the copy, so the
-    copy is found in the level envelope at the best lag, against shifted nulls.
-
-    Two voices that start and stop together also correlate in level, so only the
-    syllable contour is compared, and a path needs 30 s of frames around the peer's
-    words. In synthetic trials of 200 pairs each, independent voices and voices that
-    start and stop together never passed with 30 s, whether the words were scattered
-    or one long phrase, and true copies always did. At 20 s, 8 in 200 co-timed long
-    phrases still passed. Below the minimum the detector abstains, as it does when
-    the best lag is not a peak inside the search (#1068).
-    """
-    found = envelope_lag(
-        _syllable_contour(own),
-        _syllable_contour(peer),
-        np.flatnonzero(_hop_mask(own.size, spans, _MAX_PATH_LAG_SEC)),
-        reach=round(_MAX_PATH_LAG_SEC / _OWNER_HOP_SEC),
-        hop_sec=_OWNER_HOP_SEC,
-        min_frames=_MIN_PATH_FRAMES,
-    )
-    return found.lag if found is not None and found.supported else None
+    """Hops by which the peer's own track trails its copy here, around ``spans`` (#1068)."""
+    return copy_lag(own, peer, np.flatnonzero(_hop_mask(own.size, spans, MAX_COPY_LAG_SEC)))
 
 
 def _frame_spans(runs: list[tuple[int, int]], *, whole_frame: bool) -> list[tuple[float, float]]:
@@ -360,28 +333,6 @@ def _frame_spans(runs: list[tuple[int, int]], *, whole_frame: bool) -> list[tupl
     )
     spans = [(lo * _OWNER_HOP_SEC + lead, (hi - 1) * _OWNER_HOP_SEC + tail) for lo, hi in runs]
     return [(start, end) for start, end in spans if end > start]
-
-
-def _fine_spectra(samples: np.ndarray, frames: np.ndarray) -> np.ndarray:
-    """Unit vectors of each level frame's log spectrum less its smooth envelope.
-
-    What is left is the harmonic and formant detail of whoever is speaking, which a
-    room copy keeps and another voice does not.
-    """
-    width = round(_LEVEL_FRAME_SEC * EVIDENCE_RATE)
-    hop = round(_OWNER_HOP_SEC * EVIDENCE_RATE)
-    index = np.clip(frames[:, None] * hop + np.arange(width)[None, :], 0, max(0, samples.size - 1))
-    band = slice(
-        round(_TIMBRE_BAND_HZ[0] * _LEVEL_FRAME_SEC), round(_TIMBRE_BAND_HZ[1] * _LEVEL_FRAME_SEC)
-    )
-    window = np.hanning(width)
-    padded = samples if samples.size else np.zeros(1)
-    spectra = np.log(np.abs(np.fft.rfft(padded[index] * window, axis=1))[:, band] + 1e-9)
-    kernel = np.ones(_TIMBRE_SMOOTH_BINS) / _TIMBRE_SMOOTH_BINS
-    smooth = np.apply_along_axis(np.convolve, 1, spectra, kernel, mode="same")
-    fine = spectra - smooth
-    fine -= fine.mean(axis=1, keepdims=True)
-    return fine / (np.linalg.norm(fine, axis=1, keepdims=True) + 1e-12)
 
 
 @dataclass(frozen=True, eq=False)
@@ -414,7 +365,7 @@ class _PeerCopy:
         hop = _OWNER_HOP_SEC
         hold = round(_COPY_HOLD_SEC / hop)
         held = _sliding_max(direct, hold, hold)
-        onset = _sliding_max(-direct, round(_LEVEL_FRAME_SEC / hop), 0) >= -_PEER_OPEN_DB
+        onset = _sliding_max(-direct, round(_LEVEL_FRAME_SEC / hop), 0) >= -PEER_OPEN_DB
         ahead = _sliding_max(direct, 0, round(_ONSET_REACH_SEC / hop))
         return np.where(onset, np.maximum(held, ahead), held)
 
@@ -425,16 +376,8 @@ class _PeerCopy:
 
     def similarity(self, own_samples: np.ndarray, frames: np.ndarray) -> np.ndarray:
         """Per frame, how much this lane's fine spectrum matches the peer's at the lag."""
-        chunks = np.split(frames, range(_SIMILARITY_CHUNK, frames.size, _SIMILARITY_CHUNK))
-        return np.concatenate(
-            [
-                np.sum(
-                    _fine_spectra(own_samples, chunk)
-                    * _fine_spectra(self.samples, chunk + self.lag),
-                    axis=1,
-                )
-                for chunk in chunks
-            ]
+        return copy_similarity(
+            own_samples, self.samples, frames, self.lag, sample_rate=EVIDENCE_RATE
         )
 
     def timbre_windows(self, own_samples: np.ndarray, judged: np.ndarray) -> np.ndarray:
@@ -484,8 +427,8 @@ def _peer_copy(
     lead = lag * _OWNER_HOP_SEC
     frames = (
         _hop_mask(own.size, [(start - lead, end - lead) for start, end in spans])
-        & ~_hop_mask(own.size, own_words, _MAX_PATH_LAG_SEC)
-        & (reach > _PEER_OPEN_DB)
+        & ~_hop_mask(own.size, own_words, MAX_COPY_LAG_SEC)
+        & (reach > PEER_OPEN_DB)
         & (own > LEVEL_FLOOR_DB)
     )
     if not frames.any():
@@ -494,13 +437,9 @@ def _peer_copy(
     coupling = float(np.median(own[loud] - reach[loud]))
     spread = float(np.percentile(own[loud] - reach[loud], _SPREAD_PERCENTILE)) - coupling
     typical = np.flatnonzero(loud & (np.abs(own - reach - coupling) < _OWN_HOLD_MARGIN_DB))
-    sample = typical[:: max(1, typical.size // _LIKENESS_FRAMES)]
+    sample = typical[:: max(1, typical.size // LIKENESS_FRAMES)]
     copy = _PeerCopy(peer, peer_samples, lag, coupling)
-    likeness = (
-        float(np.percentile(copy.similarity(own_samples, sample), _LIKENESS_PERCENTILE))
-        if sample.size
-        else 1.0
-    )
+    likeness = copy_likeness(copy.similarity(own_samples, sample)) if sample.size else 1.0
     return _PeerCopy(peer, peer_samples, lag, coupling, spread, likeness)
 
 
@@ -554,7 +493,7 @@ def _foreign_speech(size: int, copies: list[_PeerCopy]) -> list[tuple[float, flo
     """
     reached = np.zeros(size, dtype=bool)
     for copy in copies:
-        reached |= copy.reach(size) > _PEER_OPEN_DB
+        reached |= copy.reach(size) > PEER_OPEN_DB
     return _frame_spans(
         bool_runs(bridge_short_dips(reached, _OWNER_BRIDGE_FRAMES)), whole_frame=True
     )
@@ -736,7 +675,7 @@ def _compute_bleed_gate_plan(
             continue
         levels = _levels_db(peer)
         speech = subtract_intervals(
-            _frame_spans(bool_runs(levels > _PEER_OPEN_DB), whole_frame=True), seeds
+            _frame_spans(bool_runs(levels > PEER_OPEN_DB), whole_frame=True), seeds
         )
         for found, (own_levels, own) in zip(copies, lanes, strict=True):
             copy = _peer_copy(own_levels, own, levels, peer, speech, seeds)
@@ -868,13 +807,13 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
             "evidence_rate": EVIDENCE_RATE,
             "level_frame_sec": _LEVEL_FRAME_SEC,
             "level_floor_db": LEVEL_FLOOR_DB,
-            "max_path_lag_sec": _MAX_PATH_LAG_SEC,
+            "max_path_lag_sec": MAX_COPY_LAG_SEC,
             "null_shifts_sec": list(NULL_SHIFTS_SEC),
             "min_path_correlation": MIN_CORRELATION,
             "min_null_margin": MIN_NULL_MARGIN,
-            "min_path_frames": _MIN_PATH_FRAMES,
-            "contour_sec": _CONTOUR_SEC,
-            "peer_open_db": _PEER_OPEN_DB,
+            "min_path_frames": round(MIN_COPY_SEC / COPY_HOP_SEC),
+            "contour_sec": CONTOUR_SEC,
+            "peer_open_db": PEER_OPEN_DB,
             "copy_hold_sec": _COPY_HOLD_SEC,
             "onset_reach_sec": _ONSET_REACH_SEC,
             "own_margin_db": _OWN_MARGIN_DB,
@@ -882,10 +821,10 @@ def bleed_gate_payload(project: EpisodeProject, track_id: str) -> dict[str, Any]
             "min_own_sec": _MIN_OWN_SEC,
             "spread_percentile": _SPREAD_PERCENTILE,
             "timbre_window_sec": _TIMBRE_WINDOW_SEC,
-            "likeness_percentile": _LIKENESS_PERCENTILE,
-            "timbre_band_hz": list(_TIMBRE_BAND_HZ),
-            "timbre_smooth_bins": _TIMBRE_SMOOTH_BINS,
-            "likeness_frames": _LIKENESS_FRAMES,
+            "likeness_percentile": LIKENESS_PERCENTILE,
+            "timbre_band_hz": list(TIMBRE_BAND_HZ),
+            "timbre_smooth_bins": TIMBRE_SMOOTH_BINS,
+            "likeness_frames": LIKENESS_FRAMES,
             "owner_frame_sec": _OWNER_FRAME_SEC,
             "owner_hop_sec": _OWNER_HOP_SEC,
             "owner_floor_db": _OWNER_FLOOR_DB,
