@@ -6,6 +6,7 @@ import { patchTrackMix } from "../document/projectPatch";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject, sampleTrack } from "../test/fixtures";
 import type { ProjectView, TrackView } from "../types/project";
+import { NO_PREVIEW_ERROR } from "../utils/audioErrorLabel";
 import { useAudioTransport } from "./useAudioTransport";
 
 class FakeAudio extends EventTarget {
@@ -136,7 +137,7 @@ describe("useAudioTransport project transitions", () => {
   it("reports a missing premix when a track has media", () => {
     useDawStore.getState().setProject(trackProject("/tmp/host.wav"));
     const { unmount } = renderHook(() => useAudioTransport());
-    expect(useDawStore.getState().audioError).toContain("No premix");
+    expect(useDawStore.getState().audioError).toBe(NO_PREVIEW_ERROR);
     unmount();
   });
 
@@ -150,7 +151,7 @@ describe("useAudioTransport project transitions", () => {
       .hydrate("share:guest", guestProject, "view", ["play"]);
 
     const { unmount } = renderHook(() => useAudioTransport());
-    expect(useDawStore.getState().audioError).toContain("No premix");
+    expect(useDawStore.getState().audioError).toBe(NO_PREVIEW_ERROR);
     unmount();
   });
 

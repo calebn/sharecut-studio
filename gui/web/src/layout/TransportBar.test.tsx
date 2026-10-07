@@ -14,6 +14,7 @@ import {
   recordSnapshot,
   sessionRoster,
 } from "../test/fixtures";
+import { NO_PREVIEW_ERROR } from "../utils/audioErrorLabel";
 import { readWaveformViewPref } from "../utils/waveformViewPref";
 import { TransportBar } from "./TransportBar";
 
@@ -654,7 +655,7 @@ describe("TransportBar wide layout", () => {
     },
   );
 
-  it("shows the audio error on the wide bar and in the collapsed Menu", async () => {
+  it("shows an audio error on the wide bar and in the collapsed Menu", async () => {
     const project = minimalProject({ tracks: TRACKS });
     const tree = (compact: boolean) => (
       <DawProvider projectPath="/tmp/p.json" initialProject={project}>
@@ -663,17 +664,60 @@ describe("TransportBar wide layout", () => {
     );
     const { rerender } = render(tree(false));
     act(() => {
-      useDawStore
-        .getState()
-        .setAudioError("No premix. Run Pipeline or render-preview");
+      useDawStore.getState().setAudioError("Failed to load audio (mix)");
     });
-    expect(screen.getByText("No preview")).toBeTruthy();
+    expect(screen.getByText("Audio failed to load")).toBeTruthy();
     rerender(tree(true));
-    expect(screen.queryByText("No preview")).toBeNull();
+    expect(screen.queryByText("Audio failed to load")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     expect(
-      screen.getByText(/No preview: No premix\. Run Pipeline/),
+      screen.getByText("Audio failed to load: Failed to load audio (mix)"),
     ).toBeTruthy();
+  });
+
+  it("keeps the missing mix preview off the wide bar and explains it on Full mix", async () => {
+    const project = minimalProject({ tracks: TRACKS });
+    const tree = (compact: boolean) => (
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TransportBar compact={compact} />
+      </DawProvider>
+    );
+    const { container, rerender } = render(tree(false));
+    const fullMix = () => screen.getByRole("button", { name: "Full mix" });
+    expect(fullMix()).not.toHaveAttribute("aria-description");
+    act(() => {
+      useDawStore.getState().setAudioError(NO_PREVIEW_ERROR);
+    });
+    expect(document.querySelector(".audio-error")).toBeNull();
+    expect(fullMix()).toHaveAttribute(
+      "aria-description",
+      "No mix preview yet. Refresh the mix to hear it.",
+    );
+    expect(fullMix().getAttribute("title")).toContain("No mix preview yet");
+    await expectNoA11yViolations(container);
+    rerender(tree(true));
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    expect(
+      screen.getByText("No mix preview yet. Refresh the mix to hear it."),
+    ).toBeTruthy();
+  });
+
+  it("tells a guest the host refreshes the missing mix preview", () => {
+    const key = shareProjectKey("previewTok");
+    const project = minimalProject({ tracks: TRACKS });
+    useDawStore.getState().hydrate(key, project, "view", ["play"]);
+    render(
+      <DawProvider projectPath={key} initialProject={project} guestMode="view">
+        <TransportBar />
+      </DawProvider>,
+    );
+    act(() => {
+      useDawStore.getState().setAudioError(NO_PREVIEW_ERROR);
+    });
+    expect(screen.getByRole("button", { name: "Full mix" })).toHaveAttribute(
+      "aria-description",
+      "No mix preview yet. The host needs to refresh the mix.",
+    );
   });
 
   it("keeps the View menu and the main Menu exclusive from the keyboard", async () => {

@@ -20,6 +20,7 @@ THEME_DARK = ROOT / "gui/web/src/styles/theme/theme-dark.css"
 THEME_LIGHT = ROOT / "gui/web/src/styles/theme/theme-light.css"
 PRIMITIVES_CSS = ROOT / "gui/web/src/styles/theme/primitives.css"
 PANELS_CSS = ROOT / "gui/web/src/styles/partials/panels.css"
+LAYOUT_CSS = ROOT / "gui/web/src/styles/partials/layout.css"
 
 SHARED_COLOR_ROLES: tuple[str, ...] = (
     "--color-bg-canvas",
@@ -521,14 +522,18 @@ _BOX_SHADOW_RE = re.compile(r"box-shadow\s*:([^;]+);")
 _VAR_REF_RE = re.compile(r"var\((--[\w-]+)\)")
 
 
-def _panels_rule_body(selector: str) -> str:
-    """Body of the exact-selector rule in `panels.css` (comments stripped).
+def _partial_rule_body(path: Path, selector: str) -> str:
+    """Body of the exact-selector rule in a partial (comments stripped).
     Mirrors the rule scan `test_css_policy.py::test_prominent_overline_...`
     uses, so a rule's declarations can be checked without hand-copying values."""
-    css = re.sub(r"/\*.*?\*/", "", PANELS_CSS.read_text(encoding="utf-8"), flags=re.DOTALL)
+    css = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.DOTALL)
     bodies = [body for sel, body in _RULE_RE.findall(css) if sel.strip() == selector]
     assert len(bodies) == 1, f"expected exactly one {selector!r} rule, found {len(bodies)}"
     return bodies[0]
+
+
+def _panels_rule_body(selector: str) -> str:
+    return _partial_rule_body(PANELS_CSS, selector)
 
 
 def _box_shadow_color_vars(body: str) -> list[str]:
@@ -634,6 +639,52 @@ def test_muted_track_keeps_text_contrast(theme: str) -> None:
     for text in ("--color-text-primary", "--color-text-secondary"):
         assert _contrast_ratio(_resolve_hex(text, roles), row) >= 4.5, (theme, text)
     assert _contrast_ratio(row, _resolve_hex("--color-bg-base", roles)) >= 1.1, theme
+
+
+_OPAQUE_MIX_RE = re.compile(
+    r"color-mix\(in srgb, var\((--[\w-]+)\) (\d+(?:\.\d+)?)%, var\((--[\w-]+)\)\)"
+)
+
+
+def _resolve_opaque(name: str, roles: dict[str, str]) -> str:
+    """A role as one opaque #rrggbb: follows var() chains and mixes of two opaque
+    roles, and fails on anything translucent."""
+    value = roles[name]
+    alias = _VAR_ONLY_RE.match(value)
+    if alias:
+        return _resolve_opaque(alias.group(1), roles)
+    mix = _OPAQUE_MIX_RE.fullmatch(value)
+    if mix:
+        return _mix(
+            _resolve_opaque(mix.group(1), roles),
+            _resolve_opaque(mix.group(3), roles),
+            float(mix.group(2)) / 100,
+        )
+    return _resolve_hex(name, roles)
+
+
+@pytest.mark.parametrize("theme", ["dark", "light"])
+def test_active_solo_button_keeps_text_contrast(theme: str) -> None:
+    """The lit S (#1113) was --warning text on an alpha amber wash: 2.76:1 on a
+    hovered row in light, 3.77:1 in dark. It now paints an opaque tint with the
+    ink made for it, so the ratio no longer depends on the row beneath, and its
+    amber border stays visible on every row paint."""
+    aliases = dict(
+        re.findall(
+            r"(--[\w-]+)\s*:\s*(var\(--[\w-]+\))\s*;", THEME_TOKENS.read_text(encoding="utf-8")
+        )
+    )
+    roles = {**aliases, **_studio_roles(theme)}
+    body = _partial_rule_body(LAYOUT_CSS, ".trk-btn.solo.active")
+    paint = dict(
+        re.findall(r"(?m)^\s*(background|color|border-color)\s*:\s*var\((--[\w-]+)\)", body)
+    )
+    assert set(paint) == {"background", "color", "border-color"}, body
+    fill = _resolve_opaque(paint["background"], roles)
+    assert _contrast_ratio(_resolve_opaque(paint["color"], roles), fill) >= 4.5, theme
+    border = _resolve_opaque(paint["border-color"], roles)
+    for row in ("--color-bg-base", "--color-chip-selected", "--color-track-muted"):
+        assert _contrast_ratio(border, _resolve_opaque(row, roles)) >= 3.0, (theme, row)
 
 
 THEME_FIXED = ROOT / "gui/web/src/styles/theme/theme-fixed.css"
