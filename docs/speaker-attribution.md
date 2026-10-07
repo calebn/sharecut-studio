@@ -28,6 +28,8 @@ podcast speaker gate-track --project PATH --apply
 podcast speaker set-speaker-count --project PATH --speakers 2
 podcast speaker attribute --project episode.project.json --dry-run
 podcast speaker attribute --project episode.project.json --apply
+podcast speaker split --project PATH --track room --speakers 3 --dry-run
+podcast speaker split --project PATH --track room --enroll "Ana=12:20" --enroll "Ben=31:40" --apply
 ```
 
 `compare --start/--end` scores every dialogue stem at the same source window and returns `own` / `bleed` / `uncertain` roles. Pair mode (`--track-a` / `--track-b`) compares two windows A/B.
@@ -48,7 +50,9 @@ Store `analysis.speaker_id.expected_speaker_count` in `transcript_context.yaml` 
 
 ## Multi-speaker on one track
 
-Enroll segment profiles with distinct `speaker_id` values and optional `--home-track` for bleed attribution. `label` applies `speaker_match_*` on overlapping words.
+To give each person their own lane, split the track: `podcast speaker split --project PATH --track T --speakers N` (`--dry-run` by default; `--apply` to split), or `speaker_split_tool`. It needs the speaker count and a real embedding backend; `--enroll NAME=START:END` per speaker names them and seeds the clustering (recommended: blind Resemblyzer clustering can split one voice). Lanes share the media, muted where another speaker owns the audio; crosstalk stays on both lanes (`--crosstalk both`) or moves to a shared lane (`--crosstalk lane`). One undo step. Design, lab accuracy and failure modes: [multitrack-ingest.md § Split one recording by speaker](multitrack-ingest.md#split-one-recording-by-speaker).
+
+To keep one lane and only label words, enroll segment profiles with distinct `speaker_id` values and optional `--home-track` for bleed attribution. `label` applies `speaker_match_*` on overlapping words.
 
 ## When the pipeline runs it
 
@@ -86,6 +90,7 @@ Bleed mute uses enrolled profiles to keep owner speech open across short inter-w
 - `speaker_gate_track_tool`
 - `speaker_set_count_tool`
 - `speaker_attribute_tool`
+- `speaker_split_tool` (`track_id`, `speaker_count`, optional `names`, `enrollment` `{name: [[start, end], …]}` source seconds, `crosstalk_mode` `both`/`lane`, `room_tone_fill`, `dry_run`)
 
 `audition_context` (`detail=full` or `visual`) adds `speaker_roles` when profiles exist (uses the real speaker backend when installed).
 
