@@ -237,9 +237,9 @@ tighten:
     - sort of
     - kind of
   breath_handling:
-    # Co-remove adjacent breaths; keep splice edges out of breaths and other sound,
-    # measured against each track's own air and speech level. A pause trim's edges
-    # move out of sound into air instead of dropping the trim (#1055).
+    # Co-remove adjacent breaths and keep splice edges out of breaths and other sound.
+    # A pause trim shrinks to the longest stretch of air inside it, measured against
+    # each track's own air and speech level, instead of being dropped (#1055).
     enabled: true
     search_before_ms: 400
     search_after_ms: 250
