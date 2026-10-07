@@ -7,6 +7,7 @@ syllable rhythm both tracks share; the best lag is tested against shifted nulls.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -20,11 +21,12 @@ MIN_CORRELATION = 0.4
 MIN_NULL_MARGIN = 0.15
 # A peer's copy on another mic (``copy_lag``): levels on a COPY_HOP_SEC grid, searched
 # within MAX_COPY_LAG_SEC over frames where the peer's track is open above PEER_OPEN_DB,
-# with MIN_COPY_SEC of them.
+# with at least MIN_COPY_SEC of them and, under FULL_COPY_SEC, a stronger match.
 COPY_FRAME_SEC = 0.1
 COPY_HOP_SEC = 0.01
 MAX_COPY_LAG_SEC = 0.3
-MIN_COPY_SEC = 30.0
+MIN_COPY_SEC = 20.0
+FULL_COPY_SEC = 30.0
 CONTOUR_SEC = 0.5
 PEER_OPEN_DB = -60.0
 _BLOCK_ELEMENTS = 1 << 18
@@ -177,12 +179,13 @@ def copy_lag(own: np.ndarray, peer: np.ndarray, frames: np.ndarray) -> int | Non
     against shifted nulls.
 
     Two voices that start and stop together also correlate in level, so only the
-    syllable contour is compared, and a path needs 30 s of frames around the peer's
-    words. In synthetic trials of 200 pairs each, independent voices and voices that
-    start and stop together never passed with 30 s, whether the words were scattered
-    or one long phrase, and true copies always did. At 20 s, 8 in 200 co-timed long
-    phrases still passed. Below the minimum the estimate abstains, as it does when the
-    best lag is not a peak inside the search (#1068).
+    syllable contour is compared, and the match must carry as much evidence as
+    ``MIN_CORRELATION`` over ``FULL_COPY_SEC`` of frames around the peer's words. The
+    evidence in a correlation r over n frames grows as atanh(r) times the square root
+    of n (its Fisher z), so a shorter stretch needs a stronger match: 0.48 over 20 s.
+    Under ``MIN_COPY_SEC`` the estimate abstains, because shared phrase starts and
+    stops dominate a short stretch, as it does when the best lag is not a peak inside
+    the search (#1068).
     """
     found = envelope_lag(
         syllable_contour(own),
@@ -192,4 +195,8 @@ def copy_lag(own: np.ndarray, peer: np.ndarray, frames: np.ndarray) -> int | Non
         hop_sec=COPY_HOP_SEC,
         min_frames=round(MIN_COPY_SEC / COPY_HOP_SEC),
     )
-    return found.lag if found is not None and found.supported else None
+    if found is None or not found.supported:
+        return None
+    full = FULL_COPY_SEC / COPY_HOP_SEC
+    needed = math.tanh(math.atanh(MIN_CORRELATION) * math.sqrt(full / max(frames.size, full)))
+    return found.lag if found.correlation >= needed else None

@@ -873,6 +873,7 @@ evidence:
 - #1134 rejected: the measured lead also deciding where the copy can be turned the lab lane down later after Caleb's words, holding 0.04 s more of Audra's copy level frames at full level
 - #1134 lab: Audra's and Lana's lanes byte-identical to main; on Caleb's lane copy at full level, chatter and words touched (0) match main on the bare and realigned runs, main turns down 0.53 s more, and every sample whose gain changes is −62.7 dBFS or quieter
 - #1134 owner: ship. Keeping own laughs and breaths whole next to a guest's gaps is worth slightly more leak when a peer's gate opens late: on synthetic peers whose track opens late on every word, or 250 ms late on several, 0.06–0.76 s more copy stays at full level per episode, in up to 5 more pieces, and copy beside a kept own sound can reach past the 40/80 ms holds; in 600 random placements no own sound was touched more than main
+- #1070: a copy path needs the evidence of correlation 0.4 over 30 s (Fisher z), so a strong match is trusted from 20 s. Co-timed voices passed in 3 of 2,800 synthetic trials under 20 s and none from 20 s; independent voices never passed. Lab excerpts: the gate acts in 49% of 2-minute windows (main 32%) and 94% of 5-minute windows (main 87%), touching no own word; whole-episode plans are unchanged
 enforced-by:
 - tests/test_bleed_attenuation.py::test_late_gate_on_the_direct_track_still_mutes_the_foreign_copy
 - tests/test_bleed_attenuation.py::test_track_speakers_own_speech_is_untouched
@@ -900,6 +901,8 @@ enforced-by:
 - tests/test_bleed_gate_generality.py::test_copy_beside_a_peer_whose_track_opens_late_on_every_word_leaks_no_more_than_accepted
 - tests/test_bleed_gate_generality.py::test_the_lane_is_turned_down_from_200_ms_before_the_peers_track_opens
 - tests/test_bleed_gate_generality.py::test_own_breaths_running_into_the_peers_openings_leave_no_more_copy
+- tests/test_bleed_attenuation.py::test_another_voice_talking_over_the_same_stretch_is_untouched
+- tests/test_bleed_attenuation.py::test_short_excerpt_with_a_strong_copy_is_muted
 - docs-sync: decision-bleed
 supersedes: D-bleed-keep-onset-copies
 -->
