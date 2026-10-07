@@ -43,6 +43,9 @@ SHARED: dict[str, str] = {
     "podcast_mcp.edits.room_tone:_track_floor": (
         "Keyed by path and file revision; reads only the decoded audio, never VAD."
     ),
+    "podcast_mcp.edits.gate_fill:_detect": (
+        "Keyed by path and file revision; reads only the decoded audio."
+    ),
 }
 
 

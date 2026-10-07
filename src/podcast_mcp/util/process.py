@@ -64,6 +64,7 @@ def run(
 def popen(
     argv: Sequence[str | bytes | Path],
     *,
+    stdin: Any = None,
     stdout: Any = None,
     stderr: Any = None,
     cwd: str | Path | None = None,
@@ -77,6 +78,7 @@ def popen(
     cmd = [str(a) for a in argv]
     return subprocess.Popen(  # nosec B603
         cmd,
+        stdin=stdin,
         stdout=stdout,
         stderr=stderr,
         cwd=cwd,

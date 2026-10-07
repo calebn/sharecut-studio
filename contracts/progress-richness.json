@@ -19,6 +19,7 @@
     "edit.apply-bleed-mute",
     "export",
     "export_deliverables",
+    "fill_gate_holes",
     "focus_from_transcript",
     "guest_render_preview",
     "ingest.import",

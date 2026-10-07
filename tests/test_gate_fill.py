@@ -246,10 +246,11 @@ def test_no_comfort_noise_when_the_noise_under_speech_is_not_credible(tmp_path: 
 
 
 def test_track_too_short_to_measure_its_noise_is_left_alone(tmp_path: Path) -> None:
+    # Two 25 ms blips: gate holes around them, but no open stretch long enough to analyse.
     short = np.zeros(round(1.0 * SR))
-    v0, v1 = round(0.2 * SR), round(0.3 * SR)
+    v0, v1 = round(0.2 * SR), round(0.225 * SR)
     short[v0:v1] = _voice(v1 - v0, VOICE_DB)
-    w0, w1 = round(0.6 * SR), round(0.7 * SR)
+    w0, w1 = round(0.6 * SR), round(0.625 * SR)
     short[w0:w1] = _voice(w1 - w0, VOICE_DB)
     project = _project(tmp_path, short)
 
@@ -398,22 +399,23 @@ def test_pipeline_step_is_undoable_and_changes_the_render_hash(tmp_path: Path) -
     from podcast_mcp.services.pipeline import PipelineService
 
     project = _project(tmp_path, _gated_track())
-    save_project(project, tmp_path)
+    project.ensure_dirs()
+    project_file = save_project(project)
     before = track_render_hash(project, "guest")
-    ws = ProjectWorkspace.open(tmp_path)
+    ws = ProjectWorkspace.open(project_file)
 
     result = PipelineService(ws).run(only_step="fill_gate_holes", config=_defaults())
 
-    filled = load_project(tmp_path)
+    filled = load_project(project_file)
     assert filled.track_by_id("guest").gate_fill is not None
     assert track_render_hash(filled, "guest") != before
     step_log = result.steps[-1]
     assert step_log.step == "fill_gate_holes"
     assert "comfort noise" in (step_log.message or "")
 
-    HistoryService(ProjectWorkspace.open(tmp_path)).undo()
+    HistoryService(ProjectWorkspace.open(project_file)).undo()
 
-    undone = load_project(tmp_path)
+    undone = load_project(project_file)
     assert undone.track_by_id("guest").gate_fill is None
     assert track_render_hash(undone, "guest") == before
 

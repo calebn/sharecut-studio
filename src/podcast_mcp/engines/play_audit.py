@@ -92,6 +92,11 @@ def track_render_hash(project: EpisodeProject, track_id: str) -> str:
         "chain": chain.model_dump() if chain else None,
         "envelope": envelope_audio_payload(env),
     }
+    if track is not None and track.gate_fill is not None:
+        from podcast_mcp.edits.gate_fill import gate_fill_payload
+
+        # Only while set, so stems hashed before gate fill existed stay valid.
+        payload["gate_fill"] = gate_fill_payload(project, track)
     if track is not None and track.transcript_gate:
         from podcast_mcp.engines.bleed_gate import bleed_gate_payload
 

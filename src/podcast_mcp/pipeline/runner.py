@@ -87,6 +87,7 @@ def _run_step_published(
 AUDIO_AFFECTING_STEPS = frozenset(
     {
         "align_tracks",
+        "fill_gate_holes",
         "clean_audio",
         "compress_tracks",
         "balance_tracks",
@@ -112,6 +113,7 @@ _STEP_MAP: dict[str, StepFn] = {
     "focus_from_transcript": pipeline_steps.focus_from_transcript,
     "analyze_fillers_pauses": pipeline_steps.analyze_fillers_pauses,
     "tighten_from_transcript": pipeline_steps.tighten_from_transcript,
+    "fill_gate_holes": pipeline_steps.fill_gate_holes,
     "clean_audio": pipeline_steps.clean_audio,
     "compress_tracks": pipeline_steps.compress_tracks,
     "balance_tracks": pipeline_steps.balance_tracks,
@@ -136,6 +138,7 @@ ORDERED_STEP_NAMES: list[str] = [
     "focus_from_transcript",
     "analyze_fillers_pauses",
     "tighten_from_transcript",
+    "fill_gate_holes",
     "clean_audio",
     "compress_tracks",
     "balance_tracks",

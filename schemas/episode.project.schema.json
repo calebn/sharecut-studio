@@ -100,6 +100,11 @@
         "speaker": { "type": ["string", "null"] },
         "media": { "$ref": "#/$defs/MediaAsset" },
         "room_tone": { "anyOf": [{ "$ref": "#/$defs/MediaAsset" }, { "type": "null" }] },
+        "gate_fill": {
+          "anyOf": [{ "$ref": "#/$defs/GateFill" }, { "type": "null" }],
+          "default": null,
+          "description": "Room tone the fill_gate_holes step lays under the digital silence a recorder's noise gate left between words (#1111). Render sums it under the media while the media is unchanged."
+        },
         "gain_db": {
           "type": "number",
           "description": "Staging gain the pipeline's balance step writes (dialogue toward target LUFS)."
@@ -126,6 +131,27 @@
           "description": "Selected source-media ranges for the gate; null means the whole track, including legacy enabled flags."
         },
         "proxy": { "anyOf": [{ "$ref": "#/$defs/TrackProxy" }, { "type": "null" }] }
+      }
+    },
+    "GateFill": {
+      "type": "object",
+      "required": ["source", "path", "media_size", "media_mtime_ns", "holes", "filled_sec", "level_db", "fade_ms"],
+      "properties": {
+        "source": { "enum": ["room_tone_bed", "comfort_noise"] },
+        "path": {
+          "type": "string",
+          "description": "Workspace-relative FLAC on the media's clock: the fill inside each hole, digital silence elsewhere."
+        },
+        "media_size": { "type": "integer", "minimum": 0 },
+        "media_mtime_ns": { "type": "integer" },
+        "holes": { "type": "integer", "minimum": 0 },
+        "filled_sec": { "type": "number", "minimum": 0 },
+        "level_db": { "type": "number", "description": "RMS of the fill audio, dBFS." },
+        "noise_db": {
+          "type": ["number", "null"],
+          "description": "The track's own noise under its speech, as measured; null for a recorded bed."
+        },
+        "fade_ms": { "type": "integer", "minimum": 0 }
       }
     },
     "MediaAsset": {

@@ -178,6 +178,18 @@ _STEP_DEFS: dict[str, StepMeta] = {
         enabled_by_default=False,
         noop_unless="tighten.enabled",
     ),
+    "fill_gate_holes": StepMeta(
+        id="fill_gate_holes",
+        group="mix",
+        title="Fill gate holes",
+        summary=(
+            "Room tone under the digital silence a recorder's noise gate left between words: "
+            "the track's recorded bed, else comfort noise matched to its own noise."
+        ),
+        depends_on=("ingest_tracks",),
+        requires_components=("ffmpeg",),
+        param_sections=("gate_fill",),
+    ),
     "clean_audio": StepMeta(
         id="clean_audio",
         group="mix",
@@ -953,6 +965,33 @@ PARAM_FIELDS: tuple[ParamField, ...] = (
         affects=("balance_tracks",),
     ),
     ParamField(
+        path="gate_fill.mode",
+        label="Gate fill",
+        description=(
+            "auto fills each dialogue track's source-gate holes (digital silence between "
+            "words, e.g. Zoom tracks) with its room-tone bed or comfort noise; off clears it."
+        ),
+        type="enum",
+        default="auto",
+        enum=("auto", "off"),
+        group="common",
+        section="gate_fill",
+        affects=("fill_gate_holes",),
+    ),
+    ParamField(
+        path="gate_fill.fade_ms",
+        label="Gate fill fade",
+        description="Fade in and out inside each hole, so the gate's edges keep every sample.",
+        type="integer",
+        default=10,
+        minimum=0,
+        maximum=100,
+        unit="ms",
+        group="advanced",
+        section="gate_fill",
+        affects=("fill_gate_holes",),
+    ),
+    ParamField(
         path="compression.threshold_db",
         label="Comp threshold",
         description="acompressor threshold.",
@@ -1146,6 +1185,7 @@ ALLOWED_CONFIG_TOP_KEYS = frozenset(
         "master",
         "balance",
         "compression",
+        "gate_fill",
         "prosody",
         "focus",
         "tighten",

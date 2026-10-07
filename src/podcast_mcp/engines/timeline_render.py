@@ -8,6 +8,7 @@ from podcast_mcp.edits.clips_ops import (
     crossfade_ms_at_join,
     uses_crossfade_join,
 )
+from podcast_mcp.edits.gate_fill import current_gate_fill_path
 from podcast_mcp.edits.mute_regions import (
     IgnoredWordRegions,
     mute_spans_for_source_window,
@@ -92,6 +93,15 @@ def _room_tone_under_mutes(
             )
             t += use
     return tiles
+
+
+def gate_fill_paths(project: EpisodeProject, track: Track, paths: list[Path]) -> list[Path | None]:
+    """The track's gate fill for each clip path over its own media, else None (#1111)."""
+    fill = current_gate_fill_path(project, track)
+    if fill is None or track.media is None:
+        return [None] * len(paths)
+    primary = resolve_under_workspace(project, track.media.path).resolve()
+    return [fill if path.resolve() == primary else None for path in paths]
 
 
 def timeline_duration_sec(project: EpisodeProject) -> float:
@@ -204,6 +214,7 @@ def render_track_from_timeline(
         )
 
     src = paths[0] if paths else primary
+    fill = gate_fill_paths(project, track, [src])[0]
     placed: list[PlacedSegment] = []
     ignored_lookup = IgnoredWordRegions(project)
     for i, clip in enumerate(track_clips):
@@ -245,6 +256,7 @@ def render_track_from_timeline(
                         seg.end + clip.source_start,
                         extra=ignored,
                     ),
+                    fill_path=fill,
                 )
             )
             placed.extend(
@@ -305,6 +317,7 @@ def _render_placed_track(
     authored_frontier = 0.0
     clock_shift = 0.0
     clock_origin = window[0] if window is not None else 0.0
+    fills = gate_fill_paths(project, track, paths)
 
     for clip_i, (clip, src) in enumerate(zip(sorted_clips, paths, strict=True)):
         timeline_start = clip.timeline_start
@@ -373,6 +386,7 @@ def _render_placed_track(
                         clip, src_start, src_end, extra=ignored
                     ),
                     source_path=src,
+                    fill_path=fills[clip_i],
                 )
             )
             placed.extend(_room_tone_under_mutes(project, track, clip, src_start, src_end))
@@ -452,17 +466,15 @@ def render_source_with_chain(
     chain = next((c for c in project.processing_chains if c.track_id == track.id), None)
     af = eng.build_track_filter(chain, None)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        eng.ffmpeg,
-        "-y",
-        "-i",
-        str(src),
-        "-af",
-        af if af else "anull",
-        "-acodec",
-        "pcm_s16le",
-        str(output_path),
-    ]
+    fill = gate_fill_paths(project, track, [src])[0]
+    if fill is None:
+        inputs = ["-i", str(src), "-af", af if af else "anull"]
+    else:
+        fmt = eng.probe(src).sample_fmt
+        restore = f",aformat=sample_fmts={fmt}" if fmt else ""
+        graph = f"[0:a][1:a]amix=inputs=2:normalize=0:duration=first{restore},{af or 'anull'}"
+        inputs = ["-i", str(src), "-i", str(fill), "-filter_complex", graph]
+    cmd = [eng.ffmpeg, "-y", *inputs, "-acodec", "pcm_s16le", str(output_path)]
     run(cmd, check=True, capture_output=True)
 
     probe = eng.probe(output_path)
