@@ -181,7 +181,7 @@ class ResemblyzerBackend:
         if self._encoder is None:
             from resemblyzer import VoiceEncoder
 
-            self._encoder = VoiceEncoder()
+            self._encoder = VoiceEncoder(verbose=False)
         return self._encoder
 
     def embed(self, samples: np.ndarray, sample_rate: int) -> np.ndarray:

@@ -800,12 +800,15 @@ def test_speechbrain_backend_embed(monkeypatch):
     assert captured["shape"] == (1, 16000)
 
 
-def test_resemblyzer_backend_lazy_load(monkeypatch):
+def test_resemblyzer_backend_lazy_load_keeps_stdout_clean(monkeypatch, capsys):
+    """`podcast speaker` prints JSON, and the speaker MCP tools speak over stdio."""
     backend = ResemblyzerBackend()
     created: list[str] = []
 
     class FakeVoiceEncoder:
-        def __init__(self):
+        def __init__(self, verbose=True):
+            if verbose:
+                print("Loaded the voice encoder model on cpu in 0.01 seconds.")
             created.append("loaded")
 
         def embed_utterance(self, samples):
@@ -820,6 +823,7 @@ def test_resemblyzer_backend_lazy_load(monkeypatch):
     emb = backend.embed(np.ones(16000, dtype=np.float32), 16000)
     assert created == ["loaded"]
     assert emb.shape == (8,)
+    assert capsys.readouterr().out == ""
 
 
 def test_speaker_doctor_handles_import_errors():
