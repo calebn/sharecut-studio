@@ -41,6 +41,7 @@ export function paletteCommands(ctx: CommandContext): PaletteCommand[] {
         id: def.id,
         label: def.label,
         category: def.category,
+        ...(def.keywords ? { keywords: def.keywords } : {}),
         shortcut: displayShortcutFor(def.id) ?? null,
         ...(keyed ? { defaultKey: keyed.keys[0] } : {}),
         ...(keyed?.collision ? { note: keyed.collision } : {}),

@@ -9,6 +9,8 @@ export type PaletteCommand = {
   id: string;
   label: string;
   category: CommandCategory;
+  /** Catalog `keywords`: synonyms search matches besides the label. */
+  keywords?: readonly string[];
   /** Platform shortcut text, e.g. "⌘⇧E" or "Ctrl+Shift+E"; null without keys. */
   shortcut: string | null;
   /** Registry key, the remap field's placeholder; only on keyed commands. */
@@ -51,7 +53,8 @@ export function groupPaletteCommands(
 }
 
 /**
- * Every query word must appear in the label, category or shortcut. Labels
+ * Every query word must appear in the label, a catalog keyword, the category
+ * or the shortcut. Labels
  * that start with the query rank first, then labels with a word starting with
  * it, then the rest; commands that can run come before ones that cannot.
  */
@@ -69,6 +72,7 @@ export function searchPaletteCommands(
     const label = command.label.toLowerCase();
     const haystack = [
       label,
+      ...(command.keywords ?? []),
       PALETTE_CATEGORY_LABELS[command.category].toLowerCase(),
       command.shortcut?.toLowerCase() ?? "",
     ].join(" ");

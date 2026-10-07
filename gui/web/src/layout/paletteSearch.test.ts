@@ -29,6 +29,7 @@ const COMMANDS: PaletteCommand[] = [
   cmd("export.bounce", "Bounce…", "ui", { shortcut: "⌘+Shift+B" }),
   cmd("export.deliverables", "Export deliverables…", "ui", {
     shortcut: "⌘+Shift+E",
+    keywords: ["mp3", "master"],
   }),
   cmd("help.diagnosticsBundle", "Export diagnostics…", "ui", {
     disabledReason: "Project create/open is host-only",
@@ -67,6 +68,20 @@ describe("searchPaletteCommands", () => {
       "view.transcriptAnnotate",
       "transport.togglePlay",
     ]);
+  });
+
+  it("matches catalog keywords, below label matches", () => {
+    expect(ids(searchPaletteCommands(COMMANDS, "mp3"))).toEqual([
+      "export.deliverables",
+    ]);
+    expect(
+      ids(
+        searchPaletteCommands(
+          [cmd("view.master", "Master meter", "view"), ...COMMANDS],
+          "master",
+        ),
+      ),
+    ).toEqual(["view.master", "export.deliverables"]);
   });
 
   it("finds nothing for a word no command has", () => {

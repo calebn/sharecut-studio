@@ -411,12 +411,14 @@ Sharecut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md
 | `TrackPlaybackMeter` | Track-output sample peaks during local and guest proxy playback, using `LevelMeter`. Clip lights persist across transport stops until cleared. Silent host monitors preserve premix audio; proxy taps follow the track gain. Missing monitor media and premix-only guest fallback readings are unavailable. Reduced motion freezes bars and peak markers while retaining clip detection. Sampling stops when playback stops. |
 | `ClipLed` | Clip indicator LED shared by `LevelMeter` and the REC indicator; sample peak only |
 
-The command palette's **Actions** tab renders unbound catalog commands only
-when `paletteRunnable` is not `false`. Mark commands that need arguments or a
-timeline/transcript target as non-runnable there. This flag controls palette
-visibility, not command permissions. Contextual controls perform their actions
-through their own gesture or API paths; argument-taking commands can still run
-through the command bus with the required input.
+The command palette lists a catalog command only when `paletteRunnable` is not
+`false`. Mark commands that need arguments or a timeline/transcript target as
+non-runnable there. This flag controls palette visibility, not command
+permissions. Contextual controls perform their actions through their own
+gesture or API paths; argument-taking commands can still run through the
+command bus with the required input. A command's `keywords` are the other
+words people search for it by (file types, synonyms); add them in
+`commands/catalog.ts`, not in the palette.
 
 Store reads: read the DAW store only through `useDaw(selector)` (`state/useDaw.ts`, which wraps `useDawStore(useShallow(selector))`) or `useDawStore(selector)`. Use `pickDaw("projectPath", "isPlaying")` at module scope for plain field selectors. Pass literal key arguments; governance rejects computed arguments and checks literal hot-field keys against its allowlist. Use a custom `useDaw` selector for conditional projections of store values. Select exactly the values the component uses. Build derived arrays and objects outside the selector with `useMemo`; fresh nested values defeat the one-level `useShallow` comparison. Fresh top-level projections of unchanged store values keep their selected reference. The governance test fails on whole-store reads: `useDaw()` / `useDawStore()` with no selector, or an inline arrow identity selector such as `(s) => s` / `(s: DawState) => s` (also inside `useShallow(...)`). In tests, mock `useDaw` as `(sel) => sel(mockState)`.
 
