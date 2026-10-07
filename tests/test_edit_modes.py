@@ -297,6 +297,59 @@ def test_room_tone_and_suppressed_bleed_words_need_no_confirmation(episode):
     assert _geometry(episode)[0] == ("guest", 0.0, 14.0, 0.0)
 
 
+def test_deleting_touching_clips_on_two_tracks_asks_for_an_unselected_clips_words(episode):
+    """Each selected clip owns only its own extent: Host's h1 does not make Host's "world"
+    in the unselected h2 part of the cut, even though Guest's gB touches h1."""
+    project = load_project(episode)
+    project.timeline.clips = [c for c in project.clips if c.id != "g1"] + [
+        Clip(id=cid, track_id="guest", source_start=s, source_end=e, timeline_start=s)
+        for cid, s, e in (("gA", 0.0, 8.0), ("gB", 8.0, 12.0), ("gC", 12.0, 20.0))
+    ]
+    save_project(project)
+    service = EditService(ProjectWorkspace.open(episode))
+    before = _geometry(episode)
+
+    out = service.delete_clips(["h1", "gB"], mode=EditMode.RIPPLE)
+
+    (track,) = out["needs_confirmation"]["speech"]["tracks"]
+    assert track["track_id"] == "host"
+    assert [(w["text"], w["timeline_start"]) for w in track["words"]] == [("world", 9.0)]
+    assert _geometry(episode) == before
+
+
+def _quiet_guest(path: Path) -> None:
+    """Guest says "so the plan" below the speech level, so only the words show it."""
+    guest = np.random.default_rng(7).normal(0.0, 0.0003, int(DUR * SR))
+    guest[int(10.0 * SR) : int(11.0 * SR)] = 0.02 * _tone(330)[int(10.0 * SR) : int(11.0 * SR)]
+    _write_wav(load_project(path).raw_dir() / "guest.wav", guest)
+
+
+def test_approving_a_suggested_remove_asks_for_words_the_transcript_has_now(episode):
+    _quiet_guest(episode)
+    project = load_project(episode)
+    guest = next(t for t in project.transcripts if t.track_id == "guest")
+    words, guest.words = guest.words, []
+    save_project(project)
+    service = EditService(ProjectWorkspace.open(episode))
+    edit = service.suggest_pending_edit("host", 10.0, 11.0, author="commenter")
+    project = load_project(episode)
+    next(t for t in project.transcripts if t.track_id == "guest").words = words
+    save_project(project)
+    before = _geometry(episode)
+
+    direct = service.cut_range(
+        10.0, 11.0, mode=EditMode.RIPPLE, track_ids=["host"], use_inaudible_opt=False
+    )
+    assert direct["needs_confirmation"]["message"] == GUEST_WORDS + CUT_ANYWAY
+    asked = service.approve([edit["id"]])
+
+    assert not isinstance(asked, int)
+    assert asked.message == GUEST_WORDS + CUT_ANYWAY
+    assert _geometry(episode) == before
+    assert service.approve([edit["id"]], confirm_cut_speech=True) == 1
+    _assert_in_sync(episode, (12.0, 19.0), -1.0)
+
+
 def test_ripple_delete_clip_over_another_speakers_words_asks_first(episode):
     service = EditService(ProjectWorkspace.open(episode))
     before = _geometry(episode)
