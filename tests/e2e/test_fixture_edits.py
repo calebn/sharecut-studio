@@ -38,19 +38,16 @@ def test_nl_edit_and_preview_play(e2e_workspace) -> None:
     proj = load_project(e2e_workspace)
     edit_ids = [e.id for e in proj.edit_decisions]
     assert edit_ids
-    approve = runner.invoke(
-        app,
-        [
-            "edit",
-            "approve",
-            "--project",
-            str(e2e_workspace),
-            "--ids",
-            ",".join(edit_ids),
-            "--yes",
-        ],
-    )
-    assert approve.exit_code == 0
+    approve_args = ["edit", "approve", "--project", str(e2e_workspace)]
+    approve_args += ["--ids", ",".join(edit_ids)]
+    asked = runner.invoke(app, approve_args)
+    assert asked.exit_code == 1, asked.output
+    assert 'This also cuts guest\'s speech at 0:08.5 ("antonia pointed up").' in asked.stderr
+    assert "Run again with --yes to cut anyway." in asked.stderr
+    assert [e.id for e in load_project(e2e_workspace).edit_decisions] == edit_ids
+
+    approve = runner.invoke(app, [*approve_args, "--yes"])
+    assert approve.exit_code == 0, approve.output
 
     preview = runner.invoke(
         app,
