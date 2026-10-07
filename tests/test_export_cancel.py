@@ -27,6 +27,10 @@ MP3_FORMAT_OBJECTS = [{"ext": "mp3", "codec": "libmp3lame"}]
 MP3_FORMATS = json.dumps(MP3_FORMAT_OBJECTS)
 
 
+#: Linux procps cuts piped ``ps`` output to 80 columns, which hides the tmp-path marker.
+_PS = ["ps", "-ww"]
+
+
 def _export_cmd(slow_export, formats: str) -> list[str]:
     return ["pipeline", "export-audio", "--project", str(slow_export.project), "--formats", formats]
 
@@ -114,7 +118,7 @@ class _TerminalCli:
         deadline = time.monotonic() + 10
         while True:
             ps = subprocess.run(
-                ["ps", "-axo", "pid=,ppid=,command="], capture_output=True, text=True, check=True
+                [*_PS, "-axo", "pid=,ppid=,command="], capture_output=True, text=True, check=True
             )
             rows = (line.split(None, 2) for line in ps.stdout.splitlines())
             pids = [
@@ -145,7 +149,7 @@ class _TerminalCli:
         return self.proc.returncode, out, err
 
     def ffmpeg_left_running(self) -> list[str]:
-        ps = subprocess.run(["ps", "-axo", "command="], capture_output=True, text=True, check=True)
+        ps = subprocess.run([*_PS, "-axo", "command="], capture_output=True, text=True, check=True)
         return [line for line in ps.stdout.splitlines() if "ffmpeg" in line and self.marker in line]
 
 
@@ -197,7 +201,7 @@ def test_second_terminal_ctrl_c_quits_at_once_and_kills_ffmpeg(slow_export, tmp_
 
 
 def _command_of(pid: int) -> str:
-    ps = subprocess.run(["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True)
+    ps = subprocess.run([*_PS, "-p", str(pid), "-o", "command="], capture_output=True, text=True)
     return ps.stdout.strip()
 
 
