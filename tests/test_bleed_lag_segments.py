@@ -10,7 +10,13 @@ import numpy as np
 import pytest
 
 import bleed_helpers as bh
-from podcast_mcp.edits.bleed_lag_segments import STEP_COSTS, BleedPair, LagSegment, lag_segments
+from podcast_mcp.edits.bleed_lag_segments import (
+    STEP_COSTS,
+    BleedPair,
+    LagSegment,
+    _correlation,
+    lag_segments,
+)
 from podcast_mcp.edits.bleed_latency import HOP_SEC
 from podcast_mcp.edits.conversation_align import align_artifact_path, plan_conversation_alignment
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB
@@ -393,6 +399,82 @@ def test_jitter_inside_the_deadband_is_one_segment() -> None:
         )
         is None
     )
+
+
+def _gated_copy_mic() -> tuple[dict[str, np.ndarray], np.ndarray]:
+    """``_stepped`` with Caleb's mic hard-gated to silence around 30% of Audra's talk spurts.
+
+    A Zoom-style gate leaves the copy at exactly ``LEVEL_FLOOR_DB`` for the whole spurt, so
+    the spurt's copy has no variance to correlate with.
+    """
+    audio = _stepped()
+    direct = bh.tracks(bleed={"caleb": {"audra": 0.0}}, gated=("audra",))["audra"]
+    rng = np.random.default_rng(7)
+    for first, last in bh.spurts(direct):
+        if rng.random() < 0.3:
+            audio["caleb"][max(0, first - 400) : last + 3000] = 0.0
+    return audio, direct
+
+
+def _pieces(
+    audio: dict[str, np.ndarray], *, noise_db: float = 0.0, seed: int = 0
+) -> list[tuple[float, float]]:
+    """``(start, shift)`` of every piece, the envelopes jittered by ``noise_db`` of noise."""
+    levels = bh.levels(audio)
+    rng = np.random.default_rng(seed)
+    lane = levels["audra"] + noise_db * rng.standard_normal(levels["audra"].size)
+    copy = levels["caleb"] + noise_db * rng.standard_normal(levels["caleb"].size)
+    found = lag_segments(
+        lane,
+        _from(copy, 0.14),
+        heard=lane,
+        heard_peak=bh.peaks(audio)["audra"],
+        deadband_sec=0.02,
+    )
+    assert found is not None
+    return [(round(s.start_sec, 2), s.shift_sec) for s in found.segments]
+
+
+def test_a_copy_gated_to_the_floor_scores_no_evidence_in_that_spurt() -> None:
+    audio, _direct = _gated_copy_mic()
+
+    pieces = _pieces(audio)
+
+    assert [shift for _start, shift in pieces] == [-0.12, -0.2]
+    assert 152.5 < pieces[1][0] < 213.1
+
+
+@pytest.mark.parametrize("noise_db", [1e-12, 1e-6])
+def test_the_pieces_do_not_move_when_the_envelopes_are_jittered_below_quantization(
+    noise_db: float,
+) -> None:
+    audio, _direct = _gated_copy_mic()
+    expected = _pieces(audio)
+
+    assert [_pieces(audio, noise_db=noise_db, seed=seed) for seed in range(10)] == [expected] * 10
+
+
+def test_a_spurt_with_no_variance_in_either_series_correlates_at_zero() -> None:
+    rng = np.random.default_rng(0)
+    speech = -40.0 + 15.0 * rng.standard_normal(400)
+    copies = [
+        np.full(400, LEVEL_FLOOR_DB),
+        LEVEL_FLOOR_DB + 1e-12 * rng.standard_normal(400),
+        LEVEL_FLOOR_DB + 1e-6 * rng.standard_normal(400),
+    ]
+    sums = np.array(
+        [
+            [x.size, x.sum(), speech.sum(), x @ x, speech @ speech, x @ speech]
+            for x in [*copies, speech[::-1].copy()]
+        ]
+    )
+
+    r, n = _correlation(sums)
+
+    assert r[:3].tolist() == [0.0, 0.0, 0.0]
+    assert n.tolist() == [400] * 4
+    assert r[3] == pytest.approx(np.corrcoef(speech, speech[::-1])[0, 1], abs=1e-9)
+    assert _correlation(sums[3:] * 0)[0].tolist() == [0.0]
 
 
 @pytest.fixture
