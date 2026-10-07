@@ -395,6 +395,55 @@ test("a long-press on empty space opens the create menu; Add envelope point adds
   expect(added?.points).toHaveLength(1);
 });
 
+test("a long-press past the last clip opens the create menu and selects no text", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  await open(page);
+  const finger = await newFinger(context, page, browserName);
+  // The session's end under the fixed line: right of it is the trailing pad.
+  const pad = await page.evaluate((selector) => {
+    const scroller = document.querySelector<HTMLElement>(".timeline-scroll");
+    const canvas = document.querySelector(".timeline-hit-root");
+    const row = document.querySelector(selector);
+    if (!scroller || !canvas || !row) return null;
+    scroller.scrollLeft = scroller.scrollWidth;
+    const end = canvas.getBoundingClientRect().right;
+    const view = scroller.getBoundingClientRect();
+    const box = row.getBoundingClientRect();
+    return {
+      x: Math.round((end + view.left + scroller.clientWidth) / 2),
+      y: Math.round(box.top + box.height / 2),
+      end,
+    };
+  }, lane);
+  if (!pad) throw new Error("no timeline");
+  expect(pad.x).toBeGreaterThan(pad.end + 20);
+  const userSelect = await page.evaluate(({ x, y }) => {
+    const el = document.elementFromPoint(x, y);
+    const style = el ? getComputedStyle(el) : null;
+    return style?.webkitUserSelect || style?.userSelect;
+  }, pad);
+  expect.soft(userSelect).toBe("none");
+  await hold(page, finger, pad);
+  await finger.up();
+  // The lane's create menu, at the session's end (the fixture is 60 s).
+  await expect(
+    page.getByRole("menu", { name: "Create at 01:00.000 · reference" }),
+  ).toBeVisible();
+  const selected = await page.evaluate(
+    () => window.getSelection()?.toString() ?? "",
+  );
+  await frame(page, info, `grammar-create-past-end-${browserName}`);
+  json(info, `grammar-create-past-end-${browserName}`, {
+    pad,
+    userSelect,
+    selected,
+  });
+  expect(selected).toBe("");
+});
+
 test("the strip swipes between peek, half and full, and its buttons still work", async ({
   page,
   context,
