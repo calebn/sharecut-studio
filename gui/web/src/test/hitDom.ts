@@ -38,7 +38,7 @@ export function surface(
   return el;
 }
 
-/** A pointer event of `type` at (`x`, `y`), a touch unless `pointerType` says, dispatched on `target`. */
+/** A pointer event (a touch by default) of `type` at (`x`, `y`), dispatched on `target`. */
 export function press(
   target: Element,
   type: string,

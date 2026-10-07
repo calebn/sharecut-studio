@@ -240,12 +240,11 @@ test("at 390x844 by default, one finger dragging a selected clip's trim end save
   if (!before) throw new Error("no clip at 50 s");
   const finger = await newFinger(context, page, browserName);
   const commands = watchCommands(page);
-  const body = await visiblePoint(
+  await tap(
     page,
-    `${lane} .clip-block[data-clip-id="${before.id}"]`,
+    finger,
+    await centerOf(page, `${lane} .clip-block[data-clip-id="${before.id}"]`),
   );
-  if (!body) throw new Error("the 50 s clip is not in view");
-  await tap(page, finger, body);
   const handle = await centerOf(
     page,
     `${lane} [data-hit-kind="trim-out"][data-hit-id="${before.id}"]`,
