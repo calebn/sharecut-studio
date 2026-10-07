@@ -675,8 +675,9 @@ describe("TransportBar wide layout", () => {
     ).toBeTruthy();
   });
 
-  it("keeps the missing mix preview off the wide bar and explains it on Full mix", async () => {
+  it("says No mix yet in the one status pill for a never-rendered project", async () => {
     const project = minimalProject({ tracks: TRACKS });
+    expect(project.render_status.premix.exists).toBe(false);
     const tree = (compact: boolean) => (
       <DawProvider projectPath="/tmp/p.json" initialProject={project}>
         <TransportBar compact={compact} />
@@ -688,25 +689,33 @@ describe("TransportBar wide layout", () => {
     act(() => {
       useDawStore.getState().setAudioError(NO_PREVIEW_ERROR);
     });
+    const pill = screen.getByRole("button", {
+      name: "No mix yet. Refresh mix.",
+    });
+    expect(pill).toHaveTextContent(/^No mix yet · Refresh$/);
+    expect(screen.queryByText("Mix out of date · Refresh")).toBeNull();
     expect(document.querySelector(".audio-error")).toBeNull();
+    expect(container.querySelectorAll(".pill")).toHaveLength(1);
     expect(fullMix()).toHaveAttribute(
       "aria-description",
-      "No mix preview yet. Refresh the mix to hear it.",
+      "Full mix is silent until you refresh the mix.",
     );
-    expect(fullMix().getAttribute("title")).toContain("No mix preview yet");
     await expectNoA11yViolations(container);
     rerender(tree(true));
     await userEvent.click(screen.getByRole("button", { name: "Menu" }));
     expect(
-      screen.getByText("No mix preview yet. Refresh the mix to hear it."),
+      screen.getByText("Full mix is silent until you refresh the mix."),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("menuitem", { name: "No mix yet · Refresh" }),
     ).toBeTruthy();
   });
 
-  it("tells a guest the host refreshes the missing mix preview", () => {
+  it("tells a guest there is no mix without offering a refresh", async () => {
     const key = shareProjectKey("previewTok");
     const project = minimalProject({ tracks: TRACKS });
     useDawStore.getState().hydrate(key, project, "view", ["play"]);
-    render(
+    const { container } = render(
       <DawProvider projectPath={key} initialProject={project} guestMode="view">
         <TransportBar />
       </DawProvider>,
@@ -714,10 +723,16 @@ describe("TransportBar wide layout", () => {
     act(() => {
       useDawStore.getState().setAudioError(NO_PREVIEW_ERROR);
     });
+    const pill = screen.getByRole("button", { name: "No mix yet." });
+    expect(pill).toHaveTextContent(/^No mix yet$/);
+    expect(pill).toHaveAttribute("aria-disabled", "true");
+    expect(pill.textContent).not.toContain("Refresh");
+    expect(container.querySelectorAll(".pill")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Full mix" })).toHaveAttribute(
       "aria-description",
-      "No mix preview yet. The host needs to refresh the mix.",
+      "Full mix is silent until the host refreshes the mix.",
     );
+    await expectNoA11yViolations(container);
   });
 
   it("keeps the View menu and the main Menu exclusive from the keyboard", async () => {

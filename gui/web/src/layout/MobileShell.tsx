@@ -34,7 +34,7 @@ import { TrackMix } from "../tracks/TrackMix";
 import type { PresenceTab } from "../types/session";
 import { CommandButton, EmptyState, Timecode } from "../ui";
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
-import { MIX_STALE_LABEL } from "../utils/staleRender";
+import { staleMixLabel } from "../utils/staleRender";
 import { formatTimecodePair, transportTimecode } from "../utils/time";
 import { AvatarStack } from "./AvatarStack";
 import { EditingToolRail } from "./EditingToolRail";
@@ -186,7 +186,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
     activityJob: s.activityJob,
     activityRunningCount: s.activityRunningCount,
   }));
-  const stale = useStaleRenderBreakdown(project).stale;
+  const mixBreakdown = useStaleRenderBreakdown(project);
 
   if (!project) {
     return (
@@ -271,8 +271,10 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
             Pending: {pending}
           </button>
         ) : null}
-        {stale ? (
-          <span className="status-chip warning">{MIX_STALE_LABEL}</span>
+        {mixBreakdown.stale ? (
+          <span className="status-chip warning">
+            {staleMixLabel(mixBreakdown)}
+          </span>
         ) : null}
         {chipJob ? (
           <PipelineStatusChip

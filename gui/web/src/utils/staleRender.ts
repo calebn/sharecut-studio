@@ -5,6 +5,8 @@ import { projectHasSourceAudio } from "./projectMedia";
 /** Mix-freshness copy shared by the transport pill, status bar and phone chip. */
 export const MIX_STALE_LABEL = "Mix out of date";
 export const MIX_FRESH_LABEL = "Mix up to date";
+/** Nothing is rendered, so Full mix plays nothing. Shown in place of the stale label. */
+export const MIX_MISSING_LABEL = "No mix yet";
 
 export type RenderInvalidationReason =
   | "cut"
@@ -43,7 +45,16 @@ export type StaleRenderBreakdown = {
   allStaleAreWholeTrack: boolean;
   /** One-line summary for title / aria. */
   summary: string;
+  /** What the status label leaves unsaid: the summary without the missing-mix clause. */
+  detail: string | null;
 };
+
+/** The status pill and chip text for a stale breakdown: no mix, or an old one. */
+export function staleMixLabel(
+  breakdown: Pick<StaleRenderBreakdown, "premixMissing">,
+): string {
+  return breakdown.premixMissing ? MIX_MISSING_LABEL : MIX_STALE_LABEL;
+}
 
 const REASON_LABEL: Record<string, string> = {
   cut: "Cut",
@@ -101,6 +112,7 @@ function freshBreakdown(): StaleRenderBreakdown {
     regionalOnlyTrackIds: [],
     allStaleAreWholeTrack: false,
     summary: MIX_FRESH_LABEL,
+    detail: null,
   };
 }
 
@@ -200,7 +212,7 @@ export function staleRenderBreakdown(
     parts.push(`Stale stems: ${staleTrackIds.join(", ")}`);
   }
   if (premixMissing) {
-    parts.push("No mix preview");
+    parts.push(MIX_MISSING_LABEL);
   } else if (premixStaleVsStems) {
     parts.push("Mix preview behind stems");
   }
@@ -210,6 +222,8 @@ export function staleRenderBreakdown(
   if (reconcileStale) {
     parts.push("Transcript out of date");
   }
+
+  const detail = parts.filter((p) => p !== MIX_MISSING_LABEL).join(" · ");
 
   return {
     stale,
@@ -228,6 +242,7 @@ export function staleRenderBreakdown(
         ? parts.join(" · ")
         : MIX_STALE_LABEL
       : MIX_FRESH_LABEL,
+    detail: detail || null,
   };
 }
 

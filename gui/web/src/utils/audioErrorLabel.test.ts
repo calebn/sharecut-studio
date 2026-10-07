@@ -21,13 +21,13 @@ describe("audioErrorLabel", () => {
 });
 
 describe("noPreviewReason", () => {
-  it("tells an editor to refresh and a guest to ask the host", () => {
-    expect(NO_PREVIEW_ERROR).toBe("No mix preview yet");
+  it("says Full mix is silent, and who can fix it", () => {
+    expect(NO_PREVIEW_ERROR).toBe("No mix yet");
     expect(noPreviewReason(true)).toBe(
-      "No mix preview yet. Refresh the mix to hear it.",
+      "Full mix is silent until you refresh the mix.",
     );
     expect(noPreviewReason(false)).toBe(
-      "No mix preview yet. The host needs to refresh the mix.",
+      "Full mix is silent until the host refreshes the mix.",
     );
   });
 });

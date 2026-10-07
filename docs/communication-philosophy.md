@@ -83,6 +83,7 @@ to UX partners; for UI copy, this table wins.
 | Blade cut | Split at the playhead on the timeline | "slice" |
 | Solo on | The button shown while any track is soloed: in the corner above the track headers on desktop and tablet, in the status row and Mix sheet on phone. It reads "Solo on · Clear solo", and one press unsolos every track. Solo is listen-only: only you hear it | "solo mode", "solo active" |
 | Implied mute | A track silent only because you soloed another track. Its row, lane and clips go grey like a saved mute; its M and identity stripe are dashed, because it is never saved | "auto-muted", "muted by solo" |
+| No mix yet | The status when no mix is rendered (never rendered, or a failed render left none) and Full mix is silent. It replaces "Mix out of date" in the one status pill, chip and Menu item, with "· Refresh" only where the person can refresh. A guest reads it without an action | "No preview", "No premix", a second pill beside "Mix out of date" |
 | Bounce | Render the current mix | "export mix" |
 | Deliverables | Mastered export set | "final export" |
 | Stop sharing | Revoke a review link. Links do not expire unless the host chose a date, so this is how a review link ends | "delete link" |
@@ -409,3 +410,6 @@ item lives in `docs/contributing.md`. `Dialog` has no `danger` variant;
 - 2026-10-06 — Added "Solo on" and "Implied mute" (#1102): the global solo
   button above the track headers and the grey, dashed state of a track your
   solo silences.
+- 2026-10-06 — Added "No mix yet" (#1113): the one mix status pill says when
+  Full mix is silent instead of leaving it in a tooltip, and a guest reads it
+  without a Refresh action.

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { minimalProject } from "../test/fixtures";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import {
   reasonChipLabel,
+  staleMixLabel,
   staleRenderBreakdown,
   wholeTrackReasonsForTrack,
 } from "./staleRender";
@@ -118,6 +119,24 @@ describe("staleRenderBreakdown", () => {
     );
     expect(b.stale).toBe(true);
     expect(b.premixMissing).toBe(true);
+    expect(staleMixLabel(b)).toBe("No mix yet");
+    expect(b.summary).toBe("No mix yet");
+    expect(b.detail).toBeNull();
+  });
+
+  it("labels an old mix as out of date and leaves its cause in the detail", () => {
+    const b = staleRenderBreakdown(
+      minimalProject({
+        tracks: [sampleTrack({ stem_is_fresh: true })],
+        render_status: {
+          needs_rerender: true,
+          reconciliation: { stale: false },
+          premix: { exists: true, stale_vs_stems: true },
+        },
+      }),
+    );
+    expect(staleMixLabel(b)).toBe("Mix out of date");
+    expect(b.detail).toBe("Mix preview behind stems");
   });
 
   it("flags a guest project with redacted media paths and unknown duration", () => {

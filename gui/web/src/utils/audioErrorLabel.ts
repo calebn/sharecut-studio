@@ -1,15 +1,20 @@
-/**
- * Raised when Full mix has nothing rendered to play. The stale-mix pill already
- * names it and carries the fix, so the transport shows it on the Full mix
- * segment instead of as a second pill (#1113).
- */
-export const NO_PREVIEW_ERROR = "No mix preview yet";
+import { MIX_MISSING_LABEL } from "./staleRender";
 
-/** What a person can do about {@link NO_PREVIEW_ERROR}; a guest cannot refresh. */
+/**
+ * Raised when Full mix has nothing rendered to play. The status pill already
+ * says "No mix yet" and carries the fix, so the transport does not repeat it as
+ * a second pill (#1113).
+ */
+export const NO_PREVIEW_ERROR = MIX_MISSING_LABEL;
+
+/**
+ * What the missing mix means for Full mix and who can fix it; a guest cannot
+ * refresh. Sits on the Full mix segment and in the phone Menu.
+ */
 export function noPreviewReason(mayRefresh: boolean): string {
   return mayRefresh
-    ? `${NO_PREVIEW_ERROR}. Refresh the mix to hear it.`
-    : `${NO_PREVIEW_ERROR}. The host needs to refresh the mix.`;
+    ? "Full mix is silent until you refresh the mix."
+    : "Full mix is silent until the host refreshes the mix.";
 }
 
 /**
