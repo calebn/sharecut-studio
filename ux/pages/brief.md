@@ -11,7 +11,7 @@ requirements for reviewable edits, recovery, export, and a free core workflow.
 
 **Podcast MCP** is a FOSS podcast production toolkit: multitrack episode projects, transcript-driven editing, FFmpeg cleanup/mix/master, and an agent-friendly tool surface (CLI + MCP skills).
 
-**Sharecut Studio** is the web DAW / review UI for an episode: listen, inspect timeline and transcript, approve agent-suggested cuts, leave time-anchored comments, and (on share links) collaborate as a guest.
+**Sharecut Studio** is the web DAW / review UI for an episode: listen, inspect timeline and transcript, approve agent-suggested cuts, leave time-anchored comments, and (on review links) collaborate as a guest.
 
 It is **not** a full Pro Tools replacement. It is closer to **Descript + a Reaper-style session inspector**, with an AI agent that proposes the same kinds of mutations a human can approve.
 
@@ -36,17 +36,17 @@ Personas are **jobs**, not demographics.
 |--|--|
 | **Goal** | Leave useful feedback without installing tooling |
 | **Fears** | “Am I allowed to edit?”; link dead because host laptop slept |
-| **Surface** | Share link `/r/{token}`. Every review role (Viewer, Commenter by default, Editor) opens Sharecut Studio guest |
+| **Surface** | Review link `/r/{token}`. Every review role (Viewer, Commenter by default, Editor) opens Sharecut Studio guest |
 | **Scenario** | Phone: play review mix, leave a note at 11:02, optionally Suggest cut (Commenter link) |
 
-### Remote agent — “Cursor on the share”
+### AI assistant — “Claude on the review link”
 
 | | |
 |--|--|
-| **Goal** | Same powers as the human share recipient, via tools |
+| **Goal** | Same powers as the person the review link went to, via tools |
 | **Fears** | Over-privileged tools; silent failure when host is offline |
 | **Surface** | `{base}/mcp/{token}/mcp` (requires share `mcp` + host `PODCAST_REMOTE_MCP=1`) |
-| **Scenario** | Host mints a Commenter link with `--with-mcp`; agent lists comments and suggests a cut |
+| **Scenario** | Host creates a Commenter link with **Allow AI assistants (MCP)** (CLI `--with-mcp`) and pastes its MCP URL into Claude; the assistant lists comments and suggests a cut |
 
 ### Local agent (Cursor, etc.)
 
@@ -71,7 +71,7 @@ Propose tighten/focus/transcript fixes via host MCP/CLI → same project file th
 
 **Qualitative**
 
-- Reviewer can leave useful feedback in under five minutes on a phone share link.
+- Reviewer can leave useful feedback in under five minutes on a phone review link.
 - Host can find, audition, and resolve a pending cut without opening the full Reaper-style grid.
 - Agent proposals show up in the same inspectors humans use (no “shadow” edit world).
 - Non-destructive history: undo never deletes raw audio.
@@ -84,7 +84,7 @@ the [UI philosophy](https://github.com/calebn/sharecut-studio/blob/main/docs/ui-
 
 | Metric | Target |
 |--------|--------|
-| Time to first comment on a cold share link | &lt; 5 minutes for 4/5 hallway testers |
+| Time to first comment on a cold review link | &lt; 5 minutes for 4/5 hallway testers |
 | Mode understanding | ≥ 4/5 guests correctly say what they can do after reading the banner |
 | Offline conflict recovery | Guest can dismiss/recover from **Needs attention** without host coaching |
 
@@ -192,6 +192,6 @@ See [Screen inventory](#/screens), [Guest journeys](#/journeys), [Domain glossar
 - [gui-mobile.md](https://github.com/calebn/sharecut-studio/blob/main/docs/gui-mobile.md) — responsive shells (implementation)
 - [episode-format-v2.md](https://github.com/calebn/sharecut-studio/blob/main/docs/episode-format-v2.md) — project file truth
 - [daw-editing.md](https://github.com/calebn/sharecut-studio/blob/main/docs/daw-editing.md) — modifier / document-command model
-- [host-online-relay.md](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md) — share links, proxy media, Spaces, remote MCP
+- [host-online-relay.md](https://github.com/calebn/sharecut-studio/blob/main/docs/host-online-relay.md) — review links, proxy media, Spaces, MCP URLs
 - [session-sync.md](https://github.com/calebn/sharecut-studio/blob/main/docs/session-sync.md) — live sync, presence, guest offline queue
 - [ROADMAP.md](https://github.com/calebn/sharecut-studio/blob/main/ROADMAP.md) — shipping backlog

@@ -12,7 +12,7 @@ Welcome. This site is the **shareable UX onboarding kit** for Podcast MCP / Shar
 | [Brand](#/brand) | Styling guidelines (tokens, type, measure, do/don’t) |
 | [See the UI](#/demo) | Screenshots + live demo fixture |
 | [Screen inventory](#/screens) | What each mode shows (display schemas) |
-| [Guest journeys](#/journeys) | Step flows for share links |
+| [Guest journeys](#/journeys) | Step flows for review links |
 | [Domain glossary](#/glossary) | Concepts ↔ project files ↔ UI |
 | [Keyboard shortcuts](#/shortcuts) | Sharecut Studio keys — **Copy Markdown** → Google Docs |
 | [Mobile](#/mobile) | Using Sharecut Studio on your phone |

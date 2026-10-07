@@ -18,13 +18,13 @@ Status key: **Now** (shape decisions) · **Next** (after Now) · **Later** (stra
 
 ---
 
-### 2. Guest review IA (share link)
+### 2. Guest review IA (review link)
 
 **Problem:** Guests arrive cold on phone. Capability tiers must feel obvious without host chrome.
 
-**Shipped (engineering):** Google Docs review roles (Viewer, Commenter by default, Editor), each opening Sharecut Studio guest; mode banner on Sharecut Studio guest; proxy MP3 guest playback; offline edit queue + **Needs attention**; capability-scoped remote MCP URL; relay host-offline page. Documented in [Screens](#/screens) + [Guest journeys](#/journeys).
+**Shipped (engineering):** Google Docs review roles (Viewer, Commenter by default, Editor), each opening Sharecut Studio guest; mode banner on Sharecut Studio guest; proxy MP3 guest playback; offline edit queue + **Needs attention**; capability-scoped MCP URL; relay host-offline page. Documented in [Screens](#/screens) + [Guest journeys](#/journeys).
 
-**Still open for UX:** First-run orientation copy; comment vs suggest-cut IA; plain-language Needs attention bodies; revoked/expired link copy.
+**Still open for UX:** First-run orientation copy; comment vs suggest-cut IA; plain-language Needs attention bodies; stopped-link copy.
 
 **Touches:** Guest banner, Listen mode, Comments, transport Menu, relay offline page, Needs attention.
 
@@ -72,7 +72,7 @@ Audio candidates exist; video ingest, 9:16 export, captions, active-speaker — 
 
 **Product ownership:** the independently maintained `podcast_online` provider extension owns hosted-account policy and short-lived shared review files.
 
-**Still open for UX:** Expiry defaults, “link died” / revoked copy, free-tier quota framing without forever-public URLs.
+**Still open for UX:** “Link died” / stopped-link copy, and free-tier quota framing for review links that never expire until the host stops sharing them.
 
 ---
 

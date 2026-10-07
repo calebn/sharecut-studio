@@ -1,6 +1,6 @@
-# Guest journeys — share link flows
+# Guest journeys — review link flows
 
-Plain-language steps for `/r/{token}`. Public share URLs are
+Plain-language steps for `/r/{token}`. Public review link URLs are
 `https://sharecut.studio/r/{token}`. No project JSON. Pair with
 [Screens → Guest / share](#/screens).
 
@@ -12,7 +12,7 @@ Plain-language steps for `/r/{token}`. Public share URLs are
 
 ```mermaid
 flowchart TD
-  open[Open share link] --> daw[Sharecut Studio guest + banner]
+  open[Open review link] --> daw[Sharecut Studio guest + banner]
   daw --> play[Play the review mix]
   play --> scrub[Scrub to a moment]
   scrub --> note[Comment at the anchor]
@@ -22,7 +22,7 @@ flowchart TD
 1. Guest lands in Sharecut Studio under the banner "Shared comment view · You can comment and suggest edits".
 2. Guest plays the mix and scrubs. On a phone, **Comments** sit one action away under **More**; the panel says "Commenting as Guest".
 3. Guest picks **Comment**, sets the time anchor, types a note and chooses **Post comment**. Replies and action-item check-offs work on the same thread.
-4. After the host resolves feedback in Sharecut Studio, the guest sees its resolved state. The host can reopen a thread. Anonymous guests cannot resolve threads from the share link.
+4. After the host resolves feedback in Sharecut Studio, the guest sees its resolved state. The host can reopen a thread. Anonymous guests cannot resolve threads from the review link.
 5. If the host laptop sleeps / tunnel drops, the guest sees an offline page (not a broken blank app).
 
 An unavailable or revoked link shows an error. A share built without `view` (API only, no role mints one) opens the same kind of error: "This link does not open the project. Ask the person who shared it for a new link."
@@ -54,7 +54,7 @@ receive no isolated selected-track audio through this action.
 
 ```mermaid
 flowchart TD
-  open[Open share link] --> daw[Sharecut Studio guest + banner]
+  open[Open review link] --> daw[Sharecut Studio guest + banner]
   daw --> listen[Listen or Timeline]
   listen --> select[Select a region / pending]
   select --> propose[Propose cut - not hard apply]
@@ -125,9 +125,9 @@ can require all of its guests to reconnect.
 | Situation | Guest experience |
 |-----------|------------------|
 | Host / tunnel offline | Relay offline page — retry later. The host sees the same state in Share (“Reconnecting…” or “Not reachable online”) and in the `podcast tunnel` output |
-| Share revoked or expired | Link fails to load project (treat as dead link; copy TBD) |
+| Host stopped sharing (or a date the host chose on the CLI passed) | Link fails to load project (treat as dead link; copy TBD). Links never expire on their own |
 
-Product still needs polished “link died” copy and free-tier TTL story ([Backlog](#/backlog) item 8).
+Product still needs polished “link died” copy and a free-tier story ([Backlog](#/backlog) item 8).
 
 ---
 
