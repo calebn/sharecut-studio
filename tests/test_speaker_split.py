@@ -29,6 +29,8 @@ from podcast_mcp.models import (
     MediaAsset,
     ProcessingChain,
     ProcessingEffect,
+    SpeakerSplit,
+    SpeakerSplitCrosstalk,
     Track,
     TrackRole,
     Transcript,
@@ -38,8 +40,13 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.media import SpeakerService
 
-# Three synthetic voices: harmonic sources at distinct pitches through distinct formants.
-VOICES = ((110.0, (600.0, 1100.0)), (210.0, (400.0, 2400.0)), (160.0, (850.0, 1600.0)))
+# Four synthetic voices: harmonic sources at distinct pitches through distinct formants.
+VOICES = (
+    (110.0, (600.0, 1100.0)),
+    (210.0, (400.0, 2400.0)),
+    (160.0, (850.0, 1600.0)),
+    (300.0, (500.0, 3000.0)),
+)
 
 
 class SpectralBackend:
@@ -124,13 +131,27 @@ def _single_speaker_accuracy(truth: np.ndarray, labels: np.ndarray) -> float:
     return float(np.mean(labels[single] == np.argmax(truth, axis=0)[single]))
 
 
-@pytest.mark.parametrize("speakers", [2, 3])
+@pytest.mark.parametrize("speakers", [2, 3, 4])
 def test_turn_taking_mix_is_attributed_frame_by_frame(speakers: int) -> None:
     audio, truth = _mix(speakers, 90.0, seed=speakers)
     attribution = attribute_speakers(audio, speaker_count=speakers, backend=SpectralBackend())
     labels, _ = _frame_labels(attribution, truth.shape[1])
     assert attribution.method == "cluster"
     assert _single_speaker_accuracy(_by_first_appearance(truth), labels) >= 0.95
+    assert attribution.same_voice == ()
+
+
+@pytest.mark.parametrize(("voices", "count"), [(2, 3), (3, 4)])
+def test_a_count_above_the_voices_present_names_the_likely_merge(voices: int, count: int) -> None:
+    audio, _ = _mix(voices, 90.0, seed=2)
+    attribution = attribute_speakers(audio, speaker_count=count, backend=SpectralBackend())
+    [pair] = attribution.same_voice
+    assert pair.distance < 0.4 * pair.others
+    split_seconds = {
+        s: sum(t.end - t.start for t in attribution.turns if t.speakers[0] == s)
+        for s in pair.speakers
+    }
+    assert all(seconds > 5.0 for seconds in split_seconds.values())
 
 
 def test_clustered_speakers_are_numbered_by_who_talks_first() -> None:
@@ -152,6 +173,31 @@ def test_enrollment_names_each_speaker() -> None:
     labels, _ = _frame_labels(attribution, truth.shape[1])
     assert attribution.method == "enroll"
     assert _single_speaker_accuracy(truth, labels) >= 0.95
+
+
+def test_partial_enrollment_seeds_the_enrolled_and_clusters_the_rest() -> None:
+    audio, truth = _mix(3, 90.0, seed=5)
+    frames = np.flatnonzero(truth[1] & (truth.sum(axis=0) == 1))
+    attribution = attribute_speakers(
+        audio,
+        speaker_count=3,
+        backend=SpectralBackend(),
+        enrollment={2: [(frames[0] * FRAME_SEC, frames[0] * FRAME_SEC + 2.0)]},
+    )
+    labels, _ = _frame_labels(attribution, truth.shape[1])
+    # Truth speaker 1 is enrolled as index 2; the others take 0 and 1 by who talks first.
+    rest = _by_first_appearance(truth[[0, 2]])
+    expected = np.stack([rest[0], rest[1], truth[1]])
+    assert attribution.method == "enroll"
+    assert _single_speaker_accuracy(expected, labels) >= 0.95
+
+
+def test_enrollment_must_name_a_speaker_within_the_count() -> None:
+    audio, _ = _mix(2, 20.0, seed=1)
+    with pytest.raises(ValueError, match="numbered 0 to 1"):
+        attribute_speakers(
+            audio, speaker_count=2, backend=SpectralBackend(), enrollment={2: [(1.0, 3.0)]}
+        )
 
 
 def test_turns_cover_the_recording_without_gaps() -> None:
@@ -252,33 +298,42 @@ def scripted_ws(tmp_path: Path) -> ProjectWorkspace:
     return _room_workspace(tmp_path, audio, words)
 
 
-def test_crosstalk_plays_on_both_speakers_lanes_by_default_and_is_flagged(
+def test_flagged_crosstalk_plays_once_on_its_likeliest_speaker_by_default(
     scripted_ws: ProjectWorkspace,
 ) -> None:
     project = scripted_ws.project
     summary = split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
     split = project.editorial.speaker_splits[0]
     assert split.lanes == ["room", "room_ben"]
-    assert split.crosstalk_lane is None
+    assert (split.crosstalk_mode, split.crosstalk_lane) == ("owner", None)
     assert split.crosstalk_spans() == [(4.0, 6.0)]
     assert summary["crosstalk_sec"] == 2.0
-    assert owned_spans(split) == {"room": [(0.0, 6.0)], "room_ben": [(4.0, 10.0)]}
+    assert owned_spans(split) == {"room": [(0.0, 6.0)], "room_ben": [(6.0, 10.0)]}
     ana = next(c for c in project.clips if c.track_id == "room")
     ben = next(c for c in project.clips if c.track_id == "room_ben")
     assert [(r.start_s, r.end_s) for r in ana.mute_regions] == [(5.99, 10.0)]
-    assert [(r.start_s, r.end_s) for r in ben.mute_regions] == [(0.0, 4.01)]
+    assert [(r.start_s, r.end_s) for r in ben.mute_regions] == [(0.0, 6.01)]
     assert same_source_timeline_overlaps(project) == []
 
 
-def test_undeclared_audio_on_two_lanes_is_still_a_stacked_copy(
+def test_both_plays_crosstalk_twice_and_the_stacked_copy_check_reports_it(
     scripted_ws: ProjectWorkspace,
 ) -> None:
     project = scripted_ws.project
-    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"])
-    project.editorial.speaker_splits.clear()
+    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"], crosstalk_mode="both")
+    split = project.editorial.speaker_splits[0]
+    assert owned_spans(split) == {"room": [(0.0, 6.0)], "room_ben": [(4.0, 10.0)]}
     [stack] = same_source_timeline_overlaps(project)
     assert stack.track_ids == ("room", "room_ben")
     assert stack.overlap_sec == pytest.approx(1.98)  # the 2 s less each half fade
+
+
+def test_a_crosstalk_lane_exists_exactly_in_lane_mode() -> None:
+    record = {"id": "s", "media_path": "m.wav", "lanes": ["a", "b"], "backend": "x"}
+    with pytest.raises(ValueError, match="crosstalk_lane"):
+        SpeakerSplit(**record, method="cluster", crosstalk_mode="owner", crosstalk_lane="c")
+    with pytest.raises(ValueError, match="crosstalk_lane"):
+        SpeakerSplit(**record, method="cluster", crosstalk_mode="lane")
 
 
 def test_crosstalk_lane_takes_the_overlap_from_both_speakers(scripted_ws: ProjectWorkspace) -> None:
@@ -312,9 +367,12 @@ def test_words_follow_their_speaker(scripted_ws: ProjectWorkspace) -> None:
     assert words == {"room": ["hello"], "room_ben": ["there"]}
 
 
-def test_lanes_sum_back_to_the_recording(scripted_ws: ProjectWorkspace, tmp_path: Path) -> None:
+@pytest.mark.parametrize("mode", ["owner", "lane"])
+def test_lanes_sum_back_to_the_recording(
+    scripted_ws: ProjectWorkspace, tmp_path: Path, mode: SpeakerSplitCrosstalk
+) -> None:
     project = scripted_ws.project
-    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"], crosstalk_mode="lane")
+    split_track_by_speaker(project, "room", SCRIPTED, names=["Ana", "Ben"], crosstalk_mode=mode)
     original = load_mono_full(project.workspace_path() / "raw" / "room.wav", sample_rate=RATE)
     total = np.zeros_like(original)
     for track in project.tracks:
@@ -471,6 +529,54 @@ def test_enrollment_names_come_from_the_spans(mixed_ws: ProjectWorkspace) -> Non
     )
     assert result["speakers"] == ["Ben", "Ana"]
     assert result["method"] == "enroll"
+    assert result["warnings"] == []
+
+
+def test_speakers_left_out_of_enrollment_are_clustered(mixed_ws: ProjectWorkspace) -> None:
+    service = SpeakerService(mixed_ws)
+    result = service.split_speakers(
+        "room", speaker_count=2, enrollment={"Ben": [(0.6, 2.4)]}, dry_run=True
+    )
+    assert result["speakers"] == ["Ben", "Speaker 2"]
+    assert result["method"] == "enroll"
+    named = service.split_speakers(
+        "room",
+        speaker_count=2,
+        names=["Ana", "Ben"],
+        enrollment={"Ben": [(0.6, 2.4)]},
+        dry_run=True,
+    )
+    assert named["speakers"] == ["Ana", "Ben"]
+    assert named["seconds_by_speaker"]["Ben"] == result["seconds_by_speaker"]["Ben"]
+
+
+@pytest.mark.parametrize(
+    ("names", "enrollment", "message"),
+    [
+        (["Ana", "Ben"], {"Cy": [(0.6, 2.4)]}, "'Cy' is not one of the names"),
+        (None, {"A": [(0.6, 1.0)], "B": [(2, 3)], "C": [(4, 5)]}, "3 speakers enrolled"),
+        (["Ana"], None, "expected 2 speaker names, got 1"),
+    ],
+)
+def test_split_names_must_fit_the_count_and_enrollment(
+    mixed_ws: ProjectWorkspace, names, enrollment, message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        SpeakerService(mixed_ws).split_speakers(
+            "room", speaker_count=2, names=names, enrollment=enrollment, dry_run=True
+        )
+
+
+def test_too_high_a_speaker_count_warns_which_two_are_one_person(
+    mixed_ws: ProjectWorkspace,
+) -> None:
+    result = SpeakerService(mixed_ws).split_speakers(
+        "room", speaker_count=3, names=["Ana", "Ben", "Cy"], dry_run=False
+    )
+    [warning] = result["warnings"]
+    assert "sound like one person" in warning
+    assert sum(name in warning for name in ("Ana", "Ben", "Cy")) == 2
+    assert len(result["lanes"]) == 3
 
 
 def test_split_refuses_the_ci_mock_backend(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
