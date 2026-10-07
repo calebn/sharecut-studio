@@ -3,9 +3,11 @@
 Transcript-guided cuts miss unlabeled words. Before session-wide ripple, check
 whether another dialogue stem is audibly speaking in the mapped window and
 either skip, force review, or convert to a track-local punch (silence hole,
-no peer ripple). :func:`measure_peer_speech` is the own-sound evidence the
-ripple speech guard (``edits/cut_speech.py``) shares, and
-:func:`word_voice_sounds_in` tells it whether a word's voice reaches into a cut.
+no peer ripple). Both guards share their evidence: :func:`measure_peer_speech`
+is a peer's own sound, and :func:`speech_words_in` its unsuppressed words whose
+own voice reaches into the cut (:func:`word_voice_sounds_in`). The ripple speech
+guard (``edits/cut_speech.py``) reads words first; this guard reads sound and
+falls back to words only where a peer's sound cannot be read.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from typing import Any, Literal
 import numpy as np
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.join_speech import JoinSpeechConfig
 from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC
 from podcast_mcp.engines.audio_audit import (
@@ -26,8 +29,13 @@ from podcast_mcp.engines.audio_audit import (
     measure_timeline_rms_db,
     timeline_frame_levels_db,
 )
-from podcast_mcp.engines.session_timeline import SessionTimeline
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.engines.session_timeline import (
+    SessionTimeline,
+    clip_source_to_timeline_shift,
+    clip_timeline_overlap_to_source,
+    word_source_span,
+)
+from podcast_mcp.models import CutSpeechWord, EpisodeProject
 from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -75,6 +83,8 @@ class PeerSpeechLevels:
     owner_rms_db: float | None
     peer_rms_db: dict[str, float]
     speaking: tuple[str, ...]
+    unread: dict[str, list[tuple[float, float]]] = field(default_factory=dict)
+    """Per peer, the spans where its own sound could not be read, so it shows nothing."""
 
 
 def measure_peer_speech(
@@ -119,6 +129,7 @@ def measure_peer_speech(
 
     peer_rms: dict[str, float] = {}
     speaking: list[str] = []
+    unread: dict[str, list[tuple[float, float]]] = {}
     for tid in peer_track_ids:
         if tid in owner_track_ids:
             continue
@@ -126,6 +137,7 @@ def measure_peer_speech(
         for (tl_start, tl_end), span_owner in zip(checked, span_owner_rms, strict=True):
             rms = measure_timeline_rms_db(project, tid, tl_start, tl_end, caches=caches)
             if rms is None:
+                unread.setdefault(tid, []).append((tl_start, tl_end))
                 continue
             if tid not in peer_rms or rms > peer_rms[tid]:
                 peer_rms[tid] = rms
@@ -137,7 +149,12 @@ def measure_peer_speech(
             speaks = True
         if speaks:
             speaking.append(tid)
-    return PeerSpeechLevels(owner_rms_db=owner_rms, peer_rms_db=peer_rms, speaking=tuple(speaking))
+    return PeerSpeechLevels(
+        owner_rms_db=owner_rms,
+        peer_rms_db=peer_rms,
+        speaking=tuple(speaking),
+        unread=unread,
+    )
 
 
 def word_voice_sounds_in(
@@ -171,6 +188,66 @@ def word_voice_sounds_in(
     return bool((inside >= float(word.max()) - JoinSpeechConfig().speech_dynamic_db).any())
 
 
+def _voiced_in_parts(
+    project: EpisodeProject,
+    track_id: str,
+    word: CutSpeechWord,
+    parts: Sequence[tuple[float, float]],
+) -> bool:
+    span = (word.timeline_start, word.timeline_end)
+    return any(
+        word_voice_sounds_in(project, track_id, span, (a, b))
+        for start, end in parts
+        if (a := max(start, span[0])) < (b := min(end, span[1]))
+    )
+
+
+def speech_words_in(
+    project: EpisodeProject,
+    track_id: str,
+    parts: Sequence[tuple[float, float]],
+    min_overlap: float,
+    *,
+    voiced: bool,
+) -> list[CutSpeechWord]:
+    """``track_id``'s unsuppressed, unignored words overlapping timeline ``parts``.
+
+    A word counts once it overlaps a part by ``min_overlap`` (or by all of itself
+    when shorter). ``voiced`` keeps only words whose own voice sounds where they
+    meet a part (:func:`word_voice_sounds_in`).
+    """
+    words: list[CutSpeechWord] = []
+    for clip in clips_for_track(project, track_id):
+        sources = [
+            source
+            for start, end in parts
+            if (source := clip_timeline_overlap_to_source(clip, start, end)) is not None
+        ]
+        if not sources:
+            continue
+        transcript = project.transcript_for_source(clip.track_id, clip.source_id)
+        if transcript is None:
+            continue
+        shift = clip_source_to_timeline_shift(clip)
+        for word in transcript.words:
+            if word.suppressed or word.ignored or word.suspect_hallucination:
+                continue
+            w_start, w_end = word_source_span(word.start, word.end)
+            overlap = max(min(w_end, hi) - max(w_start, lo) for lo, hi in sources)
+            if overlap <= 0 or overlap < min(min_overlap, w_end - w_start) - 1e-9:
+                continue
+            words.append(
+                CutSpeechWord(
+                    text=word.text,
+                    timeline_start=w_start + shift,
+                    timeline_end=w_end + shift,
+                )
+            )
+    if voiced:
+        words = [w for w in words if _voiced_in_parts(project, track_id, w, parts)]
+    return sorted(words, key=lambda w: w.timeline_start)
+
+
 def guard_min_overlap_sec(defaults: dict[str, Any] | None = None) -> float:
     """Shortest overlap with a removed span that counts as cutting speech."""
     return float(_guard_cfg(defaults).get("min_overlap_sec", 0.03))
@@ -185,7 +262,11 @@ def assess_cross_track_speech(
     defaults: dict[str, Any] | None = None,
     caches: TrackRmsCacheSet | None = None,
 ) -> SpeechEnergyGuardResult:
-    """Return tracks that are speaking over the cut's mapped timeline window."""
+    """Return tracks that are speaking over the cut's mapped timeline window.
+
+    A peer's own sound decides. Where it cannot be read (no stem or source audio),
+    the peer's unsuppressed words whose own voice is in the window decide instead.
+    """
     if src_end <= src_start or not speech_energy_guard_enabled(defaults):
         return SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
 
@@ -205,7 +286,14 @@ def assess_cross_track_speech(
     )
     if levels is None:
         return SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
-    if not levels.speaking:
+    min_overlap = guard_min_overlap_sec(defaults)
+    blocking = levels.speaking + tuple(
+        tid
+        for tid, unread in levels.unread.items()
+        if tid not in levels.speaking
+        and speech_words_in(project, tid, unread, min_overlap, voiced=True)
+    )
+    if not blocking:
         return SpeechEnergyGuardResult(
             blocking_track_ids=(),
             action=None,
@@ -213,7 +301,7 @@ def assess_cross_track_speech(
             other_rms_db=levels.peer_rms_db,
         )
     return SpeechEnergyGuardResult(
-        blocking_track_ids=levels.speaking,
+        blocking_track_ids=blocking,
         action=speech_energy_on_conflict(defaults),
         cut_rms_db=levels.owner_rms_db,
         other_rms_db=levels.peer_rms_db,

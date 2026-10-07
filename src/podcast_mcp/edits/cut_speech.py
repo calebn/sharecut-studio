@@ -7,7 +7,7 @@ deleted clip's own extent, a named track's range. Speech is any scope track's
 unsuppressed transcript words inside a removed span but outside that track's
 selected extents (a range cut that names no tracks selects nothing, so it counts
 every track's speech) whose own voice sounds there
-(``speech_energy_guard.word_voice_sounds_in``: ASR stretches word times over
+(``speech_energy_guard.speech_words_in``: ASR stretches word times over
 silence), or, where those parts have no such words, its own sound at speech level
 (``speech_energy_guard.measure_peer_speech``). With speech there and no
 ``confirm_cut_speech``, the edit returns a :class:`CutSpeechConfirmation` and changes
@@ -33,14 +33,10 @@ from podcast_mcp.edits.speech_energy_guard import (
     guard_min_overlap_sec,
     measure_peer_speech,
     speech_energy_guard_enabled,
-    word_voice_sounds_in,
+    speech_words_in,
 )
 from podcast_mcp.engines.audio_audit import build_track_rms_caches
-from podcast_mcp.engines.session_timeline import (
-    clip_source_to_timeline_shift,
-    clip_timeline_overlap_to_source,
-    word_source_span,
-)
+from podcast_mcp.engines.session_timeline import clip_source_to_timeline_shift
 from podcast_mcp.models import (
     CutSpeech,
     CutSpeechTrack,
@@ -131,43 +127,6 @@ def _speaker(project: EpisodeProject, track_id: str) -> str:
     return track.speaker or track.label or track_id
 
 
-def _words_in_parts(
-    project: EpisodeProject,
-    track_id: str,
-    parts: list[tuple[float, float]],
-    min_overlap: float,
-) -> list[CutSpeechWord]:
-    """``track_id``'s unsuppressed words overlapping one of the timeline ``parts``."""
-    words: list[CutSpeechWord] = []
-    for clip in clips_for_track(project, track_id):
-        sources = [
-            source
-            for start, end in parts
-            if (source := clip_timeline_overlap_to_source(clip, start, end)) is not None
-        ]
-        if not sources:
-            continue
-        transcript = project.transcript_for_source(clip.track_id, clip.source_id)
-        if transcript is None:
-            continue
-        shift = clip_source_to_timeline_shift(clip)
-        for word in transcript.words:
-            if word.suppressed or word.ignored or word.suspect_hallucination:
-                continue
-            w_start, w_end = word_source_span(word.start, word.end)
-            overlap = max(min(w_end, hi) - max(w_start, lo) for lo, hi in sources)
-            if overlap <= 0 or overlap < min(min_overlap, w_end - w_start) - 1e-9:
-                continue
-            words.append(
-                CutSpeechWord(
-                    text=word.text,
-                    timeline_start=w_start + shift,
-                    timeline_end=w_end + shift,
-                )
-            )
-    return sorted(words, key=lambda w: w.timeline_start)
-
-
 def _chosen_on_timeline(
     project: EpisodeProject, track_id: str, chosen: Sequence[SourceExtent], start: float, end: float
 ) -> list[tuple[float, float]]:
@@ -238,21 +197,6 @@ def _owners(removal: RippleRemoval, start: float, end: float) -> frozenset[str]:
     return frozenset(e.track_id for e in removal.selected if e.start < end and e.end > start)
 
 
-def _voiced_in_parts(
-    project: EpisodeProject,
-    track_id: str,
-    word: CutSpeechWord,
-    parts: list[tuple[float, float]],
-) -> bool:
-    """Whether ``word``'s own voice sounds where it meets one of the removed ``parts``."""
-    span = (word.timeline_start, word.timeline_end)
-    return any(
-        word_voice_sounds_in(project, track_id, span, (a, b))
-        for start, end in parts
-        if (a := max(start, span[0])) < (b := min(end, span[1]))
-    )
-
-
 def assess_cut_speech(
     project: EpisodeProject,
     removal: RippleRemoval,
@@ -281,9 +225,7 @@ def assess_cut_speech(
             )
             if not parts:
                 continue
-            found = _words_in_parts(project, tid, parts, min_overlap)
-            if guard_on:
-                found = [w for w in found if _voiced_in_parts(project, tid, w, parts)]
+            found = speech_words_in(project, tid, parts, min_overlap, voiced=guard_on)
             if found:
                 words.setdefault(tid, []).extend(found)
             else:
