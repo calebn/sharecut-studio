@@ -293,7 +293,7 @@ def add_remove_decision(
     # overlaps the filler (um→you); otherwise keep lead-in on the next onset
     # (know→like) so it doesn't start cold after the silence pad.
     cut_start, cut_end = opt.start, opt.end
-    if paced.replace_gap_sec is not None:
+    if paced.pad is not None:
         cut_start = min(max(cut_start, paced.start), paced.end)
         if paced.allow_trailing_past_end and opt.details.get("trailing_energy_extended"):
             cut_end = max(cut_end, cut_start + 0.001)
@@ -302,7 +302,7 @@ def add_remove_decision(
     if cut_end <= cut_start:
         cut_start, cut_end = paced.start, paced.end
 
-    replace_gap = paced.replace_gap_sec
+    replace_gap = None if paced.pad is None else paced.pad.seconds(cut_start, cut_end)
     scope = "session"
     review = review_required
     cut_reason = reason

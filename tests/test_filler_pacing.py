@@ -8,6 +8,8 @@ import pytest
 
 from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.edits.filler_pacing import (
+    FillerPacingResult,
+    PacedPad,
     apply_filler_pacing,
     expand_cut_for_room_tone_replace,
     flanking_retained_words,
@@ -199,7 +201,7 @@ def test_apply_filler_pacing_min_gap_disabled():
     )
     assert paced is not None
     assert paced.start == 1.5 and paced.end == 1.7
-    assert paced.replace_gap_sec is None
+    assert paced.pad is None
 
 
 def test_apply_filler_pacing_no_flanking_words():
@@ -218,7 +220,7 @@ def test_apply_filler_pacing_no_flanking_words():
         cut_kind="filler",
     )
     assert paced is not None
-    assert paced.replace_gap_sec is None
+    assert paced.pad is None
 
 
 def test_apply_filler_pacing_invalid_range():
@@ -273,7 +275,8 @@ def test_room_tone_expand_falls_back_when_gap_huge():
     # Keep local um bounds instead of expanding across the 19s gap
     assert paced.start == pytest.approx(10.0)
     assert paced.end == pytest.approx(10.2)
-    assert paced.replace_gap_sec == pytest.approx(0.28)
+    assert paced.pad is not None
+    assert paced.pad.seconds(paced.start, paced.end) == pytest.approx(0.28)
 
 
 def test_apply_auto_edits_with_room_tone_pads():
@@ -415,7 +418,8 @@ def test_apply_filler_pacing_room_tone_expand():
     )
     assert paced is not None
     # Inter-word gap 1.3s x 0.85 retain = 1.105 → capped at 1.0.
-    assert paced.replace_gap_sec == pytest.approx(1.0)
+    assert paced.pad is not None
+    assert paced.pad.seconds(paced.start, paced.end) == pytest.approx(1.0)
     # 60ms lead-out after "And" (air after prev is 0.3s ≥ 40ms).
     assert paced.start == pytest.approx(1.26)
     # 80ms lead-in before "really" (air before next is 0.8s ≥ 40ms).
@@ -456,9 +460,7 @@ def test_apply_filler_pacing_overlap_allows_trailing_past():
     assert paced.end == pytest.approx(1.5 - 0.005)
 
 
-def test_replace_gap_retains_fraction_of_original():
-    from podcast_mcp.edits.filler_pacing import replace_gap_for_hesitation
-
+def test_paced_pad_retains_fraction_of_the_hesitation():
     defaults = {
         "tighten": {
             "min_gap_after_filler_sec": 0.35,
@@ -467,17 +469,16 @@ def test_replace_gap_retains_fraction_of_original():
         }
     }
     # Short um gap floors at min_gap.
-    assert replace_gap_for_hesitation(
-        inter_word_gap_sec=0.40, cut_dur_sec=0.25, defaults=defaults
-    ) == pytest.approx(0.35)
+    assert PacedPad.from_defaults(0.40, defaults).seconds(1.0, 1.25) == pytest.approx(0.35)
     # Longer "you know" keeps most of the thought-boundary air.
-    assert replace_gap_for_hesitation(
-        inter_word_gap_sec=1.14, cut_dur_sec=0.72, defaults=defaults
-    ) == pytest.approx(0.969)
+    assert PacedPad.from_defaults(1.14, defaults).seconds(1.0, 1.72) == pytest.approx(0.969)
     # Cap long gaps.
-    assert replace_gap_for_hesitation(
-        inter_word_gap_sec=2.0, cut_dur_sec=0.5, defaults=defaults
-    ) == pytest.approx(1.0)
+    assert PacedPad.from_defaults(2.0, defaults).seconds(1.0, 1.5) == pytest.approx(1.0)
+    # A span wider than the air it was paced for keeps 85% of the span (#1074).
+    assert PacedPad.from_defaults(0.40, defaults).seconds(1.0, 1.78) == pytest.approx(0.663)
+    # No floor means no pad; no retain fraction leaves the floor alone.
+    assert PacedPad(gap_sec=1.0, min_sec=0.0, retain=0.85, max_sec=1.0).seconds(1.0, 2.0) == 0.0
+    assert PacedPad(gap_sec=1.0, min_sec=0.35, retain=0.0, max_sec=1.0).seconds(1.0, 2.0) == 0.35
 
 
 def test_apply_filler_pacing_shrink_mode():
@@ -501,7 +502,7 @@ def test_apply_filler_pacing_shrink_mode():
         cut_kind="filler",
     )
     assert paced is not None
-    assert paced.replace_gap_sec is None
+    assert paced.pad is None
     # original gap 0.9; max remove 0.62; cut was 0.7 → shrink
     assert paced.end - paced.start == pytest.approx(0.62)
     prev, nxt = flanking_retained_words(project, "host", paced.start, paced.end)
@@ -961,7 +962,7 @@ def test_analyze_candidate_rejects_on_a_guard_value_error() -> None:
         patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
         patch(
             "podcast_mcp.edits.fillers.apply_filler_pacing",
-            return_value=type("P", (), {"start": 1.0, "end": 1.3, "replace_gap_sec": 0.1})(),
+            return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
             "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
@@ -1003,7 +1004,7 @@ def test_analyze_candidate_marks_review_when_guard_requests() -> None:
         patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
         patch(
             "podcast_mcp.edits.fillers.apply_filler_pacing",
-            return_value=type("P", (), {"start": 1.0, "end": 1.3, "replace_gap_sec": 0.1})(),
+            return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
             "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
@@ -1050,7 +1051,7 @@ def test_analyze_candidate_track_local_on_blocked_peer() -> None:
         patch("podcast_mcp.edits.fillers.detect_adjacent_breath", return_value=[]),
         patch(
             "podcast_mcp.edits.fillers.apply_filler_pacing",
-            return_value=type("P", (), {"start": 1.0, "end": 1.3, "replace_gap_sec": 0.1})(),
+            return_value=FillerPacingResult(1.0, 1.3, pad=PacedPad.from_defaults(0.0, defaults)),
         ),
         patch(
             "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",

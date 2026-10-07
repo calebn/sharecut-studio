@@ -111,7 +111,8 @@ tighten:
   # a fraction of the original inter-word gap as pad (not a fixed 0.3–0.5s —
   # that band is only the floor for short um/uh; longer "you know" gaps need
   # more air or neighbors slam together).
-  # pad = clamp(min_gap, gap * retain_fraction, max_pad)
+  # pad = clamp(min_gap, gap * retain_fraction, max_pad), where gap is the larger
+  # of the flanking-word air the cut takes and the span it finally removes.
   min_gap_after_filler_sec: 0.35
   filler_gap_retain_fraction: 0.85
   filler_replace_gap_max_sec: 1.0
