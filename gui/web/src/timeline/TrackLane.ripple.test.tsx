@@ -42,40 +42,68 @@ const later = clipRow({
   timeline_end: 9,
 });
 
+const guest = sampleTrack({ id: "guest", duration_sec: 20 });
+const guestLong = clipRow({
+  id: "g1",
+  track_id: "guest",
+  source_start: 0,
+  source_end: 8,
+  timeline_start: 0,
+  timeline_end: 8,
+});
+const music = sampleTrack({ id: "music", role: "music", duration_sec: 20 });
+const bed = clipRow({
+  id: "m1",
+  track_id: "music",
+  source_start: 0,
+  source_end: 9,
+  timeline_start: 0,
+  timeline_end: 9,
+});
+
 function renderLane() {
   clearRegisteredCommands();
   registerDawCommands();
-  useDawStore.getState().hydrate(
-    "/tmp/ripple.project.json",
-    minimalProject({
-      tracks: [track],
-      clips: { tracks: { host: [first, later] }, clip_count: 2 },
-    }),
-  );
+  const lanes = { host: [first, later], guest: [guestLong], music: [bed] };
+  const tracks = [track, guest, music];
+  useDawStore
+    .getState()
+    .hydrate(
+      "/tmp/ripple.project.json",
+      minimalProject({ tracks, clips: { tracks: lanes, clip_count: 4 } }),
+    );
   return render(
     <>
       <Keys />
-      <TrackLane
-        track={track}
-        trackIndex={0}
-        clips={[first, later]}
-        width={2000}
-        zoomPxPerSec={100}
-        projectPath="/tmp/ripple.project.json"
-        selection={{ kind: "clip", id: "c1", trackId: "host" }}
-        showLevels={false}
-        showEdits={false}
-        envelopes={[]}
-        appliedRecords={[]}
-        pendingEdits={[]}
-        onSelectTrack={vi.fn()}
-        onSelectPending={vi.fn()}
-        onSeek={vi.fn()}
-        onSelectClip={vi.fn()}
-      />
+      {tracks.map((t, i) => (
+        <TrackLane
+          key={t.id}
+          track={t}
+          trackIndex={i}
+          clips={lanes[t.id as keyof typeof lanes]}
+          width={2000}
+          zoomPxPerSec={100}
+          projectPath="/tmp/ripple.project.json"
+          selection={{ kind: "clip", id: "c1", trackId: "host" }}
+          showLevels={false}
+          showEdits={false}
+          envelopes={[]}
+          appliedRecords={[]}
+          pendingEdits={[]}
+          onSelectTrack={vi.fn()}
+          onSelectPending={vi.fn()}
+          onSeek={vi.fn()}
+          onSelectClip={vi.fn()}
+        />
+      ))}
     </>,
   );
 }
+
+const laneOf = (container: HTMLElement, trackId: string) =>
+  container.querySelector(
+    `.lane-row[data-track-id="${trackId}"] .lane-inner`,
+  ) as HTMLElement;
 
 describe("ripple trims on the lane (#1135)", () => {
   beforeEach(() => vi.mocked(trimClipEdge).mockClear());
@@ -91,17 +119,38 @@ describe("ripple trims on the lane (#1135)", () => {
     expect(
       container.querySelector('[data-clip-id="c1"] .trim-readout'),
     ).toHaveTextContent("Ripplelater −0.1 s");
-    const arrows = container.querySelectorAll(".lane-inner > .ripple-arrow");
+    const host = laneOf(container, "host");
+    const arrows = host.querySelectorAll(":scope > .ripple-arrow");
     expect(arrows).toHaveLength(1);
     // From c2's start (600 px) back 10 px to where it will start.
     expect(arrows[0]).toHaveStyle({ left: "590px", width: "10px" });
+    expect(host.querySelector(":scope > .clip-trimmed-span")).toBeNull();
+
+    // The guest's dialogue track loses the same 0.1 s at 4.9-5 s, and the
+    // rest of its clip moves back by as much.
+    const guestLane = laneOf(container, "guest");
+    expect(guestLane.querySelector(":scope > .clip-trimmed-span")).toHaveStyle({
+      left: "490px",
+      width: "10px",
+    });
+    const guestArrows = guestLane.querySelectorAll(":scope > .ripple-arrow");
+    expect(guestArrows).toHaveLength(1);
+    expect(guestArrows[0]).toHaveStyle({ left: "490px", width: "10px" });
+
+    // Music is not a dialogue track: nothing on it moves.
+    const musicLane = laneOf(container, "music");
+    expect(
+      musicLane.querySelectorAll(
+        ":scope > .ripple-arrow, :scope > .clip-trimmed-span",
+      ),
+    ).toHaveLength(0);
 
     fireEvent.keyUp(handle, { key: "ArrowLeft" });
     await waitFor(() => expect(trimClipEdge).toHaveBeenCalledOnce());
-    expect(container.querySelector(".lane-inner")).toHaveClass("is-settling");
-    expect(
-      container.querySelectorAll(".lane-inner > .ripple-arrow"),
-    ).toHaveLength(0);
+    expect(host).toHaveClass("is-settling");
+    expect(guestLane).toHaveClass("is-settling");
+    expect(musicLane).not.toHaveClass("is-settling");
+    expect(container.querySelectorAll(".ripple-arrow")).toHaveLength(0);
   });
 
   it("stops a drag at a hard limit with the bump and a note", () => {

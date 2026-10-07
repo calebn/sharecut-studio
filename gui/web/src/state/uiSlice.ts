@@ -255,6 +255,8 @@ type UiSlice = Pick<
   | "setOpenJoinId"
   | "joinMutationInFlight"
   | "setJoinMutationInFlight"
+  | "rippleTrim"
+  | "setRippleTrim"
   | "fitToWindow"
   | "measureTimelineViewport"
 >;
@@ -783,6 +785,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     joinMutationInFlight: false,
     setJoinMutationInFlight: (joinMutationInFlight) =>
       set({ joinMutationInFlight }),
+    rippleTrim: null,
+    setRippleTrim: (rippleTrim) => set({ rippleTrim }),
     fitToWindow: (viewportWidth) => {
       const duration = sessionSecOf(get());
       if (duration > 0 && viewportWidth > 0) {

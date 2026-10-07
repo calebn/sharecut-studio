@@ -1,5 +1,6 @@
 import {
   clipGeometryDuringRoll,
+  type EditMode,
   type RollPreview,
   type TrimEdge,
 } from "../edit/clipEdgePreview";
@@ -9,6 +10,8 @@ export type FadeEdge = "in" | "out";
 export type ClipFadePreview = { edge: FadeEdge; inMs: number; outMs: number };
 export type ClipTrimPreview = {
   edge: TrimEdge;
+  /** Ripple closes or opens time downstream; gap leaves it where it is. */
+  mode: EditMode;
   sourceStart: number;
   sourceEnd: number;
 };
@@ -43,6 +46,11 @@ export interface ClipBlockGeometry {
    * relative to `left` (css px); null when the edge has not moved.
    */
   landing: { left: number; width: number } | null;
+  /**
+   * The gap a gap-mode trim leaves where the clip was, relative to `left`
+   * (css px); null otherwise.
+   */
+  gap: { left: number; width: number } | null;
   /** How far a previewing trim ripples the later clips (s); 0 when none. */
   rippleSec: number;
 }
@@ -102,17 +110,27 @@ export function clipBlockGeometry(input: {
   const ghostExtraPx = growingOut
     ? (trimPreview.sourceEnd - clip.source_end) * zoomPxPerSec
     : 0;
+  const gapMode = trimPreview?.mode === "gap";
   const rippleSec =
-    trimPreview != null && !rollActive
+    trimPreview != null && !rollActive && !gapMode
       ? durationSec - (clip.source_end - clip.source_start)
       : 0;
   const landing =
-    Math.abs(headShift) > 1e-9
+    Math.abs(headShift) > 1e-9 && !gapMode
       ? {
           left: -headShift * zoomPxPerSec,
           width: Math.max(4, durationSec * zoomPxPerSec),
         }
       : null;
+  // A gap trim that shortens the clip leaves its old start or end empty.
+  const tailCut = clip.source_end - sourceEnd;
+  const gap = !gapMode
+    ? null
+    : headShift > 1e-9
+      ? { left: -headShift * zoomPxPerSec, width: headShift * zoomPxPerSec }
+      : tailCut > 1e-9
+        ? { left: durationSec * zoomPxPerSec, width: tailCut * zoomPxPerSec }
+        : null;
 
   return {
     rollActive,
@@ -131,6 +149,7 @@ export function clipBlockGeometry(input: {
     fadeDragEdge: fadePreview?.edge ?? null,
     trimDragging: trimPreview != null || rollActive,
     landing,
+    gap,
     rippleSec,
   };
 }

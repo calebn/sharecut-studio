@@ -194,6 +194,7 @@ export function ClipBlockView({
     fadeDragEdge,
     trimDragging,
     landing,
+    gap,
     rippleSec,
   } = geometry;
 
@@ -294,6 +295,13 @@ export function ClipBlockView({
           />
           <RippleArrow from={0} to={landing.left} />
         </>
+      ) : null}
+      {gap ? (
+        <span
+          className="clip-trimmed-span"
+          style={{ left: gap.left, width: gap.width }}
+          aria-hidden="true"
+        />
       ) : null}
       {rippleSec !== 0 ? (
         <span className="trim-readout" aria-hidden="true">

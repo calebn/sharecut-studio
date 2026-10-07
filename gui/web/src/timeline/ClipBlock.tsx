@@ -20,7 +20,7 @@ import {
   waveformTicksToTimeline,
 } from "../edit/clipMove";
 import { isHandleDrag, ROLL_COMMIT_MIN_PX } from "../edit/dragThreshold";
-import { type RipplePreview, rippleOf } from "../edit/ripplePreview";
+import { rippleTrimOf } from "../edit/ripplePreview";
 import { MOVE_THRESHOLD_PX } from "../hooks/gestureConstants";
 import { useSnapTicks } from "../hooks/useSnapTicks";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
@@ -75,11 +75,6 @@ export interface ClipBlockProps {
    */
   rollPreview: RollPreview | null;
   onRollPreview: (preview: RollPreview | null) => void;
-  /**
-   * A trim of this clip ripples the later clips on its lane; the lane moves
-   * them live while the trim previews (#1135).
-   */
-  onRipplePreview?: (preview: RipplePreview | null) => void;
   /** Select-only (e.g. fade drag start). Callbacks take the clip id first,
    *  so a lane passes one stable function to every clip. */
   onSelect: (clipId: string) => void;
@@ -155,7 +150,6 @@ export function ClipBlockLive({
   mediaDurationSec,
   rollPreview,
   onRollPreview,
-  onRipplePreview,
   onSelect,
   onHit,
   onSelectClip,
@@ -249,13 +243,29 @@ export function ClipBlockLive({
   });
   const { fadePreview, trimPreview } = edgeHandles;
   const ripple = useMemo(
-    () => (trimPreview ? rippleOf(clip, trimPreview) : null),
+    () =>
+      trimPreview ? rippleTrimOf(clip, trimPreview, trimPreview.mode) : null,
     [clip, trimPreview],
   );
+  // Every lane the trim ripples draws it from the store; only the clip that
+  // published a ripple clears it, so other clips mounting mid-drag cannot.
+  const publishedRipple = useRef(false);
   useLayoutEffect(() => {
-    onRipplePreview?.(ripple);
-  }, [ripple, onRipplePreview]);
-  useLayoutEffect(() => () => onRipplePreview?.(null), [onRipplePreview]);
+    const store = useDawStore.getState();
+    if (ripple) {
+      publishedRipple.current = true;
+      store.setRippleTrim(ripple);
+    } else if (publishedRipple.current) {
+      publishedRipple.current = false;
+      store.setRippleTrim(null);
+    }
+  }, [ripple]);
+  useLayoutEffect(
+    () => () => {
+      if (publishedRipple.current) useDawStore.getState().setRippleTrim(null);
+    },
+    [],
+  );
 
   const geometry = clipBlockGeometry({
     clip,

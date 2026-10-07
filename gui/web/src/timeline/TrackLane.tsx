@@ -6,7 +6,7 @@ import type {
   MoveGhost,
 } from "../edit/clipMove";
 import { isDrawnJoin } from "../edit/joinRender";
-import { type RipplePreview, rippledStarts } from "../edit/ripplePreview";
+import { laneRipple, rippleMoves, rippleTrackIds } from "../edit/ripplePreview";
 import {
   audioFilesFromDrop,
   fileCountFromDataTransfer,
@@ -149,8 +149,10 @@ export function TrackLaneView({
     shareCapabilities,
     setIngestDropTrackId,
     setPointerTrackId,
+    rippleTrim,
   } = useDaw((s) => ({
     tracks: s.project?.tracks ?? EMPTY_ARR,
+    rippleTrim: s.rippleTrim,
     auditionMode: s.auditionMode,
     guestMode: s.guestMode,
     shareCapabilities: s.shareCapabilities,
@@ -161,16 +163,26 @@ export function TrackLaneView({
   const [dropOver, setDropOver] = useState(false);
   const [dragFileCount, setDragFileCount] = useState(1);
   const [rollPreview, setRollPreview] = useState<RollPreview | null>(null);
-  const [ripple, setRipple] = useState<RipplePreview | null>(null);
-  const rippled = rippledStarts(clips, ripple);
+  const ripple = useMemo(
+    () =>
+      rippleTrim
+        ? laneRipple(
+            rippleTrim,
+            track,
+            clips,
+            rippleTrackIds(tracks, [rippleTrim.trackId]),
+          )
+        : null,
+    [rippleTrim, track, clips, tracks],
+  );
+  const rippleMovesHere = rippleMoves(clips, ripple);
   // A trim that ends lets the later clips slide to where it put them.
   const [settling, setSettling] = useState(false);
-  const rippleRef = useRef<RipplePreview | null>(null);
-  const onRipplePreview = useCallback((next: RipplePreview | null) => {
-    if (rippleRef.current && !next) setSettling(true);
-    rippleRef.current = next;
-    setRipple(next);
-  }, []);
+  const [wasRippling, setWasRippling] = useState(false);
+  if (wasRippling !== (ripple != null)) {
+    setWasRippling(ripple != null);
+    if (!ripple) setSettling(true);
+  }
   useEffect(() => {
     if (!settling) return;
     const done = setTimeout(() => setSettling(false), RIPPLE_SETTLE_MS);
@@ -299,16 +311,6 @@ export function TrackLaneView({
         className={`lane-inner${settling ? " is-settling" : ""}`}
         style={{ width }}
       >
-        {Object.entries(rippled).map(([id, sec]) => {
-          const from = clips.find((c) => c.id === id)?.timeline_start ?? sec;
-          return (
-            <RippleArrow
-              key={`ripple-${id}`}
-              from={from * zoomPxPerSec}
-              to={sec * zoomPxPerSec}
-            />
-          );
-        })}
         {selection?.kind === "range" &&
         selection.target.track_ids.includes(track.id)
           ? selection.target.intervals.map((r) => (
@@ -364,7 +366,6 @@ export function TrackLaneView({
                   : null
               }
               onRollPreview={setRollPreview}
-              onRipplePreview={onRipplePreview}
               onSelect={selectClip}
               onHit={onClipHit}
               onSelectClip={selectClip}
@@ -383,6 +384,25 @@ export function TrackLaneView({
             />
           );
         })}
+        {/* Over the clips, the dragged one included: the span this lane
+            loses and where its later clips go (#1135). */}
+        {ripple?.cut ? (
+          <span
+            className="clip-trimmed-span"
+            style={{
+              left: ripple.cut.start * zoomPxPerSec,
+              width: (ripple.cut.end - ripple.cut.start) * zoomPxPerSec,
+            }}
+            aria-hidden="true"
+          />
+        ) : null}
+        {rippleMovesHere.map((move) => (
+          <RippleArrow
+            key={`ripple-${move.key}`}
+            from={move.fromSec * zoomPxPerSec}
+            to={move.toSec * zoomPxPerSec}
+          />
+        ))}
         {/* One badge per drawn join, at the top of the seam (#690); clicking it
             opens the join popover (#691). A live roll reshapes both sides, so
             the join rule and the seam read the rolled rows ClipBlock draws. */}

@@ -12,7 +12,7 @@ import {
   registerFocusedClipHandle,
 } from "../commands/focusedClipHandle";
 import { clampTrimSourceSec, type TrimEdge } from "../edit/clipEdgePreview";
-import { saveClipEdge } from "../edit/clipEdgeSave";
+import { saveClipEdge, TRIM_MODE } from "../edit/clipEdgeSave";
 import { CLIP_HANDLE_STEPS } from "../edit/clipHandleSteps";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
@@ -100,6 +100,7 @@ function projectEdge(draft: Draft, candidate: number): Draft {
     ...draft,
     preview: {
       edge: draft.edge,
+      mode: draft.preview.mode,
       sourceStart: draft.edge === "in" ? value : clip.source_start,
       sourceEnd: draft.edge === "out" ? value : clip.source_end,
     },
@@ -227,6 +228,7 @@ export function useClipEdgeHandles(context: Context) {
           input,
           preview: {
             edge,
+            mode: TRIM_MODE,
             sourceStart: c.clip.source_start,
             sourceEnd: c.clip.source_end,
           },
@@ -300,6 +302,7 @@ export function useClipEdgeHandles(context: Context) {
           : {
               kind: "trim",
               edge: d.edge,
+              mode: d.preview.mode,
               sourceSec:
                 d.edge === "in" ? d.preview.sourceStart : d.preview.sourceEnd,
             },

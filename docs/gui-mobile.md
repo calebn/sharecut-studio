@@ -159,7 +159,9 @@ time and level (for the host and Editor links). Holding a nudge repeats it,
 faster after a few steps, and the run saves as one edit; a held run stops at a
 soft boundary (the playhead, a chapter, a clip or pending edge) and a fresh
 press goes past it. A trim's strip wears the **Ripple** mark: later clips on
-the track move with it.
+every dialogue track move with it, and a held nudge previews them all. A
+ripple trim drag draws the same on every lane it moves: arrows to where the
+later clips go and, on the other lanes, the span a shortening trim takes.
 The compact inspector is a swipeable drawer (#1051 round 4b): drag its header,
 which shows a grabber pill, up or down between **peek** (the strip), **half**
 (the full inspector at no more than half the slot) and **full**. A short or

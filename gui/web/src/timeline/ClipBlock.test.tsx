@@ -1432,7 +1432,12 @@ describe("ClipBlock waveform", () => {
           clip,
           zoomPxPerSec: 50,
           rollPreview: null,
-          trimPreview: { edge: "out", sourceStart: 0, sourceEnd: 3 },
+          trimPreview: {
+            edge: "out",
+            mode: "ripple",
+            sourceStart: 0,
+            sourceEnd: 3,
+          },
           fadePreview: null,
           previewTimelineStart: null,
         })}
@@ -2057,7 +2062,12 @@ describe("ClipBlockView", () => {
       clip,
       zoomPxPerSec: 50,
       rollPreview: null,
-      trimPreview: { edge: "out", sourceStart: 0, sourceEnd: 2.5 },
+      trimPreview: {
+        edge: "out",
+        mode: "ripple",
+        sourceStart: 0,
+        sourceEnd: 2.5,
+      },
       fadePreview: null,
       previewTimelineStart: null,
     });
