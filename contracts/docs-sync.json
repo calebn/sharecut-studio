@@ -1203,7 +1203,7 @@
           "gui/web/src/ui/BottomSheet.tsx",
           "gui/web/src/commands/gestures.ts",
           "gui/web/src/timeline/timelineZoomGestures.ts",
-          "gui/web/src/hooks/touchGestureTiming.ts",
+          "gui/web/src/hooks/gestureConstants.ts",
           "gui/web/src/hooks/useLongPress.ts"
         ]
       }
