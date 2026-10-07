@@ -52,6 +52,10 @@ speaker-lite = [
     # and older numba/llvmlite releases fail to build on Python 3.12+ (no python_requires
     # metadata, just a runtime guard). Force a modern, 3.12+/3.14-compatible resolution.
     "numba>=0.59.0",
+    # resemblyzer -> webrtcvad 2.0.10 (sdist-only, unmaintained) does `import pkg_resources`
+    # at import time, and setuptools 82 removed it. A fresh venv otherwise resolves the
+    # newest setuptools (#1168). Drop once webrtcvad or resemblyzer stops needing it.
+    "setuptools<82",
 ]
 joinqc = [
     "torch>=2.0.0",
@@ -95,6 +99,7 @@ all = [
     "speechbrain>=1.0.0",
     "resemblyzer>=0.1.3",
     "numba>=0.59.0",
+    "setuptools<82",
     "static-ffmpeg>=3.0",
     "fastapi>=0.116.1",
     "uvicorn[standard]>=0.32.0",
@@ -297,4 +302,6 @@ DEP002 = [
     "av", # Compatibility constraint for faster-whisper's metadata_errors argument.
     # Pin floor for speaker-lite (resemblyzer -> numba); not imported directly.
     "numba",
+    # Runtime pin for webrtcvad's `import pkg_resources` (speaker-lite); not imported here.
+    "setuptools",
 ]
