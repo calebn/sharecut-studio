@@ -4,6 +4,7 @@ import { Button } from "./Button";
 import { CloseButton } from "./CloseButton";
 import { useDialogModal } from "./useDialogModal";
 import { useDrawerSwipe } from "./useDrawerSwipe";
+import { useResizeObserver } from "./useResizeObserver";
 
 /** `peek`: a content-height strip; `half` and `full`: fixed shares of the slot. */
 export type BottomSheetSize = "peek" | "half" | "full";
@@ -80,6 +81,23 @@ export function BottomSheet({
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const swipe = useDrawerSwipe(panelRef, drawer);
+  const chromeRef = useRef<HTMLDivElement>(null);
+  // The drawer's chrome stays pinned while its body scrolls; the panel's
+  // scroll padding keeps a focused or revealed control clear of it.
+  useResizeObserver(
+    chromeRef,
+    () => {
+      const panel = panelRef.current;
+      const chrome = chromeRef.current;
+      if (panel && chrome) {
+        panel.style.setProperty(
+          "--sheet-chrome-block-size",
+          `${chrome.offsetHeight}px`,
+        );
+      }
+    },
+    drawer != null,
+  );
   const isExpanded = expanded ?? size === expandedSize;
   const current = drawer ? drawer.detent : isExpanded ? expandedSize : size;
 
@@ -166,6 +184,7 @@ export function BottomSheet({
         aria-labelledby={title ? titleId : undefined}
       >
         <div
+          ref={chromeRef}
           className={`bottom-sheet-chrome${drawer ? " bottom-sheet-chrome--drawer" : ""}`}
           {...(drawer ? swipe : {})}
         >
