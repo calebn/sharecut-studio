@@ -672,6 +672,32 @@ def test_guest_tool_refusal_redacts_host_paths(
     assert "/Users/host" not in json.dumps(out)
 
 
+def test_guest_ab_preview_refusal_names_the_wav_not_the_host_path(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.services.document import PlayService
+    from podcast_mcp.services.remote_mcp import tools as rt
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"], label="ab")
+    show = tmp_workspace / "My Secret Show"
+
+    def preview():
+        PlayService(rt.get_remote_mcp_context().workspace).play_ab_wavs(
+            show / "A.wav", sample_wav, dry_run=True
+        )
+
+    monkeypatch.setattr(rt, "TOOL_HANDLERS", {**rt.TOOL_HANDLERS, "guest_get_project": preview})
+
+    out = _call(share["token"], "guest_get_project", {})
+
+    text, structured = _tool_error(out)
+    assert text == "A wav not found: A.wav"
+    assert structured is not None
+    assert structured["error_code"] == "file_not_found"
+    assert "Secret" not in json.dumps(out)
+
+
 def test_protocol_maps_busy_lock_timeout_to_project_busy(
     minimal_project, sample_wav, tmp_workspace, monkeypatch
 ):

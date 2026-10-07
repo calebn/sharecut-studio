@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from podcast_mcp.util.redact import sanitize
+from podcast_mcp.util.redact import redact_host_paths, sanitize
 
 
 @pytest.mark.parametrize(
@@ -189,3 +189,43 @@ def test_redact_secrets_masks_the_longer_secret_first():
     from podcast_mcp.util.redact import redact_secrets
 
     assert redact_secrets("a-b-secret", ["a-b", "a-b-secret"]) == "<redacted>"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("raw media not found: /Users/caleb nelson/My Show/x.wav", "raw media not found: [path]"),
+        ("A wav not found: ~/Podcasts/Secret Show/raw.wav", "A wav not found: [path]"),
+        ("A wav not found: ~/raw.wav", "A wav not found: [path]"),
+        ("read ~caleb/Secret/raw.wav failed", "read [path] failed"),
+        (r"in C:\Users\Name With Space\Secret Show\raw.wav now", "in [path] now"),
+        ("C:/Users/Caleb/Podcasts/raw.wav", "[path]"),
+        (r"D:\Shows\Ep 1\raw.wav", "[path]"),
+        ("a /srv/shows/Gäste/Ana/raw.wav b", "a [path] b"),
+        ("/srv/shows/épisode/raw.wav", "[path]"),
+        ("/media/shows/日本語 番組/第1回.wav", "[path]"),
+        ("file:///Users/caleb%20nelson/My%20Show/x.wav", "[path]"),
+        ("file:///Users/caleb nelson/My Show/x.wav end", "[path] end"),
+        ("file:///C:/Users/Name With Space/x.wav", "[path]"),
+        (r"\\nas\shows\Secret Show\raw.wav", "[path]"),
+        (
+            "cannot read '/Users/host/ep one/raw.wav' (permission denied)",
+            "cannot read '[path]' (permission denied)",
+        ),
+        ("path=/Users/host/x.wav; next", "path=[path]; next"),
+        ("(see /tmp/a b/c.wav)", "(see [path])"),
+        ("Caleb's: /Users/Caleb's Show/x.wav", "Caleb's: [path]"),
+        ("/Users/Caleb Nelson", "[path]"),
+        ("failed at /tmp", "failed at [path]"),
+        ("/Users/host/Podcasts/Secret Show/Ep 1 raw.wav missing", "[path] missing"),
+        ("reading /Users/host/Library/Application Support/Show/x.wav (x)", "reading [path] (x)"),
+        ("not found: /Users/a/raw.", "not found: [path]"),
+        ("line one\n/Users/host/raw.wav\nline three", "line one\n[path]\nline three"),
+        ("mode must be current/suggested/ab", "mode must be current/suggested/ab"),
+        ("1/2 of 3/4", "1/2 of 3/4"),
+        ("see https://example.com/a/b ok", "see https://example.com/a/b ok"),
+        ("comment c9 not found", "comment c9 not found"),
+    ],
+)
+def test_redact_host_paths_table(text: str, expected: str) -> None:
+    assert redact_host_paths(text) == expected
