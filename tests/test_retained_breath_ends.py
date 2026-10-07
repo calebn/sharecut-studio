@@ -190,7 +190,7 @@ def test_final_crossing_search_continues_after_earlier_non_crossing_run(backend:
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
-def test_final_crossing_suppresses_when_quiet_onset_cannot_be_refined(
+def test_a_pause_trim_ends_before_a_quiet_onset_that_cannot_be_refined(
     backend: str,
 ) -> None:
     from test_breath_detect import _harmonic_tone
@@ -199,13 +199,16 @@ def test_final_crossing_suppresses_when_quiet_onset_cannot_be_refined(
         (5.0, 5.12, 0.0008),
         (5.12, 5.26, 0.026),
     )
-    # The quiet onset is voiced speech and must fail the shared refinement gate.
+    # The quiet onset is voiced speech and must fail the shared refinement gate. A
+    # splice would be suppressed; a pause trim removes only air, so it ends where the
+    # sound starts and keeps it whole (#1055).
     samples = cache.waveform.samples
     samples[round(5.0 * 16000) : round(5.12 * 16000)] = _harmonic_tone(1920, 0.0008)
 
     result = _proposal(cache, 5.15, backend)
 
-    assert result == _CutRejected("breath")
+    assert not isinstance(result, _CutRejected)
+    assert (result.start, result.end) == pytest.approx((4.9, 5.0))
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -227,7 +230,7 @@ def test_final_start_retains_complete_quiet_tail(backend: str, edge: float) -> N
 
 
 @pytest.mark.parametrize("peak", [0.55, 0.60])
-def test_final_connected_protected_activity_suppresses_proposal(peak: float) -> None:
+def test_a_pause_trim_ends_before_connected_protected_activity(peak: float) -> None:
     import numpy as np
 
     cache = _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026))
@@ -237,7 +240,10 @@ def test_final_connected_protected_activity_suppresses_proposal(peak: float) -> 
             max(1, (samples.size - min(samples.size, 640)) // 160 + 1), peak
         ),
     ):
-        assert _proposal(cache, 5.15, "heuristic") == _CutRejected("breath")
+        result = _proposal(cache, 5.15, "heuristic")
+
+    assert not isinstance(result, _CutRejected)
+    assert (result.start, result.end) == pytest.approx((4.9, 5.0))
 
 
 @pytest.mark.parametrize("adjustment", ["min_start", "pacing", "voiced"])
