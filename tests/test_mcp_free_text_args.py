@@ -22,7 +22,7 @@ from mcp.server import MCPServer
 from pydantic import TypeAdapter
 
 from podcast_mcp.mcp import server as mcp_server
-from podcast_mcp.mcp.args import install_free_text_args, is_free_text
+from podcast_mcp.mcp.args import FreeTextFuncMetadata, install_free_text_args, is_free_text
 from podcast_mcp.models import Transcript, TranscriptWord, load_project, save_project
 
 # Strings an agent may legitimately write that are also valid JSON.
@@ -144,6 +144,25 @@ async def test_install_free_text_args_covers_tools_added_later() -> None:
 
     assert _result_json(text) == {"text": "[1]", "items": [1]}
     assert _result_json(omitted) == {"text": None, "items": None}
+
+
+def test_free_text_metadata_keeps_every_sdk_field() -> None:
+    """``_keep_free_text`` copies the whole ``FuncMetadata``, so a field added upstream survives."""
+    from mcp.server.mcpserver.tools import Tool
+
+    from podcast_mcp.mcp.args import _keep_free_text
+
+    def typed_tool(text: str | None = None) -> dict[str, str | None]:
+        return {"text": text}
+
+    tool = Tool.from_function(typed_tool, structured_output=True)
+    before = tool.fn_metadata
+    after = _keep_free_text(tool).fn_metadata
+
+    assert isinstance(after, FreeTextFuncMetadata)
+    assert type(before).model_fields  # the SDK model still declares its fields
+    for name in type(before).model_fields:
+        assert getattr(after, name) == getattr(before, name), name
 
 
 @pytest.mark.parametrize(

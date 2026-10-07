@@ -19,6 +19,10 @@ swaps each registered tool's metadata for ``FreeTextFuncMetadata``, which never 
 a string sent to a free-text parameter. Only a JSON ``null`` (or omitting the argument)
 means "not given". ``tests/test_mcp_structured_args.py`` and
 ``tests/test_mcp_free_text_args.py`` enforce both halves for every registered tool.
+
+This works around an open SDK bug, modelcontextprotocol/python-sdk#3055 (``pre_parse_json``
+decodes strings meant for ``str | None``). Delete ``FreeTextFuncMetadata`` and
+``install_free_text_args`` once an mcp release fixes it; the tests above then still pass.
 """
 
 from __future__ import annotations
@@ -56,11 +60,9 @@ class FreeTextFuncMetadata(FuncMetadata):
 def _keep_free_text(tool: Tool) -> Tool:
     meta = tool.fn_metadata
     if not isinstance(meta, FreeTextFuncMetadata):
+        # Copy every field, so one the SDK adds later is not silently dropped.
         tool.fn_metadata = FreeTextFuncMetadata(
-            arg_model=meta.arg_model,
-            output_schema=meta.output_schema,
-            output_model=meta.output_model,
-            wrap_output=meta.wrap_output,
+            **{name: getattr(meta, name) for name in type(meta).model_fields}
         )
     return tool
 
