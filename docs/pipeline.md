@@ -303,6 +303,11 @@ MCP: `export_audio_tool` with optional `formats` (same array shape).
 
 Both print `{"paths": [...], "master": {...}}`: the written files and `master_qc.json`, so the configured `target_integrated_lufs` / `target_true_peak_db` sit next to what the master measured.
 
+A running export can be cancelled from either one, the way Studio's **Cancel export** does (#1164). Both pass a `cancel_check` to `PipelineService.export_audio`, which checks it before mastering, before encoding and while ffmpeg encodes (the running encode is stopped). Deliverables replace `export/` only after every file is written, so a cancelled export leaves an earlier one untouched and leaves no temp files. Mastering is not interrupted: a cancel during it takes effect once the master is ready.
+
+- **CLI.** The first Ctrl+C (SIGINT) cancels (`cli/cancel.py::sigint_cancel`). The command prints `Export cancelled. Files from an earlier export are unchanged.` to stderr, writes nothing to stdout and exits 130. A second Ctrl+C quits at once. A Ctrl+C that lands after the files were written prints `Cancel came too late. Exported N files to export/.` to stderr, then the usual JSON, and exits 0.
+- **MCP.** The client's `notifications/cancelled` (or dropping the request) stops the encode and `export_audio_tool` raises `CancelledProgress("Export cancelled")`. The client has stopped waiting by then, so the SDK sends no result for that request; the task ends `cancel` on the progress plane (a Studio Activity chip shows it cancelled). `mcp/request_cancel.py::install_request_cancel` binds the request's cancellation to `current_cancel_check()` for every tool, which also ends a wait for the render lock.
+
 ### Caption cue limits
 
 `export_deliverables`' SRT (and `transcript export-srt`/`export-vtt`) split cues at word

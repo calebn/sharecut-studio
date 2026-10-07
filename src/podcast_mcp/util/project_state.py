@@ -25,7 +25,8 @@ FileRevision = tuple[int, int, int, int]
 
 PROJECT_COMMIT_LOCK_TIMEOUT_SEC = 30.0
 RENDER_LOCK_TIMEOUT_SEC = 3600.0
-# MCP tool calls cannot be cancelled: they wait this long for the render lock, then RenderBusyError.
+# MCP timeline tools wait this long for the render lock (a cancelled request stops the wait
+# sooner), then RenderBusyError.
 REQUEST_RENDER_LOCK_TIMEOUT_SEC = 30.0
 RENDER_LOCK_POLL_SEC = 0.5
 
@@ -196,7 +197,8 @@ def render_cancel_scope(cancel_check: Callable[[], bool] | None) -> Iterator[Non
 
 
 def current_cancel_check() -> Callable[[], bool] | None:
-    """The ``cancel_check`` bound by ``render_cancel_scope`` (a pipeline run's), else None."""
+    """The ``cancel_check`` bound by ``render_cancel_scope`` (a pipeline run's, or an MCP
+    request's via ``install_request_cancel``), else None."""
     return _render_cancel_check.get()
 
 

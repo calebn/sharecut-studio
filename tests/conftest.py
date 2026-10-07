@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -261,6 +263,48 @@ def minimal_project(tmp_workspace: Path, sample_wav: Path) -> Path:
     project = EpisodeProject.create("test_episode", str(tmp_workspace))
     project.ensure_dirs()
     return save_project(project)
+
+
+@dataclass(frozen=True)
+class SlowExport:
+    """A project whose export encodes a 15 min master, over an earlier export to protect."""
+
+    project: Path
+    export_dir: Path
+    previous: dict[str, bytes]
+
+    def wait_until_encoding(self, *, alive: Callable[[], bool] = lambda: True) -> None:
+        """Block until ffmpeg is writing its temp file, or ``alive()`` turns false."""
+        deadline = time.monotonic() + 30
+        while not any(p.name.endswith(".partial.mp3") for p in self.export_dir.iterdir()):
+            assert alive() and time.monotonic() < deadline, "export never started encoding"
+            time.sleep(0.02)
+
+    def files(self) -> dict[str, bytes]:
+        return {p.name: p.read_bytes() for p in self.export_dir.iterdir()}
+
+
+@pytest.fixture
+def slow_export(
+    minimal_project: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> SlowExport:
+    """Real ffmpeg export that runs long enough to cancel mid-encode (mastering is stubbed)."""
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    master = eng.generate_tone(tmp_path / "mastered.wav", duration_sec=900)
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.service.pipeline_steps.ensure_current_master",
+        lambda project, defaults: master,
+    )
+    export_dir = Path(minimal_project).parent / "export"
+    export_dir.mkdir(exist_ok=True)
+    previous = {"test_episode.wav": b"OLD-WAV", "test_episode.mp3": b"OLD-MP3"}
+    for name, data in previous.items():
+        (export_dir / name).write_bytes(data)
+    return SlowExport(minimal_project, export_dir, previous)
 
 
 @pytest.fixture

@@ -7,10 +7,12 @@ from typing import Any
 
 import typer
 
+from podcast_mcp.cli.cancel import CANCELLED_EXIT_CODE, sigint_cancel
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline import PipelineRunResult, PipelineService
+from podcast_mcp.util.progress import CancelledProgress
 
 pipeline_app = typer.Typer(help="Run processing pipeline.")
 
@@ -245,7 +247,17 @@ def export_audio_cmd(
         if not isinstance(raw, list):
             raise typer.BadParameter("--formats must be a JSON array")
         parsed = raw
-    typer.echo(json.dumps(PipelineService(ws).export_audio(parsed).job_result(), indent=2))
+    with sigint_cancel() as cancel_requested:
+        try:
+            result = PipelineService(ws).export_audio(parsed, cancel_check=cancel_requested)
+        except CancelledProgress:
+            typer.echo("Export cancelled. Files from an earlier export are unchanged.", err=True)
+            raise typer.Exit(CANCELLED_EXIT_CODE) from None
+        if cancel_requested():
+            typer.echo(
+                f"Cancel came too late. Exported {len(result.paths)} files to export/.", err=True
+            )
+    typer.echo(json.dumps(result.job_result(), indent=2))
 
 
 @pipeline_app.command("bounce")

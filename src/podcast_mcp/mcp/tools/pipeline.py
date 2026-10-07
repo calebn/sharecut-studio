@@ -8,6 +8,7 @@ from podcast_mcp.mcp.args import JsonObject, JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline import PipelineService, format_export_qc_lines
+from podcast_mcp.util.project_state import current_cancel_check
 
 
 def _run_message(last_step: str, job_result: dict[str, Any] | None) -> str:
@@ -198,9 +199,16 @@ def export_audio_tool(
     project_path: str,
     formats: JsonObjectList | None = None,
 ) -> str:
-    """Encode mastered audio to export/ using pipeline.yaml formats, or ``formats`` objects."""
+    """Encode mastered audio to export/ using pipeline.yaml formats, or ``formats`` objects.
+
+    All or nothing: files replace ``export/`` only after every one is written. When the client
+    cancels the request (``notifications/cancelled``) the encode stops, the tool raises
+    ``CancelledProgress("Export cancelled")`` and an earlier export is left untouched. The
+    client has stopped waiting by then, so the SDK sends no result for the cancelled request.
+    """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(PipelineService(ws).export_audio(formats).job_result())
+    result = PipelineService(ws).export_audio(formats, cancel_check=current_cancel_check())
+    return to_json(result.job_result())
 
 
 def bounce_audio_tool(
