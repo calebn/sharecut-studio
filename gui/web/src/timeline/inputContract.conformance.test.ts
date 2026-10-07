@@ -94,6 +94,7 @@ const TARGET: Record<HitKind, { id: string; sec: number }> = {
   roll: { id: "c2", sec: 10 },
   "fade-in": { id: "c2", sec: 10.3 },
   "fade-out": { id: "c2", sec: 39.7 },
+  "crossfade-end": { id: "c2", sec: 10.15 },
   "trim-in": { id: "c2", sec: 10 },
   "trim-out": { id: "c2", sec: 40 },
   chapter: { id: "30-Middle", sec: 30 },
@@ -278,6 +279,31 @@ describe.each(HIT_KIND_NAMES)("%s", (kind) => {
       const owners = PRESS_OWNERS.filter((o) => o.kinds.includes(kind));
       if (contract.axis === "none") expect(owners).toEqual([]);
       else expect(owners).not.toEqual([]);
+    },
+  );
+
+  // A selected target keeps the touch from scrolling, and still waits for
+  // the long press: no draggable kind drags on touch until armed.
+  it.skipIf(contract.axis === "none")(
+    "drags on touch only once a long press arms it, selected or not",
+    () => {
+      const el = lone(kind);
+      el.setAttribute("data-hit-selected", "true");
+      press(el, "pointerdown", 200, 112);
+      press(el, "pointermove", 230, 132);
+      press(el, "pointerup", 230, 132);
+      vi.runAllTimers();
+      expect(log).toEqual([]);
+
+      press(el, "pointerdown", 200, 112);
+      router.longPress();
+      press(el, "pointermove", 230, 112);
+      press(el, "pointerup", 230, 112);
+      vi.runAllTimers();
+      expect(log.slice(0, 2)).toEqual([
+        "pointerdown@200,112",
+        "pointermove@230,112",
+      ]);
     },
   );
 

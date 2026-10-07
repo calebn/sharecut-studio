@@ -559,8 +559,9 @@ export function attachHitRouting(
     const origin = pointOf(event);
     const hits = resolveHits(root, origin, event.pointerType, hit);
     // A tap on a body is its own, though a target in reach takes a long-press.
+    // A target with no box yet is ranked nowhere, so the press stays its own.
     const winner =
-      hit && !isBody(hit) ? hits[0].element : (hit ?? event.target);
+      hit && !isBody(hit) ? (hits[0]?.element ?? hit) : (hit ?? event.target);
     const touch = event.pointerType === "touch";
     // One finger moving never edits: every touch, on a selected target too,
     // waits for the press layer, which arms only on a long press. An armed
