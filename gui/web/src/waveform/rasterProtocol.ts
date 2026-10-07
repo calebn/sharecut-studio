@@ -13,11 +13,25 @@ export type RasterParityMsg = { type: "parity"; id: number };
 export type RasterInMsg = RasterRenderMsg | RasterParityMsg;
 
 export type RasterReadyMsg = { type: "ready"; backend: WorkerBackend };
+/** A finished tile as a bitmap: the worker's GL canvas, or a CPU tile the page built. */
 export type RasterDoneMsg = {
   type: "done";
   id: number;
   bitmap: ImageBitmap;
   backend: WorkerBackend;
+};
+/**
+ * A finished CPU tile: straight-alpha RGBA, transferred. The page builds the
+ * bitmap, because WPE WebKit crashes its web process when a worker makes
+ * ImageBitmaps (#1110).
+ */
+export type RasterPixelsMsg = {
+  type: "done";
+  id: number;
+  backend: "cpu-worker";
+  pixels: Uint8ClampedArray<ArrayBuffer>;
+  cols: number;
+  rows: number;
 };
 export type RasterErrorMsg = { type: "error"; id: number; message: string };
 export type RasterParityResultMsg = {
@@ -26,23 +40,20 @@ export type RasterParityResultMsg = {
   /** Largest GL vs CPU difference (0..1), or null without WebGL2. */
   value: number | null;
 };
-export type RasterOutMsg =
+/** What the page handles once a CPU tile has its bitmap. */
+export type RasterReply =
   | RasterReadyMsg
   | RasterDoneMsg
   | RasterErrorMsg
   | RasterParityResultMsg;
+/** What the worker posts. */
+export type RasterOutMsg = RasterReply | RasterPixelsMsg;
 
 /** What the worker renders with. `gl` is null without WebGL2. */
 export type RasterEngine = {
   gl: Pick<GlRaster, "lost" | "render" | "readTopDown"> | null;
   /** The GL canvas as an upright bitmap (`transferToImageBitmap`). */
   glBitmap(): ImageBitmap;
-  /** A bitmap from straight-alpha RGBA bytes. */
-  cpuBitmap(
-    px: Uint8ClampedArray<ArrayBuffer>,
-    cols: number,
-    rows: number,
-  ): Promise<ImageBitmap>;
 };
 
 function liveGl(engine: RasterEngine) {
@@ -101,11 +112,19 @@ export function rasterParityValue(
   return worst;
 }
 
+/** The buffers a worker reply hands over instead of copying. */
+export function replyTransfer(out: RasterOutMsg): Transferable[] {
+  if (out.type !== "done") {
+    return [];
+  }
+  return "pixels" in out ? [out.pixels.buffer] : [out.bitmap];
+}
+
 /** Handle one message in the worker. */
-export async function handleRasterMessage(
+export function handleRasterMessage(
   msg: RasterInMsg,
   engine: RasterEngine,
-): Promise<RasterOutMsg> {
+): RasterOutMsg {
   try {
     if (msg.type === "parity") {
       const gl = liveGl(engine);
@@ -138,12 +157,13 @@ export async function handleRasterMessage(
         backend: "webgl2",
       };
     }
-    const px = rasterCpu(geom, job.cols, job.rows, job.core, job.edge);
     return {
       type: "done",
       id: msg.id,
-      bitmap: await engine.cpuBitmap(px, job.cols, job.rows),
       backend: "cpu-worker",
+      pixels: rasterCpu(geom, job.cols, job.rows, job.core, job.edge),
+      cols: job.cols,
+      rows: job.rows,
     };
   } catch (err) {
     return { type: "error", id: msg.id, message: errorMessage(err) };

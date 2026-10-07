@@ -40,13 +40,8 @@ function mirrorGl(offset = 0) {
   };
 }
 
-const cpuBitmaps = new Map<RasterEngine, ReturnType<typeof vi.fn>>();
-
 function engine(gl: RasterEngine["gl"]): RasterEngine {
-  const cpuBitmap = vi.fn(async () => bitmap);
-  const e: RasterEngine = { gl, glBitmap: () => bitmap, cpuBitmap };
-  cpuBitmaps.set(e, cpuBitmap);
-  return e;
+  return { gl, glBitmap: () => bitmap };
 }
 
 describe("rasterParityValue", () => {
@@ -78,9 +73,8 @@ describe("handleRasterMessage", () => {
 
   it("renders through GL when it is live", async () => {
     const gl = mirrorGl();
-    const e = engine(gl);
     const job = parityJob();
-    const out = await handleRasterMessage({ type: "render", id: 3, job }, e);
+    const out = handleRasterMessage({ type: "render", id: 3, job }, engine(gl));
     expect(out).toEqual({ type: "done", id: 3, bitmap, backend: "webgl2" });
     expect(gl.render).toHaveBeenCalledWith(
       jobGeometry(job),
@@ -89,13 +83,12 @@ describe("handleRasterMessage", () => {
       job.core,
       job.edge,
     );
-    expect(cpuBitmaps.get(e)).not.toHaveBeenCalled();
   });
 
   it("falls back to the CPU after a context loss", async () => {
     const e = engine({ ...mirrorGl(), lost: true });
     const job = parityJob();
-    const out = await handleRasterMessage({ type: "render", id: 4, job }, e);
+    const out = handleRasterMessage({ type: "render", id: 4, job }, e);
     expect(out).toEqual({
       type: "done",
       id: 4,
@@ -112,21 +105,13 @@ describe("handleRasterMessage", () => {
     });
   });
 
-  it("reports errors with the job id", async () => {
+  it("reports errors with the job id", () => {
     const job = { ...parityJob(), rows: 0 };
-    const out = await handleRasterMessage(
+    const out = handleRasterMessage(
       { type: "render", id: 5, job },
       engine(null),
     );
     expect(out).toMatchObject({ type: "error", id: 5 });
-    const failing = engine(null);
-    failing.cpuBitmap = () => Promise.reject(new Error("no bitmap"));
-    expect(
-      await handleRasterMessage(
-        { type: "render", id: 6, job: parityJob() },
-        failing,
-      ),
-    ).toEqual({ type: "error", id: 6, message: "no bitmap" });
   });
 
   it("measures GL vs CPU parity, or null without GL", async () => {

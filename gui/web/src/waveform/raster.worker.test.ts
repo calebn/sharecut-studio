@@ -45,9 +45,12 @@ describe("raster worker", () => {
   it("announces readiness and answers with transferred bitmaps", async () => {
     const bitmap = {} as ImageBitmap;
     const engine: RasterEngine = {
-      gl: null,
+      gl: {
+        lost: false,
+        render: vi.fn(),
+        readTopDown: (cols, rows) => new Uint8Array(cols * rows * 4),
+      },
       glBitmap: () => bitmap,
-      cpuBitmap: async () => bitmap,
     };
     const posted: [unknown, unknown][] = [];
     const scope: RasterScope = {
@@ -56,7 +59,7 @@ describe("raster worker", () => {
     };
     startRasterWorker(scope, engine);
     expect(posted[0]).toEqual([
-      { type: "ready", backend: "cpu-worker" },
+      { type: "ready", backend: "webgl2" },
       undefined,
     ]);
     scope.onmessage?.(
@@ -66,13 +69,16 @@ describe("raster worker", () => {
     );
     await vi.waitFor(() => expect(posted).toHaveLength(2));
     expect(posted[1]).toEqual([
-      { type: "done", id: 1, bitmap, backend: "cpu-worker" },
+      { type: "done", id: 1, bitmap, backend: "webgl2" },
       [bitmap],
     ]);
     scope.onmessage?.(
       new MessageEvent("message", { data: { type: "parity", id: 2 } }),
     );
     await vi.waitFor(() => expect(posted).toHaveLength(3));
-    expect(posted[2]).toEqual([{ type: "parity", id: 2, value: null }, []]);
+    expect(posted[2]).toEqual([
+      { type: "parity", id: 2, value: expect.any(Number) },
+      [],
+    ]);
   });
 });

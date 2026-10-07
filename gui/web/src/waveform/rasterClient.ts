@@ -1,3 +1,4 @@
+import { errorMessage } from "../utils/apiError";
 import { type BitmapEntry, bitmapCache } from "./bitmapCache";
 import {
   RASTER_JOB_RETRIES,
@@ -9,6 +10,8 @@ import { listenerSet } from "./listenerSet";
 import type {
   RasterInMsg,
   RasterOutMsg,
+  RasterPixelsMsg,
+  RasterReply,
   WorkerBackend,
 } from "./rasterProtocol";
 import type { RasterBackend, RasterJob, RasterMode } from "./types";
@@ -21,12 +24,14 @@ import type { RasterBackend, RasterJob, RasterMode } from "./types";
  * out of memory, or `onmessageerror`) is restarted up to
  * `RASTER_WORKER_RESTARTS` times (re-armed after `RASTER_RESTART_REARM_TILES`
  * finished tiles), and then the backend is `none`.
- * `subscribeRasterFailed` reports the keys of jobs that died (an error reply,
- * a failed post, or a crash), each at most `RASTER_JOB_RETRIES` times before
- * the key is retired until reload. The re-arm forgets crash charges on keys
- * not yet retired, so two unrelated crashes do not retire an innocent tile. An
- * `onmessageerror` restart charges no failure. No `Worker` or `createImageBitmap` (jsdom)
- * means backend `none`: nothing renders.
+ * A CPU tile arrives as pixels and gets its bitmap here; a bitmap that cannot
+ * be built counts as an error reply. `subscribeRasterFailed` reports the keys
+ * of jobs that died (an error reply, a failed post, or a crash), each at most
+ * `RASTER_JOB_RETRIES` times before the key is retired until reload. The
+ * re-arm forgets crash charges on keys not yet retired, so two unrelated
+ * crashes do not retire an innocent tile. An `onmessageerror` restart charges
+ * no failure. No `Worker` or `createImageBitmap` (jsdom) means backend
+ * `none`: nothing renders.
  */
 
 export type RasterBackendState = RasterBackend | "starting";
@@ -178,7 +183,7 @@ function onCrash(w: Worker, charge: boolean): void {
   emitFailed(lost);
 }
 
-function onMessage(msg: RasterOutMsg): void {
+function onMessage(msg: RasterReply): void {
   if (msg.type === "ready") {
     setBackend(msg.backend);
     return;
@@ -249,11 +254,15 @@ function ensureWorker(): Worker | null {
   }
   worker = w;
   w.onmessage = (ev: MessageEvent<RasterOutMsg>) => {
-    if (worker === w) {
-      onMessage(ev.data);
-    } else if (ev.data.type === "done") {
-      ev.data.bitmap.close(); // a replaced worker's late result
+    const msg = ev.data;
+    if (msg.type === "done" && "pixels" in msg) {
+      // A replaced worker's late pixels hold nothing to free.
+      if (worker === w) {
+        void bitmapReply(msg).then((reply) => deliver(w, reply));
+      }
+      return;
     }
+    deliver(w, msg);
   };
   w.onerror = () => onCrash(w, true);
   // A reply that cannot be deserialized loses its job id, so its slot would
@@ -261,6 +270,26 @@ function ensureWorker(): Worker | null {
   // since only one reply was bad.
   w.onmessageerror = () => onCrash(w, false);
   return w;
+}
+
+function deliver(w: Worker, msg: RasterReply): void {
+  if (worker === w) {
+    onMessage(msg);
+  } else if (msg.type === "done") {
+    msg.bitmap.close(); // a replaced worker's late result
+  }
+}
+
+/** A CPU tile's bitmap, built here: never in the worker (#1110). */
+async function bitmapReply(msg: RasterPixelsMsg): Promise<RasterReply> {
+  try {
+    const bitmap = await createImageBitmap(
+      new ImageData(msg.pixels, msg.cols, msg.rows),
+    );
+    return { type: "done", id: msg.id, bitmap, backend: msg.backend };
+  } catch (err) {
+    return { type: "error", id: msg.id, message: errorMessage(err) };
+  }
 }
 
 function post(w: Worker, msg: RasterInMsg): void {
