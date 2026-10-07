@@ -50,6 +50,61 @@ describe("LiveComments", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("announces what a new comment says, not how many there are", () => {
+    const sam = recordParticipant({
+      participant_id: "p_s",
+      display_name: "Sam",
+    });
+    const props = {
+      me,
+      note: "",
+      onNote: () => undefined,
+      onMarker: () => undefined,
+      onSubmitNote: () => undefined,
+    };
+    const room = { ...snapshot, participants: [me, sam] };
+    const { container, rerender } = render(
+      <LiveComments snapshot={room} {...props} />,
+    );
+    const region = container.querySelector("[aria-live='polite']");
+    expect(region).toHaveTextContent(/^$/);
+    const later = (id: string, author: string, body: string) => ({
+      id,
+      take_index: 0,
+      recording_ms: 900,
+      pressed_wall_ms: 900,
+      author,
+      body,
+    });
+    rerender(
+      <LiveComments
+        snapshot={{
+          ...room,
+          comments: [
+            ...(room.comments ?? []),
+            later("c2", "p_s", "Cut the cough"),
+          ],
+        }}
+        {...props}
+      />,
+    );
+    expect(region).toHaveTextContent("Sam: Cut the cough");
+    rerender(
+      <LiveComments
+        snapshot={{
+          ...room,
+          comments: [
+            ...(room.comments ?? []),
+            later("c2", "p_s", "Cut the cough"),
+            later("c3", "p_g", "Marker"),
+          ],
+        }}
+        {...props}
+      />,
+    );
+    expect(region).toHaveTextContent("Sam: Cut the cough");
+  });
+
   it("disables marker and notes outside an open take", () => {
     render(
       <LiveComments

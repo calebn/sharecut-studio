@@ -1,6 +1,5 @@
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button, Field } from "../ui";
-import { plural } from "../utils/format";
 import { type LiveComment, liveTakeOpen } from "./liveCommentQueue";
 import type { RecordParticipant, RecordSnapshot } from "./types";
 
@@ -27,6 +26,37 @@ function authorLabel(
   return person?.display_name || author;
 }
 
+/**
+ * Reads out what someone else just said, never a count. Comments present on
+ * first render, and your own (already announced when you post), stay silent.
+ */
+function useNewCommentAnnouncement(
+  snapshot: RecordSnapshot,
+  comments: LiveComment[],
+  me: RecordParticipant | null | undefined,
+): string {
+  const seen = useRef<Set<string> | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  useEffect(() => {
+    const known = seen.current;
+    seen.current = new Set(comments.map((row) => row.id));
+    if (!known) {
+      return;
+    }
+    const fresh = comments.filter(
+      (row) => !known.has(row.id) && row.author !== me?.participant_id,
+    );
+    if (fresh.length > 0) {
+      setAnnouncement(
+        fresh
+          .map((row) => `${authorLabel(snapshot, row.author, me)}: ${row.body}`)
+          .join(". "),
+      );
+    }
+  }, [comments, me, snapshot]);
+  return announcement;
+}
+
 export function LiveComments({
   snapshot,
   comments = snapshot.comments ?? [],
@@ -39,14 +69,12 @@ export function LiveComments({
   const open = liveTakeOpen(snapshot.state);
   const headingId = useId();
   const noteId = useId();
-  const listId = useId();
+  const announcement = useNewCommentAnnouncement(snapshot, comments, me);
   return (
     <section className="stack record-live-comments" aria-labelledby={headingId}>
       <h2 id={headingId}>Live comments</h2>
-      <div aria-live="polite" className="sr-only" id={listId}>
-        {comments.length > 0
-          ? `${comments.length} live ${plural(comments.length, "comment")}`
-          : "No live comments yet."}
+      <div aria-live="polite" className="sr-only">
+        {announcement}
       </div>
       {comments.length > 0 ? (
         <ul className="record-roster">
