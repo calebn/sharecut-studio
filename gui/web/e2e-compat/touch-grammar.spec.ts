@@ -519,7 +519,10 @@ test("the strip follows the finger; a flick opens or closes it fully, a slow dra
     const box = root.getBoundingClientRect();
     return {
       bottom: box.bottom,
-      half: Math.min(box.height / 2, 26.25 * rem, box.height - 13 * rem),
+      half: Math.max(
+        Math.min(box.height / 2, 26.25 * rem, box.height - 13 * rem),
+        Math.min(box.height, 9 * rem),
+      ),
       full: Math.min(box.height, 56.25 * rem),
     };
   });

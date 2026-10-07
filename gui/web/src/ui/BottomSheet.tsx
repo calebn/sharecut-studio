@@ -1,7 +1,8 @@
-import { type ReactNode, useCallback, useId, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "./Button";
 import { CloseButton } from "./CloseButton";
+import { revealBelowChrome } from "./focusAndReveal";
 import { useDialogModal } from "./useDialogModal";
 import { useDrawerSwipe } from "./useDrawerSwipe";
 import { useResizeObserver } from "./useResizeObserver";
@@ -98,6 +99,21 @@ export function BottomSheet({
     },
     drawer != null,
   );
+  const hasDrawer = drawer != null;
+  // A focused control is scrolled clear of the pinned header, which WebKit
+  // does not do for a field it counts as partly in view.
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!open || !hasDrawer || !panel) return;
+    const reveal = (event: FocusEvent) => {
+      const chrome = chromeRef.current;
+      if (chrome && event.target instanceof HTMLElement) {
+        revealBelowChrome(panel, chrome, event.target);
+      }
+    };
+    panel.addEventListener("focusin", reveal);
+    return () => panel.removeEventListener("focusin", reveal);
+  }, [open, hasDrawer]);
   const isExpanded = expanded ?? size === expandedSize;
   const current = drawer ? drawer.detent : isExpanded ? expandedSize : size;
 
@@ -165,7 +181,7 @@ export function BottomSheet({
     >
       {backgroundPolicy === "interactive" ? (
         <div
-          className="bottom-sheet-scrim bottom-sheet-scrim--interactive"
+          className={`bottom-sheet-scrim bottom-sheet-scrim--interactive${current === "peek" ? " bottom-sheet-scrim--clear" : ""}`}
           aria-hidden="true"
         />
       ) : (

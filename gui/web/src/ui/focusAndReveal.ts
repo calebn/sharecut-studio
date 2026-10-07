@@ -13,6 +13,24 @@ function stickyInset(scroller: HTMLElement): number {
   return inset;
 }
 
+/**
+ * Scrolls `scroller` so `target` sits just below `chrome`, the header pinned
+ * over its top, when focus left it partly or wholly under that header. CSS
+ * `scroll-padding` does this in Chromium. WebKit counts a field that shows
+ * only partly under the header as in view and does not scroll on focus.
+ */
+export function revealBelowChrome(
+  scroller: HTMLElement,
+  chrome: HTMLElement,
+  target: HTMLElement,
+): void {
+  if (chrome.contains(target) || scroller.scrollHeight <= scroller.clientHeight)
+    return;
+  const covered =
+    chrome.getBoundingClientRect().bottom - target.getBoundingClientRect().top;
+  if (covered > 0) scroller.scrollTop -= covered;
+}
+
 /** Focus and minimally reveal a control inside its inspector, never the page
  * or timeline. Callers retain ownership of selection and lifecycle timing. */
 export function focusAndReveal(target: HTMLElement | null): void {

@@ -236,6 +236,12 @@ export interface DawState {
   compactInspectorView: CompactInspectorView;
   /** The timeline target the last press went to (touch input grammar). */
   selectionHit: RoutedTarget | null;
+  /**
+   * The selection a form inside the inspector last made (`selectFromInspector`),
+   * by identity: the compact inspector keeps it in its open sheet. Any other
+   * selection is a different object, so a timeline tap is never mistaken for it.
+   */
+  inspectorSelection: Selection;
   /** A timeline drag is under way; the compact inspector stows itself. */
   timelineDragging: boolean;
   laneHeightMode: LaneHeightMode;
@@ -346,6 +352,8 @@ export interface DawState {
   setZoomPxPerSec: (z: number) => void;
   setScrollLeft: (x: number) => void;
   setSelection: (sel: Selection) => void;
+  /** `setSelection` for a form inside the inspector: an open sheet keeps it. */
+  selectFromInspector: (sel: Selection) => void;
   selectClip: (
     clipId: string,
     trackId: string,

@@ -38,14 +38,14 @@ export function EnvelopeWorkspace({
     guestMode,
     shareCapabilities,
     projectEpoch,
-    setSelection,
+    selectFromInspector,
   } = useDaw((state) => ({
     project: state.project,
     projectPath: state.projectPath,
     guestMode: state.guestMode,
     shareCapabilities: state.shareCapabilities,
     projectEpoch: state.projectEpoch,
-    setSelection: state.setSelection,
+    selectFromInspector: state.selectFromInspector,
   }));
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<EnvelopeError | null>(null);
@@ -80,7 +80,7 @@ export function EnvelopeWorkspace({
   };
   const select = (id: string | null) => {
     reset();
-    setSelection(
+    selectFromInspector(
       id
         ? { kind: "envelopePoint", trackId, pointId: id }
         : { kind: "envelope", trackId },
@@ -239,7 +239,7 @@ export function EnvelopeWorkspace({
       onReload={reset}
       onDone={() => {
         if (lock.current) return;
-        setSelection({ kind: "track", trackId });
+        selectFromInspector({ kind: "track", trackId });
         requestAnimationFrame(() => {
           const state = useDawStore.getState();
           if (
