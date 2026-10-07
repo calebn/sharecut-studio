@@ -173,8 +173,11 @@ ripple trim drag draws the same on every lane it moves: arrows to where the
 later clips go and, on the other lanes, the span a shortening trim takes.
 The compact inspector is a swipeable drawer (#1051 round 4b): drag its header,
 which shows a grabber pill, up or down between **peek** (the strip), **half**
-(the full inspector at no more than half the slot) and **full**. A short or
-slow drag snaps back, and a second finger drops the swipe. **Expand** steps up
+(the full inspector at no more than half the slot) and **full**. The sheet
+follows the finger 1:1 on the compositor and re-renders nothing until the
+release; then it coasts on the finger's speed to the nearest detent, so a
+quick flick opens or closes it fully and a slow drag lands where it was left
+(reduced motion lands it without the slide). A second finger drops the swipe. **Expand** steps up
 one detent and **Collapse** returns to the strip; both stay, named for where
 they go ("Expand to full height"). A visually hidden range, "Inspector
 height", changes the detent from the keyboard or a screen reader. The title

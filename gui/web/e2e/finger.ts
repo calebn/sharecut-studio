@@ -77,6 +77,20 @@ export interface Finger {
   up(): Promise<void>;
   /** Moves from where the finger is to `to` in `steps` moves `stepMs` apart. */
   slide(to: Point, steps?: number, stepMs?: number): Promise<void>;
+  /**
+   * A whole touch: down at `from`, `steps` moves to `to` `stepMs` apart, and
+   * up there at once. Its events carry those times, so a release-speed reading
+   * sees the flick it describes however slowly a loaded machine delivers it.
+   */
+  flick(from: Point, to: Point, steps: number, stepMs: number): Promise<void>;
+}
+
+/** The `k`th of `steps` points from `from` to `to`. */
+function lerp(from: Point, to: Point, k: number, steps: number): Point {
+  return {
+    x: from.x + ((to.x - from.x) * k) / steps,
+    y: from.y + ((to.y - from.y) * k) / steps,
+  };
 }
 
 export async function newFinger(
@@ -93,19 +107,18 @@ export async function newFinger(
   ): Promise<void> => {
     const from = at;
     for (let k = 1; k <= steps; k += 1) {
-      await self.move({
-        x: from.x + ((to.x - from.x) * k) / steps,
-        y: from.y + ((to.y - from.y) * k) / steps,
-      });
+      await self.move(lerp(from, to, k, steps));
       await page.waitForTimeout(stepMs);
     }
   };
   if (browserName === "chromium") {
     const cdp = await context.newCDPSession(page);
-    const send = (type: string, points: Point[]) =>
+    /** `timestamp`: seconds since the epoch, the event's own time. */
+    const send = (type: string, points: Point[], timestamp?: number) =>
       cdp.send("Input.dispatchTouchEvent", {
         type: type as "touchStart" | "touchMove" | "touchEnd",
         touchPoints: points.map((p) => ({ x: p.x, y: p.y, id: 0 })),
+        timestamp,
       });
     const finger: Finger = {
       input: "cdp-touch",
@@ -121,14 +134,25 @@ export async function newFinger(
         await send("touchEnd", []);
       },
       slide: (to, steps, stepMs) => slide(finger, to, steps, stepMs),
+      async flick(from, to, steps, stepMs) {
+        const t0 = Date.now() / 1000;
+        const time = (k: number) => t0 + (k * stepMs) / 1000;
+        await send("touchStart", [from], time(0));
+        for (let k = 1; k <= steps; k += 1) {
+          at = lerp(from, to, k, steps);
+          await send("touchMove", [at], time(k));
+        }
+        await send("touchEnd", [], time(steps));
+      },
     };
     return finger;
   }
   await page.addInitScript(emulatePointerCapture);
   await page.evaluate(emulatePointerCapture);
-  const dispatch = (type: string, p: Point) =>
+  /** `t`: the event's `timeStamp`, when it must not be the moment it is sent. */
+  const dispatch = (type: string, p: Point, t?: number) =>
     page.evaluate(
-      ({ type, p, id }) => {
+      ({ type, p, id, t }) => {
         const w = window as unknown as {
           __finger?: { el: Element; x: number; y: number; far: boolean };
           __capture?: Element | null;
@@ -165,7 +189,9 @@ export async function newFinger(
           button: type === "pointermove" ? -1 : 0,
           buttons: pressed ? 1 : 0,
         };
-        target.dispatchEvent(new PointerEvent(type, init));
+        const event = new PointerEvent(type, init);
+        if (t != null) Object.defineProperty(event, "timeStamp", { value: t });
+        target.dispatchEvent(event);
         if (type === "pointerup") {
           w.__release?.();
           if (!f.far) {
@@ -183,7 +209,7 @@ export async function newFinger(
           w.__finger = undefined;
         }
       },
-      { type, p, id: SYNTHETIC_POINTER_ID },
+      { type, p, id: SYNTHETIC_POINTER_ID, t },
     );
   const finger: Finger = {
     input: "synthetic-pointer",
@@ -199,6 +225,16 @@ export async function newFinger(
       await dispatch("pointerup", at);
     },
     slide: (to, steps, stepMs) => slide(finger, to, steps, stepMs),
+    async flick(from, to, steps, stepMs) {
+      const t0 = await page.evaluate(() => performance.now());
+      at = from;
+      await dispatch("pointerdown", from, t0);
+      for (let k = 1; k <= steps; k += 1) {
+        at = lerp(from, to, k, steps);
+        await dispatch("pointermove", at, t0 + k * stepMs);
+      }
+      await dispatch("pointerup", at, t0 + steps * stepMs);
+    },
   };
   return finger;
 }

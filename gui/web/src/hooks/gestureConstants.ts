@@ -80,14 +80,18 @@ export function nudgeRepeatDelayMs(repeats: number): number {
 export const DRAG_DETENT_PX = 16;
 
 /**
- * The compact inspector drawer (#1051 round 4b): a swipe on its header must
- * travel this far, or release at this speed (px/ms, about a quick flick), to
- * change detent; anything less snaps back. The travel matches
- * `SWIPE_MAX_DY_PX` below, the distance that already tells a swipe from a
- * press.
+ * The compact inspector drawer (#1051): a release coasts as if slowing by
+ * this factor every ms, UIScrollView's normal deceleration, so it projects
+ * speed × 499 ms further (`ui/drawerMotion.ts`).
  */
-export const DRAWER_SWIPE_MIN_PX = 24;
-export const DRAWER_FLICK_PX_PER_MS = 0.5;
+export const DRAWER_DECELERATION = 0.998;
+/** The drawer reads release speed over the last moves in this window (ms). */
+export const DRAWER_VELOCITY_WINDOW_MS = 100;
+/**
+ * A finger that lifts this long after it last moved had stopped, and
+ * releases with no speed (ms; Android's VelocityTracker uses the same 40).
+ */
+export const DRAWER_STOP_MS = 40;
 
 /** A clip-body press must travel this far (any direction) before it becomes a move. */
 export const MOVE_THRESHOLD_PX = 5;

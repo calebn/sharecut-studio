@@ -17,6 +17,7 @@ import {
 import { type PeekTarget, peekTarget } from "../inspector/peekTarget";
 import { useDaw } from "../state/useDaw";
 import type { BottomSheet } from "../ui/BottomSheet";
+import { DRAWER_MOTION_ATTR } from "../ui/useDrawerSwipe";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import {
   COMPACT_INSPECTOR_VIEWS,
@@ -52,6 +53,8 @@ export function keepTargetClear(locate: string): void {
   const panel = document.querySelector<HTMLElement>(".bottom-sheet--compact");
   const root = panel?.closest(".bottom-sheet-root");
   if (!target || !scroller || !panel || !root) return;
+  // A moving drawer fills its slot; the clearance waits for it to rest.
+  if (panel.hasAttribute(DRAWER_MOTION_ATTR)) return;
   // The panel's resting top: its entrance animation moves the drawn box.
   const sheetTop = root.getBoundingClientRect().bottom - panel.offsetHeight;
   const box = scroller.getBoundingClientRect();
