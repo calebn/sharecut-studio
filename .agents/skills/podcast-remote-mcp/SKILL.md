@@ -28,7 +28,7 @@ Connect a remote MCP client (e.g. Cursor) to a **review share token** so an agen
    `Tunnel reconnecting …` means they see "Host offline" until the next `connected`.
    A `Tunnel failed (auth: …)` or `(config: …)` line exits 1 — fix the host token or
    relay URL and rerun ([host-online-relay.md](../../docs/host-online-relay.md) § Tunnel status).
-4. Publish a review version if needed: `podcast review publish-version …` (refused while the premix is stale; run `render_preview` first)
+4. Publish a review version if needed: `podcast review publish-version …` (refused with no mix yet or while the premix is stale; run `render_preview` first)
 5. Create a share with `--with-mcp` **and** the role the agent should have:
 
 ```bash

@@ -38,6 +38,18 @@ import { useTunnelStatus } from "./useTunnelStatus";
 
 const COPIED_MS = 2000;
 
+/** API error codes whose fix is Refresh mix, with the copy that pairs each with it. */
+const REFRESH_MIX_MESSAGES: ReadonlyMap<string, string> = new Map([
+  [
+    "no_mix",
+    "This project has no mix yet. Refresh the mix to create the link.",
+  ],
+  [
+    "stale_mix",
+    "The mix preview is out of date. Refresh it before creating a review link.",
+  ],
+]);
+
 type DialogScope = {
   projectPath: string;
   projectEpoch: number;
@@ -274,12 +286,15 @@ export function ShareDialog() {
       if (!isCurrentScope(request.scope)) {
         return;
       }
-      if (err instanceof ApiError && err.code === "stale_mix") {
+      const refreshMessage =
+        err instanceof ApiError && err.code
+          ? REFRESH_MIX_MESSAGES.get(err.code)
+          : undefined;
+      if (refreshMessage) {
         staleCreateRequest.current = request;
         setCreateRecovery({
-          kind: "stale_mix",
-          message:
-            "The mix preview is out of date. Refresh it before creating a review link.",
+          kind: "needs_refresh",
+          message: refreshMessage,
           refreshError: null,
         });
       } else if (err instanceof ApiError && err.code === "stale_master") {
@@ -316,7 +331,7 @@ export function ShareDialog() {
   }
 
   async function onRefreshMix() {
-    if (createRecovery.kind !== "stale_mix") {
+    if (createRecovery.kind !== "needs_refresh") {
       return;
     }
     const { message } = createRecovery;
@@ -340,7 +355,7 @@ export function ShareDialog() {
       } catch (err) {
         if (isCurrentScope(retryRequest.scope)) {
           setCreateRecovery({
-            kind: "stale_mix",
+            kind: "needs_refresh",
             message,
             refreshError: errorMessage(err),
           });
@@ -352,7 +367,7 @@ export function ShareDialog() {
       }
       if (result.status !== "ok") {
         setCreateRecovery({
-          kind: "stale_mix",
+          kind: "needs_refresh",
           message,
           refreshError:
             result.status === "disabled"

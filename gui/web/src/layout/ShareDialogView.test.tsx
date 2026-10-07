@@ -232,7 +232,7 @@ describe("ShareDialogView", () => {
     const user = userEvent.setup();
     const props = baseProps();
     props.createRecovery = {
-      kind: "stale_mix",
+      kind: "needs_refresh",
       message: "The preview is out of date.",
       refreshError: null,
     };
