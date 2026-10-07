@@ -221,6 +221,9 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     })
     .toEqual({ start: payload.start, end: payload.end });
   expect(updateCommands).toHaveLength(1);
+  // The phone timeline opens the compact drawer; at half height it shows the
+  // pending inspector, and the next selection opens there too.
+  await page.getByRole("button", { name: "Expand to half height" }).click();
   await expect(
     page.getByRole("heading", { name: "Pending edit" }),
   ).toBeVisible();
@@ -236,18 +239,19 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   expect(snapOptionGeometry.scrollWidth).toBeLessThanOrEqual(
     snapOptionGeometry.clientWidth,
   );
+  // Docked above the drawer, the card leaves timing to the drawer's fields.
   await expect(page.locator(".pending-actionbar")).toBeVisible();
-  const editTiming = page
-    .locator(".pending-actionbar")
-    .getByRole("button", { name: "Edit timing" });
-  await editTiming.tap();
+  await expect(
+    page
+      .locator(".pending-actionbar")
+      .getByRole("button", { name: "Edit timing" }),
+  ).toHaveCount(0);
+  const sourceStart = page.getByLabel("Source start");
+  await sourceStart.tap();
   await expect(dragRegion.first()).toHaveAttribute(
     "data-coarse-pointer",
     "true",
   );
-  const editTimingBox = await editTiming.boundingBox();
-  expect(editTimingBox?.height).toBeGreaterThanOrEqual(44);
-  const sourceStart = page.getByLabel("Source start");
   await expect(sourceStart).toBeFocused();
   expect((await sourceStart.boundingBox())?.height).toBeGreaterThanOrEqual(44);
   expect(
@@ -286,10 +290,7 @@ test("phone pending controls stay clear of handles and dense labels follow layou
   );
   await wideRegion.locator(".pending-hit").focus();
   await wideRegion.locator(".pending-hit").press("Enter");
-  const wideEditTiming = page
-    .locator(".pending-actionbar")
-    .getByRole("button", { name: "Edit timing" });
-  await wideEditTiming.tap();
+  await page.getByLabel("Source start").tap();
   await wideRegion.locator(".pending-hit").focus();
   for (
     let zoomStep = 0;
@@ -362,6 +363,8 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     type: "touchStart",
     touchPoints: [touchPoint],
   });
+  // The touch grammar: a long press arms the handle before it drags.
+  await page.waitForTimeout(750);
   for (const delta of [5, 12, 20]) {
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchMove",
