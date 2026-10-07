@@ -110,6 +110,27 @@ def test_whitelist_and_merge() -> None:
     assert merged["master"]["integrated_lufs"] == load_defaults()["master"]["integrated_lufs"]
 
 
+@pytest.mark.parametrize("mode", ["room_tone", "silence"])
+def test_merge_accepts_each_valid_filler_pad_mode(mode: str) -> None:
+    merged = merge_pipeline_config({"tighten": {"filler_pad_mode": mode}})
+    assert merged["tighten"]["filler_pad_mode"] == mode
+
+
+def test_merge_rejects_unknown_filler_pad_mode() -> None:
+    with pytest.raises(ValueError, match=r"silense.*valid values: silence, room_tone"):
+        merge_pipeline_config({"tighten": {"filler_pad_mode": "silense"}})
+
+
+def test_working_set_put_rejects_unknown_filler_pad_mode_without_staging(tmp_path) -> None:
+    from podcast_mcp.services.pipeline.config import PipelineConfigStore
+
+    store = PipelineConfigStore()
+    project = tmp_path / "episode.project.json"
+    with pytest.raises(ValueError, match="valid values: silence, room_tone"):
+        store.put(project, config={"tighten": {"filler_pad_mode": "silense"}})
+    assert store.peek(project) is None
+
+
 def test_deep_merge_nested() -> None:
     base = {"a": {"b": 1, "c": 2}, "d": 3}
     assert deep_merge(base, {"a": {"b": 9}}) == {"a": {"b": 9, "c": 2}, "d": 3}

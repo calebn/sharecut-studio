@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.filler_pacing import filler_pad_mode
 from podcast_mcp.effects.presets import resolve_presets
 from podcast_mcp.engines.asr_options import AsrOptions
 from podcast_mcp.engines.asr_silence import PEAK_BLOCK_SEC
@@ -51,8 +52,16 @@ def merge_pipeline_config(
     *,
     base: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Defaults (or ``base``) with whitelisted ``overrides`` merged on top, validated.
+
+    The one place MCP ``config_json``, GUI config PUT / run, the CLI and the working-set
+    store turn a config into a run's config, so a bad value raises ``ValueError`` here
+    instead of reaching the pipeline.
+    """
     root = copy.deepcopy(base) if base is not None else load_defaults()
-    return deep_merge(root, whitelist_overrides(overrides))
+    merged = deep_merge(root, whitelist_overrides(overrides))
+    filler_pad_mode(merged)
+    return merged
 
 
 def transcribe_run_config(
@@ -363,6 +372,7 @@ class PipelineConfigStore:
         reset: bool,
     ) -> WorkingSet:
         """``put`` body; caller holds ``self._lock``."""
+        merged = merge_pipeline_config(config, base=load_defaults()) if config is not None else None
         if reset or key not in self._by_path:
             base = load_defaults()
             self._by_path[key] = WorkingSet(
@@ -377,8 +387,8 @@ class PipelineConfigStore:
         else:
             previous_enabled = set(ws.enabled_steps)
         prev_editorial = editorial_enabled_flags(ws.config)
-        if config is not None:
-            ws.config = merge_pipeline_config(config, base=load_defaults())
+        if merged is not None:
+            ws.config = merged
         if enabled_steps is not None:
             ws.enabled_steps = reconcile_enabled_steps(
                 previous_enabled,

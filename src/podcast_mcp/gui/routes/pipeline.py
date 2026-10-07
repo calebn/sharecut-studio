@@ -59,13 +59,16 @@ def pipeline_put_config(
 ) -> dict[str, Any]:
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     project_path = resolve_project(req.path, request)
-    config_store().put(
-        project_path,
-        config=req.config,
-        enabled_steps=req.enabled_steps,
-        unattended=req.unattended,
-        reset=req.reset,
-    )
+    try:
+        config_store().put(
+            project_path,
+            config=req.config,
+            enabled_steps=req.enabled_steps,
+            unattended=req.unattended,
+            reset=req.reset,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return build_config_payload(project_path)
 
 
@@ -123,7 +126,10 @@ def pipeline_run(
     if config is None and working is not None:
         config = working.config
     elif config is not None:
-        config = merge_pipeline_config(config)
+        try:
+            config = merge_pipeline_config(config)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     unattended = req.unattended
     if unattended is None:

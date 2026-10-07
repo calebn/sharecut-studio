@@ -256,6 +256,15 @@ def test_mcp_pipeline_run_working_set_and_overrides(tmp_path, sample_wav):
     except ValueError as exc:
         assert "JSON array" in str(exc)
 
+    with pytest.raises(ValueError, match=r"silense.*valid values: silence, room_tone"):
+        mcp_pipeline.pipeline_set_config_tool(
+            path, config_json='{"tighten": {"filler_pad_mode": "silense"}}'
+        )
+    with pytest.raises(ValueError, match="valid values: silence, room_tone"):
+        mcp_pipeline.pipeline_run(
+            path, config_json='{"tighten": {"filler_pad_mode": "silense"}}', use_working_set=False
+        )
+
     try:
         mcp_pipeline.pipeline_set_config_tool(path, config_json="[]")
         raise AssertionError("expected ValueError")

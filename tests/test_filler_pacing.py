@@ -597,7 +597,16 @@ def test_filler_pad_mode_defaults_to_room_tone():
     assert filler_pad_mode({"tighten": {}}) == "room_tone"
     assert filler_pad_mode({"tighten": {"filler_pad_mode": "silence"}}) == "silence"
     assert filler_pad_mode({"tighten": {"filler_pad_mode": "SILENCE"}}) == "silence"
-    assert filler_pad_mode({"tighten": {"filler_pad_mode": "other"}}) == "room_tone"
+    assert filler_pad_mode({"tighten": {"filler_pad_mode": "room_tone"}}) == "room_tone"
+
+
+@pytest.mark.parametrize("bad", ["silense", "none", "", None, 0])
+def test_filler_pad_mode_rejects_unknown_values(bad):
+    from podcast_mcp.edits.filler_pacing import filler_pad_mode
+
+    with pytest.raises(ValueError, match=r"valid values: silence, room_tone") as exc:
+        filler_pad_mode({"tighten": {"filler_pad_mode": bad}})
+    assert repr(bad) in str(exc.value)
 
 
 def test_shipped_defaults_fill_pads_with_room_tone():

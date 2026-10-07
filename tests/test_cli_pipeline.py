@@ -142,6 +142,22 @@ def test_pipeline_run_set_rejects_unknown_key(tmp_path):
     assert "unknown pipeline config key" in result.stdout + (result.stderr or "")
 
 
+@pytest.mark.parametrize("command", ["config", "analyze", "run"])
+def test_pipeline_set_rejects_unknown_filler_pad_mode(tmp_path, command):
+    args = ["pipeline", command, "--set", "tighten.filler_pad_mode=silense"]
+    if command != "config":
+        args += ["--project", str(_init_project(tmp_path))]
+    result = runner.invoke(app, args)
+    assert result.exit_code == 2
+    out = result.stdout + (result.stderr or "")
+    assert "silense" in out and "silence, room_tone" in out
+
+
+def test_pipeline_config_set_accepts_silence_pad_mode():
+    result = runner.invoke(app, ["pipeline", "config", "--set", "tighten.filler_pad_mode=silence"])
+    assert result.exit_code == 0, result.stdout
+
+
 def test_pipeline_config_shows_overrides():
     result = runner.invoke(app, ["pipeline", "config", "--set", "focus.enabled=true"])
     assert result.exit_code == 0, result.stdout

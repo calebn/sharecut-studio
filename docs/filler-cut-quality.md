@@ -175,8 +175,8 @@ A ripple pad and an approved mute fill with the track's room, because dead air
 on a track with a noise floor reads as a dropout (**Fill, not hole**). The
 sampler (**Where room tone comes from**) takes only true room floor, so a track
 with no such stretch, such as a Zoom-gated track, keeps a silent pad. Set
-`tighten.filler_pad_mode: silence` for a hard gap on every track. A value other
-than `silence` selects room tone.
+`tighten.filler_pad_mode: silence` for a hard gap on every track. Any other value is rejected
+when the config is loaded, with an error naming `silence` and `room_tone`.
 
 ## Risk model
 

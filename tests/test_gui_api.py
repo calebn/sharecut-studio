@@ -2919,6 +2919,32 @@ def test_api_pipeline_run_conflict(minimal_project, monkeypatch) -> None:
         time.sleep(0.05)
 
 
+def test_api_pipeline_rejects_unknown_filler_pad_mode(minimal_project) -> None:
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    client = TestClient(create_app())
+    path = str(minimal_project)
+    bad = {"tighten": {"filler_pad_mode": "silense"}}
+
+    put = client.put("/api/pipeline/config", json={"path": path, "config": bad})
+    assert put.status_code == 400
+    assert "valid values: silence, room_tone" in put.json()["detail"]
+
+    run = client.post("/api/pipeline/run", json={"path": path, "config": bad})
+    assert run.status_code == 400
+    assert "silense" in run.json()["detail"]
+
+    ok = client.put(
+        "/api/pipeline/config",
+        json={"path": path, "config": {"tighten": {"filler_pad_mode": "silence"}}},
+    )
+    assert ok.status_code == 200
+    assert ok.json()["config"]["tighten"]["filler_pad_mode"] == "silence"
+
+
 def test_api_pipeline_config_and_analyze(minimal_project, monkeypatch) -> None:
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient

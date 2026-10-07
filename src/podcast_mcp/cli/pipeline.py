@@ -21,10 +21,12 @@ _SET_HELP = (
 
 
 def _overrides(assignments: list[str] | None) -> dict[str, Any]:
-    from podcast_mcp.services.pipeline import parse_config_assignments
+    from podcast_mcp.services.pipeline import merge_pipeline_config, parse_config_assignments
 
     try:
-        return parse_config_assignments(assignments or [])
+        overrides = parse_config_assignments(assignments or [])
+        merge_pipeline_config(overrides)
+        return overrides
     except ValueError as exc:
         raise typer.BadParameter(str(exc), param_hint="--set") from exc
 
