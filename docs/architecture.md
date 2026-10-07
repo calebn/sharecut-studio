@@ -36,8 +36,8 @@ reached another mic first. An opening that jumps straight to the word's level, i
 with the copy (`envelope_lag.shift_correlations` at zero shift), is a clipped start: the
 word's start moves (old start in `snapped_from`, restored and judged again on every run)
 and gets its own `Align tracks` comment. An opening whose sound matches the copy shifted
-back by the lead is a late track: no word moves, and the lane gets one comment and a
-step-summary note pointing at alignment. Comments stay in step through
+back by the lead is a late track, which is alignment's to fix: nothing is flagged or
+moved. Comments stay in step through
 `edits/comments.py`. A word a person re-timed (`TranscriptWord.retime(..., by_person=True)`, via
 `apply_word_timing`) carries `timing_edited` and is never judged. It reads only the project and audio, never the solver's internals.
 
