@@ -185,12 +185,22 @@ def one_phrase_copy_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
     """Let the bleed gate trust a copy path from one short foreign phrase.
 
     The gate needs 20 to 30 s of the peer's speech before it trusts a copy path, which
-    ``test_bleed_attenuation`` pins. Fixtures with one phrase test other behaviour.
+    ``test_bleed_attenuation`` pins, and other peer speech within 10 s to confirm the
+    copy's timbre against, which ``test_copy_timbre`` pins. Fixtures with one phrase
+    test other behaviour, so a peer silent at every null counts there as a null of 0.
     """
-    from podcast_mcp.engines import envelope_lag
+    import numpy as np
+
+    from podcast_mcp.engines import copy_timbre, envelope_lag
 
     monkeypatch.setattr(envelope_lag, "MIN_COPY_SEC", 0.5)
     monkeypatch.setattr(envelope_lag, "FULL_COPY_SEC", 0.5)
+    nulls = copy_timbre._null_similarities
+    monkeypatch.setattr(
+        copy_timbre,
+        "_null_similarities",
+        lambda *args, **kwargs: nulls(*args, **kwargs) or [np.zeros(1)],
+    )
 
 
 @pytest.fixture

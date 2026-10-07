@@ -25,6 +25,10 @@ TIMBRE_SMOOTH_BINS = 15
 # LIKENESS_FRAMES frames: the room and the call software blur and spread the match.
 LIKENESS_PERCENTILE = 40
 LIKENESS_FRAMES = 400
+# A peer silent at every NULL_SHIFTS_SEC null (short bursts seconds apart) is compared
+# against its speech at these farther shifts instead, pooled into one null because each
+# shift reaches only a few of its frames; with no speech there, the lag is unconfirmed.
+FAR_NULL_SHIFTS_SEC = tuple(float(sign * second) for second in range(3, 11) for sign in (-1, 1))
 _SIMILARITY_CHUNK = 4096
 
 
@@ -72,6 +76,29 @@ def copy_likeness(similarity: np.ndarray) -> float:
     return float(np.percentile(similarity, LIKENESS_PERCENTILE))
 
 
+def _null_similarities(
+    own: np.ndarray,
+    peer: np.ndarray,
+    frames: np.ndarray,
+    lag: int,
+    peer_levels: np.ndarray,
+    loud_db: float,
+    shifts: tuple[float, ...],
+    *,
+    sample_rate: int,
+) -> list[np.ndarray]:
+    """Per shift where the peer talks, ``frames``' match with it ``shift`` s off the lag."""
+    matches = []
+    for shift in shifts:
+        moved = lag + round(shift / COPY_HOP_SEC)
+        at = frames + moved
+        inside = (at >= 0) & (at < peer_levels.size)
+        talking = frames[inside][peer_levels[at[inside]] >= loud_db]
+        if talking.size:
+            matches.append(copy_similarity(own, peer, talking, moved, sample_rate=sample_rate))
+    return matches
+
+
 def confirmed_likeness(
     own: np.ndarray,
     peer: np.ndarray,
@@ -87,22 +114,30 @@ def confirmed_likeness(
     ``frames`` are ``own`` frames that carry the copy if there is one: the peer, at the
     lag, talks at ``loud_db`` or more (``peer_levels`` on the copy grid). Level alone
     cannot tell a copy from own sound that starts and stops with the peer's, as people
-    laughing or chanting together do. A copy is the peer's voice, so it matches the
-    peer's fine spectrum at the lag and not the peer's other syllables. Own sound
+    laughing together do. A copy is the peer's voice, so it matches the peer's fine
+    spectrum at the lag and not the peer's other syllables. Own sound at its own pitch
     matches both alike: another voice neither, a steady hum both. So the likeness must
     beat, by ``MIN_NULL_MARGIN`` as the level match must, the likeness the same frames
     reach against the peer's speech at the shifted nulls, read only where the peer
-    talks at ``loud_db`` or more there too. A null where the peer is silent is the
-    match against silence, 0.0.
+    talks at ``loud_db`` or more there too. A null under 0 counts as 0, so the likeness
+    itself must reach the margin. When the peer is silent at every null a second or two
+    away (it speaks in short bursts far apart), the comparison is its speech 3 to 10 s
+    away, pooled into one null; with no peer speech there either, nothing proves the
+    lag and there is no copy.
+
+    Own sound whose pitch follows the peer's (singing in unison, speaking along at the
+    peer's pitch) matches the peer's fine spectrum at the lag as a copy does, and passes
+    (#1190). A copy of a peer whose other syllables share its spectrum (a near-monotone
+    talker, a repeated phrase) can fail; the bleed is then kept, the safe side.
     """
     likeness = copy_likeness(copy_similarity(own, peer, frames, lag, sample_rate=sample_rate))
-    null = 0.0
-    for shift in NULL_SHIFTS_SEC:
-        moved = lag + round(shift / COPY_HOP_SEC)
-        at = frames + moved
-        inside = (at >= 0) & (at < peer_levels.size)
-        talking = frames[inside][peer_levels[at[inside]] >= loud_db]
-        if talking.size:
-            similarity = copy_similarity(own, peer, talking, moved, sample_rate=sample_rate)
-            null = max(null, copy_likeness(similarity))
-    return likeness if likeness - null >= MIN_NULL_MARGIN else None
+    args = (own, peer, frames, lag, peer_levels, loud_db)
+    near = _null_similarities(*args, NULL_SHIFTS_SEC, sample_rate=sample_rate)
+    if near:
+        null = max(copy_likeness(match) for match in near)
+    else:
+        far = _null_similarities(*args, FAR_NULL_SHIFTS_SEC, sample_rate=sample_rate)
+        if not far:
+            return None
+        null = copy_likeness(np.concatenate(far))
+    return likeness if likeness - max(0.0, null) >= MIN_NULL_MARGIN else None

@@ -437,9 +437,10 @@ def _peer_copy(
     fine-spectrum match on frames at the coupling. The room and call software blur and
     spread it on the lab (0.35; median 0.41); a copy that keeps its timbre sits in a
     narrow band near 1. The likeness must also confirm the lag: those frames must match
-    the peer there better than the peer's speech a second or two away, or the level
-    match was own sound starting and stopping with the peer's, and there is no copy
-    (``confirmed_likeness``, #1070). With no frame at the coupling there is no copy
+    the peer there better than the peer's other speech (a second or two away, or up to
+    10 s when the peer is silent there), or the level match was own sound starting and
+    stopping with the peer's, and there is no copy (``confirmed_likeness``, #1070).
+    With no frame at the coupling, or no peer speech to compare with, there is no copy
     either.
 
     All three are read against the full 200 ms reach, where the copy can be, not

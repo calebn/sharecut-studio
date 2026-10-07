@@ -874,7 +874,8 @@ evidence:
 - #1134 lab: Audra's and Lana's lanes byte-identical to main; on Caleb's lane copy at full level, chatter and words touched (0) match main on the bare and realigned runs, main turns down 0.53 s more, and every sample whose gain changes is −62.7 dBFS or quieter
 - #1134 owner: ship. Keeping own laughs and breaths whole next to a guest's gaps is worth slightly more leak when a peer's gate opens late: on synthetic peers whose track opens late on every word, or 250 ms late on several, 0.06–0.76 s more copy stays at full level per episode, in up to 5 more pieces, and copy beside a kept own sound can reach past the 40/80 ms holds; in 600 random placements no own sound was touched more than main
 - #1070: a copy path needs the evidence of correlation 0.4 over 30 s (Fisher z), so a strong match is trusted from 20 s. Lab excerpts: the gate acts in 49% of 2-minute windows (main 32%) and 94% of 5-minute windows (main 87%), touching no own word; whole-episode plans are unchanged
-- #1070 verifier: the level match alone passed own sound that starts and stops with the peer's (voices gated together word by word, the same cadence, laughing together) in 604 of 4,800 synthetic trials from 20 s, and main's 30 s rule 213 at 30 and 60 s; untranscribed, up to 69 s of own sound per 6 excerpts was turned down. The copy's timbre must now confirm the lag against the peer's speech 1 and 2 s away: 0 of 4,800 pass, true copies pass as before (lab copy unchanged, 988 of 993 synthetic), and every lab plan is unchanged
+- #1070 verifier: the level match alone passed own sound that starts and stops with the peer's (voices gated together word by word, the same cadence, laughing together) in 604 of 4,800 synthetic trials from 20 s, and main's 30 s rule 213 at 30 and 60 s; untranscribed, up to 69 s of own sound per 6 excerpts was turned down. The copy's timbre must now confirm the lag against the peer's speech 1 and 2 s away: 0 of 4,800 pass, true copies pass as before at 30 s and up, and every lab plan is unchanged
+- #1070 round 2 verifier: the 20 to 30 s floor computed 0.40 at every length (`max` for `min`); corrected, the lab copy passes 17 and 49 of 100 at 20 and 25 s (32 and 51 under the dead floor) and every lab plan is unchanged. Own sound at its own pitch stays at 0 of 6,762 more trials. Own sound that follows the peer's pitch is not caught: unison singing and speech along at the peer's pitch (±0.3 semitone) pass 96 to 100 of 100 from 20 s, which main passes from 30 s (#1190). A copy of a near-monotone peer passes 25 to 34 of 100 where main passes all from 30 s; that bleed is kept. A peer silent at every near null left the check an absolute likeness of 0.15; it is now compared with the peer's speech 3 to 10 s away, pooled, and unconfirmed with none (abstaining instead would have lost every sparse-peer copy, 99 to 100 of 100)
 enforced-by:
 - tests/test_bleed_attenuation.py::test_late_gate_on_the_direct_track_still_mutes_the_foreign_copy
 - tests/test_bleed_attenuation.py::test_track_speakers_own_speech_is_untouched
@@ -905,6 +906,9 @@ enforced-by:
 - tests/test_bleed_attenuation.py::test_own_voice_talking_with_the_peer_is_untouched
 - tests/test_bleed_attenuation.py::test_short_excerpt_with_a_strong_copy_is_muted
 - tests/test_reconcile_copy_lag.py::test_own_voice_starting_and_stopping_with_the_peer_is_no_copy_path
+- tests/test_envelope_lag.py::test_a_short_stretch_with_a_weaker_match_than_its_floor_abstains
+- tests/test_copy_timbre.py::test_own_hum_with_a_sparse_peer_at_one_pitch_is_no_copy
+- tests/test_copy_timbre.py::test_no_peer_speech_to_compare_against_is_no_copy
 - docs-sync: decision-bleed
 supersedes: D-bleed-keep-onset-copies
 -->
