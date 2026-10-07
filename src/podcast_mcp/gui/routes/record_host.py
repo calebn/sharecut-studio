@@ -23,6 +23,7 @@ from podcast_mcp.services.record import (
     RecordLandingError,
     RecordSessionService,
     RecordStateError,
+    RecordTakeOpenError,
     RecordUploadError,
     RecordUploadService,
     RoomFullError,
@@ -174,6 +175,12 @@ def post_host_record_land(
         return RecordControlService(ws).land()
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="no active record room") from exc
+    except RecordTakeOpenError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+            headers={"X-Sharecut-Error-Code": exc.code},
+        ) from exc
     except RecordLandingError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
