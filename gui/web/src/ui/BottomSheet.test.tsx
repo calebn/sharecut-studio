@@ -1,8 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { Profiler, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { stubRaf } from "../test/raf";
 import { BottomSheet } from "./BottomSheet";
 
 describe("BottomSheet", () => {
@@ -183,69 +191,144 @@ describe("BottomSheet", () => {
   });
 
   describe("as a swipeable drawer (#1051 round 4b)", () => {
+    let commits = 0;
     function Drawer({ start = "peek" }: { start?: "peek" | "half" | "full" }) {
       const [detent, setDetent] = useState<"peek" | "half" | "full">(start);
       return (
-        <BottomSheet
-          open
-          onClose={() => undefined}
-          backgroundPolicy="interactive"
-          title="Trim start"
-          drawer={{
-            detents: ["peek", "half", "full"],
-            detent,
-            onDetentChange: setDetent,
-            label: "Inspector height",
-          }}
-        >
-          <p>{detent}</p>
-        </BottomSheet>
+        <Profiler id="sheet" onRender={() => (commits += 1)}>
+          <BottomSheet
+            open
+            onClose={() => undefined}
+            backgroundPolicy="interactive"
+            title="Trim start"
+            drawer={{
+              detents: ["peek", "half", "full"],
+              detent,
+              onDetentChange: setDetent,
+              label: "Inspector height",
+            }}
+          >
+            <p>{detent}</p>
+          </BottomSheet>
+        </Profiler>
       );
     }
     const chrome = () =>
       document.querySelector(".bottom-sheet-chrome") as HTMLElement;
     const dialog = () => screen.getByRole("dialog", { name: "Trim start" });
-    const swipe = (dy: number, steps = 4, msPerStep = 40) => {
-      let t = 1000;
-      fireEvent.pointerDown(chrome(), {
-        pointerId: 5,
-        clientY: 500,
-        timeStamp: t,
-      });
-      for (let i = 1; i <= steps; i += 1) {
-        t += msPerStep;
-        fireEvent.pointerMove(chrome(), {
-          pointerId: 5,
-          clientY: 500 + (dy * i) / steps,
-          timeStamp: t,
+    /** A 600px slot: strip 100, half 300, full 600; the header is 50. */
+    function layOut() {
+      const height = (el: HTMLElement) => {
+        if (el.classList.contains("bottom-sheet-chrome")) return 50;
+        if (!el.classList.contains("bottom-sheet")) return 0;
+        if (el.style.height === "100%") return 600;
+        if (el.classList.contains("bottom-sheet--full")) return 600;
+        return el.classList.contains("bottom-sheet--half") ? 300 : 100;
+      };
+      const offset = vi
+        .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+        .mockImplementation(function (this: HTMLElement) {
+          return height(this);
         });
-      }
-      fireEvent.pointerUp(chrome(), {
-        pointerId: 5,
-        clientY: 500 + dy,
-        timeStamp: t,
-      });
+      const rect = vi
+        .spyOn(Element.prototype, "getBoundingClientRect")
+        .mockImplementation(function (this: Element) {
+          const tall = this.classList.contains("bottom-sheet-root") ? 600 : 0;
+          return DOMRect.fromRect({ width: 390, height: tall });
+        });
+      return () => {
+        offset.mockRestore();
+        rect.mockRestore();
+      };
+    }
+    /** A pointer event at `t` ms: jsdom stamps events with the wall clock. */
+    const pointer = (
+      type: "pointerDown" | "pointerMove" | "pointerUp",
+      y: number,
+      t: number,
+      pointerId = 5,
+    ) => {
+      const event = createEvent[type](chrome(), { pointerId, clientY: y });
+      Object.defineProperty(event, "timeStamp", { value: t });
+      fireEvent(chrome(), event);
     };
+    const press = (y: number, t: number, pointerId = 5) =>
+      pointer("pointerDown", y, t, pointerId);
+    const move = (y: number, t: number) => pointer("pointerMove", y, t);
+    const lift = (y: number, t: number) => pointer("pointerUp", y, t);
 
-    it("swipes up a detent, down a detent, and snaps back from a short drag", () => {
-      render(<Drawer />);
-      swipe(-60);
-      expect(dialog()).toHaveClass("bottom-sheet--half");
-      swipe(-10);
-      expect(dialog()).toHaveClass("bottom-sheet--half");
-      swipe(60);
-      expect(dialog()).toHaveClass("bottom-sheet--peek");
+    it("follows the finger by transform, a frame at a time, with no render", () => {
+      const raf = stubRaf();
+      const restore = layOut();
+      try {
+        render(<Drawer />);
+        commits = 0;
+        press(500, 1000);
+        // The strip (100px) fills its 600px slot, drawn 500px down.
+        expect(dialog().style.transform).toBe("translateY(500px)");
+        move(470, 1016);
+        move(440, 1032);
+        expect(dialog().style.transform).toBe("translateY(500px)");
+        raf.fire(1033);
+        expect(dialog().style.transform).toBe("translateY(440px)");
+        expect(commits).toBe(0);
+      } finally {
+        restore();
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it("opens fully on a quick flick and lands a slow drag at the nearest detent", () => {
+      const raf = stubRaf();
+      const restore = layOut();
+      try {
+        render(<Drawer />);
+        // 40px up in 30 ms: 1.33 px/ms coasts the 140px strip past full.
+        press(500, 1000);
+        move(490, 1010);
+        move(470, 1020);
+        move(460, 1030);
+        lift(460, 1035);
+        expect(dialog()).toHaveClass("bottom-sheet--full");
+        raf.fire(1050);
+        expect(dialog().style.transform).toBe("");
+
+        // Down to 220px, held, then lifted: half (300) is nearest.
+        cleanup();
+        render(<Drawer />);
+        press(500, 2000);
+        move(450, 2200);
+        move(400, 2400);
+        move(380, 2600);
+        lift(380, 2900);
+        expect(dialog()).toHaveClass("bottom-sheet--half");
+        raf.fire(2920);
+        expect(dialog().style.transform).toBe("");
+        expect(dialog().style.height).toBe("");
+      } finally {
+        restore();
+        vi.unstubAllGlobals();
+      }
     });
 
     it("drops a swipe a second finger joins", () => {
-      render(<Drawer />);
-      fireEvent.pointerDown(chrome(), { pointerId: 5, clientY: 500 });
-      fireEvent.pointerMove(chrome(), { pointerId: 5, clientY: 420 });
-      expect(dialog()).toHaveClass("is-dragging");
-      fireEvent.pointerDown(chrome(), { pointerId: 6, clientY: 300 });
-      fireEvent.pointerUp(chrome(), { pointerId: 5, clientY: 420 });
-      expect(dialog()).not.toHaveClass("is-dragging");
-      expect(dialog()).toHaveClass("bottom-sheet--peek");
+      const raf = stubRaf();
+      const restore = layOut();
+      try {
+        render(<Drawer />);
+        press(500, 1000);
+        move(420, 1020);
+        raf.fire(1021);
+        expect(dialog().style.transform).toBe("translateY(420px)");
+        press(300, 1030, 6);
+        lift(420, 1040);
+        raf.fire(1041);
+        expect(dialog().style.transform).toBe("");
+        expect(dialog()).toHaveClass("bottom-sheet--peek");
+      } finally {
+        restore();
+        vi.unstubAllGlobals();
+      }
     });
 
     it("keeps Expand and Collapse, and a named range for keys and screen readers", async () => {

@@ -28,6 +28,7 @@ evidence:
 - #1051 round 4a phone test (2026-10-06): pinch never edits, collapse is remembered, hold-to-repeat and soft stops work
 - #1051 round 4b fix (2026-10-07): the first 4b cut made the clip body a create-menu surface, so touch clip moves were lost; the coordinator restored them under the approved grammar, since a clip body drags in time
 - #1051 owner phone test (2026-10-07): the crossfade grip "still drags at once, without a long press"
+- #1051 owner phone test (2026-10-07, round 5): a long press past the last clip still started iOS text selection; the drawer "follows the finger but feels laggy", and the owner asked for a flick to open or close it
 enforced-by:
 - gui/web/src/timeline/gestureGovernance.test.ts::keeps touch-specific handling in the router
 - gui/web/src/timeline/gestureGovernance.test.ts::puts every pointerdown handler on an element the router can see
@@ -42,7 +43,9 @@ enforced-by:
 - gui/web/src/timeline/hitRouting.grammar.test.ts::holds an armed drag at a soft boundary, then follows a push past it
 - gui/web/src/timeline/hitRouting.grammar.test.ts::closes, with the selection put back, when a second finger lands
 - gui/web/src/timeline/ClipBlock.test.tsx::stops a held arrow at a soft boundary with a bump and a note (#1115)
-- gui/web/src/ui/BottomSheet.test.tsx::swipes up a detent, down a detent, and snaps back from a short drag
+- gui/web/src/ui/BottomSheet.test.tsx::opens fully on a quick flick and lands a slow drag at the nearest detent
+- gui/web/src/ui/BottomSheet.test.tsx::follows the finger by transform, a frame at a time, with no render
+- gui/web/src/ui/drawerMotion.test.ts::sends a quick flick all the way, however short the drag
 - tests/test_guest_document_gate.py::test_an_editor_edits_volume_envelopes_and_other_roles_cannot
 - make capabilities-check
 supersedes: D-sheet-no-drag
@@ -687,7 +690,21 @@ Round 4b builds the grammar on the 4a branch, behind the touch chooser lab.
   query held nudges use; a boundary the drag starts on does not catch it.
 - **Drawer.** The compact inspector swipes between peek (the strip), half
   and full; Expand and Collapse step between them, and the visually hidden
-  "Inspector height" range does it for keys and screen readers.
+  "Inspector height" range does it for keys and screen readers. The owner's
+  round-5 phone test found the swipe followed the finger but lagged: each
+  move set a React state height, so the inspector re-rendered and laid out
+  again every frame. Now the sheet fills its slot when the finger lands and
+  a `translateY`, written once per animation frame, shows the part the finger
+  holds up (`ui/useDrawerSwipe.ts`); nothing re-renders until the release.
+  The release coasts on the finger's momentum as Apple's "Designing Fluid
+  Interfaces" (WWDC 2018) describes: at a deceleration of 0.998 per ms the
+  sheet would travel speed × 499 ms further, and it settles at the detent
+  nearest that point (`ui/drawerMotion.ts`). Speed is read over the last
+  100 ms of moves, and a finger that rested 40 ms before lifting has none,
+  so a quick flick opens or closes the drawer fully and a slow drag lands
+  where it was left. The settle slides over `--motion-state`; under reduced
+  motion the sheet lands at once, while the drag itself still tracks the
+  finger, since it is the user's own motion.
 - **Second finger.** It cancels and rolls back arming, a detent drag, a clip
   move and the create menu, as it does any one-finger action.
 - **Touch paths.** The first 4b cut made the clip body a plain surface, so a

@@ -140,8 +140,11 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   outline-offset: var(--focus-ring-offset);
 }
 
-.bottom-sheet.is-dragging {
-  height: var(--sheet-drag-height);
+/* Moving with the finger or settling (useDrawerSwipe): the sheet fills its
+   slot and a translateY shows the part held up, so a drag repaints on the
+   compositor and never lays the inspector out again. */
+.bottom-sheet[data-drawer-motion] {
+  will-change: transform;
 }
 
 /* Out of the way while the user drags what it describes. */
@@ -154,6 +157,15 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
 @media (prefers-reduced-motion: no-preference) {
   .bottom-sheet-root .bottom-sheet--compact {
     transition:
+      translate var(--motion-panel) var(--motion-ease-out),
+      opacity var(--motion-panel) var(--motion-ease-out);
+  }
+
+  /* A released drawer decelerates into its detent; reduced motion lands it
+     at once. The transform's time comes first: useDrawerSwipe reads it. */
+  .bottom-sheet-root .bottom-sheet[data-drawer-motion="settle"] {
+    transition:
+      transform var(--motion-state) var(--motion-ease-out),
       translate var(--motion-panel) var(--motion-ease-out),
       opacity var(--motion-panel) var(--motion-ease-out);
   }

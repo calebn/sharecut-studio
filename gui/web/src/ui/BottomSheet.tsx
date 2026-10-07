@@ -1,17 +1,9 @@
-import {
-  type CSSProperties,
-  type ReactNode,
-  type PointerEvent as ReactPointerEvent,
-  useCallback,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useCallback, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "./Button";
 import { CloseButton } from "./CloseButton";
-import { drawerDetentAfter } from "./drawerDetents";
 import { useDialogModal } from "./useDialogModal";
+import { useDrawerSwipe } from "./useDrawerSwipe";
 
 /** `peek`: a content-height strip; `half` and `full`: fixed shares of the slot. */
 export type BottomSheetSize = "peek" | "half" | "full";
@@ -26,9 +18,9 @@ const DETENT_TEXT: Record<BottomSheetSize, string> = {
 
 /**
  * A swipeable drawer (#1051 round 4b): the sheet's header drags it between
- * `detents`, lowest first. Expand and Collapse stay as buttons, and a native
- * range input (visually hidden, named `label`) gives keyboards and screen
- * readers the same detents.
+ * `detents`, lowest first, and a flick carries it on (`useDrawerSwipe`).
+ * Expand and Collapse stay as buttons, and a native range input (visually
+ * hidden, named `label`) gives keyboards and screen readers the same detents.
  */
 export interface SheetDrawer {
   detents: readonly BottomSheetSize[];
@@ -63,17 +55,6 @@ type Props = {
   className?: string;
 };
 
-/** A header drag in progress. */
-interface Swipe {
-  pointerId: number;
-  startY: number;
-  startHeight: number;
-  slot: number;
-  lastY: number;
-  lastAt: number;
-  velocity: number;
-}
-
 /**
  * Transient bottom sheet for phone/tablet inspector and quick actions.
  * Peek / non-modal: Escape + focus restore; no chrome inert / Tab trap.
@@ -98,8 +79,7 @@ export function BottomSheet({
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const swipe = useRef<Swipe | null>(null);
-  const [dragHeight, setDragHeight] = useState<number | null>(null);
+  const swipe = useDrawerSwipe(panelRef, drawer);
   const isExpanded = expanded ?? size === expandedSize;
   const current = drawer ? drawer.detent : isExpanded ? expandedSize : size;
 
@@ -123,65 +103,6 @@ export function BottomSheet({
   const at = drawer ? drawer.detents.indexOf(drawer.detent) : -1;
   const lowest = drawer?.detents[0];
   const higher = drawer?.detents[at + 1];
-  const endSwipe = () => {
-    swipe.current = null;
-    setDragHeight(null);
-  };
-  const onSwipeDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!drawer) return;
-    // A second finger, or a press on a header button, is not a swipe.
-    if (swipe.current) {
-      endSwipe();
-      return;
-    }
-    if (
-      event.button !== 0 ||
-      (event.target instanceof Element && event.target.closest("button"))
-    ) {
-      return;
-    }
-    const panel = panelRef.current;
-    const slot = panel?.parentElement?.getBoundingClientRect().height ?? 0;
-    swipe.current = {
-      pointerId: event.pointerId,
-      startY: event.clientY,
-      startHeight: panel?.offsetHeight ?? 0,
-      slot,
-      lastY: event.clientY,
-      lastAt: event.timeStamp,
-      velocity: 0,
-    };
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-  };
-  const onSwipeMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const s = swipe.current;
-    if (!s || s.pointerId !== event.pointerId) return;
-    const dt = event.timeStamp - s.lastAt;
-    // Speed over at least 8 ms: coalesced samples say nothing about it.
-    if (dt >= 8) {
-      s.velocity = (event.clientY - s.lastY) / dt;
-      s.lastY = event.clientY;
-      s.lastAt = event.timeStamp;
-    }
-    const height = s.startHeight - (event.clientY - s.startY);
-    setDragHeight(Math.max(0, Math.min(s.slot, height)));
-  };
-  const onSwipeUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const s = swipe.current;
-    if (!drawer || !s || s.pointerId !== event.pointerId) return;
-    const dyPx = event.clientY - s.startY;
-    const next = drawerDetentAfter({
-      detents: drawer.detents,
-      current: drawer.detent,
-      dyPx,
-      velocity: s.velocity,
-      heightPx: s.startHeight - dyPx,
-      slotPx: s.slot,
-    });
-    endSwipe();
-    if (next !== drawer.detent) drawer.onDetentChange(next);
-  };
-
   const resizeButtons = drawer ? (
     <>
       {at > 0 && lowest ? (
@@ -239,22 +160,14 @@ export function BottomSheet({
       )}
       <div
         ref={panelRef}
-        className={`bottom-sheet bottom-sheet--${current}${dragHeight != null ? " is-dragging" : ""}${className ? ` ${className}` : ""}`}
+        className={`bottom-sheet bottom-sheet--${current}${className ? ` ${className}` : ""}`}
         role="dialog"
         aria-modal="false"
         aria-labelledby={title ? titleId : undefined}
-        style={
-          dragHeight != null
-            ? ({ "--sheet-drag-height": `${dragHeight}px` } as CSSProperties)
-            : undefined
-        }
       >
         <div
           className={`bottom-sheet-chrome${drawer ? " bottom-sheet-chrome--drawer" : ""}`}
-          onPointerDown={drawer ? onSwipeDown : undefined}
-          onPointerMove={drawer ? onSwipeMove : undefined}
-          onPointerUp={drawer ? onSwipeUp : undefined}
-          onPointerCancel={drawer ? endSwipe : undefined}
+          {...(drawer ? swipe : {})}
         >
           {drawer ? (
             <label className="bottom-sheet-grabber">
