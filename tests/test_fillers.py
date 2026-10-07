@@ -2611,9 +2611,9 @@ def test_only_unpadded_cuts_go_through_the_splice_gates(gate):
     }
 
 
-def test_only_a_pause_trim_moves_its_edges_into_the_air():
-    # A pause trim removes only air, so breath protection may move its edges out of
-    # sound; a filler's edges must stay on the filler (#1055).
+def test_only_a_pause_trim_is_cut_down_to_its_air():
+    # A pause trim removes only air, so breath protection may shrink it to the air
+    # inside it; a filler's edges must stay on the filler (#1055).
     words = [
         TranscriptWord(text="um", start=1.0, end=1.2),
         TranscriptWord(text="okay.", start=1.25, end=1.5),
