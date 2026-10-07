@@ -61,6 +61,7 @@ from podcast_mcp.services.record.live_comments import (
 from podcast_mcp.services.record.service import RecordSessionService
 from podcast_mcp.services.record.state import (
     HOST_PARTICIPANT_ID,
+    LAND_TAKE_OPEN_MSG,
     RECORDED_ROLES,
     RecordSnapshot,
     TakeState,
@@ -194,6 +195,15 @@ def purge_session_land_rollbacks(project: EpisodeProject, session_id: str) -> No
 
 class RecordLandingError(ValueError):
     """Refuse to land or discard a take."""
+
+
+class RecordTakeOpenError(RecordLandingError):
+    """Host land refused while a take is recording or paused (``code`` ``take_open``)."""
+
+    code = "take_open"
+
+    def __init__(self) -> None:
+        super().__init__(LAND_TAKE_OPEN_MSG)
 
 
 def record_source_id(

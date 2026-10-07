@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.record.landing import (
         RecordLandingError,
         RecordLandingService,
+        RecordTakeOpenError,
         purge_session_land_rollbacks,
         release_session_land_lock,
         remove_session_land_lock_file,
@@ -62,6 +63,7 @@ __all__ = [
     "RecordRole",
     "RecordSessionService",
     "RecordStateError",
+    "RecordTakeOpenError",
     "RecordUploadError",
     "RecordUploadService",
     "RoomFullError",
@@ -90,6 +92,7 @@ _MODULE_BY_NAME = {
     "RecordControlService": "control",
     "RecordLandingError": "landing",
     "RecordLandingService": "landing",
+    "RecordTakeOpenError": "landing",
     "RecordRole": "state",
     "RecordSessionService": "service",
     "RecordStateError": "reducer",

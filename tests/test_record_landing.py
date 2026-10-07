@@ -24,6 +24,7 @@ from podcast_mcp.services.record.landing import (
     _LAND_LOCKS,
     RecordLandingError,
     RecordLandingService,
+    RecordTakeOpenError,
     _upsert_source,
     measure_keeper_drifts,
     purge_session_land_rollbacks,
@@ -1783,6 +1784,97 @@ def test_host_upload_join_offset_auto_lands(
     host_land = client.post("/api/record/land", params={"path": str(minimal_project)})
     assert host_land.status_code == 200
     assert host_land.json()["clips"] == []
+
+
+def test_host_land_refuses_an_open_take_on_every_surface(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app as cli_app
+    from podcast_mcp.mcp.tools.record import record_land_tool
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    reason = "Stop the take to land it on the timeline."
+    client = TestClient(create_app())
+    runner = CliRunner()
+    project = str(minimal_project)
+
+    for open_state in ("recording", "paused"):
+        if open_state == "paused":
+            svc.submit(_cmd("Pause"), now_wall_ms=300)
+        assert svc.snapshot()["state"] == open_state
+
+        with pytest.raises(RecordTakeOpenError) as service_refusal:
+            RecordControlService(ws).land()
+        assert str(service_refusal.value) == reason
+        assert service_refusal.value.code == "take_open"
+
+        http = client.post("/api/record/land", params={"path": project})
+        assert http.status_code == 409
+        assert http.json()["detail"] == reason
+        assert http.headers["X-Sharecut-Error-Code"] == "take_open"
+
+        with pytest.raises(RecordTakeOpenError, match=reason):
+            record_land_tool(project)
+
+        cli = runner.invoke(cli_app, ["record", "land", "--project", project])
+        assert cli.exit_code == 1
+        assert reason in cli.output
+
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    _ack(
+        RecordUploadService(ws.project),
+        session_id=room["session_id"],
+        take=0,
+        pid=guest,
+        segment=0,
+        join_offset_ms=0,
+    )
+    landed = client.post("/api/record/land", params={"path": project})
+    assert landed.status_code == 200, landed.text
+    assert len(landed.json()["clips"]) == 1
+
+
+def test_upload_auto_land_still_lands_while_a_later_take_is_open(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    svc, _guest = _consent_room(ws, room)
+    svc.submit(_cmd("Start"), now_wall_ms=0)
+    svc.submit(_cmd("Stop"), now_wall_ms=1_000)
+    svc.submit(_cmd("Start"), now_wall_ms=2_000)
+    assert svc.snapshot()["state"] == "recording"
+    pcm, digest, file_hash = _pcm(480)
+    client = TestClient(create_app())
+    project = str(minimal_project)
+
+    res = client.post(
+        "/api/record/upload",
+        params={
+            "path": project,
+            "take_index": 0,
+            "segment_index": 0,
+            "part_seq": 0,
+            "sha256": digest,
+            "file_sha256": file_hash,
+            "final": True,
+            "expected_parts": 1,
+        },
+        content=pcm,
+    )
+
+    assert res.status_code == 200, res.text
+    assert res.json()["landed"] is True
+    assert len(res.json()["clips"]) == 1
+    refused = client.post("/api/record/land", params={"path": project})
+    assert refused.status_code == 409
 
 
 def test_guest_upload_persists_land_failure_until_host_retry(

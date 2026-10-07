@@ -6,7 +6,7 @@ from typing import Any
 
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.commands import RecordCommand
-from podcast_mcp.services.record.landing import RecordLandingService
+from podcast_mcp.services.record.landing import RecordLandingService, RecordTakeOpenError
 from podcast_mcp.services.record.service import RecordSessionService, next_record_client_seq
 from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
 
@@ -38,6 +38,13 @@ class RecordControlService:
         return self._host("Stop")
 
     def land(self) -> dict[str, Any]:
+        """Host land (HTTP, MCP, CLI); refuses an open take.
+
+        Landing on upload completion calls ``RecordLandingService.land`` directly, so a
+        keeper that arrives during a later take still lands.
+        """
+        if self.snapshot().get("state") in ("recording", "paused"):
+            raise RecordTakeOpenError
         return RecordLandingService(self.workspace).land()
 
     def discard_take(self, take_index: int) -> dict[str, Any]:

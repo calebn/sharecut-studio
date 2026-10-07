@@ -17,6 +17,8 @@ HOST_PARTICIPANT_ID = "p_host"
 HOST_OFFLINE_PAUSE_MS = 10_000
 HOST_HEARTBEAT_STALE_MS = 7_500
 TAKE_OPEN_REMINT_MSG = "A take is open (REC/PAUSED). Stop it before minting a new room."
+#: Host land is refused while a take is open; Sharecut Studio words the same reason in `landGate`.
+LAND_TAKE_OPEN_MSG = "Stop the take to land it on the timeline."
 
 
 class PauseEntry(BaseModel):

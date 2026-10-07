@@ -948,7 +948,13 @@ cannot. Every button runs the same `record.*` command as the palette.
   before anything arrived ("No recordings have reached the project yet.") and
   when everything landed ("Every take is on the timeline."). It turns into
   **Retry land** after a failed land, and also lands unlanded live comments.
-  `record.land` refuses an open take with the same reason (`landGate`).
+  The server refuses an open take with the same reason, so every host surface
+  (the `record.land` command, `POST /api/record/land`, `record_land_tool`,
+  `podcast record land`) stops at one check in `RecordControlService.land`.
+  `RecordTakeOpenError` carries the code `take_open`; HTTP answers 409 with
+  `X-Sharecut-Error-Code: take_open`. Landing a finished take's keeper on file
+  ACK calls `RecordLandingService.land` directly and still runs while a later
+  take is open.
 - Mute my mic, the take control, Land, the blockers and Stop stay in a sticky
   footer of the scrolling panel, so they remain in reach on a phone, with
   44 px targets on touch. **Copy links…** (open Share) sits just above it.
@@ -1446,7 +1452,7 @@ Shipped in `feat/recording-landing`:
 - [x] Sequential takes + 2 s `take_gap_ms` even if an earlier take is still uploading; absent participant has no clip that take.
 - [x] Happy path skips `ingest suggest`; land JSON `align_fallback` when `session_start` is missing or sample-count vs recording-clock `|drift_ms| > 50 ms` (`feat/record-land-drift`). Pipeline `align_tracks` after transcribe — not invoked at land (no transcripts).
 - [x] Deleting a take is refused while its upload manifest is non-terminal; a tombstone voids ACK and re-lands later takes at offset 0.
-- [x] Host `POST /api/record/land`, CLI `podcast record land`, MCP `record_land_tool`.
+- [x] Host `POST /api/record/land`, CLI `podcast record land`, MCP `record_land_tool` (all refuse an open take).
 - [x] Do **not** add live comments in this PR.
 
 ## Shipped: live comments

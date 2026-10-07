@@ -133,3 +133,44 @@ def test_record_cli_and_mcp_transport_after_consent(
     ctrl = RecordControlService(ws)
     with pytest.raises(RecordStateError):
         ctrl.pause()
+
+
+def test_record_state_reaches_agents_with_coded_start_blockers(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from fastapi.testclient import TestClient
+
+    from podcast_mcp.gui.server import create_app
+
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    room = ShareService(ws).create_record_room()
+    client = TestClient(create_app())
+
+    def blockers() -> tuple[list, list]:
+        via_mcp = json.loads(record_state_tool(str(minimal_project)))["start_blockers"]
+        via_http = client.get("/api/record/state", params={"path": str(minimal_project)}).json()[
+            "start_blockers"
+        ]
+        return via_mcp, via_http
+
+    assert blockers() == ([{"code": "no_guest"}], [{"code": "no_guest"}])
+
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    echo, _snap = svc.join(
+        token=room["guest"]["token"],
+        role="guest",
+        display_name="Ava",
+        client_id="rec-guest",
+        connection_id="c1",
+        capabilities=["join", "monitor"],
+        client_seq=1,
+    )
+    pending = [
+        {
+            "code": "consent_pending",
+            "participant_id": echo["participant_id"],
+            "display_name": "Ava",
+        }
+    ]
+    assert blockers() == (pending, pending)
