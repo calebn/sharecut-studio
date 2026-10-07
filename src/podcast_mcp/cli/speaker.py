@@ -136,3 +136,52 @@ def speaker_gate_track_cmd(
         progress=get_progress(),
     )
     typer.echo(json.dumps(result, indent=2))
+
+
+def _parse_enroll(values: list[str]) -> dict[str, list[tuple[float, float]]]:
+    spans: dict[str, list[tuple[float, float]]] = {}
+    for value in values:
+        name, sep, span = value.partition("=")
+        start, colon, end = span.partition(":")
+        if not sep or not colon or not name.strip():
+            raise typer.BadParameter("--enroll must be NAME=START:END (source seconds)")
+        try:
+            spans.setdefault(name.strip(), []).append((float(start), float(end)))
+        except ValueError as exc:
+            raise typer.BadParameter("--enroll must be NAME=START:END (source seconds)") from exc
+    return spans
+
+
+@speaker_app.command("split")
+def speaker_split_cmd(
+    project: Path = typer.Option(..., "--project"),
+    track: str = typer.Option(..., "--track", help="Lane holding the one-track recording"),
+    speakers: int | None = typer.Option(
+        None, "--speakers", help="How many people talk (else the count set-speaker-count saved)"
+    ),
+    name: list[str] | None = typer.Option(None, "--name", help="Speaker name, in order"),
+    enroll: list[str] | None = typer.Option(
+        None, "--enroll", help="NAME=START:END of only that speaker (repeat; sets names)"
+    ),
+    crosstalk: str = typer.Option(
+        "both", "--crosstalk", help="both: keep it on each speaker's lane; lane: a shared lane"
+    ),
+    room_tone_fill: bool = typer.Option(
+        False, "--room-tone-fill", help="Lay room tone under each lane's mutes"
+    ),
+    dry_run: bool = typer.Option(True, "--dry-run/--apply"),
+) -> None:
+    if crosstalk not in ("both", "lane"):
+        raise typer.BadParameter("--crosstalk must be both or lane")
+    ws = ProjectWorkspace.open(project)
+    result = SpeakerService(ws).split_speakers(
+        track,
+        speaker_count=speakers,
+        names=name or None,
+        enrollment=_parse_enroll(enroll) if enroll else None,
+        crosstalk_mode="lane" if crosstalk == "lane" else "both",
+        room_tone_fill=room_tone_fill,
+        dry_run=dry_run,
+        progress=get_progress(),
+    )
+    typer.echo(json.dumps(result, indent=2))

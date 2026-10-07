@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**116** capabilities · **100** Sharecut Studio commands · **54** keyed · **179** MCP tools · **17** skills on rows (+ **19** hub skills).
+**116** capabilities · **100** Sharecut Studio commands · **54** keyed · **180** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -150,7 +150,7 @@ Host/agent capabilities without a Sharecut Studio `command` id (pipeline, transc
 | DAW session sync | session | `get_session_state_tool`, `set_session_selection_tool`, `set_session_mode_tool`, `set_session_region_tool` | `podcast session` | `podcast-open-gui` | yes |
 | Ingest alignment | project | `ingest_import_folder_tool`, `ingest_suggest_alignment_tool`, `ingest_verify_alignment_tool`, `play_compare_tool` | `podcast ingest` | `podcast-align-audio` | yes |
 | Align accept gate | project | `align_status_tool`, `align_brief_tool`, `align_done_tool`, `align_waive_tool` | `podcast align` | `podcast-align-audio` | yes |
-| Speaker attribution | project | `speaker_doctor_tool`, `speaker_enroll_tool`, `speaker_profiles_tool`, `speaker_score_tool`, `speaker_compare_window_tool`, `speaker_compare_pair_tool`, +4 | `podcast speaker` | `podcast-speaker-attribution` | yes |
+| Speaker attribution | project | `speaker_doctor_tool`, `speaker_enroll_tool`, `speaker_profiles_tool`, `speaker_score_tool`, `speaker_compare_window_tool`, `speaker_compare_pair_tool`, +5 | `podcast speaker` | `podcast-speaker-attribution` | yes |
 | Open Sharecut Studio GUI | session | `open_gui_tool` | `podcast gui` | `podcast-open-gui` | yes |
 
 ## Hub skills

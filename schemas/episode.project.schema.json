@@ -238,7 +238,33 @@
         "edit_decisions": { "type": "array", "items": { "$ref": "#/$defs/EditDecision" } },
         "edit_log": { "type": "array", "items": { "$ref": "#/$defs/AppliedEditRecord" } },
         "chapters": { "type": "array", "items": { "$ref": "#/$defs/ChapterMarker" } },
-        "retained_bleed_alignments": { "type": "array", "default": [], "items": { "$ref": "#/$defs/RetainedBleedAlignmentDecision" } }
+        "retained_bleed_alignments": { "type": "array", "default": [], "items": { "$ref": "#/$defs/RetainedBleedAlignmentDecision" } },
+        "speaker_splits": { "type": "array", "default": [], "items": { "$ref": "#/$defs/SpeakerSplit" } }
+      }
+    },
+    "SpeakerSplit": {
+      "type": "object",
+      "description": "One recording split into a lane per speaker; every lane plays media_path, muted where it does not own the audio (#1095).",
+      "required": ["id", "media_path", "lanes", "backend", "method"],
+      "properties": {
+        "id": { "type": "string" },
+        "media_path": { "type": "string" },
+        "lanes": { "type": "array", "minItems": 2, "items": { "type": "string" }, "description": "Speakers' track ids, in the order turns name them." },
+        "crosstalk_lane": { "type": ["string", "null"], "default": null, "description": "Shared lane for crosstalk; null keeps crosstalk on every talking speaker's lane." },
+        "turns": { "type": "array", "default": [], "items": { "$ref": "#/$defs/SpeakerTurnRecord" } },
+        "backend": { "type": "string" },
+        "method": { "type": "string", "enum": ["enroll", "cluster"] }
+      }
+    },
+    "SpeakerTurnRecord": {
+      "type": "object",
+      "description": "Source-second span of a split recording and its speaker lanes, most likely first; two or more is flagged crosstalk. end_s must exceed start_s.",
+      "required": ["start_s", "end_s", "speakers", "confidence"],
+      "properties": {
+        "start_s": { "type": "number", "minimum": 0 },
+        "end_s": { "type": "number" },
+        "speakers": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
       }
     },
     "RetainedBleedAlignmentDecision": {

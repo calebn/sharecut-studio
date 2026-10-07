@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
@@ -124,6 +126,45 @@ def speaker_compare_pair_tool(
     )
 
 
+def speaker_split_tool(
+    project_path: str,
+    track_id: str,
+    speaker_count: int | None = None,
+    names: list[str] | None = None,
+    enrollment: dict[str, list[list[float]]] | None = None,
+    crosstalk_mode: Literal["both", "lane"] = "both",
+    room_tone_fill: bool = False,
+    dry_run: bool = True,
+) -> str:
+    """Split a one-track recording of several speakers into a lane per speaker (dry_run by default).
+
+    Needs the speaker count (or one set with speaker_set_count_tool). ``enrollment`` maps
+    each speaker's name to [start, end] source-second spans of only that speaker. Every lane
+    plays the same media, muted where the others talk; crosstalk stays on both lanes or
+    moves to a shared lane (``crosstalk_mode="lane"``). One undo step.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(
+        SpeakerService(ws).split_speakers(
+            track_id,
+            speaker_count=speaker_count,
+            names=names,
+            enrollment=(
+                {
+                    name: [(float(s), float(e)) for s, e in spans]
+                    for name, spans in enrollment.items()
+                }
+                if enrollment
+                else None
+            ),
+            crosstalk_mode=crosstalk_mode,
+            room_tone_fill=room_tone_fill,
+            dry_run=dry_run,
+            progress=resolve_progress(),
+        )
+    )
+
+
 def register(mcp: MCPServer) -> None:
     """Register speaker tools on the MCP server."""
     mcp.tool()(speaker_doctor_tool)
@@ -136,3 +177,4 @@ def register(mcp: MCPServer) -> None:
     mcp.tool()(speaker_set_count_tool)
     mcp.tool()(speaker_attribute_tool)
     mcp.tool()(speaker_gate_track_tool)
+    mcp.tool()(speaker_split_tool)

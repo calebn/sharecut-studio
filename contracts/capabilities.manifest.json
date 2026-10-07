@@ -2452,7 +2452,8 @@
           "speaker_label_tool",
           "speaker_set_count_tool",
           "speaker_attribute_tool",
-          "speaker_gate_track_tool"
+          "speaker_gate_track_tool",
+          "speaker_split_tool"
         ],
         "cli": "podcast speaker",
         "skill": "podcast-speaker-attribution"
