@@ -84,13 +84,15 @@ evidence:
 - #1090 owner: "Pick the threshold by cross-validation per recording, not as a constant."
 - #1090 owner: "A rerun with no change should write no history entry." and "Add an explicit peak bound."
 - #1090 owner: steps use only the reference mic; "use every pair when available"
-- #1090 lab: 23 steps (36 before), 15 s windows over the deadband 7 of 83 (8), loudest skipped or repeated sample -57.5 dBFS (-50.3)
+- #1090 lab: 31 steps (36 before), 15 s windows over the deadband 3 of 82 (7), none more than 10 ms worse, loudest skipped or repeated sample -58.4 dBFS (-50.3)
 enforced-by:
 - tests/test_bleed_lag_segments.py::test_align_tracks_splits_the_lane_in_the_silence_and_undo_restores
 - tests/test_bleed_lag_segments.py::test_drifting_lane_is_flagged_and_not_split
 - tests/test_bleed_lag_segments.py::test_manifest_pin_proposes_one_shift_and_keeps_the_clip_whole
 - tests/test_bleed_lag_segments.py::test_a_step_is_judged_against_its_merged_neighbours
 - tests/test_bleed_lag_segments.py::test_a_short_clear_stretch_keeps_its_own_lag
+- tests/test_bleed_lag_segments.py::test_a_lone_phrase_after_a_pause_keeps_the_lag_its_own_speech_shows
+- tests/test_bleed_lag_segments.py::test_a_noisy_lone_phrase_between_long_pauses_keeps_its_own_lag
 - tests/test_bleed_lag_segments.py::test_a_blip_is_noise_and_an_easing_is_a_step
 - tests/test_bleed_lag_segments.py::test_steps_use_a_mic_other_than_the_reference
 - tests/test_bleed_lag_segments.py::test_steps_show_through_the_other_voice_on_the_lane_mic
@@ -103,13 +105,12 @@ enforced-by:
 
 One latency is not always enough. Zoom's jitter buffer can re-time a track when its talker resumes after a pause, then ease it back. On the lab tape Audra trails her bleed by 130-150 ms most of the time and by 185-225 ms in the first stretch after several pauses (about 270 ms at the start of 646-660 s). So for a lane the bleed moves or keeps on latency grounds, `align_tracks` also finds where its latency steps, with each step inside one of the lane's own silences. It splits the lane's clip in those silences and slips each piece to its own latency, in the same undoable history entry. A step skips or repeats only silence, never a word: the full-band audio there has 30 ms RMS under -60 dB and every sample under -50 dBFS. Silence is judged on the full-band audio, because the 8 kHz lag decode hides sibilants. A manifest-pinned, `copy_later`, conflicting or drifting lane gets no steps. Bleed is evidence of timing only; it is never used as audio for another speaker.
 
-The rules are relative to each recording (#1090). Steps come from every pair the lane shares with a track on the reference clock, in either direction, not only from the reference mic. A piece needs its lag pinned by its own evidence (its likelihood-ratio interval inside the deadband, counted in the talker's voiced frames), not a fixed frame count, so a short clear phrase is a piece and a lone click is not. A step is judged against the merged pieces either side of it, so two neighbours inside the deadband become one piece instead of forcing the step into the wrong silence. The step cost is chosen per lane by cross-validation on held-out speech. Each pair's steady lag is measured on the lane's media, so a re-run finds the same steps, keeps the pieces and their `meta.ingest_alignment` records, and writes no history entry. Thresholds, the artifact fields and the lab numbers are in [pipeline.md § Conversation align](pipeline.md#conversation-align-align_tracks--gate).
+The rules are relative to each recording (#1090). Steps come from every pair the lane shares with a track on the reference clock, in either direction, not only from the reference mic. Each talk spurt is scored on its own correlation, so a phrase's level relation to its copy, which follows loudness and the room, cannot pull it into a neighbouring piece. A piece needs its lag pinned by its own evidence (its likelihood-ratio interval inside the deadband, counted in the talker's voiced frames), not a fixed frame count, so a short clear phrase is a piece and a lone click is not. A step is judged against the merged pieces either side of it, so two neighbours inside the deadband become one piece instead of forcing the step into the wrong silence, and where the evidence cannot place a step it goes in the widest silence. The step cost is chosen per lane by cross-validation on held-out frames of every spurt, the smallest cost whose held-out fit is not measurably worse than the best. Each pair's steady lag is measured on the lane's media, so a re-run finds the same steps, keeps the pieces and their `meta.ingest_alignment` records, and writes no history entry. Thresholds, the artifact fields and the lab numbers are in [pipeline.md § Conversation align](pipeline.md#conversation-align-align_tracks--gate).
 
 A per-track timing map that keeps the lane as one clip and follows lag changes
-inside continuous speech is planned in #1089. On the lab tape a lone phrase between
-two long pauses can still ride the piece before it when its own evidence is weak
-(568 s and 1171 s), and a lag change inside continuous speech (646-660 s, 728 s)
-needs that timing map.
+inside continuous speech is planned in #1089. On the lab tape a lag change inside
+one talk spurt (1663.8-1671.1 s) and a lag outside the 100 ms search (646-660 s, and
+about 20 ms at 740.4 s) need that timing map.
 
 #### Human acceptance
 
