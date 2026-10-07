@@ -244,6 +244,88 @@ def test_a_split_needs_two_or_more_speakers() -> None:
         attribute_speakers(audio, speaker_count=1, backend=SpectralBackend())
 
 
+# --- hand-overs land in pauses (owner listening round, #1095) ----------------------
+
+
+def _scripted_mix(plan: list[tuple[int, float, float]], seconds: float, seed: int = 0):
+    """``(speaker, start, length)`` voices on a noise bed, with per-frame truth."""
+    rng = np.random.default_rng(seed)
+    audio = 1e-3 * rng.standard_normal(round(seconds * RATE))
+    truth = np.zeros((1 + max(s for s, _, _ in plan), round(seconds / FRAME_SEC)), dtype=bool)
+    for speaker, start, length in plan:
+        voice = _voice(speaker, length, rng)
+        first = round(start * RATE)
+        audio[first : first + voice.size] += voice
+        truth[speaker, round(start / FRAME_SEC) : round((start + length) / FRAME_SEC)] = True
+    return audio.astype(np.float32), truth
+
+
+# Ana talks, Ben gives a short reply, Ana goes on, Ben takes a long turn.
+REPLY_PLAN = [(0, 0.5, 4.0), (1, 4.9, 0.9), (0, 6.2, 4.0), (1, 10.6, 4.0)]
+REPLY = (round(4.9 / FRAME_SEC), round(5.8 / FRAME_SEC))
+
+
+def _distorted_viterbi(monkeypatch: pytest.MonkeyPatch, distort) -> None:
+    """The attribution's Viterbi pass, with its labels distorted like smeared windows."""
+    from podcast_mcp.engines import speaker_split
+
+    real = speaker_split._viterbi
+    monkeypatch.setattr(speaker_split, "_viterbi", lambda *args: distort(real(*args)))
+
+
+def _loud(audio: np.ndarray) -> np.ndarray:
+    """Frames 20 dB above the mix's 1e-3 noise bed: someone's voice is sounding."""
+    hop = round(FRAME_SEC * RATE)
+    frames = audio.size // hop
+    rms = np.sqrt(np.mean(audio[: frames * hop].reshape(frames, hop) ** 2, axis=1))
+    return rms > 1e-2
+
+
+def test_a_hand_over_attributed_mid_utterance_lands_in_the_pause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audio, truth = _scripted_mix(REPLY_PLAN, 16.0)
+    loud = _loud(audio)
+
+    def into_the_next_voice(labels: np.ndarray) -> np.ndarray:
+        # Each hand-over slides 60 ms into the next speaker's first syllable.
+        labels = labels.copy()
+        for at in np.flatnonzero(np.diff(labels) != 0) + 1:
+            onset = at + int(np.argmax(loud[at:]))
+            labels[at : onset + 3] = labels[at - 1]
+        return labels
+
+    _distorted_viterbi(monkeypatch, into_the_next_voice)
+    attribution = attribute_speakers(
+        audio, speaker_count=2, backend=SpectralBackend(), enrollment={0: [(0.5, 3.0)]}
+    )
+    labels, crosstalk = _frame_labels(attribution, truth.shape[1])
+    cuts = np.flatnonzero(np.diff(labels) != 0) + 1
+    assert len(cuts) == 3
+    assert not any(loud[cut - 1] and loud[cut] for cut in cuts), "every hand-over in a pause"
+    assert _single_speaker_accuracy(truth, labels) == 1.0
+    assert not crosstalk.any()
+
+
+def test_a_short_reply_keeps_its_whole_voiced_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    audio, truth = _scripted_mix(REPLY_PLAN, 16.0)
+    lo, hi = REPLY
+
+    def cut_short(labels: np.ndarray) -> np.ndarray:
+        # The reply's last 0.3 s goes to the next speaker, as a window edge would.
+        labels = labels.copy()
+        labels[hi - 15 : hi] = labels[round(6.5 / FRAME_SEC)]
+        return labels
+
+    _distorted_viterbi(monkeypatch, cut_short)
+    attribution = attribute_speakers(
+        audio, speaker_count=2, backend=SpectralBackend(), enrollment={0: [(0.5, 3.0)]}
+    )
+    labels, _ = _frame_labels(attribution, truth.shape[1])
+    assert np.all(labels[lo:hi][truth[1, lo:hi]] == 1), "the whole reply on Ben's lane"
+    assert _single_speaker_accuracy(truth, labels) == 1.0
+
+
 # --- lanes -------------------------------------------------------------------------
 
 
