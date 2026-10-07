@@ -14,6 +14,7 @@ from podcast_mcp.config import load_defaults
 from podcast_mcp.models import EpisodeProject, TranscriptWord
 
 FillerPadMode = Literal["silence", "room_tone"]
+FILLER_PAD_MODES: tuple[FillerPadMode, ...] = ("silence", "room_tone")
 MIN_PACED_CUT_SEC = 0.02
 
 
@@ -72,11 +73,20 @@ def _tighten(defaults: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def filler_pad_mode(defaults: dict[str, Any] | None = None) -> FillerPadMode:
-    """How to fill ``replace_gap_sec`` after ripple: room tone (default) or silence."""
-    raw = str(_tighten(defaults).get("filler_pad_mode", "room_tone")).strip().lower()
-    if raw == "silence":
-        return "silence"
-    return "room_tone"
+    """How to fill ``replace_gap_sec`` after ripple: room tone (default) or silence.
+
+    An unknown ``tighten.filler_pad_mode`` raises ``ValueError`` naming the valid values,
+    so a typo never silently picks the opposite fill. ``merge_pipeline_config`` rejects it
+    when a config is loaded; this keeps a hand-built config from getting past it.
+    """
+    raw = _tighten(defaults).get("filler_pad_mode", "room_tone")
+    mode = str(raw).strip().lower()
+    for valid in FILLER_PAD_MODES:
+        if mode == valid:
+            return valid
+    raise ValueError(
+        f"unknown tighten.filler_pad_mode: {raw!r}; valid values: {', '.join(FILLER_PAD_MODES)}"
+    )
 
 
 def flanking_retained_words(
