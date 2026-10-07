@@ -211,6 +211,40 @@ describe("Menu", () => {
     );
   });
 
+  it("re-caps the panel when layout shifts the trigger while open", async () => {
+    const user = userEvent.setup();
+    const innerHeight = vi.spyOn(window, "innerHeight", "get");
+    innerHeight.mockReturnValue(800);
+    let triggerBottom = 100;
+    const rect = vi
+      .spyOn(HTMLButtonElement.prototype, "getBoundingClientRect")
+      .mockImplementation(
+        () => ({ bottom: triggerBottom }) as unknown as DOMRect,
+      );
+    try {
+      render(<Fixture />);
+      await user.click(screen.getByRole("button", { name: "Open" }));
+      const panel = screen.getByRole("menu", { name: "Test menu" });
+      const rootPx = Number.parseFloat(
+        getComputedStyle(document.documentElement).fontSize,
+      );
+      const remFor = (bottom: number) =>
+        `${(800 - bottom - 0.25 * rootPx) / rootPx}rem`;
+      expect(panel.style.getPropertyValue("--menu-available-height")).toBe(
+        remFor(100),
+      );
+      triggerBottom = 160;
+      await waitFor(() => {
+        expect(panel.style.getPropertyValue("--menu-available-height")).toBe(
+          remFor(160),
+        );
+      });
+    } finally {
+      rect.mockRestore();
+      innerHeight.mockRestore();
+    }
+  });
+
   it("scrolls the focused menuitem into the panel", async () => {
     const user = userEvent.setup();
     const scrollIntoView = vi
