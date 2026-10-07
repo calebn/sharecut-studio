@@ -15,6 +15,7 @@ import {
   ORPHAN_KEEPER_RETENTION_MS,
   pruneExpiredKeeperWavs,
 } from "../keeper/store";
+import { RECORD_UPLOAD_PART_PCM_BYTES } from "./chunker";
 import { recoverLocalKeepers } from "./recovery";
 import { memoryUploadTransport, type RecordUploadTransport } from "./transport";
 import {
@@ -1280,5 +1281,140 @@ describe("leaveBlocked", () => {
         segments: [],
       }),
     ).toBe(false);
+  });
+});
+
+describe("useRecordUpload per-segment status while uploading", () => {
+  const ids = { sessionId: "room1", takeIndex: 0, participantId: "p_a" };
+
+  /** A transport whose puts wait until the test releases that segment. */
+  function gatedTransport() {
+    const inner = memoryUploadTransport();
+    const gates = new Map<number, () => void>();
+    const started: number[] = [];
+    const transport: RecordUploadTransport = {
+      status: (signal) => inner.status(signal),
+      async put(args) {
+        started.push(args.segmentIndex);
+        await new Promise<void>((resolve) => {
+          gates.set(args.segmentIndex, resolve);
+        });
+        return inner.put(args);
+      },
+    };
+    return {
+      transport,
+      started,
+      release: (segmentIndex: number) => gates.get(segmentIndex)?.(),
+    };
+  }
+
+  it.each(["p_a", "p_host"])(
+    "shows %s each segment as saving when its upload starts and saved when it lands",
+    async (participantId) => {
+      const sink = new MemorySink();
+      const own = { ...ids, participantId };
+      for (const segmentIndex of [0, 1]) {
+        const path = keeperWavPath({ ...own, segmentIndex });
+        await sink.write(path, wavWithPcm(8));
+        await sink.write(
+          keeperMetaPath(path),
+          keeperMetaBytes({ ...own, segmentIndex }),
+        );
+      }
+      const { transport, started, release } = gatedTransport();
+      const { result, unmount } = renderHook(() =>
+        useRecordUpload({
+          enabled: true,
+          roomState: "stopped",
+          captureSettled: true,
+          ...own,
+          transport,
+          sink,
+        }),
+      );
+
+      await waitFor(() => expect(started).toEqual([0]));
+      await waitFor(() =>
+        expect(result.current.segments).toEqual([
+          {
+            take: 0,
+            segment: 0,
+            state: "saving",
+            chunks: { acked: 0, total: 1 },
+            landFailed: false,
+          },
+        ]),
+      );
+      expect(result.current.uploading).toBe(true);
+
+      release(0);
+      await waitFor(() => expect(started).toEqual([0, 1]));
+      await waitFor(() =>
+        expect(result.current.segments).toEqual([
+          {
+            take: 0,
+            segment: 0,
+            state: "saved",
+            chunks: null,
+            landFailed: false,
+          },
+          {
+            take: 0,
+            segment: 1,
+            state: "saving",
+            chunks: { acked: 0, total: 1 },
+            landFailed: false,
+          },
+        ]),
+      );
+
+      release(1);
+      await waitFor(() => expect(result.current.fileAck).toBe(true));
+      expect(result.current.segments.map((save) => save.state)).toEqual([
+        "saved",
+        "saved",
+      ]);
+      unmount();
+    },
+  );
+
+  it("moves the chunk count inside a multi-chunk segment", async () => {
+    const sink = new MemorySink();
+    const path = keeperWavPath({ ...ids, segmentIndex: 0 });
+    await sink.write(path, wavWithPcm(RECORD_UPLOAD_PART_PCM_BYTES + 8));
+    await sink.write(keeperMetaPath(path), keeperMetaBytes(ids));
+    const inner = memoryUploadTransport();
+    const gates: (() => void)[] = [];
+    const transport: RecordUploadTransport = {
+      status: (signal) => inner.status(signal),
+      async put(args) {
+        await new Promise<void>((resolve) => gates.push(resolve));
+        return inner.put(args);
+      },
+    };
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        ...ids,
+        transport,
+        sink,
+      }),
+    );
+    await waitFor(() => expect(gates).toHaveLength(1));
+    expect(result.current.segments[0]?.chunks).toEqual({ acked: 0, total: 2 });
+    gates[0]?.();
+    await waitFor(() => expect(gates).toHaveLength(2));
+    await waitFor(() =>
+      expect(result.current.segments[0]?.chunks).toEqual({
+        acked: 1,
+        total: 2,
+      }),
+    );
+    gates[1]?.();
+    await waitFor(() => expect(result.current.fileAck).toBe(true));
+    unmount();
   });
 });
