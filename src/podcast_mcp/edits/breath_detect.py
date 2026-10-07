@@ -60,14 +60,6 @@ _SPEECH_PERCENTILE = 90.0
 _DIGITAL_SILENCE_DB = -200.0
 _BREATH_ABOVE_FLOOR_DB = 9.5
 _BREATH_BELOW_SPEECH_DB = (7.0, 40.0)
-# Room tone is not one level: it wanders above its own 10th percentile, so that floor
-# is no separator between a sound and the air around it. On the lab tape it joined the
-# first edge of 147 of 286 rejected pause trims to the word before it through air 40 dB
-# or more under the speech (#1055). The air's own ceiling is the 90th percentile of the
-# live frames under the breath band (none of them can be breath or speech), from at
-# least this much of them.
-_AIR_PERCENTILE = 90.0
-_MIN_AIR_CONTEXT_SEC = 0.5
 
 
 @dataclass(frozen=True)
@@ -107,26 +99,6 @@ def level_profile(samples: np.ndarray, sample_rate: int) -> tuple[float, float] 
         return None
     floor_db, speech_db = np.percentile(live, (_FLOOR_PERCENTILE, _SPEECH_PERCENTILE))
     return db_to_amplitude(float(floor_db)), db_to_amplitude(float(speech_db))
-
-
-def air_ceiling_rms(samples: np.ndarray, sample_rate: int, profile: tuple[float, float]) -> float:
-    """The level this track's air reaches: room tone and anything else under the breath band.
-
-    The 90th percentile of the live 10 ms frames below the band floor, never under the
-    room-tone floor nor over the band floor. Without a band, or with under 0.5 s of
-    such frames, it is the floor itself.
-    """
-    floor, speech = profile
-    band = breath_level_band(floor, speech)
-    if band is None:
-        return floor
-    frame = max(1, round(sample_rate * _LEVEL_FRAME_SEC))
-    levels = frame_rms_db(samples, frame, frame, floor_db=_DIGITAL_SILENCE_DB)
-    air = levels[(levels > _DIGITAL_SILENCE_DB) & (levels < 20.0 * math.log10(band.lo))]
-    if air.size < _MIN_AIR_CONTEXT_SEC / _LEVEL_FRAME_SEC:
-        return floor
-    ceiling = db_to_amplitude(float(np.percentile(air, _AIR_PERCENTILE)))
-    return min(max(ceiling, floor), band.lo)
 
 
 def _breath_cfg(defaults: dict | None) -> dict:
@@ -454,12 +426,6 @@ def _connected_activity(levels: np.ndarray, floor: float) -> list[tuple[int, int
     return list(bool_runs(levels > floor))
 
 
-def _air_separator(noise_floor_rms: float, air_rms: float | None, band: LevelBand) -> float:
-    """Frames at or under this level are air: they end a sound's quiet onset or tail."""
-    air = noise_floor_rms if air_rms is None else max(air_rms, noise_floor_rms)
-    return min(air, band.lo) * (1.0 + 1e-6)
-
-
 def _complete_crossing_span(
     samples: np.ndarray,
     window_start: float,
@@ -472,14 +438,13 @@ def _complete_crossing_span(
     search_sec: tuple[float, float] | None,
     keep_out: Sequence[tuple[float, float]],
     max_duration_sec: float,
-    air_rms: float | None = None,
 ) -> BreathSpan | None:
     if band is None or noise_floor_rms is None or noise_floor_rms <= 0.0:
         return None
     frame_size = max(1, round(sample_rate * _LEVEL_FRAME_SEC))
     frame_duration = frame_size / sample_rate
     levels = _frame_levels(samples, frame_size, samples.size // frame_size)
-    floor = _air_separator(noise_floor_rms, air_rms, band)
+    floor = min(noise_floor_rms, band.lo) * (1.0 + 1e-6)
     blocked = _blocked_frames(keep_out, window_start, frame_duration, levels.size)
     accept = _breath_run_predicate(
         samples,
@@ -532,7 +497,6 @@ def classify_breath_samples(
     keep_out: Sequence[tuple[float, float]] = (),
     search_sec: tuple[float, float] | None = None,
     crossing_sec: float | None = None,
-    air_rms: float | None = None,
 ) -> BreathSpan | None:
     """Classify a bounded sample window using the shared breath detectors.
 
@@ -540,9 +504,8 @@ def classify_breath_samples(
     ``search_sec`` selects complete runs overlapping that interval while the rest
     of the window still informs the checks. ``crossing_sec`` locates the cut inside
     the window. Each accepted run is traced back to room tone to include a quiet
-    onset and tail, with measured air separators (``air_rms``, see
-    :func:`air_ceiling_rms`; the room-tone floor without one) inside the search window
-    and maximum duration, before testing the complete span against that boundary.
+    onset and tail, with measured floor separators inside the search window and
+    maximum duration, before testing the complete span against that boundary.
     ``cut_edge`` names the window edge that touches the cut
     being extended (``"end"`` before it, ``"start"`` after it); a hit then also
     needs unvoiced audio below the band ceiling all the way to that edge, neither
@@ -580,7 +543,6 @@ def classify_breath_samples(
             search_sec=search_sec,
             keep_out=keep_out,
             max_duration_sec=max_duration_sec,
-            air_rms=air_rms,
         )
 
     if vad_backend == "silero" and sample_rate == 16000:
@@ -775,8 +737,6 @@ class _CompleteEdgeBreath:
 @dataclass(frozen=True)
 class _UncertainEdge:
     reason: Literal["protected_activity", "incomplete_activity", "missing_evidence"]
-    # The sound the edge sits in (source seconds), when the evidence found one.
-    sound: tuple[float, float] | None = None
 
 
 def _edge_evidence(
@@ -788,17 +748,7 @@ def _edge_evidence(
     profile: tuple[float, float],
     cfg: dict,
     keep_out: Sequence[tuple[float, float]],
-    air_rms: float | None = None,
 ) -> _ClearEdge | _CompleteEdgeBreath | _UncertainEdge:
-    """What the edge sits in: air, a complete breath, or other sound.
-
-    Sound is a run of 10 ms frames above the air (``air_rms``, see
-    :func:`air_ceiling_rms`; the room-tone floor without one, never above the breath
-    band floor) that reaches the breath band somewhere: its quiet onset and tail down
-    to the air belong to it. A run that never reaches the band is air too. A sound
-    crossing the edge is completed and classified as a breath; otherwise the edge is
-    uncertain, and the evidence carries the sound unless it reaches past the window.
-    """
     band = breath_level_band(*profile)
     if band is None or not samples.size or not np.all(np.isfinite(samples)):
         return _UncertainEdge("missing_evidence")
@@ -807,19 +757,15 @@ def _edge_evidence(
     levels = _frame_levels(samples, frame_size, samples.size // frame_size)
     if not origin < edge < origin + levels.size * dt:
         return _UncertainEdge("missing_evidence")
+    floor = min(profile[0], band.lo) * (1.0 + 1e-6)
     max_duration = cfg["max_duration_ms"] / 1000.0
-    for start, end in _connected_activity(levels, _air_separator(profile[0], air_rms, band)):
+    for start, end in _connected_activity(levels, floor):
         lo = (round(origin * sample_rate) + start * frame_size) / sample_rate
         hi = (round(origin * sample_rate) + end * frame_size) / sample_rate
         if not lo < edge < hi:
             continue
-        if not (levels[start:end] >= band.lo).any():
-            # Air wandering over its ceiling: nothing in it reaches the breath band.
-            return _ClearEdge()
-        if start == 0 or end == levels.size:
+        if start == 0 or end == levels.size or hi - lo > max_duration + 1e-9:
             return _UncertainEdge("incomplete_activity")
-        if hi - lo > max_duration + 1e-9:
-            return _UncertainEdge("incomplete_activity", (lo, hi))
         hit = classify_breath_samples(
             samples,
             origin,
@@ -833,10 +779,9 @@ def _edge_evidence(
             keep_out=keep_out,
             search_sec=(edge - max_duration, edge + max_duration),
             crossing_sec=edge,
-            air_rms=air_rms,
         )
         if hit is None:
-            return _UncertainEdge("protected_activity", (lo, hi))
+            return _UncertainEdge("protected_activity")
         return _CompleteEdgeBreath(hit)
     return _ClearEdge()
 
@@ -852,21 +797,16 @@ def protect_cut_breaths(
     audio_cache: TrackAudioCache | None = None,
     word_index: CutWordIndex | None = None,
     strict: bool = True,
-    air_only: bool = False,
 ) -> tuple[float, float] | None:
     """Shrink final edges around complete breaths, or suppress uncertain cuts.
 
     ``strict`` (a splice): missing evidence and protected connected activity are
-    not clean boundaries, so either suppresses the cut. ``air_only`` (a splice that
-    only removes air, i.e. a pause trim) moves such an edge instead: out of the sound
-    it sits in and into the air, so the previous word's tail, a breath before the next
-    word or a sound the transcript missed stays whole; only missing evidence, sound
-    reaching past the evidence window, or no air left between the moved edges
-    suppresses it. Otherwise (an edge that fades against fill) only a breath matters:
-    an edge inside a complete breath moves out of it, keeping the breath whole, an
-    edge with no breath found stays put, and a cut that is mostly breath is
-    suppressed. A cut that a breath fills edge to edge is suppressed either way.
-    Disabled handling returns the input without reading audio. Source seconds.
+    not clean boundaries, so either suppresses the cut. Otherwise (an edge that
+    fades against fill) only a breath matters: an edge inside a complete breath
+    moves out of it, keeping the breath whole, an edge with no breath found stays
+    put, and a cut that is mostly breath is suppressed. A cut that a breath fills
+    edge to edge is suppressed either way. Disabled handling returns the input
+    without reading audio. Source seconds.
     """
     if not (math.isfinite(start) and math.isfinite(end) and start < end):
         return None
@@ -890,15 +830,15 @@ def protect_cut_breaths(
     profile = level_profile(context, sample_rate)
     if profile is None:
         return no_evidence
-    air = air_ceiling_rms(context, sample_rate, profile)
     words = word_index or CutWordIndex.build(project, track_id)
-
-    def edge_window(edge: float) -> tuple[float, np.ndarray]:
+    windows = []
+    for edge in (start, end):
         origin = max(
             0.0,
             math.floor((edge - _LEVEL_CONTEXT_SEC) / _LEVEL_FRAME_SEC + 1e-9) * _LEVEL_FRAME_SEC,
         )
-        return origin, _read_evidence(read, origin, edge + _LEVEL_CONTEXT_SEC - origin)
+        samples = _read_evidence(read, origin, edge + _LEVEL_CONTEXT_SEC - origin)
+        windows.append((origin, samples))
 
     def inspect(
         edge: float, window: tuple[float, np.ndarray], bounds: tuple[float, float]
@@ -913,14 +853,8 @@ def protect_cut_breaths(
             profile=profile,
             cfg=cfg,
             keep_out=keep_out,
-            air_rms=air,
         )
 
-    if strict and air_only:
-        return _settle_edges_in_air(
-            start, end, lambda edge, bounds: inspect(edge, edge_window(edge), bounds)
-        )
-    windows = [edge_window(edge) for edge in (start, end)]
     evidence = [
         inspect(edge, window, (start, end))
         for edge, window in zip((start, end), windows, strict=True)
@@ -943,53 +877,10 @@ def protect_cut_breaths(
         profile=profile,
         cfg=cfg,
         sample_rate=sample_rate,
-        air_rms=air,
     ):
         # Keeping breaths whole also means not removing one that is most of the cut.
         return None
     return new_start, new_end
-
-
-# A moved edge lands on the first frame of air past the sound it left, so a second
-# pass finds it clear; the third only guards against a pass that still moves.
-_AIR_EDGE_PASSES = 3
-
-
-def _settle_edges_in_air(
-    start: float,
-    end: float,
-    inspect: Callable[
-        [float, tuple[float, float]], _ClearEdge | _CompleteEdgeBreath | _UncertainEdge
-    ],
-) -> tuple[float, float] | None:
-    """Move each edge of an air-only cut out of the sound it sits in, or ``None``.
-
-    The start moves to the end of a complete breath or other sound and the end to
-    its start, so the cut only shrinks. Each pass re-reads both edges with the kept
-    words of the current span, until neither moves.
-    """
-    lo, hi = start, end
-    for _ in range(_AIR_EDGE_PASSES):
-        moved = []
-        for side, edge in (("start", lo), ("end", hi)):
-            item = inspect(edge, (lo, hi))
-            if isinstance(item, _ClearEdge):
-                moved.append(edge)
-                continue
-            if isinstance(item, _CompleteEdgeBreath):
-                sound = (item.span.start, item.span.end)
-            elif item.sound is None:
-                return None
-            else:
-                sound = item.sound
-            moved.append(sound[1] if side == "start" else sound[0])
-        new_lo, new_hi = moved
-        if new_lo >= new_hi:
-            return None
-        if (new_lo, new_hi) == (lo, hi):
-            return lo, hi
-        lo, hi = new_lo, new_hi
-    return None
 
 
 def _mostly_breath(
@@ -1001,7 +892,6 @@ def _mostly_breath(
     profile: tuple[float, float],
     cfg: dict,
     sample_rate: int,
-    air_rms: float | None = None,
 ) -> bool:
     """Whether a breath covers at least half of ``[start, end)``.
 
@@ -1025,7 +915,6 @@ def _mostly_breath(
         profile=profile,
         cfg=cfg,
         keep_out=keep_out,
-        air_rms=air_rms,
     )
     if isinstance(evidence, _CompleteEdgeBreath):
         breath: BreathSpan | None = evidence.span
