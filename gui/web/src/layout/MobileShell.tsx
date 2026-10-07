@@ -34,6 +34,11 @@ import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import { TrackMix } from "../tracks/TrackMix";
 import type { PresenceTab } from "../types/session";
 import { CommandButton, EmptyState, Icon, Timecode } from "../ui";
+import {
+  HOME_SCREEN_HINT,
+  offersHomeScreenHint,
+  readHomeScreenEnv,
+} from "../utils/homeScreenHint";
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
 import { staleMixLabel } from "../utils/staleRender";
 import { formatTimecodePair, transportTimecode } from "../utils/time";
@@ -172,6 +177,9 @@ function MoreHub({
         >
           Gestures
         </button>
+        {offersHomeScreenHint(readHomeScreenEnv()) ? (
+          <p className="mobile-more-hint">{HOME_SCREEN_HINT}</p>
+        ) : null}
       </div>
       <div role="menu" aria-label="People">
         <AvatarStack variant="menu" />

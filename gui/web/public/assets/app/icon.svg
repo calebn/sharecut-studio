@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <!-- Home Screen icon: the favicon mark on one full-bleed card (the OS
+       rounds or masks the square, so no inner frame). The mark stays inside
+       the maskable safe circle (radius 40%). -->
+  <rect width="1024" height="1024" fill="#FCFBF8"/>
+  <path d="M220 720 L720 220 L804 304 L304 804 Z" fill="#A85A24"/>
+  <path d="M304 804 L388 888 L888 388 L804 304 Z" fill="#E8A45A" opacity="0.92"/>
+  <circle cx="512" cy="512" r="72" fill="#F7F4EE"/>
+  <circle cx="512" cy="512" r="40" fill="#A85A24"/>
+</svg>

@@ -491,6 +491,13 @@ html[data-shell="tablet"] {
   border-top: 1px solid var(--border);
 }
 
+/* Add to Home Screen (#1077): quiet guidance under Gestures, never a banner. */
+.mobile-more-hint {
+  margin: var(--space-3) 0 0;
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+}
+
 /* Phone: the project name moves to the Listen hero; the compact bar is too
    narrow for it (it truncated to three letters). */
 @container transport (inline-size < 30rem) {
