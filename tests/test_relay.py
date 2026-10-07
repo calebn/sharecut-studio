@@ -233,6 +233,8 @@ def test_llms_txt_present():
     assert "/r/{token}" in resp.text
     assert "/rec/{token}" in resp.text
     assert "docs.sharecut.studio" in resp.text
+    assert "opaque review links" in resp.text
+    assert "share link" not in resp.text.lower()
 
 
 def test_relay_swagger_disabled():
@@ -260,6 +262,8 @@ def test_offline_share_returns_503_html():
     resp = client.get("/r/unknown-token")
     assert resp.status_code == 503
     assert "host offline" in resp.text.lower()
+    assert "This review link is valid" in resp.text
+    assert "share link" not in resp.text.lower()
     assert "text/html" in (resp.headers.get("content-type") or "")
 
 
@@ -271,6 +275,7 @@ def test_offline_api_review_returns_503():
     body = resp.json()
     assert body["detail"] == "host offline"
     assert "podcast tunnel" in body["message"]
+    assert body["message"].startswith("This review link is valid")
 
 
 def test_offline_mcp_returns_503():

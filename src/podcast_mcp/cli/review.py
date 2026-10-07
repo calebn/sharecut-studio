@@ -11,7 +11,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import ReviewService, ShareService
 
 review_app = typer.Typer(
-    help="Review mix versions and public share links (collaboration extension).",
+    help="Review mix versions and public review links (collaboration extension).",
 )
 
 

@@ -157,3 +157,10 @@ def test_suggest_handoff_cut_debug_env_var_shows_original_exception(tmp_path, mo
     assert result.exit_code != 0
     assert isinstance(result.exception, ValueError)
     assert str(result.exception) == "at least one dialogue track is required"
+
+
+def test_review_group_help_says_review_links():
+    result = runner.invoke(app, ["review", "--help"])
+    assert result.exit_code == 0
+    assert "public review links" in result.output
+    assert "share link" not in result.output.lower()
