@@ -9,6 +9,9 @@ lock, #396/#401) — which the SDK would otherwise surface only as an opaque
 ``UnexpectedToolError`` — becomes an ``is_error`` ``CallToolResult`` with
 ``structured_content {ok: false, error, error_code: "project_busy"}``, so the calling agent
 can see and act on it instead of the crash message alone.
+
+A ``CodedError`` (``util/coded_error.py``, for example ``no_mix`` / ``stale_mix`` from
+publishing a review version) takes the same path with its own ``error_code``.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ from filelock import Timeout
 from mcp.server.mcpserver.exceptions import UnexpectedToolError
 from mcp.types import CallToolResult, TextContent
 
+from podcast_mcp.util.coded_error import CodedError, coded_cause
 from podcast_mcp.util.mcp_call_tool import CallNext, wrap_call_tool
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, busy_message
 
@@ -49,8 +53,18 @@ def busy_tool_result(exc: Timeout) -> CallToolResult:
     )
 
 
+def coded_tool_result(exc: CodedError) -> CallToolResult:
+    """A structured, ``is_error`` result carrying the refusal's own ``error_code``."""
+    message = str(exc)
+    return CallToolResult(
+        content=[TextContent(type="text", text=message)],
+        structured_content={"ok": False, "error": message, "error_code": exc.code},
+        is_error=True,
+    )
+
+
 def install_busy_errors(server: Any) -> None:
-    """Wrap ``MCPServer.call_tool`` so a busy lock returns a structured error result.
+    """Wrap ``MCPServer.call_tool`` so a busy lock or coded refusal returns a structured result.
 
     Idempotent, like ``install_project_default``: a second call is a no-op.
     """
@@ -64,9 +78,12 @@ def install_busy_errors(server: Any) -> None:
             return await call_next(arguments)
         except UnexpectedToolError as exc:
             cause = lock_timeout_cause(exc)
-            if cause is None:
+            if cause is not None:
+                return busy_tool_result(cause)
+            coded = coded_cause(exc)
+            if coded is None:
                 raise
-            return busy_tool_result(cause)
+            return coded_tool_result(coded)
 
     wrap_call_tool(server, around)
     server._podcast_busy_errors_installed = True

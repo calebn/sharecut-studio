@@ -36,6 +36,7 @@ import typer
 from filelock import Timeout
 from typer.core import TyperGroup
 
+from podcast_mcp.util.coded_error import describe_error
 from podcast_mcp.util.project_state import busy_message
 
 _DEBUG_ENV_VAR = "PODCAST_DEBUG"
@@ -79,5 +80,5 @@ class BusyErrorGroup(TyperGroup):
         except _DOMAIN_ERRORS as exc:
             if _debug_enabled():
                 raise
-            typer.echo(f"Error: {exc} {_DEBUG_HINT}", err=True)
+            typer.echo(f"Error: {describe_error(exc)} {_DEBUG_HINT}", err=True)
             raise typer.Exit(1) from exc

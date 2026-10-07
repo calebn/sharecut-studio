@@ -105,6 +105,8 @@ podcast review set-active --project episode.project.json --id <vid>
 
 MCP: `publish_review_version_tool`, `list_review_versions_tool`, `set_active_review_version_tool`.
 
+A refused publish carries a typed code on every surface: `no_mix` (nothing rendered yet), `stale_mix` (premix behind the project) or `stale_master`. HTTP sends it as `X-Sharecut-Error-Code`, the MCP tool result as `structured_content.error_code` (`is_error`), and the CLI appends `(code no_mix)` to its message on stderr and exits 1.
+
 Versions live under `artifacts/review/{id}/mix.wav` plus `mix.mp3` (link previews and agents)
 with metadata in `review.versions[]` (`mp3_relpath`, optional `object_store_key`).
 Publication copies and encodes into a private `.staging-review-*` directory under the

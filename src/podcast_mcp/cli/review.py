@@ -9,6 +9,7 @@ from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import ReviewService, ShareService
+from podcast_mcp.util.coded_error import describe_error
 
 review_app = typer.Typer(
     help="Review mix versions and public review links (collaboration extension).",
@@ -39,7 +40,7 @@ def review_publish_version_cmd(
             set_active=not no_activate,
         )
     except (ValueError, FileNotFoundError) as exc:
-        typer.echo(str(exc), err=True)
+        typer.echo(describe_error(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(json.dumps(ver, indent=2))
 

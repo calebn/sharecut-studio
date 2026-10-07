@@ -164,3 +164,51 @@ def test_review_group_help_says_review_links():
     assert result.exit_code == 0
     assert "public review links" in result.output
     assert "share link" not in result.output.lower()
+
+
+def test_coded_error_prints_its_code_and_exits_1():
+    from podcast_mcp.util.coded_error import CodedError
+
+    demo = _build_app()
+
+    @demo.command("boom-coded")
+    def _boom_coded() -> None:
+        raise CodedError("nothing to publish", code="no_mix")
+
+    result = runner.invoke(demo, ["boom-coded"])
+    assert result.exit_code == 1
+    assert result.stderr.strip() == (
+        "Error: nothing to publish (code no_mix) (set PODCAST_DEBUG=1 for the traceback)"
+    )
+
+
+def test_publish_version_without_a_mix_prints_the_no_mix_code(minimal_project):
+    result = runner.invoke(
+        app,
+        ["review", "publish-version", "--project", str(minimal_project), "--label", "v1"],
+    )
+    assert result.exit_code == 1
+    assert "no mix yet" in result.stderr
+    assert result.stderr.strip().endswith("(code no_mix)")
+
+
+def test_publish_version_with_a_stale_mix_prints_the_stale_mix_code(minimal_project, monkeypatch):
+    from podcast_mcp.edits.review_versions import StaleMixError
+    from podcast_mcp.services.collaboration.review import ReviewService
+
+    def _stale(self, **kwargs):
+        raise StaleMixError("premix.wav is out of date; Refresh", code="stale_mix")
+
+    monkeypatch.setattr(ReviewService, "publish", _stale)
+    result = runner.invoke(
+        app,
+        ["review", "publish-version", "--project", str(minimal_project), "--label", "v1"],
+    )
+    assert result.exit_code == 1
+    assert result.stderr.strip() == "premix.wav is out of date; Refresh (code stale_mix)"
+
+
+def test_describe_error_leaves_an_uncoded_error_unchanged():
+    from podcast_mcp.util.coded_error import describe_error
+
+    assert describe_error(ValueError("bad input")) == "bad input"
