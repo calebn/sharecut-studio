@@ -1893,6 +1893,9 @@ def _gate_cut_edges(
             audio_cache=audio_cache,
             word_index=word_index,
             strict=checks.breaths is _BreathEdges.PROTECT,
+            # A pause trim removes only air, so an edge in sound (the previous
+            # word's tail, a breath before the next word) moves into the air (#1055).
+            air_only=candidate.cut_kind == "pause",
         )
         if breath_safe is None:
             return _CutRejected("breath")
