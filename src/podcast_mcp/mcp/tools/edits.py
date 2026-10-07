@@ -10,7 +10,7 @@ from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import agent_mutated
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
-from podcast_mcp.services.document_sync import submit_host_document_command
+from podcast_mcp.services.document_sync import host_command_result, submit_host_document_command
 
 
 def propose_range_mute_tool(project_path: str, target: dict[str, Any], command_id: str) -> str:
@@ -28,6 +28,35 @@ def propose_range_mute_tool(project_path: str, target: dict[str, Any], command_i
             command_id=command_id,
         )
     )
+
+
+def propose_range_cut_tool(
+    project_path: str,
+    start: float,
+    end: float,
+    command_id: str,
+    track_ids_json: str | None = None,
+) -> str:
+    """Propose an exact range cut for host review (Studio range Cut), replay-safe.
+
+    ``start`` / ``end`` are timeline seconds; ``track_ids_json`` is a JSON array of lanes
+    (default every dialogue lane). The cut leaves a hole: later clips keep their places.
+    This never applies audio: it creates a pending exact cut that the host auditions and
+    approves (``podcast edit approve`` also can). Reuse command_id only when retrying the
+    same range. For a ripple cut across lanes use ``ripple_delete_tool``.
+    """
+    from podcast_mcp.util.tracks import dialogue_track_ids
+
+    ws = ProjectWorkspace.open(project_path)
+    track_ids = json.loads(track_ids_json) if track_ids_json else dialogue_track_ids(ws.project)
+    target = EditService(ws).selected_range_target(start, end, track_ids)
+    reply = submit_host_document_command(
+        project_path,
+        "EditSelectedRange",
+        {"target": target.model_dump(mode="json"), "action": "cut"},
+        command_id=command_id,
+    )
+    return to_json(host_command_result(reply))
 
 
 def build_edit_context(project_path: str, max_utterances: int = 200) -> str:
@@ -400,6 +429,7 @@ def register(mcp: MCPServer) -> None:
         build_edit_context,
         search_transcript_tool,
         propose_range_mute_tool,
+        propose_range_cut_tool,
         cut_time_range_tool,
         cut_text_match_tool,
         cut_utterance_tool,

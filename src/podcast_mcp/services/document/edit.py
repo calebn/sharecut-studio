@@ -392,6 +392,15 @@ class EditService:
             params={"action_id": action_id, "action": action},
         )
 
+    def selected_range_target(
+        self, start: float, end: float, track_ids: list[str]
+    ) -> ExactRangeTarget:
+        """Seal one timeline interval's current clips on ``track_ids`` for a range edit."""
+        from podcast_mcp.edits.range_edits import build_range_target
+        from podcast_mcp.models.episode import RangeInterval
+
+        return build_range_target(self.ws.project, [RangeInterval(start=start, end=end)], track_ids)
+
     def approve(self, ids: list[str], *, allow_exact: bool = False) -> int:
         def mutate(p) -> int:
             selected = [e for e in p.edit_decisions if e.id in ids]

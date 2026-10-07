@@ -436,6 +436,44 @@ def edit_delete_clips_cmd(
     typer.echo(json.dumps(host_command_result(reply), indent=2))
 
 
+@edit_app.command("propose-range-cut")
+def edit_propose_range_cut_cmd(
+    project: Path = typer.Option(..., "--project"),
+    start: float = typer.Option(..., "--start", help="Timeline seconds"),
+    end: float = typer.Option(..., "--end", help="Timeline seconds"),
+    tracks: str | None = typer.Option(
+        None, "--tracks", help="Comma-separated lanes (default every dialogue lane)"
+    ),
+    command_id: str | None = typer.Option(
+        None, "--command-id", help="Reuse only to retry the same range"
+    ),
+) -> None:
+    """Propose an exact range cut (leaves a hole); approve it with `edit approve`."""
+    from uuid import uuid4
+
+    from podcast_mcp.services.document_sync import (
+        host_command_result,
+        submit_host_document_command,
+    )
+    from podcast_mcp.util.tracks import dialogue_track_ids
+
+    ws = ProjectWorkspace.open(project)
+    track_ids = (
+        [t.strip() for t in tracks.split(",") if t.strip()]
+        if tracks
+        else dialogue_track_ids(ws.project)
+    )
+    target = EditService(ws).selected_range_target(start, end, track_ids)
+    reply = submit_host_document_command(
+        project,
+        "EditSelectedRange",
+        {"target": target.model_dump(mode="json"), "action": "cut"},
+        client_id="cli",
+        command_id=command_id or f"cli-range-cut-{uuid4().hex}",
+    )
+    typer.echo(json.dumps(host_command_result(reply), indent=2))
+
+
 @edit_app.command("insert-gap")
 def edit_insert_gap_cmd(
     project: Path = typer.Option(..., "--project"),
