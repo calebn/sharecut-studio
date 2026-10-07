@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from podcast_mcp.models import EditMode
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document_sync.commands import DocumentCommand, DocumentCommandType
 from podcast_mcp.services.document_sync.payloads import validate_payload
@@ -48,9 +49,10 @@ def submit_paste_segment(
     insert_at: float,
     clipboard: Mapping[str, Any],
     *,
+    mode: EditMode,
     client_id: str = "mcp-agent",
 ) -> dict[str, Any]:
-    """Paste a ``copy_segment`` clipboard at ``insert_at`` with Studio Paste's payload.
+    """Paste a ``copy_segment`` clipboard at ``insert_at`` in ``mode``, as Studio Paste does.
 
     The only place host agents build ``PasteSegment``, so a payload change lands here once.
     """
@@ -58,6 +60,7 @@ def submit_paste_segment(
         "insert_at": insert_at,
         "duration": clipboard.get("duration"),
         "extracts": clipboard.get("extracts"),
+        "mode": mode.value,
     }
     return host_command_result(
         submit_host_document_command(project_path, "PasteSegment", payload, client_id=client_id)

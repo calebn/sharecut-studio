@@ -23,6 +23,7 @@ from podcast_mcp.edits.transcript_refine_status import (
 )
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (
+    EditMode,
     Transcript,
     TranscriptWord,
     load_project,
@@ -521,12 +522,14 @@ def test_no_word_ripples_preserve_refine_clearance_after_reopen(minimal_project,
         word.end += 3
     fingerprint = reviewed_transcript_fingerprint(proj)
     save_project(proj, minimal_project)
-    EditService(ProjectWorkspace.open(minimal_project)).ripple_delete(1, 2, use_inaudible_opt=False)
+    EditService(ProjectWorkspace.open(minimal_project)).cut_range(
+        1, 2, use_inaudible_opt=False, mode=EditMode.RIPPLE
+    )
     reopened = ProjectWorkspace.open(minimal_project)
     assert reviewed_transcript_fingerprint(reopened.project) == fingerprint
     assert refine_status_report(reopened.project)["clear"] is True
     assert load_status(reopened.project)["status"] == clearance
-    EditService(reopened).ripple_delete(0.6, 1.6, use_inaudible_opt=False)
+    EditService(reopened).cut_range(0.6, 1.6, use_inaudible_opt=False, mode=EditMode.RIPPLE)
     again = load_project(minimal_project)
     assert reviewed_transcript_fingerprint(again) == fingerprint
     assert status_is_clear(again)
@@ -561,11 +564,11 @@ def test_word_removing_ripple_keeps_refine_clearance_after_reopen(minimal_projec
     else:
         mark_refine_waived(proj, reason="structural edit")
     save_project(proj, minimal_project)
-    EditService(ProjectWorkspace.open(minimal_project)).ripple_delete(
-        0, 0.25, use_inaudible_opt=False
+    EditService(ProjectWorkspace.open(minimal_project)).cut_range(
+        0, 0.25, use_inaudible_opt=False, mode=EditMode.RIPPLE
     )
     reopened = ProjectWorkspace.open(minimal_project)
     assert [word.text for word in reopened.project.transcripts[0].words] == ["world"]
     assert refine_status_report(reopened.project)["clear"] is True
-    EditService(reopened).ripple_delete(1, 2, use_inaudible_opt=False)
+    EditService(reopened).cut_range(1, 2, use_inaudible_opt=False, mode=EditMode.RIPPLE)
     assert load_status(reopened.project)["status"] == clearance

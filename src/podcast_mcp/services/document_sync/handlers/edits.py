@@ -4,15 +4,23 @@ from __future__ import annotations
 
 from typing import Any
 
+from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.decisions import PendingEditBaseline
+from podcast_mcp.models import EditMode
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 
 
 def approve_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     ids = list(p["ids"])
-    count = EditService(ws).approve(ids, allow_exact=p.get("_allow_exact") is True)
-    return {"count": count}
+    outcome = EditService(ws).approve(
+        ids,
+        allow_exact=p.get("_allow_exact") is True,
+        confirm_cut_speech=p.get("confirm_cut_speech") is True,
+    )
+    if isinstance(outcome, CutSpeechConfirmation):
+        return outcome.result("approve_edits")
+    return {"count": outcome}
 
 
 def reject_edits(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
@@ -50,10 +58,11 @@ def set_clip_fade(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
 def trim_clip_edge(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     return EditService(ws).trim_clip_edge(
         p["clip_id"],
-        str(p["edge"]),
+        p["edge"],
         float(p["source_sec"]),
-        mode=str(p.get("mode", "ripple")),
+        mode=EditMode(p["mode"]),
         expected_token=str(p["expected_token"]),
+        confirm_cut_speech=p.get("confirm_cut_speech") is True,
     )
 
 
@@ -120,7 +129,7 @@ def delete_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         structural_mode_from_payload,
     )
 
-    mode = structural_mode_from_payload(p)
+    structural = structural_mode_from_payload(p)
     clip_ids = p.get("clip_ids")
     if clip_ids is None and p.get("clip_id") is not None:
         clip_ids = [p["clip_id"]]
@@ -129,32 +138,11 @@ def delete_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
     reason = str(p["reason"]) if p.get("reason") is not None else None
     return EditService(ws).delete_clips(
         [str(c) for c in clip_ids],
-        ripple=False,
-        propose=mode is StructuralMutationMode.PROPOSE,
+        mode=EditMode(p["mode"]),
+        propose=structural is StructuralMutationMode.PROPOSE,
         reason=reason,
         author=p.get("_author"),
-    )
-
-
-def ripple_delete_clip(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    from podcast_mcp.services.document_sync.policy import (
-        StructuralMutationMode,
-        structural_mode_from_payload,
-    )
-
-    mode = structural_mode_from_payload(p)
-    clip_ids = p.get("clip_ids")
-    if clip_ids is None and p.get("clip_id") is not None:
-        clip_ids = [p["clip_id"]]
-    if not clip_ids:
-        raise ValueError("clip_id or clip_ids required")
-    reason = str(p["reason"]) if p.get("reason") is not None else None
-    return EditService(ws).delete_clips(
-        [str(c) for c in clip_ids],
-        ripple=True,
-        propose=mode is StructuralMutationMode.PROPOSE,
-        reason=reason,
-        author=p.get("_author"),
+        confirm_cut_speech=p.get("confirm_cut_speech") is True,
     )
 
 
@@ -190,12 +178,19 @@ def paste_segment(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
         float(p["insert_at"]),
         float(p["duration"]),
         [dict(x) for x in extracts],
+        mode=EditMode(p["mode"]),
     )
 
 
-def ripple_delete_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
-    """Ripple-delete a timeline range (clipboard cut). Apply-only."""
-    return EditService(ws).ripple_delete(float(p["start"]), float(p["end"]))
+def cut_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:
+    """Cut a timeline range (clipboard cut) in the payload's edit mode. Apply-only."""
+    return EditService(ws).cut_range(
+        float(p["start"]),
+        float(p["end"]),
+        mode=EditMode(p["mode"]),
+        track_ids=[str(t) for t in p.get("track_ids") or []],
+        confirm_cut_speech=p.get("confirm_cut_speech") is True,
+    )
 
 
 def edit_selected_range(ws: ProjectWorkspace, p: dict[str, Any]) -> dict[str, Any]:

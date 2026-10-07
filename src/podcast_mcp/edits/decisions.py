@@ -9,6 +9,7 @@ from pydantic import Field
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import abutting_pairs, clips_abut, clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
+from podcast_mcp.edits.cut_speech import SpeechClearance
 from podcast_mcp.edits.edit_impact import ImpactKind, record_impact
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
@@ -19,6 +20,7 @@ from podcast_mcp.edits.timeline_ops import (
     insert_gap,
     insert_room_tone_pad,
     mute_room_tone_fill,
+    plan_ripple_delete,
     punch_delete,
     ripple_delete,
     split_clips_at,
@@ -190,7 +192,12 @@ def _apply_remove_edit(
     use_inaudible_opt: bool | None = False,
     record_log: bool = False,
 ) -> tuple[float, float, list[str], dict]:
-    """Apply one REMOVE via session ripple or track-local punch."""
+    """Apply one REMOVE via session ripple or track-local punch.
+
+    A suggestion that recorded ``cut_speech`` ripples as suggested: approving it
+    confirmed that speech. Any other session remove keeps the speech-energy scope
+    guard, which turns a cut over speaking peers into a track-local punch.
+    """
     from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
 
@@ -199,7 +206,7 @@ def _apply_remove_edit(
     if mapped_range is None:
         return edit.start, edit.end, [], {"scope": scope, "per_track_source": {}}
     tl_start, tl_end = mapped_range
-    if scope != "track":
+    if scope != "track" and edit.cut_speech is None:
         try:
             scope, _guard = resolve_cut_scope(
                 project,
@@ -229,12 +236,23 @@ def _apply_remove_edit(
         per_track = report["per_track_source"]
         track_ids = [edit.track_id]
     else:
-        report = ripple_delete(
+        removal = plan_ripple_delete(
             project,
             tl_start,
             tl_end,
+            edited_track_ids=[edit.track_id],
             use_inaudible_opt=use_inaudible_opt,
+        )
+        clearance = (
+            SpeechClearance.scope_guarded(removal)
+            if edit.cut_speech is None
+            else SpeechClearance(removal, cut_speech=edit.cut_speech)
+        )
+        report = ripple_delete(
+            project,
+            clearance,
             record_log=record_log,
+            params={"use_inaudible_opt": use_inaudible_opt},
         )
         tl_start, tl_end = report["timeline_start"], report["timeline_end"]
         per_track = report["per_track_source"]
@@ -248,6 +266,7 @@ def _apply_remove_edit(
             "per_track_source": per_track,
             "replace_gap_sec": edit.replace_gap_sec,
             "scope": scope,
+            **({"cut_speech": edit.cut_speech.model_dump(mode="json")} if edit.cut_speech else {}),
         },
     )
 
@@ -307,9 +326,28 @@ def _apply_mute_edit(
     )
 
 
-def approve_edits(project: EpisodeProject, ids: list[str]) -> int:
+def unconfirmed_cut_speech(project: EpisodeProject, ids: list[str]) -> list[EditDecision]:
+    """Pending suggestions among ``ids`` whose ripple cuts other speakers' speech."""
+    id_set = set(ids)
+    return [
+        e
+        for e in project.edit_decisions
+        if e.id in id_set and not e.applied and e.cut_speech is not None
+    ]
+
+
+def approve_edits(
+    project: EpisodeProject, ids: list[str], *, confirm_cut_speech: bool = False
+) -> int:
+    """Apply the pending edits ``ids``.
+
+    A suggestion that records ``cut_speech`` needs ``confirm_cut_speech``; callers ask
+    first (``unconfirmed_cut_speech``), so this refuses rather than cut speech unasked.
+    """
     from podcast_mcp.edits.range_edits import apply_ranges
 
+    if not confirm_cut_speech and unconfirmed_cut_speech(project, ids):
+        raise ValueError("approving these edits cuts other speakers' speech; confirm it first")
     id_set = set(ids)
     applied_ids: set[str] = set()
     to_apply = [e for e in project.edit_decisions if e.id in id_set]

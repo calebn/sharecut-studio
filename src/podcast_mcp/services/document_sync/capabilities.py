@@ -17,7 +17,6 @@ STRUCTURAL_COMMANDS: frozenset[str] = frozenset(
     {
         "SplitAtTime",
         "DeleteClip",
-        "RippleDeleteClip",
     }
 )
 
@@ -42,7 +41,7 @@ EDIT_COMMANDS: frozenset[str] = frozenset(
         "MoveSegment",
         "MoveClips",
         "PasteSegment",
-        "RippleDeleteRange",
+        "CutRange",
         "AddTrack",
         "SetTrackMedia",
         "SetTrackMeta",

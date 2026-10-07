@@ -8,10 +8,10 @@ from mcp.server import MCPServer
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import notify_after_mutation
+from podcast_mcp.models import EditMode
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, RollBoundaryTarget, TrimBoundaryTarget
 from podcast_mcp.services.document_sync import (
-    DocumentCommandType,
     host_command_result,
     submit_host_document_command,
     submit_paste_segment,
@@ -47,20 +47,32 @@ def ripple_delete_tool(
     start: float,
     end: float,
     use_inaudible_opt: bool | None = None,
+    track_ids_json: str | None = None,
+    confirm_cut_speech: bool = False,
 ) -> str:
-    """Ripple-delete a timeline range across dialogue tracks.
+    """Ripple-delete a timeline range across every dialogue track.
 
     Default inaudible opt absorbs trailing quiet air to ~0.4s before the next
     word. For punchline-to-pivot / leave-a-beat handoffs, call
     ``suggest_handoff_cut_tool`` first and pass ``use_inaudible_opt=false`` so
-    local snap does not pull mid-silence bounds onto speech.
+    local snap does not pull mid-silence bounds onto speech. ``track_ids_json``
+    names the tracks whose speech you mean to cut (a JSON list); speech on any
+    other track in the range needs confirmation. Omitted, the cut takes every
+    track (a whole-session time cut) and asks nothing.
+    ``confirm_cut_speech``: a ripple that would cut another track's speech changes
+    nothing and returns ``needs_confirmation`` (which tracks, words and times);
+    ask the person, then call again with ``confirm_cut_speech=true`` to cut anyway.
     """
     ws = ProjectWorkspace.open(project_path)
+    track_ids = json.loads(track_ids_json) if track_ids_json else []
     return to_json(
-        EditService(ws).ripple_delete(
+        EditService(ws).cut_range(
             start,
             end,
+            mode=EditMode.RIPPLE,
+            track_ids=[str(t) for t in track_ids],
             use_inaudible_opt=use_inaudible_opt,
+            confirm_cut_speech=confirm_cut_speech,
         )
     )
 
@@ -69,13 +81,22 @@ def ripple_delete_text_tool(
     project_path: str,
     query: str,
     use_inaudible_opt: bool | None = None,
+    confirm_cut_speech: bool = False,
 ) -> str:
-    """Ripple-delete the first timeline span matching a transcript text query."""
+    """Ripple-delete the first timeline span matching a transcript text query.
+
+    The matched speaker's words are the cut; other tracks' speech in the span needs
+    confirmation.
+    ``confirm_cut_speech``: a ripple that would cut another track's speech changes
+    nothing and returns ``needs_confirmation`` (which tracks, words and times);
+    ask the person, then call again with ``confirm_cut_speech=true`` to cut anyway.
+    """
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).ripple_delete_text(
             query,
             use_inaudible_opt=use_inaudible_opt,
+            confirm_cut_speech=confirm_cut_speech,
         )
     )
 
@@ -220,31 +241,41 @@ def set_clip_join_tool(
 def trim_clip_edge_tool(
     project_path: str,
     clip_id: str,
-    edge: str,
+    edge: Literal["in", "out"],
     source_sec: float,
-    all_tracks: bool = False,
+    mode: Literal["ripple", "gap"] = "ripple",
+    confirm_cut_speech: bool = False,
 ) -> str:
     """Move one clip's ``in`` or ``out`` edge to ``source_sec`` (source-media seconds).
 
-    Later clips ripple by the duration change; expansion is clamped to unused source
-    between the neighbouring clips. Default is track-local (a punch or a single-track
-    clip): only this track ripples. For a session-wide cut (a ripple that left an edge
-    on every dialogue track at this join) pass ``all_tracks=true`` so the same source
-    delta is applied to every track's edge at that instant and the episode stays in
-    sync; trimming one track alone would desync the rest (``clip_skew``). The fix for a
-    ``speech_crosses_cut`` hypothesis from ``audition_context_tool`` is its
-    ``evidence.fix`` (clip, edge, source_sec, all_tracks). Same operation as the DAW
-    trim handle (``TrimClipEdge``); undoable. Follow with ``render_preview``.
+    ``mode="ripple"`` moves every dialogue track by the duration change, so speakers
+    stay in sync: a track with a clip edge at the same instant (a session-wide cut)
+    moves that edge too, and every other track loses or gains the same span.
+    ``mode="gap"`` moves only the grabbed edge and leaves silence or fills the gap to
+    the neighbouring clip; nothing else moves. Expansion is clamped to unused source
+    between the neighbouring clips. The fix for a ``speech_crosses_cut`` hypothesis
+    from ``audition_context_tool`` is its ``evidence.fix`` (clip, edge, source_sec,
+    mode). Same operation as the DAW trim handle (``TrimClipEdge``); undoable. Follow
+    with ``render_preview``.
+    ``confirm_cut_speech``: a ripple that would cut another track's speech changes
+    nothing and returns ``needs_confirmation`` (which tracks, words and times);
+    ask the person, then call again with ``confirm_cut_speech=true`` to cut anyway.
     """
+    edit_mode = EditMode(mode)
     ws = ProjectWorkspace.open(project_path)
     with ws.transaction():
         service = EditService(ws)
         revision = service.boundary_context(
-            TrimBoundaryTarget.model_validate({"clip_id": clip_id, "edge": edge})
+            TrimBoundaryTarget(clip_id=clip_id, edge=edge, mode=edit_mode)
         ).token
         return to_json(
             service.trim_clip_edge(
-                clip_id, edge, source_sec, all_tracks=all_tracks, expected_token=revision
+                clip_id,
+                edge,
+                source_sec,
+                mode=edit_mode,
+                expected_token=revision,
+                confirm_cut_speech=confirm_cut_speech,
             )
         )
 
@@ -287,13 +318,22 @@ def shorten_gaps_tool(
     project_path: str,
     max_gap_sec: float = 0.35,
     use_inaudible_opt: bool | None = None,
+    confirm_cut_speech: bool = False,
 ) -> str:
-    """Shorten word gaps longer than max_gap_sec across the timeline."""
+    """Shorten word gaps longer than max_gap_sec across the timeline.
+
+    Each shortened pause ripples every dialogue track; another speaker talking in a
+    pause needs confirmation.
+    ``confirm_cut_speech``: a ripple that would cut another track's speech changes
+    nothing and returns ``needs_confirmation`` (which tracks, words and times);
+    ask the person, then call again with ``confirm_cut_speech=true`` to cut anyway.
+    """
     ws = ProjectWorkspace.open(project_path)
     return to_json(
         EditService(ws).shorten_word_gaps(
             max_gap_sec,
             use_inaudible_opt=use_inaudible_opt,
+            confirm_cut_speech=confirm_cut_speech,
         )
     )
 
@@ -333,20 +373,31 @@ def split_clip_tool(
     return to_json(host_command_result(result) or {"ok": result.get("ok"), "operation": "split"})
 
 
-def delete_clips_tool(project_path: str, clip_ids_json: str, ripple: bool = False) -> str:
+def delete_clips_tool(
+    project_path: str,
+    clip_ids_json: str,
+    mode: Literal["ripple", "gap"] = "gap",
+    confirm_cut_speech: bool = False,
+) -> str:
     """Delete whole clips by id, as the Studio clip Delete and Ripple delete do.
 
-    ``clip_ids_json`` is a JSON array of clip ids (see ``list_clips_tool``). Without
-    ``ripple`` each clip leaves a gap and nothing else moves; with ``ripple`` later
-    clips close the gap. Submits ``DeleteClip`` / ``RippleDeleteClip`` on the document
-    plane; undoable. For a time range across tracks use ``ripple_delete_tool``.
+    ``clip_ids_json`` is a JSON array of clip ids (see ``list_clips_tool``).
+    ``mode="gap"`` leaves silence where each clip was and moves nothing else;
+    ``mode="ripple"`` closes the clips' spans on every dialogue track, so speakers stay
+    in sync. A ripple that would cut speech outside the deleted clips (another track's,
+    or an unselected clip's on the same track) changes nothing and returns
+    ``needs_confirmation``; ask the person, then call again with
+    ``confirm_cut_speech=true``. Submits ``DeleteClip`` on the document plane; undoable.
+    For a time range across tracks use ``ripple_delete_tool``.
     """
     ids = json.loads(clip_ids_json)
     if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
         raise ValueError("clip_ids_json must be a JSON array of clip ids")
-    command: DocumentCommandType = "RippleDeleteClip" if ripple else "DeleteClip"
+    payload: dict = {"clip_ids": ids, "mode": EditMode(mode).value}
+    if confirm_cut_speech:
+        payload["confirm_cut_speech"] = True
     return to_json(
-        host_command_result(submit_host_document_command(project_path, command, {"clip_ids": ids}))
+        host_command_result(submit_host_document_command(project_path, "DeleteClip", payload))
     )
 
 
@@ -370,8 +421,9 @@ def copy_segment_tool(
     """Copy ``[start, end)`` timeline seconds the way Studio Copy / Cut fill the clipboard.
 
     Read-only. Returns ``{duration, extracts}``: the clips of every track in range, or
-    only ``track_ids_json`` (a JSON array). Pass it to ``paste_segment_tool``. To cut and
-    paste, copy first, then cut (``propose_range_cut_tool`` or ``delete_clips_tool``).
+    only ``track_ids_json`` (a JSON array). Pass it to ``paste_segment_tool``, which takes
+    the edit mode. To cut and paste, copy first, then cut (``propose_range_cut_tool``, or
+    ``delete_clips_tool`` with its ``mode``).
     """
     track_ids = json.loads(track_ids_json) if track_ids_json else None
     if track_ids is not None and not (
@@ -382,17 +434,25 @@ def copy_segment_tool(
     return to_json(EditService(ws).copy_segment(start, end, track_ids))
 
 
-def paste_segment_tool(project_path: str, insert_at: float, clipboard_json: str) -> str:
+def paste_segment_tool(
+    project_path: str,
+    insert_at: float,
+    clipboard_json: str,
+    mode: Literal["ripple", "gap"] = "ripple",
+) -> str:
     """Paste a ``copy_segment_tool`` clipboard at ``insert_at`` timeline seconds (Studio Paste).
 
-    Opens a ``duration`` gap on every dialogue lane at ``insert_at`` and places each
-    extract on its own track; the same clipboard can be pasted again. Submits
-    ``PasteSegment`` on the document plane; undoable.
+    ``mode="ripple"`` opens ``duration`` of time on every dialogue track at
+    ``insert_at``, then places each extract on its own track. ``mode="gap"`` pastes
+    over: it replaces ``[insert_at, insert_at + duration)`` on the pasted tracks only,
+    and nothing moves. The same clipboard can be pasted again. A clipboard naming an
+    unknown track or source, or an impossible range, is rejected with a ``paste_*``
+    code. Submits ``PasteSegment`` on the document plane; undoable.
     """
     clipboard = json.loads(clipboard_json)
     if not isinstance(clipboard, dict):
         raise ValueError("clipboard_json must be the object copy_segment_tool returns")
-    return to_json(submit_paste_segment(project_path, insert_at, clipboard))
+    return to_json(submit_paste_segment(project_path, insert_at, clipboard, mode=EditMode(mode)))
 
 
 def list_clips_tool(project_path: str, track_id: str | None = None) -> str:

@@ -22,12 +22,14 @@ from pathlib import Path
 from filelock import Timeout
 
 from podcast_mcp.config import load_defaults, mix_peak_ceiling_db
+from podcast_mcp.edits.cut_speech import SpeechClearance
 from podcast_mcp.edits.pending_preview import (
     DEFAULT_AB_GAP_SEC,
     PendingPreviewWindow,
     apply_for_suggested,
     resolve_pending_preview,
 )
+from podcast_mcp.edits.ripple import plan_trim
 from podcast_mcp.edits.timeline_ops import roll_clip_join, trim_clip_edge
 from podcast_mcp.edits.transcript_cuts import search_transcript
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV, FFmpegEngine
@@ -391,7 +393,9 @@ class PlayService:
             raise ValueError("pad_sec must be between 0.1 and 2 seconds")
         if isinstance(target, TrimBoundaryTarget):
             if not isinstance(edit, TrimBoundaryEdit) or (
-                target.clip_id != edit.clip_id or target.edge != edit.edge
+                target.clip_id != edit.clip_id
+                or target.edge != edit.edge
+                or target.mode != edit.mode
             ):
                 raise ValueError("edit does not match boundary target")
         elif not isinstance(edit, RollBoundaryEdit) or (
@@ -404,7 +408,9 @@ class PlayService:
             current = snapshot_project(saved)
         proposed = current.model_copy(deep=True)
         if isinstance(edit, TrimBoundaryEdit):
-            trim_clip_edge(proposed, edit.clip_id, edit.edge, edit.source_sec, mode=edit.mode)
+            plan = plan_trim(proposed, edit.clip_id, edit.edge, edit.source_sec, edit.mode)
+            if not plan.unchanged:
+                trim_clip_edge(proposed, plan, SpeechClearance.for_preview(plan.removal))
             actual_sec = next(c for c in proposed.clips if c.id == edit.clip_id)
             actual_edit: TrimBoundaryEdit | RollBoundaryEdit = edit.model_copy(
                 update={

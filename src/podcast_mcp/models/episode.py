@@ -39,6 +39,18 @@ class EditDecisionType(StrEnum):
     SPLIT = "split"
 
 
+class EditMode(StrEnum):
+    """What a trim, delete, cut or paste does to the time after it.
+
+    ``ripple`` closes or opens time on every dialogue track (and the edited track),
+    so speakers stay in sync. ``gap`` leaves silence or overwrites in place and moves
+    nothing else.
+    """
+
+    RIPPLE = "ripple"
+    GAP = "gap"
+
+
 class ClipJoinMode(StrEnum):
     """How an incoming clip meets the previous clip at render time."""
 
@@ -420,6 +432,40 @@ class ExactRangeTarget(BaseModel):
         return self
 
 
+class CutSpeechWord(BaseModel):
+    """One transcript word a ripple would cut, on the timeline clock."""
+
+    model_config = {"frozen": True}
+
+    text: str
+    timeline_start: float = Field(allow_inf_nan=False)
+    timeline_end: float = Field(allow_inf_nan=False)
+
+
+class CutSpeechTrack(BaseModel):
+    """Another track's speech inside a ripple's removed span.
+
+    ``words`` are its unsuppressed transcript words there. ``sound_spans`` are spans
+    where its own sound is speech-level with no such word (own-sound evidence).
+    """
+
+    model_config = {"frozen": True}
+
+    track_id: str
+    speaker: str
+    words: list[CutSpeechWord] = Field(default_factory=list)
+    sound_spans: list[RangeInterval] = Field(default_factory=list)
+
+
+class CutSpeech(BaseModel):
+    """The other tracks' speech a ripple removes, on the timeline clock."""
+
+    model_config = {"frozen": True}
+
+    spans: list[RangeInterval] = Field(min_length=1)
+    tracks: list[CutSpeechTrack] = Field(min_length=1)
+
+
 class EditDecision(BaseModel):
     id: str
     track_id: str
@@ -448,6 +494,10 @@ class EditDecision(BaseModel):
     # session = cross-track ripple (default). track = punch silence hole on
     # track_id only when peers are speaking (speech_energy_guard).
     scope: str = "session"
+    # A suggested session ripple that cuts other speakers' speech, recorded when it
+    # was suggested. Approving it needs ``confirm_cut_speech``; it then ripples as
+    # suggested instead of falling back to a track-local punch.
+    cut_speech: CutSpeech | None = None
     # Multi-track ops (split); when None, use [track_id].
     track_ids: list[str] | None = None
     # Clock for start/end. remove/mute are source; blade split is timeline.

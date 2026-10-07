@@ -3,12 +3,14 @@
 Transcript-guided cuts miss unlabeled words. Before session-wide ripple, check
 whether another dialogue stem is audibly speaking in the mapped window and
 either skip, force review, or convert to a track-local punch (silence hole,
-no peer ripple).
+no peer ripple). :func:`measure_peer_speech` is the own-sound evidence the
+ripple speech guard (``edits/cut_speech.py``) shares.
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -60,6 +62,83 @@ def speech_energy_on_conflict(defaults: dict[str, Any] | None = None) -> Conflic
     return "track_local"
 
 
+@dataclass(frozen=True)
+class PeerSpeechLevels:
+    """Own-sound evidence over timeline spans: which peer tracks are speaking there."""
+
+    owner_rms_db: float | None
+    peer_rms_db: dict[str, float]
+    speaking: tuple[str, ...]
+
+
+def measure_peer_speech(
+    project: EpisodeProject,
+    timeline_spans: Sequence[tuple[float, float]],
+    *,
+    owner_track_ids: Collection[str],
+    peer_track_ids: Iterable[str],
+    defaults: dict[str, Any] | None = None,
+    caches: TrackRmsCacheSet | None = None,
+) -> PeerSpeechLevels | None:
+    """Peers whose own sound is speech in a span: at audible level, not owner bleed.
+
+    A peer counts when its level reaches ``min_other_rms_db`` and the loudest owner
+    track is not ``dominance_db`` louder there (then the peer only carries the owner's
+    voice as bleed). ``None`` when no span is at least ``min_overlap_sec`` long.
+    """
+    cfg = _guard_cfg(defaults)
+    policy = AnalysisPolicy.from_defaults(defaults)
+    min_other = float(cfg.get("min_other_rms_db", policy.audibility_rms_db))
+    dominance = float(cfg.get("dominance_db", 3.0))
+    min_overlap = float(cfg.get("min_overlap_sec", 0.03))
+    checked = [(s, e) for s, e in timeline_spans if e - s >= min_overlap]
+    if not checked:
+        return None
+
+    span_owner_rms = [
+        max(
+            (
+                r
+                for r in (
+                    measure_timeline_rms_db(project, tid, s, e, caches=caches)
+                    for tid in owner_track_ids
+                )
+                if r is not None
+            ),
+            default=None,
+        )
+        for s, e in checked
+    ]
+    owner_rms = max((r for r in span_owner_rms if r is not None), default=None)
+
+    peer_rms: dict[str, float] = {}
+    speaking: list[str] = []
+    for tid in peer_track_ids:
+        if tid in owner_track_ids:
+            continue
+        speaks = False
+        for (tl_start, tl_end), span_owner in zip(checked, span_owner_rms, strict=True):
+            rms = measure_timeline_rms_db(project, tid, tl_start, tl_end, caches=caches)
+            if rms is None:
+                continue
+            if tid not in peer_rms or rms > peer_rms[tid]:
+                peer_rms[tid] = rms
+            if rms < min_other:
+                continue
+            # The owner holds the moment (the peer is quieter bleed).
+            if span_owner is not None and span_owner - rms >= dominance:
+                continue
+            speaks = True
+        if speaks:
+            speaking.append(tid)
+    return PeerSpeechLevels(owner_rms_db=owner_rms, peer_rms_db=peer_rms, speaking=tuple(speaking))
+
+
+def guard_min_overlap_sec(defaults: dict[str, Any] | None = None) -> float:
+    """Shortest overlap with a removed span that counts as cutting speech."""
+    return float(_guard_cfg(defaults).get("min_overlap_sec", 0.03))
+
+
 def assess_cross_track_speech(
     project: EpisodeProject,
     cut_track_id: str,
@@ -73,61 +152,34 @@ def assess_cross_track_speech(
     if src_end <= src_start or not speech_energy_guard_enabled(defaults):
         return SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
 
-    cfg = _guard_cfg(defaults)
-    policy = AnalysisPolicy.from_defaults(defaults)
-    min_other = float(cfg.get("min_other_rms_db", policy.audibility_rms_db))
-    dominance = float(cfg.get("dominance_db", 3.0))
-    min_overlap = float(cfg.get("min_overlap_sec", 0.03))
-
     spans = SessionTimeline(project).map_source_span(
         cut_track_id, SourceSec(src_start), SourceSec(src_end)
     )
     # A track-local hole inside the gap splits it into several mapped spans;
     # peer speech in any span at or above min_overlap can block, not just the
     # largest one (#793).
-    checked_spans = [(s, e) for s, e in spans if e - s >= min_overlap]
-    if not checked_spans:
+    levels = measure_peer_speech(
+        project,
+        spans,
+        owner_track_ids=(cut_track_id,),
+        peer_track_ids=dialogue_track_ids(project),
+        defaults=defaults,
+        caches=caches,
+    )
+    if levels is None:
         return SpeechEnergyGuardResult(blocking_track_ids=(), action=None)
-
-    span_cut_rms = [
-        measure_timeline_rms_db(project, cut_track_id, s, e, caches=caches)
-        for s, e in checked_spans
-    ]
-    cut_rms = max((r for r in span_cut_rms if r is not None), default=None)
-
-    other_rms: dict[str, float] = {}
-    blocking: list[str] = []
-    for tid in dialogue_track_ids(project):
-        if tid == cut_track_id:
-            continue
-        blocks = False
-        for (tl_start, tl_end), span_cut in zip(checked_spans, span_cut_rms, strict=True):
-            rms = measure_timeline_rms_db(project, tid, tl_start, tl_end, caches=caches)
-            if rms is None:
-                continue
-            if tid not in other_rms or rms > other_rms[tid]:
-                other_rms[tid] = rms
-            if rms < min_other:
-                continue
-            # Cut track owns the moment (other is quieter bleed) → allow session ripple.
-            if span_cut is not None and span_cut - rms >= dominance:
-                continue
-            blocks = True
-        if blocks:
-            blocking.append(tid)
-
-    if not blocking:
+    if not levels.speaking:
         return SpeechEnergyGuardResult(
             blocking_track_ids=(),
             action=None,
-            cut_rms_db=cut_rms,
-            other_rms_db=other_rms,
+            cut_rms_db=levels.owner_rms_db,
+            other_rms_db=levels.peer_rms_db,
         )
     return SpeechEnergyGuardResult(
-        blocking_track_ids=tuple(blocking),
+        blocking_track_ids=levels.speaking,
         action=speech_energy_on_conflict(defaults),
-        cut_rms_db=cut_rms,
-        other_rms_db=other_rms,
+        cut_rms_db=levels.owner_rms_db,
+        other_rms_db=levels.peer_rms_db,
     )
 
 

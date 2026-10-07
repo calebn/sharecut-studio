@@ -643,6 +643,7 @@ export async function deleteClips(
 ): Promise<void> {
   await submitDocumentCommand(projectPath, "DeleteClip", {
     clip_ids: clipIds,
+    mode: "gap",
   });
 }
 
@@ -650,8 +651,9 @@ export async function rippleDeleteClips(
   projectPath: string,
   clipIds: string[],
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "RippleDeleteClip", {
+  await submitDocumentCommand(projectPath, "DeleteClip", {
     clip_ids: clipIds,
+    mode: "ripple",
   });
 }
 
@@ -691,6 +693,7 @@ export async function pasteSegment(
     insert_at: insertAt,
     duration,
     extracts,
+    mode: "ripple",
   });
 }
 
@@ -699,9 +702,10 @@ export async function rippleDeleteRange(
   start: number,
   end: number,
 ): Promise<void> {
-  await submitDocumentCommand(projectPath, "RippleDeleteRange", {
+  await submitDocumentCommand(projectPath, "CutRange", {
     start,
     end,
+    mode: "ripple",
   });
 }
 

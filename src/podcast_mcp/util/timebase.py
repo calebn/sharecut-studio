@@ -20,3 +20,15 @@ from typing import NewType
 
 SourceSec = NewType("SourceSec", float)
 TimelineSec = NewType("TimelineSec", float)
+
+
+def clock_label(sec: float | None) -> str:
+    """``m:ss.s`` (``h:mm:ss.s`` past an hour) for people; ``?`` when unknown."""
+    if sec is None:
+        return "?"
+    s = max(0.0, float(sec))
+    m = int(s // 60)
+    rem = s - m * 60
+    if m >= 60:
+        return f"{m // 60}:{m % 60:02d}:{rem:04.1f}"
+    return f"{m}:{rem:04.1f}"

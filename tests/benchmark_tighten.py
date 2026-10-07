@@ -35,6 +35,7 @@ from podcast_mcp.models import (
     load_project,
 )
 from podcast_mcp.util.wav import pcm_wav_header
+from ripple_helpers import ripple_cut_spans
 
 _AUDIO_RATE = 16_000
 
@@ -233,8 +234,6 @@ def test_tighten_benchmark_optional_cleanup_test():
 
 
 def run_tighten_apply_word_only_benchmark(project: EpisodeProject) -> TightenBenchmarkResult:
-    from podcast_mcp.edits.timeline_ops import batch_ripple_delete
-
     result = TightenBenchmarkResult()
     defaults = load_defaults()
 
@@ -258,7 +257,7 @@ def run_tighten_apply_word_only_benchmark(project: EpisodeProject) -> TightenBen
             side_effect=lambda _path, center, **kwargs: center,
         ):
             t0 = time.perf_counter()
-            batch_ripple_delete(project, ranges, use_inaudible_opt=True)
+            ripple_cut_spans(project, ranges, use_inaudible_opt=True)
             result.apply_sec = time.perf_counter() - t0
         for tid in {t.id for t in project.tracks if t.role == TrackRole.DIALOGUE}:
             result.clip_counts[tid] = len([c for c in project.clips if c.track_id == tid])
@@ -276,8 +275,6 @@ def test_tighten_apply_word_only_under_threshold(tmp_path):
 
 def run_tighten_apply_full_mode_warm_benchmark(project: EpisodeProject) -> tuple[int, float]:
     """Return (window reads on the first batch, seconds for a second batch on a warm cache)."""
-    from podcast_mcp.edits.timeline_ops import batch_ripple_delete
-
     propose_tighten_edits(project, load_defaults(), replace_existing=True)
     ranges = [
         _edit_to_timeline_range(project, e)
@@ -296,10 +293,10 @@ def run_tighten_apply_full_mode_warm_benchmark(project: EpisodeProject) -> tuple
         "podcast_mcp.edits.inaudible_cuts.load_mono_window",
         side_effect=fast_load,
     ):
-        batch_ripple_delete(project, ranges[:half], use_inaudible_opt=None)
+        ripple_cut_spans(project, ranges[:half], use_inaudible_opt=None)
         first_calls = load_calls["n"]
         t0 = time.perf_counter()
-        batch_ripple_delete(project, ranges[half:], use_inaudible_opt=None)
+        ripple_cut_spans(project, ranges[half:], use_inaudible_opt=None)
         warm_sec = time.perf_counter() - t0
     return first_calls, warm_sec
 

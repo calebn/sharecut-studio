@@ -608,6 +608,10 @@ class DocumentSyncService:
                     api_snap = {"server_seq": row["server_seq"], "resync": True}
                     guest_snapshot = api_snap
             event = self._publish_applied(row, api_snap, guest_snapshot=guest_snapshot)
+        # A ripple that would cut other speech changed nothing; its submitter (host or
+        # guest) gets the confirmation to show, beside the sanitized event.
+        confirmation = result_payload.get("needs_confirmation")
+        asks = {"needs_confirmation": confirmation} if confirmation is not None else {}
         if audience == "guest":
             from podcast_mcp.services.collaboration import sanitize_guest_document_event
 
@@ -623,8 +627,9 @@ class DocumentSyncService:
                         ),
                     }
                 ),
+                **asks,
             }
-        return {"ok": True, **event}
+        return {"ok": True, **event, **asks}
 
     def publish_document_changed(
         self,

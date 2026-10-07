@@ -8,12 +8,11 @@ from typing import Any, Literal
 
 from podcast_mcp.config import join_micro_fade_ms
 from podcast_mcp.edits.mute_regions import merge_mute_regions, mute_regions_overlapping
-from podcast_mcp.edits.ranges import subtract_ranges_from_intervals
 from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
     clip_timeline_point_to_source,
 )
-from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, SourceRecording
+from podcast_mcp.models import Clip, ClipJoinMode, EditMode, EpisodeProject, SourceRecording
 from podcast_mcp.util.tracks import recording_audio_path
 
 JOIN_GAP_TOLERANCE_SEC = 0.05
@@ -286,48 +285,6 @@ def place_clips_at(
     return sorted(merged, key=lambda c: c.timeline_start)
 
 
-def build_clips_after_removes(
-    project: EpisodeProject,
-    track_id: str,
-    removes: list[tuple[float, float]],
-) -> list[Clip]:
-    """Rebuild gapless track clips after batch-removing timeline ranges."""
-    if not removes:
-        return clips_for_track(project, track_id)
-
-    keep_segments: list[tuple[float, float, float, float, Clip]] = []
-    for clip in clips_for_track(project, track_id):
-        tl_start = clip.timeline_start
-        tl_end = clip.timeline_end
-        for ks, ke in subtract_ranges_from_intervals([(tl_start, tl_end)], removes):
-            src_bounds = clip_timeline_overlap_to_source(clip, ks, ke)
-            if src_bounds is None:
-                continue
-            src_start, src_end = src_bounds
-            keep_segments.append((ks, ke, src_start, src_end, clip))
-
-    keep_segments.sort(key=lambda row: row[0])
-    new_clips: list[Clip] = []
-    timeline_cursor = 0.0
-    for _ks, _ke, src_start, src_end, old in keep_segments:
-        new_clips.append(
-            Clip(
-                id=new_clip_id(),
-                track_id=track_id,
-                source_start=src_start,
-                source_end=src_end,
-                timeline_start=timeline_cursor,
-                source_id=old.source_id,
-                fade_in_ms=old.fade_in_ms,
-                fade_out_ms=old.fade_out_ms,
-                join_in_mode=old.join_in_mode,
-                mute_regions=mute_regions_overlapping(old.mute_regions, src_start, src_end),
-            )
-        )
-        timeline_cursor += src_end - src_start
-    return new_clips
-
-
 def update_timeline_duration(project: EpisodeProject) -> None:
     end = 0.0
     for clip in project.clips:
@@ -358,11 +315,15 @@ def _same_recording(project: EpisodeProject, first: Clip, second: Clip) -> bool:
     )
 
 
-def trim_edge_limits(project: EpisodeProject, clip: Clip, edge: str) -> tuple[float, float]:
+def trim_edge_limits(
+    project: EpisodeProject, clip: Clip, edge: str, mode: EditMode
+) -> tuple[float, float]:
     """Source range ``(lo, hi)`` a clip's ``in`` or ``out`` edge may move to.
 
     Expansion stops at the neighbouring clip's source on the same track (and at the
-    media end when known); contraction keeps ``_MIN_CLIP_SPAN_SEC`` of the clip.
+    media end when known); contraction keeps ``_MIN_CLIP_SPAN_SEC`` of the clip. A gap
+    trim moves only this edge, so it also stops at the next clip on the timeline (out)
+    or the previous clip's end or timeline 0 (in).
     """
     if edge not in ("in", "out"):
         raise ValueError(f"edge must be 'in' or 'out', got {edge!r}")
@@ -370,64 +331,33 @@ def trim_edge_limits(project: EpisodeProject, clip: Clip, edge: str) -> tuple[fl
     idx = clip_index(track_clips, clip.id)
     prev = previous_clip(track_clips, clip.id)
     nxt = track_clips[idx + 1] if idx + 1 < len(track_clips) else None
+    others = [c for c in track_clips if c.id != clip.id]
     if edge == "out":
         duration = _source_duration(project, clip)
         hi = duration if duration is not None else clip.source_end
         if nxt is not None and _same_recording(project, clip, nxt):
             hi = min(hi, float(nxt.source_start))
+        if mode is EditMode.GAP:
+            following = [
+                c.timeline_start for c in others if c.timeline_start >= clip.timeline_end - 1e-9
+            ]
+            if following:
+                room = min(following) - clip.timeline_end
+                hi = min(hi, clip.source_end + max(0.0, room))
         return clip.source_start + _MIN_CLIP_SPAN_SEC, hi
     lo = (
         max(0.0, float(prev.source_end))
         if prev is not None and _same_recording(project, clip, prev)
         else 0.0
     )
+    if mode is EditMode.GAP:
+        preceding = max(
+            (c.timeline_end for c in others if c.timeline_end <= clip.timeline_start + 1e-9),
+            default=0.0,
+        )
+        room = clip.timeline_start - preceding
+        lo = max(lo, clip.source_start - max(0.0, room))
     return lo, clip.source_end - _MIN_CLIP_SPAN_SEC
-
-
-def trim_clip_edge(
-    project: EpisodeProject,
-    clip_id: str,
-    edge: str,
-    source_sec: float,
-    *,
-    mode: str = "ripple",
-) -> Clip:
-    """Adjust one clip source edge; ripple later clips when duration changes.
-
-    ``edge`` is ``\"in\"`` (source_start) or ``\"out\"`` (source_end).
-    Expansion is clamped to unused source between neighboring clips on the
-    same track (and media duration when known). Timeline start is unchanged;
-    duration delta ripples subsequent clips.
-    """
-    if mode != "ripple":
-        raise ValueError(f"unsupported trim mode: {mode!r}")
-    if not math.isfinite(source_sec):
-        raise ValueError("source_sec must be finite")
-    if edge not in ("in", "out"):
-        raise ValueError(f"edge must be 'in' or 'out', got {edge!r}")
-
-    clip = next((c for c in project.clips if c.id == clip_id), None)
-    if clip is None:
-        raise ValueError(f"unknown clip_id: {clip_id!r}")
-
-    old_dur = clip.source_end - clip.source_start
-    old_tl_end = clip.timeline_end
-
-    lo, hi = trim_edge_limits(project, clip, edge)
-    if edge == "out":
-        clip.source_end = min(max(float(source_sec), lo), hi)
-    else:
-        clip.source_start = min(max(float(source_sec), lo), hi)
-
-    new_dur = clip.source_end - clip.source_start
-    delta = new_dur - old_dur
-    if abs(delta) > 1e-9:
-        for c in project.clips:
-            if c.track_id == clip.track_id and c.timeline_start >= old_tl_end - 1e-9:
-                c.timeline_start += delta
-
-    update_timeline_duration(project)
-    return clip
 
 
 CrossfadeBlocked = Literal["not_abutting", "no_fade_out", "no_fade_in"]

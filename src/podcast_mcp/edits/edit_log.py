@@ -186,9 +186,9 @@ def revert_applied_edit(project: EpisodeProject, record_id: str) -> dict[str, An
     Mute archives (``params.mute``) subtract intersecting ``Clip.mute_regions``
     and never shift peers or re-insert source media.
 
-    Cross-track ripples must reopen the same timeline hole on **all** dialogue
-    tracks (even legacy archives that only listed one ``track_id``); otherwise
-    later clips stay skewed forever. Per-track seam clocks in
+    Cross-track ripples must reopen the same timeline hole on every
+    ``ripple_track_ids`` track (even archives that only listed one ``track_id``);
+    otherwise later clips stay skewed forever. Per-track seam clocks in
     ``params['per_track_source']`` (``{track_id: [pre, post]}``) are restored as one
     clip; when any pair does not span the record's timeline hole (a cut across moved
     or gapped clips), revert raises and points to History undo before anything moves.
@@ -196,7 +196,7 @@ def revert_applied_edit(project: EpisodeProject, record_id: str) -> dict[str, An
     Track-scope punch archives (``params['scope'] == 'track'``) left a silent hole
     instead, so they refill it in place on their own tracks and shift nothing.
     """
-    from podcast_mcp.util.tracks import dialogue_track_ids
+    from podcast_mcp.edits.ripple import ripple_track_ids
 
     record = get_applied_edit(project, record_id)
     if (record.params or {}).get("mute"):
@@ -234,7 +234,7 @@ def revert_applied_edit(project: EpisodeProject, record_id: str) -> dict[str, An
     if punch:
         restore_tracks = list(record.track_ids)
     else:
-        restore_tracks = dialogue_track_ids(project) or list(record.track_ids)
+        restore_tracks = ripple_track_ids(project, record.track_ids)
     for tid in restore_tracks:
         clips = clips_for_track(project, tid)
         if not punch:

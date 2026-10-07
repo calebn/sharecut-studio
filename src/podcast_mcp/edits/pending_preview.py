@@ -110,7 +110,8 @@ def apply_for_suggested(project: EpisodeProject, window: PendingPreviewWindow) -
     from podcast_mcp.edits.decisions import approve_edits
 
     logged = len(project.editorial.edit_log)
-    approve_edits(project, [window.edit_id])
+    # A snapshot saves nothing: Suggested plays the edit as a confirmed approval ships it.
+    approve_edits(project, [window.edit_id], confirm_cut_speech=True)
     applied = project.editorial.edit_log[logged:]
     if not applied:
         raise ValueError(SUGGEST_REASON_UNMAPPED)

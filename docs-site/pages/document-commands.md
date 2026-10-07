@@ -32,18 +32,19 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `AddSocialClip` | `end` (number), `start` (number), `track_id` (string) | `title` (string \| null) |
 | `AddTrack` | — | `label` (string \| null), `role` (string \| null), `speaker` (string \| null), `track_id` (string \| null) |
 | `ApplyFadeRecommendations` | — | `track_id` (string \| null) |
-| `ApproveEdits` | `ids` (array[string]) | — |
+| `ApproveEdits` | `ids` (array[string]) | `confirm_cut_speech` (boolean) |
 | `CorrectTranscriptPhrase` | `end_word_index` (integer), `start_word_index` (integer), `text` (string), `track_id` (string) | `expected_text` (string \| null) |
 | `CorrectTranscriptWord` | `text` (string), `track_id` (string), `word_index` (integer) | `expected_text` (string \| null) |
+| `CutRange` | `end` (number), `mode` (ripple \| gap), `start` (number) | `confirm_cut_speech` (boolean), `track_ids` (array[string]) |
 | `DeleteChapter` | `time` (number), `title` (string) | — |
-| `DeleteClip` | — | `clip_id` (string \| null), `clip_ids` (array \| null), `reason` (string \| null) |
+| `DeleteClip` | `mode` (ripple \| gap) | `clip_id` (string \| null), `clip_ids` (array \| null), `confirm_cut_speech` (boolean), `reason` (string \| null) |
 | `DeleteComment` | `comment_id` (string) | — |
 | `DeleteSocialClip` | `id` (string) | — |
 | `DuplicateSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
 | `EditSelectedRange` | `action` (cut \| mute), `target` (object) | — |
 | `MoveClips` | `clips` (array[object]) | — |
 | `MoveSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
-| `PasteSegment` | `duration` (number), `insert_at` (number) | `extracts` (array[object]) |
+| `PasteSegment` | `duration` (number), `insert_at` (number), `mode` (ripple \| gap) | `extracts` (array[object]) |
 | `RedoHistory` | — | `rerender` (boolean) |
 | `RejectEdits` | `ids` (array[string]) | — |
 | `RemoveTrack` | `track_id` (string) | — |
@@ -51,8 +52,6 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `ReplaceTranscriptMatches` | `preview_token` (string), `replacement` (string), `search` (string) | `match_case` (boolean) |
 | `ResolveComment` | `by` (string), `comment_id` (string) | `resolved` (boolean) |
 | `RestoreAppliedEdit` | `id` (string) | — |
-| `RippleDeleteClip` | — | `clip_id` (string \| null), `clip_ids` (array \| null), `reason` (string \| null) |
-| `RippleDeleteRange` | `end` (number), `start` (number) | — |
 | `RollClipJoin` | `delta_sec` (number), `expected_token` (string), `left_clip_id` (string), `right_clip_id` (string) | — |
 | `SetActionDone` | `action_id` (string), `by` (string), `comment_id` (string) | `done` (boolean) |
 | `SetClipFade` | `clip_id` (string), `fade_in_ms` (integer), `fade_out_ms` (integer) | — |
@@ -70,14 +69,14 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SetTranscriptWordsIgnored` | `end_word_index` (integer), `ignored` (boolean), `start_word_index` (integer), `track_id` (string) | `expected_text` (string \| null) |
 | `SplitAtTime` | `at_time` (number) | `reason` (string \| null), `track_ids` (array \| null) |
 | `SuggestPendingEdit` | `end` (number), `start` (number), `track_id` (string) | `edit_type` (remove \| mute), `reason` (string \| null) |
-| `TrimClipEdge` | `clip_id` (string), `edge` (in \| out), `expected_token` (string), `source_sec` (number) | `mode` (string) |
+| `TrimClipEdge` | `clip_id` (string), `edge` (in \| out), `expected_token` (string), `mode` (ripple \| gap), `source_sec` (number) | `confirm_cut_speech` (boolean) |
 | `UndoHistory` | — | `rerender` (boolean) |
 | `UpdateChapter` | `old_time` (number), `old_title` (string), `time` (number), `title` (string) | — |
 | `UpdateComment` | `comment_id` (string) | `body` (string \| null), `timeline_end` (number \| null), `timeline_start` (number \| null), `track_ids` (array \| null) |
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `snap` (boolean), `track_ids` (array \| null) |
 | `UpdateSocialClip` | `end` (number), `id` (string), `start` (number) | — |
 
-_Generated 51 command types._
+_Generated 50 command types._
 
 - Regenerate: `make schema-export`
 - CI / pre-commit: `make schema-check`

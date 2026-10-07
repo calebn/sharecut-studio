@@ -19,7 +19,6 @@ from podcast_mcp.edits.inaudible_cuts import (
     recommend_micro_fades,
 )
 from podcast_mcp.edits.strip_silence import strip_silence
-from podcast_mcp.edits.timeline_ops import ripple_delete
 from podcast_mcp.edits.transcript_cuts import cut_time_range
 from podcast_mcp.models import (
     Clip,
@@ -30,6 +29,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from ripple_helpers import ripple_cut
 
 
 def test_nearest_retained_boundary_matches_linear_scan() -> None:
@@ -388,7 +388,7 @@ def test_ripple_delete_calls_timeline_optimizer(tmp_path):
         opt.return_value = type(
             "R", (), {"start": 2.0, "end": 3.0, "mode": "vocal_transcript_guided"}
         )()
-        ripple_delete(p, 2.0, 3.0)
+        ripple_cut(p, 2.0, 3.0)
     assert opt.called
 
 
@@ -398,7 +398,7 @@ def test_ripple_delete_override_forwards_flag(tmp_path):
         opt.return_value = type(
             "R", (), {"start": 2.0, "end": 3.0, "mode": "vocal_transcript_guided"}
         )()
-        ripple_delete(p, 2.0, 3.0, use_inaudible_opt=False)
+        ripple_cut(p, 2.0, 3.0, use_inaudible_opt=False)
     assert opt.call_args.kwargs.get("force_enabled") is False
 
 

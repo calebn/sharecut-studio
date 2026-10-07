@@ -26,7 +26,6 @@ from typer.testing import CliRunner
 from podcast_mcp.cli.main import app
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
-from podcast_mcp.edits.timeline_ops import ripple_delete
 from podcast_mcp.engines import play_audit
 from podcast_mcp.engines.audio_audit import TrackRmsCacheSet, _rms_for_track_at_timeline
 from podcast_mcp.engines.balance import balance_basis_digest
@@ -81,6 +80,7 @@ from podcast_mcp.services.pipeline import PipelineService
 from podcast_mcp.util import atomic_render
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.project_state import render_lock, render_lock_path
+from ripple_helpers import ripple_cut
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -826,7 +826,7 @@ def test_a_cut_ripples_a_muted_track_too(minimal_project: Path) -> None:
         for tid in ("host", "guest")
     ]
     project.track_by_id("guest").muted = True
-    ripple_delete(project, 2.0, 5.0, use_inaudible_opt=False)
+    ripple_cut(project, 2.0, 5.0, use_inaudible_opt=False)
     ends = {
         tid: max(c.timeline_end for c in project.clips if c.track_id == tid)
         for tid in ("host", "guest")

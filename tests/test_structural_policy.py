@@ -9,6 +9,7 @@ from podcast_mcp.edits.timeline_ops import split_clips_at
 from podcast_mcp.models import (
     Clip,
     EditDecisionType,
+    EditMode,
     MediaAsset,
     Track,
     TrackRole,
@@ -93,7 +94,7 @@ def test_authorize_structural_commands():
     authorize_document_command(capabilities_for_role("editor"), "SplitAtTime")
     authorize_document_command(capabilities_for_role("commenter"), "SplitAtTime")
     authorize_document_command(capabilities_for_role("editor"), "DeleteClip")
-    authorize_document_command(capabilities_for_role("commenter"), "RippleDeleteClip")
+    authorize_document_command(capabilities_for_role("commenter"), "DeleteClip")
     with pytest.raises(PermissionError):
         authorize_document_command(["view"], "SplitAtTime")
 
@@ -160,7 +161,7 @@ def test_delete_clip_apply_and_suggest(minimal_project, sample_wav):
     )
     cmd = DocumentCommand(
         type="DeleteClip",
-        payload={"clip_id": middle.id},
+        payload={"clip_id": middle.id, "mode": "gap"},
         client_id="guest",
         role="guest",
         client_seq=10,
@@ -174,7 +175,7 @@ def test_delete_clip_apply_and_suggest(minimal_project, sample_wav):
     other = next(c for c in remaining if c.id != middle.id)
     cmd2 = DocumentCommand(
         type="DeleteClip",
-        payload={"clip_id": other.id},
+        payload={"clip_id": other.id, "mode": "gap"},
         client_id="host",
         role="viewer",
         client_seq=11,
@@ -195,8 +196,8 @@ def test_ripple_delete_clip_apply(minimal_project, sample_wav):
     )
     before_dur = svc.ws.project.timeline.duration_sec
     cmd = DocumentCommand(
-        type="RippleDeleteClip",
-        payload={"clip_ids": [middle.id]},
+        type="DeleteClip",
+        payload={"clip_ids": [middle.id], "mode": "ripple"},
         client_id="host",
         role="viewer",
         client_seq=20,
@@ -223,9 +224,9 @@ def test_delete_clips_empty_raises(minimal_project, sample_wav):
     _seed_dialogue_clips(minimal_project, sample_wav)
     ws = ProjectWorkspace.open(minimal_project)
     with pytest.raises(ValueError, match="clip_ids required"):
-        EditService(ws).delete_clips([])
+        EditService(ws).delete_clips([], mode=EditMode.GAP)
     with pytest.raises(KeyError, match="unknown clip"):
-        EditService(ws).delete_clips(["missing_clip"])
+        EditService(ws).delete_clips(["missing_clip"], mode=EditMode.RIPPLE)
 
 
 def test_delete_clip_handler_requires_ids(minimal_project, sample_wav):
@@ -233,9 +234,9 @@ def test_delete_clip_handler_requires_ids(minimal_project, sample_wav):
 
     ws = _seed_dialogue_clips(minimal_project, sample_wav)
     with pytest.raises(ValueError, match="clip_id"):
-        apply_command(ws, "DeleteClip", {"_structural_mode": "apply"})
+        apply_command(ws, "DeleteClip", {"_structural_mode": "apply", "mode": "gap"})
     with pytest.raises(ValueError, match="clip_id"):
-        apply_command(ws, "RippleDeleteClip", {"_structural_mode": "propose"})
+        apply_command(ws, "DeleteClip", {"_structural_mode": "propose", "mode": "ripple"})
 
 
 def test_ripple_delete_clip_suggest(minimal_project, sample_wav):
@@ -244,8 +245,8 @@ def test_ripple_delete_clip_suggest(minimal_project, sample_wav):
     clip_id = next(c.id for c in svc.ws.project.clips if c.track_id == "host")
     before = len(svc.ws.project.clips)
     cmd = DocumentCommand(
-        type="RippleDeleteClip",
-        payload={"clip_id": clip_id, "reason": "guest cut"},
+        type="DeleteClip",
+        payload={"clip_id": clip_id, "mode": "ripple", "reason": "guest cut"},
         client_id="guest",
         role="guest",
         client_seq=30,
@@ -289,9 +290,11 @@ def test_update_pending_split_and_skipped_track(minimal_project, sample_wav):
 def test_delete_clips_propose_ripple(minimal_project, sample_wav):
     ws = _seed_dialogue_clips(minimal_project, sample_wav)
     clip_id = next(c.id for c in ws.project.clips if c.track_id == "host")
-    out = EditService(ws).delete_clips([clip_id], ripple=True, propose=True, reason="guest:ripple")
+    out = EditService(ws).delete_clips(
+        [clip_id], mode=EditMode.RIPPLE, propose=True, reason="guest:ripple"
+    )
     assert out["operation"] == "propose_delete_clips"
-    assert out["ripple"] is True
+    assert out["mode"] == "ripple"
     assert any(e.reason == "guest:ripple" for e in ws.project.edit_decisions)
 
 
@@ -312,7 +315,7 @@ def test_delete_clip_via_clip_ids_payload(minimal_project, sample_wav):
     )
     cmd = DocumentCommand(
         type="DeleteClip",
-        payload={"clip_ids": [left.id], "reason": "trim"},
+        payload={"clip_ids": [left.id], "mode": "gap", "reason": "trim"},
         client_id="host",
         role="viewer",
         client_seq=50,

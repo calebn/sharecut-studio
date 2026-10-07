@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from podcast_mcp.edits.clips_ops import clips_for_track
+from podcast_mcp.edits.cut_speech import SpeechClearance
 from podcast_mcp.edits.decisions import (
     apply_auto_edits,
     apply_prefix_edits,
@@ -17,11 +18,11 @@ from podcast_mcp.edits.decisions import (
 from podcast_mcp.edits.edit_log import revert_applied_edit
 from podcast_mcp.edits.range_edits import build_range_target, edit_selected_range
 from podcast_mcp.edits.timeline_ops import (
-    delete_clips,
+    plan_delete_clips,
     punch_delete,
-    ripple_delete,
+    punch_delete_clips,
+    ripple_delete_clips,
     split_clips_at,
-    trim_clip_edge,
 )
 from podcast_mcp.models import (
     AppliedEditRecord,
@@ -37,6 +38,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.models.episode import RangeInterval
+from ripple_helpers import ripple_cut, trim
 
 
 def _project_with_clip() -> EpisodeProject:
@@ -319,9 +321,8 @@ def test_revert_legacy_single_track_archive_still_shifts_peers():
 
     proj = _two_track_project()
     # Simulate a 0.6s cross-track hole by rippling, then archive like old approve.
-    from podcast_mcp.edits.timeline_ops import ripple_delete
 
-    ripple_delete(proj, 2.0, 2.6, record_log=False)
+    ripple_cut(proj, 2.0, 2.6, record_log=False)
     proj.editorial.edit_log = [
         AppliedEditRecord(
             id="alog_legacy",
@@ -493,7 +494,7 @@ def test_approve_edits_matches_sequential_ripple():
 
     sequential = _approve_two_track_project()
     for start, end in reversed(sorted(timeline_ranges)):
-        ripple_delete(sequential, start, end, use_inaudible_opt=False)
+        ripple_cut(sequential, start, end, use_inaudible_opt=False)
 
     approved = _approve_two_track_project()
     approved.edit_decisions = [
@@ -1009,7 +1010,7 @@ def test_impact_uses_exact_range_intervals_once_across_tracks(
 
 def test_impact_counts_timeline_ripple_once_and_punch_on_its_track_only():
     proj = _approve_two_track_project()
-    ripple_delete(proj, 2.0, 5.0, use_inaudible_opt=False)
+    ripple_cut(proj, 2.0, 5.0, use_inaudible_opt=False)
     assert _impact(proj) == {
         "total": 3.0,
         "by_track": {"host": 3.0, "guest": 3.0},
@@ -1034,7 +1035,12 @@ def test_impact_counts_deleted_clips(ripple, expected_by_track):
     split_clips_at(proj, 10.0, ["host"])
     split_clips_at(proj, 20.0, ["host"])
     middle = next(c for c in clips_for_track(proj, "host") if c.source_start == 10.0)
-    delete_clips(proj, [middle.id], ripple=ripple)
+    if ripple:
+        ripple_delete_clips(
+            proj, [middle.id], SpeechClearance(plan_delete_clips(proj, [middle.id]))
+        )
+    else:
+        punch_delete_clips(proj, [middle.id])
     assert _impact(proj) == {
         "total": 10.0,
         "by_track": expected_by_track,
@@ -1047,7 +1053,7 @@ def test_impact_ignores_structural_edits():
     proj = _approve_two_track_project()
     split_clips_at(proj, 10.0, ["host", "guest"])
     clip = clips_for_track(proj, "host")[0]
-    trim_clip_edge(proj, clip.id, "out", clip.source_end - 1.0)
+    trim(proj, clip.id, "out", clip.source_end - 1.0)
     assert [r.operation for r in proj.editorial.edit_log] == ["split_clips_at", "trim_clip_edge"]
     assert _impact(proj) == {"total": 0.0, "by_track": {}, "applied": 0, "pending": 0}
 
