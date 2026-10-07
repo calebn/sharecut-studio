@@ -285,6 +285,10 @@ def _mock_cut_pipeline(request):
             side_effect=lambda project, track_id, start, end, **kw: (start, end),
         ),
         patch(
+            "podcast_mcp.edits.fillers.pause_air_span",
+            side_effect=lambda project, track_id, start, end, **kw: (start, end),
+        ),
+        patch(
             "podcast_mcp.edits.fillers.recommend_cut_fade_ms",
             return_value=25,
         ),
@@ -2611,26 +2615,69 @@ def test_only_unpadded_cuts_go_through_the_splice_gates(gate):
     }
 
 
-def test_only_a_pause_trim_is_cut_down_to_its_air():
-    # A pause trim removes only air, so breath protection may shrink it to the air
-    # inside it; a filler's edges must stay on the filler (#1055).
-    words = [
-        TranscriptWord(text="um", start=1.0, end=1.2),
-        TranscriptWord(text="okay.", start=1.25, end=1.5),
-        TranscriptWord(text="two", start=3.5, end=3.9),
-    ]
-    project = _project_with_transcript(words)
-    seen: dict[str, bool] = {}
+_PAUSE_WORDS = [
+    TranscriptWord(text="um", start=1.0, end=1.2),
+    TranscriptWord(text="okay.", start=1.25, end=1.5),
+    TranscriptWord(text="two", start=3.5, end=3.9),
+]
+_PAUSE_DEFAULTS = {"tighten": {"filler_words": ["um"], "max_pause_sec": 1.2}}
 
-    def spy(project, track_id, start, end, **kw):
-        seen["pause" if start >= 1.5 else "filler"] = kw["air_only"]
+
+def test_only_a_pause_trim_is_cut_down_to_its_air():
+    # A pause trim removes only air, so it shrinks to the air inside it, measured on
+    # the pause's own word gap; a filler's edges must stay on the filler (#1055).
+    project = _project_with_transcript(_PAUSE_WORDS)
+    seen: dict[str, object] = {}
+
+    def air(project, track_id, start, end, **kw):
+        seen["pause"] = kw["pause"]
+        return (start, end)
+
+    def breaths(project, track_id, start, end, **kw):
+        seen["filler"] = (start, end)
         return start, end
 
-    defaults = {"tighten": {"filler_words": ["um"], "max_pause_sec": 1.2}}
-    with patch("podcast_mcp.edits.fillers.protect_cut_breaths", side_effect=spy):
-        analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+    with (
+        patch("podcast_mcp.edits.fillers.pause_air_span", side_effect=air),
+        patch("podcast_mcp.edits.fillers.protect_cut_breaths", side_effect=breaths),
+    ):
+        analyze_fillers_and_pauses(project, project.transcripts[0], _PAUSE_DEFAULTS)
 
-    assert seen == {"pause": True, "filler": False}
+    # The pause is the span the trim may take: the word gap less the retained air.
+    assert seen == {"pause": (1.5, 2.95), "filler": (1.0, 1.2)}
+
+
+def test_a_pause_trim_with_no_air_is_skipped_as_no_air():
+    project = _project_with_transcript(_PAUSE_WORDS)
+    skips: dict[str, int] = {}
+
+    with patch("podcast_mcp.edits.fillers.pause_air_span", return_value=None):
+        decisions = analyze_fillers_and_pauses(
+            project, project.transcripts[0], _PAUSE_DEFAULTS, skip_counts=skips
+        )
+
+    assert [d.reason for d in decisions] == ["filler:um"]
+    assert skips == {"acoustic:no_audio": 1, "no_air": 1}
+
+
+def test_a_pause_trim_whose_edges_moved_off_sound_is_review_only():
+    # Until the owner has listened, a trim the air rule shrank is flagged for review;
+    # a trim whose edges already sat in air may still apply on its own (#1055).
+    def shrink(project, track_id, start, end, **kw):
+        return (start + 0.1, end)
+
+    def pause_of(decisions):
+        hit = next(d for d in decisions if d.reason.startswith("pause:"))
+        return hit.reason, hit.review_required
+
+    project = _project_with_transcript(_PAUSE_WORDS)
+    with patch("podcast_mcp.edits.fillers.pause_air_span", side_effect=shrink):
+        moved = analyze_fillers_and_pauses(project, project.transcripts[0], _PAUSE_DEFAULTS)
+    project = _project_with_transcript(_PAUSE_WORDS)
+    kept = analyze_fillers_and_pauses(project, project.transcripts[0], _PAUSE_DEFAULTS)
+
+    assert pause_of(moved) == ("pause:2.00s:solo:air_edges", True)
+    assert pause_of(kept) == ("pause:2.00s:solo", False)
 
 
 def test_a_mute_fades_each_edge_against_fill_so_the_join_gate_skips_it():
