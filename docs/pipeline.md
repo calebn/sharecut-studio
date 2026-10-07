@@ -49,9 +49,13 @@ Undo of `after fill_gate_holes` restores the previous fill. A track with no hole
 a local recorder with a real room floor, is left alone. Rules, the comfort-noise estimate,
 and lab evidence: [audio-engineering.md § Gate fill](audio-engineering.md#gate-fill-fill_gate_holes).
 
-On the lab tape the step takes 23 to 28 s for three 28-minute tracks, about 8 s per track.
-That time is one native-rate decode for holes, one for the gate's closure profile (its
-measured hold), one for the hold's frames, and one FLAC encode.
+On the lab tape the step takes 16 s for three 28-minute tracks when their fills are already
+written, and 26 s when it writes them. Per track that time is one native-rate decode for
+holes and one 16 kHz decode for the room-tone sampler's floor and quiet runs (cached, and
+shared with Tighten's room-tone pads). Then a track with pauses of its own takes one decode
+of those pauses, and a track gated through every pause takes two decodes of its closures:
+one for the closure profile (its measured hold), one for the hold's frames. Writing a fill
+adds one FLAC encode.
 
 ## Long raw sessions: content cut before tighten
 
