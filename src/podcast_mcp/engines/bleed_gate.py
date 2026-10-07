@@ -39,7 +39,7 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
-BLEED_GATE_REV = 11
+BLEED_GATE_REV = 12
 EVIDENCE_RATE = 8000
 # Gain ramps inside each reduced span, after a hold at full level around the lane's
 # own speech. On the lab tape (#945) the level just outside Caleb's reduced spans is
@@ -93,6 +93,11 @@ _STEREO_MONO_GAIN = np.float32(math.sqrt(0.5))
 # margin is the most a shift may cost before it can flip a verdict, which gives
 # r = 2 (1 - 10 ** (-margin / 40)): 0.41, the channel gap 7.7 dB under the loudest one.
 _SAME_SIGNAL_GAP_DB = 20 * math.log10(2 * (1 - 10 ** (-_OWN_MARGIN_DB / 40)))
+# A codec quantises a transform block at once, so its noise follows the block's level
+# and lands in every frame the block covers, including the quiet ones either side of a
+# sound (#1159). The longest block in podcast delivery is AAC-LC's 2048-sample window:
+# 43 ms at 48 kHz. Opus frames run 20 ms, up to 60 ms.
+_CODEC_REACH_SEC = 0.05
 
 
 @dataclass(frozen=True)
@@ -560,14 +565,18 @@ def _channels_are_one_signal(channels: np.ndarray) -> bool:
 
     A call app's dual-mono track is exact in a WAV, but AAC and Opus decode its two
     channels a little apart. Their difference counts only where it stands above the
-    lane's noise floor and within ``_SAME_SIGNAL_GAP_DB`` of the loudest channel, so
-    sound on one channel, which sits near that channel's own level, never passes.
+    lane's noise floor and within ``_SAME_SIGNAL_GAP_DB`` of the loudest channel
+    anywhere in a codec block's reach, since a codec's noise follows its block's level
+    and not the frame's own. Sound on one channel sits near that channel's own level,
+    which is the loudest there, so it never passes.
     """
     levels = [_owner_levels(channel) for channel in channels.T]
     loudest = np.maximum.reduce(levels)
     if not loudest.size:
         return bool((channels == channels[:, :1]).all())
     floor = _owner_floor_db(loudest)
+    reach = round(_CODEC_REACH_SEC / _OWNER_HOP_SEC)
+    loudest = _sliding_max(loudest, reach, reach)
     for channel in channels.T[1:]:
         gap = _owner_levels(channel - channels[:, 0])
         if ((gap > floor) & (gap - loudest > _SAME_SIGNAL_GAP_DB)).any():

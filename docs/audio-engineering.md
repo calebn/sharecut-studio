@@ -598,6 +598,7 @@ evidence:
 - #1066 limit: 74% of the copy main keeps has no pitch, and its sibilants and gate ring stand up to 19 dB over what the peer's own track predicts, so by level they look like own breaths and laughs
 - #1094: an own "uh-huh" 10 dB down on one stereo channel was muted, because the gate judged own versus copy on the mixdown of both channels; each channel is now judged, and a frame is turned down only where every channel reads as copy
 - #1094 verifier: decoding with `-ac <count>` remixed a quad-tagged file (two channels summed, one silent), so own sound on one channel was cut again; channels are now decoded as recorded. An AAC or Opus dual-mono track decodes its channels slightly apart, which read as true stereo and moved the noise-floor reading 3 dB
+- #1159: Opus at 32k, 64k and 128k decode dual-mono with a difference at the edge of a sound that reads within 7.7 dB of that quiet frame's own level, though it is 22 dB or more under the codec block's. The difference is now weighed against the loudest channel within 50 ms; the lab lanes' plans and mono signal hashes are byte-identical to main
 enforced-by:
 - tests/test_bleed_attenuation.py::test_late_gate_on_the_direct_track_still_mutes_the_foreign_copy
 - tests/test_bleed_attenuation.py::test_track_speakers_own_speech_is_untouched
@@ -612,6 +613,9 @@ enforced-by:
 - tests/test_bleed_gate_channels.py::test_lossy_dual_mono_is_judged_once_like_wav_dual_mono
 - tests/test_bleed_gate_channels.py::test_a_short_sound_on_one_channel_is_not_one_signal
 - tests/test_bleed_gate_channels.py::test_identical_channels_are_judged_at_ffmpegs_mono_level
+- tests/test_bleed_gate_channels.py::test_codec_noise_at_the_edge_of_a_sound_is_one_signal
+- tests/test_bleed_gate_channels.py::test_lossy_stereo_with_a_short_sound_on_one_channel_is_two_signals
+- tests/test_bleed_gate_channels.py::test_lossy_stereo_with_a_second_voice_on_one_channel_is_two_signals
 - docs-sync: decision-bleed
 supersedes: D-bleed-keep-onset-copies
 -->
