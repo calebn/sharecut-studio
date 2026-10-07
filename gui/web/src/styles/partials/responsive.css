@@ -28,6 +28,26 @@
   overflow-y: auto;
 }
 
+/* Each lane's surface reaches across the pads, so a tap or long-press past
+   either end acts on that lane at its nearest time, as on the lane itself:
+   a long-press opens the create menu (#1051). Pseudo-elements hit-test as
+   the surface without moving its box, which the time math measures. */
+.timeline-area--fixed-playhead .lane-seek::before,
+.timeline-area--fixed-playhead .lane-seek::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inline-size: var(--timeline-lead, 0);
+}
+
+.timeline-area--fixed-playhead .lane-seek::before {
+  inset-inline-end: 100%;
+}
+
+.timeline-area--fixed-playhead .lane-seek::after {
+  inset-inline-start: 100%;
+}
+
 /* Desktop/tablet focus layouts: only the main/tabs track sizes change. */
 .daw-shell--layout-timeline {
   --shell-tabs-row: 0;

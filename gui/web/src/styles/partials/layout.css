@@ -193,7 +193,14 @@ html[data-shell] body {
   container: timeline / inline-size;
 }
 
+/* The whole scroller is a gesture surface, not text: headers, ruler, lanes,
+   the pads past either end and the well under the last lane. A held or
+   sliding finger must not start text selection or the iOS callout, which
+   fight the timeline's own touch gestures (#1051). Text to copy lives in the
+   inspector and transcript, which keep selection. */
 .timeline-scroll {
+  user-select: none;
+  -webkit-touch-callout: none;
   flex: 1;
   overflow-x: auto;
   /* Keep desktop width steady as lanes gain or lose vertical overflow.
