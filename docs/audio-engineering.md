@@ -601,9 +601,10 @@ enforced-by:
 - tests/test_bleed_attenuation.py::test_track_speakers_own_speech_is_untouched
 - tests/test_bleed_attenuation.py::test_quiet_untranscribed_owner_overlapping_foreign_audio_stays_audible
 - tests/test_bleed_gate_generality.py::test_own_sound_over_a_voiced_copy_is_untouched
-- tests/test_bleed_gate_generality.py::test_unpitched_own_sound_beside_the_copy_is_touched_no_more_than_level_and_timbre_do
+- tests/test_bleed_gate_generality.py::test_unpitched_own_sound_beside_the_copy_is_kept_whole
 - tests/test_bleed_gate_generality.py::test_own_voice_is_kept_for_other_speaker_pairs
-- tests/test_bleed_gate_generality.py::test_a_laugh_is_touched_no_more_than_level_and_timbre_do_for_other_speaker_pairs
+- tests/test_bleed_gate_generality.py::test_a_laugh_is_kept_whole_for_other_speaker_pairs
+- tests/test_bleed_gate_generality.py::test_a_copy_that_rings_on_after_the_peers_track_is_still_reduced
 - docs-sync: decision-bleed
 supersedes: D-bleed-keep-onset-copies
 -->

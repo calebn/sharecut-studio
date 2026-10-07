@@ -3,7 +3,8 @@
 Written for #1066, whose per-frame pitch and voice gate was rejected; these pin the level
 and timbre gate as protections any later rule must keep. The peer speaks with a falling
 400 -> 250 Hz contour; the lane's speaker talks at 100-140 Hz. The lane carries the peer's
-coloured copy 16 dB down, and the peer's own track runs 140 ms late.
+coloured copy 16 dB down, and the peer's own track runs 140 ms late. Own laughs, breaths
+and "sh" sounds beside the copy are kept whole (#1126).
 """
 
 from __future__ import annotations
@@ -123,16 +124,24 @@ def _episode(
     peer_tilt: float = 1.0,
     owner_contour: tuple[float, float] = OWNER_CONTOUR,
     own_words: tuple[tuple[float, float], ...] = OWN_WORDS,
+    room_ring_sec: float = 0.0,
 ) -> EpisodeProject:
     """``own``: (kind, start, end, level dB against the direct track, f0 Hz) of the host's
     own sounds. ``copy_lift``: (start, end, dB) raises the copy for a stretch.
-    ``owner_contour`` and ``own_words``: the host's transcribed words."""
+    ``owner_contour`` and ``own_words``: the host's transcribed words. ``room_ring_sec``:
+    the copy rings on in the room with that decay time after the peer's own track stops."""
     project = EpisodeProject.create("own vs copy", str(tmp_path))
     project.ensure_dirs()
     clock = np.arange(int(DURATION * RATE)) / RATE
     voice = _peer_voice(clock, peer_contour, peer_tilt)
     talk = slice(round(TALK_START * RATE), round(TALK_END * RATE))
     host = _colored(voice)
+    if room_ring_sec:
+        tail = np.exp(-np.arange(round(4 * room_ring_sec * RATE)) / (room_ring_sec * RATE))
+        noise = np.random.default_rng(29).normal(0, 1, tail.size)
+        room = np.concatenate(([1.0], 0.02 * noise[1:] * tail[1:]))
+        size = clock.size + room.size
+        host = np.fft.irfft(np.fft.rfft(host, size) * np.fft.rfft(room, size), size)[: clock.size]
     host *= 10 ** ((LAB_COUPLING_DB + _db(voice[talk]) - _db(host[talk])) / 20)
     if copy_lift is not None:
         lifted = (clock >= copy_lift[0]) & (clock < copy_lift[1])
@@ -192,16 +201,6 @@ def _episode(
     return project
 
 
-def _touched_percent(
-    before: np.ndarray, after: np.ndarray, kind: str, start: float, end: float
-) -> float:
-    """The share of an unvoiced sound, where its envelope is at least 30% of its peak, that
-    the gate changed."""
-    envelope = _envelope(np.arange(before.size) / RATE, kind, start, end)
-    loud = envelope >= 0.3 * envelope.max()
-    return round(100 * np.count_nonzero(after[loud] != before[loud]) / np.count_nonzero(loud), 1)
-
-
 OWN_OVER_A_VOICED_COPY = [
     pytest.param("mm", 5.0, 5.15, -6.0, 120.0, id="mm-150ms-at-minus-6"),
     pytest.param("uh-huh", 5.0, 5.3, -10.0, 120.0, id="uh-huh-300ms-at-minus-10"),
@@ -227,54 +226,50 @@ def test_own_sound_over_a_voiced_copy_is_untouched(
 
 LOUD_COPY_RUN = {"copy_lift": (12.0, 16.0, 8.0), "peer_tilt": -1.0}
 UNPITCHED_OWN_SOUND = [
-    pytest.param("laugh", 5.0, 5.8, 4.0, False, 45.5, id="laugh-800ms-at-plus-4"),
-    pytest.param("laugh", 5.0, 5.8, 6.0, False, 40.0, id="laugh-800ms-at-plus-6"),
-    pytest.param("laugh", 5.0, 5.8, 8.0, False, 13.2, id="laugh-800ms-at-plus-8"),
-    pytest.param("laugh", 5.0, 5.8, 10.0, False, 0.0, id="laugh-800ms-at-plus-10"),
-    pytest.param("laugh", 5.0, 5.8, 12.0, False, 0.0, id="laugh-800ms-at-plus-12"),
-    pytest.param("laugh", 5.0, 5.25, 10.0, False, 23.4, id="laugh-250ms-at-plus-10"),
-    pytest.param("laugh", 5.0, 5.25, 12.0, False, 0.0, id="laugh-250ms-at-plus-12"),
-    pytest.param("laugh", 20.0, 20.5, 8.0, False, 33.3, id="laugh-500ms-at-plus-8"),
-    pytest.param("laugh", 20.0, 20.5, 10.0, False, 33.3, id="laugh-500ms-at-plus-10"),
-    pytest.param("laugh", 20.0, 20.5, 12.0, False, 0.0, id="laugh-500ms-at-plus-12"),
-    pytest.param("breath", 5.0, 5.1, 4.0, False, 0.0, id="breath-at-plus-4"),
-    pytest.param("breath", 5.0, 5.1, 6.0, False, 0.0, id="breath-at-plus-6"),
-    pytest.param("breath", 5.0, 5.06, 8.0, False, 0.0, id="60ms-breath-at-plus-8"),
-    pytest.param("breath", 5.0, 5.08, 8.0, False, 0.0, id="80ms-breath-at-plus-8"),
-    pytest.param("sh", 5.0, 5.1, 17.2, False, 0.0, id="sh-at-plus-17"),
-    pytest.param("laugh", 13.0, 13.8, 4.0, True, 0.0, id="laugh-in-a-loud-copy-at-plus-4"),
-    pytest.param("laugh", 13.0, 13.8, 6.0, True, 0.0, id="laugh-in-a-loud-copy-at-plus-6"),
-    pytest.param("laugh", 13.0, 13.8, 8.0, True, 0.0, id="laugh-in-a-loud-copy-at-plus-8"),
-    pytest.param("laugh", 13.0, 13.8, 10.0, True, 0.0, id="laugh-in-a-loud-copy-at-plus-10"),
-    pytest.param("laugh", 13.0, 13.8, 12.0, True, 0.0, id="laugh-in-a-loud-copy-at-plus-12"),
-    pytest.param("laugh", 14.0, 14.25, 12.0, True, 0.0, id="short-laugh-in-a-loud-copy"),
-    pytest.param("breath", 14.0, 14.1, 3.0, True, 0.0, id="breath-in-a-loud-copy"),
-    pytest.param("breath", 14.0, 14.06, 6.0, True, 0.0, id="60ms-breath-in-a-loud-copy"),
-    pytest.param("sh", 14.0, 14.1, 16.0, True, 0.0, id="sh-in-a-loud-copy"),
+    pytest.param("laugh", 5.0, 5.8, 2.0, False, id="laugh-800ms-at-plus-2"),
+    pytest.param("laugh", 5.0, 5.8, 4.0, False, id="laugh-800ms-at-plus-4"),
+    pytest.param("laugh", 5.0, 5.8, 6.0, False, id="laugh-800ms-at-plus-6"),
+    pytest.param("laugh", 5.0, 5.8, 8.0, False, id="laugh-800ms-at-plus-8"),
+    pytest.param("laugh", 5.0, 5.8, 10.0, False, id="laugh-800ms-at-plus-10"),
+    pytest.param("laugh", 5.0, 5.8, 12.0, False, id="laugh-800ms-at-plus-12"),
+    pytest.param("laugh", 5.0, 5.25, 10.0, False, id="laugh-250ms-at-plus-10"),
+    pytest.param("laugh", 5.0, 5.25, 12.0, False, id="laugh-250ms-at-plus-12"),
+    pytest.param("laugh", 20.0, 20.5, 8.0, False, id="laugh-500ms-at-plus-8"),
+    pytest.param("laugh", 20.0, 20.5, 10.0, False, id="laugh-500ms-at-plus-10"),
+    pytest.param("laugh", 20.0, 20.5, 12.0, False, id="laugh-500ms-at-plus-12"),
+    pytest.param("breath", 5.0, 5.1, 4.0, False, id="breath-at-plus-4"),
+    pytest.param("breath", 5.0, 5.1, 6.0, False, id="breath-at-plus-6"),
+    pytest.param("breath", 5.0, 5.06, 8.0, False, id="60ms-breath-at-plus-8"),
+    pytest.param("breath", 5.0, 5.08, 8.0, False, id="80ms-breath-at-plus-8"),
+    pytest.param("sh", 5.0, 5.1, 17.2, False, id="sh-at-plus-17"),
+    pytest.param("laugh", 13.0, 13.8, 4.0, True, id="laugh-in-a-loud-copy-at-plus-4"),
+    pytest.param("laugh", 13.0, 13.8, 6.0, True, id="laugh-in-a-loud-copy-at-plus-6"),
+    pytest.param("laugh", 13.0, 13.8, 8.0, True, id="laugh-in-a-loud-copy-at-plus-8"),
+    pytest.param("laugh", 13.0, 13.8, 10.0, True, id="laugh-in-a-loud-copy-at-plus-10"),
+    pytest.param("laugh", 13.0, 13.8, 12.0, True, id="laugh-in-a-loud-copy-at-plus-12"),
+    pytest.param("laugh", 14.0, 14.25, 12.0, True, id="short-laugh-in-a-loud-copy"),
+    pytest.param("breath", 14.0, 14.1, 3.0, True, id="breath-in-a-loud-copy"),
+    pytest.param("breath", 14.0, 14.06, 6.0, True, id="60ms-breath-in-a-loud-copy"),
+    pytest.param("sh", 14.0, 14.1, 16.0, True, id="sh-in-a-loud-copy"),
 ]
 
 
-@pytest.mark.parametrize(
-    ("kind", "start", "end", "over_db", "loud_run", "most_percent"), UNPITCHED_OWN_SOUND
-)
-def test_unpitched_own_sound_beside_the_copy_is_touched_no_more_than_level_and_timbre_do(
-    tmp_path: Path,
-    kind: str,
-    start: float,
-    end: float,
-    over_db: float,
-    loud_run: bool,
-    most_percent: float,
+@pytest.mark.parametrize(("kind", "start", "end", "over_db", "loud_run"), UNPITCHED_OWN_SOUND)
+def test_unpitched_own_sound_beside_the_copy_is_kept_whole(
+    tmp_path: Path, kind: str, start: float, end: float, over_db: float, loud_run: bool
 ) -> None:
     """A laugh, breath or "sh" has no pitch, so nothing but its level and timbre can tell
-    it from the copy. ``over_db`` is over the copy there (full band); ``most_percent`` is
-    the share of the sound the level and timbre gate changes today, which a later rule
-    may lower but never raise."""
+    it from the copy. ``over_db`` is over the copy there, full band; at the gate's 8 kHz
+    evidence rate a laugh reads about 8 dB lower. The peer's own track accounts for its
+    copy here, so the copy's level is not borrowed from the peer's next word for the gaps
+    between words, where a laugh's bursts stand clear of the copy."""
     extra = LOUD_COPY_RUN if loud_run else {}
     copy_db = LAB_COUPLING_DB + (8.0 if loud_run else 0.0)
     project = _episode(tmp_path, own=((kind, start, end, copy_db + over_db, 0.0),), **extra)
     before, after = _gated_over(project, tmp_path)
-    assert _touched_percent(before, after, kind, start, end) <= most_percent
+    _unchanged(before, after, start, end)
+    _silent(after, 1.05, 3.95)
+    _silent(after, 7.45, 10.55)
 
 
 SPEAKER_PAIRS = {
@@ -303,24 +298,27 @@ def test_own_voice_is_kept_for_other_speaker_pairs(
     _silent(after, 7.45, 10.55)
 
 
-LAUGH_BY_LEVEL_AND_TIMBRE = {
-    "same-range": {4.0: 41.7, 6.0: 41.8, 8.0: 40.0, 10.0: 0.0, 12.0: 0.0},
-    "barely-overlapping": {4.0: 41.7, 6.0: 40.0, 8.0: 40.0, 10.0: 0.0, 12.0: 0.0},
-    "too-short-own-range": {4.0: 45.5, 6.0: 40.0, 8.0: 13.2, 10.0: 0.0, 12.0: 0.0},
-}
-
-
 @pytest.mark.parametrize("pair", SPEAKER_PAIRS)
 @pytest.mark.parametrize("over_db", [4.0, 6.0, 8.0, 10.0, 12.0])
-def test_a_laugh_is_touched_no_more_than_level_and_timbre_do_for_other_speaker_pairs(
+def test_a_laugh_is_kept_whole_for_other_speaker_pairs(
     tmp_path: Path, pair: str, over_db: float
 ) -> None:
-    """``LAUGH_BY_LEVEL_AND_TIMBRE``: the share the level and timbre gate changes today."""
     project = _episode(
         tmp_path,
         own=(("laugh", 5.0, 5.8, LAB_COUPLING_DB + over_db, 0.0),),
         **SPEAKER_PAIRS[pair],
     )
     before, after = _gated_over(project, tmp_path)
-    touched = _touched_percent(before, after, "laugh", 5.0, 5.8)
-    assert touched <= LAUGH_BY_LEVEL_AND_TIMBRE[pair][over_db]
+    _unchanged(before, after, 5.0, 5.8)
+    _silent(after, 1.05, 3.95)
+    _silent(after, 7.45, 10.55)
+
+
+def test_a_copy_that_rings_on_after_the_peers_track_is_still_reduced(tmp_path: Path) -> None:
+    """Where this episode's copy goes on after the peer's track shuts, the gate keeps
+    expecting the copy there, so the ring does not come and go as if it were the lane's
+    own sound. ``test_late_gate_on_the_direct_track_still_mutes_the_foreign_copy`` pins
+    the same for a copy that starts before the peer's track opens."""
+    project = _episode(tmp_path, room_ring_sec=0.08)
+    _, after = _gated_over(project, tmp_path)
+    _silent(after, 1.05, 30.0)
