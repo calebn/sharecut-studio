@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { PipelineJobSnapshot } from "../types/pipeline";
+import { StatusLiveRegion } from "../ui/StatusLiveRegion";
 import { unmappedPendingLabel } from "../utils/edits";
 import { formatTimeShort } from "../utils/time";
 import { PipelineStatusChip } from "./PipelineStatusChip";
@@ -19,6 +20,8 @@ type Props = {
   onJobClick?: () => void;
   nowSec?: number;
   statusAnnouncement: string;
+  /** Re-speaks a repeated identical announcement (`statusAnnouncementSeq`). */
+  statusAnnouncementSeq?: number;
   onOpenTab: (tab: StatusBarTab) => void;
 };
 
@@ -34,17 +37,14 @@ export function StatusBarView({
   onJobClick,
   nowSec,
   statusAnnouncement,
+  statusAnnouncementSeq = 0,
   onOpenTab,
 }: Props) {
   const liveRegion = (
-    <span
-      className="sr-only"
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-    >
-      {statusAnnouncement}
-    </span>
+    <StatusLiveRegion
+      message={statusAnnouncement}
+      seq={statusAnnouncementSeq}
+    />
   );
 
   if (!summary) {

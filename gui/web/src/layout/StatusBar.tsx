@@ -16,6 +16,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     shellBreakpoint,
     highlightStaleRender,
     statusAnnouncement,
+    statusAnnouncementSeq,
   } = useDaw((s) => ({
     project: s.project,
     pipelineJob: s.pipelineJob,
@@ -25,6 +26,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
     shellBreakpoint: s.shellBreakpoint,
     highlightStaleRender: s.highlightStaleRender,
     statusAnnouncement: s.statusAnnouncement,
+    statusAnnouncementSeq: s.statusAnnouncementSeq,
   }));
 
   const chipJob = activityJob ?? pipelineJob;
@@ -48,6 +50,7 @@ export function StatusBar({ guestShare = false }: { guestShare?: boolean }) {
           : undefined
       }
       statusAnnouncement={statusAnnouncement}
+      statusAnnouncementSeq={statusAnnouncementSeq}
       onOpenTab={setActiveTab}
     />
   );

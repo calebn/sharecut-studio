@@ -374,6 +374,7 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
     shareCapabilities,
     followingClientId,
     statusAnnouncement,
+    statusAnnouncementSeq,
     competingDialogOpen,
     setGesturesSheetOpen,
     setCommandPaletteOpen,
@@ -394,6 +395,7 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
     shareCapabilities: s.shareCapabilities,
     followingClientId: s.followingClientId,
     statusAnnouncement: s.statusAnnouncement,
+    statusAnnouncementSeq: s.statusAnnouncementSeq,
     competingDialogOpen:
       s.gesturesSheetOpen ||
       s.commandPaletteOpen ||
@@ -568,6 +570,7 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
           follow: <FollowBanner />,
         },
         announcement: statusAnnouncement,
+        announcementSeq: statusAnnouncementSeq,
         transport: <TransportBar compact showFit showRecordingChip={false} />,
         status: (
           <>
