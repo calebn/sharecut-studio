@@ -39,7 +39,7 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
-BLEED_GATE_REV = 10
+BLEED_GATE_REV = 11
 EVIDENCE_RATE = 8000
 # Gain ramps inside each reduced span, after a hold at full level around the lane's
 # own speech. On the lab tape (#945) the level just outside Caleb's reduced spans is
@@ -365,7 +365,11 @@ def _fine_spectra(samples: np.ndarray, frames: np.ndarray) -> np.ndarray:
 
 @dataclass(frozen=True, eq=False)
 class _PeerCopy:
-    """A peer's verified copy on this lane: its delay, level and timbre there."""
+    """A peer's verified copy on this lane: its delay, level and timbre there.
+
+    ``rings`` and ``leads``: whether this episode's copy goes on after the peer's
+    track shuts and starts before it opens, as measured by :func:`_peer_copy`.
+    """
 
     levels: np.ndarray
     samples: np.ndarray
@@ -373,6 +377,8 @@ class _PeerCopy:
     coupling_db: float = 0.0
     spread_db: float = 0.0
     likeness: float = 1.0
+    rings: bool = True
+    leads: bool = True
 
     def direct(self, size: int) -> np.ndarray:
         """The peer's direct-track levels moved onto this lane's clock."""
@@ -380,6 +386,11 @@ class _PeerCopy:
         lo, hi = max(0, -self.lag), min(size, self.levels.size - self.lag)
         out[lo:hi] = self.levels[lo + self.lag : hi + self.lag]
         return out
+
+    def held(self, size: int) -> np.ndarray:
+        """The direct-track level held briefly, as the copy rings on in the room."""
+        hold = round(_COPY_HOLD_SEC / _OWNER_HOP_SEC)
+        return _sliding_max(self.direct(size), hold, hold)
 
     def reach(self, size: int) -> np.ndarray:
         """The direct-track level the copy here can carry in each frame.
@@ -391,16 +402,23 @@ class _PeerCopy:
         """
         direct = self.direct(size)
         hop = _OWNER_HOP_SEC
-        hold = round(_COPY_HOLD_SEC / hop)
-        held = _sliding_max(direct, hold, hold)
         onset = _sliding_max(-direct, round(_LEVEL_FRAME_SEC / hop), 0) >= -_PEER_OPEN_DB
         ahead = _sliding_max(direct, 0, round(_ONSET_REACH_SEC / hop))
+        held = self.held(size)
         return np.where(onset, np.maximum(held, ahead), held)
 
-    def power(self, size: int, *, held: bool) -> np.ndarray:
-        """Power of the copy on this lane, frame by frame or as far as it can reach."""
-        level = self.reach(size) if held else self.direct(size)
-        return 10 ** ((level + self.coupling_db) / 10)
+    def expected(self, size: int) -> np.ndarray:
+        """The direct-track level own sound is judged against: the reach, but only as
+        far as this episode's copy shows it goes. Where the peer's own track accounts
+        for its copy frame by frame, a neighbouring word's level is not lent to the
+        gaps between words, where a laugh's bursts or a breath stand clear of it."""
+        if self.leads:
+            return self.reach(size)
+        return self.held(size) if self.rings else self.direct(size)
+
+    def power(self, levels: np.ndarray) -> np.ndarray:
+        """Power of the copy on this lane at the given direct-track levels."""
+        return 10 ** ((levels + self.coupling_db) / 10)
 
     def similarity(self, own_samples: np.ndarray, frames: np.ndarray) -> np.ndarray:
         """Per frame, how much this lane's fine spectrum matches the peer's at the lag."""
@@ -429,6 +447,14 @@ class _PeerCopy:
         return np.repeat(like, width)[: judged.size]
 
 
+def _copy_goes_past(over: np.ndarray, frames: np.ndarray, limit: float) -> bool:
+    """Whether the lane stands over ``limit`` in more than 5 of 100 ``frames``.
+
+    With no frames to judge, the copy is assumed to go there.
+    """
+    return not frames.any() or float(np.percentile(over[frames], _SPREAD_PERCENTILE)) > limit
+
+
 def _sliding_max(levels: np.ndarray, before: int, after: int) -> np.ndarray:
     padded = np.pad(levels, (before, after), constant_values=LEVEL_FLOOR_DB)
     return np.lib.stride_tricks.sliding_window_view(padded, before + after + 1).max(axis=1)
@@ -455,6 +481,15 @@ def _peer_copy(
     fine-spectrum match on frames at the coupling. The room and call software blur and
     spread it on the lab (0.35; median 0.41); a copy that keeps its timbre sits in a
     narrow band near 1.
+
+    The reach lends a frame the level of a neighbouring one: held after the peer's
+    track shuts, and read ahead where it is about to open. Whether the copy needs
+    either is measured on the frames each one raises, away from this lane's words.
+    It does when the lane there stands more than the hold margin over the copy's
+    usual 95th percentile (coupling plus spread) in more than 5 of 100 of them. A
+    call app that gates or suppresses the peer's own track while the voice still
+    reaches this mic needs both; a room's ring needs the hold. Own sound in those
+    frames only makes the copy look as if it needs them, which keeps the reach.
     """
     lag = _path_lag(own, peer, spans)
     if lag is None:
@@ -480,7 +515,23 @@ def _peer_copy(
         if sample.size
         else 1.0
     )
-    return _PeerCopy(peer, peer_samples, lag, coupling, spread, likeness)
+    direct, held = copy.direct(own.size), copy.held(own.size)
+    judged = (
+        ~_hop_mask(own.size, own_words, _MAX_PATH_LAG_SEC)
+        & (own > LEVEL_FLOOR_DB)
+        & (reach > _PEER_OPEN_DB)
+    )
+    limit = coupling + spread + _OWN_HOLD_MARGIN_DB
+    return _PeerCopy(
+        peer,
+        peer_samples,
+        lag,
+        coupling,
+        spread,
+        likeness,
+        rings=_copy_goes_past(own - direct, judged & (held > direct), limit),
+        leads=_copy_goes_past(own - held, judged & (reach > held), limit),
+    )
 
 
 def _own_voice(
@@ -488,12 +539,12 @@ def _own_voice(
 ) -> list[tuple[float, float]]:
     """Seconds where this lane's speaker is heard over the peers' copies.
 
-    The expected level is the copies plus this mic's own noise floor. Sound more than
-    a copy's spread above it is the lane's speaker whatever its timbre, since the copy
-    stays under that in 95 of 100 loud frames. Nearer the expected level, level alone
-    cannot tell, so each fifth of a second is judged by timbre: it is the copy where
-    the median fine-spectrum match of its frames over the hold margin reaches the
-    copy's likeness. Judging short windows, not whole runs of sound, keeps seconds of
+    The expected level is the copies (:meth:`_PeerCopy.expected`) plus this mic's own
+    noise floor. Sound more than a copy's spread above it is the lane's speaker
+    whatever its timbre, since the copy stays under that in 95 of 100 loud frames.
+    Nearer the expected level, level alone cannot tell, so each fifth of a second is
+    judged by timbre: it is the copy where the median fine-spectrum match of its
+    frames over the hold margin reaches the copy's likeness. Judging short windows, not whole runs of sound, keeps seconds of
     copy or of the lane's own speech from outvoting a word beside them. Own sound is
     held through short dips, so a short "mm" is kept whole, and needs a syllable over
     the own margin to count. Transcript words play no part, so untranscribed
@@ -504,13 +555,13 @@ def _own_voice(
         (float(np.percentile(opened, _OWNER_FLOOR_PERCENTILE)) if opened.size else LEVEL_FLOOR_DB)
         / 10
     )
-    reach = sum((copy.power(own.size, held=True) for copy in copies), np.zeros(own.size))
-    excess = own - 10 * np.log10(reach + noise)
+    expected = sum((copy.power(copy.expected(own.size)) for copy in copies), np.zeros(own.size))
+    excess = own - 10 * np.log10(expected + noise)
     above = excess > _OWN_HOLD_MARGIN_DB
     copy_like = np.zeros(own.size, dtype=bool)
     for copy in copies:
         copy_like |= copy.timbre_windows(
-            own_samples, above & (copy.power(own.size, held=False) > noise)
+            own_samples, above & (copy.power(copy.direct(own.size)) > noise)
         )
     clear = excess > max(_OWN_MARGIN_DB, *(copy.spread_db for copy in copies))
     heard = (bridge_short_dips(above, _OWNER_BRIDGE_FRAMES) & ~copy_like) | clear

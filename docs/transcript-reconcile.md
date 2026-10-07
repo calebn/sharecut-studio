@@ -228,7 +228,18 @@ The gate measures each lane against every other dialogue track's audio at 8 kHz
   the louder half of the peer's frames, away from the lane's own words (−20.6 dB for
   Audra on Caleb's mic, reading the direct track held ±50 ms and, where its gate is
   just opening, up to 200 ms ahead). The expected level is the direct track plus the
-  coupling, power-summed over peers and with the mic's noise floor. The copy's own
+  coupling, power-summed over peers and with the mic's noise floor. That hold and
+  look-ahead lend a frame a neighbouring word's level, and the expected level keeps
+  each only where the episode shows the copy goes there (#1126): on the frames each
+  one raises, away from the lane's words, the lane must stand more than 2 dB over the
+  copy's usual 95th percentile (coupling plus spread) in more than 5 of 100. Otherwise
+  the peer's own track accounts for its copy frame by frame, and the gaps between the
+  peer's words are not expected to carry the next word, so a laugh's bursts or a breath
+  there stand clear of the copy. Own sound in those frames only makes the copy look as
+  if it goes there, which keeps the reach. A call app that gates or suppresses the
+  peer's track while the voice still reaches the mic keeps both: on the lab tape the
+  lane stands 54 dB over that limit where the reach reads ahead and 21 dB over it
+  where it holds, so Caleb's plan is unchanged. A room's ring keeps the hold. The copy's own
   level wanders with the peer's phonemes and the call's noise suppression, so the
   gate also measures its spread: the 95th percentile of lane-to-direct level over
   the same frames, less the coupling (10.5 dB for Audra on Caleb's mic; 10.6 dB on the
@@ -259,8 +270,10 @@ owner's own track gates open late, the copy on this lane is still reduced. Bleed
 never kept as the main audio for another speaker, so the first moments of a
 late-gated word can be quieter in the mix (#945). During crosstalk the lane's own
 speech is protected and its copy of the peer stays with it; retained-bleed
-alignment handles that. Own sound less than about 4 dB over the copy cannot be told
-from it and is reduced with it. Words reconcile left unsuppressed on this lane stay
+alignment handles that. Where the gate keeps the hold or look-ahead, own sound less
+than about 4 dB over that expected level cannot be told from the copy and is reduced
+with it. Where it drops them, a sound with a clear syllable is kept whole together
+with the copy under it, as in crosstalk. Words reconcile left unsuppressed on this lane stay
 protected even when they are really the peer's, so those copies stay at full level.
 Unavailable evidence abstains and is reported in `gate_reasons`. Crossfade layouts abstain because their rendered
 clock can diverge from raw placements. Applying the flag does not prove bleed was
@@ -327,8 +340,47 @@ What would help instead:
 
 The synthetic cases from this work pin the level and timbre gate as protections in
 `tests/test_bleed_gate_generality.py`: own sound over a voiced copy, laughs and
-breaths 4–12 dB over the copy, peers in the speaker's own pitch range or barely
-meeting it, and a speaker with too few words to learn a range from.
+breaths 2–12 dB over the copy, peers in the speaker's own pitch range or barely
+meeting it, and a speaker with too few words to learn a range from. Since #1126 the
+laughs and breaths are kept whole; main had trimmed up to 45.5% of a laugh 4 dB over
+the copy ([below](#own-laughs-in-the-peers-gaps-1126)).
+
+### Own laughs in the peer's gaps (#1126)
+
+The level and timbre gate trimmed up to 45.5% of a synthetic own laugh 4–10 dB over
+the copy, though the peer's own track there was exact. Instrumenting the plan showed
+where. The laugh's bursts fall alternately under the peer's words and in the 50–150 ms
+gaps between them. Those in the gaps stand 10–20 dB over the copy actually there, but
+the onset look-ahead expected the next word's copy across each gap (gaps are shorter
+than a level frame plus 200 ms), so they read under the expected level and were cut.
+At +8 dB that left one 60 ms cut inside the laugh. The test levels are full band;
+at the gate's 8 kHz evidence rate the noise laugh reads about 8 dB lower, so in the
+gate's band the trimmed laughs averaged −3.5 to +2.4 dB against the expected level.
+
+| Synthetic (`test_bleed_gate_generality.py`) | main | #1126 |
+|---|---|---|
+| Laugh 800 ms, +2 / +4 / +6 / +8 dB | 45.5 / 45.5 / 40.0 / 13.2% touched | untouched |
+| Laugh 500 ms, +8 / +10 dB | 33.3 / 33.3% | untouched |
+| Laugh 250 ms, +10 dB | 23.4% | untouched |
+| Other speaker pairs, laugh +4 to +8 dB | up to 45.5% | untouched |
+| Copy left at full level, laugh +4 / none | 0.45 / 0 s | 1.03 / 0 s |
+
+Dropping the look-ahead everywhere instead cost 4.2 s more copy at full level on the
+lab tape, and judging own voice without it cost 7.6 s, because Zoom gates and
+suppresses Audra's track inside her phrases while her voice still reaches Caleb's
+mic. Measuring per episode whether the copy goes there keeps the lab plan byte for
+byte (every lane) and keeps a synthetic laugh whole. The cost is the copy under a
+kept laugh, about 0.6 s for an 800 ms laugh at +4 dB, which stays at full level as
+crosstalk does.
+
+On the lab tape nothing changes, and own sound beside Audra's copy is still cut
+where it is not clear of the borrowed level. Laughs and breaths injected into
+Caleb's lane 2–12 dB over the copy there (in the gate's band) lose the same share
+on main and with #1126: 16.6% → 2.1% of the sound from +2 to +12 dB at random
+places, 23.8% → 7.1% when they start in Audra's gaps, and 53.3% → 22.7% for
+60–100 ms sounds in those gaps. What remains is a burst that lands on Audra's word
+within a few dB of her copy, or a short sound over the own margin for under 50 ms.
+Keeping those would keep her copy at full level with them.
 
 ---
 
