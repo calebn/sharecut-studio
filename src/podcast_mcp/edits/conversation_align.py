@@ -2187,9 +2187,17 @@ def apply_alignment_plans(project: EpisodeProject, result: AlignResult) -> int:
             if plan.method == "manual":
                 continue  # keep the manifest's pinned meta entry
             key = ingest_alignment_meta_key(project, track, clip, multi_clip=len(clips) > 1)
-            align_meta[key] = SpeakerIngestAlignment.from_source_to_timeline_shift(
-                clip_source_to_timeline_shift(clip), align_method=plan.method
-            )
+            shift = clip_source_to_timeline_shift(clip)
+            recorded = align_meta.get(key)
+            # A clip already at its recorded placement keeps the method that put it there,
+            # so a re-run that moves nothing changes nothing.
+            if (
+                recorded is None
+                or abs(recorded.source_to_timeline_shift_sec - shift) > DURATION_EPS_SEC
+            ):
+                align_meta[key] = SpeakerIngestAlignment.from_source_to_timeline_shift(
+                    shift, align_method=plan.method
+                )
 
     project.meta.ingest_alignment = align_meta or None
     refresh_timeline_duration(project)
