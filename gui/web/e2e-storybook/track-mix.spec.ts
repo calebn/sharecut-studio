@@ -2,13 +2,18 @@ import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "../e2e/axe";
 
+// The Storybook a11y addon runs its own axe instance in every story frame and
+// replaces window.axe when it loads. A scan from this spec that lands in that
+// window fails with "Axe is already running", so the spec owns the only scan.
+function trackMixStoryUrl(story: string, theme: string): string {
+  return `/iframe.html?id=templates-trackmix--${story}&viewMode=story&globals=theme:${theme};a11y.manual:!true`;
+}
+
 for (const theme of ["light", "dark"]) {
   for (const width of [320, 360]) {
     test(`Mix rows and controls fit ${width} in ${theme}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 740 });
-      await page.goto(
-        `/iframe.html?id=templates-trackmix--phone-360&viewMode=story&globals=theme:${theme}`,
-      );
+      await page.goto(trackMixStoryUrl("phone-360", theme));
       await expect(page.getByRole("listitem")).toHaveCount(6);
       await page.evaluate(() => document.fonts.ready);
       const geometry = await page.locator(".track-mix").evaluate((el) => ({
@@ -52,9 +57,7 @@ for (const theme of ["light", "dark"]) {
       "empty",
       "loading",
     ]) {
-      await page.goto(
-        `/iframe.html?id=templates-trackmix--${story}&viewMode=story&globals=theme:${theme}`,
-      );
+      await page.goto(trackMixStoryUrl(story, theme));
       await expect(page.locator(".track-mix")).toBeVisible();
       await page.evaluate(() => {
         document.documentElement.style.fontSize = "200%";
