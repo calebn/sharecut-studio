@@ -18,7 +18,6 @@ from podcast_mcp.edits.share_capabilities import (
 )
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.history.summary import (
-    _fmt_sec,
     _human_op,
     _track_list,
     format_history_group_title,
@@ -35,12 +34,13 @@ from podcast_mcp.services.collaboration.share import (
     share_add_reply,
     share_allows_mcp,
 )
+from podcast_mcp.util.timebase import clock_label
 
 
 def test_fmt_sec_and_human_op_and_tracks():
-    assert _fmt_sec(None) == "?"
-    assert _fmt_sec(-1) == "0:00.0"
-    assert "1:01:00" in _fmt_sec(3660) or _fmt_sec(3660).startswith("1:")
+    assert clock_label(None) == "?"
+    assert clock_label(-1) == "0:00.0"
+    assert "1:01:00" in clock_label(3660) or clock_label(3660).startswith("1:")
     assert _human_op(None, None) == "snapshot"
     assert _human_op(None, "before cut") == "cut"
     assert _track_list(None) is None

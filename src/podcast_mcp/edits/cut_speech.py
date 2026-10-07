@@ -74,7 +74,7 @@ class CutSpeechConfirmation(BaseModel):
 
 @dataclass(frozen=True)
 class SpeechClearance:
-    """Leave for a ripple to remove ``removal``.
+    """Permission for a ripple to remove ``removal``.
 
     ``cut_speech`` is the other tracks' speech the person confirmed cutting, or
     ``None`` when the removal cuts none.
