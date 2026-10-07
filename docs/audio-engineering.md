@@ -597,6 +597,7 @@ evidence:
 - #1066 rejected: per-frame pitch and voice gating, three rounds on the realigned lab. Round 1 cut own laughs and 21.2 s of untranscribed sound main kept; round 2 was safe but left the copy coming in and out (39 short pieces against main's 8); round 3 left copy at full level 77.3 s → 73.0 s, the owner-flagged passage at 1656.4 s −2.8 → −2.9 dB, and still took 4% of a laugh 2–3 dB over the copy that main keeps
 - #1066 limit: 74% of the copy main keeps has no pitch, and its sibilants and gate ring stand up to 19 dB over what the peer's own track predicts, so by level they look like own breaths and laughs
 - #1094: an own "uh-huh" 10 dB down on one stereo channel was muted, because the gate judged own versus copy on the mixdown of both channels; each channel is now judged, and a frame is turned down only where every channel reads as copy
+- #1094 verifier: decoding with `-ac <count>` remixed a quad-tagged file (two channels summed, one silent), so own sound on one channel was cut again; channels are now decoded as recorded. An AAC or Opus dual-mono track decodes its channels slightly apart, which read as true stereo and moved the noise-floor reading 3 dB
 enforced-by:
 - tests/test_bleed_attenuation.py::test_late_gate_on_the_direct_track_still_mutes_the_foreign_copy
 - tests/test_bleed_attenuation.py::test_track_speakers_own_speech_is_untouched
@@ -607,6 +608,10 @@ enforced-by:
 - tests/test_bleed_gate_generality.py::test_a_laugh_is_touched_no_more_than_level_and_timbre_do_for_other_speaker_pairs
 - tests/test_bleed_gate_channels.py::test_own_sound_on_one_channel_is_untouched
 - tests/test_bleed_gate_channels.py::test_copy_on_every_channel_is_turned_down
+- tests/test_bleed_gate_channels.py::test_own_sound_on_any_channel_of_a_tagged_layout_is_untouched
+- tests/test_bleed_gate_channels.py::test_lossy_dual_mono_is_judged_once_like_wav_dual_mono
+- tests/test_bleed_gate_channels.py::test_a_short_sound_on_one_channel_is_not_one_signal
+- tests/test_bleed_gate_channels.py::test_identical_channels_are_judged_at_ffmpegs_mono_level
 - docs-sync: decision-bleed
 supersedes: D-bleed-keep-onset-copies
 -->
