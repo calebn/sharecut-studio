@@ -14,11 +14,16 @@ import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
 import { useResizeObserver } from "../ui";
+import { isLabEnabled, useLabFlag } from "../utils/labFlags";
 import { useStableCallback } from "../utils/useStableCallback";
+import { attachHitRouting, type HitRouter } from "./hitRouting";
+import { hitTargetProps } from "./hitTargets";
 import { JoinBadgeView } from "./JoinBadge";
 import { JoinBlend } from "./JoinBlend";
 import { JoinPopover } from "./JoinPopover";
+import { announceArmed } from "./touchGrammar";
 import { useJoinEdit } from "./useJoinEdit";
+import { useTouchPress } from "./useTouchPress";
 
 interface JoinEditorProps {
   left: ClipRow;
@@ -115,6 +120,25 @@ function JoinEditorLive(props: JoinEditorProps) {
     spanWidth,
   ]);
   useResizeObserver(railRef, place);
+  // The rail sits outside the lanes' router, so it routes its own presses
+  // through the same grammar: a finger arms the grip before it drags.
+  const touchLab = useLabFlag("touchChooser");
+  const [railRouter, setRailRouter] = useState<HitRouter | null>(null);
+  const railRootRef = useCallback((rail: HTMLDivElement | null) => {
+    railRef.current = rail;
+    if (!rail) return;
+    const router = attachHitRouting(rail, {
+      touchLab: () => isLabEnabled("touchChooser"),
+      onArm: announceArmed,
+    });
+    setRailRouter(router);
+    return () => {
+      railRef.current = null;
+      router.dispose();
+      setRailRouter(null);
+    };
+  }, []);
+  const railPress = useTouchPress(touchLab ? railRouter : null);
   const reducedOut = clampClipFades(
     edit.value,
     right.fade_out_ms,
@@ -125,10 +149,12 @@ function JoinEditorLive(props: JoinEditorProps) {
     open && edit.editable && joinGlyph(right) === "crossfade" && host
       ? createPortal(
           <div
-            ref={railRef}
+            ref={railRootRef}
             className="join-edit-rail"
             role="group"
             aria-label="Crossfade endpoint editing"
+            data-touch-press={touchLab ? "" : undefined}
+            {...(touchLab ? railPress : {})}
           >
             <span className="join-edit-caption">
               Join at {seamSec}s · {draft ? "Draft" : "Effective"} overlap{" "}
@@ -146,6 +172,11 @@ function JoinEditorLive(props: JoinEditorProps) {
                 className="join-length-grip"
                 disabled={edit.busy || edit.max <= edit.min}
                 aria-label="Drag crossfade right endpoint; press to focus Length"
+                {...hitTargetProps(
+                  "crossfade-end",
+                  right.id,
+                  seamSec + edit.value / 2000,
+                )}
                 {...edit.pointerProps}
               >
                 ↔

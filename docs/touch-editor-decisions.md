@@ -27,11 +27,14 @@ evidence:
 - #1051 round 1: candidate A (fan-out chooser) chosen; the offset loupe and hold-to-zoom cannot separate targets at one time position
 - #1051 round 4a phone test (2026-10-06): pinch never edits, collapse is remembered, hold-to-repeat and soft stops work
 - #1051 round 4b fix (2026-10-07): the first 4b cut made the clip body a create-menu surface, so touch clip moves were lost; the coordinator restored them under the approved grammar, since a clip body drags in time
+- #1051 owner phone test (2026-10-07): the crossfade grip "still drags at once, without a long press"
 enforced-by:
 - gui/web/src/timeline/gestureGovernance.test.ts::keeps touch-specific handling in the router
 - gui/web/src/timeline/gestureGovernance.test.ts::puts every pointerdown handler on an element the router can see
 - gui/web/src/timeline/gestureGovernance.test.ts::routes arrow-key edits through the focused-handle commands
 - gui/web/src/timeline/inputContract.conformance.test.ts::one finger moving never edits it
+- gui/web/src/timeline/inputContract.conformance.test.ts::drags on touch only once a long press arms it, selected or not
+- gui/web/src/timeline/JoinEditor.test.tsx::a long press arms the grip, which then drags and saves on lift
 - gui/web/src/timeline/inputContract.conformance.test.ts::has a reachable touch path: an element that marks it owns the drag
 - gui/web/src/timeline/inputContract.conformance.test.ts::starts no drag on a plain surface, where a long-press opens the create menu
 - gui/web/src/timeline/ClipBlock.test.tsx::arms the body on a long press and moves the clip in time only
@@ -478,7 +481,7 @@ open chips:
 - **Selecting.** Lifting on a chip without grabbing picks it.
 
 Each target kind declares its drag axis in `HIT_KINDS`: `x` (time) for fade,
-trim, roll, pending edges and chapters, `xy` for envelope points, and `none`
+trim, roll, pending edges, chapters and the crossfade end, `xy` for envelope points, and `none`
 for joins and pending split flags, which only take taps. A move runs along `x`
 when it is at least twice as wide as it is tall (within about 27° of
 horizontal). An off-axis move past the slop disarms the chip. Resting
@@ -680,4 +683,8 @@ Round 4b builds the grammar on the 4a branch, behind the touch chooser lab.
   axis has no element that owns its drag, or when a drag sits behind a plain
   surface. The scan reads `onPointerDown` props and spread handler bags. It
   found no other kind without a touch path. The crossfade endpoint grip, in
-  its own rail below the lanes, still drags at once without a long press.
+  its own rail below the lanes, dragged at once without a long press. It is
+  now the `crossfade-end` kind, and its rail routes its own presses through
+  the same router, so a finger arms it before it drags; a mouse drags it as
+  before. The conformance test also fails when any kind with an axis drags
+  on touch before a long press arms it, selected or not.

@@ -67,12 +67,6 @@ const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
     reason: "the ruler sits above the routed lanes: seek and comment anchors",
   },
   {
-    file: "timeline/JoinEditor.tsx",
-    marker: 'className="join-length-grip"',
-    reason:
-      "the crossfade endpoint grip lives in its own rail below the lanes, opened from the join popover",
-  },
-  {
     file: "timeline/PendingEditOverlayView.tsx",
     marker: 'className="pending-actionbar"',
     reason: "the portaled action card only stops presses reaching the lanes",

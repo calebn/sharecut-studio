@@ -163,6 +163,20 @@ export const HIT_KINDS = {
     outranks: [],
     body: false,
   },
+  // The open crossfade's right endpoint, on its rail below the lanes: it
+  // sets the overlap's length, coupled at both clips' fades. The rail routes
+  // its own presses, so a finger arms the grip before it drags.
+  "crossfade-end": {
+    priority: 5,
+    label: "Crossfade end",
+    axis: "x",
+    nudges: [],
+    soft: false,
+    keys: "activate",
+    command: null,
+    outranks: [],
+    body: false,
+  },
   // A trim of the start ripples: the clip's start stays put and its content
   // slides under it, so nothing moves in time for a boundary to stop.
   "trim-in": {
