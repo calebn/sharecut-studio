@@ -8,7 +8,7 @@ import {
   removeRelocatedE2eProject,
 } from "./liveProject";
 import { openSuggestedPendingEdit } from "./pendingEdit";
-import { openPhoneTimeline } from "./phoneTimeline";
+import { openPhoneTimeline, rememberInspectorDetent } from "./phoneTimeline";
 import { switchE2eProject } from "./shareableProject";
 
 let projectPath: string;
@@ -151,6 +151,8 @@ test("pending suggestions preserve drafts and save the displayed full range once
   });
   try {
     const phone = await phoneContext.newPage();
+    // The phone timeline's drawer opens at full height, with the inspector.
+    await rememberInspectorDetent(phone, "full");
     await phone.goto(page.url());
     await openPhoneTimeline(phone);
     await phone
