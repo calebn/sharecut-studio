@@ -1,8 +1,8 @@
 """Inter-word pacing after filler / hesitation cuts.
 
 Dialogue editors remove the filler vocalization but leave a beat of air (or
-replace the hesitation with a paced pad - silence by default, optional room
-tone). These helpers enforce that policy for tighten proposals and NL removes.
+replace the hesitation with a paced pad - room tone by default, optional
+silence). These helpers enforce that policy for tighten proposals and NL removes.
 """
 
 from __future__ import annotations
@@ -72,11 +72,11 @@ def _tighten(defaults: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def filler_pad_mode(defaults: dict[str, Any] | None = None) -> FillerPadMode:
-    """How to fill ``replace_gap_sec`` after ripple: silence (default) or room tone."""
-    raw = str(_tighten(defaults).get("filler_pad_mode", "silence")).strip().lower()
-    if raw == "room_tone":
-        return "room_tone"
-    return "silence"
+    """How to fill ``replace_gap_sec`` after ripple: room tone (default) or silence."""
+    raw = str(_tighten(defaults).get("filler_pad_mode", "room_tone")).strip().lower()
+    if raw == "silence":
+        return "silence"
+    return "room_tone"
 
 
 def flanking_retained_words(
@@ -177,7 +177,7 @@ def apply_filler_pacing(
     * ``filler`` / ``nl`` - apply ``min_gap_after_filler_sec``. When
       ``filler_room_tone_replace`` is on, expand to the inter-word gap and set
       ``pad`` so apply inserts a paced pad after ripple
-      (``filler_pad_mode``: silence by default, or room_tone). Pad keeps a
+      (``filler_pad_mode``: room_tone by default, or silence). Pad keeps a
       fraction of the original gap (floor/cap) so long hesitations stay airy.
     * ``pause`` - no-op (pause candidates already use ``min_retained_pause_sec``).
 

@@ -590,16 +590,23 @@ def test_insert_room_tone_pad_fills_gap():
     assert host[-1].timeline_start == pytest.approx(3.28)
 
 
-def test_filler_pad_mode_defaults_to_silence():
+def test_filler_pad_mode_defaults_to_room_tone():
     from podcast_mcp.edits.filler_pacing import filler_pad_mode
 
-    assert filler_pad_mode({}) == "silence"
-    assert filler_pad_mode({"tighten": {}}) == "silence"
-    assert filler_pad_mode({"tighten": {"filler_pad_mode": "room_tone"}}) == "room_tone"
+    assert filler_pad_mode({}) == "room_tone"
+    assert filler_pad_mode({"tighten": {}}) == "room_tone"
+    assert filler_pad_mode({"tighten": {"filler_pad_mode": "silence"}}) == "silence"
     assert filler_pad_mode({"tighten": {"filler_pad_mode": "SILENCE"}}) == "silence"
+    assert filler_pad_mode({"tighten": {"filler_pad_mode": "other"}}) == "room_tone"
 
 
-def test_approve_edits_applies_silence_pad_by_default():
+def test_shipped_defaults_fill_pads_with_room_tone():
+    from podcast_mcp.edits.filler_pacing import filler_pad_mode
+
+    assert filler_pad_mode() == "room_tone"
+
+
+def test_approve_edits_applies_silence_pad_when_configured():
     words = [
         TranscriptWord(text="And", start=1.0, end=1.2),
         TranscriptWord(text="um", start=1.5, end=1.7),

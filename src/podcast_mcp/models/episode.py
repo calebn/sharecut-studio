@@ -436,7 +436,7 @@ class EditDecision(BaseModel):
     cut_confidence: float | None = None
     boundary_mode: str | None = None
     # When set, apply inserts this many seconds of paced pad at the join after
-    # ripple (silence by default; room_tone when tighten.filler_pad_mode says so).
+    # ripple (room_tone by default; silence when tighten.filler_pad_mode says so).
     # See tighten.filler_room_tone_replace / filler_pad_mode.
     replace_gap_sec: float | None = None
     # Source time a plosive burst begins right after a padded filler cut, read from
