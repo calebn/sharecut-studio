@@ -319,7 +319,7 @@ def _talking_over(
     room_floor_db: float | None = None,
     room_floor_spans: tuple[tuple[float, float], ...] | None = None,
     copy_lift: tuple[float, float, float] | None = None,
-    stereo: bool = False,
+    channel_copy_db: tuple[float, ...] = (),
 ) -> EpisodeProject:
     """The peer talks from 1 s to ``talk_end``; the host mic carries a coloured copy 16 dB down.
 
@@ -329,8 +329,8 @@ def _talking_over(
     the host track, everywhere or only in ``room_floor_spans``; elsewhere the host track
     is digital silence between sounds, like a call app's gated track. ``copy_lift``
     (start, end, dB) raises the copy for a stretch, as when the peer leans toward the
-    host mic. ``stereo`` writes the host track as two channels with the own sounds on
-    the left only.
+    host mic. ``channel_copy_db`` writes the host track as one channel per entry, the
+    copy there raised or lowered by that many dB, with the own sounds on the first only.
     """
     duration = talk_end + 1.0
     project = EpisodeProject.create("talking over", str(tmp_path))
@@ -357,7 +357,11 @@ def _talking_over(
             bed *= np.any([(clock >= a) & (clock < b) for a, b in room_floor_spans], axis=0)
         host += bed
     direct = np.roll(voice, round(lag_sec * RATE))
-    host = np.column_stack([host + sounds, host]) if stereo else host + sounds
+    if channel_copy_db:
+        host = np.column_stack([host * 10 ** (gain / 20) for gain in channel_copy_db])
+        host[:, 0] += sounds
+    else:
+        host += sounds
     for track_id, samples in (("host", host), ("guest", direct)):
         _write_pcm(tmp_path / "raw" / f"{track_id}.wav", samples)
         project.timeline.tracks.append(
@@ -520,7 +524,7 @@ def test_own_speech_starting_under_a_louder_copy_tail_is_untouched(tmp_path: Pat
 
 
 def test_stereo_lane_keeps_own_speech_in_both_channels(tmp_path: Path) -> None:
-    project = _talking_over(tmp_path, own=(("mm", 5.0, 5.15, -6.0),), stereo=True)
+    project = _talking_over(tmp_path, own=(("mm", 5.0, 5.15, -6.0),), channel_copy_db=(0.0, 0.0))
     before, after = _gated_over(project, tmp_path)
     assert before.shape == after.shape == (round(32.0 * RATE), 2)
     _unchanged(before, after, 5.0, 5.15)
