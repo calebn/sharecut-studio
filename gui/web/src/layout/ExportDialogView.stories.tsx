@@ -161,6 +161,41 @@ export const Failed: Story = {
   },
 };
 
+export const Cancelled: Story = {
+  args: { stage: { kind: "cancelled", paths: [] } },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await expect(
+      within(dialog).getByText(
+        "Export cancelled. Files from an earlier export are unchanged.",
+      ),
+    ).toBeVisible();
+  },
+};
+
+export const CancelledTooLate: Story = {
+  args: {
+    stage: {
+      kind: "cancelled",
+      paths: [
+        "/episodes/ep12/export/Episode 12.wav",
+        "/episodes/ep12/export/Episode 12.mp3",
+      ],
+    },
+  },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await expect(
+      within(dialog).getByText(
+        "Cancel came too late. Exported 2 files to export/",
+      ),
+    ).toBeVisible();
+    await expect(within(dialog).getByText("Episode 12.mp3")).toBeVisible();
+  },
+};
+
 export const Phone: Story = {
   parameters: recordMobileViewport.parameters,
   globals: recordMobileViewport.globals,

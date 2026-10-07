@@ -292,9 +292,19 @@ export async function startRenderPreview(
   const data = (await res.json()) as { job: PipelineJobSnapshot };
   return { mode: "job", job: data.job };
 }
-/** A followed job ended `cancelled`: someone asked it to stop. Not a failure. */
+/**
+ * A followed job ended `cancelled`: someone asked it to stop. Not a failure.
+ * `job` is the terminal snapshot; a cancel that came after the job wrote its
+ * files still lists them in `result.paths`.
+ */
 export class JobCancelledError extends Error {
   override name = "JobCancelledError";
+  readonly job: PipelineJobSnapshot;
+
+  constructor(job: PipelineJobSnapshot, message: string) {
+    super(message);
+    this.job = job;
+  }
 }
 
 /**
@@ -308,7 +318,7 @@ export async function followJobToOk(
 ): Promise<PipelineJobSnapshot> {
   const done = await waitForPipelineJob(jobId, opts);
   if (done.status === "cancelled") {
-    throw new JobCancelledError(done.message || failLabel);
+    throw new JobCancelledError(done, done.message || failLabel);
   }
   if (done.status !== "ok") {
     throw new Error(done.error || done.message || failLabel);

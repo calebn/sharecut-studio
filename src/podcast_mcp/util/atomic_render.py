@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import re
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from podcast_mcp.util.atomic_file import publish_completed_file
@@ -47,9 +47,41 @@ def render_atomic(
     dest.parent.mkdir(parents=True, exist_ok=True)
     if reap_partials:
         remove_partials(dest)
-    tmp = dest.with_name(f"{dest.stem}.{os.getpid()}.{uuid.uuid4().hex}.partial{dest.suffix}")
+    tmp = _partial_path(dest)
     try:
         render(tmp)
         return publish_completed_file(tmp, dest, before_replace=before_replace)
     finally:
         tmp.unlink(missing_ok=True)
+
+
+def render_atomic_all(
+    dests: Sequence[Path],
+    render: Callable[[list[Path]], object],
+    *,
+    before_publish: Callable[[], object] | None = None,
+    reap_partials: bool = False,
+) -> list[Path]:
+    """Render every ``dests[i]`` to its own temp; replace them only once all are rendered.
+
+    ``render`` receives the temps in ``dests`` order. If it (or ``before_publish``, run
+    once before the first replace) raises, every ``dest`` keeps its previous contents and
+    no temp is left behind. ``reap_partials`` as in ``render_atomic``.
+    """
+    for dest in dests:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if reap_partials:
+            remove_partials(dest)
+    temps = [_partial_path(dest) for dest in dests]
+    try:
+        render(temps)
+        if before_publish is not None:
+            before_publish()
+        return [publish_completed_file(tmp, dest) for tmp, dest in zip(temps, dests, strict=True)]
+    finally:
+        for tmp in temps:
+            tmp.unlink(missing_ok=True)
+
+
+def _partial_path(dest: Path) -> Path:
+    return dest.with_name(f"{dest.stem}.{os.getpid()}.{uuid.uuid4().hex}.partial{dest.suffix}")

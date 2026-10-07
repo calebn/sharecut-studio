@@ -1,6 +1,6 @@
-import { followJobToOk } from "../api";
+import { followJobToOk, JobCancelledError } from "../api";
 import type { PipelineJobSnapshot } from "../types/pipeline";
-import { jobResultPaths } from "../utils/pipeline";
+import { jobResultPaths, lateCancelCopy } from "../utils/pipeline";
 import { useDawStore } from "./dawStore";
 import { seedStudioJob } from "./seedStudioJob";
 
@@ -12,7 +12,8 @@ import { seedStudioJob } from "./seedStudioJob";
  * never races the copy. `onStart` receives the started job (for Cancel and
  * live progress). Resolves with the `ok` snapshot. A failure, a cancel
  * (`JobCancelledError`) or an abort settles that registration and rethrows for
- * the caller. An abort only stops this client following the job. The server job
+ * the caller; a cancel that came after the job wrote its files announces them
+ * as a late cancel instead. An abort only stops this client following the job. The server job
  * is not cancelled: it keeps running, may still write files to `export/`, and its
  * result is never announced. An abort that lands while `start()` runs throws
  * before anything is registered or seeded.
@@ -44,7 +45,13 @@ export async function runAnnouncedJob(
     s.announceJobResult(job.id, opts.resultCopy(jobResultPaths(done)));
     return done;
   } catch (err) {
-    s.settleJobResult(job.id);
+    const written =
+      err instanceof JobCancelledError ? jobResultPaths(err.job) : [];
+    if (written.length) {
+      s.announceJobResult(job.id, lateCancelCopy(opts.resultCopy(written)));
+    } else {
+      s.settleJobResult(job.id);
+    }
     throw err;
   }
 }

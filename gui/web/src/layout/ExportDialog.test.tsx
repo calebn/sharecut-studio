@@ -179,12 +179,51 @@ describe("ExportDialog", () => {
     ).toBe(true);
 
     await act(async () =>
-      settle().fail(new JobCancelledError("Export cancelled")),
+      settle().fail(
+        new JobCancelledError(
+          { ...started, status: "cancelled" },
+          "Export cancelled",
+        ),
+      ),
     );
-    expect(await screen.findByText("Export cancelled.")).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "Export cancelled. Files from an earlier export are unchanged.",
+      ),
+    ).toBeTruthy();
     expect(useDawStore.getState().pendingJobResults).toEqual({});
     await user.click(screen.getByRole("button", { name: "Export again" }));
     expect(await screen.findByRole("button", { name: "Export" })).toBeTruthy();
+  });
+
+  it("lists the files a cancel arrived too late to stop", async () => {
+    const user = userEvent.setup();
+    const settle = heldFollow();
+    const { baseElement } = render(<ExportDialog />);
+    await openAndExport(user);
+    await user.click(
+      await screen.findByRole("button", { name: "Cancel export" }),
+    );
+
+    await act(async () =>
+      settle().fail(
+        new JobCancelledError(
+          { ...finished, status: "cancelled" },
+          "Export cancelled",
+        ),
+      ),
+    );
+    expect(
+      await screen.findByText(
+        "Cancel came too late. Exported 2 files to export/",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("ep.wav")).toBeTruthy();
+    expect(screen.getByText("ep.mp3")).toBeTruthy();
+    expect(useDawStore.getState().pendingJobResults).toEqual({
+      x1: "Cancel came too late. Exported 2 files to export/",
+    });
+    await expectNoA11yViolations(baseElement);
   });
 
   it("names a failure and offers Try again", async () => {

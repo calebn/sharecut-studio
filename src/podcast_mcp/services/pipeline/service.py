@@ -286,6 +286,7 @@ class PipelineService:
                     mastered,
                     export_cfg,
                     max_workers=defaults.get("performance", {}).get("max_workers"),
+                    cancel_check=cancel_check,
                 )
             self.ws.save_merged()
             result = AudioExportResult(paths, pipeline_steps.read_master_qc(self.ws.project))

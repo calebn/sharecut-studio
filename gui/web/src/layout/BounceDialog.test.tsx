@@ -7,7 +7,8 @@ import { expectNoA11yViolations } from "../test/a11y";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { BounceDialog } from "./BounceDialog";
 
-vi.mock("../api", () => ({
+vi.mock("../api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api")>()),
   startBounceJob: vi.fn(),
   followJobToOk: vi.fn(),
 }));

@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg import ENCODE_CANCELLED, FFmpegEngine
 from podcast_mcp.export.names import sanitize_export_stem
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.atomic_render import render_atomic_all
 from podcast_mcp.util.parallel import run_parallel
+from podcast_mcp.util.progress import raise_if_cancel_requested
 
 
 @dataclass(frozen=True)
@@ -82,42 +85,54 @@ def write_audio_formats(
     *,
     metadata: dict[str, str] | None = None,
     max_workers: int | None = None,
+    cancel_check: Callable[[], bool] | None = None,
+    reap_partials: bool = False,
 ) -> list[Path]:
     """Copy/encode ``source_wav`` to ``out_stem.{ext}`` for each format spec.
 
     WAV with no codec is a plain file copy; all other specs are FFmpeg encodes
     (concurrent via ``run_parallel``). Shared by bounce and episode deliverables.
+    Every file is written to a temp and all replace their destinations only after
+    the last one is done: a failure, or ``cancel_check()`` turning true (which also
+    stops a running encode), leaves earlier files with these names untouched.
+    ``reap_partials`` deletes temps a crashed earlier run left; pass it only while
+    holding the lock that serializes writers of these files.
     """
-    out_stem.parent.mkdir(parents=True, exist_ok=True)
     meta = metadata or {}
-    written: list[Path] = []
-    encode_specs: list[ExportFormatSpec] = []
+    dests = [out_stem.with_suffix(f".{spec.ext}") for spec in specs]
 
-    for spec in specs:
-        if spec.ext == "wav" and spec.codec is None:
-            out = out_stem.with_suffix(".wav")
-            shutil.copy(source_wav, out)
-            written.append(out)
-        else:
-            encode_specs.append(spec)
+    def render(temps: list[Path]) -> None:
+        encodes: list[tuple[ExportFormatSpec, Path]] = []
+        for spec, tmp in zip(specs, temps, strict=True):
+            if spec.ext == "wav" and spec.codec is None:
+                raise_if_cancel_requested(cancel_check, ENCODE_CANCELLED)
+                shutil.copy(source_wav, tmp)
+            else:
+                encodes.append((spec, tmp))
 
-    def encode_one(spec: ExportFormatSpec) -> Path:
-        out = out_stem.with_suffix(f".{spec.ext}")
-        eng.export_audio(
-            source_wav,
-            out,
-            codec=spec.codec,
-            format=spec.format,
-            bitrate_kbps=spec.bitrate_kbps,
-            sample_rate=spec.sample_rate,
-            channels=spec.channels,
-            metadata=meta,
-            extra_args=list(spec.extra_args) or None,
-        )
-        return out
+        def encode_one(job: tuple[ExportFormatSpec, Path]) -> None:
+            spec, tmp = job
+            eng.export_audio(
+                source_wav,
+                tmp,
+                codec=spec.codec,
+                format=spec.format,
+                bitrate_kbps=spec.bitrate_kbps,
+                sample_rate=spec.sample_rate,
+                channels=spec.channels,
+                metadata=meta,
+                extra_args=list(spec.extra_args) or None,
+                cancel_check=cancel_check,
+            )
 
-    written.extend(run_parallel(encode_specs, encode_one, max_workers=max_workers))
-    return written
+        run_parallel(encodes, encode_one, max_workers=max_workers)
+
+    return render_atomic_all(
+        dests,
+        render,
+        before_publish=lambda: raise_if_cancel_requested(cancel_check, ENCODE_CANCELLED),
+        reap_partials=reap_partials,
+    )
 
 
 def export_episode_audio(
@@ -128,9 +143,12 @@ def export_episode_audio(
     *,
     metadata: dict[str, str] | None = None,
     max_workers: int | None = None,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> list[Path]:
-    """Write episode audio deliverables under export/ from a mastered WAV."""
-    project.export_dir().mkdir(parents=True, exist_ok=True)
+    """Write episode audio deliverables under export/ from a mastered WAV.
+
+    All or nothing (see ``write_audio_formats``). Callers hold ``render_lock``.
+    """
     meta = metadata or {
         "title": project.name,
         "album": project.name,
@@ -146,4 +164,6 @@ def export_episode_audio(
         specs,
         metadata=meta,
         max_workers=max_workers,
+        cancel_check=cancel_check,
+        reap_partials=True,
     )

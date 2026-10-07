@@ -1,7 +1,7 @@
 import { useId } from "react";
 import type { PipelineJobSnapshot } from "../types/pipeline";
 import { Button, Dialog, InlineError } from "../ui";
-import { isPipelineRunning } from "../utils/pipeline";
+import { isPipelineRunning, lateCancelCopy } from "../utils/pipeline";
 import {
   pipelineProgressPercent,
   pipelineUnitsLabel,
@@ -37,7 +37,8 @@ export type ExportStage =
     }
   | { kind: "done"; paths: readonly string[]; measured: string | null }
   | { kind: "failed"; reason: string }
-  | { kind: "cancelled" };
+  /** `paths`: files the job wrote before the cancel reached it. */
+  | { kind: "cancelled"; paths: readonly string[] };
 
 export type ExportDialogViewProps = {
   open: boolean;
@@ -80,11 +81,7 @@ export function ExportDialogView(props: ExportDialogViewProps) {
             role="alert"
           />
         ) : null}
-        {stage.kind === "cancelled" ? (
-          <p className="export-dialog-status" role="status">
-            Export cancelled.
-          </p>
-        ) : null}
+        {stage.kind === "cancelled" ? <ExportCancelled stage={stage} /> : null}
       </div>
     </Dialog>
   );
@@ -100,8 +97,9 @@ function ExportSettingsForm({ stage, onToggleFormat }: ExportDialogViewProps) {
   return (
     <>
       <p className="export-dialog-lead">
-        Writes the mastered episode to the project's export/ folder. A file with
-        the same name from an earlier export is replaced.
+        Writes the mastered episode to the project's export/ folder. Files with
+        the same names from an earlier export are replaced only once every file
+        is written.
       </p>
       {settingsError ? (
         <InlineError
@@ -167,7 +165,7 @@ function ExportProgress({
   const units = pipelineUnitsLabel(job);
   const running = job == null || isPipelineRunning(job);
   const headline = cancelling
-    ? "Cancelling… The export stops after its current step."
+    ? "Cancelling… If the master is still being prepared, the export stops once it is ready."
     : (job?.message ?? "Starting export…");
   return (
     <>
@@ -228,19 +226,48 @@ function ExportOutcome({
       <p className="export-dialog-status" role="status">
         {exportResultCopy(stage.paths)}
       </p>
-      {stage.paths.length ? (
-        <ul className="export-dialog-files">
-          {stage.paths.map((path) => (
-            <li key={path} title={path}>
-              {exportFileName(path)}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <ExportedFiles paths={stage.paths} />
       {stage.measured ? (
         <p className="export-dialog-note">{stage.measured}</p>
       ) : null}
     </>
+  );
+}
+
+function ExportCancelled({
+  stage,
+}: {
+  stage: Extract<ExportStage, { kind: "cancelled" }>;
+}) {
+  if (!stage.paths.length) {
+    return (
+      <p className="export-dialog-status" role="status">
+        Export cancelled. Files from an earlier export are unchanged.
+      </p>
+    );
+  }
+  return (
+    <>
+      <p className="export-dialog-status" role="status">
+        {lateCancelCopy(exportResultCopy(stage.paths))}
+      </p>
+      <ExportedFiles paths={stage.paths} />
+    </>
+  );
+}
+
+function ExportedFiles({ paths }: { paths: readonly string[] }) {
+  if (!paths.length) {
+    return null;
+  }
+  return (
+    <ul className="export-dialog-files">
+      {paths.map((path) => (
+        <li key={path} title={path}>
+          {exportFileName(path)}
+        </li>
+      ))}
+    </ul>
   );
 }
 
