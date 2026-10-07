@@ -85,7 +85,14 @@ _OWNER_FLOOR_DB = -80.0
 _OWNER_FLOOR_PERCENTILE = 10
 _OWNER_FLOOR_MARGIN_DB = 6
 _OWNER_BRIDGE_FRAMES = 15
-_DOWNMIX_GAIN = np.float32(math.sqrt(0.5))
+# ffmpeg's stereo to mono matrix: each channel at -3 dB.
+_STEREO_MONO_GAIN = np.float32(math.sqrt(0.5))
+# Channels that differ by less than this, in every frame that carries sound, are one
+# signal. A channel at 1 - r of the other reads (1 - r / 2) as loud on the two-channel
+# mixdown, so the own-versus-copy excess shifts by 20 log10(1 - r / 2). Half the own
+# margin is the most a shift may cost before it can flip a verdict, which gives
+# r = 2 (1 - 10 ** (-margin / 40)): 0.41, the channel gap 7.7 dB under the loudest one.
+_SAME_SIGNAL_GAP_DB = 20 * math.log10(2 * (1 - 10 ** (-_OWN_MARGIN_DB / 40)))
 
 
 @dataclass(frozen=True)
@@ -250,25 +257,33 @@ def _scope_intervals(project: EpisodeProject, track_id: str) -> list[tuple[float
     return merge_intervals(intervals)
 
 
+def _owner_levels(samples: np.ndarray) -> np.ndarray:
+    frame, hop = round(_OWNER_FRAME_SEC * EVIDENCE_RATE), round(_OWNER_HOP_SEC * EVIDENCE_RATE)
+    return frame_rms_db_stream(
+        (samples[first : first + EVIDENCE_RATE] for first in range(0, samples.size, EVIDENCE_RATE)),
+        frame,
+        hop,
+    )
+
+
+def _owner_floor_db(levels: np.ndarray) -> float:
+    """The level above which a frame of this lane is sound rather than its noise floor."""
+    return max(
+        _OWNER_FLOOR_DB,
+        float(np.percentile(levels, _OWNER_FLOOR_PERCENTILE)) + _OWNER_FLOOR_MARGIN_DB,
+    )
+
+
 def _owner_protection(
     samples: np.ndarray,
     seeds: list[tuple[float, float]],
     foreign: list[tuple[float, float]],
 ) -> list[tuple[float, float]]:
     """Own words plus the voiced runs touching them, stopping where a peer owns the speech."""
-    frame, hop = round(_OWNER_FRAME_SEC * EVIDENCE_RATE), round(_OWNER_HOP_SEC * EVIDENCE_RATE)
-    if not seeds or samples.size < frame:
+    if not seeds or samples.size < round(_OWNER_FRAME_SEC * EVIDENCE_RATE):
         return seeds
-    levels = frame_rms_db_stream(
-        (samples[first : first + EVIDENCE_RATE] for first in range(0, samples.size, EVIDENCE_RATE)),
-        frame,
-        hop,
-    )
-    floor = max(
-        _OWNER_FLOOR_DB,
-        float(np.percentile(levels, _OWNER_FLOOR_PERCENTILE)) + _OWNER_FLOOR_MARGIN_DB,
-    )
-    active = bridge_short_dips(levels > floor, _OWNER_BRIDGE_FRAMES)
+    levels = _owner_levels(samples)
+    active = bridge_short_dips(levels > _owner_floor_db(levels), _OWNER_BRIDGE_FRAMES)
     for start, end in foreign:
         active[max(0, math.ceil(start / _OWNER_HOP_SEC)) : math.floor(end / _OWNER_HOP_SEC)] = False
     runs = [
@@ -540,22 +555,45 @@ def _foreign_speech(size: int, copies: list[_PeerCopy]) -> list[tuple[float, flo
     )
 
 
+def _channels_are_one_signal(channels: np.ndarray) -> bool:
+    """Whether every channel is the first one up to codec noise.
+
+    A call app's dual-mono track is exact in a WAV, but AAC and Opus decode its two
+    channels a little apart. Their difference counts only where it stands above the
+    lane's noise floor and within ``_SAME_SIGNAL_GAP_DB`` of the loudest channel, so
+    sound on one channel, which sits near that channel's own level, never passes.
+    """
+    levels = [_owner_levels(channel) for channel in channels.T]
+    loudest = np.maximum.reduce(levels)
+    if not loudest.size:
+        return bool((channels == channels[:, :1]).all())
+    floor = _owner_floor_db(loudest)
+    for channel in channels.T[1:]:
+        gap = _owner_levels(channel - channels[:, 0])
+        if ((gap > floor) & (gap - loudest > _SAME_SIGNAL_GAP_DB)).any():
+            return False
+    return True
+
+
 def _lane_signals(project: EpisodeProject, track_id: str) -> list[np.ndarray]:
-    """Each channel the lane records, or one mixdown when every channel is the same.
+    """Each channel the lane records, or ffmpeg's mono mixdown when they are one signal.
 
     A stereo or ambisonic mic can carry its speaker on one channel while a peer's
     copy reaches all of them. A mixdown halves that own sound against the copy, so a
-    quiet "uh-huh" there was judged copy (#1094). Channels that all carry the same
-    signal are judged once, on ffmpeg's stereo downmix (each channel at -3 dB), the
-    level the gate's absolute floors were set on.
+    quiet "uh-huh" there was judged copy (#1094). Channels that carry one signal are
+    judged once, on the mono level the gate's absolute floors were set on. Stereo is
+    mixed here, as ffmpeg does; any other layout asks ffmpeg for its own matrix
+    (LFE, centre and surround weights differ by layout) at the cost of a second decode.
     """
     channels = raw_timeline_samples(
         project, track_id, sample_rate=EVIDENCE_RATE, preserve_channels=True
     )
     if channels.shape[1] == 1:
         return [channels[:, 0]]
-    if (channels == channels[:, :1]).all():
-        return [channels.sum(axis=1) * _DOWNMIX_GAIN]
+    if _channels_are_one_signal(channels):
+        if channels.shape[1] == 2:
+            return [channels.sum(axis=1) * _STEREO_MONO_GAIN]
+        return [raw_timeline_samples(project, track_id, sample_rate=EVIDENCE_RATE)]
     return [np.ascontiguousarray(channel) for channel in channels.T]
 
 

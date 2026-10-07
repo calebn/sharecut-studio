@@ -266,8 +266,14 @@ A stereo or multichannel lane is judged one channel at a time, because a mixdown
 halves sound on one channel against a copy that reaches them all: a "uh-huh" 10 dB
 down on one channel read as copy there (#1094). A frame is reduced only where every
 channel reads as copy, and the bed that picks mute or attenuate is the loudest
-channel's. A lane whose channels all carry the same samples, such as a call app's
-dual-mono track, is judged once on its stereo downmix, as before. A channel whose copy
+channel's. Channels are decoded as recorded, so a quad or other tagged layout keeps
+every channel apart. A lane whose channels carry one signal, such as a call app's
+dual-mono track, is judged once on ffmpeg's mono mixdown, as before. Lossy codecs
+decode the two copies of one channel slightly apart, so "one signal" means that no
+frame has a channel-to-first-channel difference that is both above the lane's noise
+floor and within 7.7 dB of the loudest channel. A mixdown then shifts own versus copy
+by under half the 4 dB own margin. A short sound on one channel sits near that
+channel's own level and never passes. A channel whose copy
 cannot be verified judges its own sound against its noise floor alone and reports
 `uncertain_foreign_ownership`.
 Unavailable evidence abstains and is reported in `gate_reasons`. Crossfade layouts abstain because their rendered
