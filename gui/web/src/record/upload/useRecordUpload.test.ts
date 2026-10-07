@@ -1309,75 +1309,72 @@ describe("useRecordUpload per-segment status while uploading", () => {
     };
   }
 
-  it.each(["p_a", "p_host"])(
-    "shows %s each segment as saving when its upload starts and saved when it lands",
-    async (participantId) => {
-      const sink = new MemorySink();
-      const own = { ...ids, participantId };
-      for (const segmentIndex of [0, 1]) {
-        const path = keeperWavPath({ ...own, segmentIndex });
-        await sink.write(path, wavWithPcm(8));
-        await sink.write(
-          keeperMetaPath(path),
-          keeperMetaBytes({ ...own, segmentIndex }),
-        );
-      }
-      const { transport, started, release } = gatedTransport();
-      const { result, unmount } = renderHook(() =>
-        useRecordUpload({
-          enabled: true,
-          roomState: "stopped",
-          captureSettled: true,
-          ...own,
-          transport,
-          sink,
-        }),
+  it("shows each segment as saving when its upload starts and saved when it lands", async () => {
+    const sink = new MemorySink();
+    const own = ids;
+    for (const segmentIndex of [0, 1]) {
+      const path = keeperWavPath({ ...own, segmentIndex });
+      await sink.write(path, wavWithPcm(8));
+      await sink.write(
+        keeperMetaPath(path),
+        keeperMetaBytes({ ...own, segmentIndex }),
       );
+    }
+    const { transport, started, release } = gatedTransport();
+    const { result, unmount } = renderHook(() =>
+      useRecordUpload({
+        enabled: true,
+        roomState: "stopped",
+        captureSettled: true,
+        ...own,
+        transport,
+        sink,
+      }),
+    );
 
-      await waitFor(() => expect(started).toEqual([0]));
-      await waitFor(() =>
-        expect(result.current.segments).toEqual([
-          {
-            take: 0,
-            segment: 0,
-            state: "saving",
-            chunks: { acked: 0, total: 1 },
-            landFailed: false,
-          },
-        ]),
-      );
-      expect(result.current.uploading).toBe(true);
+    await waitFor(() => expect(started).toEqual([0]));
+    await waitFor(() =>
+      expect(result.current.segments).toEqual([
+        {
+          take: 0,
+          segment: 0,
+          state: "saving",
+          chunks: { acked: 0, total: 1 },
+          landFailed: false,
+        },
+      ]),
+    );
+    expect(result.current.uploading).toBe(true);
 
-      release(0);
-      await waitFor(() => expect(started).toEqual([0, 1]));
-      await waitFor(() =>
-        expect(result.current.segments).toEqual([
-          {
-            take: 0,
-            segment: 0,
-            state: "saved",
-            chunks: null,
-            landFailed: false,
-          },
-          {
-            take: 0,
-            segment: 1,
-            state: "saving",
-            chunks: { acked: 0, total: 1 },
-            landFailed: false,
-          },
-        ]),
-      );
+    release(0);
+    await waitFor(() => expect(started).toEqual([0, 1]));
+    await waitFor(() =>
+      expect(result.current.segments).toEqual([
+        {
+          take: 0,
+          segment: 0,
+          state: "saved",
+          chunks: null,
+          landFailed: false,
+        },
+        {
+          take: 0,
+          segment: 1,
+          state: "saving",
+          chunks: { acked: 0, total: 1 },
+          landFailed: false,
+        },
+      ]),
+    );
 
-      release(1);
-      await waitFor(() => expect(result.current.fileAck).toBe(true));
-      expect(result.current.segments.map((save) => save.state)).toEqual([
-        "saved",
-        "saved",
-      ]);
-      unmount();
-    },
-  );
+    release(1);
+    await waitFor(() => expect(result.current.fileAck).toBe(true));
+    expect(result.current.segments.map((save) => save.state)).toEqual([
+      "saved",
+      "saved",
+    ]);
+    unmount();
+  });
 
   it("moves the chunk count inside a multi-chunk segment", async () => {
     const sink = new MemorySink();

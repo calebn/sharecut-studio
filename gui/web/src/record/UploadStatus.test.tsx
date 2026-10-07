@@ -564,4 +564,111 @@ describe("UploadStatus", () => {
       expect(screen.getByText(uploadProgressCopy(2, 4))).toBeInTheDocument();
     });
   });
+
+  describe("segment list while uploading", () => {
+    const base = {
+      fileAck: false,
+      landed: false,
+      landFailed: false,
+      reclaimFailed: false,
+      pending: false,
+      recoverable: false,
+      error: null,
+    };
+    const saving = (segment: number, acked: number) => ({
+      take: 0,
+      segment,
+      state: "saving" as const,
+      chunks: { acked, total: 3 },
+      landFailed: false,
+    });
+    const saved = (segment: number) => ({
+      take: 0,
+      segment,
+      state: "saved" as const,
+      chunks: null,
+      landFailed: false,
+    });
+    const region = (container: HTMLElement) =>
+      container.querySelector('[aria-live="polite"]');
+
+    it("lists each segment as it starts and announces only state changes", async () => {
+      const { container, rerender } = render(
+        <UploadStatus
+          stopped
+          progress={{
+            ...base,
+            acked: 0,
+            total: 3,
+            uploading: true,
+            segments: [saving(0, 0)],
+          }}
+        />,
+      );
+      expect(screen.queryByRole("list")).toBeNull();
+      expect(region(container)).toHaveTextContent("");
+
+      rerender(
+        <UploadStatus
+          stopped
+          progress={{
+            ...base,
+            acked: 3,
+            total: 6,
+            uploading: true,
+            segments: [saved(0), saving(1, 0)],
+          }}
+        />,
+      );
+      const list = screen.getByRole("list", {
+        name: "Your full-quality recording status",
+      });
+      expect(
+        within(list)
+          .getAllByRole("listitem")
+          .map((item) => item.textContent),
+      ).toEqual([
+        "Take 1 segment 1: Saved to project",
+        "Take 1 segment 2: Saving to project… 0 of 3 chunks",
+      ]);
+      expect(region(container)).toHaveTextContent(
+        "Take 1 segment 2: Saving to project…",
+      );
+      const first = region(container)?.textContent;
+
+      rerender(
+        <UploadStatus
+          stopped
+          progress={{
+            ...base,
+            acked: 4,
+            total: 6,
+            uploading: true,
+            segments: [saved(0), saving(1, 1)],
+          }}
+        />,
+      );
+      expect(
+        screen.getByText("Take 1 segment 2: Saving to project… 1 of 3 chunks"),
+      ).toBeInTheDocument();
+      expect(region(container)?.textContent).toBe(first);
+
+      rerender(
+        <UploadStatus
+          stopped
+          progress={{
+            ...base,
+            acked: 6,
+            total: 6,
+            uploading: true,
+            segments: [saved(0), saved(1)],
+          }}
+        />,
+      );
+      expect(region(container)).toHaveTextContent(
+        "Take 1 segment 2: Saved to project",
+      );
+      await expectNoA11yViolations(container);
+    });
+  });
 });

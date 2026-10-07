@@ -20,6 +20,8 @@ export async function uploadKeeperWav(args: {
   clippingTruncated?: boolean;
   kind?: string;
   signal?: AbortSignal;
+  /** Called when the part total is known and after each part is acknowledged. */
+  onProgress?: (progress: { acked: number; total: number }) => void;
 }): Promise<{
   acked: number;
   total: number;
@@ -48,6 +50,7 @@ export async function uploadKeeperWav(args: {
   let landed = false;
   let landFailed = false;
   const fileSha = await sha256Hex(args.wav);
+  args.onProgress?.({ acked: acked.size, total: parts.length });
   for (let partSeq = 0; partSeq < parts.length; partSeq += 1) {
     args.signal?.throwIfAborted?.();
     const data = parts[partSeq];
@@ -75,6 +78,7 @@ export async function uploadKeeperWav(args: {
       signal: args.signal,
     });
     acked.add(partSeq);
+    args.onProgress?.({ acked: acked.size, total: parts.length });
     fileAck = result.file_ack;
     landed = Boolean(result.landed);
     landFailed = Boolean(result.land_failed);

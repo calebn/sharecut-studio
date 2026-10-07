@@ -44,6 +44,21 @@ export function segmentSaveFromAck(row: SegmentAckRow): SegmentSave {
   };
 }
 
+/**
+ * `fresh` replaces the same segment in `known`; a known segment this pass has
+ * not reached yet stays listed, so the list never drops a row mid-pass.
+ */
+export function mergeSegmentSaves(
+  known: readonly SegmentSave[],
+  fresh: readonly SegmentSave[],
+): SegmentSave[] {
+  const key = (save: SegmentSave) => `${save.take}:${save.segment}`;
+  const seen = new Set(fresh.map(key));
+  return [...known.filter((save) => !seen.has(key(save))), ...fresh].sort(
+    (a, b) => a.take - b.take || a.segment - b.segment,
+  );
+}
+
 /** `take 1 segment 2`, one-based for people. */
 export function segmentLabel(
   save: Pick<SegmentSave, "take" | "segment">,
@@ -63,7 +78,34 @@ export function segmentStatusText(save: SegmentSave): string {
     : SAVE_STATE_COPY.saving;
 }
 
-export type SaveLine = { key: string; text: string };
+export type SaveLine = {
+  key: string;
+  /** The visible line, chunk counts included. */
+  text: string;
+  state: SaveState;
+  /** What a screen reader hears on a state change: the same line with no chunk counts. */
+  announce: string;
+};
+
+/**
+ * The polite announcement for lines whose state changed since `prev`. A
+ * segment announces when it starts saving and when it finishes, never as its
+ * chunk count moves, and never for a state the person did not watch change.
+ */
+export function saveAnnouncement(
+  prev: ReadonlyMap<string, SaveState>,
+  lines: readonly SaveLine[],
+): string {
+  return lines
+    .filter((line) => {
+      const before = prev.get(line.key);
+      return line.state === "saving"
+        ? before === undefined
+        : before === "saving";
+    })
+    .map((line) => line.announce)
+    .join(". ");
+}
 
 /**
  * One line per participant segment for the host, in roster order. A recorded
@@ -91,7 +133,12 @@ export function hostSaveLines(
   for (const [id, saves] of byParticipant) {
     const name = names.get(id) || id;
     if (saves.length === 0) {
-      lines.push({ key: id, text: `${name}: ${SAVE_STATE_COPY.saving}` });
+      lines.push({
+        key: id,
+        text: `${name}: ${SAVE_STATE_COPY.saving}`,
+        state: "saving",
+        announce: `${name}: ${SAVE_STATE_COPY.saving}`,
+      });
       continue;
     }
     const ordered = [...saves].sort(
@@ -102,6 +149,8 @@ export function hostSaveLines(
       lines.push({
         key: `${id}:${save.take}:${save.segment}`,
         text: `${who}: ${segmentStatusText(save)}`,
+        state: save.state,
+        announce: `${who}: ${SAVE_STATE_COPY[save.state]}`,
       });
     }
   }
@@ -113,5 +162,7 @@ export function ownSaveLines(segments: readonly SegmentSave[]): SaveLine[] {
   return segments.map((save) => ({
     key: `${save.take}:${save.segment}`,
     text: `${capitalize(segmentLabel(save))}: ${segmentStatusText(save)}`,
+    state: save.state,
+    announce: `${capitalize(segmentLabel(save))}: ${SAVE_STATE_COPY[save.state]}`,
   }));
 }

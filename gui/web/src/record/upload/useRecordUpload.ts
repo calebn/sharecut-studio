@@ -11,7 +11,7 @@ import {
   keeperSegmentPaths,
   pruneExpiredKeeperWavs,
 } from "../keeper/store";
-import type { SegmentSave } from "../saveStatus";
+import { mergeSegmentSaves, type SegmentSave } from "../saveStatus";
 import { UPLOAD_STALLED_COPY } from "../types";
 import { uploadKeeperWav } from "./pump";
 import { inspectKeeperRecovery } from "./recovery";
@@ -265,6 +265,8 @@ export function useRecordUpload(args: {
             continue;
           }
           allLanded = false;
+          const ackedBefore = acked;
+          const totalBefore = total;
           const result = await uploadKeeperWav({
             wav,
             takeIndex: take,
@@ -276,6 +278,28 @@ export function useRecordUpload(args: {
             clippingRegions: recovery.clippingRegions,
             clippingTruncated: recovery.clippingTruncated,
             signal: abort.signal,
+            onProgress: (chunks) => {
+              if (cancelled) return;
+              // Publish mid-pass: the pass runs as long as every segment's
+              // upload, and a person watching sees only what this publishes.
+              const live: SegmentSave = {
+                take,
+                segment: segmentIndex,
+                state: "saving",
+                chunks,
+                landFailed: false,
+              };
+              setProgress((prev) => ({
+                ...prev,
+                acked: ackedBefore + chunks.acked,
+                total: totalBefore + chunks.total,
+                fileAck: false,
+                landed: false,
+                uploading: true,
+                pending: false,
+                segments: mergeSegmentSaves(prev.segments, [...segments, live]),
+              }));
+            },
           });
           acked += result.acked;
           total += result.total;
