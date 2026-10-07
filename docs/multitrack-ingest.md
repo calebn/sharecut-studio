@@ -339,8 +339,10 @@ more is crosstalk) and a confidence. `edits/speaker_split.py` applies it in one
   lane's linear fade-out and the next lane's fade-in sum to one.
 - Flagged crosstalk plays once, on the lane of its most likely speaker (default
   `--crosstalk owner`): nothing plays twice, the lanes sum back exactly, and the turn
-  keeps both speakers so the flag can be reviewed. The flag is usually wrong: on the
-  lab, 95% of the flagged time is a pause or one person talking (see Failure modes).
+  keeps both speakers so the flag can be reviewed. A flag has two sources: a whole
+  window where the runner-up sounds present (usually wrong: on the lab, 95% of that
+  time is a pause or one person talking, see Failure modes), and a hand-over left
+  inside a voiced run (see Hand-overs below; usually right).
   Two opt-ins: `--crosstalk both` plays it on every talking speaker's lane (the
   mix carries it twice, about +6 dB), and `--crosstalk lane` moves it to a shared
   `Crosstalk` lane (the sum stays exact, but a stretch of one speaker's turn then jumps
@@ -360,8 +362,35 @@ more is crosstalk) and a confidence. `edits/speaker_split.py` applies it in one
 voiced → embeddings → spherical k-means seeded from the enrollment spans (or k-means++)
 → each frame scores each speaker by the mean cosine of the windows covering it → a
 Viterbi pass picks one speaker per frame, with a switch costing 8 (log-odds at cosine /
-0.05) inside voiced frames and 1 in a pause. Crosstalk is a whole window where the
-runner-up reads at least halfway from its own absent level to its own present level.
+0.05) inside voiced frames and 1 in a pause → hand-overs settle into pauses (below).
+Crosstalk is a whole window where the runner-up reads at least halfway from its own
+absent level to its own present level, or a hand-over left inside a voiced run.
+
+**Hand-overs** (`engines/speaker_hand_overs.py`, from the owner's listening round). A
+frame score is the mean of the 1 s windows over it, so a turn shorter than a window has
+its evidence smeared over the pauses beside it, and since a hand-over costs less in a
+pause, the Viterbi pass alone can park a short turn in the silence next to its own voice
+or end it inside its voiced run. On the lab it did both: one reply's turn held none of
+its own voice, and the reply played on the neighbour's lane. After the Viterbi pass:
+
+- *Voiced runs* come from the recording's own levels: a 20 ms frame is quiet below
+  halfway, in dB, from the noise floor (10th percentile, digital silence left out) to
+  the speech level (median voiced frame). Quiet dips and loud blips under 60 ms are a
+  stop inside a word and a click. With under 6 dB between floor and speech nothing
+  moves.
+- *Evidence* for a stretch of voice is the mean of its own embedding (that voice alone:
+  not pulled towards a long neighbour, but noisy when short) and its window scores (that
+  voice in context). Under 0.3 s, too short to embed, it keeps its window scores.
+- *A short turn* (less than a window of voice) keeps its whole run: a hand-over beside
+  it may move to any pause within a window, between its neighbouring hand-overs, and
+  does when the runs it hands over gain evidence.
+- *A hand-over inside a run* moves to the pause just before or after the run when the
+  piece it hands over sounds more like the other side. When neither piece does, or no
+  pause is within a window, the run holds both voices with no pause between them: the
+  cut stays and 0.25 s either side is flagged as crosstalk. A run under 0.3 s is too
+  short for two people, and its hand-over always moves.
+- Every other hand-over lands on the quietest cut of its own pause, and a turn left with
+  no voice joins its neighbours at its quietest cut.
 
 **Too high a count.** With more speakers than voices, k-means splits one voice into
 two clusters, and the split would silently put one person on two lanes. After
@@ -405,19 +434,45 @@ run; embedding is most of it, 5,552 windows at about 20 ms each).
 Pitch did not help at 1 s or longer, so the shipped edge refinement is level only: it
 puts 80% of hand-overs in pauses against 61% for per-frame argmax, at the same accuracy.
 
+**Hand-overs in pauses (owner listening round).** The owner heard a reply ("That's
+good") on the wrong lane: the split had put that speaker's turn in the 1.1 s of silence
+between her two bits of speech and given the reply to the speaker before her. Before and
+after the hand-over pass, same run otherwise (seeded ECAPA, `owner`, whole tape):
+
+| | Before | After |
+|---|---|---|
+| One-speaker frames to the right person | 0.9505 | 0.9526 |
+| Caleb / Audra / Lana | 0.962 / 0.971 / 0.889 | 0.962 / 0.977 / 0.894 |
+| Hand-overs on a voiced frame, not flagged | 115 of 317 | 0 of 294 |
+| Hand-overs inside someone's talk spurt (truth, gaps under 0.1 s bridged), not flagged | 109 | 8 |
+| Hand-overs left inside a run and flagged | 0 | 110 |
+| Flagged crosstalk | 28 s | 79 s |
+
+Of the 110 flagged hand-overs, 94 have two people talking within 0.3 s in the truth.
+Most hand-overs the Viterbi pass put inside a run are real: of the 118 runs holding
+one, 100 hold both speakers in the truth. Moving the cut out of every such run, judging
+a short piece by its whole run, gave a speaker's words to the other lane (50 frames
+fixed, 161 broken), which is why the cut moves only when the piece it hands over sounds
+like the other side. Short-turn moves fixed
+65 frames and broke 1. A run embedded alone was a worse judge than its windows (0.88
+against 0.98 at 0.3-0.5 s), and windows embedding only their voiced frames scored
+0.944, so the evidence averages the two rather than replacing the windows. The pass adds
+about 8% to the split's time.
+
 Rendered lanes against each person's original Zoom track (scaled like the mixdown),
 seeded ECAPA, default `--crosstalk owner`:
 
 | Lane | SNR vs own stem | mixdown vs own stem | own speech level | other voices left where only others talk |
 |---|---|---|---|---|
-| Caleb | 7.8 dB | 1.4 dB | +0.0 dB | -16.1 dB |
-| Audra | 5.3 dB | -4.1 dB | -0.1 dB | -14.8 dB |
-| Lana | 3.5 dB | -7.8 dB | -1.1 dB | -19.9 dB |
+| Caleb | 7.9 dB | 1.4 dB | +0.0 dB | -16.3 dB |
+| Audra | 5.4 dB | -4.1 dB | -0.1 dB | -15.0 dB |
+| Lana | 3.6 dB | -7.8 dB | -1.0 dB | -20.3 dB |
 
 The lanes sum back to the mixdown within -76.7 dB over the whole tape, and the split
-gave no same-voice warning. With `--crosstalk both` (one run each) the SNR was 7.8 /
-5.2 / 3.2 dB and the 28 s flagged played twice, so the whole-tape residual rose to
--22.6 dB. SNR stays low
+gave no same-voice warning. Before the hand-over pass, with `--crosstalk both` (one run
+each) the SNR was 7.8 / 5.2 / 3.2 dB and the 28 s then flagged played twice, so the
+whole-tape residual rose to -22.6 dB; with the pass, `both` would play the 79 s now
+flagged twice. SNR stays low
 because a lane keeps everything in its own turns: crosstalk, and Audra's room copy on
 Caleb's mic, which follows her into her lane.
 
@@ -425,7 +480,13 @@ Caleb's mic, which follows her into her lane.
 
 - *Short talk.* 83% of the errors sit within 0.5 s of a speaker change and 73% inside
   talk spurts under 1 s (backchannels such as "uh-huh"), which a 1 s window cannot name.
-  Lana, with the most backchannels, scores lowest.
+  Lana, with the most backchannels, scores lowest. The hand-over pass keeps a short
+  reply's run whole where its evidence points to the reply's speaker, but a reply that
+  sounds like its neighbour on both its own embedding and its windows stays with the
+  neighbour (on the lab, a 0.26 s sound just before the "That's good" reply).
+- *Latched speech.* A hand-over inside a voiced run with no pause between the two
+  speakers stays where the Viterbi pass put it, flagged. With `owner` the flag does not
+  change the audio, so the cut can fall inside a word; review flagged turns.
 - *Crosstalk detection does not work with learned embeddings.* On the lab, ECAPA flagged
   28-30 s as crosstalk at 5% precision and 1% recall: two voices at once read as neither
   speaker, not both, and 71% of the lab's overlap lasts under 0.5 s. That is why the

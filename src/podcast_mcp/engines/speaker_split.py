@@ -13,11 +13,18 @@ voice embeddings, not diarization that has to guess how many people there are:
    seeds the speakers.
 4. Each frame scores every speaker by the mean cosine of the windows covering it.
 5. A Viterbi pass over the frame scores picks one speaker per frame. Changing speaker
-   costs ``VOICED_SWITCH`` inside voiced frames and ``PAUSE_SWITCH`` in a pause, so a
-   hand-over lands in the pause between turns rather than mid-word.
+   costs ``VOICED_SWITCH`` inside voiced frames and ``PAUSE_SWITCH`` in a pause.
+6. Hand-overs settle into pauses (``engines/speaker_hand_overs.py``): a window-mean
+   score smears a short turn over the pauses beside it, so the Viterbi pass alone can
+   cut a voiced run or park a short turn in the silence next to its voice. Voiced runs
+   come from this recording's own levels; a hand-over next to a turn with less than a
+   window of voice, or inside a run, moves to a pause nearby where the voice it hands
+   over gains evidence (the voice's own embedding averaged with its window scores).
+   A hand-over inside a run that no move improves is two voices without a pause
+   between them: it stays and is flagged as crosstalk.
 
 Turns are runs of one speaker and cover the recording with no gaps: a pause belongs to
-the turn the Viterbi pass puts it in, so splitting along turns sums back to the input.
+the turn the passes put it in, so splitting along turns sums back to the input.
 
 A speaker count higher than the people talking makes k-means split one voice in two.
 Two speakers whose centroids sit much closer together than the other speakers' do
@@ -26,7 +33,7 @@ recording) are reported in ``SpeakerAttribution.same_voice`` as likely one perso
 two speakers there is no other pair to compare against, so nothing is reported.
 
 Crosstalk is a turn where the runner-up sounds present as well (``_presence``) for at
-least ``window_sec``. A turn's confidence is how far its winner stands above the
+least ``window_sec``, or a hand-over step 6 had to leave inside a voiced run. A turn's confidence is how far its winner stands above the
 runner-up on that same scale. On the lab tape this evidence was weak (see
 docs/multitrack-ingest.md § Split one recording by speaker): two voices at once look
 like neither speaker to a voice embedding, and most overlap there is shorter than any
@@ -43,6 +50,7 @@ from typing import Literal
 
 import numpy as np
 
+from podcast_mcp.engines.speaker_hand_overs import frame_levels, settle_hand_overs, voice_runs
 from podcast_mcp.engines.speaker_id import SpeakerBackend
 from podcast_mcp.util.dsp import bool_runs
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress_task
@@ -280,21 +288,31 @@ def _presence(labels: np.ndarray, scores: np.ndarray) -> np.ndarray:
 
 
 def _turns(
-    labels: np.ndarray, scores: np.ndarray, duration: float, window_sec: float
+    labels: np.ndarray,
+    scores: np.ndarray,
+    duration: float,
+    window_sec: float,
+    overlap: np.ndarray,
 ) -> tuple[SpeakerTurn, ...]:
-    """Runs of one speaker, with the runner-up added where it sounds present too."""
+    """Runs of one speaker, with the runner-up added where it sounds present too.
+
+    ``overlap`` names, per frame, the other speaker of a hand-over left inside a voiced
+    run (-1 for none): those frames are crosstalk with that speaker.
+    """
     rows = np.arange(labels.size)
     presence = _presence(labels, scores)
     best = presence[rows, labels]
     others = presence.copy()
     others[rows, labels] = -np.inf
     runner = np.argmax(others, axis=1)
-    second = others[rows, runner]
     least = round(window_sec / FRAME_SEC)
     crosstalk = np.zeros(labels.size, dtype=bool)
-    for lo, hi in bool_runs(second >= CROSSTALK_PRESENCE):
+    for lo, hi in bool_runs(others[rows, runner] >= CROSSTALK_PRESENCE):
         if hi - lo >= least:
             crosstalk[lo:hi] = True
+    crosstalk |= overlap >= 0
+    runner = np.where(overlap >= 0, overlap, runner)
+    second = others[rows, runner]
     change = np.flatnonzero(
         (np.diff(labels) != 0)
         | (np.diff(crosstalk) != 0)
@@ -364,13 +382,30 @@ def attribute_speakers(
         scores = _frame_scores(centers, embeddings @ centroids.T, frames, window_sec)
         switch = np.where(voiced, VOICED_SWITCH, PAUSE_SWITCH)
         labels = _viterbi(scores / TEMPERATURE, switch)
+        hop = round(FRAME_SEC * RATE)
+        levels = frame_levels(samples, hop)
+
+        def own(lo: int, hi: int) -> np.ndarray:
+            embedding = _unit(np.asarray(backend.embed(samples[lo * hop : hi * hop], RATE)))
+            return np.asarray(embedding @ centroids.T)
+
+        labels, overlap = settle_hand_overs(
+            labels,
+            scores,
+            levels,
+            voice_runs(levels, voiced),
+            own,
+            reach=round(window_sec / FRAME_SEC),
+        )
         order = _first_appearance_order(labels, speaker_count, list(enrolled))
-        labels, scores = np.argsort(order)[labels], scores[:, order]
+        rename = np.argsort(order)
+        labels, scores = rename[labels], scores[:, order]
+        overlap = np.where(overlap >= 0, rename[np.maximum(overlap, 0)], -1)
         task.advance(1)
     return SpeakerAttribution(
         speaker_count=speaker_count,
         duration=duration,
-        turns=_turns(labels, scores, duration, window_sec),
+        turns=_turns(labels, scores, duration, window_sec, overlap),
         backend=backend.name(),
         method="enroll" if enrolled else "cluster",
         same_voice=_same_voice(centroids[order]),
