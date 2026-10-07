@@ -266,6 +266,51 @@ describe("PendingEditOverlay handles", () => {
     field.remove();
   });
 
+  it("drops Edit timing while a compact sheet holds the timing, and brings it back after", async () => {
+    const view = (
+      <PendingEditOverlayView
+        edits={[edit]}
+        trackId="host"
+        zoomPxPerSec={10}
+        timelineWidthPx={1000}
+        selectedId="cut_1"
+        projectPath="/tmp/p.json"
+        clipsByTrack={{}}
+        canAdjust
+        canApply
+        onSelect={vi.fn()}
+        onCommitSpan={vi.fn()}
+        onReviewAction={vi.fn(async () => ({ queued: false }))}
+      />
+    );
+    const sheetRoot = document.createElement("div");
+    sheetRoot.className = "bottom-sheet-root";
+    const strip = document.createElement("div");
+    strip.className = "bottom-sheet bottom-sheet--compact";
+    sheetRoot.append(strip);
+    // jsdom lays nothing out: the strip rests 100 px tall on an 800 px slot.
+    sheetRoot.getBoundingClientRect = () => ({ bottom: 800 }) as DOMRect;
+    Object.defineProperty(strip, "offsetHeight", { value: 100 });
+    document.body.append(sheetRoot);
+    try {
+      const docked = render(view);
+      await waitFor(() =>
+        expect(
+          screen.getByRole("region", { name: "Pending edit actions" }),
+        ).toHaveTextContent("Approve"),
+      );
+      expect(screen.queryByRole("button", { name: "Edit timing" })).toBeNull();
+      docked.unmount();
+    } finally {
+      sheetRoot.remove();
+    }
+
+    render(view);
+    expect(
+      await screen.findByRole("button", { name: "Edit timing" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows coarse edge handles only when the selected region and lane fit them", async () => {
     document.documentElement.style.setProperty("--touch-min", "2.75rem");
     const rect = vi
