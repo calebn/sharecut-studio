@@ -1462,6 +1462,7 @@
     {
       "id": "daw.record.createRoom",
       "label": "Create record room",
+      "effect": "project",
       "service": "ShareService",
       "industry_standard_key": false,
       "gates": [
@@ -1491,6 +1492,7 @@
     {
       "id": "daw.record.copyGuestLink",
       "label": "Copy guest link",
+      "effect": "session",
       "service": "ShareService",
       "industry_standard_key": false,
       "gates": [
