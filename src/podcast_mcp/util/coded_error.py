@@ -3,6 +3,7 @@
 A ``CodedError`` says the request cannot be honoured as asked (a stale guard, an unknown id,
 an out-of-range index, a missing file or project, a required step not done yet). Its message
 is safe to show the host, and its ``code`` is a stable, machine-readable name for the refusal.
+Never build the message from another exception's text: log that and chain it with ``from``.
 Any other exception is treated as a bug: adapters that must not leak internals (MCP, owner and
 guest) keep its text on the server.
 

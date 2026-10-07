@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable
 
 from podcast_mcp.engines.history_stale import AudioStateBefore, mark_history_move_stale
@@ -12,6 +13,8 @@ from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.coded_error import CodedError
+
+log = logging.getLogger(__name__)
 
 
 def _group_history_entries(entries: list) -> list[dict]:
@@ -144,8 +147,12 @@ class HistoryService:
             # The move is saved; drop the render's partial in-memory state (and the
             # checkpoint) so a reused workspace matches the file.
             self.ws.discard_changes()
+            # The refusal reaches agents (owner and guest MCP, the document plane's 409);
+            # the render's own error may name host paths, so it stays in the log and as the
+            # cause, never in the message.
+            log.warning("Re-rendering the preview after a history %s failed", action, exc_info=exc)
             raise HistoryRerenderError(
-                f"the {action} is saved, but re-rendering the preview failed ({exc}); "
+                f"the {action} is saved, but re-rendering the preview failed; "
                 f"re-render the preview instead of repeating the {action}"
             ) from exc
         self.ws.save_merged(

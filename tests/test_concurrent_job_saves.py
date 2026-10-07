@@ -703,19 +703,26 @@ def test_history_move_rerender_conflict_keeps_the_move_and_says_not_to_repeat_it
 
 @pytest.mark.parametrize(("move", "guest_gain"), [("undo", 0.0), ("redo", 3.0), ("goto", 0.0)])
 def test_history_move_render_failure_keeps_the_move_and_says_not_to_repeat_it(
-    minimal_project, move, guest_gain
+    minimal_project, move, guest_gain, caplog
 ):
     ws = _with_undoable_gain(minimal_project)
 
     def failing_render(_project):
-        raise OSError("ffmpeg failed")
+        raise OSError("ffmpeg failed reading /Users/host/private/raw/host.wav")
 
-    with patch("podcast_mcp.services.document.history.rerender_preview", failing_render):
+    with (
+        patch("podcast_mcp.services.document.history.rerender_preview", failing_render),
+        caplog.at_level("WARNING", logger="podcast_mcp.services.document.history"),
+    ):
         with pytest.raises(HistoryRerenderError, match=f"instead of repeating the {move}") as exc:
             _move_history_with_rerender(ws, move)
 
-    assert "ffmpeg failed" in str(exc.value)
+    # The refusal reaches agents (owner MCP, guest MCP, the document plane's 409), so the
+    # render's own error stays on the host: in the log and as the cause, never the message.
+    assert "ffmpeg failed" not in str(exc.value)
+    assert "/Users/host" not in str(exc.value)
     assert isinstance(exc.value.__cause__, OSError)
+    assert any(r.exc_info and r.exc_info[1] is exc.value.__cause__ for r in caplog.records)
     saved = load_project(minimal_project)
     assert saved.track_by_id("guest").gain_db == guest_gain
     assert saved.reconciliation_stale is True
