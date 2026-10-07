@@ -631,7 +631,9 @@ def test_paste_segment_rejects_a_clipboard_the_project_cannot_take(extract, code
     before = p.model_dump()
     good = _extract(track_id="guest")
     with pytest.raises(PasteRejectedError) as raised:
-        paste_segment(p, insert_at=6.0, duration=1.0, extracts=[good, extract])
+        paste_segment(
+            p, insert_at=6.0, duration=1.0, extracts=[good, extract], mode=EditMode.RIPPLE
+        )
     assert raised.value.code == code
     assert str(raised.value).startswith(f"{code}: ")
     assert p.model_dump() == before
@@ -643,7 +645,13 @@ def test_paste_segment_accepts_a_known_source_within_its_length() -> None:
 
     p = _two_track_project()
     p.sources = [SourceRecording(id="take2", path="raw/take2.wav", duration_sec=3.0)]
-    paste_segment(p, 6.0, 1.0, [_extract(source_id="take2", source_start=1.0, source_end=2.0)])
+    paste_segment(
+        p,
+        6.0,
+        1.0,
+        [_extract(source_id="take2", source_start=1.0, source_end=2.0)],
+        mode=EditMode.RIPPLE,
+    )
     pasted = [c for c in p.clips if c.source_id == "take2"]
     assert [(c.track_id, c.timeline_start) for c in pasted] == [("host", 6.0)]
 

@@ -639,3 +639,31 @@ def test_guest_mcp_commenter_suggests_a_ripple_and_the_editor_confirms_it(
     applied = submit(editor, "ApproveEdits", {"ids": [suggestion.id], "confirm_cut_speech": True})
     assert "needs_confirmation" not in applied
     assert _geometry(episode) == [("guest", 0.0, 8.0, 0.0), ("host", 0.0, 8.0, 0.0)]
+
+
+def test_host_mcp_delete_clips_ripple_asks_then_cuts_when_confirmed(episode):
+    from podcast_mcp.mcp.tools import timeline as mcp_timeline
+
+    before = _geometry(episode)
+
+    asked = json.loads(mcp_timeline.delete_clips_tool(str(episode), '["h2"]', mode="ripple"))
+    assert asked["needs_confirmation"]["message"] == GUEST_WORDS + CUT_ANYWAY
+    assert _geometry(episode) == before
+
+    mcp_timeline.delete_clips_tool(str(episode), '["h2"]', mode="ripple", confirm_cut_speech=True)
+    assert _geometry(episode) == [("guest", 0.0, 8.0, 0.0), ("host", 0.0, 8.0, 0.0)]
+
+
+def test_cli_delete_clips_ripple_asks_for_yes_before_cutting_speech(episode):
+    runner = CliRunner()
+    args = ["edit", "delete-clips", "--project", str(episode), "--ids", "h2", "--mode", "ripple"]
+    before = _geometry(episode)
+
+    refused = runner.invoke(app, args)
+    assert refused.exit_code == 1
+    assert GUEST_WORDS + CUT_ANYWAY in refused.stderr
+    assert _geometry(episode) == before
+
+    applied = runner.invoke(app, [*args, "--yes"])
+    assert applied.exit_code == 0, applied.output
+    assert _geometry(episode) == [("guest", 0.0, 8.0, 0.0), ("host", 0.0, 8.0, 0.0)]

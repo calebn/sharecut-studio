@@ -121,7 +121,9 @@ returns the same hits, under the same ids, each run. An Ask thread
    When the user asks for Studio's Apply eligible, call `approve_edits_tool` with
    `apply_all_safe=true` (`podcast edit approve --all-safe`), optionally with the
    ids they listed: it applies the same non-harsh set in one undo step and returns
-   `skipped_harsh`. Do not filter harsh hits yourself.
+   `skipped_harsh`. Do not filter harsh hits yourself. If a hit's ripple would
+   cut another speaker's speech, it returns `needs_confirmation` and applies
+   nothing: ask the user, then call again with `confirm_cut_speech=true`.
    Use `apply_edits` / `podcast apply-edits` only after explicit sign-off on the
    whole batch — not as the default on a real episode.
    After approving, `render_preview` and run **`audition_context_tool` on every
