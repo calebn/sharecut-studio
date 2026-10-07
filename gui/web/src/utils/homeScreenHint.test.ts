@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { offersHomeScreenHint, readHomeScreenEnv } from "./homeScreenHint";
+import {
+  dismissHomeScreenHint,
+  HOME_SCREEN_HINT_DISMISSED_KEY,
+  homeScreenHintDismissed,
+  offersHomeScreenHint,
+  readHomeScreenEnv,
+} from "./homeScreenHint";
 
 const IPHONE_TAB = {
   standalone: false,
@@ -36,5 +42,32 @@ describe("readHomeScreenEnv", () => {
       matches: query === "(display-mode: browser)",
     }));
     expect(readHomeScreenEnv()).toEqual(IPHONE_TAB);
+  });
+});
+
+describe("the banner's dismissal", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.removeItem(HOME_SCREEN_HINT_DISMISSED_KEY);
+  });
+
+  it("is remembered in this browser once dismissed", () => {
+    expect(homeScreenHintDismissed()).toBe(false);
+    dismissHomeScreenHint();
+    expect(localStorage.getItem("sharecut.homeScreenHintDismissed")).toBe("1");
+    expect(homeScreenHintDismissed()).toBe(true);
+  });
+
+  it("is forgotten, not thrown, where storage is blocked", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new DOMException("blocked", "SecurityError");
+      },
+      setItem: () => {
+        throw new DOMException("blocked", "SecurityError");
+      },
+    });
+    expect(() => dismissHomeScreenHint()).not.toThrow();
+    expect(homeScreenHintDismissed()).toBe(false);
   });
 });

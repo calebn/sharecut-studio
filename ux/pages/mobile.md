@@ -127,10 +127,7 @@ The phone layout groups controls by task so they fit a smaller screen.
 
 ### Full screen on iPhone
 
-Safari's address bar and toolbar take a lot of room, especially with the phone held sideways. Two ways to get it back:
-
-- **Add Sharecut to your Home Screen.** In Safari's Share menu, choose **Add to Home Screen**. Opened from its icon, Sharecut runs full screen with no browser bars. More shows this tip when you're in Safari.
-- **Swipe up on the top bar or the tool row.** Safari shrinks its bars. Swiping on the waveforms scrolls only the timeline.
+Safari's address bar and toolbar take a lot of room, especially with the phone held sideways, and Safari doesn't let a web page hide them. To get the room back, **add Sharecut to your Home Screen**: in Safari's Share menu, choose **Add to Home Screen**. Opened from its icon, Sharecut runs full screen with no browser bars. The first time you open Sharecut in Safari, a banner at the top says so; **Dismiss** hides it on that phone for good, and More keeps the tip.
 
 Held sideways, tracks get shorter so at least three fit on screen, and the controls keep their full-size touch targets. The empty marker band under the ruler steps aside until there are markers to show. The layout also stays clear of the camera cutout and the home indicator.
 
