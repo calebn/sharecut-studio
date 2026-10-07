@@ -430,7 +430,9 @@ and a 10 px slop, after the iOS and Android long-press defaults it cites.
 - **Cancel.** Lifting anywhere but a chip leaves the chips open to tap. A tap
   on the dimmed timeline, Escape, a second finger before the hold ends, or
   `pointercancel` closes the chooser or drops the hold with no change; the
-  closing tap's click is swallowed.
+  closing tap's click is swallowed. That ghost-click window only covers the
+  finger that just lifted: the next press anywhere clears it, so a tap on a
+  dialog the drag opened (the cut-speech question) clicks at once.
 
 The marker lane and lanes set `user-select: none` and
 `-webkit-touch-callout: none` with the lab on or off, so a held or sliding
