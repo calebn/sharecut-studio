@@ -74,7 +74,7 @@ through their owning context facades. Tool names and permissions are unchanged.
 
 ### Structured arguments
 
-List and object arguments are JSON values, not JSON text: `ids=["e1", "e2"]`, `track_ids=["host"]`, `config={"balance": {"dialogue_lufs": -18}}`, `selection={"kind": "clip", "id": "c1"}`. The tool schema gives each shape, and the server validates it before the tool runs. A client that sends the same structure as a JSON string still works. Contract: [contributing.md § Structured MCP arguments](contributing.md#structured-mcp-arguments).
+List and object arguments are JSON values, not JSON text: `ids=["e1", "e2"]`, `track_ids=["host"]`, `config={"balance": {"dialogue_lufs": -18}}`, `selection={"kind": "clip", "id": "c1"}`. The tool schema gives each shape, and the server validates it before the tool runs. A client that sends the same structure as a JSON string still works. Free-text arguments are taken as written: `body="null"` stores the word "null" and `expected_text="[1]"` compares against "[1]"; send JSON `null` or omit the argument to leave it unset. Contract: [contributing.md § Structured MCP arguments](contributing.md#structured-mcp-arguments).
 
 ### Busy project
 

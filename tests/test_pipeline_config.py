@@ -1042,7 +1042,7 @@ def test_transcribe_asr_yaml_keys_have_param_fields() -> None:
         for key in cfg[sec]
     }
     fields = {f.path for f in PARAM_FIELDS}
-    # temperature is a list; ParamField has no list type (yaml / config_json only).
+    # temperature is a list; ParamField has no list type (YAML or the `config` object only).
     assert leaves - fields == {"transcribe.decode.temperature"}
 
 
