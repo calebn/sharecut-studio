@@ -2640,16 +2640,25 @@ def test_a_mute_fades_each_edge_against_fill_so_the_join_gate_skips_it():
     ] == [("mute", "filler:uh", 0.14, 1.92, None, "track")]
 
 
-def _write_wav(path, segments: list[tuple[float, object]], *, rate: int = 16_000) -> None:
-    """Room noise at -95 dB, 4 s long, with each ``(start_sec, samples)`` added on top."""
+def _write_wav(
+    path,
+    segments: list[tuple[float, object]],
+    *,
+    rate: int = 16_000,
+    room_db: float = -95.0,
+    gain_db: float = 0.0,
+) -> None:
+    """Room noise at ``room_db``, 4 s long, with each ``(start_sec, samples)`` added on
+    top, all recorded ``gain_db`` hotter."""
     import wave
 
     import numpy as np
 
-    samples = np.random.default_rng(7).standard_normal(4 * rate) * 10 ** (-95 / 20)
+    samples = np.random.default_rng(7).standard_normal(4 * rate) * 10 ** (room_db / 20)
     for start, segment in segments:
         i = round(start * rate)
         samples[i : i + len(segment)] += segment
+    samples *= 10 ** (gain_db / 20)
     path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as handle:
         handle.setnchannels(1)
@@ -2667,10 +2676,16 @@ def _voice(sec: float, *, level_db: float = -20.0, rate: int = 16_000):
 
 
 def _audio_project(
-    tmp_path, segments, words: list[TranscriptWord], *, rate: int = 16_000
+    tmp_path,
+    segments,
+    words: list[TranscriptWord],
+    *,
+    rate: int = 16_000,
+    room_db: float = -95.0,
+    gain_db: float = 0.0,
 ) -> EpisodeProject:
     ws = tmp_path / "ws"
-    _write_wav(ws / "raw" / "host.wav", segments, rate=rate)
+    _write_wav(ws / "raw" / "host.wav", segments, rate=rate, room_db=room_db, gain_db=gain_db)
     project = EpisodeProject.create("padded", str(ws))
     project.tracks = [
         Track(
@@ -3011,6 +3026,187 @@ def test_cut_starting_in_a_kept_words_tail_starts_after_its_voice(tmp_path, reas
 
     assert isinstance(moved, _CutPlan)
     assert (moved.start, moved.end) == (pytest.approx(start, abs=1e-6), 1.1)
+
+
+def _enveloped(make, *knots: tuple[float, float], rate: int = 16_000):
+    """``(start, samples)``: ``make(seconds, level_db=0)`` shaped by ``(sec, dB)`` knots."""
+    import numpy as np
+
+    (t_first, _), (t_last, _) = knots[0], knots[-1]
+    times = np.arange(round((t_last - t_first) * rate)) / rate + t_first
+    db = np.interp(times, [t for t, _ in knots], [level for _, level in knots])
+    return t_first, make(t_last - t_first, level_db=0.0)[: times.size] * np.power(10.0, db / 20.0)
+
+
+def _fricative(sec: float, *, level_db: float = -20.0, rate: int = 16_000):
+    import numpy as np
+
+    noise = np.random.default_rng(9).standard_normal(round(sec * rate))
+    return noise / np.sqrt(np.mean(noise**2)) * 10 ** (level_db / 20)
+
+
+# Recorded 18 dB quieter to 12 dB hotter than the fixtures' -21 dB speech: from a raw
+# local recording to a hot, normalized stem (#1064). The room sits at -70 dB so it
+# stays live at -18 dB in the 16-bit file.
+_GAINS_DB = [-18.0, -12.0, 0.0, 6.0, 12.0]
+
+
+def _owner_cases_project(tmp_path, gain_db: float) -> EpisodeProject:
+    """The two owner cases on one track (lab 230.78 and 706.02).
+
+    "So": its word time ends at 0.5, its voice holds full level to 0.6 and then
+    decays at 220 dB/s, as the lab vowel does. "digress." ends with an "ss" 7 dB under
+    the speech, which dips 20 ms to 1 dB under the voice floor (the track's speech
+    level - 27 dB, -48 dBFS here) before the "uh" voices; the aligner starts the "uh"
+    250 ms late, at 2.25.
+    """
+    return _audio_project(
+        tmp_path / f"g{gain_db:+.0f}",
+        [
+            _enveloped(_voice, (0.2, -80.0), (0.23, -21.0), (0.6, -21.0), (0.6 + 49 / 220, -70.0)),
+            (1.3, _voice(0.3, level_db=-21.0)),
+            _enveloped(
+                _fricative, (1.6, -70.0), (1.62, -28.0), (1.92, -28.0), (1.99, -49.0), (2.02, -49.0)
+            ),
+            _enveloped(
+                _voice,
+                (2.00, -49.0),
+                (2.01, -49.0),
+                (2.04, -31.0),
+                (2.15, -21.0),
+                (2.6, -21.0),
+                (2.62, -70.0),
+            ),
+            (3.2, _voice(0.4, level_db=-21.0)),
+        ],
+        [
+            TranscriptWord(text="So", start=0.2, end=0.5, confidence=0.95),
+            TranscriptWord(text="digress.", start=1.3, end=1.7, confidence=0.95),
+            TranscriptWord(text="uh", start=2.25, end=2.6, confidence=0.9),
+            TranscriptWord(text="okay.", start=3.2, end=3.6, confidence=0.95),
+        ],
+        room_db=-70.0,
+        gain_db=gain_db,
+    )
+
+
+@pytest.mark.parametrize("gain_db", _GAINS_DB)
+def test_kept_words_keep_their_voice_at_every_recording_level(tmp_path, gain_db):
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.audio_cache import build_track_audio_caches
+    from podcast_mcp.edits.fillers import (
+        _between_kept_voices,
+        _CutCandidate,
+        _CutPlan,
+        _start_at_filler_onset,
+    )
+
+    def edges(project):
+        cache = build_track_audio_caches(project, {"host"})["host"]
+        # A sound in the gap after "So" whose run the scan started in the word's tail.
+        run = _CutCandidate(
+            track_id="host",
+            start=0.52,
+            end=1.2,
+            reason="filler:acoustic",
+            cut_kind="filler",
+            min_start=0.52,
+        )
+        so = _between_kept_voices(
+            project,
+            _CutPlan.for_cut(0.52, 1.2, mute=True, scope="track", pad=None),
+            run,
+            audio_cache=cache,
+            defaults=load_defaults(),
+        )
+        uh = _CutCandidate(
+            track_id="host", start=2.25, end=2.6, reason="filler:uh", cut_kind="filler"
+        )
+        started = _start_at_filler_onset(
+            project,
+            _CutPlan.for_cut(2.25, 2.6, mute=True, scope="track", pad=None),
+            uh,
+            audio_cache=cache,
+        )
+        assert isinstance(so, _CutPlan)
+        assert isinstance(started, _CutPlan)
+        return so.start, started.start
+
+    so_start, uh_start = edges(_owner_cases_project(tmp_path, 0.0))
+    scaled = edges(_owner_cases_project(tmp_path, gain_db))
+
+    # "So" ends where its decay falls 27 dB under the speech, not at its word time; the
+    # mute keeps 60 ms of voiced-edge air after it. The approved "uh" stays, and its
+    # cut starts 10 ms before the frame after the dip, not at its late word time.
+    assert so_start == pytest.approx(0.6 + 27 / 220 + 0.06, abs=0.02)
+    assert uh_start == pytest.approx(1.99, abs=0.011)
+    assert scaled == pytest.approx((so_start, uh_start), abs=0.011)
+
+
+@pytest.mark.parametrize(
+    ("dip_db", "kept"),
+    [
+        # Aligned times (lab 753.17): "well," ends, the level falls into a valley 20 dB
+        # under the words either side, and the repeated "that" starts after it. The
+        # audio separates the words, so the voiced-edge check judges the cut.
+        (-41.0, True),
+        # Whisper times (lab 752.72-752.90): "well," voices on through the whole repeat,
+        # within a few dB of itself. The mute would clip the kept word.
+        (-25.0, False),
+    ],
+)
+def test_mute_inside_a_kept_words_voice_is_skipped(tmp_path, dip_db, kept):
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.audio_cache import build_track_audio_caches
+    from podcast_mcp.edits.fillers import (
+        _between_kept_voices,
+        _CutCandidate,
+        _CutPlan,
+        _CutRejected,
+    )
+
+    project = _audio_project(
+        tmp_path,
+        [
+            _enveloped(
+                _voice,
+                (0.3, -21.0),
+                (0.66, -21.0),
+                (0.70, dip_db),
+                (0.74, -21.0),
+                (1.4, -21.0),
+                (1.42, -95.0),
+            ),
+            (1.8, _voice(0.4, level_db=-21.0)),
+        ],
+        [
+            TranscriptWord(text="well,", start=0.3, end=0.62, confidence=0.95),
+            TranscriptWord(text="that", start=0.72, end=0.9, confidence=0.9),
+            TranscriptWord(text="that", start=0.9, end=1.4, confidence=0.9),
+            TranscriptWord(text="was", start=1.8, end=2.2, confidence=0.95),
+        ],
+    )
+    candidate = _CutCandidate(
+        track_id="host",
+        start=0.72,
+        end=0.9,
+        reason="repetition:word:that",
+        cut_kind="repetition",
+        min_start=0.62,
+        max_end=0.9,
+    )
+
+    gated = _between_kept_voices(
+        project,
+        _CutPlan.for_cut(0.72, 0.9, mute=True, scope="track", pad=None),
+        candidate,
+        audio_cache=build_track_audio_caches(project, {"host"})["host"],
+        defaults=load_defaults(),
+    )
+
+    assert isinstance(gated, _CutPlan) is kept
+    if not kept:
+        assert gated == _CutRejected("kept_voice")
 
 
 def test_audio_mute_is_the_same_whoever_else_is_talking(tmp_path):
