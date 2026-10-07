@@ -10,7 +10,9 @@ import pytest
 
 import bleed_helpers as bh
 from podcast_mcp.edits.bleed_lag_segments import LagSegment, lag_segments
+from podcast_mcp.edits.bleed_latency import HOP_SEC
 from podcast_mcp.edits.conversation_align import plan_conversation_alignment
+from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB
 from podcast_mcp.models import SpeakerIngestAlignment
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document.history import HistoryService
@@ -120,6 +122,36 @@ def test_a_short_clear_stretch_keeps_its_own_lag() -> None:
         (137.7, 140, 3017),
     ]
     assert _worst_error_ms(segments, direct, latency) <= 20.0
+
+
+def test_a_blip_is_noise_and_an_easing_is_a_step() -> None:
+    # Audra resumes 200 ms late after a minute's pause and eases to 160 ms after 4.5 s:
+    # two clear steps. In the pause a 40 ms click on her track lines up with one on
+    # Caleb's mic at 100 ms. Its 48 dominant frames correlate perfectly at that lag, yet
+    # one click is a single event, not a lag to play a piece at.
+    audio = bh.tracks(bleed={"caleb": {"audra": 0.0}}, gated=("audra",))
+
+    def latency(t: float) -> float:
+        return 0.14 if t < 200.0 else (0.2 if t < 218.0 else 0.16)
+
+    audio["audra"] = bh.relatency(audio["audra"], latency)
+    levels = bh.levels(audio)
+    source, mic = levels["audra"], levels["caleb"]
+    at = round(180.0 / HOP_SEC)
+    early = at - round(0.1 / HOP_SEC)
+    click = -30.0 + 10.0 * np.hanning(10)[1:-1]
+    mic[early - 100 : early + 108] = LEVEL_FLOOR_DB
+    source[at : at + 8] = click
+    mic[early : early + 8] = click - 20.0
+
+    segments = lag_segments(source, mic, heard=source, around_sec=0.15, deadband_sec=0.02)
+
+    assert segments is not None
+    assert [(round(s.start_sec, 1), round(-s.shift_sec * 1000)) for s in segments] == [
+        (0.0, 140),
+        (196.6, 200),
+        (218.9, 160),
+    ]
 
 
 def test_jitter_inside_the_deadband_is_one_segment() -> None:
