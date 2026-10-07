@@ -120,7 +120,7 @@ pending range proposals; Viewers keep the five actions visible with disabled rea
 
 | Desktop region | Phone home |
 |----------------|------------|
-| Transport play/time/audition | Listen hero (`layout/ListenHero`, story `Templates/ListenHero`); compact header transport on Timeline, Text, and More (the project name moves to the Listen hero when the bar is under 30rem); audition/zoom in Menu |
+| Transport play/time/audition | Listen hero (`layout/ListenHero`, story `Templates/ListenHero`); compact header transport on Timeline, Text, and More (the project name moves to the Listen hero when the bar is under 30rem); audition/zoom in Menu. The Listen hero carries the same Menu beside the project name, so Listen reaches Bounce, Export deliverables, Share, audition and Help without switching modes |
 | Mode nav | Icon + label tabs; the active tab is tinted with an accent top indicator (no filled block) |
 | Comment / Fit | Header primary **icons** outside Listen; Fit is available on Timeline and in the non-Listen Menu |
 | Track headers M/S/FX | Lane gutter tap (the whole rail; the initials chip is the affordance) → track sheet (**M**/**S** toggles and the saved **Volume** fader; drag the Volume envelope layer for envelopes). More → Mix adjusts all tracks without changing selection. Header mixer chrome hidden when the timeline pane is narrow; reorder via Menu → Move track up/down |
@@ -163,7 +163,7 @@ Two-finger Undo is active only while a project is loaded and the shared Undo com
 ### Phone — Listen
 
 ```
-┌─ Episode name ────────────────────┐  ← hero card (fixed-dark transport tokens)
+┌─ Episode name ────────────── [≡] ┐  ← hero card (fixed-dark transport tokens); [≡] is the app Menu
 │ 12:34 / 58:39                     │
 │ ══════════●═══════════════════    │  ← coarse scrub (44px, brand accent)
 │     −15s  (▶)  ■  +15s            │  ← 44px targets; Play is the only orange control
@@ -278,7 +278,7 @@ The host recording chip remains a full touch target in the collapsed tablet tran
 |------|----------|
 | Primary (always visible) | Play/Stop, compact playhead timecode, **Comment** icon, **Fit** (session width, except Listen), Menu icon; desktop/tablet also **Layout** (maximize/restore) and, on the wide bar, a **Fit tracks to window height** icon beside Fit |
 | Menu → People | Live roster (follow / unfollow) when the bar is collapsed. Rows are `var(--touch-min)` (`2.75rem`) via `@container transport`. |
-| Menu → Project (host) | New / Open, **Connect agent…**, Bounce…, **Share…** (collaboration extension), Export deliverables…. Home also has **Connect agent…** |
+| Menu → Project (host) | New / Open, then the export pair Bounce… and Export deliverables…, then **Share…** (collaboration extension), Record room… and **Connect agent…**, with a divider between the three groups. Selection (**Select a range**) follows Markers, so Help sits right under the view sections. Home also has **Connect agent…** |
 | Menu (secondary) | One combined menu on phone and tablet: Project, Media, audition Full mix/Edited stems/Original, **Refresh mix** when render is stale, layers, zoom, **Track height −/+** and **Fit tracks to window height** checkbox, layout, theme, Fit session width if omitted from bar, Help (wide desktop splits layers/zoom/track height/layout/theme into a **View** menu) |
 
 ### Editing tool rail (phone / tablet Timeline)

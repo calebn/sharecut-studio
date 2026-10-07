@@ -33,6 +33,7 @@ export {
   Menu,
   MenuItem,
   MenuSection,
+  MenuSeparator,
   type MenuTriggerProps,
 } from "./Menu";
 export { Pill } from "./Pill";

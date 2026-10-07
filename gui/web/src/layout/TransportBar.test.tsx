@@ -169,6 +169,65 @@ describe("TransportBar collapsed", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("keeps the export pair together between New/Open and sharing", async () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TransportBar compact />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    const project = screen.getByRole("group", { name: "Project" });
+    const children = [
+      ...project.querySelectorAll('[role="menuitem"], [role="separator"]'),
+    ];
+    expect(
+      children.map((el) =>
+        el.getAttribute("role") === "separator" ? "—" : el.textContent?.trim(),
+      ),
+    ).toEqual([
+      expect.stringMatching(/^New project…/),
+      expect.stringMatching(/^Open project…/),
+      "—",
+      expect.stringMatching(/^Bounce…/),
+      expect.stringMatching(/^Export deliverables…/),
+      "—",
+      "Record room…",
+      "Connect agent…",
+    ]);
+  });
+
+  it("puts Select a range with the actions, above the view sections", async () => {
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TransportBar compact />
+      </DawProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    const labels = [
+      ...screen.getByRole("menu").querySelectorAll('[role="group"]'),
+    ].map((g) => g.getAttribute("aria-label"));
+    expect(labels.indexOf("Selection")).toBeLessThan(
+      labels.indexOf("Audition"),
+    );
+    expect(labels.at(-1)).toBe("Help");
+  });
+
+  it("renders only the Menu trigger for the phone Listen hero", async () => {
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <TransportBar compact menuOnly />
+      </DawProvider>,
+    );
+    expect(screen.queryByRole("button", { name: "Play" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Menu" }));
+    expect(
+      within(screen.getByRole("menu")).getByRole("menuitem", {
+        name: /Export deliverables/,
+      }),
+    ).toBeEnabled();
+    await expectNoA11yViolations(container);
+  });
+
   it("disables Play and Stop while project is null", () => {
     useDawStore.getState().hydrate("/tmp/p.json", null);
     render(

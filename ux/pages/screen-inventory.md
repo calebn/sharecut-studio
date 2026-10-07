@@ -69,8 +69,8 @@ flowchart TB
 | **Purpose** | Playhead control, audition mode, comment entry, zoom Fit session width, track height, View and project menus |
 | **Layout (wide)** | Three zones: project name · Play/Stop, timecode, and audition mode centered · render status, tools, Fit session width, **Fit tracks to window height**, **View** menu, and **Menu** on the right. When status pills widen the right zone, the center shifts left and the project name truncates (at any title length); zones never overlap. Play is the only orange control and is disabled until the project has media. The Menu tooltip names only the sections shown (host: Project, media, markers, and help; edit share: Media and help; view, suggest, or comment share: Help). The Mix out of date pill's accessible name never repeats a clause. A project with no rendered mix (never rendered, or a failed render left none) keeps one status pill and swaps its words: **No mix yet · Refresh** for a host or Editor, plain **No mix yet** for a guest, who cannot refresh. No second pill is added, so the project name keeps its width at 1280 and 1400 px. The reason ("Full mix is silent until you refresh the mix."; a guest reads "…until the host refreshes the mix.") sits in the Full mix segment's tooltip and description and in the collapsed Menu's Mix status. Other audio errors ("Audio failed to load", "Tap Play to start") keep their own pill. |
 | **Primary actions** | Play / Stop, seek via timecode context, Select/Blade/Comment when expanded, Fit session width, Fit tracks to window height (wide only), Layout (maximize/restore), View, Menu |
-| **Always visible (collapsed)** | Outside Listen: Play/Stop, compact playhead time, Comment icon, Fit session width, Menu icon. Listen uses its own body transport and no header transport. |
-| **Menu → Project (host)** | New / Open, **Connect agent…** (local Streamable HTTP MCP URL), Bounce…, **Share…** (collaboration extension), Record room…, Export deliverables… |
+| **Always visible (collapsed)** | Outside Listen: Play/Stop, compact playhead time, Comment icon, Fit session width, Menu icon. Listen uses its own body transport and no header transport; its hero shows the same Menu icon beside the project name. |
+| **Menu → Project (host)** | New / Open, then the export pair Bounce… and Export deliverables… (a dialog: formats, progress with Cancel export, then the written files), then **Share…** (collaboration extension), Record room… and **Connect agent…** (local Streamable HTTP MCP URL). A divider separates the three groups. |
 | **Menu → Media / Markers (host) / Help** | Import audio, track add / remove / move; **Markers → Add chapter at playhead** (`edit.addChapter`, host only, titles the chapter from the playhead time and turns the Markers layer on); Export diagnostics… and Keyboard shortcuts. Items show their shortcut (⌘ on Apple platforms, Ctrl elsewhere) and sections carry visible labels. |
 | **View menu (wide)** | Trigger is a text button labeled **View** (Menu stays an icon). Layer toggles — **Pending edits**, **Volume envelope**, Markers, Comments, **Silence shading**, **Snap points** and host-only **Prosody** — each with a swatch, **Waveform scale** Auto/Linear/Log radios, **Waveform amplitude −/+** with a ×N readout, **Show waveforms post-fader**, a **Zoom** section (zoom −/+, **Track height −/+** and **Fit tracks to window height** checkbox, Fit session width if omitted), Layout and Theme radio groups. View and Menu are exclusive: opening one closes the other, and Escape returns focus to the button that opened the current menu. |
 | **Menu (collapsed)** | One combined menu: Project, Media, host-only **Markers** (Add chapter at playhead), audition Full mix/Edited stems/Original, session, **Refresh mix** when render is stale, layers, Zoom (incl. track height), Help |
@@ -160,14 +160,14 @@ Not the Share dialog. Guest share agents use `{base}/mcp/{token}/mcp`.
 |--|--|
 | **Purpose** | Guest-style review: scrub mix, scan comments, jump from chips |
 | **Primary actions** | Coarse scrub · ±15s · open comment · tap status chip → destination |
-| **Always visible** | Listen hero (the project name as the visible heading, large timecode, full-width scrubber (slim transport-ink track, orange thumb, 44pt tall), −15s · Play · Stop · +15s) · comment list · icon mode nav |
+| **Always visible** | Listen hero (the project name as the visible heading with the app **Menu** beside it, large timecode, full-width scrubber (slim transport-ink track, orange thumb, 44pt tall), −15s · Play · Stop · +15s) · comment list · icon mode nav |
 | **Fit** | Not shown on Listen; use Timeline for timeline fit |
 | **Data shown** | Mix playhead · `review.comments[]` (time, body, resolved) · pending/stale chips |
 | **Empty** | “No comments yet.” (the shared quiet empty state). With no tracks yet, Play and Stop are disabled (“Import audio to play”), like the desktop strip. While episode JSON is loading: disabled Listen body transport + “Loading episode…” well (not the ingest coach) |
 | **Out of scope** | Multitrack waveform editing |
 
 ```
-┌─ Episode name ───────────────────────┐
+┌─ Episode name ──────────────── [≡] ┐
 │ 12:34 / 58:39                        │
 │ ══════════●═══════════════════     │
 │     −15s  (▶)  ■  +15s               │

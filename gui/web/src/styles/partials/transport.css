@@ -285,7 +285,7 @@
 
 /* Fixed-dark paint: controls, segments, pills and the playing state. */
 .transport-primary-actions > .ui-control,
-.transport .transport-more-btn {
+:is(.transport, .listen-hero) .transport-more-btn {
   color: var(--color-transport-muted);
   border-color: var(--color-transport-control-border);
   background: var(--color-transport-control);
@@ -407,7 +407,21 @@
   box-shadow: var(--shadow-floating);
 }
 
+.listen-hero-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.listen-hero .transport-more-btn {
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+}
+
 .listen-hero-title {
+  min-inline-size: 0;
   margin: 0;
   overflow: hidden;
   font-size: var(--font-size-emphasis);
@@ -556,7 +570,7 @@
 @media (hover: hover) and (pointer: fine) {
   .transport-primary-actions
     > .ui-control:hover:not(:disabled, [aria-disabled="true"]),
-  .transport .transport-more-btn:hover:not(:disabled) {
+  :is(.transport, .listen-hero) .transport-more-btn:hover:not(:disabled) {
     color: var(--color-transport-text);
     border-color: var(--color-transport-muted);
     background: var(--color-transport-control);

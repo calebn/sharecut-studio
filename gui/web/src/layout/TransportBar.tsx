@@ -32,6 +32,7 @@ import {
   Icon,
   Menu,
   MenuSection,
+  MenuSeparator,
   type MenuTriggerProps,
   Pill,
   pillClassName,
@@ -75,6 +76,8 @@ type Props = {
   showRecordingChip?: boolean;
   /** Desktop/tablet: layout toggle, restore chip, View › Layout radios. */
   showLayout?: boolean;
+  /** Phone Listen has no transport bar: render only the Menu trigger. */
+  menuOnly?: boolean;
 };
 
 export function TransportBar({
@@ -82,6 +85,7 @@ export function TransportBar({
   showFit = true,
   showRecordingChip = true,
   showLayout = false,
+  menuOnly = false,
 }: Props) {
   const {
     project,
@@ -346,6 +350,181 @@ export function TransportBar({
     </>
   );
 
+  const overflowMenu = (
+    <Menu
+      open={overflowOpen}
+      onOpenChange={setMenuOpen}
+      label="Transport menu"
+      menuId="transport-overflow-menu"
+      className="transport-overflow ui-menu-root"
+      trigger={menuTrigger(
+        "Menu",
+        collapsed
+          ? "Layers, zoom, theme, and more"
+          : transportMenuTitle({ mayManage, mayIngest }),
+        <Icon name="menu" />,
+      )}
+    >
+      {collapsed ? <AvatarStack variant="menu" /> : null}
+      {mayManage ? (
+        <MenuSection label="Project">
+          <CommandMenuItem commandId="project.new" onSelect={closeMenu}>
+            New project…
+          </CommandMenuItem>
+          <CommandMenuItem commandId="project.open" onSelect={closeMenu}>
+            Open project…
+          </CommandMenuItem>
+          <MenuSeparator />
+          <CommandMenuItem
+            commandId="export.bounce"
+            respectWhen
+            onSelect={closeMenu}
+          >
+            Bounce…
+          </CommandMenuItem>
+          <CommandMenuItem
+            commandId="export.deliverables"
+            respectWhen
+            onSelect={closeMenu}
+          >
+            Export deliverables…
+          </CommandMenuItem>
+          <MenuSeparator />
+          <Slot id={FEATURE_SHARE_UI_MENU}>
+            <CommandMenuItem
+              commandId="share.manage"
+              respectWhen
+              onSelect={closeMenu}
+            >
+              Share…
+            </CommandMenuItem>
+          </Slot>
+          <CommandMenuItem
+            commandId="record.openPanel"
+            respectWhen
+            onSelect={closeMenu}
+          >
+            Record room…
+          </CommandMenuItem>
+          <CommandMenuItem commandId="mcp.connect" onSelect={closeMenu}>
+            Connect agent…
+          </CommandMenuItem>
+        </MenuSection>
+      ) : null}
+      {mayIngest ? (
+        <MenuSection label="Media">
+          <CommandMenuItem commandId="media.import" onSelect={closeMenu}>
+            Import audio…
+          </CommandMenuItem>
+          <CommandMenuItem commandId="track.add" onSelect={closeMenu}>
+            New track
+          </CommandMenuItem>
+          <CommandMenuItem
+            commandId="track.remove"
+            respectWhen
+            onSelect={closeMenu}
+          >
+            Remove track
+          </CommandMenuItem>
+          <CommandMenuItem
+            commandId="track.moveUp"
+            respectWhen
+            onSelect={closeMenu}
+          >
+            Move track up
+          </CommandMenuItem>
+          <CommandMenuItem
+            commandId="track.moveDown"
+            respectWhen
+            onSelect={closeMenu}
+          >
+            Move track down
+          </CommandMenuItem>
+        </MenuSection>
+      ) : null}
+      {mayManage ? (
+        <MenuSection label="Markers">
+          <CommandMenuItem
+            commandId="edit.addChapter"
+            respectWhen
+            onSelect={closeMenu}
+          >
+            Add chapter at playhead
+          </CommandMenuItem>
+        </MenuSection>
+      ) : null}
+      <MenuSection label="Selection">
+        <CommandMenuItem commandId="range.arm" onSelect={closeMenu}>
+          Select a range
+        </CommandMenuItem>
+      </MenuSection>
+      {collapsed ? (
+        <MenuSection label="Audition">{auditionGroup(true)}</MenuSection>
+      ) : null}
+      {collapsed && sessionRegion ? (
+        <MenuSection label="Session">
+          <p className="transport-menu-note">
+            {lastAgentQuery
+              ? `Agent: “${lastAgentQuery}”`
+              : `Region ${sessionRegion.start_sec.toFixed(1)}–${sessionRegion.end_sec.toFixed(1)}s`}
+          </p>
+        </MenuSection>
+      ) : null}
+      {collapsed ? (
+        <MenuSection label="Mix status">
+          {noPreview ? (
+            <p className="transport-menu-note audio-error-note">
+              {noPreviewHint}
+            </p>
+          ) : null}
+          {transportError ? (
+            <p className="transport-menu-note audio-error-note">
+              {audioErrorLabel(transportError)}: {transportError}
+            </p>
+          ) : null}
+          {stale && mayRefresh ? (
+            <CommandMenuItem
+              commandId="render.refreshMix"
+              title={staleTitle}
+              onSelect={closeMenu}
+              respectWhen
+              onPointerEnter={() => setStaleHighlight(true)}
+              onPointerLeave={() => setStaleHighlight(false)}
+              onFocus={() => setStaleHighlight(true)}
+              onBlur={() => setStaleHighlight(false)}
+            >
+              {renderPreviewBusy ? "Refreshing…" : mixPillText}
+            </CommandMenuItem>
+          ) : (
+            <p className="transport-menu-note">{mixLabel}</p>
+          )}
+        </MenuSection>
+      ) : null}
+      {collapsed ? viewSections(closeMenu) : null}
+      <MenuSection label="Help">
+        {mayManage ? (
+          <CommandMenuItem
+            commandId="help.diagnosticsBundle"
+            onSelect={closeMenu}
+          >
+            Export diagnostics…
+          </CommandMenuItem>
+        ) : null}
+        <CommandMenuItem
+          commandId="ui.toggleCommandPalette"
+          title="Keyboard shortcuts (?)"
+          onSelect={closeMenu}
+        >
+          Keyboard shortcuts
+        </CommandMenuItem>
+      </MenuSection>
+    </Menu>
+  );
+
+  if (menuOnly) {
+    return overflowMenu;
+  }
+
   return (
     <TransportFrame
       ref={headerRef}
@@ -501,172 +680,7 @@ export function TransportBar({
               {viewSections(closeView)}
             </Menu>
           ) : null}
-          <Menu
-            open={overflowOpen}
-            onOpenChange={setMenuOpen}
-            label="Transport menu"
-            menuId="transport-overflow-menu"
-            className="transport-overflow ui-menu-root"
-            trigger={menuTrigger(
-              "Menu",
-              collapsed
-                ? "Layers, zoom, theme, and more"
-                : transportMenuTitle({ mayManage, mayIngest }),
-              <Icon name="menu" />,
-            )}
-          >
-            {collapsed ? <AvatarStack variant="menu" /> : null}
-            {mayManage ? (
-              <MenuSection label="Project">
-                <CommandMenuItem commandId="project.new" onSelect={closeMenu}>
-                  New project…
-                </CommandMenuItem>
-                <CommandMenuItem commandId="project.open" onSelect={closeMenu}>
-                  Open project…
-                </CommandMenuItem>
-                <CommandMenuItem commandId="mcp.connect" onSelect={closeMenu}>
-                  Connect agent…
-                </CommandMenuItem>
-                <CommandMenuItem
-                  commandId="export.bounce"
-                  respectWhen
-                  onSelect={closeMenu}
-                >
-                  Bounce…
-                </CommandMenuItem>
-                <Slot id={FEATURE_SHARE_UI_MENU}>
-                  <CommandMenuItem
-                    commandId="share.manage"
-                    respectWhen
-                    onSelect={closeMenu}
-                  >
-                    Share…
-                  </CommandMenuItem>
-                </Slot>
-                <CommandMenuItem
-                  commandId="record.openPanel"
-                  respectWhen
-                  onSelect={closeMenu}
-                >
-                  Record room…
-                </CommandMenuItem>
-                <CommandMenuItem
-                  commandId="export.deliverables"
-                  respectWhen
-                  onSelect={closeMenu}
-                >
-                  Export deliverables…
-                </CommandMenuItem>
-              </MenuSection>
-            ) : null}
-            {mayIngest ? (
-              <MenuSection label="Media">
-                <CommandMenuItem commandId="media.import" onSelect={closeMenu}>
-                  Import audio…
-                </CommandMenuItem>
-                <CommandMenuItem commandId="track.add" onSelect={closeMenu}>
-                  New track
-                </CommandMenuItem>
-                <CommandMenuItem
-                  commandId="track.remove"
-                  respectWhen
-                  onSelect={closeMenu}
-                >
-                  Remove track
-                </CommandMenuItem>
-                <CommandMenuItem
-                  commandId="track.moveUp"
-                  respectWhen
-                  onSelect={closeMenu}
-                >
-                  Move track up
-                </CommandMenuItem>
-                <CommandMenuItem
-                  commandId="track.moveDown"
-                  respectWhen
-                  onSelect={closeMenu}
-                >
-                  Move track down
-                </CommandMenuItem>
-              </MenuSection>
-            ) : null}
-            {mayManage ? (
-              <MenuSection label="Markers">
-                <CommandMenuItem
-                  commandId="edit.addChapter"
-                  respectWhen
-                  onSelect={closeMenu}
-                >
-                  Add chapter at playhead
-                </CommandMenuItem>
-              </MenuSection>
-            ) : null}
-            {collapsed ? (
-              <MenuSection label="Audition">{auditionGroup(true)}</MenuSection>
-            ) : null}
-            {collapsed && sessionRegion ? (
-              <MenuSection label="Session">
-                <p className="transport-menu-note">
-                  {lastAgentQuery
-                    ? `Agent: “${lastAgentQuery}”`
-                    : `Region ${sessionRegion.start_sec.toFixed(1)}–${sessionRegion.end_sec.toFixed(1)}s`}
-                </p>
-              </MenuSection>
-            ) : null}
-            {collapsed ? (
-              <MenuSection label="Mix status">
-                {noPreview ? (
-                  <p className="transport-menu-note audio-error-note">
-                    {noPreviewHint}
-                  </p>
-                ) : null}
-                {transportError ? (
-                  <p className="transport-menu-note audio-error-note">
-                    {audioErrorLabel(transportError)}: {transportError}
-                  </p>
-                ) : null}
-                {stale && mayRefresh ? (
-                  <CommandMenuItem
-                    commandId="render.refreshMix"
-                    title={staleTitle}
-                    onSelect={closeMenu}
-                    respectWhen
-                    onPointerEnter={() => setStaleHighlight(true)}
-                    onPointerLeave={() => setStaleHighlight(false)}
-                    onFocus={() => setStaleHighlight(true)}
-                    onBlur={() => setStaleHighlight(false)}
-                  >
-                    {renderPreviewBusy ? "Refreshing…" : mixPillText}
-                  </CommandMenuItem>
-                ) : (
-                  <p className="transport-menu-note">{mixLabel}</p>
-                )}
-              </MenuSection>
-            ) : null}
-            {collapsed ? viewSections(closeMenu) : null}
-            <MenuSection label="Selection">
-              <CommandMenuItem commandId="range.arm" onSelect={closeMenu}>
-                Select a range
-              </CommandMenuItem>
-            </MenuSection>
-            <MenuSection label="Help">
-              {mayManage ? (
-                <CommandMenuItem
-                  commandId="help.diagnosticsBundle"
-                  onSelect={closeMenu}
-                >
-                  Export diagnostics…
-                </CommandMenuItem>
-              ) : null}
-              <CommandMenuItem
-                commandId="ui.toggleCommandPalette"
-                title="Keyboard shortcuts (?)"
-                onSelect={closeMenu}
-              >
-                Keyboard shortcuts
-              </CommandMenuItem>
-            </MenuSection>
-          </Menu>
+          {overflowMenu}
         </div>
       </TransportZone>
     </TransportFrame>
