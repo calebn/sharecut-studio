@@ -23,22 +23,6 @@ html[data-shell] body {
   }
 }
 
-/* Safari minimizes its address bar and toolbar only when the document
- * scrolls. In a browser tab the editor page is a runway under the fixed
- * shell: a swipe on the shell's chrome scrolls it, Safari collapses its bars,
- * and the shell grows into the room. A Home Screen app has no bars to hide. */
-@media (pointer: coarse) and (display-mode: browser) {
-  html[data-shell="phone"],
-  html[data-shell="tablet"] {
-    scrollbar-width: none;
-  }
-
-  html[data-shell="phone"] body,
-  html[data-shell="tablet"] body {
-    min-height: calc(100lvh + 25svh);
-  }
-}
-
 /* Named rows: banner rows are always present and `auto` (0 when empty), so a
  * layout or a banner never shifts another child. Layouts change only
  * --shell-main-row / --shell-tabs-row (responsive.css). */
@@ -115,6 +99,31 @@ html[data-shell] body {
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
   font-size: var(--font-size-small);
+}
+
+/* Add to Home Screen, once per browser (#1077): a quiet line, not a warning. */
+.home-screen-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline: var(--space-4) var(--space-1);
+  background: var(--color-bg-raised);
+  border-bottom: 1px solid var(--border);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+}
+
+.home-screen-hint-text {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  padding-block: var(--space-3);
+}
+
+.home-screen-hint-dismiss {
+  flex: none;
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
 }
 
 .guest-attention {
