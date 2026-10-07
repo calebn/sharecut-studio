@@ -209,9 +209,13 @@ the empty state, not a separate discovery task.
 - **Feedback must be visible, not screen-reader-only.** Every
   `announceStatus` shows the same string in the app toast
   (`feedback/FeedbackToast`, built on `ui/Toast`): one toast at a time,
-  centred at the bottom above the status bar or the phone mode nav
-  (at the top on a phone while a bottom sheet is open, so it never
-  covers the sheet's fields), while the shell's live region speaks it.
+  centred at the bottom above the status bar on desktop and tablet. On a
+  phone it docks just above the highest bottom chrome that is shown (an
+  open sheet, the Timeline tool rail, or the mode nav) and below the
+  transport, so it covers no controls or sheet fields ([gui-mobile.md §
+  Feedback toast](gui-mobile.md#feedback-toast)). The shell's single
+  live region speaks it, once per announcement, even when the same text
+  repeats.
   Only a status that a persistent control already shows (the job chip,
   the presence avatars) passes `{ toast: false }`. The Comments panel
   keeps its own `ui/Toast` for comment resolution. A multi-minute
@@ -482,5 +486,8 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   the toast's Undo names its history entry and the server refuses it once
   another edit is the latest ("Can't undo: the project changed since.
   Nothing was undone."); `InlineError` alerts for action errors and
-  speaks saved-state errors politely, once; on phones the toast moves to
-  the top while a bottom sheet is open.
+  speaks saved-state errors politely, once. Second review round: on
+  phones the toast docks above the highest bottom chrome shown (sheet,
+  Timeline tool rail, mode nav) and below the transport, so it covers
+  no controls; a repeated identical announcement is spoken again; a
+  refused undo is announced once.

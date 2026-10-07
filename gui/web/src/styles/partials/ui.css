@@ -773,19 +773,20 @@ button.pill.pill--info {
   pointer-events: none;
 }
 
+/* Phone: the toast docks just above the highest bottom chrome that is shown
+   (an open sheet, the Timeline tool rail, the mode nav) and below the
+   transport, so it covers no controls or sheet fields while it waits.
+   feedback/toastDock.ts measures that into --toast-dock-bottom; until it has,
+   the toast sits above the mode nav. */
 html[data-shell="phone"] .ui-toast-region--app {
-  inset-block-end: calc(
-    var(--mobile-nav-height) +
-    env(safe-area-inset-bottom) +
-    var(--space-3)
+  inset-block-end: var(
+    --toast-dock-bottom,
+    calc(
+      var(--mobile-nav-height) +
+      env(safe-area-inset-bottom) +
+      var(--space-3)
+    )
   );
-}
-
-/* A phone bottom sheet (the Inspector, a tool sheet) fills the space above the
-   mode nav, so the toast moves to the top instead of covering the sheet's
-   fields while it waits to dismiss. */
-html[data-shell="phone"]:has(.bottom-sheet) .ui-toast-region--app {
-  inset-block: calc(env(safe-area-inset-top) + var(--space-3)) auto;
 }
 
 .ui-toast-region--app .ui-toast {
