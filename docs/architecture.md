@@ -120,7 +120,8 @@ verified reduction spans, the lane's resolved reduction (`mute` or `attenuate`, 
 `analysis.heuristics.bleed_handling` read through `AnalysisPolicy`; `auto` picks per
 lane from its bed, the median level away from its own speech and the copies), the
 attenuation in dB, that bed, and abstention reasons. Evidence is each lane's level envelope; the copy lag comes from
-the shared `engines/envelope_lag.py` estimator over the peer's own speech, every frame
+the shared `engines/envelope_lag.py` estimator over the peer's own speech and holds
+only when the copy's timbre confirms it (`copy_timbre.confirmed_likeness`), every frame
 the peer's direct track reaches at that lag is foreign, and own speech is sound over
 the copy's expected level by more than the copy's own spread, or nearer it, a fifth
 of a second whose fine spectrum is not the peer's (`engines/copy_timbre.py`).

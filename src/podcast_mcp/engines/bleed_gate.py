@@ -17,7 +17,7 @@ from podcast_mcp.engines.copy_timbre import (
     LIKENESS_PERCENTILE,
     TIMBRE_BAND_HZ,
     TIMBRE_SMOOTH_BINS,
-    copy_likeness,
+    confirmed_likeness,
     copy_similarity,
 )
 from podcast_mcp.engines.envelope_lag import (
@@ -54,7 +54,7 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
-BLEED_GATE_REV = 13
+BLEED_GATE_REV = 16
 EVIDENCE_RATE = 8000
 # Gain ramps inside each reduced span, after a hold at full level around the lane's
 # own speech. On the lab tape (#945) the level just outside Caleb's reduced spans is
@@ -436,7 +436,11 @@ def _peer_copy(
     owner-confirmed Audra-only passages. The likeness is the 40th percentile of the
     fine-spectrum match on frames at the coupling. The room and call software blur and
     spread it on the lab (0.35; median 0.41); a copy that keeps its timbre sits in a
-    narrow band near 1.
+    narrow band near 1. The likeness must also confirm the lag: those frames must match
+    the peer there better than the peer's speech a second or two away, or the level
+    match was own sound starting and stopping with the peer's, and there is no copy
+    (``confirmed_likeness``, #1070). With no frame at the coupling there is no copy
+    either.
 
     All three are read against the full 200 ms reach, where the copy can be, not
     against the measured lead. A coupling read against the lead would expect more
@@ -455,13 +459,21 @@ def _peer_copy(
     )
     if not frames.any():
         return None
-    loud = frames & (reach >= np.median(reach[frames]))
+    loud_db = float(np.median(reach[frames]))
+    loud = frames & (reach >= loud_db)
     coupling = float(np.median(own[loud] - reach[loud]))
     spread = float(np.percentile(own[loud] - reach[loud], _SPREAD_PERCENTILE)) - coupling
     typical = np.flatnonzero(loud & (np.abs(own - reach - coupling) < _OWN_HOLD_MARGIN_DB))
     sample = typical[:: max(1, typical.size // LIKENESS_FRAMES)]
-    copy = _PeerCopy(peer, peer_samples, lag, coupling)
-    likeness = copy_likeness(copy.similarity(own_samples, sample)) if sample.size else 1.0
+    likeness = (
+        confirmed_likeness(
+            own_samples, peer_samples, sample, lag, peer, loud_db, sample_rate=EVIDENCE_RATE
+        )
+        if sample.size
+        else None
+    )
+    if likeness is None:
+        return None
     lead = _copy_lead(own_samples, peer_samples, lag, own.size)
     return _PeerCopy(peer, peer_samples, lag, coupling, spread, likeness, lead)
 
