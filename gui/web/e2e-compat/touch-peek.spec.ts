@@ -71,7 +71,7 @@ test.afterEach(async () => {
 async function open(
   page: Page,
   size: SizeName,
-  { lab = true, theme = "dark" as Theme, inspector = "strip" } = {},
+  { lab = true, theme = "dark" as Theme, inspector = "peek" } = {},
 ): Promise<void> {
   await page.setViewportSize(SIZES[size]);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
@@ -340,7 +340,8 @@ for (const [name, { moves, run }] of Object.entries(CHIP_CASES)) {
     };
     json(info, `chip-${slug}-${browserName}`, row);
     if (moves) {
-      expect(row.after).toBeGreaterThan(row.before);
+      // The save can land after the read above: wait for it.
+      await expect.poll(() => trimStartSec(page)).toBeGreaterThan(row.before);
       expect(row.sheet).toMatchObject({
         compact: true,
         size: "peek",
@@ -511,7 +512,7 @@ test("the strip and the expanded inspector leave the selection in view", async (
       await tap(locate);
       await record("strip");
       await page
-        .getByRole("button", { name: "Expand to the full inspector" })
+        .getByRole("button", { name: "Expand to half height" })
         .click({ timeout: 5000 });
       await page.waitForTimeout(700);
       await record("expanded");
@@ -554,8 +555,8 @@ for (const size of ["portrait-360", "landscape-844"] as const) {
     const released = await sheetState(page);
     await frame(page, info, `stow-${size}-3-released-${browserName}`);
 
-    // The selected trim's own handle, dragged directly (select first, then
-    // drag). Synthetic pointers cannot be captured, so WebKit records only.
+    // The selected trim's own handle under one moving finger: the grammar
+    // scrolls, so nothing stows and nothing is edited (#1051 round 4b).
     // High on the strip: its middle sits under the edge's envelope point.
     const strip = await page
       .locator(`${lane} [data-hit-kind="trim-in"][data-hit-selected="true"]`)
@@ -585,7 +586,8 @@ for (const size of ["portrait-360", "landscape-844"] as const) {
     expect(row.midChipDrag.stowed).toBe(true);
     expect(row.released).toMatchObject({ stowed: false, title: "Trim start" });
     expect(row.released.value).not.toBe(row.opened.value);
-    if (browserName === "chromium") expect(row.midHandleDrag.stowed).toBe(true);
+    expect(row.midHandleDrag.stowed).toBe(false);
+    expect(row.afterHandleDrag.value).toBe(row.released.value);
   });
 }
 
@@ -644,24 +646,21 @@ for (const size of ["portrait-360", "landscape-844"] as const) {
     };
     await tapPoint("env-c");
     await step("select: strip");
-    await step(
-      "one tap on Expand",
-      await tapButton("Expand to the full inspector"),
-    );
+    await step("one tap on Expand", await tapButton("Expand to half height"));
     await tapPoint("env-a");
     await step("next selection opens expanded");
-    await step("collapse", await tapButton("Collapse to the strip"));
+    await step("collapse", await tapButton("Collapse to strip"));
     await tapPoint("env-c");
     await step("next selection opens the strip");
     json(info, `remember-${size}-${browserName}`, steps);
     expect(
       steps.map((s) => [s.size, s.pref, s.buttonUnderFinger ?? null]),
     ).toEqual([
-      ["peek", "strip", null],
-      ["half", "inspector", "Expand to the full inspector"],
-      ["half", "inspector", null],
-      ["peek", "strip", "Collapse to the strip"],
-      ["peek", "strip", null],
+      ["peek", "peek", null],
+      ["half", "half", "Expand to half height"],
+      ["half", "half", null],
+      ["peek", "peek", "Collapse to strip"],
+      ["peek", "peek", null],
     ]);
   });
 }
@@ -702,9 +701,7 @@ test("axe, both themes and reduced motion with the strip open", async ({
           };
         }),
       );
-      await page
-        .getByRole("button", { name: "Expand to the full inspector" })
-        .click();
+      await page.getByRole("button", { name: "Expand to half height" }).click();
       await page.waitForTimeout(600);
       const axeExpanded = await new AxeBuilder({ page })
         .disableRules([...STUDIO_AXE_DISABLED_RULES])

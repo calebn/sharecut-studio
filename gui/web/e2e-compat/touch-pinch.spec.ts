@@ -1,7 +1,7 @@
-import { type BrowserContext, expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { rulerWidthPx } from "../e2e/deepZoom";
 import { e2eProjectPath } from "../e2e/env";
-import { newFinger } from "../e2e/finger";
+import { newFinger, type TwoFingers, twoFingers } from "../e2e/finger";
 import {
   createRelocatedE2eProject,
   removeRelocatedE2eProject,
@@ -22,9 +22,10 @@ import {
 } from "../e2e/touchTimeline";
 
 /*
- * #1051 round 4: pinch never edits. One finger starts a fade or trim drag
- * (or presses a clip body), a second finger lands and the two pinch apart.
- * The drag is cancelled with no document command, the selection is what it
+ * #1051 round 4: pinch never edits. One finger moves on a fade or trim (or
+ * presses a clip body), a second finger lands and the two pinch apart. Lab
+ * off the move starts a drag, which is cancelled; lab on it never starts
+ * one. Either way there is no document command, the selection is what it
  * was before the first finger, and the timeline zooms. Chromium drives two
  * real CDP touch points. WebKit has no touch input in Playwright, so there
  * the fingers are touch-typed pointer events (e2e/finger.ts) plus the touch
@@ -65,106 +66,6 @@ test.afterEach(async () => {
   await switchE2eProject(e2eProjectPath);
   if (workspaceDir) removeRelocatedE2eProject(workspaceDir);
 });
-
-/** Two fingers: the first presses and drags alone, then the second joins. */
-interface TwoFingers {
-  down(a: Point): Promise<void>;
-  move(a: Point): Promise<void>;
-  /** The second finger lands at `b` while the first is at `a`. */
-  join(a: Point, b: Point): Promise<void>;
-  both(a: Point, b: Point): Promise<void>;
-  up(): Promise<void>;
-}
-
-async function twoFingers(
-  context: BrowserContext,
-  page: Page,
-  browserName: string,
-): Promise<TwoFingers> {
-  if (browserName === "chromium") {
-    const cdp = await context.newCDPSession(page);
-    const send = async (type: string, points: Point[]) => {
-      await cdp.send("Input.dispatchTouchEvent", {
-        type: type as "touchStart" | "touchMove" | "touchEnd",
-        touchPoints: points.map((p, id) => ({ x: p.x, y: p.y, id })),
-      });
-    };
-    return {
-      down: (a) => send("touchStart", [a]),
-      move: (a) => send("touchMove", [a]),
-      join: (a, b) => send("touchStart", [a, b]),
-      both: (a, b) => send("touchMove", [a, b]),
-      up: () => send("touchEnd", []),
-    };
-  }
-  // The first finger is e2e/finger.ts's touch pointer (with its emulated
-  // capture); the second is another touch pointer, and the touch events
-  // carry both, as a real pinch's do.
-  const first = await newFinger(context, page, browserName);
-  const second = (type: string, a: Point, b: Point | null) =>
-    page.evaluate(
-      ({ type, a, b }) => {
-        const w = window as unknown as { __second?: Element };
-        if (type === "pointerdown" && b) {
-          w.__second = document.elementFromPoint(b.x, b.y) ?? document.body;
-        }
-        const target = w.__second ?? document.body;
-        if (b) {
-          target.dispatchEvent(
-            new PointerEvent(type, {
-              bubbles: true,
-              cancelable: true,
-              composed: true,
-              pointerId: 42,
-              pointerType: "touch",
-              isPrimary: false,
-              clientX: b.x,
-              clientY: b.y,
-              button: type === "pointermove" ? -1 : 0,
-              buttons: type === "pointerup" ? 0 : 1,
-            }),
-          );
-        }
-        const touchType =
-          type === "pointerdown"
-            ? "touchstart"
-            : type === "pointermove"
-              ? "touchmove"
-              : "touchend";
-        const touches = (b ? [a, b] : []).map((p, identifier) => ({
-          identifier,
-          clientX: p.x,
-          clientY: p.y,
-          target,
-        }));
-        const touch = new Event(touchType, { bubbles: true, cancelable: true });
-        Object.defineProperty(touch, "touches", { value: touches });
-        target.dispatchEvent(touch);
-      },
-      { type, a, b },
-    );
-  let at: Point = { x: 0, y: 0 };
-  return {
-    down: async (a) => {
-      at = a;
-      await first.down(a);
-    },
-    move: async (a) => {
-      at = a;
-      await first.move(a);
-    },
-    join: (a, b) => second("pointerdown", a, b),
-    both: async (a, b) => {
-      at = a;
-      await first.move(a);
-      await second("pointermove", a, b);
-    },
-    up: async () => {
-      await second("pointerup", at, { x: 0, y: 0 });
-      await first.up();
-    },
-  };
-}
 
 type Clip = {
   id: string;
@@ -350,8 +251,10 @@ for (const { lab, size } of RUNS) {
       zoomBefore: number;
       zoomAfter: number;
     }[]) {
-      // The first finger really started a drag before the pinch.
-      if (row.start !== "clip body") expect(row.mid.preview).toBe(true);
+      // Lab off, the first finger really started a drag before the pinch.
+      // Lab on, one finger moving never edits (#1051 round 4b): nothing
+      // previews until a long press arms a target (touch-grammar.spec.ts).
+      if (row.start !== "clip body") expect(row.mid.preview).toBe(!lab);
       expect(row.commands).toEqual([]);
       expect(row.savedAfter).toEqual(row.savedBefore);
       expect(row.after).toEqual({ ...row.before, preview: false });
