@@ -3211,3 +3211,49 @@ def test_conflict_is_decided_by_the_refusal_code_not_its_message(minimal_project
         assert str(caught.value) == str(exc)
     else:
         assert caught.value is exc
+
+
+def _real_command(command_type: str, payload: dict, *, role: str = "editor") -> DocumentCommand:
+    return DocumentCommand(
+        type=command_type,
+        payload=payload,
+        client_id="c1",
+        role=role,
+        client_seq=1,
+    )
+
+
+@pytest.mark.parametrize(
+    ("command_type", "payload", "code"),
+    [
+        (
+            "AddComment",
+            {"body": "x", "author": "a", "timeline_start": 1.0, "track_ids": ["gone"]},
+            "track_not_found",
+        ),
+        (
+            "AddComment",
+            {"body": "x", "author": "a", "timeline_start": 1.0, "edit_decision_id": "gone"},
+            "edit_not_found",
+        ),
+    ],
+)
+def test_a_command_naming_a_target_that_is_gone_is_a_conflict(
+    minimal_project, command_type, payload, code
+):
+    svc = DocumentSyncService.open(minimal_project)
+
+    with pytest.raises(DocumentConflictError) as caught:
+        svc.submit(_real_command(command_type, payload))
+
+    assert caught.value.__cause__.code == code
+
+
+def test_a_split_where_no_clip_plays_is_a_bad_request_not_a_conflict(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+
+    with pytest.raises(CodedValueError) as caught:
+        svc.submit(_real_command("SplitAtTime", {"at_time": 9999.0, "track_ids": ["host"]}))
+
+    assert not isinstance(caught.value, DocumentConflictError)
+    assert caught.value.code == "no_clip_at_time"
