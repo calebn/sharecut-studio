@@ -31,7 +31,7 @@ const layers = vi.hoisted(() => [] as LayerProps[][]);
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
   rollClipJoin: vi.fn(async () => undefined),
-  trimClipEdge: vi.fn(async () => undefined),
+  trimClipEdge: vi.fn(async () => ({ queued: false, asked: false })),
   setClipFade: vi.fn(async () => undefined),
   loadWaveformSnap: vi.fn(async () => ({ ticks: [0.5] })),
 }));
@@ -593,6 +593,34 @@ describe("ClipBlock waveform", () => {
       fireEvent.keyUp(handle, { key: "ArrowRight" });
       await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(2));
       expect(setClipFade).toHaveBeenLastCalledWith(secondPath, "c1", 41, 0);
+    });
+
+    it("says Trim saved for a trim the host applies, and nothing when it asks first", async () => {
+      const row = { ...clip, source_end: 2, timeline_end: 2 };
+      const { container } = renderWithKeymap(row);
+      const handle = container.querySelector(
+        "button.trim-handle.out",
+      ) as HTMLElement;
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowLeft" });
+      fireEvent.keyUp(handle, { key: "ArrowLeft" });
+      await waitFor(() =>
+        expect(useDawStore.getState().statusAnnouncement).toBe("Trim saved"),
+      );
+
+      useDawStore.getState().announceStatus("");
+      vi.mocked(trimClipEdge).mockResolvedValueOnce({
+        queued: false,
+        asked: true,
+      });
+      fireEvent.keyDown(handle, { key: "ArrowLeft" });
+      expect(container.querySelector(".trim-readout")).not.toBeNull();
+      fireEvent.keyUp(handle, { key: "ArrowLeft" });
+      await waitFor(() => expect(trimClipEdge).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
+        expect(container.querySelector(".trim-readout")).toBeNull(),
+      );
+      expect(useDawStore.getState().statusAnnouncement).toBe("");
     });
 
     it("announces a failed keyboard write and clears its preview", async () => {
