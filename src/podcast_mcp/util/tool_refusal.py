@@ -15,6 +15,11 @@ sees only ``Error executing tool <name>`` (#1178, #1182).
 A share guest is not the host: ``for_guest=True`` replaces each host filesystem path in a
 refusal's message with ``[path]`` (``util.redact.redact_host_paths``), so a refusal written
 for the host's own agent, such as ``raw media not found: <path>``, can reach a guest too.
+
+The same rule covers what a guest sees while a call fails, not only its result:
+``guest_failure_detail`` is the hook guest progress (``install_guest_tool_progress``) uses,
+so a failed task's progress message reads ``<label> failed`` for a crash and carries only
+the refusal's guest message otherwise.
 """
 
 from __future__ import annotations
@@ -65,6 +70,12 @@ def tool_refusal(exc: BaseException, *, for_guest: bool = False) -> ToolRefusal 
     if for_guest:
         message = redact_host_paths(message)
     return ToolRefusal(message, refusal.code)
+
+
+def guest_failure_detail(exc: BaseException) -> str | None:
+    """What a guest may read about ``exc`` in a failure message: a refusal's text, else nothing."""
+    refusal = tool_refusal(exc, for_guest=True)
+    return refusal.message if refusal is not None else None
 
 
 def refusal_tool_result(refusal: ToolRefusal) -> CallToolResult:

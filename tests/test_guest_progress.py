@@ -43,6 +43,7 @@ from podcast_mcp.util.progress import (
     register_guest_progress_sink,
     set_guest_progress_context,
 )
+from podcast_mcp.util.tool_refusal import guest_failure_detail
 from sync_helpers import drain
 
 
@@ -298,7 +299,7 @@ async def test_install_guest_tool_progress_mcp_notifications_when_token_present(
         return {"ok": True}
 
     try:
-        wrapped = install_guest_tool_progress(impl)
+        wrapped = install_guest_tool_progress(impl, fail_detail=guest_failure_detail)
         out = wrapped("guest_get_project", {})
         assert out == {"ok": True}
         await asyncio.sleep(0)
@@ -342,7 +343,7 @@ async def test_handle_mcp_jsonrpc_progress_token_uses_guest_context(
 
     monkeypatch.setattr(
         "podcast_mcp.services.remote_mcp.protocol.call_tool",
-        install_guest_tool_progress(impl),
+        install_guest_tool_progress(impl, fail_detail=guest_failure_detail),
     )
     out = handle_mcp_jsonrpc(
         token,
@@ -393,7 +394,7 @@ def test_daw_ws_forwards_scrubbed_guest_progress_for_its_own_token(
         current_progress().end(name, message="done")
         return {"ok": True}
 
-    wrapped = install_guest_tool_progress(impl)
+    wrapped = install_guest_tool_progress(impl, fail_detail=guest_failure_detail)
     with client.websocket_connect(f"/api/review/{token}/daw/ws") as guest_ws:
         set_guest_progress_context(token=token)
         try:
@@ -531,7 +532,7 @@ def test_mcp_progress_token_streams_sse_notifications(
 
     monkeypatch.setattr(
         "podcast_mcp.services.remote_mcp.protocol.call_tool",
-        install_guest_tool_progress(impl),
+        install_guest_tool_progress(impl, fail_detail=guest_failure_detail),
     )
     client = TestClient(create_app())
     resp = client.post(
@@ -593,14 +594,18 @@ def test_daw_ws_isolates_guest_progress_between_two_share_tokens(
         with client.websocket_connect(f"/api/review/{tok_b}/daw/ws") as ws_b:
             set_guest_progress_context(token=tok_a)
             try:
-                install_guest_tool_progress(impl_a)("guest_render_preview", {})
+                install_guest_tool_progress(impl_a, fail_detail=guest_failure_detail)(
+                    "guest_render_preview", {}
+                )
             finally:
                 clear_guest_progress_context()
             msg_a = _next_progress_frame(ws_a)
             assert "alpha-only" in json.dumps(msg_a)
             set_guest_progress_context(token=tok_b)
             try:
-                install_guest_tool_progress(impl_b)("guest_render_preview", {})
+                install_guest_tool_progress(impl_b, fail_detail=guest_failure_detail)(
+                    "guest_render_preview", {}
+                )
             finally:
                 clear_guest_progress_context()
             msg_b = _next_progress_frame(ws_b)
@@ -703,3 +708,139 @@ async def test_guest_reporter_fail_strips_traceback():
     finally:
         reporter.close()
         hub.unsubscribe("tok", q)
+
+
+_CRASH_TEXT = "ffmpeg exploded reading /Users/host/Podcasts/Secret Show/raw.wav (internal_helper)"
+
+
+def _guest_share(minimal_project, sample_wav, monkeypatch, label: str) -> str:
+    monkeypatch.setenv("PODCAST_REMOTE_MCP", "1")
+    ws = _seed_premix(minimal_project, sample_wav)
+    ver = ReviewService(ws).publish(label=label)
+    share = ShareService(ws).create(
+        review_version_id=ver["id"],
+        capabilities=["play", "view", "comment", "mcp"],
+    )
+    return share["token"]
+
+
+def _failing_guest_tool(monkeypatch, exc: BaseException) -> None:
+    """Replace ``guest_get_project`` with a handler whose progress task fails on ``exc``."""
+    from podcast_mcp.services.remote_mcp import tools as rt
+
+    def handler():
+        with progress_task("guest_get_project", "Rendering preview", total=2) as task:
+            task.advance(1, message="working")
+            raise exc
+
+    monkeypatch.setattr(rt, "TOOL_HANDLERS", {**rt.TOOL_HANDLERS, "guest_get_project": handler})
+
+
+def _guest_call(token: str, progress_token: str | None = None) -> dict:
+    params: dict = {"name": "guest_get_project", "arguments": {}}
+    if progress_token is not None:
+        params["_meta"] = {"progressToken": progress_token}
+    out = handle_mcp_jsonrpc(
+        token, {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": params}
+    )
+    assert out is not None
+    return out
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        OSError(2, "No such file", "/Users/host/Podcasts/Secret Show/raw.wav"),
+        ValueError(_CRASH_TEXT),
+        KeyError("internal_helper"),
+        RuntimeError(_CRASH_TEXT),
+    ],
+    ids=["os", "value", "key", "runtime"],
+)
+def test_guest_mcp_progress_for_a_crash_names_the_task_not_the_exception(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, exc
+):
+    token = _guest_share(minimal_project, sample_wav, monkeypatch, "CrashProgress")
+    captured: list[GuestMcpProgressContext] = []
+
+    class Capturing(GuestMcpProgressContext):
+        def __init__(self, progressToken, sink=None):
+            super().__init__(progressToken, sink=sink)
+            captured.append(self)
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.remote_mcp.protocol.GuestMcpProgressContext", Capturing
+    )
+    _failing_guest_tool(monkeypatch, exc)
+
+    out = _guest_call(token, progress_token="pt-crash")
+
+    assert out["result"]["content"][0]["text"] == "Error executing tool guest_get_project"
+    messages = [n["params"]["message"] for n in captured[0].notifications]
+    assert messages[-2:] == ["Rendering preview failed", "guest_get_project failed"]
+    blob = json.dumps(captured[0].notifications)
+    for leaked in ("exploded", "internal_helper", "Secret", "raw.wav", "No such file", "/Users"):
+        assert leaked not in blob
+
+
+def test_guest_mcp_progress_for_a_refusal_carries_its_message_with_paths_redacted(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    token = _guest_share(minimal_project, sample_wav, monkeypatch, "RefusalProgress")
+    captured: list[GuestMcpProgressContext] = []
+
+    class Capturing(GuestMcpProgressContext):
+        def __init__(self, progressToken, sink=None):
+            super().__init__(progressToken, sink=sink)
+            captured.append(self)
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.remote_mcp.protocol.GuestMcpProgressContext", Capturing
+    )
+    _failing_guest_tool(
+        monkeypatch, CodedValueError("empty window in /Users/host/ep/raw.wav", code="invalid_range")
+    )
+
+    out = _guest_call(token, progress_token="pt-refusal")
+
+    assert out["result"]["structuredContent"]["error_code"] == "invalid_range"
+    messages = [n["params"]["message"] for n in captured[0].notifications]
+    assert messages[-2:] == [
+        "Rendering preview failed: empty window in [path]",
+        "guest_get_project failed: empty window in [path]",
+    ]
+
+
+def test_guest_share_page_progress_for_a_crash_names_the_task_not_the_exception(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    token = _guest_share(minimal_project, sample_wav, monkeypatch, "CrashWs")
+    register_guest_progress_sink(guest_ws_progress_sink)
+    _failing_guest_tool(monkeypatch, RuntimeError(_CRASH_TEXT))
+    client = TestClient(create_app())
+
+    with client.websocket_connect(f"/api/review/{token}/daw/ws") as guest_ws:
+        _guest_call(token)
+        frames = []
+        while True:
+            frame = _next_progress_frame(guest_ws)
+            frames.append(frame)
+            if frame["status"] == "error":
+                break
+
+    assert [f["message"] for f in frames if f["status"] == "error"] == ["Rendering preview failed"]
+    blob = json.dumps(frames)
+    for leaked in ("exploded", "internal_helper", "Secret", "raw.wav", "/Users"):
+        assert leaked not in blob
+
+
+def test_progress_task_outside_a_guest_call_keeps_the_exception_text():
+    rec = progress_mod.RecordingProgress()
+    with pytest.raises(RuntimeError):
+        with progress_task("t", "Work", reporter=rec):
+            raise RuntimeError("disk is full")
+
+    fails = [e for e in rec.events if e.kind == "fail"]
+    assert fails[-1].message == "Work failed: disk is full"

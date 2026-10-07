@@ -386,6 +386,16 @@ _guest_sink_lock = threading.Lock()
 _guest_share_token: ContextVar[str | None] = ContextVar("guest_share_token", default=None)
 _guest_mcp_context: ContextVar[Any] = ContextVar("guest_mcp_context", default=None)
 
+FailDetail = Callable[[BaseException], str | None]
+"""What a failed ``progress_task`` may say about its exception: text to append, or ``None``."""
+
+_fail_detail_var: ContextVar[FailDetail | None] = ContextVar("progress_fail_detail", default=None)
+
+
+def _exception_text(exc: BaseException) -> str | None:
+    """The host's rule: a failed task's message carries the exception's own text."""
+    return str(exc).strip() or None
+
 
 def register_progress_sink(factory: Callable[[], ProgressReporter | None]) -> None:
     """Register an extra live sink (GUI SSE). Util stays adapter-free."""
@@ -710,6 +720,9 @@ class ProgressTask:
         self._pending_message: str | None = None
         # Reentrant: advance_to() holds the lock while calling advance(), which takes it again.
         self._update_lock = threading.RLock()
+        # Captured here as well as read on exit, so a task built inside a guest call (a
+        # ``child`` handed to a worker thread) keeps the guest rule wherever it ends.
+        self._fail_detail = _fail_detail_var.get()
 
     def __enter__(self) -> ProgressTask:
         mark_wrapped(self._mark_id)
@@ -754,7 +767,7 @@ class ProgressTask:
                 msg = f"{self.label} failed"
                 if phase:
                     msg = f"{self.label} failed while {phase}"
-                detail = str(exc).strip()
+                detail = (self._fail_detail or _fail_detail_var.get() or _exception_text)(exc)
                 if detail:
                     msg = f"{msg}: {detail}"[:200]
                 reporter.fail(self.task_id, message=msg, phase=phase)
@@ -1439,14 +1452,24 @@ def install_cli_progress(app: Any) -> None:
     _walk(app)
 
 
-def install_guest_tool_progress(call_tool_fn: Callable[..., Any]) -> Callable[..., Any]:
-    """Wrap guest remote MCP ``call_tool`` so handlers see a bound reporter."""
+def install_guest_tool_progress(
+    call_tool_fn: Callable[..., Any], *, fail_detail: FailDetail
+) -> Callable[..., Any]:
+    """Wrap guest remote MCP ``call_tool`` so handlers see a bound reporter.
+
+    Every sink here faces a share guest (the MCP ``progressToken`` stream and the share
+    page's WebSocket), so each ``progress_task`` that fails during the call describes its
+    exception with ``fail_detail`` instead of the exception's text. Guest remote MCP
+    passes ``util.tool_refusal.guest_failure_detail``: a refusal's guest-safe message, and
+    nothing for a crash, which then reads ``<label> failed`` (#1182).
+    """
 
     @functools.wraps(call_tool_fn)
     def wrapped(name: str, arguments: dict[str, Any] | None = None) -> Any:
         token = _guest_share_token.get()
         extras = [mcp_progress_sink(_guest_mcp_context.get()), *guest_progress_sinks(token)]
         reporter = compose_progress(*extras)
+        detail_token = _fail_detail_var.set(fail_detail)
         try:
             with (
                 bind_progress(reporter),
@@ -1454,6 +1477,7 @@ def install_guest_tool_progress(call_tool_fn: Callable[..., Any]) -> Callable[..
             ):
                 return call_tool_fn(name, arguments)
         finally:
+            _fail_detail_var.reset(detail_token)
             for sink in extras:
                 closer = getattr(sink, "close", None)
                 if callable(closer):
