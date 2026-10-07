@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipJoin } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
+import { waitForDialogFocus } from "../test/dialogFocus";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { JoinBadgeView } from "./JoinBadge";
 import { JoinEditor as JoinBadge } from "./JoinEditor";
@@ -225,6 +226,7 @@ describe("JoinBadge (live)", () => {
       name: "Fade join at 0:05.0",
     });
     await user.click(a);
+    await waitForDialogFocus();
     b.focus();
     await user.keyboard("{Enter}");
     expect(screen.getAllByRole("dialog")).toHaveLength(1);

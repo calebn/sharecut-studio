@@ -9,6 +9,7 @@ import {
   submitDiagnosticsReport,
 } from "../api";
 import { expectNoA11yViolations } from "../test/a11y";
+import { waitForDialogFocus } from "../test/dialogFocus";
 import { HelpDialog } from "./HelpDialog";
 
 vi.mock("../api", () => ({
@@ -22,33 +23,39 @@ const createMock = vi.mocked(createDiagnosticsBundle);
 const submitMock = vi.mocked(submitDiagnosticsReport);
 const metaMock = vi.mocked(fetchDiagnosticsMeta);
 
+beforeEach(() => {
+  createMock.mockReset();
+  metaMock.mockReset();
+  submitMock.mockReset();
+  vi.mocked(fetchDiagnosticsReportStatus).mockReset();
+  vi.mocked(fetchDiagnosticsReportStatus).mockResolvedValue({
+    status: "queued",
+    issue_url: null,
+  });
+  submitMock.mockResolvedValue({
+    status: "queued",
+    status_url: "https://relay.example.test/api/reports/abc",
+  });
+  metaMock.mockResolvedValue({
+    support_url: "https://support.example.test",
+    report_available: true,
+    privacy_url: "https://privacy.example.test",
+    repository_url: "https://code.example.test/sharecut",
+    release_manifest_url: "https://downloads.example.test/latest.json",
+  });
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
+async function renderOpenHelp() {
+  const view = render(<HelpDialog open onClose={() => undefined} />);
+  await waitForDialogFocus();
+  return view;
+}
+
 describe("HelpDialog", () => {
-  beforeEach(() => {
-    createMock.mockReset();
-    metaMock.mockReset();
-    submitMock.mockReset();
-    vi.mocked(fetchDiagnosticsReportStatus).mockReset();
-    vi.mocked(fetchDiagnosticsReportStatus).mockResolvedValue({
-      status: "queued",
-      issue_url: null,
-    });
-    submitMock.mockResolvedValue({
-      status: "queued",
-      status_url: "https://relay.example.test/api/reports/abc",
-    });
-    metaMock.mockResolvedValue({
-      support_url: "https://support.example.test",
-      report_available: true,
-      privacy_url: "https://privacy.example.test",
-      repository_url: "https://code.example.test/sharecut",
-      release_manifest_url: "https://downloads.example.test/latest.json",
-    });
-  });
-
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("creates a bundle, shows the path, and links to support", async () => {
     const user = userEvent.setup();
     createMock.mockResolvedValue({
@@ -60,9 +67,7 @@ describe("HelpDialog", () => {
       app_version: "1.0",
       created_at: "2026-09-26T00:00:00Z",
     });
-    const { baseElement: container } = render(
-      <HelpDialog open onClose={() => undefined} />,
-    );
+    const { baseElement: container } = await renderOpenHelp();
     await waitFor(() => {
       expect(metaMock).toHaveBeenCalled();
     });
@@ -110,7 +115,7 @@ describe("HelpDialog", () => {
           finish = resolve;
         }),
     );
-    render(<HelpDialog open onClose={() => undefined} />);
+    await renderOpenHelp();
     const create = screen.getByRole("button", {
       name: "Create diagnostics bundle",
     });
@@ -135,7 +140,7 @@ describe("HelpDialog", () => {
     const user = userEvent.setup();
     metaMock.mockRejectedValue(new Error("offline"));
     createMock.mockRejectedValue(new Error("disk full"));
-    render(<HelpDialog open onClose={() => undefined} />);
+    await renderOpenHelp();
     await user.click(
       screen.getByRole("button", { name: "Create diagnostics bundle" }),
     );
@@ -173,7 +178,7 @@ describe("HelpDialog", () => {
           }
         : { status: "queued", issue_url: null },
     );
-    render(<HelpDialog open onClose={() => undefined} />);
+    await renderOpenHelp();
     await user.click(
       screen.getByRole("button", { name: "Create diagnostics bundle" }),
     );
@@ -253,7 +258,7 @@ describe("HelpDialog", () => {
         status: "queued",
         status_url: "https://relay.test/api/reports/b",
       });
-    const { rerender } = render(<HelpDialog open onClose={() => undefined} />);
+    const { rerender } = await renderOpenHelp();
     await user.click(
       screen.getByRole("button", { name: "Create diagnostics bundle" }),
     );
@@ -267,6 +272,7 @@ describe("HelpDialog", () => {
     expect(submitMock).toHaveBeenCalledTimes(1);
     rerender(<HelpDialog open={false} onClose={() => undefined} />);
     rerender(<HelpDialog open onClose={() => undefined} />);
+    await waitForDialogFocus();
     await user.click(
       screen.getByRole("button", { name: "Create diagnostics bundle" }),
     );
@@ -312,7 +318,7 @@ describe("HelpDialog fallback", () => {
       app_version: "1.0",
       created_at: "2026-09-26T00:00:00Z",
     });
-    render(<HelpDialog open onClose={() => undefined} />);
+    await renderOpenHelp();
     await user.click(
       screen.getByRole("button", { name: "Create diagnostics bundle" }),
     );

@@ -553,6 +553,18 @@ a separate full decode.
 
 Audio integration tests skip automatically when FFmpeg is unavailable.
 
+### Frontend dialog tests and initial focus
+
+`useDialogModal` (behind `Dialog`, the Mix sheet, and the join popover) moves
+focus into the panel one animation frame after it opens. A Vitest test that
+focuses a field and types before that frame lands races it: the late focus
+takes the caret away and the keystrokes are lost (#1117, #1112). Right after
+opening, `await waitForDialogFocus()` from `gui/web/src/test/dialogFocus.ts`
+(or `waitFor(() => expect(close).toHaveFocus())`) before touching a field. Do
+not sleep or retry. To check a dialog test for this race, run it with
+`requestAnimationFrame` delayed 5 to 60 ms; a test that waits on the observable
+focus passes at every delay.
+
 ### Document-command API contract
 
 Best practice: **one Pydantic source of truth**, publish + assert at every adapter.

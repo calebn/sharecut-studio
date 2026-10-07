@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
+import { waitForDialogFocus } from "../test/dialogFocus";
 import { CommandPaletteView } from "./CommandPaletteView";
 import type { CommandPaletteCategory } from "./commandPaletteRows";
 
@@ -200,6 +201,7 @@ describe("CommandPaletteView", () => {
         {...cbs}
       />,
     );
+    await waitForDialogFocus();
     await user.click(screen.getByLabelText("Show remaps"));
     const input = screen.getByLabelText("Remap Select tool");
     await user.type(input, "  x  ");
