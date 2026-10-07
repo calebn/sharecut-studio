@@ -6,7 +6,7 @@ Guide for building a desktop or web editor on top of Podcast MCP services and MC
 
 - **State:** `episode.project.json` is the source of truth for clips, pending edits, FX chains, and `editorial.edit_log`.
 - **Mutations:** Route all timeline changes through `EditService` / MCP tools or typed document commands (`POST /api/document/command` — never bare domain calls). Each mutation creates history snapshots. On the web client, `api.ts` exposes `submitDocumentCommand`; `services/commandQueue.ts` persists and orders host/guest edits, handles replay and conflicts, and applies successful results only for the active project. `api/documentTransport.ts` posts the command to the host or guest endpoint.
-- **Sharecut Studio today:** comments (incl. Ask threads on pending edits), pipeline, History Undo/Redo, pending Approve/Reject (incl. Impact bulk + host **Tighten** review of `filler:`/`pause:`/`repetition:`/`restart:` hits with an Intensity preset + Find hits (pipeline `analyze_fillers_pauses` only)), pending nudge, Current/Suggested/A/B audition, applied Restore, clip fades / join mode, Track FX bypass, Transcript Edit-mode correct/suppress/ignore, chapter/social marker CRUD, blade/delete, project/track/audio ingest via document commands, host **Menu → Share…** (live links, mint, revoke), host **Menu → Record room…** (lobby/consent/Start + local keepers + mix-minus), and host **Menu → Connect agent…** (local Streamable HTTP MCP URL) — [daw-editing.md](daw-editing.md), [share-tokens.md](share-tokens.md), [recording-session.md](recording-session.md).
+- **Sharecut Studio today:** comments (incl. Ask threads on pending edits), pipeline, History Undo/Redo, pending Approve/Reject (incl. Impact bulk + host **Tighten** review of `filler:`/`pause:`/`repetition:`/`restart:` hits with an Intensity preset + Find hits (pipeline `analyze_fillers_pauses` only)), pending nudge, Current/Suggested/A/B audition, applied Restore, clip fades / join mode, Track FX bypass, Transcript Edit-mode correct/suppress/ignore, chapter/social marker CRUD, blade/delete, project/track/audio ingest via document commands, host **Menu → Share…** (live links, mint, revoke), host **Menu → Record room…** (lobby/consent/Start + full-quality recording + mix-minus), and host **Menu → Connect agent…** (local Streamable HTTP MCP URL) — [daw-editing.md](daw-editing.md), [share-tokens.md](share-tokens.md), [recording-session.md](recording-session.md).
 - **Host MCP (local Streamable HTTP):** `gui/host_mcp.py` mounts the same `MCPServer` as stdio at `http://127.0.0.1:8765/mcp` (official `mcp` SDK). Tools apply to the open episode (`app.state.served_project`). See § Local host MCP.
 - **Remote MCP (share tokens):** `gui/routes/remote_mcp.py` + `services/remote_mcp/` — capability-scoped guest tools over JSON-RPC; mutations still go through `ShareService` / `DocumentSyncService` (no forked domain logic). See [host-online-relay.md](host-online-relay.md) § Remote MCP.
 - **Audio:** Rendered stems and premix live under `artifacts/`; undo restores project JSON only — call `render_preview` or `history_undo(rerender=true)` after undo.
@@ -605,8 +605,8 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit session width) require *
 | `POST /api/shares/record/{source_token}/replace` | Replace a closed record invite in the same room with its original role and expiry; host-only. |
 | `GET /api/record/state?path=` | Host record-room snapshot (404 if no room) |
 | `POST /api/record/command` | Host record command (`Start` / `Pause` / `Resume` / `Stop`) |
-| `GET /api/record/upload?path=` | Host keeper ACK status for **all** participants |
-| `POST /api/record/upload` | Host `p_host` keeper chunks (5 MB part cap) |
+| `GET /api/record/upload?path=` | Host full-quality recording ACK status for **all** participants |
+| `POST /api/record/upload` | Host `p_host` full-quality recording chunks (5 MB part cap) |
 | `POST /api/diagnostics/bundle` | Host-only sanitized diagnostics zip (`DiagnosticsService`; default `~/Downloads`; unique nonce in the filename) |
 | `GET /api/diagnostics/bundle/{name}` | Download a zip registered by this Studio session (filename allowlist; not a scan of `~/Downloads`) |
 | `POST /api/diagnostics/submit` | Host-only consented report submission; forwards only a bundle registered by this Studio process to `PODCAST_REPORT_RELAY_URL` |
@@ -649,7 +649,7 @@ Every review-link role holds `view`, so `/r/{token}` always opens Sharecut Studi
   `social_clips`, and strips transcript `words[]`; guest waveforms are the host's raw-media pyramid tiles (no stems, no PCM).
 - Record lobby (`/rec/{token}`) fetches `GET /api/rec/{token}/bootstrap` then
   connects `WS /api/rec/{token}/ws` (Join / Consent / roster / WebRTC Signal)
-  and, with `join`, `GET`/`POST /api/rec/{token}/upload` for keeper resume
+  and, with `join`, `GET`/`POST /api/rec/{token}/upload` for full-quality recording resume
   plus `DELETE` to revoke an ACK'd room-tone bed.
   Host DAW subscribes to the record plane on `WS /api/host/ws` and exposes
   `GET /api/record/state` + `POST /api/record/command` plus

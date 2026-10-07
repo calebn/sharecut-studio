@@ -63,8 +63,8 @@ using MCP; REST `/comments*` is the HTTP twin for clients that do not use docume
 | `GET` | `…rec/bootstrap` | `kind=record` | Record lobby bootstrap JSON (no review mix) |
 | `GET` | `…rec/features` | `kind=record` | Extension / feature manifest |
 | `DELETE` | `…rec/upload` | `join` | Revoke an ACK'd room-tone bed (kind=room_tone) |
-| `GET` | `…rec/upload` | `join` | Record keeper chunk ACK status (own participant) |
-| `POST` | `…rec/upload` | `join` | Record keeper chunk upload (sha256 + resume) |
+| `GET` | `…rec/upload` | `join` | Full-quality recording chunk ACK status (own participant) |
+| `POST` | `…rec/upload` | `join` | Full-quality recording chunk upload (sha256 + resume) |
 | `WEBSOCKET` | `…rec/ws` | `monitor` | Record room / live comments / WebRTC signal |
 
 <!-- /share-http-routes:generated -->

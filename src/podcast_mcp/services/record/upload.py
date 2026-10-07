@@ -1513,7 +1513,7 @@ class RecordUploadService:
                 out,
                 progress_task(
                     "record_upload_assemble",
-                    "Assembling record keeper",
+                    "Assembling full-quality recording",
                     total=len(parts),
                 ) as progress,
             ):

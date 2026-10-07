@@ -398,10 +398,11 @@ Step flows: [Guest journeys](#/journeys).
 
 ---
 
-## Guest / record (`/rec/{token}`) (lobby + keepers + mix-minus + landing + live comments shipped)
+## Guest / record (`/rec/{token}`) (lobby + full-quality recording + mix-minus + landing + live comments shipped)
 
-Lobby, consent, roster, REC/PAUSED, local dry WAV keepers, mix-minus
-monitor, chunk upload, timeline landing, and live comments ship.
+Lobby, consent, roster, REC/PAUSED, full-quality recording on each
+participant's device, mix-minus monitor, saving to the project, timeline
+landing, and live comments ship.
 Spec: [recording-session.md](../../docs/recording-session.md).
 Journeys: [Guest journeys § 6–7](#/journeys).
 
@@ -410,13 +411,13 @@ Journeys: [Guest journeys § 6–7](#/journeys).
 | **Record lobby** | Guest (recorded) | Name, headphones, mic test, device picker, recording-consent notice. Wait for host Start. **Shipped (no screenshot yet).** |
 | **Record lobby** | Producer | Name only; **Not recorded** roster group; no mic, no consent. **Shipped (no screenshot yet).** |
 | **Record lobby / room / panel** | Recorded guest and host | **Own** peak meter (sample peak only) with a latching clip LED and headroom hint; REC indicator gets a take **clip LED**; live clipping notice during REC and a **Clipping report** after Stop (host: **Jump to** on the timeline). Producers and Full room have none. |
-| **Record room** | Guest | Persistent **REC** / **PAUSED** + clock; mute (zeros on the keeper + send stops); roster; local-recording copy; **Hearing the room.** Upload until ACK, then host timeline clips. **Shipped (no screenshot yet).** |
-| **Record panel** | Host | Start / Pause / Resume / Stop / **Land**; upload ACK roster. File ACK auto-lands clips; Land retries. **Shipped (no screenshot yet).** |
-| **Record room** | Producer | Same REC/PAUSED + **Not recorded** group; mix-minus of recorded peers; no keeper / upload. **Shipped (no screenshot yet).** |
+| **Record room** | Guest | Persistent **REC** / **PAUSED** + clock; mute (silence in the full-quality recording + send stops); roster; "Recording in full quality on this device."; **Hearing the room.** Each segment reads "Saving to project…", then "Saved to project"; then host timeline clips. **Shipped (no screenshot yet).** |
+| **Record panel** | Host | Start / Pause / Resume / Stop / **Land**; a status line per recorded participant and segment ("Saving to project…", then "Saved to project"). A saved file auto-lands its clips; Land retries. **Shipped (no screenshot yet).** |
+| **Record room** | Producer | Same REC/PAUSED + **Not recorded** group; mix-minus of recorded peers; no full-quality recording, no saving status. **Shipped (no screenshot yet).** |
 | **Full room** | 5th recorded or 3rd producer | Full-room copy; never `getUserMedia`. **Shipped (no screenshot yet).** |
 | **Declined** | Guest who declined while REC/PAUSED | Declined copy; host may re-invite as producer. **Shipped (no screenshot yet).** |
-| **Host offline** | Recorded guest | “Host offline: still recording locally.” Keeper stays open. **Shipped with keepers.** |
-| **Native close confirmation** | Host or recorded guest in the desktop app | During REC, PAUSED, or finalizing, closing the native window asks for confirmation. Host copy warns that the session stops for everyone; guest copy warns about the local keeper. This is local desktop protection and sends no remote close command. The macOS app menu and **Cmd+Q** use the confirmation path; Dock **Quit** and OS shutdown remain best-effort. |
+| **Host offline** | Recorded guest | “Host offline: still recording locally.” The full-quality recording stays open. **Shipped with full-quality recording.** |
+| **Native close confirmation** | Host or recorded guest in the desktop app | During REC, PAUSED, or finalizing, closing the native window asks for confirmation. Host copy warns that the session stops for everyone; guest copy warns about the guest's full-quality recording. This is local desktop protection and sends no remote close command. The macOS app menu and **Cmd+Q** use the confirmation path; Dock **Quit** and OS shutdown remain best-effort. |
 
 Prefix `/rec/` 404s a review token.
 
@@ -447,7 +448,7 @@ Use this when auditing mocks:
 - [ ] Sheet Close + no stacking  
 - [x] Listen-first footer on every modifier (pending: Current / Suggested / A/B) 
 - [ ] Guest capability chrome  
-- [x] Record lobby / room / full / declined (`/rec/{token}`); keepers + mix-minus shipped  
+- [x] Record lobby / room / full / declined (`/rec/{token}`); full-quality recording + mix-minus shipped  
 - [ ] Empty comments / no transcript / no pending  
 
 ### Transcript speaker editing

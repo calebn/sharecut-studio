@@ -27,7 +27,7 @@ export function recoveryNotice(
   uploadAvailable = true,
 ): string {
   if (result.recovered === 0) {
-    return "No partial keeper needed recovery.";
+    return "No partial recording needed recovery.";
   }
   const segments = `${result.recovered} partial ${result.recovered === 1 ? "segment" : "segments"}`;
   const trimmed =
@@ -35,8 +35,8 @@ export function recoveryNotice(
       ? " An incomplete trailing sample was dropped from the end."
       : "";
   const next = uploadAvailable
-    ? "Upload will resume."
-    : "Download your local recording to keep a copy.";
+    ? "Saving to the project will resume."
+    : "Download your full-quality recording to keep a copy.";
   return `Recovered ${segments}. ${next}${trimmed}`;
 }
 

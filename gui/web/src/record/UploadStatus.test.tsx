@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import {
@@ -35,6 +35,7 @@ describe("UploadStatus", () => {
           uploading: false,
           pending: false,
           recoverable: false,
+          segments: [],
           error: null,
         }}
       />,
@@ -42,7 +43,7 @@ describe("UploadStatus", () => {
     expect(screen.getByText(KEEPER_RECLAIM_MISMATCH_COPY)).toBeInTheDocument();
     expect(screen.queryByText(UPLOAD_DONE_COPY)).not.toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Download local keeper" }),
+      screen.getByRole("button", { name: "Download full-quality recording" }),
     );
     expect(download).toHaveBeenCalledOnce();
     await expectNoA11yViolations(container);
@@ -67,6 +68,7 @@ describe("UploadStatus", () => {
           uploading: false,
           pending: false,
           recoverable: false,
+          segments: [],
           error: "Upload failed",
         }}
       />,
@@ -74,12 +76,14 @@ describe("UploadStatus", () => {
     expect(screen.getByText("Upload failed")).toBeInTheDocument();
     expect(screen.getByText(KEEPER_RECLAIM_MISMATCH_COPY)).toBeInTheDocument();
     expect(
-      screen.getAllByRole("button", { name: "Resume upload" }),
+      screen.getAllByRole("button", { name: "Resume saving" }),
     ).toHaveLength(1);
     expect(
-      screen.getAllByRole("button", { name: "Download local keeper" }),
+      screen.getAllByRole("button", {
+        name: "Download full-quality recording",
+      }),
     ).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Resume upload" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume saving" }));
     expect(onResume).toHaveBeenCalledOnce();
     await expectNoA11yViolations(container);
   });
@@ -101,16 +105,19 @@ describe("UploadStatus", () => {
           uploading: true,
           pending: false,
           recoverable: false,
+          segments: [],
           error: null,
         }}
       />,
     );
     expect(screen.getByText(uploadProgressCopy(1, 2))).toBeInTheDocument();
     expect(
-      screen.getAllByRole("button", { name: "Resume upload" }),
+      screen.getAllByRole("button", { name: "Resume saving" }),
     ).toHaveLength(1);
     expect(
-      screen.getAllByRole("button", { name: "Download local keeper" }),
+      screen.getAllByRole("button", {
+        name: "Download full-quality recording",
+      }),
     ).toHaveLength(1);
   });
 
@@ -129,11 +136,12 @@ describe("UploadStatus", () => {
           uploading: false,
           pending: false,
           recoverable: false,
+          segments: [],
           error: null,
         }}
       />,
     );
-    expect(screen.getByText(/not landed on the host/)).toBeInTheDocument();
+    expect(screen.getByText(/not on the timeline yet/)).toBeInTheDocument();
     expect(screen.getByText(KEEPER_RECLAIM_MISMATCH_COPY)).toBeInTheDocument();
   });
 
@@ -151,6 +159,7 @@ describe("UploadStatus", () => {
           uploading: true,
           pending: false,
           recoverable: false,
+          segments: [],
           error: null,
         }}
       />,
@@ -169,6 +178,7 @@ describe("UploadStatus", () => {
           uploading: false,
           pending: false,
           recoverable: false,
+          segments: [],
           error: null,
         }}
       />,
@@ -190,6 +200,7 @@ describe("UploadStatus", () => {
           uploading: false,
           pending: false,
           recoverable: false,
+          segments: [],
           error: null,
         }}
       />,
@@ -213,6 +224,7 @@ describe("UploadStatus", () => {
           uploading: false,
           pending: true,
           recoverable: false,
+          segments: [],
           error: null,
         }}
       />,
@@ -235,11 +247,12 @@ describe("UploadStatus", () => {
           uploading: false,
           pending: false,
           recoverable: false,
+          segments: [],
           error: null,
         }}
       />,
     );
-    expect(screen.getByText(/not landed on the host/)).toBeInTheDocument();
+    expect(screen.getByText(/not on the timeline yet/)).toBeInTheDocument();
     expect(screen.queryByText(UPLOAD_DONE_COPY)).not.toBeInTheDocument();
   });
 
@@ -257,11 +270,12 @@ describe("UploadStatus", () => {
           uploading: false,
           pending: false,
           recoverable: false,
+          segments: [],
           error: null,
         }}
       />,
     );
-    expect(screen.getByText(/waiting to land on the host/)).toBeInTheDocument();
+    expect(screen.getByText(/until the host lands it/)).toBeInTheDocument();
     expect(screen.queryByText(UPLOAD_DONE_COPY)).not.toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
@@ -284,13 +298,14 @@ describe("UploadStatus", () => {
           uploading: false,
           pending: false,
           recoverable: false,
+          segments: [],
           error: null,
         }}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Resume upload" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume saving" }));
     fireEvent.click(
-      screen.getByRole("button", { name: "Download local keeper" }),
+      screen.getByRole("button", { name: "Download full-quality recording" }),
     );
     expect(onResume).toHaveBeenCalledOnce();
     expect(onDownload).toHaveBeenCalledOnce();
@@ -313,16 +328,17 @@ describe("UploadStatus", () => {
           uploading: false,
           pending: false,
           recoverable: false,
+          segments: [],
           error: "No audio was captured for this take.",
         }}
       />,
     );
     expect(screen.getByText(/No audio was captured/)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Resume upload" }),
+      screen.getByRole("button", { name: "Resume saving" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Download local keeper" }),
+      screen.getByRole("button", { name: "Download full-quality recording" }),
     ).toBeInTheDocument();
   });
 
@@ -338,6 +354,7 @@ describe("UploadStatus", () => {
       uploading: false,
       pending: false,
       recoverable: true,
+      segments: [],
       error: "A readable partial keeper was retained.",
     };
     const { container, rerender } = render(
@@ -386,6 +403,7 @@ describe("UploadStatus", () => {
       uploading: false,
       pending: false,
       recoverable: true,
+      segments: [],
       error: "A readable partial keeper was retained.",
     };
     const { container } = render(
@@ -415,6 +433,7 @@ describe("UploadStatus", () => {
       uploading: false,
       pending: false,
       recoverable: false,
+      segments: [],
       error: null,
     };
     const { container, rerender } = render(
@@ -438,5 +457,111 @@ describe("UploadStatus", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "incomplete PCM frame",
     );
+  });
+
+  describe("per-segment status", () => {
+    const progress = {
+      acked: 2,
+      total: 4,
+      fileAck: false,
+      landed: false,
+      landFailed: false,
+      reclaimFailed: false,
+      uploading: true,
+      pending: false,
+      recoverable: false,
+      error: null,
+    };
+
+    it("lists each segment with Saved to project or Saving to project…", async () => {
+      const { container } = render(
+        <UploadStatus
+          stopped
+          progress={{
+            ...progress,
+            segments: [
+              {
+                take: 0,
+                segment: 0,
+                state: "saved",
+                chunks: null,
+                landFailed: false,
+              },
+              {
+                take: 0,
+                segment: 1,
+                state: "saving",
+                chunks: { acked: 1, total: 2 },
+                landFailed: false,
+              },
+            ],
+          }}
+        />,
+      );
+      const list = screen.getByRole("list", {
+        name: "Your full-quality recording status",
+      });
+      expect(
+        within(list)
+          .getAllByRole("listitem")
+          .map((item) => item.textContent),
+      ).toEqual([
+        "Take 1 segment 1: Saved to project",
+        "Take 1 segment 2: Saving to project… 1 of 2 chunks",
+      ]);
+      await expectNoA11yViolations(container);
+    });
+
+    it("omits the list when the host panel lists every participant itself", () => {
+      render(
+        <UploadStatus
+          stopped
+          segmentList={false}
+          progress={{
+            ...progress,
+            segments: [
+              {
+                take: 0,
+                segment: 0,
+                state: "saved",
+                chunks: null,
+                landFailed: false,
+              },
+              {
+                take: 0,
+                segment: 1,
+                state: "saving",
+                chunks: { acked: 1, total: 2 },
+                landFailed: false,
+              },
+            ],
+          }}
+        />,
+      );
+      expect(screen.queryByRole("list")).toBeNull();
+      expect(screen.getByText(uploadProgressCopy(2, 4))).toBeInTheDocument();
+    });
+
+    it("leaves one segment to the status line instead of a one-item list", () => {
+      render(
+        <UploadStatus
+          stopped
+          progress={{
+            ...progress,
+            segments: [
+              {
+                take: 0,
+                segment: 0,
+                state: "saving",
+                chunks: { acked: 2, total: 4 },
+                landFailed: false,
+              },
+            ],
+          }}
+        />,
+      );
+      expect(screen.queryByRole("list")).toBeNull();
+      expect(screen.getByText(uploadProgressCopy(2, 4))).toBeInTheDocument();
+    });
   });
 });

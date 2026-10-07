@@ -100,7 +100,7 @@ function legacyFinalized(
 }
 
 const NO_PCM_REASON =
-  "The interrupted keeper contains no committed PCM; download the retained local copy.";
+  "The interrupted full-quality recording has no saved audio; download the copy kept on this device.";
 
 /**
  * Classify one keeper segment. Complete segments are recognized from metadata
@@ -119,7 +119,7 @@ export async function inspectKeeperRecovery(
     if (await probeKeeperWav(sink, wavPath)) {
       return {
         kind: "unrecoverable",
-        reason: "The local keeper has no readable recovery metadata.",
+        reason: "This device's copy has no readable recovery information.",
       };
     }
     let absent = knownPrunedAbsent.get(sink);
@@ -134,14 +134,14 @@ export async function inspectKeeperRecovery(
   if (!meta) {
     return {
       kind: "unrecoverable",
-      reason: "The local keeper has no readable recovery metadata.",
+      reason: "This device's copy has no readable recovery information.",
     };
   }
   if (!keeperMetaMatchesPath(meta, wavPath)) {
     return {
       kind: "unrecoverable",
       reason:
-        "The local keeper has invalid placement metadata; download it before leaving.",
+        "This device's copy has invalid placement information; download it before leaving.",
     };
   }
   if (meta.complete === true) {
@@ -182,7 +182,7 @@ export async function inspectKeeperRecovery(
     return {
       kind: "unrecoverable",
       reason:
-        "The interrupted keeper is not a readable PCM WAV; download the retained local copy.",
+        "The interrupted full-quality recording is not a readable WAV; download the copy kept on this device.",
     };
   }
   const available = probe.size - header.dataOffset;
@@ -217,7 +217,9 @@ export async function recoverKeeperSegment(
   } else {
     const wav = await sink.read(wavPath);
     if (!wav || wav.byteLength < byteLength) {
-      throw new Error("The retained local keeper changed during recovery.");
+      throw new Error(
+        "The full-quality recording kept on this device changed during recovery.",
+      );
     }
     const recovered = wav.slice(0, byteLength);
     recovered.set(header, 0);
@@ -225,7 +227,9 @@ export async function recoverKeeperSegment(
   }
   const finalized = await sink.read(wavPath);
   if (!finalized || finalized.byteLength !== byteLength) {
-    throw new Error("The retained local keeper changed during recovery.");
+    throw new Error(
+      "The full-quality recording kept on this device changed during recovery.",
+    );
   }
   await writeKeeperMeta(sink, wavPath, {
     ...plan.meta,
@@ -364,7 +368,7 @@ export async function downloadLocalKeepers(
         );
         const suffix = complete ? "" : "-partial";
         entries.push({
-          filename: `keeper-${takeIndex}-${segmentIndex}${suffix}.wav`,
+          filename: `full-quality-take-${takeIndex + 1}-segment-${segmentIndex + 1}${suffix}.wav`,
           data: blob,
         });
         downloaded += 1;
@@ -386,12 +390,12 @@ export async function downloadLocalKeepers(
     if (downloaded === 0) {
       throw new Error(
         pruned > 0
-          ? `${pruned} local keeper ${plural(pruned, "segment")} expired after seven days; no local copy is available to download.`
-          : "No local keeper copy is available to download.",
+          ? `${pruned} ${plural(pruned, "segment")} of your full-quality recording expired after seven days; no copy is available to download.`
+          : "No full-quality recording is available to download.",
       );
     }
     const archive = await makeKeeperArchive(entries);
-    downloadBlob(archive, `keepers-${participantId}.zip`);
+    downloadBlob(archive, `full-quality-recordings-${participantId}.zip`);
     if (missing > 0 || pruned > 0) {
       const losses = [
         missing > 0
@@ -402,7 +406,7 @@ export async function downloadLocalKeepers(
           : null,
       ].filter(Boolean);
       throw new Error(
-        `Downloaded ${downloaded} local keeper ${plural(downloaded, "copy", "copies")}; ${losses.join("; ")}.`,
+        `Downloaded ${downloaded} full-quality ${plural(downloaded, "recording")}; ${losses.join("; ")}.`,
       );
     }
   });

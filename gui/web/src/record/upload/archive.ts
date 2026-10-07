@@ -42,7 +42,8 @@ async function crc32(data: Blob): Promise<number> {
 export async function makeKeeperArchive(
   entries: KeeperArchiveEntry[],
 ): Promise<Blob> {
-  if (entries.length === 0) throw new Error("No keeper files to archive.");
+  if (entries.length === 0)
+    throw new Error("No full-quality recordings to archive.");
   const files: BlobPart[] = [];
   const directory: BlobPart[] = [];
   let fileOffset = 0n;
@@ -50,7 +51,7 @@ export async function makeKeeperArchive(
   for (const { filename, data } of entries) {
     const name = encoder.encode(filename);
     if (name.byteLength > 0xffff)
-      throw new Error("Keeper filename is too long.");
+      throw new Error("A full-quality recording filename is too long.");
     const size = BigInt(data.size);
     const checksum = await crc32(data);
     const [local, localView] = view(30 + name.byteLength + 20);

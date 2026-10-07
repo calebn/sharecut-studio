@@ -71,7 +71,9 @@ describe("createSyncWriterHandler", () => {
       offset: 0,
     });
     expect(out).toMatchObject({ type: "error", id: 2 });
-    expect(out.type === "error" && out.message).toMatch(/short write/);
+    expect(out.type === "error" && out.message).toBe(
+      "The full-quality recording writer wrote 1 of 4 bytes",
+    );
   });
 
   it("rejects a write before open", async () => {

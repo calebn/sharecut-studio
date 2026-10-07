@@ -125,17 +125,25 @@ async function expectRecoveryDownloads(page: Page): Promise<void> {
       path: download.path(),
     }),
   );
-  await page.getByRole("button", { name: "Download local keeper" }).click();
+  await page
+    .getByRole("button", { name: "Download full-quality recording" })
+    .click();
   await expect.poll(() => downloads.length).toBe(1);
-  expect(downloads[0]?.name).toMatch(/^keepers-p_.*\.zip$/);
+  expect(downloads[0]?.name).toMatch(/^full-quality-recordings-p_.*\.zip$/);
   const archive = await readFile(await downloads[0]!.path);
   expect(archive.readUInt32LE(0)).toBe(0x0403_4b50);
-  expect(archive.includes(Buffer.from("keeper-0-1-partial.wav"))).toBe(true);
-  expect(archive.includes(Buffer.from("keeper-0-3-partial.wav"))).toBe(true);
+  expect(
+    archive.includes(Buffer.from("full-quality-take-1-segment-2-partial.wav")),
+  ).toBe(true);
+  expect(
+    archive.includes(Buffer.from("full-quality-take-1-segment-4-partial.wav")),
+  ).toBe(true);
   // Segment 0 is exported if still local or skipped if reclaimed after
   // landing; either way only the never-written segment 2 is missing.
   await expect(
-    page.getByText(/Downloaded [23] local keeper copies; 1 missing segment /),
+    page.getByText(
+      /Downloaded [23] full-quality recordings; 1 missing segment /,
+    ),
   ).toBeVisible();
 }
 
@@ -144,7 +152,7 @@ test.use({
 });
 
 test.describe("record lobby", () => {
-  test("host and guest can download surviving local keepers in Chromium", async ({
+  test("host and guest can download surviving full-quality recordings in Chromium", async ({
     browser,
   }: {
     browser: Browser;
@@ -391,13 +399,13 @@ test.describe("record lobby", () => {
           await expect(guest.locator(".record-rec-label")).toHaveText("REC");
           await expect(producer.locator(".record-rec-label")).toHaveText("REC");
           await expect(
-            guest.getByText("Recording locally on this device."),
+            guest.getByText("Recording in full quality on this device."),
           ).toBeVisible();
           await expect(guest.getByText("Hearing the room.")).toBeVisible();
           await expect(producer.getByText("Hearing the room.")).toBeVisible();
           await expect(roomDlg.getByText("Hearing the room.")).toBeVisible();
           await expect(
-            roomDlg.getByText("Recording locally on this device."),
+            roomDlg.getByText("Recording in full quality on this device."),
           ).toBeVisible();
           for (const page of [host, guest]) {
             expect(await beforeUnloadIsBlocked(page)).toBe(true);
@@ -414,10 +422,10 @@ test.describe("record lobby", () => {
           expect(guest.url()).toBe(guestUrl);
           await expect(guest.locator(".record-rec-label")).toHaveText("REC");
           await expect(
-            guest.getByText("Recording locally on this device."),
+            guest.getByText("Recording in full quality on this device."),
           ).toBeVisible();
           await expect(
-            producer.getByText("Recording locally on this device."),
+            producer.getByText("Recording in full quality on this device."),
           ).toHaveCount(0);
           await expect
             .poll(async () => guest.locator(".record-clock").innerText(), {
@@ -595,7 +603,7 @@ test.describe("record lobby", () => {
           "recording",
         );
         await expect(
-          roomDlg.getByText("Recording locally on this device."),
+          roomDlg.getByText("Recording in full quality on this device."),
         ).toBeVisible();
         await roomDlg
           .getByRole("button", { name: "Close", exact: true })
@@ -666,7 +674,7 @@ test.describe("record lobby", () => {
         ).toHaveCount(0);
         await expect(
           roomDlg.getByText(
-            "Microphone disconnected. Local recording is paused.",
+            "Microphone disconnected. Full-quality recording is paused.",
           ),
         ).toBeVisible();
         await expect(
@@ -686,7 +694,7 @@ test.describe("record lobby", () => {
           .click();
         await expect(
           roomDlg.getByText(
-            "Microphone disconnected. Local recording is paused.",
+            "Microphone disconnected. Full-quality recording is paused.",
           ),
         ).toBeHidden();
         await expect(
@@ -783,14 +791,14 @@ test.describe("record lobby", () => {
           .click();
         await expect(
           guest.getByText(
-            "Microphone disconnected. Local recording is paused.",
+            "Microphone disconnected. Full-quality recording is paused.",
           ),
         ).toHaveCount(0);
         await expect(indicator).toContainText("REC", { timeout: 5_000 });
         await expect(indicator.locator(".record-rec-dot")).toHaveCount(1);
         await expect(
           guest.getByText(
-            "Microphone disconnected. Local recording is paused.",
+            "Microphone disconnected. Full-quality recording is paused.",
           ),
         ).toHaveCount(0);
 
@@ -1089,7 +1097,7 @@ test.describe("record lobby", () => {
           );
           await expect(guest.locator(".record-rec-label")).toHaveText("REC");
           await expect(
-            guest.getByText("Recording locally on this device."),
+            guest.getByText("Recording in full quality on this device."),
           ).toBeVisible();
           await expect(producer.getByText("Hearing the room.")).toBeVisible({
             timeout: 15_000,
@@ -1175,7 +1183,7 @@ test.describe("record lobby", () => {
             guest.getByRole("button", { name: "Leave" }),
           ).toBeEnabled();
           const uploadList = roomDlg.getByRole("list", {
-            name: "Upload status",
+            name: "Full-quality recording status",
           });
 
           // Producers never open a local keeper, so the recordings dir never exists.
@@ -1199,13 +1207,11 @@ test.describe("record lobby", () => {
           await expect(uploadList.getByText(/^Pat:/)).toHaveCount(0);
           await expect(
             guest.getByText(
-              "Landed on the host. The local backup is cleared automatically.",
+              "Saved to project and on the timeline. This device's copy clears automatically.",
             ),
           ).toBeVisible({ timeout: 30_000 });
           await expect(
-            producer.getByText(
-              /Uploading your take|Uploaded; waiting to land on the host/,
-            ),
+            producer.getByText(/Saving to project|Saved to project/),
           ).toHaveCount(0);
 
           await expect

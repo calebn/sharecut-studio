@@ -80,7 +80,7 @@ Torch / speaker / joinqc are **not** exposed in the GUI.
 
 ## Closing while recording
 
-While a local host or guest keeper is active or finalizing, the web client
+While a host or guest full-quality recording is active or finalizing, the web client
 writes `sc_close_guard=host|guest` into its loopback URL. The native Tauri host
 reads that marker during `CloseRequested` and `ExitRequested`, prevents the
 request synchronously, and displays a role-aware native confirmation dialog.
@@ -93,14 +93,14 @@ After confirmation it calls `WebviewWindow.destroy()` and exits the app; a
 cancel keeps the window and recording open. An unreadable, malformed, or
 duplicated marker is treated conservatively and still requires confirmation.
 The marker survives a WebView reload until a room snapshot confirms it is safe
-to clear, and a failed keeper finalization leaves confirmation armed.
+to clear, and a failed full-quality recording finalization leaves confirmation armed.
 If the microphone disappears as Stop arrives, the guard remains armed until
 the local WAV and metadata flush completes. If the main WebView handle is
 unavailable, native close and exit requests are blocked conservatively.
 An unguarded window close routes through app exit while its WebView is still
 available for a final guard check. Guest producers and guests who declined
-recording do not receive a keeper warning from room state alone.
-A successful retry clears a current keeper finalization warning; an older
+recording do not receive a full-quality recording warning from room state alone.
+A successful retry clears a current full-quality recording finalization warning; an older
 session's failed disposal stays armed because a new session cannot repair its
 WAV. New/Open project navigation is blocked while the marker is armed (and, in a plain browser tab, which gets no marker, while that tab reports the same recording risk in page memory), and
 Home does not clear a marker carried from a recording room. The sidecar starts unpinned, so the first window shows Home; once a project is open, reloading `/` returns to it (the pinned-root redirect keeps `sc_close_guard`), and only Studio New project unpins. If a

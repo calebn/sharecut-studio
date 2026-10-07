@@ -25,7 +25,6 @@ import {
 } from "./micPermission";
 import { RecordPanel } from "./RecordPanel";
 import {
-  hostUploadLine,
   RECORD_ROOM_RECONNECTING_COPY,
   ROOM_TONE_PROMPT_COPY,
   storageLowCopy,
@@ -405,7 +404,7 @@ describe("RecordPanel", () => {
     });
     render(<RecordPanel micStatus="denied" />);
     expect(
-      await screen.findByText(/No local keeper was captured/),
+      await screen.findByText(/No full-quality recording was captured/),
     ).toBeVisible();
   });
 
@@ -442,12 +441,12 @@ describe("RecordPanel", () => {
     render(<RecordPanel />);
     expect(
       await screen.findByText(
-        "Local recording backup is unavailable. Check that this browser or app environment allows local storage, then retry.",
+        "This device can't store your full-quality recording. Check that this browser or app allows local storage, then retry.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
     await userEvent.click(
-      screen.getByRole("button", { name: "Retry local backup" }),
+      screen.getByRole("button", { name: "Retry storage check" }),
     );
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Start" })).toBeEnabled(),
@@ -469,7 +468,9 @@ describe("RecordPanel", () => {
     });
     render(<RecordPanel />);
     expect(
-      screen.getByText("Preparing local recording backup…"),
+      screen.getByText(
+        "Preparing device storage for your full-quality recording…",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
     finish(new MemorySink());
@@ -488,7 +489,7 @@ describe("RecordPanel", () => {
     render(<RecordPanel />);
     expect(
       await screen.findByText(
-        "Local recording backup is unavailable because this browser or app environment does not support OPFS. Use a compatible browser, then retry.",
+        "This device can't store your full-quality recording because this browser or app does not support private file storage. Use a compatible browser, then retry.",
       ),
     ).toBeInTheDocument();
   });
@@ -687,13 +688,13 @@ describe("RecordPanel", () => {
       />,
     );
     expect(
-      screen.queryByText("Recording locally on this device."),
+      screen.queryByText("Recording in full quality on this device."),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Hearing the room.")).toBeInTheDocument();
     expect(screen.getByText(/OPFS unavailable/)).toBeInTheDocument();
     expect(screen.getByText("REC: local capture failed")).toBeInTheDocument();
     await userEvent.click(
-      screen.getByRole("button", { name: "Retry local recording" }),
+      screen.getByRole("button", { name: "Retry full-quality recording" }),
     );
     expect(retry).toHaveBeenCalledOnce();
     await expectNoA11yViolations(container);
@@ -757,7 +758,9 @@ describe("RecordPanel", () => {
     const dialog = await screen.findByRole("dialog", { name: "Record room" });
     expect(dialog).toHaveTextContent("REC: no audio");
     expect(dialog).toHaveTextContent("No audio is reaching the recorder.");
-    expect(dialog).not.toHaveTextContent("Recording locally on this device.");
+    expect(dialog).not.toHaveTextContent(
+      "Recording in full quality on this device.",
+    );
     expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "Check mic" }));
     expect(check).toHaveBeenCalledOnce();
@@ -829,7 +832,7 @@ describe("RecordPanel", () => {
     });
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Microphone disconnected. Local recording is paused.",
+      "Microphone disconnected. Full-quality recording is paused.",
     );
     await expectNoA11yViolations(container);
   });
@@ -869,11 +872,9 @@ describe("RecordPanel", () => {
     });
     render(<RecordPanel />);
     expect(
-      await screen.findByText(hostUploadLine("Ava", true, 2)),
+      await screen.findByText("Ava: Saved to project"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(hostUploadLine("Host", false, 1)),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Host: Saving to project…")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
     const land = screen.getByRole("button", { name: "Land" });
     expect(land).toBeEnabled();
@@ -921,9 +922,11 @@ describe("RecordPanel", () => {
     });
     render(<RecordPanel />);
     expect(
-      await screen.findByText(hostUploadLine("Ava", true, 1)),
+      await screen.findByText("Ava: Saved to project"),
     ).toBeInTheDocument();
-    const list = screen.getByRole("list", { name: "Upload status" });
+    const list = screen.getByRole("list", {
+      name: "Full-quality recording status",
+    });
     expect(within(list).getAllByRole("listitem")).toHaveLength(2);
     expect(within(list).queryByText(/Pat/)).toBeNull();
     expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
@@ -995,7 +998,7 @@ describe("RecordPanel", () => {
       await act(async () => release());
       expect(
         await screen.findByText(
-          "Recovered 1 partial segment. Download your local recording to keep a copy.",
+          "Recovered 1 partial segment. Download your full-quality recording to keep a copy.",
         ),
       ).toBeInTheDocument();
       expect(
@@ -1026,7 +1029,7 @@ describe("RecordPanel", () => {
       expect(useRecordHostStore.getState().keeperStorageError).toBeNull();
       expect(useRecordHostStore.getState().keeperSink).toBe(sink);
       expect(
-        screen.queryByRole("button", { name: "Retry local backup" }),
+        screen.queryByRole("button", { name: "Retry storage check" }),
       ).toBeNull();
     });
   });
@@ -1040,7 +1043,9 @@ describe("RecordPanel", () => {
     });
     render(<RecordPanel />);
     await new Promise((resolve) => window.setTimeout(resolve, 0));
-    expect(screen.queryByText(/No local keeper was captured/i)).toBeNull();
+    expect(
+      screen.queryByText(/No full-quality recording was captured/i),
+    ).toBeNull();
   });
 
   it("posts a live marker while recording", async () => {

@@ -2,23 +2,26 @@
 name: podcast-record-session
 description: >-
   Host a live recording room: mint guest/producer links, watch the lobby roster
-  and consent, then Start / Pause / Resume / Stop. Consented talent writes a
-  local dry WAV keeper (OPFS), hears mix-minus, and chunk-uploads to the host
-  until ACK. After ACK, keepers land as timeline clips — not review shares
-  (`/r/` tokens).
+  and consent, then Start / Pause / Resume / Stop. Consented talent records a
+  full-quality recording on their own device, hears mix-minus, and saves it to
+  the project ("Saving to project…", then "Saved to project"). Once saved,
+  the recordings land as timeline clips — not review shares (`/r/` tokens).
 ---
 
-# Record session (lobby + keepers + mix-minus + upload + landing + live comments)
+# Record session (lobby + full-quality recording + mix-minus + saving + landing + live comments)
 
 A record room is share **kind** `record` at `/rec/{token}`. Guest and producer
 are two tokens on one `session_id`. Consented recorded clients (guest + host)
-write uncompressed 48 kHz / 16-bit mono WAV keepers on device, hear remote
-peers only (mix-minus), and chunk-upload keepers to the host until ACK.
-After ACK the host copies each segment into `raw/` and registers one clip at
+record an uncompressed 48 kHz / 16-bit mono WAV on their own device (the
+full-quality recording; "keeper" in code and schema only), hear remote peers
+only (mix-minus), and save it to the host's project in chunks until the file
+ACK. Say "Saving to project…" while a segment is in flight and "Saved to
+project" once the host holds the verified file, per participant and segment.
+After that the host copies each segment into `raw/` and registers one clip at
 `take_offset_s + join_offset_ms / 1000` (2 s gap between takes). During REC or
 PAUSED, everyone can add a live comment (`M` → `body` `"Marker"`; typed notes
 use the same path). Comments land as ordinary `review.comments[]` at
-`take_offset_s + recording_ms / 1000`. Producers never capture, send, or upload.
+`take_offset_s + recording_ms / 1000`. Producers never capture, send, or save a recording.
 
 ## Harness
 
@@ -29,11 +32,11 @@ use the same path). Comments land as ordinary `review.comments[]` at
 | `create_record_room_tool` | Mint guest + producer links |
 | `record_state_tool` | Roster, take clock, `start_blockers`, consent |
 | `record_start_tool` | Host Start (blocked until connected guests consent) |
-| `record_pause_tool` / `record_resume_tool` | Freeze / unfreeze the recording clock (and keeper segments) |
+| `record_pause_tool` / `record_resume_tool` | Freeze / unfreeze the recording clock (and full-quality recording segments) |
 | `record_stop_tool` | End the current take |
 | `record_marker_tool` | Stamp the open take now (`body` default `"Marker"`); lands as a timeline comment |
-| `record_land_tool` | Copy ACK'd keepers into `raw/` + clips (idempotent; also runs on file ACK). Refused with "Stop the take to land it on the timeline." while a take is recording or paused |
-| `record_discard_take_tool` | Delete a terminal take (refused while upload is in flight) |
+| `record_land_tool` | Land saved full-quality recordings into `raw/` + clips (idempotent; also runs on file ACK). Refused with "Stop the take to land it on the timeline." while a take is recording or paused |
+| `record_discard_take_tool` | Delete a terminal take (refused while its recordings are still saving) |
 | `revoke_record_room_tool` | End both links |
 
 **CLI:**
@@ -58,13 +61,13 @@ podcast record discard-take --project episode.project.json --take-index 0
    silent listener.
 2. Open the host **Record room** panel (Menu → Record room…, or Share →
    **Open room panel**). The host browser will ask for a mic; that dry tap is
-   the host keeper (`p_host`).
+   the host's full-quality recording (`p_host`).
 3. Guests enter a name, check headphones, click **Allow microphone**, preview
    the mic, optionally record 3 s of room tone (or Skip), then **Accept**
    consent. Accept stays disabled until the mic is granted. Room tone stays on
-   this device until Accept; the encoder is armed on Accept and writes **zero
+   this device until Accept; the recorder is armed on Accept and writes **zero
    bytes** until Start. Producers enter a name and
-   **Join** (no mic, no room tone, no consent, no keeper).
+   **Join** (no mic, no room tone, no consent, no full-quality recording).
 4. `record_state_tool` / the panel: Start stays disabled while `start_blockers`
    is non-empty. Each row has a `code`:
    - `{"code": "no_guest"}` — no connected guest yet (host alone does not count).
@@ -77,19 +80,20 @@ podcast record discard-take --project episode.project.json --take-index 0
    recording`. With no room, the panel's **Create record room** mints one in
    place (same as `create_record_room_tool`).
 5. Start → every client shows **REC** and a recording clock; recorded clients
-   show **Recording locally on this device.** Everyone who is connected hears
+   show **Recording in full quality on this device.** Everyone who is connected hears
    the room (**Hearing the room.**). Pause freezes the clock (PAUSED)
-   and the current keeper segment; the monitor stays live. Resume opens a new
+   and the current full-quality recording segment; the monitor stays live. Resume opens a new
    segment. Stop (the panel asks once: **Stop take** or **Keep recording**) ends
-   the take (Stopped) and keeps a **blocking upload panel**
-   until chunk ACK. Mute writes zeros (file stays continuous) and stops that
+   the take (Stopped) and keeps a **blocking saving panel**
+   ("Saving to project… N of M chunks", then "Saved to project") until the
+   file ACK; the host panel lists the same status per participant and segment. Mute writes zeros (file stays continuous) and stops that
    person's send. **M** (or the Marker button) posts a live comment with body
    `"Marker"`; typed notes use the same path. Guests see only their own comments
    in the room (other guests never see them there). Host DAW `daw.record.marker`
    is `omit.guest` because guests use RecordApp, not the host catalog. Host and
    producer see all live comments. After land they become ordinary timeline
    comments on the host.
-6. After ACK, keepers land on the host timeline (`raw/` + one clip per
+6. Once saved, the recordings land on the host timeline (`raw/` + one clip per
    segment). Same `participant_id` is one track. Takes stack with a 2 s gap.
    Happy path skips `ingest suggest`. Land reports sample-count vs
    recording-clock `drift_ms` (`null` if unknown); `|drift| > 50 ms` or a
@@ -111,7 +115,7 @@ podcast record discard-take --project episode.project.json --take-index 0
    the same `/rec/` link reuses
    the host-minted `participant_id` + lease (7-day recovery window). A second
    tab is rejected (`lease_in_use`).
-   If the tunnel drops during REC, guests keep writing locally ("Host offline —
+   If the tunnel drops during REC, guests keep recording on their device ("Host offline —
    still recording locally."). After ≥ 10 s the host return **pauses** the take
    (`pause_reason: host_reconnect`); Resume starts a new segment. Do not mint a
    second room while REC/PAUSED — Stop first.
@@ -120,8 +124,8 @@ podcast record discard-take --project episode.project.json --take-index 0
 
 - Roles come from the token. Guests cannot Start/Pause/Stop. Producers cannot
   Consent or mute, and never call `getUserMedia`.
-- Keepers upload over `POST /api/rec/{token}/upload` (`join` only) with resume
-  on the same token. After ACK, tell the user the tracks are on the host
+- Full-quality recordings save over `POST /api/rec/{token}/upload` (`join` only) with resume
+  on the same token. Once "Saved to project" and landed, tell the user the tracks are on the host
   timeline (`podcast record land` / `record_land_tool` if a retry is needed).
   Mix-minus is live (`build.monitor: true`). `build.upload` follows `join`
   (producers stay `false`).

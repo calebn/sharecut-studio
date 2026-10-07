@@ -1,6 +1,7 @@
 import { plural } from "../utils/format";
 import { MAX_CLIP_REGIONS } from "./keeper/clipRegions";
 import type { LiveComment } from "./liveCommentQueue";
+import { SAVE_STATE_COPY } from "./saveStatus";
 
 export type { LiveComment } from "./liveCommentQueue";
 
@@ -22,9 +23,9 @@ export type RecordParticipant = {
 };
 
 /**
- * One upload segment's ack state as the host roster reads it. Transport
- * status rows (`RecordUploadStatus.segments`) extend this with take/segment
- * indices.
+ * One upload segment's ack state as the host's status list reads it. Transport
+ * status rows (`RecordUploadStatus.segments`, `SegmentAckRow`) extend this with
+ * take/segment indices.
  */
 export type RecordSegmentAck = {
   participant_id: string;
@@ -78,7 +79,7 @@ export type RecordSnapshot = {
 };
 
 export const CONSENT_COPY =
-  "This session will be recorded locally on your device. Files stay on this browser until they finish uploading to the host after you Accept. Producers/listeners may be present and are shown in the roster.";
+  "This session will be recorded in full quality on your device. After you Accept, your full-quality recording stays in this browser until it finishes saving to the host's project. Producers/listeners may be present and are shown in the roster.";
 
 export const FULL_ROOM_COPY = "This room is full (4 recorded / 2 producers).";
 
@@ -146,9 +147,9 @@ export function shouldApplyRecordSnapshot(
   return incomingNs != null && incomingNs >= currentNs;
 }
 
-export const LOCAL_KEEPER_COPY = "Recording locally on this device.";
+export const LOCAL_KEEPER_COPY = "Recording in full quality on this device.";
 export const KEEPER_RECLAIM_MISMATCH_COPY =
-  "This local keeper could not be verified against the landed file, so its WAV was retained. Download the local keeper before leaving.";
+  "This device's copy could not be checked against the file saved to the project, so it was kept. Download your full-quality recording before leaving.";
 export const RECONNECT_MIC_COPY = "Reconnect microphone";
 export const NO_AUDIO_COPY = "No audio is reaching the recorder.";
 export const CHECK_MIC_COPY = "Check mic";
@@ -157,37 +158,38 @@ export const MIC_CHECK_FAILED_COPY =
 
 export const HEARING_COPY = "Hearing the room.";
 
-export const UPLOAD_COPY = "Uploading your take… Keep this tab open.";
+export const UPLOAD_COPY = `${SAVE_STATE_COPY.saving} Keep this tab open.`;
 
 export function uploadProgressCopy(acked: number, total: number): string {
   if (total <= 0) {
     return UPLOAD_COPY;
   }
-  return `Uploading your take… ${acked}/${total} chunks. Keep this tab open.`;
+  return `${SAVE_STATE_COPY.saving} ${acked} of ${total} ${plural(total, "chunk")}. Keep this tab open.`;
 }
 
 export const UPLOAD_DONE_COPY =
-  "Landed on the host. The local backup is cleared automatically.";
+  "Saved to project and on the timeline. This device's copy clears automatically.";
 export const UPLOAD_STALLED_COPY =
-  "Upload stalled. Resume the upload or download the local keeper copy.";
+  "Saving stalled. Resume saving, or download your full-quality recording.";
 export const KEEPER_ALL_RECLAIMED_COPY =
-  "Every recorded segment landed on the host and its local copy was cleared, so there is nothing left to download.";
+  "Every segment of your full-quality recording is saved to the project and cleared from this device, so there is nothing left to download.";
 export const KEEPER_RECLAIM_FAILED_COPY =
-  "Landed on the host, but this browser could not clear the local backup. Free device storage manually before recording again.";
+  "Saved to project, but this browser could not clear this device's copy. Free device storage manually before recording again.";
 export const STORAGE_UNKNOWN_COPY =
-  "Storage availability could not be checked. Check your device's free space before recording; if upload fails, download the local keeper.";
+  "Storage availability could not be checked. Check your device's free space before recording; if saving to the project fails, download your full-quality recording.";
 export function storageLowCopy(minutes: number): string {
-  return `Local recording storage is low (estimated space for about ${minutes} minutes of audio). Free space before recording; if upload fails, download the local keeper.`;
+  return `Device storage is low (room for about ${minutes} minutes of full-quality recording). Free space before recording; if saving to the project fails, download your full-quality recording.`;
 }
 export const UPLOAD_WAITING_TO_LAND_COPY =
-  "Uploaded; waiting to land on the host. Keep the local backup.";
+  "Saved to project. This device keeps its copy until the host lands it on the timeline.";
 export const UPLOAD_LAND_FAILED_COPY =
-  "Uploaded but not landed on the host. Keep the local backup; ask the host to retry landing.";
+  "Saved to project, but not on the timeline yet. This device keeps its copy; ask the host to Retry land.";
 export const UPLOAD_SINK_ERROR_COPY =
-  "Local recording backup is unavailable. Check that this browser or app environment allows local storage, then retry.";
+  "This device can't store your full-quality recording. Check that this browser or app allows local storage, then retry.";
 export const OPFS_UNAVAILABLE_COPY =
-  "Local recording backup is unavailable because this browser or app environment does not support OPFS. Use a compatible browser, then retry.";
-export const LOCAL_KEEPER_PENDING_COPY = "Preparing local recording backup…";
+  "This device can't store your full-quality recording because this browser or app does not support private file storage. Use a compatible browser, then retry.";
+export const LOCAL_KEEPER_PENDING_COPY =
+  "Preparing device storage for your full-quality recording…";
 export const UPLOAD_STATUS_ID = "record-upload-status";
 
 export const ROOM_TONE_DURATION_SEC = 3;
@@ -199,32 +201,6 @@ export const ROOM_TONE_CAPTURING_COPY = "Recording room tone…";
 /** Guest Accept requires record or skip. Host Start does not: idle is an implicit skip. */
 export const ROOM_TONE_GATE_COPY = "Record or skip room tone before accepting.";
 export const ROOM_TONE_NOT_READY_COPY = "Room tone capture is not ready yet.";
-
-export function hostUploadLine(
-  name: string,
-  fileAck: boolean,
-  ackedParts: number,
-  expectedParts: number | null = null,
-  landed = false,
-  landFailed = false,
-): string {
-  if (landFailed) {
-    return `${name}: landing failed. The host must retry.`;
-  }
-  if (landed) {
-    return `${name}: landed.`;
-  }
-  if (fileAck) {
-    return `${name}: uploaded; waiting to land.`;
-  }
-  if (expectedParts != null) {
-    return `${name}: ${ackedParts}/${expectedParts} ${plural(expectedParts, "chunk")} acked.`;
-  }
-  if (ackedParts <= 0) {
-    return `${name}: waiting to upload.`;
-  }
-  return `${name}: ${ackedParts} ${plural(ackedParts, "chunk")} acked.`;
-}
 
 /** The capture problem a REC surface shows while recording. */
 export type CaptureHealth = "pending" | "failed" | "silent" | null;

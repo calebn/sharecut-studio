@@ -37,7 +37,7 @@ wrapper code were reviewed where they determine visible states.
 | Resolved comments, muted track metadata and status labels had insufficient contrast | Preserve state backgrounds/borders and use readable text roles instead of whole-surface opacity or decorative ink. Contrast-enabled browser checks cover both themes. |
 | Guest status controls opened unavailable host panels | Render host-only status summaries as text for guests; retain the supported Comments action. Test adapter and view permissions. |
 | Applied edit restore failures misreported access restrictions as missing source clocks | Distinguish permission and data failures; test the access matrix and restore callbacks. |
-| Keeper recovery promised upload after access/transport ended | Report download advice when upload is unavailable. Tests interrupt real in-memory keeper recovery and cover guest terminal access and host transport loss. |
+| Full-quality recording recovery promised saving to the project after access/transport ended | Report download advice when saving is unavailable. Tests interrupt real in-memory recovery and cover guest terminal access and host transport loss. |
 | Empty-to-joined rosters stayed silent; multiple changes overwrote announcements | Track initial hydration separately and announce subsequent joins/departures together. |
 | Startup error paths overflowed the native splash | Add viewport metadata, token padding and text wrapping. Check long paths at 360px and 820px in both themes. |
 | Several story wrappers overflowed outside their intended app context | Cap preview widths and put the ruler in its production scroll context. Wide Transport states remain desktop previews; Collapsed is the narrow composition. |

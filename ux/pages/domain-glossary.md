@@ -85,15 +85,15 @@ Clips are the bridge. The product should rarely ask users to convert clocks manu
 | **Still sending** | Approve or Reject that stayed in the offline queue instead of being applied | browser storage `host-queue-count:{projectPath}` / `queue:{token}` | Status under the button (Tighten Apply / Skip announce it instead); clears when the queue is empty (sent, or refused into Needs attention) |
 | **Presence** | Connected viewers/agents | session `clients[]` | Transport avatar stack, ghost cursors, status bar names, phone More → People |
 | **Remote MCP URL** | Agent entry for a share | share row `mcp_url` → `{base}/mcp/{token}/mcp` | External MCP clients only |
-| **Record link** | Studio join URL (shipped) | `/rec/{token}` + share `kind` | Record lobby / room; keepers + mix-minus + landing shipped |
-| **Keeper** | Local dry WAV per recorded participant | guest OPFS / host `raw/` after ACK | Record session; timeline clips after landing; landing verifies keepers before taking the project lock, so edits stay responsive while a large take lands |
+| **Record link** | Studio join URL (shipped) | `/rec/{token}` + share `kind` | Record lobby / room; full-quality recording + mix-minus + landing shipped |
+| **Full-quality recording** | Each recorded participant's lossless WAV, captured on their own device and saved to the project during the session. Status per participant and segment: "Saving to project…", then "Saved to project". "Keeper" is the code and schema name only | guest OPFS / host `raw/` after the file ACK (a "keeper" in code) | Record session; timeline clips after landing; landing verifies each recording before taking the project lock, so edits stay responsive while a large take lands |
 | **Mix-minus** | Monitor plays remotes only (shipped) | Web Audio speaker bus + WebRTC mesh | Record lobby / live room |
-| **Consent gate** | Per-person step before any keeper bytes (shipped) | `record_snapshot` in `sync.db` | Record lobby |
+| **Consent gate** | Per-person step before any full-quality recording audio is written (shipped) | `record_snapshot` in `sync.db` | Record lobby |
 | **Take** | One Start→Stop; lands sequentially | `takes[]` in record snapshot | Record room; timeline after landing |
 | **Pause** | Host stops the recording clock; monitor stays live; paused time collapses | `pauses[]` in record snapshot | Record room (PAUSED) |
 | **Producer** | Joins to listen and comment; not recorded | record role `producer`; "Not recorded" roster group | Record room roster |
 | **Live marker (comment)** | Comment added during recording (`M` → `body` `"Marker"`); not a chapter marker | session sync until landing → `review.comments[]` | Record room; then Listen / Comments; stored with its record command in one step, so a failed marker never half-applies |
-| **Segment** | One continuous stretch of a keeper; leave/rejoin/pause → one clip each | `segments[]` per participant per take | Timeline clips after landing |
+| **Segment** | One continuous stretch of a full-quality recording; leave/rejoin/pause → one clip each | `segments[]` per participant per take | Timeline clips after landing |
 
 ---
 

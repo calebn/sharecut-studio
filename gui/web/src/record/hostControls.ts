@@ -24,7 +24,7 @@ export type StartFix = "copyGuestLink" | "retryStorage";
 
 export const START_FIX_LABEL = {
   copyGuestLink: "Copy guest link",
-  retryStorage: "Retry local backup",
+  retryStorage: "Retry storage check",
 } as const satisfies Record<StartFix, string>;
 
 /** A host Start blocker with its words and, when the host can fix it, the fix. */

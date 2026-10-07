@@ -571,16 +571,16 @@ describe("RecordApp", () => {
     );
     render(<RecordApp token="guest-tok" />);
     await screen.findByText(
-      "Local recording backup is unavailable. Check that this browser or app environment allows local storage, then retry.",
+      "This device can't store your full-quality recording. Check that this browser or app allows local storage, then retry.",
     );
     expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
     await userEvent.click(
-      screen.getByRole("button", { name: "Retry local backup" }),
+      screen.getByRole("button", { name: "Retry storage check" }),
     );
     await waitFor(() => expect(createOpfsSink).toHaveBeenCalledTimes(2));
     expect(
       screen.queryByText(
-        "Local recording backup is unavailable. Check that this browser or app environment allows local storage, then retry.",
+        "This device can't store your full-quality recording. Check that this browser or app allows local storage, then retry.",
       ),
     ).not.toBeInTheDocument();
   });
@@ -600,7 +600,9 @@ describe("RecordApp", () => {
     );
     render(<RecordApp token="guest-tok" />);
     expect(
-      await screen.findByText("Preparing local recording backup…"),
+      await screen.findByText(
+        "Preparing device storage for your full-quality recording…",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
   });
@@ -619,7 +621,7 @@ describe("RecordApp", () => {
     render(<RecordApp token="guest-tok" />);
     expect(
       await screen.findByText(
-        "Local recording backup is unavailable because this browser or app environment does not support OPFS. Use a compatible browser, then retry.",
+        "This device can't store your full-quality recording because this browser or app does not support private file storage. Use a compatible browser, then retry.",
       ),
     ).toBeInTheDocument();
   });
@@ -791,18 +793,20 @@ describe("RecordApp", () => {
       sockets[0]?.onclose?.({ code: 4403 });
       await screen.findByText("Your access to this recording room has ended.");
       await userEvent.click(
-        await screen.findByRole("button", { name: "Recover local recording" }),
+        await screen.findByRole("button", {
+          name: "Recover full-quality recording",
+        }),
       );
       expect(
         await screen.findByText(
-          "Recovered 1 partial segment. Download your local recording to keep a copy.",
+          "Recovered 1 partial segment. Download your full-quality recording to keep a copy.",
         ),
       ).toBeInTheDocument();
       expect(
         parseKeeperMeta(await sink.read(keeperMetaPath(wavPath)))?.complete,
       ).toBe(true);
       expect(
-        screen.getByRole("button", { name: "Download local recording" }),
+        screen.getByRole("button", { name: "Download full-quality recording" }),
       ).toBeEnabled();
       expect(screen.queryByText(/Upload will resume/)).toBeNull();
       expect(puts).toEqual([]);
@@ -828,7 +832,7 @@ describe("RecordApp", () => {
       ).toBeInTheDocument();
       expect(screen.queryByText(UPLOAD_SINK_ERROR_COPY)).toBeNull();
       expect(
-        screen.queryByRole("button", { name: /Retry local backup/ }),
+        screen.queryByRole("button", { name: /Retry storage check/ }),
       ).toBeNull();
     });
   });
@@ -983,7 +987,9 @@ describe("RecordApp", () => {
     });
     const stream = await getUserMedia.mock.results[0].value;
     await waitFor(() => expect(stream.getTracks()[0].stop).toHaveBeenCalled());
-    await screen.findByRole("button", { name: "Download local recording" });
+    await screen.findByRole("button", {
+      name: "Download full-quality recording",
+    });
     await expectNoA11yViolations(container);
   });
 

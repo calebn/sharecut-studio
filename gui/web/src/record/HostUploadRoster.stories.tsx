@@ -1,6 +1,19 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { recordParticipant } from "../test/fixtures";
 import { HostUploadRoster } from "./HostUploadRoster";
+import type { SegmentAckRow } from "./saveStatus";
+import type { RecordSegmentAck } from "./types";
+
+// List one participant's segments in order; each gets take 0 and its own
+// segment index, as the host status endpoint reports them.
+const rows = (list: RecordSegmentAck[]): SegmentAckRow[] => {
+  const next = new Map<string, number>();
+  return list.map((row) => {
+    const segment_index = next.get(row.participant_id) ?? 0;
+    next.set(row.participant_id, segment_index + 1);
+    return { take_index: 0, segment_index, ...row };
+  });
+};
 
 // Factories, not shared constants: each story gets fresh objects so a future
 // `play` function cannot leak mutations into sibling stories.
@@ -39,13 +52,13 @@ const meta: Meta<typeof HostUploadRoster> = {
 export default meta;
 type Story = StoryObj<typeof HostUploadRoster>;
 
-export const Uploading: Story = {
+export const Saving: Story = {
   args: {
     participants: [host(), guest()],
-    segments: [
+    segments: rows([
       { participant_id: "host-1", acked_parts: [0, 1, 2], file_ack: false },
       { participant_id: "guest-1", acked_parts: [0, 1], file_ack: false },
-    ],
+    ]),
     stopped: false,
   },
 };
@@ -53,7 +66,7 @@ export const Uploading: Story = {
 export const ExpectedParts: Story = {
   args: {
     participants: [host(), guest()],
-    segments: [
+    segments: rows([
       {
         participant_id: "host-1",
         acked_parts: [0, 1, 2],
@@ -66,33 +79,33 @@ export const ExpectedParts: Story = {
         expected_parts: 4,
         file_ack: false,
       },
-    ],
+    ]),
     stopped: true,
   },
   parameters: {
     docs: {
       description: {
         story:
-          "Segments declare their chunk total, so each line shows acked / expected progress.",
+          'Segments declare their chunk total, so each line reads "Saving to project… N of M chunks".',
       },
     },
   },
 };
 
-export const UploadedAwaitingLand: Story = {
+export const SavedAwaitingLand: Story = {
   args: {
     participants: [host(), guest()],
-    segments: [
+    segments: rows([
       { participant_id: "host-1", acked_parts: [0, 1, 2], file_ack: true },
       { participant_id: "guest-1", acked_parts: [0, 1], file_ack: true },
-    ],
+    ]),
     stopped: true,
   },
   parameters: {
     docs: {
       description: {
         story:
-          "Every file is acknowledged but the host has not landed it into the project yet.",
+          "Every file is saved to the project, but the host has not landed it on the timeline yet.",
       },
     },
   },
@@ -101,7 +114,7 @@ export const UploadedAwaitingLand: Story = {
 export const Landed: Story = {
   args: {
     participants: [host(), guest()],
-    segments: [
+    segments: rows([
       {
         participant_id: "host-1",
         acked_parts: [0, 1, 2],
@@ -114,7 +127,7 @@ export const Landed: Story = {
         file_ack: true,
         landed: true,
       },
-    ],
+    ]),
     stopped: true,
   },
 };
@@ -122,7 +135,7 @@ export const Landed: Story = {
 export const LandFailed: Story = {
   args: {
     participants: [host(), guest()],
-    segments: [
+    segments: rows([
       {
         participant_id: "host-1",
         acked_parts: [0, 1, 2],
@@ -135,7 +148,7 @@ export const LandFailed: Story = {
         file_ack: true,
         land_failed: true,
       },
-    ],
+    ]),
     stopped: true,
   },
 };
@@ -143,7 +156,7 @@ export const LandFailed: Story = {
 export const MultipleSegments: Story = {
   args: {
     participants: [host(), guest()],
-    segments: [
+    segments: rows([
       {
         participant_id: "host-1",
         acked_parts: [0, 1],
@@ -163,14 +176,14 @@ export const MultipleSegments: Story = {
         landed: true,
       },
       { participant_id: "guest-1", acked_parts: [0], file_ack: false },
-    ],
+    ]),
     stopped: true,
   },
   parameters: {
     docs: {
       description: {
         story:
-          "Segments fold per participant: a line reads uploaded or landed only when every segment does, while acked chunks sum across segments. Ada's two landed segments read landed; Bo still has one segment in flight.",
+          'Each segment gets its own line, named by take and segment so the lines stay distinguishable. Ada\'s two segments both read "Saved to project"; Bo\'s second segment is still "Saving to project…".',
       },
     },
   },
@@ -179,10 +192,10 @@ export const MultipleSegments: Story = {
 export const UnknownParticipant: Story = {
   args: {
     participants: [host()],
-    segments: [
+    segments: rows([
       { participant_id: "host-1", acked_parts: [0], file_ack: true },
       { participant_id: "p_left_early", acked_parts: [0, 1], file_ack: true },
-    ],
+    ]),
     stopped: true,
   },
   parameters: {
@@ -198,7 +211,9 @@ export const UnknownParticipant: Story = {
 export const ProducerExcluded: Story = {
   args: {
     participants: [host(), producer()],
-    segments: [{ participant_id: "host-1", acked_parts: [0], file_ack: true }],
+    segments: rows([
+      { participant_id: "host-1", acked_parts: [0], file_ack: true },
+    ]),
     stopped: true,
   },
   parameters: {
@@ -222,20 +237,22 @@ export const TwelveTakeParticipants: Story = {
         connected: index >= 9,
       }),
     ),
-    segments: Array.from({ length: 12 }, (_, index) => ({
-      participant_id: `take-guest-${index + 1}`,
-      acked_parts: [0, 1],
-      expected_parts: 3,
-      file_ack: index < 8,
-      landed: index < 5,
-    })),
+    segments: rows(
+      Array.from({ length: 12 }, (_, index) => ({
+        participant_id: `take-guest-${index + 1}`,
+        acked_parts: [0, 1],
+        expected_parts: 3,
+        file_ack: index < 8,
+        landed: index < 5,
+      })),
+    ),
     stopped: true,
   },
   parameters: {
     docs: {
       description: {
         story:
-          "Twelve participants across earlier takes stress the upload roster without exceeding the four-at-once room cap.",
+          "Twelve participants across earlier takes stress the save status list without exceeding the four-at-once room cap.",
       },
     },
   },
@@ -266,7 +283,7 @@ export const StressLongNamesMobile: Story = {
       }),
       producer(),
     ],
-    segments: [
+    segments: rows([
       {
         participant_id: "p_0",
         acked_parts: [0, 1, 2, 3],
@@ -293,7 +310,7 @@ export const StressLongNamesMobile: Story = {
         landed: true,
       },
       { participant_id: "p_orphan_segment_id", acked_parts: [0, 1] },
-    ],
+    ]),
     stopped: true,
   },
   parameters: {

@@ -450,6 +450,7 @@ export function RecordPanel({
           <UploadStatus
             progress={upload}
             stopped={state === "stopped"}
+            segmentList={false}
             onResume={() => setUploadRetryNonce((value) => value + 1)}
             actions={keeperActions}
           />
@@ -491,7 +492,7 @@ export function RecordPanel({
           {keeperError ? (
             <>
               <p className="record-warn">
-                Local recording stopped: {keeperError}
+                Full-quality recording stopped: {keeperError}
               </p>
               {onRetryKeeper ? (
                 <Button
@@ -499,14 +500,14 @@ export function RecordPanel({
                   onClick={onRetryKeeper}
                   disabled={!recording}
                 >
-                  Retry local recording
+                  Retry full-quality recording
                 </Button>
               ) : null}
               {!recording ? (
                 <p>
                   {paused
-                    ? "Resume the take before retrying local recording."
-                    : "Start a new take before retrying local recording."}
+                    ? "Resume the take before retrying full-quality recording."
+                    : "Start a new take before retrying full-quality recording."}
                 </p>
               ) : null}
             </>
@@ -520,7 +521,7 @@ export function RecordPanel({
                   void retryHostKeeperStorage().catch(() => undefined);
                 }}
               >
-                Retry local backup
+                Retry storage check
               </Button>
             </>
           ) : null}

@@ -95,7 +95,7 @@ def record_marker(
 
 @record_app.command("land")
 def record_land(project: Path = typer.Option(..., "--project")) -> None:
-    """Copy ACK'd keepers into raw/ and place clips on the timeline."""
+    """Land saved full-quality recordings into raw/ and place clips on the timeline."""
     _run(project, "land")
 
 
@@ -104,5 +104,5 @@ def record_discard_take(
     project: Path = typer.Option(..., "--project"),
     take_index: int = typer.Option(..., "--take-index"),
 ) -> None:
-    """Delete a terminal take before landing; refused while upload is in flight."""
+    """Delete a terminal take before landing; refused while its recordings are still saving."""
     _invoke(project, lambda ctrl: ctrl.discard_take(take_index))

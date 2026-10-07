@@ -27,4 +27,4 @@ export function keeperSettingsMatch(
 }
 
 export const KEEPER_SETTINGS_WARNING =
-  "This browser still applied capture processing to the keeper tap. Dry WAV may not be raw.";
+  "This browser still applied capture processing to your full-quality recording, so it may not be raw.";

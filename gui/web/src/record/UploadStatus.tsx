@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Button } from "../ui";
+import { ownSaveLines } from "./saveStatus";
 import {
   KEEPER_RECLAIM_FAILED_COPY,
   KEEPER_RECLAIM_MISMATCH_COPY,
@@ -28,7 +29,7 @@ function RecoveryActions({
     <span className="cluster">
       {onResume ? (
         <Button type="button" onClick={onResume}>
-          Resume upload
+          Resume saving
         </Button>
       ) : null}
       {actions?.download ? (
@@ -37,7 +38,7 @@ function RecoveryActions({
           onClick={actions.download}
           aria-disabled={busy || undefined}
         >
-          Download local keeper
+          Download full-quality recording
         </Button>
       ) : null}
       {canRecover && actions?.recover ? (
@@ -74,6 +75,7 @@ export function UploadStatus({
   alive = true,
   onResume,
   actions,
+  segmentList = true,
 }: {
   progress: RecordUploadProgress;
   stopped: boolean;
@@ -81,6 +83,8 @@ export function UploadStatus({
   onResume?: () => void;
   /** Keeper download / recovery; the Recover rule is owned here. */
   actions?: KeeperRecoveryActions;
+  /** The host panel lists every participant's segments itself, host included. */
+  segmentList?: boolean;
 }) {
   const canRecover = stopped && progress.recoverable;
   let status: ReactNode = null;
@@ -120,9 +124,25 @@ export function UploadStatus({
       </div>
     );
   }
+  // One segment reads as the status line above; a list only earns its place
+  // when several segments could each be in a different state.
+  const segmentLines =
+    segmentList && progress.segments.length > 1
+      ? ownSaveLines(progress.segments)
+      : [];
   return (
     <>
       {status}
+      {segmentLines.length > 0 ? (
+        <ul
+          aria-label="Your full-quality recording status"
+          className="record-roster"
+        >
+          {segmentLines.map((line) => (
+            <li key={line.key}>{line.text}</li>
+          ))}
+        </ul>
+      ) : null}
       {progress.reclaimMismatch ? (
         <div className="record-warn" role="status">
           <p>{KEEPER_RECLAIM_MISMATCH_COPY}</p>

@@ -110,7 +110,7 @@ export { pruneExpiredKeeperWavs } from "./maintenance";
 export class OpfsUnavailableError extends Error {
   constructor() {
     super(
-      "Local recording backup is unavailable because this browser or app environment does not support OPFS.",
+      "This device can't store your full-quality recording because this browser or app does not support private file storage.",
     );
     this.name = "OpfsUnavailableError";
   }
@@ -426,7 +426,8 @@ export class MemorySink implements ByteSink {
     byteLength: number,
   ): Promise<void> {
     const current = this.files.get(path);
-    if (!current) throw new Error("keeper file not found");
+    if (!current)
+      throw new Error("The full-quality recording file was not found");
     const next = new Uint8Array(byteLength);
     next.set(current.subarray(0, byteLength));
     next.set(header.subarray(0, byteLength), 0);
