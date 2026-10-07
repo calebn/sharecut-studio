@@ -26,6 +26,7 @@ import {
   snapMoveDeltaSec,
   trackIdFromPoint,
 } from "../edit/clipMove";
+import { useShortTouchScreen } from "../hooks/useShortTouchScreen";
 import { useStaleRenderBreakdown } from "../hooks/useStaleRenderBreakdown";
 import { presenceColorVar } from "../presence/colors";
 import { useProsodyOverlayViews } from "../prosody/useProsodyOverlay";
@@ -88,9 +89,11 @@ import { BladeGuide, FollowPlayheadChip } from "./TimelineLeaves";
 import { TimeRuler } from "./TimeRuler";
 import { TrackLane } from "./TrackLane";
 import {
+  type LaneFit,
   markerLaneHeight,
   markerRows,
   resolveLaneHeight,
+  shortTouchFloorPx,
   TimelineGestureProvider,
   TimelineMetricsProvider,
   useGestureStable,
@@ -428,7 +431,23 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       layers.showComments,
     ],
   );
-  const liveMarkerLaneHeightPx = markerLaneHeight(liveRows);
+  const shortTouchScreen = useShortTouchScreen();
+  const touchLanes = fixedPlayhead || pointerKind === "coarse";
+  const shortFloorPx = shortTouchScreen
+    ? shortTouchFloorPx(
+        Number.parseFloat(
+          getComputedStyle(document.documentElement).fontSize,
+        ) || 16,
+      )
+    : null;
+  const laneFit = useMemo<LaneFit>(
+    () =>
+      shortFloorPx != null
+        ? { kind: "touchShort", floorPx: shortFloorPx }
+        : { kind: touchLanes ? "touch" : "pointer" },
+    [shortFloorPx, touchLanes],
+  );
+  const liveMarkerLaneHeightPx = markerLaneHeight(liveRows, laneFit);
   const trackCount = project?.tracks.length ?? 0;
   const [fittedLaneHeight, setFittedLaneHeight] = useState(LANE_HEIGHT);
   const fittedLaneHeightRef = useRef(LANE_HEIGHT);
@@ -438,10 +457,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     markerLaneHeightPx: liveMarkerLaneHeightPx,
     mode: laneHeightMode,
     fixedPx: laneHeightPx,
-    minimumPx:
-      fixedPlayhead || pointerKind === "coarse"
-        ? COMPACT_LANE_HEIGHT
-        : LANE_HEIGHT,
+    fit: laneFit,
   });
   const refitLanes = useCallback(() => {
     const inputs = fitInputsRef.current;
@@ -454,7 +470,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
         inputs.markerLaneHeightPx -
         FIT_GUTTER,
       trackCount: inputs.trackCount,
-      minimumPx: inputs.minimumPx,
+      fit: inputs.fit,
     });
     useDawStore.getState().setDrawnLaneHeightPx(next);
     if (next !== fittedLaneHeightRef.current) {
@@ -472,10 +488,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
       markerLaneHeightPx: liveMarkerLaneHeightPx,
       mode: laneHeightMode,
       fixedPx: laneHeightPx,
-      minimumPx:
-        fixedPlayhead || pointerKind === "coarse"
-          ? COMPACT_LANE_HEIGHT
-          : LANE_HEIGHT,
+      fit: laneFit,
     };
     refitLanes();
   }, [
@@ -483,8 +496,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     liveMarkerLaneHeightPx,
     laneHeightMode,
     laneHeightPx,
-    fixedPlayhead,
-    pointerKind,
+    laneFit,
     refitLanes,
   ]);
 
