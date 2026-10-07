@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { setEnvelope } from "../api";
-import { isShareProjectKey } from "../shareMode";
+import { canEditEnvelopes } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { AutomationEnvelope, Selection } from "../types/project";
@@ -35,14 +35,23 @@ export function EnvelopeOverlay({
   width,
   onSelectTrack,
 }: EnvelopeOverlayProps) {
-  const { projectPath, projectEpoch, selection, setSelection, announceStatus } =
-    useDaw((s) => ({
-      projectPath: s.projectPath,
-      projectEpoch: s.projectEpoch,
-      selection: s.selection,
-      setSelection: s.setSelection,
-      announceStatus: s.announceStatus,
-    }));
+  const {
+    projectPath,
+    guestMode,
+    shareCapabilities,
+    projectEpoch,
+    selection,
+    setSelection,
+    announceStatus,
+  } = useDaw((s) => ({
+    projectPath: s.projectPath,
+    guestMode: s.guestMode,
+    shareCapabilities: s.shareCapabilities,
+    projectEpoch: s.projectEpoch,
+    selection: s.selection,
+    setSelection: s.setSelection,
+    announceStatus: s.announceStatus,
+  }));
   const selectionRevision = useRef(0);
   useEffect(
     () =>
@@ -67,7 +76,7 @@ export function EnvelopeOverlay({
   const holdGeometry = useTimelineGestureHold() ?? undefined;
 
   const points = sortedVolumePoints(envelopes, trackId);
-  const editable = !isShareProjectKey(projectPath);
+  const editable = canEditEnvelopes(projectPath, guestMode, shareCapabilities);
   const selectedPointId =
     selection?.kind === "envelopePoint" && selection.trackId === trackId
       ? selection.pointId

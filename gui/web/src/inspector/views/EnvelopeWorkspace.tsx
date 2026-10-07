@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { setEnvelope } from "../../api";
 import { useMountedRef } from "../../hooks/useMountedRef";
-import { isShareProjectKey } from "../../shareMode";
+import { canEditEnvelopes } from "../../shareMode";
 import { useDawStore } from "../../state/dawStore";
 import { useDaw } from "../../state/useDaw";
 import type { AutomationPoint } from "../../types/project";
@@ -32,21 +32,28 @@ export function EnvelopeWorkspace({
   trackId: string;
   pointId: string | null;
 }) {
-  const { project, projectPath, projectEpoch, setSelection } = useDaw(
-    (state) => ({
-      project: state.project,
-      projectPath: state.projectPath,
-      projectEpoch: state.projectEpoch,
-      setSelection: state.setSelection,
-    }),
-  );
+  const {
+    project,
+    projectPath,
+    guestMode,
+    shareCapabilities,
+    projectEpoch,
+    setSelection,
+  } = useDaw((state) => ({
+    project: state.project,
+    projectPath: state.projectPath,
+    guestMode: state.guestMode,
+    shareCapabilities: state.shareCapabilities,
+    projectEpoch: state.projectEpoch,
+    setSelection: state.setSelection,
+  }));
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<EnvelopeError | null>(null);
   const [collisionId, setCollisionId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const mounted = useMountedRef();
-  const editable = !isShareProjectKey(projectPath);
+  const editable = canEditEnvelopes(projectPath, guestMode, shareCapabilities);
   const track = project?.tracks.find((item) => item.id === trackId);
   const points = sortedVolumePoints(project?.envelopes, trackId);
   const rawPoints = () =>
