@@ -522,6 +522,10 @@ held sideways). Taller tablets and desktop keep their inspector.
   (`compactInspectorView`, persisted per browser at
   `sharecut.compactInspector`). Expanded, the sheet is at most half its slot
   and leaves room for the transport, ruler, marker lane and one coarse lane.
+  A selection made inside the open plain sheet, such as a point saved from a
+  track's envelope form, stays in that sheet until it closes, so the form
+  keeps its layout and focus instead of turning into the strip. The drawer's
+  scroll padding equals its pinned header, so Tab focus never lands under it.
 - **Keep the selection in view.** The timeline scroller gets bottom padding as
   deep as the strip or sheet covers it, and scrolls the selected target above
   it. Sideways, the sheet takes the bottom tabs' place while it is open, so

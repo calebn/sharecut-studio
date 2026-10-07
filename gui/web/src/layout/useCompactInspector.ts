@@ -9,13 +9,14 @@
  * Phone-sized: the phone shell's Timeline mode, or the tablet shell on a
  * short screen (a phone held sideways). Real tablets keep their sheet.
  */
-import { type ComponentProps, useLayoutEffect } from "react";
+import { type ComponentProps, useLayoutEffect, useState } from "react";
 import {
   mediaQuerySubscription,
   useMediaQueryStore,
 } from "../hooks/useMediaQueryStore";
 import { type PeekTarget, peekTarget } from "../inspector/peekTarget";
 import { useDaw } from "../state/useDaw";
+import type { Selection } from "../types/project";
 import type { BottomSheet } from "../ui/BottomSheet";
 import {
   COMPACT_SHEET_CLASS,
@@ -102,7 +103,28 @@ export function useCompactInspector(
   );
   const applies =
     shell === "phone" ? mobileMode === "timeline" : shell === "tablet" && short;
-  const peek = applies && project ? peekTarget(project, selection, hit) : null;
+  // A selection made inside the open plain sheet (a point saved from a
+  // track's envelope form) stays in that sheet until it closes, so the form
+  // the user is working in keeps its layout and focus. Derived while
+  // rendering, so the sheet never flashes the strip.
+  const candidate =
+    applies && project ? peekTarget(project, selection, hit) : null;
+  const [seen, setSeen] = useState<{
+    selection: Selection;
+    plain: boolean;
+    held: boolean;
+  }>({ selection: null, plain: false, held: false });
+  let held = seen.held;
+  if (seen.selection !== selection) {
+    held =
+      selection != null && (seen.held || (candidate != null && seen.plain));
+    setSeen({
+      selection,
+      held,
+      plain: applies && selection != null && (held || candidate == null),
+    });
+  }
+  const peek = held ? null : candidate;
   const locate = peek?.locate ?? null;
 
   const active = locate != null && !stowed;
