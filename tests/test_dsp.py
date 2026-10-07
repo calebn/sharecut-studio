@@ -11,6 +11,8 @@ from podcast_mcp.util.dsp import (
     bridge_short_dips,
     db_to_amplitude,
     frame_band_db,
+    frame_db_stream,
+    frame_peak_db,
     frame_rms_db,
     frame_rms_db_stream,
     high_band_energy_fraction,
@@ -57,6 +59,26 @@ def test_frame_rms_db_stream_matches_whole_array(chunk_size):
     chunks = [x[i : i + chunk_size] for i in range(0, x.size, chunk_size)]
 
     np.testing.assert_array_equal(frame_rms_db_stream(chunks, 400, 160), frame_rms_db(x, 400, 160))
+
+
+def test_frame_peak_db_reads_a_click_the_rms_averages_away() -> None:
+    x = np.zeros(800, dtype=np.float32)
+    x[500] = 0.01
+
+    assert frame_peak_db(x, 400, 400).tolist() == [-200.0, pytest.approx(-40.0)]
+    assert frame_rms_db(x, 400, 400)[1] == pytest.approx(-66.0, abs=0.1)
+    assert frame_peak_db(x[:10], 400, 100).size == 0
+
+
+@pytest.mark.parametrize("chunk_size", [1, 399, 401, 5000])
+def test_frame_db_stream_runs_every_reducer_in_one_pass(chunk_size):
+    x = np.random.default_rng(3).uniform(-1, 1, 4321).astype(np.float32)
+    chunks = [x[i : i + chunk_size] for i in range(0, x.size, chunk_size)]
+
+    rms, peak = frame_db_stream(chunks, 400, 160, (frame_rms_db, frame_peak_db))
+
+    np.testing.assert_array_equal(rms, frame_rms_db(x, 400, 160))
+    np.testing.assert_array_equal(peak, frame_peak_db(x, 400, 160))
 
 
 def test_frame_rms_db_stream_empty_and_zero_frame():

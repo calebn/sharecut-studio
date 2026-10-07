@@ -9,9 +9,10 @@ from pathlib import Path
 import numpy as np
 
 from podcast_mcp.edits.bleed_latency import FRAME_SEC, HOP_SEC
-from podcast_mcp.engines.envelope_lag import level_envelope_db
+from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB, level_envelope_db
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.util.dsp import frame_peak_db
 
 RATE = 8000
 DURATION_SEC = 240.0
@@ -69,6 +70,15 @@ def tracks(
 def levels(audio: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     return {
         name: level_envelope_db(samples, sample_rate=RATE, frame_sec=FRAME_SEC, hop_sec=HOP_SEC)
+        for name, samples in audio.items()
+    }
+
+
+def peaks(audio: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+    """Each frame's sample peak (dB) on the :func:`levels` grid."""
+    frame, hop = round(FRAME_SEC * RATE), round(HOP_SEC * RATE)
+    return {
+        name: np.maximum(frame_peak_db(samples, frame, hop), LEVEL_FLOOR_DB)
         for name, samples in audio.items()
     }
 

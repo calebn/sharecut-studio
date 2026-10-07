@@ -43,16 +43,21 @@ def _clips(ws: ProjectWorkspace, track_id: str) -> list[tuple[str, float, float,
 
 
 def test_latency_step_at_a_silence_is_two_segments() -> None:
-    levels = bh.levels(_stepped())
+    audio = _stepped()
+    levels = bh.levels(audio)
 
     segments = lag_segments(
-        levels["audra"], _from(levels["caleb"], 0.14), heard=levels["audra"], deadband_sec=0.02
+        levels["audra"],
+        _from(levels["caleb"], 0.14),
+        heard=levels["audra"],
+        heard_peak=bh.peaks(audio)["audra"],
+        deadband_sec=0.02,
     )
 
     assert segments is not None
     assert [(round(s.start_sec, 2), s.shift_sec, s.gap_sec) for s in segments] == [
         (0.0, -0.12, None),
-        (182.81, -0.2, (152.535, 213.09)),
+        (182.81, -0.2, (152.535, 213.085)),
     ]
 
 
@@ -90,7 +95,11 @@ def test_a_step_is_judged_against_its_merged_neighbours() -> None:
     levels = bh.levels(audio)
 
     segments = lag_segments(
-        levels["audra"], _from(levels["caleb"], 0.15), heard=levels["audra"], deadband_sec=0.02
+        levels["audra"],
+        _from(levels["caleb"], 0.15),
+        heard=levels["audra"],
+        heard_peak=bh.peaks(audio)["audra"],
+        deadband_sec=0.02,
     )
 
     assert segments is not None
@@ -117,7 +126,11 @@ def test_a_short_clear_stretch_keeps_its_own_lag() -> None:
     levels = bh.levels(audio)
 
     segments = lag_segments(
-        levels["audra"], _from(levels["caleb"], 0.15), heard=levels["audra"], deadband_sec=0.02
+        levels["audra"],
+        _from(levels["caleb"], 0.15),
+        heard=levels["audra"],
+        heard_peak=bh.peaks(audio)["audra"],
+        deadband_sec=0.02,
     )
 
     assert segments is not None
@@ -149,7 +162,10 @@ def test_a_blip_is_noise_and_an_easing_is_a_step() -> None:
     source[at : at + 8] = click
     mic[early : early + 8] = click - 20.0
 
-    segments = lag_segments(source, _from(mic, 0.15), heard=source, deadband_sec=0.02)
+    # The click is drawn on the envelopes; its RMS frames stand in for its peaks.
+    segments = lag_segments(
+        source, _from(mic, 0.15), heard=source, heard_peak=source, deadband_sec=0.02
+    )
 
     assert segments is not None
     assert [(round(s.start_sec, 1), round(-s.shift_sec * 1000)) for s in segments] == [
@@ -166,12 +182,14 @@ def test_steps_show_through_the_other_voice_on_the_lane_mic() -> None:
     raw = bh.tracks(bleed={"audra": {"caleb": 0.0}})
     cut = round(116.6 * bh.RATE)
     late = np.concatenate([bh.delay(raw["audra"], 0.12)[:cut], bh.delay(raw["audra"], 0.2)[cut:]])
-    levels = bh.levels({"audra": late, "caleb": raw["caleb"]})
+    audio = {"audra": late, "caleb": raw["caleb"]}
+    levels = bh.levels(audio)
 
     segments = lag_segments(
         levels["audra"],
         [BleedPair(levels["caleb"], lane_talks=False, lag_sec=0.15)],
         heard=levels["audra"],
+        heard_peak=bh.peaks(audio)["audra"],
         deadband_sec=0.02,
     )
 
@@ -192,10 +210,40 @@ def test_steps_use_a_mic_other_than_the_reference(tmp_path) -> None:
 
     result = plan_conversation_alignment(ws.project)
 
-    assert [(p.track_id, p.method, round(p.offset_sec, 3), p.steps) for p in result.plans] == [
-        ("caleb", "reference", 0.0, ()),
-        ("audra", "bleed_lag", -0.12, ((182.6525, -0.2),)),
-        ("lana", "hold", 0.0, ()),
+    assert [
+        (p.track_id, p.method, round(p.offset_sec, 3), [(round(a, 4), o) for a, o in p.steps])
+        for p in result.plans
+    ] == [
+        ("caleb", "reference", 0.0, []),
+        ("audra", "bleed_lag", -0.12, [(182.65, -0.2)]),
+        ("lana", "hold", 0.0, []),
+    ]
+
+
+def test_a_step_never_skips_a_peak_the_rms_gate_misses() -> None:
+    # Mid-pause, right where the 80 ms step would go, Audra's track has a one-sample click
+    # at -40 dBFS. Its 30 ms RMS is -64 dB, under the -60 dB silence gate, so the step
+    # skipped it. The skipped or repeated audio must also peak below -50 dBFS.
+    audio = _stepped()
+    click = round(182.81 * bh.RATE)
+    audio["audra"][click] = 0.01
+    levels = bh.levels(audio)
+
+    segments = lag_segments(
+        levels["audra"],
+        _from(levels["caleb"], 0.14),
+        heard=levels["audra"],
+        heard_peak=bh.peaks(audio)["audra"],
+        deadband_sec=0.02,
+    )
+
+    assert segments is not None
+    step = segments[1]
+    skipped = (step.start_sec - 0.04, step.start_sec + 0.04)
+    assert not skipped[0] <= click / bh.RATE <= skipped[1]
+    assert [(round(s.start_sec, 2), s.shift_sec, s.gap_sec) for s in segments] == [
+        (0.0, -0.12, None),
+        (197.95, -0.2, (182.815, 213.085)),
     ]
 
 
@@ -210,6 +258,7 @@ def test_jitter_inside_the_deadband_is_one_segment() -> None:
             levels["audra"],
             _from(levels["caleb"], 0.12),
             heard=levels["audra"],
+            heard_peak=bh.peaks(audio)["audra"],
             deadband_sec=0.02,
         )
         is None
@@ -230,10 +279,10 @@ def test_align_tracks_splits_the_lane_in_the_silence_and_undo_restores(
     # The step sits mid-silence (182.81 s of Audra's file): the first piece plays her
     # file 120 ms early, the second 200 ms early, and the 80 ms between them is silence.
     assert [tuple(geometry) for _id, *geometry in pieces] == [
-        (0.12, 182.7725, 0.0),
-        (182.8525, 240.0, 182.6525),
+        (0.12, 182.77, 0.0),
+        (182.85, 240.0, 182.65),
     ]
-    assert not np.any(_stepped()["audra"][round(182.7725 * bh.RATE) : round(182.8525 * bh.RATE)])
+    assert not np.any(_stepped()["audra"][round(182.77 * bh.RATE) : round(182.85 * bh.RATE)])
     labels = [entry.label for entry in stepped.project.history.entries]
     assert labels == ["initial", "before pipeline run", "after align_tracks"]
 
@@ -278,7 +327,7 @@ def test_drifting_lane_is_flagged_and_not_split(tmp_path) -> None:
     assert "bleed lag drifting: audra (left in place)" in result.summary()
 
 
-@pytest.mark.parametrize(("late", "step_at"), [(0.155, 121.48), (0.2, 121.47)])
+@pytest.mark.parametrize(("late", "step_at"), [(0.155, 121.47), (0.2, 121.47)])
 def test_a_long_step_is_split_not_read_as_drift_or_scatter(
     tmp_path, late: float, step_at: float
 ) -> None:
