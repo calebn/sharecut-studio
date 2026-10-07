@@ -8,12 +8,24 @@ import numpy as np
 import pytest
 
 import bleed_helpers as bh
-from podcast_mcp.models import SpeakerIngestAlignment, Transcript, TranscriptWord
+from podcast_mcp.edits import clipped_onsets
+from podcast_mcp.edits.clipped_onsets import flag_clipped_word_starts
+from podcast_mcp.edits.comments import add_reply, resolve_comment
+from podcast_mcp.models import (
+    Clip,
+    SpeakerIngestAlignment,
+    TrackRole,
+    Transcript,
+    TranscriptWord,
+)
+from podcast_mcp.pipeline import steps
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline.service import PipelineService
 
 GATE_LATE_SEC = 0.1
 LANE_LATE_SEC = 0.15
+# A word ASR places this far before where its own track opens.
+ASR_EARLY_SEC = 0.1
 
 
 def _turn_starts(direct: np.ndarray, *, first_syllable_sec: float = 0.0) -> list[float]:
@@ -47,19 +59,42 @@ def _onset_comments(ws: ProjectWorkspace) -> list[tuple[float, float | None, lis
     ]
 
 
-@pytest.fixture
-def gated(tmp_path: Path) -> tuple[ProjectWorkspace, float, float]:
-    """Audra on time, but her gate opens 100 ms into one turn; Caleb's mic has the copy."""
+def _state(ws: ProjectWorkspace) -> tuple[list[dict], list[tuple]]:
+    """Every word and every Align tracks comment, without timestamps."""
+    words = [w.model_dump() for t in ws.project.transcripts for w in t.words]
+    comments = [
+        (c.id, c.body, c.timeline_start, c.timeline_end, c.track_ids, c.resolved)
+        for c in ws.project.comments
+        if c.author == "Align tracks"
+    ]
+    return words, comments
+
+
+def _gated_ws(
+    path: Path, gate_late_sec: float = GATE_LATE_SEC, *, turn: int = 1
+) -> tuple[ProjectWorkspace, float]:
+    """Audra on time, but her gate opens ``gate_late_sec`` into one turn.
+
+    The turn's first syllable is long, so the gate cuts into it; Caleb's mic has the copy.
+    """
     audio = bh.tracks(bleed={"caleb": {"audra": 0.0}}, gated=("audra",))
-    clipped = _turn_starts(audio["audra"], first_syllable_sec=0.22)[1]
-    normal = next(t for t in _turn_starts(audio["audra"]) if t > clipped + 10.0)
+    clipped = _turn_starts(audio["audra"], first_syllable_sec=0.22)[turn]
     first = round(clipped * bh.RATE)
-    audio["audra"][first : first + round(GATE_LATE_SEC * bh.RATE)] = 0.0
-    ws = bh.workspace(tmp_path, audio)
+    audio["audra"][first : first + round(gate_late_sec * bh.RATE)] = 0.0
+    ws = bh.workspace(path, audio)
+    normal = next(t for t in _turn_starts(audio["audra"]) if t > clipped + 10.0)
     ws.project.transcripts.append(
         Transcript(track_id="audra", words=[_word("And", clipped), _word("So", normal)])
     )
     ws.save()
+    return ws, clipped
+
+
+@pytest.fixture
+def gated(tmp_path: Path) -> tuple[ProjectWorkspace, float, float]:
+    """Audra on time, but her gate opens 100 ms into one turn; Caleb's mic has the copy."""
+    ws, clipped = _gated_ws(tmp_path)
+    normal = ws.project.transcript_for_track("audra").words[1].start
     return ws, clipped, normal
 
 
@@ -82,7 +117,7 @@ def test_late_gate_flags_the_word_and_snaps_its_start(
     )
     word = ws.project.transcript_for_track("audra").words[0]
     assert word.start == pytest.approx(clipped + GATE_LATE_SEC, abs=0.03)
-    assert word.trimmed_from == (round(clipped, 3), round(clipped + 0.4, 3))
+    assert (word.snapped_from, word.trimmed_from) == (round(clipped, 3), None)
     assert "1 word start missing from its own track (see comments)" in summary
 
 
@@ -95,7 +130,7 @@ def test_word_whose_track_opens_with_its_voice_is_not_flagged(
 
     assert [c for c in _onset_comments(ws) if abs(c[0] - normal) < 1.0] == []
     word = ws.project.transcript_for_track("audra").words[1]
-    assert (word.start, word.trimmed_from) == (round(normal, 3), None)
+    assert (word.start, word.snapped_from) == (normal, None)
 
 
 def test_rerun_keeps_one_comment_and_the_snapped_start(
@@ -114,44 +149,93 @@ def test_rerun_keeps_one_comment_and_the_snapped_start(
     assert ws.project.transcript_for_track("audra").words[0].model_dump() == snapped
 
 
-@pytest.fixture
-def unsolved(tmp_path: Path) -> tuple[ProjectWorkspace, list[float]]:
-    """Audra's whole track plays 150 ms late and her manifest pin keeps it there."""
+@pytest.mark.parametrize("touch", ["reply", "resolve"])
+def test_a_moved_opening_keeps_an_answered_comment_and_adds_none(
+    tmp_path: Path, touch: str
+) -> None:
+    """The comment follows the word, not where its track happens to open this run."""
+    # This turn opens at 142.35 s with an 80 ms gate and at 142.38 s with a 110 ms one.
+    ws, _clipped = _gated_ws(tmp_path / "a", gate_late_sec=0.08, turn=2)
+    _align(ws)
+    [comment] = ws.project.comments
+    if touch == "reply":
+        add_reply(ws.project, comment.id, body="Keeping it.", author="Host")
+    else:
+        resolve_comment(ws.project, comment.id, by="Host")
+    ws.save()
+    # The same take, but the gate opens 30 ms later.
+    later, _ = _gated_ws(tmp_path / "b", gate_late_sec=0.11, turn=2)
+    later_audio = Path(later.project.meta.workspace_dir) / "raw" / "audra.wav"
+    (Path(ws.project.meta.workspace_dir) / "raw" / "audra.wav").write_bytes(
+        later_audio.read_bytes()
+    )
+
+    _align(ws)
+
+    [kept] = ws.project.comments
+    assert (kept.id, kept.body, kept.timeline_start) == (
+        comment.id,
+        comment.body,
+        comment.timeline_start,
+    )
+    assert (len(kept.replies), kept.resolved) == ((1, False) if touch == "reply" else (0, True))
+
+
+def _unsolved_ws(path: Path) -> tuple[ProjectWorkspace, list[float]]:
+    """Audra's whole track plays 150 ms late and her manifest pin keeps it there.
+
+    Her words start ``ASR_EARLY_SEC`` before her track opens, as ASR often places them.
+    """
     audio = bh.tracks(
         bleed={"caleb": {"audra": 0.0}}, latency={"audra": LANE_LATE_SEC}, gated=("audra",)
     )
     turns = _turn_starts(audio["audra"])[2:5]
-    ws = bh.workspace(tmp_path, audio)
+    ws = bh.workspace(path, audio)
     ws.project.meta.ingest_alignment = {
         "Audra": SpeakerIngestAlignment(
             session_start_in_file_sec=0.0, content_align_sec=0.0, align_method="manual"
         )
     }
     ws.project.transcripts.append(
-        Transcript(track_id="audra", words=[_word(f"w{i}", t) for i, t in enumerate(turns)])
+        Transcript(
+            track_id="audra",
+            words=[_word(f"w{i}", t - ASR_EARLY_SEC) for i, t in enumerate(turns)],
+        )
     )
     ws.save()
     return ws, turns
 
 
-def test_unsolved_offset_flags_each_word_and_names_the_lag(
+@pytest.fixture
+def unsolved(tmp_path: Path) -> tuple[ProjectWorkspace, list[float]]:
+    return _unsolved_ws(tmp_path)
+
+
+def test_unsolved_offset_leaves_one_comment_for_the_lane(
     unsolved: tuple[ProjectWorkspace, list[float]],
 ) -> None:
     ws, turns = unsolved
 
     summary = _align(ws)
 
-    comments = _onset_comments(ws)
-    assert [round(c[1] or 0.0, 2) for c in comments] == pytest.approx(turns, abs=0.04)
-    assert [round(c[1] - c[0], 2) for c in comments if c[1]] == pytest.approx(
-        [LANE_LATE_SEC] * 3, abs=0.04
+    [comment] = [c for c in ws.project.comments if c.author == "Align tracks"]
+    assert comment.id.startswith("onset-lane-")
+    assert comment.track_ids == ["audra"]
+    assert comment.timeline_start == pytest.approx(turns[0] - LANE_LATE_SEC, abs=0.04)
+    assert comment.timeline_end == pytest.approx(turns[0], abs=0.04)
+    assert comment.body.startswith(
+        "Audra's track runs about 150 ms behind Caleb's mic, so 3 word starts are only on "
+        "Caleb's mic: "
     )
-    assert all(
-        "Audra's track runs about 150 ms behind Caleb's mic here; aligning it would fix this."
-        in c[3]
-        for c in comments
+    assert comment.body.count("“w") == 3
+    assert comment.body.endswith(
+        "Another mic is never used as Audra's audio, so these words may sound clipped. "
+        "Aligning Audra's track would fix them; re-running Align tracks then withdraws this "
+        "comment. Otherwise listen, then re-record, keep, or edit around each word."
     )
-    assert [w.trimmed_from for w in ws.project.transcript_for_track("audra").words] == [None] * 3
+    words = ws.project.transcript_for_track("audra").words
+    assert [w.start for w in words] == pytest.approx(turns, abs=0.03)
+    assert [w.snapped_from for w in words] == [round(t - ASR_EARLY_SEC, 3) for t in turns]
     assert "3 word starts missing from their own track (see comments)" in summary
 
 
@@ -167,3 +251,167 @@ def test_aligning_the_lane_withdraws_its_open_flags_and_keeps_resolved_ones(
     _align(ws, realign=True)
 
     assert [c.id for c in ws.project.comments] == [kept.id]
+
+
+def test_default_then_realign_equals_a_fresh_realign(tmp_path: Path) -> None:
+    rerun, turns = _unsolved_ws(tmp_path / "rerun")
+    fresh, _ = _unsolved_ws(tmp_path / "fresh")
+
+    _align(rerun)
+    _align(rerun, realign=True)
+    _align(fresh, realign=True)
+
+    assert [c.model_dump() for c in rerun.project.clips] == [
+        c.model_dump() for c in fresh.project.clips
+    ]
+    assert _state(rerun) == _state(fresh)
+    words = rerun.project.transcript_for_track("audra").words
+    assert [(w.start, w.snapped_from) for w in words] == [
+        (round(t - ASR_EARLY_SEC, 3), None) for t in turns
+    ]
+
+
+def _place_audra(ws: ProjectWorkspace, *, aligned: bool) -> None:
+    """Audra's clip where her pin keeps it, or slipped onto her copy on Caleb's mic."""
+    shift = LANE_LATE_SEC if aligned else 0.0
+    ws.project.clips = [
+        c
+        if c.track_id != "audra"
+        else Clip(
+            id=c.id,
+            track_id="audra",
+            source_start=shift,
+            source_end=bh.DURATION_SEC,
+            timeline_start=0.0,
+        )
+        for c in ws.project.clips
+    ]
+
+
+@pytest.mark.parametrize("first_aligned", [False, True])
+def test_the_pass_depends_only_on_where_the_lanes_sit_now(
+    tmp_path: Path, first_aligned: bool
+) -> None:
+    rerun, _ = _unsolved_ws(tmp_path / "rerun")
+    fresh, _ = _unsolved_ws(tmp_path / "fresh")
+
+    _place_audra(rerun, aligned=first_aligned)
+    flag_clipped_word_starts(rerun.project)
+    _place_audra(rerun, aligned=not first_aligned)
+    flag_clipped_word_starts(rerun.project)
+    _place_audra(fresh, aligned=not first_aligned)
+    flag_clipped_word_starts(fresh.project)
+
+    assert _state(rerun) == _state(fresh)
+    assert bool(_state(fresh)[1]) is first_aligned
+
+
+def test_fewer_than_two_dialogue_tracks_withdraws_open_flags_and_restores_starts(
+    gated: tuple[ProjectWorkspace, float, float],
+) -> None:
+    ws, clipped, _normal = gated
+    _align(ws)
+    for track in ws.project.tracks:
+        if track.id != "audra":
+            track.role = TrackRole.MUSIC
+    ws.save()
+
+    _align(ws)
+
+    assert _onset_comments(ws) == []
+    word = ws.project.transcript_for_track("audra").words[0]
+    assert (word.start, word.snapped_from) == (round(clipped, 3), None)
+
+
+def test_unreadable_audio_leaves_flags_and_starts_alone(
+    gated: tuple[ProjectWorkspace, float, float],
+) -> None:
+    ws, _clipped, _normal = gated
+    _align(ws)
+    before = _state(ws)
+    (Path(ws.project.meta.workspace_dir) / "raw" / "caleb.wav").write_bytes(b"not audio")
+
+    assert flag_clipped_word_starts(ws.project) == []
+    assert _state(ws) == before
+
+
+def test_a_failing_pass_restores_the_clips_align_moved(
+    unsolved: tuple[ProjectWorkspace, list[float]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ws, _turns = unsolved
+    before = [c.model_dump() for c in ws.project.clips]
+
+    def fail(*_args: object) -> list:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(clipped_onsets, "flag_clipped_word_starts", fail)
+    with pytest.raises(RuntimeError):
+        steps.align_tracks(ws.project, {"align": {"realign": True}})
+
+    assert [c.model_dump() for c in ws.project.clips] == before
+
+
+def _crosstalk_ws(path: Path, *, mic_word: bool) -> tuple[ProjectWorkspace, float]:
+    """Caleb makes a quiet sound, at his copy of Audra's level, that runs into her turn."""
+    audio = bh.tracks(bleed={"caleb": {"audra": 0.0}}, gated=("audra",))
+    turn = _turn_starts(audio["audra"])[3]
+    first, last = round((turn - 0.25) * bh.RATE), round((turn + 0.1) * bh.RATE)
+    noise = np.random.default_rng(3).standard_normal(last - first)
+    audio["caleb"][first:last] += noise * np.hanning(last - first) * 0.02
+    ws = bh.workspace(path, audio)
+    ws.project.transcripts.append(Transcript(track_id="audra", words=[_word("Right", turn)]))
+    if mic_word:
+        ws.project.transcripts.append(
+            Transcript(
+                track_id="caleb",
+                words=[TranscriptWord(text="Mm.", start=round(turn - 0.25, 3), end=round(turn, 3))],
+            )
+        )
+    ws.save()
+    return ws, turn
+
+
+def test_the_mics_own_transcribed_sound_before_the_turn_is_not_flagged(tmp_path: Path) -> None:
+    ws, turn = _crosstalk_ws(tmp_path, mic_word=True)
+
+    _align(ws)
+
+    assert [c for c in _onset_comments(ws) if abs(c[0] - turn) < 1.0] == []
+    assert ws.project.transcript_for_track("audra").words[0].snapped_from is None
+
+
+def test_a_transcribed_copy_of_the_same_word_still_flags(
+    tmp_path: Path,
+) -> None:
+    """ASR on the other mic often writes the copy down too; same word, so still a copy."""
+    ws, clipped = _gated_ws(tmp_path)
+    ws.project.transcripts.append(
+        Transcript(
+            track_id="caleb",
+            words=[
+                TranscriptWord(text="and,", start=round(clipped, 3), end=round(clipped + 0.4, 3))
+            ],
+        )
+    )
+    ws.save()
+
+    _align(ws)
+
+    assert [round(c[0], 1) for c in _onset_comments(ws)] == [pytest.approx(clipped, abs=0.1)]
+
+
+def test_a_third_speaker_in_the_lead_is_not_flagged(tmp_path: Path) -> None:
+    """Lana talks just before Audra's turn; Caleb's mic hears Lana's copy, not Audra's."""
+    audio = bh.tracks(bleed={"caleb": {"audra": 0.0, "lana": 0.0}}, gated=("audra",))
+    turn = _turn_starts(audio["audra"])[3]
+    first, last = round((turn - 0.25) * bh.RATE), round((turn + 0.05) * bh.RATE)
+    burst = np.random.default_rng(5).standard_normal(last - first) * np.hanning(last - first) * 0.2
+    audio["lana"][first:last] += burst
+    audio["caleb"][first:last] += 0.1 * burst
+    ws = bh.workspace(tmp_path, audio)
+    ws.project.transcripts.append(Transcript(track_id="audra", words=[_word("Right", turn)]))
+    ws.save()
+
+    _align(ws)
+
+    assert [c for c in _onset_comments(ws) if abs(c[0] - turn) < 1.0] == []
