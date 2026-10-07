@@ -796,6 +796,16 @@ export function attachHitRouting(
         if (pointers.size === 0) gesture.restore = options.snapshot?.() ?? null;
         else if (!gesture.multi) yieldToMultiTouch();
         pointers.set(event.pointerId, event);
+      } else if (
+        type === "down" &&
+        event.pointerType === "touch" &&
+        pointers.size > 0 &&
+        !pointers.has(event.pointerId) &&
+        !gesture.multi
+      ) {
+        // A second finger off the timeline (on the create menu's scrim, a
+        // sheet) still cancels what the first one is doing there.
+        yieldToMultiTouch();
       }
       if (gesture.multi && pointers.has(event.pointerId)) {
         event.stopImmediatePropagation();
