@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { EditingToolRailView } from "./EditingToolRailView";
 
@@ -42,7 +42,7 @@ describe("EditingToolRailView", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("runs Undo and names why Redo is disabled", async () => {
+  it("runs Undo and names why Redo is unavailable", async () => {
     const user = userEvent.setup();
     const props = baseProps();
     const { container } = render(<EditingToolRailView {...props} />);
@@ -51,7 +51,7 @@ describe("EditingToolRailView", () => {
     await user.click(screen.getByRole("button", { name: "Undo" }));
     expect(props.onUndo).toHaveBeenCalledTimes(1);
     const redo = screen.getByRole("button", { name: "Redo" });
-    expect(redo).toBeDisabled();
+    expect(redo).toHaveAttribute("aria-disabled", "true");
     expect(redo).toHaveAccessibleDescription("Nothing to redo");
     expect(redo).toHaveAttribute("title", "Nothing to redo");
     await user.click(redo);
@@ -67,10 +67,70 @@ describe("EditingToolRailView", () => {
       />,
     );
     const undo = screen.getByRole("button", { name: "Undo" });
-    expect(undo).toBeDisabled();
+    expect(undo).toHaveAttribute("aria-disabled", "true");
     expect(undo).toHaveAccessibleDescription("Nothing to undo");
-    expect(screen.getByRole("button", { name: "Redo" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Redo" })).not.toHaveAttribute(
+      "aria-disabled",
+    );
     await expectNoA11yViolations(container);
+  });
+
+  describe("tapping an unavailable Undo or Redo", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("shows the reason in the rail's status line, which clears itself", () => {
+      vi.useFakeTimers();
+      const props = baseProps();
+      render(<EditingToolRailView {...props} />);
+      const status = screen.getByRole("status");
+      expect(status).toBeEmptyDOMElement();
+      act(() => {
+        screen.getByRole("button", { name: "Redo" }).click();
+      });
+      expect(status).toHaveTextContent("Nothing to redo");
+      expect(props.onRedo).not.toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(3600);
+      });
+      expect(status).toBeEmptyDOMElement();
+    });
+
+    it("passes axe while the reason shows", async () => {
+      const { container } = render(<EditingToolRailView {...baseProps()} />);
+      act(() => {
+        screen.getByRole("button", { name: "Redo" }).click();
+      });
+      expect(screen.getByRole("status")).toHaveTextContent("Nothing to redo");
+      await expectNoA11yViolations(container);
+    });
+
+    it("drops the reason once the action becomes available", () => {
+      const props = baseProps();
+      const { rerender } = render(<EditingToolRailView {...props} />);
+      act(() => {
+        screen.getByRole("button", { name: "Redo" }).click();
+      });
+      expect(screen.getByRole("status")).toHaveTextContent("Nothing to redo");
+      rerender(
+        <EditingToolRailView
+          {...props}
+          history={{ canUndo: true, canRedo: true }}
+        />,
+      );
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    });
+
+    it("says nothing for an action that runs", () => {
+      const props = baseProps();
+      render(<EditingToolRailView {...props} />);
+      act(() => {
+        screen.getByRole("button", { name: "Undo" }).click();
+      });
+      expect(props.onUndo).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    });
   });
 
   it("hides Undo and Redo from people who cannot edit", () => {

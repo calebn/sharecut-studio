@@ -95,7 +95,11 @@ describe("EditingToolRail", () => {
       {},
       { skipWhen: true },
     );
-    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+    const redo = screen.getByRole("button", { name: "Redo" });
+    expect(redo).toHaveAttribute("aria-disabled", "true");
+    await user.click(redo);
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Nothing to redo");
   });
 
   it("announces a failed Undo", async () => {
