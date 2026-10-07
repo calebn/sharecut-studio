@@ -110,8 +110,14 @@ def test_untranscribed_speech_in_a_word_gap_is_not_used_to_fill_a_mute(tmp_path:
 
     fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
 
-    # The nearest stretch of floor long enough for the fill starts after "you".
-    assert fill == RoomToneFill(start_s=5.0, end_s=5.5, source_id=None)
+    # The nearest stretch of floor long enough for the fill starts after "you" and
+    # its 0.15 s guard.
+    assert fill is not None
+    assert (fill.start_s, fill.end_s, fill.source_id) == (
+        pytest.approx(5.15),
+        pytest.approx(5.65),
+        None,
+    )
 
 
 def test_ripple_pad_is_filled_from_the_floor_not_the_word_gap(tmp_path: Path) -> None:
@@ -132,7 +138,7 @@ def test_ripple_pad_is_filled_from_the_floor_not_the_word_gap(tmp_path: Path) ->
         for c in project.clips
         if c.track_id == "host" and c.id not in {"a", "b"}
     ]
-    assert host_pads == [pytest.approx((5.0, 5.3))]
+    assert host_pads == [pytest.approx((5.15, 5.45))]
     # The guest track is gated to digital silence between words: it has no room tone,
     # so its pad stays a hole and its clips still hold only its own 10 s of audio.
     guest_sec = sum(c.source_end - c.source_start for c in project.clips if c.track_id == "guest")
@@ -211,7 +217,12 @@ def test_unusable_bed_falls_back_to_track_air(
 
     fill = mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5)
 
-    assert fill == RoomToneFill(start_s=5.0, end_s=5.5, source_id=None)
+    assert fill is not None
+    assert (fill.start_s, fill.end_s, fill.source_id) == (
+        pytest.approx(5.15),
+        pytest.approx(5.65),
+        None,
+    )
 
 
 def test_sampled_tiles_fade_only_at_the_pad_edges(tmp_path: Path) -> None:
@@ -271,8 +282,8 @@ def test_bleed_in_the_nearest_gap_is_not_room_tone(tmp_path: Path, bleed_db: flo
     # The floor before the untranscribed speech is the nearest stretch that is not bleed.
     assert fill is not None
     assert (fill.start_s, fill.end_s, fill.source_id) == (
-        pytest.approx(2.1),
-        pytest.approx(2.6),
+        pytest.approx(1.95),
+        pytest.approx(2.45),
         None,
     )
 

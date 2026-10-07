@@ -227,7 +227,7 @@ Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-
 | `tighten.isolated_filler_candidates` | `true` | Propose a lone hard filler (not a discourse marker) without a cluster; `light` turns this off |
 | `tighten.min_filler_cluster` | `2` | Min lexicon hits in a gap cluster before a discourse marker (or, with isolated candidates off, a hard filler) is a candidate |
 | `tighten.max_pause_sec` | `1.2` | Inter-word gap before pause trim |
-| `tighten.filler_pad_mode` | `silence` | Fill for ripple pads and approved mutes: `silence`, or `room_tone` (the recorded bed, else a steady stretch at the track's noise floor chosen from its audio; [filler-cut-quality.md](filler-cut-quality.md) § Where room tone comes from) |
+| `tighten.filler_pad_mode` | `silence` | Fill for ripple pads and approved mutes: `silence`, or `room_tone` (the recorded bed, else a steady stretch at the track's noise floor chosen from its audio, 0.15 s clear of speech and of digital silence, and none on a track gated to digital silence; [filler-cut-quality.md](filler-cut-quality.md) § Where room tone comes from) |
 | `tighten.acoustic_gap_filler.enabled` | `true` | Review-only `filler:acoustic` proposals for voiced audio inside ASR gaps (never auto-applied) |
 | `tighten.acoustic_gap_filler.min_gap_sec` | `0.35` | Shortest gap scanned (floor `0.35`) |
 | `tighten.acoustic_gap_filler.max_run_sec` | `1.5` | Longest voiced run proposed (ceiling `1.5`) |
