@@ -1663,3 +1663,94 @@ def test_land_rollbacks_purged_on_take_tombstone_and_session_clear(tmp_path):
     assert sorted(int(r["take_index"]) for r in rows) == sorted([1, ROOM_TONE_TAKE_INDEX])
     assert store.clear_session_land_rollbacks("s1") == 2
     assert store.land_rollbacks(session_id="s1") == []
+
+
+@pytest.mark.parametrize("audience", ["guest", "host"])
+def test_upload_pre_ack_refusal_is_owned_by_request_shell(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, audience
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    pid, lease = _consented_take(ws, room)
+
+    def refuse(*_args, **_kwargs):
+        raise RecordUploadError("part refused /private/host/upload.wav")
+
+    monkeypatch.setattr(RecordUploadService, "ingest_part", refuse)
+    if audience == "guest":
+        response = _post_keeper(client, room["guest"]["token"], pid, lease, take=0)
+        assert response.json() == {"detail": "part refused [path]"}
+        assert response.headers["x-sharecut-error-code"] == "record_upload_refused"
+    else:
+        pcm, digest, wav_hash = _pcm_part(64)
+        response = client.post(
+            "/api/record/upload",
+            params={
+                "path": str(ws.path),
+                "take_index": 0,
+                "segment_index": 0,
+                "part_seq": 0,
+                "sha256": digest,
+                "file_sha256": wav_hash,
+                "final": True,
+            },
+            content=pcm,
+        )
+        assert response.json() == {"detail": "part refused /private/host/upload.wav"}
+    assert response.status_code == 400
+
+
+def test_guest_upload_ingest_crash_hides_secret_and_logs_original(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog
+):
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    pid, lease = _consented_take(ws, room)
+    diagnostic = "private secret phrase /private/host/upload.wav"
+
+    def fail(*_args, **_kwargs):
+        raise ValueError(diagnostic)
+
+    monkeypatch.setattr(RecordUploadService, "ingest_part", fail)
+    response = _post_keeper(client, room["guest"]["token"], pid, lease, take=0)
+    assert response.status_code == 500
+    assert response.json() == {"detail": "internal error"}
+    assert diagnostic in str([r.exc_info[1] for r in caplog.records if r.exc_info])
+    assert (
+        RecordUploadService(ws.project).status(session_id=room["session_id"], participant_id=pid)[
+            "segments"
+        ]
+        == []
+    )
+
+
+def test_guest_post_ack_landing_crash_keeps_ack_and_recovers(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog
+):
+    from podcast_mcp.services.record import RecordLandingService
+
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    pid, lease = _consented_take(ws, room)
+    diagnostic = "private secret phrase /private/host/land.sqlite"
+
+    def fail(*_args, **_kwargs):
+        raise RuntimeError(diagnostic)
+
+    with monkeypatch.context() as fault:
+        fault.setattr(RecordLandingService, "land", fail)
+        response = _post_keeper(client, room["guest"]["token"], pid, lease, take=0)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["file_ack"] is True
+    assert body["newly_acked"] is True
+    assert body["landed"] is False
+    assert body["land_failed"] is True
+    assert diagnostic not in response.text
+    assert diagnostic in str([r.exc_info[1] for r in caplog.records if r.exc_info])
+    uploader = RecordUploadService(ws.project)
+    failed = uploader.status(session_id=room["session_id"], participant_id=pid)["segments"]
+    assert failed[0]["file_ack"] is True
+    assert failed[0]["land_failed"] is True
+    recovered = RecordLandingService(ws).land()
+    assert any(clip["participant_id"] == pid for clip in recovered["clips"])
+    status = uploader.status(session_id=room["session_id"], participant_id=pid)["segments"]
+    assert status[0]["landed"] is True
+    assert status[0]["land_failed"] is False

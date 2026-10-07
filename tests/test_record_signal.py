@@ -63,11 +63,10 @@ def test_filter_record_event_drops_signal_not_addressed():
     assert filter_record_event_for_guest(ev, participant_id="p_c", role="guest") is None
     kept = filter_record_event_for_guest(ev, participant_id="p_b", role="guest")
     assert kept is not None and kept["to"] == "p_b"
-    from pydantic import ValidationError
-
     from podcast_mcp.services.record.signal import validate_signal_payload
+    from podcast_mcp.util.coded_error import CodedValueError
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(CodedValueError, match="invalid signal payload") as failure:
         validate_signal_payload(
             {
                 "to": "p_b",
@@ -75,6 +74,7 @@ def test_filter_record_event_drops_signal_not_addressed():
                 "candidate": {"candidate": "x"},
             }
         )
+    assert failure.value.code == "invalid_record_request"
     cleaned = validate_signal_payload(
         {
             "to": "p_b",

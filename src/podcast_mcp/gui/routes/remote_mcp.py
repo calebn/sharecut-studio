@@ -9,12 +9,14 @@ Compatibility alias: ``/r/{token}/mcp`` (share URL + ``/mcp``).
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from podcast_mcp.gui.routes.guest_errors import guest_http_error
 from podcast_mcp.services.collaboration import share_allows_mcp
 from podcast_mcp.services.remote_mcp import (
     check_host_bucket,
@@ -34,6 +36,7 @@ from podcast_mcp.util.body_limits import (
 )
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 _MCP_ACCEPT = "application/json"
 
@@ -43,7 +46,9 @@ def _require_mcp_capability(token: str) -> None:
     try:
         allowed = share_allows_mcp(token)
     except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise HTTPException(status_code=404, detail="share not found") from exc
+    except Exception as exc:
+        raise guest_http_error(exc, logger=log, operation="MCP preflight") from exc
     if not allowed:
         raise HTTPException(status_code=403, detail="share does not allow mcp")
 

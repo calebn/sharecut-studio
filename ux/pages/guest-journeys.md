@@ -148,6 +148,11 @@ Product still needs polished “link died” copy and a free-tier story ([Backlo
 
 ---
 
+Guest request failures keep host diagnostics private. Deliberate refusals show
+safe detail; an unexpected failure shows `internal error`. A recording socket
+can reconnect after a transient internal failure. A file acknowledged before
+landing fails stays saved for a later landing attempt.
+
 ## 6. Join a recording session (full-quality recording + mix-minus + saving)
 
 **Setup:** Host mints a record link (`/rec/{token}`, guest role). Guest opens it

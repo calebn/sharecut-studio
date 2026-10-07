@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+from podcast_mcp.util.coded_error import CodedPermissionError
+
 _HINT = (
     "Guest render_preview is disabled. Set PODCAST_GUEST_RENDER=1 on the host "
     "to allow edit/mcp shares to rebuild stems/premix."
@@ -17,4 +19,4 @@ def guest_render_enabled() -> bool:
 
 def require_guest_render() -> None:
     if not guest_render_enabled():
-        raise PermissionError(_HINT)
+        raise CodedPermissionError(_HINT, code="share_capability_required")

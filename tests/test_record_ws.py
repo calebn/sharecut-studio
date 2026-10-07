@@ -1726,3 +1726,194 @@ def test_host_mux_record_io_is_off_loop_and_all_frames_use_guard(
     assert not any(on_loop for _, on_loop in calls)
     record_frames = [frame for frame in frames if frame["plane"] == "record"]
     assert [frame["type"] for frame in record_frames[:2]] == ["Echo", "Snapshot"]
+
+
+@pytest.mark.parametrize("stage", ["constructor", "snapshot"])
+def test_guest_record_setup_crash_is_private_and_releases_admission(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog, stage
+):
+    from podcast_mcp.gui.routes import record_share
+    from podcast_mcp.services.record.state import RecordSnapshot
+    from podcast_mcp.services.remote_mcp.limits import (
+        get_host_limiters,
+        reset_host_limiters_for_tests,
+    )
+
+    monkeypatch.setenv("PODCAST_GUEST_WS_CONCURRENT", "1")
+    reset_host_limiters_for_tests()
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    diagnostic = "secret phrase /private/host/a"
+
+    def fail(*_args, **_kwargs):
+        if stage == "snapshot":
+            return RecordSnapshot.model_validate({"state": diagnostic})
+        raise ValueError(diagnostic)
+
+    if stage == "constructor":
+        monkeypatch.setattr(record_share, "RecordSessionService", fail)
+    else:
+        monkeypatch.setattr(RecordSessionService, "snapshot", fail)
+    with pytest.raises(WebSocketDisconnect) as failure:
+        with client.websocket_connect(f"/api/rec/{token}/ws") as socket:
+            if stage == "snapshot":
+                _join(socket, name="Ava")
+            socket.receive_json()
+    assert failure.value.code == 1011
+    assert failure.value.reason == "internal error"
+    assert diagnostic in str([r.exc_info[1] for r in caplog.records if r.exc_info])
+    limiter = get_host_limiters().guest_ws_concurrent
+    assert limiter.try_enter(token).allowed
+    limiter.exit(token)
+
+
+@pytest.mark.parametrize("error_type", [ValueError, PermissionError, RuntimeError])
+def test_guest_record_command_crash_closes_safely_and_disconnects(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog, error_type
+):
+    from podcast_mcp.gui.routes import record_share
+    from podcast_mcp.services.record import record_hub_key
+    from podcast_mcp.services.session_sync import get_hub
+
+    ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    token = room["guest"]["token"]
+    diagnostic = "private secret phrase /private/host/record.sqlite"
+
+    def fail(*_args, **_kwargs):
+        raise error_type(diagnostic)
+
+    monkeypatch.setattr(record_share, "route_record_ws_message", fail)
+    with pytest.raises(WebSocketDisconnect) as failure:
+        with client.websocket_connect(f"/api/rec/{token}/ws") as socket:
+            _join(socket, name="Ava")
+            echo = _drain_until(socket, lambda msg: msg.get("type") == "Echo")
+            _drain_until(socket, lambda msg: msg.get("type") == "Snapshot")
+            socket.send_json({"type": "Record", "command_type": "Heartbeat", "client_seq": 2})
+            for _ in range(20):
+                frame = socket.receive_json()
+                assert diagnostic not in str(frame)
+    assert failure.value.code == 1011
+    assert failure.value.reason == "internal error"
+    assert diagnostic in str([r.exc_info[1] for r in caplog.records if r.exc_info])
+    people = RecordSessionService(ws.project, session_id=room["session_id"]).snapshot()[
+        "participants"
+    ]
+    assert (
+        next(p for p in people if p["participant_id"] == echo["participant_id"])["connected"]
+        is False
+    )
+    assert get_hub().listener_count(record_hub_key(ws.project)) == 0
+
+
+def test_guest_record_state_refusal_redacts_paths_and_keeps_socket_usable(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.gui.routes import record_share
+
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    original = record_share.route_record_ws_message
+    refuse = True
+
+    def dispatch(*args, **kwargs):
+        nonlocal refuse
+        if refuse:
+            refuse = False
+            raise RecordStateError("not ready /private/host/project.json")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(record_share, "route_record_ws_message", dispatch)
+    with client.websocket_connect(f"/api/rec/{room['guest']['token']}/ws") as socket:
+        _join(socket, name="Ava")
+        _drain_until(socket, lambda msg: msg.get("type") == "Snapshot")
+        command = {"type": "Record", "command_type": "Heartbeat", "client_seq": 2}
+        socket.send_json(command)
+        frame = _drain_until(socket, lambda msg: msg.get("type") == "Error")
+        assert frame == {
+            "plane": "record",
+            "type": "Error",
+            "code": "invalid_state",
+            "detail": "not ready [path]",
+            "error_code": "record_state_refused",
+        }
+        socket.send_json(command)
+        assert (
+            _drain_until(socket, lambda msg: msg.get("command_type") == "Heartbeat")["type"]
+            == "Echo"
+        )
+
+
+def test_guest_record_input_refusal_hides_payload_and_keeps_socket_usable(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    with client.websocket_connect(f"/api/rec/{room['guest']['token']}/ws") as socket:
+        _join(socket, name="Ava")
+        _drain_until(socket, lambda msg: msg.get("type") == "Snapshot")
+        socket.send_json(
+            {
+                "type": "Record",
+                "command_type": "Heartbeat",
+                "client_seq": "private secret phrase /private/host/project.json",
+            }
+        )
+        frame = _drain_until(socket, lambda msg: msg.get("type") == "Error")
+        assert frame == {
+            "plane": "record",
+            "type": "Error",
+            "code": "invalid_state",
+            "detail": "invalid client sequence",
+            "error_code": "invalid_record_request",
+        }
+        socket.send_json({"type": "Record", "command_type": "Heartbeat", "client_seq": 2})
+        assert (
+            _drain_until(socket, lambda msg: msg.get("command_type") == "Heartbeat")["type"]
+            == "Echo"
+        )
+
+
+@pytest.mark.parametrize("busy_type", ["sqlite", "timeout"])
+def test_guest_record_busy_command_keeps_socket_usable(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, busy_type
+):
+    import sqlite3
+
+    from filelock import Timeout
+
+    from podcast_mcp.gui.routes import record_share
+
+    _ws, room, client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
+    original = record_share.route_record_ws_message
+    refuse = True
+
+    def dispatch(*args, **kwargs):
+        nonlocal refuse
+        if refuse:
+            refuse = False
+            raise (
+                sqlite3.OperationalError("database is locked")
+                if busy_type == "sqlite"
+                else Timeout("/private/host/record.lock")
+            )
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(record_share, "route_record_ws_message", dispatch)
+    with client.websocket_connect(f"/api/rec/{room['guest']['token']}/ws") as socket:
+        _join(socket, name="Ava")
+        _drain_until(socket, lambda msg: msg.get("type") == "Snapshot")
+        command = {"type": "Record", "command_type": "Heartbeat", "client_seq": 2}
+        socket.send_json(command)
+        frame = _drain_until(socket, lambda msg: msg.get("type") == "Error")
+        assert frame == {
+            "plane": "record",
+            "type": "Error",
+            "code": "invalid_state",
+            "detail": "Project is busy in another process; try again"
+            if busy_type == "sqlite"
+            else "This project is busy; try again",
+            "error_code": "project_busy",
+        }
+        socket.send_json(command)
+        assert (
+            _drain_until(socket, lambda msg: msg.get("command_type") == "Heartbeat")["type"]
+            == "Echo"
+        )

@@ -268,6 +268,22 @@ script generates Rust constants from that same public profile.
 
 **Episode state:** `episode.project.json` v2 is the single source of truth. See [episode-format-v2.md](episode-format-v2.md).
 
+### Guest failure presentation
+
+`util/tool_refusal.py` owns refusal recognition along the explicit exception
+cause chain and guest path redaction. File-lock timeouts take precedence over
+SQLite busy or locked errors, which take precedence over coded refusals.
+`gui/routes/guest_errors.py` projects that shared policy into HTTP errors and
+safe WebSocket values. Unmarked failures produce fixed `internal error` and a
+host traceback. Busy WebSocket admission and setup close with transient `1013`;
+recording command contention sends `invalid_state` with `error_code=project_busy`
+and leaves the socket usable. Services mark deliberate permission, input, missing-resource,
+and state guards with coded error types. They do not import GUI error handlers.
+Guest waveform routes call the media facade directly, then project failures;
+owner waveform routes retain their owner adapter. Record upload shells convert
+pre-acknowledgment refusals for their own caller. The shared ingest helper retains
+post-acknowledgment landing recovery and returns the successful file ACK.
+
 ### Durable storage
 
 Host-local durable stores beyond the episode JSON (session sync sqlite, share

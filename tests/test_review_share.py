@@ -1325,35 +1325,6 @@ def test_sanitize_guest_document_event_non_dict_fields():
     assert "history" not in out2["snapshot"]
 
 
-def test_map_share_exc_branches():
-    from podcast_mcp.gui.routes.review_share import _map_share_exc
-
-    assert _map_share_exc(PermissionError("no")).status_code == 403
-    assert _map_share_exc(KeyError("x")).status_code == 404
-    assert _map_share_exc(FileNotFoundError("gone")).status_code == 404
-    assert _map_share_exc(ValueError("bad")).status_code == 400
-    assert _map_share_exc(RuntimeError("boom")).status_code == 500
-
-    from filelock import Timeout
-
-    from podcast_mcp.util.project_state import RenderBusyError
-
-    busy = _map_share_exc(Timeout("/artifacts/episode.project.json.lock"))
-    assert busy.status_code == 503
-    assert busy.headers == {"X-Sharecut-Error-Code": "project_busy"}
-    assert "/artifacts" not in busy.detail
-    render = _map_share_exc(RenderBusyError("/artifacts/render.lock"))
-    assert render.status_code == 503
-    assert "another render of this project is in progress" in render.detail
-
-    import sqlite3
-
-    locked = _map_share_exc(sqlite3.OperationalError("database is locked"))
-    assert locked.status_code == 503
-    assert locked.headers == {"X-Sharecut-Error-Code": "project_busy"}
-    assert _map_share_exc(sqlite3.OperationalError("no such table: x")).status_code == 500
-
-
 def test_guest_daw_ws_authz_denied(minimal_project, sample_wav, tmp_workspace, monkeypatch):
     ws = _seed_premix(minimal_project, sample_wav)
     ver = ReviewService(ws).publish(label="AuthzDeny")
@@ -2063,6 +2034,7 @@ def test_share_review_audio_rejects_escaped_media_paths(minimal_project, sample_
     client = TestClient(create_app())
     audio = client.get(f"/api/review/{token}/audio")
     assert audio.status_code == 400
+    assert audio.headers["x-sharecut-error-code"] == "review_media_outside_workspace"
     assert str(outside) not in audio.text
 
     daw_audio = client.get(f"/api/review/{token}/daw/audio?kind=review")
@@ -2526,3 +2498,135 @@ def test_guest_client_ids_carry_the_prefix_the_gui_counts_as_guests() -> None:
     assert match.group(1) == GUEST_CLIENT_ID_PREFIX
     for raw in ("tab-1", None, "!!"):
         assert _guest_client_id("abcdefghijkl", raw).startswith(GUEST_CLIENT_ID_PREFIX)
+
+
+def test_guest_document_key_error_is_fixed_conflict_without_laundering_secret(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import podcast_mcp.services.document_sync.service as sync
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Guest")
+    share = ShareService(ws).create(
+        review_version_id=version["id"], capabilities=capabilities_for_role("editor")
+    )
+
+    def fail(*_args, **_kwargs):
+        raise KeyError("private secret phrase /private/host/project.json")
+
+    monkeypatch.setattr(sync, "apply_command", fail)
+    response = TestClient(create_app()).post(
+        f"/api/review/{share['token']}/daw/document/command",
+        json={
+            "client_id": "guest",
+            "client_seq": 1,
+            "role": "guest",
+            "type": "ApproveEdits",
+            "payload": {"ids": ["missing"]},
+        },
+    )
+    assert response.status_code == 409
+    assert response.json() == {"detail": {"detail": "target not found", "conflict": True}}
+    assert response.headers["x-sharecut-error-code"] == "document_conflict"
+
+
+def test_deleted_review_version_revokes_share_with_coded_404(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.services.collaboration import lookup_share
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Deleted")
+    token = ShareService(ws).create(review_version_id=version["id"], capabilities=["view", "play"])[
+        "token"
+    ]
+    project = load_project(minimal_project)
+    project.review.versions = []
+    save_project(project, minimal_project)
+    response = TestClient(create_app()).get(f"/api/review/{token}/daw/project")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "invalid or revoked share token"}
+    assert response.headers["x-sharecut-error-code"] == "share_not_found"
+    with pytest.raises(KeyError, match="invalid or revoked share token"):
+        lookup_share(token)
+
+
+@pytest.mark.parametrize("missing", ["proxy", "hash", "index", "file"])
+def test_guest_proxy_missing_guards_are_coded_404(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, missing
+):
+    from podcast_mcp.models import TrackProxy
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    _seed_track_for_proxy(ws)
+    version = ReviewService(ws).publish(label="Proxy")
+    token = ShareService(ws).create(review_version_id=version["id"], capabilities=["view", "play"])[
+        "token"
+    ]
+    project = load_project(minimal_project)
+    track = project.track_by_id("host")
+    assert track is not None
+    if missing == "proxy":
+        track.proxy = None
+    else:
+        track.proxy = TrackProxy(
+            hash="current",
+            chunk_sec=60,
+            overlap_ms=200,
+            chunk_count=1,
+            duration_sec=1,
+            codec="mp3",
+            bitrate_kbps=64,
+        )
+    save_project(project, minimal_project)
+    monkeypatch.setattr("podcast_mcp.services.media.ensure_track_proxy", lambda *_a: None)
+    hash_ = "stale" if missing == "hash" else "current"
+    index = 2 if missing == "index" else 0
+    response = TestClient(create_app()).get(f"/api/review/{token}/daw/proxy/host/{hash_}/{index}")
+    assert response.status_code == 404
+    assert response.headers["x-sharecut-error-code"] == "proxy_not_found"
+    assert response.json() == {
+        "detail": {
+            "proxy": "proxy not available",
+            "hash": "proxy hash mismatch",
+            "index": "chunk not found",
+            "file": "chunk not found",
+        }[missing]
+    }
+
+
+def test_guest_review_mix_missing_is_coded_404(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.edits.review_versions import get_version, version_audio_path
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    version = ReviewService(ws).publish(label="Missing mix")
+    token = ShareService(ws).create(review_version_id=version["id"], capabilities=["view", "play"])[
+        "token"
+    ]
+    project = load_project(minimal_project)
+    frozen = version_audio_path(project, version["id"])
+    frozen.unlink()
+    mp3_relpath = get_version(project, version["id"]).mp3_relpath
+    if mp3_relpath:
+        (project.workspace_path() / mp3_relpath).unlink(missing_ok=True)
+    response = TestClient(create_app()).get(f"/api/review/{token}/audio")
+    assert response.status_code == 404
+    assert response.headers["x-sharecut-error-code"] == "review_media_not_found"
+    assert response.json() == {"detail": "review mix missing: [path]"}
+
+
+def test_guest_audio_pin_missing_is_coded_404(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.gui.routes import review_share
+
+    client, token = _waveform_share(minimal_project, sample_wav, ["play", "view"])
+    monkeypatch.setattr(
+        review_share, "share_audio_path", lambda _token: sample_wav.with_name("missing.mp3")
+    )
+    response = client.get(f"/api/review/{token}/audio")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "not found"}
+    assert response.headers["x-sharecut-error-code"] == "review_media_not_found"

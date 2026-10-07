@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from podcast_mcp.edits.share_capabilities import ReviewRole, review_role_for_capabilities
+from podcast_mcp.util.coded_error import CodedPermissionError
 
 # Structural ops share one command type; policy chooses apply vs propose.
 STRUCTURAL_COMMANDS: frozenset[str] = frozenset(
@@ -105,4 +106,7 @@ def authorize_document_command(
         return
     if command_type in document_command_types_for_caps(caps):
         return
-    raise PermissionError(f"share capabilities do not allow document command: {command_type}")
+    raise CodedPermissionError(
+        f"share capabilities do not allow document command: {command_type}",
+        code="share_capability_required",
+    )

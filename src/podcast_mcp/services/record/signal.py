@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from podcast_mcp.edits.share_capabilities import CAP_MONITOR
 from podcast_mcp.services.collaboration import drop_absolute_path_strings
 from podcast_mcp.services.record.commands import RecordAuthzError
 from podcast_mcp.services.record.state import RecordRole
 from podcast_mcp.services.session_sync import get_hub
+from podcast_mcp.util.coded_error import CodedValueError
 
 SIGNAL_SDP_MAX = 3500
 SIGNAL_CANDIDATE_MAX = 512
@@ -47,7 +48,10 @@ class SignalPayload(BaseModel):
 
 
 def validate_signal_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    return SignalPayload.model_validate(payload or {}).model_dump(exclude_none=True)
+    try:
+        return SignalPayload.model_validate(payload or {}).model_dump(exclude_none=True)
+    except ValidationError as exc:
+        raise CodedValueError("invalid signal payload", code="invalid_record_request") from exc
 
 
 def fanout_record_signal(
@@ -60,15 +64,15 @@ def fanout_record_signal(
     roster_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     if not from_id:
-        raise ValueError("join_first")
+        raise CodedValueError("join_first", code="invalid_record_request")
     if role != "host" and CAP_MONITOR not in list(capabilities or []):
         raise RecordAuthzError("monitor capability required")
     cleaned = validate_signal_payload(payload)
     to_id = str(cleaned["to"])
     if to_id == from_id:
-        raise ValueError("signal to self")
+        raise CodedValueError("signal to self", code="invalid_record_request")
     if roster_ids is not None and to_id not in roster_ids:
-        raise ValueError("unknown_peer")
+        raise CodedValueError("unknown_peer", code="invalid_record_request")
     event = drop_absolute_path_strings(
         {
             "plane": "record",

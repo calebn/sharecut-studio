@@ -19,6 +19,7 @@ from podcast_mcp.models import EpisodeProject, workspace_artifacts_dir
 from podcast_mcp.services.session_sync import cached_store, connect_session_db, sync_db_path
 from podcast_mcp.util.atomic_file import atomic_write, publish_completed_file
 from podcast_mcp.util.body_limits import record_upload_max_part_bytes
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import progress_task
 from podcast_mcp.util.wav import pcm_wav_header
@@ -112,8 +113,10 @@ def _ingest_lock(session_id: str, kind: str, participant_id: str) -> threading.L
     return _INGEST_LOCKS.get((session_id, kind, participant_id))
 
 
-class RecordUploadError(ValueError):
+class RecordUploadError(CodedError, ValueError):
     """Reject a chunk or resume query."""
+
+    code = "record_upload_refused"
 
 
 def sha256_hex(data: bytes) -> str:

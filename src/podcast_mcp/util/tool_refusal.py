@@ -2,11 +2,12 @@
 
 One rule for both MCP servers, so they cannot drift apart: the owner server
 (``mcp/tool_errors.py::install_tool_errors``) and share-linked guest remote MCP
-(``services/remote_mcp/protocol.py``). ``tool_refusal`` recognises two refusals, anywhere on
+(``services/remote_mcp/protocol.py``). ``tool_refusal`` recognises refusals, anywhere on
 the exception's ``__cause__`` chain:
 
 * a ``filelock.Timeout`` (``ProjectBusyError`` / ``RenderBusyError``, or a raw one such as the
   transcript-context lock, #396/#401) -> its fixed, path-free text and ``project_busy``;
+* a SQLite busy or locked error -> fixed project-busy text and ``project_busy``;
 * a ``CodedError`` (``util/coded_error.py``) -> its message and its own ``code``.
 
 Anything else is a crash and returns ``None``: the adapter logs it on the host and the caller
@@ -30,8 +31,9 @@ from filelock import Timeout
 from mcp.types import CallToolResult, TextContent
 
 from podcast_mcp.util.coded_error import coded_cause
-from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, busy_message
+from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, PROJECT_BUSY_MESSAGE, busy_message
 from podcast_mcp.util.redact import redact_host_paths
+from podcast_mcp.util.sqlite_tx import is_sqlite_busy
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,13 @@ def tool_refusal(exc: BaseException, *, for_guest: bool = False) -> ToolRefusal 
     busy = lock_timeout_cause(exc)
     if busy is not None:
         return ToolRefusal(busy_message(busy), PROJECT_BUSY_CODE)
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        if is_sqlite_busy(current):
+            return ToolRefusal(PROJECT_BUSY_MESSAGE, PROJECT_BUSY_CODE)
+        seen.add(id(current))
+        current = current.__cause__
     refusal = coded_cause(exc)
     if refusal is None:
         return None
