@@ -12,6 +12,7 @@ if TYPE_CHECKING:
         DocumentCommandType,
     )
     from podcast_mcp.services.document_sync.errors import DocumentConflictError
+    from podcast_mcp.services.document_sync.host_submit import submit_host_document_command
     from podcast_mcp.services.document_sync.payloads import (
         COMMENT_BODY_MAX,
         DocumentCommandBody,
@@ -72,6 +73,7 @@ __all__ = [
     "notify_document_changed",
     "parse_document_command",
     "parse_view_projection",
+    "submit_host_document_command",
     "validate_payload",
 ]
 
@@ -104,6 +106,7 @@ _MODULE_BY_NAME = {
     "notify_document_changed": "service",
     "parse_document_command": "payloads",
     "parse_view_projection": "projection_types",
+    "submit_host_document_command": "host_submit",
     "validate_payload": "payloads",
 }
 

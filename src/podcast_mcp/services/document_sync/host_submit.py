@@ -1,20 +1,18 @@
-"""Submit typed document commands from host MCP/CLI (shared journal with GUI)."""
+"""Submit typed document commands from host MCP and CLI (shared journal with the GUI)."""
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document_sync import (
-    DocumentCommand,
-    DocumentCommandType,
-    DocumentSyncService,
-    validate_payload,
-)
+from podcast_mcp.services.document_sync.commands import DocumentCommand, DocumentCommandType
+from podcast_mcp.services.document_sync.payloads import validate_payload
+from podcast_mcp.services.document_sync.service import DocumentSyncService
 
 
 def submit_host_document_command(
-    project_path: str,
+    project_path: str | Path,
     command_type: DocumentCommandType,
     payload: dict[str, Any] | None = None,
     *,

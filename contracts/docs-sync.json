@@ -809,7 +809,6 @@
           "src/podcast_mcp/gui/routes/host.py",
           "src/podcast_mcp/cli/session_cmd.py",
           "src/podcast_mcp/mcp/tools/session.py",
-          "src/podcast_mcp/mcp/tools/agent_document.py",
           "gui/web/src/sync/",
           "gui/web/src/session/",
           "gui/web/src/presence/",
