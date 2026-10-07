@@ -4,17 +4,10 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable, Hashable
-from typing import Generic, Protocol, TypeVar
-
-
-class _Lock(Protocol):
-    def acquire(self, blocking: bool = True, timeout: float = -1) -> bool: ...
-
-    def release(self) -> None: ...
-
+from typing import Generic, TypeVar
 
 _K = TypeVar("_K", bound=Hashable)
-_L = TypeVar("_L", bound=_Lock)
+_L = TypeVar("_L", threading.Lock, threading.RLock)
 
 
 class KeyedLocks(Generic[_K, _L]):
@@ -25,7 +18,7 @@ class KeyedLocks(Generic[_K, _L]):
     """
 
     def __init__(self, factory: Callable[[], _L]) -> None:
-        self._factory = factory
+        self._factory: Callable[[], _L] = factory
         self._guard = threading.Lock()
         self._locks: dict[_K, _L] = {}
 
