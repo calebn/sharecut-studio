@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import wave
+from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 
 from podcast_mcp.edits.clips_ops import clips_for_track, punch_timeline_range_from_clips
@@ -577,3 +580,70 @@ def test_assess_blocks_on_peer_speech_in_smaller_of_two_mapped_spans() -> None:
     assert g.blocked
     assert g.blocking_track_ids == ("guest",)
     assert g.action == "track_local"
+
+
+_GUARD_ON = {
+    "tighten": {
+        "speech_energy_guard": {
+            "enabled": True,
+            "on_conflict": "track_local",
+            "min_other_rms_db": -42.0,
+            "dominance_db": 3.0,
+        }
+    },
+    "analysis": {"heuristics": {}},
+}
+_SR = 16_000
+
+
+def _write_wav(path: Path, signal: np.ndarray) -> None:
+    data = (np.clip(signal, -1.0, 1.0) * 32767).astype("<i2")
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(_SR)
+        out.writeframes(data.tobytes())
+
+
+def _peer_word_in_cut(*, suppressed: bool = False) -> EpisodeProject:
+    """Host's "um" at 2.0-2.5 s; Guest's transcript says "right" at 2.1-2.4 s."""
+    return _two_track(
+        guest_words=[TranscriptWord(text="right", start=2.1, end=2.4, suppressed=suppressed)]
+    )
+
+
+def test_resolve_cut_scope_punches_over_peer_word_without_stems() -> None:
+    p = _peer_word_in_cut()
+    assert not any(Path(t.media.path).exists() for t in p.tracks if t.media)
+    scope, guard = resolve_cut_scope(p, "host", 2.0, 2.5, defaults=_GUARD_ON)
+    assert scope == "track"
+    assert guard is not None
+    assert guard.blocking_track_ids == ("guest",)
+    assert guard.action == "track_local"
+
+
+def test_resolve_cut_scope_ripples_over_suppressed_peer_word_without_stems() -> None:
+    scope, guard = resolve_cut_scope(
+        _peer_word_in_cut(suppressed=True), "host", 2.0, 2.5, defaults=_GUARD_ON
+    )
+    assert scope == "session"
+    assert guard is not None
+    assert not guard.blocked
+
+
+def test_resolve_cut_scope_with_stems_lets_sound_decide_over_peer_word(tmp_path: Path) -> None:
+    p = _peer_word_in_cut()
+    t = np.arange(int(10.0 * _SR)) / _SR
+    signals = {
+        "host": 0.1 * np.sin(2 * np.pi * 220 * t),
+        "guest": np.random.default_rng(3).normal(0.0, 0.0003, t.size),
+    }
+    for track in p.tracks:
+        assert track.media is not None
+        path = tmp_path / f"{track.id}.wav"
+        _write_wav(path, signals[track.id])
+        track.media.path = str(path)
+    scope, guard = resolve_cut_scope(p, "host", 2.0, 2.5, defaults=_GUARD_ON)
+    assert scope == "session"
+    assert guard is not None
+    assert not guard.blocked
