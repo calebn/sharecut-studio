@@ -7,7 +7,8 @@
  *   pending edge or envelope point); `origin` is that value.
  * - `enter`: the variant's surface is up and finger travel maps to time at
  *   `pxPerSec`.
- * - `move`: the finger travelled `dx` px (at gain step `gain`). The value
+ * - `move`: the finger travelled `dx` px (at gain step `gain`, times
+ *   `scale`). The value
  *   lands on whole steps from `origin`. Hard limits always stop it. A soft
  *   boundary holds it until the finger pushes `DRAG_DETENT_PX` past, as an
  *   armed drag's detent does; moving back frees it at once.
@@ -21,7 +22,7 @@ import type { NudgeField } from "../../edit/nudge";
 import { nudgeStep } from "../../edit/nudge";
 import type { SoftBoundary } from "../../edit/nudgeBoundaries";
 import { DRAG_DETENT_PX } from "../../hooks/gestureConstants";
-import type { PrecisionVariant } from "./precisionLab";
+import type { PrecisionStyle } from "./precisionLab";
 import {
   frameOf,
   type GainIndex,
@@ -29,6 +30,13 @@ import {
   quantize,
   unitsPerSec,
 } from "./precisionMath";
+
+/**
+ * How the drag runs: one of the precision styles, or `direct` when Auto
+ * judged the target easy to drag (the finger moves it at the timeline's
+ * zoom, finer while the finger moves slowly).
+ */
+export type PrecisionVariant = PrecisionStyle | "direct";
 
 /** The armed target's value against the project it was armed in. */
 export interface PrecisionAxis {
@@ -104,7 +112,14 @@ export type PrecisionEvent =
       origin: number;
     }
   | { type: "enter"; pxPerSec: number }
-  | { type: "move"; dx: number; gain?: GainIndex }
+  | {
+      type: "move";
+      dx: number;
+      /** The jog's speed step. */
+      gain?: GainIndex;
+      /** A factor on this move alone: a direct drag's ballistics. */
+      scale?: number;
+    }
   | { type: "commit" }
   | { type: "cancel" }
   | { type: "reset" };
@@ -113,10 +128,10 @@ export const IDLE: PrecisionState = { phase: "idle" };
 
 type Active = Extract<PrecisionState, { phase: "precision" }>;
 
-function move(s: Active, dx: number, axis: PrecisionAxis): Active {
+function move(s: Active, dx: number, axis: PrecisionAxis, scale = 1): Active {
   const units = unitsPerSec(s.target.field);
   const stepSec = frameOf(s.target.field) / Math.abs(units);
-  const k = (units / s.pxPerSec) * jogGain(s.gain, s.pxPerSec, stepSec);
+  const k = (units / s.pxPerSec) * jogGain(s.gain, s.pxPerSec, stepSec) * scale;
   if (dx === 0 || k === 0) return s;
   if (s.held) {
     const push = s.held.push + dx * s.held.dir;
@@ -124,7 +139,7 @@ function move(s: Active, dx: number, axis: PrecisionAxis): Active {
     if (push < DRAG_DETENT_PX) return { ...s, held: { ...s.held, push } };
     // Pushed through: go on from the boundary with what is left over.
     const past = { ...s, held: null, raw: s.value, stop: null };
-    return move(past, (push - DRAG_DETENT_PX) * s.held.dir, axis);
+    return move(past, (push - DRAG_DETENT_PX) * s.held.dir, axis, scale);
   }
   const raw = s.raw + dx * k;
   const want = quantize(raw, s.origin, frameOf(s.target.field));
@@ -183,7 +198,7 @@ export function precisionReducer(
       if (state.phase !== "precision") return state;
       const geared =
         event.gain == null ? state : { ...state, gain: event.gain };
-      return move(geared, event.dx, axis);
+      return move(geared, event.dx, axis, event.scale);
     }
     case "commit":
       if (state.phase === "precision") {

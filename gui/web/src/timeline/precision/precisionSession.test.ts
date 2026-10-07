@@ -70,6 +70,19 @@ describe("precision session", () => {
     expect(valueOf(run([...wide, { type: "move", dx: -8 }]))).toBe(9.2);
   });
 
+  it("scales a direct drag's move by its ballistic factor", () => {
+    const direct: PrecisionEvent[] = [
+      { type: "arm", variant: "direct", target, origin: 10 },
+      { type: "enter", pxPerSec: 10 },
+    ];
+    expect(
+      valueOf(run([...direct, { type: "move", dx: 4, scale: 0.025 }])),
+    ).toBe(10.01);
+    expect(valueOf(run([...direct, { type: "move", dx: 4, scale: 1 }]))).toBe(
+      10.4,
+    );
+  });
+
   it("keeps the value when the gain changes mid-drag", () => {
     const s = run([
       ...armed,
