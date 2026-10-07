@@ -2812,12 +2812,15 @@
         "command": "transcript.findReplace",
         "gui": [
           "transcript.findReplace"
-        ]
+        ],
+        "mcp": [
+          "find_replace_transcript_tool"
+        ],
+        "cli": "podcast transcript find-replace"
       },
       "omit": {
         "keyboard_reason": "toolbar and command palette; no shortcut yet",
-        "guest": true,
-        "agent_reason": "TODO #1140"
+        "guest": true
       },
       "presence": {
         "cursor": "none",

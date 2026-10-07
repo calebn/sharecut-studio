@@ -155,6 +155,41 @@ def transcript_set_word_timing_cmd(
     typer.echo(json.dumps(host_command_result(reply), indent=2))
 
 
+@transcript_app.command("find-replace")
+@timed_command("transcript find-replace")
+def transcript_find_replace_cmd(
+    project: Path = typer.Option(..., "--project"),
+    search: str = typer.Option(..., "--search", help="Word or phrase to find"),
+    replacement: str = typer.Option(..., "--replace", help="Replacement text"),
+    match_case: bool = typer.Option(False, "--match-case"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="List matches; change nothing"),
+) -> None:
+    """Replace a literal word or phrase everywhere in the transcript, in one undo step."""
+    from podcast_mcp.services.document_sync import (
+        host_command_result,
+        submit_host_document_command,
+    )
+
+    preview = EditService(ProjectWorkspace.open(project)).preview_transcript_replacement(
+        search, replacement, match_case=match_case
+    )
+    if dry_run:
+        typer.echo(json.dumps(preview, indent=2))
+        return
+    reply = submit_host_document_command(
+        project,
+        "ReplaceTranscriptMatches",
+        {
+            "search": search,
+            "replacement": replacement,
+            "match_case": match_case,
+            "preview_token": preview["preview_token"],
+        },
+        client_id="cli",
+    )
+    typer.echo(json.dumps({**preview, **host_command_result(reply)}, indent=2))
+
+
 @transcript_app.command("suppress-word")
 @timed_command("transcript suppress-word")
 def transcript_suppress_word_cmd(

@@ -545,6 +545,40 @@ def set_word_timing_tool(
     return to_json(host_command_result(reply))
 
 
+def find_replace_transcript_tool(
+    project_path: str,
+    search: str,
+    replacement: str,
+    match_case: bool = False,
+    dry_run: bool = False,
+) -> str:
+    """Replace a literal word or phrase everywhere in the transcript (Studio Find and replace).
+
+    Matches whole words across every track and recording; punctuation around a word is
+    kept. ``dry_run`` returns the preview (``matches``, ``count``, ``skipped_words``)
+    and changes nothing. Otherwise every previewed match is replaced through
+    ``ReplaceTranscriptMatches`` in one undo step, and ``replaced`` gives the count.
+    For one word use ``correct_transcript_tool``.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    preview = EditService(ws).preview_transcript_replacement(
+        search, replacement, match_case=match_case
+    )
+    if dry_run:
+        return to_json(preview)
+    reply = submit_host_document_command(
+        project_path,
+        "ReplaceTranscriptMatches",
+        {
+            "search": search,
+            "replacement": replacement,
+            "match_case": match_case,
+            "preview_token": preview["preview_token"],
+        },
+    )
+    return to_json({**preview, **host_command_result(reply)})
+
+
 def set_words_ignored_tool(
     project_path: str,
     track_id: str,
@@ -1019,6 +1053,7 @@ def register(mcp: MCPServer) -> None:
         set_word_automatic_tool,
         set_words_ignored_tool,
         set_word_timing_tool,
+        find_replace_transcript_tool,
         apply_transcript_cleanup_tool,
         low_confidence_words_tool,
         verify_transcript_tool,
