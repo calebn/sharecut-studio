@@ -72,6 +72,34 @@ def _tighten(defaults: dict[str, Any] | None) -> dict[str, Any]:
     return dict(cfg.get("tighten", {}) or {})
 
 
+def _takes_whole_gap(window_sec: float, span_sec: float, cfg: dict[str, Any]) -> bool:
+    """Whether a cut of ``span_sec`` may take ``window_sec`` of air between its flanking words.
+
+    A window wider than both the span and ``filler_room_tone_max_expand_sec`` is a long
+    silence the cut only touches, so its air does not count toward the pad.
+    """
+    max_expand_sec = float(cfg.get("filler_room_tone_max_expand_sec", 2.0))
+    return window_sec <= max(span_sec + 1e-9, max_expand_sec)
+
+
+def paced_pad_for_span(
+    project: EpisodeProject,
+    track_id: str,
+    start: float,
+    end: float,
+    defaults: dict[str, Any] | None = None,
+) -> PacedPad:
+    """The pad a ripple of ``[start, end]`` gets, read from the words around that span.
+
+    Coalescing merges cuts into one wider cut; its pad is paced from the merged span by
+    the same rule a single cut of that span would get (#1129).
+    """
+    prev, nxt = flanking_retained_words(project, track_id, start, end)
+    inter_word = 0.0 if prev is None or nxt is None else max(0.0, nxt.start - prev.end)
+    gap_sec = inter_word if _takes_whole_gap(inter_word, end - start, _tighten(defaults)) else 0.0
+    return PacedPad.from_defaults(gap_sec, defaults)
+
+
 def filler_pad_mode(defaults: dict[str, Any] | None = None) -> FillerPadMode:
     """How to fill ``replace_gap_sec`` after ripple: room tone (default) or silence.
 
@@ -218,8 +246,6 @@ def apply_filler_pacing(
     )
     word_margin = max(0.0, margin_ms / 1000.0)
     lead_in = float(cfg.get("filler_next_word_lead_in_ms", 80)) / 1000.0
-    # Safety: never expand a short filler cut across a huge hesitation by mistake.
-    max_expand_sec = float(cfg.get("filler_room_tone_max_expand_sec", 2.0))
     inter_word = max(0.0, nxt.start - prev.end)
     cut_dur = cut_end - cut_start
     # Air between the requested filler end and the next retained word. When the
@@ -260,7 +286,8 @@ def apply_filler_pacing(
         )
         if expanded is None:
             return None
-        if expanded[1] - expanded[0] <= max(cut_dur + 1e-9, max_expand_sec):
+        # Safety: never expand a short filler cut across a huge hesitation by mistake.
+        if _takes_whole_gap(expanded[1] - expanded[0], cut_dur, cfg):
             return FillerPacingResult(
                 start=expanded[0],
                 end=expanded[1],
