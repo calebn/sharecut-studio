@@ -79,6 +79,38 @@ def test_each_role_runs_exactly_its_document_commands(caps, expected):
     assert allowed_commands(caps) == expected
 
 
+def test_an_editor_edits_volume_envelopes_and_other_roles_cannot(envelope_project):
+    """Owner decision D-touch-input-grammar (#1051): Editor links change volume
+    envelopes as the host does; Commenter and Viewer links cannot."""
+    svc = DocumentSyncService.open(envelope_project)
+    point = {"id": "guest-point", "time": 1.5, "value": 0.5}
+
+    def set_envelope() -> DocumentCommand:
+        baseline = load_project(envelope_project).automation_envelopes
+        expected = [
+            {"id": p.id, "time": p.time, "value": p.value}
+            for envelope in baseline
+            if envelope.track_id == "host" and envelope.parameter == "volume"
+            for p in envelope.points
+        ]
+        return guest_command(
+            "SetEnvelope",
+            {"track_id": "host", "points": [point], "expected_points": expected},
+        )
+
+    for caps in (VIEWER, COMMENTER):
+        with pytest.raises(PermissionError, match="SetEnvelope"):
+            svc.submit(set_envelope(), capabilities=caps)
+    svc.submit(set_envelope(), capabilities=EDITOR)
+
+    volume = [
+        envelope
+        for envelope in load_project(envelope_project).automation_envelopes
+        if envelope.track_id == "host" and envelope.parameter == "volume"
+    ]
+    assert [(p.id, p.time, p.value) for p in volume[0].points] == [("guest-point", 1.5, 0.5)]
+
+
 def test_a_commenter_suggests_a_cut_and_an_editor_applies_it(minimal_project):
     svc = range_project(minimal_project)
     before = deepcopy(svc.ws.project.clips)
