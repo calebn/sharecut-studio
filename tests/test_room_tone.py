@@ -288,3 +288,82 @@ def test_a_failing_voice_detector_leaves_the_fill_silent(
     project = _project(tmp_path, host=_host_audio())
 
     assert mute_room_tone_fill(project, _host_clip(project), 4.0, 4.5) is None
+
+
+# A room's reverb: a word's voice decays 60 dB in 0.3 s after it stops, and opens over
+# 80 ms from 60 dB down. Both edges cross the floor's level while still voice.
+ATTACK_SEC = 0.08
+DECAY_DB_PER_SEC = 200.0
+
+
+def _add_word(samples: np.ndarray, start: float, end: float, level_db: float) -> None:
+    """A 140 Hz harmonic voice at ``level_db`` over ``[start, end)``, with an attack and tail."""
+    tail_sec = 120.0 / DECAY_DB_PER_SEC
+    i0, i2 = round(start * SR), min(samples.size, round((end + tail_sec) * SR))
+    t = np.arange(i2 - i0) / SR
+    voice = sum(np.sin(2 * np.pi * 140 * k * t) / k for k in range(1, 9))
+    held = t < end - start
+    voice *= 10 ** (level_db / 20) / np.sqrt(np.mean(voice[held] ** 2))
+    envelope_db = np.where(held, 0.0, -DECAY_DB_PER_SEC * (t - (end - start)))
+    opening = t < ATTACK_SEC
+    envelope_db[opening] = -60.0 * (1.0 - t[opening] / ATTACK_SEC)
+    samples[i0:i2] += voice * 10 ** (envelope_db / 20)
+
+
+@pytest.fixture
+def no_voice_detector(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("podcast_mcp.engines.vad_silero.get_shared_vad", lambda: None)
+
+
+WORDS_WITH_TAILS = ((1.0, 1.5), (2.5, 3.2), (4.0, 4.5), (6.4, 7.0))
+
+
+def _gated_steady_word() -> np.ndarray:
+    guest = np.zeros(round(DURATION_SEC * SR))
+    _add_voice(guest, 6.0, 7.0, VOICE_DB)
+    return guest
+
+
+def _gated_talker() -> np.ndarray:
+    # Speech on 60% of the track; the gate passes each word's attack and reverb tail
+    # until it falls under the 16-bit floor, then digital silence.
+    guest = np.zeros(round(DURATION_SEC * SR))
+    for start in np.arange(0.2, DURATION_SEC - 1.0, 1.0):
+        _add_word(guest, start, start + 0.6, VOICE_DB)
+    return guest
+
+
+@pytest.mark.usefixtures("no_voice_detector")
+@pytest.mark.parametrize("guest", [_gated_steady_word(), _gated_talker()], ids=["word", "talker"])
+def test_a_gated_track_has_no_room_tone_without_a_voice_detector(
+    tmp_path: Path, guest: np.ndarray
+) -> None:
+    project = _project(tmp_path, host=_host_audio(), guest=guest)
+
+    assert [
+        room_tone_span(project, "guest", near_sec=near, duration_sec=0.3)
+        for near in (4.0, 6.5, 8.5)
+    ] == [None, None, None]
+    # The host's room floor is still found without the detector.
+    assert room_tone_span(project, "host", near_sec=4.0, duration_sec=0.3) is not None
+
+
+@pytest.mark.usefixtures("no_voice_detector")
+@pytest.mark.parametrize("near_sec", [1.5, 2.5, 3.2, 4.5, 6.4])
+@pytest.mark.parametrize("duration_sec", [0.3, 0.5])
+def test_word_onsets_and_tails_are_never_room_tone(
+    tmp_path: Path, near_sec: float, duration_sec: float
+) -> None:
+    host = _noise(FLOOR_DB, seed=1054)
+    for start, end in WORDS_WITH_TAILS:
+        _add_word(host, start, end, VOICE_DB)
+    project = _project(tmp_path, host=host)
+
+    span = room_tone_span(project, "host", near_sec=near_sec, duration_sec=duration_sec)
+
+    assert span is not None
+    start, end, _ = span
+    # A word is audible from its start until its tail falls 10 dB under the floor.
+    tail_sec = (VOICE_DB - (FLOOR_DB - 10.0)) / DECAY_DB_PER_SEC
+    heard = [(s, e + tail_sec) for s, e in WORDS_WITH_TAILS]
+    assert [(s, e) for s, e in heard if start < e and s < end] == []
