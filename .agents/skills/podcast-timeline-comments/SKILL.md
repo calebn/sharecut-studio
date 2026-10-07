@@ -73,6 +73,10 @@ When the user asks you to note something for later (or for a human):
 2. `add_comment_tool(project_path, body=…, author="agent", timeline_start=…, timeline_end=…, track_ids=["host"], action_texts=["Cut this"])`
 3. Confirm in the DAW Comments tab / markers after project reload
 
+### Comments from Align tracks
+
+Pipeline `align_tracks` writes comments with `author` `Align tracks` and ids starting `onset-`, one per word whose start is only on another mic because the speaker's own track opened late (#1059). The span runs from the copy's onset to the opening, on the speaker's track. Work them like any other note: listen to the speaker's track and the named mic, then re-record, edit around the word, or resolve with `by`. Don't delete them to clear the queue: an open, unanswered one comes back on the next `align_tracks` run while the audio still shows the gap, and a resolved one stays. Re-running align after aligning the lane withdraws the ones the shift fixed. See `docs/timeline-comments.md` § Comments from Align tracks.
+
 ## Anchors
 
 - Empty `track_ids` = session-wide (whole mix)

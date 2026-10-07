@@ -48,6 +48,7 @@ StepSummary = str | None
 
 def align_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.align_accept_status import mark_align_done, mark_align_pending
+    from podcast_mcp.edits.clipped_onsets import flag_clipped_word_starts, flagged_note
     from podcast_mcp.edits.conversation_align import run_conversation_align
 
     clips = [clip.model_copy(deep=True) for clip in project.clips]
@@ -64,7 +65,9 @@ def align_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumma
     except Exception:
         project.clips = clips
         raise
-    return result.summary()
+    flagged = flag_clipped_word_starts(project, defaults)
+    summary = result.summary()
+    return f"{summary}; {flagged_note(flagged)}" if flagged else summary
 
 
 def require_align_accept(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:

@@ -29,6 +29,12 @@ chosen per lane by cross-validation (`LagSteps.step_cost`). `conversation_align.
 segments into per-clip plans with `steps`, and `apply_alignment_plans` splits those
 clips (`split_clip_at`) before slipping each piece; a clip already at its recorded
 placement keeps its `meta.ingest_alignment` entry, so a re-run changes nothing.
+Once the clips are placed, the
+`align_tracks` step calls `edits/clipped_onsets.py`, which measures the copy paths
+again where the lanes now sit (`measure_pair`), finds words whose start reached another
+mic before their own track opened, snaps those starts and keeps one `Align tracks`
+comment per word in step through `edits/comments.py`. It reads only the project and
+audio, never the solver's internals.
 
 Retained mixed bleed has a separate, conservative local alignment path.
 `engines/bleed_delay.py` measures signed copy delays with extended reference
