@@ -427,4 +427,5 @@ shipped, and the text says so. The adjacent MCP note shipped in #1027.
   native dialogs remain for #1031.
 - 2026-10-07 — Added "Stop take" and "Start blocker" and tightened "Land"
   (#1026): the Record room panel's in-place empty state, one take control,
-  Stop's one-time question, and Land and Start reasons in place.
+  Stop's one-time question (the shared `ui/InlineConfirm`), and Land and
+  Start reasons in place.

@@ -156,22 +156,14 @@
 
 /* Danger gets distance: Stop has its own row behind a divider, at the far end. */
 .record-stop {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-3);
+  display: grid;
+  justify-items: end;
   padding-block-start: var(--space-3);
   border-block-start: 1px solid var(--color-border-subtle);
 }
 
-.record-stop-prompt {
-  margin: 0;
-  flex: 1 1 14rem;
-}
-
-.record-stop-actions {
-  justify-content: flex-end;
+.record-stop > .ui-inline-confirm {
+  justify-self: stretch;
 }
 
 .record-mute {
