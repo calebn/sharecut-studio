@@ -105,7 +105,7 @@ podcast doctor
 
 | Extra | Adds | When you need it |
 |-------|------|------------------|
-| *(core)* | typer, faster-whisper ≥ 1.1 (VAD, `hotwords`, `hallucination_silence_threshold`), PyAV ≥ 11 and < 19 (faster-whisper 1.2.1 passes `metadata_errors` to `av.open`, which PyAV 19 rejects), mcp, onnxruntime + huggingface-hub (used by forced alignment when its optional model is installed), … | Always — `uv sync` with no extras |
+| *(core)* | typer, faster-whisper ≥ 1.1 (VAD, `hotwords`, `hallucination_silence_threshold`), PyAV ≥ 11 and < 19 (faster-whisper 1.2.1 passes `metadata_errors` to `av.open`, which PyAV 19 rejects), mcp ≥ 2.2 and < 3 (`mcp/args.py`, `mcp/tool_errors.py` and `gui/host_mcp.py` rely on SDK internals; their client tests catch drift on a minor bump), onnxruntime + huggingface-hub (used by forced alignment when its optional model is installed), … | Always — `uv sync` with no extras |
 | `dev` | pytest, coverage, mypy, ruff, bandit, vulture, deptry, pre-commit | Running `make test` / `make lint-py` and check-only commit hooks |
 | `bootstrap` | `static-ffmpeg` | `podcast bootstrap --component ffmpeg` without a system FFmpeg |
 | `gui` | fastapi ≥0.116.1, starlette ≥0.47, anyio ≥4, uvicorn, httpx, boto3, websockets ≥14 | `podcast gui` / review share host |
