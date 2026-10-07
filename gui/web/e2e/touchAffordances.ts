@@ -83,11 +83,12 @@ export async function exerciseTouchSheetAffordances(
   });
 
   // A track opens the plain inspector sheet; a timeline target on a phone
-  // opens the compact drawer instead, which touch-peek.spec.ts covers.
+  // opens the compact drawer instead, which touch-peek.spec.ts covers. Enter
+  // keeps focus on the button, which a WebKit click does not.
   const trigger = page.locator(".track-header-open").first();
   await trigger.focus();
   await expect(trigger).toBeFocused();
-  await trigger.click();
+  await trigger.press("Enter");
   const sheet = page.locator(".bottom-sheet");
   if (!viewport.sheetExpected) {
     await expect(sheet).toHaveCount(0);
@@ -199,7 +200,7 @@ export async function exerciseTouchSheetAffordances(
         : null,
   }));
   await expect(trigger).toBeFocused();
-  await trigger.click();
+  await trigger.press("Enter");
   await expect(sheet).toBeVisible();
   await sheet.evaluate(async (element) => {
     await Promise.all(
