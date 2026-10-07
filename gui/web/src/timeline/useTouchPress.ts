@@ -1,5 +1,5 @@
 /**
- * The touch press layer of the touch chooser lab (#1051): React Aria's
+ * The touch press layer of the touch input grammar (#1051): React Aria's
  * `usePress` and `useLongPress` own a timeline touch while the hit router
  * decides what it was.
  *

@@ -234,7 +234,7 @@ export interface DawState {
   sheetExpanded: boolean;
   /** Compact (phone) inspector: open as the peek strip or expanded; persisted. */
   compactInspectorView: CompactInspectorView;
-  /** The timeline target the last press went to (touch chooser lab). */
+  /** The timeline target the last press went to (touch input grammar). */
   selectionHit: RoutedTarget | null;
   /** A timeline drag is under way; the compact inspector stows itself. */
   timelineDragging: boolean;

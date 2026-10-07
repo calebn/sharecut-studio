@@ -24,7 +24,6 @@ import {
  */
 
 const RUN = process.env.TOUCH_SCROLL_RUN ?? "after";
-const LAB = process.env.TOUCH_SCROLL_LAB ?? "touch-chooser";
 
 test.use({ hasTouch: true });
 
@@ -51,7 +50,7 @@ test("timeline text takes no selection or callout", async ({
   await buildFixture(page, projectPath, "e2e-touch-select");
   const rows: Record<string, unknown>[] = [];
   for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
-    await openTimeline(page, projectPath, viewport, "dark", LAB || null);
+    await openTimeline(page, projectPath, viewport, "dark");
     await setZoom(page, 3);
     const label = page.locator(`${lane} .clip-label`).first();
     await label.scrollIntoViewIfNeeded();

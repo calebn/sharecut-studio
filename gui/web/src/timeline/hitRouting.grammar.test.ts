@@ -38,11 +38,10 @@ function record(name: string, el: Element): void {
   }
 }
 
-/** A router like the timeline's: lab on, 100 px/s, `boundaries` for every target. */
+/** A router like the timeline's: 100 px/s, `boundaries` for every target. */
 function attach(boundaries: SoftBoundary[] = []): void {
   router?.dispose();
   router = attachHitRouting(root, {
-    touchLab: () => true,
     onArm: (target) => armed.push(target),
     onCreate: (view) => creates.push(view),
     onDetent: (detent) => detents.push(detent),

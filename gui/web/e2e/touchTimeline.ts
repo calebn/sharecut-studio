@@ -5,6 +5,8 @@ import {
   type CDPSession,
   expect,
   type Page,
+  type PlaywrightTestArgs,
+  type PlaywrightWorkerOptions,
   type TestInfo,
 } from "@playwright/test";
 import { rulerWidthPx } from "./deepZoom";
@@ -159,17 +161,19 @@ export async function newTouchPage(
   return { page, cdp: await context.newCDPSession(page) };
 }
 
-/** Opens the project's timeline, with `lab` (e.g. "touch-chooser") if set. */
+/** The fixtures a touch case function takes from its literal-titled test. */
+export type CaseFixtures = Pick<PlaywrightTestArgs, "page" | "context"> &
+  Pick<PlaywrightWorkerOptions, "browserName">;
+
+/** Opens the project's timeline. */
 export async function openTimeline(
   page: Page,
   projectPath: string,
   viewport: ViewportName,
   theme: Theme,
-  lab: string | null = "touch-chooser",
 ): Promise<void> {
   await page.setViewportSize(VIEWPORTS[viewport]);
-  const query = lab ? `&lab=${lab}` : "";
-  await page.goto(`/?project=${encodeURIComponent(projectPath)}${query}`);
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
   if (viewport === "phone") await openPhoneTimeline(page);
   await setTheme(page, theme);

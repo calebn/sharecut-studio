@@ -40,7 +40,6 @@ import type { ProsodyOverlayTrack } from "../types/prosody";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import { pendingEditTrackIds } from "../utils/edits";
 import { EMPTY_ARR, EMPTY_CLIPS } from "../utils/empty";
-import { isLabEnabled, useLabFlag } from "../utils/labFlags";
 import {
   COMPACT_LANE_HEIGHT,
   FIT_GUTTER,
@@ -257,7 +256,6 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   const hitRootRef = useCallback((root: HTMLDivElement | null) => {
     if (!root) return;
     const router = attachHitRouting(root, {
-      touchLab: () => isLabEnabled("touchChooser"),
       onCreate: (view) =>
         setCreate((prev) =>
           view
@@ -308,8 +306,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     };
   }, []);
   const clearChooser = useCallback(() => setChooser(null), []);
-  const touchLab = useLabFlag("touchChooser");
-  const touchPress = useTouchPress(touchLab ? hitRouter : null);
+  const touchPress = useTouchPress(hitRouter);
   const applyZoomAtRef = useRef<(nextZoom: number, clientX: number) => void>(
     () => undefined,
   );
@@ -938,9 +935,9 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
                 <div
                   ref={hitRootRef}
                   className="timeline-hit-root"
-                  data-touch-press={touchLab ? "" : undefined}
+                  data-touch-press=""
                   style={{ position: "relative", width }}
-                  {...(touchLab ? touchPress : {})}
+                  {...touchPress}
                 >
                   <MarkerLane
                     chapters={chapters}

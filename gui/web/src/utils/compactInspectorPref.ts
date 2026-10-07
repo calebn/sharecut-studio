@@ -1,6 +1,6 @@
 /**
  * How the compact phone inspector opens on a timeline selection (#1051 rounds
- * 3 and 4b, lab `touchChooser`): at the drawer detent the user last left it
+ * 3 and 4b): at the drawer detent the user last left it
  * at, the peek strip, half or full height. Persisted like
  * `sharecut.laneHeight`, a convenience for this browser, not project state
  * (see `docs/persistence.md`).

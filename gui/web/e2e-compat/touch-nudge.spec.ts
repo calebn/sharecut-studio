@@ -1,5 +1,11 @@
 import { AxeBuilder } from "@axe-core/playwright";
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import {
+  expect,
+  type Locator,
+  type Page,
+  type TestInfo,
+  test,
+} from "@playwright/test";
 import { STUDIO_AXE_DISABLED_RULES } from "../e2e/axe";
 import { postDocumentCommand } from "../e2e/documentCommand";
 import { e2eProjectPath } from "../e2e/env";
@@ -13,6 +19,7 @@ import { switchE2eProject } from "../e2e/shareableProject";
 import { setTheme } from "../e2e/theme";
 import {
   buildFixture,
+  type CaseFixtures,
   centerOf,
   json,
   lane,
@@ -108,9 +115,7 @@ async function fixture(page: Page) {
 
 async function open(page: Page, size: SizeName, theme: "dark" | "light") {
   await page.setViewportSize(SIZES[size]);
-  await page.goto(
-    `/?project=${encodeURIComponent(projectPath)}&lab=touch-chooser`,
-  );
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
   if (SIZES[size].width < 768) await openPhoneTimeline(page);
   await setTheme(page, theme);
@@ -277,71 +282,91 @@ test("a held nudge stops at a soft boundary with a cue; a fresh press goes past"
   expect(rows[2].note).toBe("Pending edit timing saved at the pending remove");
 });
 
-for (const size of Object.keys(SIZES) as SizeName[]) {
-  test(`pending and envelope strips: nudge rows, targets and axe (${size})`, async ({
-    page,
-    context,
-    browserName,
-  }, info) => {
-    await fixture(page);
-    const rows: Record<string, unknown>[] = [];
-    for (const theme of ["dark", "light"] as const) {
-      await open(page, size, theme);
-      const finger = await newFinger(context, page, browserName);
-      for (const [name, selector] of [
-        ["envelope", `${lane} [data-hit-id="env-c"]`],
-        ["pending", `${lane} [data-pending-id] >> nth=0`],
-      ] as const) {
-        await tap(page, finger, await centerOf(page, selector));
-        await expect(page.locator(".nudge-row").first()).toBeVisible();
-        save(
-          info,
-          `strip-${name}-${size}-${theme}-${browserName}.png`,
-          await page.screenshot(),
-        );
-        const axe = await new AxeBuilder({ page })
-          .disableRules([...STUDIO_AXE_DISABLED_RULES])
-          .include(".bottom-sheet")
-          .analyze();
-        rows.push({
-          name,
-          theme,
-          rows: await page.locator(".nudge-row").evaluateAll((els) =>
-            els.map((row) => ({
-              label: row.querySelector(".nudge-row-label")?.textContent,
-              value: row.querySelector(".nudge-row-value")?.textContent,
-              buttons: [...row.querySelectorAll("button")].map((b) => {
-                const r = b.getBoundingClientRect();
-                return {
-                  label: b.getAttribute("aria-label"),
-                  w: Math.round(r.width),
-                  h: Math.round(r.height),
-                  inView: r.top >= 0 && r.bottom <= innerHeight,
-                };
-              }),
-            })),
-          ),
-          axe: axe.violations.map((v) => v.id),
-        });
-      }
-    }
-    json(info, `strip-rows-${size}-${browserName}`, rows);
-    for (const row of rows as {
-      name: string;
-      rows: {
-        label: string;
-        buttons: { w: number; h: number; inView: boolean }[];
-      }[];
-      axe: string[];
-    }[]) {
-      expect(row.axe).toEqual([]);
-      expect(row.rows.map((r) => r.label)).toEqual(
-        row.name === "envelope" ? ["Time", "Level"] : ["Start", "End"],
+async function pendingAndEnvelopeStrips(
+  size: SizeName,
+  { page, context, browserName }: CaseFixtures,
+  info: TestInfo,
+): Promise<void> {
+  await fixture(page);
+  const rows: Record<string, unknown>[] = [];
+  for (const theme of ["dark", "light"] as const) {
+    await open(page, size, theme);
+    const finger = await newFinger(context, page, browserName);
+    for (const [name, selector] of [
+      ["envelope", `${lane} [data-hit-id="env-c"]`],
+      ["pending", `${lane} [data-pending-id] >> nth=0`],
+    ] as const) {
+      await tap(page, finger, await centerOf(page, selector));
+      await expect(page.locator(".nudge-row").first()).toBeVisible();
+      save(
+        info,
+        `strip-${name}-${size}-${theme}-${browserName}.png`,
+        await page.screenshot(),
       );
-      for (const button of row.rows.flatMap((r) => r.buttons)) {
-        expect(Math.min(button.w, button.h)).toBeGreaterThanOrEqual(44);
-        expect(button.inView).toBe(true);
-      }
+      const axe = await new AxeBuilder({ page })
+        .disableRules([...STUDIO_AXE_DISABLED_RULES])
+        .include(".bottom-sheet")
+        .analyze();
+      rows.push({
+        name,
+        theme,
+        rows: await page.locator(".nudge-row").evaluateAll((els) =>
+          els.map((row) => ({
+            label: row.querySelector(".nudge-row-label")?.textContent,
+            value: row.querySelector(".nudge-row-value")?.textContent,
+            buttons: [...row.querySelectorAll("button")].map((b) => {
+              const r = b.getBoundingClientRect();
+              return {
+                label: b.getAttribute("aria-label"),
+                w: Math.round(r.width),
+                h: Math.round(r.height),
+                inView: r.top >= 0 && r.bottom <= innerHeight,
+              };
+            }),
+          })),
+        ),
+        axe: axe.violations.map((v) => v.id),
+      });
     }
-  });
+  }
+  json(info, `strip-rows-${size}-${browserName}`, rows);
+  for (const row of rows as {
+    name: string;
+    rows: {
+      label: string;
+      buttons: { w: number; h: number; inView: boolean }[];
+    }[];
+    axe: string[];
+  }[]) {
+    expect(row.axe).toEqual([]);
+    expect(row.rows.map((r) => r.label)).toEqual(
+      row.name === "envelope" ? ["Time", "Level"] : ["Start", "End"],
+    );
+    for (const button of row.rows.flatMap((r) => r.buttons)) {
+      expect(Math.min(button.w, button.h)).toBeGreaterThanOrEqual(44);
+      expect(button.inView).toBe(true);
+    }
+  }
 }
+
+test("pending and envelope strips: nudge rows, targets and axe (portrait-360)", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  pendingAndEnvelopeStrips(
+    "portrait-360",
+    { page, context, browserName },
+    info,
+  ));
+
+test("pending and envelope strips: nudge rows, targets and axe (landscape-844)", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  pendingAndEnvelopeStrips(
+    "landscape-844",
+    { page, context, browserName },
+    info,
+  ));

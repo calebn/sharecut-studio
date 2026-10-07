@@ -33,7 +33,6 @@ import {
 
 const CLIENT_ID = "e2e-touch-scroll";
 const RUN = process.env.TOUCH_SCROLL_RUN ?? "after";
-const LAB = process.env.TOUCH_SCROLL_LAB ?? "touch-chooser";
 
 test.use({ hasTouch: true, isMobile: true });
 test.describe.configure({ timeout: 600_000 });
@@ -109,7 +108,7 @@ test("dragging to scroll scrolls and activates nothing", async ({
     for (const [start, locate] of Object.entries(STARTS)) {
       const { page: p, cdp } = await newTouchPage(context);
       const commands = watchCommands(p);
-      await openTimeline(p, projectPath, viewport, "dark", LAB || null);
+      await openTimeline(p, projectPath, viewport, "dark");
       await setZoom(p, 3);
       const at = await locate(p);
       if (!at) {
@@ -165,7 +164,7 @@ test("a tap still selects or opens what it lands on", async ({
   for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
     for (const start of ["clip body", "lone envelope point", "join badge"]) {
       const { page: p, cdp } = await newTouchPage(context);
-      await openTimeline(p, projectPath, viewport, "dark", LAB || null);
+      await openTimeline(p, projectPath, viewport, "dark");
       await setZoom(p, 3);
       const at = await STARTS[start](p);
       if (!at) throw new Error(`${start} not on screen`);
@@ -202,7 +201,7 @@ test("video: drag to scroll from a clip and a crowded point", async ({
   const { page, cdp } = await newTouchPage(context);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await buildFixture(page, projectPath, CLIENT_ID);
-  await openTimeline(page, projectPath, "phone", "dark", LAB || null);
+  await openTimeline(page, projectPath, "phone", "dark");
   await setZoom(page, 3);
   for (const start of ["clip body", "crowded envelope point"]) {
     const at = await STARTS[start](page);
@@ -252,7 +251,7 @@ test("a held, sliding finger starts no text selection or callout", async ({
   const rows: Record<string, unknown>[] = [];
   for (const viewport of Object.keys(VIEWPORTS) as ViewportName[]) {
     const { page: p, cdp } = await newTouchPage(context);
-    await openTimeline(p, projectPath, viewport, "dark", LAB || null);
+    await openTimeline(p, projectPath, viewport, "dark");
     await setZoom(p, 3);
     const at = await centerOf(p, `${lane} .clip-label`);
     await watchSelection(p);

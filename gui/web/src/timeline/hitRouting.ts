@@ -7,7 +7,7 @@
  * unchanged. One target in reach, or a press on a plain surface, passes
  * through untouched.
  *
- * With the touch chooser lab on, every touch on a target or surface follows
+ * Every touch on a target or surface follows
  * the touch input grammar (`inputContract.ts`). It is handed to the press
  * layer (`useTouchPress`, React Aria) and reaches no target while it decides:
  * - One finger moving scrolls: the browser takes it, it ends in
@@ -197,8 +197,6 @@ export interface DetentView {
 }
 
 export interface HitRoutingOptions {
-  /** The touch chooser lab: touch goes through the press layer and chooser. */
-  touchLab?: () => boolean;
   onChooser?: (view: ChooserView | null) => void;
   onCreate?: (view: CreateView | null) => void;
   /** A target was armed (`null`: the armed drag ended or was cancelled). */
@@ -566,11 +564,7 @@ export function attachHitRouting(
     // One finger moving never edits: every touch, on a selected target too,
     // waits for the press layer, which arms only on a long press. An armed
     // Select range is the one mode that owns its touches.
-    if (
-      touch &&
-      options.touchLab?.() &&
-      !event.target.closest("[data-range-armed]")
-    ) {
+    if (touch && !event.target.closest("[data-range-armed]")) {
       phase = {
         kind: "pressing",
         down: event,
