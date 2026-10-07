@@ -53,21 +53,24 @@ export interface DetentStep {
 export function detentMove(track: DetentTrack, wantX: number): DetentStep {
   if (!(track.pxPerSec > 0)) return { x: wantX, caught: null, released: false };
   const wantSec = track.t0 + (wantX - track.x0) / track.pxPerSec;
+  let released = false;
   if (track.held) {
     const heldX = detentX(track, track.held.sec);
     if (Math.abs(wantX - heldX) <= DRAG_DETENT_PX) {
       return { x: heldX, caught: null, released: false };
     }
+    // Pushed off: the move goes on from the boundary, so the next one on the
+    // way still catches it.
+    track.lastSec = track.held.sec;
     track.held = null;
-    track.lastSec = wantSec;
-    return { x: wantX, caught: null, released: true };
+    released = true;
   }
   const caught = firstBoundaryCrossed(track.lastSec, wantSec, track.boundaries);
   if (caught) {
     track.held = caught;
     track.lastSec = caught.sec;
-    return { x: detentX(track, caught.sec), caught, released: false };
+    return { x: detentX(track, caught.sec), caught, released };
   }
   track.lastSec = wantSec;
-  return { x: wantX, caught: null, released: false };
+  return { x: wantX, caught: null, released };
 }

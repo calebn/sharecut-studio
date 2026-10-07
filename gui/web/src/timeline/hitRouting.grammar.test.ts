@@ -241,6 +241,19 @@ describe("create menu", () => {
     });
   });
 
+  it("closes when a second finger lands off the timeline, on its scrim", () => {
+    const el = lane();
+    const scrim = document.createElement("div");
+    document.body.append(scrim);
+    press(el, "pointerdown", 400, 150);
+    router.longPress();
+    press(scrim, "pointerdown", 600, 150, 8);
+    scrim.remove();
+
+    expect(creates.at(-1)).toBeNull();
+    expect(restored).toBe(1);
+  });
+
   it("closes, with the selection put back, when a second finger lands", () => {
     const el = lane();
     press(el, "pointerdown", 400, 150);
