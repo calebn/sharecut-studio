@@ -215,6 +215,17 @@ html[data-shell] body {
   }
 }
 
+/* A phone held sideways has compact lanes, whose one-row header puts the name
+   beside M and S; its wide pane keeps the full header so the name still reads
+   (#1077). */
+@container timeline (50rem <= inline-size < 68.75rem) {
+  html[data-shell="tablet"]
+    .timeline-area[data-lane-density="compact"]
+    :is(.timeline-scroll, .timeline-lock-inner) {
+    --header-width: 11.25rem;
+  }
+}
+
 /* Narrow arrange pane: gutter token (chrome hide rules live after .track-meta). */
 @container timeline (inline-size < 30rem) {
   .timeline-scroll,

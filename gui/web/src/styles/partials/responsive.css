@@ -198,8 +198,11 @@ html[data-shell="tablet"] {
   --header-width: 8.75rem;
 }
 
+/* The timeline takes every spare row pixel; the tool rail keeps its own
+   height (#1077), so short lanes leave room for more lanes, not a taller rail. */
 .daw-shell--tablet .daw-main--arrange {
   grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 /* Phone shell: same named areas; the nav row replaces tabs + status. */
