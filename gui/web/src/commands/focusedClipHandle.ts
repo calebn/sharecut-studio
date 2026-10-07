@@ -2,7 +2,11 @@ import type { ExecuteResult } from "./types";
 
 export type ClipHandleKind = "fade" | "trim";
 export type ClipHandleAction =
-  | { phase: "nudge"; direction: -1 | 1; shift: boolean }
+  /**
+   * One arrow step; `held` for the key's auto-repeat, which stops at a soft
+   * boundary as a held strip nudge does (`edit/nudge.ts` `nudgeStep`).
+   */
+  | { phase: "nudge"; direction: -1 | 1; shift: boolean; held: boolean }
   | { phase: "finish"; key?: "ArrowLeft" | "ArrowRight" };
 
 export type FocusedClipHandle = {
@@ -37,12 +41,14 @@ export function runFocusedClipHandle(
   if (
     args.phase === "nudge" &&
     (args.direction === -1 || args.direction === 1) &&
-    typeof args.shift === "boolean"
+    typeof args.shift === "boolean" &&
+    typeof args.held === "boolean"
   ) {
     return focused.run({
       phase: "nudge",
       direction: args.direction,
       shift: args.shift,
+      held: args.held,
     });
   }
   if (

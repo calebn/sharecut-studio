@@ -329,6 +329,7 @@ export function MarkerLaneView({
                   key={clip.id}
                   type="button"
                   className={`social-marker${clip.approved ? " approved" : ""}`}
+                  {...hitTargetProps("social-clip", clip.id, clip.start)}
                   style={{
                     left,
                     width: w,

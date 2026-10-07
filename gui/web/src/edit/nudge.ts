@@ -75,6 +75,8 @@ export const NUDGE_KINDS: Record<
     ways: readonly [string, string];
     format: (v: number) => string;
     saved: string;
+    /** A step ripples: later clips on the track move with it (#1135). */
+    ripples: boolean;
   }
 > = {
   fade: {
@@ -83,6 +85,7 @@ export const NUDGE_KINDS: Record<
     ways: ["shorter", "longer"],
     format: (v) => `${v} ms`,
     saved: "Fade saved",
+    ripples: false,
   },
   trim: {
     steps: [CLIP_HANDLE_STEPS.trim.small, CLIP_HANDLE_STEPS.trim.large],
@@ -90,6 +93,7 @@ export const NUDGE_KINDS: Record<
     ways: ["earlier", "later"],
     format: formatTimeMs,
     saved: "Trim saved",
+    ripples: true,
   },
   pending: {
     steps: [CLIP_HANDLE_STEPS.trim.small, CLIP_HANDLE_STEPS.trim.large],
@@ -97,6 +101,7 @@ export const NUDGE_KINDS: Record<
     ways: ["earlier", "later"],
     format: formatTimeMs,
     saved: "Pending edit timing saved",
+    ripples: false,
   },
   "envelope-time": {
     steps: [CLIP_HANDLE_STEPS.trim.small, CLIP_HANDLE_STEPS.trim.large],
@@ -104,6 +109,7 @@ export const NUDGE_KINDS: Record<
     ways: ["earlier", "later"],
     format: formatTimeMs,
     saved: "Envelope point saved",
+    ripples: false,
   },
   "envelope-level": {
     steps: [0.01, 0.1],
@@ -111,6 +117,7 @@ export const NUDGE_KINDS: Record<
     ways: ["lower", "higher"],
     format: (v) => `${v.toFixed(2)}×`,
     saved: "Envelope point saved",
+    ripples: false,
   },
 };
 

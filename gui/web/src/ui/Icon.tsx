@@ -24,7 +24,8 @@ export type IconName =
   | "refresh"
   | "search"
   | "seek"
-  | "warning";
+  | "warning"
+  | "ripple";
 
 type Props = {
   name: IconName;
@@ -186,6 +187,8 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="M10 14h.01" />
     </>
   ),
+  // Trim mode Option A (#1135): a wave, sound carrying on past the edit.
+  ripple: <path d="M2.5 10c1.5-4 3.5-4 5 0s3.5 4 5 0 3.5-4 5 0" />,
   seek: (
     <>
       <path d="M15.5 4v12" />

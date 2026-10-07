@@ -136,8 +136,8 @@ def _render_generated(data: dict[str, Any]) -> str:
         "shown in the CLI column). `session` changes live unsaved state; `view` "
         "changes only this client's display.",
         "",
-        "| Label | Effect | Command | Keyboard | GUI | MCP | CLI | Skill | Host-only | Presence |",
-        "| ----- | ------ | ------- | -------- | --- | --- | --- | ----- | --------- | -------- |",
+        "| Label | Effect | Command | Keyboard | Touch | GUI | MCP | CLI | Skill | Host-only | Presence |",
+        "| ----- | ------ | ------- | -------- | ----- | --- | --- | --- | ----- | --------- | -------- |",
     ]
     for cap in daw:
         surfaces = cap.get("surfaces") or {}
@@ -149,6 +149,7 @@ def _render_generated(data: dict[str, Any]) -> str:
                     str(cap.get("effect")),
                     f"`{_esc(str(surfaces.get('command')))}`",
                     _keyboard_cell(cap),
+                    _fmt_list(_as_list(surfaces.get("touch"))),
                     _fmt_list(_as_list(surfaces.get("gui"))),
                     _fmt_list(_as_list(surfaces.get("mcp")), preview=MCP_PREVIEW),
                     _cli_cell(cap),
