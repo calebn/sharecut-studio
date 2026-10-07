@@ -339,14 +339,22 @@ no pauses of its own and no steady hold before its gate closes.
 the noise the track carries under its own speech, then synthesises Gaussian noise with
 that power spectrum. It reads that noise from one of two places, in order:
 
-1. **The track's own room.** Some gates stay open through some pauses, so the track has
-   room tone of its own. The step uses the quiet runs the room-tone sampler finds
-   (`edits/room_tone.py`, #1054): stretches within 10 dB of the track's floor, trimmed
-   150 ms from speech and digital silence. It needs at least 1 s of them.
-2. **The gate's hold**, on a track gated through every pause. Such a track has no room
-   tone, so the step reads what the gate holds open before each closure, after the voice
-   fell below its threshold. A telephony encoder sends its SID frames from the same
-   hangover.
+1. **The gate's hold.** The step reads what the gate holds open before each closure,
+   after the voice fell below its threshold. A telephony encoder sends its SID frames from
+   the same hangover. Closures within half a second of the voice are read whether or not
+   the track has pauses of its own.
+2. **The track's own room**, when no hold is measured. Some gates stay open through
+   whole pauses and close long after the voice, so no closure has the voice within reach.
+   The step then uses the quiet runs the room-tone sampler finds (`edits/room_tone.py`,
+   #1054): stretches within 10 dB of the track's floor, trimmed 150 ms from speech and
+   digital silence. It needs at least 1 s of them.
+
+**DC is never room.** A decoder can leave the open gate's audio off zero while the closed
+gate is exact zero. Zoom's decoded tracks sit 6 to 8 LSB under zero (−72 to −74 dBFS), and
+the offset falls toward half an LSB as the gate releases. Counted as noise, that offset
+put the third draft's fill 6 to 9 dB over each lab track's room, and synthesised as noise
+it became rumble under 100 Hz. So every frame and every block is measured with its own mean
+removed, per channel, and the fill carries nothing under 20 Hz.
 
 **Digital residue is never room.** A closed gate rounds a near-zero signal to ±1 LSB
 before its exact zero. Zoom's does this for 20 to 37 ms before every closure, and its gate
@@ -358,8 +366,9 @@ them counts as residue.
 
 The hold is measured per track, never assumed. The step takes the median level of each
 5 ms block going back from every closure (up to 0.5 s, and only as far as 8 closures
-reach). While the gate holds open on the floor that level stays put. Where the voice's
-tail begins it rises. The hold is the longest *steady run* in that profile:
+reach), each block's DC removed. While the gate holds open on the floor that level stays
+put. Where the voice's tail begins it rises. The hold is the longest *steady run* in that
+profile:
 
 - every block within 3 dB of the quietest block so far;
 - rising at most 40 dB/s (least-squares) across it. A reverberant tail decays 60 dB per
@@ -377,11 +386,13 @@ Both sources are read as Hann periodograms of every channel, averaged across cha
 Each pause or hold uses frames of about 20 ms, or one shorter frame zero-padded when a
 hold is shorter. The fill is written to each channel at the level measured. A mono
 downmix of Zoom's identical channels reads 3 dB over either, so the step never measures
-one. Periodograms 10 dB over the median are dropped (a word, or a peer's bleed, that a
-pause or a hold still carries), and the rest are averaged per frequency bin. The noise is
-synthesised once as a seamless loop of at least 20 s (random phases, one inverse FFT).
-Each hole reads the loop at its own position on the media's clock, so no two holes start
-on the same noise and the texture never repeats on a short cycle.
+one. The step keeps the periodograms within 3 dB of the median and averages them per
+frequency bin. A word, a breath or a peer's bleed that a pause or a hold still carries
+sits over that line, and a steady floor sits within it. The noise is synthesised once as
+a seamless loop of at least 20 s (random phases, one inverse FFT), with nothing under
+20 Hz. Each hole reads the loop at its own position on the media's clock, so no two holes
+start on the same noise and the texture never repeats on a short cycle. The fill's level,
+`gate_fill.level_db`, is the loop's level.
 
 **Own audio is never touched.** The step writes one FLAC per track on the media's clock,
 `artifacts/gate_fill/{track}_{digest}.flac`. It holds the fill inside each hole and
@@ -406,10 +417,15 @@ pauses or gate holds the noise was read from, or why it was left silent.
 whose `filler_pad_mode: room_tone` finds no room tone still render digital silence. They
 are our own edits, and their fill is decided by their own setting. A hold under 15 ms is
 unmeasured, so those holes stay silent, as do AAC holds shorter than about one codec frame.
-A peer's bleed under 10 dB over the floor, reaching most holds, is read as part of the
-room (+3.8 dB in the sweep below). The credibility rule compares the noise with the
-room-tone sampler's speech level, which is read on a mono downmix, so on identical
-channels the rule's margin is 27 dB rather than 30. On AAC (`.m4a`) media, ffmpeg 9 lands
+A 20 ms hold sits at the profile's resolution. Over few closures its three or four blocks
+scatter as much as a slow tail rises, so the steady-run rule rejects it on some tracks
+and its holes stay silent: 12 to 18 of 21 seeds measure it with 9 closures, and 19 to 20
+of 21 with 39. A 30 ms hold is measured on every seed. A peer's bleed that fills most of
+every hold raises the median the holds are judged against, so it is read as part of the
+room. The credibility rule compares the noise with the room-tone sampler's speech level,
+which is read on a mono downmix, so on identical channels the rule's margin is 27 dB
+rather than 30. The sampler also picks the quiet runs the fallback reads on its own
+levels, which keep the DC offset; the fill reads their spectrum with DC removed. On AAC (`.m4a`) media, ffmpeg 9 lands
 a multi-source render's input seek (for example under a room-tone-filled mute) up to one
 AAC frame off the exact decode the fill is placed on, so the fill can land on speech there
 (#1141). ffmpeg 6.1 seeks it exactly. `test_fill_never_overlaps_speech_in_a_multi_source_render[m4a]`
@@ -417,9 +433,10 @@ is marked as a non-strict `xfail` until #1141 lands.
 
 ### Evidence: comfort-noise estimators
 
-These are one-off measurements from the private lab tape (three Zoom tracks, rev
-3b414c4c) and a synthetic set, not asserted by CI. The prototype is under the session
-scratchpad. Two kinds of truth were used:
+These are one-off measurements from the first draft, on the private lab tape (three Zoom
+tracks, rev 3b414c4c) and a synthetic set, not asserted by CI. They kept the decoder's DC
+offset (see § Evidence: scoring harness). The prototype is under the session scratchpad.
+Two kinds of truth were used:
 
 - **Lab, real room.** Caleb's track has a real floor. Its quiet runs of at least 0.3 s
   are the truth. The estimators read his audio with those runs zeroed, as if gated.
@@ -444,38 +461,77 @@ removed. The quietest-tenth estimate only works where pauses make up a tenth of 
 audio, and it reads 17 to 32 dB high when the gate holds briefly. By ear, clip 4 of the
 #1111 listening set plays the first-draft fill against minimum statistics on Audra's stem.
 
-### Evidence: measured hold
+### Evidence: scoring harness
 
-The first draft read a fixed 120 ms before each closure. On a gate that holds briefly,
-that window reaches back into the voice. The second draft measured the hold on the median
-closure profile, but took the closed gate's ±1 LSB residue for a level floor. Synthetic
-gated tracks (harmonic phrases at −20 dBFS, pink floors at −66 and −82 dBFS, 14 closures,
-16-bit WAV) put each estimate against the true floor, at 16 and 48 kHz. A range covers
-both rates and both floors. Band errors are per octave band from 125 Hz.
+Three drafts changed how the hold was found, but their errors came from what they
+measured. The second draft read the closed gate's residue. The third counted the decoder's
+DC offset as noise. A one-off harness (`scratchpad/p1111r4/harness.py` in the #1111
+session, not asserted by CI) scores every estimator against each track's true floor:
 
-| Gate | Second draft (median-profile hold) | Shipped |
-| --- | --- | --- |
-| 150 ms hold | −0.0 to +0.1 dB | −0.0 to +0.0 dB, bands within 0.3 dB |
-| 250 ms hold, 25 ms of residue | −0.0 to +0.1 dB | +0.0 to +0.1 dB, bands within 0.2 dB |
-| 20 ms hold, 25 ms of residue | −27 dB (−66 floor), −11 dB (−82 floor): reads the residue | −0.3 to −0.2 dB, bands within 1.2 dB |
-| 120 ms hold, residue, −60 dBFS bleed in every hold | −0.1 to +0.2 dB (−82 floor); −27 dB (16 kHz) and +3.9 dB (48 kHz) at −66 | +0.1 to +0.2 dB (−82 floor), +3.7 to +3.8 dB (−66 floor) |
-| Ringing tail (RT60 0.3 s), then a 150 ms hold | −0.3 to +1.2 dB | −0.1 to +1.1 dB, bands within 2.9 dB |
-| No hold, a tail (RT60 0.6 s) cut 10 dB over the floor | −27 to −11 dB | silent (no steady floor) |
-| No hold, a tail (RT60 0.3 s) cut 21 dB over the floor | −27 to −11 dB | silent (no steady floor) |
-| AAC (`.m4a`), 150 ms hold | −0.2 to +0.1 dB, or silent | −0.2 to +1.2 dB, bands within 2.3 dB |
-| AAC (`.m4a`), 20 ms hold | −7.7 dB, or silent | silent (no steady floor) |
+- **One analyzer.** Truth and fill are read the same way: DC removed, Hann frames of about
+  85 ms, per channel. Bands are 20 to 100 Hz, 100 to 250 Hz, 250 Hz to 1 kHz, 1 to 4 kHz,
+  4 to 8 kHz and 8 to 16 kHz, plus everything from 20 Hz up. Each estimate is scored as the
+  loop the step would write.
+- **Lab truth.** The track's quiet open audio. These are 20 ms frames at least 100 ms from
+  a closed gate and 0.3 s from the track's own words, within 3 dB of the quietest quarter
+  of such frames, in runs of at least 100 ms. That gives 78.6 s on Caleb, 23.7 s on Audra
+  and 32.5 s on Lana.
+- **Synthetic truth.** A pink floor at −66 or −82 dBFS under a gated 16-bit track, at 16
+  and 48 kHz, with 14 phrases. The cases cover holds of 20 to 250 ms, a −8 LSB DC offset
+  (constant, or falling through the hold), 25 ms of residue, and a −60 dBFS peer's bleed
+  in the holds. They also cover a ringing room, a gate that stays open through pauses, and
+  gates that close on a decaying tail with no hold.
+- **Pass.** Within 2 dB from 20 Hz up, and within 3 dB in every band.
 
-In the bleed case a peer's voice fills the first half of every hold and all of every third
-one. It sits 22 dB over a −82 dBFS floor, so those holds fall outside the 10 dB median
-cut. Over a −66 dBFS floor it sits only 6 dB over, so it stays in the estimate.
-`tests/test_gate_fill.py` pins the clean, residue, short-hold, bleed (−82 dBFS), ringing,
-250 ms and AAC cases within 2 dB and 3 dB per band, along with a dual-mono track and a track
-with pauses of its own. It pins the no-hold ringing case as silent. The sweep is
-`scratchpad/p1111r3/sweep.py` in the #1111 session.
+Each cell gives the error from 20 Hz up, then the worst band's error, in dB:
+
+| Estimator | Caleb | Audra | Lana | Synthetic fills in tolerance |
+| --- | --- | --- | --- | --- |
+| First draft: fixed 120 ms, quieter half, mono downmix, DC kept | +1.6 / +3.6 | −1.7 / −3.7 | −2.8 / −4.6 | 11 of 44 |
+| First draft over the measured hold, DC removed | −1.9 / −2.9 | −0.8 / +1.9 | −1.9 / −2.8 | 32 of 42 |
+| Third draft: own room, else hold; within 10 dB of the median; DC kept | +7.9 / +8.7 | +9.4 / +12.4 | +6.1 / +9.5 | 34 of 46 |
+| Third draft, DC removed | +1.5 / +4.9 | +1.9 / +5.3 | +0.5 / +3.5 | 44 of 46 |
+| Own room, else hold; within 3 dB of the median; DC removed | −1.4 / −3.3 | −0.0 / +2.8 | −1.0 / −2.1 | 46 of 46 |
+| **Shipped:** hold, else own room; within 3 dB of the median; DC removed | −0.9 / −2.3 | −0.1 / +2.8 | −1.1 / −2.2 | 48 of 48 |
+
+The shipped row runs the step's own code on the files. The other rows re-implement each
+estimator in memory, which leaves the 48 kHz bleed case over a −66 dBFS floor silent.
+
+- **DC.** Removing it takes the third draft from 6 to 9 dB high to within 2 dB from 20 Hz
+  up. Its bands still sit 3.5 to 5.3 dB high above 100 Hz. Keeping everything within
+  10 dB of the median lets breaths, word tails and bleed into the average.
+- **The quieter half reads low.** The first draft ranked frames by total power. The band
+  under 100 Hz carries about 60% of these rooms' power, and a 20 ms frame resolves it in
+  two bins, so the quieter half keeps frames whose low band happened to dip. On the
+  synthetic set it reads up to 7.7 dB low under 100 Hz on 20 ms holds, and 3.0 to 6.4 dB
+  low in one band behind bleed or a ringing room. Keeping frames within 3 dB of the median
+  keeps nearly every frame of a steady floor and still drops a word, a breath or bleed.
+- **Hold first.** On Caleb, his own room (the room-tone sampler's runs) reads 3.3 dB low
+  under 100 Hz and his hold is within 2.3 dB. On a track with pauses but no hold the
+  room is the only source, and there it lands within 1.3 dB in every band.
+- **What limits it.** The shipped fill sits 1.4 to 2.3 dB low under 100 Hz on all three
+  tracks. A 20 ms frame resolves nothing between DC and 47 Hz, so the fill ramps up from
+  20 Hz to its first bin while the rooms keep rising toward 20 Hz. Holding the first bin's
+  level down to 20 Hz closes only 0.3 to 0.4 dB of that gap. Audra's 100 to 250 Hz band
+  sits 2.8 dB over her open room. Her holds probably carry word tails or bleed there (a
+  guess, not measured).
+
+On the synthetic set the shipped fill lands within −0.5 to +0.9 dB from 20 Hz up and
+within 2.5 dB in every band, in all 48 cases it fills. The other 12 stay silent: 8 gates
+that close on a decaying tail with no hold, as they should, and 4 holds of 20 ms with no
+residue. On those 4 the room-tone sampler finds no speech level over the floor for the
+credibility rule, under every estimator. The fill's loop holds nothing under 20 Hz by
+construction.
+
+`tests/test_gate_fill.py` pins the clean, residue, short-hold (30 ms), bleed (−82 dBFS),
+ringing, 250 ms and AAC cases within 2 dB from 20 Hz up and 3 dB per band, with no DC. It
+also pins a −8 LSB DC offset under a 150 ms hold, a residue tail and a short hold, a
+dual-mono track and a track with pauses of its own. It pins the no-hold ringing case as
+silent.
 
 ### Evidence: lab tape
 
-The step ran on the whole lab tape in 16 s when its fills were already written, and 26 s
+The step ran on the whole lab tape in 20 s when its fills were already written, and 26 s
 when it wrote them (three 28-minute tracks). The fill FLACs take 12 MB (Caleb) and 80 MB
 (Audra, Lana), against 324 MB for each raw WAV.
 
@@ -484,38 +540,39 @@ identical):
 
 - Every closure leaves 20 to 37 ms (p10 to p90) of residue before its exact zero. 97% of
   those samples are −1 or 0 LSB.
-- After the residue, the median 5 ms block rises over about 30 ms (the gate's release),
-  then holds steady for 100 to 150 ms before the voice's tail starts.
+- The open audio sits 8.2 (Caleb), 6.4 (Audra) and 7.3 (Lana) LSB under zero. Over the
+  last 200 ms before a closure the median offset falls to about 1 to 5 LSB, and to half an LSB
+  in the residue.
+- With the offset removed, the median 5 ms block holds steady for 150 ms (Caleb), 215 ms
+  (Audra) and 200 ms (Lana) after the residue, before the voice's tail starts.
 
-The second draft read the residue as a 25 ms hold on every track.
+The second draft read the residue as a 25 ms hold on every track. With the offset kept, the
+third draft read holds of 140 ms and 110 ms on Audra and Lana behind 80 and 10 ms of
+release.
 
-The truth is Caleb's room. Only Caleb has pauses where his gate stays open. His room is
-the mean periodogram of his quiet runs of at least 0.3 s, trimmed 0.1 s at each end (10 ms
-frames at 48 kHz, within 10 dB of the 10th-percentile frame). It is read on one channel,
-independent of the room-tone sampler's runs. It sits at −76.5 dBFS, or −84.6 above
-100 Hz, because most of its power is rumble under 100 Hz. Audra and Lana are gated
-through every pause, so their own room is never heard.
+Each track's fill against its true room, per channel, DC removed, in dBFS:
 
-| Track | Holes (filled) | First draft | Second draft | Shipped | Shipped, above 100 Hz | Shipped band error vs Caleb's room, 125 Hz to 8 kHz |
-| --- | --- | --- | --- | --- | --- | --- |
-| Caleb | 606 (190 s, 11.2%) | −82.6 dBFS | −89.8 dBFS | −75.9 dBFS, from 23.8 s of his pauses | −83.6 dBFS | +0.5 to +1.3 dB, +2.2 dB at 8 kHz |
-| Audra | 1142 (1242 s, 73.5%) | −87.7 dBFS | −89.9 dBFS | −76.0 dBFS, over a 140 ms hold at 213 closures | −82.0 dBFS | −5.7 to +3.8 dB |
-| Lana | 1024 (1238 s, 73.3%) | −87.8 dBFS | −89.9 dBFS | −78.1 dBFS, over a 110 ms hold at 260 closures | −86.7 dBFS | −6.5 to +3.4 dB |
+| Track | Holes (filled) | Read from | | From 20 Hz | 20–100 Hz | 100–250 Hz | 250 Hz–1 kHz | 1–4 kHz | 4–8 kHz | 8–16 kHz |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Caleb | 606 (190 s, 11.2%) | 408 holds of 150 ms | Room | −85.8 | −88.1 | −95.4 | −97.0 | −95.7 | −96.6 | −101.2 |
+| | | | Fill | −86.7 | −90.4 | −94.0 | −96.6 | −95.6 | −96.7 | −101.1 |
+| Audra | 1142 (1242 s, 73.5%) | 216 holds of 215 ms | Room | −87.1 | −89.1 | −96.9 | −98.7 | −97.8 | −98.3 | −103.0 |
+| | | | Fill | −87.2 | −90.5 | −94.1 | −96.6 | −97.2 | −98.4 | −103.2 |
+| Lana | 1024 (1238 s, 73.3%) | 234 holds of 200 ms | Room | −86.2 | −88.2 | −94.1 | −96.8 | −98.4 | −100.0 | −102.9 |
+| | | | Fill | −87.2 | −90.4 | −93.4 | −96.7 | −98.6 | −100.1 | −102.9 |
 
-Against Caleb's room, the first draft sat 2.5 to 5 dB under in every band from 1 kHz up,
-and the second draft 5.6 to 15 dB under in every band. Both drafts measured on a mono
-downmix and wrote that level to each of Zoom's identical channels, which put them 3 dB
-over what they read per channel. Caleb's hold, measured as if he were gated through every
-pause, reads −75.5 dBFS. That is within 1 dB of his room overall, but 4 to 7.5 dB over it
-from 125 Hz to 2 kHz, where Audra's bleed on his mic sits. His own pauses are the better
-source, so the step reads those.
+Measured the same way, the first draft's fill (which the owner approved by ear) read
+−84.2, −88.8 and −89.0 dBFS, and the third draft's −77.9, −77.7 and −80.1 dBFS. The
+drafts reported −82.6, −87.7, −87.8 and −75.9, −76.0, −78.1 dBFS, with the DC offset
+counted. The shipped fill is 2.5 dB under the first draft on Caleb and 1.6 to 1.8 dB over
+it on Audra and Lana.
 
-On the premix, the all-tracks dead air at 1660.29 to 1660.76 now sits at −74.2 dBFS
-(−81.9 above 100 Hz), against −86.5 dBFS in the 150 ms before it. At 1499.65 to 1501.63 it
-sits at −75.0 dBFS (−81.8 above 100 Hz), against −84.7 dBFS before it. The 150 ms before
-each pause is mostly the gates closing, so it is quieter than any track's room. Both A/B
-windows, rendered through `podcast play` with main's code and this step, are
-sample-identical outside every track's holes.
+On the premix, the all-tracks dead air at 1660.29 to 1660.76 now sits at −85.7 dBFS
+(−87.8 above 100 Hz), against −86.5 dBFS in the 150 ms before it. At 1499.65 to 1501.63 it
+sits at −85.4 dBFS (−87.8 above 100 Hz), against −84.7 dBFS before it. The first draft had
+those gaps at −84.1 and −83.8 dBFS. The 150 ms before each pause is mostly the gates
+closing. Both A/B windows, rendered through `podcast play` with main's code and this step,
+are sample-identical outside every track's holes.
 
 ## Transcript gate diagnostics
 
