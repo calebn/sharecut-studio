@@ -234,6 +234,52 @@ html[data-shell="tablet"] .precision-jog {
   background: var(--color-timeline-lane);
 }
 
+/* Lab readout: what Auto chose and why, small and out of the finger's way. */
+.precision-decision {
+  position: absolute;
+  translate: -50% 0;
+  max-inline-size: calc(100vw - 2rem);
+  margin-block: var(--space-1);
+  padding: var(--space-0) var(--space-3);
+  border-radius: var(--radius-xs);
+  background: var(--color-overlay-black-90);
+  color: var(--color-clip-label);
+  font-size: var(--font-size-micro);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.precision-decision[data-mode="precision"] {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.precision-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  font-variant-numeric: tabular-nums;
+}
+
+.precision-log li {
+  display: flex;
+  flex-direction: column;
+}
+
+.precision-log-name {
+  font-weight: 600;
+}
+
+.precision-log-status {
+  margin-inline-end: auto;
+  color: var(--color-text-secondary);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .precision-delta[data-bump] {
     animation: nudge-bump var(--motion-state) var(--motion-ease-out);

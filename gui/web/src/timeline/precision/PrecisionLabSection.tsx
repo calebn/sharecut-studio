@@ -1,43 +1,54 @@
 /**
- * View › Labs › Precision drag (#1184): switch between the three prototype
- * ways to move an armed target precisely, in place, so they can be compared
- * on a phone one after another. The menu stays open, as for Theme.
+ * View › Labs › Precision drag (#1184): Auto on or off, the style Auto
+ * switches into, and the last Auto decisions for reporting misses. The menu
+ * stays open on Auto and Style, as for Theme, so they can be compared in
+ * place on a phone.
  */
-import { MenuSection, SegmentedControl, ToggleButton } from "../../ui";
+import { LegendCheckbox } from "../../layout/OverlayLegendView";
 import {
-  PRECISION_VARIANTS,
-  type PrecisionVariant,
-  setPrecisionVariant,
-  usePrecisionVariant,
+  MenuItem,
+  MenuSection,
+  SegmentedControl,
+  ToggleButton,
+} from "../../ui";
+import { DECISION_LOG_SIZE, setDecisionLogOpen } from "./decisionLog";
+import {
+  PRECISION_STYLES,
+  type PrecisionStyle,
+  setPrecisionAuto,
+  setPrecisionStyle,
+  usePrecisionLab,
 } from "./precisionLab";
 
-const OPTIONS: { id: PrecisionVariant | null; label: string }[] = [
-  { id: null, label: "Off" },
-  ...(Object.keys(PRECISION_VARIANTS) as PrecisionVariant[]).map((id) => ({
-    id,
-    label: PRECISION_VARIANTS[id].label,
-  })),
-];
+const STYLES = Object.keys(PRECISION_STYLES) as PrecisionStyle[];
 
 export function PrecisionLabSection() {
-  const variant = usePrecisionVariant();
+  const { auto, style } = usePrecisionLab();
   return (
     <MenuSection label="Precision drag">
-      <SegmentedControl role="none" className="precision-lab-modes">
-        {OPTIONS.map((option) => (
+      <div className="overlay-legend" role="none">
+        <LegendCheckbox menu checked={auto} onChange={setPrecisionAuto}>
+          Auto precision
+        </LegendCheckbox>
+      </div>
+      <SegmentedControl role="none" className="precision-lab-styles">
+        {STYLES.map((id) => (
           <ToggleButton
-            key={option.id ?? "off"}
+            key={id}
             quiet
             role="menuitemradio"
             tabIndex={-1}
-            pressed={variant === option.id}
-            aria-checked={variant === option.id}
-            onClick={() => setPrecisionVariant(option.id)}
+            pressed={style === id}
+            aria-checked={style === id}
+            onClick={() => setPrecisionStyle(id)}
           >
-            {option.label}
+            {PRECISION_STYLES[id].label}
           </ToggleButton>
         ))}
       </SegmentedControl>
+      <MenuItem onSelect={() => setDecisionLogOpen(true)}>
+        Auto decisions (last {DECISION_LOG_SIZE})…
+      </MenuItem>
     </MenuSection>
   );
 }
