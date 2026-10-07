@@ -38,7 +38,10 @@ function layoutOpenMenuPanel(trigger: HTMLElement, panel: HTMLElement): void {
   const gapPx = 0.25 * (rootPx || 16);
   const availablePx = Math.max(0, bottomLimit - triggerBottom - gapPx);
   const rem = rootPx > 0 ? availablePx / rootPx : availablePx;
-  panel.style.setProperty("--menu-available-height", `${rem}rem`);
+  const value = `${rem}rem`;
+  if (panel.style.getPropertyValue("--menu-available-height") !== value) {
+    panel.style.setProperty("--menu-available-height", value);
+  }
 }
 
 /** Props a Menu hands its trigger; spread them onto the trigger button. */
@@ -107,10 +110,17 @@ export function Menu({
       }
       layoutOpenMenuPanel(trigger, panel);
     };
-    layout();
-    window.addEventListener("resize", layout);
+    // Re-measure every frame while open: a banner row, the phone nav or the
+    // viewport can move the trigger without resizing it, so no resize event
+    // fires and a one-shot cap goes stale and clips the last items.
+    let raf = 0;
+    const track = () => {
+      layout();
+      raf = requestAnimationFrame(track);
+    };
+    track();
     return () => {
-      window.removeEventListener("resize", layout);
+      cancelAnimationFrame(raf);
     };
   }, [open]);
 
