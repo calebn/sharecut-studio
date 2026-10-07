@@ -543,10 +543,33 @@ def test_play_ab_wavs_missing_files(minimal_project, sample_wav, tmp_workspace) 
     save_project(proj, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
     svc = PlayService(ws)
-    with pytest.raises(FileNotFoundError, match="A wav"):
+    with pytest.raises(FileNotFoundError) as missing_a:
         svc.play_ab_wavs(tmp_workspace / "missing_a.wav", sample_wav, dry_run=True)
-    with pytest.raises(FileNotFoundError, match="B wav"):
+    assert str(missing_a.value) == "A wav not found: missing_a.wav"
+    with pytest.raises(FileNotFoundError) as missing_b:
         svc.play_ab_wavs(sample_wav, tmp_workspace / "missing_b.wav", dry_run=True)
+    assert str(missing_b.value) == "B wav not found: missing_b.wav"
+
+
+def test_missing_raw_media_is_named_by_its_track_not_its_path(
+    minimal_project, tmp_workspace
+) -> None:
+    proj = load_project(minimal_project)
+    proj.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/absent.wav"),
+        )
+    ]
+    save_project(proj, minimal_project)
+    svc = PlayService(ProjectWorkspace.open(minimal_project))
+
+    with pytest.raises(FileNotFoundError) as missing:
+        svc.resolve_transport_path("raw", track_id="host")
+
+    assert str(missing.value) == "raw media for track host not found"
 
 
 def test_play_history_ab_rejects_same_index(minimal_project, sample_wav, tmp_workspace) -> None:

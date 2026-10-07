@@ -32,7 +32,9 @@ class EpisodeService:
         track_id = slug_track_id(track_id)
         audio_in = Path(file_path).expanduser().resolve()
         if not audio_in.is_file():
-            raise CodedFileNotFoundError(f"audio file not found: {audio_in}", code="file_not_found")
+            raise CodedFileNotFoundError(
+                f"audio file not found: {audio_in.name}", code="file_not_found"
+            )
         audio, store = ensure_audio_in_workspace(Path(self.ws.project.workspace_dir), audio_in)
 
         def mutate(p) -> None:
@@ -94,7 +96,9 @@ class EpisodeService:
     def set_track_media(self, track_id: str, file_path: str) -> dict:
         audio_in = Path(file_path).expanduser().resolve()
         if not audio_in.is_file():
-            raise CodedFileNotFoundError(f"audio file not found: {audio_in}", code="file_not_found")
+            raise CodedFileNotFoundError(
+                f"audio file not found: {audio_in.name}", code="file_not_found"
+            )
         if self.ws.project.track_by_id(track_id) is None:
             raise unknown_track(track_id)
         audio, store = ensure_audio_in_workspace(Path(self.ws.project.workspace_dir), audio_in)

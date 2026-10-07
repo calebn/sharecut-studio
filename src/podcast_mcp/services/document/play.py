@@ -595,7 +595,9 @@ class PlayService:
                 raise ValueError("track_id required for raw/track transport")
             path = recording_audio_path(self.project, track_id, source_id)
             if not path.is_file():
-                raise CodedFileNotFoundError(f"raw media not found: {path}", code="file_not_found")
+                raise CodedFileNotFoundError(
+                    f"raw media for track {track_id} not found", code="file_not_found"
+                )
             return TransportPath(
                 path=path.resolve(),
                 source=f"source:{source_id}" if source_id is not None else f"track:{track_id}",
@@ -1394,9 +1396,9 @@ class PlayService:
         path_a = Path(wav_a)
         path_b = Path(wav_b)
         if not path_a.is_file():
-            raise CodedFileNotFoundError(f"A wav not found: {path_a}", code="file_not_found")
+            raise CodedFileNotFoundError(f"A wav not found: {path_a.name}", code="file_not_found")
         if not path_b.is_file():
-            raise CodedFileNotFoundError(f"B wav not found: {path_b}", code="file_not_found")
+            raise CodedFileNotFoundError(f"B wav not found: {path_b.name}", code="file_not_found")
 
         gap = max(0.0, float(gap_sec))
         out = self._ab_concat_path(path_a, path_b, gap)
