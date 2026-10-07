@@ -159,7 +159,6 @@ Host/agent capabilities without a Sharecut Studio `command` id (pipeline, transc
 
 Covered without a dedicated capability row (hubs / deprecated aliases):
 
-- `codex-issue-pipeline`
 - `impeccable`
 - `podcast-balance-levels`
 - `podcast-chapter-markers`
@@ -178,5 +177,6 @@ Covered without a dedicated capability row (hubs / deprecated aliases):
 - `podcast-transcript-reconcile`
 - `podcast-transcript-refine`
 - `podcast-vocal-compression`
+- `sharecut-poteto`
 
 <!-- /capabilities:generated -->

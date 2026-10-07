@@ -135,9 +135,7 @@ including a lint override in config, needs explicit owner approval.
 
 ### Dependency updates (Dependabot)
 
-Dependabot PRs (`.github/dependabot.yml`) are ordinary PRs against `main`; the
-[automated issue pipeline](#automated-issue-pipeline) does not pick them up or
-manage them. For the `uv` ecosystem, Dependabot updates `pyproject.toml` and
+Dependabot PRs (`.github/dependabot.yml`) are ordinary PRs against `main`. For the `uv` ecosystem, Dependabot updates `pyproject.toml` and
 `uv.lock` together in the same PR. A new lockfile directory (a new `gui/*`
 package or a new Rust/uv root) needs a new `updates` entry in the same change
 that adds the lockfile — `tests/test_dependabot_config.py` enforces this.
@@ -149,112 +147,34 @@ advisory, non-blocking step; ignoring a real finding it surfaces still needs
 
 ## Git workflow
 
-Default delivery path is **feature branch → pull request → `main`**. Agents and contributors should not push commits straight to `main` unless the user explicitly says to.
+Follow the [Git policy](../.agents/skills/sharecut-poteto/references/git-workflow.md)
+for fresh worktrees, branch names, focused commits, draft PRs, issue links,
+required checks, and rebase merges. Read the
+[issue claims](../.agents/skills/sharecut-poteto/references/issue-claims.md)
+before work on a GitHub issue.
 
-1. `git checkout main && git pull` (start from latest `main`).
-2. `git checkout -b type/short-kebab-description`.
-3. Implement code, tests, and docs in the same change.
-4. When asked to ship: create one or more focused commits on the branch.
-5. Run focused local checks as you work; `make ci` remains available as an optional local mirror. GitHub Actions is the required full-CI gate for public pushes and pull requests, so it is safe to push or open a PR before running the entire suite locally.
-6. `git push -u origin HEAD`.
-7. `gh pr create` with base **`main`**. Prefer small, focused PRs; split disparate changes into separate branches/PRs when practical. GitHub Actions runs the required checks after the PR is opened. If the PR should close GitHub issues, put `Fixes #N` (or `Closes` / `Resolves`) on its own line in the PR body — merge into `main` then auto-closes them. For issues the PR touches but does not finish (including follow-ups filed from review), add a `Related #N` line so they are cross-linked without being closed. A `#N` mention without `Fixes`/`Closes`/`Resolves` never closes anything.
-8. Do not merge the PR (and do not force-push `main`) unless the user asks. Exception: the [automated issue pipeline](#automated-issue-pipeline) is pre-approved to rebase-merge its own PRs when its merge gate passes.
-9. Merge method: **rebase** (`gh pr merge --rebase`), not squash, so `main` keeps each focused, conventional commit (`main` requires linear history, which rebase-merge satisfies).
-
-### Branch names
-
-Format: `type/short-kebab-description` (lowercase, no spaces).
-
-| Prefix | Use |
-|--------|-----|
-| `feat/` | New behavior |
-| `fix/` | Bug fix |
-| `docs/` | Documentation / agent instructions only |
-| `chore/` | Tooling, deps, housekeeping |
-| `refactor/` | Internal restructure without behavior change |
-| `test/` | Tests only |
-
-Examples: `feat/guest-sign-in-ui`, `fix/share-acl-401`, `docs/agent-pr-workflow`.
-
-Still only create commits or PRs when the user asks to ship (or clearly says to open a PR); this section defines *how* shipping happens.
+Create commits and PRs when the user asks to ship or clearly authorizes that work.
+Merge requires the user's current grant. Opening a PR does not grant merge authority.
 
 ### Review evidence
 
 Screenshots, receipts and before/after records for one issue belong in the PR description or a PR comment. Do not commit `docs/issue-<n>/` folders: rebase-merge keeps every commit, so evidence added and later removed still stays in `main`'s history. Durable findings go into the doc that owns the behavior. `tests/test_docs_layout.py` fails when a tracked `docs/issue-<n>/` path exists.
 
-### Automated issue pipeline
+### Native Poteto companion
 
-`.claude/workflows/issue-pipeline.js` is a Claude Code workflow that works the GitHub issue backlog end-to-end. Running it counts as asking to ship **and** to merge, but only for PRs that pass its gate.
+Use [sharecut-poteto](../.agents/skills/sharecut-poteto/SKILL.md) for contributor
+work. It discovers the installed native `poteto-mode` skill and reads it in full.
+Native Poteto owns request routing, playbooks, delegation, review, and Shipping.
+The companion supplies repository policy and keeps the episode and product skills active.
+Install native Poteto separately if it is absent. `podcast setup --global-skills`
+exports the repository companion, not its upstream dependency.
 
-Run it from a Claude Code session in this repo: ask it to run the `issue-pipeline` workflow, optionally with args.
-
-**Launch every run with a chat message that names it.** Stage prompts also quote the run's own issues and say that newer chat messages (for example ones launching other runs) don't cancel it, and the script checks that the feedback executor answered every planned item, retrying once. That's because concurrent runs made a stage compare itself with the *other* run's launch message and quietly do nothing. For example: "Run the issue-pipeline on #216 with noMerge", or "Run the issue-pipeline dry run". Subagents check their task against your most recent chat message. If that message is about something else, such as a question, an implementer may refuse the stage as unrequested and the lane is held. For the same reason the stage prompts only state what the run is. They never claim pre-authorization, because subagents treat that kind of claim as possible prompt injection.
-
-Args:
-
-| Arg | Default | Meaning |
-| --- | ------- | ------- |
-| `authors` | `['calebn']` | Only issues opened by these GitHub logins are considered (also filters explicit `issues`) |
-| `noMerge` | `false` | Run every stage but stop at the gate and report whether it would merge (A/B comparisons) |
-| `baseRef` | `origin/main` | Commit that new branches start from (reproducible comparisons) |
-| `dryRun` | `false` | Triage only; return the selected / skipped table |
-| `issues` | all eligible | Explicit issue numbers (skips the actionable / blocker / area filters) |
-| `lanes` | `4` | Issues worked in parallel |
-| `maxRounds` | `2` | Review → feedback rounds per PR |
-| `maxNewFollowups` | `2` | Most follow-up issues one feedback plan may file as new issues (big, unrelated work only) |
-| `ciFixAttempts` | `1` | Automatic fix attempts per red CI run |
-| `labelsSkip` | `epic`, `needs-user-input`, `deferred-v1`, `do-not-merge`, `wontfix`, `duplicate` (`in-progress` is handled by claim liveness) | Issues with these labels are never picked |
-| `staleHours` | `6` | A claim with no heartbeat for this long, and no open PR, is released and the issue picked up again |
-| `noResume` | `false` | Don't resume `pipeline:stalled` PRs from earlier runs |
-
-**Coordination with other agents** follows [.agents/rules/issue-claims.md](../.agents/rules/issue-claims.md). Each lane claims its issue before planning: it adds `in-progress` and `pipeline:planning`, and posts a `pipeline-claim` comment with a token and heartbeat. The earliest live claim wins a race. As the lane progresses it moves the `pipeline:implementing` → `pipeline:review` → `pipeline:merging` labels (mirrored on the PR) and refreshes the heartbeat. It releases the claim on merge, hold or abort, and a sweep at the end of the run releases claims left by crashed lanes. Triage skips live claims. It releases stale ones (no heartbeat for `staleHours`, default 6, and no open PR) and considers those issues again.
-
-Stages per issue (each issue is its own lane; lanes do not wait for each other):
-
-1. **Triage** (Haiku, batches of 10, issue text only): score every eligible open issue opened by an `authors` login; pick the top `lanes` that are actionable, unblocked, and in distinct code areas. Any size is eligible; size only breaks ties between equal priorities (smaller first). A blocker counts only while the issue or PR it names is still open. The planner still aborts to a hold when an issue truly needs an owner decision or cannot fit in one PR.
-2. **Plan** (Opus): claim the issue (`in-progress`), research, post a detailed implementation plan on the issue, and list related issues. The planner never aborts for size: a large issue is planned as written and built as an ordered series of green commits in one PR. An open product or design choice is decided by the planner (simpler and more conservative first) and the choice is stated in the plan comment; it aborts to a decision hold only when the issue cannot be planned or a choice defines the product and has no conservative default.
-3. **Implement** (Sonnet, own worktree): follow the plan, run **targeted** local checks only (changed-file Ruff, the related pytest / Vitest files; never `make test` / `make ci`), reread each doc it changed against the code it describes, and open a PR. GitHub Actions is the full-suite gate whose body has `Fixes #N` plus one `Related #M` line per related issue.
-4. **CI** runs on GitHub in parallel with review and feedback; the pipeline waits for it only once, at the merge gate, on the final head. Haiku watches and copies the raw check rows and head SHA. The script derives pass or fail from those rows, rejects data that is malformed or incomplete (re-watching once), and re-checks CI when a later push moves the head. On red, Sonnet first classifies the failure: `pr` (caused by the diff, so it fixes and pushes), `flaky` (re-runs only the failed jobs) or `unrelated` (for example `main` itself is broken, so the PR is held with that reason). It gets one attempt. Haiku-tier agents never edit code; only Sonnet and Opus do.
-5. **Review**: `scripts/review_packet.py` (plain git, no model; a Haiku agent just runs it) writes one shared review packet per round to `.git/pipeline-packets/pr<N>-r<round>.md`. It holds the diff with 30 lines of context, callers of the changed symbols, importers of the changed modules, twin CLI/MCP/GUI paths, related tests, the changed Markdown docs with the tracked paths their added lines name, and the docs-sync findings (`contracts/docs-sync.json`, via `scripts/docs_sync.py check`), capped at 60k characters. The diff stat, the docs-sync findings and the changed-docs list come first. Each is capped (6k, 6k and 8k characters, truncation notice included, and docs-sync path lists are clipped to 10 paths per line), so together with the 35k diff cap (its notice also included) and the section headers they always fit under the 60k cut. Every per-section cut ends in a bracketed notice with the command that shows the rest; the packet-level cut instead names every section it shortened or dropped. If the packet can't be built, the lenses gather context themselves. The script then runs `pr-multi-review`'s 8 reviewer lenses plus the repo's docs-accuracy lens as parallel Sonnet agents (round 2+: bugbot, risk, reuse and docs on the fix diff only), because workflow agents cannot spawn their own subagents. Each lens reads the same packet file before following its own instructions. Lenses run without worktrees and read extra code with `git show`. The packet also lists twin CLI/MCP/GUI paths and second-hop callers of service and domain functions. Lenses that need a wider view have required reading beyond it: reuse searches the whole repo for each new helper, security reads the authorization helpers and security docs, wiring checks every sibling adapter, concurrency traces threads, and patterns follows two hops. The **docs-accuracy lens** runs only when the round's diff changes a Markdown doc (the packet script prints `docs=<N>`; the lens is skipped only when both the count the packet agent returns and the printed line it copies verbatim say 0, so it runs with no packet or when they disagree). It reads only the changed docs next to the code they describe and flags any added or edited claim the code does not support. Docs-sync proves a doc was touched; this lens checks that it is right. A lens whose concern has no surface in the packet returns empty with a reason. An Opus agent then runs the rest of the skill in AUTONOMOUS MODE with `lenses=supplied`: browser QA, merging the findings and posting them. Posting every finding is mandatory. A separate Haiku verifier re-posts anything missing, and the lane is held if a finding still cannot be posted.
-6. **Feedback**: Opus runs `/feedback` in plan mode and sorts every open item into `implement`, `follow_up` or `wont_do`, leaning hard toward doing the work in the PR. `implement` is the default for any valid finding (a bug, a missing test, a nit, a small optimisation) that touches the PR's code or area, in every round including the last. A `follow_up` is only for a big change unrelated to the PR (its own feature, refactor or cross-cutting work); the planner first searches open issues and reuses one (`existing_issue`) instead of filing a duplicate, with at most `maxNewFollowups` new issues per plan. A `wont_do` (wrong, harmful or purely speculative) still holds the PR for the owner. Sonnet then runs execute mode: it implements, files follow-up issues (added to the PR body as `Related #M`), and replies to and resolves every thread. Haiku verifies the replies. The script checks the plan against the PR's actual unresolved threads: missing threads trigger one re-plan that lists them, and made-up thread IDs are dropped. After execution, any thread still open (other than won't-dos) gets one more feedback pass before the gate. Steps 5–6 repeat up to `maxRounds`; the last round keeps implementing what fits (CI still gates the merge), and only a big unrelated change becomes a follow-up.
-7. **Merge gate**, run per PR as soon as its lane finishes. The PR rebase-merges only when all of these hold:
-   - every required check (`pytest`, `frontend`, `frontend-e2e`, `gitleaks-history`) is green **on the latest head SHA**,
-   - there are 0 unresolved review threads,
-   - the PR has neither `needs-user-input` nor `do-not-merge`,
-   - there are 0 `wont_do` items.
-
-   A PR that conflicts with `main` is rebased (`--force-with-lease`) and re-checked. The conflict check runs before the CI wait, because GitHub starts no CI on a conflicting PR; it runs again after the wait for a PR that starts conflicting while CI runs.
-
-When every lane has finished, a Sonnet agent (low effort; a Haiku one fabricated its report) removes the run's clean `.claude/worktrees/wf_*` worktrees whose commit is on some branch, local or remote (so squash- or rebase-merged work counts). Any worktree with uncommitted or branchless commits is kept and reported, and the reported counts are cross-checked.
-
-A lane that doesn't merge ends in one of two ways, so `needs-user-input` always means there's a real question:
-
-- **Decision needed** (merging is blocked): the lane adds `needs-user-input` and posts an "Automation hold — decision needed" comment with the **question**. This only happens for won't-do items (accept the rationale or ask for the change), a planner abort (only when the issue cannot be planned or a product-defining choice has no conservative default), or an owner hold label (`needs-user-input` or `do-not-merge`). Add `do-not-merge` to any PR or issue to keep automation away from it.
-- **Technical stall** (no decision needed): for a CI timeout or bad CI data, a blocked merge permission, a crashed agent, or a failure to post, the lane adds `pipeline:stalled` and posts an "Automation stall — no decision needed" comment. **The next run resumes stalled PRs automatically.** It re-claims the issue (the resumed PR itself linking the issue does not block the claim; a different open PR would) and continues from the merge gate if review and feedback had finished, otherwise from review, so nothing merges unreviewed. A lane whose agents return nothing first runs a trivial health-check agent. If that fails too, it's an outage (usage or session limit, API down), not a broken stage: the lane stops as **interrupted**, keeps its claim and labels, and doesn't mark anything stalled. Resume the run with the Workflow tool's `resumeFromRunId`, which replays finished agents from cache. If nobody resumes it, a later run **adopts** the orphaned PR: any open PR with a `pipeline:*` stage label whose issue claim is released or stale (`staleHours`) resumes from review. Pass `noResume: true` to skip resuming.
-
-**Multi-PR issues.** An issue shipped as a series of stacked PRs (each targeting `main`, so CI runs) links each non-final part with a `Part of #N` line instead of `Fixes #N`, so merging a part leaves the issue open. Only the final part says `Fixes #N`. The pipeline treats `Part of #N` like a closing link: resume and adoption read the issue from it, and it counts in the duplicate-PR claim guard. Only the lowest unmerged part is handed to the pipeline (for example `pipeline:stalled` plus a `<!-- pipeline-stalled resume=review -->` comment). Later parts carry `do-not-merge` until promoted, and a resumed lane ignores held parts when it checks for other open PRs. To promote the next part after a merge, rebase it onto `main`, remove `do-not-merge`, and hand it to the pipeline the same way.
-
-The autonomous behaviour of `pr-multi-review` and `feedback` lives in the **AUTONOMOUS MODE (pipeline)** section of each skill (`~/.agents/skills/…`). That section overrides the skills' interactive approval gates only when a prompt contains `AUTONOMOUS MODE`.
-
-### Codex issue pipeline
-
-Use [codex-issue-pipeline](../.agents/skills/codex-issue-pipeline/SKILL.md) when asking Codex to work an issue end to end. It follows the same eight review concerns plus the docs-accuracy check and required CI checks as the Claude Code workflow, but runs through Codex's available tools rather than executing `.claude/workflows/issue-pipeline.js`. Ask for a **dry run** to triage without writes; ask to **run on #N with noMerge** to create and review a PR without merging. Say **merge if the gate passes** when you want Codex to finish through rebase-merge. The Claude workflow's standing merge exception does not authorize a Codex merge.
-
-Codex follows the shared [issue-claims rule](../.agents/rules/issue-claims.md): triage distinguishes live and stale `in-progress` claims, an earliest-live-claim check happens before planning, `pipeline:*` labels and a heartbeat track each stage, and every exit releases the run's claim. A Codex dry run only **reports** stale claims; a build run may release one when it has no open linked PR. It never removes a winning claim's labels after losing a race. An open PR keeps an unmerged issue out of future triage after Codex releases its claim.
-
-Codex triages actionable, unblocked issues of any size and checks whether cited dependencies are still open. A specifically named issue bypasses the backlog's actionable, blocker, and area ranking filters, while the author, hold-label, open-PR, and claim checks still apply. The plan resolves ordinary design choices with a stated rationale and uses independently green commits for large work. If an issue needs several PRs, non-final parts use `Part of #N`, target `main`, and each pass review and CI; later parts remain held until the previous part merges. The Codex gate accepts either an unambiguous `Fixes #N` or `Part of #N` reference to the claimed issue.
-
-Codex reserves `needs-user-input` for a real owner question (won't-do sign-off, planner abort, or an owner hold). A technical failure instead marks a PR `pipeline:stalled`, posts a no-decision comment with `resume=review` or `resume=gate`, and releases its claim. The next backlog run re-claims and resumes eligible stalled PRs unless asked for `noResume`; an explicit issue run only resumes that issue's PR. Gate-only resume requires evidence that review and feedback cover the current head; otherwise Codex repeats review. A stalled label blocks the Codex gate until resume clears it.
-
-A resume claim ignores the PR being resumed and held later parts of the same issue, but rejects another active linked PR. Codex also adopts an orphaned PR with a pipeline stage label and a released or stale claim, restarting at review. It uses an available GitHub connector when `gh` fails for a hosted operation; the final gate still requires complete current facts. Before waiting for CI, Codex checks for a conflict with `main` and rebases a conflicting PR so GitHub can run checks on the new head. Feedback fixes valid in-scope findings in the PR, including in the last review round; only substantial unrelated work becomes a follow-up issue, after searching for an existing one. Every open thread must appear in the feedback plan, receive a verified reply, and be resolved or held for the owner before merging.
-
-For an isolated implementation checkout, use a Git worktree and run `make worktree-setup` there. This idempotent target provisions hooks, the Python environment with CI extras, and `gui/web` dependencies; the pre-commit hook runs it automatically if the checkout is still unprovisioned. Read-only review passes can share the checkout and do not need another worktree.
-
-The Codex skill builds one shared review packet per round for the eight distinct reviewer lenses and, when the diff changes a doc, the docs-accuracy lens. When `scripts/review_packet.py` is available on trusted `origin/main`, Codex runs it directly and passes the file path to reviewers; otherwise it gathers the context once itself. Each lens reports independently when subagents are available. Every generated review comment is posted regardless of severity; only comments about the same underlying issue from different lenses are combined. The feedback pass then decides what to fix, defer, acknowledge as information requiring no change, or reject. A separate pass checks every lens comment against the posted PR comments and stalls the pipeline if anything remains missing. The skill reads issue text before code in triage, uses targeted local checks while editing, and leaves the full-suite gate to GitHub Actions. These are cost controls; all eight lenses (plus the docs lens when docs changed), relevant live QA, posted review and feedback verification, and the final gate remain required. Do not claim a percentage saving until comparable runs are measured.
-
-When stage-specific subagents are available, the skill uses the collaboration tool's model and reasoning-effort overrides: Sol/medium for routine planning, implementation, feedback fixes, and the reviewer lenses; Sol/high for multi-subsystem planning, difficult security or concurrency, or consequential design choices; Astra/high when a Sol/high plan still needs unusually broad judgment; and Luna/low for batched factual inventory and independent posting checks. The Sol/medium coordinator runs deterministic commands directly rather than spawning an agent for each command. A bounded history fork carries the user's run request while allowing an override. The coordinator owns claims, posting, feedback decisions, the deterministic gate, and merging; only one writer works in a checkout at a time. A single Codex task cannot change its own model mid-run, and this skill does not require a separate JavaScript launcher or user-visible tasks for stage routing. The run report records escalation reasons and distinguishes accepted model/effort requests from actual execution model or token usage when the host does not expose those metrics. Model choice never relaxes CI or the deterministic merge gate.
-
-`.venv/bin/python scripts/codex_issue_gate.py --repo calebn/sharecut-studio --pr <N> --issue <issue-N> --claim-token <token> --wont-do <count>` reads current GitHub rows and fails closed on missing or non-successful required checks, a moved head, the wrong base or closing issue, a missing or lost live claim, missing `pipeline:merging` labels, owner hold or technical stall labels, unresolved review threads, won't-do items, or an unmergeable PR. Use the interpreter provisioned by `make worktree-setup`; macOS system `python3` may be too old for this script. The agent separately verifies that its findings and replies were posted, then reruns the gate immediately before an authorized `gh pr merge --rebase --match-head-commit <sha>`.
+The [Git policy](../.agents/skills/sharecut-poteto/references/git-workflow.md)
+requires exact-head CI, unresolved-review checks, an independent native Shipping
+verdict, and applicable owner listening or product approval before an authorized merge.
+For an issue-backed PR, `scripts/poteto_issue_gate.py` adds a manual, read-only,
+fail-closed repository predicate. Its success does not replace native Shipping or
+grant permission to merge. Do not invent an issue for a contributor PR to call it.
 
 ## Docs in sync
 
@@ -262,7 +182,7 @@ Treat documentation like tests: part of the deliverable, not a follow-up.
 
 The map of which docs change with which code is [AGENTS.md § Docs in sync](../AGENTS.md#docs-in-sync). It is generated from [`contracts/docs-sync.json`](../contracts/docs-sync.json); edit the contract, then run `make docs-sync-table`. Run `make docs-sync` before opening a PR. It is the same PR-diff check CI runs: a fired **gate** rule with no matching doc change fails the PR, and an **advisory** rule only reports. When a rule really does not apply, waive it on any commit in the branch with `git commit --trailer "Docs-Sync-Waive: <rule-id> <reason>"`. The `docs-sync` pre-commit hook runs the same check on the branch so far and only warns.
 
-Docs-sync proves a doc was touched, not that it is right. Before opening a PR, reread every doc you changed next to the code it describes and cut or correct any claim the code does not support (for example "always", "never", defaults, limits, or a path or symbol that does not exist). The issue pipeline's docs-accuracy lens (§ Automated issue pipeline) does the same check on review.
+Docs-sync proves a doc was touched, not that it is right. Before opening a PR, reread every doc you changed next to the code it describes and cut or correct any claim the code does not support (for example "always", "never", defaults, limits, or a path or symbol that does not exist). Reviewers check changed docs against the code as part of native review.
 
 **Keeping gates honest.** A rule is promoted from `advisory` to `gate` only when it fired at least 6 times in a 100-PR `make docs-sync-replay` and its docs were updated every time. Rerun the replay every 50 or so merged PRs, or when a gate starts to feel noisy. Its summary lists each rule's `kind`, firings, `satisfied` and `trivial` firings (satisfying doc edits of at most 2 changed lines in total), `waived` firings and `waive_rate`, with flagged gates first. A gate appears in `flags` when it is waived on more than 1 in 10 of its firings, or when more than half of the edits that satisfy it are trivial. Demote it by renaming its `gate` key to `advisory` in `contracts/docs-sync.json`. Don't add gates below that bar. The `decision-*` rules start as advisory: a change to code under a recorded decision gets a reminder to revisit it, without blocking unrelated edits such as performance work. Promote one to a gate only when it clears the replay bar above. Where a doc can be generated from code, as `make schema-export` and `make cheatsheet` already do, generate it instead of gating it.
 

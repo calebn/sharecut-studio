@@ -1,4 +1,4 @@
-"""The Codex issue gate derives a verdict from raw GitHub data."""
+"""The Poteto issue gate derives a verdict from raw GitHub data."""
 
 from __future__ import annotations
 
@@ -10,12 +10,12 @@ import pytest
 
 from script_loader import load_script
 
-gate = load_script("codex_issue_gate")
+gate = load_script("poteto_issue_gate")
 
 SHA = "a" * 40
 NEXT_SHA = "b" * 40
 NOW = datetime(2026, 9, 23, 18, 0, tzinfo=UTC)
-TOKEN = "codex-claim-1"
+TOKEN = "poteto-claim-1"
 
 
 def _pr(sha: str = SHA) -> dict[str, Any]:

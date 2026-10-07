@@ -2,7 +2,6 @@
   "api_version": 1,
   "description": "Capability registration contract: Sharecut Studio command/GUI/keyboard + MCP/CLI/skills.",
   "hub_skills": [
-    "codex-issue-pipeline",
     "impeccable",
     "podcast-balance-levels",
     "podcast-chapter-markers",
@@ -20,7 +19,8 @@
     "podcast-transcript-precorrect",
     "podcast-transcript-reconcile",
     "podcast-transcript-refine",
-    "podcast-vocal-compression"
+    "podcast-vocal-compression",
+    "sharecut-poteto"
   ],
   "untracked_mcp": [],
   "capabilities": [

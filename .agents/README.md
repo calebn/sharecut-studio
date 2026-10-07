@@ -6,10 +6,10 @@ Canonical agent configuration for **any** MCP-capable client (Cursor, Claude Cod
 |------|---------|
 | [INSTRUCTIONS.md](INSTRUCTIONS.md) | How to change **this repo’s** Python code |
 | [rules/engineering-standards.md](rules/engineering-standards.md) | SOLID/DRY, tests-as-you-go, docs-in-sync |
-| [rules/git-workflow.md](rules/git-workflow.md) | Feature branch → PR → `main` (no direct pushes to `main`) |
+| [Git policy](skills/sharecut-poteto/references/git-workflow.md) | Feature branch → PR → `main` (no direct pushes to `main`) |
 | [rules/gui-styling.md](rules/gui-styling.md) | Theme tokens, rem, `@container`, consent-gated CSS exceptions |
-| [rules/issue-claims.md](rules/issue-claims.md) | Claiming GitHub issues (`in-progress`, `pipeline:*` stage labels, claim comment + 6-hour heartbeat) so agents don't collide |
-| [skills/](skills/) | Episode workflows and the Codex GitHub issue pipeline |
+| [Issue claims](skills/sharecut-poteto/references/issue-claims.md) | Claiming GitHub issues (`in-progress`, `pipeline:*` stage labels, claim comment + 6-hour heartbeat) so agents don't collide |
+| [skills/](skills/) | Episode workflows and the [native Poteto companion](skills/sharecut-poteto/SKILL.md) |
 | [defaults/pipeline.yaml](defaults/pipeline.yaml) | Shared pipeline thresholds |
 | [mcp.json](mcp.json) | MCP server (`podcast-mcp` on PATH) |
 | [skills/impeccable/](skills/impeccable/) | Upstream UI design skill and version-pinned engine launcher, with Codex hooks in `../.codex/hooks.json` |
