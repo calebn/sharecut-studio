@@ -7,7 +7,6 @@ import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { place } from "../test/hitDom";
-import { setLabEnabled } from "../utils/labFlags";
 import { JoinEditor } from "./JoinEditor";
 
 vi.mock("../api", () => ({ setClipJoin: vi.fn(async () => undefined) }));
@@ -434,7 +433,7 @@ describe("JoinEditor coupled length", () => {
     expect(container.querySelector(".join-blend")).toBeNull();
   });
 });
-describe("JoinEditor crossfade grip on touch (touch chooser lab)", () => {
+describe("JoinEditor crossfade grip on touch", () => {
   const touch = {
     pointerType: "touch",
     pointerId: 4,
@@ -444,11 +443,9 @@ describe("JoinEditor crossfade grip on touch (touch chooser lab)", () => {
   };
   beforeEach(() => {
     vi.useFakeTimers();
-    setLabEnabled("touchChooser", true);
     document.elementFromPoint = () => null;
   });
   afterEach(() => {
-    setLabEnabled("touchChooser", false);
     vi.useRealTimers();
   });
   function placedGrip() {

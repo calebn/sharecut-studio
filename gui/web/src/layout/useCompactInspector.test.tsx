@@ -11,7 +11,6 @@ import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { stubMatchMedia } from "../test/matchMedia";
 import { BottomSheet } from "../ui/BottomSheet";
 import { readCompactInspectorView } from "../utils/compactInspectorPref";
-import { setLabEnabled } from "../utils/labFlags";
 import {
   compactSheetProps,
   keepTargetClear,
@@ -42,18 +41,16 @@ beforeEach(() => {
     compactInspectorView: "peek",
     timelineDragging: false,
   });
-  setLabEnabled("touchChooser", true);
 });
 
 afterEach(() => {
-  setLabEnabled("touchChooser", false);
   vi.unstubAllGlobals();
   document.body.replaceChildren();
 });
 
 describe("useCompactInspector", () => {
-  it("opens the strip on a phone's timeline selection, behind the lab", () => {
-    const { result, rerender } = renderHook(() => useCompactInspector("phone"));
+  it("opens the strip on a phone's timeline selection", () => {
+    const { result } = renderHook(() => useCompactInspector("phone"));
     expect(result.current?.peek.title).toBe("Trim start");
     expect(compactSheetProps(result.current!)).toMatchObject({
       title: "Trim start",
@@ -65,9 +62,6 @@ describe("useCompactInspector", () => {
       stowed: false,
       className: "bottom-sheet--compact",
     });
-    act(() => setLabEnabled("touchChooser", false));
-    rerender();
-    expect(result.current).toBeNull();
   });
 
   it("is off in other phone modes and on tablets unless the screen is short", () => {

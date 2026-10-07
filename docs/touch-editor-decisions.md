@@ -29,6 +29,7 @@ evidence:
 - #1051 round 4b fix (2026-10-07): the first 4b cut made the clip body a create-menu surface, so touch clip moves were lost; the coordinator restored them under the approved grammar, since a clip body drags in time
 - #1051 owner phone test (2026-10-07): the crossfade grip "still drags at once, without a long press"
 - #1051 owner phone test (2026-10-07, round 5): a long press past the last clip still started iOS text selection; the drawer "follows the finger but feels laggy", and the owner asked for a flick to open or close it
+- 2026-10-07 owner, relayed by the coordinator: the grammar is the rule, so it is on by default and the touch chooser lab is retired
 enforced-by:
 - gui/web/src/timeline/gestureGovernance.test.ts::keeps touch-specific handling in the router
 - gui/web/src/timeline/gestureGovernance.test.ts::puts every pointerdown handler on an element the router can see
@@ -103,16 +104,16 @@ The checks (#1096) live with the code:
   command's column from the grammar (the create menu, the kinds' commands
   and the Gestures sheet).
 
-### Proposed decision: A plain grab at a join rolls it
+### Decision: A plain grab at a join rolls it
 
 <!-- decision
 id: D-join-grab-rolls
-status: proposed
-date: 2026-10-06
+status: accepted
+date: 2026-10-07
 decided-by: calebn
 evidence:
 - #1135 reproduction: on the 4a branch the 8 px trim strip covers the 24 px roll seam, the resolver ranked the strip nearest, and a grab at a join ripple-trimmed the right clip's head; on main the same grab rolls the join
-- Coordinator default pending the owner: roll as on main, with ripple trims through the chooser
+- Coordinator default, roll as on main with ripple trims through the chooser, which the owner approved: a grab at a join rolls the join
 enforced-by:
 - gui/web/src/timeline/inputContract.conformance.test.ts::takes a plain mouse grab though the other is nearer
 - gui/web/src/timeline/inputContract.conformance.test.ts::leaves the other in the chooser for a long press
@@ -383,17 +384,14 @@ cancel and History paths run unchanged. The browser's following click is
 replaced with a click on the winner. One target in reach, or a press on a
 surface, passes through untouched.
 
-## Touch target chooser prototype (#1051, lab)
+## Touch target chooser (#1051)
 
-Candidate A from the #1051 research ships as a prototype behind the
-`touchChooser` lab flag. It is off by default. Turn it on from View › Labs ›
-Touch target chooser (the phone Menu carries the same View sections) or by
-opening the app with `?lab=touch-chooser`; `?lab=-touch-chooser` turns it
-off. The choice persists per browser in `localStorage` (`sharecut.labs`,
-`utils/labFlags.ts`) and is not project state.
+Candidate A from the #1051 research. It started behind a `touchChooser` lab
+flag; the owner made the grammar the rule on 2026-10-07, so it is on for every
+browser and the lab, its View › Labs entry and its `?lab=` link are gone.
 
-With the lab on, every touch on a timeline target or surface that is not
-already selected goes to a press layer (`timeline/useTouchPress.ts`, React
+Every touch on a timeline target or surface, selected or not, goes to a press
+layer (`timeline/useTouchPress.ts`, React
 Aria's `usePress` and `useLongPress`), and no target sees it until the layer
 decides. Timing comes from `hooks/gestureConstants.ts`: a 500 ms long press
 and a 10 px slop, after the iOS and Android long-press defaults it cites.
@@ -405,10 +403,10 @@ and a 10 px slop, after the iOS and Android long-press defaults it cites.
 - **Tap.** Lifting within the slop before the long press taps the resolver's
   winner, or the surface itself when the finger is on no target. A quick tap on
   a crowded spot picks the obvious target and never opens the chooser.
-- **Select first, then drag.** A selected target under the finger (a selected
-  clip's fade, trim and roll handles, a selected envelope point or pending
-  edit's edges) takes the touch at once and drags, as before. Unselected
-  targets let the finger scroll (`touch-action: pan-x pan-y`).
+- **No drag on contact.** A selected target takes no touch at once either:
+  a finger moving on it starts no drag, and only a long press arms it
+  (round 4b). Unselected targets let the finger scroll
+  (`touch-action: pan-x pan-y`).
 - **Hold still.** After the long press, two or more targets in reach open the
   chooser (`timeline/TargetChooser.tsx`); one target, or a surface, is grabbed
   and the drag continues on it, and released in place it is a slow tap. Chips
@@ -442,8 +440,8 @@ and a 10 px slop, after the iOS and Android long-press defaults it cites.
 
 The whole timeline scroller (headers, ruler, marker lane, lanes, the pads
 past either end and the well under the last lane) sets `user-select: none`
-and `-webkit-touch-callout: none` with the lab on or off, so a held or
-sliding finger starts no text selection or iOS callout over the timeline.
+and `-webkit-touch-callout: none`, so a held or sliding finger starts no text
+selection or iOS callout over the timeline.
 On the phone's fixed-playhead timeline each lane's surface reaches across the
 pads (`::before` / `::after` on `.lane-seek`), so a long-press past the last
 clip opens that lane's create menu at the session's end, and one before 0 at
@@ -463,16 +461,15 @@ spec asked for 100 ms). Under reduced motion the chips appear in place with no
 animation, because reduced motion may only stop motion here; the spec's 100 ms
 fade in place is not used.
 
-Open questions for physical testing: whether the platform hold (500 ms) feels
-slow for the chooser and the rest-to-grab, and whether the lab's
-scroll-first rule should replace today's select-on-press for every touch.
-With the lab off, a touch dragged across a clip still selects it on the way
-(the #1051 round-two repro found this on `main`).
+Open question for physical testing: whether the platform hold (500 ms) feels
+slow for the chooser and the rest-to-grab. The scroll-first rule replaced
+select-on-press for every timeline touch, so a touch dragged across a clip no
+longer selects it on the way (the #1051 round-two repro on `main`).
 
 ### Drag from a chip (#1051 round 3)
 
 On a phone, picking a target and then dragging it meant two gestures, with
-the inspector in the way of the second. With the lab on, a finger on a chip
+the inspector in the way of the second. A finger on a chip
 can drag the target from there.
 
 The chooser runs idle → open → over-chip → dragging or selecting. The
@@ -504,7 +501,7 @@ exists yet, so a grab from a chip has none.
 
 ### Compact inspector (#1051 round 3)
 
-With the lab on, a timeline selection on a phone-sized screen opens a peek
+A timeline selection on a phone-sized screen opens a peek
 strip instead of the half sheet. Phone-sized means the phone shell in
 Timeline mode, or the tablet shell on a screen at most 40rem tall (a phone
 held sideways). Taller tablets and desktop keep their inspector.
@@ -520,8 +517,8 @@ held sideways). Taller tablets and desktop keep their inspector.
   [Strip nudges](#strip-nudges-and-hold-to-repeat-1051-round-4). Chapters
   show their value without nudges; their fields stay in the full inspector.
 - **Expand and Collapse.** One tap on Expand opens the full inspector, one
-  tap on Collapse returns to the strip. Both are visible buttons; the sheet
-  still has no drag gesture. The last choice opens the next selection
+  tap on Collapse returns to the strip. Both stay visible buttons beside the
+  drawer swipe of round 4b. The last choice opens the next selection
   (`compactInspectorView`, persisted per browser at
   `sharecut.compactInspector`). Expanded, the sheet is at most half its slot
   and leaves room for the transport, ruler, marker lane and one coarse lane.
@@ -571,7 +568,7 @@ Playwright) with touch-typed pointer events plus the touch events a pinch
 fires. On the round 3 build the same cases saved `TrimClipEdge`, `MoveClips`
 or `RollClipJoin`; now they send no document command, the saved clip is
 unchanged, the selection is what it was, and the zoom grows by about 2.3×
-(portrait and sideways, lab on; portrait, lab off).
+(portrait and sideways).
 
 ### Collapse stays in reach (#1051 round 4)
 
@@ -617,8 +614,9 @@ consistent visual language", and for press-and-hold to repeat them.
   point gets Time (0.01 and 0.1 s) and Level (0.01 and 0.1) rows, each row
   labelled with its value. On a phone the rows stack; sideways they share a
   line. `edit/nudge.ts` holds what each field steps, its hard limits, its
-  preview and its save. Envelope rows show only for the host; edit guests
-  still cannot change envelopes (an open owner call).
+  preview and its save. Envelope rows show for the host and Editor links,
+  which edit envelopes as the host does (owner decision, 2026-10-06);
+  Commenter and Viewer links get none.
 - **Hold to repeat.** A held finger, pen or mouse steps again after the
   long-press hold (500 ms), then every 100 ms, and every 50 ms after four
   repeats (`nudgeRepeatDelayMs` in `hooks/gestureConstants.ts`, after
@@ -642,8 +640,8 @@ consistent visual language", and for press-and-hold to repeat them.
   "Envelope point saved at a clip edge" on release. The first step of a
   fresh press, a tap or a key press, crosses it. A trim's start has no moving
   point on the timeline (a ripple trim keeps the clip's start), so only its
-  hard limits apply. Drags do not stop at soft boundaries yet; they can ask
-  `softBoundaries` and `firstBoundaryCrossed` for detents next round.
+  hard limits apply. An armed drag detents at the same soft boundaries
+  ([round 4b](#touch-grammar-round-4b-1051), **Detents**).
 
 `e2e-compat/touch-nudge.spec.ts` holds a finger on the strip in Chromium and
 WebKit: the value moves during the hold, the run sends one `SetEnvelope`, and
@@ -654,7 +652,8 @@ targets in view and no axe violations.
 
 ### Touch grammar round 4b (#1051)
 
-Round 4b builds the grammar on the 4a branch, behind the touch chooser lab.
+Round 4b builds the grammar on the 4a branch. It shipped behind the touch
+chooser lab until the owner made it the default (2026-10-07).
 
 - **Arming.** A long press (`LONG_PRESS_MS`) on one target arms it, if its
   contract gives it an axis, or selects it (a join badge, a pending split).

@@ -1338,14 +1338,14 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   vector-effect: non-scaling-stroke;
 }
 
-/* Touch chooser lab: a finger may scroll from any target that is not
+/* Touch grammar: a finger may scroll from any target that is not
    selected, in the lanes or on the crossfade rail. The press layer then
    decides tap or hold, and only a long press arms a target to drag. */
 [data-touch-press] [data-hit-kind]:not([data-hit-selected]) {
   touch-action: pan-x pan-y;
 }
 
-/* Touch target chooser (#1051, lab): portaled to <body> above the shell like
+/* Touch target chooser (#1051): portaled to <body> above the shell like
    a menu. Chips are 44 px (--touch-min) and placed at computed px centres
    (chooserLayout.ts); the arc, leaders and rings are viewport geometry. */
 .target-chooser {

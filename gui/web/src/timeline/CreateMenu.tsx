@@ -1,5 +1,5 @@
 /**
- * The create menu (#1051 round 4b, lab `touchChooser`): a long-press on
+ * The create menu (#1051 round 4b): a long-press on
  * empty timeline space asks what to make there. Each entry runs an existing
  * command at the held time (`CREATE_ENTRIES` in `inputContract.ts`); one the
  * session cannot run stays in the menu, disabled, with the reason beside it.

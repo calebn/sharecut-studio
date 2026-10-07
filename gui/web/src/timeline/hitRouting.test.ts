@@ -20,7 +20,6 @@ let router: HitRouter;
 let log: string[];
 let views: (ChooserView | null)[];
 let targets: (RoutedTarget | null)[];
-let labOn: boolean;
 /** What the selection was rolled back to, once per pinch. */
 let restored: string[];
 let selection: string;
@@ -48,14 +47,12 @@ beforeEach(() => {
   log = [];
   views = [];
   targets = [];
-  labOn = false;
   onlyReplays = false;
   restored = [];
   selection = "none";
   root = document.createElement("div");
   document.body.append(root);
   router = attachHitRouting(root, {
-    touchLab: () => labOn,
     onChooser: (view) => views.push(view),
     onTarget: (target) => targets.push(target),
     snapshot: () => {
@@ -75,7 +72,7 @@ afterEach(() => {
 });
 
 describe("attachHitRouting", () => {
-  it("replays a crowded press, its release and its click on the nearest target", () => {
+  it("replays a crowded pen press, its release and its click on the nearest target", () => {
     const trim = button(hitTargetProps("trim-in", "clip-b", 2), {
       left: 200,
       top: 106,
@@ -93,8 +90,8 @@ describe("attachHitRouting", () => {
     record("fade", fade);
 
     // On the fade corner's box, but nearer the trim strip's centre line.
-    press(fade, "pointerdown", 204, 117);
-    press(fade, "pointerup", 204, 117);
+    press(fade, "pointerdown", 204, 117, 7, "pen");
+    press(fade, "pointerup", 204, 117, 7, "pen");
     fade.click();
     vi.runAllTimers();
 
@@ -105,7 +102,7 @@ describe("attachHitRouting", () => {
     ]);
   });
 
-  it("leaves a press with one target in reach alone", () => {
+  it("leaves a pen press with one target in reach alone", () => {
     const fade = button(hitTargetProps("fade-in", "clip-b", 2.3), {
       left: 200,
       top: 106,
@@ -122,8 +119,8 @@ describe("attachHitRouting", () => {
     record("fade", fade);
     record("far", far);
 
-    press(fade, "pointerdown", 204, 110);
-    press(fade, "pointerup", 204, 110);
+    press(fade, "pointerdown", 204, 110, 7, "pen");
+    press(fade, "pointerup", 204, 110, 7, "pen");
     fade.click();
     vi.runAllTimers();
 
@@ -160,7 +157,8 @@ describe("attachHitRouting", () => {
     expect(log).toEqual(["body:pointerdown@214,130"]);
   });
 
-  it("cancels a drag when a second finger lands, and lets the pinch own both until they lift", () => {
+  it("cancels a drag in an armed Select range when a second finger lands, and lets the pinch own both until they lift", () => {
+    root.setAttribute("data-range-armed", "");
     const fade = button(hitTargetProps("fade-in", "clip-b", 2.3), {
       left: 200,
       top: 106,
@@ -203,7 +201,8 @@ describe("attachHitRouting", () => {
     expect(log).toEqual(["fade:pointerdown@204,117"]);
   });
 
-  it("cancels the target a crowded press was replayed on, not only the one pressed", () => {
+  it("cancels the target a crowded press in an armed Select range was replayed on, not only the one pressed", () => {
+    root.setAttribute("data-range-armed", "");
     const trim = button(hitTargetProps("trim-in", "clip-b", 2), {
       left: 200,
       top: 106,
@@ -274,9 +273,8 @@ function edgeCluster() {
   return { trim, fade };
 }
 
-describe("touch chooser lab", () => {
+describe("touch input grammar", () => {
   beforeEach(() => {
-    labOn = true;
     onlyReplays = true;
     // jsdom does no layout: no chip is under any point unless a test says so.
     document.elementFromPoint = () => null;

@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, type TestInfo, test } from "@playwright/test";
 import { rulerWidthPx } from "../e2e/deepZoom";
 import { e2eProjectPath } from "../e2e/env";
 import { newFinger, type TwoFingers, twoFingers } from "../e2e/finger";
@@ -10,6 +10,7 @@ import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
 import {
   buildFixture,
+  type CaseFixtures,
   centerOf,
   json,
   lane,
@@ -23,9 +24,8 @@ import {
 
 /*
  * #1051 round 4: pinch never edits. One finger moves on a fade or trim (or
- * presses a clip body), a second finger lands and the two pinch apart. Lab
- * off the move starts a drag, which is cancelled; lab on it never starts
- * one. Either way there is no document command, the selection is what it
+ * presses a clip body), a second finger lands and the two pinch apart. The
+ * move never starts a drag (#1051 round 4b). There is no document command, the selection is what it
  * was before the first finger, and the timeline zooms. Chromium drives two
  * real CDP touch points. WebKit has no touch input in Playwright, so there
  * the fingers are touch-typed pointer events (e2e/finger.ts) plus the touch
@@ -40,14 +40,6 @@ const SIZES = {
   "portrait-360": { width: 360, height: 800 },
   "landscape-844": { width: 844, height: 390 },
 } as const;
-
-// Lab off, a selection opens the half sheet over a sideways phone's lanes,
-// so the lab-off run is portrait only.
-const RUNS = [
-  { lab: true, size: "portrait-360" },
-  { lab: true, size: "landscape-844" },
-  { lab: false, size: "portrait-360" },
-] as const;
 
 test.use({ hasTouch: true });
 test.describe.configure({ timeout: 300_000 });
@@ -99,7 +91,7 @@ async function clipBody(page: Page, clip: Clip): Promise<Point> {
  * Where the first finger starts (on the clip that starts at `clipAt` s, which
  * is selected first when `select`), and how far it drags alone (px) before
  * the second finger lands. A clip body is pinched at once: there the press
- * itself selects (lab off) or waits (lab on).
+ * waits for the press layer.
  */
 const STARTS: Record<
   string,
@@ -182,83 +174,91 @@ async function dragThenPinch(
   return mid;
 }
 
-for (const { lab, size } of RUNS) {
+async function secondFingerCancels(
+  size: keyof typeof SIZES,
+  { page, context, browserName }: CaseFixtures,
+  info: TestInfo,
+): Promise<void> {
   const viewport = SIZES[size];
-  const name = `${size}-lab-${lab ? "on" : "off"}`;
-  test(`a second finger cancels the drag and pinches (${name})`, async ({
-    page,
-    context,
-    browserName,
-  }, info) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await buildFixture(page, projectPath, CLIENT_ID);
-    const rows: Record<string, unknown>[] = [];
-    for (const [start, { clipAt, select, dragPx, locate }] of Object.entries(
-      STARTS,
-    )) {
-      const p = await context.newPage();
-      await p.setViewportSize(viewport);
-      await p.goto(
-        `/?project=${encodeURIComponent(projectPath)}&lab=${lab ? "" : "-"}touch-chooser`,
-      );
-      await expect(p.locator(".daw-shell")).toBeVisible();
-      if (viewport.width < 768) await openPhoneTimeline(p);
-      await setZoom(p, 4);
-      const fingers = await twoFingers(context, p, browserName);
-      const clip = (await clips(p)).find((c) => c.timeline_start === clipAt);
-      if (!clip) throw new Error(`clip at ${clipAt} s missing`);
-      if (select) {
-        const tap = await newFinger(context, p, browserName);
-        await tap.down(await clipBody(p, clip));
-        await p.waitForTimeout(60);
-        await tap.up();
-        await p.waitForTimeout(700);
-      }
-      const before = await state(p);
-      const saved = (await clips(p)).find((c) => c.id === clip.id);
-      const zoomBefore = await rulerWidthPx(p);
-      const commands = watchCommands(p);
-      const slug = `pinch-${RUN}-${name}-${browserName}-${start.replaceAll(" ", "-")}`;
-      const mid = await dragThenPinch(
-        fingers,
-        p,
-        await locate(p, clip),
-        dragPx,
-        (step) => shot(info, p, `${slug}-${step}`),
-      );
-      rows.push({
-        start,
-        before,
-        mid,
-        after: await state(p),
-        commands: commands.map((c) => c.type),
-        savedBefore: saved,
-        savedAfter: (await clips(p)).find((c) => c.id === clip.id),
-        zoomBefore: Math.round(zoomBefore),
-        zoomAfter: Math.round(await rulerWidthPx(p)),
-      });
-      await p.close();
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await buildFixture(page, projectPath, CLIENT_ID);
+  const rows: Record<string, unknown>[] = [];
+  for (const [start, { clipAt, select, dragPx, locate }] of Object.entries(
+    STARTS,
+  )) {
+    const p = await context.newPage();
+    await p.setViewportSize(viewport);
+    await p.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(p.locator(".daw-shell")).toBeVisible();
+    if (viewport.width < 768) await openPhoneTimeline(p);
+    await setZoom(p, 4);
+    const fingers = await twoFingers(context, p, browserName);
+    const clip = (await clips(p)).find((c) => c.timeline_start === clipAt);
+    if (!clip) throw new Error(`clip at ${clipAt} s missing`);
+    if (select) {
+      const tap = await newFinger(context, p, browserName);
+      await tap.down(await clipBody(p, clip));
+      await p.waitForTimeout(60);
+      await tap.up();
+      await p.waitForTimeout(700);
     }
-    json(info, `pinch-${RUN}-${name}-${browserName}`, rows);
-    for (const row of rows as {
-      start: string;
-      before: { selected: string[] };
-      mid: { preview: boolean; selected: string[] };
-      after: { selected: string[]; preview: boolean };
-      commands: string[];
-      savedBefore: Clip;
-      savedAfter: Clip;
-      zoomBefore: number;
-      zoomAfter: number;
-    }[]) {
-      // Lab off, the first finger really started a drag before the pinch.
-      // Lab on, one finger moving never edits (#1051 round 4b): nothing
-      // previews until a long press arms a target (touch-grammar.spec.ts).
-      if (row.start !== "clip body") expect(row.mid.preview).toBe(!lab);
-      expect(row.commands).toEqual([]);
-      expect(row.savedAfter).toEqual(row.savedBefore);
-      expect(row.after).toEqual({ ...row.before, preview: false });
-      expect(row.zoomAfter).toBeGreaterThan(row.zoomBefore * 1.2);
-    }
-  });
+    const before = await state(p);
+    const saved = (await clips(p)).find((c) => c.id === clip.id);
+    const zoomBefore = await rulerWidthPx(p);
+    const commands = watchCommands(p);
+    const slug = `pinch-${RUN}-${name}-${browserName}-${start.replaceAll(" ", "-")}`;
+    const mid = await dragThenPinch(
+      fingers,
+      p,
+      await locate(p, clip),
+      dragPx,
+      (step) => shot(info, p, `${slug}-${step}`),
+    );
+    rows.push({
+      start,
+      before,
+      mid,
+      after: await state(p),
+      commands: commands.map((c) => c.type),
+      savedBefore: saved,
+      savedAfter: (await clips(p)).find((c) => c.id === clip.id),
+      zoomBefore: Math.round(zoomBefore),
+      zoomAfter: Math.round(await rulerWidthPx(p)),
+    });
+    await p.close();
+  }
+  json(info, `pinch-${RUN}-${size}-${browserName}`, rows);
+  for (const row of rows as {
+    start: string;
+    before: { selected: string[] };
+    mid: { preview: boolean; selected: string[] };
+    after: { selected: string[]; preview: boolean };
+    commands: string[];
+    savedBefore: Clip;
+    savedAfter: Clip;
+    zoomBefore: number;
+    zoomAfter: number;
+  }[]) {
+    // One finger moving never edits (#1051 round 4b): nothing previews
+    // until a long press arms a target (touch-grammar.spec.ts).
+    expect(row.mid.preview).toBe(false);
+    expect(row.commands).toEqual([]);
+    expect(row.savedAfter).toEqual(row.savedBefore);
+    expect(row.after).toEqual({ ...row.before, preview: false });
+    expect(row.zoomAfter).toBeGreaterThan(row.zoomBefore * 1.2);
+  }
 }
+
+test("a second finger cancels the drag and pinches (portrait-360)", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  secondFingerCancels("portrait-360", { page, context, browserName }, info));
+
+test("a second finger cancels the drag and pinches (landscape-844)", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  secondFingerCancels("landscape-844", { page, context, browserName }, info));

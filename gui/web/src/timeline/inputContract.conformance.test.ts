@@ -135,7 +135,6 @@ beforeEach(() => {
     true,
   );
   router = attachHitRouting(root, {
-    touchLab: () => true,
     onArm: (target) => armed.push(target),
     snapshot: () => () => {
       restored += 1;
@@ -254,7 +253,6 @@ describe.each(OUTRANKS)("%s outranks %s (#1135)", (winner, loser) => {
     const views: string[][] = [];
     router.dispose();
     router = attachHitRouting(root, {
-      touchLab: () => true,
       onChooser: (view) =>
         view && views.push(view.hits.map((h) => h.candidate.kind)),
     });

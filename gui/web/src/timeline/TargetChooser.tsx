@@ -1,5 +1,5 @@
 /**
- * Touch target chooser (#1051 candidate A, lab `touchChooser`): when a held
+ * Touch target chooser (#1051 candidate A): when a held
  * finger covers several timeline targets, each fans out as a 44 px chip that
  * draws the target's own glyph at twice its size, joined by a leader line to
  * where it really is. `hitRouting` owns the gesture; this view only draws the
