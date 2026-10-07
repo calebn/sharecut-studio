@@ -25,10 +25,19 @@ TIMBRE_SMOOTH_BINS = 15
 # LIKENESS_FRAMES frames: the room and the call software blur and spread the match.
 LIKENESS_PERCENTILE = 40
 LIKENESS_FRAMES = 400
+# A copy's timbre confirms its lag from at least MIN_CONFIRM_FRAMES frames (half a
+# second at the copy's level): a percentile of fewer, against nulls of fewer still, is
+# chance. True copies in the #1070 trials had 90 or more; one co-timed own voice
+# passed on 6.
+MIN_CONFIRM_FRAMES = 50
 # A peer silent at every NULL_SHIFTS_SEC null (short bursts seconds apart) is compared
 # against its speech at these farther shifts instead, pooled into one null because each
 # shift reaches only a few of its frames; with no speech there, the lag is unconfirmed.
 FAR_NULL_SHIFTS_SEC = tuple(float(sign * second) for second in range(3, 11) for sign in (-1, 1))
+# The level lag is read on COPY_FRAME_SEC frames, and a call app's gate that opens late
+# on every word moves its peak later; the timbre confirms it from the lag up to half a
+# frame earlier where the copy's fine spectrum matches best.
+TIMBRE_LAG_REACH = round(COPY_FRAME_SEC / 2 / COPY_HOP_SEC)
 _SIMILARITY_CHUNK = 4096
 
 
@@ -123,15 +132,28 @@ def confirmed_likeness(
     itself must reach the margin. When the peer is silent at every null a second or two
     away (it speaks in short bursts far apart), the comparison is its speech 3 to 10 s
     away, pooled into one null; with no peer speech there either, nothing proves the
-    lag and there is no copy.
+    lag and there is no copy. Nor is there one on fewer than ``MIN_CONFIRM_FRAMES``
+    frames.
+
+    The level lag is only as sharp as a level frame, and the peer's gate opening late on
+    every word moves it later (60 ms for a synthetic gate 180 ms late on every word). A
+    gate never opens early, so the likeness and its nulls are read at the lag from half
+    a frame before ``lag`` up to ``lag`` where the likeness is highest. The likeness
+    returned is the one at ``lag``, where the gate reads the copy.
 
     Own sound whose pitch follows the peer's (singing in unison, speaking along at the
     peer's pitch) matches the peer's fine spectrum at the lag as a copy does, and passes
     (#1190). A copy of a peer whose other syllables share its spectrum (a near-monotone
     talker, a repeated phrase) can fail; the bleed is then kept, the safe side.
     """
-    likeness = copy_likeness(copy_similarity(own, peer, frames, lag, sample_rate=sample_rate))
-    args = (own, peer, frames, lag, peer_levels, loud_db)
+    if frames.size < MIN_CONFIRM_FRAMES:
+        return None
+    likenesses = {
+        shifted: copy_likeness(copy_similarity(own, peer, frames, shifted, sample_rate=sample_rate))
+        for shifted in range(lag - TIMBRE_LAG_REACH, lag + 1)
+    }
+    best = max(likenesses, key=likenesses.__getitem__)
+    args = (own, peer, frames, best, peer_levels, loud_db)
     near = _null_similarities(*args, NULL_SHIFTS_SEC, sample_rate=sample_rate)
     if near:
         null = max(copy_likeness(match) for match in near)
@@ -140,4 +162,5 @@ def confirmed_likeness(
         if not far:
             return None
         null = copy_likeness(np.concatenate(far))
-    return likeness if likeness - max(0.0, null) >= MIN_NULL_MARGIN else None
+    confirmed = likenesses[best] - max(0.0, null) >= MIN_NULL_MARGIN
+    return likenesses[lag] if confirmed else None

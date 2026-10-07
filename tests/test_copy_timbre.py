@@ -98,11 +98,11 @@ def test_no_peer_speech_to_compare_against_is_no_copy() -> None:
     assert _check(_copy_of(peer), peer) is None
 
 
-@pytest.mark.parametrize(("likeness", "confirmed"), [(0.149, False), (0.151, True)])
-def test_a_null_under_zero_counts_as_zero(
-    monkeypatch: pytest.MonkeyPatch, likeness: float, confirmed: bool
-) -> None:
-    """Own frames that anti-match the peer elsewhere still need a likeness of the margin."""
+def _confirmed_with(
+    monkeypatch: pytest.MonkeyPatch, likeness: float, null: float, frame_count: int
+) -> float | None:
+    """``confirmed_likeness`` when every frame matches the peer ``likeness`` at any lag
+    and ``null`` at every null."""
     monkeypatch.setattr(
         copy_timbre,
         "copy_similarity",
@@ -111,12 +111,30 @@ def test_a_null_under_zero_counts_as_zero(
     monkeypatch.setattr(
         copy_timbre,
         "_null_similarities",
-        lambda *_a, **_k: [np.full(5, -0.3), np.full(5, -0.1)],
+        lambda *_a, **_k: [np.full(5, null), np.full(5, null - 0.2)],
     )
-    frames = np.arange(10)
-
-    got = confirmed_likeness(
+    frames = np.arange(frame_count)
+    return confirmed_likeness(
         np.zeros(1), np.zeros(1), frames, 14, np.zeros(20), -30.0, sample_rate=RATE
     )
+
+
+@pytest.mark.parametrize(("likeness", "confirmed"), [(0.149, False), (0.151, True)])
+def test_a_null_under_zero_counts_as_zero(
+    monkeypatch: pytest.MonkeyPatch, likeness: float, confirmed: bool
+) -> None:
+    """Own frames that anti-match the peer elsewhere still need a likeness of the margin."""
+    got = _confirmed_with(monkeypatch, likeness, -0.1, 60)
+
+    assert (got is not None) is confirmed
+
+
+@pytest.mark.parametrize(("frame_count", "confirmed"), [(49, False), (50, True)])
+def test_the_timbre_needs_half_a_second_of_copy_frames(
+    monkeypatch: pytest.MonkeyPatch, frame_count: int, confirmed: bool
+) -> None:
+    """A percentile of a few frames against nulls of fewer still is chance: a co-timed
+    own voice once passed on 6 frames."""
+    got = _confirmed_with(monkeypatch, 0.9, 0.0, frame_count)
 
     assert (got is not None) is confirmed
