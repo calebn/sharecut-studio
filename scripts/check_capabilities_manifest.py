@@ -190,6 +190,26 @@ def presence_errors(cap: dict) -> list[str]:
     return errors
 
 
+def mcp_surface_errors(cap: dict) -> list[str]:
+    """Host MCP names only, each listed once per row.
+
+    One tool may serve several capabilities (approve_edits_tool applies one tighten
+    hit or all eligible ones), so a name may repeat across rows.
+    """
+    cid = cap.get("id", "<unknown>")
+    names = _as_list((cap.get("surfaces") or {}).get("mcp"))
+    errors = [
+        f"duplicate mcp {n} ({cid})" for n in sorted({n for n in names if names.count(n) > 1})
+    ]
+    errors.extend(
+        f"{cid}: do not put guest_* MCP names in the host manifest "
+        f"({n}); share ACL is share_capabilities.py + allowlist.py"
+        for n in names
+        if n.startswith("guest_")
+    )
+    return errors
+
+
 EFFECTS = frozenset({"project", "session", "view"})
 
 
@@ -263,15 +283,8 @@ def main() -> int:
             if cap.get("toggle") and not (cap.get("tooltip_pressed") or "").strip():
                 errors.append(f"{cid}: toggle capabilities require tooltip_pressed")
             errors.extend(presence_errors(cap))
-        for name in _as_list(surfaces.get("mcp")):
-            if name.startswith("guest_"):
-                errors.append(
-                    f"{cid}: do not put guest_* MCP names in the host manifest "
-                    f"({name}); share ACL is share_capabilities.py + allowlist.py"
-                )
-            if name in mcp_in_manifest:
-                errors.append(f"duplicate mcp {name} ({cid})")
-            mcp_in_manifest.add(name)
+        errors.extend(mcp_surface_errors(cap))
+        mcp_in_manifest.update(_as_list(surfaces.get("mcp")))
         for sk in _as_list(surfaces.get("skill")):
             skills_in_manifest.add(sk)
         if kb is None and not omit.get("keyboard_reason") and cmd:

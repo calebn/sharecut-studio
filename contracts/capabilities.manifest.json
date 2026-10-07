@@ -290,12 +290,15 @@
         "command": "comment.resolve",
         "gui": [
           "mobileShell.gesture.swipeLeftComment"
-        ]
+        ],
+        "mcp": [
+          "resolve_comment_tool"
+        ],
+        "cli": "podcast comment resolve"
       },
       "omit": {
         "guest": true,
-        "keyboard_reason": "Direct comment card gesture and button; no standard shortcut",
-        "agent_reason": "TODO #1140"
+        "keyboard_reason": "Direct comment card gesture and button; no standard shortcut"
       },
       "tooltip": "Resolve this comment",
       "presence": {
@@ -318,11 +321,13 @@
           "tightenPanel"
         ],
         "keyboard": "Enter",
+        "mcp": [
+          "approve_edits_tool"
+        ],
+        "cli": "podcast edit approve",
         "skill": "podcast-tighten-dialogue"
       },
-      "omit": {
-        "agent_reason": "TODO #1140"
-      },
+      "omit": {},
       "tooltip": "Apply the selected tighten cut",
       "presence": {
         "cursor": "none",
@@ -344,11 +349,13 @@
           "tightenPanel"
         ],
         "keyboard": "Backspace",
+        "mcp": [
+          "reject_edits_tool"
+        ],
+        "cli": "podcast edit reject",
         "skill": "podcast-tighten-dialogue"
       },
-      "omit": {
-        "agent_reason": "TODO #1140"
-      },
+      "omit": {},
       "tooltip": "Skip the selected tighten cut",
       "presence": {
         "cursor": "none",
@@ -370,11 +377,14 @@
           "tightenPanel"
         ],
         "keyboard": "Mod+Shift+Enter",
+        "mcp": [
+          "list_edit_decisions_tool",
+          "approve_edits_tool"
+        ],
+        "cli": "podcast edit approve",
         "skill": "podcast-tighten-dialogue"
       },
-      "omit": {
-        "agent_reason": "TODO #1140"
-      },
+      "omit": {},
       "tooltip": "Apply listed tighten hits, skipping harsh cuts when enabled",
       "presence": {
         "cursor": "none",
@@ -624,11 +634,13 @@
         "command": "edit.bladeCut.confirm",
         "gui": [
           "bladeConfirmSheet"
+        ],
+        "mcp": [
+          "split_clip_tool"
         ]
       },
       "omit": {
-        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed",
-        "agent_reason": "TODO #1140"
+        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed"
       },
       "tooltip": "Confirm blade cut",
       "presence": {
@@ -729,7 +741,8 @@
         ],
         "mcp": [
           "track_reorder_tool"
-        ]
+        ],
+        "cli": "podcast episode reorder-track"
       },
       "omit": {
         "keyboard_reason": "drag headers or move up/down keys"
@@ -755,11 +768,13 @@
         "gui": [
           "transport.menu"
         ],
-        "keyboard": "ArrowUp"
+        "keyboard": "ArrowUp",
+        "mcp": [
+          "track_reorder_tool"
+        ],
+        "cli": "podcast episode reorder-track"
       },
-      "omit": {
-        "agent_reason": "TODO #1140"
-      },
+      "omit": {},
       "tooltip": "Move track up",
       "presence": {
         "cursor": "none",
@@ -780,11 +795,13 @@
         "gui": [
           "transport.menu"
         ],
-        "keyboard": "ArrowDown"
+        "keyboard": "ArrowDown",
+        "mcp": [
+          "track_reorder_tool"
+        ],
+        "cli": "podcast episode reorder-track"
       },
-      "omit": {
-        "agent_reason": "TODO #1140"
-      },
+      "omit": {},
       "tooltip": "Move track down",
       "presence": {
         "cursor": "none",
@@ -843,11 +860,13 @@
       ],
       "surfaces": {
         "command": "edit.cut",
-        "keyboard": "Mod+X"
+        "keyboard": "Mod+X",
+        "mcp": [
+          "ripple_delete_tool"
+        ],
+        "cli": "podcast edit ripple-delete"
       },
-      "omit": {
-        "agent_reason": "TODO #1140"
-      }
+      "omit": {}
     },
     {
       "id": "daw.edit.paste",
@@ -860,11 +879,14 @@
       ],
       "surfaces": {
         "command": "edit.paste",
-        "keyboard": "Mod+V"
+        "keyboard": "Mod+V",
+        "mcp": [
+          "move_segment_tool",
+          "duplicate_segment_tool"
+        ],
+        "cli": "podcast edit move"
       },
-      "omit": {
-        "agent_reason": "TODO #1140"
-      }
+      "omit": {}
     },
     {
       "id": "daw.track.selectAll",
@@ -1813,11 +1835,14 @@
         "gui": [
           "transport.menu"
         ],
-        "keyboard": "Mod+N"
+        "keyboard": "Mod+N",
+        "mcp": [
+          "episode_create"
+        ],
+        "cli": "podcast episode init"
       },
       "omit": {
-        "guest": true,
-        "agent_reason": "TODO #1140"
+        "guest": true
       },
       "tooltip": "New project",
       "presence": {
@@ -2391,7 +2416,12 @@
           "transcript.correct",
           "mobileShell.gesture.doubleTapWord",
           "transcript.inlineEdit"
-        ]
+        ],
+        "mcp": [
+          "correct_transcript_tool",
+          "correct_transcript_phrase_tool"
+        ],
+        "cli": "podcast transcript correct"
       },
       "presence": {
         "cursor": "anchor",
@@ -2399,8 +2429,7 @@
         "anchor": "transcript:word:<track>:<i>"
       },
       "omit": {
-        "keyboard_reason": "toolbar toggle; inline correction uses F2",
-        "agent_reason": "TODO #1140"
+        "keyboard_reason": "toolbar toggle; inline correction uses F2"
       }
     },
     {
@@ -2441,16 +2470,18 @@
       ],
       "surfaces": {
         "command": "transcript.editWordInline",
-        "keyboard": "F2"
+        "keyboard": "F2",
+        "mcp": [
+          "correct_transcript_tool"
+        ],
+        "cli": "podcast transcript correct"
       },
       "presence": {
         "cursor": "anchor",
         "follow": "none",
         "anchor": "transcript:word:<track>:<i>"
       },
-      "omit": {
-        "agent_reason": "TODO #1140"
-      }
+      "omit": {}
     },
     {
       "id": "daw.transcript.select",
@@ -2496,11 +2527,13 @@
           "transcript.ignore",
           "transcript.restoreIgnored",
           "inspector.word.ignore"
+        ],
+        "mcp": [
+          "set_words_ignored_tool"
         ]
       },
       "omit": {
-        "keyboard_reason": "no industry-standard key (#649)",
-        "agent_reason": "TODO #1140"
+        "keyboard_reason": "no industry-standard key (#649)"
       },
       "presence": {
         "cursor": "anchor",
@@ -2657,12 +2690,15 @@
         "gui": [
           "transport.menu",
           "mobileShell.more"
-        ]
+        ],
+        "mcp": [
+          "add_chapter_tool"
+        ],
+        "cli": "podcast edit add-chapter"
       },
       "omit": {
         "keyboard_reason": "no default shortcut; Menu \u203a Markers or the phone More action",
-        "guest": true,
-        "agent_reason": "TODO #1140"
+        "guest": true
       },
       "presence": {
         "cursor": "none",
@@ -2711,11 +2747,12 @@
         "gui": [
           "timeline.clip.fadeHandle"
         ],
-        "keyboard": "ArrowLeft"
+        "keyboard": "ArrowLeft",
+        "mcp": [
+          "set_clip_fade_tool"
+        ]
       },
-      "omit": {
-        "agent_reason": "TODO #1140"
-      },
+      "omit": {},
       "presence": {
         "cursor": "time",
         "follow": "none"
@@ -2865,11 +2902,14 @@
         "command": "range.comment",
         "gui": [
           "RangeActions"
-        ]
+        ],
+        "mcp": [
+          "add_comment_tool"
+        ],
+        "cli": "podcast comment add"
       },
       "omit": {
-        "keyboard_reason": "Context action with explicit range selection",
-        "agent_reason": "TODO #1140"
+        "keyboard_reason": "Context action with explicit range selection"
       },
       "tooltip": "Comment on range",
       "presence": {
@@ -2890,11 +2930,14 @@
         "command": "range.bounce",
         "gui": [
           "RangeActions"
-        ]
+        ],
+        "mcp": [
+          "bounce_audio_tool"
+        ],
+        "cli": "podcast pipeline bounce"
       },
       "omit": {
-        "keyboard_reason": "Context action with explicit range selection",
-        "agent_reason": "TODO #1140"
+        "keyboard_reason": "Context action with explicit range selection"
       },
       "tooltip": "Bounce range",
       "presence": {

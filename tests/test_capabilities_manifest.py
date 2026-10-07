@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -103,6 +104,20 @@ def test_missing_or_unknown_effect_is_an_error() -> None:
     assert mod.agent_parity_errors(_row("display", {"command": "example"})) == [
         "daw.example: effect must be one of ['project', 'session', 'view'] (got 'display')"
     ]
+
+
+def test_mcp_name_repeated_within_a_row_is_an_error() -> None:
+    mod = load_script("check_capabilities_manifest")
+    row = _row("project", {"mcp": ["approve_edits_tool", "approve_edits_tool"]})
+    assert mod.mcp_surface_errors(row) == ["duplicate mcp approve_edits_tool (daw.example)"]
+    assert mod.mcp_surface_errors(_row("project", {"mcp": ["approve_edits_tool"]})) == []
+
+
+def test_manifest_shares_one_mcp_tool_across_capabilities() -> None:
+    data = json.loads((ROOT / "contracts" / "capabilities.manifest.json").read_text())
+    rows = {c["id"]: c["surfaces"].get("mcp") for c in data["capabilities"]}
+    assert "approve_edits_tool" in rows["daw.tighten.applyHit"]
+    assert "approve_edits_tool" in rows["daw.tighten.applyAllSafe"]
 
 
 def test_agent_reason_beside_an_agent_surface_is_an_error() -> None:
