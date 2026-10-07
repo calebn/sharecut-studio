@@ -98,6 +98,22 @@ def _voice(n: int, level_db: float, f0: float = 140.0) -> np.ndarray:
     return voice
 
 
+def _floor(room_db: float = ROOM_DB, seed: int = 1111, *, pink: bool = False) -> np.ndarray:
+    """The room the guest's microphone hears, over the whole track: white, or pink above 40 Hz."""
+    noise = np.random.default_rng(seed).normal(0.0, 1.0, round(DURATION_SEC * SR))
+    if pink:
+        f = np.fft.rfftfreq(noise.size, 1.0 / SR)
+        shape = np.where(f > 40.0, 1.0 / np.sqrt(np.maximum(f, 1.0)), 0.0)
+        noise = np.fft.irfft(np.fft.rfft(noise) * shape, noise.size)
+    return noise * 10 ** (room_db / 20) / np.sqrt(np.mean(noise**2))
+
+
+def _ring(n: int, voice_db: float, rng: np.random.Generator) -> np.ndarray:
+    """A phrase ringing on in the room for ``n`` samples, decaying 20 dB."""
+    decay = 10 ** (-np.arange(n) / n) if n else np.zeros(0)
+    return rng.normal(0.0, 10 ** (voice_db / 20), n) * decay
+
+
 def _gated_track(
     *,
     room_db: float = ROOM_DB,
@@ -105,21 +121,76 @@ def _gated_track(
     seed: int = 1111,
     hold: float = HOLD,
     ring_sec: float = 0.0,
+    pink: bool = False,
+    residue_sec: float = 0.0,
+    bleed_db: float | None = None,
 ):
-    """The guest's gated track. With ``ring_sec``, each phrase rings on in the room for that
-    long, decaying 20 dB, and the gate counts its hold from the end of the ring."""
-    rng = np.random.default_rng(seed)
-    out = np.zeros(round(DURATION_SEC * SR))
-    for start, end in PHRASES:
+    """The guest's gated track over ``_floor(room_db, seed, pink=pink)``.
+
+    With ``ring_sec``, each phrase rings on in the room for that long, decaying 20 dB, and
+    the gate counts its hold from the end of the ring. With ``residue_sec``, the closed
+    gate leaves that long of ±1 LSB rounding residue before the exact zero, as Zoom's does.
+    With ``bleed_db``, a peer's voice at that level leaks into the first half of every hold,
+    and into all of every third one.
+    """
+    rng = np.random.default_rng(seed + 1)
+    floor = _floor(room_db, seed, pink=pink)
+    out = np.zeros(floor.size)
+    for i, (start, end) in enumerate(PHRASES):
         i0, i1 = round((start - OPEN_BEFORE) * SR), round((end + ring_sec + hold) * SR)
-        out[i0:i1] = rng.normal(0.0, 10 ** (room_db / 20), i1 - i0)
+        out[i0:i1] = floor[i0:i1]
         v0, v1 = round(start * SR), round(end * SR)
         out[v0:v1] += _voice(v1 - v0, voice_db)
         ring = round(ring_sec * SR)
-        decay = 10 ** (-np.arange(ring) / ring) if ring else np.zeros(0)
-        out[v1 : v1 + ring] += rng.normal(0.0, 10 ** (voice_db / 20), ring) * decay
+        out[v1 : v1 + ring] += _ring(ring, voice_db, rng)
+        if bleed_db is not None:
+            b0 = v1 + ring
+            b1 = i1 if i % 3 == 0 else (b0 + i1) // 2
+            out[b0:b1] += _voice(b1 - b0, bleed_db, f0=210.0)
+        r1 = i1 + round(residue_sec * SR)
+        out[i1:r1] = np.floor(floor[i1:r1] * 0.02 * 32767) / 32767
     out[round(DROPOUT[0] * SR) : round(DROPOUT[1] * SR)] = 0.0
     return out
+
+
+def _room_track(seed: int = 1111) -> np.ndarray:
+    """A recorder with a room floor heard in every pause, whose gate closes on the voice's
+    ring for 0.3 s in every other pause: what precedes those holes is ring, not room."""
+    rng = np.random.default_rng(seed + 1)
+    out = _floor(ROOM_DB, seed, pink=True)
+    for i, (start, end) in enumerate(PHRASES):
+        v0, v1 = round(start * SR), round(end * SR)
+        out[v0:v1] += _voice(v1 - v0, VOICE_DB)
+        ring = round(0.1 * SR)
+        out[v1 : v1 + ring] += _ring(ring, VOICE_DB, rng)
+        if i % 2 == 0:
+            out[v1 + ring // 2 : v1 + ring // 2 + round(0.3 * SR)] = 0.0
+    return out
+
+
+def _psd(chunks: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+    """Welch PSD over every 64 ms Hann frame of ``chunks``, and its bin frequencies."""
+    n = 1024
+    window = np.hanning(n)
+    frames = [c[s : s + n] * window for c in chunks for s in range(0, c.size - n + 1, n // 2)]
+    return np.mean(np.abs(np.fft.rfft(frames, axis=1)) ** 2, axis=0), np.fft.rfftfreq(n, 1 / SR)
+
+
+def _octave_bands_db(chunks: list[np.ndarray]) -> np.ndarray:
+    """Mean PSD level (dB) in each octave band from 125 Hz up to Nyquist."""
+    psd, f = _psd(chunks)
+    lows = 125.0 * 2.0 ** np.arange(6)
+    return np.array([10 * np.log10(psd[(f >= lo) & (f < 2 * lo)].mean()) for lo in lows])
+
+
+def _assert_fill_matches_the_room(
+    rendered: np.ndarray, holes: tuple[tuple[float, float], ...], room: np.ndarray
+) -> None:
+    """Inside the holes (past their fades) the fill sits within 2 dB of the room's level,
+    and within 3 dB of its shape in every octave band from 125 Hz up."""
+    inside = [_span(rendered, a + 0.02, b - 0.02) for a, b in holes]
+    assert _rms_db(np.concatenate(inside)) == pytest.approx(_rms_db(room), abs=2.0)
+    np.testing.assert_allclose(_octave_bands_db(inside), _octave_bands_db([room]), atol=3.0)
 
 
 def _peer_track(seed: int = 7) -> np.ndarray:
@@ -247,29 +318,81 @@ def test_gated_track_without_a_bed_gets_comfort_noise_at_its_own_floor(tmp_path:
 
 
 @pytest.mark.parametrize(
-    ("hold", "ring_sec", "aac"),
-    [(0.02, 0.0, False), (0.25, 0.0, False), (0.15, 0.1, False), (0.15, 0.0, True)],
-    ids=["20ms-hold", "250ms-hold", "ringing-room-150ms-hold", "aac-150ms-hold"],
+    ("room_db", "hold", "ring_sec", "residue_sec", "bleed_db", "aac"),
+    [
+        (ROOM_DB, 0.15, 0.0, 0.0, None, False),
+        (-82.0, 0.15, 0.0, 0.025, None, False),
+        (ROOM_DB, 0.02, 0.0, 0.025, None, False),
+        (-82.0, 0.02, 0.0, 0.025, None, False),
+        (-82.0, 0.12, 0.0, 0.025, -60.0, False),
+        (ROOM_DB, 0.25, 0.0, 0.0, None, False),
+        (ROOM_DB, 0.15, 0.1, 0.0, None, False),
+        (ROOM_DB, 0.15, 0.0, 0.0, None, True),
+    ],
+    ids=[
+        "clean-150ms-hold",
+        "residue-tail",
+        "short-hold-residue",
+        "short-hold-residue-quiet-room",
+        "bleed-filled-hold",
+        "250ms-hold",
+        "ringing-room-150ms-hold",
+        "aac-150ms-hold",
+    ],
 )
-def test_comfort_noise_is_read_over_the_gates_own_hold(
-    tmp_path: Path, hold: float, ring_sec: float, aac: bool
+def test_comfort_noise_matches_the_room_the_gate_held_open(
+    tmp_path: Path,
+    room_db: float,
+    hold: float,
+    ring_sec: float,
+    residue_sec: float,
+    bleed_db: float | None,
+    aac: bool,
 ) -> None:
-    # A fixed 120 ms window read a 20 ms gate's word tails as noise, 5 dB over its floor.
-    # AAC fades the floor out over its last frame before each closure; the hold is read
-    # from the level floor before that fade.
-    project = _project(tmp_path, _gated_track(hold=hold, ring_sec=ring_sec))
+    # A fully gated track has no pauses of its own: its room is read from what each gate
+    # held open before closing. The closed gate's ±1 LSB residue is part of the closure,
+    # never the room; a peer's bleed in some holds is not the room either.
+    track = _gated_track(
+        room_db=room_db,
+        hold=hold,
+        ring_sec=ring_sec,
+        pink=True,
+        residue_sec=residue_sec,
+        bleed_db=bleed_db,
+    )
+    project = _project(tmp_path, track)
     if aac:
         _encode_aac(project)
 
     summary = fill_gate_holes(project, _defaults())
 
     assert project.track_by_id("guest").gate_fill is not None
-    measured = re.search(r"read over a (\d+) ms gate hold", summary)
-    assert measured is not None
-    assert 15 <= int(measured.group(1)) <= 1000 * hold
+    assert re.search(r"read over \d+ gate holds", summary)
     rendered = _render(project, tmp_path, "filled")
-    for a, b in _holes(ring_sec + hold):
-        assert _rms_db(_span(rendered, a + 0.02, b - 0.02)) == pytest.approx(ROOM_DB, abs=2.0)
+    holes = _holes(ring_sec + hold + residue_sec)
+    _assert_fill_matches_the_room(rendered, holes, _floor(room_db, pink=True))
+
+
+def test_comfort_noise_is_read_from_the_tracks_own_pauses_when_it_has_them(
+    tmp_path: Path,
+) -> None:
+    # The gate closes on the voice's ring, so what it held open is no room; the pauses
+    # where it stayed open are.
+    project = _project(tmp_path, _room_track())
+
+    summary = fill_gate_holes(project, _defaults())
+
+    fill = project.track_by_id("guest").gate_fill
+    assert fill is not None
+    assert fill.holes == 5
+    assert re.search(r"read from \d+\.\d s of its own room", summary)
+    rendered = _render(project, tmp_path, "filled")
+    holes = tuple(
+        (round(end + 0.05, 3), round(end + 0.35, 3))
+        for i, (_, end) in enumerate(PHRASES)
+        if i % 2 == 0
+    )
+    _assert_fill_matches_the_room(rendered, holes, _floor(pink=True))
 
 
 def test_a_gate_that_closes_on_a_ringing_voice_leaves_its_holes_silent(tmp_path: Path) -> None:
@@ -280,7 +403,7 @@ def test_a_gate_that_closes_on_a_ringing_voice_leaves_its_holes_silent(tmp_path:
     summary = fill_gate_holes(project, _defaults())
 
     assert project.track_by_id("guest").gate_fill is None
-    assert "too short to measure" in summary
+    assert "near its speech" in summary
 
 
 def test_recorded_room_tone_bed_comes_before_comfort_noise(tmp_path: Path) -> None:
@@ -398,9 +521,10 @@ def test_segment_render_keeps_own_audio_byte_identical(tmp_path: Path) -> None:
     "suffix",
     [
         "wav",
-        # Multi-source renders input-seek AAC media up to a frame off an exact decode, while
-        # the fill is seeked exactly, so the fill lands on speech until #1141 lands.
-        pytest.param("m4a", marks=pytest.mark.xfail(reason="#1141", strict=True)),
+        # Multi-source renders input-seek AAC media, and ffmpeg 9 lands that seek up to a
+        # frame off an exact decode while the fill is seeked exactly, so the fill lands on
+        # speech there until #1141 lands. ffmpeg 6.1 seeks it exactly and passes.
+        pytest.param("m4a", marks=pytest.mark.xfail(reason="#1141 on ffmpeg 9", strict=False)),
     ],
 )
 def test_fill_never_overlaps_speech_in_a_multi_source_render(tmp_path: Path, suffix: str) -> None:
