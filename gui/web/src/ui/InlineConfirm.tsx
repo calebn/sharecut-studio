@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from "react";
 import { Button } from "./Button";
+import { registerInlineConfirm } from "./inlineConfirmGate";
 
 type Props = {
   /** Names the target and the consequence, e.g. "Stop sharing this Viewer link? Anyone using it loses access." */
@@ -16,7 +17,8 @@ type Props = {
 /**
  * Two-step confirmation in place of the control that asked for it: the
  * consequence, then Keep (safe, left) and a danger action (right). It never
- * stacks a second dialog over the one it sits in.
+ * stacks a second dialog over the one it sits in. While it is enabled, Escape
+ * in the enclosing dialog calls Keep instead of closing the dialog.
  */
 export function InlineConfirm({
   prompt,
@@ -29,9 +31,19 @@ export function InlineConfirm({
   const promptId = useId();
   const keepRef = useRef<HTMLButtonElement>(null);
 
+  const onKeepRef = useRef(onKeep);
+  onKeepRef.current = onKeep;
+
   useEffect(() => {
     keepRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (disabled) {
+      return;
+    }
+    return registerInlineConfirm(() => onKeepRef.current());
+  }, [disabled]);
 
   return (
     <div role="group" aria-labelledby={promptId} className="ui-inline-confirm">

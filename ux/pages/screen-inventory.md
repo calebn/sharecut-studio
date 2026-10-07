@@ -110,7 +110,7 @@ their first line. Errors appear above the right-aligned Bounce action.
 
 The dialog caps to `90dvh` with a single `.command-palette-body` scroller so **Record rooms** and other lower sections stay reachable on phone and short laptop viewports. Header (title + Close) stays pinned, and so does a footer holding **Create review link**, a **Copy link** for the link just created, and the status line (“Review link created and copied”). On phones the dialog rises from the bottom edge as a full-width sheet, so that footer sits in the thumb zone.
 
-**Stop sharing** and **End room** trail their row, apart from the copy actions, and confirm in place: the row swaps its actions for the consequence (“Stop sharing this Commenter link? Anyone using it loses access.” / “End this record room? Both guest and producer links will stop working.”) with **Keep link** / **Keep room** first and focused, and the danger action last. Each record room has one room-level row: **Open room panel**, then **End room**.
+**Stop sharing** and **End room** trail their row, apart from the copy actions, and confirm in place: the row swaps its actions for the consequence (“Stop sharing this Commenter link? Anyone using it loses access.” / “End this record room? Both guest and producer links will stop working.”) with **Keep link** / **Keep room** first and focused, and the danger action last. Escape keeps the link or room (the same as **Keep**) and leaves the dialog open; a second Escape closes it. Each record room has one room-level row: **Open room panel**, then **End room**.
 
 When a participant is removed, the Record panel directs the host to **Copy
 links…**. Share marks the affected role's invite closed to new guests, disables

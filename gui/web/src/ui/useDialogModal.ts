@@ -1,4 +1,5 @@
 import { type RefObject, useEffect, useRef } from "react";
+import { cancelInlineConfirm } from "./inlineConfirmGate";
 import { peekMenuOpen } from "./menuGate";
 
 const FOCUSABLE_SELECTOR =
@@ -101,6 +102,10 @@ export function useDialogModal({
           return;
         }
         e.preventDefault();
+        // An open inline confirm is the innermost layer: Escape keeps (cancels) it.
+        if (cancelInlineConfirm()) {
+          return;
+        }
         escaped = true;
         onCloseRef.current();
         return;

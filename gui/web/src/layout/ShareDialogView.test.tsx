@@ -334,6 +334,30 @@ describe("ShareDialogView", () => {
     expect(screen.getByRole("heading", { name: "Review links" })).toHaveFocus();
   });
 
+  it("cancels an open Stop sharing confirm on Escape before closing the dialog", async () => {
+    const user = userEvent.setup();
+    const props = baseProps();
+    render(<ShareDialogView {...props} />);
+    await dialogSettled();
+    const stop = () =>
+      within(
+        screen.getByText("Commenter link").closest("li") as HTMLElement,
+      ).getByRole("button", { name: "Stop sharing" });
+
+    await user.click(stop());
+    expect(
+      screen.getByRole("group", { name: /^Stop sharing this Commenter/ }),
+    ).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("group", { name: /^Stop sharing/ })).toBeNull();
+    expect(stop()).toHaveFocus();
+    expect(props.onClose).not.toHaveBeenCalled();
+    expect(props.onRevoke).not.toHaveBeenCalled();
+
+    await user.keyboard("{Escape}");
+    expect(props.onClose).toHaveBeenCalledOnce();
+  });
+
   it("puts room actions in one room row, End room last and confirmed; axe-clean", async () => {
     const user = userEvent.setup();
     const props = baseProps();
