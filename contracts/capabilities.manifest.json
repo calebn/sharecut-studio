@@ -867,7 +867,8 @@
         "keyboard": "Mod+X",
         "mcp": [
           "ripple_delete_tool",
-          "delete_clips_tool"
+          "delete_clips_tool",
+          "propose_range_cut_tool"
         ],
         "cli": "podcast edit ripple-delete"
       },
@@ -2864,11 +2865,14 @@
         "command": "range.cut",
         "gui": [
           "RangeActions"
-        ]
+        ],
+        "mcp": [
+          "propose_range_cut_tool"
+        ],
+        "cli": "podcast edit propose-range-cut"
       },
       "omit": {
-        "keyboard_reason": "Context action with explicit range selection",
-        "agent_reason": "TODO #1140"
+        "keyboard_reason": "Context action with explicit range selection"
       },
       "tooltip": "Cut range",
       "presence": {

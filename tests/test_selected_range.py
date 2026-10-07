@@ -571,3 +571,48 @@ def test_decision_policy_validates_ids_before_membership(minimal_project, ids, a
             )
         )
     assert len(load_project(minimal_project).edit_decisions) == 1
+
+
+def test_propose_range_cut_tool_only_proposes(minimal_project):
+    import json
+
+    from podcast_mcp.mcp.tools.edits import propose_range_cut_tool
+
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    save_project(ws.project)
+    before = deepcopy(ws.project.clips)
+    out = json.loads(
+        propose_range_cut_tool(str(minimal_project), 11, 12, "agent-cut-1", '["a", "b"]')
+    )
+    assert (out["action_id"], out["proposed"]) == ("agent-cut-1", True)
+    saved = load_project(minimal_project)
+    assert saved.clips == before
+    (proposal,) = saved.edit_decisions
+    assert proposal.exact_range is not None
+    assert proposal.exact_range.track_ids == ["a", "b"]
+    assert proposal.reason == "agent:range"
+
+
+def test_cli_propose_range_cut_then_human_approve_cuts_a_hole(minimal_project):
+    from typer.testing import CliRunner
+
+    from podcast_mcp.cli.main import app
+
+    ws = ProjectWorkspace.open(minimal_project)
+    fixture(ws.project)
+    save_project(ws.project)
+    runner = CliRunner()
+    args = ["--project", str(minimal_project)]
+    result = runner.invoke(
+        app,
+        [
+            *("edit", "propose-range-cut", *args, "--start", "11", "--end", "12"),
+            *("--tracks", "a,b", "--command-id", "cli-cut"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert runner.invoke(app, ["edit", "approve", *args, "--ids", "cli-cut"]).exit_code == 0
+    cut = load_project(minimal_project)
+    assert spans(cut, "b") == [(30, 31, 10), (32, 35, 12)]
+    assert spans(cut, "c") == [(0, 20, 0)]
