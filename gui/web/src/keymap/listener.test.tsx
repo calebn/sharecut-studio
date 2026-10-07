@@ -12,6 +12,7 @@ import { registerFocusedClipHandle } from "../commands/focusedClipHandle";
 import { registerDawCommands } from "../commands/register";
 import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
+import { Dialog } from "../ui/Dialog";
 import { useDawKeymapListener } from "./listener";
 
 vi.mock("../commands/execute", async (importOriginal) => {
@@ -42,6 +43,41 @@ afterEach(() => {
   disposeHandle?.();
   disposeHandle = null;
   clearRegisteredCommands();
+});
+
+it("leaves Escape to an open modal dialog instead of also clearing the selection", async () => {
+  const user = userEvent.setup();
+  const onClose = vi.fn();
+  useDawStore.setState({ selection: { kind: "chapter", id: "c1", time: 1 } });
+  const { rerender } = render(
+    <>
+      <KeymapHost />
+      <Dialog open title="Remove track?" onClose={onClose}>
+        <p>Remove it?</p>
+      </Dialog>
+    </>,
+  );
+  await user.keyboard("{Escape}");
+  expect(onClose).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(execute)).not.toHaveBeenCalled();
+  expect(useDawStore.getState().selection).not.toBeNull();
+
+  rerender(
+    <>
+      <KeymapHost />
+      <Dialog open={false} title="Remove track?" onClose={onClose}>
+        <p>Remove it?</p>
+      </Dialog>
+    </>,
+  );
+  fireEvent.keyDown(screen.getByTestId("canvas"), { key: "Escape" });
+  await waitFor(() =>
+    expect(vi.mocked(execute)).toHaveBeenCalledWith(
+      "edit.clearSelection",
+      expect.anything(),
+      expect.anything(),
+    ),
+  );
 });
 
 it("gives a focused button native Space activation but keeps canvas Space for transport", async () => {
