@@ -1,4 +1,5 @@
 import { expect, type Locator, test } from "@playwright/test";
+import { storyUrl } from "./storyUrl";
 
 async function expectInside(element: Locator, bounds: "viewport" | "story") {
   await expect(element).toBeVisible();
@@ -29,7 +30,7 @@ async function expectInside(element: Locator, bounds: "viewport" | "story") {
 }
 
 for (const width of [1440, 360]) {
-  for (const theme of ["light", "dark"]) {
+  for (const theme of ["light", "dark"] as const) {
     for (const story of ["default", "open", "with-shortcuts"]) {
       test(`Menu ${story} fits Canvas at ${width} in ${theme}`, async ({
         page,
@@ -39,9 +40,7 @@ for (const width of [1440, 360]) {
           colorScheme: theme === "light" ? "light" : "dark",
           reducedMotion: "reduce",
         });
-        await page.goto(
-          `/iframe.html?id=molecules-menu--${story}&viewMode=story&globals=theme:${theme}`,
-        );
+        await page.goto(storyUrl(`molecules-menu--${story}`, { theme }));
         const trigger = page.getByRole("button", {
           name: story === "with-shortcuts" ? "Menu" : "Actions",
           exact: true,
@@ -63,7 +62,7 @@ for (const width of [1440, 360]) {
         reducedMotion: "reduce",
       });
       await page.goto(
-        `/iframe.html?id=molecules-menu--docs&viewMode=docs&globals=theme:${theme}`,
+        storyUrl("molecules-menu--docs", { theme, viewMode: "docs" }),
       );
       const host = page.locator("#story--molecules-menu--default");
       await host.getByRole("button", { name: "Actions" }).click();
@@ -79,7 +78,7 @@ for (const width of [1440, 360]) {
         reducedMotion: "reduce",
       });
       await page.goto(
-        `/iframe.html?id=templates-avatarstack--docs&viewMode=docs&globals=theme:${theme}`,
+        storyUrl("templates-avatarstack--docs", { theme, viewMode: "docs" }),
       );
       const host = page.locator("#story--templates-avatarstack--overflow");
       await host.getByRole("button", { name: "+2 more" }).click();
@@ -95,7 +94,7 @@ for (const width of [1440, 360]) {
         reducedMotion: "reduce",
       });
       await page.goto(
-        `/iframe.html?id=templates-joinpopover--docs&viewMode=docs&globals=theme:${theme}`,
+        storyUrl("templates-joinpopover--docs", { theme, viewMode: "docs" }),
       );
       const docs = page;
       for (const story of [
@@ -139,7 +138,7 @@ for (const width of [1440, 360]) {
           reducedMotion: "reduce",
         });
         await page.goto(
-          `/iframe.html?id=${family}--docs&viewMode=docs&globals=theme:${theme}`,
+          storyUrl(`${family}--docs`, { theme, viewMode: "docs" }),
         );
         const docs = page;
         const selector = `#story--${family}--${story} iframe`;
@@ -168,7 +167,7 @@ for (const width of [1440, 360]) {
           reducedMotion: "reduce",
         });
         await page.goto(
-          `/iframe.html?id=${family}--docs&viewMode=docs&globals=theme:${theme}`,
+          storyUrl(`${family}--docs`, { theme, viewMode: "docs" }),
         );
         const docs = page;
         const selector = `#story--${family}--${story} iframe`;

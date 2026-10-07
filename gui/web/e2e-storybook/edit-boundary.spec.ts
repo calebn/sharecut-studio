@@ -1,4 +1,5 @@
 import { expect, type Locator, test } from "@playwright/test";
+import { storyUrl } from "./storyUrl";
 
 async function paragraphGeometry(paragraph: Locator) {
   return paragraph.evaluate((element) => {
@@ -21,14 +22,14 @@ async function paragraphGeometry(paragraph: Locator) {
 }
 
 for (const width of [1440, 360]) {
-  for (const theme of ["light", "dark"]) {
+  for (const theme of ["light", "dark"] as const) {
     for (const story of ["roll-join", "trim-edge"]) {
       test(`${story} preserves drag geometry at ${width}px in ${theme}`, async ({
         page,
       }) => {
         await page.setViewportSize({ width, height: 900 });
         await page.goto(
-          `/iframe.html?id=templates-editboundarymark--${story}&viewMode=story&globals=theme:${theme}`,
+          storyUrl(`templates-editboundarymark--${story}`, { theme }),
         );
         const mark = page.locator("button[data-boundary-id]");
         await expect(mark).toBeVisible();
@@ -105,7 +106,7 @@ test("long commit failure stays readable in a short phone viewport", async ({
 }) => {
   await page.setViewportSize({ width: 360, height: 360 });
   await page.goto(
-    "/iframe.html?id=templates-editboundarymark--long-failure&viewMode=story&globals=theme:light",
+    storyUrl("templates-editboundarymark--long-failure", { theme: "light" }),
   );
   const alert = page.getByRole("alert");
   await expect(alert).toContainText("Detailed server failure");
@@ -134,7 +135,7 @@ test("Tab away cancels the gesture before Escape or pointer release", async ({
   page,
 }) => {
   await page.goto(
-    "/iframe.html?id=templates-editboundarymark--roll-join&viewMode=story&globals=theme:light",
+    storyUrl("templates-editboundarymark--roll-join", { theme: "light" }),
   );
   const mark = page.locator("button[data-boundary-id]");
   await expect(mark).toBeVisible();

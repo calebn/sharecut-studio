@@ -1186,11 +1186,15 @@ frame. These checks preserve intentional scrolling inside production panes.
 Docs frames are mounted, including an OS preference opposite to the explicit
 toolbar choice. The Docs page and its stories must follow the chosen theme.
 
-A Storybook spec that scans a story frame with `AxeBuilder` must load the story
-with the `a11y.manual:!true` global (`track-mix.spec.ts` does). The Storybook
-a11y addon otherwise runs its own axe instance in every story frame and replaces
-`window.axe` when it loads, so an overlapping scan fails with "Axe is already
-running" (#1120).
+Storybook specs open story frames through `storyUrl()` in
+`gui/web/e2e-storybook/storyUrl.ts`, which adds the `a11y.manual:!true` global.
+The Storybook a11y addon otherwise runs its own axe instance in every story
+frame and replaces `window.axe` when it loads, so a spec's own scan
+(`expectPageAxeClean`, `AxeBuilder`) that overlaps it fails with "Axe is already
+running" (#1120). The helper handles it, so a spec does not set the global
+itself. `e2e/storybookStoryUrl.test.ts` fails a spec that hardcodes an
+`iframe.html` URL or scans without `storyUrl`. The addon still runs in the
+Storybook UI.
 
 ### Shared live project in Playwright
 

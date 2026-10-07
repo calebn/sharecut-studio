@@ -1,17 +1,16 @@
 import { expect, type Page, test } from "@playwright/test";
 import { expectPageAxeClean } from "../e2e/axe";
+import { type StoryTheme, storyUrl } from "./storyUrl";
 
 async function openStory(
   page: Page,
   id: string,
   width: number,
-  theme: string,
+  theme: StoryTheme,
   embed = false,
 ) {
   await page.setViewportSize({ width, height: 900 });
-  await page.goto(
-    `/iframe.html?id=templates-${id}&viewMode=story&globals=theme:${theme}&embed=${embed}`,
-  );
+  await page.goto(storyUrl(`templates-${id}`, { theme, embed }));
   await expect(page.locator(".daw-shell")).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
   await page.evaluate(() => document.fonts.ready);
@@ -42,7 +41,7 @@ async function expectShellFit(page: Page, width: number) {
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
 }
 
-for (const theme of ["light", "dark"]) {
+for (const theme of ["light", "dark"] as const) {
   test(`phone360 Listen and Timeline fit and navigate in ${theme}`, async ({
     page,
   }) => {
