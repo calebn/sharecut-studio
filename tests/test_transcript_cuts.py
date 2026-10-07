@@ -186,6 +186,19 @@ def test_coalesce_keeps_a_pause_shortfall_pad_beside_the_filler_pad():
     assert merged.replace_gap_sec == pytest.approx(0.90)
 
 
+def test_adjacent_nl_cuts_merge_into_one_paced_cut():
+    proj = _hesitation_project()
+
+    cut_time_range(proj, "host", 1.0, 1.3, reason="nl:um", review_required=False)
+    cut_time_range(proj, "host", 1.3, 1.7, reason="nl:uh", review_required=False)
+
+    (merged,) = proj.edit_decisions
+    # The cuts were paced at 0.3825 s and 0.425 s of their own; the merged cut removes 0.78 s
+    # of the 0.9 s between "so" and "like": 0.85 x 0.9.
+    assert (round(merged.start, 2), round(merged.end, 2)) == (0.94, 1.72)
+    assert merged.replace_gap_sec == pytest.approx(0.765)
+
+
 def test_coalesce_leaves_unpadded_cuts_unpadded():
     proj = _hesitation_project()
     append_remove_decision(proj, "host", 1.0, 1.3, reason="filler:um", review_required=False)
