@@ -1465,6 +1465,7 @@ Shipped in `feat/recording-producer-live-comments`:
 - [x] Visibility is host-enforced: host + producer see all; a guest sees only their own (WS Echo/Snapshot/Applied).
 - [x] Stored in `record_live_comments` in `sync.db`; snapshot attaches unlanded rows. Landing uses `add_comment` under `ProjectWorkspace.mutate()` at `take_offset_s + recording_ms/1000` (no lead/title/metadata).
 - [x] Discard take deletes sqlite rows and `review.comments[]` with those ids. Reconnect queue `record:{token}:comments` upserts once.
+- [x] Host agents drop the same marker with MCP `record_marker_tool` or CLI `podcast record marker [--body]`, through `RecordControlService.marker` and the host Comment command (#1140).
 
 ## Host recording over the shared socket
 

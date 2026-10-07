@@ -31,6 +31,7 @@ use the same path). Comments land as ordinary `review.comments[]` at
 | `record_start_tool` | Host Start (blocked until connected guests consent) |
 | `record_pause_tool` / `record_resume_tool` | Freeze / unfreeze the recording clock (and keeper segments) |
 | `record_stop_tool` | End the current take |
+| `record_marker_tool` | Stamp the open take now (`body` default `"Marker"`); lands as a timeline comment |
 | `record_land_tool` | Copy ACK'd keepers into `raw/` + clips (idempotent; also runs on file ACK). Refused with "Stop the take to land it on the timeline." while a take is recording or paused |
 | `record_discard_take_tool` | Delete a terminal take (refused while upload is in flight) |
 | `revoke_record_room_tool` | End both links |
@@ -45,6 +46,7 @@ podcast record start --project episode.project.json
 podcast record pause --project episode.project.json
 podcast record resume --project episode.project.json
 podcast record stop --project episode.project.json
+podcast record marker --project episode.project.json --body "Retake intro"
 podcast record land --project episode.project.json
 podcast record discard-take --project episode.project.json --take-index 0
 ```
