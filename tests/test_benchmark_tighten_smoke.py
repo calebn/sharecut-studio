@@ -8,8 +8,9 @@ applied, tracks in step), never wall-clock time.
 
 from __future__ import annotations
 
-import benchmark_tighten as bench
 import pytest
+
+import benchmark_tighten as bench
 
 _WORDS = 40
 
