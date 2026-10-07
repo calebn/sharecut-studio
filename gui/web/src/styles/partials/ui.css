@@ -937,3 +937,25 @@ button.pill.pill--info {
 .ui-meter--vertical .ui-meter-tick[data-edge="min"] {
   transform: translate(0, 0);
 }
+
+/* --- InlineConfirm: a destructive two-step in place of its trigger. --- */
+.ui-inline-confirm {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-danger-muted);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-sunken);
+}
+
+.ui-inline-confirm-prompt {
+  margin: 0;
+  color: var(--text);
+}
+
+.ui-inline-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
