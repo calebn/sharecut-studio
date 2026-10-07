@@ -105,7 +105,11 @@ attenuation in dB, that bed, and abstention reasons. Evidence is each lane's lev
 the shared `engines/envelope_lag.py` estimator over the peer's own speech, every frame
 the peer's direct track reaches at that lag is foreign, and own speech is sound over
 the copy's expected level by more than the copy's own spread, or nearer it, a fifth
-of a second whose fine spectrum is not the peer's.
+of a second whose fine spectrum is not the peer's (`engines/copy_timbre.py`).
+Reconciliation reuses both: `TrackRmsCacheSet.copy_path` measures each bleed pair's
+copy lag and likeness once, and `compute_word_audibility_map` reads the source mic
+at that lag, taking a word from its speaker only when its fine spectrum is the copy's
+([transcript-reconcile.md](transcript-reconcile.md#words-are-judged-at-the-copy-lag-1052)).
 Project playback and rendering apply those conservative plans to rendered audio.
 
 `engines/transcript_gated_play.py` uses absolute transition positions so segment

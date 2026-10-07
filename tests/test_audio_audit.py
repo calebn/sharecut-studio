@@ -10,6 +10,7 @@ import pytest
 from podcast_mcp.edits.audio_quality import suppress_low_audibility_words
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
+    CopyPath,
     TrackRmsCache,
     TrackRmsCacheSet,
     analyze_cleanup,
@@ -1808,8 +1809,8 @@ def test_cache_set_measures_its_bleed_paths_once() -> None:
     measure = MagicMock(return_value=[_bleed_path("guest", "host")])
     with patch("podcast_mcp.engines.bleed_echo.echo_risk_pairs", measure):
         assert caches.echo_pairs() == [_bleed_path("guest", "host")]
-        assert caches.bleed_sources("host") == frozenset({"guest"})
-        assert caches.bleed_sources("guest") == frozenset()
+        assert caches.bleed_paths("host") == {"guest": CopyPath()}
+        assert caches.bleed_paths("guest") == {}
 
     assert measure.call_count == 1
     (audio,), kwargs = measure.call_args

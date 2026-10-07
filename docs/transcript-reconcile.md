@@ -8,7 +8,7 @@ For regression fixtures and CI thresholds, see [fixture-catalog.md](fixture-cata
 
 ## How bleed is detected
 
-For each word window, reconciliation compares RMS on the word's own track against every other dialogue track at the same timeline position (`compute_word_audibility_map` in `audio_audit.py`).
+For each word window, reconciliation compares RMS on the word's own track against every other dialogue track at the same timeline position, or, for a mic with a measured bleed path into this one, at that path's copy lag ([below](#words-are-judged-at-the-copy-lag-1052); `compute_word_audibility_map` in `audio_audit.py`).
 
 **Zero-duration / sub-5ms words** (ASR junk with `start == end`) cannot be RMS-measured. Isolated ones are tagged **`inaudible`** with `reason: zero_duration_word` so reconcile can suppress them out of `combined.json`. When the same track has **normal-duration neighbors** on both sides, the token is tagged **`deferred`** (`sandwiched_zero_duration_word`) and is **not** auto-suppressed — keeps glue words like `what` between `know` and `I'm`.
 
@@ -64,6 +64,25 @@ Measured and rejected: correcting the level by the path's `level_db` (−18 dB o
 Lab result (`pipeline run --only reconcile_transcript`, trunk → this rule): Whisper-timed run 12 audra words restored (incl. "that's"), 20 caleb copies suppressed, 12 caleb words that were 300–1200 ms from their twin restored, and the 8 coincidence words on pairs with the remote participant restored (incl. the three-person "Bye." at 1686–1687 s); forced-aligner run 7 audra words restored, 45 caleb copies suppressed, 4 coincidence words restored; agent-edited run 1 restored, 6 copies suppressed, the 2 "Bye."s restored.
 
 With the acoustic verdict on the same rule (no path, no `bleed`): Whisper-timed run 95 words change, 70 restored (30 caleb, 15 audra, 25 lana) and 25 retagged `inaudible` and still suppressed; forced-aligner run 79 (59 restored, 19 retagged, caleb "keep" 1660.82 newly an echo twin of the restored audra "Keep"); agent-edited run 14 (9 restored, 5 retagged). Every changed word is one the rule names, lana's decisions change nowhere else, a dry run reports what the apply writes, and a second pass reports 0 on all three.
+
+### Words are judged at the copy lag (#1052)
+
+A remote participant's own track trails their voice on an in-room mic. Read at 0 lag, their copy on the host's mic looks like the host's word, because their own track has barely started. A host word just after them looks like theirs, because their track still carries the syllable they finished. So on a bleed pair the acoustic verdict reads the source mic at the pair's copy lag:
+
+- **The lag.** `TrackRmsCacheSet.copy_path` measures it once per directed bleed pair with the bleed gate's estimator (`envelope_lag.copy_lag`, [below](#acoustic-follow-up-preserve-speech-while-reducing-verified-bleed)). It compares syllable contours over every frame within 300 ms of the source's open track, needs 30 s of them, and needs a peak inside ±300 ms that beats shifted nulls. It reads no transcript. When it abstains (too little of the source's speech, no clear peak, mics on different sample clocks) the lag is 0 and every word gets its 0-lag verdict.
+- **The rule.** The dominance rule is unchanged (`bleed_dominance_db`, `bleed_min_other_rms_db`, a measured path), with the source read at the lag. A word at the source's level stays its own speaker's.
+- **Crosstalk.** The lag can take a word that the 0-lag reading leaves with its own speaker only if the word also sounds like the copy. The median fine-spectrum match of its frames with the source at the lag (`engines/copy_timbre.py`, the gate's timbre measure) must reach the copy's likeness. The likeness is the 40th percentile of that match where the source, at the lag, talks in its louder half and out-levels the open mic. A soft own word spoken over a louder peer sits under the peer at the lag but carries its own speaker's harmonics, so it keeps its 0-lag verdict with `reason: unlike_copy`. The check runs one way: a word that the 0-lag reading gave away and the lag gives back needs no timbre.
+- `audibility_map_tool` rows report the levels the verdict used in `track_rms_db` and the lags in `copy_lag_ms`.
+
+On a realigned episode the lag is about 0, so nothing changes. Lab evidence (rev 3b414c4c, seeded Zoom tracks at offset 0, not realigned, Whisper word times):
+
+- The lag is 140 ms for Audra into Caleb, and the likeness is 0.34.
+- Without the timbre check, 55 of Caleb's acoustic verdicts change. 12 of them are Caleb's own words during crosstalk, such as "also", "imagination", "probably", "Dolly" and "need", with match 0.03–0.25. The check keeps all 12.
+- After the text-match rule, against main, 9 Caleb words move to Audra: "Oh," 504.94, "It's" 678.58, "We're" 686.82, "Or" 1046.82, "And" 1341.00, "raid" 1491.38, "No," 1610.36, "Always" 1663.24 and "Bye." 1686.74. Audra's transcript has each word at the lag, except "raid", which is her "the right"; the gold edit mutes Caleb there.
+- 8 words return to Caleb: "to", "that.", "they", "that", "could", "We're" 1070.82, "The" 1086.98 and "your". Main's gate had turned down 63% of that "We're" and 43% of "The".
+- "go." 1572.32 and "a" 1622.56 are Audra's copies that main gave her only by 0-lag accident. They now read as Caleb's acoustically, and the echo-twin rule still gives both to Audra.
+- With the bleed gate on, 0 s of Caleb's unsuppressed words are turned down. His stem at 1483.84–1491.84 s goes from −10.7 to −14.4 dB against the ungated stem. At 1656.40–1664.40 s it stays at −1.2 dB.
+- In that second passage the gate's own-voice check, not a transcript word, keeps most of the copy at full level: 2.81 s of 5.96 s, against 0.64 s kept by the two words left. "You're" 1658.58 is at Audra's level at the lag, and at "Keep" 1660.68 Audra's track is still gated shut. Handing both to Audra by hand takes the passage only to −1.5 dB.
 
 ---
 
@@ -339,8 +358,10 @@ What would help instead:
   of the copy: a per-track timing map (#1089) and the piecewise-lag residuals
   (#1090).
 - Transcript attribution that stops keeping a peer's words as the lane's own
-  (#1052). Those words protect their runs, such as the "Keep" tail in the 1656.4 s
-  passage.
+  (#1052). Reconcile now judges words at the copy lag
+  ([above](#words-are-judged-at-the-copy-lag-1052)). On the unaligned lab run it
+  moved "raid" and "Always" to Audra, but the 1656.4 s passage stays at −1.2 dB:
+  the own-voice check keeps most of that copy, not a transcript word.
 - Source separation, which would take the peer out of the mic rather than choose
   per frame. A future option.
 
