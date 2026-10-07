@@ -1,8 +1,14 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
+import { usePressedControl } from "./pressedControl";
 import { useDialogModal } from "./useDialogModal";
+
+function PressedControlHost() {
+  usePressedControl();
+  return null;
+}
 
 function Fixture({ initiallyOpen = true }: { initiallyOpen?: boolean }) {
   const [open, setOpen] = useState(initiallyOpen);
@@ -130,6 +136,66 @@ describe("useDialogModal", () => {
     expect(
       document.querySelector<HTMLElement>("[data-daw-app-chrome]")?.inert,
     ).toBe(false);
+  });
+
+  it("returns focus to the clicked opener when the click left focus on <body> (Safari)", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <PressedControlHost />
+        <OpenFromOutside />
+      </>,
+    );
+    expect(document.activeElement).toBe(document.body);
+    // WebKit does not focus a clicked button: the click lands, focus stays put.
+    fireEvent.click(screen.getByTestId("open-modal"));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+    });
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByTestId("open-modal")).toHaveFocus();
+  });
+
+  it("returns focus to the clicked opener when WebKit focused its container instead", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <PressedControlHost />
+        <section tabIndex={-1} data-testid="container" aria-label="Sheet body">
+          <OpenFromOutside />
+        </section>
+      </>,
+    );
+    screen.getByTestId("container").focus();
+    fireEvent.click(screen.getByTestId("open-modal"));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+    });
+    await user.keyboard("{Escape}");
+    expect(screen.getByTestId("open-modal")).toHaveFocus();
+  });
+
+  it("returns focus to the focused control, not an older click, when a key opened it", async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <PressedControlHost />
+        <button type="button" data-testid="elsewhere">
+          Elsewhere
+        </button>
+        <OpenFromOutside />
+      </>,
+    );
+    await user.click(screen.getByTestId("elsewhere"));
+    const opener = screen.getByTestId("open-modal");
+    opener.focus();
+    await user.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+    });
+    await user.keyboard("{Escape}");
+    expect(opener).toHaveFocus();
   });
 
   it("returns focus to returnFocusRef instead of the opener", async () => {

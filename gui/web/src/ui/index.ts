@@ -38,6 +38,7 @@ export {
 } from "./Menu";
 export { Pill } from "./Pill";
 export { type PillTone, pillClassName } from "./pillClassName";
+export { usePressedControl } from "./pressedControl";
 export { SegmentedControl } from "./SegmentedControl";
 export { StatusLiveRegion } from "./StatusLiveRegion";
 export { Timecode } from "./Timecode";

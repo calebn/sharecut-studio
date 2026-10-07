@@ -18,6 +18,10 @@ type Props = {
   footer?: ReactNode;
   /** On the phone shell, rise from the bottom edge as a full-width sheet. */
   phoneSheet?: boolean;
+  /** Body text that describes the dialog (`aria-describedby`), e.g. a confirm's consequence. */
+  descriptionId?: string;
+  /** Keymap command ids let through while open; every other app shortcut is held. */
+  shortcuts?: readonly string[];
 };
 
 /**
@@ -34,6 +38,8 @@ export function Dialog({
   closeDisabled = false,
   footer,
   phoneSheet = false,
+  descriptionId,
+  shortcuts,
 }: Props) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -46,6 +52,7 @@ export function Dialog({
     panelRef,
     initialFocusRef: initialFocusRef ?? closeRef,
     mode: "modal",
+    shortcuts,
   });
 
   if (!open) {
@@ -62,6 +69,7 @@ export function Dialog({
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
+      aria-describedby={descriptionId}
     >
       <button
         type="button"

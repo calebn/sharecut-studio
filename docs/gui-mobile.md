@@ -100,9 +100,14 @@ Coarse-pointer timeline lanes keep a minimum height of 104 canvas pixels, matchi
 On phones, Pipeline step parameters open in the shared modal Dialog. Escape and
 Close dismiss it and return focus to the selected step; Tab stays inside the
 dialog. Tablet and desktop keep the parameter form inline. An open modal dialog
-owns Escape (`ui/modalGate.ts`): Escape closes the dialog and does not also run
-the app's Escape shortcut (clear selection), so an in-app confirm over the
-Inspector returns focus to the control that opened it.
+holds every app shortcut (`ui/modalGate.ts`), as the native `confirm()` did:
+Escape closes the dialog and does not also clear the selection, and Mod+Z,
+Space or Delete do nothing behind it, so an in-app confirm over the Inspector
+neither undoes nor removes anything while it asks. Typing, Tab and Enter inside
+the dialog stay native. A modal can hand on named shortcuts; the Record room
+hands on M for a live marker. On close, focus returns to the control that
+opened it (`ui/pressedControl.ts`: the focused control, or the one just
+clicked, since Safari does not focus a clicked button).
 
 ### Feedback toast
 
