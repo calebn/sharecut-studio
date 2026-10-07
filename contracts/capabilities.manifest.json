@@ -2451,7 +2451,11 @@
         "command": "transcript.adjustTiming",
         "gui": [
           "transcript.wordbar"
-        ]
+        ],
+        "mcp": [
+          "set_word_timing_tool"
+        ],
+        "cli": "podcast transcript set-word-timing"
       },
       "presence": {
         "cursor": "anchor",
@@ -2459,8 +2463,7 @@
         "anchor": "transcript:word:<track>:<i>"
       },
       "omit": {
-        "keyboard_reason": "Native range controls and numeric fields in the word inspector",
-        "agent_reason": "TODO #1140"
+        "keyboard_reason": "Native range controls and numeric fields in the word inspector"
       }
     },
     {

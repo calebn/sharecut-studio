@@ -5,6 +5,7 @@ from typing import Literal
 
 from mcp.server import MCPServer
 
+from podcast_mcp.edits.transcript_timing import WordTimingTarget
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import notify_after_mutation
 from podcast_mcp.services.app import ProjectWorkspace
@@ -511,6 +512,39 @@ def set_word_automatic_tool(
     )
 
 
+def set_word_timing_tool(
+    project_path: str,
+    track_id: str,
+    word_index: int,
+    start: float,
+    end: float,
+    source_id: str | None = None,
+    expected_text: str | None = None,
+) -> str:
+    """Set one transcript word's start and end in source seconds (Studio Adjust word timing).
+
+    ``word_index`` indexes the track's transcript, or the ``source_id`` recording's
+    transcript when given. Pass ``expected_text`` to refuse the change if the word was
+    edited meanwhile. Bounds are checked against the recording; a word that overlaps
+    its neighbours comes back in ``context.warnings``. Submits
+    ``SetTranscriptWordTiming``; undoable.
+    """
+    target = WordTimingTarget(track_id=track_id, source_id=source_id, word_index=word_index)
+    ws = ProjectWorkspace.open(project_path)
+    context = EditService(ws).word_timing_context(target, expected_text=expected_text)
+    reply = submit_host_document_command(
+        project_path,
+        "SetTranscriptWordTiming",
+        {
+            "target": context["target"],
+            "expected_token": context["expected_token"],
+            "start": start,
+            "end": end,
+        },
+    )
+    return to_json(host_command_result(reply))
+
+
 def set_words_ignored_tool(
     project_path: str,
     track_id: str,
@@ -984,6 +1018,7 @@ def register(mcp: MCPServer) -> None:
         set_word_suppressed_tool,
         set_word_automatic_tool,
         set_words_ignored_tool,
+        set_word_timing_tool,
         apply_transcript_cleanup_tool,
         low_confidence_words_tool,
         verify_transcript_tool,

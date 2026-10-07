@@ -45,6 +45,7 @@ TOOL_TIMEBASE: dict[str, TimebaseKind] = {
     "set_word_suppressed_tool": "source",
     "set_word_automatic_tool": "source",
     "set_words_ignored_tool": "source",
+    "set_word_timing_tool": "source",
     "fill_with_room_tone_tool": "timeline",
     "strip_silence_tool": "source",
     "shorten_gaps_tool": "source",
