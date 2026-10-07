@@ -112,6 +112,31 @@ inside continuous speech is planned in #1089. On the lab tape a lag change insid
 one talk spurt (1663.8-1671.1 s) and a lag outside the 100 ms search (646-660 s, and
 about 20 ms at 740.4 s) need that timing map.
 
+#### Word starts missing from their own track
+
+After placing the clips, `align_tracks` looks for words whose start reached another mic before the speaker's own track opened (#1059). A call app's gate can open late. A lane can also stay at an offset the bleed solve could not settle or did not apply: a conflict, a scattered pair, or a manifest pin. Bleed is never used as audio for another speaker, so that start is missing from the mix. For each such word, `edits/clipped_onsets.py` does two things:
+
+- It snaps the word's start to where the speaker's own track opens. The old span stays in `trimmed_from`, as with the #979 trim, and a start already at or after the opening is left alone.
+- It leaves one timeline comment on the speaker's track, written by `Align tracks`, from the copy's onset to the opening. The comment names the word, how much is missing and which mic has it, so the host can re-record, keep or edit around it. When the lane itself runs late, it also says that aligning the track would fix it. See [timeline-comments.md § Comments from Align tracks](timeline-comments.md#comments-from-align-tracks).
+
+The step summary adds `N word starts missing from their own track (see comments)`.
+
+The rule reads the timeline after alignment, from 8 kHz level envelopes (30 ms frames every 5 ms). Every threshold is relative to the episode's own measurements:
+
+- **Copy path.** An ordered pair whose direct track follows its copy at one lag (consistent or drifting in `bleed_latency.measure_pair`), measured again where the lanes now sit. An aligned lane reads about 0 and an unaligned one its offset. A scattered pair, or one with no bleed, never flags, because without a lag the mic's own speaker cannot be told from the copy. The coupling is the median of mic level less direct level over the frames that measurement counts. The spread is their 95th percentile less the coupling.
+- **Opening.** The speaker's track rises 12 dB over its floor (its 5th-percentile level) after at least 100 ms below it, and stays up for 60 ms.
+- **Copy onset.** Walking back from the copy of the speaker's speech onset, the mic's run stays within 20 dB of the copy's level. The copy's level is the speaker's peak over the first 200 ms plus the coupling. Both onsets are read 20 dB under their own level, so a copy that only follows the direct sound never leads it. The walk stops at the speaker's previous sound and at 0.5 s.
+- **Flag.** The copy onset leads the opening by more than `align.bleed_lag_tolerance_sec` (40 ms), and the mic's sound is the speaker's copy. Over the speaker's first 200 ms their track out-levels the mic by 6 dB. Before the opening the mic is no louder than the copy can be (copy level plus spread). No third lane is open over most of it. Otherwise the mic's sound may be its own speaker, and nothing is flagged.
+- **Word.** The first transcript word that starts in the speaker's silence before the opening and runs past it. Word starts are read 250 ms either side, because ASR misplaces them that far on gated tracks. An opening without such a word, such as a laugh, is not flagged.
+
+A re-run keeps each comment, because its id comes from the lane, the recording and the source time of the opening. It updates or withdraws its own open comments that no longer apply, for example after `--realign` shifts the lane. A comment someone resolved, answered or ticked stays as it is. Undecodable audio flags nothing and leaves existing comments alone.
+
+Lab evidence (rev 3b414c4c), Whisper and forced-aligner word times:
+
+- **Audra's lane shifted** (`--realign`, with the pieces above). 8 words flag with either word timing, on the same 7 openings plus one each: Audra's "Are" 106.52 (70 ms), "Okay" 428.24 (370 ms), "Yeah" 483.82 (150 ms), "It's" 578.29 (340 ms), "I" 902.42 (160-220 ms), "Why" 1137.28 (120 ms) and "No" 1610.64 (330 ms), then "We'll" 909.07 (Whisper) or "I" 983.36 (aligner). Before each, Caleb's mic carries 70-370 ms of her copy at its usual level while her own track is digital silence. Whisper's starts for all 8 snap onto her opening. The aligner's already sit there, so none move. The "And" at 1653.25 does not flag: her track and her copy on Caleb's mic open within 10 ms.
+- **Default run.** The manifest pin keeps Audra's lane 142 ms late (the shift is only proposed). 36 words flag with Whisper times and 34 with the aligner's, 26 of the 36 by 100-200 ms. Each says her track runs about 140 ms behind Caleb's mic. One is the "And" at 1653.26 (120 ms), whose Whisper start 1652.93 snaps to 1653.38.
+- **Lana**, the remote speaker, never flags: her pair with Caleb's mic is scattered.
+
 #### Human acceptance
 
 Human acceptance covers the current alignment plan as well as clip placement. A new plan, including a held acoustic candidate, needs a fresh review even when clip geometry is unchanged. If every acoustic confirmation window fails to decode, the large move remains an unconfirmed candidate held at identity for review.

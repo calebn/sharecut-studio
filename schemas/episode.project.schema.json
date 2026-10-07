@@ -391,7 +391,7 @@
           "items": { "type": "number" },
           "minItems": 2,
           "maxItems": 2,
-          "description": "[start, end] before transcribe_tracks trimmed this word's implausibly long span onto its voiced audio (#979); null = never trimmed."
+          "description": "[start, end] before transcribe_tracks trimmed this word's implausibly long span onto its voiced audio (#979), or before align_tracks snapped its start onto where its own track opens (#1059); null = never trimmed."
         },
         "overlong": {
           "type": "boolean",

@@ -352,7 +352,8 @@ align:
   # Bleed latency (docs/pipeline.md § Conversation align). Window lags within the
   # tolerance of a pair's median count; a pair residual or an episode-long trend past it
   # flags the lane. 40 ms keeps the lab's honest windows (MAD 7.5 ms) and rejects
-  # wrong-syllable peaks (+380..+500 ms).
+  # wrong-syllable peaks (+380..+500 ms). A word start that reaches another mic more than
+  # this before the speaker's own track opens is flagged with a comment (#1059).
   bleed_lag_tolerance_sec: 0.04
   # A solved latency, or a move from the current placement, within this is noise: no
   # move. 20 ms is three standard errors of a 5-window median on the lab's spread.
