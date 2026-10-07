@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import pytest
+from typer.testing import CliRunner
 
+from podcast_mcp.cli.main import app
 from podcast_mcp.edits.clips_ops import roll_clip_join
+from podcast_mcp.mcp.tools.timeline import roll_clip_join_tool
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document.boundary import RollBoundaryTarget, boundary_context
@@ -199,3 +202,29 @@ def test_document_roll_clip_join(minimal_project):
     assert c2.source_start == pytest.approx(16.0)
     assert c2.timeline_start == pytest.approx(c1.timeline_end)
     assert c3.timeline_start == pytest.approx(15.0)
+
+
+def _rolled_edges(project_path) -> tuple[float, float, float]:
+    clips = {c.id: c for c in ProjectWorkspace.open(project_path).project.clips}
+    return clips["c1"].source_end, clips["c2"].source_start, clips["c3"].timeline_start
+
+
+def test_roll_clip_join_tool_submits_the_document_command(minimal_project):
+    _three_clips(ProjectWorkspace.open(minimal_project))
+    roll_clip_join_tool(str(minimal_project), "c1", "c2", 1.5)
+    assert _rolled_edges(minimal_project) == pytest.approx((6.5, 16.5, 15.0))
+    rows = DocumentSyncService.open(minimal_project).store.commands_after(0)
+    assert [r["type"] for r in rows] == ["RollClipJoin"]
+
+
+def test_cli_roll_join_is_undoable(minimal_project):
+    _three_clips(ProjectWorkspace.open(minimal_project))
+    runner = CliRunner()
+    args = ["--project", str(minimal_project)]
+    result = runner.invoke(
+        app, ["edit", "roll-join", *args, "--left", "c1", "--right", "c2", "--delta-sec", "-1"]
+    )
+    assert result.exit_code == 0, result.output
+    assert _rolled_edges(minimal_project) == pytest.approx((4.0, 14.0, 15.0))
+    assert runner.invoke(app, ["undo", *args]).exit_code == 0
+    assert _rolled_edges(minimal_project) == pytest.approx((5.0, 15.0, 15.0))

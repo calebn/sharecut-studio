@@ -8,7 +8,7 @@ from mcp.server import MCPServer
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import notify_after_mutation
 from podcast_mcp.services.app import ProjectWorkspace
-from podcast_mcp.services.document import EditService, TrimBoundaryTarget
+from podcast_mcp.services.document import EditService, RollBoundaryTarget, TrimBoundaryTarget
 from podcast_mcp.services.document_sync import (
     DocumentCommandType,
     host_command_result,
@@ -245,6 +245,40 @@ def trim_clip_edge_tool(
                 clip_id, edge, source_sec, all_tracks=all_tracks, expected_token=revision
             )
         )
+
+
+def roll_clip_join_tool(
+    project_path: str,
+    left_clip_id: str,
+    right_clip_id: str,
+    delta_sec: float,
+) -> str:
+    """Roll the join between two neighbouring clips by ``delta_sec`` source seconds.
+
+    Positive moves the join later: the left clip gains material and the right clip
+    starts later in its source, so the pair keeps its length and later clips stay put.
+    Same operation as the Studio roll seam (``RollClipJoin``); undoable. Use
+    ``trim_clip_edge_tool`` to move one edge and ripple instead.
+    """
+    ws = ProjectWorkspace.open(project_path)
+    token = (
+        EditService(ws)
+        .boundary_context(
+            RollBoundaryTarget(left_clip_id=left_clip_id, right_clip_id=right_clip_id)
+        )
+        .token
+    )
+    reply = submit_host_document_command(
+        project_path,
+        "RollClipJoin",
+        {
+            "left_clip_id": left_clip_id,
+            "right_clip_id": right_clip_id,
+            "delta_sec": delta_sec,
+            "expected_token": token,
+        },
+    )
+    return to_json(host_command_result(reply))
 
 
 def shorten_gaps_tool(
@@ -932,6 +966,7 @@ def register(mcp: MCPServer) -> None:
         set_join_mode_tool,
         set_clip_join_tool,
         trim_clip_edge_tool,
+        roll_clip_join_tool,
         shorten_gaps_tool,
         split_clip_tool,
         delete_clips_tool,

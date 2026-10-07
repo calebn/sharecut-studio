@@ -8,6 +8,7 @@ if TYPE_CHECKING:
         BoundaryEdit,
         BoundaryTarget,
         ClipGeometry,
+        RollBoundaryTarget,
         TrimBoundaryTarget,
     )
     from podcast_mcp.services.document.clip import ClipService
@@ -45,6 +46,7 @@ __all__ = [
     "HistoryService",
     "PlayRequest",
     "PlayService",
+    "RollBoundaryTarget",
     "TransportPath",
     "TrimBoundaryTarget",
     "build_golden_ear",
@@ -59,6 +61,7 @@ _MODULE_BY_NAME = {
     "BoundaryEdit": "boundary",
     "BoundaryTarget": "boundary",
     "ClipGeometry": "boundary",
+    "RollBoundaryTarget": "boundary",
     "TrimBoundaryTarget": "boundary",
     "ClipService": "clip",
     "CommentService": "comment",
