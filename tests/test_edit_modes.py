@@ -324,6 +324,26 @@ def test_ripple_cut_range_protects_only_the_tracks_it_does_not_name(episode, tra
         _assert_in_sync(episode, (12.0, 19.0), -1.0)
 
 
+ALL_SPEECH = (
+    "This cuts Host's speech at 0:10.0 and Guest's speech at 0:10.1 "
+    '("so the plan"). Cut anyway, or choose which tracks to cut.'
+)
+
+
+def test_a_ripple_range_cut_naming_no_tracks_asks_before_cutting_anyones_speech(episode):
+    service = EditService(ProjectWorkspace.open(episode))
+    before = _geometry(episode)
+
+    asked = service.cut_range(10.0, 11.0, mode=EditMode.RIPPLE, use_inaudible_opt=False)
+    assert asked["needs_confirmation"]["message"] == ALL_SPEECH
+    assert _geometry(episode) == before
+
+    service.cut_range(
+        10.0, 11.0, mode=EditMode.RIPPLE, use_inaudible_opt=False, confirm_cut_speech=True
+    )
+    _assert_in_sync(episode, (12.0, 19.0), -1.0)
+
+
 # --- Every command in both modes --------------------------------------------------
 
 

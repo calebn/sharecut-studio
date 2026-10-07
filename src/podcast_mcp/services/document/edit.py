@@ -95,7 +95,7 @@ from podcast_mcp.edits.retained_bleed_alignment import (
     plan_retained_bleed_alignment,
     set_retained_bleed_alignment_mode,
 )
-from podcast_mcp.edits.ripple import RippleRemoval, TrimEdge, plan_trim, ripple_track_ids
+from podcast_mcp.edits.ripple import RippleRemoval, TrimEdge, plan_trim
 from podcast_mcp.edits.silence_islands import (
     SilenceIsland,
     silence_islands_from_hops,
@@ -656,9 +656,10 @@ class EditService:
     ) -> dict:
         """Cut a timeline range: ripple closes it on every track; gap leaves silence.
 
-        ``track_ids`` name whose material the cut means to remove; omitted, the cut
-        takes every track (a whole-session time cut). A ripple asks to confirm before
-        it cuts speech on any other track; a gap cut punches only ``track_ids``.
+        ``track_ids`` name whose material the cut means to remove. A ripple asks to
+        confirm before it cuts speech on any other track, so with none named it asks
+        before cutting anyone's. A gap cut punches only ``track_ids`` (every dialogue
+        track when none are named).
         """
         self._require_refine_clear()
         tids = list(track_ids or [])
@@ -675,7 +676,7 @@ class EditService:
                 project,
                 start,
                 end,
-                edited_track_ids=tids or ripple_track_ids(project),
+                edited_track_ids=tids,
                 use_inaudible_opt=use_inaudible_opt,
             )
             out = self._cleared_ripple(
