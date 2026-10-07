@@ -882,6 +882,46 @@ async def test_plain_runtime_error_stays_generic(minimal_project):
     )
 
 
+@pytest.mark.asyncio
+async def test_publish_review_version_without_a_mix_returns_the_no_mix_code(minimal_project):
+    pytest.importorskip("mcp.client")
+    from mcp.client import Client
+
+    async with Client(mcp_server.mcp) as client:
+        result = await client.call_tool(
+            "publish_review_version_tool",
+            {"project_path": str(minimal_project), "label": "v1"},
+        )
+    assert result.is_error is True
+    assert result.structured_content["ok"] is False
+    assert result.structured_content["error_code"] == "no_mix"
+    assert "no mix yet" in result.structured_content["error"]
+
+
+@pytest.mark.asyncio
+async def test_publish_review_version_with_a_stale_mix_returns_the_stale_mix_code(minimal_project):
+    pytest.importorskip("mcp.client")
+    from mcp.client import Client
+
+    from podcast_mcp.edits.review_versions import StaleMixError
+
+    def _stale(self, **kwargs):
+        raise StaleMixError("premix.wav is out of date; Refresh", code="stale_mix")
+
+    with patch("podcast_mcp.services.collaboration.review.ReviewService.publish", _stale):
+        async with Client(mcp_server.mcp) as client:
+            result = await client.call_tool(
+                "publish_review_version_tool",
+                {"project_path": str(minimal_project), "label": "v1"},
+            )
+    assert result.is_error is True
+    assert result.structured_content == {
+        "ok": False,
+        "error": "premix.wav is out of date; Refresh",
+        "error_code": "stale_mix",
+    }
+
+
 def test_transcript_vocabulary_parity_roundtrip_and_conflict(tmp_path):
     from podcast_mcp.services.media.transcript_precorrect import VocabularyConflictError
 

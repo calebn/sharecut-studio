@@ -74,7 +74,7 @@ through their owning context facades. Tool names and permissions are unchanged.
 
 ### Busy project
 
-A tool call that waits out a busy `project_commit_lock` or `render_lock` (`ProjectBusyError` / `RenderBusyError`) does not crash with an opaque `Error executing tool <name>`. `mcp.busy_errors.install_busy_errors`, installed once on the server in `mcp/server.py`, catches it and returns a structured `is_error` `CallToolResult` with `structured_content {ok: false, error, error_code: "project_busy"}`, the same code the GUI's HTTP 503 and guest remote MCP's JSON-RPC `-32000` use, so an agent can branch on one string everywhere (#488).
+A tool call that waits out a busy `project_commit_lock` or `render_lock` (`ProjectBusyError` / `RenderBusyError`) does not crash with an opaque `Error executing tool <name>`. `mcp.busy_errors.install_busy_errors`, installed once on the server in `mcp/server.py`, catches it and returns a structured `is_error` `CallToolResult` with `structured_content {ok: false, error, error_code: "project_busy"}`, the same code the GUI's HTTP 503 and guest remote MCP's JSON-RPC `-32000` use, so an agent can branch on one string everywhere (#488). A coded refusal (`util/coded_error.py::CodedError`) takes the same path with its own code: `publish_review_version_tool` returns `error_code` `no_mix` (nothing rendered yet; run `render_preview`), `stale_mix` or `stale_master`.
 
 ## Skills
 
