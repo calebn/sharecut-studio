@@ -501,6 +501,31 @@ describe("touch chooser lab", () => {
     expect(log).toEqual([]);
   });
 
+  it("lets a fresh tap elsewhere click at once after a chip drag lifts", () => {
+    const { fade } = edgeCluster();
+    const chip = document.createElement("button");
+    chip.setAttribute(CHOOSER_ITEM_ATTR, "1");
+    const confirm = document.createElement("button");
+    document.body.append(chip, confirm);
+    document.elementFromPoint = (x: number) => (x > 230 ? chip : null);
+    press(fade, "pointerdown", 204, 117);
+    router.longPress();
+    press(fade, "pointermove", 236, 53);
+    vi.advanceTimersByTime(LONG_PRESS_MS);
+    press(fade, "pointermove", 246, 53);
+    press(fade, "pointerup", 246, 53);
+    vi.runAllTimers();
+    chip.remove();
+    const clicked = vi.fn();
+    confirm.addEventListener("click", clicked);
+
+    press(confirm, "pointerdown", 20, 20, 8);
+    press(confirm, "pointerup", 20, 20, 8);
+    confirm.click();
+    confirm.remove();
+    expect(clicked).toHaveBeenCalledOnce();
+  });
+
   it("marks a rested-on chip, then grabs it after a long press and drags from the target", () => {
     const { fade } = edgeCluster();
     const chip = document.createElement("button");

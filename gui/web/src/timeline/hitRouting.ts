@@ -815,6 +815,11 @@ export function attachHitRouting(
     (event: PointerEvent) => {
       if (isReplayed(event)) return;
       const { pointers } = gesture;
+      // A fresh press anywhere has its own click: the window only swallows
+      // the click of the finger that just lifted, which comes before it.
+      if (type === "down" && pointers.size === 0 && !gesture.multi) {
+        suppressClickUntil = 0;
+      }
       if (
         type === "down" &&
         event.pointerType === "touch" &&
