@@ -206,7 +206,7 @@ export function evaluateWhen(
       if (!ctx.canManageProjects) {
         return {
           ok: false,
-          reason: "Host-only (not available on share links)",
+          reason: "Host-only (not available on review links)",
         };
       }
       return ctx.hasProject

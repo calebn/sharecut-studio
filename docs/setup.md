@@ -716,7 +716,7 @@ podcast doctor --bundle --out DIR  # optional output directory
 
 In the app: **Home → Help → Create diagnostics bundle**. The dialog shows the zip path, size, file list, and version. Add a description and approve the public upload to **Submit report**, or reveal the zip in your file manager and use **Open support**.
 
-The zip includes doctor results, versions, a sidecar log tail, and counts (tracks/clips/decisions/comments) — not audio, transcripts, project JSON, share tokens, or `shares.json` / `sync.db`. Guests / share links cannot create a bundle (host-only).
+The zip includes doctor results, versions, a sidecar log tail, and counts (tracks/clips/decisions/comments) — not audio, transcripts, project JSON, share tokens, or `shares.json` / `sync.db`. Guests / review links cannot create a bundle (host-only).
 
 Creating the zip runs doctor checks and (when a project is open) per-track timebase QC, then packs a log tail. On a large episode that can take tens of seconds; wait for the Help button to leave **Creating…** or for the CLI to print the path. The host API runs the work in a worker thread. Help uses a local busy label — it is not a StatusBar/SSE job.
 

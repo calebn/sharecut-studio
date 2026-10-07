@@ -451,7 +451,7 @@ deny-by-default for camera / geolocation / notifications remains
 
 ## Deep links
 
-Share links remain HTTPS `/r/{token}` or `/rec/{token}` URLs at an exact origin
+Review and record links remain HTTPS `/r/{token}` or `/rec/{token}` URLs at an exact origin
 listed by the selected distribution profile (browser-first for guests without
 the app). Do not mint custom-scheme-only URLs.
 

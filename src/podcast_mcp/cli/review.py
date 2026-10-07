@@ -189,7 +189,7 @@ def review_share_cmd(
         help="Invite email(s) onto the ACL (useful with --general-access restricted)",
     ),
 ) -> None:
-    """Create a review share link (Anyone with the link; login-free by default)."""
+    """Create a review link (Anyone with the link; login-free by default)."""
     kind_key = (kind or "review").strip().lower()
     if kind_key == "record":
         _cli_create_record_share(

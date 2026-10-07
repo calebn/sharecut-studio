@@ -192,7 +192,8 @@ the empty state, not a separate discovery task.
   Cancel safe-left, action right) is the model. Inside an open
   `Dialog`, confirm in place with `ui/InlineConfirm` instead of
   stacking a second dialog: the row swaps its actions for the
-  consequence, Keep first and focused, the danger action last. The
+  consequence, Keep first and focused, the danger action last. Escape
+  keeps (cancels) the open confirm before it closes the dialog. The
   Share dialog's Stop sharing and End room are the reference.
   (Surfaces 2, 5, 6.)
 - **Confirm copy names the target and the consequence** in human
@@ -429,3 +430,5 @@ shipped, and the text says so. The adjacent MCP note shipped in #1027.
   (#1026): the Record room panel's in-place empty state, one take control,
   Stop's one-time question (the shared `ui/InlineConfirm`), and Land and
   Start reasons in place.
+- 2026-10-07 — Escape inside an open `InlineConfirm` keeps the choice instead of
+  closing the whole dialog (#1151).

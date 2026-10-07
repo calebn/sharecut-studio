@@ -53,6 +53,34 @@ describe("InlineConfirm", () => {
     expect(onKeep).toHaveBeenCalledOnce();
   });
 
+  it("lets Escape keep the choice first, then close the dialog", async () => {
+    const user = userEvent.setup();
+    const { onKeep, onConfirm, onClose } = renderConfirm();
+    await user.keyboard("{Escape}");
+    expect(onKeep).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("leaves Escape to the dialog once the confirm is gone or busy", async () => {
+    const user = userEvent.setup();
+    const busy = renderConfirm(true);
+    await user.keyboard("{Escape}");
+    expect(busy.onKeep).not.toHaveBeenCalled();
+    expect(busy.onClose).toHaveBeenCalledOnce();
+    busy.unmount();
+
+    const gone = renderConfirm();
+    gone.rerender(
+      <Dialog open onClose={gone.onClose} title="Track">
+        <p>Nothing to confirm.</p>
+      </Dialog>,
+    );
+    await user.keyboard("{Escape}");
+    expect(gone.onKeep).not.toHaveBeenCalled();
+    expect(gone.onClose).toHaveBeenCalledOnce();
+  });
+
   it("disables both choices while the owner is busy", () => {
     renderConfirm(true);
     for (const button of within(

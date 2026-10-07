@@ -398,7 +398,7 @@ Sharecut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md
 | `ToggleButton` | Toolbars / mode strips (`aria-pressed` + `.active`) — not exclusive tab panels |
 | `CommandButton` / `useCommand` | Pointer → `execute(commandId)` (default `skipWhen`) |
 | `Menu` / `CommandMenuItem` | Popup menus (Escape, arrows, outside click); closing returns focus to the opener unless focus already moved elsewhere (for example to a sibling menu's trigger) |
-| `Dialog` / `useDialogModal` | Modal scrim+panel; trap + inert chrome |
+| `Dialog` / `useDialogModal` | Modal scrim+panel; trap + inert chrome; Escape closes the innermost layer (an open `Menu`, then an open `InlineConfirm`'s Keep, then the dialog) |
 | `useResizeObserver` | Resize → callback (one observer, latest callback, `enabled`); never `new ResizeObserver` inline |
 | `BottomSheet` | Phone/tablet peek sheet (non-modal) |
 | `Field` / `FieldRow` | Labeled control + hint; horizontal nudge row |
