@@ -208,6 +208,56 @@ describe("withNudge", () => {
     ]);
   });
 
+  it("previews a trim on every dialogue track the ripple moves", () => {
+    const guestClip = clipRow({
+      id: "g",
+      track_id: "guest",
+      source_start: 0,
+      source_end: 40,
+      timeline_start: 0,
+      timeline_end: 40,
+    });
+    const bed = clipRow({
+      id: "m",
+      track_id: "music",
+      source_start: 0,
+      source_end: 40,
+      timeline_start: 0,
+      timeline_end: 40,
+    });
+    const multi = minimalProject({
+      ...project,
+      tracks: [
+        ...project.tracks,
+        sampleTrack({ id: "guest" }),
+        sampleTrack({ id: "music", role: "music" }),
+      ],
+      clips: {
+        tracks: { ...project.clips.tracks, guest: [guestClip], music: [bed] },
+        clip_count: 5,
+      },
+    });
+    const next = withNudge(multi, { ...trimIn, edge: "out" }, 11.5);
+    const spans = (trackId: string) =>
+      next.clips.tracks[trackId].map((c) => [
+        c.timeline_start,
+        c.timeline_end,
+        c.source_start,
+        c.source_end,
+      ]);
+    expect(spans("host")).toEqual([
+      [0, 10, 0, 10],
+      [10, 11.5, 10, 11.5],
+      [11.5, 39.5, 12, 40],
+    ]);
+    // The guest loses the same half second the host's clip does.
+    expect(spans("guest")).toEqual([
+      [0, 11.5, 0, 11.5],
+      [11.5, 39.5, 12, 40],
+    ]);
+    expect(spans("music")).toEqual([[0, 40, 0, 40]]);
+  });
+
   it("previews a pending edge on its region and an envelope point in order", () => {
     const pending = withNudge(project, pendingEnd, 24.05).pending_edits[0];
     expect([

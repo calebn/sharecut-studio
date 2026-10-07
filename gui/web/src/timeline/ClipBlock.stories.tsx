@@ -110,7 +110,12 @@ export const SelectedCrossfadeJoin: Story = {
 export const TrimPreview: Story = {
   args: {
     geometry: geometry(clip, {
-      trimPreview: { edge: "out", sourceStart: 5, sourceEnd: 13.5 },
+      trimPreview: {
+        edge: "out",
+        mode: "ripple",
+        sourceStart: 5,
+        sourceEnd: 13.5,
+      },
     }),
     snapTicks: [13.5],
   },

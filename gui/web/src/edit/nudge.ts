@@ -29,7 +29,7 @@ import {
 import { formatTimeMs } from "../utils/time";
 import { clipsForOriginTrack } from "../utils/timebase";
 import { clampTrimSourceSec, type TrimEdge } from "./clipEdgePreview";
-import { saveClipEdge } from "./clipEdgeSave";
+import { saveClipEdge, TRIM_MODE } from "./clipEdgeSave";
 import { CLIP_HANDLE_STEPS } from "./clipHandleSteps";
 import { clampFadeMs, edgeFadeMaxMs } from "./fadeLimits";
 import {
@@ -37,6 +37,7 @@ import {
   type NudgeMover,
   type SoftBoundary,
 } from "./nudgeBoundaries";
+import { trimDraft } from "./ripplePreview";
 
 /** One value of one target that nudges can step. */
 export type NudgeField =
@@ -75,7 +76,7 @@ export const NUDGE_KINDS: Record<
     ways: readonly [string, string];
     format: (v: number) => string;
     saved: string;
-    /** A step ripples: later clips on the track move with it (#1135). */
+    /** A step ripples: later clips on every dialogue track move with it (#1135). */
     ripples: boolean;
   }
 > = {
@@ -337,23 +338,11 @@ function patchClip(
   trackId: string,
   clipId: string,
   patch: (clip: ClipRow) => ClipRow,
-  rippleSec = 0,
 ): ProjectView {
   const lane = project.clips.tracks[trackId];
   const index = lane?.findIndex((c) => c.id === clipId) ?? -1;
   if (!lane || index < 0) return project;
-  const end = lane[index].timeline_end;
-  const next = lane.map((c, i) =>
-    i === index
-      ? patch(c)
-      : rippleSec && c.timeline_start >= end - SAME
-        ? {
-            ...c,
-            timeline_start: c.timeline_start + rippleSec,
-            timeline_end: c.timeline_end + rippleSec,
-          }
-        : c,
-  );
+  const next = lane.map((c, i) => (i === index ? patch(c) : c));
   return {
     ...project,
     clips: {
@@ -376,26 +365,15 @@ export function withNudge(
           ? { ...c, fade_in_ms: value }
           : { ...c, fade_out_ms: value },
       );
-    case "trim": {
-      const found = laneClip(project, field.trackId, field.clipId);
-      if (!found) return project;
-      const { clip } = found;
-      const start = field.edge === "in" ? value : clip.source_start;
-      const end = field.edge === "out" ? value : clip.source_end;
-      const timelineEnd = clip.timeline_start + (end - start);
-      return patchClip(
+    case "trim":
+      return trimDraft(
         project,
         field.trackId,
         field.clipId,
-        (c) => ({
-          ...c,
-          source_start: start,
-          source_end: end,
-          timeline_end: timelineEnd,
-        }),
-        timelineEnd - clip.timeline_end,
+        field.edge,
+        value,
+        TRIM_MODE,
       );
-    }
     case "pending": {
       const axis = nudgeAxis(project, field);
       const at = axis?.at(value);
@@ -479,6 +457,7 @@ export async function saveNudge(
       return saveClipEdge(projectPath, clip, {
         kind: "trim",
         edge: field.edge,
+        mode: TRIM_MODE,
         sourceSec: value,
       });
     }
