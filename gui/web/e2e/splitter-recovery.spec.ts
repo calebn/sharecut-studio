@@ -135,7 +135,8 @@ for (const theme of ["light", "dark"] as const) {
     await expect(
       page.getByRole("separator", { name: "Resize editor panels" }),
     ).toHaveCount(0);
-    await page.locator(".clip-hit").first().click();
+    // A track opens the plain sheet; a clip opens the compact drawer.
+    await page.locator(".track-header-open").first().click();
     const sheet = page.locator(".bottom-sheet");
     await expect(sheet).toBeVisible();
     await sheet.getByRole("button", { name: "Expand", exact: true }).click();
