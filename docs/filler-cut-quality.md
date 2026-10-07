@@ -101,7 +101,7 @@ evidence:
 - #1055 lab census: 286 of 314 ripple pause trims rejected as breath; 8 of their 572 edges sat in a breath, 147 first edges in air under the breath band, 125 in the previous word's audible tail
 - #1179 review rounds 1 and 2: with air measured on the 5 s around the trim, edges landed inside fades (24 of 82 trims had that air level 10 dB or more over the pause's own quiet, holding 21 of 25 mid-sound edges); on synthetic tightly gated tracks the room-tone floor sat at word-tail level
 - Owner rule (#1179): a breath, a voiced decay or any other own sound may be removed whole, but no edge may land inside one; thresholds come from each episode's own measurements, never fixed levels
-- #1055 lab after round 3, rebased onto #1169: 147 pause trims proposed (main 8), 146 review-only; the verifier's independent detector finds 0 of their 294 edges inside an own sound (round 2: 55 of 164); mute mode and acoustic hits identical to main
+- #1055 lab after round 3, rebased onto #1169: 147 pause trims proposed (main 8), all review-only (0 auto); the verifier's independent detector finds 0 of their 294 edges inside an own sound (round 2: 55 of 164); mute mode and acoustic hits identical to main
 enforced-by:
 - tests/test_breath_detect.py::test_a_breath_whose_fade_crosses_an_edge_stays_whole
 - tests/test_breath_detect.py::test_a_quiet_breath_goes_whole_or_stays_whole_never_cut_through
@@ -149,11 +149,10 @@ measured it on the 5 s around the trim and put edges inside fades):
   what is left leaves no air. A peer's sound wholly inside the trim is the speech
   guard's and the interior checks' to judge (#1194). A peer with no audio to read is
   not checked.
-- **Review.** A trim the rule moved carries `:air_edges` and waits for review until the
-  owner's listening check (#1055); on the lab tape all but one proposed trim moved at
-  least its guard frame. The exception reached the rule with its first edge already
-  clear of the previous word's voice (the kept-word voice rule runs first), so it is
-  unchanged and applies on its own.
+- **Review.** A trim whose final span differs from the span pacing proposed carries
+  `:air_edges` and waits for review until the owner's listening check (#1055), whether
+  the air rule moved it or a kept-voice walk did before the rule ran. Only a trim that
+  stays exactly as paced applies on its own; on the lab tape none does.
 
 What this means for listening:
 
@@ -327,7 +326,7 @@ Per-episode overrides: copy relevant keys from `tighten:` / `inaudible_cuts:` / 
 | Mid-word chop when ASR missed a word on another mic | `speech_energy_guard` | Keep **`enabled`**; default `on_conflict: track_local` |
 | A proposal carries `:interior_speech` | the transcript, not a knob | A track the ripple removes has voice there Whisper dropped; re-transcribe or add the words, then re-propose |
 | A `pause:` proposal carries `:interior_audio` | `analysis.heuristics.audibility_rms_db` | Audible but unvoiced material (a fricative, a laugh) on a rippled track; listen before approving |
-| A `pause:` proposal carries `:air_edges` | none | The trim shrank to the air inside the pause, off a word tail, a breath or a peer's onset at an edge; listen to both joins before approving (review-only until the owner's #1055 listening check) |
+| A `pause:` proposal carries `:air_edges` | none | The trim moved off the span pacing proposed (the air rule, or a kept-voice walk before it), onto the air inside the pause, off a word tail, a breath or a peer's onset at an edge; listen to both joins before approving (review-only until the owner's #1055 listening check) |
 | Cuts carry `:voiced_edge` | `analysis.heuristics.audibility_rms_db` | Voice runs through both sides of the edge with no silence inside the candidate's bounds; listen, or leave the cut in |
 | Long dead air remains | `max_pause_sec` | **Down** (e.g. `0.9`) |
 | Dangling breaths after filler cuts | `breath_handling.enabled` | **On**; widen `search_before_ms` / `search_after_ms` |
