@@ -70,6 +70,7 @@ from podcast_mcp.engines.waveform_pyramid import (
 )
 from podcast_mcp.models import workspace_artifacts_dir
 from podcast_mcp.project_io import open_project
+from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.project_state import FileRevision, file_revision
@@ -121,16 +122,22 @@ GC_MIN_AGE_SEC = 7 * 86_400.0
 log = logging.getLogger(__name__)
 
 
-class StaleWaveformKeyError(ValueError):
+class StaleWaveformKeyError(CodedError, ValueError):
     """The requested key is not the ref's current key (HTTP 409)."""
 
+    code = "waveform_stale"
 
-class WaveformDecodeError(LookupError):
+
+class WaveformDecodeError(CodedError, LookupError):
     """The media could not be read or decoded (HTTP 404, like a missing ref)."""
 
+    code = "waveform_not_found"
 
-class WaveformBusyError(RuntimeError):
+
+class WaveformBusyError(CodedError, RuntimeError):
     """Every compressed-media PCM decode slot is taken (HTTP 503 with ``Retry-After``)."""
+
+    code = "waveform_busy"
 
     def __init__(self, decision: RateLimitDecision) -> None:
         super().__init__("waveform decoder busy")
@@ -188,7 +195,7 @@ def parse_ref(ref: str) -> tuple[RefKind, str]:
     """Split ``track:<id>`` / ``source:<id>`` / ``stem:<id>``; ``ValueError`` otherwise."""
     match = _REF_RE.fullmatch(ref)
     if match is None:
-        raise ValueError(f"invalid media ref: {ref!r}")
+        raise CodedValueError(f"invalid media ref: {ref!r}", code="invalid_waveform_request")
     return cast(RefKind, match.group(1)), match.group(2)
 
 
@@ -244,7 +251,7 @@ def live_key(entry: MediaEntry) -> str:
     try:
         return current_key(entry)
     except OSError as exc:
-        raise LookupError("waveform media not found") from exc
+        raise CodedKeyError("waveform media not found", code="waveform_not_found") from exc
 
 
 def _meta(path: Path, key: str) -> PyramidMeta:
@@ -359,11 +366,11 @@ def waveform_status(project_path: Path, kind: MediaKind) -> dict[str, Any]:
 
 def _pyramid_file(project_path: Path, ref: str, key: str) -> Path:
     if not _KEY_RE.fullmatch(key):
-        raise ValueError("invalid waveform key")
+        raise CodedValueError("invalid waveform key", code="invalid_waveform_request")
     kind, ref_id = parse_ref(ref)
     path = pyramid_path(_artifacts_dir(project_path) / "peaks", ref_slug(kind, ref_id), key)
     if not path.is_file():
-        raise LookupError("waveform pyramid not found")
+        raise CodedKeyError("waveform pyramid not found", code="waveform_not_found")
     return path
 
 
@@ -378,12 +385,14 @@ def tile_bytes(project_path: Path, ref: str, key: str, level: int, start: int, c
     path = _pyramid_file(project_path, ref, key)
     meta = _served_meta(path, key)
     if not 0 <= level < len(meta.levels):
-        raise ValueError("level out of range")
+        raise CodedValueError("level out of range", code="invalid_waveform_request")
     if not 1 <= count <= max_tiles_per_request():
-        raise ValueError(f"count must be 1..{max_tiles_per_request()}")
+        raise CodedValueError(
+            f"count must be 1..{max_tiles_per_request()}", code="invalid_waveform_request"
+        )
     first_bin = start * meta.bins_per_tile
     if start < 0 or first_bin >= meta.levels[level].bins:
-        raise ValueError("start out of range")
+        raise CodedValueError("start out of range", code="invalid_waveform_request")
     data = read_bins(path, meta, level, first_bin, count * meta.bins_per_tile)
     want = min(count * meta.bins_per_tile, meta.levels[level].bins - first_bin) * BIN_BYTES
     if len(data) != want:  # the file changed under a cached header: never serve it as immutable
@@ -466,14 +475,14 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
     parse_ref(ref)
     entry = media_index(project_path).refs.get(ref)
     if entry is None:
-        raise LookupError("unknown media ref")
+        raise CodedKeyError("unknown media ref", code="waveform_not_found")
     if live_key(entry) != key:
         raise StaleWaveformKeyError("waveform key is stale")
     meta = _served_meta(_pyramid_file(project_path, ref, key), key)
     frames_per_block = pcm_block_frames()
     start = block * frames_per_block
     if block < 0 or start >= meta.total_frames:
-        raise ValueError("block out of range")
+        raise CodedValueError("block out of range", code="invalid_waveform_request")
     frames = min(frames_per_block, meta.total_frames - start)
     cache_key: _PcmKey = (str(entry.abs_path), key, block)
     with _PCM_LOCK:

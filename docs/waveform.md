@@ -389,6 +389,14 @@ Guest routes (`gui/routes/review_share.py`, services
   attempts returns a busy response without caching the result or revoking the
   share. The media index still checks the live raw ref and key independently.
 
+Guest waveform service failures use `gui/routes/guest_errors.py` and the shared
+`tool_refusal` policy. Coded input refusals return `400`, missing-resource refusals
+`404`, stale keys `409`, and decoder contention `503` with `Retry-After`.
+Refusals carry `X-Sharecut-Error-Code` and redact host paths. Unmarked service
+failures return fixed `500` detail and log their traceback on the host.
+Each projected failure sends `Cache-Control: no-store` and releases an acquired audio slot.
+Successful tile responses retain immutable caching and release their slot after delivery.
+
 There is **never** a guest PCM route: raw samples never go to guests.
 
 Guest tiles are cached `private, max-age=31536000, immutable` under their

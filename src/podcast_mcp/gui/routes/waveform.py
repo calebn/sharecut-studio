@@ -52,10 +52,6 @@ def no_store_error(exc: HTTPException) -> HTTPException:
 def waveform_error(exc: Exception) -> HTTPException:
     """Map service errors: busy decoder 503 with ``Retry-After``, stale key 409,
     bad input 400, anything missing 404.
-
-    The 400 detail echoes ``str(exc)`` and guests reach this through
-    ``waveform_call``: raise ``ValueError`` on waveform paths only with fixed
-    messages or the caller's own input, never host paths.
     """
     if isinstance(exc, WaveformBusyError):
         return HTTPException(
@@ -90,24 +86,7 @@ def _host_project(
         raise no_store_error(exc) from exc
 
 
-def _internal_error(_exc: Exception) -> HTTPException:
-    return HTTPException(status_code=500, detail="internal error")
-
-
-def waveform_call(
-    fn: Callable[[], T],
-    *,
-    fallback: Callable[[Exception], HTTPException] = _internal_error,
-) -> T:
-    """Run *fn*; every error leaves as an HTTPException with ``Cache-Control: no-store``.
-
-    ``HTTPException`` keeps its status. Service errors go through ``waveform_error``.
-    Anything else goes through *fallback*: guests pass ``_map_share_exc``, so a
-    ``PermissionError`` from the share capability check stays 403.
-    Only *fallback* errors that map to 5xx are logged (a busy 503 is expected load,
-    not a fault). A lock timeout (``filelock.Timeout``) is 503 ``project_busy`` (#488),
-    also not logged.
-    """
+def waveform_call(fn: Callable[[], T]) -> T:
     try:
         return fn()
     except HTTPException as exc:
@@ -117,10 +96,8 @@ def waveform_call(
     except Timeout as exc:
         raise no_store_error(project_busy_from_timeout(exc)) from exc
     except Exception as exc:
-        mapped = fallback(exc)
-        if mapped.status_code >= 500:
-            log.exception("waveform request failed")
-        raise no_store_error(mapped) from exc
+        log.exception("waveform request failed")
+        raise no_store_error(HTTPException(status_code=500, detail="internal error")) from exc
 
 
 @router.get("/api/waveform/status")

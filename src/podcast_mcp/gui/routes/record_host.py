@@ -117,24 +117,27 @@ async def post_host_record_upload(
 ):
     require_host(request, token=token, x_podcast_token=x_podcast_token)
     uploader, session_id, ws = _host_upload(request, path)
-    return await ingest_record_upload_request(
-        request,
-        uploader,
-        session_id=session_id,
-        participant_id=HOST_PARTICIPANT_ID,
-        take_index=take_index,
-        segment_index=segment_index,
-        part_seq=part_seq,
-        sha256=sha256,
-        file_sha256=file_sha256,
-        final=final,
-        expected_parts=expected_parts,
-        join_offset_ms=join_offset_ms,
-        clipping=clipping,
-        clipping_truncated=clipping_truncated,
-        workspace=ws,
-        kind=kind,
-    )
+    try:
+        return await ingest_record_upload_request(
+            request,
+            uploader,
+            session_id=session_id,
+            participant_id=HOST_PARTICIPANT_ID,
+            take_index=take_index,
+            segment_index=segment_index,
+            part_seq=part_seq,
+            sha256=sha256,
+            file_sha256=file_sha256,
+            final=final,
+            expected_parts=expected_parts,
+            join_offset_ms=join_offset_ms,
+            clipping=clipping,
+            clipping_truncated=clipping_truncated,
+            workspace=ws,
+            kind=kind,
+        )
+    except RecordUploadError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.delete("/api/record/upload")

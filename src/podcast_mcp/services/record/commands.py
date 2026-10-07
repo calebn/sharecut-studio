@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from podcast_mcp.edits.comments import COMMENT_BODY_MAX
 from podcast_mcp.edits.share_capabilities import CAP_COMMENT, CAP_JOIN
@@ -16,6 +16,7 @@ from podcast_mcp.services.record.live_comments import (
 )
 from podcast_mcp.services.record.state import RecordRole
 from podcast_mcp.services.session_sync import sanitize_display_name
+from podcast_mcp.util.coded_error import CodedValueError
 
 RecordCommandType = Literal[
     "Join",
@@ -164,11 +165,14 @@ _PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
 
 def validate_record_payload(command_type: str, payload: dict[str, Any]) -> dict[str, Any]:
     if command_type not in COMMAND_TYPES:
-        raise ValueError(f"unknown record command type: {command_type}")
+        raise CodedValueError("unknown record command type", code="invalid_record_request")
     model = _PAYLOAD_MODELS.get(command_type)
     if model is None:
         return {}
-    return model.model_validate(payload or {}).model_dump()
+    try:
+        return model.model_validate(payload or {}).model_dump()
+    except ValidationError as exc:
+        raise CodedValueError("invalid record payload", code="invalid_record_request") from exc
 
 
 @dataclass
@@ -197,7 +201,7 @@ class RecordCommand:
         if command_type in {"Join", "UpdateName"} and role != "host":
             renamed = sanitize_display_name(cleaned.get("display_name"), guest=True)
             if not renamed:
-                raise ValueError("display_name is required")
+                raise CodedValueError("display_name is required", code="invalid_record_request")
             cleaned["display_name"] = renamed
         pid = participant_id
         if command_type == "Join":
@@ -220,7 +224,7 @@ def authorize_record_command(
     command_type: str,
 ) -> None:
     if command_type not in COMMAND_TYPES:
-        raise ValueError(f"unknown record command type: {command_type}")
+        raise CodedValueError("unknown record command type", code="invalid_record_request")
     if command_type in HOST_ONLY and role != "host":
         raise RecordAuthzError("host only")
     if command_type in REQUIRES_JOIN_CAP and role != "host" and CAP_JOIN not in capabilities:

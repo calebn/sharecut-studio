@@ -33,7 +33,7 @@ from podcast_mcp.engines.play_audit import (
 )
 from podcast_mcp.models import EpisodeProject, ReviewMixVersion
 from podcast_mcp.util.atomic_file import publish_completed_file
-from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedKeyError, CodedValueError
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.pinned_media import (
     descriptor_walk_supported,
@@ -302,7 +302,7 @@ def get_version(project: EpisodeProject, version_id: str) -> ReviewMixVersion:
     for v in project.review.versions:
         if v.id == version_id:
             return v
-    raise KeyError(f"review version not found: {version_id}")
+    raise CodedKeyError(f"review version not found: {version_id}", code="review_version_not_found")
 
 
 def review_artifacts_dir(project: EpisodeProject) -> Path:
@@ -320,8 +320,9 @@ def _resolve_review_media(
         log.warning(
             "Refusing review version %s %s outside %s/", version_id, field, REVIEW_ARTIFACTS_RELDIR
         )
-        raise ValueError(
-            f"review version {version_id}: {field} must stay under {REVIEW_ARTIFACTS_RELDIR}/"
+        raise CodedValueError(
+            f"review version {version_id}: {field} must stay under {REVIEW_ARTIFACTS_RELDIR}/",
+            code="review_media_outside_workspace",
         ) from None
 
 
@@ -332,7 +333,7 @@ def version_audio_path(project: EpisodeProject, version_id: str) -> Path:
         project, ver.audio_relpath, version_id=version_id, field="audio_relpath"
     )
     if not path.is_file():
-        raise FileNotFoundError(f"review mix missing: {path}")
+        raise CodedFileNotFoundError(f"review mix missing: {path}", code="review_media_not_found")
     return path
 
 

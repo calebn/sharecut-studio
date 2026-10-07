@@ -132,3 +132,31 @@ def test_guest_failure_detail_is_a_refusals_guest_message_and_nothing_for_a_cras
     assert guest_failure_detail(refusal) == "bad window in [path]"
     assert guest_failure_detail(RuntimeError(f"ffmpeg died on {HOST_PATH}")) is None
     assert guest_failure_detail(OSError(2, "No such file", HOST_PATH)) is None
+
+
+def test_sqlite_write_lock_is_a_fixed_refusal(tmp_path):
+    import sqlite3
+
+    database = tmp_path / "private.sqlite"
+    with (
+        sqlite3.connect(database, timeout=0, isolation_level=None) as first,
+        sqlite3.connect(database, timeout=0, isolation_level=None) as second,
+    ):
+        first.execute("CREATE TABLE writes (value TEXT)")
+        first.execute("BEGIN IMMEDIATE")
+        try:
+            with pytest.raises(sqlite3.OperationalError) as failure:
+                second.execute("BEGIN IMMEDIATE")
+            assert tool_refusal(failure.value, for_guest=True) == ToolRefusal(
+                "Project is busy in another process; try again", "project_busy"
+            )
+        finally:
+            first.rollback()
+
+
+def test_sqlite_error_code_prevents_false_busy_refusal():
+    import sqlite3
+
+    error = sqlite3.OperationalError("busy private secret")
+    error.sqlite_errorcode = sqlite3.SQLITE_ERROR
+    assert tool_refusal(error, for_guest=True) is None

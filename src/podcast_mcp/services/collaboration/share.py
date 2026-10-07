@@ -61,7 +61,12 @@ from podcast_mcp.services.media import (
     upload_review_version_to_object_store,
 )
 from podcast_mcp.util.atomic_render import render_atomic
-from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedValueError
+from podcast_mcp.util.coded_error import (
+    CodedFileNotFoundError,
+    CodedKeyError,
+    CodedPermissionError,
+    CodedValueError,
+)
 from podcast_mcp.util.project_state import FileRevision, ProjectBusyError, file_revision
 
 log = logging.getLogger(__name__)
@@ -461,13 +466,13 @@ def lookup_share(token: str, *, kind: str | None = None) -> dict[str, Any]:
     reg = get_share_registry()
     row = resolve_share(token)
     if row is None or row.get("revoked"):
-        raise KeyError("invalid or revoked share token")
+        raise CodedKeyError("invalid or revoked share token", code="share_not_found")
     row_kind = str(row.get("kind") or SHARE_KIND_REVIEW)
     if kind is not None and row_kind != kind:
-        raise KeyError("invalid or revoked share token")
+        raise CodedKeyError("invalid or revoked share token", code="share_not_found")
     if share_hard_expired(row):
         reg.demote_to_cooldown(token, reason="expired")
-        raise KeyError("invalid or revoked share token")
+        raise CodedKeyError("invalid or revoked share token", code="share_not_found")
     workspace = Path(str(row.get("project_workspace") or ""))
     candidate = workspace / EPISODE_PROJECT_FILENAME
     if candidate.is_file():
@@ -504,7 +509,7 @@ def workspace_from_share_row(row: dict[str, Any]) -> ProjectWorkspace:
     workspace = Path(str(row.get("project_workspace") or ""))
     candidate = workspace / EPISODE_PROJECT_FILENAME
     if not candidate.is_file():
-        raise FileNotFoundError("episode project missing for share")
+        raise CodedFileNotFoundError("episode project missing for share", code="project_not_found")
     return ProjectWorkspace.open(candidate)
 
 
@@ -540,7 +545,7 @@ def open_share_workspace(
                 row.get("project_workspace"),
             )
             _mark_share_revoked(token, ws=ws)
-            raise KeyError("invalid or revoked share token") from None
+            raise CodedKeyError("invalid or revoked share token", code="share_not_found") from None
     return row, ws
 
 
@@ -550,7 +555,7 @@ def require_share_cap(
     """Lookup share workspace and require *cap* (raises PermissionError)."""
     row, ws = open_share_workspace(token, kind=kind)
     if not has_capability(row.get("capabilities"), cap):
-        raise PermissionError(f"share does not allow {cap}")
+        raise CodedPermissionError(f"share does not allow {cap}", code="share_capability_required")
     return row, ws
 
 
@@ -558,7 +563,7 @@ def require_share_edit(token: str) -> tuple[dict[str, Any], ProjectWorkspace]:
     """Lookup share workspace and require the gate's ``edit`` command set."""
     row, ws = open_share_workspace(token)
     if not edit_commands_allowed(row.get("capabilities")):
-        raise PermissionError("share does not allow edit")
+        raise CodedPermissionError("share does not allow edit", code="share_capability_required")
     return row, ws
 
 
@@ -571,7 +576,9 @@ def require_share_command(token: str, command_type: str) -> tuple[dict[str, Any]
     """
     row, ws = open_share_workspace(token)
     if command_type not in document_command_types_for_caps(row.get("capabilities")):
-        raise PermissionError(f"share does not allow {command_type}")
+        raise CodedPermissionError(
+            f"share does not allow {command_type}", code="share_capability_required"
+        )
     return row, ws
 
 
@@ -911,14 +918,16 @@ def share_daw_waveform_tiles(
             row.get("project_workspace"),
         )
         revoke_share_for_workspace(project_path.parent, token)
-        raise KeyError("invalid or revoked share token")
+        raise CodedKeyError("invalid or revoked share token", code="share_not_found")
     if not has_capability(row.get("capabilities"), CAP_VIEW):
-        raise PermissionError("share does not allow view")
+        raise CodedPermissionError("share does not allow view", code="share_capability_required")
     if not ref.startswith(_GUEST_WAVEFORM_REFS):
-        raise ValueError("guests may only read track: and source: waveforms")
+        raise CodedValueError(
+            "guests may only read track: and source: waveforms", code="invalid_waveform_request"
+        )
     entry = media_index(project_path).refs.get(ref)
     if entry is None or live_key(entry) != key:
-        raise KeyError("waveform not found")
+        raise CodedKeyError("waveform not found", code="waveform_not_found")
     return tile_bytes(project_path, ref, key, level, start, count)
 
 
@@ -964,7 +973,7 @@ def share_proxy_manifest(token: str) -> dict[str, Any]:
 
     row, ws = require_share_cap(token, CAP_VIEW)
     if not has_capability(row.get("capabilities"), CAP_PLAY):
-        raise PermissionError("share does not allow play")
+        raise CodedPermissionError("share does not allow play", code="share_capability_required")
     expires_at = row.get("expires_at")
     tracks_out: dict[str, Any] = {}
     for tid in dialogue_track_ids(ws.project):
@@ -1013,7 +1022,7 @@ def share_proxy_chunk_path(
 
     row, ws = require_share_cap(token, CAP_VIEW)
     if not has_capability(row.get("capabilities"), CAP_PLAY):
-        raise PermissionError("share does not allow play")
+        raise CodedPermissionError("share does not allow play", code="share_capability_required")
     ensure_track_proxy(ws, track_id)
     return local_proxy_chunk_path(ws, track_id, chunk_idx, expected_hash=proxy_hash)
 
@@ -1028,7 +1037,10 @@ def share_selected_range_audio(token: str, target: ExactRangeTarget) -> Path:
         if premix_is_stale(project) or any(
             not stem_is_fresh(project, tid) for tid in mix_gains(project)
         ):
-            raise ValueError("Mix out of date. Ask the host to Refresh before playing this range.")
+            raise CodedValueError(
+                "Mix out of date. Ask the host to Refresh before playing this range.",
+                code="mix_out_of_date",
+            )
         return PlayService(ws).play_selected_range(target, full_mix_path=mix)
 
 
@@ -1043,14 +1055,16 @@ def share_daw_audio_path(
 
     kind_norm = (kind or "premix").strip().lower()
     if kind_norm not in _DAW_AUDIO_KINDS:
-        raise PermissionError("share does not allow this audio kind")
+        raise CodedPermissionError(
+            "share does not allow this audio kind", code="share_capability_required"
+        )
     row, ws = require_share_cap(token, CAP_PLAY)
     if kind_norm == "review":
         return version_audio_path(ws.project, row["review_version_id"])
     if kind_norm in ("stem", "processed") and track_id:
         known = {t.id for t in ws.project.tracks}
         if track_id not in known:
-            raise KeyError("track not found")
+            raise CodedKeyError("track not found", code="track_not_found")
     return resolve_viewer_audio(
         ws,
         kind=kind_norm,
@@ -1062,7 +1076,7 @@ def share_daw_audio_path(
 def _require_pending_preview_caps(token: str) -> tuple[dict[str, Any], ProjectWorkspace]:
     row, ws = require_share_cap(token, CAP_PLAY)
     if not has_capability(row.get("capabilities"), CAP_VIEW):
-        raise PermissionError("share does not allow view")
+        raise CodedPermissionError("share does not allow view", code="share_capability_required")
     return row, ws
 
 
@@ -1153,7 +1167,7 @@ def share_pending_preview_image_cached(
 ) -> Path | None:
     image_kind = (kind or "wave").strip().lower()
     if image_kind not in _PENDING_PREVIEW_IMAGE_KINDS:
-        raise ValueError("kind must be wave or spec")
+        raise CodedValueError("kind must be wave or spec", code="invalid_image_kind")
     wav = share_pending_preview_wav_cached(token, edit_id=edit_id, mode=mode)
     if wav is None:
         return None
@@ -1171,7 +1185,7 @@ def share_pending_preview_image(
     """Waveform or spectrogram PNG of the listen-first extract. Requires ``play`` + ``view``."""
     image_kind = (kind or "wave").strip().lower()
     if image_kind not in _PENDING_PREVIEW_IMAGE_KINDS:
-        raise ValueError("kind must be wave or spec")
+        raise CodedValueError("kind must be wave or spec", code="invalid_image_kind")
     wav = share_pending_preview_wav(token, edit_id=edit_id, mode=mode)
     return _render_pending_preview_png(wav, image_kind)
 
@@ -1252,7 +1266,9 @@ def _require_under_artifacts(project: Any, path: Path) -> Path:
     artifacts = project.artifacts_dir().resolve()
     resolved = path.resolve()
     if artifacts not in resolved.parents and resolved != artifacts:
-        raise PermissionError("diagnostic image is outside the workspace")
+        raise CodedPermissionError(
+            "diagnostic image is outside the workspace", code="share_capability_required"
+        )
     return resolved
 
 
@@ -1286,7 +1302,7 @@ def share_audition_context_image_cached(
 ) -> Path | None:
     image_kind = (kind or "wave").strip().lower()
     if image_kind not in _AUDITION_IMAGE_KINDS:
-        raise ValueError("kind must be wave or spec")
+        raise CodedValueError("kind must be wave or spec", code="invalid_image_kind")
     _, ws = _require_pending_preview_caps(token)
     dest = _audition_png_path(ws.project, track_id, start, end, image_kind)
     return dest if dest.is_file() else None
@@ -1382,11 +1398,11 @@ def share_audition_context_image(
 
     image_kind = (kind or "wave").strip().lower()
     if image_kind not in _AUDITION_IMAGE_KINDS:
-        raise ValueError("kind must be wave or spec")
+        raise CodedValueError("kind must be wave or spec", code="invalid_image_kind")
     _, ws = _require_pending_preview_caps(token)
     known = {t.id for t in ws.project.tracks}
     if track_id not in known:
-        raise KeyError("track not found")
+        raise CodedKeyError("track not found", code="track_not_found")
     dest = _audition_png_path(ws.project, track_id, start, end, image_kind)
     dest.parent.mkdir(parents=True, exist_ok=True)
     _require_under_artifacts(ws.project, dest)
@@ -1407,7 +1423,7 @@ def share_audition_context_image(
         )
     resolved = _require_under_artifacts(ws.project, dest)
     if not resolved.is_file():
-        raise FileNotFoundError("diagnostic image not found")
+        raise CodedFileNotFoundError("diagnostic image not found", code="image_not_found")
     return resolved
 
 
@@ -1437,7 +1453,9 @@ def share_upload_media(
 def share_audio_path(token: str) -> Path:
     row, ws = open_share_workspace(token)
     if not has_capability(row.get("capabilities"), CAP_PLAY):
-        raise PermissionError("share does not allow playback")
+        raise CodedPermissionError(
+            "share does not allow playback", code="share_capability_required"
+        )
     return review_guest_audio_path(ws.project, row["review_version_id"])
 
 
@@ -1450,7 +1468,9 @@ def resolve_share_audio_redirect(token: str) -> str | None:
 
     row, ws = open_share_workspace(token)
     if not has_capability(row.get("capabilities"), CAP_PLAY):
-        raise PermissionError("share does not allow playback")
+        raise CodedPermissionError(
+            "share does not allow playback", code="share_capability_required"
+        )
     vid = str(row["review_version_id"])
     try:
         upload_review_version_to_object_store(ws, vid)
@@ -1482,7 +1502,9 @@ def share_add_comment(
 
     row, ws = open_share_workspace(token)
     if not has_capability(row.get("capabilities"), "comment"):
-        raise PermissionError("share does not allow comments")
+        raise CodedPermissionError(
+            "share does not allow comments", code="share_capability_required"
+        )
     comment, file_revisions = run_comment_mutation_with_file_revisions(
         ws,
         lambda: CommentService(ws).add(
@@ -1509,7 +1531,7 @@ def share_add_reply(
 ) -> dict[str, Any]:
     row, ws = open_share_workspace(token)
     if not has_capability(row.get("capabilities"), "reply"):
-        raise PermissionError("share does not allow replies")
+        raise CodedPermissionError("share does not allow replies", code="share_capability_required")
     result, file_revisions = run_comment_mutation_with_file_revisions(
         ws,
         lambda: CommentService(ws).add_reply(comment_id, body=body, author=author),
@@ -1531,7 +1553,9 @@ def share_set_action_done(
 
     row, ws = open_share_workspace(token)
     if not has_capability(row.get("capabilities"), CAP_ACTION):
-        raise PermissionError("share does not allow action items")
+        raise CodedPermissionError(
+            "share does not allow action items", code="share_capability_required"
+        )
     result, file_revisions = run_comment_mutation_with_file_revisions(
         ws,
         lambda: CommentService(ws).set_action_done(

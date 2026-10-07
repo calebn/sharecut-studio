@@ -782,7 +782,7 @@ class DocumentSyncService:
         except KeyError as exc:
             from podcast_mcp.services.document_sync.errors import DocumentConflictError
 
-            raise DocumentConflictError(str(exc) or "target not found") from exc
+            raise DocumentConflictError("target not found") from exc
         except ValueError as exc:
             if names_missing_target(exc):
                 from podcast_mcp.services.document_sync.errors import (

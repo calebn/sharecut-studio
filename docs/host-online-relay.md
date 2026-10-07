@@ -689,6 +689,23 @@ src/podcast_mcp/
 
 ## Security notes
 
+Guest HTTP, WebSocket, upload, and remote MCP failures use the refusal policy
+in `util/tool_refusal.py`. Deliberate guards opt in with `CodedError`; ordinary
+exceptions disclose no text. Lock timeouts and SQLite busy or locked errors use
+fixed busy messages, even inside a coded wrapper. Guest refusal messages redact
+host paths. Coded HTTP refusals carry `X-Sharecut-Error-Code` and their domain status;
+unexpected failures return `500` with `internal error` and a host traceback.
+WebSocket admission and command crashes log on the host and close with
+`1011` and `internal error`. Coded recording refusals keep `code=invalid_state`
+and add their domain `error_code`; the socket remains usable. Busy admission or
+setup closes with transient `1013` and fixed busy text, allowing reconnection.
+Token lookup uses the same HTTP boundary for contention and unexpected failures.
+Existing access revocations retain their terminal `4403` behavior. Close reasons fit within
+120 UTF-8 bytes. Remote MCP capability lookup failures return fixed
+`404` text, `share not found`; other preflight crashes use the HTTP boundary.
+`tests/test_guest_error_boundary.py` exercises these HTTP and WebSocket contracts
+with private paths and path-free diagnostic secrets.
+
 - **Tunnel auth**: `PODCAST_RELAY_HOST_TOKENS` required (empty set rejects tunnels unless
   `PODCAST_RELAY_ALLOW_OPEN_TUNNEL=1` for local/dev). Relay process exits on startup if
   tokens are empty without the open-tunnel flag. Entries may be bare secrets or

@@ -16,22 +16,18 @@ from urllib.parse import urlparse
 from anyio import CancelScope
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, RedirectResponse, Response
-from filelock import Timeout
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
+from starlette.websockets import WebSocketState
 
 from podcast_mcp.edits.share_capabilities import CAP_VIEW, share_author
 from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pinned_audio_response
 from podcast_mcp.gui.routes.boundary import BoundaryContextInput
-from podcast_mcp.gui.routes.deps import (
-    document_conflict_error,
-    project_busy_from_timeout,
-    project_busy_http_error,
-)
 from podcast_mcp.gui.routes.document import RangeAudioInput
+from podcast_mcp.gui.routes.guest_errors import guest_http_error, guest_ws_error
 from podcast_mcp.gui.routes.guest_ws_common import (
     GUEST_MALFORMED_LIMIT,
     GuestWsGuard,
@@ -49,7 +45,7 @@ from podcast_mcp.gui.routes.waveform import NO_STORE as WAVEFORM_NO_STORE
 from podcast_mcp.gui.routes.waveform import (
     OCTET_STREAM_RESPONSES,
     binary_response,
-    waveform_call,
+    no_store_error,
 )
 from podcast_mcp.gui.schemas import DocumentCommandRequest, ShareActionDoneRequest
 from podcast_mcp.services.collaboration import (
@@ -111,6 +107,7 @@ from podcast_mcp.services.session_sync import (
     sanitize_display_name,
 )
 from podcast_mcp.services.share_auth import access_required
+from podcast_mcp.util.coded_error import CodedFileNotFoundError
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 
 router = APIRouter()
@@ -163,31 +160,17 @@ def _audio_slot(token: str) -> Callable[[], None] | None:
 def _audio_file_response(token: str, path, **kwargs: Any):
     """Pin authorized media before returning; hold the slot until streaming ends."""
     cache_audio = kwargs.pop("cache_audio", False)
+    slot = _audio_slot(token)
     try:
-        return pinned_audio_response(
-            path, cache=cache_audio, on_release=_audio_slot(token), **kwargs
-        )
+        return pinned_audio_response(path, cache=cache_audio, on_release=slot, **kwargs)
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="not found") from exc
-
-
-def _map_share_exc(exc: Exception) -> HTTPException:
-    from podcast_mcp.services.document_sync import DocumentConflictError
-
-    if isinstance(exc, DocumentConflictError):
-        return document_conflict_error(exc)
-    if isinstance(exc, PermissionError):
-        return HTTPException(status_code=403, detail=str(exc))
-    if isinstance(exc, KeyError):
-        return HTTPException(status_code=404, detail="not found")
-    if isinstance(exc, FileNotFoundError):
-        return HTTPException(status_code=404, detail="not found")
-    if isinstance(exc, ValueError):
-        return HTTPException(status_code=400, detail=str(exc))
-    busy = project_busy_http_error(exc)
-    if busy is not None:
-        return busy
-    return HTTPException(status_code=500, detail="internal error")
+        raise guest_http_error(
+            CodedFileNotFoundError("not found", code="review_media_not_found"),
+            logger=log,
+            operation="review audio pin",
+        ) from exc
+    except Exception as exc:
+        raise guest_http_error(exc, logger=log, operation="review audio pin") from exc
 
 
 @router.get("/api/review/{token}/project")
@@ -196,8 +179,8 @@ def get_review_project(token: str) -> dict[str, Any]:
     _rate_limit(token, "read")
     try:
         return share_project_view(token)
-    except (KeyError, FileNotFoundError) as exc:
-        raise HTTPException(status_code=404, detail="not found") from exc
+    except Exception as exc:
+        raise guest_http_error(exc, logger=log, operation="review project") from exc
 
 
 @router.get("/api/review/{token}/features")
@@ -217,7 +200,7 @@ def get_review_audio(token: str):
             return RedirectResponse(url=redirect, status_code=302)
         path = share_audio_path(token)
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
     return _audio_file_response(
         token,
         path,
@@ -240,10 +223,8 @@ def get_daw_project(
     _rate_limit(token, "read")
     try:
         return share_daw_project_view(token, phase=None if phase is None else phase.value)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
 
 
 @router.get("/api/review/{token}/daw/meta")
@@ -253,19 +234,24 @@ def get_daw_meta(token: str) -> dict[str, Any]:
     try:
         return share_daw_meta(token)
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
 
 
 @router.get("/api/review/{token}/daw/waveform/status")
 def get_daw_waveform_status(token: str) -> JSONResponse:
     """Raw-media pyramid status (``view``); same shape as the host status route."""
 
-    def run() -> dict[str, Any]:
+    try:
         _check_token(token)
         _rate_limit(token, "read")
-        return share_daw_waveform_status(token)
-
-    return JSONResponse(waveform_call(run, fallback=_map_share_exc), headers=WAVEFORM_NO_STORE)
+    except HTTPException as exc:
+        raise no_store_error(exc) from exc
+    try:
+        return JSONResponse(share_daw_waveform_status(token), headers=WAVEFORM_NO_STORE)
+    except Exception as exc:
+        raise no_store_error(
+            guest_http_error(exc, logger=log, operation="review waveform status")
+        ) from exc
 
 
 @router.get(
@@ -286,21 +272,27 @@ def get_daw_waveform_tiles(
     The audio slot is taken before any disk work, so the concurrency cap bounds it.
     """
 
-    def run() -> Response:
+    try:
         _check_token(token)
         _rate_limit(token, "audio")
         slot = _audio_slot(token)
-        try:
-            body = share_daw_waveform_tiles(
-                token, ref=ref, key=key, level=level, start=start, count=count
-            )
-        except BaseException:
-            if slot is not None:
-                slot()
-            raise
-        return binary_response(body, background=BackgroundTask(slot) if slot is not None else None)
-
-    return waveform_call(run, fallback=_map_share_exc)
+    except HTTPException as exc:
+        raise no_store_error(exc) from exc
+    try:
+        body = share_daw_waveform_tiles(
+            token, ref=ref, key=key, level=level, start=start, count=count
+        )
+    except Exception as exc:
+        if slot is not None:
+            slot()
+        raise no_store_error(
+            guest_http_error(exc, logger=log, operation="review waveform tiles")
+        ) from exc
+    except BaseException:
+        if slot is not None:
+            slot()
+        raise
+    return binary_response(body, background=BackgroundTask(slot) if slot is not None else None)
 
 
 @router.get("/api/review/{token}/daw/pending-edits/{edit_id}/cut-suggestion")
@@ -310,7 +302,7 @@ def get_daw_pending_cut_suggestion(token: str, edit_id: str) -> JSONResponse:
     try:
         suggestion = share_pending_cut_suggestion(token, edit_id)
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
     return JSONResponse(suggestion, headers=WAVEFORM_NO_STORE)
 
 
@@ -335,7 +327,7 @@ def get_daw_waveform_snap(
             focus=focus,
         )
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
 
 
 @router.get("/api/review/{token}/daw/audio")
@@ -352,7 +344,7 @@ def get_daw_audio(
     try:
         path = share_daw_audio_path(token, kind=kind, track_id=track_id)
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
     return _audio_file_response(
         token,
         path,
@@ -373,11 +365,14 @@ def get_daw_pending_preview(
     _check_token(token)
     try:
         cached = share_pending_preview_wav_cached(token, edit_id=edit_id, mode=mode)
-        if cached is None:
-            _rate_limit(token, "mutate")
+    except Exception as exc:
+        raise guest_http_error(exc, logger=log, operation="review preview cache") from exc
+    if cached is None:
+        _rate_limit(token, "mutate")
+    try:
         path = share_pending_preview_wav(token, edit_id=edit_id, mode=mode)
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
     return _audio_file_response(
         token,
         path,
@@ -399,11 +394,14 @@ def get_daw_pending_preview_image(
     _check_token(token)
     try:
         cached = share_pending_preview_image_cached(token, edit_id=edit_id, mode=mode, kind=kind)
-        if cached is None:
-            _rate_limit(token, "mutate")
+    except Exception as exc:
+        raise guest_http_error(exc, logger=log, operation="review preview cache") from exc
+    if cached is None:
+        _rate_limit(token, "mutate")
+    try:
         path = share_pending_preview_image(token, edit_id=edit_id, mode=mode, kind=kind)
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
     return _audio_file_response(
         token,
         path,
@@ -424,11 +422,15 @@ def get_daw_audition_context(
     """Windowed hear context: captions + PNG URLs (``play`` + ``view``)."""
     _check_token(token)
     try:
-        if visual and not share_audition_context_cached(token, start=start, end=end):
-            _rate_limit(token, "mutate")
+        cached = not visual or share_audition_context_cached(token, start=start, end=end)
+    except Exception as exc:
+        raise guest_http_error(exc, logger=log, operation="review context cache") from exc
+    if not cached:
+        _rate_limit(token, "mutate")
+    try:
         return share_audition_context_info(token, start=start, end=end, visual=visual)
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
 
 
 @router.get("/api/review/{token}/daw/audition-context-image")
@@ -445,13 +447,16 @@ def get_daw_audition_context_image(
         cached = share_audition_context_image_cached(
             token, start=start, end=end, track_id=track_id, kind=kind
         )
-        if cached is None:
-            _rate_limit(token, "mutate")
+    except Exception as exc:
+        raise guest_http_error(exc, logger=log, operation="review preview cache") from exc
+    if cached is None:
+        _rate_limit(token, "mutate")
+    try:
         path = share_audition_context_image(
             token, start=start, end=end, track_id=track_id, kind=kind
         )
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
     return _audio_file_response(
         token,
         path,
@@ -469,7 +474,7 @@ def get_daw_proxy_manifest(token: str) -> dict[str, Any]:
     try:
         return share_proxy_manifest(token)
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
 
 
 @router.get("/api/review/{token}/daw/proxy/{track_id}/{proxy_hash}/{chunk_idx}")
@@ -479,7 +484,7 @@ def get_daw_proxy_chunk(token: str, track_id: str, proxy_hash: str, chunk_idx: i
     try:
         path = share_proxy_chunk_path(token, track_id, chunk_idx, proxy_hash=proxy_hash)
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
     return _audio_file_response(
         token,
         path,
@@ -509,16 +514,14 @@ def post_daw_render_preview(token: str, request: Request) -> dict[str, Any]:
     try:
         require_guest_render()
         _row, ws = require_share_edit(token)
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
 
     jobs = request.app.state.jobs
     try:
         job = jobs.start_render_preview(ws.path)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        raise guest_http_error(exc, logger=log, operation="review render") from exc
 
     projected = guest_render_job(job, ws.path)
     if projected is None:
@@ -535,11 +538,12 @@ def get_daw_render_preview(token: str, job_id: str, request: Request) -> dict[st
     _rate_limit(token, "read")
     try:
         _row, ws = require_share_edit(token)
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
-    job = guest_render_job(request.app.state.jobs.get_job(job_id), ws.path)
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
+    try:
+        job = guest_render_job(request.app.state.jobs.get_job(job_id), ws.path)
+    except Exception as exc:
+        raise guest_http_error(exc, logger=log, operation="review render status") from exc
     if job is None:
         raise HTTPException(status_code=404, detail="Render preview job not found")
     return {"job": job}
@@ -559,7 +563,7 @@ def get_daw_document_state(
             transcript_words=guest_selects_transcript_words(row.get("capabilities")),
         )["snapshot"]
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
 
 
 @router.post("/api/review/{token}/daw/boundary/context")
@@ -576,7 +580,7 @@ def post_daw_boundary_context(token: str, body: BoundaryContextInput) -> dict[st
                 .model_dump()
             )
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
 
 
 @router.post("/api/review/{token}/daw/document/command")
@@ -601,7 +605,7 @@ def post_daw_document_command(token: str, body: DocumentCommandRequest) -> dict[
             )
         )
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
 
 
 @router.post("/api/review/{token}/daw/media/upload")
@@ -638,14 +642,8 @@ async def post_daw_media_upload(
             chunk_index=chunk_index,
             total_chunks=total_chunks,
         )
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Timeout as exc:
-        raise project_busy_from_timeout(exc) from exc
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"invalid audio: {exc}") from exc
+        raise guest_http_error(exc, logger=log, operation="review media upload") from exc
 
 
 @router.post("/api/review/{token}/comments")
@@ -664,7 +662,7 @@ def post_review_comment(token: str, req: ShareCommentRequest) -> dict[str, Any]:
             track_ids=req.track_ids,
         )
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
     return {"comment": comment}
 
 
@@ -675,7 +673,7 @@ def post_review_reply(token: str, comment_id: str, req: ShareReplyRequest) -> di
     try:
         result = share_add_reply(token, comment_id, body=req.body, author=req.author)
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
     return result
 
 
@@ -698,7 +696,7 @@ def post_review_action_done(
             by=req.by,
         )
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc
 
 
 def _guest_client_id(token: str, client_id: str | None) -> str:
@@ -871,23 +869,17 @@ async def daw_ws(
     name: str | None = Query(None),
 ) -> None:
     """Guest Sharecut Studio dual-plane fanout (Presence inbound; share-token auth)."""
-    restricted = await _admit_review_ws(websocket, token)
-    if restricted is None:
-        return
-    origin = websocket.headers.get("origin")
-    if not restricted and origin:
-        log.debug("guest ws origin token=%s origin=%s", token[:8], origin)
     try:
+        restricted = await _admit_review_ws(websocket, token)
+        if restricted is None:
+            return
         _row, ws_proj = await run_in_threadpool(require_share_cap, token, CAP_VIEW)
-    except PermissionError as exc:
-        await guest_ws_reject(websocket, 4403, str(exc))
-        return
-    except (KeyError, FileNotFoundError):
-        await guest_ws_reject(websocket, 4403, "share not found")
-        return
-
-    conn = await admit_guest_ws(websocket, token, log_label="guest ws")
-    if conn is None:
+        conn = await admit_guest_ws(websocket, token, log_label="guest ws")
+        if conn is None:
+            return
+    except Exception as exc:
+        failure = guest_ws_error(exc, logger=log, operation="review admission")
+        await guest_ws_reject(websocket, failure.close_code, failure.close_reason)
         return
 
     hub = get_hub()
@@ -900,6 +892,7 @@ async def daw_ws(
     session_svc: SessionSyncService | None = None
     guest_client_id: str | None = None
     conn_gen: int | None = None
+    guard = None
 
     try:
         guard = await conn.start(
@@ -1020,6 +1013,17 @@ async def daw_ws(
                 if result.close_reason:
                     await guard.close(4400, result.close_reason)
                     break
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        failure = guest_ws_error(exc, logger=log, operation="review socket")
+        with contextlib.suppress(Exception):
+            if websocket.application_state == WebSocketState.CONNECTING:
+                await guest_ws_reject(websocket, failure.close_code, failure.close_reason)
+            elif guard is not None:
+                await guard.close(failure.close_code, failure.close_reason)
+            else:
+                await websocket.close(code=failure.close_code, reason=failure.detail)
     finally:
         with CancelScope(shield=True):
             try:
@@ -1061,4 +1065,4 @@ def guest_range_audio(token: str, body: RangeAudioInput):
             cache_audio=False,
         )
     except Exception as exc:
-        raise _map_share_exc(exc) from exc
+        raise guest_http_error(exc, logger=log, operation="review request") from exc

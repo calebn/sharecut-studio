@@ -56,6 +56,7 @@ from podcast_mcp.services.session_sync import (
     get_hub,
     sync_db_path,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 LEASE_IN_USE_GRACE_S = 15.0
 _SID_TTL_S = 0.5
@@ -777,12 +778,15 @@ def route_record_ws_message(
 ) -> tuple[dict[str, Any], int]:
     """Dispatch one inbound ``{type: Record}`` frame (commands persist; Signal does not)."""
     if msg.get("type") != "Record":
-        raise ValueError("join_first")
+        raise CodedValueError("join_first", code="invalid_record_request")
     command_type = str(msg.get("command_type") or "")
-    client_seq = int(msg.get("client_seq") or seq)
+    try:
+        client_seq = int(msg.get("client_seq") or seq)
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise CodedValueError("invalid client sequence", code="invalid_record_request") from exc
     if command_type == "Signal":
         if not participant_id:
-            raise ValueError("join_first")
+            raise CodedValueError("join_first", code="invalid_record_request")
         raw_payload = msg.get("payload")
         payload: dict[str, Any] = raw_payload if isinstance(raw_payload, dict) else {}
         echo = svc.signal(
@@ -818,11 +822,14 @@ def apply_record_ws_message(
 ) -> tuple[dict[str, Any], int]:
     """Handle one inbound ``{type: Record}`` frame. Returns (echo, next_seq)."""
     if msg.get("type") != "Record":
-        raise ValueError("join_first")
+        raise CodedValueError("join_first", code="invalid_record_request")
     command_type = str(msg.get("command_type") or "")
     raw_payload = msg.get("payload")
     payload: dict[str, Any] = raw_payload if isinstance(raw_payload, dict) else {}
-    client_seq = int(msg.get("client_seq") or seq)
+    try:
+        client_seq = int(msg.get("client_seq") or seq)
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise CodedValueError("invalid client sequence", code="invalid_record_request") from exc
     cmd = RecordCommand.parse(
         command_type=command_type,
         payload=payload,

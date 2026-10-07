@@ -309,6 +309,16 @@ next pause). An open segment is never read or uploaded while capture may
 still be writing it. Assembled WAV lands in `artifacts/record/acked/` until landing copies it into
 `raw/` and registers clips.
 
+Guest upload operations project pre-ACK service failures through the shared
+guest boundary. `RecordUploadError` is a coded `record_upload_refused` refusal,
+reported as HTTP `400` with path-redacted detail and `X-Sharecut-Error-Code`.
+Unmarked ingest failures return fixed HTTP `500` and log their traceback on the
+host. Consent and lease checks run again after the bounded body read.
+Once ingest acknowledges the file, a subsequent landing failure keeps HTTP
+`200` and the ACK, with `landed=false` and `land_failed=true`. The failure mark
+is scoped to the current file SHA generation. A later landing attempt can recover
+the retained file. Host upload refusals retain their owner detail and HTTP `400`.
+
 Chunks (30 s of PCM each, the final part shorter) `POST` to a **dedicated record
 upload route** gated by `join` (not `edit`, not `POST …/daw/media/upload`).
 Tunnel pass-through to the host only — no relay disk, no object-store
@@ -998,6 +1008,16 @@ open segment waits until it closes); rejoin the same
 token. Copy: "Host offline: still recording locally." Intentional leave /
 lost mic uses **segments** ([Roster changes](#roster-changes-join-leave-rejoin-pause-takes)).
 Producers simply lose audio and reconnect.
+Guest recording setup and unexpected command failures close with `1011` and
+fixed `internal error`, with the original traceback in host logs. The browser
+can reconnect after this transient close. Explicit state and request refusals
+send `code=invalid_state`, safe `detail`, and the domain `error_code`; they leave
+the socket usable, including `project_busy` during command contention. Busy
+admission or setup closes with transient `1013` and fixed busy text, allowing
+reconnection. Persisted snapshot validation errors remain crashes.
+Teardown cancels and awaits pumps, unsubscribes the hub, disconnects the
+connection identity, and releases its admission slot under cancellation shielding.
+
 Non-terminal record errors from the room (`forbidden`, `invalid_state`,
 `rate_limited`, `join_first`, `malformed`, or an unknown code) show a persistent
 alert with a **Dismiss** action under the role line; `room_full` and the

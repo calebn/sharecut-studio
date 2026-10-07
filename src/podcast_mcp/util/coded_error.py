@@ -74,6 +74,10 @@ class CodedFileNotFoundError(CodedError, FileNotFoundError):
     """A missing file or project where the call site raises ``FileNotFoundError``."""
 
 
+class CodedPermissionError(CodedError, PermissionError):
+    """A refused permission where the call site raises ``PermissionError``."""
+
+
 def coded_cause(exc: BaseException) -> CodedError | None:
     """Walk ``exc`` and its ``__cause__`` chain for a ``CodedError``, else ``None``."""
     seen: set[int] = set()

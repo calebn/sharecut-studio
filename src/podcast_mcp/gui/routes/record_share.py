@@ -10,11 +10,13 @@ import secrets
 from typing import Any
 
 from anyio import CancelScope
-from fastapi import APIRouter, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Header, Query, Request, WebSocket, WebSocketDisconnect
 from starlette.concurrency import run_in_threadpool
+from starlette.websockets import WebSocketState
 
 from podcast_mcp.edits.share_capabilities import CAP_JOIN, CAP_MONITOR, has_capability
 from podcast_mcp.edits.share_registry import SHARE_KIND_RECORD
+from podcast_mcp.gui.routes.guest_errors import guest_http_error, guest_ws_error
 from podcast_mcp.gui.routes.guest_ws_common import (
     admit_guest_ws,
     guest_ws_reject,
@@ -40,8 +42,6 @@ from podcast_mcp.services.record import (
     RecordAuthzError,
     RecordRole,
     RecordSessionService,
-    RecordStateError,
-    RecordUploadError,
     RecordUploadService,
     RoomFullError,
     filter_record_event_for_guest,
@@ -52,6 +52,7 @@ from podcast_mcp.services.record import (
 )
 from podcast_mcp.services.remote_mcp import get_host_limiters, host_rate_limit_enabled
 from podcast_mcp.services.session_sync import get_hub
+from podcast_mcp.util.coded_error import CodedKeyError, CodedPermissionError, CodedValueError
 from podcast_mcp.util.ws_limits import GUEST_FRAME_MAX_BYTES
 
 router = APIRouter()
@@ -62,7 +63,10 @@ log = logging.getLogger(__name__)
 def get_record_bootstrap(token: str) -> dict[str, Any]:
     row = check_share_token(token, kind=SHARE_KIND_RECORD)
     rate_limit_share(token, "read")
-    return record_bootstrap(row)
+    try:
+        return record_bootstrap(row)
+    except Exception as exc:
+        raise guest_http_error(exc, logger=log, operation="record bootstrap") from exc
 
 
 @router.get("/api/rec/{token}/features")
@@ -87,29 +91,29 @@ async def record_ws(
     client_id: str | None = Query(None),
     name: str | None = Query(None),
 ) -> None:
-    row = await guest_ws_share_row(websocket, token, kind=SHARE_KIND_RECORD)
-    if row is None:
-        return
-    if not has_capability(row.get("capabilities"), CAP_MONITOR):
-        await guest_ws_reject(websocket, 4403, "monitor capability required")
-        return
-    role_raw = str(row.get("role") or "guest")
-    if role_raw not in ("guest", "producer"):
-        await guest_ws_reject(websocket, 4403, "invalid record role")
-        return
-    role: RecordRole = role_raw  # type: ignore[assignment]
-    session_id = str(row.get("session_id") or "")
-    if not session_id:
-        await guest_ws_reject(websocket, 4403, "record room missing")
-        return
     try:
+        row = await guest_ws_share_row(websocket, token, kind=SHARE_KIND_RECORD)
+        if row is None:
+            return
+        if not has_capability(row.get("capabilities"), CAP_MONITOR):
+            await guest_ws_reject(websocket, 4403, "monitor capability required")
+            return
+        role_raw = str(row.get("role") or "guest")
+        if role_raw not in ("guest", "producer"):
+            await guest_ws_reject(websocket, 4403, "invalid record role")
+            return
+        role: RecordRole = role_raw  # type: ignore[assignment]
+        session_id = str(row.get("session_id") or "")
+        if not session_id:
+            await guest_ws_reject(websocket, 4403, "record room missing")
+            return
         _row, ws_proj = await run_in_threadpool(open_share_workspace, token, kind=SHARE_KIND_RECORD)
-    except (KeyError, FileNotFoundError):
-        await guest_ws_reject(websocket, 4403, "share not found")
-        return
-
-    conn = await admit_guest_ws(websocket, token, log_label="record ws")
-    if conn is None:
+        conn = await admit_guest_ws(websocket, token, log_label="record ws")
+        if conn is None:
+            return
+    except Exception as exc:
+        failure = guest_ws_error(exc, logger=log, operation="record admission")
+        await guest_ws_reject(websocket, failure.close_code, failure.close_reason)
         return
 
     caps = list(row.get("capabilities") or [])
@@ -121,6 +125,7 @@ async def record_ws(
     svc: RecordSessionService | None = None
     joined = False
     q = None
+    guard = None
 
     def _connection_valid() -> bool:
         return (
@@ -230,6 +235,12 @@ async def record_ws(
                         )
                         continue
             try:
+                try:
+                    client_seq = int(msg.get("client_seq") or 1)
+                except (ValueError, TypeError, OverflowError) as exc:
+                    raise CodedValueError(
+                        "invalid client sequence", code="invalid_record_request"
+                    ) from exc
                 if not joined:
                     if command_type != "Join":
                         await guard.send_json(
@@ -248,7 +259,7 @@ async def record_ws(
                         client_id=guest_client_id,
                         connection_id=connection_id,
                         capabilities=caps,
-                        client_seq=int(msg.get("client_seq") or 1),
+                        client_seq=client_seq,
                     )
                     participant_id = str(echo["participant_id"])
                     joined = True
@@ -281,7 +292,7 @@ async def record_ws(
                     client_id=guest_client_id,
                     role=role,
                     participant_id=participant_id,
-                    seq=int(msg.get("client_seq") or 1),
+                    seq=client_seq,
                     capabilities=caps,
                     connection_id=connection_id,
                 )
@@ -305,15 +316,31 @@ async def record_ws(
                     break
             except RoomFullError:
                 await guard.send_json({"plane": "record", "type": "Error", "code": "room_full"})
-            except (RecordStateError, ValueError) as exc:
+            except Exception as exc:
+                failure = guest_ws_error(exc, logger=log, operation="record command")
+                if failure.close_code == 1011:
+                    await guard.close(1011, failure.detail)
+                    break
                 await guard.send_json(
                     {
                         "plane": "record",
                         "type": "Error",
                         "code": "invalid_state",
-                        "detail": str(exc),
+                        "detail": failure.detail,
+                        "error_code": failure.code,
                     }
                 )
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        failure = guest_ws_error(exc, logger=log, operation="record socket")
+        with contextlib.suppress(Exception):
+            if websocket.application_state == WebSocketState.CONNECTING:
+                await guest_ws_reject(websocket, failure.close_code, failure.close_reason)
+            elif guard is not None:
+                await guard.close(failure.close_code, failure.close_reason)
+            else:
+                await websocket.close(code=failure.close_code, reason=failure.detail)
     finally:
         with CancelScope(shield=True):
             try:
@@ -333,13 +360,13 @@ async def record_ws(
 def _guest_upload_ctx(
     token: str,
 ) -> tuple[RecordUploadService, RecordSessionService, str, ProjectWorkspace]:
-    row = check_share_token(token, kind=SHARE_KIND_RECORD)
+    row = lookup_share(token, kind=SHARE_KIND_RECORD)
     if not has_capability(row.get("capabilities"), CAP_JOIN):
-        raise HTTPException(status_code=403, detail="join capability required")
+        raise CodedPermissionError("join capability required", code="record_join_required")
     _, ws = open_share_workspace(token, kind=SHARE_KIND_RECORD)
     session_id = str(row.get("session_id") or "")
     if not session_id:
-        raise HTTPException(status_code=404, detail="no active record room")
+        raise CodedKeyError("no active record room", code="record_room_not_found")
     return (
         RecordUploadService(ws.project),
         RecordSessionService(ws.project, session_id=session_id),
@@ -351,25 +378,19 @@ def _guest_upload_ctx(
 def _require_guest_lease(
     svc: RecordSessionService, token: str, participant_id: str, lease: str
 ) -> str:
-    try:
-        pid = parse_participant_id(participant_id)
-    except RecordUploadError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    pid = parse_participant_id(participant_id)
     if not lease or not svc.verify_lease(pid, lease, token=token):
-        raise HTTPException(status_code=403, detail="invalid lease")
+        raise CodedPermissionError("invalid lease", code="invalid_lease")
     return pid
 
 
 def _require_guest_upload_consent(
     svc: RecordSessionService, pid: str, kind: str | None, take_index: int
 ) -> None:
-    try:
-        parsed = parse_upload_kind(kind)
-    except RecordUploadError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    parsed = parse_upload_kind(kind)
     scoped_take = None if parsed == UPLOAD_KIND_ROOM_TONE else take_index
     if not svc.upload_consented(pid, take_index=scoped_take):
-        raise HTTPException(status_code=403, detail="consent required")
+        raise CodedPermissionError("consent required", code="record_consent_required")
 
 
 @router.get("/api/rec/{token}/upload")
@@ -378,10 +399,14 @@ def get_record_upload_status(
     x_record_participant: str = Header(..., alias="X-Record-Participant"),
     x_record_lease: str = Header(..., alias="X-Record-Lease"),
 ) -> dict[str, Any]:
-    uploader, session, session_id, _ws = _guest_upload_ctx(token)
+    check_share_token(token, kind=SHARE_KIND_RECORD)
     rate_limit_share(token, "read")
-    pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
-    return uploader.status(session_id=session_id, participant_id=pid)
+    try:
+        uploader, session, session_id, _ws = _guest_upload_ctx(token)
+        pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
+        return uploader.status(session_id=session_id, participant_id=pid)
+    except Exception as exc:
+        raise guest_http_error(exc, logger=log, operation="record upload") from exc
 
 
 @router.post("/api/rec/{token}/upload")
@@ -402,35 +427,39 @@ async def post_record_upload(
     x_record_participant: str = Header(..., alias="X-Record-Participant"),
     x_record_lease: str = Header(..., alias="X-Record-Lease"),
 ):
-    uploader, session, session_id, ws = _guest_upload_ctx(token)
+    check_share_token(token, kind=SHARE_KIND_RECORD)
     rate_limit_share(token, "mutate")
-    pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
-    _require_guest_upload_consent(session, pid, kind, take_index)
-
-    def before_ingest() -> None:
-        _require_guest_lease(session, token, x_record_participant, x_record_lease)
+    try:
+        uploader, session, session_id, ws = _guest_upload_ctx(token)
+        pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
         _require_guest_upload_consent(session, pid, kind, take_index)
 
-    return await ingest_record_upload_request(
-        request,
-        uploader,
-        session_id=session_id,
-        participant_id=pid,
-        take_index=take_index,
-        segment_index=segment_index,
-        part_seq=part_seq,
-        sha256=sha256,
-        file_sha256=file_sha256,
-        final=final,
-        expected_parts=expected_parts,
-        join_offset_ms=join_offset_ms,
-        clipping=clipping,
-        clipping_truncated=clipping_truncated,
-        workspace=ws,
-        clip_scope=pid,
-        kind=kind,
-        before_ingest=before_ingest,
-    )
+        def before_ingest() -> None:
+            _require_guest_lease(session, token, x_record_participant, x_record_lease)
+            _require_guest_upload_consent(session, pid, kind, take_index)
+
+        return await ingest_record_upload_request(
+            request,
+            uploader,
+            session_id=session_id,
+            participant_id=pid,
+            take_index=take_index,
+            segment_index=segment_index,
+            part_seq=part_seq,
+            sha256=sha256,
+            file_sha256=file_sha256,
+            final=final,
+            expected_parts=expected_parts,
+            join_offset_ms=join_offset_ms,
+            clipping=clipping,
+            clipping_truncated=clipping_truncated,
+            workspace=ws,
+            clip_scope=pid,
+            kind=kind,
+            before_ingest=before_ingest,
+        )
+    except Exception as exc:
+        raise guest_http_error(exc, logger=log, operation="record upload") from exc
 
 
 @router.delete("/api/rec/{token}/upload")
@@ -440,14 +469,15 @@ def delete_record_upload(
     x_record_participant: str = Header(..., alias="X-Record-Participant"),
     x_record_lease: str = Header(..., alias="X-Record-Lease"),
 ) -> dict[str, Any]:
-    uploader, session, session_id, _ws = _guest_upload_ctx(token)
+    check_share_token(token, kind=SHARE_KIND_RECORD)
     rate_limit_share(token, "mutate")
-    pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
     try:
+        uploader, session, session_id, _ws = _guest_upload_ctx(token)
+        pid = _require_guest_lease(session, token, x_record_participant, x_record_lease)
         parsed = parse_upload_kind(kind)
-    except RecordUploadError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if parsed != UPLOAD_KIND_ROOM_TONE:
-        raise HTTPException(status_code=400, detail="only room_tone can be revoked")
-    uploader.revoke_room_tone(session_id, pid)
-    return {"revoked": True, "kind": UPLOAD_KIND_ROOM_TONE}
+        if parsed != UPLOAD_KIND_ROOM_TONE:
+            raise CodedValueError("only room_tone can be revoked", code="record_upload_refused")
+        uploader.revoke_room_tone(session_id, pid)
+        return {"revoked": True, "kind": UPLOAD_KIND_ROOM_TONE}
+    except Exception as exc:
+        raise guest_http_error(exc, logger=log, operation="record upload") from exc

@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock
 import anyio
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from podcast_mcp.gui.routes import guest_ws_common as common
 from podcast_mcp.gui.routes import record_share, review_share
@@ -278,9 +279,11 @@ def test_failed_guest_claim_preserves_existing_live_presence(shared_workspace, m
                 raise RuntimeError("claim failed before acquisition")
 
             monkeypatch.setattr(SessionSyncService, "claim_client", fail_claim)
-            with pytest.raises(RuntimeError, match="claim failed before acquisition"):
+            with pytest.raises(WebSocketDisconnect) as failure:
                 with client.websocket_connect(path) as failed:
                     failed.receive_json()
+            assert failure.value.code == 1011
+            assert failure.value.reason == "internal error"
             assert any(row["client_id"] == client_id for row in service.snapshot()["clients"])
 
 
@@ -357,3 +360,79 @@ def test_cancelled_claim_reply_cannot_remove_a_newer_guest_connection(
                         assert any(
                             row["client_id"] == client_id for row in service.snapshot()["clients"]
                         )
+
+
+@pytest.mark.parametrize("kind", ["review", "record"])
+@pytest.mark.parametrize("stage", ["admission", "setup"])
+@pytest.mark.parametrize("busy_type", ["sqlite", "timeout"])
+def test_guest_socket_busy_is_transient_and_releases_admission(
+    shared_workspace, monkeypatch, caplog, kind, stage, busy_type
+):
+    import sqlite3
+
+    from filelock import Timeout
+
+    from podcast_mcp.services.document_sync import document_hub_key
+    from podcast_mcp.services.record import record_hub_key
+    from podcast_mcp.services.session_sync import get_hub
+
+    error = (
+        sqlite3.OperationalError("database is locked")
+        if busy_type == "sqlite"
+        else Timeout("/private/host/session.lock")
+    )
+
+    def busy(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setenv("PODCAST_GUEST_WS_CONCURRENT", "1")
+    reset_host_limiters_for_tests()
+    if kind == "review":
+        token = review_token(shared_workspace)
+        path = f"/api/review/{token}/daw/ws"
+        symbol = "require_share_cap" if stage == "admission" else "SessionSyncService"
+        monkeypatch.setattr(review_share, symbol, busy)
+    else:
+        token = ShareService(shared_workspace).create_record_room()["guest"]["token"]
+        path = f"/api/rec/{token}/ws"
+        symbol = "open_share_workspace" if stage == "admission" else "RecordSessionService"
+        monkeypatch.setattr(record_share, symbol, busy)
+    with pytest.raises(WebSocketDisconnect) as failure:
+        with TestClient(create_app()).websocket_connect(path) as socket:
+            socket.receive_json()
+    assert failure.value.code == 1013
+    assert failure.value.reason == (
+        "Project is busy in another process; try again"
+        if busy_type == "sqlite"
+        else "This project is busy; try again"
+    )
+    assert not [r for r in caplog.records if r.exc_info]
+    keys = (
+        [str(shared_workspace.project.workspace_path()), document_hub_key(shared_workspace.project)]
+        if kind == "review"
+        else [record_hub_key(shared_workspace.project)]
+    )
+    assert all(get_hub().listener_count(key) == 0 for key in keys)
+    limiter = common.get_host_limiters().guest_ws_concurrent
+    assert limiter.try_enter(token).allowed
+    limiter.exit(token)
+
+
+def test_guest_review_revocation_during_admission_remains_terminal(
+    shared_workspace, monkeypatch, caplog
+):
+    token = review_token(shared_workspace)
+    admit = review_share._admit_review_ws
+
+    async def admit_then_revoke(websocket, token):
+        restricted = await admit(websocket, token)
+        ShareService(shared_workspace).revoke(token)
+        return restricted
+
+    monkeypatch.setattr(review_share, "_admit_review_ws", admit_then_revoke)
+    with pytest.raises(WebSocketDisconnect) as failure:
+        with TestClient(create_app()).websocket_connect(f"/api/review/{token}/daw/ws") as socket:
+            socket.receive_json()
+    assert failure.value.code == 4403
+    assert failure.value.reason == "invalid or revoked share token"
+    assert not [r for r in caplog.records if r.exc_info]

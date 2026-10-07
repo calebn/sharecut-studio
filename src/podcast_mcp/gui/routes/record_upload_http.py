@@ -7,7 +7,7 @@ import logging
 from collections.abc import Callable
 from typing import Annotated, Any, Literal
 
-from fastapi import HTTPException, Query, Request
+from fastapi import Query, Request
 from starlette.responses import JSONResponse
 
 from podcast_mcp.services.app import ProjectWorkspace
@@ -20,7 +20,6 @@ from podcast_mcp.services.record import (
     UPLOAD_KIND_ROOM_TONE,
     RecordLandingError,
     RecordLandingService,
-    RecordUploadError,
     RecordUploadService,
     parse_upload_kind,
 )
@@ -84,11 +83,8 @@ async def ingest_record_upload_request(
     clipping_truncated: bool = False,
     before_ingest: Callable[[], None] | None = None,
 ) -> dict[str, Any] | JSONResponse:
-    try:
-        parsed_kind = parse_upload_kind(kind)
-        limit = record_upload_body_limit(parsed_kind)
-    except RecordUploadError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    parsed_kind = parse_upload_kind(kind)
+    limit = record_upload_body_limit(parsed_kind)
     try:
         data = await read_body_capped(request, limit)
     except BodyTooLarge as exc:
@@ -97,26 +93,23 @@ async def ingest_record_upload_request(
         # Re-check authorization after the (possibly slow) body read so a
         # consent change that landed mid-upload stops this part.
         before_ingest()
-    try:
-        result = await asyncio.to_thread(
-            uploader.ingest_part,
-            session_id=session_id,
-            take_index=take_index,
-            participant_id=participant_id,
-            segment_index=segment_index,
-            part_seq=part_seq,
-            data=data,
-            digest=sha256,
-            file_sha256=file_sha256,
-            final=final,
-            expected_parts=expected_parts,
-            join_offset_ms=join_offset_ms,
-            kind=parsed_kind,
-            clipping=clipping,
-            clipping_truncated=clipping_truncated,
-        )
-    except RecordUploadError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    result = await asyncio.to_thread(
+        uploader.ingest_part,
+        session_id=session_id,
+        take_index=take_index,
+        participant_id=participant_id,
+        segment_index=segment_index,
+        part_seq=part_seq,
+        data=data,
+        digest=sha256,
+        file_sha256=file_sha256,
+        final=final,
+        expected_parts=expected_parts,
+        join_offset_ms=join_offset_ms,
+        kind=parsed_kind,
+        clipping=clipping,
+        clipping_truncated=clipping_truncated,
+    )
     if result.get("newly_acked") and workspace is not None:
         status_take = ROOM_TONE_TAKE_INDEX if parsed_kind == UPLOAD_KIND_ROOM_TONE else take_index
         status_segment = (

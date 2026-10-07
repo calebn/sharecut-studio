@@ -223,24 +223,6 @@ def test_waveform_call_maps_lock_timeout_to_project_busy_without_logging(caplog)
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
 
-def test_waveform_call_does_not_log_mapped_client_errors(caplog):
-    from fastapi import HTTPException
-
-    from podcast_mcp.gui.routes.waveform import waveform_call
-
-    def denied():
-        raise PermissionError("share lacks view")
-
-    with (
-        caplog.at_level(logging.ERROR, logger="podcast_mcp.gui.routes.waveform"),
-        pytest.raises(HTTPException) as info,
-    ):
-        waveform_call(denied, fallback=lambda _e: HTTPException(status_code=403, detail="no"))
-    assert info.value.status_code == 403
-    assert info.value.headers["Cache-Control"] == "no-store"
-    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
-
-
 def test_tiles_route_corrupt_pyramid_is_404_no_store(tmp_path):
     project_path = waveform_project(tmp_path)
     client = TestClient(create_app())

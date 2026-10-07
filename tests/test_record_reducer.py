@@ -455,7 +455,11 @@ def test_recording_ms_handles_inconsistent_take() -> None:
 
 
 def test_payload_validation_rejects_blank_names() -> None:
-    with pytest.raises(ValueError, match="display_name"):
+    from pydantic import ValidationError
+
+    from podcast_mcp.util.coded_error import CodedValueError
+
+    with pytest.raises(CodedValueError, match="invalid record payload") as failure:
         RecordCommand.parse(
             command_type="Join",
             payload={"display_name": "   "},
@@ -464,7 +468,10 @@ def test_payload_validation_rejects_blank_names() -> None:
             participant_id="p_g",
             client_seq=1,
         )
-    with pytest.raises(ValueError, match="display_name"):
+    assert failure.value.code == "invalid_record_request"
+    assert isinstance(failure.value.__cause__, ValidationError)
+    assert failure.value.__cause__.errors()[0]["loc"] == ("display_name",)
+    with pytest.raises(CodedValueError, match="invalid record payload") as failure:
         RecordCommand.parse(
             command_type="UpdateName",
             payload={"display_name": ""},
@@ -473,6 +480,9 @@ def test_payload_validation_rejects_blank_names() -> None:
             participant_id="p_g",
             client_seq=1,
         )
+    assert failure.value.code == "invalid_record_request"
+    assert isinstance(failure.value.__cause__, ValidationError)
+    assert failure.value.__cause__.errors()[0]["loc"] == ("display_name",)
     with pytest.raises(ValueError, match="unknown record command"):
         RecordCommand.parse(
             command_type="Nope",
@@ -497,7 +507,7 @@ def test_payload_validation_rejects_blank_names() -> None:
     authorize_record_command(
         role="guest", capabilities=["join", "monitor", "comment"], command_type="Comment"
     )
-    with pytest.raises(ValueError, match="invalid comment id"):
+    with pytest.raises(CodedValueError, match="invalid record payload") as failure:
         RecordCommand.parse(
             command_type="Comment",
             payload={"id": "bad id", "body": "Marker", "pressed_wall_ms": 1},
@@ -506,6 +516,9 @@ def test_payload_validation_rejects_blank_names() -> None:
             participant_id="p_g",
             client_seq=1,
         )
+    assert failure.value.code == "invalid_record_request"
+    assert isinstance(failure.value.__cause__, ValidationError)
+    assert failure.value.__cause__.errors()[0]["loc"] == ("id",)
     leave = RecordCommand(
         type="Leave",
         payload={},

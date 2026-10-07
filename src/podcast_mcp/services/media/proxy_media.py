@@ -18,6 +18,7 @@ from podcast_mcp.engines.timeline_render import render_source_with_chain
 from podcast_mcp.models import EpisodeProject, TrackProxy
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media.review_media import presign_ttl_seconds
+from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedKeyError
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.object_store import (
     ObjectStoreClient,
@@ -111,7 +112,7 @@ def ensure_track_proxy(ws: ProjectWorkspace, track_id: str) -> TrackProxy:
     """Render FX source-clock WAV and encode overlapping MP3 chunks if needed."""
     track = ws.project.track_by_id(track_id)
     if track is None:
-        raise KeyError(f"track not found: {track_id}")
+        raise CodedKeyError(f"track not found: {track_id}", code="track_not_found")
     hash_ = proxy_render_hash(ws.project, track_id)
     out_dir = proxy_dir(ws, track_id, hash_)
     if (
@@ -317,12 +318,12 @@ def local_proxy_chunk_path(
 ) -> Path:
     track = ws.project.track_by_id(track_id)
     if track is None or track.proxy is None:
-        raise KeyError("proxy not available")
+        raise CodedKeyError("proxy not available", code="proxy_not_found")
     if expected_hash is not None and track.proxy.hash != expected_hash:
-        raise KeyError("proxy hash mismatch")
+        raise CodedKeyError("proxy hash mismatch", code="proxy_not_found")
     if chunk_idx < 0 or chunk_idx >= track.proxy.chunk_count:
-        raise KeyError("chunk not found")
+        raise CodedKeyError("chunk not found", code="proxy_not_found")
     path = proxy_dir(ws, track_id, track.proxy.hash) / f"{chunk_idx:05d}.mp3"
     if not path.is_file():
-        raise FileNotFoundError("chunk not found")
+        raise CodedFileNotFoundError("chunk not found", code="proxy_not_found")
     return path

@@ -17,6 +17,7 @@ from podcast_mcp.services.document_sync.capabilities import (
     edit_commands_allowed,
     suggestions_allowed,
 )
+from podcast_mcp.util.coded_error import CodedPermissionError
 
 # Commands that can create a pending edit; ``_apply`` stamps the submitter's author.
 AUTHORED_COMMANDS: frozenset[str] = frozenset(
@@ -41,12 +42,18 @@ def resolve_structural_mode(
     if requested == StructuralMutationMode.PROPOSE.value:
         if caps is None or suggestions_allowed(caps):
             return StructuralMutationMode.PROPOSE
-        raise PermissionError("share capabilities do not allow structural timeline mutations")
+        raise CodedPermissionError(
+            "share capabilities do not allow structural timeline mutations",
+            code="share_capability_required",
+        )
     if caps is None or edit_commands_allowed(caps):
         return StructuralMutationMode.APPLY
     if suggestions_allowed(caps):
         return StructuralMutationMode.PROPOSE
-    raise PermissionError("share capabilities do not allow structural timeline mutations")
+    raise CodedPermissionError(
+        "share capabilities do not allow structural timeline mutations",
+        code="share_capability_required",
+    )
 
 
 def resolve_range_mode(
@@ -89,7 +96,9 @@ def authorize_pending_update(
         return
     if suggestions_allowed(caps) and author is not None and edit_author == author:
         return
-    raise PermissionError("Commenters may retime only their own suggestions")
+    raise CodedPermissionError(
+        "Commenters may retime only their own suggestions", code="share_capability_required"
+    )
 
 
 def range_reason(
