@@ -286,7 +286,10 @@ flowchart TD
    clears. The saving panel reads "Saving to project… N of M chunks" where all
    totals are known, then "Saved to project" once the host holds the verified
    file. It warns the guest to keep the tab open until then, lists each segment
-   ("Take 1 segment 2: Saving to project…") when there are several, and offers
+   ("Take 1 segment 2: Saving to project…") when there are several, each line
+   appearing as its upload starts and flipping to "Saved to project" as it
+   finishes (a screen reader hears each start and finish politely, not each
+   chunk), and offers
    **Resume saving** and **Download full-quality recording** for an incomplete
    or stalled take. The host's panel shows the same two states for every
    recorded participant and segment. Download produces one ZIP containing all
