@@ -162,6 +162,44 @@ describe("rankHitTargets", () => {
   });
 });
 
+describe("a body", () => {
+  // Clip B's body, under every target at its start.
+  const body: HitTarget = {
+    kind: "clip",
+    id: "clip-b",
+    rect: { left: 200, top: 106, right: 600, bottom: 206 },
+    selected: true,
+  };
+
+  it("is the one candidate, where the pointer is, when the pointer is on it and nothing else is in reach", () => {
+    expect(
+      rankHitTargets([body, chapter], { x: 400, y: 150 }, 22, body).map(
+        (r) => r.candidate,
+      ),
+    ).toEqual([
+      {
+        kind: "clip",
+        id: "clip-b",
+        x: 400,
+        y: 150,
+        distance: 0,
+        priority: 1,
+        selected: true,
+      },
+    ]);
+  });
+
+  it("gives way to any target in reach, though it is selected", () => {
+    expect(ranked([body, trimIn], 22, body).map((c) => c.kind)).toEqual([
+      "trim-in",
+    ]);
+  });
+
+  it("counts only as the element the browser hit, never by reach", () => {
+    expect(ranked([body], 22)).toEqual([]);
+  });
+});
+
 describe("corePoint", () => {
   it("is the centre of a square and the centre line of a strip", () => {
     expect(corePoint(seam.rect, { x: 0, y: 0 })).toEqual({ x: 200, y: 140 });

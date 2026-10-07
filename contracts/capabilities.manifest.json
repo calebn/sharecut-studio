@@ -2477,7 +2477,10 @@
         "mcp": [
           "move_clips_tool"
         ],
-        "cli": "podcast edit move-clips"
+        "cli": "podcast edit move-clips",
+        "touch": [
+          "long-press-arm-drag"
+        ]
       },
       "omit": {
         "keyboard_reason": "pointer clip-body drag; arrow keys stay playhead nudge"

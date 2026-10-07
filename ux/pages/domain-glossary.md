@@ -32,7 +32,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **No mix yet** | No mix has been rendered (never rendered, or a failed render left none), so Full mix plays nothing until the host refreshes it. Shown in place of Mix out of date |
 | **Mix out of date** | Mix preview is behind recent edits — refresh/re-render. Export re-mixes and re-masters a stale mix itself; publishing a review version asks you to refresh first |
 | **Ripple** | A trim that moves every later clip on the track to close the change. A wave mark and the word "Ripple" show it while you drag; a grab at a join rolls the join instead |
-| **Armed (touch)** | With the touch chooser lab on, a long press picks up one timeline target; only it drags, along its own axes, until you lift. A second finger cancels it |
+| **Armed (touch)** | With the touch chooser lab on, a long press picks up one timeline target, such as a fade, an envelope point or a whole clip; only it drags, along its own axes, until you lift. A second finger cancels it |
 | **Create menu (touch)** | A long press on empty timeline space: add an envelope point, a blade cut, a chapter or a comment at that time |
 | **Bleed / suppress** | Wrong-mic words hidden so cuts don’t follow bleed |
 | **Bleed gate** | Reduce verified wrong-mic audio while retaining speech and uncertain audio. Suppressing a word alone does not mute it. A selected gate region follows its original audio through later edits. |

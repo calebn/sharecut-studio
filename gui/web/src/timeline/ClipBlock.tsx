@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import { rollClipJoin } from "../api";
 import {
@@ -34,6 +35,7 @@ import {
   type ClipHitHandlers,
 } from "./ClipBlockView";
 import { clipBlockGeometry } from "./clipBlockGeometry";
+import { HIT_KINDS } from "./inputContract";
 import { useHoldTimelineMetrics } from "./timelineMetrics";
 import { useClipEdgeHandles } from "./useClipEdgeHandles";
 import { WaveformLayer } from "./WaveformLayer";
@@ -182,10 +184,23 @@ export function ClipBlockLive({
   const pointerHandledRef = useRef(false);
   const bodyCallbacks = useRef({ onMoveCancel, onBodyEnd, onRangeGesture });
   bodyCallbacks.current = { onMoveCancel, onBodyEnd, onRangeGesture };
+  /** A move is pressed against the session start, a clip's hard limit. */
+  const bodyAtLimit = useRef(false);
+  const [bodyBumped, setBodyBumped] = useState(false);
+  const markBodyLimit = useCallback((limited: boolean) => {
+    if (limited === bodyAtLimit.current) return;
+    bodyAtLimit.current = limited;
+    setBodyBumped(limited);
+    if (limited)
+      useDawStore
+        .getState()
+        .announceStatus(`${HIT_KINDS.clip.label} is at its limit`);
+  }, []);
   const cancelBodyDrag = useCallback(() => {
     const drag = bodyRef.current;
     if (!drag) return;
     bodyRef.current = null;
+    markBodyLimit(false);
     drag.stopListening();
     if (drag.target.hasPointerCapture?.(drag.pointerId))
       drag.target.releasePointerCapture(drag.pointerId);
@@ -201,7 +216,7 @@ export function ClipBlockLive({
         );
     } else bodyCallbacks.current.onMoveCancel?.(drag.clip.id);
     bodyCallbacks.current.onBodyEnd?.(drag.clip.id);
-  }, []);
+  }, [markBodyLimit]);
   useLayoutEffect(() => () => cancelBodyDrag(), [cancelBodyDrag]);
 
   useLayoutEffect(() => {
@@ -522,8 +537,10 @@ export function ClipBlockLive({
       onRangeGesture?.("move", e, d);
       return;
     }
+    const deltaSec = (e.clientX - d.originX) / zoomPxPerSec;
+    markBodyLimit(clip.timeline_start + deltaSec < 0);
     onMovePreview?.(clip.id, {
-      deltaSec: (e.clientX - d.originX) / zoomPxPerSec,
+      deltaSec,
       clientX: e.clientX,
       clientY: e.clientY,
       extraTicks: extraTicks(),
@@ -540,6 +557,7 @@ export function ClipBlockLive({
       return;
     }
     bodyRef.current = null;
+    markBodyLimit(false);
     d.stopListening();
     bodyCallbacks.current.onBodyEnd?.(d.clip.id);
     if (d.rangeCandidate) {
@@ -681,7 +699,7 @@ export function ClipBlockLive({
       onHandleBlur={edgeHandles.onBlur}
       onHandleKeyDown={edgeHandles.onKeyDown}
       onHandleKeyUp={edgeHandles.onKeyUp}
-      bumpedHandle={edgeHandles.bumped}
+      bumpedHandle={bodyBumped ? "clip" : edgeHandles.bumped}
     />
   );
 }

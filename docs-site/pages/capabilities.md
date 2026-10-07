@@ -110,7 +110,7 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Previous low-confidence word | `transcript.prevLowConfidence` | — (no industry-standard key (#649); command palette) | — | `transcript.lowConfidencePrev` | — | — | `podcast-transcript-correct` | — | anchor · look |
 | Show cut away | `view.showCutAway` | — (toolbar toggle; no industry-standard key) | — | `transcript.showCutAway` | — | — | — | — | none · none |
 | Trim clip edge | `edit.trimClipEdge` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.trimHandle` | `trim_clip_edge_tool` | `podcast edit trim-clip` | — | — | time · none |
-| Move clips | `edit.moveClips` | — (pointer clip-body drag; arrow keys stay playhead nudge) | — | `timeline.clip.body` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |
+| Move clips | `edit.moveClips` | — (pointer clip-body drag; arrow keys stay playhead nudge) | `long-press-arm-drag` | `timeline.clip.body` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |
 | Add chapter at playhead | `edit.addChapter` | — (no default shortcut; Menu › Markers or the phone More action) | `long-press-empty` | `transport.menu`, `mobileShell.more`, `timeline.createMenu` | — | — | — | yes | none · none |
 | Add envelope point | `envelope.addPoint` | — (touch create menu; the envelope inspector's Add point is the keyboard route) | `long-press-empty` | `timeline.createMenu` | — | — | — | — | time · none |
 | Comment here | `comment.draftAt` | — (touch create menu; comment mode on the ruler is the pointer route) | `long-press-empty` | `timeline.createMenu` | — | — | — | — | time · none |
