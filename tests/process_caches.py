@@ -40,6 +40,9 @@ SHARED: dict[str, str] = {
         "Keyed by project path and file revision."
     ),
     "podcast_mcp.services.document.play:_stem_mix_trim_db": "Keyed by stems and ceiling.",
+    "podcast_mcp.edits.room_tone:_track_floor": (
+        "Keyed by path and file revision; reads only the decoded audio, never VAD."
+    ),
 }
 
 
