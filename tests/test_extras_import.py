@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+from github_yaml import load_github_yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 
 # Modules each extra must make importable, matching how src/ imports them.
@@ -122,3 +124,12 @@ def test_extra_imports_in_clean_venv(extra: str, tmp_path: Path) -> None:
         check=False,
     )
     assert probe.returncode == 0, f"extra [{extra}] failed to import:\n{probe.stderr[-4000:]}"
+
+
+def test_extras_workflow_runs_the_clean_venv_check() -> None:
+    workflow = load_github_yaml(ROOT / ".github" / "workflows" / "extras-import.yml")
+    steps = workflow["jobs"]["extras"]["steps"]
+    run = next(s for s in steps if "extras_install" in s.get("run", ""))
+    assert run["env"]["PODCAST_CHECK_EXTRAS"] == "1"
+    assert "tests/test_extras_import.py" in run["run"]
+    assert "schedule" in workflow["on"]

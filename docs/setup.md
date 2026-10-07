@@ -83,7 +83,7 @@ Smaller heavy subsets when you do not need everything:
 
 ```bash
 uv sync --extra speaker          # torch + speechbrain
-uv sync --extra speaker-lite     # resemblyzer (+ numba)
+uv sync --extra speaker-lite     # resemblyzer (+ numba, setuptools<82)
 uv sync --extra joinqc           # torch + librosa + transformers
 ```
 
@@ -112,12 +112,20 @@ podcast doctor
 | `relay` | fastapi ≥0.116.1, starlette ≥0.47, uvicorn, websockets ≥14 | `podcast-relay` edge process |
 | `object-store` | boto3 | Optional S3-compatible review media (also pulled by `gui`) |
 | `speaker` | torch, speechbrain | Enrollment speaker attribution — **large** |
-| `speaker-lite` | resemblyzer (+ numba floor) | Lighter speaker embeddings |
+| `speaker-lite` | resemblyzer (+ numba floor, `setuptools<82`) | Lighter speaker embeddings. Resemblyzer's `webrtcvad` dependency imports `pkg_resources`, which setuptools 82 removed, so the extra pins `setuptools<82` (#1168) |
 | `joinqc` | torch, librosa, transformers | Optional neural join continuity — **large** |
 | `prosody` | `praat-parselmouth` (Praat in Python; no torch) | `analyze_prosody` pipeline step / `audition_context` prosody window — [pipeline.md § Prosody profile](pipeline.md#prosody-profile) |
 | `all` | union of runtime extras (not `dev`) | Same as `uv sync --all-extras` for product stacks; add `--extra dev` for tooling — expect multi‑GB torch/CUDA on Linux |
 
 `./install.sh` installs `dev` + `gui` + `bootstrap` + `relay` + `prosody`. It deliberately skips `speaker` / `joinqc` / `all`.
+
+**Clean-install check.** `pip install "podcast-mcp[extra]"` ignores `uv.lock`, so an extra can break on a newer transitive release while a locked `uv sync` still works (#1168). `tests/test_extras_import.py` builds a fresh unlocked venv per extra, installs the project with it, and imports the modules the code uses. It is opt-in because it downloads wheels. The path-filtered, weekly `extras-import` workflow runs it; run one extra locally with:
+
+```bash
+PODCAST_CHECK_EXTRAS=1 uv run pytest --no-cov -k speaker-lite tests/test_extras_import.py
+```
+
+A new extra must be added to `EXTRA_IMPORTS` in that file; a fast test fails otherwise.
 
 ### Bootstrap cache downloads (`podcast bootstrap`)
 
