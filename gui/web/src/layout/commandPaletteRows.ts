@@ -1,14 +1,14 @@
 /**
  * Builds the command palette's rows from the command catalog (the single
- * source), with each command's shortcut and remap from the live keymap
- * registry. It imports the store-bound registry at runtime, so
+ * source), with each command's shortcut (in the Menu's platform form, ⌘⇧E
+ * or Ctrl+Shift+E) and remap from the live keymap registry. It imports the store-bound registry at runtime, so
  * CommandPaletteView.tsx and its stories import the store-free model from
  * `paletteSearch.ts` instead.
  */
 import { COMMANDS, listCatalogIds } from "../commands/catalog";
 import { type CommandContext, evaluateWhen } from "../commands/context";
 import {
-  formatShortcutKeys,
+  displayShortcutFor,
   KEYMAP_CATEGORY_ORDER,
   keymapCommandById,
 } from "../keymap/registry";
@@ -41,7 +41,7 @@ export function paletteCommands(ctx: CommandContext): PaletteCommand[] {
         id: def.id,
         label: def.label,
         category: def.category,
-        shortcut: keyed ? formatShortcutKeys(keyed) : null,
+        shortcut: displayShortcutFor(def.id) ?? null,
         ...(keyed ? { defaultKey: keyed.keys[0] } : {}),
         ...(keyed?.collision ? { note: keyed.collision } : {}),
         disabledReason: gate.ok ? null : gate.reason,

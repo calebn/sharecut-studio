@@ -345,8 +345,10 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
   color: var(--color-text-secondary);
 }
 
-/* Lines up under a checkbox label, past the 1rem box and its gap. */
+/* Lines up under a checkbox label, past the 1rem box and its gap, and sits
+   against the row it explains rather than midway to the next one. */
 .export-dialog-indent {
+  margin-block: calc(-1 * var(--space-3)) var(--space-3);
   padding-inline-start: calc(1rem + var(--space-4));
 }
 
