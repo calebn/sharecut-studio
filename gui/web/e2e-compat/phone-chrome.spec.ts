@@ -117,6 +117,18 @@ test("a phone in portrait keeps Undo and Redo on the tool row and five lanes", a
     expect(redoBox!.x + redoBox!.width).toBeLessThanOrEqual(
       railBox!.x + railBox!.width,
     );
+    // The Select/Blade track grows with its 44px buttons instead of leaving
+    // them hanging below it (impeccable pass on the rebased phone shell).
+    const track = rail.locator(".tool-mode-toggle");
+    const trackBox = (await track.boundingBox())!;
+    for (const tool of await track.getByRole("button").all()) {
+      const box = (await tool.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.y).toBeGreaterThanOrEqual(trackBox.y - 0.5);
+      expect(box.y + box.height).toBeLessThanOrEqual(
+        trackBox.y + trackBox.height + 0.5,
+      );
+    }
     // The ingest buttons give way on a rail this narrow; Menu and More keep them.
     await expect(rail.getByRole("button", { name: "Import" })).toBeHidden();
 

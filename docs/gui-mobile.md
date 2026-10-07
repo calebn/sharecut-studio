@@ -102,21 +102,24 @@ held sideways) compact the editor:
 Measured in Playwright WebKit with the iPhone 17 Pro Max descriptor, the touch
 lab on and the timeline maximized (px of lanes above the rail or the strip;
 2-track demo, so capacity is usable height over lane height). The After column
-was measured again after rebasing onto main with the edit modes (#1154); the
-strip shows a tapped clip's name and span:
+was measured again after rebasing onto main with the edit modes (#1154), and
+its strip-closed rows once more after rebasing onto the #1161 navigation work,
+when the rail's Select/Blade track grew 6px to hold its 44px buttons (the
+strip covers the rail, so its rows did not move); the strip shows a tapped
+clip's name and span:
 
 | Viewport | Before: lane, usable, capacity | After: lane, usable, capacity |
 |---|---|---|
-| 838×390 sideways, Safari bars | 104, 211, 2 | 72, 234, 3 |
+| 838×390 sideways, Safari bars | 104, 211, 2 | 72, 228, 3 |
 | 838×390 with the strip open | 104, 151, 1 | 72, 187, 2 |
-| 932×432 sideways, bars hidden | 104, 253, 2 | 72, 276, 3 |
+| 932×432 sideways, bars hidden | 104, 253, 2 | 72, 270, 3 |
 | 932×432 with the strip open | 104, 193, 1 | 72, 229, 3 |
-| 440×763 portrait, Safari bars | 104, 550, 5 | 104, 550, 5 |
+| 440×763 portrait, Safari bars | 104, 550, 5 | 104, 544, 5 |
 
 Portrait gives up nothing. The first round's Undo and Redo wrapped to a second
 rail row at 440px and narrower (498px usable, 4 lanes). Now the pair is a
 non-wrapping unit and **+ Track** and **Import** give way on a rail at most
-30rem wide, so the rail stays one 61px row at 440, 390 and 360px.
+30rem wide, so the rail stays one 67px row at 440, 390 and 360px.
 
 `e2e-compat/phone-chrome.spec.ts` checks three 72px lanes at 932×432, Undo and
 Redo on both shells, and the runway with a still shell, in Chromium and WebKit.
@@ -421,7 +424,7 @@ The host recording chip remains a full touch target in the collapsed tablet tran
 
 ### Editing tool rail (phone / tablet Timeline)
 
-Ferrite-style bottom rail (`EditingToolRail`): **Select | Blade** icon toggle (structural guests), **Cut at playhead**, and a confirm sheet for blade cuts (tracks + timecode). **Undo** and **Redo** icon buttons close the rail at its inline end for the host and `edit` guests (#1077, the #1028 phone scope): bottom zone, beside the tools they reverse, through `history.undo` / `history.redo` on the command bus (`runHistoryAction`, which also announces a failure). Each is a 44px square. With nothing to undo or redo it is dimmed and disabled, the platform convention; a screen reader hears why ("Nothing to undo", "Nothing to redo") through `aria-describedby`, and a mouse or pen sees it as the tooltip. The pair never wraps or shrinks (`flex: none`), and buttons never break their labels. In a rail at most 30rem wide (`@container app`, so a phone in portrait) **+ Track** and **Import** leave the rail, because the row cannot hold them beside Undo and Redo without wrapping and costing the lanes 52px; both stay in Menu → Media and in More. Wider rails keep them. An unavailable Undo or Redo is `aria-disabled`, not `disabled`, so a finger can tap it: the tap shows the reason ("Nothing to undo", "Nothing to redo") in a note floating above the rail's inline end for a few seconds (the rail's `role="status"` line, so it is also announced), without moving the lanes or taking their touches. The two-finger tap and More → History remain. **Comment** stays on the collapsed transport so Listen/More still have it (compact `ToolModeToggle` omits Comment to avoid a duplicate). Desktop uses the expanded transport toggle (**V** / **C** when timeline-focused; same `execute` command bus as the rail — see `gui/web/src/keymap/` + `gui/web/src/commands/`); in blade mode a pointer-following cut preview marks target lanes, and click on **clip / empty-lane / ruler** splits immediately (no confirm sheet). Multi-track selection: Shift/Cmd-click track headers; blade with no selection targets all dialogue tracks.
+Ferrite-style bottom rail (`EditingToolRail`): **Select | Blade** icon toggle (structural guests; its track grows to hold the 44px touch buttons rather than leave them hanging below it), **Cut at playhead**, and a confirm sheet for blade cuts (tracks + timecode). **Undo** and **Redo** icon buttons close the rail at its inline end for the host and `edit` guests (#1077, the #1028 phone scope): bottom zone, beside the tools they reverse, through `history.undo` / `history.redo` on the command bus (`runHistoryAction`, which also announces a failure). Each is a 44px square. With nothing to undo or redo it is dimmed and disabled, the platform convention; a screen reader hears why ("Nothing to undo", "Nothing to redo") through `aria-describedby`, and a mouse or pen sees it as the tooltip. The pair never wraps or shrinks (`flex: none`), and buttons never break their labels. In a rail at most 30rem wide (`@container app`, so a phone in portrait) **+ Track** and **Import** leave the rail, because the row cannot hold them beside Undo and Redo without wrapping and costing the lanes 52px; both stay in Menu → Media and in More. Wider rails keep them. An unavailable Undo or Redo is `aria-disabled`, not `disabled`, so a finger can tap it: the tap shows the reason ("Nothing to undo", "Nothing to redo") in a note floating above the rail's inline end for a few seconds (the rail's `role="status"` line, so it is also announced), without moving the lanes or taking their touches. The two-finger tap and More → History remain. **Comment** stays on the collapsed transport so Listen/More still have it (compact `ToolModeToggle` omits Comment to avoid a duplicate). Desktop uses the expanded transport toggle (**V** / **C** when timeline-focused; same `execute` command bus as the rail — see `gui/web/src/keymap/` + `gui/web/src/commands/`); in blade mode a pointer-following cut preview marks target lanes, and click on **clip / empty-lane / ruler** splits immediately (no confirm sheet). Multi-track selection: Shift/Cmd-click track headers; blade with no selection targets all dialogue tracks.
 
 Labeled audition/pills do not stay in the bar when collapsed — that was clipping Comment/Fit/Menu off-screen. The **Mix out of date** pill is wide-bar only; collapsed transport keeps timecode pinned (`flex: 0 0 auto`) and moves refresh into Menu so digits cannot paint over status. A missing mix is the same single status, reworded: the pill, the Menu's refresh item and the phone status chip read **No mix yet** (**No mix yet · Refresh** where the person can refresh; a guest sees **No mix yet** only) instead of **Mix out of date**. The Menu's Mix status section adds "Full mix is silent until you refresh the mix." above the refresh item, and the wide bar puts the same reason on the Full mix segment.
 

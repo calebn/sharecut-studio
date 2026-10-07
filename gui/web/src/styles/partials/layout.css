@@ -699,7 +699,10 @@ html[data-shell] body {
   min-height: 2rem;
 }
 
-.tool-mode-toggle--compact {
+/* The compact track grows with its buttons: on touch they take the full
+   44pt target, and a fixed-height track (the shared .ui-segmented
+   control-height, which loads after this partial) left them hanging below it. */
+.ui-segmented.tool-mode-toggle--compact {
   block-size: auto;
 }
 
