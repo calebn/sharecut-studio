@@ -126,7 +126,7 @@ for (const width of [1440, 360]) {
       ["templates-hostmcpdialog", "ready"],
       ["templates-sharedialog", "empty"],
       ["templates-bouncedialog", "ready"],
-      ["templates-commandpalette", "category-tab"],
+      ["templates-commandpalette", "browse"],
       ["templates-editingtoolrail", "confirm-all-dialogue"],
     ]) {
       test(`${family} contains its portaled dialog in Docs at ${width} in ${theme}`, async ({
