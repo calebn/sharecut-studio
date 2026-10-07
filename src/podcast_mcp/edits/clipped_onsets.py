@@ -1,50 +1,59 @@
 """Word starts still missing from their own track after alignment (#1059).
 
-Bleed is never used as audio for another speaker (#945, #1037). So where a speaker's own
-track opens after their voice has already reached another mic, the start of that word is
-missing from the mix: a call app's gate opened late, or the lane sits at an offset
-``align_tracks`` could not solve or did not apply. This finds each such word from audio,
-moves its start to where its own track opens (the start it had before stays in
-``snapped_from``), and leaves a timeline comment so the host can re-record, keep or edit
-around it.
+Bleed is never used as audio for another speaker (#945, #1037). So where a call app's
+gate opens partway into a word, the start of that word is missing from the mix. This
+finds each such word from audio, moves its start to where its own track opens (the start
+it had before stays in ``snapped_from``), and leaves a timeline comment so the host can
+re-record, keep or edit around it.
 
-Everything is read on the timeline, after alignment, from level envelopes on the
-bleed-latency grid (``FRAME_SEC`` frames every ``HOP_SEC``). Every level threshold is
-relative to what the episode measures about itself:
+A word that reached another mic before its own track opened is not always clipped. The
+track may simply play it late: the word is whole on its own track, just behind its copy.
+That is an alignment residual, so the pass reports it per lane and never moves the word.
+
+Everything is read on the timeline, after alignment, from level envelopes: the
+bleed-latency grid (``FRAME_SEC`` frames every ``HOP_SEC``) and a finer attack grid
+(``ATTACK_FRAME_SEC`` frames every ``ATTACK_HOP_SEC``). Every level threshold is relative
+to what the episode measures about itself:
 
 * **Copy path.** An ordered pair whose direct track follows its copy on the other mic at
   one lag (``bleed_latency.measure_pair``: consistent or drifting), re-measured where the
-  lanes now sit, so an aligned lane reads about 0 and an unaligned one its offset. A pair
-  with no lag (scattered or no bleed) cannot tell the lane's copy from the mic's own sound,
-  so it never flags. The coupling is the median of mic minus direct level over the frames
-  that measurement uses; the spread is their 95th percentile less the coupling.
+  lanes now sit. A pair with no lag (scattered or no bleed) cannot tell the lane's copy
+  from the mic's own sound, so it never reports. The coupling is the median of mic minus
+  direct level over the frames that measurement uses.
 * **Opening.** The lane's own track rises ``OPEN_MARGIN_DB`` over its floor (its
   ``FLOOR_PERCENTILE`` level) after at least ``MIN_CLOSED_SEC`` below it, and stays up
-  ``MIN_OPEN_SEC``.
-* **Copy onset.** The mic reaches the copy's level less ``SPEECH_DROP_DB``. The copy's
-  level is the lane's peak over its first ``PEAK_SEC`` plus the coupling. The walk starts
-  at the copy of the lane's own speech onset (its peak less the same drop, at the path's
-  lag) and runs back through the mic's sound, no further than the lane's closure or
-  ``MAX_LAG_SEC``. Both onsets are read at the same depth under their own level, so a copy
-  that only follows the direct sound never leads it.
-* **Flag.** The copy onset leads the opening by more than the alignment tolerance
-  (``align.bleed_lag_tolerance_sec``): a lead align itself would call aligned is not a
-  missing start, and the tolerance is more than one level frame, the grid both onsets
-  are read on. The mic's sound must also be the lane's copy, not the mic's own speaker:
+  ``MIN_OPEN_SEC``. Over its first ``PEAK_SEC`` the lane out-levels the mic by
+  ``DOMINANCE_DB``, the margin ``measure_pair`` needs to count a frame as copy only.
+* **Copy onset.** The mic reaches the copy's level less ``SPEECH_DROP_DB``. The walk
+  starts at the copy of the lane's own speech onset and runs back through the mic's sound,
+  no further than the lane's closure or ``MAX_LAG_SEC``. Both onsets are read at the same
+  depth under their own level. A copy onset that leads the opening by more than the
+  alignment tolerance (``align.bleed_lag_tolerance_sec``) is a *copy lead*.
+* **Content shift.** The lane's first ``CONTENT_SEC`` after the opening is correlated with
+  the mic at every shift from 0 to the lead. The best shift is how late the lane plays that
+  sound (``late_sec``); it counts only at ``MIN_CORRELATION``, the match ``envelope_lag``
+  needs to call a lag supported.
+* **Attack.** The track's level over its first ``ATTACK_SEC`` after it opens, less the
+  word's peak. The lane's *attack profile* is that entry over every opening its copy shows
+  whole (the copy onset, at the path's lag, does not lead). An opening is *abrupt* when its
+  entry is over the profile's ``PROFILE_PERCENTILE``: it jumps from the gate straight to
+  the word's level, which none of the lane's whole word starts do. A lane with fewer than
+  ``MIN_PROFILE_STARTS`` whole starts has no profile, so nothing on it is abrupt.
 
-  - over the lane's first ``PEAK_SEC`` the lane out-levels the mic at the lag by
-    ``DOMINANCE_DB``, the margin ``measure_pair`` needs to count a frame as copy only;
-  - before the opening the mic is no louder than the copy can be (copy level plus
-    spread);
-  - no third lane is open over most of the lead (``THIRD_LANE_SHARE``);
-  - the mic's own transcript has no word over the lead other than this word's copy.
+A copy lead is then:
 
-The flagged word is the first word of the lane's transcript whose original start falls
-inside the closure and that ends after the opening, reading starts ``WORD_SLACK_SEC``
-either side. A word that started well before the closure already had its own audio. An
-opening with no such word (a laugh, a breath) is not flagged.
+- **Clipped** when the content matches with the lane not late past the tolerance, the
+  opening is abrupt, and the lead less the late shift is still past the tolerance: the
+  track opened mid-word. The word gets its own comment and its start moves to the opening.
+- **Late** when the content matches with the lane late past the tolerance: the word is
+  whole, just late. Each lane gets one comment listing its late starts, pointing at
+  alignment, and the step summary reports them. No word moves.
+- Neither otherwise: the early sound on the mic is not this word's start.
 
-A word a person re-timed (``timing_edited``) is never flagged or moved, and its open comment is withdrawn.
+The word is the first word of the lane's transcript whose original start falls inside the
+closure and that ends after the opening, reading starts ``WORD_SLACK_SEC`` either side. An
+opening with no such word (a laugh, a breath) is not reported. A word a person re-timed
+(``timing_edited``) is never flagged or moved, and its open comment is withdrawn.
 
 The pass is idempotent. Each run first puts every moved start back on ``snapped_from``,
 judges the words at those original times, and moves only the words it flags again, so the
@@ -52,20 +61,18 @@ transcript depends on where the lanes sit now, never on earlier runs. Comments f
 same rule: a run keeps, moves or withdraws its own open comments and never touches one
 someone resolved, answered or ticked. A word's comment id comes from the word itself (its
 lane, recording and original start), so a re-run that finds the opening a few ms away
-keeps the same comment. A lane that sits late against the mic (the path's lag over the
-tolerance) is the cause of every start it misses, so it gets one comment listing them.
+keeps the same comment; a lane's comment id comes from the lane.
 """
 
 from __future__ import annotations
 
 import itertools
 import logging
-import statistics
 import subprocess
 import wave
 from collections import Counter
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -81,14 +88,19 @@ from podcast_mcp.edits.bleed_latency import (
 )
 from podcast_mcp.edits.comments import add_comment, delete_comment, update_comment
 from podcast_mcp.edits.conversation_align import LATENCY_RATE
-from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB, level_envelope_db
+from podcast_mcp.engines.envelope_lag import (
+    LEVEL_FLOOR_DB,
+    MIN_CORRELATION,
+    level_envelope_db,
+    shift_correlations,
+)
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.ungated_audio import raw_timeline_samples
 from podcast_mcp.models import EpisodeProject, TimelineComment, TrackRole, TranscriptWord
 from podcast_mcp.util.dsp import bool_runs, bridge_short_dips
 from podcast_mcp.util.hashing import short_digest
-from podcast_mcp.util.text import count_noun, lexicon_form
-from podcast_mcp.util.timebase import SourceSec, clock_label
+from podcast_mcp.util.text import count_noun
+from podcast_mcp.util.timebase import clock_label
 
 log = logging.getLogger(__name__)
 
@@ -112,14 +124,35 @@ MIN_CLOSED_SEC = 0.1
 MIN_OPEN_SEC = 2 * FRAME_SEC
 # The head of a word: one syllable, about 200 ms.
 PEAK_SEC = 0.2
+# Two syllables: enough shape after the opening that one shift of it wins, where a single
+# syllable's rise and fall would match almost any shift.
+CONTENT_SEC = 2 * PEAK_SEC
 # Dips shorter than one level frame are the frame grid, not silence.
 BRIDGE_SEC = FRAME_SEC
+# Attack grid: 5 ms frames every 1 ms resolve a voice's own attack, which takes tens of
+# ms to reach the word's level; a gate opening into a word gets there within one frame.
+ATTACK_FRAME_SEC = 0.005
+ATTACK_HOP_SEC = 0.001
+# The entry is read over the first two attack frames after the track opens.
+ATTACK_SEC = 2 * ATTACK_FRAME_SEC
+# Abrupt is shallower than 95% of the lane's own whole word starts: the loudest-entering
+# natural starts (a hard consonant) still set the bar, so only an entry none of them
+# reaches counts.
+PROFILE_PERCENTILE = 95
+# A 95th percentile needs about 20 values before it sits below the single largest one.
+MIN_PROFILE_STARTS = 20
 # Whisper and the forced aligner put word starts on gated tracks up to about a syllable
 # off (#979), so word starts are read that far either side of the closure.
 WORD_SLACK_SEC = 0.25
-# A third lane open over most of the lead may be what the mic hears there.
-THIRD_LANE_SHARE = 0.5
 _PUNCTUATION = ' .,;:!?"“”'
+
+
+@dataclass(frozen=True)
+class Levels:
+    """Timeline level envelopes per lane: the bleed-latency grid and the attack grid."""
+
+    grid: Mapping[str, np.ndarray]
+    attack: Mapping[str, np.ndarray]
 
 
 @dataclass(frozen=True)
@@ -130,14 +163,15 @@ class CopyPath:
     mic_track_id: str
     lag_sec: float
     coupling_db: float
-    spread_db: float
 
 
 @dataclass(frozen=True)
-class ClippedOnset:
-    """A lane's track opens at ``open_sec`` after its copy reached ``mic`` at ``copy_sec``.
+class CopyLead:
+    """A lane's track opens at ``open_sec`` after its sound reached ``mic`` at ``copy_sec``.
 
     Timeline seconds; the lane's own track is closed from ``closed_sec`` to ``open_sec``.
+    The lane's sound after the opening matches the mic's ``late_sec`` earlier (correlation
+    ``match_r``); ``abrupt`` says the track opened at the word's level with no attack.
     """
 
     track_id: str
@@ -145,21 +179,30 @@ class ClippedOnset:
     closed_sec: float
     copy_sec: float
     open_sec: float
-    lag_sec: float
+    late_sec: float
+    match_r: float
+    abrupt: bool
 
     @property
     def missing_sec(self) -> float:
-        return self.open_sec - self.copy_sec
+        """How much of the word's start, in the lane's own time, its track never played."""
+        return self.open_sec - self.copy_sec - self.late_sec
+
+    def clipped(self, tolerance_sec: float) -> bool:
+        return self.match_r >= MIN_CORRELATION and self.abrupt and self.missing_sec > tolerance_sec
+
+    def late(self, tolerance_sec: float) -> bool:
+        return self.match_r >= MIN_CORRELATION and self.late_sec > tolerance_sec
 
 
 @dataclass(frozen=True)
 class FlaggedWord:
-    """One word whose start ``onset`` found missing from its own track.
+    """One word whose start ``lead`` found missing from its own track.
 
     ``original_start`` and ``opens`` are source seconds on the word's recording.
     """
 
-    onset: ClippedOnset
+    lead: CopyLead
     source_id: str | None
     original_start: float
     opens: float
@@ -167,8 +210,52 @@ class FlaggedWord:
 
     @property
     def comment_id(self) -> str:
-        identity = f"{self.onset.track_id}|{self.source_id or ''}|{self.original_start:.3f}"
+        identity = f"{self.lead.track_id}|{self.source_id or ''}|{self.original_start:.3f}"
         return COMMENT_ID_PREFIX + short_digest(identity, 12)
+
+
+@dataclass(frozen=True)
+class LateStart:
+    """One word whole on its own track but ``lead.late_sec`` behind its copy."""
+
+    lead: CopyLead
+    text: str
+
+
+@dataclass(frozen=True)
+class OnsetReport:
+    """What one run found: clipped words (flagged and moved) and late ones (reported)."""
+
+    flagged: list[FlaggedWord] = field(default_factory=list)
+    late: list[LateStart] = field(default_factory=list)
+
+    def note(self) -> str:
+        """The step-summary clauses, or ``""`` when nothing was found."""
+        parts = []
+        if len(self.flagged) == 1:
+            parts.append("1 word start missing from its own track (see comments)")
+        elif self.flagged:
+            parts.append(
+                f"{len(self.flagged)} word starts missing from their own track (see comments)"
+            )
+        for track_id, lates in _by_track(self.late).items():
+            shortest, longest = (_ms(f(s.lead.late_sec for s in lates)) for f in (min, max))
+            spread = f"{shortest}" if shortest == longest else f"{shortest}-{longest}"
+            parts.append(
+                f"{track_id}: {count_noun(len(lates), 'word start')} late on its own track "
+                f"({spread} ms; alignment residual, see comments)"
+            )
+        return "; ".join(parts)
+
+
+@dataclass(frozen=True)
+class _Copied:
+    """An opening (grid frames) whose copy on the mic starts at ``copy``."""
+
+    closed: int
+    first: int
+    copy: int
+    peak_db: float
 
 
 @dataclass(frozen=True)
@@ -180,6 +267,13 @@ class _Note:
     start: float
     end: float
     body: str
+
+
+def _by_track(late: list[LateStart]) -> dict[str, list[LateStart]]:
+    out: dict[str, list[LateStart]] = {}
+    for item in late:
+        out.setdefault(item.lead.track_id, []).append(item)
+    return out
 
 
 def _at_lag(env: np.ndarray, lag: int) -> np.ndarray:
@@ -203,13 +297,10 @@ def copy_paths(levels: Mapping[str, np.ndarray]) -> list[CopyPath]:
             continue
         copy = _at_lag(other, round(pair.lag_sec / HOP_SEC))
         used = (own > OPEN_DB) & (own - copy >= DOMINANCE_DB)
-        gap = copy[used] - own[used]
-        if gap.size == 0:
-            continue
-        coupling = float(np.median(gap))
-        paths.append(
-            CopyPath(source, mic, pair.lag_sec, coupling, float(np.percentile(gap, 95)) - coupling)
-        )
+        if used.any():
+            paths.append(
+                CopyPath(source, mic, pair.lag_sec, float(np.median(copy[used] - own[used])))
+            )
     return paths
 
 
@@ -225,28 +316,27 @@ def _openings(opened: np.ndarray, own: np.ndarray) -> list[tuple[int, int, np.nd
     return out
 
 
-def _path_onsets(
+def _copied_openings(
     path: CopyPath,
-    levels: Mapping[str, np.ndarray],
+    grid: Mapping[str, np.ndarray],
     floors: Mapping[str, float],
     opened: Mapping[str, np.ndarray],
-    tolerance_sec: float,
-) -> Iterator[ClippedOnset]:
-    own, mic = levels[path.source_track_id], levels[path.mic_track_id]
+) -> Iterator[_Copied]:
+    """Each opening of the path's lane whose copy on the mic shows where it starts."""
+    own, mic = grid[path.source_track_id], grid[path.mic_track_id]
     count = min(own.size, mic.size)
     lag = round(path.lag_sec / HOP_SEC)
     copy = _at_lag(mic[:count], lag)
     bridge = round(BRIDGE_SEC / HOP_SEC)
-    others = [opened[t] for t in levels if t not in (path.source_track_id, path.mic_track_id)]
     for closed, first, head in _openings(opened[path.source_track_id][:count], own):
         lo = max(closed - min(lag, 0), first - round(MAX_LAG_SEC / HOP_SEC))
-        threshold = float(head.max()) + path.coupling_db - SPEECH_DROP_DB
-        loudest = float(head.max()) + path.coupling_db + path.spread_db
+        peak = float(head.max())
+        threshold = peak + path.coupling_db - SPEECH_DROP_DB
         if threshold <= floors[path.mic_track_id] + OPEN_MARGIN_DB:
             continue
         if np.median(head - copy[first : first + head.size]) < DOMINANCE_DB:
             continue
-        speech = first + int(np.argmax(head >= head.max() - SPEECH_DROP_DB)) - lag
+        speech = first + int(np.argmax(head >= peak - SPEECH_DROP_DB)) - lag
         start = max(lo, speech - bridge)
         hits = np.flatnonzero(mic[start : max(start, first + head.size - lag)] >= threshold)
         if hits.size == 0:
@@ -255,39 +345,95 @@ def _path_onsets(
         sounding = bridge_short_dips(mic[lo : k + 1] >= threshold, bridge)
         while k > lo and sounding[k - 1 - lo]:
             k -= 1
-        if (
-            k <= lo
-            or (first - k) * HOP_SEC <= tolerance_sec
-            or mic[k : max(k + 1, speech)].max() > loudest
-            or any(other[k:first].mean() > THIRD_LANE_SHARE for other in others)
-        ):
-            continue
-        yield ClippedOnset(
-            path.source_track_id,
-            path.mic_track_id,
-            closed * HOP_SEC,
-            k * HOP_SEC,
-            first * HOP_SEC,
-            path.lag_sec,
-        )
+        if k > lo:
+            yield _Copied(closed, first, k, peak)
 
 
-def clipped_onsets(
-    levels: Mapping[str, np.ndarray], paths: list[CopyPath], *, tolerance_sec: float
-) -> list[ClippedOnset]:
+def _entry_db(attack: np.ndarray, floor: float, first: int, peak_db: float) -> float | None:
+    """The track's level over its first ``ATTACK_SEC`` open, less the word's peak.
+
+    The opening is found on the attack grid within one grid frame of grid frame ``first``.
+    """
+    at = first * HOP_SEC
+    lo = max(0, round((at - FRAME_SEC) / ATTACK_HOP_SEC))
+    above = np.flatnonzero(
+        attack[lo : round((at + FRAME_SEC) / ATTACK_HOP_SEC)] >= floor + OPEN_MARGIN_DB
+    )
+    if above.size == 0:
+        return None
+    k = lo + int(above[0])
+    return float(attack[k : k + round(ATTACK_SEC / ATTACK_HOP_SEC)].max()) - peak_db
+
+
+def _late_frames(own: np.ndarray, mic: np.ndarray, first: int, reach: int) -> tuple[int, float]:
+    """Frames by which the lane's sound after ``first`` trails the mic's, and its match.
+
+    Shifts run from 0 to ``reach``; equal matches resolve to the smaller shift.
+    """
+    width = round(CONTENT_SEC / HOP_SEC)
+    frames = np.arange(first, min(first + width, own.size, mic.size))
+    scores = shift_correlations(own, mic, frames, -np.arange(reach + 1), frames.size)
+    if np.isnan(scores).all():
+        return 0, 0.0
+    best = int(np.nanargmax(scores))
+    return best, float(scores[best])
+
+
+def copy_leads(levels: Levels, paths: list[CopyPath], *, tolerance_sec: float) -> list[CopyLead]:
     """Openings whose copy on another mic leads them, one per opening (its earliest copy)."""
-    floors = {t: float(np.percentile(env, FLOOR_PERCENTILE)) for t, env in levels.items()}
+    grid = levels.grid
+    floors = {t: float(np.percentile(env, FLOOR_PERCENTILE)) for t, env in grid.items()}
+    attack_floors = {
+        t: float(np.percentile(env, FLOOR_PERCENTILE)) for t, env in levels.attack.items()
+    }
     bridge = round(BRIDGE_SEC / HOP_SEC)
     opened = {
-        t: bridge_short_dips(env >= floors[t] + OPEN_MARGIN_DB, bridge) for t, env in levels.items()
+        t: bridge_short_dips(env >= floors[t] + OPEN_MARGIN_DB, bridge) for t, env in grid.items()
     }
-    found: dict[tuple[str, float], ClippedOnset] = {}
+    tolerance = round(tolerance_sec / HOP_SEC)
+
+    def entry(track_id: str, copied: _Copied) -> float | None:
+        attack = levels.attack[track_id]
+        return _entry_db(attack, attack_floors[track_id], copied.first, copied.peak_db)
+
+    whole: dict[str, dict[int, float]] = {t: {} for t in grid}
+    leads: dict[tuple[str, int], tuple[CopyPath, _Copied]] = {}
     for path in paths:
-        for onset in _path_onsets(path, levels, floors, opened, tolerance_sec):
-            key = (onset.track_id, onset.open_sec)
-            if key not in found or onset.copy_sec < found[key].copy_sec:
-                found[key] = onset
-    return sorted(found.values(), key=lambda o: (o.open_sec, o.track_id))
+        lane, lag = path.source_track_id, round(path.lag_sec / HOP_SEC)
+        for copied in _copied_openings(path, grid, floors, opened):
+            if copied.first - copied.copy - lag <= tolerance:
+                value = entry(lane, copied)
+                if value is not None:
+                    whole[lane][copied.first] = value
+            key = (lane, copied.first)
+            if copied.first - copied.copy > tolerance and (
+                key not in leads or copied.copy < leads[key][1].copy
+            ):
+                leads[key] = (path, copied)
+    bars = {
+        lane: float(np.percentile(list(entries.values()), PROFILE_PERCENTILE))
+        for lane, entries in whole.items()
+        if len(entries) >= MIN_PROFILE_STARTS
+    }
+    out = []
+    for (lane, first), (path, copied) in leads.items():
+        value = entry(lane, copied)
+        late, match = _late_frames(
+            grid[lane], grid[path.mic_track_id], first, first - copied.copy + tolerance
+        )
+        out.append(
+            CopyLead(
+                lane,
+                path.mic_track_id,
+                copied.closed * HOP_SEC,
+                copied.copy * HOP_SEC,
+                first * HOP_SEC,
+                late * HOP_SEC,
+                match,
+                value is not None and lane in bars and value > bars[lane],
+            )
+        )
+    return sorted(out, key=lambda o: (o.open_sec, o.track_id))
 
 
 def _original_start(word: TranscriptWord) -> float:
@@ -315,79 +461,35 @@ def _word_at(words: list[TranscriptWord], closed: float, opens: float) -> Transc
 
 
 class _Lanes:
-    """The selected transcripts of each dialogue lane and where their words sit."""
+    """The selected transcripts of each dialogue lane."""
 
     def __init__(self, project: EpisodeProject, lanes: list[str]) -> None:
         self.timeline = SessionTimeline(project)
         self.transcripts = {lane: project.selected_source_transcripts(lane) for lane in lanes}
-        self._timeline_words: dict[str, list[tuple[float, float, TranscriptWord]]] = {}
 
     def words(self) -> Iterator[TranscriptWord]:
         for transcripts in self.transcripts.values():
             for _source_id, transcript in transcripts:
                 yield from transcript.words
 
-    def timeline_words(self, lane: str) -> list[tuple[float, float, TranscriptWord]]:
-        """The lane's words at their original times, mapped onto the timeline."""
-        if lane not in self._timeline_words:
-            rows: list[tuple[float, float, TranscriptWord]] = []
-            for source_id, transcript in self.transcripts.get(lane, []):
-                bounds = [
-                    (SourceSec(_original_start(w)), SourceSec(w.end)) for w in transcript.words
-                ]
-                mapped = self.timeline.map_selected_source_spans(lane, source_id, bounds)
-                rows.extend(
-                    (float(spans[0][0]), float(spans[-1][1]), w)
-                    for w, spans in zip(transcript.words, mapped, strict=True)
-                    if spans
-                )
-            self._timeline_words[lane] = rows
-        return self._timeline_words[lane]
-
-    def flag(
-        self, onset: ClippedOnset, tolerance_sec: float
-    ) -> tuple[FlaggedWord, TranscriptWord] | None:
-        """The word holding ``onset``'s opening, unless the mic's own speaker made the lead."""
+    def word_at(self, lead: CopyLead) -> tuple[str | None, TranscriptWord, float] | None:
+        """``(recording, word, opening in source seconds)`` for the word ``lead`` opens on."""
         span = next(
             (
                 s
-                for s in self.timeline.lane_clip_spans(onset.track_id)
-                if s.timeline_start <= onset.open_sec < s.timeline_end
+                for s in self.timeline.lane_clip_spans(lead.track_id)
+                if s.timeline_start <= lead.open_sec < s.timeline_end
             ),
             None,
         )
         if span is None:
             return None
-        transcript = dict(self.transcripts.get(onset.track_id, [])).get(span.clip.source_id)
+        transcript = dict(self.transcripts.get(lead.track_id, [])).get(span.clip.source_id)
         if transcript is None:
             return None
-        opens = float(span.source_start) + onset.open_sec - float(span.timeline_start)
-        closed = opens - (onset.open_sec - onset.closed_sec)
-        word = _word_at(transcript.words, closed, opens)
-        if word is None or word.timing_edited or self._mic_speaks(onset, word, tolerance_sec):
-            return None
-        source_id = span.clip.source_id
-        return FlaggedWord(onset, source_id, _original_start(word), opens, _display(word)), word
-
-    def _mic_speaks(self, onset: ClippedOnset, word: TranscriptWord, tolerance_sec: float) -> bool:
-        """Whether the mic's transcript has its own speaker's word over the lead.
-
-        A word there is the mic's copy of this word when it reads the same, or when
-        reconciliation already gave it to this lane's speaker; any other word is the mic's
-        own speaker, so the lead may be theirs. Overlaps within the alignment tolerance
-        are timing noise.
-        """
-        text = lexicon_form(word.text)
-        for start, end, other in self.timeline_words(onset.mic_track_id):
-            overlap = min(end, onset.open_sec) - max(start, onset.copy_sec)
-            if (
-                overlap > tolerance_sec
-                and not other.ignored
-                and other.dominant_track != onset.track_id
-                and lexicon_form(other.text) != text
-            ):
-                return True
-        return False
+        opens = float(span.source_start) + lead.open_sec - float(span.timeline_start)
+        word = _word_at(transcript.words, opens - (lead.open_sec - lead.closed_sec), opens)
+        return None if word is None else (span.clip.source_id, word, opens)
 
 
 def _speaker(project: EpisodeProject, track_id: str) -> str:
@@ -401,48 +503,41 @@ def _ms(sec: float) -> int:
 
 
 def _word_note(project: EpisodeProject, flagged: FlaggedWord) -> _Note:
-    onset = flagged.onset
-    who, mic = _speaker(project, onset.track_id), _speaker(project, onset.mic_track_id)
+    lead = flagged.lead
+    who, mic = _speaker(project, lead.track_id), _speaker(project, lead.mic_track_id)
     body = (
-        f"{who}'s “{flagged.text}” starts {_ms(onset.missing_sec)} ms before {who}'s track "
+        f"{who}'s “{flagged.text}” starts {_ms(lead.missing_sec)} ms before {who}'s track "
         f"opens. That start is only on {mic}'s mic, and another mic is never used as {who}'s "
         "audio, so the word may sound clipped. Listen, then re-record it, keep it, or edit "
         "around it."
     )
-    return _Note(flagged.comment_id, onset.track_id, onset.copy_sec, onset.open_sec, body)
+    start = lead.copy_sec + lead.late_sec
+    return _Note(flagged.comment_id, lead.track_id, start, lead.open_sec, body)
 
 
-def _lane_note(project: EpisodeProject, track_id: str, flagged: list[FlaggedWord]) -> _Note:
-    """One comment for every start a late lane misses: the lane is the cause."""
-    first = flagged[0].onset
-    mic_id = Counter(f.onset.mic_track_id for f in flagged).most_common(1)[0][0]
+def _lane_note(project: EpisodeProject, track_id: str, late: list[LateStart]) -> _Note:
+    """One comment for every start a lane plays late: alignment is the cause."""
+    first = late[0].lead
+    mic_id = Counter(s.lead.mic_track_id for s in late).most_common(1)[0][0]
     who, mic = _speaker(project, track_id), _speaker(project, mic_id)
-    lag = _ms(statistics.median(f.onset.lag_sec for f in flagged))
-    count = len(flagged)
-    starts = ", ".join(f"{clock_label(f.onset.copy_sec)} “{f.text}”" for f in flagged)
-    verb, these, them = ("is", "this word", "it") if count == 1 else ("are", "these words", "them")
+    count = len(late)
+    starts = ", ".join(
+        f"{clock_label(s.lead.copy_sec)} “{s.text}” ({_ms(s.lead.late_sec)} ms)" for s in late
+    )
+    each, it = ("The word is", "it") if count == 1 else ("Each word is", "them")
     body = (
-        f"{who}'s track runs about {lag} ms behind {mic}'s mic, so "
-        f"{count_noun(count, 'word start')} {verb} only on {mic}'s mic: {starts}. Another "
-        f"mic is never used as {who}'s audio, so {these} may sound clipped. Aligning "
-        f"{who}'s track would fix {them}; re-running Align tracks then withdraws this "
-        "comment. Otherwise listen, then re-record, keep, or edit around each word."
+        f"{who}'s track runs late against {mic}'s mic at {count_noun(count, 'word start')}: "
+        f"{starts}. {each} whole on {who}'s track but plays that late in the mix, so this "
+        f"is left over from alignment, not a clipped start. Aligning {who}'s track there "
+        f"would fix {it}; re-running Align tracks then withdraws this comment."
     )
     note_id = LANE_COMMENT_ID_PREFIX + short_digest(track_id, 12)
     return _Note(note_id, track_id, first.copy_sec, first.open_sec, body)
 
 
-def _notes(
-    project: EpisodeProject, flagged: list[FlaggedWord], tolerance_sec: float
-) -> list[_Note]:
-    late: dict[str, list[FlaggedWord]] = {}
-    notes = []
-    for f in flagged:
-        if f.onset.lag_sec > tolerance_sec:
-            late.setdefault(f.onset.track_id, []).append(f)
-        else:
-            notes.append(_word_note(project, f))
-    notes.extend(_lane_note(project, track, words) for track, words in late.items())
+def _notes(project: EpisodeProject, report: OnsetReport) -> list[_Note]:
+    notes = [_word_note(project, f) for f in report.flagged]
+    notes.extend(_lane_note(project, t, late) for t, late in _by_track(report.late).items())
     return notes
 
 
@@ -514,57 +609,61 @@ def _snap(lanes: _Lanes, moved: Mapping[int, float]) -> None:
             word.start, word.snapped_from = original, None
 
 
-def _timeline_levels(project: EpisodeProject, lanes: list[str]) -> dict[str, np.ndarray]:
+def timeline_levels(project: EpisodeProject, lanes: list[str]) -> Levels:
+    """Both envelopes of each lane where it now sits, from one read of its audio."""
     sources: dict = {}
-    return {
-        lane: level_envelope_db(
-            raw_timeline_samples(project, lane, sources=sources, sample_rate=LATENCY_RATE),
-            sample_rate=LATENCY_RATE,
-            frame_sec=FRAME_SEC,
-            hop_sec=HOP_SEC,
+    grid: dict[str, np.ndarray] = {}
+    attack: dict[str, np.ndarray] = {}
+    for lane in lanes:
+        samples = raw_timeline_samples(project, lane, sources=sources, sample_rate=LATENCY_RATE)
+        grid[lane] = level_envelope_db(
+            samples, sample_rate=LATENCY_RATE, frame_sec=FRAME_SEC, hop_sec=HOP_SEC
         )
-        for lane in lanes
-    }
+        attack[lane] = level_envelope_db(
+            samples, sample_rate=LATENCY_RATE, frame_sec=ATTACK_FRAME_SEC, hop_sec=ATTACK_HOP_SEC
+        )
+    return Levels(grid, attack)
 
 
 def flag_clipped_word_starts(
     project: EpisodeProject, defaults: dict[str, Any] | None = None
-) -> list[FlaggedWord]:
-    """Flag, snap and comment every word whose start is missing from its own track.
+) -> OnsetReport:
+    """Flag, snap and comment every clipped word start; report every late one per lane.
 
-    Everything is judged before anything changes. Undecodable audio flags nothing and
+    Everything is judged before anything changes. Undecodable audio reports nothing and
     leaves existing comments and moved starts alone. With fewer than two dialogue lanes
-    no start can be missing, so open flags are withdrawn and moved starts restored.
+    no start can be missing, so open comments are withdrawn and moved starts restored.
     """
     tolerance = float(
         (defaults or {}).get("align", {}).get("bleed_lag_tolerance_sec", TOLERANCE_SEC)
     )
     lane_ids = [t.id for t in project.tracks if t.role == TrackRole.DIALOGUE]
     lanes = _Lanes(project, lane_ids)
-    onsets: list[ClippedOnset] = []
+    leads: list[CopyLead] = []
     if len(lane_ids) >= 2:
         try:
-            levels = _timeline_levels(project, lane_ids)
+            levels = timeline_levels(project, lane_ids)
         except (OSError, ValueError, wave.Error, subprocess.CalledProcessError) as exc:
             log.debug("clipped word starts skipped: %s", exc)
-            return []
-        onsets = clipped_onsets(levels, copy_paths(levels), tolerance_sec=tolerance)
-    flagged: list[FlaggedWord] = []
+            return OnsetReport()
+        leads = copy_leads(levels, copy_paths(levels.grid), tolerance_sec=tolerance)
+    report = OnsetReport()
     moved: dict[int, float] = {}
-    for onset in onsets:
-        found = lanes.flag(onset, tolerance)
-        if found is None or id(found[1]) in moved:
+    reported: set[int] = set()
+    for lead in leads:
+        found = lanes.word_at(lead)
+        if found is None:
             continue
-        flagged.append(found[0])
-        moved[id(found[1])] = found[0].opens
-    notes = _notes(project, flagged, tolerance)
+        source_id, word, opens = found
+        if lead.late(tolerance) and id(word) not in reported:
+            reported.add(id(word))
+            report.late.append(LateStart(lead, _display(word)))
+        if lead.clipped(tolerance) and not word.timing_edited and id(word) not in moved:
+            moved[id(word)] = opens
+            report.flagged.append(
+                FlaggedWord(lead, source_id, _original_start(word), opens, _display(word))
+            )
+    notes = _notes(project, report)
     _snap(lanes, moved)
     _sync_comments(project, notes)
-    return flagged
-
-
-def flagged_note(flagged: list[FlaggedWord]) -> str:
-    """The step-summary clause for ``flagged`` words."""
-    if len(flagged) == 1:
-        return "1 word start missing from its own track (see comments)"
-    return f"{len(flagged)} word starts missing from their own track (see comments)"
+    return report
