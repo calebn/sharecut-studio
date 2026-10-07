@@ -85,22 +85,22 @@ The Ask compose and the public review page default the author to the same sessio
 
 ## Comments from Align tracks
 
-Pipeline `align_tracks` leaves comments on words whose start reached another mic before the speaker's own track opened ([multitrack-ingest.md § Word starts missing from their own track](multitrack-ingest.md#word-starts-missing-from-their-own-track), #1059). These are ordinary comments, so every tool above lists, resolves and deletes them. There are two kinds:
+Pipeline `align_tracks` leaves comments where a word's sound reached another mic before the speaker's own track opened ([multitrack-ingest.md § Word starts missing from their own track](multitrack-ingest.md#word-starts-missing-from-their-own-track), #1059). These are ordinary comments, so every tool above lists, resolves and deletes them. There are two kinds:
 
-- **One per word**, when the lane is aligned and its track opened late (a call app's gate).
-- **One per lane**, when the lane itself sits late against the other mic (an offset align could not solve or did not apply). The lane is the cause, so one comment lists every word start it misses.
+- **One per clipped word**, when the speaker's track opened partway into the word (a call app's gate). That start is only on the other mic, so it is missing from the mix. The word's start moves onto the opening.
+- **One per lane**, when the lane plays words late: each word is whole on the speaker's track, just behind its copy on the other mic. Alignment left that behind (an offset align could not solve or did not apply, or a local lag), so one comment lists every late start. No word moves.
 
-| Field | Per word | Per lane |
+| Field | Per clipped word | Per lane |
 |-------|----------|----------|
 | `author` | `Align tracks` | `Align tracks` |
 | `id` | `onset-` plus a digest of the lane, the recording and the word's original start | `onset-lane-` plus a digest of the lane |
-| `timeline_start` / `timeline_end` | From the copy's onset on the other mic to where the speaker's track opens | The same span, for the first word it lists |
+| `timeline_start` / `timeline_end` | From where the missing part reached the other mic to where the speaker's track opens | From the copy's onset to the opening, for the first word it lists |
 | `track_ids` | The speaker's track | The speaker's track |
-| `body` | `Sam's “Okay” starts 370 ms before Sam's track opens. That start is only on Alex's mic, and another mic is never used as Sam's audio, so the word may sound clipped. Listen, then re-record it, keep it, or edit around it.` | `Sam's track runs about 140 ms behind Alex's mic, so 3 word starts are only on Alex's mic: 1:46.5 “Are”, 7:08.2 “Okay”, 8:03.8 “Yeah”. Another mic is never used as Sam's audio, so these words may sound clipped. Aligning Sam's track would fix them; re-running Align tracks then withdraws this comment. Otherwise listen, then re-record, keep, or edit around each word.` |
+| `body` | `Sam's “Okay” starts 150 ms before Sam's track opens. That start is only on Alex's mic, and another mic is never used as Sam's audio, so the word may sound clipped. Listen, then re-record it, keep it, or edit around it.` | `Sam's track runs late against Alex's mic at 3 word starts: 1:46.5 “Are” (80 ms), 7:08.2 “Okay” (420 ms), 8:03.8 “Yeah” (170 ms). Each word is whole on Sam's track but plays that late in the mix, so this is left over from alignment, not a clipped start. Aligning Sam's track there would fix them; re-running Align tracks then withdraws this comment.` |
 
 A re-run of `align_tracks` moves, rewrites or withdraws its own open comments when the audio says something else, for example after `--realign` aligns the lane. Ids follow the word or the lane, not where the track happens to open on this run, so a re-run never replaces a comment because an opening moved a few ms. A comment someone resolved, replied to or ticked an action on stays as it is: a re-run never changes, reopens or duplicates it. Resolve one to record that the host kept the take.
 
-Agent workflow: `list_comments_tool(..., include_resolved=false)` (or `podcast comment list --open-only`), play the span with the speaker's track and the named mic, then re-record, edit around the word, or resolve the comment with `by`. For a lane comment, align the lane first and re-run `align_tracks`.
+Agent workflow: `list_comments_tool(..., include_resolved=false)` (or `podcast comment list --open-only`). For a word comment, play the span with the speaker's track and the named mic, then re-record, edit around the word, or resolve the comment with `by`. For a lane comment, fix the timing, not the words: align the lane (`--realign`, or apply the proposed shift) and re-run `align_tracks`; a lag that changes inside speech waits for the per-track timing map (#1089), so resolve the comment if the host accepts it meanwhile.
 
 ## DAW viewer
 

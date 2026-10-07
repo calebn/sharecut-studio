@@ -31,11 +31,14 @@ clips (`split_clip_at`) before slipping each piece; a clip already at its record
 placement keeps its `meta.ingest_alignment` entry, so a re-run changes nothing.
 Once the clips are placed, the
 `align_tracks` step calls `edits/clipped_onsets.py`, which measures the copy paths
-again where the lanes now sit (`measure_pair`), finds words whose start reached another
-mic before their own track opened, moves those starts (old start in `snapped_from`,
-restored and judged again on every run) and keeps `Align tracks` comments in step
-through `edits/comments.py`: one per word, or one per lane when the lane itself sits
-late. A word a person re-timed (`TranscriptWord.retime(..., by_person=True)`, via
+again where the lanes now sit (`measure_pair`) and checks every opening whose sound
+reached another mic first. An opening that jumps straight to the word's level, in step
+with the copy (`envelope_lag.shift_correlations` at zero shift), is a clipped start: the
+word's start moves (old start in `snapped_from`, restored and judged again on every run)
+and gets its own `Align tracks` comment. An opening whose sound matches the copy shifted
+back by the lead is a late track: no word moves, and the lane gets one comment and a
+step-summary note pointing at alignment. Comments stay in step through
+`edits/comments.py`. A word a person re-timed (`TranscriptWord.retime(..., by_person=True)`, via
 `apply_word_timing`) carries `timing_edited` and is never judged. It reads only the project and audio, never the solver's internals.
 
 Retained mixed bleed has a separate, conservative local alignment path.

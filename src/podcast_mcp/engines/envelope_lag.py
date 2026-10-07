@@ -99,7 +99,7 @@ def _pearson_rows(
     return scores
 
 
-def _correlations(
+def shift_correlations(
     own: np.ndarray, peer: np.ndarray, frames: np.ndarray, shifts: np.ndarray, min_frames: int
 ) -> np.ndarray:
     """Correlation of ``own[frames]`` with ``peer[frames + shift]`` per shift.
@@ -139,7 +139,7 @@ def envelope_lag(
     reported with null correlation 1.0, so it is never supported. Equal best
     correlations resolve to the larger lag.
     """
-    scores = _correlations(own, peer, frames, np.arange(-reach, reach + 1), min_frames)
+    scores = shift_correlations(own, peer, frames, np.arange(-reach, reach + 1), min_frames)
     if np.isnan(scores).all():
         return None
     best = float(np.nanmax(scores))
@@ -148,7 +148,7 @@ def envelope_lag(
     if abs(lag) >= reach or not (scores[index - 1] < best and scores[index + 1] < best):
         return None
     null_shifts = np.array([lag + round(shift / hop_sec) for shift in NULL_SHIFTS_SEC])
-    nulls = _correlations(own, peer, frames, null_shifts, min_frames)
+    nulls = shift_correlations(own, peer, frames, null_shifts, min_frames)
     return EnvelopeLag(lag, best, float(np.nanmax(nulls)) if not np.isnan(nulls).all() else 1.0)
 
 

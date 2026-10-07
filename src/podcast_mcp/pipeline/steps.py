@@ -48,7 +48,7 @@ StepSummary = str | None
 
 def align_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     from podcast_mcp.edits.align_accept_status import mark_align_done, mark_align_pending
-    from podcast_mcp.edits.clipped_onsets import flag_clipped_word_starts, flagged_note
+    from podcast_mcp.edits.clipped_onsets import flag_clipped_word_starts
     from podcast_mcp.edits.conversation_align import run_conversation_align
 
     clips = [clip.model_copy(deep=True) for clip in project.clips]
@@ -64,12 +64,13 @@ def align_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumma
             mark_align_pending(project, notes="after align_tracks")
         # Judges everything before it changes words or comments, so a failure here
         # leaves them as they were and only the clips need restoring.
-        flagged = flag_clipped_word_starts(project, defaults)
+        onsets = flag_clipped_word_starts(project, defaults)
     except Exception:
         project.clips = clips
         raise
     summary = result.skipped_reason or result.summary()
-    return f"{summary}; {flagged_note(flagged)}" if flagged else summary
+    note = onsets.note()
+    return f"{summary}; {note}" if note else summary
 
 
 def require_align_accept(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
