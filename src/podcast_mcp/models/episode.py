@@ -701,11 +701,47 @@ class RetainedBleedAlignmentDecision(SourceSpan):
     evidence_revision: int = 1
 
 
+class SpeakerTurnRecord(SourceSpan):
+    """A stretch of a split recording and who talks in it, most likely first.
+
+    Two or more speakers is crosstalk. The turns of one split cover the recording
+    without gaps; a pause belongs to a neighbouring turn.
+    """
+
+    start_s: float = Field(ge=0, allow_inf_nan=False)
+    speakers: list[str] = Field(min_length=1)
+    confidence: float = Field(ge=0, le=1, allow_inf_nan=False)
+
+    @property
+    def crosstalk(self) -> bool:
+        return len(self.speakers) > 1
+
+
+class SpeakerSplit(BaseModel):
+    """One recording split into a lane per speaker, every lane playing the same media (#1095).
+
+    ``lanes`` are the speakers' track ids, in the order ``turns`` name them. Crosstalk
+    plays on every lane talking in it, or only on ``crosstalk_lane`` when there is one.
+    """
+
+    id: str
+    media_path: str
+    lanes: list[str] = Field(min_length=2)
+    crosstalk_lane: str | None = None
+    turns: list[SpeakerTurnRecord] = Field(default_factory=list)
+    backend: str
+    method: Literal["enroll", "cluster"]
+
+    def crosstalk_spans(self) -> list[tuple[float, float]]:
+        return [(t.start_s, t.end_s) for t in self.turns if t.crosstalk]
+
+
 class EditorialSection(BaseModel):
     edit_decisions: list[EditDecision] = Field(default_factory=list)
     edit_log: list[AppliedEditRecord] = Field(default_factory=list)
     chapters: list[ChapterMarker] = Field(default_factory=list)
     retained_bleed_alignments: list[RetainedBleedAlignmentDecision] = Field(default_factory=list)
+    speaker_splits: list[SpeakerSplit] = Field(default_factory=list)
 
 
 class TranscriptsSection(BaseModel):

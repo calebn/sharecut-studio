@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import Any
 
+from podcast_mcp.edits.speaker_split import CrosstalkMode, split_track_by_speaker
 from podcast_mcp.engines.speaker_id import (
     compare_window,
     enroll_segment,
@@ -15,9 +17,13 @@ from podcast_mcp.engines.speaker_id import (
     score_window,
     speaker_doctor,
 )
+from podcast_mcp.engines.speaker_split import RATE, SpeakerAttribution, attribute_speakers
+from podcast_mcp.engines.ungated_audio import load_mono_full
+from podcast_mcp.engines.waveform_media import schedule_track_waveforms
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.transcript_context import context_lock, load_transcript_context
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress, resolve_progress_task
+from podcast_mcp.util.tracks import track_audio_path
 
 
 class SpeakerService:
@@ -250,3 +256,104 @@ class SpeakerService:
             "after speaker attribute",
             mutate,
         )
+
+    def split_speakers(
+        self,
+        track_id: str,
+        *,
+        speaker_count: int | None = None,
+        names: Sequence[str] | None = None,
+        enrollment: Mapping[str, Sequence[tuple[float, float]]] | None = None,
+        crosstalk_mode: CrosstalkMode = "both",
+        room_tone_fill: bool = False,
+        dry_run: bool = True,
+        progress: ProgressReporter | None = None,
+    ) -> dict[str, Any]:
+        """Attribute ``track_id``'s recording to its speakers, then split it into lanes.
+
+        The speaker count is the caller's or the one the user set
+        (``set_expected_speaker_count``); it is never guessed. ``enrollment`` maps each
+        speaker's name to source spans of only that speaker, and then sets the names
+        and their order. Attribution runs before the project lock is taken; the split
+        is one undoable mutation.
+        """
+        project = self.ws.project
+        ctx = load_transcript_context(project.workspace_path())
+        count = speaker_count or (
+            ctx.speaker_id.expected_speaker_count
+            if ctx.speaker_id.speaker_count_source == "user"
+            else None
+        )
+        if not count:
+            raise ValueError(
+                "a speaker split needs the speaker count: pass it, or set it with set-speaker-count"
+            )
+        speakers = list(enrollment or names or [f"Speaker {i + 1}" for i in range(count)])
+        if len(speakers) != count:
+            raise ValueError(f"expected {count} speaker names, got {len(speakers)}")
+        backend = resolve_speaker_backend()
+        if backend.name() == "mock":
+            raise ImportError(
+                "speaker split needs a speaker embedding: install the [speaker] or "
+                "[speaker-lite] extra"
+            )
+        media_path = track_audio_path(project, track_id)
+        samples = load_mono_full(media_path, sample_rate=RATE)
+        attribution = attribute_speakers(
+            samples,
+            speaker_count=count,
+            backend=backend,
+            enrollment=(
+                {i: list(enrollment[name]) for i, name in enumerate(speakers)}
+                if enrollment
+                else None
+            ),
+            progress=resolve_progress(progress),
+        )
+        if dry_run:
+            return _attribution_summary(attribution, speakers)
+        result = self.ws.mutate(
+            "before split speakers",
+            "after split speakers",
+            lambda p: split_track_by_speaker(
+                p,
+                track_id,
+                attribution,
+                names=speakers,
+                crosstalk_mode=crosstalk_mode,
+                room_tone_fill=room_tone_fill,
+            ),
+            operation="split_speakers",
+            params={
+                "track_id": track_id,
+                "speakers": speakers,
+                "crosstalk_mode": crosstalk_mode,
+                "room_tone_fill": room_tone_fill,
+            },
+        )
+        for lane in result["lanes"][1:]:
+            track = self.ws.project.track_by_id(lane["track_id"])
+            if track is not None:
+                schedule_track_waveforms(self.ws.project, track)
+        return result
+
+
+def _attribution_summary(attribution: SpeakerAttribution, speakers: list[str]) -> dict[str, Any]:
+    seconds = dict.fromkeys(speakers, 0.0)
+    crosstalk = 0.0
+    for turn in attribution.turns:
+        seconds[speakers[turn.speakers[0]]] += turn.end - turn.start
+        if turn.crosstalk:
+            crosstalk += turn.end - turn.start
+    return {
+        "dry_run": True,
+        "speakers": speakers,
+        "method": attribution.method,
+        "backend": attribution.backend,
+        "turns": len(attribution.turns),
+        "seconds_by_speaker": {name: round(sec, 2) for name, sec in seconds.items()},
+        "crosstalk_sec": round(crosstalk, 2),
+        "low_confidence_sec": round(
+            sum(t.end - t.start for t in attribution.turns if t.confidence < 0.5), 2
+        ),
+    }

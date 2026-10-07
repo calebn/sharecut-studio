@@ -85,6 +85,7 @@ TOOL_TIMEBASE: dict[str, TimebaseKind] = {
     "speaker_attribute_tool": "source",
     "speaker_gate_track_tool": "source",
     "speaker_compare_pair_tool": "source",
+    "speaker_split_tool": "source",
     "history_undo": "na",
     "history_redo": "na",
     "history_list": "na",
