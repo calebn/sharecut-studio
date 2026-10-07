@@ -1,17 +1,16 @@
-import { useEffect, useState } from "react";
-import type { KeymapCategory } from "../keymap/registry";
+import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { Button, Dialog } from "../ui";
-import type {
-  CommandPaletteAction,
-  CommandPaletteCategory,
-} from "./commandPaletteRows";
-
-type TabId = KeymapCategory | "all" | "actions";
+import {
+  groupPaletteCommands,
+  PALETTE_CATEGORY_LABELS,
+  type PaletteCommand,
+  searchPaletteCommands,
+} from "./paletteSearch";
 
 export interface CommandPaletteViewProps {
   open: boolean;
-  categories: CommandPaletteCategory[];
-  unbound: CommandPaletteAction[];
+  /** Runnable catalog commands in category order (see `paletteCommands`). */
+  commands: readonly PaletteCommand[];
   onClose: () => void;
   onOpenGestures: () => void;
   onRun: (id: string) => void;
@@ -19,83 +18,105 @@ export interface CommandPaletteViewProps {
 }
 
 /**
- * Store-free keyboard shortcuts cheatsheet modal (Figma/Docs/? + Help menu
- * prior art). Open via ? or Transport Menu → Keyboard shortcuts.
+ * Store-free command palette: search every runnable command by name, category
+ * or shortcut, run it, and read or remap its keys. Open via ?, Menu → Help, or
+ * More → Commands and shortcuts on phones.
  */
 export function CommandPaletteView({
   open,
-  categories,
-  unbound,
+  commands,
   onClose,
   onOpenGestures,
   onRun,
   onRemap,
 }: CommandPaletteViewProps) {
-  const [tab, setTab] = useState<TabId>("all");
+  const [query, setQuery] = useState("");
   const [showRemap, setShowRemap] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const resultsId = useId();
 
   useEffect(() => {
     if (!open) {
       return;
     }
-    setTab("all");
+    setQuery("");
     setShowRemap(false);
   }, [open]);
 
-  const shown = categories.filter((c) => c.rows.length);
+  const searching = query.trim() !== "";
+  const results = searchPaletteCommands(commands, query);
+  const runnable = results.filter((c) => c.disabledReason == null);
 
-  const visibleCategories =
-    tab === "all" || tab === "actions"
-      ? shown
-      : shown.filter((c) => c.category === tab);
+  const runButtons = () => [
+    ...(listRef.current?.querySelectorAll<HTMLButtonElement>(
+      "button.command-palette-run:not(:disabled)",
+    ) ?? []),
+  ];
+
+  function onSearchKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      runButtons()[0]?.focus();
+    } else if (e.key === "Enter" && searching && runnable[0]) {
+      e.preventDefault();
+      onRun(runnable[0].id);
+    }
+  }
+
+  function onRowKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") {
+      return;
+    }
+    const buttons = runButtons();
+    const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    if (at < 0) {
+      return;
+    }
+    e.preventDefault();
+    const next = at + (e.key === "ArrowDown" ? 1 : -1);
+    if (next < 0) {
+      searchRef.current?.focus();
+    } else {
+      buttons[Math.min(next, buttons.length - 1)]?.focus();
+    }
+  }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Keyboard shortcuts">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="Commands and shortcuts"
+      panelClassName="command-palette-dialog"
+      initialFocusRef={searchRef}
+      phoneSheet
+    >
+      <input
+        ref={searchRef}
+        type="search"
+        className="command-palette-search"
+        aria-label="Search commands"
+        aria-controls={resultsId}
+        placeholder="Search commands"
+        autoComplete="off"
+        spellCheck={false}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={onSearchKeyDown}
+      />
       <p className="command-palette-hint">
         Press <kbd>?</kbd> anytime. Character keys only apply when the timeline
-        or transcript has focus.
+        or transcript has focus.{" "}
+        <Button variant="link" onClick={onOpenGestures}>
+          Gestures
+        </Button>
       </p>
-      <Button variant="link" onClick={onOpenGestures}>
-        Gestures
-      </Button>
-
-      <div
-        className="command-palette-tabs"
-        role="group"
-        aria-label="Shortcut categories"
-      >
-        <button
-          type="button"
-          aria-pressed={tab === "all"}
-          className={tab === "all" ? "active" : undefined}
-          onClick={() => setTab("all")}
-        >
-          All keys
-        </button>
-        {shown.map(({ category }) => (
-          <button
-            key={category}
-            type="button"
-            aria-pressed={tab === category}
-            className={tab === category ? "active" : undefined}
-            onClick={() => setTab(category)}
-          >
-            {category}
-          </button>
-        ))}
-        {unbound.length ? (
-          <button
-            type="button"
-            aria-pressed={tab === "actions"}
-            className={tab === "actions" ? "active" : undefined}
-            onClick={() => setTab("actions")}
-          >
-            Actions
-          </button>
-        ) : null}
-      </div>
-
       <div className="command-palette-toolbar">
+        <p className="command-palette-count" role="status">
+          {searching
+            ? `${results.length} ${results.length === 1 ? "command" : "commands"}`
+            : ""}
+        </p>
         <label className="command-palette-remap-toggle">
           <input
             type="checkbox"
@@ -106,70 +127,112 @@ export function CommandPaletteView({
         </label>
       </div>
 
-      {tab !== "actions"
-        ? visibleCategories.map(({ category, rows }) => (
+      <div id={resultsId} ref={listRef}>
+        {searching && results.length === 0 ? (
+          <div className="command-palette-empty">
+            <p>No commands match “{query.trim()}”.</p>
+            <Button
+              onClick={() => {
+                setQuery("");
+                searchRef.current?.focus();
+              }}
+            >
+              Clear search
+            </Button>
+          </div>
+        ) : null}
+        {searching ? (
+          <PaletteList
+            rows={results}
+            showCategory
+            showRemap={showRemap}
+            onRun={onRun}
+            onRemap={onRemap}
+            onRowKeyDown={onRowKeyDown}
+          />
+        ) : (
+          groupPaletteCommands(commands).map(({ category, rows }) => (
             <section key={category} className="command-palette-section">
-              <h3>{category}</h3>
-              <ul>
-                {rows.map((row) => {
-                  const noteId = row.note
-                    ? `command-palette-note-${row.id}`
-                    : undefined;
-                  return (
-                    <li key={`${row.id}:${row.shortcut}`}>
-                      <button
-                        type="button"
-                        className="ui-control command-palette-run"
-                        aria-describedby={noteId}
-                        onClick={() => onRun(row.id)}
-                      >
-                        <span>{row.label}</span>
-                        <kbd>{row.shortcut}</kbd>
-                      </button>
-                      {row.note ? (
-                        <p id={noteId} className="command-palette-note">
-                          {row.note}
-                        </p>
-                      ) : null}
-                      {showRemap ? (
-                        <label className="command-palette-remap">
-                          Remap
-                          <input
-                            aria-label={`Remap ${row.label}`}
-                            placeholder={row.defaultKey}
-                            onBlur={(e) => {
-                              onRemap(row.id, e.target.value.trim());
-                            }}
-                          />
-                        </label>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
+              <h3>{PALETTE_CATEGORY_LABELS[category]}</h3>
+              <PaletteList
+                rows={rows}
+                showRemap={showRemap}
+                onRun={onRun}
+                onRemap={onRemap}
+                onRowKeyDown={onRowKeyDown}
+              />
             </section>
           ))
-        : null}
-
-      {tab === "actions" || (tab === "all" && unbound.length) ? (
-        <section className="command-palette-section">
-          <h3>Commands without keys</h3>
-          <ul>
-            {unbound.map((action) => (
-              <li key={action.id}>
-                <button
-                  type="button"
-                  className="ui-control command-palette-run"
-                  onClick={() => onRun(action.id)}
-                >
-                  <span>{action.label}</span>
-                  <kbd>None</kbd>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+        )}
+      </div>
     </Dialog>
+  );
+}
+
+function PaletteList({
+  rows,
+  showCategory = false,
+  showRemap,
+  onRun,
+  onRemap,
+  onRowKeyDown,
+}: {
+  rows: readonly PaletteCommand[];
+  showCategory?: boolean;
+  showRemap: boolean;
+  onRun: (id: string) => void;
+  onRemap: (id: string, trimmedKey: string) => void;
+  /** Arrow keys step between rows and back up to Search. */
+  onRowKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => void;
+}) {
+  if (rows.length === 0) {
+    return null;
+  }
+  return (
+    <ul className="command-palette-list">
+      {rows.map((row) => {
+        const noteId = `command-palette-note-${row.id}`;
+        const note = row.disabledReason ?? row.note;
+        return (
+          <li key={row.id}>
+            <button
+              type="button"
+              className="ui-control command-palette-run"
+              disabled={row.disabledReason != null}
+              aria-describedby={note ? noteId : undefined}
+              onClick={() => onRun(row.id)}
+              onKeyDown={onRowKeyDown}
+            >
+              <span className="command-palette-label">
+                {row.label}
+                {showCategory ? (
+                  <span className="command-palette-category">
+                    {PALETTE_CATEGORY_LABELS[row.category]}
+                  </span>
+                ) : null}
+              </span>
+              {row.shortcut ? <kbd>{row.shortcut}</kbd> : null}
+            </button>
+            {note ? (
+              <p id={noteId} className="command-palette-note">
+                {note}
+              </p>
+            ) : null}
+            {showRemap && row.defaultKey != null ? (
+              <label className="command-palette-remap">
+                Remap
+                <input
+                  aria-label={`Remap ${row.label}`}
+                  placeholder={row.defaultKey}
+                  onBlur={(e) => {
+                    onRemap(row.id, e.target.value.trim());
+                  }}
+                />
+              </label>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

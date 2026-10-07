@@ -311,8 +311,12 @@ test.describe("Sharecut Studio mobile smoke", () => {
       gestures.getByText("Pinch").locator("xpath=.."),
     ).not.toContainText("Soon");
 
-    await gestures.getByRole("button", { name: "Keyboard shortcuts" }).click();
-    const keyboard = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+    await gestures
+      .getByRole("button", { name: "Commands and shortcuts" })
+      .click();
+    const keyboard = page.getByRole("dialog", {
+      name: "Commands and shortcuts",
+    });
     await expect(keyboard).toBeVisible();
     await expect(gestures).toHaveCount(0);
 

@@ -6,50 +6,39 @@ import { registerDawCommands } from "../commands/register";
 import { getKeymapOverride } from "../keymap/remaps";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
+import { waitForDialogFocus } from "../test/dialogFocus";
 import { minimalProject } from "../test/fixtures";
 import { CommandPalette } from "./CommandPalette";
+
+function renderPalette() {
+  return render(
+    <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+      <CommandPalette />
+    </DawProvider>,
+  );
+}
 
 describe("CommandPalette", () => {
   beforeEach(() => {
     registerDawCommands();
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
     useDawStore.getState().setCommandPaletteOpen(true);
+    useDawStore.setState({ exportDialogOpen: false, statusAnnouncement: "" });
   });
 
-  it("shows category filters and shortcut rows", () => {
-    render(
-      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
-        <CommandPalette />
-      </DawProvider>,
-    );
+  it("lists keyed and keyless catalog commands together", () => {
+    renderPalette();
     expect(
-      screen.getByRole("dialog", { name: "Keyboard shortcuts" }),
+      screen.getByRole("dialog", { name: "Commands and shortcuts" }),
     ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "All keys" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "tools" })).toBeTruthy();
-    expect(screen.getByText("Select tool")).toBeTruthy();
-    expect(screen.getByText("V")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Select tool/ })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Annotate transcript" }),
+    ).toBeTruthy();
   });
 
-  it("filters to one category filter", async () => {
-    render(
-      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
-        <CommandPalette />
-      </DawProvider>,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "tools" }));
-    expect(screen.getByText("Select tool")).toBeTruthy();
-    expect(screen.getByText("Blade tool")).toBeTruthy();
-    expect(screen.queryByText("Play / pause")).toBeNull();
-  });
-
-  it("omits argument-only and context-only commands from runnable actions", async () => {
-    render(
-      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
-        <CommandPalette />
-      </DawProvider>,
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Actions" }));
+  it("omits argument-only and context-only commands", () => {
+    renderPalette();
     for (const label of [
       "Seek playhead",
       COMMANDS["transport.audition"].label,
@@ -67,24 +56,39 @@ describe("CommandPalette", () => {
       "Focus edit boundary",
       "Focus cut-away word",
     ]) {
-      expect(screen.queryByText(label)).toBeNull();
+      expect(screen.queryByRole("button", { name: label })).toBeNull();
     }
-    expect(screen.getByText("Annotate transcript")).toBeInTheDocument();
-    expect(screen.getByText("Commands without keys")).toBeInTheDocument();
-    expect(useDawStore.getState().transcriptAnnotate).toBe(false);
-    await userEvent.click(
-      screen.getByRole("button", { name: /Annotate transcript/ }),
+  });
+
+  it("finds a command by search, closes, and runs it", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    await waitForDialogFocus();
+    await user.keyboard("annotate{Enter}");
+    expect(useDawStore.getState().commandPaletteOpen).toBe(false);
+    await waitFor(() =>
+      expect(useDawStore.getState().transcriptAnnotate).toBe(true),
     );
-    expect(useDawStore.getState().transcriptAnnotate).toBe(true);
+  });
+
+  it("opens Export deliverables in place of the palette, never stacked", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    await waitForDialogFocus();
+    await user.keyboard("export deliv");
+    await user.click(
+      screen.getByRole("button", { name: /^Export deliverables…/ }),
+    );
+    expect(useDawStore.getState().commandPaletteOpen).toBe(false);
+    await waitFor(() =>
+      expect(useDawStore.getState().exportDialogOpen).toBe(true),
+    );
   });
 
   it("stores a remap on blur and clears it when emptied", async () => {
     const user = userEvent.setup();
-    render(
-      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
-        <CommandPalette />
-      </DawProvider>,
-    );
+    renderPalette();
+    await waitForDialogFocus();
     await user.click(screen.getByLabelText("Show remaps"));
     const input = screen.getByLabelText("Remap Select tool");
     await user.type(input, "X");
@@ -96,11 +100,8 @@ describe("CommandPalette", () => {
   });
 
   it("closes on Escape", async () => {
-    render(
-      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
-        <CommandPalette />
-      </DawProvider>,
-    );
+    renderPalette();
+    await waitForDialogFocus();
     await userEvent.keyboard("{Escape}");
     expect(useDawStore.getState().commandPaletteOpen).toBe(false);
   });
@@ -120,9 +121,7 @@ describe("CommandPalette", () => {
         </DawProvider>
       </div>,
     );
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
-    });
+    await waitForDialogFocus();
     await user.tab();
     expect(
       document.activeElement?.closest(".command-palette-panel"),

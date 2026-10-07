@@ -6,58 +6,76 @@ import { openDialogViaLauncher } from "../storybook/openDialog";
 import { isolatedStoryParameters } from "../storybook/storyLayout";
 import { Button } from "../ui";
 import { CommandPaletteView } from "./CommandPaletteView";
-import type {
-  CommandPaletteAction,
-  CommandPaletteCategory,
-} from "./commandPaletteRows";
+import type { PaletteCommand } from "./paletteSearch";
 
-/** Fixed, representative rows (the live adapter builds these from the keymap registry); commandPaletteRows.test.ts checks ids, labels, categories and default keys against the registry and catalog. */
-const CATEGORIES: CommandPaletteCategory[] = [
+/** Fixed, representative rows (the live adapter builds them from the catalog and keymap); commandPaletteRows.test.ts checks ids, labels, categories and default keys against both. */
+const COMMANDS: PaletteCommand[] = [
   {
+    id: "transport.togglePlay",
+    label: "Play / pause",
     category: "transport",
-    rows: [
-      {
-        id: "transport.togglePlay",
-        label: "Play / pause",
-        shortcut: "Space",
-        defaultKey: " ",
-      },
-      {
-        id: "transport.stop",
-        label: "Stop playback",
-        shortcut: "K",
-        defaultKey: "K",
-      },
-    ],
+    shortcut: "Space",
+    defaultKey: " ",
+    disabledReason: null,
   },
   {
+    id: "transport.stop",
+    label: "Stop playback",
+    category: "transport",
+    shortcut: "K",
+    defaultKey: "K",
+    disabledReason: null,
+  },
+  {
+    id: "tool.select",
+    label: "Select tool",
     category: "tools",
-    rows: [
-      {
-        id: "tool.select",
-        label: "Select tool",
-        shortcut: "V",
-        defaultKey: "V",
-      },
-      { id: "tool.blade", label: "Blade tool", shortcut: "C", defaultKey: "C" },
-    ],
+    shortcut: "V",
+    defaultKey: "V",
+    disabledReason: null,
   },
   {
-    category: "review",
-    rows: [
-      {
-        id: "review.toggleCommentMode",
-        label: "Toggle comment mode",
-        shortcut: "⌘+Shift+C",
-        defaultKey: "C",
-      },
-    ],
+    id: "tool.blade",
+    label: "Blade tool",
+    category: "tools",
+    shortcut: "C",
+    defaultKey: "C",
+    disabledReason: null,
+  },
+  {
+    id: "view.fitTracksHeight",
+    label: "Fit tracks to window height",
+    category: "view",
+    shortcut: null,
+    disabledReason: null,
+  },
+  {
+    id: "export.bounce",
+    label: "Bounce…",
+    category: "ui",
+    shortcut: "⌘+Shift+B",
+    defaultKey: "B",
+    disabledReason: null,
+  },
+  {
+    id: "export.deliverables",
+    label: "Export deliverables…",
+    category: "ui",
+    shortcut: "⌘+Shift+E",
+    defaultKey: "E",
+    disabledReason: null,
+  },
+  {
+    id: "help.diagnosticsBundle",
+    label: "Export diagnostics…",
+    category: "ui",
+    shortcut: null,
+    disabledReason: "Project create/open is host-only",
   },
 ];
 
-const UNBOUND: CommandPaletteAction[] = [
-  { id: "view.fitTracksHeight", label: "Fit tracks to window height" },
-];
+const LAUNCHER = "Open commands and shortcuts";
+const TITLE = "Commands and shortcuts";
 
 function PalettePreview({
   initiallyOpen,
@@ -67,7 +85,7 @@ function PalettePreview({
   return (
     <>
       <Button type="button" onClick={() => setOpen(true)}>
-        Open keyboard shortcuts
+        {LAUNCHER}
       </Button>
       <CommandPaletteView
         {...args}
@@ -92,8 +110,7 @@ const meta: Meta<typeof CommandPaletteView> = {
   parameters: { ...isolatedStoryParameters, layout: "padded" },
   args: {
     open: false,
-    categories: CATEGORIES,
-    unbound: UNBOUND,
+    commands: COMMANDS,
     onClose: fn(),
     onOpenGestures: fn(),
     onRun: fn(),
@@ -107,20 +124,16 @@ const meta: Meta<typeof CommandPaletteView> = {
 export default meta;
 type Story = StoryObj<typeof CommandPaletteView>;
 
-export const AllKeys: Story = {
+export const Browse: Story = {
   play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openDialogViaLauncher(
-      canvasElement,
-      "Open keyboard shortcuts",
-      "Keyboard shortcuts",
-    );
+    const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
     await waitFor(() =>
       expect(within(dialog).getByText("Select tool")).toBeVisible(),
     );
     await expect(
-      within(dialog).getByText("Commands without keys"),
-    ).toBeVisible();
+      within(dialog).getByRole("button", { name: /^Export diagnostics…/ }),
+    ).toBeDisabled();
     await userEvent.click(
       within(dialog).getByRole("button", { name: /Select tool/ }),
     );
@@ -128,57 +141,41 @@ export const AllKeys: Story = {
   },
 };
 
-export const CategoryTab: Story = {
-  play: async ({ canvasElement, viewMode }) => {
+export const Search: Story = {
+  play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openDialogViaLauncher(
-      canvasElement,
-      "Open keyboard shortcuts",
-      "Keyboard shortcuts",
+    const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
+    await userEvent.type(
+      within(dialog).getByRole("searchbox", { name: "Search commands" }),
+      "export",
     );
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "tools" }),
+    await expect(within(dialog).getByRole("status")).toHaveTextContent(
+      "2 commands",
     );
-    await expect(
-      within(dialog).getByRole("button", { name: "tools" }),
-    ).toHaveAttribute("aria-pressed", "true");
-    await expect(within(dialog).getByText("Blade tool")).toBeVisible();
-    await expect(within(dialog).queryByText("Play / pause")).toBeNull();
-    await expect(
-      within(dialog).queryByText("Commands without keys"),
-    ).toBeNull();
+    await expect(within(dialog).queryByText("Select tool")).toBeNull();
+    await userEvent.keyboard("{Enter}");
+    await expect(args.onRun).toHaveBeenCalledWith("export.deliverables");
   },
 };
 
-export const ActionsTab: Story = {
-  play: async ({ args, canvasElement, viewMode }) => {
+export const NoMatch: Story = {
+  play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openDialogViaLauncher(
-      canvasElement,
-      "Open keyboard shortcuts",
-      "Keyboard shortcuts",
+    const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
+    await userEvent.type(
+      within(dialog).getByRole("searchbox", { name: "Search commands" }),
+      "xylophone",
     );
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "Actions" }),
-    );
-    await expect(within(dialog).queryByText("Select tool")).toBeNull();
-    await userEvent.click(
-      within(dialog).getByRole("button", {
-        name: /Fit tracks to window height/,
-      }),
-    );
-    await expect(args.onRun).toHaveBeenCalledWith("view.fitTracksHeight");
+    await expect(
+      within(dialog).getByRole("button", { name: "Clear search" }),
+    ).toBeVisible();
   },
 };
 
 export const ShowRemaps: Story = {
   play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openDialogViaLauncher(
-      canvasElement,
-      "Open keyboard shortcuts",
-      "Keyboard shortcuts",
-    );
+    const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
     await userEvent.click(
       within(dialog).getByRole("checkbox", { name: "Show remaps" }),
     );
@@ -194,11 +191,7 @@ export const ShowRemaps: Story = {
 export const GesturesHandoff: Story = {
   play: async ({ args, canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openDialogViaLauncher(
-      canvasElement,
-      "Open keyboard shortcuts",
-      "Keyboard shortcuts",
-    );
+    const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
     await userEvent.click(
       within(dialog).getByRole("button", { name: "Gestures" }),
     );
@@ -212,11 +205,7 @@ export const Phone: Story = {
   globals: recordMobileViewport.globals,
   play: async ({ canvasElement, viewMode }) => {
     if (viewMode === "docs") return;
-    const dialog = await openDialogViaLauncher(
-      canvasElement,
-      "Open keyboard shortcuts",
-      "Keyboard shortcuts",
-    );
+    const dialog = await openDialogViaLauncher(canvasElement, LAUNCHER, TITLE);
     await waitFor(() =>
       expect(within(dialog).getByText("Play / pause")).toBeVisible(),
     );

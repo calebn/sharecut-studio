@@ -87,7 +87,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Decrease track height | view | `view.trackHeightDecrease` | `Alt+-` | `transport.menu` | — | — | — | — | none · none |
 | Undo | project | `history.undo` | `Mod+Z` | `historyPanel`, `mobileShell.gesture.twoFingerTap` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
 | Redo | project | `history.redo` | `Mod+Shift+Z` | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
-| Keyboard shortcuts | view | `ui.toggleCommandPalette` | `?` | `transport.menu` | — | — | — | — | none · none |
+| Commands and shortcuts | view | `ui.toggleCommandPalette` | `?` | `transport.menu`, `moreHub.searchCommands`, `GesturesSheet` | — | — | — | — | none · none |
 | Refresh mix | project | `render.refreshMix` | `Mod+B` | `staleRenderPill` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
 | Bounce… | project | `export.bounce` | `Mod+Shift+B` | `transport.menu`, `BounceDialog` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
 | Share… | project | `share.manage` | — (dialog from Menu) | `transport.menu`, `ShareDialog` | — | `podcast review share` | — | yes | none · none |

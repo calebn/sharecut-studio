@@ -382,7 +382,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   "ui.toggleCommandPalette": {
     id: "ui.toggleCommandPalette",
     category: "ui",
-    label: "Keyboard shortcuts",
+    label: "Commands and shortcuts",
     when: "always",
   },
   "render.refreshMix": {

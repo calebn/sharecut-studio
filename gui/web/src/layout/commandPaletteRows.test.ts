@@ -1,114 +1,79 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { COMMANDS } from "../commands/catalog";
+import { COMMANDS, listCatalogIds } from "../commands/catalog";
+import { buildCommandContext } from "../commands/context";
 import { registerDawCommands } from "../commands/register";
-import {
-  KEYMAP_CATEGORY_ORDER,
-  KEYMAP_COMMANDS,
-  keymapCommandById,
-} from "../keymap/registry";
+import { keymapCommandById } from "../keymap/registry";
+import { shareProjectKey } from "../shareMode";
+import { useDawStore } from "../state/dawStore";
+import { minimalProject } from "../test/fixtures";
 import paletteStoryMeta from "./CommandPaletteView.stories";
-import {
-  commandPaletteCategories,
-  commandPaletteUnbound,
-} from "./commandPaletteRows";
+import { paletteCommands } from "./commandPaletteRows";
 
-describe("commandPaletteCategories", () => {
+const rowsNow = () => paletteCommands(buildCommandContext());
+
+describe("paletteCommands", () => {
   beforeEach(() => {
     registerDawCommands();
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
   });
 
-  it("comes out in KEYMAP_CATEGORY_ORDER with no empty category", () => {
-    const categories = commandPaletteCategories();
-    const seen = categories.map((c) => c.category);
-    const expectedOrder = KEYMAP_CATEGORY_ORDER.filter((c) => seen.includes(c));
-    expect(seen).toEqual(expectedOrder);
-    for (const cat of categories) {
-      expect(cat.rows.length).toBeGreaterThan(0);
-    }
-  });
-
-  it("includes tool.select / Select tool / V in the tools category", () => {
-    const tools = commandPaletteCategories().find(
-      (c) => c.category === "tools",
+  it("lists every runnable catalog command once, keyed or not", () => {
+    const expected = listCatalogIds().filter(
+      (id) =>
+        COMMANDS[id]?.paletteRunnable !== false &&
+        id !== "ui.toggleCommandPalette",
     );
-    expect(tools).toBeTruthy();
-    const row = tools?.rows.find((r) => r.id === "tool.select");
-    expect(row).toMatchObject({ label: "Select tool", shortcut: "V" });
+    expect(
+      rowsNow()
+        .map((r) => r.id)
+        .sort(),
+    ).toEqual([...expected].sort());
   });
 
-  it("carries a collision note for tool.blade's shared C key", () => {
-    const tools = commandPaletteCategories().find(
-      (c) => c.category === "tools",
+  it("carries the keymap shortcut, default key and collision note", () => {
+    const blade = rowsNow().find((r) => r.id === "tool.blade");
+    expect(blade).toMatchObject({
+      label: "Blade tool",
+      category: "tools",
+      shortcut: "C",
+      defaultKey: keymapCommandById("tool.blade")?.keys[0],
+      note: keymapCommandById("tool.blade")?.collision,
+    });
+    const annotate = rowsNow().find((r) => r.id === "view.transcriptAnnotate");
+    expect(annotate?.shortcut).toBeNull();
+    expect(annotate?.defaultKey).toBeUndefined();
+  });
+
+  it("treats focus-only gates as met, as a pointer click does", () => {
+    useDawStore.setState({ timelineFocused: false, activeTab: "comments" });
+    const play = rowsNow().find((r) => r.id === "transport.togglePlay");
+    expect(play?.disabledReason).toBeNull();
+  });
+
+  it("gives host-only commands their reason on a review link", () => {
+    useDawStore
+      .getState()
+      .hydrate(shareProjectKey("tok"), minimalProject(), "view", ["play"]);
+    const exportRow = rowsNow().find((r) => r.id === "export.deliverables");
+    expect(exportRow?.disabledReason).toBe(
+      "Host-only (not available on review links)",
     );
-    const row = tools?.rows.find((r) => r.id === "tool.blade");
-    expect(row?.note).toBe(keymapCommandById("tool.blade")?.collision);
-    expect(row?.note).toContain("Copy");
   });
 
-  it("omits the note for a row with no collision", () => {
-    const tools = commandPaletteCategories().find(
-      (c) => c.category === "tools",
-    );
-    const row = tools?.rows.find((r) => r.id === "tool.select");
-    expect(row?.note).toBeUndefined();
-  });
-});
-
-describe("commandPaletteUnbound", () => {
-  beforeEach(() => {
-    registerDawCommands();
-  });
-
-  it("includes view.transcriptAnnotate", () => {
-    const unbound = commandPaletteUnbound();
-    expect(unbound.some((a) => a.id === "view.transcriptAnnotate")).toBe(true);
-  });
-
-  it("excludes keymapped ids", () => {
-    const unbound = commandPaletteUnbound();
-    for (const cmd of KEYMAP_COMMANDS) {
-      expect(unbound.some((a) => a.id === cmd.id)).toBe(false);
-    }
-  });
-
-  it("excludes ids with paletteRunnable false", () => {
-    const unbound = commandPaletteUnbound();
-    expect(unbound.some((a) => a.id === "transport.seek")).toBe(false);
-  });
-});
-
-describe("Templates/CommandPalette story fixture", () => {
-  beforeEach(() => {
-    registerDawCommands();
-  });
-
-  it("matches the keymap registry (id, label, category, default key)", () => {
-    const categories = paletteStoryMeta.args?.categories ?? [];
-    expect(categories.length).toBeGreaterThan(0);
-    for (const { category, rows } of categories) {
-      for (const row of rows) {
-        const cmd = keymapCommandById(row.id);
-        expect(cmd, row.id).toBeDefined();
-        expect({
-          label: row.label,
-          category,
-          defaultKey: row.defaultKey,
-        }).toEqual({
-          label: cmd?.label,
-          category: cmd?.category,
-          defaultKey: cmd?.keys[0],
-        });
-      }
-    }
-  });
-
-  it("lists only real unbound palette actions with catalog labels", () => {
-    const unbound = paletteStoryMeta.args?.unbound ?? [];
-    expect(unbound.length).toBeGreaterThan(0);
-    const live = commandPaletteUnbound();
-    for (const action of unbound) {
-      expect(action.label).toBe(COMMANDS[action.id]?.label);
-      expect(live).toContainEqual(action);
+  it("keeps the story fixture in step with the catalog and keymap", () => {
+    const live = new Map(rowsNow().map((r) => [r.id, r]));
+    for (const row of paletteStoryMeta.args?.commands ?? []) {
+      const actual = live.get(row.id);
+      expect(actual, row.id).toBeDefined();
+      expect({
+        label: row.label,
+        category: row.category,
+        defaultKey: row.defaultKey,
+      }).toEqual({
+        label: actual?.label,
+        category: actual?.category,
+        defaultKey: actual?.defaultKey,
+      });
     }
   });
 });

@@ -553,7 +553,7 @@ export const KEYMAP_COMMANDS: readonly KeymapCommand[] = [
   {
     id: "ui.toggleCommandPalette",
     category: "ui",
-    label: "Keyboard shortcuts",
+    label: "Commands and shortcuts",
     keys: ["?"],
     bareKey: true,
     when: "always",

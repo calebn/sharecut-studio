@@ -218,7 +218,7 @@ export interface DawState {
   laneHeightPx: number;
   /** Lane height the mounted timeline last resolved (fit or fixed); null with no timeline. Stepping from fit mode starts here. */
   drawnLaneHeightPx: number | null;
-  /** Keyboard shortcuts palette open. */
+  /** Command palette (Commands and shortcuts) open. */
   commandPaletteOpen: boolean;
   /** Mobile gestures cheatsheet open. */
   gesturesSheetOpen: boolean;

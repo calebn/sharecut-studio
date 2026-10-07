@@ -69,6 +69,8 @@ const ON_KEY_DOWN_ALLOWLIST = new Set([
   // Keep clip clearing on the focused button from toggling global playback.
   "tracks/TrackPlaybackMeter.tsx",
   "comments/CommentAuthorLine.tsx",
+  // Palette search: Enter runs the top match and arrows step through results.
+  "layout/CommandPaletteView.tsx",
   "commands/governance.test.ts",
 ]);
 

@@ -23,7 +23,7 @@ export function GesturesSheet({
       <p className="lede">
         Touch gestures for common actions.{" "}
         <Button variant="link" onClick={onShowKeyboardShortcuts}>
-          Keyboard shortcuts
+          Commands and shortcuts
         </Button>
       </p>
       <dl className="gesture-list">

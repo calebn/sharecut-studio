@@ -300,6 +300,37 @@ describe("MobileShell", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("finds commands from the top of More and runs one from the sheet", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <div data-daw-app-chrome>
+          <MobileShell />
+        </div>
+        <CheatsheetDialogs />
+      </DawProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "More" }));
+    const hub = container.querySelector(".mobile-more-hub");
+    expect(hub?.firstElementChild).toHaveAccessibleName("Search commands");
+    await user.click(screen.getByRole("button", { name: "Search commands" }));
+
+    const palette = screen.getByRole("dialog", {
+      name: "Commands and shortcuts",
+    });
+    const search = within(palette).getByRole("searchbox", {
+      name: "Search commands",
+    });
+    await waitFor(() => expect(search).toHaveFocus());
+    await user.type(search, "export deliverables");
+    await user.keyboard("{Enter}");
+    expect(useDawStore.getState().commandPaletteOpen).toBe(false);
+    await waitFor(() =>
+      expect(useDawStore.getState().exportDialogOpen).toBe(true),
+    );
+  });
+
   it("offers Add chapter at playhead in More for a host", async () => {
     const user = userEvent.setup();
     render(
@@ -347,23 +378,23 @@ describe("MobileShell", () => {
     await user.click(screen.getByRole("button", { name: "More" }));
     await user.click(screen.getByRole("button", { name: "Gestures" }));
     await user.click(
-      screen.getByRole("button", { name: "Keyboard shortcuts" }),
+      screen.getByRole("button", { name: "Commands and shortcuts" }),
     );
     expect(
-      screen.getByRole("dialog", { name: "Keyboard shortcuts" }),
+      screen.getByRole("dialog", { name: "Commands and shortcuts" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Gestures" })).toBeNull();
 
     await user.click(
       within(
-        screen.getByRole("dialog", { name: "Keyboard shortcuts" }),
+        screen.getByRole("dialog", { name: "Commands and shortcuts" }),
       ).getByRole("button", { name: "Gestures" }),
     );
     expect(
       screen.getByRole("dialog", { name: "Gestures" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("dialog", { name: "Keyboard shortcuts" }),
+      screen.queryByRole("dialog", { name: "Commands and shortcuts" }),
     ).toBeNull();
   });
 

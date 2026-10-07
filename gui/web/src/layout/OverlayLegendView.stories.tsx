@@ -43,7 +43,7 @@ const meta: Meta<typeof LegendHarness> = {
       }
       if (host === "phone") {
         return (
-          <div className="mobile-more-settings">
+          <div className="mobile-more-group">
             <Story />
           </div>
         );

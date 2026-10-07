@@ -512,10 +512,10 @@ export function TransportBar({
         ) : null}
         <CommandMenuItem
           commandId="ui.toggleCommandPalette"
-          title="Keyboard shortcuts (?)"
+          title="Commands and shortcuts (?)"
           onSelect={closeMenu}
         >
-          Keyboard shortcuts
+          Commands and shortcuts
         </CommandMenuItem>
       </MenuSection>
     </Menu>

@@ -1,249 +1,199 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { waitForDialogFocus } from "../test/dialogFocus";
 import { CommandPaletteView } from "./CommandPaletteView";
-import type { CommandPaletteCategory } from "./commandPaletteRows";
+import type { PaletteCommand } from "./paletteSearch";
 
-const CATEGORIES: CommandPaletteCategory[] = [
+const COMMANDS: PaletteCommand[] = [
   {
-    category: "tools",
-    rows: [
-      {
-        id: "tool.select",
-        label: "Select tool",
-        shortcut: "V",
-        defaultKey: "v",
-      },
-      {
-        id: "tool.blade",
-        label: "Blade tool",
-        shortcut: "C",
-        defaultKey: "c",
-        note: "C alone selects the Blade tool; Mod+C is Copy, Mod+Shift+C is Toggle comment mode",
-      },
-    ],
-  },
-  {
+    id: "transport.togglePlay",
+    label: "Play / pause",
     category: "transport",
-    rows: [
-      {
-        id: "transport.playPause",
-        label: "Play / pause",
-        shortcut: "Space",
-        defaultKey: " ",
-      },
-    ],
+    shortcut: "Space",
+    defaultKey: " ",
+    disabledReason: null,
+  },
+  {
+    id: "tool.blade",
+    label: "Blade tool",
+    category: "tools",
+    shortcut: "C",
+    defaultKey: "C",
+    note: "C alone selects the Blade tool; Mod+C is Copy",
+    disabledReason: null,
+  },
+  {
+    id: "export.deliverables",
+    label: "Export deliverables…",
+    category: "ui",
+    shortcut: "⌘+Shift+E",
+    defaultKey: "E",
+    disabledReason: null,
+  },
+  {
+    id: "help.diagnosticsBundle",
+    label: "Export diagnostics…",
+    category: "ui",
+    shortcut: null,
+    disabledReason: "Project create/open is host-only",
   },
 ];
 
-const UNBOUND = [
-  { id: "view.transcriptAnnotate", label: "Annotate transcript" },
-];
-
-function actions() {
-  return {
+function renderPalette(
+  overrides: Partial<Parameters<typeof CommandPaletteView>[0]> = {},
+) {
+  const props = {
+    open: true,
+    commands: COMMANDS,
     onClose: vi.fn(),
     onOpenGestures: vi.fn(),
     onRun: vi.fn(),
     onRemap: vi.fn(),
+    ...overrides,
   };
+  return { ...render(<CommandPaletteView {...props} />), props };
 }
 
 describe("CommandPaletteView", () => {
   it("renders nothing when closed", () => {
-    render(
-      <CommandPaletteView
-        open={false}
-        categories={CATEGORIES}
-        unbound={UNBOUND}
-        {...actions()}
-      />,
-    );
+    renderPalette({ open: false });
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("shows category filters, rows and the unbound section and passes axe", async () => {
-    const { baseElement: container } = render(
-      <CommandPaletteView
-        open
-        categories={CATEGORIES}
-        unbound={UNBOUND}
-        {...actions()}
-      />,
-    );
+  it("groups commands under readable category names and passes axe", async () => {
+    const { baseElement } = renderPalette();
+    const dialog = screen.getByRole("dialog", {
+      name: "Commands and shortcuts",
+    });
     expect(
-      screen.getByRole("group", { name: "Shortcut categories" }),
+      within(dialog)
+        .getAllByRole("heading", { level: 3 })
+        .map((h) => h.textContent),
+    ).toEqual(["Transport", "Tools", "App"]);
+    expect(
+      within(dialog).getByRole("button", { name: /^Play \/ pause/ }),
+    ).toBeEnabled();
+    await expectNoA11yViolations(baseElement);
+  });
+
+  it("focuses Search on open", async () => {
+    renderPalette();
+    await waitForDialogFocus();
+    expect(
+      screen.getByRole("searchbox", { name: "Search commands" }),
+    ).toHaveFocus();
+  });
+
+  it("filters as you type, counts matches and runs the top one on Enter", async () => {
+    const user = userEvent.setup();
+    const { props } = renderPalette();
+    await waitForDialogFocus();
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search commands" }),
+      "export",
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("2 commands");
+    const rows = screen
+      .getAllByRole("listitem")
+      .map((li) => li.querySelector("button")?.textContent);
+    expect(rows).toEqual([
+      "Export deliverables…App⌘+Shift+E",
+      "Export diagnostics…App",
+    ]);
+    await user.keyboard("{Enter}");
+    expect(props.onRun).toHaveBeenCalledExactlyOnceWith("export.deliverables");
+  });
+
+  it("disables a command that cannot run and says why", () => {
+    renderPalette();
+    const row = screen.getByRole("button", { name: "Export diagnostics…" });
+    expect(row).toBeDisabled();
+    expect(row).toHaveAccessibleDescription("Project create/open is host-only");
+  });
+
+  it("moves between results with the arrow keys and back up to Search", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    await waitForDialogFocus();
+    const search = screen.getByRole("searchbox", { name: "Search commands" });
+    await user.type(search, "e");
+    await user.keyboard("{ArrowDown}");
+    expect(
+      screen.getByRole("button", { name: /^Export deliverables…/ }),
+    ).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(
+      screen.getByRole("button", { name: /^Play \/ pause/ }),
+    ).toHaveFocus();
+    await user.keyboard("{ArrowUp}{ArrowUp}");
+    expect(search).toHaveFocus();
+  });
+
+  it("offers Clear search when nothing matches", async () => {
+    const user = userEvent.setup();
+    renderPalette();
+    await waitForDialogFocus();
+    const search = screen.getByRole("searchbox", { name: "Search commands" });
+    await user.type(search, "xylophone");
+    expect(
+      screen.getByText("No commands match “xylophone”."),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("tablist")).toBeNull();
-    expect(screen.getByRole("button", { name: "All keys" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByRole("button", { name: "tools" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Actions" })).toBeTruthy();
-    expect(screen.getByText("Select tool")).toBeTruthy();
-    expect(screen.getByText("V")).toBeTruthy();
-    expect(screen.getByText("Annotate transcript")).toBeTruthy();
-    await expectNoA11yViolations(container);
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(search).toHaveValue("");
+    expect(search).toHaveFocus();
+    expect(screen.getByRole("button", { name: /^Play \/ pause/ })).toBeTruthy();
   });
 
-  it("filters rows to the selected category filter", async () => {
+  it("links a row's collision note through aria-describedby", () => {
+    renderPalette();
+    expect(
+      screen.getByRole("button", { name: /^Blade tool/ }),
+    ).toHaveAccessibleDescription(
+      "C alone selects the Blade tool; Mod+C is Copy",
+    );
+  });
+
+  it("hands Gestures and Escape to the owner", async () => {
     const user = userEvent.setup();
-    render(
-      <CommandPaletteView
-        open
-        categories={CATEGORIES}
-        unbound={UNBOUND}
-        {...actions()}
-      />,
-    );
-    await user.click(screen.getByRole("button", { name: "tools" }));
-    expect(screen.getByRole("button", { name: "tools" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByRole("button", { name: "All keys" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
-    expect(screen.getByText("Select tool")).toBeTruthy();
-    expect(screen.getByText("Blade tool")).toBeTruthy();
-    expect(screen.queryByText("Play / pause")).toBeNull();
-  });
-
-  it("shows only unbound actions on the Actions filter", async () => {
-    const user = userEvent.setup();
-    render(
-      <CommandPaletteView
-        open
-        categories={CATEGORIES}
-        unbound={UNBOUND}
-        {...actions()}
-      />,
-    );
-    await user.click(screen.getByRole("button", { name: "Actions" }));
-    expect(screen.queryByText("Select tool")).toBeNull();
-    expect(screen.getByText("Annotate transcript")).toBeTruthy();
-  });
-
-  it("omits the Actions filter when there are no unbound commands", () => {
-    render(
-      <CommandPaletteView
-        open
-        categories={CATEGORIES}
-        unbound={[]}
-        {...actions()}
-      />,
-    );
-    expect(screen.queryByRole("button", { name: "Actions" })).toBeNull();
-  });
-
-  it("renders a row's collision note and links it via aria-describedby", async () => {
-    const { baseElement: container } = render(
-      <CommandPaletteView
-        open
-        categories={CATEGORIES}
-        unbound={UNBOUND}
-        {...actions()}
-      />,
-    );
-    const note = screen.getByText(
-      "C alone selects the Blade tool; Mod+C is Copy, Mod+Shift+C is Toggle comment mode",
-    );
-    const bladeButton = screen.getByRole("button", { name: /Blade tool/ });
-    expect(bladeButton.getAttribute("aria-describedby")).toBe(note.id);
-    const selectButton = screen.getByRole("button", { name: /Select tool/ });
-    expect(selectButton.hasAttribute("aria-describedby")).toBe(false);
-    await expectNoA11yViolations(container);
-  });
-
-  it("omits a filter for a category with no rows", () => {
-    render(
-      <CommandPaletteView
-        open
-        categories={[{ category: "history", rows: [] }]}
-        unbound={UNBOUND}
-        {...actions()}
-      />,
-    );
-    expect(screen.queryByRole("button", { name: "history" })).toBeNull();
-  });
-
-  it("calls onRun, onOpenGestures, and onClose on Escape", async () => {
-    const user = userEvent.setup();
-    const cbs = actions();
-    render(
-      <CommandPaletteView
-        open
-        categories={CATEGORIES}
-        unbound={UNBOUND}
-        {...cbs}
-      />,
-    );
-    await user.click(screen.getByText("Select tool"));
-    expect(cbs.onRun).toHaveBeenCalledWith("tool.select");
+    const { props } = renderPalette();
+    await waitForDialogFocus();
     await user.click(screen.getByRole("button", { name: "Gestures" }));
-    expect(cbs.onOpenGestures).toHaveBeenCalledTimes(1);
+    expect(props.onOpenGestures).toHaveBeenCalledOnce();
     await user.keyboard("{Escape}");
-    expect(cbs.onClose).toHaveBeenCalled();
+    expect(props.onClose).toHaveBeenCalled();
   });
 
   it("sends the trimmed key on remap blur, and empty string when cleared", async () => {
     const user = userEvent.setup();
-    const cbs = actions();
-    render(
-      <CommandPaletteView
-        open
-        categories={CATEGORIES}
-        unbound={UNBOUND}
-        {...cbs}
-      />,
-    );
+    const { props } = renderPalette();
     await waitForDialogFocus();
     await user.click(screen.getByLabelText("Show remaps"));
-    const input = screen.getByLabelText("Remap Select tool");
-    await user.type(input, "  x  ");
+    expect(screen.queryByLabelText("Remap Export diagnostics…")).toBeNull();
+    const input = screen.getByLabelText("Remap Blade tool");
+    await user.type(input, " B ");
     await user.tab();
-    expect(cbs.onRemap).toHaveBeenLastCalledWith("tool.select", "x");
+    expect(props.onRemap).toHaveBeenLastCalledWith("tool.blade", "B");
     await user.clear(input);
     await user.tab();
-    expect(cbs.onRemap).toHaveBeenLastCalledWith("tool.select", "");
+    expect(props.onRemap).toHaveBeenLastCalledWith("tool.blade", "");
   });
 
-  it("resets filter and remap state when the dialog reopens", async () => {
+  it("clears the search and remaps when it reopens", async () => {
     const user = userEvent.setup();
-    const { rerender } = render(
-      <CommandPaletteView
-        open
-        categories={CATEGORIES}
-        unbound={UNBOUND}
-        {...actions()}
-      />,
+    const { props, rerender } = renderPalette();
+    await waitForDialogFocus();
+    await user.type(
+      screen.getByRole("searchbox", { name: "Search commands" }),
+      "blade",
     );
-    await user.click(screen.getByRole("button", { name: "tools" }));
     await user.click(screen.getByLabelText("Show remaps"));
-    rerender(
-      <CommandPaletteView
-        open={false}
-        categories={CATEGORIES}
-        unbound={UNBOUND}
-        {...actions()}
-      />,
-    );
-    rerender(
-      <CommandPaletteView
-        open
-        categories={CATEGORIES}
-        unbound={UNBOUND}
-        {...actions()}
-      />,
-    );
-    expect(screen.getByRole("button", { name: "All keys" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.queryByLabelText("Remap Select tool")).toBeNull();
+    rerender(<CommandPaletteView {...props} open={false} />);
+    rerender(<CommandPaletteView {...props} open />);
+    expect(
+      screen.getByRole("searchbox", { name: "Search commands" }),
+    ).toHaveValue("");
+    expect(screen.getByLabelText("Show remaps")).not.toBeChecked();
   });
 });

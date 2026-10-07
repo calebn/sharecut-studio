@@ -32,7 +32,7 @@ import { SoloChip } from "../tracks/SoloChip";
 import { TrackHeadersColumn } from "../tracks/TrackHeadersColumn";
 import { TrackMix } from "../tracks/TrackMix";
 import type { PresenceTab } from "../types/session";
-import { CommandButton, EmptyState, Timecode } from "../ui";
+import { CommandButton, EmptyState, Icon, Timecode } from "../ui";
 import { isPipelineSlotBusy, pipelineChipOpensPanel } from "../utils/pipeline";
 import { staleMixLabel } from "../utils/staleRender";
 import { formatTimecodePair, transportTimecode } from "../utils/time";
@@ -60,10 +60,12 @@ function MoreHub({
   guestShare,
   onOpenMix,
   onOpenGestures,
+  onOpenCommands,
 }: {
   guestShare: boolean;
   onOpenMix: () => void;
   onOpenGestures: () => void;
+  onOpenCommands: () => void;
 }) {
   const {
     pipelineJob,
@@ -95,6 +97,14 @@ function MoreHub({
 
   return (
     <div className="mobile-more-hub" aria-label="More">
+      <button
+        type="button"
+        className="mobile-more-search"
+        onClick={onOpenCommands}
+      >
+        <Icon name="search" size={18} />
+        <span>Search commands</span>
+      </button>
       <ul className="mobile-more-list">
         <li>
           <button
@@ -132,27 +142,27 @@ function MoreHub({
           })}
       </ul>
       {mayIngest ? (
-        <div className="mobile-more-settings">
+        <div className="mobile-more-group">
           {emptySession ? (
             <p className="mobile-ingest-hint">
-              No tracks yet. Import Audio adds one dialogue track per file.
+              No tracks yet. Import audio adds one dialogue track per file.
             </p>
           ) : null}
-          <CommandButton commandId="media.import">Import Audio…</CommandButton>
-          <CommandButton commandId="track.add">New Track</CommandButton>
+          <CommandButton commandId="media.import">Import audio…</CommandButton>
+          <CommandButton commandId="track.add">New track</CommandButton>
         </div>
       ) : null}
-      <div className="mobile-more-settings">
+      <div className="mobile-more-group">
         <OverlayLegend />
       </div>
       {mayManage ? (
-        <div className="mobile-more-settings">
+        <div className="mobile-more-group">
           <CommandButton commandId="edit.addChapter" respectWhen>
             Add chapter at playhead
           </CommandButton>
         </div>
       ) : null}
-      <div className="mobile-more-settings">
+      <div className="mobile-more-group">
         <button
           type="button"
           className="mobile-more-item"
@@ -366,6 +376,7 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
     statusAnnouncement,
     competingDialogOpen,
     setGesturesSheetOpen,
+    setCommandPaletteOpen,
   } = useDaw((s) => ({
     rangeArmed: s.rangeArmed,
     setRangeArmed: s.setRangeArmed,
@@ -392,6 +403,7 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
       s.hostMcpDialogOpen ||
       s.helpDialogOpen,
     setGesturesSheetOpen: s.setGesturesSheetOpen,
+    setCommandPaletteOpen: s.setCommandPaletteOpen,
   }));
   const [mixRequest, setMixRequest] = useState<{
     projectPath: string | null;
@@ -455,6 +467,10 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
         onOpenGestures={() => {
           setMixRequest(null);
           setGesturesSheetOpen(true);
+        }}
+        onOpenCommands={() => {
+          setMixRequest(null);
+          setCommandPaletteOpen(true);
         }}
       />
     ) : moreDestination === "comments" ? (

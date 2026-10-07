@@ -434,12 +434,42 @@ html[data-shell="tablet"] {
   border-bottom: 0;
 }
 
-.mobile-more-settings .mobile-more-item {
+.mobile-more-group .mobile-more-item {
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
 }
 
-.mobile-more-settings {
+/* Import audio… / New track: separate buttons, not one joined slab. */
+.mobile-more-group > .ui-control + .ui-control {
+  margin-inline-start: var(--space-3);
+}
+
+/* Looks like a search field; opens Commands and shortcuts with Search focused. */
+.mobile-more-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: var(--touch-min);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--color-field);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-body);
+  text-align: start;
+  cursor: pointer;
+}
+
+.mobile-more-search:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.mobile-more-group {
   margin-top: var(--space-5);
   padding-top: var(--space-4);
   border-top: 1px solid var(--border);
@@ -462,6 +492,6 @@ html[data-shell="tablet"] {
 /* Phone toolbars: 44pt targets (--touch-min). */
 .daw-shell--phone .transcript-toolbar .ui-control,
 .daw-shell--phone .editing-tool-rail .ui-control,
-.daw-shell--phone .mobile-more-settings .ui-control {
+.daw-shell--phone .mobile-more-group .ui-control {
   min-block-size: var(--touch-min);
 }

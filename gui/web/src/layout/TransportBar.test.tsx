@@ -125,7 +125,7 @@ describe("TransportBar collapsed", () => {
     const menu = screen.getByRole("menu");
     expect(within(menu).getByRole("group", { name: "Audition" })).toBeTruthy();
     const shortcuts = within(menu).getByRole("menuitem", {
-      name: "Keyboard shortcuts",
+      name: "Commands and shortcuts",
     });
     expect(shortcuts.querySelector("kbd")?.textContent).toBe("?");
   });
