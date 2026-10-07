@@ -272,6 +272,64 @@ does not invent fades at the requested window edges. Rewriting a stem in place f
 writes a temporary WAV and replaces the original after the gate succeeds. Source
 proxies abstain when a lane selects media other than its primary raw source.
 
+### Rejected: per-frame pitch and voice (#1066)
+
+Level and timbre keep some of a peer's copy at full level: a copy that runs over
+its usual level for whole phrases, and copy whose spectral match overlaps the
+speaker's own sound. Three rounds tried to tell that copy from own voice per 10 ms
+frame. Each frame's YIN f0 on the lane was compared with the peer's own track at the
+copy lag. With the `speaker` extra, ECAPA or Resemblyzer embeddings judged runs of
+1.5 s or more. None shipped, and the gate is level and timbre only.
+
+- Round 1 called unpitched frames between copy pitch the copy. It cut a laugh
+  injected 10 dB over the copy whole, and 21.2 s of untranscribed sound that main
+  keeps.
+- Round 2 cut only audio whose every pitch reading followed the peer. It was safe,
+  but the unpitched copy between its cuts stayed, so the copy came in and out.
+- Round 3 kept a run as own only with a syllable off the copy's pitch, and withdrew
+  any cut that left a piece under 0.3 s.
+
+Caleb's lane on the realigned lab episode, pitch only. The speaker backends moved
+the copy at full level by at most 0.4 s:
+
+| Caleb's lane | main | round 1 | round 2 | round 3 |
+|---|---|---|---|---|
+| Copy at full level (of 215.3 s) | 77.3 s | 42.7 s | 73.8 s | 73.0 s |
+| of it at Audra's pitch | 16.4 s | 4.2 s | 12.9 s | 13.6 s |
+| Owner-confirmed passages (of 17.4 s) | 3.62 s | 0.08 s | 3.20 s | 3.31 s |
+| Kept copy pieces under 0.3 s | 8 | 1 | 39 | 5 |
+| Unsuppressed Caleb words touched (of 2,372) | 0 | 0 | 0 | 0 |
+| Untranscribed sound off Audra's pitch cut where main keeps it | 0 | 21.2 s | 0.11 s | 1.55 s |
+
+Round 3 gained 4.3 s. On the owner-flagged passage at 1656.4 s the stem changed
+−2.9 dB against main's −2.8 dB. Laughs and breaths injected 4–12 dB over the copy
+lost no more than main takes, but at 2–3 dB over it one laugh in 144 lost 4% where
+main keeps it whole, which the rule that own sound is never touched forbids.
+
+What limits it is the copy's own unvoiced sound. 74% of the copy main keeps has no
+pitch the lane can read: the peer's sibilants, and the ring after the peer's gate
+shuts. In the owner-confirmed Audra-only passages, 23% of the copy's 30 ms readings
+off her pitch stand more than 4 dB over what her own track predicts at the lag, up
+to 19 dB, likely because the call software suppresses and gates her own track
+there. By level and pitch that sound is a breath or a laugh, so no per-frame rule
+can take it without risking own sound.
+
+What would help instead:
+
+- Better alignment, so retained-bleed alignment rather than the gate handles more
+  of the copy: a per-track timing map (#1089) and the piecewise-lag residuals
+  (#1090).
+- Transcript attribution that stops keeping a peer's words as the lane's own
+  (#1052). Those words protect their runs, such as the "Keep" tail in the 1656.4 s
+  passage.
+- Source separation, which would take the peer out of the mic rather than choose
+  per frame. A future option.
+
+The synthetic cases from this work pin the level and timbre gate as protections in
+`tests/test_bleed_gate_generality.py`: own sound over a voiced copy, laughs and
+breaths 4–12 dB over the copy, peers in the speaker's own pitch range or barely
+meeting it, and a speaker with too few words to learn a range from.
+
 ---
 
 ## Synthetic and AMI fixtures
