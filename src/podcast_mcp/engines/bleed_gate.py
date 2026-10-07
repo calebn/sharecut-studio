@@ -53,7 +53,7 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
-BLEED_GATE_REV = 12
+BLEED_GATE_REV = 13
 EVIDENCE_RATE = 8000
 # Gain ramps inside each reduced span, after a hold at full level around the lane's
 # own speech. On the lab tape (#945) the level just outside Caleb's reduced spans is
@@ -103,6 +103,7 @@ _SAME_SIGNAL_GAP_DB = 20 * math.log10(2 * (1 - 10 ** (-_OWN_MARGIN_DB / 40)))
 # sound (#1159). The longest block in podcast delivery is AAC-LC's 2048-sample window:
 # 43 ms at 48 kHz. Opus frames run 20 ms, up to 60 ms.
 _CODEC_REACH_SEC = 0.05
+_ONSET_REACH = round(_ONSET_REACH_SEC / _OWNER_HOP_SEC)
 
 
 @dataclass(frozen=True)
@@ -335,9 +336,22 @@ def _frame_spans(runs: list[tuple[int, int]], *, whole_frame: bool) -> list[tupl
     return [(start, end) for start, end in spans if end > start]
 
 
+def _on_lane_clock(levels: np.ndarray, lag: int, size: int) -> np.ndarray:
+    """A peer track's levels moved ``lag`` hops earlier, onto this lane's clock."""
+    out = np.full(size, LEVEL_FLOOR_DB)
+    lo, hi = max(0, -lag), min(size, levels.size - lag)
+    out[lo:hi] = levels[lo + lag : hi + lag]
+    return out
+
+
 @dataclass(frozen=True, eq=False)
 class _PeerCopy:
-    """A peer's verified copy on this lane: its delay, level and timbre there."""
+    """A peer's verified copy on this lane: its delay, lead, level and timbre there.
+
+    ``lead`` is, per level frame, how many hops ahead of the peer's opening the copy
+    was heard here, at most the 200 ms the gate reads ahead. It sets only how loud
+    the copy is expected when own sound is judged.
+    """
 
     levels: np.ndarray
     samples: np.ndarray
@@ -345,33 +359,36 @@ class _PeerCopy:
     coupling_db: float = 0.0
     spread_db: float = 0.0
     likeness: float = 1.0
+    lead: np.ndarray | int = _ONSET_REACH
 
     def direct(self, size: int) -> np.ndarray:
         """The peer's direct-track levels moved onto this lane's clock."""
-        out = np.full(size, LEVEL_FLOOR_DB)
-        lo, hi = max(0, -self.lag), min(size, self.levels.size - self.lag)
-        out[lo:hi] = self.levels[lo + self.lag : hi + self.lag]
-        return out
+        return _on_lane_clock(self.levels, self.lag, size)
 
-    def reach(self, size: int) -> np.ndarray:
+    def reach(self, size: int, lead: np.ndarray | int = _ONSET_REACH) -> np.ndarray:
         """The direct-track level the copy here can carry in each frame.
 
         The copy rings on in the room after the peer's gate shuts, so frames read
         the direct track held briefly. Where the direct track was gated shut within
         the last level frame, its level is diluted or missing while the copy may
-        already carry the peer's onset, so those frames also read ahead.
+        already carry the peer's onset, so those frames also read ahead, each as far
+        as ``lead`` there: by default the full 200 ms, which is where the copy can be.
         """
         direct = self.direct(size)
         hop = _OWNER_HOP_SEC
         hold = round(_COPY_HOLD_SEC / hop)
         held = _sliding_max(direct, hold, hold)
         onset = _sliding_max(-direct, round(_LEVEL_FRAME_SEC / hop), 0) >= -PEER_OPEN_DB
-        ahead = _sliding_max(direct, 0, round(_ONSET_REACH_SEC / hop))
+        steps = np.broadcast_to(lead, size)
+        ahead = direct.copy()
+        for step in range(1, min(_ONSET_REACH, size) + 1):
+            later = np.concatenate([direct[step:], np.full(step, LEVEL_FLOOR_DB)])
+            ahead = np.where(steps >= step, np.maximum(ahead, later), ahead)
         return np.where(onset, np.maximum(held, ahead), held)
 
     def power(self, size: int, *, held: bool) -> np.ndarray:
-        """Power of the copy on this lane, frame by frame or as far as it can reach."""
-        level = self.reach(size) if held else self.direct(size)
+        """Power of the copy on this lane, frame by frame or as loud as it is expected."""
+        level = self.reach(size, self.lead) if held else self.direct(size)
         return 10 ** ((level + self.coupling_db) / 10)
 
     def similarity(self, own_samples: np.ndarray, frames: np.ndarray) -> np.ndarray:
@@ -419,14 +436,18 @@ def _peer_copy(
     fine-spectrum match on frames at the coupling. The room and call software blur and
     spread it on the lab (0.35; median 0.41); a copy that keeps its timbre sits in a
     narrow band near 1.
+
+    All three are read against the full 200 ms reach, where the copy can be, not
+    against the measured lead. A coupling read against the lead would expect more
+    copy inside the peer's words, and a breath 4 dB over the copy there was cut whole.
     """
     lag = _path_lag(own, peer, spans)
     if lag is None:
         return None
     reach = _PeerCopy(peer, peer_samples, lag).reach(own.size)
-    lead = lag * _OWNER_HOP_SEC
+    shift = lag * _OWNER_HOP_SEC
     frames = (
-        _hop_mask(own.size, [(start - lead, end - lead) for start, end in spans])
+        _hop_mask(own.size, [(start - shift, end - shift) for start, end in spans])
         & ~_hop_mask(own.size, own_words, MAX_COPY_LAG_SEC)
         & (reach > PEER_OPEN_DB)
         & (own > LEVEL_FLOOR_DB)
@@ -440,7 +461,42 @@ def _peer_copy(
     sample = typical[:: max(1, typical.size // LIKENESS_FRAMES)]
     copy = _PeerCopy(peer, peer_samples, lag, coupling)
     likeness = copy_likeness(copy.similarity(own_samples, sample)) if sample.size else 1.0
-    return _PeerCopy(peer, peer_samples, lag, coupling, spread, likeness)
+    lead = _copy_lead(own_samples, peer_samples, lag, own.size)
+    return _PeerCopy(peer, peer_samples, lag, coupling, spread, likeness, lead)
+
+
+def _copy_lead(
+    own_samples: np.ndarray, peer_samples: np.ndarray, lag: int, size: int
+) -> np.ndarray:
+    """Per level frame, how far ahead of the peer's track the copy is expected to sound.
+
+    A call app can open a speaker's gate late, by a different amount on each word,
+    so the copy on a mic in the room starts first. The 200 ms before every opening of
+    the peer's track stays where the copy can be. How loud the copy is expected there,
+    when own sound is judged, reads ahead of each opening only as far as this lane has
+    been sounding without a break up to it: over the mic's own floor, as own words'
+    voiced runs are, through dips shorter than the copy rings. A lane quiet just
+    before an opening shows that the copy came with the track, so sound near that
+    opening is judged against what the track carries, not its next word. The lane's
+    sound is not judged as copy or own sound here: the copy is never expected later
+    than the lane heard it, and own sound running into an opening is judged as if it
+    might be the copy's start. The lead holds from the 200 ms and the level frame
+    before each opening to the level frame after it.
+    """
+    hop = _OWNER_HOP_SEC
+    lane = _owner_levels(own_samples)
+    direct = _on_lane_clock(_owner_levels(peer_samples), lag, lane.size)
+    frame = round(_LEVEL_FRAME_SEC / hop)
+    sounding = bridge_short_dips(lane > _owner_floor_db(lane), round(_COPY_HOLD_SEC / hop) - 1)
+    starts = np.zeros(lane.size, dtype=int)
+    for lo, hi in bool_runs(sounding):
+        starts[lo:hi] = lo
+    opened = direct > PEER_OPEN_DB
+    lead = np.zeros(size, dtype=int)
+    for opening in np.flatnonzero(opened[1:] & ~opened[:-1] & sounding[:-1]) + 1:
+        near = slice(max(0, opening - _ONSET_REACH - frame), opening + frame + 1)
+        lead[near] = np.maximum(lead[near], min(_ONSET_REACH, opening - starts[opening - 1]))
+    return lead
 
 
 def _own_voice(
