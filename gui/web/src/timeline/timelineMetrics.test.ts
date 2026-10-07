@@ -11,6 +11,7 @@ import {
   markerLaneHeight,
   markerRows,
   resolveLaneHeight,
+  shortTouchFloorPx,
   useGestureStable,
 } from "./timelineMetrics";
 
@@ -86,46 +87,30 @@ describe("resolveLaneHeight", () => {
           fixedPx: 72,
           availablePx: 300,
           trackCount: 10,
-          minimumPx: 104,
+          fit: { kind: "touch" },
         }),
       ).toBe(104);
     },
   );
 
   it("ignores stage size and track count in fixed mode", () => {
-    expect(
+    const fixed = (fixedPx: number) =>
       resolveLaneHeight({
-        minimumPx: 72,
+        fit: { kind: "pointer" },
         mode: "fixed",
-        fixedPx: 104,
+        fixedPx,
         availablePx: 400,
         trackCount: 2,
-      }),
-    ).toBe(104);
-    expect(
-      resolveLaneHeight({
-        minimumPx: 72,
-        mode: "fixed",
-        fixedPx: 500,
-        availablePx: 400,
-        trackCount: 2,
-      }),
-    ).toBe(240);
-    expect(
-      resolveLaneHeight({
-        minimumPx: 72,
-        mode: "fixed",
-        fixedPx: 10,
-        availablePx: 400,
-        trackCount: 2,
-      }),
-    ).toBe(72);
+      });
+    expect(fixed(104)).toBe(104);
+    expect(fixed(500)).toBe(240);
+    expect(fixed(10)).toBe(72);
   });
 
   it("delegates to fitLaneHeight in fit mode", () => {
     expect(
       resolveLaneHeight({
-        minimumPx: 72,
+        fit: { kind: "pointer" },
         mode: "fit",
         fixedPx: 104,
         availablePx: 400,
@@ -134,13 +119,45 @@ describe("resolveLaneHeight", () => {
     ).toBe(200);
     expect(
       resolveLaneHeight({
-        minimumPx: 72,
+        fit: { kind: "pointer" },
         mode: "fit",
         fixedPx: 104,
         availablePx: 300,
         trackCount: 10,
       }),
     ).toBe(LANE_HEIGHT);
+  });
+
+  describe("on a short touch screen (#1077)", () => {
+    const short = (input: {
+      mode?: "fixed" | "fit";
+      fixedPx?: number;
+      floorPx?: number;
+      availablePx?: number;
+    }) =>
+      resolveLaneHeight({
+        mode: input.mode ?? "fixed",
+        fixedPx: input.fixedPx ?? 104,
+        availablePx: input.availablePx ?? 205,
+        trackCount: 2,
+        fit: { kind: "touchShort", floorPx: input.floorPx ?? 72 },
+      });
+
+    it("drops a fixed height to the compact lane, whatever the stage", () => {
+      expect(short({})).toBe(72);
+      expect(short({ fixedPx: 192, availablePx: 600 })).toBe(72);
+    });
+
+    it("still fills the stage in fit mode", () => {
+      expect(short({ mode: "fit", availablePx: 300 })).toBe(150);
+      expect(short({ mode: "fit", availablePx: 100 })).toBe(72);
+    });
+
+    it("keeps large-text identity chips whole", () => {
+      expect(shortTouchFloorPx(16)).toBe(72);
+      expect(shortTouchFloorPx(32)).toBe(104);
+      expect(short({ floorPx: shortTouchFloorPx(32) })).toBe(104);
+    });
   });
 });
 
@@ -162,6 +179,15 @@ describe("marker rows", () => {
       clipping: false,
     });
     expect(markerLaneHeight(rows)).toBe(MARKER_ROW_HEIGHT);
+  });
+
+  it("gives the quiet row to the tracks on a short touch screen", () => {
+    const short = { kind: "touchShort", floorPx: 72 } as const;
+    expect(markerLaneHeight(markerRows(base), short)).toBe(0);
+    const chapters = [{ time: 1, title: "Intro" }] as never[];
+    expect(markerLaneHeight(markerRows({ ...base, chapters }), short)).toBe(
+      MARKER_ROW_HEIGHT,
+    );
   });
 
   it("adds a row per layer with content, honoring layer toggles", () => {

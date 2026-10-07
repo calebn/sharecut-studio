@@ -17,6 +17,7 @@ import {
   type LaneHeightMode,
 } from "../utils/laneHeightPref";
 import {
+  COMPACT_LANE_HEIGHT,
   LANE_HEIGHT,
   MARKER_LANE_HEIGHT,
   MARKER_ROW_HEIGHT,
@@ -121,21 +122,57 @@ export function fitLaneHeight(available: number, trackCount: number): number {
 }
 
 /**
+ * How lanes size for the input and screen. A mouse or pen gets the plain
+ * floor; touch keeps 104 px lanes so the track details and clip-light targets
+ * stay apart; a short touch screen (a phone held sideways, #1077) uses the
+ * compact lane, `floorPx` ({@link shortTouchFloorPx}), so three or more fit.
+ * The compact lane ignores the stage height, so a sheet that opens or closes
+ * never resizes the lanes under a finger.
+ */
+export type LaneFit =
+  | { kind: "pointer" }
+  | { kind: "touch" }
+  | { kind: "touchShort"; floorPx: number };
+
+/** The 2.75rem identity chip plus its 0.5rem meter row, in rem. */
+const SHORT_TOUCH_FLOOR_REM = 3.25;
+
+/**
+ * Shortest touch lane on a short screen: the 72 px compact lane, or taller
+ * when large text grows the identity chip past it.
+ */
+export function shortTouchFloorPx(rootFontPx: number): number {
+  return Math.max(LANE_HEIGHT, Math.ceil(rootFontPx * SHORT_TOUCH_FLOOR_REM));
+}
+
+/**
  * Lane height for the current mode (#529): the saved fixed height, or the
- * fitted height when "Fit tracks to window height" is on.
+ * fitted height when "Fit tracks to window height" is on, bounded by
+ * {@link LaneFit}.
  */
 export function resolveLaneHeight(input: {
   mode: LaneHeightMode;
   fixedPx: number;
   availablePx: number;
   trackCount: number;
-  minimumPx: number;
+  fit: LaneFit;
 }): number {
-  const height =
+  const preferred =
     input.mode === "fit"
       ? fitLaneHeight(input.availablePx, input.trackCount)
       : clampLaneHeightPx(input.fixedPx);
-  return Math.max(input.minimumPx, height);
+  switch (input.fit.kind) {
+    case "pointer":
+      return preferred;
+    case "touch":
+      return Math.max(COMPACT_LANE_HEIGHT, preferred);
+    case "touchShort":
+      // Fit mode still fills the stage; a fixed height drops to the
+      // compact lane.
+      return input.mode === "fit"
+        ? Math.max(input.fit.floorPx, preferred)
+        : input.fit.floorPx;
+  }
 }
 
 export type MarkerRows = {
@@ -162,13 +199,21 @@ export function markerRows(input: {
   };
 }
 
-/** Marker lane height: one row per visible row, one quiet row when empty. */
-export function markerLaneHeight(rows: MarkerRows): number {
+/**
+ * Marker lane height: one row per visible row, and one quiet row when empty,
+ * except on a short touch screen (#1077), where an empty lane gives its row
+ * to the tracks.
+ */
+export function markerLaneHeight(
+  rows: MarkerRows,
+  fit: LaneFit = { kind: "pointer" },
+): number {
   const count = [
     rows.chapters,
     rows.social,
     rows.comments,
     rows.clipping,
   ].filter(Boolean).length;
-  return Math.max(1, count) * MARKER_ROW_HEIGHT;
+  const quietRows = fit.kind === "touchShort" ? 0 : 1;
+  return Math.max(quietRows, count) * MARKER_ROW_HEIGHT;
 }
