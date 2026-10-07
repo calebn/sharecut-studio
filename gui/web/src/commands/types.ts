@@ -52,6 +52,11 @@ export type CommandDef = {
   id: string;
   category: CommandCategory;
   label: string;
+  /**
+   * Extra lowercase words the command palette matches, for what people type
+   * instead of the label (file types, synonyms).
+   */
+  keywords?: readonly string[];
   /** Default when-clause when invoked via keyboard; buttons may bypass. */
   when: ContextPredicateId;
   notes?: string;

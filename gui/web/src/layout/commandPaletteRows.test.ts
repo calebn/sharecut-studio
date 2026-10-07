@@ -8,6 +8,7 @@ import { useDawStore } from "../state/dawStore";
 import { minimalProject } from "../test/fixtures";
 import paletteStoryMeta from "./CommandPaletteView.stories";
 import { paletteCommands } from "./commandPaletteRows";
+import { searchPaletteCommands } from "./paletteSearch";
 
 const rowsNow = () => paletteCommands(buildCommandContext());
 
@@ -42,6 +43,19 @@ describe("paletteCommands", () => {
     const annotate = rowsNow().find((r) => r.id === "view.transcriptAnnotate");
     expect(annotate?.shortcut).toBeNull();
     expect(annotate?.defaultKey).toBeUndefined();
+  });
+
+  it.each([
+    ["mp3", "export.deliverables"],
+    ["wav", "export.deliverables"],
+    ["loudness", "export.deliverables"],
+    ["razor", "tool.blade"],
+    ["invite", "share.manage"],
+    ["filler", "tighten.applyAllSafe"],
+  ])("finds what people call it: %s → %s", (query, id) => {
+    expect(searchPaletteCommands(rowsNow(), query).map((r) => r.id)).toContain(
+      id,
+    );
   });
 
   it("treats focus-only gates as met, as a pointer click does", () => {
