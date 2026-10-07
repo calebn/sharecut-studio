@@ -137,6 +137,36 @@ class TranscriptGateScope(SourceSpan):
     source_id: str | None = None
 
 
+class GateFillSource(StrEnum):
+    """Where a track's gate fill comes from, in the order tried (never another track)."""
+
+    ROOM_TONE_BED = "room_tone_bed"
+    COMFORT_NOISE = "comfort_noise"
+
+
+class GateFill(BaseModel):
+    """Room tone laid under the track's source-gate holes (#1111).
+
+    A recorder's noise gate (Zoom's per-participant tracks) leaves the track at digital
+    silence between words, so it drops to dead air. ``path`` is the fill on the media's
+    clock: the fill inside each hole, fading in and out within it, and digital silence
+    everywhere else. Render sums it under the media, so own audio is untouched and our
+    own mutes, cuts and pads silence it as they silence the media. It applies only while
+    the media still has ``media_size`` and ``media_mtime_ns``.
+    """
+
+    source: GateFillSource
+    path: str
+    media_size: int = Field(ge=0)
+    media_mtime_ns: int
+    holes: int = Field(ge=0)
+    filled_sec: float = Field(ge=0, allow_inf_nan=False)
+    level_db: float = Field(allow_inf_nan=False)
+    # The track's own noise under its speech, as measured; None for a recorded bed.
+    noise_db: float | None = Field(default=None, allow_inf_nan=False)
+    fade_ms: int = Field(ge=0)
+
+
 class Track(BaseModel):
     id: str
     label: str
@@ -148,6 +178,8 @@ class Track(BaseModel):
     # projects). Filler pads prefer this over room tone sampled from the track
     # (edits/room_tone.py) when filler_pad_mode is room_tone.
     room_tone: MediaAsset | None = None
+    # Written by the pipeline's fill_gate_holes step (edits/gate_fill.py).
+    gate_fill: GateFill | None = None
     # Staging gain the pipeline's balance step writes (dialogue toward target LUFS).
     gain_db: float = 0.0
     balance_basis: BalanceBasis | None = None

@@ -8,7 +8,7 @@ import re
 import shutil
 import tempfile
 import threading
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterable
 from dataclasses import dataclass
 from itertools import pairwise
 from pathlib import Path
@@ -299,6 +299,9 @@ class PlacedSegment:
     # Clip-local mute holes (seconds from src_start) rendered as silence.
     mute_spans: tuple[MuteEnvelope, ...] = ()
     source_path: Path | None = None
+    # Summed under this segment before its fades and mutes: the same source range of a
+    # file on the media's clock (a track's gate fill, edits/gate_fill.py).
+    fill_path: Path | None = None
 
 
 @dataclass
@@ -308,6 +311,8 @@ class AudioProbe:
     channels: int
     duration_estimated: bool = False
     audio_duration_sec: float | None = None
+    # The decoder's sample format (``s16``, ``fltp``, ...), when ffprobe reports one.
+    sample_fmt: str | None = None
 
 
 def _read_exact(stream: IO[bytes], size: int) -> bytearray:
@@ -427,6 +432,7 @@ class FFmpegEngine:
                 or len(audio_streams) != 1
             ),
             audio_duration_sec=audio_duration,
+            sample_fmt=stream.get("sample_fmt") or None,
         )
 
     def stream_pcm_f32(
@@ -483,6 +489,59 @@ class FFmpegEngine:
                 argv, 1, chunk_frames=chunk_frames, timeout_sec=PCM_STREAM_TIMEOUT_SEC
             )
         )
+
+    def encode_flac_f32(
+        self,
+        chunks: Iterable[np.ndarray],
+        output_path: Path,
+        *,
+        sample_rate: int,
+        channels: int,
+    ) -> Path:
+        """Encode ``(frames, channels)`` float32 chunks to 24-bit FLAC at *output_path*.
+
+        The counterpart of :meth:`stream_pcm_f32` for writing: chunks are piped to
+        ffmpeg as they come, so a whole track is never held. Raises ``RuntimeError``
+        with the tail of ffmpeg's stderr on a non-zero exit.
+        """
+        if sample_rate < 1 or channels < 1:
+            raise ValueError("sample_rate and channels must be >= 1")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        argv = [
+            self.ffmpeg,
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "f32le",
+            "-ar",
+            str(sample_rate),
+            "-ac",
+            str(channels),
+            "-i",
+            "pipe:0",
+            "-c:a",
+            "flac",
+            "-sample_fmt",
+            "s32",
+            "-bits_per_raw_sample",
+            "24",
+            str(output_path),
+        ]
+        with tempfile.TemporaryFile() as err, popen(argv, stdin=PIPE, stderr=err) as proc:
+            assert proc.stdin is not None
+            try:
+                for chunk in chunks:
+                    block = np.asarray(chunk, dtype="<f4").reshape(-1, channels)
+                    proc.stdin.write(block.tobytes())
+            finally:
+                proc.stdin.close()
+            code = proc.wait()
+            if code:
+                err.seek(0)
+                tail = err.read()[-2000:].decode("utf-8", "replace")
+                raise RuntimeError(f"ffmpeg FLAC encode failed ({code}): {tail}")
+        return output_path
 
     def decode_window_f32(
         self, path: Path, start_frame: int, frames: int, sample_rate: int, channels: int
@@ -827,15 +886,28 @@ class FFmpegEngine:
             for segment_index, label in zip(segment_indices, labels, strict=True):
                 split_labels[segment_index] = label
 
+        for i, seg in enumerate(placed):
+            seek = seeks[source_paths[i]]
+            filters.append(
+                f"{split_labels[i]}atrim=start={seek.offset(seg.src_start)}:"
+                f"end={seek.offset(seg.src_end)},asetpts=PTS-STARTPTS[src{i}]"
+            )
+
+        src_labels = [f"[src{i}]" for i in range(n)]
+        fill_args = self._mix_fills(
+            placed,
+            filters,
+            src_labels,
+            source_paths=source_paths,
+            source_ranges=source_ranges,
+            seeks=seeks,
+        )
+
         seg_labels: list[str] = []
         source_rates: dict[Path, int] = {}
         for i, seg in enumerate(placed):
             path = source_paths[i]
             seek = seeks[path]
-            filters.append(
-                f"{split_labels[i]}atrim=start={seek.offset(seg.src_start)}:"
-                f"end={seek.offset(seg.src_end)},asetpts=PTS-STARTPTS[src{i}]"
-            )
             dur = seg.src_end - seg.src_start
             chain = self._fade_chain(dur, seg.fade_in_sec, seg.fade_out_sec)
             if seg.mute_spans:
@@ -851,7 +923,7 @@ class FFmpegEngine:
                     )
                 )
             body = ",".join(chain) if chain else "anull"
-            filters.append(f"[src{i}]{body}[a{i}]")
+            filters.append(f"{src_labels[i]}{body}[a{i}]")
             seg_labels.append(f"[a{i}]")
 
         needs_pairwise = lead_in_sec > 0 or any(
@@ -918,6 +990,7 @@ class FFmpegEngine:
         cmd = [self.ffmpeg, "-y"]
         for path, (_start, end) in source_ranges.items():
             cmd.extend([*seeks[path].input_args(end), "-i", str(path)])
+        cmd.extend(fill_args)
         cmd.extend(
             [
                 "-filter_complex",
@@ -929,6 +1002,53 @@ class FFmpegEngine:
         )
         run(cmd, check=True, capture_output=True)
         return output_path
+
+    def _mix_fills(
+        self,
+        placed: list[PlacedSegment],
+        filters: list[str],
+        src_labels: list[str],
+        *,
+        source_paths: list[Path],
+        source_ranges: dict[Path, tuple[float, float]],
+        seeks: dict[Path, MediaSeek],
+    ) -> list[str]:
+        """Sum each segment's ``fill_path`` under it; returns the fill inputs' ffmpeg args.
+
+        A fill input is read through its segments' media ``MediaSeek`` over the same
+        bounds and trimmed to the same range, so both land on the same samples. The
+        sum is converted back to the media decoder's sample format, so where the fill
+        is digital silence every later filter sees exactly the samples it would
+        without the fill.
+        """
+        groups: dict[tuple[Path, Path], list[int]] = {}
+        for i, seg in enumerate(placed):
+            if seg.fill_path is not None:
+                groups.setdefault((seg.fill_path, source_paths[i]), []).append(i)
+        first_input = len(source_ranges)
+        args: list[str] = []
+        formats: dict[Path, str | None] = {}
+        for k, ((fill, media), indices) in enumerate(groups.items()):
+            seek = seeks[media]
+            args.extend([*seek.input_args(source_ranges[media][1]), "-i", str(fill)])
+            labels = [f"[fill_in{k}_{j}]" for j in range(len(indices))]
+            splitter = f"asplit={len(labels)}" if len(labels) > 1 else "anull"
+            filters.append(f"[{first_input + k}:a]{splitter}{''.join(labels)}")
+            if media not in formats:
+                formats[media] = self.probe(media).sample_fmt
+            restore = f",aformat=sample_fmts={formats[media]}" if formats[media] else ""
+            for i, label in zip(indices, labels, strict=True):
+                seg = placed[i]
+                filters.append(
+                    f"{label}atrim=start={seek.offset(seg.src_start)}:"
+                    f"end={seek.offset(seg.src_end)},asetpts=PTS-STARTPTS[fill{i}]"
+                )
+                filters.append(
+                    f"{src_labels[i]}[fill{i}]amix=inputs=2:normalize=0:duration=first"
+                    f"{restore}[srcfill{i}]"
+                )
+                src_labels[i] = f"[srcfill{i}]"
+        return args
 
     def join_audio_parts(
         self,

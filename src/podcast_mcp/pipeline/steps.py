@@ -430,6 +430,12 @@ def tighten_from_transcript(project: EpisodeProject, defaults: dict[str, Any]) -
     return f"{applied} tighten cuts applied"
 
 
+def fill_gate_holes(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
+    from podcast_mcp.edits.gate_fill import fill_gate_holes as fill
+
+    return fill(project, defaults)
+
+
 def clean_audio(project: EpisodeProject, defaults: dict[str, Any]) -> StepSummary:
     highpass = ProcessingEffect(effect="highpass", params={"frequency": 80})
     touched = 0

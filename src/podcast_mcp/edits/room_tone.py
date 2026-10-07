@@ -237,26 +237,32 @@ def _track_floor(path: Path, revision: FileRevision) -> TrackFloor | None:
     )
 
 
-def _bed_span(
-    project: EpisodeProject, track_id: str, duration_sec: float
-) -> tuple[float, float, str] | None:
-    """``(0, use, source_id)`` from the track's recorded bed, when it holds audible sound."""
+def room_tone_bed(project: EpisodeProject, track_id: str) -> tuple[Path, float] | None:
+    """``(path, duration_sec)`` of the track's recorded bed, when registered and audible."""
     track = project.track_by_id(track_id)
     if track is None or track.room_tone is None:
         return None
     bed_sec = float(track.room_tone.duration_sec or 0.0)
-    source_id = room_tone_source_id(track_id)
-    if bed_sec <= 0 or project.source_by_id(source_id) is None:
+    if bed_sec <= 0 or project.source_by_id(room_tone_source_id(track_id)) is None:
         return None
-    use = min(bed_sec, duration_sec)
     path = Path(track.room_tone.path)
     if not path.is_absolute():
         path = project.workspace_path() / path
     try:
-        audio = load_mono_window(path, start_sec=0.0, duration_sec=use)
+        audio = load_mono_window(path, start_sec=0.0, duration_sec=bed_sec)
     except Exception as exc:
         log.warning("room tone bed %s unreadable: %s", path, exc)
         return None
     if rms_db(audio, floor_db=DIGITAL_SILENCE_DB) <= DIGITAL_SILENCE_DB:
         return None
-    return (0.0, use, source_id)
+    return path, bed_sec
+
+
+def _bed_span(
+    project: EpisodeProject, track_id: str, duration_sec: float
+) -> tuple[float, float, str] | None:
+    """``(0, use, source_id)`` from the track's recorded bed, when it holds audible sound."""
+    bed = room_tone_bed(project, track_id)
+    if bed is None:
+        return None
+    return (0.0, min(bed[1], duration_sec), room_tone_source_id(track_id))

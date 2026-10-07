@@ -22,6 +22,20 @@ master:
 balance:
   dialogue_lufs: -20.0
 
+gate_fill:
+  # fill_gate_holes: room tone under each dialogue track's source-gate holes, the
+  # digital silence a recorder's noise gate leaves between words (Zoom records each
+  # participant through one), so a track never drops to dead air. auto (default)
+  # fills every track that has such holes: its recorded room-tone bed first, else
+  # comfort noise matched to its own noise under its speech; never another track.
+  # A track whose noise is not a floor (within 30 dB of its speech) stays silent.
+  # Holes are read from the media, so our own mutes, cuts and pads are never filled.
+  # off clears every fill. Undo restores the previous fill. See docs/pipeline.md
+  # § Gate fill and docs/audio-engineering.md § Gate fill.
+  mode: auto
+  # Raised-cosine fade in and out inside each hole (shorter holes fade over half).
+  fade_ms: 10
+
 compression:
   threshold_db: -18.0
   ratio: 3.0

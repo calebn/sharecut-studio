@@ -95,7 +95,11 @@ def test_peaky_premix_is_limited_onto_the_target_under_the_ceiling(
     assert measured["integrated_lufs"] == measured_value(-16.0, abs=0.1)
     assert measured["true_peak_db"] <= -1.5
     assert eng.probe(out) == AudioProbe(
-        duration_sec=6.0, sample_rate=48000, channels=1, audio_duration_sec=6.0
+        duration_sec=6.0,
+        sample_rate=48000,
+        channels=1,
+        audio_duration_sec=6.0,
+        sample_fmt="s16",
     )
     assert [p.name for p in out.parent.iterdir()] == ["mastered.wav"]
 
