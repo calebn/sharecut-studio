@@ -53,7 +53,9 @@ def load_channels_full(path: Path, *, sample_rate: int = 8000) -> np.ndarray:
     if probe is None:
         raise ValueError(f"{path} could not be probed")
     channels = max(1, probe.channels)
-    return _decode_f32(path, sample_rate, None, ["-ac", str(channels)]).reshape(-1, channels)
+    # No -ac: any channel count asks ffmpeg to remix a layout that is not its default for
+    # that count (quad, 3.0(back)), which sums channels the gate must judge apart.
+    return _decode_f32(path, sample_rate, None, []).reshape(-1, channels)
 
 
 def raw_samples_on_timeline(
