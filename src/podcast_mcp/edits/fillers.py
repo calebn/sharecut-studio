@@ -41,7 +41,13 @@ from podcast_mcp.edits.voiced_runs import (
     voiced_runs,
     voiced_sec_inside,
 )
-from podcast_mcp.edits.word_onset import OnsetKind, next_onset, voice_end, voice_onset
+from podcast_mcp.edits.word_onset import (
+    OnsetKind,
+    next_onset,
+    voice_end,
+    voice_onset,
+    voice_separates,
+)
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.models import (
     ClipMuteRegion,
@@ -1562,7 +1568,6 @@ def _start_at_filler_onset(
     candidate: _CutCandidate,
     *,
     audio_cache: TrackAudioCache,
-    defaults: dict[str, Any],
 ) -> _CutPlan | _CutRejected:
     """Start ``plan`` before the filler's acoustic onset; refuse it if a kept word runs into it.
 
@@ -1578,9 +1583,7 @@ def _start_at_filler_onset(
         if w.suppressed or w.end <= w.start or candidate.start <= w.start:
             continue
         floor = max(floor, min(w.end, candidate.start))
-    onset = voice_onset(
-        audio_cache, candidate.start, floor, quiet_db=_audibility_floor_db(defaults)
-    )
+    onset = voice_onset(audio_cache, candidate.start, floor)
     if onset is None:
         return _CutRejected("filler_onset")
     start = max(floor, onset - _ONSET_GUARD_SEC)
@@ -1624,9 +1627,10 @@ def _between_kept_voices(
 
     Word times end a word before its voice does: the lab "So" ends at 230.78 and
     voices until 230.98, and a mute from 230.805 cut its second half. The neighbours'
-    voices are read from the audio at the audibility floor, as the filler's own onset
-    is: ``voice_end`` walks forward from the previous kept word's end to its first
-    quiet frame, ``voice_onset`` back from the next kept word's start to its last.
+    voices are read from the audio against the track's own voice floor, as the
+    filler's own onset is: ``voice_end`` walks forward from the previous kept word's
+    end to where its voice breaks, ``voice_onset`` back from the next kept word's
+    start to where its voice breaks.
 
     A cut without words of its own (an acoustic run, a pause) starts after the
     previous word's voice and ends before the next word's, with the voiced-edge air
@@ -1637,17 +1641,20 @@ def _between_kept_voices(
     no earlier than the first quiet frame after the previous word (the filler-onset
     rule's edge, #1061) and ends 10 ms before the next word's voice. Voice that runs
     on between such a cut and a neighbour with no quiet frame is the filler-onset and
-    next-onset rules' to judge (the latter finds the foot of the rise). Word times
-    cannot stand in for them: Whisper starts the lab "we" after "Uh," 180 ms early.
+    next-onset rules' to judge (the latter finds the foot of the rise), unless nothing
+    at all separates the previous word's voice from the whole cut: then the cut lies
+    inside that word's voice and is dropped as ``kept_voice`` (#1024: skip what cannot
+    be removed without clipping a neighbour; Whisper times the lab repeat "that" at
+    752.72-752.90 inside the voice of "well,"). Word times cannot stand in for them:
+    Whisper starts the lab "we" after "Uh," 180 ms early.
     """
-    quiet_db = _audibility_floor_db(defaults)
     wordless = candidate.cut_kind == "pause" or candidate.reason == ACOUSTIC_FILLER_REASON
     before, after = _kept_neighbours(project, candidate)
     start, end = plan.start, plan.end
     if before is not None:
         ceiling = end if wordless else min(end, candidate.start)
-        ends = voice_end(audio_cache, before.end, ceiling, quiet_db=quiet_db)
-        if ends is None and wordless:
+        ends = voice_end(audio_cache, before.end, ceiling)
+        if ends is None and (wordless or not voice_separates(audio_cache, before.end, end)):
             return _CutRejected("kept_voice")
         if ends is not None and ends > before.end:
             # A word cut's own onset edge sits at the start of a quiet frame (#1061),
@@ -1655,7 +1662,7 @@ def _between_kept_voices(
             start = max(start, ends + _VOICE_EDGE_PAD_SEC if wordless else ends - HOP_SEC)
     if after is not None:
         floor = start if wordless else max(start, candidate.end)
-        onset = voice_onset(audio_cache, after.start, floor, quiet_db=quiet_db)
+        onset = voice_onset(audio_cache, after.start, floor)
         if onset is not None and onset < after.start:
             air = _VOICE_EDGE_PAD_SEC if wordless else _onset_guard_sec(defaults)
             end = min(end, onset - air)
@@ -1846,9 +1853,7 @@ def _gate_cut_edges(
         and candidate.cut_kind == "filler"
         and not candidate.strictly_bounded
     ):
-        started = _start_at_filler_onset(
-            project, plan, candidate, audio_cache=audio_cache, defaults=defaults
-        )
+        started = _start_at_filler_onset(project, plan, candidate, audio_cache=audio_cache)
         if isinstance(started, _CutRejected):
             return started
         plan = started

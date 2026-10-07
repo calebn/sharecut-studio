@@ -13,6 +13,13 @@ second half of the word. :func:`voice_end` walks forward from a kept word's end 
 its first quiet frame, and :func:`voice_onset` walks back from the next kept word's
 start, so a cut never starts or ends inside either word's voice.
 
+Both walks read quiet against the track's own levels (:func:`voice_floor_db`), not
+a fixed dBFS floor. Tighten reads raw, unnormalized tracks: with the lab host track
+scaled by -12 dB, a fixed -42 dBFS floor ended 487 of its 739 kept words' voices
+more than 20 ms early, back inside the words. A dip that misses the floor still ends
+a voice when it is a deep valley near the floor (:func:`_voice_breaks`): the ``ss``
+of "digress." clears the floor by only 1 dB before the owner-approved "uh" at 706.02.
+
 A padded filler cut fades back in on whatever follows its right edge, so that edge
 must keep the next word's first phoneme and a plosive's burst whole. Word times
 cannot place it: Whisper and the forced aligner drift by up to ~1.2 s on the lab
@@ -52,6 +59,39 @@ from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC
 from podcast_mcp.util.dsp import frame_band_db, frame_rms_db
 
+# The voice floor, relative to the track's own room (p10) and speech (p90) levels
+# (``audio_cache.level_profile``), so a voice ends at the same sound at any
+# recording level. 27 dB under the speech level is where the audibility floor the
+# owner approved (-42 dBFS) sits under the lab tape's speech: 26.7 dB on the host
+# track whose cuts the owner heard, 25.3-28.6 dB on all three. At that level the
+# walks are unchanged: "So" at 230.78 still voices until 230.98, and the ``ss`` dip
+# before the approved "uh" at 706.02 still ends "digress.".
+_VOICE_FLOOR_UNDER_SPEECH_DB = 27.0
+# Never closer than this to the room: on a noisy track the speech term alone sits in
+# the room tone and finds no quiet at all. 6 dB clears the frame-to-frame flicker of
+# steady room tone and stays under the 9.5 dB over the room where a breath begins
+# (``breath_detect._BREATH_ABOVE_FLOOR_DB``), so a kept word's own breath never
+# reads as quiet.
+_VOICE_FLOOR_OVER_ROOM_DB = 6.0
+# The bottom of a dip this deep on both sides ends a voice even when it misses the
+# floor: the ``ss`` of "digress." dips 19 dB under itself and 28 dB under the "uh"
+# after it (lab 706.00). A vowel's level ripples by a few dB from frame to frame.
+_VALLEY_DEPTH_DB = 15.0
+# Whether a kept word's voice runs on into a cut at all asks less: any dip this deep,
+# at any level, is a break between two sounds. "did" and the repeated "that." at
+# lab 1020.30 are 14 dB apart and heard as two words; with Whisper times the repeat
+# at 752.72-752.90 never dips more than 6 dB inside the voice of "well,".
+_SEPARATION_DEPTH_DB = 10.0
+# A walk stops at a valley only this close over the floor. A passage spoken louder
+# than the track's speech level lifts its dips with it; any deeper allowance stops
+# walks at dips inside words (stop closures, syllable breaks). On the lab host track,
+# walks started 150 ms inside 362 kept words stop inside the word 61 times on the
+# floor alone, 73 times with 3 dB, 88 with 6 dB and 105 at any level.
+_VALLEY_SLACK_DB = 3.0
+# How far into the kept word's own voice a valley's flank is read past the walk's
+# start, so a word time placed on the dip still sees the word's level beside it.
+_VALLEY_FLANK_SEC = 0.1
+
 _HIGH_BAND_HZ = 2000.0
 # A dip this far under the loudest filler frame since the scan began ends the filler.
 _FALL_DB = 3.0
@@ -87,69 +127,144 @@ class Onset:
     kind: OnsetKind
 
 
-def voice_onset(
-    cache: TrackAudioCache, word_start: float, floor: float, *, quiet_db: float
-) -> float | None:
+def voice_floor_db(cache: TrackAudioCache) -> float:
+    """The level under which a frame holds no voice on this track (dBFS).
+
+    ``inf`` on a track with no live audio at all: every frame is digital silence,
+    so every frame is quiet.
+    """
+    profile = cache.track_profile
+    if profile is None:
+        return math.inf
+    room_db, speech_db = (20.0 * math.log10(rms) for rms in profile)
+    return max(speech_db - _VOICE_FLOOR_UNDER_SPEECH_DB, room_db + _VOICE_FLOOR_OVER_ROOM_DB)
+
+
+def _is_valley(levels: np.ndarray, k: int, depth_db: float) -> bool:
+    """Whether frame ``k`` is the bottom of a dip ``depth_db`` deep on both sides.
+
+    Walking out either way, the level must climb that far over frame ``k`` before it
+    falls under it: a ripple on the slope down into a deeper dip is not a valley
+    (lab 705.98: -40 dBFS on the way down from the ``ss`` to the -43 dBFS dip).
+    """
+    bottom = levels[k]
+    for side in (levels[k - 1 :: -1] if k > 0 else levels[:0], levels[k + 1 :]):
+        climbed = side >= bottom + depth_db
+        under = side < bottom
+        if not climbed.any() or under[: int(np.argmax(climbed))].any():
+            return False
+    return True
+
+
+def _voice_breaks(
+    levels: np.ndarray, quiet_db: float, *, valley_max_db: float, depth_db: float
+) -> np.ndarray:
+    """Frames where a voice breaks: under ``quiet_db``, or the bottom of a ``depth_db``
+    dip no louder than ``valley_max_db``."""
+    breaks = levels < quiet_db
+    for k in np.flatnonzero(~breaks & (levels <= valley_max_db)):
+        breaks[k] = _is_valley(levels, int(k), depth_db)
+    return breaks
+
+
+def _frames(cache: TrackAudioCache, t0: float, t1: float) -> np.ndarray:
+    sr = int(cache.waveform.sample_rate)
+    return frame_rms_db(
+        cache.window(t0, t1), max(1, round(sr * FRAME_SEC)), max(1, round(sr * HOP_SEC))
+    )
+
+
+def _walk_breaks(cache: TrackAudioCache, levels: np.ndarray) -> np.ndarray:
+    quiet_db = voice_floor_db(cache)
+    return _voice_breaks(
+        levels, quiet_db, valley_max_db=quiet_db + _VALLEY_SLACK_DB, depth_db=_VALLEY_DEPTH_DB
+    )
+
+
+def voice_onset(cache: TrackAudioCache, word_start: float, floor: float) -> float | None:
     """Where a word's voice begins (source seconds), walking back from its word start.
 
     The word is a filler a cut starts at, or the kept word a cut must end before.
-    The walk stops at the first frame under ``quiet_db``; the onset is the start of
-    the audible frame after it. It does not bridge short dips the way voiced runs do:
-    the "ss" of "digress." falls under the floor for only 20 ms before the
-    owner-approved "uh" at 706.02 on the lab tape. ``word_start`` comes back when
-    the voice begins at or after the word start, or inside the frame holding it.
-    ``None`` means the level never drops under ``quiet_db`` back to ``floor``, so the
-    voice runs on from whatever lies there with no quiet frame to cut in.
+    The walk stops at the first frame where the voice breaks (under
+    :func:`voice_floor_db`, or a valley near it); the onset is the start of the frame
+    after it. It does not bridge short dips the way voiced runs do: the "ss" of
+    "digress." falls under the floor for only 20 ms before the owner-approved "uh" at
+    706.02 on the lab tape. ``word_start`` comes back when the voice begins at or
+    after the word start, or inside the frame holding it. ``None`` means the voice
+    never breaks back to ``floor``, so it runs on from whatever lies there with no
+    quiet frame to cut in.
     """
-    sr = int(cache.waveform.sample_rate)
-    frame = max(1, round(sr * FRAME_SEC))
-    hop = max(1, round(sr * HOP_SEC))
     t0 = math.floor(max(0.0, floor) / HOP_SEC) * HOP_SEC
-    levels = frame_rms_db(cache.window(t0, word_start + FRAME_SEC), frame, hop)
+    levels = _frames(cache, t0, word_start + _VALLEY_FLANK_SEC + FRAME_SEC)
+    breaks = _walk_breaks(cache, levels)
     k = min(levels.size - 1, math.floor((word_start - t0) / HOP_SEC + 1e-9))
-    if k < 0 or levels[k] < quiet_db:
+    if k < 0 or breaks[k]:
         return word_start
-    while k > 0 and levels[k - 1] >= quiet_db:
+    while k > 0 and not breaks[k - 1]:
         k -= 1
     if k == 0:
         return None
-    onset = t0 + k * hop / sr
+    onset = t0 + k * HOP_SEC
     # The onset frame holds the voice somewhere in its 20 ms; only a frame wholly
     # before the word start shows the voice began earlier.
     return onset if onset + FRAME_SEC <= word_start + 1e-9 else word_start
 
 
-def voice_end(
-    cache: TrackAudioCache, word_end: float, ceiling: float, *, quiet_db: float
-) -> float | None:
+def _frames_from_word_end(
+    cache: TrackAudioCache, word_end: float, ceiling: float
+) -> tuple[np.ndarray, int, int, float]:
+    """Frames from ``_VALLEY_FLANK_SEC`` before a word end to ``ceiling``.
+
+    Returns the levels, the index of the frame holding the word end, the index past
+    the last frame that starts before ``ceiling``, and that first frame's start.
+    """
+    t0 = math.floor(max(0.0, word_end) / HOP_SEC + 1e-9) * HOP_SEC
+    back = min(round(_VALLEY_FLANK_SEC / HOP_SEC), math.floor(t0 / HOP_SEC + 1e-9))
+    levels = _frames(cache, t0 - back * HOP_SEC, max(t0, ceiling) + FRAME_SEC)
+    last = min(levels.size, back + math.ceil((ceiling - t0) / HOP_SEC - 1e-9))
+    return levels, back, last, t0
+
+
+def voice_end(cache: TrackAudioCache, word_end: float, ceiling: float) -> float | None:
     """Where a kept word's voice ends (source seconds), walking forward from its word end.
 
-    The mirror of :func:`voice_onset`. The walk stops at the first frame under
-    ``quiet_db``; the voice ends with the audible frame before it, where a voiced
-    run's edge would sit. ``word_end`` comes back when the voice ends at or before
-    the word end, or inside the frame holding it. ``None`` means the level never
-    drops under ``quiet_db`` before ``ceiling``: the voice runs on through
-    everything up to there.
+    The mirror of :func:`voice_onset`. The walk stops at the first frame where the
+    voice breaks; the voice ends with the frame before it, where a voiced run's edge
+    would sit. ``word_end`` comes back when the voice ends at or before the word end,
+    or inside the frame holding it. ``None`` means the voice never breaks before
+    ``ceiling``: it runs on through everything up to there.
     """
-    sr = int(cache.waveform.sample_rate)
-    frame = max(1, round(sr * FRAME_SEC))
-    hop = max(1, round(sr * HOP_SEC))
-    t0 = math.floor(max(0.0, word_end) / HOP_SEC + 1e-9) * HOP_SEC
-    levels = frame_rms_db(cache.window(t0, max(t0, ceiling) + FRAME_SEC), frame, hop)
-    # Frames that start before the ceiling.
-    last = min(levels.size, math.ceil((ceiling - t0) / HOP_SEC - 1e-9))
-    if last <= 0 or levels[0] < quiet_db:
+    levels, k, last, t0 = _frames_from_word_end(cache, word_end, ceiling)
+    breaks = _walk_breaks(cache, levels)
+    first = k
+    if last <= first or breaks[first]:
         return word_end
-    k = 0
-    while k + 1 < last and levels[k + 1] >= quiet_db:
+    while k + 1 < last and not breaks[k + 1]:
         k += 1
     if k + 1 >= last:
         return None
-    tail = t0 + k * hop / sr
+    tail = t0 + (k - first) * HOP_SEC
     # The voice ends with its last audible frame, as a voiced run does. That frame
     # holds the voice somewhere in its 20 ms; only a frame wholly after the word end
     # shows the voice ran on.
     return tail + FRAME_SEC if tail >= word_end - 1e-9 else word_end
+
+
+def voice_separates(cache: TrackAudioCache, word_end: float, end: float) -> bool:
+    """Whether anything between a kept word's end and ``end`` separates its voice from what follows.
+
+    A quiet frame does, and so does a dip ``_SEPARATION_DEPTH_DB`` deep at any level:
+    on the lab tape the edge of the repeated "that" at 753.17 sits in a dip 20 dB
+    under "well," either side of it at -30 dBFS, far over the floor, and the words
+    are heard apart. With Whisper times the repeat at 752.72-752.90 holds -6 to
+    -12 dBFS with no such dip: that span is the kept "well," itself, and a cut there
+    clips it.
+    """
+    levels, first, last, _ = _frames_from_word_end(cache, word_end, end)
+    breaks = _voice_breaks(
+        levels, voice_floor_db(cache), valley_max_db=math.inf, depth_db=_SEPARATION_DEPTH_DB
+    )
+    return bool(breaks[first:last].any())
 
 
 def next_onset(
