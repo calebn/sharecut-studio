@@ -14,6 +14,7 @@ import {
   trackIsAudible,
   trackOutputGainDb,
 } from "../utils/audio";
+import { NO_PREVIEW_ERROR } from "../utils/audioErrorLabel";
 import { AUDITION_STOP_EPS_SEC } from "../utils/auditionStop";
 import {
   projectHasSourceAudio,
@@ -333,7 +334,7 @@ export function useAudioTransport(enabled = true): void {
         // Tracks without source media have nothing to play. The absent premix
         // is expected until audio exists (#78).
         if (projectHasSourceAudio(project)) {
-          setAudioError("No premix. Run Pipeline or render-preview");
+          setAudioError(NO_PREVIEW_ERROR);
         }
         return;
       }

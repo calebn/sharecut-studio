@@ -622,10 +622,11 @@
   background: transparent;
 }
 
-.trk-btn.active.solo,
+/* An opaque amber tint with the warning ink made for it, so the S keeps AA
+   over every row paint (rest, hover, selected, muted grey) in both themes. */
 .trk-btn.solo.active {
-  background: var(--color-warning-strong);
-  color: var(--warning);
+  background: var(--color-warning-surface);
+  color: var(--color-warning-on-surface);
   border-color: var(--warning);
 }
 

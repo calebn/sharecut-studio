@@ -250,6 +250,16 @@ colour, tell a saved mute from an only-you mute.
 `test_muted_track_keeps_text_contrast` checks the contrast, the clip fill's
 near-zero saturation, and the row's separation from `--color-bg-base`.
 
+**Lit solo.** The active S button paints `--color-warning-surface` (an opaque
+18% amber tint over `--color-bg-surface`) with `--color-warning-on-surface`
+text and a `--warning` border (#1113). It used to set `--warning` text on the
+translucent `--color-warning-strong` wash, so its ratio moved with the row
+beneath (2.76:1 on a hovered light row, 3.77:1 in dark). The opaque pair holds
+5.0:1 in light and 6.5:1 in dark on every row paint.
+`test_active_solo_button_keeps_text_contrast` reads the real rule from
+`layout.css`, fails on a translucent fill, and also holds the border at 3:1
+against the base, selected and muted rows.
+
 **Transport.** The transport is fixed dark in both themes (`--color-transport-*`,
 `--bg-transport`, `--shadow-transport-*`). Play is the only orange control and
 glows only while playing (static, never pulsing); selected audition segments

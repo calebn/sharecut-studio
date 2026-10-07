@@ -25,6 +25,7 @@ import {
   guestHearsMixOnly,
 } from "../shareMode";
 import { useDaw } from "../state/useDaw";
+import type { AuditionMode } from "../types/session";
 import {
   CommandButton,
   CommandMenuItem,
@@ -38,7 +39,11 @@ import {
   ToggleButton,
   useResizeObserver,
 } from "../ui";
-import { audioErrorLabel } from "../utils/audioErrorLabel";
+import {
+  audioErrorLabel,
+  NO_PREVIEW_ERROR,
+  noPreviewReason,
+} from "../utils/audioErrorLabel";
 import { AUDITION_MODES, GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
 import { joinSentences } from "../utils/format";
 import { MIX_FRESH_LABEL, MIX_STALE_LABEL } from "../utils/staleRender";
@@ -147,38 +152,48 @@ export function TransportBar({
   const mayManage = canManageProjects(projectPath);
   const duration = project?.timeline_duration_sec ?? 0;
 
+  // No rendered premix is a fact about Full mix, not a second transport
+  // error: the stale pill already names it and carries the fix, so the reason
+  // sits on the Full mix segment instead of squeezing the title (#1113).
+  const noPreview = audioError === NO_PREVIEW_ERROR;
+  const noPreviewHint = noPreviewReason(mayRefresh);
+  const transportError = noPreview ? null : audioError;
+
   const premixCue = highlightStaleRender && Boolean(breakdown?.premixBehind);
   const guestMixOnly = guestHearsMixOnly(guestMode);
+  const auditionHint = (id: AuditionMode) => {
+    if (id === "mix") {
+      return noPreview ? noPreviewHint : undefined;
+    }
+    return guestMixOnly ? GUESTS_HEAR_FULL_MIX : undefined;
+  };
   const auditionGroup = (menu = false) => (
     <SegmentedControl
       className="audition-modes"
       role={menu ? "none" : "group"}
       label="Audition mode"
     >
-      {AUDITION_MODES.map((m) => (
-        <ToggleButton
-          key={m.id}
-          quiet
-          disabled={loading || (guestMixOnly && m.id !== "mix")}
-          pressed={auditionMode === m.id}
-          className={m.id === "mix" && premixCue ? "stale-highlight" : ""}
-          title={
-            guestMixOnly && m.id !== "mix"
-              ? `${m.title} (${GUESTS_HEAR_FULL_MIX})`
-              : m.title
-          }
-          aria-description={
-            guestMixOnly && m.id !== "mix" ? GUESTS_HEAR_FULL_MIX : undefined
-          }
-          {...presenceAnchorProps(presenceAnchor("audition", m.id))}
-          role={menu ? "menuitemradio" : undefined}
-          onClick={() =>
-            runPointerCommand("transport.audition", { mode: m.id })
-          }
-        >
-          {m.label}
-        </ToggleButton>
-      ))}
+      {AUDITION_MODES.map((m) => {
+        const hint = auditionHint(m.id);
+        return (
+          <ToggleButton
+            key={m.id}
+            quiet
+            disabled={loading || (guestMixOnly && m.id !== "mix")}
+            pressed={auditionMode === m.id}
+            className={m.id === "mix" && premixCue ? "stale-highlight" : ""}
+            title={hint ? `${m.title} (${hint})` : m.title}
+            aria-description={hint}
+            {...presenceAnchorProps(presenceAnchor("audition", m.id))}
+            role={menu ? "menuitemradio" : undefined}
+            onClick={() =>
+              runPointerCommand("transport.audition", { mode: m.id })
+            }
+          >
+            {m.label}
+          </ToggleButton>
+        );
+      })}
     </SegmentedControl>
   );
 
@@ -393,10 +408,10 @@ export function TransportBar({
         {!collapsed && !stale ? <Pill tone="ok">{MIX_FRESH_LABEL}</Pill> : null}
         {/* Like the stale pill, status moves into the Menu when collapsed
             (Mix status), where touch users can read the full message. */}
-        {!collapsed && audioError && (
-          <Pill tone="warning" className="audio-error" title={audioError}>
-            <span aria-hidden="true">{audioErrorLabel(audioError)}</span>
-            <span className="sr-only">{audioError}</span>
+        {!collapsed && transportError && (
+          <Pill tone="warning" className="audio-error" title={transportError}>
+            <span aria-hidden="true">{audioErrorLabel(transportError)}</span>
+            <span className="sr-only">{transportError}</span>
           </Pill>
         )}
         {!collapsed && sessionRegion ? (
@@ -603,9 +618,14 @@ export function TransportBar({
             ) : null}
             {collapsed ? (
               <MenuSection label="Mix status">
-                {audioError ? (
+                {noPreview ? (
                   <p className="transport-menu-note audio-error-note">
-                    {audioErrorLabel(audioError)}: {audioError}
+                    {noPreviewHint}
+                  </p>
+                ) : null}
+                {transportError ? (
+                  <p className="transport-menu-note audio-error-note">
+                    {audioErrorLabel(transportError)}: {transportError}
                   </p>
                 ) : null}
                 {stale && mayRefresh ? (
