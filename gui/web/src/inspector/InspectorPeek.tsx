@@ -6,59 +6,13 @@
  * it; the run saves once (`useNudgeRun`). Expanding the sheet shows the full
  * inspector with its fields.
  */
-import {
-  NUDGE_KINDS,
-  type NudgeField,
-  nudgeAxis,
-  nudgeKey,
-} from "../edit/nudge";
-import {
-  canApplyPass12,
-  canEditEnvelopes,
-  canRetimePendingEdit,
-} from "../shareMode";
-import type { DawState } from "../state/types";
+import { NUDGE_KINDS, nudgeAxis, nudgeKey } from "../edit/nudge";
 import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
 import { RippleMark } from "../ui/RippleMark";
+import { mayNudge } from "./mayNudge";
 import type { PeekNudgeRow, PeekTarget } from "./peekTarget";
 import { type NudgeBump, useNudgeRun } from "./useNudgeRun";
-
-/** May the current user change `field`? */
-type Access = Pick<
-  DawState,
-  | "projectPath"
-  | "guestMode"
-  | "shareCapabilities"
-  | "shareAuthor"
-  | "joinMutationInFlight"
->;
-
-function mayNudge(s: Access, project: ProjectView, field: NudgeField) {
-  switch (field.kind) {
-    case "fade":
-    case "trim":
-      return (
-        canApplyPass12(s.projectPath, s.guestMode, s.shareCapabilities) &&
-        !s.joinMutationInFlight
-      );
-    case "pending": {
-      const edit = project.pending_edits.find((e) => e.id === field.editId);
-      return (
-        edit != null &&
-        canRetimePendingEdit(
-          s.projectPath,
-          s.shareCapabilities,
-          s.shareAuthor,
-          edit.author,
-        )
-      );
-    }
-    case "envelope-time":
-    case "envelope-level":
-      return canEditEnvelopes(s.projectPath, s.guestMode, s.shareCapabilities);
-  }
-}
 
 function stepText(delta: number): string {
   return `${delta < 0 ? "−" : "+"}${Math.abs(delta)}`;
