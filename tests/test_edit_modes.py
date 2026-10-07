@@ -445,8 +445,8 @@ def _word_at_the_cut_end(path: Path, guest_in_cut: str, host_until: float) -> No
     """Guest's "yes" runs 11.2-12.4 by word time, but its voice starts at 11.8.
 
     Host talks until ``host_until``. Inside the 11.0-11.7 cut, Guest's track holds
-    ``guest_in_cut``: room tone, the soft onset of "yes" from 11.55, or Host's voice
-    as bleed 12 dB under Host.
+    ``guest_in_cut``: room tone, digital silence (a gated Zoom track), or the soft onset
+    of "yes" from 11.55.
     """
     noise = np.random.default_rng(7).normal(0.0, 0.0003, int(DUR * SR))
     host = noise.copy()
@@ -457,9 +457,8 @@ def _word_at_the_cut_end(path: Path, guest_in_cut: str, host_until: float) -> No
     if guest_in_cut == "onset":
         onset = slice(int(11.55 * SR), int(11.8 * SR))
         guest[onset] = 0.1 * _tone(330)[onset]
-    elif guest_in_cut == "host_bleed":
-        cut = slice(int(11.0 * SR), int(11.7 * SR))
-        guest[cut] = 0.25 * _tone(220)[cut]
+    elif guest_in_cut == "digital_silence":
+        guest[int(11.0 * SR) : int(11.7 * SR)] = 0.0
     raw = load_project(path).raw_dir()
     _write_wav(raw / "host.wav", host)
     _write_wav(raw / "guest.wav", guest)
@@ -471,8 +470,12 @@ def _word_at_the_cut_end(path: Path, guest_in_cut: str, host_until: float) -> No
 
 @pytest.mark.parametrize(
     ("guest_in_cut", "host_until", "asks"),
-    [("room_tone", 11.7, False), ("host_bleed", 11.7, False), ("onset", 11.4, True)],
-    ids=["silent-track", "owner-bleed", "clipped-onset"],
+    [
+        ("room_tone", 11.7, False),
+        ("digital_silence", 11.7, False),
+        ("onset", 11.4, True),
+    ],
+    ids=["room-tone", "digital-silence", "clipped-onset"],
 )
 def test_a_word_counts_only_where_its_own_track_sounds_inside_the_cut(
     episode, guest_in_cut, host_until, asks
@@ -493,6 +496,57 @@ def test_a_word_counts_only_where_its_own_track_sounds_inside_the_cut(
         assert [(w.text, w.timeline_start) for w in track.words] == [("yes", 11.2)]
     else:
         assert cleared == SpeechClearance(removal)
+
+
+def _word_with_a_soft_edge(path: Path, edge: str, below_peak_db: float) -> None:
+    """Guest's "okay" has a soft ``edge`` ``below_peak_db`` under its peak, in the cut.
+
+    Host talks from 10.9 to 12.0, through the 11.0-11.7 cut. A ``tail`` word runs
+    10.4-11.25 with its peak before the cut and its last 250 ms inside it. An
+    ``onset`` word runs 11.2-12.4 with its peak after the cut and its first 150 ms
+    inside it.
+    """
+    noise = np.random.default_rng(7).normal(0.0, 0.0003, int(DUR * SR))
+    host = noise.copy()
+    talk = slice(int(10.9 * SR), int(12.0 * SR))
+    host[talk] = _tone(220)[talk]
+    soft = 10 ** (-below_peak_db / 20)
+    guest = noise.copy()
+    spans = {
+        "tail": ((10.4, 11.0), (11.0, 11.25), (10.4, 11.25)),
+        "onset": ((11.8, 12.4), (11.55, 11.8), (11.2, 12.4)),
+    }
+    (a, b), (c, d), word = spans[edge]
+    loud, quiet = slice(int(a * SR), int(b * SR)), slice(int(c * SR), int(d * SR))
+    guest[loud] = _tone(330)[loud]
+    guest[quiet] = soft * _tone(330)[quiet]
+    raw = load_project(path).raw_dir()
+    _write_wav(raw / "host.wav", host)
+    _write_wav(raw / "guest.wav", guest)
+    project = load_project(path)
+    guest_words = next(t for t in project.transcripts if t.track_id == "guest").words
+    guest_words.append(TranscriptWord(text="okay", start=word[0], end=word[1]))
+    save_project(project)
+
+
+@pytest.mark.parametrize("below_peak_db", [6.0, 12.0])
+@pytest.mark.parametrize("edge", ["onset", "tail"])
+def test_a_soft_word_edge_in_the_cut_asks_while_the_cutting_speaker_talks(
+    episode, edge, below_peak_db
+):
+    """Host's voice on Guest's mic is no reason to drop Guest's quiet start or end of a
+    word: only the word's own track being silent in the cut lets the cut through."""
+    _word_with_a_soft_edge(episode, edge, below_peak_db)
+    project = load_project(episode)
+    removal = plan_ripple_delete(
+        project, 11.0, 11.7, edited_track_ids=["host"], use_inaudible_opt=False
+    )
+
+    cleared = clear_ripple(project, removal, confirm_cut_speech=False)
+
+    assert isinstance(cleared, CutSpeechConfirmation)
+    (track,) = cleared.speech.tracks
+    assert [w.text for w in track.words] == ["okay"]
 
 
 def test_ripple_delete_clip_over_another_speakers_words_asks_first(episode):
