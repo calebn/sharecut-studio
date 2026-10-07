@@ -12,6 +12,7 @@ import { canRetimePendingEdit, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow, PendingEditView } from "../types/project";
 import { Button } from "../ui/Button";
+import { compactSheetPanel, compactSheetTop } from "../ui/compactSheet";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import {
   ApiError,
@@ -197,6 +198,9 @@ function PendingEditRegion({
   const [portalReady, setPortalReady] = useState(false);
   const [overlayHeightPx, setOverlayHeightPx] = useState(0);
   const [labelActive, setLabelActive] = useState(false);
+  // Docked: a compact inspector sheet is open below, so the card sits above
+  // it, and its timing lives in that sheet rather than in Edit timing.
+  const [docked, setDocked] = useState(false);
   const edgeHintId = useId();
   const projectEpoch = useDawStore((state) => state.projectEpoch);
   const pointerKind = useDawStore((state) => state.pointerKind);
@@ -472,7 +476,7 @@ function PendingEditRegion({
     (labelActive || (selected && !isOriginLane)) &&
     !(selected && isOriginLane && spanIndex === 0);
   useResizeObserver(
-    [regionRef, actionbarRef],
+    [regionRef, actionbarRef, compactSheetPanel],
     () => scheduleResizeUpdateRef.current?.(),
     selected || labelInPortal,
   );
@@ -493,6 +497,8 @@ function PendingEditRegion({
             Number.parseFloat(panelStyle.borderTopWidth) +
             Number.parseFloat(panelStyle.borderBottomWidth);
           const rem = rootRem();
+          const sheetTop = compactSheetTop();
+          setDocked(sheetTop !== null);
           const placement = placePendingActionbar(
             {
               left: anchor.left,
@@ -501,7 +507,10 @@ function PendingEditRegion({
               width: anchor.width,
             },
             { width: panel.width, height: naturalHeight },
-            { width: window.innerWidth, height: window.innerHeight },
+            {
+              width: window.innerWidth,
+              height: sheetTop ?? window.innerHeight,
+            },
             VIEWPORT_GUTTER_REM * rem,
           );
           setActionbarPlacement(placement);
@@ -894,7 +903,7 @@ function PendingEditRegion({
             {width < LABEL_INLINE_WIDTH_REM * rootRem() ? (
               <span className="pending-label">{regionLabel}</span>
             ) : null}
-            {canAdjust && !isSplit ? (
+            {canAdjust && !isSplit && !docked ? (
               <Button
                 className="pending-timing-action"
                 onClick={focusTimingField}
