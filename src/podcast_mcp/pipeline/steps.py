@@ -60,13 +60,15 @@ def align_tracks(project: EpisodeProject, defaults: dict[str, Any]) -> StepSumma
                 source="align",
                 notes=f"skipped: {result.skipped_reason}",
             )
-            return result.skipped_reason
-        mark_align_pending(project, notes="after align_tracks")
+        else:
+            mark_align_pending(project, notes="after align_tracks")
+        # Judges everything before it changes words or comments, so a failure here
+        # leaves them as they were and only the clips need restoring.
+        flagged = flag_clipped_word_starts(project, defaults)
     except Exception:
         project.clips = clips
         raise
-    flagged = flag_clipped_word_starts(project, defaults)
-    summary = result.summary()
+    summary = result.skipped_reason or result.summary()
     return f"{summary}; {flagged_note(flagged)}" if flagged else summary
 
 

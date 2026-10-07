@@ -3,7 +3,7 @@
   "meta": {
     "name": "Sharecut Studio UX demo",
     "workspace_dir": ".",
-    "created_at": "2026-10-06T01:13:38+00:00",
+    "created_at": "2026-10-07T12:59:50+00:00",
     "schema_id": "podcast-mcp/episode/2",
     "ingest_alignment": {
       "reference": {
@@ -169,6 +169,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -186,6 +187,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -203,6 +205,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -220,6 +223,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -237,6 +241,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -254,6 +259,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -271,6 +277,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -288,6 +295,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -305,6 +313,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -322,6 +331,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -339,6 +349,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -356,6 +367,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -373,6 +385,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -390,6 +403,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -407,6 +421,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -424,6 +439,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -441,6 +457,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -458,6 +475,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -475,6 +493,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -492,6 +511,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -509,6 +529,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -526,6 +547,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -543,6 +565,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -560,6 +583,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -577,6 +601,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -594,6 +619,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -611,6 +637,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -628,6 +655,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -645,6 +673,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -662,6 +691,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -679,6 +709,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -696,6 +727,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -713,6 +745,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -730,6 +763,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -747,6 +781,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -764,6 +799,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -781,6 +817,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -798,6 +835,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -815,6 +853,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -832,6 +871,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -849,6 +889,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -866,6 +907,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -899,6 +941,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -916,6 +959,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -933,6 +977,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -950,6 +995,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -967,6 +1013,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -984,6 +1031,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1001,6 +1049,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1018,6 +1067,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1035,6 +1085,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1052,6 +1103,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1069,6 +1121,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1086,6 +1139,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1103,6 +1157,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1120,6 +1175,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1137,6 +1193,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1154,6 +1211,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1171,6 +1229,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1188,6 +1247,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1205,6 +1265,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1222,6 +1283,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1239,6 +1301,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1256,6 +1319,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1273,6 +1337,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1290,6 +1355,7 @@
             "suspect_hallucination": false,
             "alignment_score": null,
             "trimmed_from": null,
+            "snapped_from": null,
             "overlong": false,
             "ignored": false,
             "audibility_locked": false
@@ -1445,7 +1511,7 @@
         "id": "ux_cmt_level",
         "body": "Guest level feels low under the host here.",
         "author": "reviewer",
-        "created_at": "2026-10-06T01:13:38+00:00",
+        "created_at": "2026-10-07T12:59:50+00:00",
         "updated_at": null,
         "timeline_start": 43.0,
         "timeline_end": 46.0,
@@ -1471,7 +1537,7 @@
         "id": "ux_cmt_cut",
         "body": "Approve the word removal after listen-through?",
         "author": "host",
-        "created_at": "2026-10-06T01:13:38+00:00",
+        "created_at": "2026-10-07T12:59:50+00:00",
         "updated_at": null,
         "timeline_start": 35.53,
         "timeline_end": 35.79,
@@ -1484,7 +1550,7 @@
             "id": "ux_reply_1",
             "body": "Playing Mix around the join first.",
             "author": "host",
-            "created_at": "2026-10-06T01:13:38+00:00"
+            "created_at": "2026-10-07T12:59:50+00:00"
           }
         ],
         "resolved": false,

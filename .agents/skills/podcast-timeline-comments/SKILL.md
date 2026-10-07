@@ -75,7 +75,7 @@ When the user asks you to note something for later (or for a human):
 
 ### Comments from Align tracks
 
-Pipeline `align_tracks` writes comments with `author` `Align tracks` and ids starting `onset-`, one per word whose start is only on another mic because the speaker's own track opened late (#1059). The span runs from the copy's onset to the opening, on the speaker's track. Work them like any other note: listen to the speaker's track and the named mic, then re-record, edit around the word, or resolve with `by`. Don't delete them to clear the queue: an open, unanswered one comes back on the next `align_tracks` run while the audio still shows the gap, and a resolved one stays. Re-running align after aligning the lane withdraws the ones the shift fixed. See `docs/timeline-comments.md` § Comments from Align tracks.
+Pipeline `align_tracks` writes comments with `author` `Align tracks` on words whose start is only on another mic because the speaker's own track opened late (#1059). Ids starting `onset-lane-` are one per lane: the lane itself runs late, and the body lists every word start it misses; align the lane and re-run `align_tracks` to clear it. Other `onset-` ids are one per word, spanning the copy's onset to the opening on the speaker's track: listen to the speaker's track and the named mic, then re-record, edit around the word, or resolve with `by`. Don't delete them to clear the queue: an open, unanswered one comes back on the next `align_tracks` run while the audio still shows the gap. A resolved, replied or ticked one stays as it is and is never duplicated. See `docs/timeline-comments.md` § Comments from Align tracks.
 
 ## Anchors
 

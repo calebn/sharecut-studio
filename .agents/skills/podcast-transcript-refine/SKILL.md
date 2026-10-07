@@ -113,7 +113,8 @@ For bleed-overlap homophones or both tracks garble differently, hand off to [pod
 | in sight fear | inciting fear |
 | wazoo | Wazzu |
 | Deferred `anomalous_word_duration` (multi-second token) | Listen to the full `[start,end)` span; restore missing words — do **not** invent tighter ASR ends |
-| Word with `trimmed_from` (span trimmed as implausible, #979, or start snapped by `align_tracks` onto its track's opening, #1059) | Its span now sits on its own voice; the old `trimmed_from` span was mostly silence. An `Align tracks` comment at the word means its start is only on another mic |
+| Word with `trimmed_from` (span trimmed as implausible, #979) | Its span now sits on its own voice; the old `trimmed_from` span was mostly silence |
+| Word with `snapped_from` (start moved by `align_tracks` onto its track's opening, #1059) | Its start is only on another mic; see the `Align tracks` comment there. Don't hand-edit the start: the next `align_tracks` run restores `snapped_from` and judges again |
 | Word with `overlong` (queued as `anomalous_word_duration`, #979) | Its span holds more of the speaker's voice than one token can; listen across it and transcribe the missing words |
 
 Add episode-specific entries to `show_glossary.yaml`.
