@@ -597,6 +597,55 @@ def test_paste_segment_after_extract() -> None:
     assert after >= before + 1.0 - 1e-6
 
 
+def _extract(**overrides: object) -> dict:
+    return {
+        "track_id": "host",
+        "source_start": 1.0,
+        "source_end": 2.0,
+        "relative_timeline_start": 0.0,
+        **overrides,
+    }
+
+
+@pytest.mark.parametrize(
+    ("extract", "code"),
+    [
+        (_extract(track_id="ghost"), "paste_unknown_track"),
+        (_extract(track_id=None), "paste_unknown_track"),
+        (_extract(source_id="no_such_source"), "paste_unknown_source"),
+        (_extract(source_start=2.0, source_end=1.0), "paste_bad_range"),
+        (_extract(source_start=-1.0), "paste_bad_range"),
+        (_extract(source_end=11.0), "paste_bad_range"),
+        (_extract(relative_timeline_start=-0.5), "paste_bad_range"),
+        (_extract(source_end=float("nan")), "paste_bad_extract"),
+        (_extract(source_end="soon"), "paste_bad_extract"),
+        ({"track_id": "host", "source_start": 1.0}, "paste_bad_extract"),
+    ],
+)
+def test_paste_segment_rejects_a_clipboard_the_project_cannot_take(extract, code) -> None:
+    from podcast_mcp.edits.timeline_ops import PasteRejectedError, paste_segment
+
+    p = _two_track_project()
+    before = p.model_dump()
+    good = _extract(track_id="guest")
+    with pytest.raises(PasteRejectedError) as raised:
+        paste_segment(p, insert_at=6.0, duration=1.0, extracts=[good, extract])
+    assert raised.value.code == code
+    assert str(raised.value).startswith(f"{code}: ")
+    assert p.model_dump() == before
+
+
+def test_paste_segment_accepts_a_known_source_within_its_length() -> None:
+    from podcast_mcp.edits.timeline_ops import paste_segment
+    from podcast_mcp.models import SourceRecording
+
+    p = _two_track_project()
+    p.sources = [SourceRecording(id="take2", path="raw/take2.wav", duration_sec=3.0)]
+    paste_segment(p, 6.0, 1.0, [_extract(source_id="take2", source_start=1.0, source_end=2.0)])
+    pasted = [c for c in p.clips if c.source_id == "take2"]
+    assert [(c.track_id, c.timeline_start) for c in pasted] == [("host", 6.0)]
+
+
 def test_copy_segment_matches_the_studio_clipboard_shape() -> None:
     from podcast_mcp.edits.timeline_ops import copy_segment
 

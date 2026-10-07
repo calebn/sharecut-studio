@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from pydantic import ValidationError
 
 from podcast_mcp.edits.clipping_regions import clip_clipping_payload, clip_clipping_truncated
@@ -679,64 +681,132 @@ def copy_segment(
     return {"duration": end - start, "extracts": extracts}
 
 
-def paste_segment(
-    project: EpisodeProject,
-    insert_at: float,
-    duration: float,
-    extracts: list[dict],
-) -> dict:
-    """Paste pre-extracted clips at *insert_at* (same-track; gap on all dialogue)."""
-    if duration <= 0:
-        raise ValueError("duration must be positive")
+class PasteRejectedError(ValueError):
+    """A clipboard the project cannot take; ``code`` names why (also the message prefix)."""
+
+    def __init__(self, code: str, detail: str) -> None:
+        super().__init__(f"{code}: {detail}")
+        self.code = code
+
+
+_PASTE_EDGE_TOLERANCE_SEC = 1e-3
+
+
+def _paste_number(raw: dict, key: str, index: int) -> float:
+    try:
+        value = float(raw[key])
+    except (KeyError, TypeError, ValueError):
+        raise PasteRejectedError(
+            "paste_bad_extract", f"extract {index} requires a numeric {key}"
+        ) from None
+    if not math.isfinite(value):
+        raise PasteRejectedError("paste_bad_extract", f"extract {index} {key} must be finite")
+    return value
+
+
+def _paste_source_limit(
+    project: EpisodeProject, track_id: str, source_id: str | None
+) -> float | None:
+    if source_id is not None:
+        source = project.source_by_id(source_id)
+        return source.duration_sec if source else None
+    track = project.track_by_id(track_id)
+    return track.media.duration_sec if track and track.media else None
+
+
+def _clips_from_paste(project: EpisodeProject, extracts: list[dict]) -> dict[str, list[Clip]]:
+    """Validate a clipboard against *project* and build its clips, per dialogue track.
+
+    The ``PasteSegment`` boundary: raises ``PasteRejectedError`` for an unknown track
+    or source or an impossible range, so ``paste_segment`` never mutates on a bad clipboard.
+    """
     tracks = dialogue_track_ids(project)
     by_track: dict[str, list[Clip]] = {tid: [] for tid in tracks}
-    for raw in extracts:
-        tid = str(raw["track_id"])
+    for index, raw in enumerate(extracts):
+        tid = str(raw.get("track_id"))
         if tid not in by_track:
-            by_track[tid] = []
-        join_raw = raw.get("join_in_mode", ClipJoinMode.FADE.value)
+            raise PasteRejectedError(
+                "paste_unknown_track", f"extract {index} names unknown track {tid!r}"
+            )
+        source_id = raw.get("source_id")
+        if source_id is not None and project.source_by_id(str(source_id)) is None:
+            raise PasteRejectedError(
+                "paste_unknown_source", f"extract {index} names unknown source {source_id!r}"
+            )
+        src_start = _paste_number(raw, "source_start", index)
+        src_end = _paste_number(raw, "source_end", index)
+        relative_start = (
+            _paste_number(raw, "relative_timeline_start", index)
+            if "relative_timeline_start" in raw
+            else 0.0
+        )
+        limit = _paste_source_limit(project, tid, None if source_id is None else str(source_id))
+        if (
+            src_start < 0
+            or src_end <= src_start
+            or relative_start < 0
+            or (limit is not None and src_end > limit + _PASTE_EDGE_TOLERANCE_SEC)
+        ):
+            raise PasteRejectedError(
+                "paste_bad_range",
+                f"extract {index} source range [{src_start}, {src_end}) with timeline offset "
+                f"{relative_start} does not fit track {tid!r}"
+                + (f" (source length {limit})" if limit is not None else ""),
+            )
         try:
-            join_mode = ClipJoinMode(str(join_raw))
+            join_mode = ClipJoinMode(str(raw.get("join_in_mode", ClipJoinMode.FADE.value)))
         except ValueError:
             join_mode = ClipJoinMode.FADE
-        src_start = float(raw["source_start"])
-        src_end = float(raw["source_end"])
-        mute_raw = raw.get("mute_regions") or []
         parsed_mutes: list[ClipMuteRegion] = []
+        mute_raw = raw.get("mute_regions") or []
         if isinstance(mute_raw, list):
             for item in mute_raw:
                 try:
                     parsed_mutes.append(ClipMuteRegion.model_validate(item))
                 except ValidationError:
                     continue
-        by_track.setdefault(tid, []).append(
+        by_track[tid].append(
             Clip(
                 id=new_clip_id(),
                 track_id=tid,
                 source_start=src_start,
                 source_end=src_end,
-                timeline_start=float(raw.get("relative_timeline_start", 0.0)),
-                source_id=raw.get("source_id"),
+                timeline_start=relative_start,
+                source_id=None if source_id is None else str(source_id),
                 fade_in_ms=int(raw.get("fade_in_ms", 0) or 0),
                 fade_out_ms=int(raw.get("fade_out_ms", 0) or 0),
                 join_in_mode=join_mode,
                 mute_regions=mute_regions_overlapping(parsed_mutes, src_start, src_end),
             )
         )
+    return by_track
+
+
+def paste_segment(
+    project: EpisodeProject,
+    insert_at: float,
+    duration: float,
+    extracts: list[dict],
+) -> dict:
+    """Paste pre-extracted clips at *insert_at* (same-track; gap on all dialogue).
+
+    A clipboard naming an unknown track or source, or an impossible range, raises
+    ``PasteRejectedError`` before anything changes.
+    """
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError("duration must be positive")
+    by_track = _clips_from_paste(project, extracts)
     insert_gap(project, insert_at, duration)
-    affected = sorted(by_track.keys())
     for tid, extracted in by_track.items():
-        if tid not in tracks and not extracted:
-            continue
-        clips = clips_for_track(project, tid) if tid in tracks else []
-        merged = place_clips_at(clips, extracted, insert_at)
-        set_track_clips(project, tid, merged)
+        set_track_clips(
+            project, tid, place_clips_at(clips_for_track(project, tid), extracted, insert_at)
+        )
     update_timeline_duration(project)
     rebuild_combined(project)
     return change_summary(
         project,
         operation="paste_segment",
-        affected_tracks=affected,
+        affected_tracks=sorted(by_track),
         insert_at=insert_at,
         duration=duration,
     )
