@@ -1,12 +1,18 @@
 from __future__ import annotations
 
-import pytest
+import json
 
+import pytest
+from typer.testing import CliRunner
+
+from podcast_mcp.cli.main import app
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_replace import plan_transcript_replacement
+from podcast_mcp.mcp.tools.timeline import find_replace_transcript_tool
 from podcast_mcp.models import Track, Transcript, TranscriptWord, load_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, HistoryService
+from podcast_mcp.services.document_sync import DocumentSyncService
 
 
 def _word(text: str, start: float, **fields) -> TranscriptWord:
@@ -381,3 +387,42 @@ def test_batch_phrase_words_match_existing_manual_phrase_policy(minimal_project,
     assert [[word.model_dump() for word in tr.words] for tr in ws.project.transcripts] == [
         [word.model_dump() for word in tr.words] for tr in expected
     ]
+
+
+def _texts(path) -> list[list[str]]:
+    return [[w.text for w in tr.words] for tr in load_project(path).transcripts]
+
+
+def test_find_replace_tool_dry_run_changes_nothing(minimal_project):
+    _workspace(minimal_project)
+    out = json.loads(
+        find_replace_transcript_tool(str(minimal_project), "Ada", "Mira", dry_run=True)
+    )
+    assert out["count"] == 3
+    assert "replaced" not in out
+    assert _texts(minimal_project) == [["Ada,", "ADA", "Adaline"], ["\u2018Ada\u2019"]]
+
+
+def test_find_replace_tool_submits_the_batch_document_command(minimal_project):
+    _workspace(minimal_project)
+    out = json.loads(
+        find_replace_transcript_tool(str(minimal_project), "Ada", "Mira", match_case=True)
+    )
+    assert (out["count"], out["replaced"]) == (2, 2)
+    assert _texts(minimal_project) == [["Mira,", "ADA", "Adaline"], ["\u2018Mira\u2019"]]
+    rows = DocumentSyncService.open(minimal_project).store.commands_after(0)
+    assert [r["type"] for r in rows] == ["ReplaceTranscriptMatches"]
+
+
+def test_cli_find_replace_is_one_undo(minimal_project):
+    _workspace(minimal_project)
+    runner = CliRunner()
+    args = ["--project", str(minimal_project)]
+    result = runner.invoke(
+        app, ["transcript", "find-replace", *args, "--search", "Ada", "--replace", "Mira"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["replaced"] == 3
+    assert _texts(minimal_project) == [["Mira,", "Mira", "Adaline"], ["\u2018Mira\u2019"]]
+    assert runner.invoke(app, ["undo", *args]).exit_code == 0
+    assert _texts(minimal_project) == [["Ada,", "ADA", "Adaline"], ["\u2018Ada\u2019"]]
