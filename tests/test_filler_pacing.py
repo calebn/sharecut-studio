@@ -481,6 +481,60 @@ def test_paced_pad_retains_fraction_of_the_hesitation():
     assert PacedPad(gap_sec=1.0, min_sec=0.35, retain=0.0, max_sec=1.0).seconds(1.0, 2.0) == 0.35
 
 
+@pytest.mark.parametrize(
+    ("words", "cut", "replace", "ripple", "mute"),
+    [
+        # 0.05 s of air on either side: keeping 0.28 s leaves nothing to remove.
+        (
+            [("And", 1.0, 1.2), ("um", 1.25, 1.4), ("really", 1.45, 1.6)],
+            (1.25, 1.4),
+            False,
+            None,
+            (1.25, 1.4),
+        ),
+        # Keeping 0.28 s of the 0.9 s gap shrinks the cut to 0.62 s.
+        (
+            [("And", 1.0, 1.2), ("um", 1.3, 2.0), ("really", 2.1, 2.4)],
+            (1.3, 2.0),
+            False,
+            (1.34, 1.96),
+            (1.3, 2.0),
+        ),
+        # 5 ms word margins leave 5 ms of the 15 ms gap, too little to expand into.
+        (
+            [("And", 1.0, 1.2), ("um", 1.2, 1.21), ("really", 1.215, 1.5)],
+            (1.2, 1.21),
+            True,
+            None,
+            (1.2, 1.21),
+        ),
+        # The room-tone expansion still sets the span a mute silences: 40 ms of
+        # lead-out after "And" (no audio to measure), 80 ms of lead-in before "really".
+        (
+            [("And", 1.0, 1.2), ("um", 1.5, 1.7), ("really", 2.5, 2.8)],
+            (1.5, 1.7),
+            True,
+            (1.24, 2.42),
+            (1.24, 2.42),
+        ),
+    ],
+)
+def test_a_mute_is_never_shrunk_or_dropped_to_keep_the_gap(words, cut, replace, ripple, mute):
+    project = _project([TranscriptWord(text=t, start=s, end=e) for t, s, e in words])
+    defaults = {
+        "tighten": {"min_gap_after_filler_sec": 0.28, "filler_room_tone_replace": replace},
+        "inaudible_cuts": {"min_word_margin_ms": 5},
+    }
+
+    def span(keeps_time: bool) -> tuple[float, float] | None:
+        paced = apply_filler_pacing(
+            project, "host", *cut, defaults=defaults, cut_kind="filler", keeps_time=keeps_time
+        )
+        return None if paced is None else (round(paced.start, 3), round(paced.end, 3))
+
+    assert (span(False), span(True)) == (ripple, mute)
+
+
 def test_apply_filler_pacing_shrink_mode():
     words = [
         TranscriptWord(text="And", start=1.0, end=1.2),
