@@ -2830,6 +2830,42 @@ def test_audio_mute_proposes_only_audible_acoustic_runs_apart_from_kept_words(
     assert found == skips
 
 
+@pytest.mark.parametrize(
+    ("edit_mode", "proposed", "skips"),
+    [
+        # Closing the gap would leave less than min_gap_after_filler_sec of air.
+        ("ripple", [], {"acoustic:pacing": 1}),
+        # A mute closes nothing, so the gap keeps its length and the run is muted whole.
+        ("mute", [("mute", "filler:acoustic", 0.68, 0.875)], {}),
+    ],
+)
+def test_audio_acoustic_run_in_a_short_gap_is_muted_but_not_rippled(
+    tmp_path, edit_mode, proposed, skips
+):
+    from podcast_mcp.config import load_defaults
+
+    project = _audio_project(
+        tmp_path,
+        [(0.3, _voice(0.3)), (0.7, _voice(0.16)), (0.96, _voice(0.4))],
+        [
+            TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+            TranscriptWord(text="okay.", start=0.96, end=1.36, confidence=0.95),
+        ],
+    )
+    defaults = load_defaults()
+    defaults["tighten"]["edit_mode"] = edit_mode
+    found: dict[str, int] = {}
+
+    decisions = analyze_fillers_and_pauses(
+        project, project.transcripts[0], defaults, skip_counts=found
+    )
+
+    assert [(d.type.value, d.reason, round(d.start, 3), round(d.end, 3)) for d in decisions] == (
+        proposed
+    )
+    assert found == skips
+
+
 def test_audio_mute_is_the_same_whoever_else_is_talking(tmp_path):
     from podcast_mcp.config import load_defaults
 
