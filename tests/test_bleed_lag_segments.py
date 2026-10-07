@@ -222,6 +222,28 @@ def test_drifting_lane_is_flagged_and_not_split(tmp_path) -> None:
     assert "bleed lag drifting: audra (left in place)" in result.summary()
 
 
+@pytest.mark.parametrize(("late", "step_at"), [(0.155, 121.48), (0.2, 121.47)])
+def test_a_long_step_is_split_not_read_as_drift_or_scatter(
+    tmp_path, late: float, step_at: float
+) -> None:
+    # Audra's latency steps from 120 ms to ``late`` in her 21 s pause and stays there for
+    # the second half. A 35 ms step read as a trend across the windows (drifting); an
+    # 80 ms one left half the windows away from the median (scattered). Either way the
+    # lane stayed where it was.
+    audio = bh.tracks(bleed={"caleb": {"audra": 0.0}}, gated=("audra",))
+    audio["audra"] = bh.relatency(audio["audra"], lambda t: 0.12 if t < 120.0 else late)
+    ws = bh.workspace(tmp_path, audio)
+
+    result = plan_conversation_alignment(ws.project)
+
+    audra = [
+        (p.method, round(p.offset_sec, 3), [(round(at, 2), round(o, 3)) for at, o in p.steps])
+        for p in result.plans
+        if p.track_id == "audra"
+    ]
+    assert audra == [("bleed_lag", -0.12, [(step_at, -late)])]
+
+
 def test_manifest_pin_proposes_one_shift_and_keeps_the_clip_whole(
     stepped: ProjectWorkspace,
 ) -> None:
