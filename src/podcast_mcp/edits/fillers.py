@@ -19,6 +19,7 @@ from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_cac
 from podcast_mcp.edits.breath_detect import (
     detect_adjacent_breath,
     extend_cut_for_breaths,
+    pause_air_span,
     protect_cut_breaths,
 )
 from podcast_mcp.edits.cut_quality import (
@@ -1700,7 +1701,8 @@ class _GatedCut:
     plan: _CutPlan
     scope: str
     guard: SpeechEnergyGuardResult | None
-    voiced_flag: str | None
+    # Review flags the edge checks raised, in the order they go on the reason.
+    flags: tuple[str, ...]
 
 
 def _peer_audio_caches(
@@ -1786,7 +1788,26 @@ def _gate_cut_edges(
         )
         cut_start, cut_end, voiced_flag = voiced.start, voiced.end, voiced.flag
     before_protection = cut_start, cut_end
-    if checks.breaths is not _BreathEdges.IGNORE:
+    air_moved = False
+    if candidate.cut_kind == "pause":
+        # A pause trim removes only air: it shrinks to the longest stretch of air
+        # inside it on every track the ripple cuts, so no edge sits in a sound. Until
+        # the owner has listened, a trim that shrank is proposed for review (#1055).
+        air = pause_air_span(
+            project,
+            track_id,
+            cut_start,
+            cut_end,
+            pause=(candidate.start, candidate.end),
+            defaults=defaults,
+            audio_cache=audio_cache,
+            audio_caches=audio_caches,
+        )
+        if air is None:
+            return _CutRejected("no_air")
+        air_moved = air != before_protection
+        cut_start, cut_end = air
+    elif checks.breaths is not _BreathEdges.IGNORE:
         breath_safe = protect_cut_breaths(
             project,
             track_id,
@@ -1796,9 +1817,6 @@ def _gate_cut_edges(
             audio_cache=audio_cache,
             word_index=word_index,
             strict=checks.breaths is _BreathEdges.PROTECT,
-            # A pause trim removes only air: it shrinks to the longest stretch of air
-            # inside it, so a word tail, a breath or a missed sound stays whole (#1055).
-            air_only=candidate.cut_kind == "pause",
         )
         if breath_safe is None:
             return _CutRejected("breath")
@@ -1829,8 +1847,13 @@ def _gate_cut_edges(
     if guard is not None and guard.blocked and candidate.cut_kind == "pause":
         return _CutRejected("other_speaking")
     plan = replace(plan, start=cut_start, end=cut_end)
+
+    def gated(final: str) -> _GatedCut:
+        raised = (voiced_flag, "air_edges" if air_moved else None)
+        return _GatedCut(plan, final, guard, tuple(flag for flag in raised if flag))
+
     if final_scope != scope:
-        return _GatedCut(plan, final_scope, guard, voiced_flag)
+        return gated(final_scope)
     if audio_cache is not None and protected != before_protection:
         settled = _check_voiced_speech(
             candidate,
@@ -1846,7 +1869,7 @@ def _gate_cut_edges(
         voiced_flag = settled.flag
     if checks.refuse_attached_runs and acoustic and voiced_flag == "voiced_edge":
         return _CutRejected("voiced_edge")
-    return _GatedCut(plan, scope, guard, voiced_flag)
+    return gated(scope)
 
 
 def _analyze_candidate(
@@ -1967,7 +1990,7 @@ def _analyze_candidate(
         scope = gated.scope
     else:
         return _CutRejected("unstable_scope")
-    plan, guard, voiced_flag = gated.plan, gated.guard, gated.voiced_flag
+    plan, guard, flags = gated.plan, gated.guard, gated.flags
     checks = plan.checks
     cut_start, cut_end = plan.start, plan.end
     if not checks.score_joins or (cut_start, cut_end) != (opt.start, opt.end):
@@ -1993,9 +2016,9 @@ def _analyze_candidate(
     # mistaken for the reparandum, and voiced energy in an ASR gap may be a
     # breath, laugh, or missed word rather than a filler.
     review_required = candidate.review_only or candidate.cut_kind in {"repeat", "restart"}
-    if voiced_flag is not None:
+    for flag in flags:
         review_required = True
-        reason = f"{reason}:{voiced_flag}"
+        reason = f"{reason}:{flag}"
     replace_gap = plan.replace_gap_sec
     # Contiguous retain before the next word can be shorter than the floor when
     # prior ripples punched holes; pad the shortfall with silence after ripple.
