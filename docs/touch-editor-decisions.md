@@ -725,18 +725,69 @@ chooser lab until the owner made it the default (2026-10-07).
 ## Precision drag bake-off (#1184, lab)
 
 A fingertip is wider than the gap it targets and covers what it moves, so an
-armed edge is hard to place to the step on a phone. Three prototypes compete
-behind one lab switch, for a comparison by feel on a real iPhone. Pick one
-from View › Labs › Precision drag (Off, Jog pad, Auto-zoom lens, Offset grip)
-or open the app with `?lab=precision:jog`, `?lab=precision:lens` or
-`?lab=precision:grip`; `?lab=-precision` turns it off. Choosing one also turns
-the touch chooser lab on, since only a long press arms. The choice persists
-per browser (`sharecut.labs.precision`, `timeline/precision/precisionLab.ts`).
+armed edge is hard to place to the step on a phone. With **Auto precision**
+on, arming decides by itself whether a drag needs precision; the owner asked
+for that over a mode to pick, and for the manual picker to come back only if
+Auto cannot be right most of the time. View › Labs › Precision drag holds
+the **Auto precision** checkbox, the **Style** Auto switches into (Jog pad,
+Auto-zoom lens, Offset grip) and **Auto decisions (last 20)…**. From a link,
+`?lab=precision:auto` turns Auto on, `?lab=precision:jog` (`lens`, `grip`)
+picks the style and turns Auto on, and `?lab=-precision` or
+`?lab=precision:off` turns it off. Like every lab it is off until chosen. It
+rides on the touch grammar's long-press arm, which is always on.
+The choice persists per browser (`sharecut.labs.precision`,
+`sharecut.labs.precision.style`, `timeline/precision/precisionLab.ts`).
 
-Every variant takes over the same targets: an armed fade, trim, pending edge
+### Auto: direct or precision (#1184)
+
+At arm time `decidePrecision` (`timeline/precision/precisionDecision.ts`)
+returns a `PrecisionDecision { mode, reason, measures, thresholdPx, sticky }`
+from four measures in CSS px: the target's drawn width, the gap to the
+nearest other target on its lane or soft boundary (less the wide clip body
+behind it, and less a boundary it sits on), the finger's contact width, and
+one step of the target at the current zoom. In order:
+
+1. **zoom-fine → direct** when a step is at least 4 px. The prototype's
+   one-step runs moved the value a step for 1 px of lens or grip travel, and
+   a resting fingertip wobbles 1–2 px; twice the worst wobble keeps a
+   fingertip inside one step.
+2. **target-narrow → precision** when the target is narrower than the finger
+   (an 8 px trim handle under any finger).
+3. **neighbour-close → precision** when the nearest neighbour is closer than
+   the finger is wide.
+4. **roomy → direct** otherwise.
+
+The finger is `PointerEvent.width`/`height`, the larger side. A contact under
+10 px is no fingertip (iOS Safari reports 0 or 1, Chrome's touch emulation
+2), so 44 px stands in: Apple's minimum touch target. Hysteresis: a target
+armed again leans toward its last mode (the last 20 decisions are kept): after
+precision a step must reach 5 px and a target must clear 1.25 × the finger to
+drag directly; after direct, a target must be under the finger ÷ 1.25 to go
+into precision and a step only needs 3.2 px to stay direct.
+
+A **direct** drag runs through the same session with pointer ballistics
+(`velocityGain`): a slow finger (≤ 0.05 px/ms) moves the target one step per
+4 px of travel, a fast one (≥ 0.5 px/ms) moves it 1:1, linearly in between;
+the gain never falls with speed and never passes 1:1, so a step already 4 px
+wide stays 1:1. Speed is smoothed, half the last move and half the history.
+An envelope point Auto judges direct keeps the touch grammar's own drag,
+which also moves its level.
+
+**Lab readout.** Every Auto drag shows a small chip over the timeline's top
+edge (its bottom edge with the grip): "Precision · target 8 px < finger 44 px",
+"Precision · neighbour 12 px < finger 44 px", "Direct · 7.4 px per step ≥ 4 px"
+or "Direct · target 60 px, neighbour 120 px ≥ finger 44 px". "(sticky)" marks a
+threshold hysteresis moved. View › Labs › Auto decisions (last 20)… lists the
+same lines, newest first, with **Copy all** to paste a miss into an issue.
+
+### The precision session
+
+Every style takes over the same targets: an armed fade, trim, pending edge
 or envelope point's time. Any other armed target (a clip body, a roll, a
-crossfade grip, a chapter, a social clip) drags as before. A precision drag is
-one state machine (`timeline/precision/precisionSession.ts`):
+crossfade grip, a chapter, a social clip), and every armed target with Auto
+off, drags as the touch grammar has it. A drag Auto takes is one state
+machine (`timeline/precision/precisionSession.ts`), whose variant is a style
+or `direct`:
 
     idle → armed → precision(variant, gain, origin) → committed | cancelled
 
@@ -759,6 +810,9 @@ one state machine (`timeline/precision/precisionSession.ts`):
 
 The variants:
 
+- **Direct.** The arming finger keeps dragging, at the timeline's zoom times
+  the ballistic gain above; no surface but the readout. Lifting finishes.
+
 - **Jog pad.** Arming puts a trackpad in the drawer's place. A drag anywhere
   on it moves the target by the finger's travel at the timeline's zoom.
   Sliding the finger up while dragging slows it a step every 40 px, like iOS
@@ -777,9 +831,13 @@ The variants:
   was armed, and a leader runs down to the edge, so the finger never covers
   it. Lifting finishes.
 
-`e2e-compat/precision-drag.spec.ts` moves the last clip's trim end exactly one
-step with each variant at 390×844 in WebKit and Chromium, saves it, and shows
-a second finger cancelling each with nothing saved. A jog over the guest's
-speech asks Cut anyway or Leave a gap, and a tap outside the pad saves. The
-owner picks one after trying them on a phone. The winner then needs the
-real build, and the other two are deleted.
+`e2e-compat/precision-drag.spec.ts` runs at 390×844 in WebKit and Chromium.
+At the default zoom Auto puts the last clip's 8 px trim end into precision,
+and each style moves it exactly one step and saves it; a second finger
+cancels each with nothing saved. At 22 zoom-ins (736 px per second, 7.4 px
+per step) Auto drags the same edge directly, with the ripple mark showing.
+With Auto off the armed edge drags as the touch grammar has it, with no lab
+surface. A jog over the guest's speech asks Cut anyway or Leave a gap, a tap
+outside the pad saves, and Auto decisions lists the decision made. The owner
+judges Auto and a style on a phone; if Auto is wrong too often, the manual
+picker returns. The chosen design then needs the real build.

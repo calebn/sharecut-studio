@@ -1,12 +1,14 @@
 /**
- * Runs one precision drag (#1184) at a time: the hit router hands it an
- * armed target (`precisionHandoff`), the variant's surface (`PrecisionLayer`)
- * feeds it finger travel, and it turns the session's states into previews,
- * bumps, a save on commit and a rollback on cancel.
+ * Runs one Auto precision drag (#1184) at a time: the hit router hands it an
+ * armed target (`precisionHandoff`), it measures the target and decides
+ * direct or precision (`precisionDecision.ts`), the style's surface
+ * (`PrecisionLayer`) feeds it finger travel, and it turns the session's
+ * states into previews, bumps, a save on commit and a rollback on cancel.
  *
- * Exits, for every variant:
- * - commit: lifting the arming finger after moving it (grip, lens), a lift
- *   in the lens, Done, or a tap anywhere outside the precision surface;
+ * Exits:
+ * - commit: lifting the arming finger after moving it (direct, grip, lens),
+ *   a lift in the lens, Done, or a tap anywhere outside the precision
+ *   surface;
  * - cancel: a second finger anywhere, which rolls the draft back.
  */
 import { NUDGE_KINDS, type NudgeField, nudgeAxis } from "../../edit/nudge";
@@ -21,13 +23,22 @@ import type { HitPoint } from "../hitCandidates";
 import { ARMED_ATTR, type PrecisionHandoff } from "../hitRouting";
 import { clipEdgeOf, HIT_KINDS, isHitKind } from "../inputContract";
 import { vibrate } from "../touchGrammar";
-import { type PrecisionDriver, precisionDriver } from "./precisionDrivers";
-import { type PrecisionVariant, precisionVariant } from "./precisionLab";
+import { lastMode, logDecision } from "./decisionLog";
 import {
+  decidePrecision,
+  fingerWidthPx,
+  type PrecisionDecision,
+  velocityGain,
+} from "./precisionDecision";
+import { type PrecisionDriver, precisionDriver } from "./precisionDrivers";
+import { precisionLab } from "./precisionLab";
+import {
+  frameOf,
   type GainIndex,
   gripPxPerSec,
   jogGainIndex,
   lensPxPerSec,
+  unitsPerSec,
 } from "./precisionMath";
 import {
   IDLE,
@@ -36,6 +47,7 @@ import {
   type PrecisionState,
   type PrecisionStop,
   type PrecisionTarget,
+  type PrecisionVariant,
   precisionReducer,
 } from "./precisionSession";
 
@@ -64,12 +76,17 @@ export interface PrecisionView {
   finger: HitPoint | null;
   /** A finger is on the target or the pad right now. */
   dragging: boolean;
+  /** What Auto chose when the target was armed, and why. */
+  decision: PrecisionDecision;
 }
 
 interface Driving {
   pointerId: number;
   startY: number;
   lastX: number;
+  /** The last move's `timeStamp`, and the smoothed finger speed (px/ms). */
+  lastAt: number;
+  speed: number;
 }
 
 interface Session {
@@ -87,6 +104,9 @@ interface Session {
   bump: number;
   finger: HitPoint | null;
   lens: { zoom: number; scrollLeft: number; playheadSec: number } | null;
+  decision: PrecisionDecision;
+  /** One step of the target on screen at the timeline's zoom. */
+  stepPx: number;
   dispose: () => void;
 }
 
@@ -125,6 +145,7 @@ function render(s: Session) {
     element: s.element,
     finger: s.finger,
     dragging: s.driving != null,
+    decision: s.decision,
   });
 }
 
@@ -176,10 +197,54 @@ export function precisionTarget(
 }
 
 const HINTS: Record<PrecisionVariant, string> = {
-  jog: "drag in the jog pad, slide up to slow it, Done to finish",
-  lens: "zoomed in, drag to move it, lift to finish",
-  grip: "drag to move it, lift to finish",
+  direct: "drag sideways to move it, slowly for fine steps, lift to finish",
+  jog: "precision, drag in the jog pad, slide up to slow it, Done to finish",
+  lens: "precision, zoomed in, drag to move it, lift to finish",
+  grip: "precision, drag to move it, lift to finish",
 };
+
+/**
+ * How far the nearest other target, or soft boundary, is from `element`, in
+ * px; null when there is none. Other targets on its lane count, less the
+ * wide bodies behind them; a boundary the target sits on does not (its drag
+ * does not catch there either).
+ */
+function neighbourGapPx(
+  element: Element,
+  axis: PrecisionAxis,
+  value: number,
+  pxPerSec: number,
+): number | null {
+  const box = element.getBoundingClientRect();
+  let gap: number | null = null;
+  const consider = (d: number) => {
+    gap = gap == null ? Math.max(0, d) : Math.min(gap, Math.max(0, d));
+  };
+  const lane = element.closest("[data-track-id]") ?? element.parentElement;
+  for (const other of lane?.querySelectorAll("[data-hit-kind]") ?? []) {
+    const kind = other.getAttribute("data-hit-kind");
+    if (
+      other === element ||
+      other.contains(element) ||
+      element.contains(other) ||
+      !isHitKind(kind) ||
+      HIT_KINDS[kind].body
+    ) {
+      continue;
+    }
+    const r = other.getBoundingClientRect();
+    if (r.width <= 0 && r.height <= 0) continue;
+    consider(Math.max(r.left - box.right, box.left - r.right));
+  }
+  const at = axis.at(value);
+  if (at != null) {
+    for (const b of axis.boundaries) {
+      if (Math.abs(b.sec - at) < 1e-6) continue;
+      consider(Math.abs(b.sec - at) * pxPerSec - box.width / 2);
+    }
+  }
+  return gap;
+}
 
 function dispatch(s: Session, event: PrecisionEvent) {
   const before = s.state;
@@ -297,15 +362,33 @@ export function cancelPrecision(): void {
   if (session) end(session, "cancel");
 }
 
-function drive(s: Session, x: number, y: number, gain?: GainIndex) {
+/** The driving finger moved to `event`; a direct drag scales it by its speed. */
+function drive(s: Session, event: PointerEvent, gain?: GainIndex) {
   const d = s.driving;
   if (!d) return;
-  const dx = x - d.lastX;
-  d.lastX = x;
+  const dx = event.clientX - d.lastX;
+  const dt = Math.max(1, event.timeStamp - d.lastAt);
+  // Half the last move, half the history: one jerky sample does not jump it.
+  d.speed = 0.5 * (Math.abs(dx) / dt) + 0.5 * d.speed;
+  d.lastX = event.clientX;
+  d.lastAt = event.timeStamp;
   if (dx !== 0) s.moved = true;
-  s.finger = { x, y };
-  dispatch(s, { type: "move", dx, gain });
+  s.finger = { x: event.clientX, y: event.clientY };
+  const st = s.state;
+  const scale =
+    st.phase === "precision" && st.variant === "direct"
+      ? velocityGain(d.speed, s.stepPx)
+      : undefined;
+  dispatch(s, { type: "move", dx, gain, scale });
 }
+
+const startDriving = (event: PointerEvent): Driving => ({
+  pointerId: event.pointerId,
+  startY: event.clientY,
+  lastX: event.clientX,
+  lastAt: event.timeStamp,
+  speed: 0,
+});
 
 /** Window listeners: a second finger cancels, a tap outside commits. */
 function watch(s: Session): () => void {
@@ -349,39 +432,63 @@ function watch(s: Session): () => void {
 }
 
 function arm(element: Element, down: PointerEvent): boolean {
-  const variant = precisionVariant();
+  const lab = precisionLab();
   const store = useDawStore.getState();
   const project = store.project;
-  if (!variant || !project || session) return false;
+  if (!lab.auto || !project || session) return false;
   const kind = element.getAttribute("data-hit-kind") ?? "";
   const id = element.getAttribute("data-hit-id") ?? "";
   const target = precisionTarget(project, kind, id);
   if (!target || !mayNudge(store, project, target.field)) return false;
   const nudge = nudgeAxis(project, target.field);
+  if (!nudge) return false;
+  const axis: PrecisionAxis = {
+    clamp: nudge.clamp,
+    at: nudge.at,
+    boundaries: nudge.mover
+      ? softBoundaries(project, nudge.mover, store.playheadSec)
+      : [],
+  };
+  const zoom = store.zoomPxPerSec;
+  const stepPx =
+    (frameOf(target.field) / Math.abs(unitsPerSec(target.field))) * zoom;
+  const key = `${kind}:${id}`;
+  const decision = decidePrecision(
+    {
+      targetPx: element.getBoundingClientRect().width,
+      gapPx: neighbourGapPx(element, axis, nudge.value, zoom),
+      fingerPx: fingerWidthPx(down.width, down.height),
+      stepPx,
+    },
+    lastMode(key),
+  );
+  logDecision({ at: Date.now(), target: key, name: target.name, decision });
+  // A direct envelope point keeps the grammar's own drag, in time and level.
+  if (
+    decision.mode === "direct" &&
+    isHitKind(kind) &&
+    HIT_KINDS[kind].axis === "xy"
+  ) {
+    return false;
+  }
+  const variant: PrecisionVariant =
+    decision.mode === "precision" ? lab.style : "direct";
   const driver = precisionDriver(kind, id, target.field, target.name);
-  if (!nudge || !driver?.begin()) return false;
+  if (!driver?.begin()) return false;
   const s: Session = {
     state: IDLE,
-    axis: {
-      clamp: nudge.clamp,
-      at: nudge.at,
-      boundaries: nudge.mover
-        ? softBoundaries(project, nudge.mover, store.playheadSec)
-        : [],
-    },
+    axis,
     driver,
     element,
     arming: down.pointerId,
-    driving: {
-      pointerId: down.pointerId,
-      startY: down.clientY,
-      lastX: down.clientX,
-    },
+    driving: startDriving(down),
     touches: new Set(down.pointerType === "touch" ? [down.pointerId] : []),
     moved: false,
     bump: 0,
     finger: { x: down.clientX, y: down.clientY },
     lens: null,
+    decision,
+    stepPx,
     dispose: () => undefined,
   };
   session = s;
@@ -424,7 +531,7 @@ export const precisionHandoff: PrecisionHandoff = {
     const st = s.state;
     // The jog moves only from its pad; the finger that armed it rests.
     if (st.phase === "precision" && st.variant === "jog") return;
-    drive(s, event.clientX, event.clientY);
+    drive(s, event);
   },
   up(event) {
     const s = session;
@@ -434,7 +541,11 @@ export const precisionHandoff: PrecisionHandoff = {
     s.touches.delete(event.pointerId);
     const st = s.state;
     if (st.phase !== "precision") return;
-    if (st.variant === "grip" || (st.variant === "lens" && s.moved)) {
+    if (
+      st.variant === "direct" ||
+      st.variant === "grip" ||
+      (st.variant === "lens" && s.moved)
+    ) {
       end(s, "commit");
       return;
     }
@@ -455,11 +566,7 @@ export const precisionPad = {
       return;
     }
     event.preventDefault();
-    s.driving = {
-      pointerId: event.pointerId,
-      startY: event.clientY,
-      lastX: event.clientX,
-    };
+    s.driving = startDriving(event);
     s.moved = false;
     s.finger = { x: event.clientX, y: event.clientY };
     try {
@@ -476,7 +583,7 @@ export const precisionPad = {
       st.phase === "precision" && st.variant === "jog"
         ? jogGainIndex(s.driving.startY - event.clientY)
         : undefined;
-    drive(s, event.clientX, event.clientY, gain);
+    drive(s, event, gain);
   },
   up(event: PointerEvent) {
     const s = session;

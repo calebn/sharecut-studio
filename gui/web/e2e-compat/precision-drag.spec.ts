@@ -72,20 +72,30 @@ async function lastClip(page: Page): Promise<Clip> {
 const trimEnd = (clip: Clip) =>
   `${lane} [data-clip-id="${clip.id}"] .trim-handle.out`;
 
-async function open(page: Page, variant: Variant): Promise<Clip> {
+/** The fixture on the phone timeline with `?lab=<lab>`, `zoomIns` past fit. */
+async function openLab(
+  page: Page,
+  lab: string,
+  zoomIns = 3,
+): Promise<{ clip: Clip; pps: number }> {
   await page.setViewportSize(PHONE);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await buildFixture(page, projectPath, CLIENT_ID);
   const clip = await lastClip(page);
-  await page.goto(
-    `/?project=${encodeURIComponent(projectPath)}&lab=precision:${variant}`,
-  );
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}&lab=${lab}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
   await openPhoneTimeline(page);
   await setTheme(page, "dark");
-  await setZoom(page, 3);
-  return clip;
+  const pps = await setZoom(page, zoomIns);
+  return { clip, pps };
 }
+
+/** Auto precision on, switching into `variant`, at the default zoom. */
+async function open(page: Page, variant: Variant): Promise<Clip> {
+  return (await openLab(page, `precision:${variant}`)).clip;
+}
+
+const chip = (page: Page) => page.locator(".precision-decision");
 
 async function frame(page: Page, info: TestInfo, name: string) {
   save(info, `${name}.png`, await page.screenshot());
@@ -162,6 +172,8 @@ for (const variant of VARIANTS) {
       variant,
     );
     await expect(page.locator("[data-hit-armed]")).toHaveCount(1);
+    await expect(chip(page)).toHaveAttribute("data-mode", "precision");
+    const decided = await chip(page).textContent();
     await page.waitForTimeout(400);
     await frame(page, info, `precision-${variant}-armed-${browserName}`);
     let step: { at: Point; seen: string[] };
@@ -195,6 +207,7 @@ for (const variant of VARIANTS) {
     await frame(page, info, `precision-${variant}-saved-${browserName}`);
     const after = await savedEnd(page, clip.id);
     json(info, `precision-${variant}-one-step-${browserName}`, {
+      decided,
       from: clip.source_end,
       after,
       readouts: step.seen,
@@ -202,6 +215,7 @@ for (const variant of VARIANTS) {
       askedCutSpeech: asked,
       commands: commands.map((c) => c.type),
     });
+    expect(decided).toMatch(/^Precision · target 8 px < finger \d+ px$/);
     expect(step.seen.at(-1)).toBe("−10 ms");
     expect(commands.filter((c) => c.type === "TrimClipEdge")).toHaveLength(1);
   });
@@ -381,13 +395,15 @@ test("jog: a ripple over the guest's speech asks first, and Leave a gap keeps it
   expect(starts[3]).toBe(50);
 });
 
-test("View › Labs switches the precision variant in place", async ({
+test("View › Labs switches the style in place and lists Auto's decisions", async ({
   page,
   context,
   browserName,
 }, info) => {
   const clip = await open(page, "jog");
   await page.getByRole("button", { name: "Menu" }).click();
+  const auto = page.getByRole("menuitemcheckbox", { name: "Auto precision" });
+  await expect(auto).toBeChecked();
   const lens = page.getByRole("menuitemradio", { name: "Auto-zoom lens" });
   await lens.scrollIntoViewIfNeeded();
   await frame(page, info, `precision-labs-menu-${browserName}`);
@@ -404,6 +420,91 @@ test("View › Labs switches the precision variant in place", async ({
   await page.getByRole("button", { name: "Done" }).click();
   await expect(page.locator(".precision-layer")).toHaveCount(0);
   expect(
-    await page.evaluate(() => localStorage.getItem("sharecut.labs.precision")),
+    await page.evaluate(() =>
+      localStorage.getItem("sharecut.labs.precision.style"),
+    ),
   ).toBe("lens");
+
+  await page.getByRole("button", { name: "Menu" }).click();
+  await page
+    .getByRole("menuitem", { name: "Auto decisions (last 20)…" })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "Auto decisions" });
+  await expect(dialog).toBeVisible();
+  const rows = await dialog.locator(".precision-log li").allTextContents();
+  await frame(page, info, `precision-decisions-log-${browserName}`);
+  json(info, `precision-decisions-log-${browserName}`, { rows });
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatch(/^Trim endPrecision · target 8 px < finger \d+ px$/);
+});
+
+test("Auto drags directly when a step is 4 px wide at a deep zoom", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  // 22 zoom-ins past fit: several hundred px per second, so 10 ms ≥ 4 px.
+  const { clip, pps } = await openLab(page, "precision:jog", 22);
+  const commands = watchCommands(page);
+  const finger = await newFinger(context, page, browserName);
+  const at = await trimEndAt(page, finger, clip);
+  await hold(page, finger, at);
+  await expect(chip(page)).toHaveAttribute("data-mode", "direct");
+  await expect(chip(page)).toHaveAttribute("data-reason", "zoom-fine");
+  const decided = await chip(page).textContent();
+  await expect(page.locator(".precision-jog")).toHaveCount(0);
+  await finger.slide({ x: at.x - 40, y: at.y }, 8, 16);
+  await expect(page.locator(".trim-readout")).toContainText("Ripple");
+  await frame(page, info, `precision-auto-direct-${browserName}`);
+  await finger.up();
+  await cutAnywayIfAsked(page);
+  await expect
+    .poll(() => commands.filter((c) => c.type === "TrimClipEdge").length, {
+      timeout: 60_000,
+    })
+    .toBe(1);
+  await expect
+    .poll(async () => savedEnd(page, clip.id), { timeout: 60_000 })
+    .toBeLessThan(clip.source_end);
+  const after = (await savedEnd(page, clip.id)) ?? clip.source_end;
+  json(info, `precision-auto-direct-${browserName}`, {
+    pps,
+    decided,
+    from: clip.source_end,
+    after,
+    commands: commands.map((c) => c.type),
+  });
+  expect(decided).toMatch(/^Direct · \d+(\.\d)? px per step ≥ 4 px$/);
+  // 40 px at most moves it 40 / pps s, finer when the finger is slow.
+  expect(clip.source_end - after).toBeLessThanOrEqual(40 / pps + 0.01);
+  expect(Math.round((clip.source_end - after) * 1e6) % 10_000).toBe(0);
+});
+
+test("with Auto off an armed trim end always drags directly", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  const { clip } = await openLab(page, "precision:off");
+  const commands = watchCommands(page);
+  const finger = await newFinger(context, page, browserName);
+  const at = await trimEndAt(page, finger, clip);
+  await hold(page, finger, at);
+  await expect(page.locator("[data-hit-armed]")).toHaveCount(1);
+  await finger.slide({ x: at.x - 30, y: at.y }, 8, 16);
+  const layers = await page.locator(".precision-layer").count();
+  await frame(page, info, `precision-off-direct-${browserName}`);
+  await finger.up();
+  await cutAnywayIfAsked(page);
+  await expect
+    .poll(async () => savedEnd(page, clip.id), { timeout: 60_000 })
+    .toBeLessThan(clip.source_end);
+  json(info, `precision-off-direct-${browserName}`, {
+    layers,
+    from: clip.source_end,
+    after: await savedEnd(page, clip.id),
+    commands: commands.map((c) => c.type),
+  });
+  expect(layers).toBe(0);
+  expect(commands.filter((c) => c.type === "TrimClipEdge")).toHaveLength(1);
 });

@@ -1,10 +1,12 @@
 /**
- * The precision drag's surface (#1184), one per variant:
+ * The precision drag's surface (#1184), one per style Auto switches into:
  * - Jog pad: the drawer's place becomes a trackpad with a speed ladder.
  * - Auto-zoom lens: a frame over the zoomed lanes that takes the finger.
  * - Offset grip: a loupe above the finger, leading down to the edge.
  * Each shows the target's name, how far it moved, and the stop it is held
  * at, and offers Done (the jog and the lens; the grip finishes on lift).
+ * A direct drag has no surface. Every drag shows the lab readout of what
+ * Auto chose; the Auto decisions dialog lists the last ones.
  */
 import {
   type CSSProperties,
@@ -17,7 +19,13 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useDawStore } from "../../state/dawStore";
+import { Dialog } from "../../ui";
 import { RippleMark } from "../../ui/RippleMark";
+import {
+  decisionLogText,
+  setDecisionLogOpen,
+  useDecisionLog,
+} from "./decisionLog";
 import {
   commitPrecision,
   PRECISION_UI_ATTR,
@@ -27,6 +35,7 @@ import {
   subscribePrecision,
   valueText,
 } from "./precisionController";
+import { decisionText } from "./precisionDecision";
 import { deltaText, frameOf, JOG_GAINS, unitsPerSec } from "./precisionMath";
 
 const ui = { [PRECISION_UI_ATTR]: "" };
@@ -263,22 +272,115 @@ function Grip({ v }: { v: PrecisionView }) {
   );
 }
 
-/** Renders the active precision drag's surface, if any. */
+/**
+ * The lab readout: what Auto chose for this drag and why, over the
+ * timeline's top edge (its bottom edge for the grip, whose loupe is above
+ * the finger). It takes no touches.
+ */
+function DecisionChip({ v }: { v: PrecisionView }) {
+  // Measured on every publish: the lens zooms and the timeline scrolls.
+  const box = visibleBox(v.element.closest(".timeline-scroll"));
+  if (!box) return null;
+  const bottom = v.variant === "grip";
+  return (
+    <output
+      className="precision-decision"
+      data-mode={v.decision.mode}
+      data-reason={v.decision.reason}
+      style={{
+        left: box.left + box.width / 2,
+        top: bottom ? undefined : box.top,
+        bottom: bottom ? window.innerHeight - box.top - box.height : undefined,
+      }}
+    >
+      {decisionText(v.decision)}
+    </output>
+  );
+}
+
+function DecisionsDialog() {
+  const { entries, open } = useDecisionLog();
+  const [copied, setCopied] = useState(false);
+  const close = () => {
+    setCopied(false);
+    setDecisionLogOpen(false);
+  };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(decisionLogText(entries));
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <Dialog
+      open={open}
+      onClose={close}
+      title="Auto decisions"
+      phoneSheet
+      footer={
+        <>
+          <span role="status" className="precision-log-status">
+            {copied ? "Copied" : ""}
+          </span>
+          <button
+            type="button"
+            className="ui-control modifier-action"
+            disabled={entries.length === 0}
+            onClick={() => void copy()}
+          >
+            Copy all
+          </button>
+        </>
+      }
+    >
+      {entries.length === 0 ? (
+        <p>
+          No decisions yet. Long-press a fade, trim, pending edge or envelope
+          point with Auto precision on.
+        </p>
+      ) : (
+        <ol className="precision-log">
+          {entries.map((e) => (
+            <li key={`${e.at}-${e.target}`} data-mode={e.decision.mode}>
+              <span className="precision-log-name">{e.name}</span>
+              <span>{decisionText(e.decision)}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Dialog>
+  );
+}
+
+/** Renders the active precision drag's surface and readout, if any. */
 export function PrecisionLayer() {
   const v = useSyncExternalStore(subscribePrecision, precisionView);
-  if (!v) return null;
   const surface =
-    v.variant === "jog" ? (
+    v?.variant === "jog" ? (
       <JogPad v={v} />
-    ) : v.variant === "lens" ? (
+    ) : v?.variant === "lens" ? (
       <Lens v={v} />
-    ) : (
+    ) : v?.variant === "grip" ? (
       <Grip v={v} />
-    );
-  return createPortal(
-    <div className="precision-layer" data-variant={v.variant}>
-      {surface}
-    </div>,
-    document.body,
+    ) : null;
+  return (
+    <>
+      <DecisionsDialog />
+      {v
+        ? createPortal(
+            <div
+              className="precision-layer"
+              data-variant={v.variant}
+              data-mode={v.decision.mode}
+            >
+              {surface}
+              <DecisionChip v={v} />
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
