@@ -82,8 +82,10 @@ to UX partners; for UI copy, this table wins.
 | Tighten hit | One candidate tightening decision | — |
 | Pending edit | A proposed edit awaiting approve/reject | — |
 | Suggest cut | Propose a cut from the transcript | — |
-| Blade cut | Split at the playhead on the timeline | "slice" |
-| Ripple | The edit mode that closes or opens time on every dialogue track, so speakers stay in sync. Its icon mark is a wave | "ripple trim mode", "shift" |
+| Blade cut | Split at the playhead on the timeline, or at a held time from the touch create menu | "slice" |
+| Armed | A timeline target a long press picked up on touch: only it drags, along its own axes, until the finger lifts | "grabbed", "drag mode" |
+| Create menu | The touch menu a long press on empty timeline space opens: Add envelope point, Blade cut, Add chapter, Add comment, at the held time | "context menu", "add menu" |
+| Ripple | The edit mode that closes or opens time on every dialogue track, so speakers stay in sync. Its icon mark is a wave, drawn beside the word on a trim drag's readout and the touch peek strip | "ripple trim mode", "shift", "shuffle", "magnetic" |
 | Leave a gap | The edit mode that leaves silence (or pastes over) and moves nothing else. Its icon mark is a broken flatline | "Leave gap", "gap mode", "lift", "non-ripple" |
 | Cut anyway | The confirm action when a ripple would also cut another speaker's speech. The dialog, titled "Cut Avery's speech too?", lists each speaker, the time and the words, then offers Leave a gap (safe, left) or Cut anyway (danger, right); approving a suggestion has no gap form, so it offers Cancel instead. Agents and the CLI get the same facts in one line: "This also cuts Avery's speech at 0:12.4 ("so the plan is"). Cut anyway, or leave a gap to keep it." | "Proceed", "Force", "Ignore warning" |
 | Solo on | The button shown while any track is soloed: in the corner above the track headers on desktop and tablet, in the status row and Mix sheet on phone. It reads "Solo on · Clear solo", and one press unsolos every track. Solo is listen-only: only you hear it | "solo mode", "solo active" |
@@ -459,6 +461,10 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 - 2026-10-06 — Added "Ripple", "Leave a gap" and "Cut anyway" (#1137): one
   edit mode for trim, delete, cut and paste, and the dialog a ripple opens
   before it cuts another speaker, naming who, when and what they said.
+- 2026-10-06 — Added "Armed" and "Create menu", widened "Blade cut" to a held
+  time, and drew the Ripple wave beside the word on a trim drag (#1051 round
+  4b, #1135): the touch grammar's long press, its create menu, and the ripple
+  mark a trim drag shows.
 - 2026-10-07 — Share dialog (#1027): Stop sharing and End room confirm in
   place with `ui/InlineConfirm` (Keep first, danger last), the MCP opt-in
   shows its consequence note, and the example confirm lists Keep first. Six

@@ -21,10 +21,23 @@ decided-by: calebn
 evidence:
 - #1051 owner: "The input grammar is approved" and "Swipeable drawer approved"
 - #1051 owner: "Envelopes for edit guests: default applied, pending owner override."
+- 2026-10-06 owner, relayed by the coordinator: Editor links edit volume envelopes as the host does; Commenter and Viewer links cannot
 - #1051 phone test, round 3: pinch also moved a clip edge, dense clusters were guesswork, and the inspector covered the timeline
 - #1051 owner asked for one input framework "so the input language becomes familiar"
 - #1051 round 1: candidate A (fan-out chooser) chosen; the offset loupe and hold-to-zoom cannot separate targets at one time position
-enforcement: pending #1096
+- #1051 round 4a phone test (2026-10-06): pinch never edits, collapse is remembered, hold-to-repeat and soft stops work
+enforced-by:
+- gui/web/src/timeline/gestureGovernance.test.ts::keeps touch-specific handling in the router
+- gui/web/src/timeline/gestureGovernance.test.ts::puts every pointerdown handler on an element the router can see
+- gui/web/src/timeline/gestureGovernance.test.ts::routes arrow-key edits through the focused-handle commands
+- gui/web/src/timeline/inputContract.conformance.test.ts::one finger moving never edits it
+- gui/web/src/timeline/inputContract.manifest.test.ts::lists, for each command, exactly the touch gestures the grammar derives
+- gui/web/src/timeline/hitRouting.grammar.test.ts::holds an armed drag at a soft boundary, then follows a push past it
+- gui/web/src/timeline/hitRouting.grammar.test.ts::closes, with the selection put back, when a second finger lands
+- gui/web/src/timeline/ClipBlock.test.tsx::stops a held arrow at a soft boundary with a bump and a note (#1115)
+- gui/web/src/ui/BottomSheet.test.tsx::swipes up a detent, down a detent, and snaps back from a short drag
+- tests/test_guest_document_gate.py::test_an_editor_edits_volume_envelopes_and_other_roles_cannot
+- make capabilities-check
 supersedes: D-sheet-no-drag
 -->
 
@@ -48,17 +61,53 @@ and envelope points passing each other in time. Soft boundaries are neighbour
 clip edges, adjacent pending edges, markers and the playhead. A held nudge
 stops at one with a visible, accessible bump, and a fresh press crosses it. A
 drag pauses briefly at a soft boundary. The bottom strip is a swipeable drawer
-with peek, half and full heights, and it keeps its buttons. The grammar lets
-`edit` guests edit envelopes on the timeline by default; today the Studio shows
-a shared project's envelopes view-only. If the owner overrides that default,
-envelopes stay locked for guests. This grammar replaces the #951 deferral of
-global gesture changes below.
+with peek, half and full heights, and it keeps its buttons. Editor links edit
+envelopes on the timeline as the host does (the owner confirmed it on
+2026-10-06); Commenter and Viewer links see them view-only. This grammar
+replaces the #951 deferral of global gesture changes below.
 
-#1096 builds the checks: a governance test that only the shared router attaches
-pointer or touch listeners to timeline targets, one `HIT_KINDS` table of each
-target's axes, limits and actions, generated touch conformance tests for every
-kind, and a touch column in `contracts/capabilities.manifest.json` checked by
-`make capabilities-check`. None of them is on `main` yet.
+The checks (#1096) live with the code:
+- **One contract.** `HIT_KINDS` in `gui/web/src/timeline/inputContract.ts`
+  is the typed table of each target kind's axes, whether a long press arms
+  it, its strip nudge rows, whether soft boundaries apply, its keys, its
+  catalog command and the kinds it outranks. The router, the chooser, the
+  strip, the keys and the tests read it.
+- **Generated conformance.** `inputContract.conformance.test.ts` runs every
+  kind in the table through a tap, a long press, an armed drag, a second
+  finger, its strip rows, its soft boundaries and its keys.
+- **One router.** `gestureGovernance.test.ts` fails when a `timeline/`
+  component adds its own touch handling, puts a pointerdown handler on an
+  element the router cannot see, or handles arrow keys outside the
+  focused-handle commands. It found the social clip markers unrouted; they
+  are now the `social-clip` kind.
+- **A touch column.** `surfaces.touch` in
+  `contracts/capabilities.manifest.json` names the gestures that run each
+  command. `make capabilities-check` keeps its vocabulary equal to
+  `TOUCH_GESTURES`, and `inputContract.manifest.test.ts` derives each
+  command's column from the grammar (the create menu, the kinds' commands
+  and the Gestures sheet).
+
+### Proposed decision: A plain grab at a join rolls it
+
+<!-- decision
+id: D-join-grab-rolls
+status: proposed
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #1135 reproduction: on the 4a branch the 8 px trim strip covers the 24 px roll seam, the resolver ranked the strip nearest, and a grab at a join ripple-trimmed the right clip's head; on main the same grab rolls the join
+- Coordinator default pending the owner: roll as on main, with ripple trims through the chooser
+enforced-by:
+- gui/web/src/timeline/inputContract.conformance.test.ts::takes a plain mouse grab though the other is nearer
+- gui/web/src/timeline/inputContract.conformance.test.ts::leaves the other in the chooser for a long press
+- gui/web/e2e-compat/touch-grammar.spec.ts::#1135: a plain mouse grab at a join rolls it, as on main
+-->
+
+`HIT_KINDS.roll.outranks` names the trim strips, so the resolver puts the
+roll first wherever both are in reach, however near the strip is. The grabbed
+edge moves, the neighbour's edge follows, and nothing later shifts. A touch
+long press at a join still opens the chooser, which offers each side's ripple
+trim.
 
 ### Superseded decision: Sheets have no drag gesture
 
@@ -75,7 +124,8 @@ superseded-by: D-touch-input-grammar
 #951 removed the sheet grip that had no drag handler and left the visible
 buttons as the only way to resize a sheet (the BottomSheet row below). The
 grammar above replaces that rule with a swipeable drawer that keeps the
-buttons. Until the drawer ships, sheets still resize only through the buttons.
+buttons. Round 4b ships the drawer on the compact inspector; other sheets
+still resize only through their buttons.
 
 ## Decision: Pair each touch gesture with a visible control
 
@@ -571,3 +621,37 @@ one Undo restores it; a held point stops at the clip edge at 50 s and a held
 pending start at the previous cut's end, and a fresh press crosses each; at
 360×800 and 844×390 in both themes the pending and envelope rows have 44 px
 targets in view and no axe violations.
+
+### Touch grammar round 4b (#1051)
+
+Round 4b builds the grammar on the 4a branch, behind the touch chooser lab.
+
+- **Arming.** A long press (`LONG_PRESS_MS`) on one target arms it, if its
+  contract gives it an axis, or selects it (a join badge, a pending split).
+  Over two or more targets the chooser opens, and a chip arms its target as
+  before. An armed target wears the chooser's about-to-grab halo, the screen
+  reader hears "Fade in armed: drag sideways to move it, lift to finish",
+  and Android gives a haptic tick. It drags along its own axes only: the
+  router holds an edge's y, and an envelope point moves freely. Lifting
+  commits. A touch on a selected target no longer drags at once.
+- **Create menu.** A long press with no target in reach (a clip body, an
+  empty lane, the envelope layer) opens a menu above the finger, beside the
+  fixed playhead when there is room, with a dashed mark at the held time on
+  its lane. Its title is the time and lane ("00:30.000 · Avery"). Entries:
+  **Add envelope point** (with the level it adds at), **Blade cut**, then
+  **Add chapter** and **Add comment**. Each runs a catalog command at the held
+  time (`envelope.addPoint`, `edit.bladeCut`, `edit.addChapter` with
+  `atTime`, `comment.draftAt`); an entry the link cannot run stays, disabled,
+  with the command's reason beside it. Slide onto an item and lift to pick
+  it, or lift anywhere and tap one. The scrim, Escape and a second finger
+  close it. A clip body no longer moves on a touch long press; touch clip
+  moves are not part of the grammar.
+- **Detents.** An armed drag that reaches a soft boundary holds there until
+  the finger pushes `DRAG_DETENT_PX` (16 px) past it, with a line and an
+  "At the playhead" caption. The boundaries come from `softBoundaries`, the
+  query held nudges use; a boundary the drag starts on does not catch it.
+- **Drawer.** The compact inspector swipes between peek (the strip), half
+  and full; Expand and Collapse step between them, and the visually hidden
+  "Inspector height" range does it for keys and screen readers.
+- **Second finger.** It cancels and rolls back arming, a detent drag and the
+  create menu, as it does any one-finger action.
