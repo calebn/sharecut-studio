@@ -154,6 +154,12 @@ def test_cli_entries_that_resolve_in_the_typer_tree_pass() -> None:
     mod = load_script("check_capabilities_manifest")
     row = _row(
         "project",
-        {"cli": ["podcast edit", "podcast edit delete-clips --ripple", "podcast doctor --bundle"]},
+        {
+            "cli": [
+                "podcast edit",
+                "podcast edit delete-clips --mode ripple",
+                "podcast doctor --bundle",
+            ]
+        },
     )
     assert mod.cli_surface_errors(row, mod._cli_root()) == []

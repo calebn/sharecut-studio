@@ -62,12 +62,12 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Reorder track | project | `track.reorder` | — (drag headers or move up/down keys) | `trackHeader` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | anchor · none |
 | Move track up | project | `track.moveUp` | `ArrowUp` | `transport.menu` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
 | Move track down | project | `track.moveDown` | `ArrowDown` | `transport.menu` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
-| Ripple delete clip | project | `edit.rippleDelete` | `Mod+Backspace` | `clipInspector` | `ripple_delete_tool`, `delete_clips_tool` | `podcast edit delete-clips --ripple` | — | — | none · none |
-| Cut anyway | None | `edit.cutSpeech.cutAnyway` | — (not industry-standard; menu/toolbar or unkeyed) | `cutSpeechDialog` | — | — | — | — | none · none |
-| Leave a gap | None | `edit.cutSpeech.leaveGap` | — (not industry-standard; menu/toolbar or unkeyed) | `cutSpeechDialog` | — | — | — | — | none · none |
-| Cancel cut | None | `edit.cutSpeech.cancel` | — (not industry-standard; menu/toolbar or unkeyed) | `cutSpeechDialog` | — | — | — | — | none · none |
+| Ripple delete clip | project | `edit.rippleDelete` | `Mod+Backspace` | `clipInspector` | `ripple_delete_tool`, `delete_clips_tool` | `podcast edit delete-clips --mode ripple` | — | — | none · none |
+| Cut anyway | project | `edit.cutSpeech.cutAnyway` | — (not industry-standard; menu/toolbar or unkeyed) | `cutSpeechDialog` | `trim_clip_edge_tool`, `delete_clips_tool`, `ripple_delete_tool`, `approve_edits_tool` | `podcast edit trim-clip --yes`, `podcast edit delete-clips --yes`, `podcast edit approve --yes` | — | — | none · none |
+| Leave a gap | project | `edit.cutSpeech.leaveGap` | — (not industry-standard; menu/toolbar or unkeyed) | `cutSpeechDialog` | `trim_clip_edge_tool`, `delete_clips_tool` | `podcast edit trim-clip --mode gap`, `podcast edit delete-clips --mode gap` | — | — | none · none |
+| Cancel cut | view | `edit.cutSpeech.cancel` | — (not industry-standard; menu/toolbar or unkeyed) | `cutSpeechDialog` | — | — | — | — | none · none |
 | Copy | session | `edit.copy` | `Mod+C` | — | `copy_segment_tool` | `podcast edit copy-segment` | — | — | — |
-| Cut | project | `edit.cut` | `Mod+X` | — | `ripple_delete_tool`, `delete_clips_tool`, `propose_range_cut_tool` | `podcast edit propose-range-cut`, `podcast edit approve`, `podcast edit delete-clips --ripple` | — | — | — |
+| Cut | project | `edit.cut` | `Mod+X` | — | `ripple_delete_tool`, `delete_clips_tool`, `propose_range_cut_tool` | `podcast edit propose-range-cut`, `podcast edit approve`, `podcast edit delete-clips --mode ripple` | — | — | — |
 | Paste | project | `edit.paste` | `Mod+V` | — | `paste_segment_tool` | `podcast edit paste-segment` | — | — | — |
 | Select all tracks | session | `track.selectAll` | `Mod+A` | — | — | — | — | — | — |
 | Deselect all tracks | session | `track.deselectAll` | `Mod+Shift+A` | `trackHeadersWell` | — | — | — | — | none · none |

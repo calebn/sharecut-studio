@@ -828,7 +828,7 @@
           "ripple_delete_tool",
           "delete_clips_tool"
         ],
-        "cli": "podcast edit delete-clips --ripple"
+        "cli": "podcast edit delete-clips --mode ripple"
       },
       "omit": {},
       "tooltip": "Ripple delete clip",
@@ -840,6 +840,7 @@
     {
       "id": "daw.edit.cutSpeech.cutAnyway",
       "label": "Cut anyway",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 resubmits the ripple the host held back (confirm_cut_speech, or mode gap)",
       "industry_standard_key": false,
       "gates": [
@@ -849,6 +850,17 @@
         "command": "edit.cutSpeech.cutAnyway",
         "gui": [
           "cutSpeechDialog"
+        ],
+        "mcp": [
+          "trim_clip_edge_tool",
+          "delete_clips_tool",
+          "ripple_delete_tool",
+          "approve_edits_tool"
+        ],
+        "cli": [
+          "podcast edit trim-clip --yes",
+          "podcast edit delete-clips --yes",
+          "podcast edit approve --yes"
         ]
       },
       "omit": {
@@ -863,6 +875,7 @@
     {
       "id": "daw.edit.cutSpeech.leaveGap",
       "label": "Leave a gap",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 resubmits the ripple the host held back (confirm_cut_speech, or mode gap)",
       "industry_standard_key": false,
       "gates": [
@@ -872,6 +885,14 @@
         "command": "edit.cutSpeech.leaveGap",
         "gui": [
           "cutSpeechDialog"
+        ],
+        "mcp": [
+          "trim_clip_edge_tool",
+          "delete_clips_tool"
+        ],
+        "cli": [
+          "podcast edit trim-clip --mode gap",
+          "podcast edit delete-clips --mode gap"
         ]
       },
       "omit": {
@@ -886,6 +907,7 @@
     {
       "id": "daw.edit.cutSpeech.cancel",
       "label": "Cancel cut",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 resubmits the ripple the host held back (confirm_cut_speech, or mode gap)",
       "industry_standard_key": false,
       "gates": [
@@ -945,7 +967,7 @@
         "cli": [
           "podcast edit propose-range-cut",
           "podcast edit approve",
-          "podcast edit delete-clips --ripple"
+          "podcast edit delete-clips --mode ripple"
         ]
       },
       "omit": {}

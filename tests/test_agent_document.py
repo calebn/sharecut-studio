@@ -111,9 +111,9 @@ def test_delete_clips_tool_leaves_a_gap_through_the_document_plane(tmp_path, sam
 def test_delete_clips_tool_ripple_closes_the_gap(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_two_clips(path, sample_wav)
-    mcp_timeline.delete_clips_tool(path, '["c1"]', ripple=True)
+    mcp_timeline.delete_clips_tool(path, '["c1"]', mode="ripple")
     assert _clip_starts(path) == {"c2": 0.0}
-    assert _journal_types(path) == ["RippleDeleteClip"]
+    assert _journal_types(path) == ["DeleteClip"]
 
 
 def test_delete_clips_tool_rejects_a_non_list(tmp_path):
@@ -162,6 +162,21 @@ def test_paste_segment_tool_pastes_one_track_copy_twice(tmp_path, sample_wav):
         ("host", 8.0, 6.0, 10.0),
     ]
     assert _journal_types(path) == ["PasteSegment", "PasteSegment"]
+
+
+def test_paste_segment_tool_gap_mode_pastes_over_in_place(tmp_path, sample_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_two_lanes(path, sample_wav)
+    clipboard = mcp_timeline.copy_segment_tool(path, 1.0, 3.0, '["host"]')
+    mcp_timeline.paste_segment_tool(path, 5.0, clipboard, mode="gap")
+    assert _layout(path) == [
+        ("guest", 0.0, 0.0, 8.0),
+        ("host", 0.0, 0.0, 4.0),
+        ("host", 4.0, 6.0, 7.0),
+        ("host", 5.0, 1.0, 3.0),
+        ("host", 7.0, 9.0, 10.0),
+    ]
+    assert _journal_types(path) == ["PasteSegment"]
 
 
 def test_paste_segment_tool_rejects_a_non_object(tmp_path):
@@ -223,7 +238,12 @@ def test_paste_segment_document_command_rejects_a_bad_clipboard_and_writes_nothi
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_two_clips(path, sample_wav)
     before = _on_disk(path)
-    payload = {"insert_at": 4.0, "duration": 2.0, "extracts": [_BAD_CLIPBOARDS["paste_bad_range"]]}
+    payload = {
+        "insert_at": 4.0,
+        "duration": 2.0,
+        "extracts": [_BAD_CLIPBOARDS["paste_bad_range"]],
+        "mode": "ripple",
+    }
     with pytest.raises(ValueError, match="paste_bad_range: "):
         submit_host_document_command(path, "PasteSegment", payload)
     assert _on_disk(path) == before
@@ -262,10 +282,10 @@ def test_cli_delete_clips_is_undoable(tmp_path, sample_wav):
     _seed_two_clips(path, sample_wav)
     runner = CliRunner()
     result = runner.invoke(
-        app, ["edit", "delete-clips", "--project", path, "--ids", "c1", "--ripple"]
+        app, ["edit", "delete-clips", "--project", path, "--ids", "c1", "--mode", "ripple"]
     )
     assert result.exit_code == 0, result.output
     assert _clip_starts(path) == {"c2": 0.0}
-    assert _journal_types(path) == ["RippleDeleteClip"]
+    assert _journal_types(path) == ["DeleteClip"]
     assert runner.invoke(app, ["undo", "--project", path]).exit_code == 0
     assert _clip_starts(path) == {"c1": 0.0, "c2": 4.0}
