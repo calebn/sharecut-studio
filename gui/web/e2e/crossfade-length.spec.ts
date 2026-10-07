@@ -169,6 +169,8 @@ for (const width of [1280, 390]) {
           type: "touchStart",
           touchPoints: [{ x, y }],
         });
+        // The touch grammar: a long press arms the grip before it drags.
+        await page.waitForTimeout(750);
         await cdp.send("Input.dispatchTouchEvent", {
           type: "touchMove",
           touchPoints: [{ x: x - 8, y }],

@@ -312,6 +312,11 @@ test("a Commenter proposes a range, host approves, and one Undo restores every o
         await guest.setViewportSize({ width: 390, height: 844 });
         await openPhoneTimeline(guest);
         await guest.locator(".pending-overlay").first().click();
+        // The phone timeline opens the compact drawer; at half height it
+        // holds the pending inspector.
+        await guest
+          .getByRole("button", { name: "Expand to half height" })
+          .click();
         const inspector = guest.locator(".modifier-inspector");
         const previewFooter = inspector.locator(".modifier-footer");
         const footerBounds = await previewFooter.boundingBox();

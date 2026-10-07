@@ -120,13 +120,16 @@ test.describe("Sharecut Studio mobile smoke", () => {
     await openPhoneTimeline(page);
 
     await page.locator(".lane-row .clip-block").first().click();
-    const sheet = page.getByRole("dialog", { name: "Inspector" });
-    await expect(sheet).toBeVisible();
-    await expect(sheet.getByRole("button", { name: "Copy" })).toBeVisible();
-    await expect(sheet.getByRole("button", { name: "Cut" })).toBeVisible();
+    // A clip opens the compact drawer; at half height it lists the commands.
+    const drawer = page.locator(".bottom-sheet--compact");
+    await expect(drawer).toBeVisible();
+    await drawer.getByRole("button", { name: "Expand to half height" }).click();
+    await expect(drawer.getByRole("button", { name: "Copy" })).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "Cut" })).toBeVisible();
     await expectPageAxeClean(page);
 
-    await sheet.getByRole("button", { name: "Close" }).click();
+    await drawer.getByRole("button", { name: "Close" }).click();
+    const sheet = page.getByRole("dialog", { name: "Inspector" });
     await page.locator(".track-header-open").first().click();
     await expect(sheet).toBeVisible();
     await expect(
