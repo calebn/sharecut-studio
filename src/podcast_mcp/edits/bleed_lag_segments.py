@@ -5,21 +5,23 @@ eases back over seconds to tens of seconds. On the lab tape Audra's track trails
 on Caleb's mic by 130-150 ms most of the time and by 185-225 ms in the first stretch after
 several of her pauses, so one latency per lane leaves those stretches echoing.
 
-This works in the lane's source time against the reference mic's envelope on the
-timeline: a source lag ``lam`` pairs mic frame ``f`` with source frame ``f + lam``, and the
-lane plays in sync where its timeline-minus-source shift is ``-lam``. Units are the lane's
-talk spurts (its full-band envelope open, split at silences of at least ``MIN_GAP_SEC``).
-Per spurt and
-candidate lag the Pearson sums over source-dominant frames are kept, so any run of spurts
-is measured exactly as one window over its frames.
+This works in the lane's source time against every pair the lane shares with a track on
+the reference clock, in either direction: the lane's voice copied onto another mic, or
+another voice copied onto the lane's mic. Both copies on the lane's track move with its
+latency. A source lag ``lam`` pairs the other track's frame ``f`` with source frame
+``f + lam``, and the lane plays in sync where its timeline-minus-source shift is ``-lam``.
+Units are the lane's talk spurts (its full-band envelope open, split at silences of at
+least ``MIN_GAP_SEC``). Per spurt, pair and candidate lag the Pearson sums over frames
+where the talker out-levels the copy are kept, so any run of spurts is measured exactly as
+one window over its frames, and pairs add as independent log-likelihoods.
 
 A segment is a run of spurts at its own best lag, with correlation at least
 ``MIN_CORRELATION``, the peak inside the search, and enough evidence to pin it: every lag
 beyond the deadband fits worse by ``CONFIDENCE_NATS`` (its likelihood-ratio interval lies
-inside the deadband), counted over the lane's own voiced frames less the three a
+inside the deadband), counted over the talker's own voiced frames less the three a
 correlation spends. A short phrase with a sharp peak passes; a long stretch with a flat
 correlation does not, and neither does a lone click, whose surrounding silence correlates
-perfectly with the mic's. The floor scales with the evidence, not with a frame count. Dynamic
+perfectly with the copy's. The floor scales with the evidence, not with a frame count. Dynamic
 programming picks the segments that minimise ``sum(n / 2 * log(1 - r^2))`` (``n`` in
 independent frames, ``FRAME_SEC`` apart) plus ``STEP_LLR`` per segment, where the widest
 silence between neighbours holds the step plus ``EDGE_SEC`` on each side. A second pass
@@ -30,19 +32,20 @@ the deadband are one piece, and the step before them is judged against that piec
 lab tape (fit on alternate spurts, score the rest) scores every cost from 2.5 to 40 above
 one constant lag, best at 2.5-5 and still better at 10.
 
-Lags are searched ``SEARCH_SEC`` either side of the lane's pooled lag. Speech envelopes
+Each pair is searched ``SEARCH_SEC`` either side of its steady lag. Speech envelopes
 correlate again one syllable away (about 200 ms), so a wider search lets a short stretch
 lock onto a neighbouring syllable. Everything is measured from the lane's media and the
-reference, never from where the pieces sit, so a re-run finds the same segments.
+other tracks, never from where the pieces sit, so a re-run finds the same segments.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
 
-from podcast_mcp.edits.bleed_latency import DOMINANCE_DB, FRAME_SEC, HOP_SEC, MAX_LAG_SEC, OPEN_DB
+from podcast_mcp.edits.bleed_latency import DOMINANCE_DB, FRAME_SEC, HOP_SEC, OPEN_DB
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB, MIN_CORRELATION
 
 MIN_GAP_SEC = 0.06
@@ -78,33 +81,52 @@ def _talk_spurts(source: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return firsts, lasts
 
 
-def _dominant(source: np.ndarray, mic: np.ndarray, lags: np.ndarray) -> np.ndarray:
-    """Mic frames where the source, at some searched lag, is open and out-levels the mic."""
+@dataclass(frozen=True)
+class BleedPair:
+    """One pair's evidence: ``other`` is another track's envelope on the reference clock.
+
+    ``lane_talks``: the lane's voice is copied onto ``other``'s mic; otherwise ``other``'s
+    voice is copied onto the lane's mic. Either way the copy on the lane's track moves with
+    the lane's latency, so both directions see the same steps. ``lag_sec`` is the pair's
+    steady lag in lane source time (lane frame ``f + lag`` lines up with ``other`` frame
+    ``f``): the lane's latency plus the copy's path delay, from the latency solve.
+    """
+
+    other: np.ndarray
+    lane_talks: bool
+    lag_sec: float
+
+
+def _frames(source: np.ndarray, pair: BleedPair, lags: np.ndarray) -> np.ndarray:
+    """``other`` frames where the talker is open and out-levels the copy at every searched lag."""
     first, last = int(lags[0]), int(lags[-1])
     before = max(0, -first)
     padded = np.concatenate(
         [np.full(before, LEVEL_FLOOR_DB), source, np.full(max(0, last) + 1, LEVEL_FLOOR_DB)]
     )
     windows = np.lib.stride_tricks.sliding_window_view(padded[first + before :], last - first + 1)
-    near = windows.max(axis=1)[: mic.size]
-    return np.flatnonzero((near > OPEN_DB) & (near - mic[: near.size] >= DOMINANCE_DB))
+    other = pair.other
+    near = windows.max(axis=1)[: other.size]
+    talker, copy = (near, other[: near.size]) if pair.lane_talks else (other[: near.size], near)
+    return np.flatnonzero((talker > OPEN_DB) & (talker - copy >= DOMINANCE_DB))
 
 
 def _sums(
-    source: np.ndarray, mic: np.ndarray, owner: np.ndarray, units: int, lags: np.ndarray
+    source: np.ndarray, pair: BleedPair, owner: np.ndarray, units: int, lags: np.ndarray
 ) -> np.ndarray:
-    """``[unit, lag, (n, Σx, Σy, Σxx, Σyy, Σxy, voiced)]``: x the mic, y the source.
+    """``[unit, lag, (n, Σx, Σy, Σxx, Σyy, Σxy, voiced)]``: x the other track, y the lane.
 
-    Units go by source frame. ``voiced`` counts the frames where the source itself is
-    open at that lag; the rest pair the mic with the source's silence around a word.
+    Units go by lane frame. ``voiced`` counts the frames where the talker itself is open
+    at that lag; the rest pair the copy with the talker's silence around a word.
     """
     sums = np.zeros((units, lags.size, 7))
-    frames = _dominant(source, mic, lags)
+    frames = _frames(source, pair, lags)
     for j, lag in enumerate(lags):
         f = frames[(frames + lag >= 0) & (frames + lag < source.size)]
-        x, y, k = mic[f], source[f + lag], owner[f + lag]
+        x, y, k = pair.other[f], source[f + lag], owner[f + lag]
+        voiced = (y if pair.lane_talks else x) > OPEN_DB
         for col, value in enumerate(
-            (np.ones_like(x), x, y, x * x, y * y, x * y, (y > OPEN_DB).astype(float))
+            (np.ones_like(x), x, y, x * x, y * y, x * y, voiced.astype(float))
         ):
             sums[:, j, col] = np.bincount(k, weights=value, minlength=units)
     return sums
@@ -118,69 +140,66 @@ def _correlation(sums: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return np.nan_to_num(r, nan=0.0), n
 
 
-def _log_fit(r: np.ndarray, n: np.ndarray) -> np.ndarray:
-    """Gaussian log-likelihood of a lag in independent frames (lower is a better fit)."""
-    return n * HOP_SEC / FRAME_SEC / 2 * np.log1p(-(np.clip(r, 0.0, 0.999) ** 2))
+def _fit(span: np.ndarray, smallest: int) -> tuple[np.ndarray, np.ndarray]:
+    """Fit per lag offset over every pair, and the offsets a segment may sit at.
 
-
-def _pooled_lag(source: np.ndarray, mic: np.ndarray, around: int) -> int | None:
-    """Whole-lane best lag within ``MAX_LAG_SEC`` of ``around`` (hops), None on the edge."""
-    reach = round(MAX_LAG_SEC / HOP_SEC)
-    lags = np.arange(around - reach, around + reach + 1)
-    r, _n = _correlation(_sums(source, mic, np.zeros(source.size, dtype=int), 1, lags)[0])
-    k = int(np.argmax(r))
-    return None if k in (0, lags.size - 1) else int(lags[k])
+    ``span`` is ``[..., pair, offset, sums]``. The fit is the Gaussian log-likelihood
+    ``sum(n / 2 * log(1 - r^2))`` over pairs (``n`` in independent frames, lower is
+    better). A segment sits at its own best offset, inside the search, with combined
+    correlation at least ``MIN_CORRELATION``, and pinned: every offset ``smallest`` hops or
+    more away (beyond the deadband) fits worse by at least ``CONFIDENCE_NATS``, so the
+    likelihood-ratio interval lies inside the deadband. The interval counts only each
+    pair's voiced frames, in independent frames less the three a correlation spends
+    (Fisher's ``n - 3``): around a lone click the talker's silence correlates perfectly
+    with the copy's, but that is one event, not evidence for a lag.
+    """
+    r, n = _correlation(span)
+    per_frame = np.log1p(-(np.clip(r, 0.0, 0.999) ** 2)) / 2
+    independent = n * HOP_SEC / FRAME_SEC
+    fit = (independent * per_frame).sum(axis=-2)
+    size = fit.shape[-1]
+    best = np.argmin(fit, axis=-1)[..., None]
+    at_best = np.take_along_axis(per_frame, best[..., None, :], axis=-1)
+    voiced = np.take_along_axis(span[..., 6], best[..., None, :], axis=-1)
+    events = np.maximum(voiced * HOP_SEC / FRAME_SEC - 3, 0.0)
+    margin = (events * (per_frame - at_best)).sum(axis=-2)
+    far = np.abs(np.arange(size) - best) >= smallest
+    pinned = np.where(far, margin, np.inf).min(axis=-1, keepdims=True) >= CONFIDENCE_NATS
+    best_fit = np.take_along_axis(fit, best, axis=-1)
+    total = np.take_along_axis(independent.sum(axis=-2), best, axis=-1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        combined = np.sqrt(-np.expm1(2 * best_fit / total))
+    valid = (
+        (fit == best_fit)
+        & (np.nan_to_num(combined) >= MIN_CORRELATION)
+        & pinned
+        & (best > 0)
+        & (best < size - 1)
+    )
+    return fit, valid
 
 
 Run = tuple[int, int, int]
 
 
-def _valid(r: np.ndarray, voiced: np.ndarray, smallest: int) -> np.ndarray:
-    """Lags a segment may sit at: its own best, inside the search, and pinned by its evidence.
-
-    Pinned means every lag ``smallest`` hops or more away (beyond the deadband) fits worse
-    by at least ``CONFIDENCE_NATS``: the likelihood-ratio interval of the lag lies inside
-    the deadband. A short stretch with a sharp peak qualifies; a long one with a flat
-    correlation does not. The interval counts only the source's own voiced frames, in
-    independent frames less the three a correlation spends (Fisher's ``n - 3``): around a
-    lone click the source's silence correlates perfectly with the mic's, but that is one
-    event, not evidence for a lag.
-    """
-    size = r.shape[-1]
-    best = np.argmax(r, axis=-1)[..., None]
-    per_frame = np.log1p(-(np.clip(r, 0.0, 0.999) ** 2)) / 2
-    worse = per_frame - np.take_along_axis(per_frame, best, axis=-1)
-    events = np.take_along_axis(voiced, best, axis=-1) * HOP_SEC / FRAME_SEC - 3
-    far = np.abs(np.arange(size) - best) >= smallest
-    pinned = np.maximum(events, 0.0) * np.where(far, worse, np.inf).min(axis=-1, keepdims=True)
-    inside = (best > 0) & (best < size - 1)
-    return (
-        (r == r.max(axis=-1, keepdims=True))
-        & (r >= MIN_CORRELATION)
-        & (pinned >= CONFIDENCE_NATS)
-        & inside
-    )
-
-
 def _partition(cum: np.ndarray, largest: np.ndarray, smallest: int) -> list[Run] | None:
-    """Blocks split into runs ``(first, end, lag)`` minimising fit plus ``STEP_LLR`` per run.
+    """Blocks split into runs ``(first, end, offset)`` minimising fit plus ``STEP_LLR`` per run.
 
     A step may be any size its silence holds; whether it is worth applying is
     :func:`_keep_steps`'s call, once each piece is measured against its real neighbours.
     """
-    count, size = cum.shape[0] - 1, cum.shape[1]
+    count, size = cum.shape[0] - 1, cum.shape[2]
     offsets = np.abs(np.subtract.outer(np.arange(size), np.arange(size)))
-    # total[b, k]: best cost of blocks [0, b) ending on lag k; entry[b, k]: best cost of
-    # blocks [0, b) followed by a step into lag k at block b (0 for b = 0).
+    # total[b, k]: best cost of blocks [0, b) ending on offset k; entry[b, k]: best cost of
+    # blocks [0, b) followed by a step into offset k at block b (0 for b = 0).
     total = np.full((count + 1, size), np.inf)
     entry = np.full((count + 1, size), np.inf)
     start = np.zeros((count + 1, size), dtype=int)
     came = np.zeros((count + 1, size), dtype=int)
     entry[0] = 0.0
     for b in range(1, count + 1):
-        span = cum[b] - cum[:b]
-        r, n = _correlation(span)
-        options = entry[:b] + np.where(_valid(r, span[..., 6], smallest), _log_fit(r, n), np.inf)
+        fit, valid = _fit(cum[b] - cum[:b], smallest)
+        options = entry[:b] + np.where(valid, fit, np.inf)
         start[b] = np.argmin(options, axis=0)
         total[b] = options[start[b], np.arange(size)] + STEP_LLR
         if b < count:
@@ -204,7 +223,7 @@ def _keep_steps(
 ) -> list[Run] | None:
     """The best subset of ``runs``' steps where every kept step exceeds the deadband.
 
-    Dropping a step merges its two runs into one piece at that piece's own best lag, and
+    Dropping a step merges its two runs into one piece at that piece's own best offset, and
     each remaining step is judged between the merged pieces either side of it, so a step
     is never rejected against a neighbour that a dropped step created. A kept step is at
     least ``smallest`` hops and fits its silence.
@@ -212,30 +231,28 @@ def _keep_steps(
     bounds = [a for a, _b, _k in runs] + [runs[-1][1]]
     m = len(runs)
     lag = np.full((m + 1, m + 1), -1, dtype=int)
-    fit = np.full((m + 1, m + 1), np.inf)
+    cost = np.full((m + 1, m + 1), np.inf)
     for i in range(m):
-        ends = np.array(bounds[i + 1 :])
-        span = cum[ends] - cum[bounds[i]]
-        r, n = _correlation(span)
-        valid = _valid(r, span[..., 6], smallest)
-        for j, row in zip(range(i + 1, m + 1), valid, strict=True):
+        fit, valid = _fit(cum[np.array(bounds[i + 1 :])] - cum[bounds[i]], smallest)
+        for j, row, row_fit in zip(range(i + 1, m + 1), valid, fit, strict=True):
             if row.any():
                 lag[i, j] = int(np.argmax(row))
-                fit[i, j] = float(_log_fit(r[j - i - 1, lag[i, j]], n[j - i - 1, lag[i, j]]))
-    # best[j, i]: cost of bounds [0, j) whose last piece is (i, j); came[j, i]: the piece's start before.
+                cost[i, j] = float(row_fit[lag[i, j]])
+    # best[j, i]: cost of bounds [0, j) whose last piece is (i, j); came[j, i]: the piece's
+    # start before it.
     best = np.full((m + 1, m + 1), np.inf)
     came = np.full((m + 1, m + 1), -1, dtype=int)
-    best[1:, 0] = fit[0, 1:] + STEP_LLR
+    best[1:, 0] = cost[0, 1:] + STEP_LLR
     for j in range(2, m + 1):
         for i in range(1, j):
-            if not np.isfinite(fit[i, j]):
+            if not np.isfinite(cost[i, j]):
                 continue
             step = np.abs(lag[:i, i] - lag[i, j])
             ok = np.isfinite(best[i, :i]) & (step >= smallest) & (step <= largest[bounds[i]])
             if ok.any():
                 before = np.where(ok, best[i, :i], np.inf)
                 came[j, i] = int(np.argmin(before))
-                best[j, i] = before[came[j, i]] + fit[i, j] + STEP_LLR
+                best[j, i] = before[came[j, i]] + cost[i, j] + STEP_LLR
     i = int(np.argmin(best[m]))
     if not np.isfinite(best[m, i]):
         return None
@@ -250,32 +267,39 @@ def _keep_steps(
 
 def lag_segments(
     source: np.ndarray,
-    mic: np.ndarray,
+    pairs: Sequence[BleedPair],
     *,
     heard: np.ndarray,
-    around_sec: float,
     deadband_sec: float,
 ) -> tuple[LagSegment, ...] | None:
-    """Piecewise shift of a lane (``source``: its media envelope) against the reference mic.
+    """Piecewise shift of a lane (``source``: its media envelope) from every pair it is in.
 
     All envelopes are on the ``HOP_SEC`` grid. ``heard`` is the lane's full-band envelope,
     which decides where it is silent: a decode band-limited for lag work hides sibilants
-    above its Nyquist (an "s" at -26 dBFS read as -61 dB at 8 kHz on the lab tape).
-    ``around_sec`` is roughly the lane's source lag (minus its timeline-minus-source
-    shift). None when no step stands.
+    above its Nyquist (an "s" at -26 dBFS read as -61 dB at 8 kHz on the lab tape). Each
+    pair is searched around its own steady lag, which carries its copy's path delay, and
+    the pieces' steps are common to all of them. The first pair anchors the lane on the
+    reference clock, so callers put a pair with the reference first. None when no step
+    stands.
     """
     firsts, lasts = _talk_spurts(heard[: source.size])
-    centre = _pooled_lag(source, mic, round(around_sec / HOP_SEC)) if firsts.size > 1 else None
-    if centre is None:
+    if firsts.size < 2 or not pairs:
         return None
+    centres = [round(pair.lag_sec / HOP_SEC) for pair in pairs]
     reach = round(SEARCH_SEC / HOP_SEC)
-    lags = np.arange(centre - reach, centre + reach + 1)
+    offsets = np.arange(-reach, reach + 1)
     # Each spurt owns its frames from the middle of the gap before to the middle after.
     owner = np.searchsorted((lasts[:-1] + firsts[1:]) // 2, np.arange(source.size), side="right")
-    sums = _sums(source, mic, owner, firsts.size, lags)
+    sums = np.stack(
+        [
+            _sums(source, pair, owner, firsts.size, centre + offsets)
+            for pair, centre in zip(pairs, centres, strict=True)
+        ],
+        axis=1,
+    )
     # Spurts without a dominant frame carry no evidence: fold each into the block before,
     # keeping its gaps as places a step can go.
-    evidence = np.flatnonzero(sums[:, :, 0].max(axis=1) > 0)
+    evidence = np.flatnonzero(sums[..., 0].max(axis=(1, 2)) > 0)
     if evidence.size < 2:
         return None
     blocks = np.add.reduceat(sums, evidence, axis=0)
@@ -297,16 +321,22 @@ def lag_segments(
     runs = _keep_steps(runs, cum, largest, smallest)
     if runs is None or len(runs) == 1:
         return None
+    anchor = centres[0]
     segments = []
     for a, b, k in runs:
-        r, n = _correlation(cum[b] - cum[a])
+        span = cum[b] - cum[a]
+        _r, n = _correlation(span)
+        fit, _valid = _fit(span, smallest)
+        frames = float(n[:, k].sum())
+        # The correlation one pair with this many frames would need for the fit.
+        combined = np.sqrt(-np.expm1(2 * fit[k] / (frames * HOP_SEC / FRAME_SEC)))
         quiet = gap_at[a] * HOP_SEC if a else None
         segments.append(
             LagSegment(
                 start_sec=0.0 if quiet is None else float(quiet.mean()),
-                shift_sec=float(-lags[k] * HOP_SEC),
-                frames=int(n[k]),
-                correlation=round(float(r[k]), 3),
+                shift_sec=float(-(anchor + offsets[k]) * HOP_SEC),
+                frames=int(frames),
+                correlation=round(float(combined), 3),
                 gap_sec=None if quiet is None else (float(quiet[0]), float(quiet[1])),
             )
         )
