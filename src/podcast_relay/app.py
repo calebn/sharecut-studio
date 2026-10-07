@@ -52,7 +52,7 @@ _OFFLINE_HTML = offline_page(
     title="Host offline",
     heading="Host offline",
     body_html=(
-        "<p>This share link is valid, but the project host is not connected right now.\n"
+        "<p>This review link is valid, but the project host is not connected right now.\n"
         "Ask them to run <code>podcast tunnel</code> and try again.</p>"
     ),
 )
@@ -381,7 +381,7 @@ def create_relay_app() -> FastAPI:
         """Machine-readable summary for agentic browsing (domain root)."""
         body = (
             "# Podcast MCP review shares\n\n"
-            "This origin hosts opaque review share links for Podcast MCP.\n\n"
+            "This origin hosts opaque review links for Podcast MCP.\n\n"
             "## Shares\n\n"
             "- Guest review URLs look like `/r/{token}` "
             "(token capability set: play/view/comment/…).\n"
@@ -537,7 +537,7 @@ def create_relay_app() -> FastAPI:
                     {
                         "detail": "host offline",
                         "message": (
-                            "This share link is valid, but the project host is "
+                            "This review link is valid, but the project host is "
                             "not connected. Ask them to run podcast tunnel."
                         ),
                     },
