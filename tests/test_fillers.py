@@ -1925,7 +1925,7 @@ def test_pause_analyze_skips_pad_without_transcript_or_next_word():
     from podcast_mcp.edits.filler_pacing import FillerPacingResult
     from podcast_mcp.edits.fillers import _analyze_candidate
 
-    paced = FillerPacingResult(start=0.4, end=2.0, replace_gap_sec=None)
+    paced = FillerPacingResult(start=0.4, end=2.0)
     defaults = {
         "tighten": {
             "min_retained_pause_sec": 0.55,
@@ -1961,7 +1961,7 @@ def test_pause_analyze_does_not_pad_when_next_word_is_flush():
         TranscriptWord(text="two", start=2.0, end=2.3),
     ]
     project = _project_with_transcript(words)
-    paced = FillerPacingResult(start=0.4, end=2.0, replace_gap_sec=None)
+    paced = FillerPacingResult(start=0.4, end=2.0)
     with patch("podcast_mcp.edits.fillers.apply_filler_pacing", return_value=paced):
         result = _analyze_candidate(
             project,

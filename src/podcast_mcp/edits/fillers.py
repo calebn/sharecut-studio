@@ -27,7 +27,7 @@ from podcast_mcp.edits.cut_quality import (
     post_pad_fade_in_bounds_ms,
     recommend_cut_fade_ms,
 )
-from podcast_mcp.edits.filler_pacing import MIN_PACED_CUT_SEC, apply_filler_pacing
+from podcast_mcp.edits.filler_pacing import MIN_PACED_CUT_SEC, PacedPad, apply_filler_pacing
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.mute_regions import muted_source_spans, source_span_is_muted
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
@@ -1462,13 +1462,14 @@ class _CutPlan:
 
     Built by :meth:`for_cut` from the edit mode and the cut's final scope; the join
     decides which edge checks the span gets, so the owner hears clean cuts that
-    splice scorers reject (#978, #1024).
+    splice scorers reject (#978, #1024). The edge checks move the span, so the pad
+    is paced from whatever span the plan holds (#1074).
     """
 
     start: float
     end: float
     join: _Join
-    replace_gap_sec: float | None = None
+    pad: PacedPad | None = None
     # Where a plosive burst begins, once the right edge has been fitted to the next
     # word's onset; the decision carries it so the fade-in after the cut ends before it.
     # A gradual onset is not carried: a fade-in may cover it.
@@ -1476,14 +1477,18 @@ class _CutPlan:
 
     @classmethod
     def for_cut(
-        cls, start: float, end: float, *, mute: bool, scope: str, pad: float | None
+        cls, start: float, end: float, *, mute: bool, scope: str, pad: PacedPad | None
     ) -> _CutPlan:
         """The plan for a ripple (``pad`` from pacing; a track punch keeps none) or a mute."""
         if mute:
             return cls(start, end, _Join.MUTE)
-        gap = None if scope == "track" else pad
-        join = _Join.PADDED if gap is not None and gap > 0 else _Join.SPLICE
-        return cls(start, end, join, gap)
+        if scope == "track" or pad is None or pad.seconds(start, end) <= 0:
+            return cls(start, end, _Join.SPLICE)
+        return cls(start, end, _Join.PADDED, pad)
+
+    @property
+    def replace_gap_sec(self) -> float | None:
+        return None if self.pad is None else self.pad.seconds(self.start, self.end)
 
     @property
     def checks(self) -> _EdgeChecks:
@@ -1941,9 +1946,7 @@ def _analyze_candidate(
     # second flip is an unstable cut. Everything below reads this plan, never the
     # first scope.
     for _attempt in range(2):
-        plan = _CutPlan.for_cut(
-            cut_start, cut_end, mute=mute_mode, scope=scope, pad=paced.replace_gap_sec
-        )
+        plan = _CutPlan.for_cut(cut_start, cut_end, mute=mute_mode, scope=scope, pad=paced.pad)
         gated = _gate_cut_edges(
             project,
             candidate,

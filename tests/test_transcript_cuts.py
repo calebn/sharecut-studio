@@ -305,14 +305,14 @@ def test_add_remove_decision_stores_cut_metadata(monkeypatch):
 def test_trailing_energy_extends_when_next_word_overlaps(monkeypatch):
     """um→you overlap: trailing-energy may extend past paced end."""
     from podcast_mcp.edits import transcript_cuts as tc
-    from podcast_mcp.edits.filler_pacing import FillerPacingResult
+    from podcast_mcp.edits.filler_pacing import FillerPacingResult, PacedPad
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 
     def _fake_pace(project, track_id, start, end, defaults=None, cut_kind="nl"):
         return FillerPacingResult(
             start=1.0,
             end=1.50,
-            replace_gap_sec=0.28,
+            pad=PacedPad(gap_sec=0.3, min_sec=0.28, retain=0.85, max_sec=1.0),
             allow_trailing_past_end=True,
         )
 
@@ -336,20 +336,21 @@ def test_trailing_energy_extends_when_next_word_overlaps(monkeypatch):
     proj = EpisodeProject.create("t", "/tmp/ws")
     decision = tc.add_remove_decision(proj, "host", 1.0, 1.4, reason="nl:words")
     assert decision.end == pytest.approx(1.62)
-    assert decision.replace_gap_sec == pytest.approx(0.28)
+    # The pad is paced from the span shipped: 0.85 x 0.62 s.
+    assert decision.replace_gap_sec == pytest.approx(0.527)
 
 
 def test_trailing_energy_clamped_when_next_word_has_lead_in(monkeypatch):
     """know→like: keep lead-in; do not let trailing-energy eat the L onset."""
     from podcast_mcp.edits import transcript_cuts as tc
-    from podcast_mcp.edits.filler_pacing import FillerPacingResult
+    from podcast_mcp.edits.filler_pacing import FillerPacingResult, PacedPad
     from podcast_mcp.edits.inaudible_cuts import OptimizedCutRange
 
     def _fake_pace(project, track_id, start, end, defaults=None, cut_kind="nl"):
         return FillerPacingResult(
             start=1.0,
             end=1.50,
-            replace_gap_sec=0.28,
+            pad=PacedPad(gap_sec=0.3, min_sec=0.28, retain=0.85, max_sec=1.0),
             allow_trailing_past_end=False,
         )
 
@@ -373,7 +374,7 @@ def test_trailing_energy_clamped_when_next_word_has_lead_in(monkeypatch):
     proj = EpisodeProject.create("t", "/tmp/ws")
     decision = tc.add_remove_decision(proj, "host", 1.0, 1.4, reason="nl:words")
     assert decision.end == pytest.approx(1.50)
-    assert decision.replace_gap_sec == pytest.approx(0.28)
+    assert decision.replace_gap_sec == pytest.approx(0.425)
 
 
 def test_coalesce_edits_track_filter():

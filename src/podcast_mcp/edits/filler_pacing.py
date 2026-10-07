@@ -18,12 +18,47 @@ MIN_PACED_CUT_SEC = 0.02
 
 
 @dataclass(frozen=True)
+class PacedPad:
+    """The pad a ripple inserts where a hesitation was, sized from the span it removes.
+
+    ``clamp(min_sec, max(gap_sec, span) * retain, max_sec)``. ``gap_sec`` is the
+    flanking words' air when the cut takes the whole gap between them, else 0. Edge
+    checks move a cut's span after pacing, so callers read the pad from the final
+    span instead of carrying a length computed before the checks (#1074).
+    """
+
+    gap_sec: float
+    min_sec: float
+    retain: float
+    max_sec: float
+
+    @classmethod
+    def from_defaults(cls, gap_sec: float, defaults: dict[str, Any] | None) -> PacedPad:
+        cfg = _tighten(defaults)
+        return cls(
+            gap_sec=gap_sec,
+            min_sec=float(cfg.get("min_gap_after_filler_sec", 0.35)),
+            retain=float(cfg.get("filler_gap_retain_fraction", 0.85)),
+            max_sec=float(cfg.get("filler_replace_gap_max_sec", 1.0)),
+        )
+
+    def seconds(self, start: float, end: float) -> float:
+        """Short um/uh cuts get the floor; a long hesitation keeps most of its air."""
+        if self.min_sec <= 0:
+            return 0.0
+        if self.retain <= 0 or self.max_sec <= 0:
+            return self.min_sec
+        basis = max(self.gap_sec, end - start)
+        return max(self.min_sec, min(basis * self.retain, self.max_sec))
+
+
+@dataclass(frozen=True)
 class FillerPacingResult:
-    """Adjusted cut range plus optional paced pad to apply after ripple."""
+    """Adjusted cut range plus the paced pad to insert after ripple, if any."""
 
     start: float
     end: float
-    replace_gap_sec: float | None = None
+    pad: PacedPad | None = None
     # When False, optimized trailing-energy must not extend past ``end`` (protect
     # the next word's onset after a silence/room-tone pad). When True, filler
     # voice may overlap the next ASR token (um→you) and trailing energy may
@@ -127,34 +162,6 @@ def expand_cut_for_room_tone_replace(
     return start, end
 
 
-def replace_gap_for_hesitation(
-    *,
-    inter_word_gap_sec: float,
-    cut_dur_sec: float,
-    defaults: dict[str, Any] | None = None,
-) -> float:
-    """Pad length after a filler/NL remove so flanking words are not slammed.
-
-    Short um/uh cuts need ~0.3-0.5s of breathing room. Longer hesitations
-    (“you know”, thinking pauses) should keep most of the original inter-word
-    air - collapsing them to a fixed 0.5s makes “mean,” / “like” butt together.
-
-    ``pad = clamp(min_gap, basis * retain_fraction, max_pad)``
-    """
-    cfg = _tighten(defaults)
-    min_gap = float(cfg.get("min_gap_after_filler_sec", 0.35))
-    retain = float(cfg.get("filler_gap_retain_fraction", 0.85))
-    max_pad = float(cfg.get("filler_replace_gap_max_sec", 1.0))
-    if min_gap <= 0:
-        return 0.0
-    if retain <= 0 or max_pad <= 0:
-        return min_gap
-    # Prefer the flanking-word gap when we expanded into it; otherwise the
-    # requested cut duration is the hesitation we removed.
-    basis = inter_word_gap_sec if inter_word_gap_sec > cut_dur_sec + 1e-6 else cut_dur_sec
-    return max(min_gap, min(basis * retain, max_pad))
-
-
 def apply_filler_pacing(
     project: EpisodeProject,
     track_id: str,
@@ -169,7 +176,7 @@ def apply_filler_pacing(
 
     * ``filler`` / ``nl`` - apply ``min_gap_after_filler_sec``. When
       ``filler_room_tone_replace`` is on, expand to the inter-word gap and set
-      ``replace_gap_sec`` so apply inserts a paced pad after ripple
+      ``pad`` so apply inserts a paced pad after ripple
       (``filler_pad_mode``: silence by default, or room_tone). Pad keeps a
       fraction of the original gap (floor/cap) so long hesitations stay airy.
     * ``pause`` - no-op (pause candidates already use ``min_retained_pause_sec``).
@@ -243,18 +250,11 @@ def apply_filler_pacing(
         )
         if expanded is None:
             return None
-        expand_dur = expanded[1] - expanded[0]
-        orig_dur = cut_end - cut_start
-        pad = replace_gap_for_hesitation(
-            inter_word_gap_sec=inter_word,
-            cut_dur_sec=cut_dur,
-            defaults=defaults,
-        )
-        if expand_dur <= max(orig_dur + 1e-9, max_expand_sec):
+        if expanded[1] - expanded[0] <= max(cut_dur + 1e-9, max_expand_sec):
             return FillerPacingResult(
                 start=expanded[0],
                 end=expanded[1],
-                replace_gap_sec=pad,
+                pad=PacedPad.from_defaults(inter_word, defaults),
                 allow_trailing_past_end=overlap_next,
             )
         # Gap between anchors is huge vs the requested cut - keep local cut and
@@ -262,11 +262,7 @@ def apply_filler_pacing(
         return FillerPacingResult(
             start=cut_start,
             end=cut_end,
-            replace_gap_sec=replace_gap_for_hesitation(
-                inter_word_gap_sec=cut_dur,
-                cut_dur_sec=cut_dur,
-                defaults=defaults,
-            ),
+            pad=PacedPad.from_defaults(0.0, defaults),
             allow_trailing_past_end=overlap_next,
         )
 

@@ -183,7 +183,7 @@ def test_propose_tighten_edits_parallel_matches_serial_and_preserves_order():
             patch(
                 "podcast_mcp.edits.fillers.apply_filler_pacing",
                 side_effect=lambda _project, _track_id, start, end, **_kwargs: FillerPacingResult(
-                    start=start, end=end, replace_gap_sec=None
+                    start=start, end=end
                 ),
             ),
         ):
