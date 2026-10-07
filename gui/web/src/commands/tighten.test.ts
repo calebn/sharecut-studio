@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { approveEdits, rejectEdits } from "../api";
 import { hostFetch } from "../api/documentTransport";
+import type { Answer, Question } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
+import { answerQuestions } from "../test/ask";
 import { minimalProject, wavResponse } from "../test/fixtures";
 import type { PendingEditView } from "../types/project";
 import { clearRegisteredCommands, execute } from "./execute";
 import { _resetSingleFlightsForTests, registerDawCommands } from "./register";
+
+const confirmReply = vi.fn<(question: Question) => Answer>();
 
 vi.mock("../api/documentTransport", () => ({ hostFetch: vi.fn() }));
 
@@ -60,7 +64,7 @@ describe("tighten commands", () => {
     registerDawCommands();
     vi.mocked(approveEdits).mockClear();
     vi.mocked(rejectEdits).mockClear();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    answerQuestions(confirmReply.mockReturnValue(true));
     useDawStore.getState().hydrate(
       "/tmp/p.json",
       minimalProject({
@@ -84,7 +88,7 @@ describe("tighten commands", () => {
   });
 
   afterEach(() => {
-    vi.mocked(window.confirm).mockRestore();
+    confirmReply.mockReset();
   });
 
   it("applyHit and skipHit call the matching document commands", async () => {
@@ -189,9 +193,14 @@ describe("tighten commands", () => {
       ids: ["e1", "e2"],
     });
     expect(result).toEqual({ status: "ok" });
-    expect(window.confirm).toHaveBeenCalledWith(
-      "Apply 1 of 2; 1 skipped as harsh",
-    );
+    expect(confirmReply).toHaveBeenCalledWith({
+      kind: "confirm",
+      title: "Apply 1 tighten hit?",
+      message: "Their cuts go into the timeline. 1 harsh hit stays pending.",
+      keepLabel: "Keep reviewing",
+      actionLabel: "Apply 1",
+      danger: false,
+    });
     expect(approveEdits).toHaveBeenCalledTimes(1);
     expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", ["e1"]);
   });

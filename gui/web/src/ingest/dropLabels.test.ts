@@ -6,7 +6,7 @@ import {
   isIngestCoachDismissed,
   laneDropLabel,
   newTracksDropLabel,
-  replaceAudioConfirmMessage,
+  replaceAudioQuestion,
   trackHasMedia,
 } from "./dropLabels";
 
@@ -57,8 +57,17 @@ describe("dropLabels", () => {
   });
 
   it("explains replace vs new-track in confirm copy", () => {
-    expect(replaceAudioConfirmMessage("guest")).toContain("already has audio");
-    expect(replaceAudioConfirmMessage("guest")).toContain("+ Track");
+    expect(replaceAudioQuestion("guest")).toEqual({
+      title: "Replace the audio on the guest track?",
+      message:
+        "Its current audio leaves the track. To add a new speaker instead, drop below the tracks or on + Track.",
+      keepLabel: "Keep audio",
+      actionLabel: "Replace audio",
+      danger: true,
+    });
+    expect(replaceAudioQuestion("").title).toBe(
+      "Replace the audio on this track?",
+    );
   });
 
   it("accepts audio MIME or allowlisted extensions", () => {

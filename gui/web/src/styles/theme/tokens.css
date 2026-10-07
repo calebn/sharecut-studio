@@ -94,6 +94,8 @@
   --z-presence-ghost: 51;
   /* Popup menus float above shell chrome so tail items stay clickable. */
   --z-menu: 60;
+  /* The app toast floats over shell chrome and menus, under modal dialogs. */
+  --z-toast: 70;
   --z-command-palette: 80;
 
   /* Layout — rem chrome; px canvas (lane/ruler/marker px in utils/layout.ts) */

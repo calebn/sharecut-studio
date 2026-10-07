@@ -2,15 +2,15 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
-import { UNDO_TOAST_MS, UndoToast } from "./UndoToast";
+import { TOAST_MS, Toast } from "./Toast";
 
-describe("UndoToast", () => {
+describe("Toast", () => {
   it("renders the message in a status region and wires Undo/Dismiss", async () => {
     const user = userEvent.setup();
     const onUndo = vi.fn();
     const onDismiss = vi.fn();
     render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={onUndo}
         onDismiss={onDismiss}
@@ -25,7 +25,7 @@ describe("UndoToast", () => {
   });
 
   it("renders an empty status region with no buttons when toast is null", () => {
-    render(<UndoToast toast={null} onUndo={vi.fn()} onDismiss={vi.fn()} />);
+    render(<Toast toast={null} onUndo={vi.fn()} onDismiss={vi.fn()} />);
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
@@ -34,14 +34,14 @@ describe("UndoToast", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
     render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={onDismiss}
       />,
     );
     act(() => {
-      vi.advanceTimersByTime(UNDO_TOAST_MS - 1);
+      vi.advanceTimersByTime(TOAST_MS - 1);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => {
@@ -55,7 +55,7 @@ describe("UndoToast", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
     render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={onDismiss}
@@ -66,14 +66,14 @@ describe("UndoToast", () => {
       undoButton.focus();
     });
     act(() => {
-      vi.advanceTimersByTime(UNDO_TOAST_MS + 1000);
+      vi.advanceTimersByTime(TOAST_MS + 1000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => {
       undoButton.blur();
     });
     act(() => {
-      vi.advanceTimersByTime(UNDO_TOAST_MS);
+      vi.advanceTimersByTime(TOAST_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
     vi.useRealTimers();
@@ -83,22 +83,22 @@ describe("UndoToast", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
     render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={onDismiss}
       />,
     );
-    const region = screen.getByRole("status").querySelector(".undo-toast");
+    const region = screen.getByRole("status").querySelector(".ui-toast");
     expect(region).not.toBeNull();
     fireEvent.pointerEnter(region!, { pointerType: "mouse" });
     act(() => {
-      vi.advanceTimersByTime(UNDO_TOAST_MS + 1000);
+      vi.advanceTimersByTime(TOAST_MS + 1000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     fireEvent.pointerLeave(region!);
     act(() => {
-      vi.advanceTimersByTime(UNDO_TOAST_MS);
+      vi.advanceTimersByTime(TOAST_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
     vi.useRealTimers();
@@ -108,18 +108,18 @@ describe("UndoToast", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
     render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={onDismiss}
       />,
     );
     fireEvent.pointerEnter(
-      screen.getByRole("status").querySelector(".undo-toast")!,
+      screen.getByRole("status").querySelector(".ui-toast")!,
       { pointerType: "touch" },
     );
     act(() => {
-      vi.advanceTimersByTime(UNDO_TOAST_MS);
+      vi.advanceTimersByTime(TOAST_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
     vi.useRealTimers();
@@ -129,17 +129,17 @@ describe("UndoToast", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
     const { rerender } = render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={onDismiss}
       />,
     );
     act(() => {
-      vi.advanceTimersByTime(UNDO_TOAST_MS - 100);
+      vi.advanceTimersByTime(TOAST_MS - 100);
     });
     rerender(
-      <UndoToast
+      <Toast
         toast={{ id: 2, message: "Resolved comment at 00:20" }}
         onUndo={vi.fn()}
         onDismiss={onDismiss}
@@ -150,7 +150,7 @@ describe("UndoToast", () => {
     });
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => {
-      vi.advanceTimersByTime(UNDO_TOAST_MS - 200);
+      vi.advanceTimersByTime(TOAST_MS - 200);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
     vi.useRealTimers();
@@ -160,31 +160,31 @@ describe("UndoToast", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
     const { rerender } = render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={onDismiss}
       />,
     );
-    const card = screen.getByRole("status").querySelector(".undo-toast");
+    const card = screen.getByRole("status").querySelector(".ui-toast");
     expect(card).not.toBeNull();
     fireEvent.pointerEnter(card!, { pointerType: "mouse" });
     rerender(
-      <UndoToast
+      <Toast
         toast={{ id: 2, message: "Resolved comment at 00:20" }}
         onUndo={vi.fn()}
         onDismiss={onDismiss}
       />,
     );
     act(() => {
-      vi.advanceTimersByTime(UNDO_TOAST_MS + 1000);
+      vi.advanceTimersByTime(TOAST_MS + 1000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     fireEvent.pointerLeave(
-      screen.getByRole("status").querySelector(".undo-toast")!,
+      screen.getByRole("status").querySelector(".ui-toast")!,
     );
     act(() => {
-      vi.advanceTimersByTime(UNDO_TOAST_MS);
+      vi.advanceTimersByTime(TOAST_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
     vi.useRealTimers();
@@ -194,26 +194,26 @@ describe("UndoToast", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
     const { rerender } = render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={onDismiss}
       />,
     );
     fireEvent.pointerEnter(
-      screen.getByRole("status").querySelector(".undo-toast")!,
+      screen.getByRole("status").querySelector(".ui-toast")!,
       { pointerType: "mouse" },
     );
-    rerender(<UndoToast toast={null} onUndo={vi.fn()} onDismiss={onDismiss} />);
+    rerender(<Toast toast={null} onUndo={vi.fn()} onDismiss={onDismiss} />);
     rerender(
-      <UndoToast
+      <Toast
         toast={{ id: 2, message: "Resolved comment at 00:20" }}
         onUndo={vi.fn()}
         onDismiss={onDismiss}
       />,
     );
     act(() => {
-      vi.advanceTimersByTime(UNDO_TOAST_MS);
+      vi.advanceTimersByTime(TOAST_MS);
     });
     expect(onDismiss).toHaveBeenCalledOnce();
     vi.useRealTimers();
@@ -221,7 +221,7 @@ describe("UndoToast", () => {
 
   it("disables Undo when undoDisabled is set", () => {
     render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={vi.fn()}
@@ -235,7 +235,7 @@ describe("UndoToast", () => {
     vi.useFakeTimers();
     const onDismiss = vi.fn();
     const { rerender } = render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={onDismiss}
@@ -243,18 +243,18 @@ describe("UndoToast", () => {
       />,
     );
     act(() => {
-      vi.advanceTimersByTime(UNDO_TOAST_MS + 1000);
+      vi.advanceTimersByTime(TOAST_MS + 1000);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     rerender(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={onDismiss}
       />,
     );
     act(() => {
-      vi.advanceTimersByTime(UNDO_TOAST_MS - 1);
+      vi.advanceTimersByTime(TOAST_MS - 1);
     });
     expect(onDismiss).not.toHaveBeenCalled();
     act(() => {
@@ -271,7 +271,7 @@ describe("UndoToast", () => {
     const focus = vi.spyOn(target, "focus");
     const returnFocusRef = { current: target };
     const { rerender } = render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={vi.fn()}
@@ -282,7 +282,7 @@ describe("UndoToast", () => {
       screen.getByRole("button", { name: "Dismiss" }).focus();
     });
     rerender(
-      <UndoToast
+      <Toast
         toast={null}
         onUndo={vi.fn()}
         onDismiss={vi.fn()}
@@ -301,7 +301,7 @@ describe("UndoToast", () => {
     document.body.append(target, other);
     const returnFocusRef = { current: target };
     const { rerender } = render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={vi.fn()}
@@ -310,7 +310,7 @@ describe("UndoToast", () => {
     );
     other.focus();
     rerender(
-      <UndoToast
+      <Toast
         toast={null}
         onUndo={vi.fn()}
         onDismiss={vi.fn()}
@@ -328,7 +328,7 @@ describe("UndoToast", () => {
     document.body.appendChild(target);
     const returnFocusRef = { current: target };
     const { rerender } = render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={vi.fn()}
@@ -340,7 +340,7 @@ describe("UndoToast", () => {
       undo.focus();
     });
     rerender(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={vi.fn()}
@@ -360,7 +360,7 @@ describe("UndoToast", () => {
       (undo as HTMLButtonElement).disabled = true;
     });
     rerender(
-      <UndoToast
+      <Toast
         toast={null}
         onUndo={vi.fn()}
         onDismiss={vi.fn()}
@@ -378,7 +378,7 @@ describe("UndoToast", () => {
     document.body.append(target, other);
     const returnFocusRef = { current: target };
     const { rerender } = render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={vi.fn()}
@@ -392,7 +392,7 @@ describe("UndoToast", () => {
       other.focus();
     });
     rerender(
-      <UndoToast
+      <Toast
         toast={null}
         onUndo={vi.fn()}
         onDismiss={vi.fn()}
@@ -406,12 +406,63 @@ describe("UndoToast", () => {
 
   it("is axe-clean with a toast shown", async () => {
     const { container } = render(
-      <UndoToast
+      <Toast
         toast={{ id: 1, message: "Resolved comment at 00:12" }}
         onUndo={vi.fn()}
         onDismiss={vi.fn()}
       />,
     );
+    await expectNoA11yViolations(container);
+  });
+
+  it("shows no Undo without onUndo, and auto-dismisses", () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    render(
+      <Toast
+        toast={{ id: 1, message: "Guest link copied" }}
+        onDismiss={onDismiss}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Guest link copied");
+    expect(
+      screen.queryByRole("button", { name: "Undo" }),
+    ).not.toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(TOAST_MS);
+    });
+    expect(onDismiss).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
+
+  it("describes Undo by the message it reverses", () => {
+    render(
+      <Toast
+        toast={{ id: 1, message: "Removed guest" }}
+        onUndo={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Undo" }),
+    ).toHaveAccessibleDescription("Removed guest");
+  });
+
+  it("leaves speech to another region when announce is off", async () => {
+    const { container } = render(
+      <Toast
+        announce={false}
+        className="ui-toast-region--app"
+        toast={{ id: 1, message: "Reordered track" }}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(container.firstElementChild).toHaveClass(
+      "ui-toast-region",
+      "ui-toast-region--app",
+    );
+    expect(screen.getByText("Reordered track")).toBeVisible();
     await expectNoA11yViolations(container);
   });
 });

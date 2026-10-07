@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { startPipelineRun } from "../api";
 import { runPointerCommand } from "../commands/pointer";
+import { askConfirm } from "../feedback/ask";
 import { useTightenIntensityConfig } from "../hooks/useTightenIntensityConfig";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
@@ -110,12 +111,8 @@ export function TightenPanel() {
 
   async function onFindHits() {
     if (!intensity) return;
-    const confirmText = findHitsConfirm(hits.length);
-    if (
-      confirmText &&
-      typeof window !== "undefined" &&
-      !window.confirm(confirmText)
-    ) {
+    const question = findHitsConfirm(hits.length);
+    if (question && !(await askConfirm(question))) {
       return;
     }
     const path = projectPath;

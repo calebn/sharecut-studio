@@ -12,9 +12,11 @@ import {
   startPipelineRun,
 } from "../api";
 import { execute } from "../commands/execute";
+import type { Answer, Question } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
 import { DawProvider } from "../state/store";
 import { expectNoA11yViolations } from "../test/a11y";
+import { answerQuestions } from "../test/ask";
 import { minimalProject } from "../test/fixtures";
 import type {
   PipelineConfigResponse,
@@ -22,6 +24,8 @@ import type {
 } from "../types/pipeline";
 import type { PendingEditView } from "../types/project";
 import { TightenPanel } from "./TightenPanel";
+
+const confirmReply = vi.fn<(question: Question) => Answer>();
 
 vi.mock("../commands/execute", () => ({
   execute: vi.fn(async () => ({ status: "ok" })),
@@ -198,7 +202,7 @@ function projectWithHits() {
 describe("TightenPanel", () => {
   beforeEach(() => {
     vi.mocked(execute).mockClear();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    answerQuestions(confirmReply.mockReturnValue(true));
     vi.mocked(loadPipelineConfig).mockReset();
     vi.mocked(loadPipelineConfig).mockImplementation(async () => pipelineCfg());
     vi.mocked(putPipelineConfig).mockReset();
@@ -219,7 +223,7 @@ describe("TightenPanel", () => {
   });
 
   afterEach(() => {
-    vi.mocked(window.confirm).mockRestore();
+    confirmReply.mockReset();
   });
 
   it("changes intensity in the shared working set and finds hits for that tier", async () => {
@@ -555,12 +559,15 @@ describe("TightenPanel", () => {
   });
 
   it("asks before Find hits replaces listed hits", async () => {
-    vi.mocked(window.confirm).mockReturnValueOnce(false);
+    confirmReply.mockReturnValueOnce(false);
     renderPanel();
     await screen.findByRole("option", { name: "Light" });
     fireEvent.click(screen.getByRole("button", { name: "Find hits" }));
-    expect(window.confirm).toHaveBeenCalledWith(
-      expect.stringContaining("(2 now)"),
+    expect(confirmReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Find hits again?",
+        message: expect.stringContaining("replaces the 2 pending hits"),
+      }),
     );
     expect(startPipelineRun).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Find hits" }));

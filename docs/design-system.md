@@ -73,8 +73,8 @@ organisms; domain screens are templates, colocated with their domain component
 | Level | Contents | Examples |
 | ----- | -------- | -------- |
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
-| **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, UndoToast, FocusPull, InlineConfirm |
-| **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
+| **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, Toast, FocusPull, InlineConfirm |
+| **Organisms** | Complex, generic, reusable components / sections | Dialog, AskDialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
 | **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditingToolRail, CommandPalette |
 
 **Organisms vs Templates:** an organism is generic and reusable anywhere in the
@@ -527,7 +527,7 @@ jsdom visibility checks.
    network. Components that need DAW context don't get stories until they can
    render standalone. For interactive stories, a small story-local controlled
    wrapper mirrors the callback into `useState` and still forwards it to the
-   `fn()` spy (`UndoToastPreview`, `PreviewModesPreview`, `SplitterPreview`).
+   `fn()` spy (`ToastPreview`, `PreviewModesPreview`, `SplitterPreview`).
    Keep these wrappers inside the story file while their state shapes differ;
    if a fourth story needs the same "local state + forward to spy" wiring,
    extract a helper and register it in `STORY_SUPPORT_MODULES`.

@@ -2,12 +2,16 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TranscriptVocabulary } from "../api";
+import type { Answer, Question } from "../feedback/ask";
 import { expectNoA11yViolations } from "../test/a11y";
+import { answerQuestions } from "../test/ask";
 import { ApiError } from "../utils/apiError";
 import {
   TranscriptVocabularyEditor,
   VOCABULARY_CONFLICT_MESSAGE,
 } from "./TranscriptVocabularyEditor";
+
+const confirmReply = vi.fn<(question: Question) => Answer>();
 
 const loadTranscriptVocabulary = vi.fn();
 const saveTranscriptVocabulary = vi.fn();
@@ -63,10 +67,10 @@ function savedTerms() {
 describe("TranscriptVocabularyEditor", () => {
   describe("Re-transcribe confirmation", () => {
     beforeEach(() => {
-      vi.spyOn(window, "confirm").mockReturnValue(true);
+      answerQuestions(confirmReply.mockReturnValue(true));
     });
     afterEach(() => {
-      vi.mocked(window.confirm).mockRestore();
+      confirmReply.mockReset();
     });
 
     it("re-transcribes without asking when no transcript is hand-edited", async () => {
@@ -78,7 +82,7 @@ describe("TranscriptVocabularyEditor", () => {
       await user.click(
         await screen.findByRole("button", { name: "Re-transcribe" }),
       );
-      expect(window.confirm).not.toHaveBeenCalled();
+      expect(confirmReply).not.toHaveBeenCalled();
       expect(props.onRetranscribe).toHaveBeenCalledWith(false);
     });
 
@@ -94,15 +98,18 @@ describe("TranscriptVocabularyEditor", () => {
       await user.click(
         await screen.findByRole("button", { name: "Re-transcribe" }),
       );
-      expect(window.confirm).toHaveBeenCalledWith(
-        "2 tracks have hand-edited transcripts that Re-transcribe will replace: host, guest. Replace them?",
+      expect(confirmReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message:
+            "Re-transcribe replaces the hand-edited transcripts on host, guest.",
+        }),
       );
       expect(props.onRetranscribe).toHaveBeenCalledWith(true);
     });
 
     it("does not re-transcribe when the replace prompt is declined", async () => {
       const user = userEvent.setup();
-      vi.mocked(window.confirm).mockReturnValue(false);
+      confirmReply.mockReturnValue(false);
       loadTranscriptVocabulary.mockResolvedValue(
         vocabulary({ needs_retranscription: true, edited_tracks: ["host"] }),
       );
@@ -110,8 +117,10 @@ describe("TranscriptVocabularyEditor", () => {
       await user.click(
         await screen.findByRole("button", { name: "Re-transcribe" }),
       );
-      expect(window.confirm).toHaveBeenCalledWith(
-        "1 track has hand-edited transcripts that Re-transcribe will replace: host. Replace them?",
+      expect(confirmReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "Re-transcribe replaces the hand-edited transcript on host.",
+        }),
       );
       expect(props.onRetranscribe).not.toHaveBeenCalled();
     });

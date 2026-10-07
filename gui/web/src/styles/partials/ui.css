@@ -727,17 +727,17 @@ button.pill.pill--info {
   color: var(--color-text-secondary);
 }
 
-/* UndoToast: sticky polite status with Undo (theme tokens only).
-   Sticky relies on the nearest scrolling ancestor (`.comments-panel`,
-   overflow: auto in panels.css). If scrolling moves to a parent, the
-   toast will scroll out of view. */
-.undo-toast-region {
+/* Toast: polite status with optional Undo (theme tokens only).
+   A panel's toast is sticky in its nearest scrolling ancestor
+   (`.comments-panel`, overflow: auto in panels.css); if scrolling moves to a
+   parent, the toast will scroll out of view. The app toast is fixed (below). */
+.ui-toast-region {
   position: sticky;
   inset-block-end: 0;
   z-index: var(--z-overlay);
 }
 
-.undo-toast {
+.ui-toast {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -751,13 +751,68 @@ button.pill.pill--info {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .undo-toast {
+  .ui-toast {
     animation: rise-in var(--motion-panel) var(--motion-ease-out);
   }
 }
 
-.undo-toast-message {
+.ui-toast-message {
   flex: 1 1 auto;
+}
+
+/* The app-wide toast (feedback/FeedbackToast): one at a time, centred at the
+   bottom where Undo is in reach, above the status bar or the phone mode nav.
+   The region lets clicks through; only the card takes them. */
+.ui-toast-region--app {
+  position: fixed;
+  inset-inline: var(--space-4);
+  inset-block-end: calc(var(--status-height) + var(--space-3));
+  z-index: var(--z-toast);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+html[data-shell="phone"] .ui-toast-region--app {
+  inset-block-end: calc(
+    var(--mobile-nav-height) +
+    env(safe-area-inset-bottom) +
+    var(--space-3)
+  );
+}
+
+.ui-toast-region--app .ui-toast {
+  max-inline-size: 32rem;
+  pointer-events: auto;
+}
+
+html[data-shell="phone"] .ui-toast-region--app .ui-toast > .ui-control {
+  min-block-size: var(--touch-min);
+}
+
+/* AskDialog: the app's confirm / text prompt (feedback/AskDialogView). */
+.command-palette-panel.ui-ask {
+  width: min(28rem, calc(100vw - 2rem));
+}
+
+.ui-ask-message {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.ui-ask-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.ui-ask-actions > .ui-control {
+  min-block-size: var(--touch-min);
+}
+
+html[data-shell="phone"] .ui-ask-actions > .ui-control {
+  flex: 1 1 0;
 }
 
 /* RelatedCommands: "You might also want…" zone in mobile selection sheet */

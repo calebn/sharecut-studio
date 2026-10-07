@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
 import { useDawStore } from "../state/dawStore";
-import { minimalProject } from "../test/fixtures";
+import { answerQuestions } from "../test/ask";
+import { minimalProject, sampleTrack } from "../test/fixtures";
 import { ingestFiles } from "./ingestFiles";
 
 vi.mock("../api", async (importOriginal) => {
@@ -80,5 +81,46 @@ describe("ingestFiles", () => {
     const s = useDawStore.getState();
     expect(s.statusAnnouncement).toMatch(/^Added good/);
     expect(s.ingestBusy).toBe(false);
+  });
+
+  describe("onto a track that already has audio", () => {
+    const file = new File(["RIFF...."], "take2.wav", { type: "audio/wav" });
+
+    beforeEach(() => {
+      useDawStore.setState({
+        project: minimalProject({
+          tracks: [sampleTrack({ id: "guest", label: "Guest" })],
+        }),
+      });
+    });
+
+    it("asks before replacing it, and imports nothing when kept", async () => {
+      const { asked } = answerQuestions(null);
+      await ingestFiles([file], { kind: "track", id: "guest" });
+      expect(asked).toEqual([
+        expect.objectContaining({
+          kind: "confirm",
+          title: "Replace the audio on the Guest track?",
+          actionLabel: "Replace audio",
+          danger: true,
+        }),
+      ]);
+      expect(uploadMock).not.toHaveBeenCalled();
+      expect(useDawStore.getState().statusAnnouncement).toBe("");
+    });
+
+    it("replaces it once confirmed", async () => {
+      answerQuestions(true);
+      uploadMock.mockResolvedValue({
+        complete: true,
+        rel_path: "media/take2.wav",
+      });
+      refreshMock.mockResolvedValue(minimalProject());
+      await ingestFiles([file], { kind: "track", id: "guest" });
+      expect(uploadMock).toHaveBeenCalledOnce();
+      expect(useDawStore.getState().statusAnnouncement).toMatch(
+        /^Replaced Guest/,
+      );
+    });
   });
 });

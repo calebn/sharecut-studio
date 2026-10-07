@@ -40,8 +40,8 @@ export { Pill } from "./Pill";
 export { type PillTone, pillClassName } from "./pillClassName";
 export { SegmentedControl } from "./SegmentedControl";
 export { Timecode } from "./Timecode";
+export { TOAST_MS, Toast, type ToastState } from "./Toast";
 export { ToggleButton } from "./ToggleButton";
-export { UNDO_TOAST_MS, UndoToast, type UndoToastState } from "./UndoToast";
 export { type UseCommandResult, useCommand } from "./useCommand";
 export {
   type DialogModalMode,

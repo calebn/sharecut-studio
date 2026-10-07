@@ -3,6 +3,7 @@ import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { resetServerClock } from "../presence/clock";
 import { resetPublishKeyForTests } from "../state/publishKey";
+import { resetQuestions } from "./ask";
 
 // axe color-contrast probes canvas; jsdom has no implementation.
 HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
@@ -20,4 +21,5 @@ afterEach(() => {
   // sees another's server clock offset or cached publish key.
   resetServerClock();
   resetPublishKeyForTests();
+  resetQuestions();
 });

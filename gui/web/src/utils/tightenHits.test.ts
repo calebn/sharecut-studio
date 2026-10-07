@@ -213,8 +213,21 @@ describe("tightenHits", () => {
     expect(applyAllSummary(31, 23)).toEqual({
       apply: 23,
       skipped: 8,
-      confirm: "Apply 23 of 31; 8 skipped as harsh",
+      question: {
+        title: "Apply 23 tighten hits?",
+        message: "Their cuts go into the timeline. 8 harsh hits stay pending.",
+        keepLabel: "Keep reviewing",
+        actionLabel: "Apply 23",
+        danger: false,
+      },
     });
+    expect(applyAllSummary(2, 1).question).toMatchObject({
+      title: "Apply 1 tighten hit?",
+      message: "Their cuts go into the timeline. 1 harsh hit stays pending.",
+    });
+    expect(applyAllSummary(4, 4).question.message).toBe(
+      "Their cuts go into the timeline.",
+    );
   });
 
   it("treats missing timeline bounds as not seekable or previewable", () => {

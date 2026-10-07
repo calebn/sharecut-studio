@@ -1,3 +1,4 @@
+import type { ConfirmQuestion } from "../feedback/ask";
 import { plural } from "../utils/format";
 import { readLocal, writeLocal } from "../utils/storage";
 
@@ -66,12 +67,19 @@ export function newTracksDropLabel(fileCount: number): string {
   return `Create ${fileCount} new tracks`;
 }
 
-export function replaceAudioConfirmMessage(trackLabel: string): string {
-  const name = trackLabel || "this track";
-  return (
-    `${name} already has audio. Replace it?\n\n` +
-    "Drop below the tracks (or on + Track) to add a new speaker instead."
-  );
+/** The question before a drop or import replaces a track's audio. */
+export function replaceAudioQuestion(
+  trackLabel: string,
+): Omit<ConfirmQuestion, "kind"> {
+  const name = trackLabel ? `the ${trackLabel} track` : "this track";
+  return {
+    title: `Replace the audio on ${name}?`,
+    message:
+      "Its current audio leaves the track. To add a new speaker instead, drop below the tracks or on + Track.",
+    keepLabel: "Keep audio",
+    actionLabel: "Replace audio",
+    danger: true,
+  };
 }
 
 /** Compact duration for status announcements (e.g. "1:00", "0.5s"). */

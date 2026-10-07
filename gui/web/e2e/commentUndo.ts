@@ -26,24 +26,24 @@ async function expectReachableToast(panel: Locator): Promise<void> {
           panel.top + element.clientTop + element.clientHeight,
         ),
       };
-      return [
-        ...element.querySelectorAll(".undo-toast, .undo-toast button"),
-      ].map((control) => {
-        const rect = control.getBoundingClientRect();
-        const hit = document.elementFromPoint(
-          rect.left + rect.width / 2,
-          rect.top + rect.height / 2,
-        );
-        return {
-          name: control.textContent,
-          fits:
-            rect.left >= visible.left - 1 &&
-            rect.right <= visible.right + 1 &&
-            rect.top >= visible.top - 1 &&
-            rect.bottom <= visible.bottom + 1,
-          reachable: hit !== null && control.contains(hit),
-        };
-      });
+      return [...element.querySelectorAll(".ui-toast, .ui-toast button")].map(
+        (control) => {
+          const rect = control.getBoundingClientRect();
+          const hit = document.elementFromPoint(
+            rect.left + rect.width / 2,
+            rect.top + rect.height / 2,
+          );
+          return {
+            name: control.textContent,
+            fits:
+              rect.left >= visible.left - 1 &&
+              rect.right <= visible.right + 1 &&
+              rect.top >= visible.top - 1 &&
+              rect.bottom <= visible.bottom + 1,
+            reachable: hit !== null && control.contains(hit),
+          };
+        },
+      );
     });
     expect(geometry).toHaveLength(3);
     for (const control of geometry) {
@@ -101,7 +101,7 @@ export async function exerciseCommentUndo(
     const card = panel
       .locator(".comment-card")
       .filter({ hasText: "Undo regression row 0" });
-    const toast = panel.locator(".undo-toast");
+    const toast = panel.locator(".ui-toast");
     const undo = toast.getByRole("button", { name: "Undo", exact: true });
     const savedResolved = () => {
       const project = JSON.parse(fs.readFileSync(projectPath, "utf8"));

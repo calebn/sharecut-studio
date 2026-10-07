@@ -5,6 +5,8 @@ import {
   setBladeCommandRunner,
 } from "./commands/register";
 import { useDesktopCloseGuard } from "./desktop/useDesktopCloseGuard";
+import { AskDialog } from "./feedback/AskDialog";
+import { FeedbackToast } from "./feedback/FeedbackToast";
 import { HelpDialog } from "./home/HelpDialog";
 import { useBladeCut } from "./hooks/useBladeCut";
 import { useGuestSyncAndProjectPoll } from "./hooks/useGuestSyncAndProjectPoll";
@@ -228,6 +230,8 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
         open={helpDialogOpen}
         onClose={() => setHelpDialogOpen(false)}
       />
+      <AskDialog />
+      <FeedbackToast />
     </>
   );
 }

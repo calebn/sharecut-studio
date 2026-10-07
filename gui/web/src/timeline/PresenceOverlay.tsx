@@ -36,12 +36,14 @@ function usePresenceAnnouncer(others: SessionClient[]): void {
     }
     for (const c of others) {
       if (!prev.has(c.client_id)) {
-        useDawStore.getState().announceStatus(`${rosterDisplayName(c)} joined`);
+        useDawStore
+          .getState()
+          .announceStatus(`${rosterDisplayName(c)} joined`, { toast: false });
       }
     }
     for (const id of prev) {
       if (!ids.has(id)) {
-        useDawStore.getState().announceStatus("Someone left");
+        useDawStore.getState().announceStatus("Someone left", { toast: false });
       }
     }
   });

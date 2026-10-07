@@ -732,7 +732,10 @@ export function PipelinePanel() {
         setError(errorMessage(e));
         return;
       }
-      const overwriteEdited = confirmReplaceEdited(edited, "Re-time words");
+      const overwriteEdited = await confirmReplaceEdited(
+        edited,
+        "Re-time words",
+      );
       if (overwriteEdited !== null) {
         await onRun("retime", overwriteEdited);
       }

@@ -7,10 +7,14 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Answer, Question } from "../feedback/ask";
 import { expectNoA11yViolations } from "../test/a11y";
+import { answerQuestions } from "../test/ask";
 import type { PipelineConfigResponse } from "../types/pipeline";
 import { PipelinePanel } from "./PipelinePanel";
 import { formatAnalyzeFields } from "./pipelineAnalyzeFormat";
+
+const confirmReply = vi.fn<(question: Question) => Answer>();
 
 const loadPipelineConfig = vi.fn();
 const putPipelineConfig = vi.fn();
@@ -903,7 +907,8 @@ describe("PipelinePanel", () => {
       needs_retranscription: false,
       edited_tracks: ["host"],
     });
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const confirmSpy = confirmReply.mockReturnValue(true);
+    answerQuestions(confirmSpy);
 
     render(
       <main>
@@ -954,7 +959,7 @@ describe("PipelinePanel", () => {
         resolveVocab = r;
       }),
     );
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    answerQuestions(confirmReply.mockReturnValue(true));
 
     render(
       <main>
@@ -1305,7 +1310,7 @@ describe("PipelinePanel", () => {
 
   it("downloads Whisper before re-transcribing when the model is missing", async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    answerQuestions(confirmReply.mockReturnValue(true));
     const bootJob = {
       id: "boot1",
       kind: "bootstrap",
@@ -1363,8 +1368,8 @@ describe("PipelinePanel", () => {
         }),
       ),
     );
-    expect(window.confirm).toHaveBeenCalledOnce();
-    vi.mocked(window.confirm).mockRestore();
+    expect(confirmReply).toHaveBeenCalledOnce();
+    confirmReply.mockReset();
   });
 
   it("shows alignment leave-gate waiting copy", async () => {

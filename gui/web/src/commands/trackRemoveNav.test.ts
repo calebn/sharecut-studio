@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
+import type { Answer, Question } from "../feedback/ask";
 import { matchKeymapCommands } from "../keymap/registry";
 import { useDawStore } from "../state/dawStore";
+import { answerQuestions } from "../test/ask";
 import { minimalProject } from "../test/fixtures";
 import { buildCommandContext, evaluateWhen } from "./context";
 import { clearRegisteredCommands, execute } from "./execute";
@@ -9,6 +11,8 @@ import {
   _resetTrackMutateChainForTests,
   registerDawCommands,
 } from "./register";
+
+const confirmReply = vi.fn<(question: Question) => Answer>();
 
 vi.mock("../api", () => ({
   removeTrackCommand: vi.fn(async () => undefined),
@@ -112,7 +116,7 @@ describe("track.remove / nav / Escape fall-through", () => {
     _resetTrackMutateChainForTests();
     vi.mocked(api.removeTrackCommand).mockClear();
     vi.mocked(api.deleteClips).mockClear();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    answerQuestions(confirmReply.mockReturnValue(true));
     useDawStore.setState({
       projectPath: "/tmp/ep",
       guestMode: null,
@@ -136,6 +140,43 @@ describe("track.remove / nav / Escape fall-through", () => {
     expect(useDawStore.getState().selectedTrackIds).toEqual(["guest"]);
   });
 
+  it("asks by the track's name, then offers Undo for the removal", async () => {
+    vi.mocked(api.removeTrackCommand).mockImplementationOnce(async () => {
+      const project = useDawStore.getState().project!;
+      useDawStore.setState({
+        project: {
+          ...project,
+          history: { ...project.history, cursor: 1, can_undo: true },
+        },
+      });
+      return {};
+    });
+    useDawStore.setState({ selection: { kind: "track", trackId: "host" } });
+    expect((await execute("track.remove")).status).toBe("ok");
+    expect(confirmReply).toHaveBeenCalledWith({
+      kind: "confirm",
+      title: "Remove the Host track?",
+      message: "Its clips leave the timeline.",
+      keepLabel: "Keep track",
+      actionLabel: "Remove track",
+      danger: true,
+    });
+    expect(useDawStore.getState().feedbackToast).toEqual({
+      id: expect.any(Number),
+      message: "Removed Host",
+      undo: { cursor: 1 },
+    });
+  });
+
+  it("offers no Undo when the removal left no history step", async () => {
+    useDawStore.setState({ selection: { kind: "track", trackId: "host" } });
+    expect((await execute("track.remove")).status).toBe("ok");
+    expect(useDawStore.getState().feedbackToast).toMatchObject({
+      message: "Removed Host",
+      undo: null,
+    });
+  });
+
   it("does not remove from Mod+A targeting alone", async () => {
     useDawStore.setState({
       selection: null,
@@ -147,7 +188,7 @@ describe("track.remove / nav / Escape fall-through", () => {
   });
 
   it("cancels remove when confirm is false", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+    answerQuestions(confirmReply.mockReturnValue(false));
     useDawStore.setState({
       selection: { kind: "track", trackId: "host" },
     });

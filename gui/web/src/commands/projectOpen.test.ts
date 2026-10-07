@@ -7,6 +7,7 @@ import {
 } from "../desktop/useDesktopCloseGuard";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { answerQuestions } from "../test/ask";
 import { clearRegisteredCommands, execute } from "./execute";
 import { PROJECT_CLOSE_TIMEOUT_MS, PROJECT_NEW_RETRY_MS } from "./projectMedia";
 import {
@@ -30,7 +31,6 @@ const closeMock = vi.mocked(api.closeEpisodeProject);
 
 describe("project.open", () => {
   const assign = vi.fn();
-  const prompt = vi.fn();
 
   beforeEach(() => {
     clearRegisteredCommands();
@@ -41,12 +41,10 @@ describe("project.open", () => {
     closeMock.mockReset();
     closeMock.mockResolvedValue(undefined);
     assign.mockReset();
-    prompt.mockReset();
     vi.stubGlobal("location", {
       href: "http://127.0.0.1:8765/",
       assign,
     });
-    vi.stubGlobal("prompt", prompt);
     useDawStore.setState({
       projectPath: "/tmp/ep",
       guestMode: null,
@@ -278,16 +276,36 @@ describe("project.open", () => {
       unavailable: true,
       detail: "install zenity",
     });
-    prompt.mockReturnValue("/tmp/ep/episode.project.json");
+    const { asked } = answerQuestions(" /tmp/ep/episode.project.json ");
     openMock.mockResolvedValue({
       project_path: "/tmp/ep/episode.project.json",
       name: "episode",
     });
     expect((await execute("project.open")).status).toBe("ok");
     await waitFor(() => {
-      expect(prompt).toHaveBeenCalled();
       expect(openMock).toHaveBeenCalledWith("/tmp/ep/episode.project.json");
     });
+    expect(asked).toEqual([
+      {
+        kind: "text",
+        title: "Open project",
+        label: "Path to episode.project.json",
+        hint: "install zenity",
+        submitLabel: "Open project",
+        requiredMessage: "Enter the path to an episode.project.json file.",
+      },
+    ]);
+  });
+
+  it("opens nothing when the path prompt is cancelled", async () => {
+    pickMock.mockResolvedValue({ unavailable: true });
+    answerQuestions(null);
+    expect((await execute("project.open")).status).toBe("ok");
+    await waitFor(() => {
+      expect(pickMock).toHaveBeenCalled();
+    });
+    await Promise.resolve();
+    expect(openMock).not.toHaveBeenCalled();
   });
 
   it("announces open failure", async () => {
