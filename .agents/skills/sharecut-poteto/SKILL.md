@@ -34,4 +34,4 @@ description: Use for Sharecut repository contributor work, issue implementation,
    Do not claim a service tier or execution model the harness does not expose.
 
 The native workflow does not grant permission to merge. Follow the user's current
-grant and the repository gates before any external write or merge.
+grant and the repository gates before merge.

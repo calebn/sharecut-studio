@@ -55,6 +55,10 @@ holds, unresolved review threads, won't-do items, or an unmergeable PR.
 Its JSON result is an additional predicate, not the native independent verdict.
 Do not invent an issue for a contributor PR to run it.
 
+Before merge, mark the draft ready through the built-in PR tool when available,
+or through the resolved forge otherwise. Recheck the exact head, required checks,
+review state, and owner gates after that transition.
+
 Merge by rebase, overriding native squash defaults. Match the verified head:
 
 ```bash

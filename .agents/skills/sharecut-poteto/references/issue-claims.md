@@ -18,6 +18,12 @@ comment counts as live for six hours after the label was added.
 Skip taken issues. Do not assume another agent's stale heartbeat frees an issue
 with an open PR.
 
+For an existing PR that the user's current grant authorizes you to resume,
+exempt only that PR from the open-PR guard. Recheck the issue, PR, holds, and
+competing live claims. A different active linked PR still blocks pickup.
+Use the same claim race protocol before modifying or gating the resumed PR.
+Native Poteto owns the pickup procedure and review-evidence assessment.
+
 ## Claim and maintain ownership
 
 1. Add `in-progress` and `pipeline:planning`.
@@ -39,12 +45,14 @@ with an open PR.
 
 On merge, completion, hold, abandon, or failure, mark your comment
 `released=<outcome>`. Remove your `in-progress` and active stage labels only
-while you still own the winning claim. Preserve another owner's labels and
-independent hold or stall labels. Never delete every `pipeline:*` label.
+while you still own the winning claim. Remove every `pipeline:*` label from
+the claimed issue and the active stage label from its PR. Preserve another
+owner's labels and independent owner holds.
 
 For an owner decision, report the question and retain the applicable owner hold.
-For a technical failure, report the blocker and retain `pipeline:stalled` where
-appropriate. Release the claim even while the hold remains.
+For a technical failure, report the blocker and retain `pipeline:stalled` on
+the PR where appropriate. Clear that PR stall label when an authorized pickup
+reclaims the issue and moves its stage. Release the claim even while a hold remains.
 Native Poteto owns any later pickup procedure. An open linked PR remains taken.
 
 Anyone may release a stale claim whose heartbeat is at least six hours old and
