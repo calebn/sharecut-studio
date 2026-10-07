@@ -50,7 +50,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from podcast_mcp.edits.bleed_latency import DOMINANCE_DB, FRAME_SEC, HOP_SEC, OPEN_DB
+from podcast_mcp.edits.bleed_latency import (
+    DOMINANCE_DB,
+    FRAME_SEC,
+    HOP_SEC,
+    OPEN_DB,
+    LatencySettings,
+    measure_pair,
+)
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB, MIN_CORRELATION
 
 MIN_GAP_SEC = 0.06
@@ -100,12 +107,42 @@ class BleedPair:
     voice is copied onto the lane's mic. Either way the copy on the lane's track moves with
     the lane's latency, so both directions see the same steps. ``lag_sec`` is the pair's
     steady lag in lane source time (lane frame ``f + lag`` lines up with ``other`` frame
-    ``f``): the lane's latency plus the copy's path delay, from the latency solve.
+    ``f``): the lane's latency plus the copy's path delay (:func:`steady_lag`).
     """
 
     other: np.ndarray
     lane_talks: bool
     lag_sec: float
+
+
+def steady_lag(
+    source: np.ndarray,
+    other: np.ndarray,
+    *,
+    lane_talks: bool,
+    near_sec: float,
+    settings: LatencySettings,
+) -> float | None:
+    """A pair's steady lag in lane source time, from the lane's media; None when it scatters.
+
+    The median of the pair's window lags (:func:`measure_pair`) with the windows on the
+    lane's source time, so where the lane's pieces sit cannot move it and a re-run finds
+    the same pieces. ``near_sec`` only centres each window's search.
+    """
+    near = round(near_sec / HOP_SEC)
+    placed = np.concatenate([np.full(near, LEVEL_FLOOR_DB), other]) if near >= 0 else other[-near:]
+    talker, copy = (source, placed) if lane_talks else (placed, source)
+    pair = measure_pair(
+        talker,
+        copy,
+        source_track_id="talker",
+        mic_track_id="copy",
+        tolerance_sec=settings.tolerance_sec,
+        deadband_sec=settings.deadband_sec,
+    )
+    if pair.reason != "consistent" or pair.lag_sec is None:
+        return None
+    return near * HOP_SEC + (pair.lag_sec if lane_talks else -pair.lag_sec)
 
 
 def _frames(source: np.ndarray, pair: BleedPair, lags: np.ndarray) -> np.ndarray:

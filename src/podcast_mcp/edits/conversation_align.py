@@ -1839,7 +1839,7 @@ def _bleed_latency_stage(
 
 @dataclass(frozen=True)
 class _LaneMedia:
-    """A lane's media envelopes in source time, and its clip's timeline-minus-source shift."""
+    """A lane's media envelopes in source time, and its clips' mean timeline-minus-source shift."""
 
     source: np.ndarray
     heard: np.ndarray
@@ -1861,11 +1861,14 @@ def _lane_media(
         sample_rate=SILENCE_RATE,
         **grid,
     )
+    lengths = [clip.source_end - clip.source_start for clip in clips]
     return _LaneMedia(
         source=level_envelope_db(sources[path], sample_rate=LATENCY_RATE, **grid),
         heard=heard,
         heard_peak=heard_peak,
-        shift_sec=clip_source_to_timeline_shift(clips[0]),
+        shift_sec=float(
+            np.average([clip_source_to_timeline_shift(clip) for clip in clips], weights=lengths)
+        ),
     )
 
 
@@ -1884,24 +1887,20 @@ def _placed(
     return out
 
 
-def _clock_pairs(
+def _clock_links(
     track_id: str,
-    shift_sec: float,
     solution: bleed_latency.LatencySolution,
     clock: dict[str, np.ndarray],
     settings: bleed_latency.LatencySettings,
-) -> list[bleed_lag_segments.BleedPair]:
-    """Every pair between the lane and a track on the reference clock that latency explains.
+) -> list[tuple[str, bool, float]]:
+    """``(other, lane_talks, path_sec)`` for each pair between the lane and a track on the clock.
 
     A pair counts when it is consistent and its talker's direct track trails its copy (or
     is co-timed within the deadband): a copy that arrives later can carry a loudspeaker
-    path's own jitter. Its steady lag is the lane's latency plus the copy's path delay (the
-    pair's residual in the solve), in lane source time (``shift_sec`` is the lane's
-    timeline-minus-source shift). Pairs with the reference come first and anchor the lane.
+    path's own jitter. ``path_sec`` is the copy's path delay seen from the lane (the pair's
+    residual in the solve). Pairs with the reference come first, so they anchor the lane.
     """
-    found = solution.track(track_id)
-    latency = (found.latency_sec if found else None) or 0.0
-    pairs: list[tuple[bool, bleed_lag_segments.BleedPair]] = []
+    links: list[tuple[bool, str, bool, float]] = []
     for p in solution.pairs:
         if p.reason != "consistent" or (p.lag_sec or 0.0) < -settings.deadband_sec:
             continue
@@ -1909,18 +1908,12 @@ def _clock_pairs(
             continue
         lane_talks = p.source_track_id == track_id
         other = p.mic_track_id if lane_talks else p.source_track_id
-        if other == track_id or other not in clock:
-            continue
-        path = (p.residual_sec or 0.0) * (1 if lane_talks else -1)
-        pairs.append(
-            (
-                other != solution.reference_track_id,
-                bleed_lag_segments.BleedPair(
-                    clock[other], lane_talks=lane_talks, lag_sec=latency + path - shift_sec
-                ),
-            )
-        )
-    return [pair for _later, pair in sorted(pairs, key=lambda item: item[0])]
+        if other != track_id and other in clock:
+            path = (p.residual_sec or 0.0) * (1 if lane_talks else -1)
+            links.append((other != solution.reference_track_id, other, lane_talks, path))
+    return [
+        (other, talks, path) for _later, other, talks, path in sorted(links, key=lambda x: x[0])
+    ]
 
 
 def _stepped_lanes(
@@ -1938,7 +1931,8 @@ def _stepped_lanes(
     one latency) for the lanes after it, so a lane reached only through another sees that
     lane's own steps removed. A last pass re-solves each lane from every pair it has with
     a placed track. Only lanes the latency solve moves or keeps on latency grounds take
-    part.
+    part. Each pair's steady lag is measured from the lane's media, so where its pieces
+    already sit does not change the answer.
     """
     ref = solution.reference_track_id
     hop = bleed_latency.HOP_SEC
@@ -1958,11 +1952,23 @@ def _stepped_lanes(
 
     def solve(track_id: str, clock: dict[str, np.ndarray]) -> bleed_lag_segments.LagSteps | None:
         media = lanes[track_id]
-        if media is None:
+        found = solution.track(track_id)
+        if media is None or found is None:
             return None
+        pairs = []
+        for other, lane_talks, path in _clock_links(track_id, solution, clock, settings):
+            lag = bleed_lag_segments.steady_lag(
+                media.source,
+                clock[other],
+                lane_talks=lane_talks,
+                near_sec=(found.latency_sec or 0.0) + path - media.shift_sec,
+                settings=settings,
+            )
+            if lag is not None:
+                pairs.append(bleed_lag_segments.BleedPair(clock[other], lane_talks, lag))
         return bleed_lag_segments.lag_segments(
             media.source,
-            _clock_pairs(track_id, media.shift_sec, solution, clock, settings),
+            pairs,
             heard=media.heard,
             heard_peak=media.heard_peak,
             deadband_sec=settings.deadband_sec,
@@ -1981,7 +1987,7 @@ def _stepped_lanes(
         return np.concatenate([np.full(-ahead, LEVEL_FLOOR_DB), envelope])
 
     def linked(track_id: str, clock: dict[str, np.ndarray]) -> int:
-        return len(_clock_pairs(track_id, 0.0, solution, clock, settings))
+        return len(_clock_links(track_id, solution, clock, settings))
 
     clock = {ref: levels[ref]}
     first: dict[str, bleed_lag_segments.LagSteps | None] = {}
