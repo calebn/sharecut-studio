@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 import bleed_helpers as bh
-from podcast_mcp.edits.bleed_lag_segments import LagSegment, lag_segments
+from podcast_mcp.edits.bleed_lag_segments import BleedPair, LagSegment, lag_segments
 from podcast_mcp.edits.bleed_latency import HOP_SEC
 from podcast_mcp.edits.conversation_align import plan_conversation_alignment
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB
@@ -29,6 +29,11 @@ def _stepped() -> dict[str, np.ndarray]:
     return audio
 
 
+def _from(mic: np.ndarray, lag_sec: float) -> list[BleedPair]:
+    """The lane's voice copied onto ``mic``, steady at about ``lag_sec``."""
+    return [BleedPair(mic, lane_talks=True, lag_sec=lag_sec)]
+
+
 def _clips(ws: ProjectWorkspace, track_id: str) -> list[tuple[str, float, float, float]]:
     return [
         (c.id, round(c.source_start, 4), round(c.source_end, 4), round(c.timeline_start, 4))
@@ -41,7 +46,7 @@ def test_latency_step_at_a_silence_is_two_segments() -> None:
     levels = bh.levels(_stepped())
 
     segments = lag_segments(
-        levels["audra"], levels["caleb"], heard=levels["audra"], around_sec=0.14, deadband_sec=0.02
+        levels["audra"], _from(levels["caleb"], 0.14), heard=levels["audra"], deadband_sec=0.02
     )
 
     assert segments is not None
@@ -85,7 +90,7 @@ def test_a_step_is_judged_against_its_merged_neighbours() -> None:
     levels = bh.levels(audio)
 
     segments = lag_segments(
-        levels["audra"], levels["caleb"], heard=levels["audra"], around_sec=0.15, deadband_sec=0.02
+        levels["audra"], _from(levels["caleb"], 0.15), heard=levels["audra"], deadband_sec=0.02
     )
 
     assert segments is not None
@@ -98,7 +103,7 @@ def test_a_step_is_judged_against_its_merged_neighbours() -> None:
 
 def test_a_short_clear_stretch_keeps_its_own_lag() -> None:
     # After a 21 s pause Audra says one 0.6 s phrase 220 ms late, pauses 7 s, and is back
-    # at 140 ms. The phrase has 168 source-dominant frames, all at r ~ 1: plenty to pin its
+    # at 140 ms. The phrase has 169 source-dominant frames, all at r ~ 1: plenty to pin its
     # lag. A fixed 200-frame floor rejected it as a piece, so it borrowed frames from the
     # next phrase and played the start of that phrase 70 ms late.
     audio = bh.tracks(bleed={"caleb": {"audra": 0.0}}, gated=("audra",))
@@ -112,13 +117,13 @@ def test_a_short_clear_stretch_keeps_its_own_lag() -> None:
     levels = bh.levels(audio)
 
     segments = lag_segments(
-        levels["audra"], levels["caleb"], heard=levels["audra"], around_sec=0.15, deadband_sec=0.02
+        levels["audra"], _from(levels["caleb"], 0.15), heard=levels["audra"], deadband_sec=0.02
     )
 
     assert segments is not None
     assert [(round(s.start_sec, 1), round(-s.shift_sec * 1000), s.frames) for s in segments] == [
         (0.0, 140, 8646),
-        (121.7, 220, 168),
+        (121.7, 220, 169),
         (137.7, 140, 3017),
     ]
     assert _worst_error_ms(segments, direct, latency) <= 20.0
@@ -144,13 +149,53 @@ def test_a_blip_is_noise_and_an_easing_is_a_step() -> None:
     source[at : at + 8] = click
     mic[early : early + 8] = click - 20.0
 
-    segments = lag_segments(source, mic, heard=source, around_sec=0.15, deadband_sec=0.02)
+    segments = lag_segments(source, _from(mic, 0.15), heard=source, deadband_sec=0.02)
 
     assert segments is not None
     assert [(round(s.start_sec, 1), round(-s.shift_sec * 1000)) for s in segments] == [
         (0.0, 140),
         (196.6, 200),
         (218.9, 160),
+    ]
+
+
+def test_steps_show_through_the_other_voice_on_the_lane_mic() -> None:
+    # Audra's own voice reaches no other mic, but Caleb's voice reaches hers. Her whole
+    # track is 120 ms late, then 200 ms late after a silence at 111-117 s, so Caleb's copy
+    # on her track steps with it.
+    raw = bh.tracks(bleed={"audra": {"caleb": 0.0}})
+    cut = round(116.6 * bh.RATE)
+    late = np.concatenate([bh.delay(raw["audra"], 0.12)[:cut], bh.delay(raw["audra"], 0.2)[cut:]])
+    levels = bh.levels({"audra": late, "caleb": raw["caleb"]})
+
+    segments = lag_segments(
+        levels["audra"],
+        [BleedPair(levels["caleb"], lane_talks=False, lag_sec=0.15)],
+        heard=levels["audra"],
+        deadband_sec=0.02,
+    )
+
+    assert segments is not None
+    assert [(round(s.start_sec, 2), s.shift_sec, s.gap_sec) for s in segments] == [
+        (0.0, -0.12, None),
+        (114.05, -0.2, (111.015, 117.08)),
+    ]
+
+
+def test_steps_use_a_mic_other_than_the_reference(tmp_path) -> None:
+    # Audra's voice reaches only Lana's mic, and Lana's reaches Caleb's (the reference).
+    # Audra's step shows on the Audra -> Lana pair once Lana sits on the reference clock;
+    # Lana herself is on time and stays one piece.
+    audio = bh.tracks(bleed={"lana": {"audra": 0.0}, "caleb": {"lana": 0.0}}, gated=("audra",))
+    audio["audra"] = bh.relatency(audio["audra"], lambda t: 0.12 if t < RESUMES_SEC else 0.2)
+    ws = bh.workspace(tmp_path, audio)
+
+    result = plan_conversation_alignment(ws.project)
+
+    assert [(p.track_id, p.method, round(p.offset_sec, 3), p.steps) for p in result.plans] == [
+        ("caleb", "reference", 0.0, ()),
+        ("audra", "bleed_lag", -0.12, ((182.6525, -0.2),)),
+        ("lana", "hold", 0.0, ()),
     ]
 
 
@@ -163,9 +208,8 @@ def test_jitter_inside_the_deadband_is_one_segment() -> None:
     assert (
         lag_segments(
             levels["audra"],
-            levels["caleb"],
+            _from(levels["caleb"], 0.12),
             heard=levels["audra"],
-            around_sec=0.12,
             deadband_sec=0.02,
         )
         is None
