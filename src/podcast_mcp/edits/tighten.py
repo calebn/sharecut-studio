@@ -195,7 +195,7 @@ def propose_tighten_edits(
     # Transcript order, not a set: coalescing moves each track's decisions to the
     # end, so the proposal's order must not depend on string hashing.
     for track_id in dict.fromkeys(t.track_id for t in project.transcripts):
-        coalesce_edits(project, track_id=track_id)
+        coalesce_edits(project, track_id=track_id, defaults=cfg)
     this_run = [e for e in project.edit_decisions if e.id in proposed_ids]
     return TightenProposal(decisions=this_run, skip_counts=dict(skip_counts))
 

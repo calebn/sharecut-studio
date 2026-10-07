@@ -12,6 +12,7 @@ from podcast_mcp.edits.edit_reasons import (
     NL_UTTERANCE_REASON_PREFIX,
     NL_WORDS_REASON,
 )
+from podcast_mcp.edits.filler_pacing import paced_pad_for_span
 from podcast_mcp.edits.inaudible_cuts import optimize_source_cut_range
 from podcast_mcp.edits.tighten_reasons import is_review_only_reason
 from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
@@ -342,7 +343,7 @@ def add_remove_decision(
         scope=scope,
     )
     project.edit_decisions.append(decision)
-    coalesce_edits(project, track_id=track_id)
+    coalesce_edits(project, track_id=track_id, defaults=cfg)
     return decision
 
 
@@ -351,8 +352,13 @@ def coalesce_edits(
     *,
     track_id: str | None = None,
     merge_gap_sec: float = 0.05,
+    defaults: dict[str, Any] | None = None,
 ) -> int:
-    """Merge overlapping/adjacent same-track REMOVE/MUTE decisions with matching boundary modes."""
+    """Merge overlapping/adjacent same-track REMOVE/MUTE decisions with matching boundary modes.
+
+    A merged cut that any padded cut went into is padded again from the merged span
+    (``defaults`` supplies the pacing rule; see :func:`_merged_pad_sec`).
+    """
     mergeable = (EditDecisionType.REMOVE, EditDecisionType.MUTE)
     by_key: dict[tuple[str, EditDecisionType], list[EditDecision]] = {}
     other: list[EditDecision] = []
@@ -371,9 +377,10 @@ def coalesce_edits(
         edits.sort(key=lambda x: x.start)
         if not edits:
             continue
-        stack = [edits[0]]
+        groups: list[list[EditDecision]] = [[edits[0]]]
         for e in edits[1:]:
-            top = stack[-1]
+            group = groups[-1]
+            top = group[0]
             if (
                 e.start <= top.end + merge_gap_sec
                 and top.boundary_mode == e.boundary_mode
@@ -385,14 +392,40 @@ def coalesce_edits(
                 top.end = max(top.end, e.end)
                 if e.review_required:
                     top.review_required = True
-                if e.replace_gap_sec is not None:
-                    top.replace_gap_sec = max(top.replace_gap_sec or 0.0, e.replace_gap_sec)
+                group.append(e)
                 merged_count += 1
             else:
-                stack.append(e)
-        result.extend(stack)
+                groups.append([e])
+        for group in groups:
+            if len(group) > 1:
+                group[0].replace_gap_sec = _merged_pad_sec(project, group, defaults)
+            result.append(group[0])
     project.edit_decisions = result
     return merged_count
+
+
+def _merged_pad_sec(
+    project: EpisodeProject, group: list[EditDecision], defaults: dict[str, Any] | None
+) -> float | None:
+    """The pad for the cut ``group`` merged into; ``group[0]`` already spans the merge.
+
+    Padded filler and NL cuts are paced again from the merged span, so a cut that now
+    removes more is padded for what it removes instead of keeping the larger old pad
+    (#1129). A pause's pad is not paced: it makes up a retained stretch that earlier
+    ripples shortened, so the largest of those is kept beside the paced pad.
+    """
+    padded = [e for e in group if e.replace_gap_sec is not None]
+    shortfalls = [e.replace_gap_sec or 0.0 for e in padded if _is_pause(e)]
+    pad_sec = max(shortfalls, default=0.0)
+    if len(shortfalls) < len(padded):
+        top = group[0]
+        paced = paced_pad_for_span(project, top.track_id, top.start, top.end, defaults)
+        pad_sec = max(pad_sec, paced.seconds(top.start, top.end))
+    return pad_sec if pad_sec > 0 else None
+
+
+def _is_pause(edit: EditDecision) -> bool:
+    return (edit.reason or "").startswith("pause:")
 
 
 def _keeps_independent_review(left: EditDecision, right: EditDecision) -> bool:
