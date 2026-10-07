@@ -918,6 +918,46 @@ stateDiagram-v2
 | Full room | "This room is full (4 recorded / 2 producers)." |
 | Declined | "You declined recording. You can wait in the lobby, or the host can invite you as a producer (listen only)." |
 
+### Host Record room panel
+
+The host panel offers only actions that can succeed and says why the rest
+cannot. Every button runs the same `record.*` command as the palette.
+
+- **No room.** When `GET /api/record/state` reports no room (404), the panel
+  drops any stale snapshot and shows "No record room yet. Creating one copies a
+  guest link you can send." with **Create record room** (`record.createRoom`).
+  It mints the guest and producer links in place, copies the guest link and
+  loads the room; the same mint as Share's **Create record links**, CLI
+  `podcast review share --kind record` and MCP `create_record_room_tool`.
+- **One take control.** Lobby and stopped rooms show **Start**, a recording
+  room **Pause**, a paused room **Resume** (`TAKE_CONTROL` in
+  `record/hostControls.ts`). Pause and Resume are never shown together.
+- **Start blockers.** A disabled Start lists its reasons right under it
+  (`aria-describedby`): "No guest has joined yet. Send them the guest link." with
+  **Copy guest link** (`record.copyGuestLink`, the room's live guest link),
+  "Waiting for {name} to accept recording.", the local backup preflight (with
+  **Retry local backup** when it failed) and "Recording room tone. Start is
+  available when it finishes."
+- **Stop.** Stop sits alone at the end of the controls behind a divider and asks
+  once: "Stop this take? Recording ends for everyone in the room." with **Keep
+  recording** (focused) and **Stop take**. Keep returns focus to Stop. The
+  palette's **Stop recording** runs without the question.
+- **Land.** Shown once the room has a take. It is disabled with its reason beside
+  it while a take is open ("Stop the take to land it on the timeline."), while
+  recordings are still saving ("Recordings are still saving to the project."),
+  before anything arrived ("No recordings have reached the project yet.") and
+  when everything landed ("Every take is on the timeline."). It turns into
+  **Retry land** after a failed land, and also lands unlanded live comments.
+  `record.land` refuses an open take with the same reason (`landGate`).
+- Mute my mic, the take control, Land, the blockers and Stop stay in a sticky
+  footer of the scrolling panel, so they remain in reach on a phone, with
+  44 px targets on touch. **Copy links…** (open Share) sits just above it.
+  After **Create record room** or **Copy guest link** the footer repeats the
+  announcement ("Guest link copied") as visible text.
+- If the room lookup fails, the error comes with **Check again**.
+- Live comments announce what a new comment says ("Sam: Cut the cough"), never a
+  count. Comments present when the panel opens and your own stay silent.
+
 ## Host offline and disconnect
 
 Guest keeps recording locally **when the segment is still open** (tunnel/host
@@ -1131,7 +1171,11 @@ row; `mutate_snapshot` and `reset` are transactional too (#332).
 
 Locked for the lobby PR: roles from the token; host-only Start/Pause/Resume/Stop;
 Start blocked until connected guests have `consented is True` (`None` pending;
-`False` declined does not block; `"No one has joined"` when no connected guest);
+`False` declined does not block). The snapshot's `start_blockers` is a list of
+`{"code": "no_guest"}` (no connected guest) or `{"code": "consent_pending",
+"participant_id", "display_name"}` rows; clients word them, and a refused Start
+reads "cannot start: no guest has joined" or "cannot start: Ava has not accepted
+recording";
 room caps 4 recorded / 2 producers; host Join auto-consents as `p_host`; no host
 admit step. Each take's `consented_participant_ids` roster (set at Start,
 updated by mid-take Accept/Decline) gates that take's guest keeper uploads

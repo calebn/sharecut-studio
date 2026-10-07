@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, NotRequired, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -148,13 +148,40 @@ def producer_count(snap: RecordSnapshot) -> int:
     return sum(1 for p in snap.participants if p.role == "producer" and _live(p))
 
 
-def start_blockers(snap: RecordSnapshot) -> list[str]:
-    """Display names / reasons that block host Start."""
+class StartBlocker(TypedDict):
+    """One reason host Start is refused; clients word it and offer its fix."""
+
+    code: Literal["no_guest", "consent_pending"]
+    participant_id: NotRequired[str]
+    display_name: NotRequired[str]
+
+
+def start_blockers(snap: RecordSnapshot) -> list[StartBlocker]:
+    """Why host Start is refused: no connected guest, or recorded people yet to accept."""
     guests = [p for p in snap.participants if p.role == "guest" and _live(p)]
     if not guests:
-        return ["No one has joined"]
+        return [{"code": "no_guest"}]
     recorded = [p for p in snap.participants if p.role in RECORDED_ROLES and _live(p)]
-    return [p.display_name for p in recorded if p.consented is None]
+    return [
+        {
+            "code": "consent_pending",
+            "participant_id": p.participant_id,
+            "display_name": p.display_name,
+        }
+        for p in recorded
+        if p.consented is None
+    ]
+
+
+def describe_start_blockers(blockers: list[StartBlocker]) -> str:
+    """One sentence for a refused Start (CLI, MCP and HTTP errors)."""
+    parts = [
+        "no guest has joined"
+        if row["code"] == "no_guest"
+        else f"{row.get('display_name', '')} has not accepted recording"
+        for row in blockers
+    ]
+    return "cannot start: " + "; ".join(parts)
 
 
 def take_consented_participant_ids(snap: RecordSnapshot) -> list[str]:

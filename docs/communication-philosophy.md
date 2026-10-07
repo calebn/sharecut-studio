@@ -46,7 +46,7 @@ make them feel the software is fragile.
     addresses for machines, never labels for people. (Surface 2)
 - Pair every problem statement with its fix.
   - Do: blockers as a list under the Start button, each with its fix
-    action ("No one has joined" → "Copy invite links"). (Surface 1)
+    action ("No guest has joined yet" → "Copy guest link"). (Surface 1)
   - Don't: a comma-joined wall of blockers far from the button they
     gate. (Surface 1)
 - Teach in the empty moment, then get out of the way.
@@ -74,7 +74,9 @@ to UX partners; for UI copy, this table wins.
 | Allow AI assistants (MCP) | The opt-in control that mints an MCP URL. Helper text: "Paste into an MCP client such as Claude or ChatGPT. The assistant gets this link's permissions." | "Allow agent" |
 | Take | One continuous recording pass | "clip" for a recording pass |
 | Lobby | Pre-recording staging state | "waiting room" |
-| Land | Finish a recording and ingest the takes | "save", "finalize" |
+| Land | Finish a recording and ingest the takes. Disabled with its reason beside it until there is something to land; "Retry land" after a failed land | "save", "finalize" |
+| Stop take | End the open take for everyone in the record room. Stop sits alone behind a divider and asks once: "Stop this take? Recording ends for everyone in the room." [Keep recording] [Stop take] | "End take", "Finish recording" |
+| Start blocker | One reason Start is disabled, listed under Start with its fix when the host has one: "No guest has joined yet." [Copy guest link], "Waiting for Ava to accept recording." | a comma-joined list of bare names |
 | Full-quality recording | Each participant's lossless recording, captured on their own device and uploaded to the project during the session. Its status reads "Saving to project…", then "Saved to project" | "keeper", "local recording", "backup" |
 | Room tone | The ambient-noise capture step | — |
 | Tighten hit | One candidate tightening decision | — |
@@ -170,8 +172,9 @@ the empty state, not a separate discovery task.
 
 - Do: "No tracks yet. Import Audio adds one dialogue track per
   file." [Import audio]
-- Do: "No live record rooms." [Create record links] (replaces the
-  "Mint a record room from Share…" dead end — Surface 1)
+- Do: "No record room yet. Creating one copies a guest link you can
+  send." [Create record room] (replaces the "Mint a record room from
+  Share…" dead end — Surface 1)
 - Don't: bare "No comments in this filter." with no path back to the
   unfiltered list. (Surface 6 copy inconsistency)
 - Keep voice consistent: "No {things} yet" + action. Audit existing
@@ -422,3 +425,6 @@ shipped, and the text says so. The adjacent MCP note shipped in #1027.
   place with `ui/InlineConfirm` (Keep first, danger last), the MCP opt-in
   shows its consequence note, and the example confirm lists Keep first. Six
   native dialogs remain for #1031.
+- 2026-10-07 — Added "Stop take" and "Start blocker" and tightened "Land"
+  (#1026): the Record room panel's in-place empty state, one take control,
+  Stop's one-time question, and Land and Start reasons in place.

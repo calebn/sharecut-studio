@@ -444,6 +444,22 @@ export async function clickHostTransport(
   await ensureHostRecordCommand(host, projectPath, commandType, expectedState);
 }
 
+/** Stop asks once in its own row; answer it and wait for the room to stop. */
+export async function stopHostTake(
+  host: Page,
+  roomDlg: Locator,
+  projectPath: string,
+): Promise<void> {
+  await roomDlg.getByRole("button", { name: "Stop", exact: true }).click();
+  await clickHostTransport(
+    host,
+    roomDlg.getByRole("button", { name: "Stop take", exact: true }),
+    projectPath,
+    "Stop",
+    "stopped",
+  );
+}
+
 /** Open the host's Record room dialog from the app menu and wait for it. */
 export async function openHostRecordRoom(host: Page): Promise<Locator> {
   await host.getByRole("button", { name: "Menu" }).click();

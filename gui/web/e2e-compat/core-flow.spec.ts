@@ -16,6 +16,7 @@ import {
   markSharecutE2e,
   openHostRecordRoom,
   recordParticipantId,
+  stopHostTake,
   waitForSegmentsAcked,
 } from "../e2e/recordRoom";
 import { withShareableProject } from "../e2e/shareableProject";
@@ -93,13 +94,7 @@ test.describe("core flow", () => {
               .poll(() => keeperWavBytes(guest), { timeout: 30_000 })
               .toBeGreaterThan(ONE_SECOND_KEEPER_WAV_BYTES);
 
-            await clickHostTransport(
-              host,
-              roomDlg.getByRole("button", { name: "Stop", exact: true }),
-              projectPath,
-              "Stop",
-              "stopped",
-            );
+            await stopHostTake(host, roomDlg, projectPath);
             await expect(guest.locator(".record-rec-label")).toHaveText(
               "Stopped",
             );

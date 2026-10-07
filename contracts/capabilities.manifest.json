@@ -1349,6 +1349,59 @@
       }
     },
     {
+      "id": "daw.record.createRoom",
+      "label": "Create record room",
+      "service": "ShareService",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "command": "record.createRoom",
+        "gui": [
+          "RecordPanel"
+        ],
+        "cli": "podcast review share --kind record",
+        "mcp": [
+          "create_record_room_tool"
+        ],
+        "skill": "podcast-record-session"
+      },
+      "omit": {
+        "keyboard_reason": "empty-state action in the Record room panel",
+        "guest": true
+      },
+      "tooltip": "Create record room",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.record.copyGuestLink",
+      "label": "Copy guest link",
+      "service": "ShareService",
+      "industry_standard_key": false,
+      "gates": [
+        "hostProjectLoaded"
+      ],
+      "surfaces": {
+        "command": "record.copyGuestLink",
+        "gui": [
+          "RecordPanel"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "Start blocker fix in the Record room panel",
+        "guest": true
+      },
+      "tooltip": "Copy guest link",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.record.start",
       "label": "Start recording",
       "service": "RecordSessionService",
@@ -1983,7 +2036,6 @@
           "list_review_versions_tool",
           "set_active_review_version_tool",
           "create_review_share_tool",
-          "create_record_room_tool",
           "revoke_record_room_tool"
         ],
         "cli": "podcast review",

@@ -118,3 +118,74 @@
   font-size: var(--font-size-caption);
   color: var(--color-text-secondary);
 }
+
+/* An empty or visually hidden live region keeps its place for announcements but adds no gap. */
+.record-panel :is(.stack > :empty, .stack > .sr-only + *) {
+  margin-block-start: 0;
+}
+
+/* Take controls stay in reach at the bottom of the scrolling panel. */
+.record-controls {
+  position: sticky;
+  inset-block-end: 0;
+  padding-block: var(--space-4) var(--space-1);
+  border-block-start: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-overlay);
+
+  --stack-space: var(--space-3);
+}
+
+.record-blockers {
+  margin: 0;
+  font-size: var(--font-size-caption);
+  color: var(--color-text-secondary);
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.record-blockers li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+/* Danger gets distance: Stop has its own row behind a divider, at the far end. */
+.record-stop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--color-border-subtle);
+}
+
+.record-stop-prompt {
+  margin: 0;
+  flex: 1 1 14rem;
+}
+
+.record-stop-actions {
+  justify-content: flex-end;
+}
+
+.record-mute {
+  gap: var(--space-3);
+  min-block-size: var(--touch-min);
+}
+
+/* Panel actions keep the 44 px floor on touch. */
+@media (pointer: coarse) {
+  :is(.record-empty, .record-controls) .ui-control {
+    min-block-size: var(--touch-min);
+  }
+}
+
+html[data-shell="phone"] :is(.record-empty, .record-controls) .ui-control {
+  min-block-size: var(--touch-min);
+}

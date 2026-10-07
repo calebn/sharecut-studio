@@ -54,6 +54,11 @@ export type TakeState = {
   consented_participant_ids?: string[] | null;
 };
 
+/** Why host Start is refused (server `start_blockers`); the panel words each one. */
+export type StartBlocker =
+  | { code: "no_guest" }
+  | { code: "consent_pending"; participant_id: string; display_name: string };
+
 export type RecordSnapshot = {
   session_id: string;
   state: RecordRoomState;
@@ -61,7 +66,7 @@ export type RecordSnapshot = {
   recording_ms?: number;
   /** Derived current take origin; null outside recording/paused. */
   timeline_start_sec?: number | null;
-  start_blockers?: string[];
+  start_blockers?: StartBlocker[];
   participants: RecordParticipant[];
   caps: { recorded: number; producers: number };
   server_time_ns?: number;

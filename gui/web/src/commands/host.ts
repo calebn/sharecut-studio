@@ -1,5 +1,7 @@
 import {
   hostLandRecord,
+  listHostShares,
+  loadHostRecordState,
   startExportJob,
   startRenderPreview,
   waitForPipelineJob,
@@ -10,6 +12,7 @@ import {
   hasFeature,
   peekCachedFeatures,
 } from "../extensions/features";
+import { landGate } from "../record/hostControls";
 import { useRecordHostStore } from "../record/hostStore";
 import { submitHostRecordTransport } from "../record/hostTransport";
 import { sendRecordHostCommand } from "../record/hostWire";
@@ -19,6 +22,11 @@ import {
   MARKER_BODY,
   postLiveComment,
 } from "../record/liveCommentQueue";
+import {
+  activeGuestLink,
+  copyText,
+  createRecordRoomAndCopyGuestLink,
+} from "../record/recordLinks";
 import { canManageProjects, canRefreshMix } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { projectScopedSignal } from "../state/projectScopedSignal";
@@ -36,6 +44,18 @@ export function hostProjectGate(ctx: CommandContext): ExecuteResult | null {
   const gate = evaluateWhen("hostProjectLoaded", ctx);
   return gate.ok ? null : { status: "disabled", reason: gate.reason };
 }
+/** Share and record rooms live in the collaboration extension; absent until features load says so. */
+function shareFeatureGate(what: string): ExecuteResult | null {
+  const features = peekCachedFeatures();
+  if (features !== null && !hasFeature(features, FEATURE_SHARE_UI_MENU)) {
+    return {
+      status: "disabled",
+      reason: `${what} requires the online extension`,
+    };
+  }
+  return null;
+}
+
 /**
  * Keep a failed record command visible. An open Record room panel shows it in its
  * aria-live region, so it is not announced again. Otherwise it is announced, then
@@ -179,19 +199,11 @@ export function registerHostCommands(): void {
   });
 
   registerCommand("share.manage", (_args, ctx) => {
-    const blocked = hostProjectGate(ctx);
+    const blocked = hostProjectGate(ctx) ?? shareFeatureGate("Share");
     if (blocked) {
       return blocked;
     }
-    const s = useDawStore.getState();
-    const features = peekCachedFeatures();
-    if (features !== null && !hasFeature(features, FEATURE_SHARE_UI_MENU)) {
-      return {
-        status: "disabled",
-        reason: "Share requires the online extension",
-      };
-    }
-    s.setShareDialogOpen(true);
+    useDawStore.getState().setShareDialogOpen(true);
     return { status: "ok" };
   });
 
@@ -204,6 +216,57 @@ export function registerHostCommands(): void {
     return { status: "ok" };
   });
 
+  registerCommand("record.createRoom", (_args, ctx) => {
+    const blocked = hostProjectGate(ctx) ?? shareFeatureGate("Record rooms");
+    if (blocked) {
+      return blocked;
+    }
+    if (useRecordHostStore.getState().snapshot) {
+      return {
+        status: "disabled",
+        reason: "A record room is already open. End it in Share first.",
+      };
+    }
+    const s = useDawStore.getState();
+    return runRecordCommand(async () => {
+      const { copied } = await createRecordRoomAndCopyGuestLink(s.projectPath);
+      const snap = await loadHostRecordState(s.projectPath);
+      if (snap) {
+        useRecordHostStore.getState().setSnapshot(snap);
+      }
+      s.announceStatus(
+        copied
+          ? "Record room created and guest link copied"
+          : "Record room created",
+      );
+      return { status: "ok" };
+    });
+  });
+
+  registerCommand("record.copyGuestLink", (_args, ctx) => {
+    const blocked = hostProjectGate(ctx);
+    if (blocked) {
+      return blocked;
+    }
+    const snap = useRecordHostStore.getState().snapshot;
+    if (!snap) {
+      return { status: "disabled", reason: "Create a record room first." };
+    }
+    const s = useDawStore.getState();
+    return runRecordCommand(async () => {
+      const { shares } = await listHostShares(s.projectPath);
+      const url = activeGuestLink(shares, snap.session_id);
+      if (!url) {
+        throw new Error(
+          "This room's guest link is closed. Replace the guest invite in Share.",
+        );
+      }
+      await copyText(url);
+      s.announceStatus("Guest link copied");
+      return { status: "ok" };
+    });
+  });
+
   registerCommand("record.start", () => runRecordTransportCommand("Start"));
   registerCommand("record.pause", () => runRecordTransportCommand("Pause"));
   registerCommand("record.resume", () => runRecordTransportCommand("Resume"));
@@ -212,6 +275,11 @@ export function registerHostCommands(): void {
     const s = useDawStore.getState();
     if (!canManageProjects(s.projectPath)) {
       return { status: "disabled", reason: "Landing keepers is host-only" };
+    }
+    const snap = useRecordHostStore.getState().snapshot;
+    const gate = snap ? landGate(snap, null) : null;
+    if (gate && !gate.enabled) {
+      return { status: "disabled", reason: gate.reason };
     }
     return runRecordCommand(async () => {
       const result = await hostLandRecord(s.projectPath);

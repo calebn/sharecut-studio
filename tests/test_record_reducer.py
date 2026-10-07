@@ -59,8 +59,10 @@ def test_start_blocked_by_unconsented_guest() -> None:
     snap = empty_record_snapshot("sess")
     snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
     snap = _join(snap, pid="p_g", role="guest", name="Ava", now=1, seq=2)
-    assert start_blockers(snap) == ["Ava"]
-    with pytest.raises(RecordStateError, match="waiting for consent"):
+    assert start_blockers(snap) == [
+        {"code": "consent_pending", "participant_id": "p_g", "display_name": "Ava"}
+    ]
+    with pytest.raises(RecordStateError, match=r"^cannot start: Ava has not accepted recording$"):
         apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=2)
 
 
@@ -94,8 +96,10 @@ def test_rejoined_guest_must_consent_again_before_start() -> None:
     snap = apply_record_command(snap, _cmd("Leave", pid="p_g", seq=4), now_wall_ms=3)
     snap = _join(snap, pid="p_g", role="guest", name="Ava", now=4, seq=5)
     assert next(p for p in snap.participants if p.participant_id == "p_g").consented is None
-    assert start_blockers(snap) == ["Ava"]
-    with pytest.raises(RecordStateError, match="waiting for consent"):
+    assert start_blockers(snap) == [
+        {"code": "consent_pending", "participant_id": "p_g", "display_name": "Ava"}
+    ]
+    with pytest.raises(RecordStateError, match="Ava has not accepted recording"):
         apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=5)
     snap = apply_record_command(
         snap,
@@ -115,14 +119,16 @@ def test_join_requires_fresh_consent_even_before_disconnect_is_observed() -> Non
         now_wall_ms=2,
     )
     snap = _join(snap, pid="p_g", role="guest", name="Ava", now=3, seq=4)
-    assert start_blockers(snap) == ["Ava"]
+    assert start_blockers(snap) == [
+        {"code": "consent_pending", "participant_id": "p_g", "display_name": "Ava"}
+    ]
 
 
 def test_start_blocked_when_nobody_joined() -> None:
     snap = empty_record_snapshot("sess")
     snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
-    assert start_blockers(snap) == ["No one has joined"]
-    with pytest.raises(RecordStateError, match="No one has joined"):
+    assert start_blockers(snap) == [{"code": "no_guest"}]
+    with pytest.raises(RecordStateError, match=r"^cannot start: no guest has joined$"):
         apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=1)
 
 

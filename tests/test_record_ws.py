@@ -168,7 +168,7 @@ def test_guest_consent_seq_not_collapsed_by_host_cli_seq(
     """Host CLI Start burns a global seq; guest Join must still use frame seq 1."""
     ws, room, _client = _room(minimal_project, sample_wav, tmp_workspace, monkeypatch)
     ctrl = RecordControlService(ws)
-    with pytest.raises(RecordStateError, match="waiting for consent"):
+    with pytest.raises(RecordStateError, match=r"^cannot start: no guest has joined$"):
         ctrl.start()
     svc = RecordSessionService(ws.project, session_id=room["session_id"])
     echo, _snap = svc.join(

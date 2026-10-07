@@ -17,6 +17,8 @@ type Props = {
   onRecord: () => void;
   onSkip: () => void;
   onRetry: () => void;
+  /** False where another control is the view's primary action (the host's Start). */
+  primary?: boolean;
 };
 
 export function RoomToneCapture({
@@ -27,6 +29,7 @@ export function RoomToneCapture({
   onRecord,
   onSkip,
   onRetry,
+  primary = true,
 }: Props) {
   const headingId = useId();
   const hintId = useId();
@@ -52,7 +55,7 @@ export function RoomToneCapture({
       </p>
       <div className="cluster">
         <Button
-          variant="primary"
+          variant={primary ? "primary" : "default"}
           type="button"
           onClick={onRecord}
           disabled={!canRecord}

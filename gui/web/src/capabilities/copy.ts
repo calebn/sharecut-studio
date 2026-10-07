@@ -240,6 +240,14 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Share…",
     tooltip: "Share…",
   },
+  "daw.record.createRoom": {
+    label: "Create record room",
+    tooltip: "Create record room",
+  },
+  "daw.record.copyGuestLink": {
+    label: "Copy guest link",
+    tooltip: "Copy guest link",
+  },
   "daw.record.start": {
     label: "Start recording",
     tooltip: "Start recording",

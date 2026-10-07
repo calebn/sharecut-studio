@@ -34,6 +34,7 @@ import {
   openRecordLink,
   readSavedProject,
   recordParticipantId,
+  stopHostTake,
   waitForSegmentsAcked,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
@@ -209,7 +210,14 @@ test.describe("record lobby", () => {
           await expect(
             roomDlg.getByRole("button", { name: "Start", exact: true }),
           ).toBeDisabled();
-          await expect(host.getByText("No one has joined")).toBeVisible();
+          await expect(
+            roomDlg.getByText(
+              "No guest has joined yet. Send them the guest link.",
+            ),
+          ).toBeVisible();
+          await expect(
+            roomDlg.getByRole("button", { name: "Copy guest link" }),
+          ).toBeVisible();
 
           await markSharecutE2e(guest);
           const heldRoomFrames: Array<string | Buffer> = [];
@@ -439,13 +447,7 @@ test.describe("record lobby", () => {
           );
           await expect(guest.locator(".record-rec-label")).toHaveText("REC");
           await expect(guest.getByText("Hearing the room.")).toBeVisible();
-          await clickHostTransport(
-            host,
-            roomDlg.getByRole("button", { name: "Stop", exact: true }),
-            projectPath,
-            "Stop",
-            "stopped",
-          );
+          await stopHostTake(host, roomDlg, projectPath);
           await expect(guest.locator(".record-rec-label")).toHaveText(
             "Stopped",
           );
@@ -792,13 +794,7 @@ test.describe("record lobby", () => {
           ),
         ).toHaveCount(0);
 
-        await clickHostTransport(
-          host,
-          roomDlg.getByRole("button", { name: "Stop", exact: true }),
-          projectPath,
-          "Stop",
-          "stopped",
-        );
+        await stopHostTake(host, roomDlg, projectPath);
         await expect(indicator).toContainText("Stopped");
       });
     });
@@ -842,13 +838,7 @@ test.describe("record lobby", () => {
         const ctx = guest.context();
         await guest.close({ runBeforeUnload: false });
 
-        await clickHostTransport(
-          host,
-          roomDlg.getByRole("button", { name: "Stop", exact: true }),
-          projectPath,
-          "Stop",
-          "stopped",
-        );
+        await stopHostTake(host, roomDlg, projectPath);
 
         const reopened = await ctx.newPage();
         await markSharecutE2e(reopened);
@@ -1163,13 +1153,7 @@ test.describe("record lobby", () => {
             .poll(() => keeperWavBytes(guest), { timeout: 30_000 })
             .toBeGreaterThan(ONE_SECOND_KEEPER_WAV_BYTES);
 
-          await clickHostTransport(
-            host,
-            roomDlg.getByRole("button", { name: "Stop", exact: true }),
-            projectPath,
-            "Stop",
-            "stopped",
-          );
+          await stopHostTake(host, roomDlg, projectPath);
           await expect(guest.locator(".record-rec-label")).toHaveText(
             "Stopped",
           );
