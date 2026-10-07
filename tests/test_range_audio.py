@@ -13,9 +13,10 @@ from podcast_mcp.models.episode import ExactRangeTarget, RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import PlayService
 from podcast_mcp.services.media.bounce import BounceRequest, BounceService
+from podcast_mcp.util.binaries import resolve_ffmpeg
 
 
-def seed(minimal_project):
+def seed(minimal_project, ext="wav"):
     ws = ProjectWorkspace.open(minimal_project)
     raw = ws.project.workspace_path() / "raw" / "tone.wav"
     raw.parent.mkdir(exist_ok=True)
@@ -27,24 +28,31 @@ def seed(minimal_project):
         audio.setsampwidth(2)
         audio.setframerate(48000)
         audio.writeframes(samples.tobytes())
-    ws.project.tracks = [Track(id="a", label="A", media=MediaAsset(path="raw/tone.wav"))]
+    media_path = raw
+    if ext != "wav":
+        media_path = raw.with_suffix(f".{ext}")
+        subprocess.run(
+            [resolve_ffmpeg(), "-y", "-v", "error", "-i", str(raw), str(media_path)], check=True
+        )
+    ws.project.tracks = [Track(id="a", label="A", media=MediaAsset(path=f"raw/{media_path.name}"))]
     ws.project.clips = [
         Clip(id="a-full", track_id="a", source_start=0, source_end=6, timeline_start=0)
     ]
     ws.project.timeline.duration_sec = 6
     spans = [RangeInterval(start=1, end=2), RangeInterval(start=4, end=5)]
-    target = ExactRangeTarget(
+    return ws, exact_target(ws, spans), raw
+
+
+def exact_target(ws, spans):
+    return ExactRangeTarget(
         intervals=spans,
         track_ids=["a"],
         clips=range_geometry(ws.project, spans, ["a"]),
         media_seals={"a": range_media_seal(ws.project, "a")},
     )
-    return ws, target, raw
 
 
 def pcm(path):
-    from podcast_mcp.util.binaries import resolve_ffmpeg
-
     decoded = subprocess.run(
         [
             resolve_ffmpeg(),
@@ -66,6 +74,40 @@ def pcm(path):
     samples = array.array("h")
     samples.frombytes(decoded.stdout)
     return samples
+
+
+@pytest.mark.parametrize("ext", ["wav", "m4a"])
+@pytest.mark.parametrize("action", ["pending_suggested", "play_after_cut", "bounce_after_cut"])
+def test_exact_window_keeps_the_hole_before_a_seeked_clip_to_the_sample(
+    minimal_project, action, ext
+):
+    from podcast_mcp.edits.range_edits import edit_selected_range
+
+    ws, target, _raw = seed(minimal_project, ext)
+    play = PlayService(ws)
+    if action == "pending_suggested":
+        edit_selected_range(
+            ws.project, target, "cut", propose=True, reason="guest:range", action_id="proposal"
+        )
+        output = play.play_pending_preview("proposal", pad_sec=0, dry_run=True).wav_path
+        seconds, tail_loud = 4, False
+    else:
+        edit_selected_range(
+            ws.project, target, "cut", propose=False, reason="host:range", action_id="cut"
+        )
+        after = exact_target(ws, [RangeInterval(start=1, end=4)])
+        if action == "bounce_after_cut":
+            output = BounceService(ws).bounce(BounceRequest(exact_range=after))[0]
+        else:
+            output = play.play_selected_range(after)
+        seconds, tail_loud = 3, True
+    samples = pcm(output)
+    # The cut leaves the clip holding source 2 s to 4 s on the timeline from 2 s, so a 1 s
+    # hole opens every window that starts at 1 s.
+    assert len(samples) == seconds * 48000
+    assert max(abs(v) for v in samples[:48000]) == 0
+    assert max(abs(v) for v in samples[48000 + 10 : 48000 + 480]) > 7000
+    assert (max(abs(v) for v in samples[-480:]) > 7000) is tail_loud
 
 
 @pytest.mark.parametrize("action", ["play", "bounce", "guest_play"])

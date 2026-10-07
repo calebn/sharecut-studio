@@ -17,9 +17,9 @@ import numpy as np
 import pytest
 
 from podcast_mcp.engines.align import load_mono_window
-from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
 from podcast_mcp.engines.media_seek import MediaSeek
-from podcast_mcp.engines.timeline_render import render_track_from_timeline
+from podcast_mcp.engines.timeline_render import render_track_from_timeline, render_track_segment
 from podcast_mcp.models import (
     Clip,
     ClipMuteRegion,
@@ -173,3 +173,113 @@ def test_media_seek_prerolls_from_a_whole_second_and_trims_by_timestamp() -> Non
     assert near_start.input_args() == []
     assert near_start.output_args() == ["-ss", "0.400000"]
     assert MediaSeek.at(0.0).output_args(2.0) == ["-t", "2.000000"]
+
+
+LEAD_IN_CONTAINERS = ("wav", "m4a")
+LEAD_IN_SEC = 1.0
+LEAD_IN_SAMPLES = 48_000
+# The speech click is source sample 155 259; a segment that starts at 2.0 s (sample
+# 96 000) holds it 59 259 samples in.
+CLICK_AFTER_2S = SPEECH_CLICK - 2 * SR
+
+
+def _render_placed(
+    path: Path,
+    out: Path,
+    placed: list[PlacedSegment],
+    *,
+    lead_in_sec: float,
+    duration_sec: float,
+) -> np.ndarray:
+    FFmpegEngine().render_timeline(
+        path, out, placed, "anull", lead_in_sec=lead_in_sec, output_duration_sec=duration_sec
+    )
+    return _decode(out)
+
+
+def _assert_silent_until(samples: np.ndarray, end: int) -> None:
+    assert np.count_nonzero(samples[:end]) == 0
+
+
+@pytest.mark.parametrize("ext", LEAD_IN_CONTAINERS)
+def test_render_timeline_lead_in_before_a_seeked_segment_is_exact(
+    media: dict[str, Path], tmp_path: Path, ext: str
+) -> None:
+    rendered = _render_placed(
+        media[ext],
+        tmp_path / "out.wav",
+        [PlacedSegment(src_start=2.0, src_end=4.0)],
+        lead_in_sec=LEAD_IN_SEC,
+        duration_sec=4.0,
+    )
+    assert len(rendered) == 192_000
+    _assert_silent_until(rendered, LEAD_IN_SAMPLES)
+    assert _click_near(rendered, 107_259) == LEAD_IN_SAMPLES + CLICK_AFTER_2S
+
+
+@pytest.mark.parametrize("ext", LEAD_IN_CONTAINERS)
+def test_render_timeline_lead_in_then_gap_keeps_both_silences_exact(
+    media: dict[str, Path], tmp_path: Path, ext: str
+) -> None:
+    rendered = _render_placed(
+        media[ext],
+        tmp_path / "out.wav",
+        [
+            PlacedSegment(src_start=2.0, src_end=2.5),
+            PlacedSegment(src_start=3.0, src_end=4.0, gap_before_sec=0.25),
+        ],
+        lead_in_sec=LEAD_IN_SEC,
+        duration_sec=3.0,
+    )
+    assert len(rendered) == 144_000
+    _assert_silent_until(rendered, LEAD_IN_SAMPLES)
+    second_segment = LEAD_IN_SAMPLES + 24_000 + 12_000  # lead-in, 0.5 s, 0.25 s gap
+    assert _click_near(rendered, second_segment) == second_segment + SPEECH_CLICK - 3 * SR
+    gap = rendered[LEAD_IN_SAMPLES + 24_000 : second_segment]
+    assert np.count_nonzero(gap) == 0
+
+
+@pytest.mark.parametrize("ext", LEAD_IN_CONTAINERS)
+def test_render_timeline_lead_in_then_overlap_keeps_the_overlap_start_exact(
+    media: dict[str, Path], tmp_path: Path, ext: str
+) -> None:
+    rendered = _render_placed(
+        media[ext],
+        tmp_path / "out.wav",
+        [
+            PlacedSegment(src_start=2.0, src_end=3.0),
+            PlacedSegment(src_start=3.0, src_end=4.0, overlap_prev_sec=0.5),
+        ],
+        lead_in_sec=LEAD_IN_SEC,
+        duration_sec=3.0,
+    )
+    assert len(rendered) == 144_000
+    _assert_silent_until(rendered, LEAD_IN_SAMPLES)
+    second_segment = LEAD_IN_SAMPLES + 24_000  # lead-in plus the first 0.5 s
+    assert _click_near(rendered, second_segment) == second_segment + SPEECH_CLICK - 3 * SR
+
+
+@pytest.mark.parametrize("ext", LEAD_IN_CONTAINERS)
+def test_play_window_that_starts_in_a_timeline_hole_keeps_its_lead_in(
+    media: dict[str, Path], tmp_path: Path, ext: str
+) -> None:
+    path = media[ext]
+    project = EpisodeProject.create("hole", str(path.parent))
+    project.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path=path.name, duration_sec=6.0),
+        )
+    ]
+    project.clips = [
+        Clip(id="c", track_id="host", source_start=2.0, source_end=5.0, timeline_start=2.0)
+    ]
+    project.timeline.duration_sec = 5.0
+    out = tmp_path / "window.wav"
+    render_track_segment(project, "host", 1.0, 5.0, out, {})
+    rendered = _decode(out)
+    assert len(rendered) == 192_000
+    _assert_silent_until(rendered, LEAD_IN_SAMPLES)
+    assert _click_near(rendered, 107_259) == LEAD_IN_SAMPLES + CLICK_AFTER_2S

@@ -393,6 +393,9 @@ joins them, handling every inter-segment relationship in the same graph:
 | Genuine timeline overlap | `adelay` + `amix` (summed over the overlap) |
 | First clip starting after t=0 | leading `adelay` |
 
+Every `adelay` is followed by `asetpts=N/SR/TB`. After `atrim` cuts a seeked input,
+`adelay` would emit its silence untimestamped and the final `apad`/`atrim` would drop it.
+
 It then runs the track FX chain **once** over the fully assembled audio. Besides
 collapsing N+1 subprocess spawns into one, this keeps stateful filters
 (`acompressor`, `agate`, `deesser`, `afftdn`, `loudnorm`) continuous across clip
