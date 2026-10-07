@@ -889,7 +889,9 @@ enforced-by:
 - tests/test_bleed_gate_generality.py::test_a_laugh_over_the_copy_on_a_mic_with_a_noise_floor_is_untouched
 - tests/test_bleed_gate_generality.py::test_laughs_beside_a_peer_whose_track_opens_late_are_kept
 - tests/test_bleed_gate_generality.py::test_copy_that_leads_the_peers_track_past_the_read_ahead_is_reduced_as_before
-- tests/test_bleed_gate_generality.py::test_a_peer_with_too_few_openings_to_measure_keeps_the_full_read_ahead
+- tests/test_bleed_gate_generality.py::test_copy_of_a_few_words_whose_track_opens_late_is_reduced_as_much_as_before
+- tests/test_bleed_gate_generality.py::test_the_lane_is_turned_down_from_200_ms_before_the_peers_track_opens
+- tests/test_bleed_gate_generality.py::test_own_breaths_running_into_the_peers_openings_leave_no_more_copy
 - docs-sync: decision-bleed
 supersedes: D-bleed-keep-onset-copies
 -->
