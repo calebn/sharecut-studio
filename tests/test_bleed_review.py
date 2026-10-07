@@ -404,9 +404,13 @@ def test_unavailable_named_peer_raw_mapping_refuses_review(tmp_path: Path, layou
     assert "unavailable_peer_review_media" in {row["reason"] for row in result["review_reasons"]}
 
 
-@pytest.mark.parametrize("seek_start, count", [(0.1000007, 4656), (0.10001048, 4655)])
+# Either earlier segment leaves the shared input on the same clock as a decode from 0,
+# so the second segment starts on source frame 24145 (0.503011 s rounded) both times.
+@pytest.mark.parametrize(
+    "seek_start, source_start", [(0.1000007, 0.5030112), (0.10001048, 0.50302048)]
+)
 def test_shared_source_seek_and_trim_envelope_uses_actual_ramp_origin(
-    tmp_path: Path, seek_start: float, count: int
+    tmp_path: Path, seek_start: float, source_start: float
 ) -> None:
     from podcast_mcp.edits.mute_regions import MuteEnvelope
     from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
@@ -418,7 +422,7 @@ def test_shared_source_seek_and_trim_envelope_uses_actual_ramp_origin(
         audio.setsampwidth(2)
         audio.setframerate(48000)
         audio.writeframes(ramp.tobytes())
-    source_start = 0.5030112 if seek_start == 0.1000007 else 0.50302048
+    count = 4655
     placed = [
         PlacedSegment(src_start=seek_start, src_end=seek_start + 0.001, source_path=raw),
         PlacedSegment(src_start=source_start, src_end=0.6, source_path=raw),
@@ -426,14 +430,14 @@ def test_shared_source_seek_and_trim_envelope_uses_actual_ramp_origin(
     before = tmp_path / "ramp-before.wav"
     FFmpegEngine().render_timeline(raw, before, placed, "anull")
     plain = read_pcm(before)
-    assert plain[48, 0] == 24144
+    assert plain[48, 0] == 24145
     placed[1].mute_spans = (MuteEnvelope(0.5 - source_start, 0.6 - source_start, 0.005, 0.005),)
     after = tmp_path / "ramp-after.wav"
     FFmpegEngine().render_timeline(raw, after, placed, "anull")
     muted = read_pcm(after)
     assert len(muted) == len(plain) == count + 48
     np.testing.assert_array_equal(muted[:48], plain[:48])
-    source_frames = np.arange(count) + 24144
+    source_frames = np.arange(count) + 24145
     gain = np.where(
         source_frames < 24240,
         (24240 - source_frames) / 240,

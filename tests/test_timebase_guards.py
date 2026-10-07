@@ -48,3 +48,15 @@ def test_mapping_formula_only_in_allowlist() -> None:
         "Use SessionTimeline, map_timeline_spans_over_clips, or "
         "clip_timeline_overlap_to_source instead:\n" + "\n".join(violations[:20])
     )
+
+
+def test_ffmpeg_seeks_only_through_media_seek() -> None:
+    """A bare ``-ss`` lands an AAC read up to one frame late (#1141); use MediaSeek."""
+    violations = [
+        f"{path.relative_to(SRC_ROOT).as_posix()}:{i}: {line.strip()[:100]}"
+        for path in _py_files()
+        if path.relative_to(SRC_ROOT).as_posix() != "engines/media_seek.py"
+        for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
+        if re.search(r"""["']-ss["']""", line)
+    ]
+    assert not violations, "ffmpeg -ss outside engines/media_seek.py:\n" + "\n".join(violations)

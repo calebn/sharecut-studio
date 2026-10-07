@@ -27,6 +27,7 @@ from podcast_mcp.engines.mastering import (
     limiter_af,
     plan_master,
 )
+from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.mix_spans import quiet_spans
 from podcast_mcp.models import (
     AutomationEnvelope,
@@ -62,12 +63,6 @@ log = logging.getLogger(__name__)
 
 # 3: use the completed graph's true-peak summary for headroom trim (#855).
 MIX_SEMANTICS_REV = 3
-
-
-def _timestamp_sample_origin(seconds: float, sample_rate: int) -> int:
-    """Match FFmpeg's microsecond timestamp parsing before sample rescaling."""
-    timestamp = int(seconds * 1_000_000 + 1e-6) / 1_000_000
-    return math.floor(timestamp * sample_rate + 0.5)
 
 
 def _escape_filter_value(value: str) -> str:
@@ -502,11 +497,8 @@ class FFmpegEngine:
             "-threads",
             "1",
         ]
-        if start_sec:
-            argv += ["-ss", f"{start_sec:.9f}"]
-        argv += ["-i", str(path)]
-        if duration_sec is not None:
-            argv += ["-t", f"{duration_sec:.9f}"]
+        seek = MediaSeek.at(start_sec or 0.0)
+        argv += [*seek.input_args(), "-i", str(path), *seek.output_args(duration_sec)]
         argv += ["-f", "f32le", "-ac", str(channels), "-ar", str(sample_rate), "pipe:1"]
         return argv
 
@@ -706,16 +698,15 @@ class FFmpegEngine:
         *,
         sample_rate: int,
         source_start: float = 0.0,
-        source_seek_start: float = 0.0,
+        origin: int = 0,
     ) -> list[str]:
         """Gain that ramps to zero over each region's fade-out and back over its fade-in.
 
-        ``mute_spans`` never overlap (``mute_regions.mute_spans_for_source_window``). A
-        region too short for both fades is muted outright.
+        ``mute_spans`` are seconds after ``source_start``; ``origin`` is the source
+        sample the segment's first output sample holds (``MediaSeek.first_sample``).
+        They never overlap (``mute_regions.mute_spans_for_source_window``). A region
+        too short for both fades is muted outright.
         """
-        origin = _timestamp_sample_origin(
-            source_seek_start, sample_rate
-        ) + _timestamp_sample_origin(source_start - source_seek_start, sample_rate)
         gains: list[tuple[str, str]] = []
         for env in mute_spans:
             a, b = env.start, env.end
@@ -768,9 +759,9 @@ class FFmpegEngine:
         Builds one `-filter_complex` graph that trims each source range, applies
         per-segment fades, and joins every inter-segment relationship: hard concat,
         silence-padded concat for gaps, `acrossfade` for soft joins, and
-        `adelay`+`amix` for genuine timeline overlaps. Multi-source renders group
-        segments by resolved path, seek each input to its selected source bounds,
-        and split it for reuse. Track FX run once over the assembled audio so
+        `adelay`+`amix` for genuine timeline overlaps. Segments are grouped by
+        resolved path; each input is read once through a ``MediaSeek`` over its
+        selected source bounds and split for reuse. Track FX run once over the assembled audio so
         stateful filters keep continuous state across joins.
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -778,79 +769,45 @@ class FFmpegEngine:
             raise ValueError("no segments to render")
 
         n = len(placed)
-        multi_source = any(seg.source_path is not None for seg in placed)
+        source_paths = [(seg.source_path or input_path).resolve() for seg in placed]
         source_ranges: dict[Path, tuple[float, float]] = {}
-        source_paths: list[Path] = []
-        source_indices: list[int] = []
-        if multi_source:
-            for seg in placed:
-                path = (seg.source_path or input_path).resolve()
-                source_paths.append(path)
-                if path not in source_ranges:
-                    source_ranges[path] = (seg.src_start, seg.src_end)
-                else:
-                    start, end = source_ranges[path]
-                    source_ranges[path] = (min(start, seg.src_start), max(end, seg.src_end))
-            source_index_by_path = {path: i for i, path in enumerate(source_ranges)}
-            source_indices = [source_index_by_path[path] for path in source_paths]
-        source_split_labels = [""] * n if multi_source else []
+        for path, seg in zip(source_paths, placed, strict=True):
+            start, end = source_ranges.get(path, (seg.src_start, seg.src_end))
+            source_ranges[path] = (min(start, seg.src_start), max(end, seg.src_end))
+        seeks = {path: MediaSeek.at(start) for path, (start, _end) in source_ranges.items()}
         filters: list[str] = []
-
-        if multi_source:
-            for input_index in range(len(source_ranges)):
-                segment_indices = [
-                    segment_index
-                    for segment_index, source_index in enumerate(source_indices)
-                    if source_index == input_index
-                ]
-                labels = [f"[src_in{input_index}_{i}]" for i in range(len(segment_indices))]
-                if len(labels) > 1:
-                    filters.append(f"[{input_index}:a]asplit={len(labels)}{''.join(labels)}")
-                else:
-                    filters.append(f"[{input_index}:a]anull{labels[0]}")
-                for segment_index, label in zip(segment_indices, labels, strict=True):
-                    source_split_labels[segment_index] = label
-
-            for i, seg in enumerate(placed):
-                source_path = source_paths[i]
-                source_start = source_ranges[source_path][0]
-                trim_start = seg.src_start - source_start
-                trim_end = seg.src_end - source_start
-                filters.append(
-                    f"{source_split_labels[i]}atrim=start={trim_start}:end={trim_end},"
-                    f"asetpts=PTS-STARTPTS[src{i}]"
-                )
-        elif n == 1:
-            seg = placed[0]
-            filters.append(
-                f"[0:a]atrim=start={seg.src_start}:end={seg.src_end},asetpts=PTS-STARTPTS[src0]"
-            )
-        else:
-            split_out = "".join(f"[s{i}]" for i in range(n))
-            filters.append(f"[0:a]asplit={n}{split_out}")
-            for i, seg in enumerate(placed):
-                filters.append(
-                    f"[s{i}]atrim=start={seg.src_start}:end={seg.src_end},"
-                    f"asetpts=PTS-STARTPTS[src{i}]"
-                )
+        split_labels = [""] * n
+        for input_index, path in enumerate(source_ranges):
+            segment_indices = [i for i, p in enumerate(source_paths) if p == path]
+            labels = [f"[src_in{input_index}_{i}]" for i in range(len(segment_indices))]
+            if len(labels) > 1:
+                filters.append(f"[{input_index}:a]asplit={len(labels)}{''.join(labels)}")
+            else:
+                filters.append(f"[{input_index}:a]anull{labels[0]}")
+            for segment_index, label in zip(segment_indices, labels, strict=True):
+                split_labels[segment_index] = label
 
         seg_labels: list[str] = []
         source_rates: dict[Path, int] = {}
         for i, seg in enumerate(placed):
+            path = source_paths[i]
+            seek = seeks[path]
+            filters.append(
+                f"{split_labels[i]}atrim=start={seek.offset(seg.src_start)}:"
+                f"end={seek.offset(seg.src_end)},asetpts=PTS-STARTPTS[src{i}]"
+            )
             dur = seg.src_end - seg.src_start
             chain = self._fade_chain(dur, seg.fade_in_sec, seg.fade_out_sec)
             if seg.mute_spans:
-                source_path = source_paths[i] if multi_source else input_path
-                if source_path not in source_rates:
-                    source_rates[source_path] = self.probe(source_path).sample_rate
-                seek_start = source_ranges[source_path][0] if multi_source else 0.0
+                if path not in source_rates:
+                    source_rates[path] = self.probe(path).sample_rate
                 chain.extend(
                     self._mute_chain(
                         dur,
                         seg.mute_spans,
-                        sample_rate=source_rates[source_path],
+                        sample_rate=source_rates[path],
                         source_start=seg.src_start,
-                        source_seek_start=seek_start,
+                        origin=seek.first_sample(seg.src_start, source_rates[path]),
                     )
                 )
             body = ",".join(chain) if chain else "anull"
@@ -919,11 +876,8 @@ class FFmpegEngine:
         filters.append(f"{combined}{final}[out]")
 
         cmd = [self.ffmpeg, "-y"]
-        if multi_source:
-            for path, (start, end) in source_ranges.items():
-                cmd.extend(["-ss", str(start), "-t", str(end - start), "-i", str(path)])
-        else:
-            cmd.extend(["-i", str(input_path)])
+        for path, (_start, end) in source_ranges.items():
+            cmd.extend([*seeks[path].input_args(end), "-i", str(path)])
         cmd.extend(
             [
                 "-filter_complex",
@@ -1055,18 +1009,16 @@ class FFmpegEngine:
         ``span`` is the ``(start, end)`` seconds of every input to read; ``end`` None is EOF.
         """
         start, end = span
-        seek = [
-            *(["-ss", f"{start:.6f}"] if start else []),
-            *(["-t", f"{end - start:.6f}"] if end is not None else []),
-        ]
+        seek = MediaSeek.at(start)
+        trim = f"atrim=start={seek.offset(start)},asetpts=PTS-STARTPTS," if start else ""
         inputs: list[str] = []
         filters: list[str] = []
         n = len(track_wavs)
         suffix = f",{tail}" if tail else ""
         for i, (wav, gain_db) in enumerate(track_wavs):
-            inputs.extend([*seek, "-i", str(wav)])
+            inputs.extend([*seek.input_args(end), "-i", str(wav)])
             label = f"{suffix}[out]" if n == 1 else f"[a{i}]"
-            filters.append(f"[{i}:a]volume={gain_db}dB{label}")
+            filters.append(f"[{i}:a]{trim}volume={gain_db}dB{label}")
         if n > 1:
             mix_inputs = "".join(f"[a{i}]" for i in range(n))
             filters.append(f"{mix_inputs}amix=inputs={n}:duration=longest:normalize=0{suffix}[out]")
@@ -1598,20 +1550,18 @@ class FFmpegEngine:
                 ],
                 "anull",
             )
-        duration = max(0.01, end_sec - start_sec)
+        seek = MediaSeek.at(max(0.0, start_sec))
         cmd = [
             self.ffmpeg,
             "-y",
             "-threads",
             "1",
-            "-ss",
-            str(max(0.0, start_sec)),
+            *seek.input_args(),
             "-i",
             str(src),
             "-threads",
             "1",
-            "-t",
-            str(duration),
+            *seek.output_args(max(0.01, end_sec - start_sec)),
             "-acodec",
             "pcm_s16le",
             str(output_path),

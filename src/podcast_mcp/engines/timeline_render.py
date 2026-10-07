@@ -31,7 +31,8 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 #    full-lane join context in segment renders.
 # 8: every segment window uses the same placement assembly, including one-source windows.
 # 9: reset the sample clock after overlap mixing before concatenating later segments.
-RENDER_SEMANTICS_REV = 11
+# 12: every input seeks through MediaSeek, so .m4a windows start on their sample (#1141).
+RENDER_SEMANTICS_REV = 12
 
 
 def resolve_clip_audio_path(

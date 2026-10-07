@@ -183,7 +183,8 @@ min/max across channels, for host deep zoom. `n` is clipped at the end of the
 media. NaN samples count as 0 and ±inf as ±1, as in `build_levels`, so a NaN in one
 channel never hides another channel's peak. `frames` is capped at 4 × `pcm_block_frames` (262,144); a larger
 window raises `ValueError`. WAVs use a bounded `setpos`/`readframes`. Other media use
-`FFmpegEngine.decode_window_f32`, which puts `-ss` before `-i`, stops reading
+`FFmpegEngine.decode_window_f32`, which seeks through `MediaSeek` (so an `.m4a`
+window starts on `start_frame`, as in a full decode), stops reading
 at exactly `frames` frames, and has a 30 s watchdog. `-frames:a` is not used,
 because ffmpeg counts it in decoder packets, not samples. `probe_pcm_source(path)`
 says which path a file takes (`needs_decode`); passing it back as

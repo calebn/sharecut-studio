@@ -325,6 +325,7 @@ When writing new code that deals with time:
    including secondary peers, as well as nonconflicting direct-phrase footprints.
 3. **New MCP tool with a seconds parameter?** Add an entry to `TOOL_TIMEBASE` in [`util/tool_timebase.py`](../src/podcast_mcp/util/tool_timebase.py) declaring `"source"` or `"timeline"`; `tests/test_time_conformance.py` fails until you do.
 4. **Search results** carry both clocks via `TranscriptMatch.timeline_start/end` — never re-derive them in a caller.
+5. **Reading a media window with ffmpeg?** Build its arguments with `MediaSeek` in [`engines/media_seek.py`](../src/podcast_mcp/engines/media_seek.py): `input_args()` before `-i`, then `output_args()` after it or `offset()` in an `atrim`. A bare input `-ss` starts an AAC (`.m4a`) read up to about one 1024-sample frame late (a whole frame for `-ss 0`), because ffmpeg's decoder trims the file's encoder priming from the first packet it decodes, which after a seek is real audio. `tests/test_timebase_guards.py` fails CI on `-ss` anywhere else.
 
 ## History (non-destructive, undoable state)
 

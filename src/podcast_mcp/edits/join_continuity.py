@@ -36,6 +36,7 @@ from podcast_mcp.edits.join_cost_spectral import SpectralJoinDetector
 from podcast_mcp.edits.join_detectors import DetectorHit, JoinDetector
 from podcast_mcp.edits.join_speech import find_speech_crossings
 from podcast_mcp.engines.align import read_open_wav_mono_window
+from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.binaries import resolve_ffmpeg, resolve_ffprobe
@@ -764,17 +765,20 @@ def _score_highrate_batches(
                     for i in range(len(batch))
                 ]
                 command = [resolve_ffmpeg(), "-v", "error", "-y"]
-                for left_end, right_start in batch:
-                    command.extend(["-ss", str(max(0.0, left_end - side_sec)), "-i", str(path)])
-                    command.extend(["-ss", str(max(0.0, right_start)), "-i", str(path)])
+                seeks = [
+                    MediaSeek.at(max(0.0, start))
+                    for left_end, right_start in batch
+                    for start in (left_end - side_sec, right_start)
+                ]
+                for seek in seeks:
+                    command.extend([*seek.input_args(), "-i", str(path)])
                 for i, (left_out, right_out) in enumerate(outputs):
                     for k, output in ((2 * i, left_out), (2 * i + 1, right_out)):
                         command.extend(
                             [
                                 "-map",
                                 f"{k}:a:{stream}",
-                                "-t",
-                                str(max(0.1, side_sec)),
+                                *seeks[k].output_args(max(0.1, side_sec)),
                                 "-ac",
                                 "1",
                                 "-ar",
