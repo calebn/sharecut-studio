@@ -261,11 +261,15 @@ describe("InspectorPeek nudges", () => {
     );
   });
 
-  it("keeps envelope nudges host-only, and fade nudges from a guest without edit", () => {
+  it("offers envelope nudges to editors only (D-touch-input-grammar), and fade nudges from a guest without edit", () => {
     open(POINT, project, "share:tok");
-    act(() => useDawStore.setState({ shareCapabilities: ["edit"] }));
+    act(() => useDawStore.setState({ shareCapabilities: ["comment"] }));
     expect(screen.queryByRole("group")).toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent("1.00× at 00:09.750");
+    act(() => useDawStore.setState({ shareCapabilities: ["edit"] }));
+    expect(
+      screen.getByRole("group", { name: "Nudge envelope point level" }),
+    ).toBeVisible();
     cleanup();
     open(FADE, project, "share:tok");
     act(() => useDawStore.setState({ shareCapabilities: ["comment"] }));

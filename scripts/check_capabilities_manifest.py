@@ -101,6 +101,45 @@ def _keymap_chords() -> dict[str, str]:
     return out
 
 
+def _touch_gestures() -> list[str]:
+    """TOUCH_GESTURES keys from the touch input contract, in order."""
+    text = (ROOT / "gui/web/src/timeline/inputContract.ts").read_text(encoding="utf-8")
+    start = text.index("export const TOUCH_GESTURES")
+    block = text[start : text.index("} as const", start)]
+    return re.findall(r'^\s+"?([a-z][a-z-]*)"?:', block, re.M)
+
+
+def touch_errors(caps: list[dict], schema: dict | None) -> list[str]:
+    """The touch column names only the grammar's gestures, on command rows.
+
+    Which commands each gesture runs is derived from the grammar itself and
+    checked by gui/web/src/timeline/inputContract.manifest.test.ts.
+    """
+    errors: list[str] = []
+    vocabulary = _touch_gestures()
+    if schema is not None:
+        enum = schema["$defs"]["capability"]["properties"]["surfaces"]["properties"]["touch"][
+            "items"
+        ]["enum"]
+        if enum != vocabulary:
+            errors.append(
+                "schema surfaces.touch enum must equal inputContract.ts TOUCH_GESTURES "
+                f"(schema={enum}, contract={vocabulary})"
+            )
+    for cap in caps:
+        surfaces = cap.get("surfaces") or {}
+        touch = surfaces.get("touch")
+        if touch is None:
+            continue
+        cid = cap.get("id", "<unknown>")
+        if not surfaces.get("command"):
+            errors.append(f"{cid}: surfaces.touch requires surfaces.command")
+        for gesture in _as_list(touch):
+            if gesture not in vocabulary:
+                errors.append(f"{cid}: unknown touch gesture {gesture!r}")
+    return errors
+
+
 def _mcp_tools() -> set[str]:
     from mcp_tool_discovery import discover_mcp_tool_names
 
@@ -211,6 +250,12 @@ def main() -> int:
     caps = data.get("capabilities") or []
     hub_skills = set(data.get("hub_skills") or [])
     untracked = set(data.get("untracked_mcp") or [])
+    errors.extend(
+        touch_errors(
+            caps,
+            json.loads(SCHEMA.read_text(encoding="utf-8")) if SCHEMA.is_file() else None,
+        )
+    )
 
     cmd_in_manifest: set[str] = set()
     keymap_in_manifest: dict[str, str] = {}

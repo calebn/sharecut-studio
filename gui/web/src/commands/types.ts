@@ -28,6 +28,8 @@ export type ContextPredicateId =
   | "canRefreshMix"
   | "canIngestMedia"
   | "canEditMix"
+  | "canEditEnvelopes"
+  | "canComment"
   | "canManageProjects"
   | "hostProjectLoaded"
   | "trackInspectorSelected"

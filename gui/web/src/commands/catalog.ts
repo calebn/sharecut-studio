@@ -629,7 +629,25 @@ export const COMMANDS: Record<string, CommandDef> = {
     label: "Add chapter at playhead",
     when: "hostProjectLoaded",
     notes:
-      "Chapter titled from the playhead time (AddChapter); turns the Markers layer on. Host only.",
+      "Args: { atTime?: number } → chapter titled from that time (the touch create menu's held time), else the playhead (AddChapter); turns the Markers layer on. Host only.",
+  },
+  "envelope.addPoint": {
+    id: "envelope.addPoint",
+    category: "edit",
+    label: "Add envelope point",
+    when: "canEditEnvelopes",
+    paletteRunnable: false,
+    notes:
+      "Args: { trackId: string, atTime: number } → SetEnvelope with a point at the envelope's current level there; the touch create menu",
+  },
+  "comment.draftAt": {
+    id: "comment.draftAt",
+    category: "review",
+    label: "Comment here",
+    when: "canComment",
+    paletteRunnable: false,
+    notes:
+      "Args: { atTime: number, trackId?: string } → a comment draft anchored at that time; the touch create menu",
   },
   "view.setTab": {
     id: "view.setTab",

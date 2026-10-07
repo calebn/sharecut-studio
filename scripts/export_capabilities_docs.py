@@ -121,8 +121,8 @@ def _render_generated(data: dict[str, Any]) -> str:
         "",
         "## Sharecut Studio capabilities",
         "",
-        "| Label | Command | Keyboard | GUI | MCP | CLI | Skill | Host-only | Presence |",
-        "| ----- | ------- | -------- | --- | --- | --- | ----- | --------- | -------- |",
+        "| Label | Command | Keyboard | Touch | GUI | MCP | CLI | Skill | Host-only | Presence |",
+        "| ----- | ------- | -------- | ----- | --- | --- | --- | ----- | --------- | -------- |",
     ]
     for cap in daw:
         surfaces = cap.get("surfaces") or {}
@@ -133,6 +133,7 @@ def _render_generated(data: dict[str, Any]) -> str:
                     _esc(str(cap.get("label") or cap.get("id"))),
                     f"`{_esc(str(surfaces.get('command')))}`",
                     _keyboard_cell(cap),
+                    _fmt_list(_as_list(surfaces.get("touch"))),
                     _fmt_list(_as_list(surfaces.get("gui"))),
                     _fmt_list(_as_list(surfaces.get("mcp")), preview=MCP_PREVIEW),
                     (f"`{_esc(str(surfaces['cli']))}`" if surfaces.get("cli") else "—"),

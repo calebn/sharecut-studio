@@ -55,6 +55,22 @@
               ]
             },
             "cli": { "type": "string" },
+            "touch": {
+              "type": "array",
+              "description": "Touch gestures that run this command: the TOUCH_GESTURES keys in gui/web/src/timeline/inputContract.ts.",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "long-press-arm-drag",
+                  "long-press-empty",
+                  "hold-nudge",
+                  "double-tap",
+                  "swipe-left",
+                  "pinch",
+                  "two-finger-tap"
+                ]
+              }
+            },
             "skill": {
               "oneOf": [
                 { "type": "string" },

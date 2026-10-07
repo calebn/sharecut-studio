@@ -412,6 +412,15 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Add chapter at playhead",
     tooltip: "Add a chapter marker at the playhead · turns Markers on",
   },
+  "daw.envelope.addPoint": {
+    label: "Add envelope point",
+    tooltip:
+      "Add a volume envelope point at the held time, at the level already there",
+  },
+  "daw.comment.draftAt": {
+    label: "Comment here",
+    tooltip: "Start a comment at the held time",
+  },
   "daw.edit.rollClipJoin": {
     label: "Roll clip join",
     tooltip: "Drag join to roll both clip edges · clips stay flush",
@@ -471,6 +480,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   "transport.menu": "daw.range.arm",
   editingToolRail: "daw.media.import",
   timeline: "daw.edit.bladeCut",
+  "timeline.createMenu": "daw.comment.draftAt",
   bladeConfirmSheet: "daw.edit.bladeCut.cancel",
   clipInspector: "daw.edit.rippleDelete",
   trackInspector: "daw.track.setVolume",

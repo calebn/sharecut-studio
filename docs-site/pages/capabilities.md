@@ -19,109 +19,111 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**111** capabilities · **95** Sharecut Studio commands · **54** keyed · **171** MCP tools · **17** skills on rows (+ **19** hub skills).
+**113** capabilities · **97** Sharecut Studio commands · **54** keyed · **171** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
 ## Sharecut Studio capabilities
 
-| Label | Command | Keyboard | GUI | MCP | CLI | Skill | Host-only | Presence |
-| ----- | ------- | -------- | --- | --- | --- | ----- | --------- | -------- |
-| Play / pause | `transport.togglePlay` | `Space` | `transport.play` | `set_session_playing_tool`, `play_audio_tool` | — | `podcast-play-audition` | — | anchor · look |
-| Seek playhead | `transport.seek` | — (not industry-standard; menu/toolbar or unkeyed) | — | `seek_session_tool` | — | — | — | — |
-| Stop playback | `transport.stop` | `K` | `transport.stop` | `stop_session_tool` | — | — | — | anchor · look |
-| Audition Full mix / Edited stems / Original | `transport.audition` | — (not industry-standard; Full mix/Edited stems/Original toggle) | `transport.audition` | — | — | `podcast-play-audition` | — | anchor · hear |
-| Follow | `presence.follow` | — (not industry-standard; avatar click) | `presence.avatarStack` | `get_session_presence_tool` | — | — | — | none · none |
-| Stop following | `presence.unfollow` | `Escape` | `presence.followBanner` | — | — | — | — | none · none |
-| Select tool | `tool.select` | `V` | `toolModeToggle` | — | — | — | — | none · none |
-| Blade tool | `tool.blade` | `C` | `toolModeToggle` | — | — | — | — | none · none |
-| Exit comment mode | `review.exitCommentMode` | `Escape` | — | — | — | — | — | — |
-| Clear selection | `edit.clearSelection` | `Escape` | — | — | — | — | — | — |
-| Toggle comment mode | `review.toggleCommentMode` | `Mod+Shift+C` | `transport.comment` | — | — | — | — | none · none |
-| Resolve comment | `comment.resolve` | — (Direct comment card gesture and button; no standard shortcut) | `mobileShell.gesture.swipeLeftComment` | — | — | — | yes | none · none |
-| Apply tighten hit | `tighten.applyHit` | `Enter` | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
-| Skip tighten hit | `tighten.skipHit` | `Backspace` | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
-| Apply eligible tighten hits | `tighten.applyAllSafe` | `Mod+Shift+Enter` | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
-| Preview tighten hit | `tighten.previewHit` | `P` | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
-| Go to tighten hit | `tighten.goToHit` | — (pointer/row action; seek+select) | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | time · look |
-| Restore layout | `layout.default` | `Mod+1` | `layoutChip` | — | — | — | — | none · none |
-| Maximize timeline | `layout.timeline` | `Mod+2` | `transport.layout` | — | — | — | — | none · none |
-| Maximize transcript | `layout.text` | `Mod+3` | `transport.menu` | — | — | — | — | none · none |
-| Review layout | `layout.review` | `Mod+4` | `transport.menu` | — | — | — | — | none · none |
-| Nudge playhead back | `navigation.nudgePlayheadBack` | `ArrowLeft` | — | — | — | — | — | — |
-| Nudge playhead forward | `navigation.nudgePlayheadForward` | `ArrowRight` | — | — | — | — | — | — |
-| Go to start | `navigation.goToStart` | `Home` | — | — | — | — | — | — |
-| Go to end | `navigation.goToEnd` | `End` | — | — | — | — | — | — |
-| Blade cut | `edit.bladeCut` | `Mod+K` | `editingToolRail`, `timeline` | `split_clip_tool` | — | — | — | time · none |
-| Confirm blade cut | `edit.bladeCut.confirm` | — (not industry-standard; menu/toolbar or unkeyed) | `bladeConfirmSheet` | — | — | — | — | none · none |
-| Cancel blade cut | `edit.bladeCut.cancel` | — (not industry-standard; menu/toolbar or unkeyed) | `bladeConfirmSheet` | — | — | — | — | none · none |
-| Delete clip | `edit.delete` | `Backspace` | `clipInspector` | — | — | — | — | none · none |
-| Remove track | `track.remove` | `Backspace` | `trackInspector`, `transport.menu` | `track_remove_tool` | — | — | — | none · none |
-| Reorder track | `track.reorder` | — (drag headers or move up/down keys) | `trackHeader` | `track_reorder_tool` | — | — | — | anchor · none |
-| Move track up | `track.moveUp` | `ArrowUp` | `transport.menu` | — | — | — | — | none · none |
-| Move track down | `track.moveDown` | `ArrowDown` | `transport.menu` | — | — | — | — | none · none |
-| Ripple delete clip | `edit.rippleDelete` | `Mod+Backspace` | `clipInspector` | `ripple_delete_tool` | — | — | — | none · none |
-| Copy | `edit.copy` | `Mod+C` | — | — | — | — | — | — |
-| Cut | `edit.cut` | `Mod+X` | — | — | — | — | — | — |
-| Paste | `edit.paste` | `Mod+V` | — | — | — | — | — | — |
-| Select all tracks | `track.selectAll` | `Mod+A` | — | — | — | — | — | — |
-| Deselect all tracks | `track.deselectAll` | `Mod+Shift+A` | `trackHeadersWell` | — | — | — | — | none · none |
-| Toggle track mute | `track.muteToggle` | `M` | `trackHeader`, `trackInspector` | `track_set_mute_tool` | `podcast episode set-track-mute` | — | — | anchor · hear |
-| Toggle track solo | `track.soloToggle` | `S` | `trackHeader`, `trackInspector` | — | — | — | — | anchor · hear |
-| Clear solo | `track.clearSolo` | — (not industry-standard; the Solo on chip clears every solo) | `trackHeaders.soloChip`, `mobileShell.statusRow`, `trackMix` | — | — | — | — | none · hear |
-| Set track volume | `track.setVolume` | — (slider: arrow keys step the focused fader) | `trackInspector` | `track_set_volume_tool` | `podcast episode set-track-volume` | — | — | none · none |
-| Zoom in | `view.zoomIn` | `=` | `transport.menu` | — | — | — | — | none · look |
-| Zoom out | `view.zoomOut` | `-` | `transport.menu` | — | — | — | — | none · look |
-| Fit session width | `view.fit` | `\` | `transport.fit` | — | — | — | — | none · look |
-| Switch editor tab | `view.setTab` | — (not industry-standard; tab click) | `tabBar` | — | — | — | — | anchor · look |
-| Switch phone mode | `view.setMobileMode` | — (not industry-standard; tab click) | `mobileNav` | — | — | — | — | anchor · look |
-| Waveform amplitude zoom in | `view.waveformZoomIn` | `ArrowUp` | `timeline.waveform`, `transport.viewMenu.waveformAmplitudeIn` | — | — | — | — | time · look |
-| Waveform amplitude zoom out | `view.waveformZoomOut` | `ArrowDown` | `timeline.waveform`, `transport.viewMenu.waveformAmplitudeOut` | — | — | — | — | time · look |
-| Fit tracks to window height | `view.fitTracksHeight` | — (toggle; View menu checkbox and transport icon) | `transport.fitTracksHeight`, `transport.viewMenu.fitTracksHeight` | — | — | — | — | none · none |
-| Increase track height | `view.trackHeightIncrease` | `Alt+=` | `transport.menu` | — | — | — | — | none · none |
-| Decrease track height | `view.trackHeightDecrease` | `Alt+-` | `transport.menu` | — | — | — | — | none · none |
-| Undo | `history.undo` | `Mod+Z` | `historyPanel`, `mobileShell.gesture.twoFingerTap` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
-| Redo | `history.redo` | `Mod+Shift+Z` | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
-| Keyboard shortcuts | `ui.toggleCommandPalette` | `?` | `transport.menu` | — | — | — | — | none · none |
-| Refresh mix | `render.refreshMix` | `Mod+B` | `staleRenderPill` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
-| Bounce… | `export.bounce` | `Mod+Shift+B` | `transport.menu`, `BounceDialog` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
-| Share… | `share.manage` | — (dialog from Menu) | `transport.menu`, `ShareDialog` | — | `podcast review share` | — | yes | none · none |
-| Start recording | `record.start` | — (chords in a later PR) | `RecordPanel`, `transport.recChip` | `record_start_tool` | `podcast record start` | `podcast-record-session` | yes | none · none |
-| Pause recording | `record.pause` | — (chords in a later PR) | `RecordPanel`, `transport.recChip` | `record_pause_tool` | `podcast record pause` | `podcast-record-session` | yes | none · none |
-| Resume recording | `record.resume` | — (chords in a later PR) | `RecordPanel`, `transport.recChip` | `record_resume_tool` | `podcast record resume` | `podcast-record-session` | yes | none · none |
-| Stop recording | `record.stop` | — (chords in a later PR) | `RecordPanel`, `transport.recChip` | `record_stop_tool` | `podcast record stop` | `podcast-record-session` | yes | none · none |
-| Land recording on timeline | `record.land` | — (chords in a later PR) | `RecordPanel` | `record_land_tool` | `podcast record land` | `podcast-record-session` | yes | none · none |
-| Record panel | `record.openPanel` | — (chords in a later PR) | `RecordPanel` | `record_state_tool` | `podcast record state` | `podcast-record-session` | yes | none · none |
-| Record marker | `record.marker` | `M` | `LiveComments` | — | — | `podcast-record-session` | yes | none · none |
-| Connect agent… | `mcp.connect` | — (dialog from Menu) | `transport.menu`, `HostMcpDialog` | — | — | — | yes | none · none |
-| Export diagnostics… | `help.diagnosticsBundle` | — (dialog from Home / Menu) | `home.help`, `HelpDialog`, `transport.menu` | — | `podcast doctor --bundle` | — | yes | none · none |
-| Export deliverables… | `export.deliverables` | `Mod+Shift+E` | `transport.menu` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
-| New project | `project.new` | `Mod+N` | `transport.menu` | — | — | — | yes | none · none |
-| Open project | `project.open` | `Mod+O` | `transport.menu` | — | — | — | yes | none · none |
-| New track | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | `transport.menu`, `editingToolRail`, `trackLane` | `track_add_empty_tool`, `track_add` | — | — | — | none · none |
-| Import audio | `media.import` | `Mod+I` | `transport.menu`, `editingToolRail`, `drop` | `track_set_media_tool` | — | — | — | none · none |
-| Annotate transcript | `view.transcriptAnnotate` | — (toolbar toggle; no industry-standard key) | `transcript.annotate` | — | — | — | — | none · none |
-| Correct transcript | `transcript.correctIntent` | — (toolbar toggle; inline correction uses F2) | `transcript.correct`, `mobileShell.gesture.doubleTapWord`, `transcript.inlineEdit` | — | — | — | — | anchor · look |
-| Adjust word timing | `transcript.adjustTiming` | — (Native range controls and numeric fields in the word inspector) | `transcript.wordbar` | — | — | — | — | anchor · none |
-| Edit focused transcript word | `transcript.editWordInline` | `F2` | — | — | — | — | — | anchor · none |
-| Select transcript range | `transcript.selectIntent` | — (toolbar toggle; no industry-standard key) | `transcript.select` | — | — | — | — | anchor · look |
-| Ignore / restore transcript words | `transcript.ignoreWords` | — (no industry-standard key (#649)) | `transcript.ignore`, `transcript.restoreIgnored`, `inspector.word.ignore` | — | — | — | — | anchor · look |
-| Next low-confidence word | `transcript.nextLowConfidence` | — (no industry-standard key (#649); command palette) | `transcript.lowConfidenceNext` | — | — | `podcast-transcript-correct` | — | anchor · look |
-| Previous low-confidence word | `transcript.prevLowConfidence` | — (no industry-standard key (#649); command palette) | `transcript.lowConfidencePrev` | — | — | `podcast-transcript-correct` | — | anchor · look |
-| Show cut away | `view.showCutAway` | — (toolbar toggle; no industry-standard key) | `transcript.showCutAway` | — | — | — | — | none · none |
-| Trim clip edge | `edit.trimClipEdge` | `ArrowLeft` | `timeline.clip.trimHandle` | `trim_clip_edge_tool` | `podcast edit trim-clip` | — | — | time · none |
-| Move clips | `edit.moveClips` | — (pointer clip-body drag; arrow keys stay playhead nudge) | `timeline.clip.body` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |
-| Add chapter at playhead | `edit.addChapter` | — (no default shortcut; Menu › Markers or the phone More action) | `transport.menu`, `mobileShell.more` | — | — | — | yes | none · none |
-| Roll clip join | `edit.rollClipJoin` | — (pointer join diamond; no industry-standard key) | `timeline.clip.joinDiamond`, `transcript.editBoundary` | — | — | — | — | time · none |
-| Set clip fade | `edit.setClipFade` | `ArrowLeft` | `timeline.clip.fadeHandle` | — | — | — | — | time · none |
-| Set clip join | `edit.setClipJoin` | — (inspector select and join badge popover; no industry-standard key) | `inspector.clip.joinMode`, `timeline.join.badge` | `set_clip_join_tool` | `podcast edit set-clip-join` | — | — | time · none |
-| Find and replace transcript | `transcript.findReplace` | — (toolbar and command palette; no shortcut yet) | `transcript.findReplace` | — | — | — | yes | none · none |
-| Play range | `range.play` | — (Context action with explicit range selection) | `RangeActions` | — | — | — | — | none · none |
-| Cut range | `range.cut` | — (Context action with explicit range selection) | `RangeActions` | — | — | — | — | none · none |
-| Mute range | `range.mute` | — (Context action with explicit range selection) | `RangeActions` | `propose_range_mute_tool` | — | — | — | none · none |
-| Comment on range | `range.comment` | — (Context action with explicit range selection) | `RangeActions` | — | — | — | — | none · none |
-| Bounce range | `range.bounce` | — (Context action with explicit range selection) | `RangeActions` | — | — | — | — | none · none |
-| Select a range | `range.arm` | — (Context action with explicit range selection) | `EditingToolRail`, `transport.menu` | — | — | — | — | none · none |
+| Label | Command | Keyboard | Touch | GUI | MCP | CLI | Skill | Host-only | Presence |
+| ----- | ------- | -------- | ----- | --- | --- | --- | ----- | --------- | -------- |
+| Play / pause | `transport.togglePlay` | `Space` | — | `transport.play` | `set_session_playing_tool`, `play_audio_tool` | — | `podcast-play-audition` | — | anchor · look |
+| Seek playhead | `transport.seek` | — (not industry-standard; menu/toolbar or unkeyed) | — | — | `seek_session_tool` | — | — | — | — |
+| Stop playback | `transport.stop` | `K` | — | `transport.stop` | `stop_session_tool` | — | — | — | anchor · look |
+| Audition Full mix / Edited stems / Original | `transport.audition` | — (not industry-standard; Full mix/Edited stems/Original toggle) | — | `transport.audition` | — | — | `podcast-play-audition` | — | anchor · hear |
+| Follow | `presence.follow` | — (not industry-standard; avatar click) | — | `presence.avatarStack` | `get_session_presence_tool` | — | — | — | none · none |
+| Stop following | `presence.unfollow` | `Escape` | — | `presence.followBanner` | — | — | — | — | none · none |
+| Select tool | `tool.select` | `V` | — | `toolModeToggle` | — | — | — | — | none · none |
+| Blade tool | `tool.blade` | `C` | — | `toolModeToggle` | — | — | — | — | none · none |
+| Exit comment mode | `review.exitCommentMode` | `Escape` | — | — | — | — | — | — | — |
+| Clear selection | `edit.clearSelection` | `Escape` | — | — | — | — | — | — | — |
+| Toggle comment mode | `review.toggleCommentMode` | `Mod+Shift+C` | — | `transport.comment` | — | — | — | — | none · none |
+| Resolve comment | `comment.resolve` | — (Direct comment card gesture and button; no standard shortcut) | `swipe-left` | `mobileShell.gesture.swipeLeftComment` | — | — | — | yes | none · none |
+| Apply tighten hit | `tighten.applyHit` | `Enter` | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
+| Skip tighten hit | `tighten.skipHit` | `Backspace` | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
+| Apply eligible tighten hits | `tighten.applyAllSafe` | `Mod+Shift+Enter` | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
+| Preview tighten hit | `tighten.previewHit` | `P` | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | none · none |
+| Go to tighten hit | `tighten.goToHit` | — (pointer/row action; seek+select) | — | `tightenPanel` | — | — | `podcast-tighten-dialogue` | — | time · look |
+| Restore layout | `layout.default` | `Mod+1` | — | `layoutChip` | — | — | — | — | none · none |
+| Maximize timeline | `layout.timeline` | `Mod+2` | — | `transport.layout` | — | — | — | — | none · none |
+| Maximize transcript | `layout.text` | `Mod+3` | — | `transport.menu` | — | — | — | — | none · none |
+| Review layout | `layout.review` | `Mod+4` | — | `transport.menu` | — | — | — | — | none · none |
+| Nudge playhead back | `navigation.nudgePlayheadBack` | `ArrowLeft` | — | — | — | — | — | — | — |
+| Nudge playhead forward | `navigation.nudgePlayheadForward` | `ArrowRight` | — | — | — | — | — | — | — |
+| Go to start | `navigation.goToStart` | `Home` | — | — | — | — | — | — | — |
+| Go to end | `navigation.goToEnd` | `End` | — | — | — | — | — | — | — |
+| Blade cut | `edit.bladeCut` | `Mod+K` | `long-press-empty` | `editingToolRail`, `timeline`, `timeline.createMenu` | `split_clip_tool` | — | — | — | time · none |
+| Confirm blade cut | `edit.bladeCut.confirm` | — (not industry-standard; menu/toolbar or unkeyed) | — | `bladeConfirmSheet` | — | — | — | — | none · none |
+| Cancel blade cut | `edit.bladeCut.cancel` | — (not industry-standard; menu/toolbar or unkeyed) | — | `bladeConfirmSheet` | — | — | — | — | none · none |
+| Delete clip | `edit.delete` | `Backspace` | — | `clipInspector` | — | — | — | — | none · none |
+| Remove track | `track.remove` | `Backspace` | — | `trackInspector`, `transport.menu` | `track_remove_tool` | — | — | — | none · none |
+| Reorder track | `track.reorder` | — (drag headers or move up/down keys) | — | `trackHeader` | `track_reorder_tool` | — | — | — | anchor · none |
+| Move track up | `track.moveUp` | `ArrowUp` | — | `transport.menu` | — | — | — | — | none · none |
+| Move track down | `track.moveDown` | `ArrowDown` | — | `transport.menu` | — | — | — | — | none · none |
+| Ripple delete clip | `edit.rippleDelete` | `Mod+Backspace` | — | `clipInspector` | `ripple_delete_tool` | — | — | — | none · none |
+| Copy | `edit.copy` | `Mod+C` | — | — | — | — | — | — | — |
+| Cut | `edit.cut` | `Mod+X` | — | — | — | — | — | — | — |
+| Paste | `edit.paste` | `Mod+V` | — | — | — | — | — | — | — |
+| Select all tracks | `track.selectAll` | `Mod+A` | — | — | — | — | — | — | — |
+| Deselect all tracks | `track.deselectAll` | `Mod+Shift+A` | — | `trackHeadersWell` | — | — | — | — | none · none |
+| Toggle track mute | `track.muteToggle` | `M` | — | `trackHeader`, `trackInspector` | `track_set_mute_tool` | `podcast episode set-track-mute` | — | — | anchor · hear |
+| Toggle track solo | `track.soloToggle` | `S` | — | `trackHeader`, `trackInspector` | — | — | — | — | anchor · hear |
+| Clear solo | `track.clearSolo` | — (not industry-standard; the Solo on chip clears every solo) | — | `trackHeaders.soloChip`, `mobileShell.statusRow`, `trackMix` | — | — | — | — | none · hear |
+| Set track volume | `track.setVolume` | — (slider: arrow keys step the focused fader) | — | `trackInspector` | `track_set_volume_tool` | `podcast episode set-track-volume` | — | — | none · none |
+| Zoom in | `view.zoomIn` | `=` | `pinch` | `transport.menu` | — | — | — | — | none · look |
+| Zoom out | `view.zoomOut` | `-` | `pinch` | `transport.menu` | — | — | — | — | none · look |
+| Fit session width | `view.fit` | `\` | — | `transport.fit` | — | — | — | — | none · look |
+| Switch editor tab | `view.setTab` | — (not industry-standard; tab click) | — | `tabBar` | — | — | — | — | anchor · look |
+| Switch phone mode | `view.setMobileMode` | — (not industry-standard; tab click) | — | `mobileNav` | — | — | — | — | anchor · look |
+| Waveform amplitude zoom in | `view.waveformZoomIn` | `ArrowUp` | — | `timeline.waveform`, `transport.viewMenu.waveformAmplitudeIn` | — | — | — | — | time · look |
+| Waveform amplitude zoom out | `view.waveformZoomOut` | `ArrowDown` | — | `timeline.waveform`, `transport.viewMenu.waveformAmplitudeOut` | — | — | — | — | time · look |
+| Fit tracks to window height | `view.fitTracksHeight` | — (toggle; View menu checkbox and transport icon) | — | `transport.fitTracksHeight`, `transport.viewMenu.fitTracksHeight` | — | — | — | — | none · none |
+| Increase track height | `view.trackHeightIncrease` | `Alt+=` | — | `transport.menu` | — | — | — | — | none · none |
+| Decrease track height | `view.trackHeightDecrease` | `Alt+-` | — | `transport.menu` | — | — | — | — | none · none |
+| Undo | `history.undo` | `Mod+Z` | `two-finger-tap` | `historyPanel`, `mobileShell.gesture.twoFingerTap` | `history_undo` | `podcast undo` | `podcast-history` | — | none · none |
+| Redo | `history.redo` | `Mod+Shift+Z` | — | `historyPanel` | `history_redo` | `podcast redo` | `podcast-history` | — | none · none |
+| Keyboard shortcuts | `ui.toggleCommandPalette` | `?` | — | `transport.menu` | — | — | — | — | none · none |
+| Refresh mix | `render.refreshMix` | `Mod+B` | — | `staleRenderPill` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
+| Bounce… | `export.bounce` | `Mod+Shift+B` | — | `transport.menu`, `BounceDialog` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
+| Share… | `share.manage` | — (dialog from Menu) | — | `transport.menu`, `ShareDialog` | — | `podcast review share` | — | yes | none · none |
+| Start recording | `record.start` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_start_tool` | `podcast record start` | `podcast-record-session` | yes | none · none |
+| Pause recording | `record.pause` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_pause_tool` | `podcast record pause` | `podcast-record-session` | yes | none · none |
+| Resume recording | `record.resume` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_resume_tool` | `podcast record resume` | `podcast-record-session` | yes | none · none |
+| Stop recording | `record.stop` | — (chords in a later PR) | — | `RecordPanel`, `transport.recChip` | `record_stop_tool` | `podcast record stop` | `podcast-record-session` | yes | none · none |
+| Land recording on timeline | `record.land` | — (chords in a later PR) | — | `RecordPanel` | `record_land_tool` | `podcast record land` | `podcast-record-session` | yes | none · none |
+| Record panel | `record.openPanel` | — (chords in a later PR) | — | `RecordPanel` | `record_state_tool` | `podcast record state` | `podcast-record-session` | yes | none · none |
+| Record marker | `record.marker` | `M` | — | `LiveComments` | — | — | `podcast-record-session` | yes | none · none |
+| Connect agent… | `mcp.connect` | — (dialog from Menu) | — | `transport.menu`, `HostMcpDialog` | — | — | — | yes | none · none |
+| Export diagnostics… | `help.diagnosticsBundle` | — (dialog from Home / Menu) | — | `home.help`, `HelpDialog`, `transport.menu` | — | `podcast doctor --bundle` | — | yes | none · none |
+| Export deliverables… | `export.deliverables` | `Mod+Shift+E` | — | `transport.menu` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
+| New project | `project.new` | `Mod+N` | — | `transport.menu` | — | — | — | yes | none · none |
+| Open project | `project.open` | `Mod+O` | — | `transport.menu` | — | — | — | yes | none · none |
+| New track | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | — | `transport.menu`, `editingToolRail`, `trackLane` | `track_add_empty_tool`, `track_add` | — | — | — | none · none |
+| Import audio | `media.import` | `Mod+I` | — | `transport.menu`, `editingToolRail`, `drop` | `track_set_media_tool` | — | — | — | none · none |
+| Annotate transcript | `view.transcriptAnnotate` | — (toolbar toggle; no industry-standard key) | — | `transcript.annotate` | — | — | — | — | none · none |
+| Correct transcript | `transcript.correctIntent` | — (toolbar toggle; inline correction uses F2) | `double-tap` | `transcript.correct`, `mobileShell.gesture.doubleTapWord`, `transcript.inlineEdit` | — | — | — | — | anchor · look |
+| Adjust word timing | `transcript.adjustTiming` | — (Native range controls and numeric fields in the word inspector) | — | `transcript.wordbar` | — | — | — | — | anchor · none |
+| Edit focused transcript word | `transcript.editWordInline` | `F2` | — | — | — | — | — | — | anchor · none |
+| Select transcript range | `transcript.selectIntent` | — (toolbar toggle; no industry-standard key) | — | `transcript.select` | — | — | — | — | anchor · look |
+| Ignore / restore transcript words | `transcript.ignoreWords` | — (no industry-standard key (#649)) | — | `transcript.ignore`, `transcript.restoreIgnored`, `inspector.word.ignore` | — | — | — | — | anchor · look |
+| Next low-confidence word | `transcript.nextLowConfidence` | — (no industry-standard key (#649); command palette) | — | `transcript.lowConfidenceNext` | — | — | `podcast-transcript-correct` | — | anchor · look |
+| Previous low-confidence word | `transcript.prevLowConfidence` | — (no industry-standard key (#649); command palette) | — | `transcript.lowConfidencePrev` | — | — | `podcast-transcript-correct` | — | anchor · look |
+| Show cut away | `view.showCutAway` | — (toolbar toggle; no industry-standard key) | — | `transcript.showCutAway` | — | — | — | — | none · none |
+| Trim clip edge | `edit.trimClipEdge` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.trimHandle` | `trim_clip_edge_tool` | `podcast edit trim-clip` | — | — | time · none |
+| Move clips | `edit.moveClips` | — (pointer clip-body drag; arrow keys stay playhead nudge) | — | `timeline.clip.body` | `move_clips_tool` | `podcast edit move-clips` | — | — | time · none |
+| Add chapter at playhead | `edit.addChapter` | — (no default shortcut; Menu › Markers or the phone More action) | `long-press-empty` | `transport.menu`, `mobileShell.more`, `timeline.createMenu` | — | — | — | yes | none · none |
+| Add envelope point | `envelope.addPoint` | — (touch create menu; the envelope inspector's Add point is the keyboard route) | `long-press-empty` | `timeline.createMenu` | — | — | — | — | time · none |
+| Comment here | `comment.draftAt` | — (touch create menu; comment mode on the ruler is the pointer route) | `long-press-empty` | `timeline.createMenu` | — | — | — | — | time · none |
+| Roll clip join | `edit.rollClipJoin` | — (pointer join diamond; no industry-standard key) | `long-press-arm-drag` | `timeline.clip.joinDiamond`, `transcript.editBoundary` | — | — | — | — | time · none |
+| Set clip fade | `edit.setClipFade` | `ArrowLeft` | `long-press-arm-drag`, `hold-nudge` | `timeline.clip.fadeHandle` | — | — | — | — | time · none |
+| Set clip join | `edit.setClipJoin` | — (inspector select and join badge popover; no industry-standard key) | — | `inspector.clip.joinMode`, `timeline.join.badge` | `set_clip_join_tool` | `podcast edit set-clip-join` | — | — | time · none |
+| Find and replace transcript | `transcript.findReplace` | — (toolbar and command palette; no shortcut yet) | — | `transcript.findReplace` | — | — | — | yes | none · none |
+| Play range | `range.play` | — (Context action with explicit range selection) | — | `RangeActions` | — | — | — | — | none · none |
+| Cut range | `range.cut` | — (Context action with explicit range selection) | — | `RangeActions` | — | — | — | — | none · none |
+| Mute range | `range.mute` | — (Context action with explicit range selection) | — | `RangeActions` | `propose_range_mute_tool` | — | — | — | none · none |
+| Comment on range | `range.comment` | — (Context action with explicit range selection) | — | `RangeActions` | — | — | — | — | none · none |
+| Bounce range | `range.bounce` | — (Context action with explicit range selection) | — | `RangeActions` | — | — | — | — | none · none |
+| Select a range | `range.arm` | — (Context action with explicit range selection) | — | `EditingToolRail`, `transport.menu` | — | — | — | — | none · none |
 
 ## Agent workflows
 

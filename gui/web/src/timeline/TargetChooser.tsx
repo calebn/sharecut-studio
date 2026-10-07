@@ -26,13 +26,13 @@ import {
   chooserItems,
   layoutChips,
 } from "./chooserLayout";
-import { type DragAxis, HIT_KINDS, type HitKind } from "./hitCandidates";
 import {
   CHOOSER_ITEM_ATTR,
   type ChooserView,
   type HitRouter,
 } from "./hitRouting";
 import { hitDetail, hitTimeSec, type ResolvedHit } from "./hitTargets";
+import { type DragAxis, HIT_KINDS, type HitKind } from "./inputContract";
 
 /** Kind label, plus the envelope gain the dot stands for. */
 function chipTitle(hit: ResolvedHit): string {
@@ -145,6 +145,16 @@ function TargetGlyph({
             y="0.5"
             width="6"
             height="23"
+          />
+        ) : null}
+        {kind === "social-clip" ? (
+          <rect
+            className="target-glyph-social"
+            x="2"
+            y="8"
+            width="20"
+            height="8"
+            rx="2"
           />
         ) : null}
         {kind === "chapter" ? (

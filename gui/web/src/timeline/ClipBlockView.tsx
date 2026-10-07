@@ -8,11 +8,14 @@ import type {
 } from "react";
 import { capabilityTooltip } from "../capabilities/copy";
 import { isCrossfadeJoin, isCutJoin } from "../edit/joinRender";
+import { rippleDetail } from "../edit/ripplePreview";
 import type { ClipRow } from "../types/project";
+import { RippleMark } from "../ui/RippleMark";
 import { clipLabels } from "../utils/clipLabels";
 import type { ClipBlockGeometry } from "./clipBlockGeometry";
 import { FadeCurves } from "./FadeCurves";
 import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";
+import { RippleArrow } from "./RippleArrow";
 import { timelineTestIds } from "./selectors";
 
 /** Clip-local overlay spans for source regions, clamped to the visible window. */
@@ -138,6 +141,8 @@ export interface ClipBlockViewProps {
     handle: ClipHandle,
     event: ReactKeyboardEvent<HTMLButtonElement>,
   ) => void;
+  /** A held arrow key stopped this handle at a soft boundary or limit. */
+  bumpedHandle?: ClipHandle | null;
 }
 
 export function ClipBlockView({
@@ -169,6 +174,7 @@ export function ClipBlockView({
   onHandleBlur,
   onHandleKeyDown,
   onHandleKeyUp,
+  bumpedHandle = null,
 }: ClipBlockViewProps) {
   const {
     sourceStart,
@@ -184,6 +190,8 @@ export function ClipBlockView({
     ghostExtraPx,
     fadeDragEdge,
     trimDragging,
+    landing,
+    rippleSec,
   } = geometry;
 
   const timelineStart = left / zoomPxPerSec;
@@ -255,6 +263,28 @@ export function ClipBlockView({
           aria-hidden="true"
         />
       ) : null}
+      {landing ? (
+        <>
+          {landing.left < 0 ? (
+            <span
+              className="clip-trimmed-span"
+              style={{ left: landing.left, width: -landing.left }}
+              aria-hidden="true"
+            />
+          ) : null}
+          <span
+            className="clip-landing"
+            style={{ left: landing.left, width: landing.width }}
+            aria-hidden="true"
+          />
+          <RippleArrow from={0} to={landing.left} />
+        </>
+      ) : null}
+      {rippleSec !== 0 ? (
+        <span className="trim-readout" aria-hidden="true">
+          <RippleMark detail={rippleDetail(rippleSec)} />
+        </span>
+      ) : null}
       {ghostExtraPx > 0 ? (
         // The clip's padding box starts 1px in (its border): -1 puts the
         // ghost's border box, and so its layer (1px outside the ghost's
@@ -293,6 +323,7 @@ export function ClipBlockView({
           onBlur={() => onHandleBlur?.("fade-in")}
           onKeyDown={(e) => onHandleKeyDown?.("fade-in", e)}
           onKeyUp={(e) => onHandleKeyUp?.("fade-in", e)}
+          data-bump={bumpedHandle === "fade-in" ? "" : undefined}
           onPointerCancel={onHandlePointerCancel}
           onLostPointerCapture={onHandlePointerCancel}
           onPointerMove={onHandlePointerMove}
@@ -319,6 +350,7 @@ export function ClipBlockView({
           onBlur={() => onHandleBlur?.("fade-out")}
           onKeyDown={(e) => onHandleKeyDown?.("fade-out", e)}
           onKeyUp={(e) => onHandleKeyUp?.("fade-out", e)}
+          data-bump={bumpedHandle === "fade-out" ? "" : undefined}
           onPointerCancel={onHandlePointerCancel}
           onLostPointerCapture={onHandlePointerCancel}
           onPointerMove={onHandlePointerMove}
@@ -343,12 +375,13 @@ export function ClipBlockView({
             className="trim-handle in"
             {...hitTargetProps("trim-in", clip.id, savedStart, { selected })}
             title={`${trimTip} · start`}
-            aria-label={`${trimTip} · start. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
+            aria-label={`${trimTip} · start, ripple: later clips move. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
             onPointerDown={(e) => onHandlePointerDown?.("trim-in", e)}
             onFocus={(e) => onHandleFocus?.("trim-in", e)}
             onBlur={() => onHandleBlur?.("trim-in")}
             onKeyDown={(e) => onHandleKeyDown?.("trim-in", e)}
             onKeyUp={(e) => onHandleKeyUp?.("trim-in", e)}
+            data-bump={bumpedHandle === "trim-in" ? "" : undefined}
             onPointerCancel={onHandlePointerCancel}
             onLostPointerCapture={onHandlePointerCancel}
             onPointerMove={onHandlePointerMove}
@@ -360,12 +393,13 @@ export function ClipBlockView({
             className="trim-handle out"
             {...hitTargetProps("trim-out", clip.id, savedEnd, { selected })}
             title={`${trimTip} · end`}
-            aria-label={`${trimTip} · end. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
+            aria-label={`${trimTip} · end, ripple: later clips move. Arrow keys adjust; Shift takes larger steps; Escape cancels.`}
             onPointerDown={(e) => onHandlePointerDown?.("trim-out", e)}
             onFocus={(e) => onHandleFocus?.("trim-out", e)}
             onBlur={() => onHandleBlur?.("trim-out")}
             onKeyDown={(e) => onHandleKeyDown?.("trim-out", e)}
             onKeyUp={(e) => onHandleKeyUp?.("trim-out", e)}
+            data-bump={bumpedHandle === "trim-out" ? "" : undefined}
             onPointerCancel={onHandlePointerCancel}
             onLostPointerCapture={onHandlePointerCancel}
             onPointerMove={onHandlePointerMove}

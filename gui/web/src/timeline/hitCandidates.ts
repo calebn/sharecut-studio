@@ -4,37 +4,7 @@
  * targets crowd one spot. The selected target wins, then the nearest, then
  * the kind's priority.
  */
-
-/**
- * How a target's own drag moves it: along time (`x`), in time and value
- * (`xy`), or not at all (`none`, a target that only takes taps). The chooser
- * grabs a chip only for a move along this axis (`chipGesture.ts`).
- */
-export type DragAxis = "x" | "xy" | "none";
-
-/** Every hit-testable timeline target kind: tie-break priority, label, drag axis. */
-export const HIT_KINDS = {
-  join: { priority: 10, label: "Join", axis: "none" },
-  "envelope-point": { priority: 9, label: "Envelope point", axis: "xy" },
-  "pending-start": { priority: 8, label: "Pending start", axis: "x" },
-  "pending-end": { priority: 8, label: "Pending end", axis: "x" },
-  "pending-flag": { priority: 7, label: "Pending split", axis: "none" },
-  roll: { priority: 6, label: "Roll", axis: "x" },
-  "fade-in": { priority: 5, label: "Fade in", axis: "x" },
-  "fade-out": { priority: 5, label: "Fade out", axis: "x" },
-  "trim-in": { priority: 4, label: "Trim start", axis: "x" },
-  "trim-out": { priority: 4, label: "Trim end", axis: "x" },
-  chapter: { priority: 3, label: "Chapter", axis: "x" },
-} as const satisfies Record<
-  string,
-  { priority: number; label: string; axis: DragAxis }
->;
-
-export type HitKind = keyof typeof HIT_KINDS;
-
-export function isHitKind(value: unknown): value is HitKind {
-  return typeof value === "string" && Object.hasOwn(HIT_KINDS, value);
-}
+import { HIT_KINDS, type HitKind, outranks } from "./inputContract";
 
 /** Viewport px box, as `getBoundingClientRect` reports it. */
 export interface HitRect {
@@ -132,10 +102,32 @@ export function rankHitTargets<T extends HitTarget>(
       },
     });
   }
-  return ranked.sort(
+  ranked.sort(
     ({ candidate: a }, { candidate: b }) =>
       Number(b.selected) - Number(a.selected) ||
       a.distance - b.distance ||
       b.priority - a.priority,
   );
+  return applyOutranks(ranked);
+}
+
+/**
+ * Moves each candidate ahead of every equally selected one its kind
+ * outranks (`HIT_KINDS[kind].outranks`), keeping the rest of the order.
+ */
+function applyOutranks<T extends { candidate: HitCandidate }>(
+  ranked: T[],
+): T[] {
+  const out = [...ranked];
+  for (let i = 0; i < out.length; i += 1) {
+    const loser = out[i].candidate;
+    const w = out.findIndex(
+      ({ candidate }, j) =>
+        j > i &&
+        candidate.selected === loser.selected &&
+        outranks(candidate.kind, loser.kind),
+    );
+    if (w > i) out.splice(i, 0, ...out.splice(w, 1));
+  }
+  return out;
 }

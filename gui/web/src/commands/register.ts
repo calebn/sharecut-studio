@@ -1,10 +1,12 @@
 /** Stable entry point for the DAW command registry. Keep registration order here. */
 import { registerChapterCommands } from "./chapters";
+import { registerCommentCommands } from "./comments";
 import {
   registerClipboardCommands,
   registerClipMoveCommands,
   registerPrimaryEditingCommands,
 } from "./editing";
+import { registerEnvelopeCommands } from "./envelopes";
 import { registerHistoryCommands } from "./history";
 import { registerHostCommands } from "./host";
 import { registerNavigationCommands } from "./navigation";
@@ -44,4 +46,6 @@ export function registerDawCommands(): void {
   registerTranscriptReviewCommands();
   registerTranscriptWordCommands();
   registerChapterCommands();
+  registerEnvelopeCommands();
+  registerCommentCommands();
 }

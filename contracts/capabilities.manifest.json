@@ -278,6 +278,9 @@
         "command": "comment.resolve",
         "gui": [
           "mobileShell.gesture.swipeLeftComment"
+        ],
+        "touch": [
+          "swipe-left"
         ]
       },
       "omit": {
@@ -564,11 +567,15 @@
         "command": "edit.bladeCut",
         "gui": [
           "editingToolRail",
-          "timeline"
+          "timeline",
+          "timeline.createMenu"
         ],
         "keyboard": "Mod+K",
         "mcp": [
           "split_clip_tool"
+        ],
+        "touch": [
+          "long-press-empty"
         ]
       },
       "omit": {},
@@ -966,7 +973,10 @@
         "gui": [
           "transport.menu"
         ],
-        "keyboard": "="
+        "keyboard": "=",
+        "touch": [
+          "pinch"
+        ]
       },
       "omit": {},
       "tooltip": "Zoom in",
@@ -989,7 +999,10 @@
         "gui": [
           "transport.menu"
         ],
-        "keyboard": "-"
+        "keyboard": "-",
+        "touch": [
+          "pinch"
+        ]
       },
       "omit": {},
       "tooltip": "Zoom out",
@@ -1207,7 +1220,10 @@
           "history_undo"
         ],
         "cli": "podcast undo",
-        "skill": "podcast-history"
+        "skill": "podcast-history",
+        "touch": [
+          "two-finger-tap"
+        ]
       },
       "omit": {},
       "tooltip": "Undo",
@@ -2228,6 +2244,9 @@
           "transcript.correct",
           "mobileShell.gesture.doubleTapWord",
           "transcript.inlineEdit"
+        ],
+        "touch": [
+          "double-tap"
         ]
       },
       "presence": {
@@ -2429,7 +2448,11 @@
           "trim_clip_edge_tool"
         ],
         "cli": "podcast edit trim-clip",
-        "keyboard": "ArrowLeft"
+        "keyboard": "ArrowLeft",
+        "touch": [
+          "long-press-arm-drag",
+          "hold-nudge"
+        ]
       },
       "omit": {},
       "presence": {
@@ -2477,7 +2500,11 @@
         "command": "edit.addChapter",
         "gui": [
           "transport.menu",
-          "mobileShell.more"
+          "mobileShell.more",
+          "timeline.createMenu"
+        ],
+        "touch": [
+          "long-press-empty"
         ]
       },
       "omit": {
@@ -2486,6 +2513,58 @@
       },
       "presence": {
         "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.envelope.addPoint",
+      "label": "Add envelope point",
+      "tooltip": "Add a volume envelope point at the held time, at the level already there",
+      "service": "Sharecut Studio \u2192 SetEnvelope document command",
+      "industry_standard_key": false,
+      "gates": [
+        "canEditEnvelopes"
+      ],
+      "surfaces": {
+        "command": "envelope.addPoint",
+        "gui": [
+          "timeline.createMenu"
+        ],
+        "touch": [
+          "long-press-empty"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "touch create menu; the envelope inspector's Add point is the keyboard route"
+      },
+      "presence": {
+        "cursor": "time",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.comment.draftAt",
+      "label": "Comment here",
+      "tooltip": "Start a comment at the held time",
+      "service": "CommentService",
+      "industry_standard_key": false,
+      "gates": [
+        "canComment"
+      ],
+      "surfaces": {
+        "command": "comment.draftAt",
+        "gui": [
+          "timeline.createMenu"
+        ],
+        "touch": [
+          "long-press-empty"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "touch create menu; comment mode on the ruler is the pointer route"
+      },
+      "presence": {
+        "cursor": "time",
         "follow": "none"
       }
     },
@@ -2503,6 +2582,9 @@
         "gui": [
           "timeline.clip.joinDiamond",
           "transcript.editBoundary"
+        ],
+        "touch": [
+          "long-press-arm-drag"
         ]
       },
       "omit": {
@@ -2528,7 +2610,11 @@
         "gui": [
           "timeline.clip.fadeHandle"
         ],
-        "keyboard": "ArrowLeft"
+        "keyboard": "ArrowLeft",
+        "touch": [
+          "long-press-arm-drag",
+          "hold-nudge"
+        ]
       },
       "omit": {},
       "presence": {

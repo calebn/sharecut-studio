@@ -38,6 +38,13 @@ export interface ClipBlockGeometry {
   fadeDragEdge: FadeEdge | null;
   /** A trim or roll drag is previewing on this clip. */
   trimDragging: boolean;
+  /**
+   * Where a ripple trim of the start lands the clip (its start stays put),
+   * relative to `left` (css px); null when the edge has not moved.
+   */
+  landing: { left: number; width: number } | null;
+  /** How far a previewing trim ripples the later clips (s); 0 when none. */
+  rippleSec: number;
 }
 
 /** Preview-aware clip geometry shared by the live ClipBlock and its catalog view. */
@@ -63,10 +70,17 @@ export function clipBlockGeometry(input: {
     ? rollGeom.sourceEnd
     : (trimPreview?.sourceEnd ?? clip.source_end);
   const durationSec = sourceEnd - sourceStart;
+  // Trim mode Option A (#1135): the grabbed start follows the finger, the
+  // audio staying where it is, and the landing outline shows where the
+  // ripple puts it.
+  const headShift =
+    trimPreview?.edge === "in" && !rollActive
+      ? trimPreview.sourceStart - clip.source_start
+      : 0;
   const timelineStart =
     input.previewTimelineStart != null && !rollActive
       ? input.previewTimelineStart
-      : rollGeom.timelineStart;
+      : rollGeom.timelineStart + headShift;
   const left = timelineStart * zoomPxPerSec;
   const width = Math.max(4, durationSec * zoomPxPerSec);
   const committedWidth = Math.max(
@@ -82,25 +96,23 @@ export function clipBlockGeometry(input: {
   const fadeOutPx = (fadeOutMs / 1000) * zoomPxPerSec;
   const growingOut =
     trimPreview != null && trimPreview.sourceEnd > clip.source_end + 1e-9;
-  const growingIn =
-    trimPreview != null && trimPreview.sourceStart < clip.source_start - 1e-9;
-  // In-edge expand keeps timeline_start fixed — duration grows to the right.
-  const ghostSourceStart =
-    trimPreview == null
-      ? clip.source_start
-      : growingIn
-        ? trimPreview.sourceStart
-        : clip.source_end;
-  const ghostSourceEnd =
-    trimPreview == null
-      ? clip.source_end
-      : growingIn
-        ? clip.source_start
-        : trimPreview.sourceEnd;
-  const ghostExtraPx =
-    trimPreview != null && (growingOut || growingIn)
-      ? Math.abs(ghostSourceEnd - ghostSourceStart) * zoomPxPerSec
+  // The start edge moves with the finger and reveals real audio, so only a
+  // grown end needs a ghost.
+  const ghostSourceStart = clip.source_end;
+  const ghostExtraPx = growingOut
+    ? (trimPreview.sourceEnd - clip.source_end) * zoomPxPerSec
+    : 0;
+  const rippleSec =
+    trimPreview != null && !rollActive
+      ? durationSec - (clip.source_end - clip.source_start)
       : 0;
+  const landing =
+    Math.abs(headShift) > 1e-9
+      ? {
+          left: -headShift * zoomPxPerSec,
+          width: Math.max(4, durationSec * zoomPxPerSec),
+        }
+      : null;
 
   return {
     rollActive,
@@ -118,5 +130,7 @@ export function clipBlockGeometry(input: {
     ghostExtraPx,
     fadeDragEdge: fadePreview?.edge ?? null,
     trimDragging: trimPreview != null || rollActive,
+    landing,
+    rippleSec,
   };
 }

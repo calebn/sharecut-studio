@@ -892,7 +892,7 @@ export function ignoresKeyRepeat(
 }
 
 export function argsFromKeyEvent(
-  e: Pick<KeyboardEvent, "shiftKey" | "key">,
+  e: Pick<KeyboardEvent, "shiftKey" | "key" | "repeat">,
   commandId: string,
 ): Record<string, unknown> {
   if (commandId === "edit.setClipFade" || commandId === "edit.trimClipEdge") {
@@ -900,6 +900,7 @@ export function argsFromKeyEvent(
       phase: "nudge",
       direction: e.key === "ArrowLeft" ? -1 : 1,
       shift: e.shiftKey,
+      held: e.repeat,
     };
   }
   if (

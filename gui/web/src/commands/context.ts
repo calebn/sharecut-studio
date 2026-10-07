@@ -1,5 +1,7 @@
 import {
   canApplyPass12,
+  canComment,
+  canEditEnvelopes,
   canEditMix,
   canIngestMedia,
   canManageProjects,
@@ -23,6 +25,10 @@ export type CommandContext = {
   canIngestMedia: boolean;
   /** Host or Editor: may change the saved mix (volume, mute). */
   canEditMix: boolean;
+  /** Host or Editor: may change volume envelopes. */
+  canEditEnvelopes: boolean;
+  /** Host or a guest with the comment capability: may add comments. */
+  canComment: boolean;
   canManageProjects: boolean;
   hasProject: boolean;
   shellBreakpoint: string;
@@ -82,6 +88,12 @@ export function buildCommandContext(): CommandContext {
       s.shareCapabilities,
     ),
     canEditMix: canEditMix(s.projectPath, s.guestMode, s.shareCapabilities),
+    canEditEnvelopes: canEditEnvelopes(
+      s.projectPath,
+      s.guestMode,
+      s.shareCapabilities,
+    ),
+    canComment: canComment(s.projectPath, s.guestMode, s.shareCapabilities),
     canManageProjects: canManageProjects(s.projectPath),
     hasProject: s.project != null,
     shellBreakpoint: s.shellBreakpoint,
@@ -198,6 +210,23 @@ export function evaluateWhen(
       return ctx.canEditMix
         ? { ok: true }
         : { ok: false, reason: "Only the host and editors can change the mix" };
+    case "canEditEnvelopes":
+      if (!ctx.hasProject) {
+        return { ok: false, reason: "No project loaded" };
+      }
+      return ctx.canEditEnvelopes
+        ? { ok: true }
+        : {
+            ok: false,
+            reason: "Only the host and editors can change envelopes",
+          };
+    case "canComment":
+      if (!ctx.hasProject) {
+        return { ok: false, reason: "No project loaded" };
+      }
+      return ctx.canComment
+        ? { ok: true }
+        : { ok: false, reason: "This link cannot add comments" };
     case "canManageProjects":
       return ctx.canManageProjects
         ? { ok: true }

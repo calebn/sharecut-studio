@@ -88,7 +88,7 @@ it("consumes a denied focused fade arrow without moving the playhead", async () 
   expect(event.defaultPrevented).toBe(true);
   expect(execute).toHaveBeenCalledWith(
     "edit.setClipFade",
-    { phase: "nudge", direction: 1, shift: false },
+    { phase: "nudge", direction: 1, shift: false, held: false },
     expect.objectContaining({ skipWhen: true }),
   );
   expect(run).not.toHaveBeenCalled();
