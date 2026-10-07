@@ -23,19 +23,25 @@ another track: bleed is never the main audio (#945).
 carries under its own speech, then synthesise noise with that power spectrum. The estimate
 is read from, in order:
 
-1. **The track's own room**: the quiet runs the room-tone sampler finds in its pauses
-   (``edits/room_tone.py``, #1054), once they add up to ``MIN_ROOM_SEC``. Only a track whose
-   gate stays open through some pauses has them.
-2. **The gate's hold**, on a track gated through every pause: what the gate holds open
-   before closing, after the voice fell below its threshold (the *hangover* a telephony
-   encoder sends its SID frames from). It is measured per track (``_measure_hold``) on
-   the median level of each ``BLOCK_SEC`` going back from the closures: the longest
-   *steady run* there (within ``FLAT_DB`` of its quietest block, rising slower than
-   ``MAX_RISE_DB_PER_SEC``, at least ``MIN_HOLD_SEC``) with the voice back at least
-   ``SPEECH_ABOVE_NOISE_DB`` over it further back. Blocks between it and the closure are
-   the gate's release (a ramp, or a codec's quieter last frame): all under the run, and
-   no longer than it. A voice's reverberant tail decays faster than the rise bound, so a
-   gate that closes on a tail with no hold has no steady run and its holes stay silent.
+1. **The gate's hold**: what the gate holds open before closing, after the voice fell
+   below its threshold (the *hangover* a telephony encoder sends its SID frames from). It
+   is measured per track (``_measure_hold``) on the median level of each ``BLOCK_SEC``
+   going back from the closures: the longest *steady run* there (within ``FLAT_DB`` of its
+   quietest block, rising slower than ``MAX_RISE_DB_PER_SEC``, at least ``MIN_HOLD_SEC``)
+   with the voice back at least ``SPEECH_ABOVE_NOISE_DB`` over it further back. Blocks
+   between it and the closure are the gate's release (a ramp, or a codec's quieter last
+   frame): all under the run, and no longer than it. A voice's reverberant tail decays
+   faster than the rise bound, so a gate that closes on a tail with no hold has no steady
+   run.
+2. **The track's own room**, when no hold is measured: the quiet runs the room-tone
+   sampler finds in its pauses (``edits/room_tone.py``, #1054), once they add up to
+   ``MIN_ROOM_SEC``. A gate that stays open through whole pauses has them, and when it
+   closes further than ``MAX_HOLD_SEC`` from the voice no hold is measured.
+
+**DC is never room.** A decoder can leave the open gate's audio off zero (Zoom's sits about
+8 LSB under it) while the closed gate is exact zero, and the offset drifts as the gate
+releases. Every frame and block is measured with its own mean removed, and the fill
+carries nothing under ``MIN_FILL_HZ``.
 
 **Digital residue is never room.** A closed gate rounds a near-zero signal to ±1 LSB before
 its exact zero, and a gate can dip to that residue while open. Samples within
@@ -45,12 +51,12 @@ or block of nothing but residue is skipped.
 
 Both read periodograms (frames of about 20 ms, or one shorter frame per hold) of every
 channel, since the fill is written to each channel at the level it measures: a mono
-downmix of identical channels reads 3 dB over either. They drop those
-``SPEECH_ABOVE_NOISE_DB`` over the median (a word or a peer's bleed that a hold or a pause
-still carries) and average the rest per frequency bin. The estimate must sit
-``MIN_BELOW_SPEECH_DB`` under the track's own speech level, as room tone must; otherwise it
-is not a floor and the holes stay silent. Estimators measured against these and dropped
-are in [audio-engineering.md § Gate fill].
+downmix of identical channels reads 3 dB over either. They keep those within
+``NOISE_SPREAD_DB`` of the median (a word, a breath or a peer's bleed that a hold or a pause
+still carries sits over it; a steady floor sits within it) and average them per frequency
+bin. The fill must sit ``MIN_BELOW_SPEECH_DB`` under the track's own speech level, as room
+tone must; otherwise it is not a floor and the holes stay silent. Estimators measured
+against these and dropped are in [audio-engineering.md § Gate fill].
 
 The noise is synthesised once as a seamless loop (random phases over the spectrum, one
 inverse FFT), and each hole reads the loop at its own position on the media's clock, so no
@@ -82,6 +88,7 @@ from podcast_mcp.edits.room_tone import (
 )
 from podcast_mcp.models import EpisodeProject, GateFill, GateFillSource, Track, TrackRole
 from podcast_mcp.util.atomic_render import render_atomic
+from podcast_mcp.util.dsp import rms_db
 from podcast_mcp.util.pcm_stream import SequentialWindowReader
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.project_state import FileRevision, file_revision
@@ -113,8 +120,13 @@ MIN_HOLD_SEC = 0.015
 MIN_CLOSURES = 8
 # Frames read per window, so a long quiet run is never held whole.
 READ_FRAMES = 512
-# Periodograms this far over the median carry a word or bleed, not the room.
+# A hold's voice sits at least this far over it, further back from the closure.
 SPEECH_ABOVE_NOISE_DB = 10.0
+# Periodograms more than this over the median carry a word, a breath or bleed: a steady
+# floor keeps nearly every frame within it.
+NOISE_SPREAD_DB = 3.0
+# The fill carries nothing under this: a decoder's DC offset and its drift are not room.
+MIN_FILL_HZ = 20.0
 LOOP_SEC = 20.0
 WRITE_CHUNK = 1 << 16
 GATE_FILL_DIR = "artifacts/gate_fill"
@@ -217,12 +229,6 @@ def _frame_len(sample_rate: int) -> int:
     return 1 << round(math.log2(FRAME_SEC * sample_rate))
 
 
-def _power_db(psd: np.ndarray, nfft: int) -> float:
-    """Signal power of a one-sided periodogram (``|X|^2 / sum(w^2)`` per bin), in dBFS."""
-    power = (psd[0] + psd[-1] + 2.0 * psd[1:-1].sum()) / nfft
-    return 10.0 * math.log10(max(float(power), 1e-30))
-
-
 def _open_stretches(holes: GateHoles) -> Iterator[tuple[int, int, bool]]:
     """``(start, end, closes)`` of live audio between holes; ``closes`` when a gate shuts at ``end``."""
     start, last = holes.live
@@ -253,18 +259,19 @@ def _frames(samples: np.ndarray, length: int) -> np.ndarray:
 
 
 def _periodograms(frames: np.ndarray, nfft: int) -> np.ndarray:
-    """Hann periodograms (``|X|^2 / sum(w^2)``) of ``(n, length, channels)`` frames,
-    zero-padded to ``nfft`` and averaged over the channels."""
+    """Hann periodograms (``|X|^2 / sum(w^2)``) of ``(n, length, channels)`` frames, each
+    channel's DC removed, zero-padded to ``nfft`` and averaged over the channels."""
     window = np.hanning(frames.shape[1])[:, None]
-    spectra = np.abs(np.fft.rfft(frames * window, n=nfft, axis=1)) ** 2
+    ac = frames - frames.mean(axis=1, keepdims=True)
+    spectra = np.abs(np.fft.rfft(ac * window, n=nfft, axis=1)) ** 2
     return spectra.mean(axis=2) / float(np.sum(window**2))
 
 
 def _noise_psd(rows: list[np.ndarray]) -> np.ndarray:
-    """Mean of the periodograms not ``SPEECH_ABOVE_NOISE_DB`` over the median."""
+    """Mean of the periodograms within ``NOISE_SPREAD_DB`` of the median."""
     table = np.vstack(rows)
     power = table.sum(axis=1)
-    return table[power <= np.median(power) * 10 ** (SPEECH_ABOVE_NOISE_DB / 10)].mean(axis=0)
+    return table[power <= np.median(power) * 10 ** (NOISE_SPREAD_DB / 10)].mean(axis=0)
 
 
 @dataclass(frozen=True)
@@ -316,9 +323,9 @@ def _before_closures(path: Path, holes: GateHoles) -> Iterator[np.ndarray]:
 
 
 def _closure_profile(path: Path, holes: GateHoles) -> np.ndarray:
-    """Median level (dBFS) of each block going back from the gate's closures, residue-only
-    blocks left out; [0] ends at one. Stops at the first block fewer than ``MIN_CLOSURES``
-    closures reach."""
+    """Median level (dBFS, each block's DC removed) of each block going back from the gate's
+    closures, residue-only blocks left out; [0] ends at one. Stops at the first block fewer
+    than ``MIN_CLOSURES`` closures reach."""
     block = round(BLOCK_SEC * holes.sample_rate)
     blocks = round(MAX_HOLD_SEC / BLOCK_SEC)
     residue = RESIDUE_LSB * holes.lsb
@@ -326,7 +333,7 @@ def _closure_profile(path: Path, holes: GateHoles) -> np.ndarray:
     for samples in _before_closures(path, holes):
         n = min(blocks, samples.shape[0] // block)
         tail = samples[samples.shape[0] - n * block :].reshape(n, block, -1)[::-1]
-        power = np.mean(np.square(tail, dtype=np.float64), axis=(1, 2))
+        power = np.mean(np.var(tail, axis=1, dtype=np.float64), axis=1)
         power[np.max(np.abs(tail), axis=(1, 2), initial=0.0) <= residue] = np.nan
         rows.append(np.pad(power, (0, blocks - n), constant_values=np.nan))
     if len(rows) < MIN_CLOSURES:
@@ -404,31 +411,31 @@ def _comfort_noise(
     floor = track_floor(path)
     if floor is None:
         return "no noise measured under its speech"
-    noise = _room_noise(path, holes, floor) or _hold_noise(path, holes)
+    held = _hold_noise(path, holes)
+    noise = held if isinstance(held, _Noise) else _room_noise(path, holes, floor) or held
     if isinstance(noise, str):
         return noise
-    noise_db = _power_db(noise.psd, noise.nfft)
     if floor.speech_db is None:
         return "no speech above its noise"
+    loop = _synthesise(noise.psd, noise.nfft, holes.sample_rate)
+    noise_db = rms_db(loop, floor_db=-200.0)
     if noise_db > floor.speech_db - MIN_BELOW_SPEECH_DB:
         return (
             f"its noise ({noise_db:.1f} dBFS) sits near its speech ({floor.speech_db:.1f} dBFS), "
             "not a floor"
         )
-    loop = _synthesise(noise.psd, noise.nfft, holes.sample_rate)
     return FillLoop(samples=loop, level_db=noise_db, noise_db=noise_db, basis=noise.basis)
 
 
 def _synthesise(psd: np.ndarray, nfft: int, sample_rate: int) -> np.ndarray:
-    """A seamless loop of Gaussian noise with power spectrum ``psd`` (random phase, one IFFT)."""
+    """A seamless loop of Gaussian noise with power spectrum ``psd`` (random phase, one IFFT),
+    with nothing under ``MIN_FILL_HZ``."""
     length = 1 << math.ceil(math.log2(LOOP_SEC * sample_rate))
     seed = int.from_bytes(hashlib.sha256(psd.astype("<f8").tobytes()).digest()[:8], "little")
     white = np.random.default_rng(seed).standard_normal(length)
-    shape = np.interp(
-        np.fft.rfftfreq(length, 1.0 / sample_rate),
-        np.fft.rfftfreq(nfft, 1.0 / sample_rate),
-        psd,
-    )
+    freqs = np.fft.rfftfreq(length, 1.0 / sample_rate)
+    shape = np.interp(freqs, np.fft.rfftfreq(nfft, 1.0 / sample_rate), psd)
+    shape[freqs < MIN_FILL_HZ] = 0.0
     return np.fft.irfft(np.fft.rfft(white) * np.sqrt(shape), length).astype(np.float32)
 
 
@@ -437,7 +444,6 @@ def _room_tone_bed(
 ) -> FillLoop | str:
     del path
     from podcast_mcp.engines.align import load_mono_window
-    from podcast_mcp.util.dsp import rms_db
 
     bed = room_tone_bed(project, track.id)
     if bed is None:
