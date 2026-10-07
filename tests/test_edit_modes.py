@@ -581,3 +581,61 @@ def test_guest_mcp_returns_the_confirmation_and_accepts_the_flag(episode, sample
     applied = delete(confirm_cut_speech=True)
     assert "needs_confirmation" not in applied
     assert _geometry(episode) == [("guest", 0.0, 8.0, 0.0), ("host", 0.0, 8.0, 0.0)]
+
+
+@pytest.mark.parametrize(("answer", "cuts"), [("n\n", False), ("y\n", True)], ids=["no", "yes"])
+def test_cli_asks_at_a_terminal_before_a_range_cut_naming_no_tracks(
+    episode, monkeypatch, answer, cuts
+):
+    from types import SimpleNamespace
+
+    import podcast_mcp.cli.cut_speech as cli_cut_speech
+
+    monkeypatch.setattr(
+        cli_cut_speech, "sys", SimpleNamespace(stdin=SimpleNamespace(isatty=lambda: True))
+    )
+    args = ["edit", "ripple-delete", "--project", str(episode), "--start", "10", "--end", "11"]
+    before = _geometry(episode)
+
+    result = CliRunner().invoke(app, [*args, "--no-inaudible-opt"], input=answer)
+
+    assert f"{ALL_SPEECH}\nCut anyway? [y/N]: " in result.stdout
+    if cuts:
+        assert result.exit_code == 0, result.output
+        _assert_in_sync(episode, (12.0, 19.0), -1.0)
+    else:
+        assert result.exit_code == 1
+        assert "Nothing changed. Run again with --yes to cut anyway." in result.stderr
+        assert _geometry(episode) == before
+
+
+def test_guest_mcp_commenter_suggests_a_ripple_and_the_editor_confirms_it(
+    episode, sample_wav, monkeypatch
+):
+    from podcast_mcp.edits.share_capabilities import capabilities_for_role
+    from test_guest_document_gate import _mcp_call, _mcp_share
+
+    def share(role: str) -> str:
+        caps = capabilities_for_role(role, with_mcp=True)
+        return _mcp_share(episode, sample_wav, monkeypatch, caps)
+
+    def submit(token: str, command_type: str, payload: dict) -> dict:
+        body = {"type": command_type, "payload": payload}
+        reply = _mcp_call(token, "guest_submit_document_command", body)
+        return json.loads(reply["result"]["content"][0]["text"])
+
+    commenter, editor = share("commenter"), share("editor")
+    before = _geometry(episode)
+
+    submit(commenter, "DeleteClip", {"clip_id": "h2", "mode": "ripple"})
+    (suggestion,) = load_project(episode).edit_decisions
+    assert suggestion.cut_speech is not None
+    assert _geometry(episode) == before
+
+    asked = submit(editor, "ApproveEdits", {"ids": [suggestion.id]})
+    assert asked["needs_confirmation"]["message"] == GUEST_WORDS + CUT_ANYWAY
+    assert _geometry(episode) == before
+
+    applied = submit(editor, "ApproveEdits", {"ids": [suggestion.id], "confirm_cut_speech": True})
+    assert "needs_confirmation" not in applied
+    assert _geometry(episode) == [("guest", 0.0, 8.0, 0.0), ("host", 0.0, 8.0, 0.0)]
