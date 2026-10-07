@@ -117,7 +117,7 @@ def test_structural_mode_propose_from_edit_cap(
             "command_id": "abc123",
             "role": "guest",
             "type": "DeleteClip",
-            "payload": {"clip_id": "c1"},
+            "payload": {"clip_id": "c1", "mode": "gap"},
             "structural_mode": "propose",
         },
     )

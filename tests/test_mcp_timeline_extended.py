@@ -405,7 +405,7 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
         svc.split_clip.return_value = {"operation": "split_clip"}
         svc.check_loudness.return_value = {"integrated_lufs": -14.0}
         svc.add_effect.return_value = {"track_id": "host", "effect": "eq"}
-        svc.ripple_delete.return_value = {"operation": "ripple_delete"}
+        svc.cut_range.return_value = {"operation": "ripple_delete"}
         svc.shorten_word_gaps.return_value = {"operation": "shorten_word_gaps"}
         svc.reconcile_transcript.return_value = {"changed": 0}
         svc.suppress_bleed.return_value = {"suppressed": 0}

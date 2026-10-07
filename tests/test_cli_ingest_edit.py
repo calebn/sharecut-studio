@@ -956,7 +956,7 @@ def test_edit_ripple_delete_by_query(minimal_project):
 def test_edit_ripple_delete_default_prints_summary(minimal_project):
     project = _setup_edit_project(minimal_project)
     with patch("podcast_mcp.cli.edit.EditService") as svc_cls:
-        svc_cls.return_value.ripple_delete.return_value = {
+        svc_cls.return_value.cut_range.return_value = {
             "operation": "ripple_delete",
             "affected_tracks": ["host", "guest"],
             "timeline_duration_sec": 12.5,
