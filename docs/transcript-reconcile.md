@@ -247,8 +247,9 @@ The gate measures each lane against every other dialogue track's audio at 8 kHz
   the louder half of the peer's frames, away from the lane's own words (−20.6 dB for
   Audra on Caleb's mic, reading the direct track held ±50 ms and, where its gate is
   just opening, up to 200 ms ahead). The expected level is the direct track plus the
-  coupling, power-summed over peers and with the mic's noise floor. The copy's own
-  level wanders with the peer's phonemes and the call's noise suppression, so the
+  coupling, power-summed over peers and with the mic's noise floor, read ahead of each
+  opening only as far as the lane sounds up to it ([below](#read-ahead-per-opening-1131)).
+  The copy's own level wanders with the peer's phonemes and the call's noise suppression, so the
   gate also measures its spread: the 95th percentile of lane-to-direct level over
   the same frames, less the coupling (10.5 dB for Audra on Caleb's mic; 10.6 dB on the
   owner-confirmed Audra-only passages). Sound more than the spread over the expected
@@ -303,6 +304,129 @@ cannot be verified judges its own sound against its noise floor alone and report
 Unavailable evidence abstains and is reported in `gate_reasons`. Crossfade layouts abstain because their rendered
 clock can diverge from raw placements. Applying the flag does not prove bleed was
 reduced, so compare stems before and after.
+
+### Read-ahead per opening (#1131)
+
+Where the peer's track has just opened, its 100 ms level frames are diluted, and a
+call app may open the peer's gate late, so the copy on this mic can start first. The
+gate used to expect the copy at the next word's level for 200 ms before every
+opening. Gaps between words are often shorter, so whole gaps got the next word's
+level, and an own laugh or breath there was cut: 45.5% of an 800 ms laugh 4 dB over
+the copy on a synthetic peer with 50–150 ms gaps (#1126).
+
+The gate now keeps apart where the copy can be and how loud it is expected there:
+
+- **Where the copy can be** still reaches 200 ms ahead of every opening. It decides
+  which frames may be turned down and where own words' voiced runs stop, as before.
+- **How loud the copy is expected**, when own sound is judged, reads ahead of each
+  opening only as far as this lane has been sounding without a break up to it, at
+  most 200 ms. Sounding means over the mic's own floor, the floor own-word protection
+  uses, through dips shorter than the copy rings (50 ms). Each opening has its own
+  read-ahead from its own evidence: there is no episode-wide number, and so no
+  minimum count of openings and no fallback.
+- **A lane quiet just before an opening** shows that the copy came with the track, so
+  that opening reads nothing ahead, and sound near it is judged against what the
+  track carries rather than its next word.
+- **Sound running into an opening is not judged here.** It may be the start of a copy
+  whose track opened late, or own sound, so the gate reads ahead from where it began,
+  as far as before at most. The copy is never expected later than the lane heard it.
+  A laugh lengthens the read-ahead only at the openings its sound runs into, and only
+  from where that run began; at the other openings beside it the lane went quiet.
+
+The coupling, spread and likeness are still read against the full 200 ms reach.
+Re-reading them at the measured lead was tried and rejected: it moves own sound's
+margin inside the peer's words, and a 100 ms breath 4 dB over the copy was cut whole.
+
+Synthetic generality episodes (`tests/test_bleed_gate_generality.py`), share of each
+own sound changed, main → read-ahead per opening:
+
+| Own sound beside the copy | main | per opening |
+|---|---|---|
+| 800 ms laugh, +4 dB | 45.5% | 5.6% (a burst on a loud word) |
+| 800 ms laugh, +6 / +8 dB | 40.0% / 13.2% | 0 |
+| 250 ms laugh, +10 dB | 23.4% | 0 |
+| 500 ms laugh, +8 / +10 dB | 33.3% | 0 |
+| Six 800 ms laughs, +4 dB | 45.5 / 38.2 / 0 / 60.0 / 100 / 41.7% | 5.6 / 38.2 / 0 / 38.2 / 17.0 / 1.8% |
+| 800 ms laugh, +6 dB, mic floor −70 or −60 dBFS | 40.0% | 0 |
+| 500 ms laugh, +8 dB, peer's track opening 30–120 ms late | 33.3% | 0 |
+
+Copy left at full level, seconds and pieces, on the same synthetic peer with no own
+sound, away from the host's words:
+
+| Peer's track | main | one episode lead (rejected) | per opening |
+|---|---|---|---|
+| 180 ms late on 2 of 74 words | 0.21 s / 1 | 0.65 s / 4 | 0.21 s / 1 |
+| 180 ms late on 7 of 74 words | 1.60 s / 6 | 2.09 s / 12 | 1.60 s / 6 |
+| 30–120 ms late on every word | 2.46 s / 12 | 2.46 s / 12 | 2.46 s / 12 |
+| 30–120 ms late on every word, mic floor −75 / −70 / −60 dBFS | 10.00 / 10.06 / 10.58 s, 41–43 | | 10.69 / 10.82 / 11.26 s, 45–46 |
+| 180 ms late on every word | 7.14 s / 34 | | 7.27 s / 37 |
+| 250 ms late on 7 or 15 of 74 words | 2.17 s / 13, 5.07 s / 26 | | 2.23 s / 15, 5.17 s / 29 |
+| on time, own breaths +4 dB ending 20 ms before 10 openings | 0.84 s / 12 | 1.36 s / 19 | 0.84 s / 12 |
+
+**The trade (owner decision, #1134).** No placement of own sound is touched more than
+on main: 600 random laughs, breaths, "mm"s and crosstalk beside on-time, late and
+partly late peers, with and without a mic floor, touched 12.6 s less in total. The
+cost is copy: where the lane sounds into a late opening, the copy's level is expected
+only from where that sound began, while the peer's 100 ms level frame there is still
+diluted, so the loud start of a late word can stand over the expected copy and be
+kept as own sound. On a peer whose track opens late on every word, or on many words,
+0.06–0.76 s more copy stays at full level per synthetic episode, in up to 5 more
+pieces, at −13 to +2 dB against the lane. Beside own sound the kept copy is not
+confined to the 40/80 ms holds: across 200 random synthetic episodes it reached up to
+1.78 s in one, and a 250 ms laugh 8 dB over the copy kept the lane at full level from
+150 ms before it to 230 ms after it. Nothing at a single opening was found that tells a
+late copy's start from an own laugh, so 'never trim more own sound than main' and
+'never leave more copy than main' cannot both hold. The owner chose to keep own laughs
+and breaths whole and accept slightly more leak on peers whose call app opens their
+gate late. The tests pin both sides: the laughs and breaths above, the late-word and
+breath rows equal to main, and the every-word late rows at the accepted cost.
+
+**Late-opening copy is not reduced further.** On the peer opening 30–120 ms late on
+every word, 2.5 s of the copy stays at full level, as on main. It is whole words, not
+onsets: the 200 ms reach lends the peer's openings their word's level while the copy
+there is still rising, which reads the coupling 3.4 dB low and the spread at 5.1 dB
+instead of 1.7 dB, so copy bodies stand over the spread and count as own sound.
+Re-reading the copy's level at the measured lead removes that copy but cuts the 100 ms
+breath 4 dB over the copy whole, and five of six laughs beside a late-opening peer lose
+6–100% where main kept them.
+
+**Rejected** (#1130, #1134):
+
+- Deciding per copy whether it needs the read-ahead from the lane's level in the
+  frames the read-ahead raises (#1130). Own laughs sit in those frames, so a host who
+  laughed four to six times switched it off, and a −70 dBFS mic floor alone switched
+  the hold back on.
+- One lead per episode, the 95th percentile of the openings' leads, skipping sound
+  louder before an opening than after it (#1134's first round). The skip also threw
+  out real copy: a late word's cut-off start, its consonant and the top of its swell,
+  is louder than what follows the opening. And a percentile ignores late openings
+  rarer than 5% of an episode. With 2–7 of 74 words late it read 0 ms and left up to
+  twice the copy in twice the pieces (table above).
+- Telling a late copy's start from own sound at each opening. A census of the
+  openings found nothing that separates them: the fine-spectrum match with the
+  peer's track after the opening was −0.1 to 0.2 for both, and the lane was louder
+  before the opening than after it at 6 of 7 late openings and at every breath.
+- The full read-ahead from where the lane's sound begins, or inside the word's first
+  level frame. Both brought back main's trimming of laughs 4 dB over the copy and of
+  repeated laughs: what trims a laugh is how far into the peer's word the expected
+  level looks, not where the read-ahead starts.
+- Not bridging 40 ms dips in the lane's sound: a breath ending 20 ms before an
+  opening then read nothing ahead, and the copy at full level rose from 0.84 s to
+  1.03 s.
+- Letting the measured lead also decide where the copy can be. Synthetic episodes
+  were unchanged, but on the lab tape the lane was turned down later after Caleb's
+  words (886.25 s instead of 886.18 s), so 0.04 s more of the lab's level frames held
+  Audra's copy at full level, though no sample over −62.7 dBFS changed.
+
+**Lab tape** (rev 3b414c4c, Caleb's lane, on the bare and the realigned runs; the same
+plans before and after the rebase onto per-channel judging, #1094/#1159): Audra's
+and Lana's lanes are byte-identical to main. Caleb's plan changes where his mic is
+near silent: main turns down 0.53 s more, 0.03 s of it his own sound over the copy on
+the bare run, and the fix turns down nothing main keeps. Copy at full level (48.31 s
+bare, 48.54 s realigned), chatter (1, 2) and Caleb words touched (0) match main.
+Every sample whose gain changes is −62.7 dBFS or quieter. Caleb's mic is sounding
+into 529 of Audra's 598 openings, so they still read the full 200 ms ahead; 21 read
+nothing ahead and 48 part of it.
 
 For PCM16 output, gating streams one second of WAV frames at a time and preserves
 all channels. Transitions lie inside justified attenuation regions; segment playback
