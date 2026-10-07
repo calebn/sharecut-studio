@@ -1095,8 +1095,11 @@ test.describe("record lobby", () => {
             timeout: 15_000,
           });
 
+          // The list, not the live region that also reads new comments out.
           const commentsOf = (scope: Page | Locator) =>
-            scope.getByRole("region", { name: "Live comments" });
+            scope
+              .getByRole("region", { name: "Live comments" })
+              .getByRole("listitem");
           await guest.evaluate(() => {
             (document.activeElement as HTMLElement | null)?.blur();
           });
