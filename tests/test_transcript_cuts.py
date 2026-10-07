@@ -82,6 +82,121 @@ def test_coalesce_keeps_the_next_burst_of_the_cut_that_ends_last():
     assert (merged.end, merged.next_burst_sec) == (2.5, 2.51)
 
 
+def _hesitation_project():
+    """ "so" ends 0.9, a hesitation (um, uh) from 1.0 to 1.7, "like" starts 1.8."""
+    proj = EpisodeProject.create("t", "/tmp/ws")
+    proj.transcripts.append(
+        Transcript(
+            track_id="host",
+            words=[
+                TranscriptWord(text="so", start=0.5, end=0.9),
+                TranscriptWord(text="um", start=1.0, end=1.3),
+                TranscriptWord(text="uh", start=1.35, end=1.7),
+                TranscriptWord(text="like", start=1.8, end=2.1),
+            ],
+        )
+    )
+    return proj
+
+
+def test_coalesce_repaces_the_merged_cut_from_its_final_span():
+    proj = _hesitation_project()
+    # Each cut was padded for its own span: 0.40 s and 0.50 s.
+    append_remove_decision(
+        proj, "host", 1.0, 1.3, reason="filler:um", review_required=False, replace_gap_sec=0.40
+    )
+    append_remove_decision(
+        proj, "host", 1.35, 1.7, reason="filler:uh", review_required=False, replace_gap_sec=0.50
+    )
+
+    assert coalesce_edits(proj, track_id="host") == 1
+
+    (merged,) = proj.edit_decisions
+    assert (merged.start, merged.end) == (1.0, 1.7)
+    # The merged cut takes the 0.9 s of air between "so" and "like": 0.85 x 0.9, not max(0.40, 0.50).
+    assert merged.replace_gap_sec == pytest.approx(0.765)
+
+
+def test_coalesce_repaces_with_the_defaults_it_is_given():
+    proj = _hesitation_project()
+    append_remove_decision(
+        proj, "host", 1.0, 1.3, reason="filler:um", review_required=False, replace_gap_sec=0.40
+    )
+    append_remove_decision(
+        proj, "host", 1.35, 1.7, reason="filler:uh", review_required=False, replace_gap_sec=0.50
+    )
+    defaults = {
+        "tighten": {
+            "min_gap_after_filler_sec": 0.2,
+            "filler_gap_retain_fraction": 0.5,
+            "filler_replace_gap_max_sec": 0.6,
+        }
+    }
+
+    coalesce_edits(proj, track_id="host", defaults=defaults)
+
+    (merged,) = proj.edit_decisions
+    assert merged.replace_gap_sec == pytest.approx(0.45)
+
+
+def test_coalesce_caps_a_long_merged_hesitation_at_the_pad_maximum():
+    proj = _hesitation_project()
+    proj.transcripts[0].words[-1] = TranscriptWord(text="like", start=3.0, end=3.3)
+    append_remove_decision(
+        proj, "host", 1.0, 1.3, reason="filler:um", review_required=False, replace_gap_sec=0.40
+    )
+    append_remove_decision(
+        proj, "host", 1.35, 1.7, reason="filler:uh", review_required=False, replace_gap_sec=0.50
+    )
+
+    coalesce_edits(proj, track_id="host")
+
+    (merged,) = proj.edit_decisions
+    # 2.1 s of air is past filler_room_tone_max_expand_sec, so the 0.7 s span sets the pad.
+    assert merged.replace_gap_sec == pytest.approx(0.595)
+
+
+def test_coalesce_paces_the_merged_pad_when_only_one_cut_was_padded():
+    proj = _hesitation_project()
+    append_remove_decision(proj, "host", 1.0, 1.3, reason="filler:um", review_required=False)
+    append_remove_decision(
+        proj, "host", 1.35, 1.7, reason="filler:uh", review_required=False, replace_gap_sec=0.50
+    )
+
+    coalesce_edits(proj, track_id="host")
+
+    (merged,) = proj.edit_decisions
+    assert merged.replace_gap_sec == pytest.approx(0.765)
+
+
+def test_coalesce_keeps_a_pause_shortfall_pad_beside_the_filler_pad():
+    proj = _hesitation_project()
+    append_remove_decision(
+        proj, "host", 1.0, 1.3, reason="pause:0.30s", review_required=False, replace_gap_sec=0.90
+    )
+    append_remove_decision(
+        proj, "host", 1.35, 1.7, reason="filler:uh", review_required=False, replace_gap_sec=0.50
+    )
+
+    coalesce_edits(proj, track_id="host")
+
+    (merged,) = proj.edit_decisions
+    # The pause's 0.90 s makes up for a retained stretch that prior ripples shortened;
+    # it is not a paced pad, so the filler's re-paced 0.765 s does not replace it.
+    assert merged.replace_gap_sec == pytest.approx(0.90)
+
+
+def test_coalesce_leaves_unpadded_cuts_unpadded():
+    proj = _hesitation_project()
+    append_remove_decision(proj, "host", 1.0, 1.3, reason="filler:um", review_required=False)
+    append_remove_decision(proj, "host", 1.35, 1.7, reason="filler:uh", review_required=False)
+
+    coalesce_edits(proj, track_id="host")
+
+    (merged,) = proj.edit_decisions
+    assert merged.replace_gap_sec is None
+
+
 def test_coalesce_keeps_pending_edits_of_different_authors_apart():
     proj = EpisodeProject.create("t", "/tmp/ws")
     for start, end, reason, author in (
