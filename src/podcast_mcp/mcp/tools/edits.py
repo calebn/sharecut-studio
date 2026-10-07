@@ -340,13 +340,27 @@ def list_edit_decisions_tool(
     return to_json([e.model_dump() for e in edits])
 
 
-def approve_edits_tool(project_path: str, ids_json: str) -> str:
-    """Approve pending edits by id, applying them to the timeline."""
+def approve_edits_tool(
+    project_path: str, ids_json: str | None = None, apply_all_safe: bool = False
+) -> str:
+    """Approve pending edits by id, applying them to the timeline.
+
+    ``apply_all_safe`` is Studio **Apply eligible** with Avoid harsh cuts on: it applies
+    every pending tighten hit (or only those in ``ids_json``) except harsh ones
+    (``review_required`` or a ``:risky`` / ``:join_review`` join risk), in one undo
+    step. ``skipped_harsh`` lists the hits it left for review.
+    """
     ws = ProjectWorkspace.open(project_path)
-    ids = json.loads(ids_json)
-    n = EditService(ws).approve(ids)
+    ids = json.loads(ids_json) if ids_json else None
+    service = EditService(ws)
+    if apply_all_safe:
+        result = service.approve_eligible_tighten(ids)
+    elif ids is None:
+        raise ValueError("pass ids_json, or apply_all_safe=true")
+    else:
+        result = {"operation": "approve_edits", "approved_count": service.approve(ids), "ids": ids}
     agent_mutated(ws)
-    return to_json({"operation": "approve_edits", "approved_count": n, "ids": ids})
+    return to_json(result)
 
 
 def reject_edits_tool(project_path: str, ids_json: str) -> str:

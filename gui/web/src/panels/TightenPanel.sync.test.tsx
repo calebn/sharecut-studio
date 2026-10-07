@@ -43,6 +43,7 @@ function pendingHit(id: string, reason: string): PendingEditView {
     boundary_mode: null,
     cut_confidence: 0.9,
     review_required: false,
+    harsh: false,
     applied: false,
     suggest_reason: null,
   };

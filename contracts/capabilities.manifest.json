@@ -378,10 +378,9 @@
         ],
         "keyboard": "Mod+Shift+Enter",
         "mcp": [
-          "list_edit_decisions_tool",
           "approve_edits_tool"
         ],
-        "cli": "podcast edit approve",
+        "cli": "podcast edit approve --all-safe",
         "skill": "podcast-tighten-dialogue"
       },
       "omit": {},

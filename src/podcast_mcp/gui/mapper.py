@@ -6,43 +6,13 @@ from typing import Any
 
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.pending_preview import preview_window_for_edit
+from podcast_mcp.edits.tighten_hits import is_harsh_tighten_hit, join_risk_from_decision
 from podcast_mcp.edits.timeline_span import map_source_span_fields
 from podcast_mcp.engines.session_timeline import SessionTimeline, word_source_span
 from podcast_mcp.engines.utterance_runs import utterance_runs, utterance_speaker, utterance_text
 from podcast_mcp.models import AppliedEditRecord, Clip, EditDecision, EpisodeProject
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.timebase import SourceSec
-
-TIGHTEN_REASON_PREFIXES = ("filler:", "pause:", "repetition:", "restart:")
-
-
-def is_tighten_reason(reason: str | None) -> bool:
-    """True for pending tighten proposals."""
-    text = reason or ""
-    return text.startswith(TIGHTEN_REASON_PREFIXES)
-
-
-def join_risk_from_decision(decision: EditDecision) -> dict[str, Any] | None:
-    """View-only join risk from propose-time flags (no audio / no join sweep).
-
-    ``EditService.join_quality`` is available per decision (MCP/CLI). The
-    assembler does not score every snapshot — fail verdicts are already
-    dropped when ``tighten.join_continuity_gate`` is on; review/risky stay
-    on the decision as ``:join_review`` / ``:risky`` / ``review_required``.
-    """
-    reason = decision.reason or ""
-    if not is_tighten_reason(reason):
-        return None
-    if ":risky" in reason:
-        return {"verdict": "review", "label": "risky", "source": "reason", "risk": None}
-    if ":join_review" in reason:
-        return {
-            "verdict": "review",
-            "label": "join_review",
-            "source": "reason",
-            "risk": None,
-        }
-    return None
 
 
 def map_pending_edits_to_timeline(
@@ -123,6 +93,7 @@ def map_pending_edits_to_timeline(
                 "timebase": decision.timebase,
                 "scope": decision.scope,
                 "join_risk": join_risk_from_decision(decision),
+                "harsh": is_harsh_tighten_hit(decision),
             }
         )
     return rows

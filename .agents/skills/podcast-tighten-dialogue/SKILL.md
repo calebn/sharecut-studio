@@ -118,6 +118,10 @@ returns the same hits, under the same ids, each run. An Ask thread
      `play_pending_preview_tool` (Suggested / Current / A/B).
    Entries with `review_required: true` need `approve_edits_tool` before render.
 5. Approve **per hit** (`approve_edits_tool` with ids) after the user hears it.
+   When the user asks for Studio's Apply eligible, call `approve_edits_tool` with
+   `apply_all_safe=true` (`podcast edit approve --all-safe`), optionally with the
+   ids they listed: it applies the same non-harsh set in one undo step and returns
+   `skipped_harsh`. Do not filter harsh hits yourself.
    Use `apply_edits` / `podcast apply-edits` only after explicit sign-off on the
    whole batch — not as the default on a real episode.
    After approving, `render_preview` and run **`audition_context_tool` on every

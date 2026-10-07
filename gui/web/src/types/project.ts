@@ -140,6 +140,8 @@ export interface PendingEditView {
   /** Why the server cannot render Suggested / A/B (splits, off-timeline edits); null when it can. */
   suggest_reason: string | null;
   join_risk?: PendingJoinRisk | null;
+  /** Server-computed (`edits/tighten_hits.is_harsh_tighten_hit`): Avoid harsh cuts skips it. */
+  harsh: boolean;
 }
 
 export interface AppliedEditRecord {

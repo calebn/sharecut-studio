@@ -4,7 +4,7 @@ import re
 
 from podcast_mcp.config import repo_root
 from podcast_mcp.edits.edit_reasons import LABELLED_REASON_CODES, LABELLED_REASON_PREFIXES
-from podcast_mcp.gui.mapper import TIGHTEN_REASON_PREFIXES
+from podcast_mcp.edits.tighten_hits import TIGHTEN_REASON_PREFIXES
 
 _UTILS = repo_root() / "gui" / "web" / "src" / "utils"
 

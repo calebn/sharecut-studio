@@ -6,10 +6,9 @@ from pathlib import Path
 import pytest
 from filelock import Timeout
 
+from podcast_mcp.edits.tighten_hits import is_tighten_reason, join_risk_from_decision
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.gui.mapper import (
-    is_tighten_reason,
-    join_risk_from_decision,
     map_applied_edits_to_timeline,
     map_pending_edits_to_timeline,
     map_transcript_utterances_to_timeline,
