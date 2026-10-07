@@ -40,7 +40,7 @@ describe("Icon", () => {
     expect(svg?.querySelectorAll("path").length).toBeGreaterThan(0);
   });
 
-  it.each(["check", "refresh", "seek"] as const)(
+  it.each(["check", "refresh", "seek", "undo", "redo"] as const)(
     "renders the %s glyph",
     (name) => {
       const { container } = render(<Icon name={name} />);

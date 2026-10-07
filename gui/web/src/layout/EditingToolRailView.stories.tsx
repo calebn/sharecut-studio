@@ -13,6 +13,10 @@ function RailPreview({
   error,
   trackIdsForCut,
   initialConfirmSec,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
   onAddTrack,
   onImport,
   onCutAtPlayhead,
@@ -25,6 +29,10 @@ function RailPreview({
   error: string | null;
   trackIdsForCut: readonly string[];
   initialConfirmSec: number | null;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
   onAddTrack: () => void;
   onImport: () => void;
   onCutAtPlayhead: () => void;
@@ -72,6 +80,9 @@ function RailPreview({
             onToggleComment={() => setCommentMode((v) => !v)}
           />
         }
+        history={mayIngest ? { canUndo, canRedo } : null}
+        onUndo={onUndo}
+        onRedo={onRedo}
         onAddTrack={onAddTrack}
         onImport={onImport}
         onCutAtPlayhead={() => {
@@ -103,6 +114,10 @@ const meta: Meta<typeof RailPreview> = {
     error: null,
     trackIdsForCut: ["host"],
     initialConfirmSec: null,
+    canUndo: true,
+    canRedo: false,
+    onUndo: fn(),
+    onRedo: fn(),
     onAddTrack: fn(),
     onImport: fn(),
     onCutAtPlayhead: fn(),
@@ -137,6 +152,27 @@ export const SelectTool: Story = {
     await expect(
       canvas.queryByRole("button", { name: "Cut at playhead" }),
     ).toBeNull();
+  },
+};
+
+export const UndoAndRedo: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Undo" }));
+    await expect(args.onUndo).toHaveBeenCalled();
+    const redo = canvas.getByRole("button", { name: "Redo" });
+    await expect(redo).toBeDisabled();
+    await expect(redo).toHaveAccessibleDescription("Nothing to redo");
+  },
+};
+
+export const NothingToUndo: Story = {
+  args: { canUndo: false, canRedo: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Undo" }),
+    ).toHaveAccessibleDescription("Nothing to undo");
   },
 };
 

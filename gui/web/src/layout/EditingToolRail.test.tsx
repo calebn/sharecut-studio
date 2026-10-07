@@ -79,4 +79,39 @@ describe("EditingToolRail", () => {
       { skipWhen: true },
     );
   });
+
+  it("routes Undo through the command bus and follows project history", async () => {
+    const user = userEvent.setup();
+    execute.mockResolvedValue({ status: "ok" });
+    const project = minimalProject();
+    useDawStore.getState().hydrate("/tmp/p.json", {
+      ...project,
+      history: { ...project.history, can_undo: true, can_redo: false },
+    });
+    render(<EditingToolRail />);
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(execute).toHaveBeenCalledWith(
+      "history.undo",
+      {},
+      { skipWhen: true },
+    );
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled();
+  });
+
+  it("announces a failed Undo", async () => {
+    const user = userEvent.setup();
+    execute.mockRejectedValue(new Error("offline"));
+    const project = minimalProject();
+    useDawStore.getState().hydrate("/tmp/p.json", {
+      ...project,
+      history: { ...project.history, can_undo: true },
+    });
+    render(<EditingToolRail />);
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    await vi.waitFor(() =>
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Undo failed: offline",
+      ),
+    );
+  });
 });
