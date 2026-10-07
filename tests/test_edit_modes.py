@@ -13,9 +13,19 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
+from podcast_mcp.edits.cut_speech import (
+    CutSpeechConfirmation,
+    SourceExtent,
+    SpeechClearance,
+    clear_ripple,
+)
+from podcast_mcp.edits.decisions import apply_auto_edits
+from podcast_mcp.edits.timeline_ops import plan_ripple_delete
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import (
     Clip,
+    EditDecision,
+    EditDecisionType,
     EditMode,
     MediaAsset,
     Track,
@@ -348,6 +358,52 @@ def test_approving_a_suggested_remove_asks_for_words_the_transcript_has_now(epis
     assert _geometry(episode) == before
     assert service.approve([edit["id"]], confirm_cut_speech=True) == 1
     _assert_in_sync(episode, (12.0, 19.0), -1.0)
+
+
+@pytest.mark.parametrize(
+    ("cut", "chosen"),
+    [((10.0, 11.0), (10.0, 11.0)), ((12.5, 14.0), (13.0, 13.5))],
+    ids=["words", "own-sound"],
+)
+def test_speech_another_edit_in_the_same_approval_cuts_does_not_ask(episode, cut, chosen):
+    """Guest's "so the plan" (words) and untranscribed remark (sound) are cut by a
+    Guest decision in the same batch, so Host's ripple over them is not unasked."""
+    project = load_project(episode)
+    removal = plan_ripple_delete(project, *cut, edited_track_ids=["host"])
+
+    alone = clear_ripple(project, removal, confirm_cut_speech=False)
+    batched = clear_ripple(
+        project,
+        removal,
+        confirm_cut_speech=False,
+        also_chosen=[SourceExtent("guest", *chosen)],
+    )
+
+    assert isinstance(alone, CutSpeechConfirmation)
+    assert [t.track_id for t in alone.speech.tracks] == ["guest"]
+    assert batched == SpeechClearance(removal)
+
+
+def test_auto_apply_leaves_a_remove_over_other_words_pending(episode):
+    _quiet_guest(episode)
+    project = load_project(episode)
+    project.edit_decisions = [
+        EditDecision(
+            id="um",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=10.0,
+            end=11.0,
+            reason="filler:um",
+            review_required=False,
+        )
+    ]
+    before = _geometry(episode)
+
+    assert apply_auto_edits(project) == 0
+    assert [e.id for e in project.edit_decisions] == ["um"]
+    save_project(project)
+    assert _geometry(episode) == before
 
 
 def test_ripple_delete_clip_over_another_speakers_words_asks_first(episode):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import pairwise
 from typing import Annotated, Literal
@@ -11,6 +12,7 @@ from podcast_mcp.edits.clips_ops import abutting_pairs, clips_abut, clips_for_tr
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
+    SourceExtent,
     UnconfirmedCutSpeech,
     clear_ripple,
     confirmation_for,
@@ -196,6 +198,7 @@ def _apply_remove_edit(
     edit: EditDecision,
     *,
     confirm_cut_speech: bool,
+    batch: Sequence[SourceExtent],
     use_inaudible_opt: bool | None = False,
     record_log: bool = False,
 ) -> tuple[float, float, list[str], dict] | CutSpeechConfirmation:
@@ -204,7 +207,8 @@ def _apply_remove_edit(
     A suggestion that recorded ``cut_speech`` ripples as suggested. Any other session
     remove keeps the speech-energy scope guard, which turns a cut over speaking peers
     into a track-local punch. A ripple then clears the speech guard against the
-    current transcript; unconfirmed speech returns the confirmation and changes nothing.
+    current transcript, counting the words the rest of ``batch`` cuts as chosen;
+    unconfirmed speech returns the confirmation and changes nothing.
     """
     from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
 
@@ -257,7 +261,9 @@ def _apply_remove_edit(
         edited_track_ids=[edit.track_id],
         use_inaudible_opt=use_inaudible_opt,
     )
-    clearance = clear_ripple(project, removal, confirm_cut_speech=confirm_cut_speech)
+    clearance = clear_ripple(
+        project, removal, confirm_cut_speech=confirm_cut_speech, also_chosen=batch
+    )
     if isinstance(clearance, CutSpeechConfirmation):
         return clearance
     report = ripple_delete(
@@ -281,6 +287,10 @@ def _apply_remove_edit(
             **clearance.log_params(),
         },
     )
+
+
+def _source_extents(removes: list[EditDecision]) -> tuple[SourceExtent, ...]:
+    return tuple(SourceExtent(e.track_id, e.start, e.end) for e in removes)
 
 
 def _pre_pad_fade_out_ms() -> int:
@@ -377,12 +387,14 @@ def approve_edits(
             params=params,
         )
         applied_ids.add(edit.id)
+    batch = _source_extents(removes)
     asked: list[CutSpeechConfirmation] = []
     for edit in sorted(removes, key=lambda e: e.start, reverse=True):
         applied = _apply_remove_edit(
             project,
             edit,
             confirm_cut_speech=confirm_cut_speech,
+            batch=batch,
             use_inaudible_opt=False,
             record_log=False,
         )
@@ -579,6 +591,7 @@ def apply_prefix_edits(
 
     mutes = [e for e in applied_decisions if e.type == EditDecisionType.MUTE]
     removes = [e for e in applied_decisions if e.type == EditDecisionType.REMOVE]
+    batch = _source_extents(removes)
     for edit in sorted(mutes, key=lambda e: e.start, reverse=True):
         tl_start, tl_end, track_ids, params = _apply_mute_edit(project, edit)
         if not track_ids:
@@ -598,6 +611,7 @@ def apply_prefix_edits(
             project,
             edit,
             confirm_cut_speech=False,
+            batch=batch,
             use_inaudible_opt=inaudible_opt and edit.boundary_mode is None,
             record_log=False,
         )

@@ -45,7 +45,7 @@ from podcast_mcp.models import (
     EpisodeProject,
 )
 from podcast_mcp.models.episode import RangeInterval
-from podcast_mcp.util.intervals import merge_intervals
+from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.timebase import clock_label
 
 CUT_SPEECH_REASON: Final = "cuts_other_speech"
@@ -75,6 +75,15 @@ class CutSpeechConfirmation(BaseModel):
             "unchanged": True,
             "needs_confirmation": self.model_dump(mode="json"),
         }
+
+
+@dataclass(frozen=True)
+class SourceExtent:
+    """Source time on one track that another edit in the same approval cuts."""
+
+    track_id: str
+    start: float
+    end: float
 
 
 @dataclass(frozen=True)
@@ -156,6 +165,26 @@ def _words_in_parts(
     return sorted(words, key=lambda w: w.timeline_start)
 
 
+def _chosen_on_timeline(
+    project: EpisodeProject, track_id: str, chosen: Sequence[SourceExtent], start: float, end: float
+) -> list[tuple[float, float]]:
+    """Where ``track_id``'s ``chosen`` source spans sit inside timeline ``[start, end)`` now."""
+    spans = [(e.start, e.end) for e in chosen if e.track_id == track_id]
+    if not spans:
+        return []
+    out: list[tuple[float, float]] = []
+    for clip in clips_for_track(project, track_id):
+        if clip.timeline_end <= start or clip.timeline_start >= end:
+            continue
+        shift = clip_source_to_timeline_shift(clip)
+        for lo, hi in spans:
+            a = max(lo + shift, clip.timeline_start, start)
+            b = min(hi + shift, clip.timeline_end, end)
+            if b > a:
+                out.append((a, b))
+    return out
+
+
 def _windows(start: float, end: float) -> list[tuple[float, float]]:
     count = max(1, math.ceil((end - start) / _SOUND_WINDOW_SEC - 1e-9))
     size = (end - start) / count
@@ -210,9 +239,14 @@ def assess_cut_speech(
     project: EpisodeProject,
     removal: RippleRemoval,
     *,
+    also_chosen: Sequence[SourceExtent] = (),
     defaults: dict[str, Any] | None = None,
 ) -> CutSpeech | None:
-    """Speech ``removal`` cuts outside what it selected, or ``None`` when it cuts none."""
+    """Speech ``removal`` cuts outside what it selected, or ``None`` when it cuts none.
+
+    ``also_chosen`` is source time other edits in the same approval cut, so the
+    speech there is chosen too.
+    """
     cfg = defaults if defaults is not None else load_defaults()
     min_overlap = guard_min_overlap_sec(cfg)
     scope = ripple_track_ids(project, removal.edited_track_ids)
@@ -221,7 +255,11 @@ def assess_cut_speech(
     unlabeled: list[tuple[str, list[tuple[float, float]]]] = []
     for start, end in removal.spans:
         for tid in scope:
-            parts = removal.unselected_on(tid, start, end)
+            parts = subtract_intervals(
+                removal.unselected_on(tid, start, end),
+                _chosen_on_timeline(project, tid, also_chosen, start, end),
+                epsilon=1e-6,
+            )
             if not parts:
                 continue
             found = _words_in_parts(project, tid, parts, min_overlap)
@@ -314,6 +352,7 @@ def clear_ripple(
     removal: RippleRemoval | None,
     *,
     confirm_cut_speech: Literal[True],
+    also_chosen: Sequence[SourceExtent] = (),
     defaults: dict[str, Any] | None = None,
 ) -> SpeechClearance: ...
 
@@ -324,6 +363,7 @@ def clear_ripple(
     removal: RippleRemoval | None,
     *,
     confirm_cut_speech: bool,
+    also_chosen: Sequence[SourceExtent] = (),
     defaults: dict[str, Any] | None = None,
 ) -> SpeechClearance | CutSpeechConfirmation: ...
 
@@ -333,16 +373,18 @@ def clear_ripple(
     removal: RippleRemoval | None,
     *,
     confirm_cut_speech: bool,
+    also_chosen: Sequence[SourceExtent] = (),
     defaults: dict[str, Any] | None = None,
 ) -> SpeechClearance | CutSpeechConfirmation:
     """The one guard every rippling path calls before it removes time.
 
     Clears ``removal`` to apply, or asks to confirm the speech it would cut outside
-    what it selected. Confirmed, the clearance carries that speech for the record.
+    what it selected (``removal.selected``, plus ``also_chosen`` for the rest of an
+    approval batch). Confirmed, the clearance carries that speech for the record.
     """
     if removal is None:
         return SpeechClearance(None)
-    speech = assess_cut_speech(project, removal, defaults=defaults)
+    speech = assess_cut_speech(project, removal, also_chosen=also_chosen, defaults=defaults)
     if speech is None:
         return SpeechClearance(removal)
     if not confirm_cut_speech:

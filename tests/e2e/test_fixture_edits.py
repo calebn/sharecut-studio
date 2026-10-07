@@ -47,6 +47,7 @@ def test_nl_edit_and_preview_play(e2e_workspace) -> None:
             str(e2e_workspace),
             "--ids",
             ",".join(edit_ids),
+            "--yes",
         ],
     )
     assert approve.exit_code == 0
