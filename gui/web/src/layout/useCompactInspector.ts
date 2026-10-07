@@ -1,5 +1,5 @@
 /**
- * The compact inspector (#1051 round 3, lab `touchChooser`): on a phone-sized
+ * The compact inspector (#1051 round 3): on a phone-sized
  * screen a timeline selection opens a peek strip instead of a sheet that
  * covers the timeline. The user's last choice, strip or expanded inspector,
  * opens the next selection (`compactInspectorView`, persisted). Strip or
@@ -17,13 +17,17 @@ import {
 import { type PeekTarget, peekTarget } from "../inspector/peekTarget";
 import { useDaw } from "../state/useDaw";
 import type { BottomSheet } from "../ui/BottomSheet";
+import {
+  COMPACT_SHEET_CLASS,
+  compactSheetPanel,
+  compactSheetTop,
+} from "../ui/compactSheet";
 import { DRAWER_MOTION_ATTR } from "../ui/useDrawerSwipe";
 import { useResizeObserver } from "../ui/useResizeObserver";
 import {
   COMPACT_INSPECTOR_VIEWS,
   type CompactInspectorView,
 } from "../utils/compactInspectorPref";
-import { useLabFlag } from "../utils/labFlags";
 
 /** A phone held sideways: the same short-screen line the sheets use. */
 export const SHORT_SCREEN_MQ = "(max-height: 40rem)";
@@ -50,13 +54,11 @@ export interface CompactInspector {
 export function keepTargetClear(locate: string): void {
   const target = document.querySelector(locate);
   const scroller = target?.closest<HTMLElement>(".timeline-scroll");
-  const panel = document.querySelector<HTMLElement>(".bottom-sheet--compact");
-  const root = panel?.closest(".bottom-sheet-root");
-  if (!target || !scroller || !panel || !root) return;
+  const panel = compactSheetPanel();
+  const sheetTop = compactSheetTop();
+  if (!target || !scroller || !panel || sheetTop === null) return;
   // A moving drawer fills its slot; the clearance waits for it to rest.
   if (panel.hasAttribute(DRAWER_MOTION_ATTR)) return;
-  // The panel's resting top: its entrance animation moves the drawn box.
-  const sheetTop = root.getBoundingClientRect().bottom - panel.offsetHeight;
   const box = scroller.getBoundingClientRect();
   scroller.style.setProperty(
     "--sheet-clearance",
@@ -86,7 +88,6 @@ function clearClearance(): void {
 export function useCompactInspector(
   shell: "phone" | "tablet" | null,
 ): CompactInspector | null {
-  const lab = useLabFlag("touchChooser");
   const short = useMediaQueryStore(subscribeShort, readShort, () => false);
   const { project, selection, hit, view, stowed, mobileMode, setView } = useDaw(
     (s) => ({
@@ -100,10 +101,7 @@ export function useCompactInspector(
     }),
   );
   const applies =
-    lab &&
-    (shell === "phone"
-      ? mobileMode === "timeline"
-      : shell === "tablet" && short);
+    shell === "phone" ? mobileMode === "timeline" : shell === "tablet" && short;
   const peek = applies && project ? peekTarget(project, selection, hit) : null;
   const locate = peek?.locate ?? null;
 
@@ -114,7 +112,7 @@ export function useCompactInspector(
   }, [active, locate, view]);
   // The sheet's height settles after its content does (inspector fields).
   useResizeObserver(
-    () => document.querySelector(".bottom-sheet--compact"),
+    compactSheetPanel,
     () => {
       if (active && locate) keepTargetClear(locate);
     },
@@ -151,6 +149,6 @@ export function compactSheetProps(
       label: "Inspector height",
     },
     stowed: compact.stowed,
-    className: "bottom-sheet--compact",
+    className: COMPACT_SHEET_CLASS,
   };
 }

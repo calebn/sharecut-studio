@@ -32,7 +32,7 @@ import {
 } from "./touchTimeline";
 
 /*
- * Touch target chooser (#1051 candidate A, lab "touch-chooser") on the real
+ * Touch target chooser (#1051 candidate A) on the real
  * timeline: fixture clusters of 2-4 targets, CDP touch input at a phone and a
  * tablet size and three zoom levels. Measurements and screenshots go to the
  * test output, and also to TOUCH_CHOOSER_EVIDENCE_DIR when it is set.

@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, type TestInfo, test } from "@playwright/test";
 import { e2eProjectPath } from "../e2e/env";
 import { newFinger } from "../e2e/finger";
 import {
@@ -9,6 +9,7 @@ import { openPhoneTimeline } from "../e2e/phoneTimeline";
 import { switchE2eProject } from "../e2e/shareableProject";
 import {
   buildFixture,
+  type CaseFixtures,
   centerOf,
   json,
   lane,
@@ -82,94 +83,105 @@ async function stacking(page: Page) {
   });
 }
 
-for (const [size, viewport] of Object.entries(SIZES)) {
-  test(`no shell row draws over the strip, nor the strip over it: ${size}`, async ({
-    page,
-    context,
-    browserName,
-  }, info) => {
-    const shot = async (name: string) =>
-      save(
-        info,
-        `stacking-${RUN}-${size}-${browserName}-${name}.png`,
-        await page.screenshot(),
-      );
-    await page.setViewportSize(viewport);
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await buildFixture(page, projectPath, CLIENT_ID);
-    await page.goto(
-      `/?project=${encodeURIComponent(projectPath)}&lab=touch-chooser`,
+async function noRowOverStrip(
+  size: keyof typeof SIZES,
+  { page, context, browserName }: CaseFixtures,
+  info: TestInfo,
+): Promise<void> {
+  const viewport = SIZES[size];
+  const shot = async (name: string) =>
+    save(
+      info,
+      `stacking-${RUN}-${size}-${browserName}-${name}.png`,
+      await page.screenshot(),
     );
-    await expect(page.locator(".daw-shell")).toBeVisible();
-    if (viewport.width < 768) await openPhoneTimeline(page);
-    await setZoom(page, 3);
-    const finger = await newFinger(context, page, browserName);
-    await finger.down(
-      await centerOf(
-        page,
-        `${lane} [data-hit-kind="envelope-point"][data-hit-id="env-c"]`,
-      ),
-    );
-    await page.waitForTimeout(60);
-    await finger.up();
-    await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
-    await page.waitForTimeout(600);
-    await shot("1-strip");
-    const resting = await stacking(page);
+  await page.setViewportSize(viewport);
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await buildFixture(page, projectPath, CLIENT_ID);
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await expect(page.locator(".daw-shell")).toBeVisible();
+  if (viewport.width < 768) await openPhoneTimeline(page);
+  await setZoom(page, 3);
+  const finger = await newFinger(context, page, browserName);
+  await finger.down(
+    await centerOf(
+      page,
+      `${lane} [data-hit-kind="envelope-point"][data-hit-id="env-c"]`,
+    ),
+  );
+  await page.waitForTimeout(60);
+  await finger.up();
+  await expect(page.locator(".bottom-sheet--compact")).toBeVisible();
+  await page.waitForTimeout(600);
+  await shot("1-strip");
+  const resting = await stacking(page);
 
-    // An iOS rubber-band: in-flow rows move, the fixed strip does not.
-    // Relative offset, not a transform, so no new stacking context forms.
-    await page.evaluate((px) => {
-      const shell = document.querySelector<HTMLElement>(".daw-shell");
-      shell?.style.setProperty("position", "relative");
-      shell?.style.setProperty("top", `-${px}px`);
-    }, BOUNCE_PX);
-    await shot("2-page-bounce");
-    const bounce = await stacking(page);
-    await page.evaluate(() => {
-      const shell = document.querySelector<HTMLElement>(".daw-shell");
-      shell?.style.removeProperty("position");
-      shell?.style.removeProperty("top");
-    });
+  // An iOS rubber-band: in-flow rows move, the fixed strip does not.
+  // Relative offset, not a transform, so no new stacking context forms.
+  await page.evaluate((px) => {
+    const shell = document.querySelector<HTMLElement>(".daw-shell");
+    shell?.style.setProperty("position", "relative");
+    shell?.style.setProperty("top", `-${px}px`);
+  }, BOUNCE_PX);
+  await shot("2-page-bounce");
+  const bounce = await stacking(page);
+  await page.evaluate(() => {
+    const shell = document.querySelector<HTMLElement>(".daw-shell");
+    shell?.style.removeProperty("position");
+    shell?.style.removeProperty("top");
+  });
 
-    // The stow slide (any timeline drag), frozen halfway.
-    await page.evaluate(() => {
-      document.querySelector(".bottom-sheet-root")?.classList.add("is-stowed");
-    });
-    await page.evaluate(() => {
-      for (const animation of document.getAnimations()) {
-        const timing = animation.effect?.getComputedTiming();
-        if (!timing || typeof timing.duration !== "number") continue;
-        animation.pause();
-        animation.currentTime = timing.duration / 2;
-      }
-    });
-    await shot("3-stow-halfway");
-    const stowing = await stacking(page);
+  // The stow slide (any timeline drag), frozen halfway.
+  await page.evaluate(() => {
+    document.querySelector(".bottom-sheet-root")?.classList.add("is-stowed");
+  });
+  await page.evaluate(() => {
+    for (const animation of document.getAnimations()) {
+      const timing = animation.effect?.getComputedTiming();
+      if (!timing || typeof timing.duration !== "number") continue;
+      animation.pause();
+      animation.currentTime = timing.duration / 2;
+    }
+  });
+  await shot("3-stow-halfway");
+  const stowing = await stacking(page);
 
-    const overscroll = await page.evaluate(() => ({
-      html: getComputedStyle(document.documentElement).overscrollBehaviorY,
-      body: getComputedStyle(document.body).overscrollBehaviorY,
-      timeline: getComputedStyle(
-        document.querySelector(".timeline-scroll") as Element,
-      ).overscrollBehaviorY,
-    }));
-    json(info, `stacking-${RUN}-${size}-${browserName}`, {
-      resting,
-      bounce,
-      stowing,
-      overscroll,
-    });
+  const overscroll = await page.evaluate(() => ({
+    html: getComputedStyle(document.documentElement).overscrollBehaviorY,
+    body: getComputedStyle(document.body).overscrollBehaviorY,
+    timeline: getComputedStyle(
+      document.querySelector(".timeline-scroll") as Element,
+    ).overscrollBehaviorY,
+  }));
+  json(info, `stacking-${RUN}-${size}-${browserName}`, {
+    resting,
+    bounce,
+    stowing,
+    overscroll,
+  });
 
-    expect(resting).toMatchObject({ stripEdge: "strip", rowMiddle: "row" });
-    // The bounced row reaches up into the strip: the strip stays on top.
-    expect(bounce.stripEdge).toBe("strip");
-    // Halfway off, the strip is clipped to its slot: the row stays clear.
-    expect(stowing.rowMiddle).toBe("row");
-    expect(overscroll).toEqual({
-      html: "none",
-      body: "none",
-      timeline: "contain",
-    });
+  expect(resting).toMatchObject({ stripEdge: "strip", rowMiddle: "row" });
+  // The bounced row reaches up into the strip: the strip stays on top.
+  expect(bounce.stripEdge).toBe("strip");
+  // Halfway off, the strip is clipped to its slot: the row stays clear.
+  expect(stowing.rowMiddle).toBe("row");
+  expect(overscroll).toEqual({
+    html: "none",
+    body: "none",
+    timeline: "contain",
   });
 }
+
+test("no shell row draws over the strip, nor the strip over it: portrait-360", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  noRowOverStrip("portrait-360", { page, context, browserName }, info));
+
+test("no shell row draws over the strip, nor the strip over it: landscape-844", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  noRowOverStrip("landscape-844", { page, context, browserName }, info));

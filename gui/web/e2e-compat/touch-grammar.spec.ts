@@ -107,9 +107,7 @@ async function openWith<T>(page: Page, setup: () => Promise<T>): Promise<T> {
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await buildFixture(page, projectPath, CLIENT_ID);
   const made = await setup();
-  await page.goto(
-    `/?project=${encodeURIComponent(projectPath)}&lab=touch-chooser`,
-  );
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
   await openPhoneTimeline(page);
   await setTheme(page, "dark");
@@ -218,6 +216,58 @@ test("one finger moving never edits; a long-press arms, and the armed point drag
   expect(afterScroll).toEqual([]);
   expect(commands.filter((c) => c.type === "SetEnvelope")).toHaveLength(1);
   expect(point?.value).toBeGreaterThan(1);
+});
+
+test("at 390x844 by default, one finger dragging a selected clip's trim end saves nothing and opens the strip, not the half sheet", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await buildFixture(page, projectPath, CLIENT_ID);
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await expect(page.locator(".daw-shell")).toBeVisible();
+  await openPhoneTimeline(page);
+  await setTheme(page, "dark");
+  await setZoom(page, 3);
+  type Edge = { id: string; timeline_start: number; source_end: number };
+  const clipAt50 = async () =>
+    ((await projectJson(page, projectPath)).clips.tracks[TRACK] as Edge[]).find(
+      (c) => c.timeline_start === 50,
+    );
+  const before = await clipAt50();
+  if (!before) throw new Error("no clip at 50 s");
+  const finger = await newFinger(context, page, browserName);
+  const commands = watchCommands(page);
+  const body = await visiblePoint(
+    page,
+    `${lane} .clip-block[data-clip-id="${before.id}"]`,
+  );
+  if (!body) throw new Error("the 50 s clip is not in view");
+  await tap(page, finger, body);
+  const handle = await centerOf(
+    page,
+    `${lane} [data-hit-kind="trim-out"][data-hit-id="${before.id}"]`,
+  );
+  await finger.down(handle);
+  await finger.slide({ x: handle.x - 30, y: handle.y }, 8, 20);
+  await finger.up();
+  await page.waitForTimeout(900);
+  await frame(page, info, `grammar-default-trim-drag-${browserName}`);
+  const row = {
+    commands: commands.map((c) => c.type),
+    sourceEnd: (await clipAt50())?.source_end,
+    strip: await page.locator(".bottom-sheet--compact").count(),
+    sheets: await page.locator(".bottom-sheet").count(),
+  };
+  json(info, `grammar-default-trim-drag-${browserName}`, row);
+  expect(row).toEqual({
+    commands: [],
+    sourceEnd: before.source_end,
+    strip: 1,
+    sheets: 1,
+  });
 });
 
 test("an armed drag holds at a soft boundary, and saves there", async ({

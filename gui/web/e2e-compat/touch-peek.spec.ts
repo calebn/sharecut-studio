@@ -4,6 +4,7 @@ import {
   expect,
   type Locator,
   type Page,
+  type TestInfo,
   test,
 } from "@playwright/test";
 import { STUDIO_AXE_DISABLED_RULES } from "../e2e/axe";
@@ -18,6 +19,7 @@ import { switchE2eProject } from "../e2e/shareableProject";
 import { setTheme, type Theme } from "../e2e/theme";
 import {
   buildFixture,
+  type CaseFixtures,
   centerOf,
   json,
   lane,
@@ -71,16 +73,14 @@ test.afterEach(async () => {
 async function open(
   page: Page,
   size: SizeName,
-  { lab = true, theme = "dark" as Theme, inspector = "peek" } = {},
+  { theme = "dark" as Theme, inspector = "peek" } = {},
 ): Promise<void> {
   await page.setViewportSize(SIZES[size]);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await page.evaluate((view) => {
     localStorage.setItem("sharecut.compactInspector", view);
   }, inspector);
-  await page.goto(
-    `/?project=${encodeURIComponent(projectPath)}&lab=${lab ? "" : "-"}touch-chooser`,
-  );
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
   if (SIZES[size].width < 768) await openPhoneTimeline(page);
   await setTheme(page, theme);
@@ -336,43 +336,90 @@ const CHIP_CASES: Record<
   },
 };
 
-for (const [name, { moves, run }] of Object.entries(CHIP_CASES)) {
-  test(`chip: ${name}`, async ({ page, context, browserName }, info) => {
-    const finger = await setUp(page, context, browserName);
-    const commands = watchCommands(page);
-    const before = await trimStartSec(page);
-    const slug = name.split(",")[0].replaceAll(" ", "-");
-    await run(page, finger, (step) =>
-      frame(page, info, `chip-${slug}-${browserName}-${step}`),
-    );
-    if (moves) await cutAnyway(page, finger);
-    const row = {
-      case: name,
-      input: finger.input,
-      before,
-      after: await trimStartSec(page),
-      commands: commands.map((c) => c.type),
-      sheet: await sheetState(page),
-    };
-    json(info, `chip-${slug}-${browserName}`, row);
-    if (moves) {
-      // The save can land after the read above: wait for it.
-      await expect.poll(() => trimStartSec(page)).toBeGreaterThan(row.before);
-      expect(row.sheet).toMatchObject({
-        compact: true,
-        size: "peek",
-        stowed: false,
-        title: "Trim start",
-      });
-    } else {
-      expect(row).toMatchObject({
-        after: before,
-        commands: [],
-        sheet: { title: "Trim start", size: "peek" },
-      });
-    }
-  });
+async function chipCase(
+  name: string,
+  { page, context, browserName }: CaseFixtures,
+  info: TestInfo,
+): Promise<void> {
+  const { moves, run } = CHIP_CASES[name];
+  const finger = await setUp(page, context, browserName);
+  const commands = watchCommands(page);
+  const before = await trimStartSec(page);
+  const slug = name.split(",")[0].replaceAll(" ", "-");
+  await run(page, finger, (step) =>
+    frame(page, info, `chip-${slug}-${browserName}-${step}`),
+  );
+  if (moves) await cutAnyway(page, finger);
+  const row = {
+    case: name,
+    input: finger.input,
+    before,
+    after: await trimStartSec(page),
+    commands: commands.map((c) => c.type),
+    sheet: await sheetState(page),
+  };
+  json(info, `chip-${slug}-${browserName}`, row);
+  if (moves) {
+    // The save can land after the read above: wait for it.
+    await expect.poll(() => trimStartSec(page)).toBeGreaterThan(row.before);
+    expect(row.sheet).toMatchObject({
+      compact: true,
+      size: "peek",
+      stowed: false,
+      title: "Trim start",
+    });
+  } else {
+    expect(row).toMatchObject({
+      after: before,
+      commands: [],
+      sheet: { title: "Trim start", size: "peek" },
+    });
+  }
 }
+
+test("chip: slid on, settled, slid along the axis", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  chipCase(
+    "slid on, settled, slid along the axis",
+    { page, context, browserName },
+    info,
+  ));
+
+test("chip: lifted at the origin, chip pressed again, slid along the axis", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  chipCase(
+    "lifted at the origin, chip pressed again, slid along the axis",
+    { page, context, browserName },
+    info,
+  ));
+
+test("chip: slid on and lifted without moving", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  chipCase(
+    "slid on and lifted without moving",
+    { page, context, browserName },
+    info,
+  ));
+
+test("chip: rested a long press, then dragged off the axis (fallback)", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  chipCase(
+    "rested a long press, then dragged off the axis (fallback)",
+    { page, context, browserName },
+    info,
+  ));
 
 test("no grab while passing over chips or moving off the axis", async ({
   page,
@@ -519,11 +566,6 @@ test("the strip and the expanded inspector leave the selection in view", async (
           );
         }
       };
-      // Before: round 2's half sheet (lab off).
-      await open(page, size, { lab: false });
-      await tap(locate);
-      await record("before (lab off)");
-      // After: the strip, then expanded.
       await open(page, size);
       await tap(locate);
       await record("strip");
@@ -535,152 +577,176 @@ test("the strip and the expanded inspector leave the selection in view", async (
     }
   }
   json(info, `coverage-${browserName}`, { input: finger.input, rows });
-  for (const row of rows.filter((r) => r.state !== "before (lab off)")) {
+  for (const row of rows) {
     expect(row, JSON.stringify(row)).toMatchObject({ targetVisible: true });
   }
 });
 
-for (const size of ["portrait-360", "landscape-844"] as const) {
-  test(`a drag stows the strip, which returns with the new value: ${size}`, async ({
-    page,
-    context,
-    browserName,
-  }, info) => {
-    const finger = await setUp(page, context, browserName);
-    await open(page, size);
-    // Select the trim start through the chooser: the strip opens on it.
-    await holdOpen(page, finger);
-    await finger.slide(await centerOfBox(trimChip(page)), 8, 16);
-    await page.waitForTimeout(SETTLE_MS);
+async function dragStowsStrip(
+  size: "portrait-360" | "landscape-844",
+  { page, context, browserName }: CaseFixtures,
+  info: TestInfo,
+): Promise<void> {
+  const finger = await setUp(page, context, browserName);
+  await open(page, size);
+  // Select the trim start through the chooser: the strip opens on it.
+  await holdOpen(page, finger);
+  await finger.slide(await centerOfBox(trimChip(page)), 8, 16);
+  await page.waitForTimeout(SETTLE_MS);
+  await finger.up();
+  await page.waitForTimeout(700);
+  const opened = await sheetState(page);
+  await frame(page, info, `stow-${size}-1-strip-${browserName}`);
+
+  // Drag it again from a chip: the strip stows mid-drag.
+  await holdOpen(page, finger);
+  const chip = await centerOfBox(trimChip(page));
+  await finger.slide(chip, 8, 16);
+  await page.waitForTimeout(SETTLE_MS);
+  await finger.slide({ x: chip.x + 30, y: chip.y }, 6, 16);
+  await page.waitForTimeout(350);
+  const mid = await sheetState(page);
+  await frame(page, info, `stow-${size}-2-mid-drag-${browserName}`);
+  await finger.up();
+  await cutAnyway(page, finger);
+  await page.waitForTimeout(900);
+  const released = await sheetState(page);
+  await frame(page, info, `stow-${size}-3-released-${browserName}`);
+
+  // The selected trim's own handle under one moving finger: the grammar
+  // scrolls, so nothing stows and nothing is edited (#1051 round 4b).
+  // High on the strip: its middle sits under the edge's envelope point.
+  const strip = await page
+    .locator(`${lane} [data-hit-kind="trim-in"][data-hit-selected="true"]`)
+    .boundingBox({ timeout: 5000 });
+  if (!strip) throw new Error("no selected trim strip");
+  const handle = {
+    x: strip.x + strip.width / 2,
+    y: strip.y + strip.height * 0.25,
+  };
+  await finger.down(handle);
+  await finger.slide({ x: handle.x + 24, y: handle.y }, 8, 20);
+  await page.waitForTimeout(300);
+  const direct = await sheetState(page);
+  await finger.up();
+  await page.waitForTimeout(900);
+  const row = {
+    size,
+    input: finger.input,
+    opened,
+    midChipDrag: mid,
+    released,
+    midHandleDrag: direct,
+    afterHandleDrag: await sheetState(page),
+    trimStartSec: await trimStartSec(page),
+  };
+  json(info, `stow-${size}-${browserName}`, row);
+  expect(row.midChipDrag.stowed).toBe(true);
+  expect(row.released).toMatchObject({ stowed: false, title: "Trim start" });
+  expect(row.released.value).not.toBe(row.opened.value);
+  expect(row.midHandleDrag.stowed).toBe(false);
+  expect(row.afterHandleDrag.value).toBe(row.released.value);
+}
+
+test("a drag stows the strip, which returns with the new value: portrait-360", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  dragStowsStrip("portrait-360", { page, context, browserName }, info));
+
+test("a drag stows the strip, which returns with the new value: landscape-844", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  dragStowsStrip("landscape-844", { page, context, browserName }, info));
+
+async function expandRemembered(
+  size: "portrait-360" | "landscape-844",
+  { page, context, browserName }: CaseFixtures,
+  info: TestInfo,
+): Promise<void> {
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await buildFixture(page, projectPath, CLIENT_ID);
+  const finger = await newFinger(context, page, browserName);
+  await open(page, size);
+  const tap = async (at: Point) => {
+    await finger.down(at);
+    await page.waitForTimeout(60);
     await finger.up();
     await page.waitForTimeout(700);
-    const opened = await sheetState(page);
-    await frame(page, info, `stow-${size}-1-strip-${browserName}`);
-
-    // Drag it again from a chip: the strip stows mid-drag.
-    await holdOpen(page, finger);
-    const chip = await centerOfBox(trimChip(page));
-    await finger.slide(chip, 8, 16);
-    await page.waitForTimeout(SETTLE_MS);
-    await finger.slide({ x: chip.x + 30, y: chip.y }, 6, 16);
-    await page.waitForTimeout(350);
-    const mid = await sheetState(page);
-    await frame(page, info, `stow-${size}-2-mid-drag-${browserName}`);
-    await finger.up();
-    await cutAnyway(page, finger);
-    await page.waitForTimeout(900);
-    const released = await sheetState(page);
-    await frame(page, info, `stow-${size}-3-released-${browserName}`);
-
-    // The selected trim's own handle under one moving finger: the grammar
-    // scrolls, so nothing stows and nothing is edited (#1051 round 4b).
-    // High on the strip: its middle sits under the edge's envelope point.
-    const strip = await page
-      .locator(`${lane} [data-hit-kind="trim-in"][data-hit-selected="true"]`)
-      .boundingBox({ timeout: 5000 });
-    if (!strip) throw new Error("no selected trim strip");
-    const handle = {
-      x: strip.x + strip.width / 2,
-      y: strip.y + strip.height * 0.25,
-    };
-    await finger.down(handle);
-    await finger.slide({ x: handle.x + 24, y: handle.y }, 8, 20);
-    await page.waitForTimeout(300);
-    const direct = await sheetState(page);
-    await finger.up();
-    await page.waitForTimeout(900);
-    const row = {
-      size,
-      input: finger.input,
-      opened,
-      midChipDrag: mid,
-      released,
-      midHandleDrag: direct,
-      afterHandleDrag: await sheetState(page),
-      trimStartSec: await trimStartSec(page),
-    };
-    json(info, `stow-${size}-${browserName}`, row);
-    expect(row.midChipDrag.stowed).toBe(true);
-    expect(row.released).toMatchObject({ stowed: false, title: "Trim start" });
-    expect(row.released.value).not.toBe(row.opened.value);
-    expect(row.midHandleDrag.stowed).toBe(false);
-    expect(row.afterHandleDrag.value).toBe(row.released.value);
-  });
-}
-
-for (const size of ["portrait-360", "landscape-844"] as const) {
-  test(`Expand is remembered for the next selection, and so is Collapse: ${size}`, async ({
-    page,
-    context,
-    browserName,
-  }, info) => {
-    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
-    await buildFixture(page, projectPath, CLIENT_ID);
-    const finger = await newFinger(context, page, browserName);
-    await open(page, size);
-    const tap = async (at: Point) => {
-      await finger.down(at);
-      await page.waitForTimeout(60);
-      await finger.up();
-      await page.waitForTimeout(700);
-    };
-    const tapPoint = async (id: string) =>
-      tap(
-        await centerOf(
-          page,
-          `${lane} [data-hit-kind="envelope-point"][data-hit-id="${id}"]`,
-        ),
-      );
-    /** A finger on the button where it is drawn; null if something covers it. */
-    const tapButton = async (name: string) => {
-      const at = await centerOfBox(page.getByRole("button", { name }));
-      const hit = await page.evaluate(
-        ({ x, y }) =>
-          document
-            .elementFromPoint(x, y)
-            ?.closest("button")
-            ?.getAttribute("aria-label") ?? null,
-        at,
-      );
-      await tap(at);
-      return hit;
-    };
-    const steps: Record<string, unknown>[] = [];
-    const step = async (name: string, buttonUnderFinger?: string | null) => {
-      steps.push({
-        step: name,
-        ...(buttonUnderFinger !== undefined ? { buttonUnderFinger } : {}),
-        ...(await sheetState(page)),
-        pref: await page.evaluate(() =>
-          localStorage.getItem("sharecut.compactInspector"),
-        ),
-      });
-      await frame(
+  };
+  const tapPoint = async (id: string) =>
+    tap(
+      await centerOf(
         page,
-        info,
-        `remember-${size}-${browserName}-${String(steps.length).padStart(2, "0")}`,
-      );
-    };
-    await tapPoint("env-c");
-    await step("select: strip");
-    await step("one tap on Expand", await tapButton("Expand to half height"));
-    await tapPoint("env-a");
-    await step("next selection opens expanded");
-    await step("collapse", await tapButton("Collapse to strip"));
-    await tapPoint("env-c");
-    await step("next selection opens the strip");
-    json(info, `remember-${size}-${browserName}`, steps);
-    expect(
-      steps.map((s) => [s.size, s.pref, s.buttonUnderFinger ?? null]),
-    ).toEqual([
-      ["peek", "peek", null],
-      ["half", "half", "Expand to half height"],
-      ["half", "half", null],
-      ["peek", "peek", "Collapse to strip"],
-      ["peek", "peek", null],
-    ]);
-  });
+        `${lane} [data-hit-kind="envelope-point"][data-hit-id="${id}"]`,
+      ),
+    );
+  /** A finger on the button where it is drawn; null if something covers it. */
+  const tapButton = async (name: string) => {
+    const at = await centerOfBox(page.getByRole("button", { name }));
+    const hit = await page.evaluate(
+      ({ x, y }) =>
+        document
+          .elementFromPoint(x, y)
+          ?.closest("button")
+          ?.getAttribute("aria-label") ?? null,
+      at,
+    );
+    await tap(at);
+    return hit;
+  };
+  const steps: Record<string, unknown>[] = [];
+  const step = async (name: string, buttonUnderFinger?: string | null) => {
+    steps.push({
+      step: name,
+      ...(buttonUnderFinger !== undefined ? { buttonUnderFinger } : {}),
+      ...(await sheetState(page)),
+      pref: await page.evaluate(() =>
+        localStorage.getItem("sharecut.compactInspector"),
+      ),
+    });
+    await frame(
+      page,
+      info,
+      `remember-${size}-${browserName}-${String(steps.length).padStart(2, "0")}`,
+    );
+  };
+  await tapPoint("env-c");
+  await step("select: strip");
+  await step("one tap on Expand", await tapButton("Expand to half height"));
+  await tapPoint("env-a");
+  await step("next selection opens expanded");
+  await step("collapse", await tapButton("Collapse to strip"));
+  await tapPoint("env-c");
+  await step("next selection opens the strip");
+  json(info, `remember-${size}-${browserName}`, steps);
+  expect(
+    steps.map((s) => [s.size, s.pref, s.buttonUnderFinger ?? null]),
+  ).toEqual([
+    ["peek", "peek", null],
+    ["half", "half", "Expand to half height"],
+    ["half", "half", null],
+    ["peek", "peek", "Collapse to strip"],
+    ["peek", "peek", null],
+  ]);
 }
+
+test("Expand is remembered for the next selection, and so is Collapse: portrait-360", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  expandRemembered("portrait-360", { page, context, browserName }, info));
+
+test("Expand is remembered for the next selection, and so is Collapse: landscape-844", ({
+  page,
+  context,
+  browserName,
+}, info) =>
+  expandRemembered("landscape-844", { page, context, browserName }, info));
 
 test("axe, both themes and reduced motion with the strip open", async ({
   page,

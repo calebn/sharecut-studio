@@ -47,7 +47,6 @@ import {
 } from "../utils/audioErrorLabel";
 import { AUDITION_MODES, GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
 import { joinSentences } from "../utils/format";
-import { LAB_FLAGS, setLabEnabled, useLabFlag } from "../utils/labFlags";
 import { MIX_FRESH_LABEL, staleMixLabel } from "../utils/staleRender";
 import { AvatarStack } from "./AvatarStack";
 import { commentModeTitle } from "./commentModeTitle";
@@ -127,7 +126,6 @@ export function TransportBar({
   }));
   const fitTracks = laneHeightMode === "fit";
   const { preference, setPreference } = useTheme();
-  const touchChooser = useLabFlag("touchChooser");
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [viewOpenState, setViewOpenState] = useState(false);
   const [narrow, setNarrow] = useState(false);
@@ -348,17 +346,6 @@ export function TransportBar({
             </ToggleButton>
           ))}
         </SegmentedControl>
-      </MenuSection>
-      <MenuSection label="Labs">
-        <div className="overlay-legend" role="none">
-          <LegendCheckbox
-            menu
-            checked={touchChooser}
-            onChange={(on) => setLabEnabled("touchChooser", on)}
-          >
-            {LAB_FLAGS.touchChooser.label}
-          </LegendCheckbox>
-        </div>
       </MenuSection>
     </>
   );

@@ -1262,7 +1262,7 @@ describe("ClipBlock waveform", () => {
       const root = view.container.firstElementChild as HTMLElement;
       const hit = root.querySelector(".clip-hit") as HTMLElement;
       place(hit, { left: 0, top: 0, right: 100, bottom: 100 });
-      const router = attachHitRouting(root, { touchLab: () => true });
+      const router = attachHitRouting(root);
       root.addEventListener(
         "pointerdown",
         (e) => {

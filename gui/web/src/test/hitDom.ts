@@ -38,19 +38,20 @@ export function surface(
   return el;
 }
 
-/** A touch pointer event of `type` at (`x`, `y`), dispatched on `target`. */
+/** A pointer event of `type` at (`x`, `y`), a touch unless `pointerType` says, dispatched on `target`. */
 export function press(
   target: Element,
   type: string,
   x: number,
   y: number,
   pointerId = 7,
+  pointerType = "touch",
 ): PointerEvent {
   const event = new PointerEvent(type, {
     bubbles: true,
     cancelable: true,
     pointerId,
-    pointerType: "touch",
+    pointerType,
     isPrimary: pointerId === 7,
     clientX: x,
     clientY: y,

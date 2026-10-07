@@ -90,7 +90,7 @@ transport Menu on Timeline, Text, or More.
 |---------|--------------|
 | **Two-finger tap** | Optional Sharecut shortcut for Undo |
 | **Pinch** | Zoom the timeline in/out |
-| **Long-press** | Open the selection sheet for a comment or track, or correct a transcript word (hosts). With the touch chooser lab on, a long press on the timeline arms a target so it can be dragged (on a clip's body, the clip, which then slides in time), or on empty space opens a menu to add an envelope point, a blade cut, a chapter or a comment |
+| **Long-press** | Open the selection sheet for a comment or track, or correct a transcript word (hosts). On the timeline, a long press arms a target so it can be dragged (on a clip's body, the clip, which then slides in time), or on empty space opens a menu to add an envelope point, a blade cut, a chapter or a comment |
 | **Swipe left on comment** | Resolve an open comment in the list (hosts). The card slides with your finger; **Undo** appears for a few seconds afterwards (for the most recent one only). The toast stays reachable as the Comments list scrolls. Closing it with keyboard focus inside returns focus to Comments without scrolling |
 | **Double-tap word** | Open word correction (hosts) in the sheet; the transcript hint says so on touch; closing it returns to your previous mode (touch keeps the sheet rather than desktop's inline editor so the keyboard has room) |
 
