@@ -289,6 +289,12 @@ everyone but an Editor.
 | Commenter | Yes | **Suggest cut** / **Suggest mute** create a pending edit for review | Only its own suggestions (pending edits its share authored) | Refused |
 | Viewer, or a share with no role | No (untimed utterance text) | Refused by the document-command gate | Refused | Refused |
 
+An Editor also edits volume envelopes as the host does: `SetEnvelope` is in
+the Editor command set, and the Studio's envelope overlay, envelope inspector,
+peek strip and touch create menu read `canEditEnvelopes`. Commenter and
+Viewer links see envelopes view-only (owner, 2026-10-06; see
+[touch-editor-decisions.md](touch-editor-decisions.md#decision-one-touch-input-grammar-for-timeline-editing)).
+
 An Editor is trusted to approve: approving applies an edit. The host can
 undo every change an Editor makes (applied cut or mute, approval,
 rejection, retime) with one History Undo each.

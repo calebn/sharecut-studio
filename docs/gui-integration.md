@@ -215,6 +215,13 @@ z-order: a press on a target with two or more targets in reach is replayed on
 the best-ranked one, and with the `touchChooser` lab on, a held touch on a
 crowded spot opens a target chooser. Data shape, ranking, routing and the
 chooser contract: [touch-editor-decisions.md](touch-editor-decisions.md#shared-hit-resolver-1051).
+Each target kind's input rules (its drag axes, whether a long press arms it,
+its strip nudges, soft boundaries, keys, command and the kinds it outranks,
+so a grab at a join rolls it) live in one table, `HIT_KINDS` in
+`gui/web/src/timeline/inputContract.ts`; the router reads it, and generated
+conformance tests check every kind against it. With the lab on, a long press
+arms a target, a long press on empty space opens the create menu, and armed
+drags detent at soft boundaries ([round 4b](touch-editor-decisions.md#touch-grammar-round-4b-1051)).
 
 ### Clip join fields
 

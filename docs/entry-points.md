@@ -26,6 +26,8 @@ Rules:
 
 **Focused clip handles:** `edit.setClipFade` and `edit.trimClipEdge` route Left/Right nudges through the sole keymap listener before playhead navigation. Their focused-handle predicates describe focus ownership; handlers separately require `canApplyPass12`, so a denied edit still consumes the focused arrow. Clip-local previews share pointer clamping and save once through the existing document commands on key release or normal blur. Escape cancels locally. The manifest keeps the canonical first key (`ArrowLeft`); generated shortcut notes name both Left/Right directions.
 
+**Touch column:** `surfaces.touch` names the touch gestures that run a command: `long-press-arm-drag`, `long-press-empty` (the create menu), `hold-nudge`, `double-tap`, `swipe-left`, `pinch` and `two-finger-tap`. The vocabulary is `TOUCH_GESTURES` in [`gui/web/src/timeline/inputContract.ts`](../gui/web/src/timeline/inputContract.ts), the touch grammar's single source; `make capabilities-check` keeps the schema's enum equal to it and refuses a touch value on a row without a command. Which commands carry which gesture is derived, not hand-kept: `inputContract.manifest.test.ts` fails unless each row's column equals what the create menu, each hit kind's `command` and the Gestures sheet say runs it. The docs catalog shows it as the Touch column.
+
 **Long-press exemption:** the mobile Long-press gesture opens different existing selection or correction actions according to its target (clip, comment, track, or transcript word). It has no single command ID. The gesture cheatsheet keeps that behavior as a documented exception; swipe-left comment resolution has the command ID `comment.resolve` and capability `daw.review.resolveComment`.
 
 ## Adding a new capability
@@ -53,7 +55,7 @@ and prompt limits stay in the service rather than adapters.
 |------|---------|
 | Local | pre-commit hook `capabilities-manifest` (adapters + docs catalog) |
 | CI / `make ci` | `make capabilities-check` |
-| Frontend | `gui/web/src/commands/governance.test.ts` (single keydown listener) |
+| Frontend | `gui/web/src/commands/governance.test.ts` (single keydown listener), `gui/web/src/timeline/gestureGovernance.test.ts` (one gesture router), `gui/web/src/timeline/inputContract.manifest.test.ts` (touch column) |
 | Unit | `tests/test_capabilities_manifest.py` |
 
 Hard fail when a `COMMANDS` / keymap / registered MCP tool / skill is missing from the manifest (hubs/deprecated skills live under `hub_skills`), or when the published docs catalog is stale.
