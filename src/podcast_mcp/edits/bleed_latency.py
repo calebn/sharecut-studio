@@ -146,13 +146,28 @@ class LatencySolution:
         }
 
 
-def _theil_sen(times: np.ndarray, values: np.ndarray) -> float:
+def _theil_sen(times: np.ndarray, values: np.ndarray, runs: np.ndarray) -> float:
+    """Median slope over pairs of points in the same run: a step between runs is not a trend."""
     slopes = [
         (values[j] - values[i]) / (times[j] - times[i])
         for i, j in itertools.combinations(range(times.size), 2)
-        if times[j] != times[i]
+        if runs[i] == runs[j] and times[j] != times[i]
     ]
     return float(np.median(slopes)) if slopes else 0.0
+
+
+def _settled(lags: np.ndarray, tolerance_sec: float) -> np.ndarray:
+    """Windows within tolerance of the pair's median or of the window before or after.
+
+    A lane whose latency steps for a long stretch sits away from the median there, but
+    each of its windows agrees with its neighbours; a wrong-syllable peak agrees with
+    neither.
+    """
+    near = np.abs(lags - np.median(lags)) <= tolerance_sec
+    steady = np.abs(np.diff(lags)) <= tolerance_sec
+    near[1:] |= steady
+    near[:-1] |= steady
+    return near
 
 
 def measure_pair(
@@ -162,6 +177,7 @@ def measure_pair(
     source_track_id: str,
     mic_track_id: str,
     tolerance_sec: float = TOLERANCE_SEC,
+    deadband_sec: float = DEADBAND_SEC,
 ) -> PairLag:
     """Windowed lag of ``source``'s level envelope behind its copy in ``mic``'s.
 
@@ -187,15 +203,19 @@ def measure_pair(
     if len(rows) < MIN_SUPPORTED_WINDOWS:
         return PairLag(source_track_id, mic_track_id, None, len(rows), 0, None, None, "no_bleed")
     times, lags = (np.array(column) for column in zip(*rows, strict=True))
-    keep = np.abs(lags - np.median(lags)) <= tolerance_sec
+    keep = _settled(lags, tolerance_sec)
     inliers = int(keep.sum())
     if inliers < MIN_SUPPORTED_WINDOWS or inliers < MIN_INLIER_SHARE * len(rows):
         return PairLag(
             source_track_id, mic_track_id, None, len(rows), inliers, None, None, "scattered"
         )
-    lag = float(np.median(lags[keep]))
-    spread = float(np.median(np.abs(lags[keep] - lag)))
-    trend = _theil_sen(times[keep], lags[keep]) * float(np.ptp(times[keep]))
+    times, lags = times[keep], lags[keep]
+    # Runs of windows between latency steps (beyond the deadband); drift is a trend inside them.
+    runs = np.concatenate([[0], np.cumsum(np.abs(np.diff(lags)) > deadband_sec)])
+    levels = np.array([np.median(lags[runs == run]) for run in runs])
+    lag = float(np.median(lags))
+    spread = float(np.median(np.abs(lags - levels)))
+    trend = _theil_sen(times, lags, runs) * float(np.ptp(times))
     return PairLag(
         source_track_id,
         mic_track_id,
@@ -318,6 +338,7 @@ def measure_bleed_latency(
             source_track_id=s,
             mic_track_id=m,
             tolerance_sec=settings.tolerance_sec,
+            deadband_sec=settings.deadband_sec,
         )
         if pair.lag_sec is not None:
             pair = replace(pair, lag_sec=pair.lag_sec - shift.get(s, 0.0) + shift.get(m, 0.0))
