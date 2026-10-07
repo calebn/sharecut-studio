@@ -136,20 +136,22 @@ def test_structural_mode_propose_from_edit_cap(
     assert any(c.id == "c1" for c in ws2.project.clips)
 
 
-def test_valueerror_not_found_becomes_conflict(minimal_project):
+def test_missing_target_refusal_becomes_conflict(minimal_project):
     from unittest.mock import patch
 
     from podcast_mcp.services.document_sync.errors import DocumentConflictError
+    from podcast_mcp.util.coded_error import CodedValueError
 
     ws = ProjectWorkspace.open(minimal_project)
     svc = DocumentSyncService(ws)
 
+    # Decided by the refusal's code (#1182): a bare ValueError("... not found") is not one.
     with (
         patch(
             "podcast_mcp.services.document_sync.service.apply_command",
-            side_effect=ValueError("clip not found"),
+            side_effect=CodedValueError("unknown clip_id: 'c9'", code="clip_not_found"),
         ),
-        pytest.raises(DocumentConflictError, match="not found"),
+        pytest.raises(DocumentConflictError, match="unknown clip_id"),
     ):
         svc._apply(
             DocumentCommand(
