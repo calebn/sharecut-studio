@@ -4,7 +4,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import Any
 
-from podcast_mcp.edits.speaker_split import CrosstalkMode, split_track_by_speaker
+from podcast_mcp.edits.speaker_split import split_track_by_speaker
 from podcast_mcp.engines.speaker_id import (
     compare_window,
     enroll_segment,
@@ -20,6 +20,7 @@ from podcast_mcp.engines.speaker_id import (
 from podcast_mcp.engines.speaker_split import RATE, SpeakerAttribution, attribute_speakers
 from podcast_mcp.engines.ungated_audio import load_mono_full
 from podcast_mcp.engines.waveform_media import schedule_track_waveforms
+from podcast_mcp.models import SpeakerSplitCrosstalk
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.transcript_context import context_lock, load_transcript_context
 from podcast_mcp.util.progress import ProgressReporter, resolve_progress, resolve_progress_task
@@ -264,7 +265,7 @@ class SpeakerService:
         speaker_count: int | None = None,
         names: Sequence[str] | None = None,
         enrollment: Mapping[str, Sequence[tuple[float, float]]] | None = None,
-        crosstalk_mode: CrosstalkMode = "both",
+        crosstalk_mode: SpeakerSplitCrosstalk = "owner",
         room_tone_fill: bool = False,
         dry_run: bool = True,
         progress: ProgressReporter | None = None,
@@ -272,10 +273,12 @@ class SpeakerService:
         """Attribute ``track_id``'s recording to its speakers, then split it into lanes.
 
         The speaker count is the caller's or the one the user set
-        (``set_expected_speaker_count``); it is never guessed. ``enrollment`` maps each
-        speaker's name to source spans of only that speaker, and then sets the names
-        and their order. Attribution runs before the project lock is taken; the split
-        is one undoable mutation.
+        (``set_expected_speaker_count``); it is never guessed. ``enrollment`` maps a
+        speaker's name to source spans of only that speaker, for some or all of them;
+        the rest are clustered. ``names`` sets the order (it must hold every enrolled
+        name); without it, enrolled speakers come first. ``warnings`` names any two
+        speakers who sound like one person. Attribution runs before the project lock is
+        taken; the split is one undoable mutation.
         """
         project = self.ws.project
         ctx = load_transcript_context(project.workspace_path())
@@ -288,9 +291,7 @@ class SpeakerService:
             raise ValueError(
                 "a speaker split needs the speaker count: pass it, or set it with set-speaker-count"
             )
-        speakers = list(enrollment or names or [f"Speaker {i + 1}" for i in range(count)])
-        if len(speakers) != count:
-            raise ValueError(f"expected {count} speaker names, got {len(speakers)}")
+        speakers = _speaker_names(count, names, list(enrollment or {}))
         backend = resolve_speaker_backend()
         if backend.name() == "mock":
             raise ImportError(
@@ -303,15 +304,14 @@ class SpeakerService:
             samples,
             speaker_count=count,
             backend=backend,
-            enrollment=(
-                {i: list(enrollment[name]) for i, name in enumerate(speakers)}
-                if enrollment
-                else None
-            ),
+            enrollment={
+                speakers.index(name): list(spans) for name, spans in (enrollment or {}).items()
+            },
             progress=resolve_progress(progress),
         )
+        warnings = _same_voice_warnings(attribution, speakers)
         if dry_run:
-            return _attribution_summary(attribution, speakers)
+            return {**_attribution_summary(attribution, speakers), "warnings": warnings}
         result = self.ws.mutate(
             "before split speakers",
             "after split speakers",
@@ -335,7 +335,29 @@ class SpeakerService:
             track = self.ws.project.track_by_id(lane["track_id"])
             if track is not None:
                 schedule_track_waveforms(self.ws.project, track)
-        return result
+        return {**result, "warnings": warnings}
+
+
+def _speaker_names(count: int, names: Sequence[str] | None, enrolled: list[str]) -> list[str]:
+    if names:
+        if len(names) != count:
+            raise ValueError(f"expected {count} speaker names, got {len(names)}")
+        missing = [name for name in enrolled if name not in names]
+        if missing:
+            raise ValueError(f"enrolled speaker {missing[0]!r} is not one of the names")
+        return list(names)
+    if len(enrolled) > count:
+        raise ValueError(f"{len(enrolled)} speakers enrolled but the speaker count is {count}")
+    return enrolled + [f"Speaker {i + 1}" for i in range(len(enrolled), count)]
+
+
+def _same_voice_warnings(attribution: SpeakerAttribution, speakers: list[str]) -> list[str]:
+    return [
+        f"{speakers[pair.speakers[0]]} and {speakers[pair.speakers[1]]} sound like one person: "
+        f"their voices are {pair.distance:.2f} apart, against {pair.others:.2f} between the "
+        "other speakers. Check the speaker count, or enroll each person."
+        for pair in attribution.same_voice
+    ]
 
 
 def _attribution_summary(attribution: SpeakerAttribution, speakers: list[str]) -> dict[str, Any]:

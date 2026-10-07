@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import Literal
-
 from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
+from podcast_mcp.models import SpeakerSplitCrosstalk
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import SpeakerService
 from podcast_mcp.util.progress import resolve_progress
@@ -132,16 +131,18 @@ def speaker_split_tool(
     speaker_count: int | None = None,
     names: list[str] | None = None,
     enrollment: dict[str, list[list[float]]] | None = None,
-    crosstalk_mode: Literal["both", "lane"] = "both",
+    crosstalk_mode: SpeakerSplitCrosstalk = "owner",
     room_tone_fill: bool = False,
     dry_run: bool = True,
 ) -> str:
     """Split a one-track recording of several speakers into a lane per speaker (dry_run by default).
 
     Needs the speaker count (or one set with speaker_set_count_tool). ``enrollment`` maps
-    each speaker's name to [start, end] source-second spans of only that speaker. Every lane
-    plays the same media, muted where the others talk; crosstalk stays on both lanes or
-    moves to a shared lane (``crosstalk_mode="lane"``). One undo step.
+    a speaker's name to [start, end] source-second spans of only that speaker, for some or
+    all speakers; the rest are clustered. Every lane plays the same media, muted where the
+    others talk. Flagged crosstalk plays on the likeliest speaker's lane (``owner``), on
+    every talking speaker's lane (``both``, twice in the mix) or on a shared lane
+    (``lane``). ``warnings`` names two speakers who sound like one person. One undo step.
     """
     ws = ProjectWorkspace.open(project_path)
     return to_json(

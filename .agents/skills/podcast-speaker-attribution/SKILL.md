@@ -49,7 +49,7 @@ podcast speaker label --project PATH --track T --start S --end E --dry-run
 podcast speaker set-speaker-count --project PATH --speakers N
 podcast speaker attribute --project PATH --dry-run
 podcast speaker split --project PATH --track T --speakers N --dry-run
-podcast speaker split --project PATH --track T --enroll "NAME=START:END" … --apply [--crosstalk lane]
+podcast speaker split --project PATH --track T --enroll "NAME=START:END" … --apply [--crosstalk owner|both|lane]
 ```
 
 ## Split one recording into a lane per speaker
@@ -58,8 +58,9 @@ podcast speaker split --project PATH --track T --enroll "NAME=START:END" … --a
 2. Ask the user to confirm a few seconds of only each speaker (source seconds) and pass them as `--enroll NAME=START:END` / `enrollment={"Name": [[s, e]]}`. Enrollment names the lanes and keeps clustering from splitting one voice.
 3. Dry-run first and read `seconds_by_speaker`, `crosstalk_sec` and `low_confidence_sec` back to the user.
 4. `--apply` makes one undo step: the original lane becomes the first speaker's, each other speaker gets a copy that plays the same media, and each lane is muted where another owns the audio.
-5. Crosstalk flags from speaker embeddings are unreliable on real voices (5% precision on the lab tape). With `--crosstalk both` a flagged stretch plays on two lanes, so twice in the mix; offer `--crosstalk lane` when the user hears it. Short backchannels (under 1 s) are the main attribution errors: listen at hand-overs.
-6. Then run the pipeline as for any multitrack episode. Details: [multitrack-ingest.md § Split one recording by speaker](../../../docs/multitrack-ingest.md#split-one-recording-by-speaker).
+5. Crosstalk flags from speaker embeddings are unreliable on real voices (5% precision on the lab tape), so the default `--crosstalk owner` plays a flagged stretch once, on its likeliest speaker, and keeps the flag on the turn. `--crosstalk both` plays it on two lanes (twice in the mix; doctor reports it as a stacked copy); `--crosstalk lane` moves it to a shared lane. Short backchannels (under 1 s) are the main attribution errors: listen at hand-overs.
+6. Read `warnings`: two speakers who "sound like one person" mean the count is likely too high. Ask the user, then rerun with the right count or enroll each person. Enrolling only the speakers you are sure of is fine; the rest are clustered.
+7. Then run the pipeline as for any multitrack episode. Details: [multitrack-ingest.md § Split one recording by speaker](../../../docs/multitrack-ingest.md#split-one-recording-by-speaker).
 
 Progress is automatic on MCP/CLI (relay tool headlines; do not invent status). Spec: [docs/progress.md](../../docs/progress.md). Long CLI attribute/gate passes: `--json-progress`.
 

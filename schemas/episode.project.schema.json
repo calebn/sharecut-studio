@@ -245,12 +245,13 @@
     "SpeakerSplit": {
       "type": "object",
       "description": "One recording split into a lane per speaker; every lane plays media_path, muted where it does not own the audio (#1095).",
-      "required": ["id", "media_path", "lanes", "backend", "method"],
+      "required": ["id", "media_path", "lanes", "crosstalk_mode", "backend", "method"],
       "properties": {
         "id": { "type": "string" },
         "media_path": { "type": "string" },
         "lanes": { "type": "array", "minItems": 2, "items": { "type": "string" }, "description": "Speakers' track ids, in the order turns name them." },
-        "crosstalk_lane": { "type": ["string", "null"], "default": null, "description": "Shared lane for crosstalk; null keeps crosstalk on every talking speaker's lane." },
+        "crosstalk_mode": { "type": "string", "enum": ["owner", "both", "lane"], "description": "Where flagged crosstalk plays: owner = the most likely speaker's lane only; both = every talking speaker's lane (twice in the mix); lane = only crosstalk_lane." },
+        "crosstalk_lane": { "type": ["string", "null"], "default": null, "description": "Shared crosstalk lane; set exactly when crosstalk_mode is lane." },
         "turns": { "type": "array", "default": [], "items": { "$ref": "#/$defs/SpeakerTurnRecord" } },
         "backend": { "type": "string" },
         "method": { "type": "string", "enum": ["enroll", "cluster"] }

@@ -318,9 +318,11 @@ podcast speaker split --project P --track room --speakers 2 --crosstalk lane --a
 
 **Input.** The speaker count is required: from the call, or the one the user saved with
 `set-speaker-count`. It is never inferred from the track count. `--enroll NAME=START:END`
-(source seconds, repeatable) names a few seconds of only that speaker; it sets the names
-and their order, and seeds the clustering. Without it, speakers are named `Speaker 1…N`
-by when each first talks. A real speaker embedding is required (`[speaker]` ECAPA or
+(source seconds, repeatable) names a few seconds of only that speaker and seeds that
+speaker's cluster. Enrolling some speakers and not others works: the rest are clustered
+and numbered by when each first talks. `--name` (repeatable) sets every name in order
+and must include each enrolled name; without it, enrolled speakers come first and the
+rest are `Speaker N`. A real speaker embedding is required (`[speaker]` ECAPA or
 `[speaker-lite]` Resemblyzer); the CI mock is refused.
 
 **Data shape.** `engines/speaker_split.py` returns a `SpeakerAttribution`: turns that
@@ -335,14 +337,21 @@ more is crosstalk) and a confidence. `edits/speaker_split.py` applies it in one
   the turns, so outside crosstalk exactly one lane is open at any moment and the lanes
   sum back to the recording. The 20 ms fades are centred on each hand-over, so one
   lane's linear fade-out and the next lane's fade-in sum to one.
-- Crosstalk plays on every talking speaker's lane (default `--crosstalk both`; the mix
-  then carries it twice, about +6 dB) or only on a shared `Crosstalk` lane
-  (`--crosstalk lane`, where the sum stays exact).
+- Flagged crosstalk plays once, on the lane of its most likely speaker (default
+  `--crosstalk owner`): nothing plays twice, the lanes sum back exactly, and the turn
+  keeps both speakers so the flag can be reviewed. The flag is usually wrong: on the
+  lab, 95% of the flagged time is a pause or one person talking (see Failure modes).
+  Two opt-ins: `--crosstalk both` plays it on every talking speaker's lane (the
+  mix carries it twice, about +6 dB), and `--crosstalk lane` moves it to a shared
+  `Crosstalk` lane (the sum stays exact, but a stretch of one speaker's turn then jumps
+  to another lane's processing).
 - Transcript words of the original lane go to the most likely speaker of the turn that
   holds their midpoint.
 - `editorial.speaker_splits[]` keeps the turns, so crosstalk is flagged in the project
   ([episode-format-v2.md](episode-format-v2.md#timeline-and-render)). Doctor and export
-  QC skip that declared crosstalk and muted time when they look for stacked copies.
+  QC skip muted time when they look for stacked copies, so they report exactly the
+  audio two lanes play at once: none with `owner` or `lane`, the flagged crosstalk with
+  `both`.
 - `--room-tone-fill` lays the track's room tone (`edits/room_tone.py`, #1054) under each
   mute. It is off by default: the open lane already carries the bed, so every fill adds
   another copy of it to the mix. A gated recording has no room tone and stays silent.
@@ -353,6 +362,16 @@ voiced → embeddings → spherical k-means seeded from the enrollment spans (or
 Viterbi pass picks one speaker per frame, with a switch costing 8 (log-odds at cosine /
 0.05) inside voiced frames and 1 in a pause. Crosstalk is a whole window where the
 runner-up reads at least halfway from its own absent level to its own present level.
+
+**Too high a count.** With more speakers than voices, k-means splits one voice into
+two clusters, and the split would silently put one person on two lanes. After
+clustering, each pair of speakers is compared with the other pairs in the same
+recording: a pair whose centroids sit closer than 0.4 of the median cosine distance
+between the other pairs is reported as likely one person. The dry run and the split
+both return `warnings`, for example "Speaker 2 and Speaker 3 sound like one person:
+their voices are 0.05 apart, against 0.60 between the other speakers. Check the speaker
+count, or enroll each person." With two speakers there is no other pair to compare,
+so nothing is reported.
 
 ### Evidence: lab mixdown (#1095)
 
@@ -385,16 +404,18 @@ Pitch did not help at 1 s or longer, so the shipped edge refinement is level onl
 puts 80% of hand-overs in pauses against 61% for per-frame argmax, at the same accuracy.
 
 Rendered lanes against each person's original Zoom track (scaled like the mixdown),
-seeded ECAPA, `--crosstalk both`:
+seeded ECAPA, default `--crosstalk owner`:
 
 | Lane | SNR vs own stem | mixdown vs own stem | own speech level | other voices left where only others talk |
 |---|---|---|---|---|
 | Caleb | 7.8 dB | 1.4 dB | +0.0 dB | -16.1 dB |
-| Audra | 5.2 dB | -4.1 dB | -0.1 dB | -14.6 dB |
-| Lana | 3.2 dB | -7.8 dB | -1.1 dB | -18.0 dB |
+| Audra | 5.3 dB | -4.1 dB | -0.1 dB | -14.8 dB |
+| Lana | 3.5 dB | -7.8 dB | -1.1 dB | -19.9 dB |
 
-The lanes sum back to the mixdown within -47.7 dB outside flagged crosstalk; the 28 s
-flagged plays twice and brings the whole-tape residual to -22.6 dB. SNR stays low
+The lanes sum back to the mixdown within -76.7 dB over the whole tape, and the split
+gave no same-voice warning. With `--crosstalk both` (one run each) the SNR was 7.8 /
+5.2 / 3.2 dB and the 28 s flagged played twice, so the whole-tape residual rose to
+-22.6 dB. SNR stays low
 because a lane keeps everything in its own turns: crosstalk, and Audra's room copy on
 Caleb's mic, which follows her into her lane.
 
@@ -405,12 +426,20 @@ Caleb's mic, which follows her into her lane.
   Lana, with the most backchannels, scores lowest.
 - *Crosstalk detection does not work with learned embeddings.* On the lab, ECAPA flagged
   28-30 s as crosstalk at 5% precision and 1% recall: two voices at once read as neither
-  speaker, not both, and 71% of the lab's overlap lasts under 0.5 s. With
-  `--crosstalk both`, those flags play twice in the mix. The rule works where an
-  embedding adds voices (the synthetic test backend). Overlap needs a dedicated detector
-  or source separation (follow-up).
-- *Blind clustering can split one voice.* Seen with Resemblyzer; enroll a few seconds per
-  speaker to avoid it.
+  speaker, not both, and 71% of the lab's overlap lasts under 0.5 s. That is why the
+  default gives a flagged stretch to one speaker: with `--crosstalk both`, those flags
+  play twice in the mix, and 95% of them are a pause or one person talking. The rule
+  works where an embedding adds voices (the synthetic test backend). Overlap needs a
+  dedicated detector or source separation (follow-up).
+- *Blind clustering can split one voice.* Seen with Resemblyzer, and whenever the count
+  is too high; the same-voice warning names the pair. Enroll a few seconds per speaker
+  to avoid it.
+- *Same-voice warning on a same-gender pair.* The warning compares pairs with each
+  other, so two similar voices next to a very different one read closer than the rest.
+  On the lab with Resemblyzer, Audra and Lana sit at 0.49 of the other pairs' distance,
+  just above the 0.4 line; with ECAPA at 0.90. One voice split in two measured 0.21-0.37
+  on the lab (count 4 and 5, both backends) and 0.05-0.10 on the synthetic voices. The
+  warning does not block the split.
 - *Truth limits.* The bleed gate keeps some of Audra's copy on Caleb's mic as his own
   ([audio-engineering.md](audio-engineering.md)), so part of the Caleb errors and of the
   Caleb+Audra crosstalk is a truth artefact: 60% of Caleb's errors fall in his quietest

@@ -6,10 +6,11 @@ voice embeddings, not diarization that has to guess how many people there are:
 1. The bundled voice detector marks voiced 20 ms frames.
 2. Windows of ``window_sec`` every ``HOP_SEC`` that are at least ``MIN_VOICED_SHARE``
    voiced are embedded by the speaker backend (ECAPA or Resemblyzer).
-3. One centroid per speaker. With enrollment spans (a few seconds the user confirmed
-   per speaker) the centroids start from those spans; without, from k-means++ seeds.
-   Either way k-means then refines them over the whole recording, so a short
-   enrollment only names and seeds the speakers.
+3. One centroid per speaker. An enrolled speaker (a few seconds the user confirmed)
+   starts from their spans; every other speaker from k-means++ seeds placed away from
+   those, so enrolling some speakers and not others still works. Either way k-means
+   then refines them over the whole recording, so a short enrollment only names and
+   seeds the speakers.
 4. Each frame scores every speaker by the mean cosine of the windows covering it.
 5. A Viterbi pass over the frame scores picks one speaker per frame. Changing speaker
    costs ``VOICED_SWITCH`` inside voiced frames and ``PAUSE_SWITCH`` in a pause, so a
@@ -17,6 +18,12 @@ voice embeddings, not diarization that has to guess how many people there are:
 
 Turns are runs of one speaker and cover the recording with no gaps: a pause belongs to
 the turn the Viterbi pass puts it in, so splitting along turns sums back to the input.
+
+A speaker count higher than the people talking makes k-means split one voice in two.
+Two speakers whose centroids sit much closer together than the other speakers' do
+(``SAME_VOICE_RATIO`` of the median distance between the other pairs, measured in this
+recording) are reported in ``SpeakerAttribution.same_voice`` as likely one person. With
+two speakers there is no other pair to compare against, so nothing is reported.
 
 Crosstalk is a turn where the runner-up sounds present as well (``_presence``) for at
 least ``window_sec``. A turn's confidence is how far its winner stands above the
@@ -57,6 +64,9 @@ PAUSE_SWITCH = 1.0
 CROSSTALK_PRESENCE = 0.5
 KMEANS_RESTARTS = 10
 KMEANS_ITERATIONS = 50
+# One voice split in two sits at a fraction of the distance between different people;
+# two similar voices beside a third stay above it (docs/multitrack-ingest.md).
+SAME_VOICE_RATIO = 0.4
 
 Span = tuple[float, float]
 
@@ -76,12 +86,23 @@ class SpeakerTurn:
 
 
 @dataclass(frozen=True)
+class SameVoice:
+    """Two speakers who likely are one person: cosine distances between centroids."""
+
+    speakers: tuple[int, int]
+    distance: float
+    others: float
+    """Median distance between every other pair of speakers in the recording."""
+
+
+@dataclass(frozen=True)
 class SpeakerAttribution:
     speaker_count: int
     duration: float
     turns: tuple[SpeakerTurn, ...]
     backend: str
     method: Literal["enroll", "cluster"]
+    same_voice: tuple[SameVoice, ...] = ()
 
 
 def _unit(x: np.ndarray) -> np.ndarray:
@@ -125,35 +146,36 @@ def _embed(
 def _enrollment_centroids(
     samples: np.ndarray,
     enrollment: Mapping[int, Sequence[Span]],
-    count: int,
     window_sec: float,
     backend: SpeakerBackend,
-) -> np.ndarray:
-    centroids = []
-    for speaker in range(count):
+) -> dict[int, np.ndarray]:
+    centroids = {}
+    for speaker, spans in enrollment.items():
         centers = [
             c
-            for start, end in enrollment.get(speaker, ())
+            for start, end in spans
             for c in np.arange(
                 start + window_sec / 2, end - window_sec / 2 + 1e-9, HOP_SEC
             ).tolist()
             or [(start + end) / 2]
         ]
-        if not centers:
-            raise ValueError(f"no enrollment audio for speaker {speaker + 1}")
-        embeddings = _embed(samples, np.array(centers), window_sec, backend)
-        centroids.append(_unit(embeddings.mean(axis=0)))
-    return np.stack(centroids)
+        if centers:
+            embeddings = _embed(samples, np.array(centers), window_sec, backend)
+            centroids[speaker] = _unit(embeddings.mean(axis=0))
+    return centroids
 
 
-def _kmeans_seeds(embeddings: np.ndarray, count: int, rng: np.random.Generator) -> np.ndarray:
-    seeds = [embeddings[rng.integers(len(embeddings))]]
-    for _ in range(count - 1):
+def _kmeans_seeds(
+    embeddings: np.ndarray, fixed: list[np.ndarray], count: int, rng: np.random.Generator
+) -> list[np.ndarray]:
+    """k-means++ seeds after ``fixed`` up to ``count``; returns only the new ones."""
+    seeds = list(fixed) or [embeddings[rng.integers(len(embeddings))]]
+    while len(seeds) < count:
         distance = np.maximum(1 - np.max(embeddings @ np.stack(seeds).T, axis=1), 0) ** 2
         total = distance.sum()
         pick = rng.choice(len(embeddings), p=distance / total) if total > 0 else 0
         seeds.append(embeddings[pick])
-    return np.stack(seeds)
+    return seeds[len(fixed) :]
 
 
 def _refine(embeddings: np.ndarray, centroids: np.ndarray) -> tuple[np.ndarray, float]:
@@ -172,15 +194,40 @@ def _refine(embeddings: np.ndarray, centroids: np.ndarray) -> tuple[np.ndarray, 
     return centroids, float(np.sum(1 - np.max(embeddings @ centroids.T, axis=1)))
 
 
-def _cluster(embeddings: np.ndarray, count: int) -> np.ndarray:
+def _cluster(embeddings: np.ndarray, count: int, enrolled: Mapping[int, np.ndarray]) -> np.ndarray:
+    """Enrolled speakers start from their own centroid, the rest from k-means++ seeds."""
+    free = [s for s in range(count) if s not in enrolled]
     rng = np.random.default_rng(0)
     best: tuple[float, np.ndarray] | None = None
-    for _ in range(KMEANS_RESTARTS):
-        centroids, cost = _refine(embeddings, _kmeans_seeds(embeddings, count, rng))
+    for _ in range(KMEANS_RESTARTS if free else 1):
+        seeds = np.zeros((count, embeddings.shape[1]), dtype=embeddings.dtype)
+        for speaker, centroid in enrolled.items():
+            seeds[speaker] = centroid
+        if free:
+            seeds[free] = np.stack(_kmeans_seeds(embeddings, list(enrolled.values()), count, rng))
+        centroids, cost = _refine(embeddings, seeds)
         if best is None or cost < best[0]:
             best = (cost, centroids)
     assert best is not None
     return best[1]
+
+
+def _same_voice(centroids: np.ndarray) -> tuple[SameVoice, ...]:
+    """Pairs of speakers far closer together than the other pairs: one voice split in two."""
+    distance = 1 - centroids @ centroids.T
+    pairs = list(itertools.combinations(range(len(centroids)), 2))
+    found = []
+    for a, b in pairs:
+        others = [float(distance[p]) for p in pairs if p != (a, b)]
+        if others and distance[a, b] < SAME_VOICE_RATIO * float(np.median(others)):
+            found.append(
+                SameVoice(
+                    speakers=(a, b),
+                    distance=round(float(distance[a, b]), 3),
+                    others=round(float(np.median(others)), 3),
+                )
+            )
+    return tuple(found)
 
 
 def _frame_scores(
@@ -269,9 +316,13 @@ def _turns(
     return tuple(turns)
 
 
-def _first_appearance_order(labels: np.ndarray, count: int) -> list[int]:
-    firsts = [np.flatnonzero(labels == s) for s in range(count)]
-    return sorted(range(count), key=lambda s: firsts[s][0] if firsts[s].size else math.inf)
+def _first_appearance_order(labels: np.ndarray, count: int, enrolled: Sequence[int]) -> np.ndarray:
+    """Old speaker per new index: enrolled speakers keep theirs, the rest go by who talks first."""
+    free = [s for s in range(count) if s not in enrolled]
+    firsts = {s: np.flatnonzero(labels == s) for s in free}
+    order = np.arange(count)
+    order[free] = sorted(free, key=lambda s: firsts[s][0] if firsts[s].size else math.inf)
+    return order
 
 
 def attribute_speakers(
@@ -285,12 +336,14 @@ def attribute_speakers(
 ) -> SpeakerAttribution:
     """Speaker turns of mono ``samples`` at :data:`RATE`, covering the whole recording.
 
-    ``enrollment`` maps a speaker index to spans that are only that speaker; with it,
-    speaker ``i`` is the enrolled one. Without it, speakers are numbered by when each
-    first talks.
+    ``enrollment`` maps a speaker index to spans that are only that speaker, for some
+    or all speakers; speaker ``i`` is then the enrolled one. The other speakers take
+    the remaining indices in the order they first talk.
     """
     if speaker_count < 2:
         raise ValueError("a speaker split needs at least two speakers")
+    if enrollment and not set(enrollment) <= set(range(speaker_count)):
+        raise ValueError(f"enrolled speakers must be numbered 0 to {speaker_count - 1}")
     duration = samples.size / RATE
     frames = samples.size // round(FRAME_SEC * RATE)
     if frames == 0:
@@ -305,24 +358,20 @@ def attribute_speakers(
         task.message(f"Embedding {centers.size} windows")
         embeddings = _embed(samples, centers, window_sec, backend)
         task.advance(1)
-        if enrollment:
-            seeds = _enrollment_centroids(samples, enrollment, speaker_count, window_sec, backend)
-            centroids, _ = _refine(embeddings, seeds)
-        else:
-            centroids = _cluster(embeddings, speaker_count)
+        enrolled = _enrollment_centroids(samples, enrollment or {}, window_sec, backend)
+        centroids = _cluster(embeddings, speaker_count, enrolled)
         task.advance(1)
         scores = _frame_scores(centers, embeddings @ centroids.T, frames, window_sec)
         switch = np.where(voiced, VOICED_SWITCH, PAUSE_SWITCH)
         labels = _viterbi(scores / TEMPERATURE, switch)
-        if not enrollment:
-            order = _first_appearance_order(labels, speaker_count)
-            rank = np.argsort(order)
-            labels, scores = rank[labels], scores[:, order]
+        order = _first_appearance_order(labels, speaker_count, list(enrolled))
+        labels, scores = np.argsort(order)[labels], scores[:, order]
         task.advance(1)
     return SpeakerAttribution(
         speaker_count=speaker_count,
         duration=duration,
         turns=_turns(labels, scores, duration, window_sec),
         backend=backend.name(),
-        method="enroll" if enrollment else "cluster",
+        method="enroll" if enrolled else "cluster",
+        same_voice=_same_voice(centroids[order]),
     )

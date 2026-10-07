@@ -717,20 +717,32 @@ class SpeakerTurnRecord(SourceSpan):
         return len(self.speakers) > 1
 
 
+SpeakerSplitCrosstalk = Literal["owner", "both", "lane"]
+"""Where flagged crosstalk plays: the most likely speaker's lane only, every talking
+speaker's lane (twice in the mix), or only a shared crosstalk lane."""
+
+
 class SpeakerSplit(BaseModel):
     """One recording split into a lane per speaker, every lane playing the same media (#1095).
 
-    ``lanes`` are the speakers' track ids, in the order ``turns`` name them. Crosstalk
-    plays on every lane talking in it, or only on ``crosstalk_lane`` when there is one.
+    ``lanes`` are the speakers' track ids, in the order ``turns`` name them.
+    ``crosstalk_lane`` is the shared lane, present exactly in ``lane`` mode.
     """
 
     id: str
     media_path: str
     lanes: list[str] = Field(min_length=2)
+    crosstalk_mode: SpeakerSplitCrosstalk
     crosstalk_lane: str | None = None
     turns: list[SpeakerTurnRecord] = Field(default_factory=list)
     backend: str
     method: Literal["enroll", "cluster"]
+
+    @model_validator(mode="after")
+    def _crosstalk_lane_only_in_lane_mode(self) -> SpeakerSplit:
+        if (self.crosstalk_mode == "lane") != (self.crosstalk_lane is not None):
+            raise ValueError("crosstalk_lane is set exactly when crosstalk_mode is lane")
+        return self
 
     def crosstalk_spans(self) -> list[tuple[float, float]]:
         return [(t.start_s, t.end_s) for t in self.turns if t.crosstalk]
