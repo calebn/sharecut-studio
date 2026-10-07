@@ -414,7 +414,8 @@ def test_align_tracks_splits_the_lane_in_the_silence_and_undo_restores(
     ]
     assert not np.any(_stepped()["audra"][round(182.77 * bh.RATE) : round(182.85 * bh.RATE)])
     artifact = json.loads(align_artifact_path(stepped.project).read_text())["bleed_lag_segments"]
-    assert (artifact["audra"]["step_cost"], len(artifact["audra"]["segments"])) == (64.0, 2)
+    # No dearer step cost fits held-out speech measurably better, so the smallest stands.
+    assert (artifact["audra"]["step_cost"], len(artifact["audra"]["segments"])) == (0.5, 2)
     labels = [entry.label for entry in stepped.project.history.entries]
     assert labels == ["initial", "before pipeline run", "after align_tracks"]
 
