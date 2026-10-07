@@ -271,9 +271,14 @@ every channel apart. A lane whose channels carry one signal, such as a call app'
 dual-mono track, is judged once on ffmpeg's mono mixdown, as before. Lossy codecs
 decode the two copies of one channel slightly apart, so "one signal" means that no
 frame has a channel-to-first-channel difference that is both above the lane's noise
-floor and within 7.7 dB of the loudest channel. A mixdown then shifts own versus copy
-by under half the 4 dB own margin. A short sound on one channel sits near that
-channel's own level and never passes. A channel whose copy
+floor and within 7.7 dB of the loudest channel within 50 ms. A codec's noise follows
+its transform block's level (AAC-LC's window is 43 ms), so the quiet frames either side
+of a sound carry the loud block's noise; judged against their own level they read as a
+second signal (#1159: Opus at 32k, 64k and 128k). Judging against the block's level
+leaves the 7.7 dB rule as it was, and the worst codec difference measured sits 22 dB
+under it. A mixdown then shifts own versus copy by under half the 4 dB own margin. A
+short sound on one channel sits near that channel's own level, which is the loudest
+there, and never passes. A channel whose copy
 cannot be verified judges its own sound against its noise floor alone and reports
 `uncertain_foreign_ownership`.
 Unavailable evidence abstains and is reported in `gate_reasons`. Crossfade layouts abstain because their rendered
