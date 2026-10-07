@@ -75,6 +75,17 @@ log = logging.getLogger(__name__)
 MIX_SEMANTICS_REV = 3
 
 
+def _delay_filter(delay_sec: float) -> str:
+    """Silence of ``delay_sec`` in front of the audio, with timestamps renumbered by sample.
+
+    When ``atrim`` has cut the first frame on a seeked input, ``adelay`` emits its lead-in
+    frames with no timestamp (``NOPTS``), and a later ``apad`` or ``atrim`` drops them: a
+    1 s lead-in shrinks to 2048 samples. ``asetpts=N/SR/TB`` restamps every frame from
+    its sample count, so the silence keeps its length.
+    """
+    return f"adelay={round(delay_sec * 1000)}:all=1,asetpts=N/SR/TB"
+
+
 def _escape_filter_value(value: str) -> str:
     """Escape a value (e.g. a filesystem path) for an ffmpeg filtergraph option.
 
@@ -851,7 +862,7 @@ class FFmpegEngine:
         if n == 1:
             combined = seg_labels[0]
             if lead_in_sec > 0:
-                filters.append(f"{combined}adelay={round(lead_in_sec * 1000)}:all=1[asm]")
+                filters.append(f"{combined}{_delay_filter(lead_in_sec)}[asm]")
                 combined = "[asm]"
         elif not needs_pairwise:
             cat_in = "".join(seg_labels)
@@ -861,7 +872,7 @@ class FFmpegEngine:
             acc = seg_labels[0]
             running_end = lead_in_sec + (placed[0].src_end - placed[0].src_start)
             if lead_in_sec > 0:
-                filters.append(f"{acc}adelay={round(lead_in_sec * 1000)}:all=1[acc0]")
+                filters.append(f"{acc}{_delay_filter(lead_in_sec)}[acc0]")
                 acc = "[acc0]"
             for i in range(1, n):
                 seg = placed[i]
@@ -879,7 +890,7 @@ class FFmpegEngine:
                     overlap = min(seg.overlap_prev_sec, running_end)
                     delay_sec = max(0.0, running_end - overlap)
                     delayed = f"[ov{i}]"
-                    filters.append(f"{cur}adelay={round(delay_sec * 1000)}:all=1{delayed}")
+                    filters.append(f"{cur}{_delay_filter(delay_sec)}{delayed}")
                     filters.append(
                         f"{acc}{delayed}amix=inputs=2:duration=longest:normalize=0,asetpts=N/SR/TB{out_label}"
                     )
