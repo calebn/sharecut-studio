@@ -41,16 +41,9 @@ export function tightenClassOf(edit: PendingEditView): TightenClass | null {
   return tightenClassOfReason(edit.reason);
 }
 
+/** The server's harsh flag; the rule lives in `edits/tighten_hits.py` for GUI and agents. */
 export function isHarshTightenHit(edit: PendingEditView): boolean {
-  if (edit.review_required) {
-    return true;
-  }
-  const verdict = edit.join_risk?.verdict;
-  if (verdict === "fail" || verdict === "review") {
-    return true;
-  }
-  const reason = edit.reason ?? "";
-  return reason.includes(":risky") || reason.includes(":join_review");
+  return edit.harsh;
 }
 
 export function riskBadgeFor(edit: PendingEditView): TightenHit["riskBadge"] {

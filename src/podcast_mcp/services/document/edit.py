@@ -423,6 +423,33 @@ class EditService:
             params={"ids": ids},
         )
 
+    def approve_eligible_tighten(self, ids: list[str] | None = None) -> dict[str, Any]:
+        """Studio Apply eligible with Avoid harsh cuts: approve the non-harsh tighten hits.
+
+        ``ids`` narrows the candidates the way Studio's filtered list does; ``None`` means
+        every pending decision. One undo step, like the GUI's single ``ApproveEdits`` batch.
+        """
+        from podcast_mcp.edits.tighten_hits import eligible_tighten_ids, is_tighten_reason
+
+        with self.ws.transaction() as project:
+            wanted = None if ids is None else set(ids)
+            listed = [
+                d
+                for d in project.edit_decisions
+                if (wanted is None or d.id in wanted)
+                and not d.applied
+                and is_tighten_reason(d.reason)
+            ]
+            eligible = eligible_tighten_ids(listed)
+            approved = self.approve(eligible) if eligible else 0
+        skipped = [d.id for d in listed if d.id not in eligible]
+        return {
+            "operation": "approve_edits",
+            "approved_count": approved,
+            "ids": eligible,
+            "skipped_harsh": skipped,
+        }
+
     def reject(self, ids: list[str], *, allow_exact: bool = False) -> int:
         def mutate(p) -> int:
             if not allow_exact and any(

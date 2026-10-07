@@ -29,6 +29,7 @@ function edit(overrides: Partial<PendingEditView> = {}): PendingEditView {
     boundary_mode: null,
     cut_confidence: 0.8,
     review_required: false,
+    harsh: false,
     applied: false,
     suggest_reason: null,
     ...overrides,
@@ -87,11 +88,13 @@ describe("tightenHits", () => {
           id: "repeat",
           reason: "repetition:word:um",
           review_required: true,
+          harsh: true,
         }),
         edit({
           id: "restart",
           reason: "restart:phrase:i went",
           review_required: true,
+          harsh: true,
         }),
       ],
       transcript,
@@ -112,22 +115,14 @@ describe("tightenHits", () => {
     ).toEqual(["restart"]);
   });
 
-  it("flags harsh cuts from review, join fail, and risky", () => {
+  it("reads harsh from the server flag, not from review or reason fields", () => {
     expect(isHarshTightenHit(edit())).toBe(false);
-    expect(isHarshTightenHit(edit({ review_required: true }))).toBe(true);
+    expect(isHarshTightenHit(edit({ harsh: true }))).toBe(true);
     expect(
       isHarshTightenHit(
-        edit({ join_risk: { verdict: "fail", source: "reason" } }),
+        edit({ reason: "filler:um:risky", review_required: true }),
       ),
-    ).toBe(true);
-    expect(
-      isHarshTightenHit(
-        edit({ reason: "filler:um:risky", join_risk: { verdict: "review" } }),
-      ),
-    ).toBe(true);
-    expect(isHarshTightenHit(edit({ reason: "filler:um:join_review" }))).toBe(
-      true,
-    );
+    ).toBe(false);
   });
 
   it("builds a ±3 word snippet", () => {
@@ -143,6 +138,7 @@ describe("tightenHits", () => {
           reason: "pause:0.8s",
           track_id: "guest",
           review_required: true,
+          harsh: true,
           source_start: 4,
           timeline_start: 4,
         }),
@@ -189,7 +185,12 @@ describe("tightenHits", () => {
     const hits = listTightenHits(
       [
         edit(),
-        edit({ id: "e2", reason: "filler:uh:risky", review_required: true }),
+        edit({
+          id: "e2",
+          reason: "filler:uh:risky",
+          review_required: true,
+          harsh: true,
+        }),
       ],
       null,
     );

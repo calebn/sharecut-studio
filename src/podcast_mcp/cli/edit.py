@@ -128,11 +128,25 @@ def edit_cut_utterance_cmd(
 @edit_app.command("approve")
 def edit_approve_cmd(
     project: Path = typer.Option(..., "--project"),
-    ids: str = typer.Option(..., "--ids", help="Comma-separated edit ids"),
+    ids: str | None = typer.Option(None, "--ids", help="Comma-separated edit ids"),
+    all_safe: bool = typer.Option(
+        False,
+        "--all-safe",
+        help="Apply every non-harsh tighten hit (only those in --ids when given), "
+        "as Studio Apply eligible does",
+    ),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    n = EditService(ws).approve([x.strip() for x in ids.split(",") if x.strip()], allow_exact=True)
-    typer.echo(f"Approved {n} edit(s).")
+    id_list = [x.strip() for x in ids.split(",") if x.strip()] if ids else None
+    if all_safe:
+        result = EditService(ws).approve_eligible_tighten(id_list)
+        n = result["approved_count"]
+        typer.echo(f"Approved {n} edit(s); skipped {len(result['skipped_harsh'])} as harsh.")
+    elif id_list is None:
+        raise typer.BadParameter("pass --ids, or --all-safe")
+    else:
+        n = EditService(ws).approve(id_list, allow_exact=True)
+        typer.echo(f"Approved {n} edit(s).")
     if n == 0:
         typer.echo("Warning: no edits were approved — check the edit ids.", err=True)
 

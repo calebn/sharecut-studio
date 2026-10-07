@@ -113,6 +113,7 @@ function pending(overrides: Partial<PendingEditView> = {}): PendingEditView {
     boundary_mode: null,
     cut_confidence: 0.9,
     review_required: false,
+    harsh: false,
     applied: false,
     suggest_reason: null,
     ...overrides,
@@ -169,6 +170,7 @@ function projectWithHits() {
           label: "join_review",
           source: "reason",
         },
+        harsh: true,
         source_start: 4,
         timeline_start: 4,
       }),
@@ -332,11 +334,13 @@ describe("TightenPanel", () => {
         id: "repeat",
         reason: "repetition:word:um",
         review_required: true,
+        harsh: true,
       }),
       pending({
         id: "restart",
         reason: "restart:phrase:i went",
         review_required: true,
+        harsh: true,
       }),
     ];
     const { container } = render(
