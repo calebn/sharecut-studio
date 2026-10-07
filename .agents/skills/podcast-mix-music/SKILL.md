@@ -40,7 +40,7 @@ existing envelope through MCP or editing its project JSON, preserve each
 point's `id` while changing its time or value.
 
 MCP `set_envelope` submits a `SetEnvelope` document command (undoable, shown
-live in the DAW). Pass `expected_points_json` with the `[{id, time, value}]`
+live in the DAW). Pass `expected_points` with the `[{id, time, value}]`
 you last read, copied verbatim; if someone edited the envelope since, the call
 fails with a conflict instead of overwriting their edit. Re-read and retry.
 It replaces only the volume envelope; a `pan` envelope on the same track is kept.

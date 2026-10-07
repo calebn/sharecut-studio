@@ -898,11 +898,11 @@ def test_host_mcp_delete_clips_ripple_asks_then_cuts_when_confirmed(episode):
 
     before = _geometry(episode)
 
-    asked = json.loads(mcp_timeline.delete_clips_tool(str(episode), '["h2"]', mode="ripple"))
+    asked = json.loads(mcp_timeline.delete_clips_tool(str(episode), ["h2"], mode="ripple"))
     assert asked["needs_confirmation"]["message"] == GUEST_WORDS + CUT_ANYWAY
     assert _geometry(episode) == before
 
-    mcp_timeline.delete_clips_tool(str(episode), '["h2"]', mode="ripple", confirm_cut_speech=True)
+    mcp_timeline.delete_clips_tool(str(episode), ["h2"], mode="ripple", confirm_cut_speech=True)
     assert _geometry(episode) == [("guest", 0.0, 8.0, 0.0), ("host", 0.0, 8.0, 0.0)]
 
 

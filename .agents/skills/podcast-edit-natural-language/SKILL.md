@@ -23,7 +23,7 @@ Use **podcast-mcp** tools (stdio MCP). Raw files in `raw/` are never modified; o
    - For splice QA, use `join_quality_tool` / `join_qa_sweep_tool` (advisory; not a human-ear guarantee).
 4. Timeline (search → time → tool): `ripple_delete_tool`, `move_segment_tool` (range shuffle on **all dialogue tracks**), `move_clips_tool` (reposition specific clips in time or onto another track — same as GUI body drag), `insert_gap_tool`, `split_clip_tool`, `delete_clips_tool` (whole clips by id; `mode="ripple"` closes the span on every dialogue track and asks before cutting speech outside the clips, `mode="gap"` leaves silence), `roll_clip_join_tool` (move a join between two clips; the pair keeps its length), `duplicate_segment_tool`, `strip_silence_tool`, `shorten_gaps_tool`, `fade_joins_tool`, `crossfade_joins_tool`, `list_clips_tool`.
    - `propose_range_cut_tool` cuts a hole across chosen lanes (later clips keep their places). Agents only propose it; the host approves it.
-   - Copy and paste like Studio: `copy_segment_tool` (read-only clipboard for a range, all tracks or `track_ids_json`), then `paste_segment_tool` at `insert_at` (`mode="ripple"`, the default, opens the time on every dialogue lane; `mode="gap"` pastes over the pasted lanes in place; paste again to repeat; an unknown track/source or bad range is rejected with a `paste_*` code and nothing is written). To cut and paste, copy before you cut. Use `move_segment_tool` instead when the source range should close up.
+   - Copy and paste like Studio: `copy_segment_tool` (read-only clipboard for a range, all tracks or `track_ids`), then `paste_segment_tool` at `insert_at` (`mode="ripple"`, the default, opens the time on every dialogue lane; `mode="gap"` pastes over the pasted lanes in place; paste again to repeat; an unknown track/source or bad range is rejected with a `paste_*` code and nothing is written). To cut and paste, copy before you cut. Use `move_segment_tool` instead when the source range should close up.
 5. Cleanup analysis: `analyze_cleanup_tool`, `recommend_fades_tool`, `gate_overreach_tool`, `low_audibility_words_tool` (see **podcast-audio-cleanup**).
 6. Review: `list_edit_decisions_tool`, `edit_impact_report_tool`, `approve_edits_tool`, `reject_edits_tool`, `update_pending_edit_tool` (nudge + snap), `revert_applied_edit_tool` (restore one applied cut with source clocks).
 7. Audio: `render_preview`, then **`audition_context_tool` on every applied join** (a ±3 s window around each `timeline_start` of a spliced clip, or `join_qa_sweep_tool` for all of them) before `render_final`. It is your ears: fix every `speech_crosses_cut` with the call in its `evidence.fix` (`trim_clip_edge_tool`, `mode=ripple` on a session-wide cut so every track moves with it, `mode=gap` on a punch; or re-cut to a handoff silence) and confirm every `echo_risk` by listening or from its per-pair evidence before gating with **podcast-mute-bleed**; a `clip_skew` means undo the last single-track trim. Then audition with `play_transcript_query_tool` or `play_audio_tool`. For a pending session remove, `play_pending_preview_tool` (Suggested / Current / A/B) before approve (see `podcast-play-audition`).
@@ -58,7 +58,7 @@ Tighten preserves confirmed complete breaths at both final edges and suppresses 
      also propose `filler:acoustic` hits (voiced audio the ASR missed inside a
      word gap); they are always review-only — play each before approving.
 6. `edit_impact_report_tool` (markdown=true) — show seconds removed and pending review.
-7. `play_pending_preview_tool` (Suggested) so the user hears the approved result before deciding; then `approve_edits_tool` with JSON array of ids — applies cuts to the clip timeline (not just flags).
+7. `play_pending_preview_tool` (Suggested) so the user hears the approved result before deciding; then `approve_edits_tool` with `ids` (a list of edit ids) — applies cuts to the clip timeline (not just flags).
 8. `render_preview` — then `audition_context_tool` on each applied join (step 7 of the harness list; no `speech_crosses_cut` / `echo_risk` left unaddressed), then `play_transcript_query_tool` or `play_audio_tool` on the span so the user can hear it (not only the premix path).
 9. `render_final` or `pipeline_run(from_step=assemble_timeline)` when approved and every join has passed the context check.
 
@@ -81,7 +81,7 @@ On a raw session, remove the dead start, off-topic runs and meta talk **before**
 
 | User intent | Steps |
 |-------------|--------|
-| Remove topic X | `search_transcript_tool` → `ripple_delete_tool(start, end, track_ids_json='["<speaker track>"]')`; on `needs_confirmation`, read its message to the user and call again with `confirm_cut_speech=true` only if they say cut anyway |
+| Remove topic X | `search_transcript_tool` → `ripple_delete_tool(start, end, track_ids=["<speaker track>"])`; on `needs_confirmation`, read its message to the user and call again with `confirm_cut_speech=true` only if they say cut anyway |
 | Cut a raw session down to the show | Content cut before tighten (section above): `suggest_handoff_cut_tool` → `ripple_delete_tool(use_inaudible_opt=false)` per off-topic run (latest first), then `ripple_delete_tool` for the dead start last, `transcript_refine_waive_tool` after word removal, then `propose_edits` |
 | Remove false-start restart | Include trailing dead air through the pause before the kept line (or rely on `inaudible_cuts.absorb_trailing_silence`); leave ~0.4s breath |
 | Narrative handoff / “clean up the transition” / “need a beat” | **Not** word→word + default inaudible opt. `search_transcript` keep-left end + keep-right start (timeline) → `suggest_handoff_cut_tool` → ripple mid-silence→mid-silence with `use_inaudible_opt=false` → audition ~10–15s around the join. Prefer existing room tone; do not `insert_gap` silence unless asked. Default `retain_sec`/`--retain-sec` is `1.0` on *each* side (~2s of air total) — tune down to `0.3`–`0.6` for a tight conversational join; nothing tunes it automatically. See **podcast-inaudible-cuts** § Narrative handoffs |
@@ -114,7 +114,7 @@ On a raw session, remove the dead start, off-topic runs and meta talk **before**
 
 ## Bulk plan from agent
 
-Emit JSON array and call `apply_edit_plan_tool`:
+Pass the plan as the `edits` list of `apply_edit_plan_tool` (a list value, not JSON text):
 
 ```json
 [

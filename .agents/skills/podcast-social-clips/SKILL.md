@@ -22,7 +22,7 @@ description: >-
    `My_Episode_Part_1_2.wav` (never a nested export path).
 3. `propose_social_clips_tool` with optional `platform` (`tiktok`, `reels`, `linkedin`, `youtube_shorts`) — adjusts max duration via `.agents/defaults/pipeline.yaml`.
 4. `social_clip_report_tool` — present top candidates with score, timestamps, title/caption suggestions.
-5. User picks clips → `approve_social_clips_tool` with JSON id array.
+5. User picks clips → `approve_social_clips_tool` with `ids` (a list of clip ids).
 6. `export_social_clips_tool` → `export/clips/*.wav` + sidecar JSON per clip.
 
 ## Agent refinement

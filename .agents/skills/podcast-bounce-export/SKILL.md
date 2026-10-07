@@ -25,10 +25,10 @@ Do **not** use this for Spotify/Apple delivery — use [podcast-master-export](.
 ```text
 bounce_audio_tool(
   project_path,
-  track_ids_json=None | '["host","guest"]',
+  track_ids=None | ["host", "guest"],
   start_s=None,   # timeline seconds
   end_s=None,
-  formats_json='["wav"]' | '["wav","mp3"]',
+  formats=["wav"] | ["wav", "mp3"],
 )
 ```
 

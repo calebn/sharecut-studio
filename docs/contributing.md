@@ -294,6 +294,10 @@ block. The format, lifecycle and generated index are in
 
 Do not rename existing MCP tools without updating `.agents/skills/` and `docs/nl-editing.md`. Skills and external agents depend on stable tool identifiers.
 
+### Structured MCP arguments
+
+A tool that takes a list or an object declares it as a typed parameter: `list[str]` for ids and names, `JsonObject` / `JsonObjectList` from [`mcp/args.py`](../src/podcast_mcp/mcp/args.py) for free-form objects. Never take JSON text in a `str` parameter (`*_json: str`) and `json.loads` it in the handler. The SDK validates the typed value at the boundary, advertises its shape in the tool schema, and decodes a stringified structure from clients that send one. JSON text in a `str | None` parameter breaks under that decoding: the SDK turns `'["a"]'` into a list, then rejects it as not a string (#1173). `tests/test_mcp_structured_args.py` drives tools through a real `mcp.client.Client` and checks every structured parameter on every registered tool; it fails on any `*_json` parameter. The CLI still takes JSON text (`--words-json`, `--corrections-json`), since a shell argument is a string.
+
 ### Skill and MCP descriptions
 
 Portable selection hints (any MCP client). Detail: [`.agents/rules/engineering-standards.md`](../.agents/rules/engineering-standards.md) § Skill and MCP descriptions.

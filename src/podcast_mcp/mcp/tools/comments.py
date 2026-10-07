@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-
 from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
@@ -15,22 +13,20 @@ def add_comment_tool(
     author: str,
     timeline_start: float,
     timeline_end: float | None = None,
-    track_ids_json: str | None = None,
-    action_texts_json: str | None = None,
+    track_ids: list[str] | None = None,
+    action_texts: list[str] | None = None,
     edit_decision_id: str | None = None,
 ) -> str:
     """Add a timeline review comment (instant or span).
 
     Times are **timeline seconds** (session/deliverable clock), like chapters -
     not source-media time. Use search_transcript_tool's timeline_start/end when
-    anchoring to dialogue. track_ids_json / action_texts_json are JSON arrays of
-    strings (optional). Empty track_ids = session-wide. Undoable via history.
+    anchoring to dialogue. track_ids / action_texts are optional string lists.
+    Empty track_ids = session-wide. Undoable via history.
     Pass edit_decision_id to open the single Ask thread for a pending cut
     (unique per decision; later notes must use add_comment_reply_tool).
     """
     ws = ProjectWorkspace.open(project_path)
-    track_ids = json.loads(track_ids_json) if track_ids_json else None
-    action_texts = json.loads(action_texts_json) if action_texts_json else None
     comment = CommentService(ws).add(
         body=body,
         author=author,
@@ -73,13 +69,15 @@ def update_comment_tool(
     project_path: str,
     comment_id: str,
     body: str | None = None,
-    track_ids_json: str | None = None,
+    track_ids: list[str] | None = None,
     timeline_start: float | None = None,
     timeline_end: float | None = None,
 ) -> str:
-    """Update comment body, tracks, and/or timeline anchor. Times are timeline seconds."""
+    """Update comment body, tracks, and/or timeline anchor. Times are timeline seconds.
+
+    ``track_ids=[]`` makes the comment session-wide; omit it to keep the tracks.
+    """
     ws = ProjectWorkspace.open(project_path)
-    track_ids = json.loads(track_ids_json) if track_ids_json is not None else None
     return to_json(
         CommentService(ws).update(
             comment_id,

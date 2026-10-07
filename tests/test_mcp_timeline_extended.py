@@ -184,7 +184,7 @@ def test_mcp_timeline_transcript_correction_tools(tmp_path, sample_wav):
     batch = mcp_timeline.apply_transcript_cleanup_tool(
         path,
         "host",
-        json.dumps({"words": [{"word_index": 0, "text": "hi"}], "phrases": []}),
+        {"words": [{"word_index": 0, "text": "hi"}], "phrases": []},
     )
     assert json.loads(batch)["applied"] >= 1
 
@@ -235,9 +235,7 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
         fill = json.loads(mcp_timeline.fill_with_room_tone_tool(path, speaker="Host"))
         loud = json.loads(mcp_timeline.check_loudness_tool(path))
         verified = json.loads(
-            mcp_timeline.verify_transcript_tool(
-                path, "host", json.dumps([{"word_index": 0, "text": "hi"}])
-            )
+            mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 0, "text": "hi"}])
         )
         removed = json.loads(mcp_timeline.remove_effect_tool(path, track_id="host", effect="agate"))
         analyzed = json.loads(mcp_timeline.analyze_cleanup_tool(path, speaker="Host"))
@@ -248,7 +246,7 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
         applied = json.loads(
             mcp_timeline.apply_fade_recommendations_tool(
                 path,
-                json.dumps([{"clip_id": "c1", "recommended_fade_in_ms": 20}]),
+                [{"clip_id": "c1", "recommended_fade_in_ms": 20}],
             )
         )
 
@@ -274,12 +272,6 @@ def test_mcp_timeline_heavy_edit_tools_mocked(tmp_path, sample_wav):
     )
     svc.verify_transcript.assert_called_once()
     svc.apply_fade_recommendations.assert_called_once()
-
-
-def test_mcp_timeline_apply_fade_recommendations_rejects_non_array(tmp_path):
-    path = mcp_server.episode_create(str(tmp_path / "ws"))
-    with pytest.raises(ValueError, match="JSON array"):
-        mcp_timeline.apply_fade_recommendations_tool(path, json.dumps({"clip_id": "c1"}))
 
 
 def test_mcp_timeline_clip_and_edit_tools(tmp_path, sample_wav):
@@ -339,7 +331,7 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
             mcp_timeline.apply_bleed_suppression_tool(
                 path,
                 speaker="Host",
-                words_json=json.dumps([{"word_index": 0}]),
+                words=[{"word_index": 0}],
                 dry_run=True,
             )
         )
@@ -369,22 +361,6 @@ def test_mcp_timeline_reconcile_and_bleed_tools_mocked(tmp_path, sample_wav):
     assert gate["clips"] == []
     assert aud_map == []
     assert flagged == []
-
-
-def test_mcp_timeline_apply_bleed_suppression_rejects_bad_json(tmp_path):
-    path = mcp_server.episode_create(str(tmp_path / "ws"))
-    with pytest.raises(ValueError, match="words_json must be a JSON array"):
-        mcp_timeline.apply_bleed_suppression_tool(path, words_json=json.dumps({"x": 1}))
-    with pytest.raises(ValueError, match="exclude_words_json must be a JSON array"):
-        mcp_timeline.apply_bleed_suppression_tool(path, exclude_words_json=json.dumps({"x": 1}))
-
-
-def test_mcp_timeline_apply_low_audibility_rejects_bad_json(tmp_path):
-    path = mcp_server.episode_create(str(tmp_path / "ws"))
-    with pytest.raises(ValueError, match="words_json must be a JSON array"):
-        mcp_timeline.apply_low_audibility_suppression_tool(
-            path, words_json=json.dumps({"word_index": 0})
-        )
 
 
 def test_mcp_timeline_register():
@@ -424,7 +400,7 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
                 path,
                 track_id="host",
                 effect="eq",
-                params_json=json.dumps({"gain_db": 3}),
+                params={"gain_db": 3},
             )
         )
         json.loads(mcp_timeline.ripple_delete_tool(path, 1.0, 2.0, use_inaudible_opt=False))
@@ -440,32 +416,30 @@ def test_mcp_timeline_optional_params_mocked(tmp_path, sample_wav):
         json.loads(
             mcp_timeline.apply_bleed_suppression_tool(
                 path,
-                exclude_words_json=json.dumps([{"word_index": 1}]),
+                exclude_words=[{"word_index": 1}],
                 apply=False,
             )
         )
         json.loads(
             mcp_timeline.apply_low_audibility_suppression_tool(
                 path,
-                words_json=json.dumps([{"word_index": 0, "text": "hello"}]),
+                words=[{"word_index": 0, "text": "hello"}],
             )
         )
         batch = json.loads(
             mcp_timeline.apply_transcript_cleanup_tool(
                 path,
                 "host",
-                json.dumps(
-                    {
-                        "words": [],
-                        "phrases": [
-                            {
-                                "start_word_index": 0,
-                                "end_word_index": 1,
-                                "text": "hi world",
-                            }
-                        ],
-                    }
-                ),
+                {
+                    "words": [],
+                    "phrases": [
+                        {
+                            "start_word_index": 0,
+                            "end_word_index": 1,
+                            "text": "hi world",
+                        }
+                    ],
+                },
             )
         )
 
@@ -505,14 +479,12 @@ def test_mcp_timeline_heavy_tools_use_inaudible_and_speaker(tmp_path, sample_wav
 
         json.loads(mcp_timeline.fill_with_room_tone_tool(path, track_id="host"))
         json.loads(
-            mcp_timeline.verify_transcript_tool(
-                path, "host", json.dumps([{"word_index": 1, "verified": True}])
-            )
+            mcp_timeline.verify_transcript_tool(path, "host", [{"word_index": 1, "verified": True}])
         )
         json.loads(mcp_timeline.remove_effect_tool(path, speaker="Host"))
         json.loads(mcp_timeline.analyze_cleanup_tool(path, track_id="host"))
         json.loads(mcp_timeline.recommend_fades_tool(path, speaker="Host"))
-        json.loads(mcp_timeline.apply_fade_recommendations_tool(path, json.dumps([])))
+        json.loads(mcp_timeline.apply_fade_recommendations_tool(path, []))
 
     svc.fill_room_tone.assert_called_once_with(track_id="host", speaker=None)
     svc.remove_effect.assert_called_once_with(track_id=None, speaker="Host", effect=None)

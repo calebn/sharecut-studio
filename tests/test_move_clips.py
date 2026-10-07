@@ -167,7 +167,7 @@ def test_document_move_clips(minimal_project):
 def test_move_clips_tool(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _two_tracks(ws)
-    payload = json.dumps([{"clip_id": "g1", "timeline_start": 9.0, "track_id": "guest"}])
+    payload = [{"clip_id": "g1", "timeline_start": 9.0, "track_id": "guest"}]
     out = json.loads(mcp_timeline.move_clips_tool(str(minimal_project), payload))
     assert out["operation"] == "move_clips"
     ws2 = ProjectWorkspace.open(minimal_project)
@@ -180,11 +180,6 @@ def test_move_clips_empty_rejected(minimal_project):
     _two_tracks(ws)
     with pytest.raises(ValueError, match="non-empty"):
         move_clips(ws.project, [])
-
-
-def test_move_clips_tool_rejects_non_array(minimal_project):
-    with pytest.raises(ValueError, match="JSON array"):
-        mcp_timeline.move_clips_tool(str(minimal_project), "{}")
 
 
 def test_pin_clip_source_id_keeps_valid_id(minimal_project):

@@ -30,7 +30,7 @@ See [episode-format-v2.md](episode-format-v2.md) § Review comments.
 
 | Tool | Purpose |
 |------|---------|
-| `add_comment_tool` | Create instant/span; `track_ids_json` / `action_texts_json` optional JSON arrays; `edit_decision_id` opens the unique Ask thread for a pending cut |
+| `add_comment_tool` | Create instant/span; `track_ids` / `action_texts` optional string lists; `edit_decision_id` opens the unique Ask thread for a pending cut |
 | `list_comments_tool` | Queue filters: `include_resolved=false`, `open_actions_only=true` |
 | `get_comment_tool` | Fetch one by id |
 | `update_comment_tool` | Body / tracks / timeline anchor |

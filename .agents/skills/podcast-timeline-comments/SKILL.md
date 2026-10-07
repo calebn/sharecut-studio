@@ -18,7 +18,7 @@ Prefer **MCP tools** when operating as an agent. CLI mirrors the same `CommentSe
 
 | Tool | Purpose |
 |------|---------|
-| `add_comment_tool` | Create instant or span; optional `track_ids_json`, `action_texts_json` (JSON string arrays); `edit_decision_id` for the unique Ask thread on a pending cut |
+| `add_comment_tool` | Create instant or span; optional `track_ids`, `action_texts` (string lists); `edit_decision_id` for the unique Ask thread on a pending cut |
 | `list_comments_tool` | Sorted by `timeline_start`; `include_resolved=false` or `open_actions_only=true` for queues |
 | `get_comment_tool` | One comment by id |
 | `update_comment_tool` | Body / tracks / timeline anchor |
@@ -70,7 +70,7 @@ When the user asks to “work the comments”, “clear review feedback”, or s
 When the user asks you to note something for later (or for a human):
 
 1. Prefer anchoring with `search_transcript_tool` → use match **`timeline_start` / `timeline_end`**
-2. `add_comment_tool(project_path, body=…, author="agent", timeline_start=…, timeline_end=…, track_ids_json='["host"]', action_texts_json='["Cut this"]')`
+2. `add_comment_tool(project_path, body=…, author="agent", timeline_start=…, timeline_end=…, track_ids=["host"], action_texts=["Cut this"])`
 3. Confirm in the DAW Comments tab / markers after project reload
 
 ## Anchors

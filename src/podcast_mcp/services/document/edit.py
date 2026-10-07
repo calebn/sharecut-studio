@@ -1886,14 +1886,14 @@ class EditService:
         *,
         track_id: str | None = None,
         speaker: str | None = None,
-        words_json: list[dict] | None = None,
+        word_keys: list[dict] | None = None,
     ) -> dict:
         tid: str | None = None
         if track_id or speaker:
             tid = self._resolve(track_id, speaker)
 
         def mutate(p) -> dict:
-            return suppress_low_audibility_words(p, track_id=tid, word_keys=words_json)
+            return suppress_low_audibility_words(p, track_id=tid, word_keys=word_keys)
 
         return self.ws.mutate(
             "before suppress low audibility",
@@ -1926,8 +1926,8 @@ class EditService:
         *,
         track_id: str | None = None,
         speaker: str | None = None,
-        words_json: list[dict] | None = None,
-        exclude_words_json: list[dict] | None = None,
+        word_keys: list[dict] | None = None,
+        exclude_word_keys: list[dict] | None = None,
         start_sec: float | None = None,
         end_sec: float | None = None,
         apply: bool = True,
@@ -1941,8 +1941,8 @@ class EditService:
             return suppress_bleed_words(
                 self.ws.project,
                 track_id=tid,
-                word_keys=words_json,
-                exclude_word_keys=exclude_words_json,
+                word_keys=word_keys,
+                exclude_word_keys=exclude_word_keys,
                 start_sec=start_sec,
                 end_sec=end_sec,
                 dry_run=True,
@@ -1953,8 +1953,8 @@ class EditService:
             return suppress_bleed_words(
                 p,
                 track_id=tid,
-                word_keys=words_json,
-                exclude_word_keys=exclude_words_json,
+                word_keys=word_keys,
+                exclude_word_keys=exclude_word_keys,
                 start_sec=start_sec,
                 end_sec=end_sec,
                 dry_run=False,

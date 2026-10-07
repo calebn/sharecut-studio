@@ -65,7 +65,7 @@ def test_apply_transcript_cleanup_mcp_tool(tmp_path) -> None:
     out = mcp_server.apply_transcript_cleanup_tool(
         str(ws.path),
         "host",
-        json.dumps({"words": [{"word_index": 0, "text": "the"}]}),
+        {"words": [{"word_index": 0, "text": "the"}]},
     )
     data = json.loads(out)
     assert data["applied"] == 1
