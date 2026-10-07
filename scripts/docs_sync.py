@@ -211,11 +211,6 @@ def parse_contract(raw: object) -> Contract:
 
 
 def _resolve_prose_path(token: str, tracked: frozenset[str]) -> str | None:
-    """The tracked-repo-relative path (or directory glob) ``token`` names, or None when it
-    is not path-like (a code symbol, env var, make target, or bare skill name never resolve).
-
-    Tries ``token`` as a root-relative path first, then as shorthand for a path under
-    ``src/podcast_mcp/`` (the convention this file's own SOLID/DRY section uses)."""
     candidates = [token]
     if not token.startswith(_PACKAGE_PREFIX):
         candidates.append(_PACKAGE_PREFIX + token)

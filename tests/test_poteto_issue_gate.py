@@ -1,5 +1,3 @@
-"""The Poteto issue gate derives a verdict from raw GitHub data."""
-
 from __future__ import annotations
 
 import subprocess
