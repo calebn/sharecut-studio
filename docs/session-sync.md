@@ -350,7 +350,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | Type | Service | Payload |
 |------|---------|---------|
 | `AddComment`, `UpdateComment`, `ResolveComment`, `DeleteComment`, `AddReply`, `SetActionDone`, `AddAction` | `CommentService` | Comment fields |
-| `UndoHistory`, `RedoHistory` | `HistoryService` | optional `rerender`, optional `expected_head_id` (409 `history_stale` unless that entry is still the latest; [history.md § Guarded undo and redo](history.md#guarded-undo-and-redo-expected-head)) |
+| `UndoHistory`, `RedoHistory` | `HistoryService` | optional `rerender`; required `expected_head_id`, the history head the client saw (`root` before any entry; refused as invalid when missing, 409 `history_stale` unless it is still the head; [history.md § Guarded undo and redo](history.md#guarded-undo-and-redo-expected-head)) |
 | `ApproveEdits`, `RejectEdits` | `EditService` | `ids: string[]`; Approve also takes `confirm_cut_speech?` (needed when a remove's ripple would cut other speech, checked at approval time) |
 | `UpdatePendingEdit` | `EditService.update_pending` | `id`, `start`, `end`, `snap?`, `expected?` (saved track/type/clock/bounds) |
 | `RestoreAppliedEdit` | `EditService.revert_applied` | `id` (applied log id) |

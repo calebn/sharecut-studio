@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from filelock import Timeout
 from pydantic import ValidationError
 
+from history_helpers import history_move
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.models import (
@@ -177,7 +178,11 @@ def test_document_history_move_render_failure_is_a_conflict_with_the_advice(
     if command == "RedoHistory":
         svc.submit(
             DocumentCommand(
-                type="UndoHistory", payload={}, client_id="c1", role="viewer", client_seq=2
+                type="UndoHistory",
+                payload=history_move(minimal_project),
+                client_id="c1",
+                role="viewer",
+                client_seq=2,
             )
         )
 
@@ -191,7 +196,7 @@ def test_document_history_move_render_failure_is_a_conflict_with_the_advice(
             svc.submit(
                 DocumentCommand(
                     type=command,
-                    payload={"rerender": True},
+                    payload=history_move(minimal_project, rerender=True),
                     client_id="c1",
                     role="viewer",
                     client_seq=3,
@@ -209,7 +214,7 @@ def test_document_history_move_merge_conflict_is_a_conflict_with_the_advice(mini
             svc.submit(
                 DocumentCommand(
                     type="UndoHistory",
-                    payload={"rerender": True},
+                    payload=history_move(minimal_project, rerender=True),
                     client_id="c1",
                     role="viewer",
                     client_seq=2,
@@ -245,35 +250,26 @@ def test_document_undo_redo_history(minimal_project):
     assert rejected["ok"]
     assert _current_projection(svc, rejected)["history"]["can_undo"] is True
 
-    undo = svc.submit(
-        DocumentCommand(
-            type="UndoHistory",
-            payload={},
-            client_id="c1",
-            role="viewer",
-            client_seq=2,
-        )
+    undo_cmd = DocumentCommand(
+        type="UndoHistory",
+        payload=history_move(minimal_project),
+        client_id="c1",
+        role="viewer",
+        client_seq=2,
     )
+    undo = svc.submit(undo_cmd)
     assert undo["ok"]
     assert _current_projection(svc, undo)["history"]["can_redo"] is True
     ws_after_undo = ProjectWorkspace.open(minimal_project)
     assert any(e.id == "d1" for e in ws_after_undo.project.edit_decisions)
 
-    again = svc.submit(
-        DocumentCommand(
-            type="UndoHistory",
-            payload={},
-            client_id="c1",
-            role="viewer",
-            client_seq=2,
-        )
-    )
+    again = svc.submit(undo_cmd)
     assert again.get("idempotent") is True
 
     redo = svc.submit(
         DocumentCommand(
             type="RedoHistory",
-            payload={},
+            payload=history_move(minimal_project),
             client_id="c1",
             role="viewer",
             client_seq=3,
@@ -2841,7 +2837,7 @@ def test_a_history_move_saved_before_its_render_failed_is_not_repeated_by_a_retr
     svc = _undoable_rejection(minimal_project)
     cmd = DocumentCommand(
         type="UndoHistory",
-        payload={"rerender": True},
+        payload=history_move(minimal_project, rerender=True),
         client_id="c1",
         role="viewer",
         client_seq=3,
@@ -2869,7 +2865,7 @@ def test_an_unknown_commit_outcome_rereads_a_landed_saved_command(minimal_projec
     svc = _undoable_rejection(minimal_project)
     cmd = DocumentCommand(
         type="UndoHistory",
-        payload={"rerender": True},
+        payload=history_move(minimal_project, rerender=True),
         client_id="c1",
         role="viewer",
         client_seq=3,

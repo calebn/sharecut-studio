@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from history_helpers import history_move
 from podcast_mcp.edits.share_capabilities import capabilities_for_role, share_author
 from podcast_mcp.edits.share_registry import SHARE_COOLDOWN_DAYS, get_share_registry
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
@@ -507,7 +508,11 @@ def test_only_editors_decide_pending_suggestions(
 def host_undo(minimal_project) -> None:
     DocumentSyncService.open(minimal_project).submit(
         DocumentCommand(
-            type="UndoHistory", payload={}, client_id="host", client_seq=None, role="viewer"
+            type="UndoHistory",
+            payload=history_move(minimal_project),
+            client_id="host",
+            client_seq=None,
+            role="viewer",
         ),
         range_policy="apply",
     )

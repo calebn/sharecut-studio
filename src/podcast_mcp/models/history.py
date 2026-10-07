@@ -5,6 +5,11 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+HISTORY_ROOT_ID = "root"
+"""The head of a history that holds no entry yet. Entry ids are 12 hex characters, so it
+never names an entry; a caller that saw an empty history sends it, and the guard refuses
+once any entry exists instead of treating "no head" as "do not check"."""
+
 
 class HistoryEntry(BaseModel):
     id: str
@@ -31,15 +36,16 @@ class ProjectHistory(BaseModel):
     def can_redo(self) -> bool:
         return self.cursor >= 0 and self.cursor < len(self.entries) - 1
 
-    def head_id(self) -> str | None:
-        """Id of the entry the project currently holds (the cursor's), or None before any.
+    def head_id(self) -> str:
+        """Id of the entry the project currently holds (the cursor's), or ``HISTORY_ROOT_ID``
+        before any.
 
         Unlike ``cursor``, it names one entry for good: pruning at the entry limit keeps the
         cursor at the same index while the entry there changes.
         """
         if 0 <= self.cursor < len(self.entries):
             return self.entries[self.cursor].id
-        return None
+        return HISTORY_ROOT_ID
 
 
 class ProjectStateSnapshot(BaseModel):
