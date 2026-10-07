@@ -550,17 +550,27 @@ def test_guest_media_upload_413_and_400(minimal_project, sample_wav, tmp_workspa
         headers={"Content-Type": "application/octet-stream"},
     )
     assert bad.status_code == 400
+    unreadable = client.post(
+        f"/api/review/{edit_tok}/daw/media/upload?filename=bad.wav",
+        content=b"not audio",
+        headers={"Content-Type": "application/octet-stream"},
+    )
+    assert unreadable.status_code == 400
+    assert unreadable.json() == {"detail": "not a playable audio file"}
+    assert unreadable.headers["x-sharecut-error-code"] == "invalid_audio"
 
 
-def test_guest_media_upload_maps_probe_errors(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
+def test_guest_media_upload_probe_crashes_are_private(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog
 ):
     client, _view, _comment, edit_tok = _guest_share_client(
         minimal_project, sample_wav, tmp_workspace, monkeypatch
     )
 
+    diagnostic = "ffprobe exploded with private secret phrase /private/host/upload.wav"
+
     def boom(*_args, **_kwargs):
-        raise RuntimeError("ffprobe exploded")
+        raise RuntimeError(diagnostic)
 
     monkeypatch.setattr(
         "podcast_mcp.services.media.write_upload_chunk",
@@ -571,8 +581,10 @@ def test_guest_media_upload_maps_probe_errors(
         content=b"x",
         headers={"Content-Type": "application/octet-stream"},
     )
-    assert res.status_code == 400
-    assert "invalid audio" in res.json()["detail"]
+    assert res.status_code == 500
+    assert res.json() == {"detail": "internal error"}
+    assert "x-sharecut-error-code" not in res.headers
+    assert any(row.exc_info and diagnostic in str(row.exc_info[1]) for row in caplog.records)
 
 
 def test_guest_media_upload_maps_lock_timeout_to_project_busy(

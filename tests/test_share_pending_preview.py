@@ -33,6 +33,7 @@ from podcast_mcp.services.collaboration.share import (
 from podcast_mcp.services.document import PlayService
 from podcast_mcp.services.remote_mcp.allowlist import tools_for_capabilities
 from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def _wav_duration_sec(path: Path) -> float:
@@ -113,8 +114,9 @@ def test_guest_pending_preview_requires_play_and_view() -> None:
     assert "guest_pending_preview" not in tools_for_capabilities(["play", "comment", "mcp"])
 
 
+@pytest.mark.parametrize("mode", ["suggested", "ab"])
 def test_share_pending_preview_http_caps_and_skip(
-    minimal_project, sample_wav, tmp_workspace, monkeypatch
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, mode
 ):
     ws = _seed_pending_cut(minimal_project, sample_wav, tmp_workspace)
     play_only = _share(ws, monkeypatch, tmp_workspace, ["play", "comment"])
@@ -141,10 +143,16 @@ def test_share_pending_preview_http_caps_and_skip(
     save_project(ws.project, ws.path)
     split_resp = client.get(
         f"/api/review/{both['token']}/daw/pending-preview",
-        params={"edit_id": "split1", "mode": "suggested"},
+        params={"edit_id": "split1", "mode": mode},
     )
     assert split_resp.status_code == 400
     assert "split" in split_resp.json()["detail"].lower()
+    assert split_resp.headers["x-sharecut-error-code"] == "pending_preview_unavailable"
+    for preview in (share_pending_preview_wav_cached, share_pending_preview_wav):
+        with pytest.raises(CodedValueError) as refusal:
+            preview(both["token"], edit_id="split1", mode=mode)
+        assert refusal.value.code == "pending_preview_unavailable"
+        assert str(refusal.value) == split_resp.json()["detail"]
 
 
 def test_share_pending_preview_suggested_shorter_and_mcp_urls(
