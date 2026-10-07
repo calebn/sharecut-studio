@@ -765,6 +765,8 @@ html[data-shell] body {
 }
 
 .editing-tool-rail {
+  position: relative;
+  z-index: var(--z-local-chrome);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -774,18 +776,27 @@ html[data-shell] body {
   background: var(--color-bg-base);
 }
 
-/* Labels never break inside a button; a narrow phone wraps whole buttons, so
-   Undo and Redo move to a second row there (#1077). */
+/* Labels never break inside a button. */
 .editing-tool-rail .ui-control {
   white-space: nowrap;
 }
 
-/* Undo and Redo close the rail at its inline end, apart from the tools
-   (#1077). Icon buttons keep the full touch square. */
+/* Undo and Redo close the rail at its inline end, apart from the tools, as one
+   pair that never wraps or shrinks (#1077). The ingest buttons give way
+   instead: a rail too narrow for all of them hands + Track and Import to
+   Menu > Media and More, which keep both, so a phone in portrait spends no
+   second row on the pair. Icon buttons keep the full touch square. */
 .editing-tool-rail-history {
   display: flex;
+  flex: none;
   gap: var(--space-1);
   margin-inline-start: auto;
+}
+
+@container app (max-width: 30rem) {
+  .editing-tool-rail .editing-tool-rail-ingest {
+    display: none;
+  }
 }
 
 .editing-tool-rail-icon {
@@ -793,6 +804,27 @@ html[data-shell] body {
   min-inline-size: var(--touch-min);
   min-block-size: var(--touch-min);
   padding: 0;
+}
+
+/* Tapping an unavailable Undo or Redo names why. The note floats over the
+   lanes' bottom edge so it never costs the timeline a row, and it lets
+   touches through to them. */
+.editing-tool-rail-hint {
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline-end: var(--space-4);
+  margin-block-end: var(--space-1);
+  pointer-events: none;
+}
+
+.editing-tool-rail-hint:not(:empty) {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-overlay);
+  box-shadow: var(--shadow-raised);
+  color: var(--text);
+  font-size: var(--font-size-small);
 }
 
 /* A finger gets the full touch target on every shell, sideways included. */

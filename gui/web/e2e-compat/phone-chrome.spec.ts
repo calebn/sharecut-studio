@@ -15,6 +15,7 @@ test.use({ hasTouch: true, isMobile: true });
 
 const LANDSCAPE = { width: 932, height: 432 };
 const PORTRAIT = { width: 432, height: 932 };
+const PORTRAIT_SAFARI = { width: 440, height: 763 };
 
 async function addTracks(page: Page, projectPath: string, count: number) {
   for (let i = 0; i < count; i++)
@@ -67,8 +68,8 @@ test("a phone held sideways keeps three compact lanes and Undo in reach", async 
     const rail = page.getByRole("group", { name: "Undo and redo" });
     const undo = rail.getByRole("button", { name: "Undo" });
     const redo = rail.getByRole("button", { name: "Redo" });
-    await expect(undo).toBeEnabled();
-    await expect(redo).toBeDisabled();
+    await expect(undo).not.toHaveAttribute("aria-disabled");
+    await expect(redo).toHaveAttribute("aria-disabled", "true");
     await expect(redo).toHaveAccessibleDescription("Nothing to redo");
     for (const button of [undo, redo]) {
       const box = await button.boundingBox();
@@ -76,9 +77,50 @@ test("a phone held sideways keeps three compact lanes and Undo in reach", async 
       expect(box!.height).toBeGreaterThanOrEqual(44);
     }
 
+    // A finger gets the reason too, not only a hover title.
+    await redo.tap({ force: true });
+    await expect(
+      page.getByRole("status").filter({ hasText: "Nothing to redo" }),
+    ).toBeVisible();
+    await expect(page.locator(".lane-row")).toHaveCount(5);
+
     await undo.tap();
     await expect(page.locator(".lane-row")).toHaveCount(4);
-    await expect(redo).toBeEnabled();
+    await expect(redo).not.toHaveAttribute("aria-disabled");
+  });
+});
+
+test("a phone in portrait keeps Undo and Redo on the tool row and five lanes", async ({
+  page,
+}) => {
+  await page.setViewportSize(PORTRAIT_SAFARI);
+  await withShareableProject(async (projectPath) => {
+    await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(page.locator(".daw-shell--phone")).toBeVisible();
+    await addTracks(page, projectPath, 4);
+    await openPhoneTimeline(page);
+    await expect(page.locator(".lane-row")).toHaveCount(6);
+
+    const rail = page.getByRole("group", { name: "Editing tools" });
+    const undo = rail.getByRole("button", { name: "Undo" });
+    const redo = rail.getByRole("button", { name: "Redo" });
+    const [railBox, undoBox, redoBox, rangeBox] = await Promise.all([
+      rail.boundingBox(),
+      undo.boundingBox(),
+      redo.boundingBox(),
+      rail.getByRole("button", { name: "Select range" }).boundingBox(),
+    ]);
+    // One row: the pair sits level with the tools, 44px squares, inside the rail.
+    expect(Math.abs(undoBox!.y - rangeBox!.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(redoBox!.y - undoBox!.y)).toBeLessThanOrEqual(1);
+    expect(undoBox!.width).toBeGreaterThanOrEqual(44);
+    expect(redoBox!.x + redoBox!.width).toBeLessThanOrEqual(
+      railBox!.x + railBox!.width,
+    );
+    // The ingest buttons give way on a rail this narrow; Menu and More keep them.
+    await expect(rail.getByRole("button", { name: "Import" })).toBeHidden();
+
+    expect((await visibleLanes(page))!.full).toBeGreaterThanOrEqual(5);
   });
 });
 
