@@ -232,7 +232,12 @@ async function boundaryDrag(page: Page, recorder: Recorder) {
   const duration = first.source_end - first.source_start;
   const start = first.timeline_start + duration * 0.25,
     end = first.timeline_start + duration * 0.6;
-  await postDocumentCommand(page, CLIENT, "RippleDeleteRange", { start, end });
+  await postDocumentCommand(page, CLIENT, "CutRange", {
+    start,
+    end,
+    mode: "ripple",
+    confirm_cut_speech: true,
+  });
   const before = await fullProject(page);
   const boundary =
     before.edit_boundaries?.find(

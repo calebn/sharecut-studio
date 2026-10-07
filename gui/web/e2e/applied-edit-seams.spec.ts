@@ -21,9 +21,19 @@ test.describe("Applied-edit seam ticks", () => {
 
     try {
       await waive();
-      await command("RippleDeleteRange", { start: 40, end: 50 });
+      await command("CutRange", {
+        start: 40,
+        end: 50,
+        mode: "ripple",
+        confirm_cut_speech: true,
+      });
       await waive();
-      await command("RippleDeleteRange", { start: 5, end: 15 });
+      await command("CutRange", {
+        start: 5,
+        end: 15,
+        mode: "ripple",
+        confirm_cut_speech: true,
+      });
 
       await expect(lanes.first().locator(".clip-block")).toHaveCount(3);
       const ticks = lanes.first().locator(".applied-tick--seam");

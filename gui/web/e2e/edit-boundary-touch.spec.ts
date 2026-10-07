@@ -31,7 +31,9 @@ test.describe("Transcript edit-boundary touch drag", () => {
     let applied = 0;
     try {
       await waiveRefineGate(page, "e2e edit boundary touch");
-      await postDocumentCommand(page, CLIENT_ID, "RippleDeleteRange", {
+      await postDocumentCommand(page, CLIENT_ID, "CutRange", {
+        mode: "ripple",
+        confirm_cut_speech: true,
         start: 5,
         end: 15,
       });
@@ -156,7 +158,9 @@ for (const width of [1440, 360]) {
       let applied = false;
       try {
         await waiveRefineGate(page, "e2e boundary geometry");
-        await postDocumentCommand(page, CLIENT_ID, "RippleDeleteRange", {
+        await postDocumentCommand(page, CLIENT_ID, "CutRange", {
+          mode: "ripple",
+          confirm_cut_speech: true,
           start: 5,
           end: 15,
         });
