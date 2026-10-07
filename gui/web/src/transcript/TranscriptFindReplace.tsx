@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type {
   TranscriptReplacementOptions,
   TranscriptReplacementPreview,
@@ -34,7 +34,6 @@ export function TranscriptFindReplace() {
   const [shown, setShown] = useState(100);
   const request = useRef(0);
   const busyRef = useRef(false);
-  const id = useId();
   const busy = state.kind === "previewing" || state.kind === "replacing";
   const preview =
     state.kind === "review" || state.kind === "replacing"
@@ -103,23 +102,27 @@ export function TranscriptFindReplace() {
           void loadPreview();
         }}
       >
-        <Field label="Find" htmlFor={`${id}-find`}>
-          <input
-            id={`${id}-find`}
-            value={options.search}
-            maxLength={500}
-            disabled={busy}
-            onChange={(event) => change({ search: event.target.value })}
-          />
+        <Field label="Find">
+          {(control) => (
+            <input
+              {...control}
+              value={options.search}
+              maxLength={500}
+              disabled={busy}
+              onChange={(event) => change({ search: event.target.value })}
+            />
+          )}
         </Field>
-        <Field label="Replace with" htmlFor={`${id}-replace`}>
-          <input
-            id={`${id}-replace`}
-            value={options.replacement}
-            maxLength={500}
-            disabled={busy}
-            onChange={(event) => change({ replacement: event.target.value })}
-          />
+        <Field label="Replace with">
+          {(control) => (
+            <input
+              {...control}
+              value={options.replacement}
+              maxLength={500}
+              disabled={busy}
+              onChange={(event) => change({ replacement: event.target.value })}
+            />
+          )}
         </Field>
         <label>
           <input
@@ -144,10 +147,7 @@ export function TranscriptFindReplace() {
         precedence. Attach punctuation to a word. All source recordings and
         cut-away text. Suppressed and ignored words are skipped.
       </p>
-      <InlineError
-        message={state.kind === "error" ? state.message : null}
-        role="alert"
-      />
+      <InlineError message={state.kind === "error" ? state.message : null} />
       {preview && (
         <>
           <p role="status">

@@ -147,27 +147,26 @@ export function BootstrapWizard({ onReady, onSkip }: BootstrapWizardProps) {
       </ul>
       <Field
         label="Speech model"
-        htmlFor="whisper-model"
-        hintId="whisper-model-hint"
         hint={
           selected
             ? `${selected.size}. ${selected.description}`
             : "Recommended is large-v3-turbo (~1.6 GB)."
         }
       >
-        <select
-          id="whisper-model"
-          aria-describedby="whisper-model-hint"
-          value={whisperModel}
-          disabled={busy || models.length === 0}
-          onChange={(e) => void onModelChange(e.target.value)}
-        >
-          {models.map((opt) => (
-            <option key={opt.id} value={opt.id}>
-              {opt.label} ({opt.id}, {opt.size})
-            </option>
-          ))}
-        </select>
+        {(control) => (
+          <select
+            {...control}
+            value={whisperModel}
+            disabled={busy || models.length === 0}
+            onChange={(e) => void onModelChange(e.target.value)}
+          >
+            {models.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label} ({opt.id}, {opt.size})
+              </option>
+            ))}
+          </select>
+        )}
       </Field>
       <label className="bootstrap-wizard-optional">
         <input

@@ -512,7 +512,7 @@ export function PrecisionBoundaryDialog({
         <p role="status">Preparing boundary controls…</p>
       ) : state.kind === "load-error" ? (
         <div className="precision-boundary-error">
-          <InlineError message={state.message} role="alert" />
+          <InlineError message={state.message} />
           {state.stale ? (
             <Button onClick={reload}>Reload boundary</Button>
           ) : null}
@@ -651,19 +651,18 @@ export function PrecisionBoundaryDialog({
           ) : null}
           {state.kind === "editing" && state.saveError ? (
             <div className="precision-boundary-error">
-              <InlineError message={state.saveError} role="alert" />
+              <InlineError message={state.saveError} />
               {state.stale ? (
                 <Button onClick={reload}>Reload boundary</Button>
               ) : null}
             </div>
           ) : null}
           {state.kind === "editing" && previewError ? (
-            <InlineError message={previewError.message} role="alert" />
+            <InlineError message={previewError.message} />
           ) : null}
           {state.kind === "editing" && !inputValid ? (
             <InlineError
               message={`Enter a whole-millisecond offset from ${seconds(limits?.min ?? 0)} to ${seconds(limits?.max ?? 0)} to audition or apply.`}
-              role="alert"
             />
           ) : null}
           <h3 className="precision-boundary-audition-title">

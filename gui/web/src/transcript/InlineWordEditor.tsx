@@ -128,7 +128,7 @@ export function InlineWordEditor({
           if (!busyRef.current) onClose(false);
         }}
       />
-      <InlineError inline id={errorId} role="alert" message={error} />
+      <InlineError inline id={errorId} message={error} />
     </span>
   );
 }

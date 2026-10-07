@@ -4,42 +4,59 @@ import { expectNoA11yViolations } from "../test/a11y";
 import { Field } from "./Field";
 
 describe("Field", () => {
-  it("renders label and is axe-clean", async () => {
+  it("labels, describes and invalidates its control without caller ids", async () => {
     const { container } = render(
-      <Field label="Name" htmlFor="name" hint="Required" error="Too short">
-        <input id="name" />
+      <Field label="Name" hint="Required" error="Too short">
+        {(control) => <input {...control} />}
       </Field>,
     );
-    expect(screen.getByLabelText("Name")).toBeTruthy();
-    expect(screen.getByText("Required")).toBeTruthy();
-    expect(screen.getByText("Too short")).toBeTruthy();
+    const input = screen.getByRole("textbox", { name: "Name" });
+    expect(input).toHaveAccessibleDescription("Required Too short");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("alert")).toHaveTextContent("Too short");
     await expectNoA11yViolations(container);
   });
 
-  it("associates help and validation with the caller's control", () => {
+  it("drops the error wiring once the error clears", () => {
     const { rerender } = render(
-      <Field
-        label="Name"
-        htmlFor="name"
-        hint="Required"
-        hintId="name-hint"
-        error="Too short"
-        errorId="name-error"
-      >
-        <input id="name" aria-describedby="name-hint name-error" aria-invalid />
+      <Field label="Name" hint="Required" error="Too short">
+        {(control) => <input {...control} />}
       </Field>,
+    );
+    rerender(
+      <Field label="Name" hint="Required">
+        {(control) => <input {...control} />}
+      </Field>,
+    );
+    const input = screen.getByRole("textbox", { name: "Name" });
+    expect(input).toHaveAccessibleDescription("Required");
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("gives a bare control no description", () => {
+    render(<Field label="Name">{(control) => <input {...control} />}</Field>);
+    const input = screen.getByRole("textbox", { name: "Name" });
+    expect(input).not.toHaveAttribute("aria-describedby");
+    expect(input).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("keeps two fields' ids apart", () => {
+    render(
+      <>
+        <Field label="Start" error="Too early">
+          {(control) => <input {...control} />}
+        </Field>
+        <Field label="End" error="Too late">
+          {(control) => <input {...control} />}
+        </Field>
+      </>,
     );
     expect(
-      screen.getByRole("textbox", { name: "Name" }),
-    ).toHaveAccessibleDescription("Required Too short");
-    expect(screen.getByRole("textbox")).toHaveAttribute("aria-invalid", "true");
-    rerender(
-      <Field label="Name" htmlFor="name" hint="Required" hintId="name-hint">
-        <input id="name" aria-describedby="name-hint" />
-      </Field>,
-    );
-    expect(screen.getByRole("textbox")).toHaveAccessibleDescription("Required");
-    expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-invalid");
-    expect(screen.queryByText("Too short")).not.toBeInTheDocument();
+      screen.getByRole("textbox", { name: "Start" }),
+    ).toHaveAccessibleDescription("Too early");
+    expect(
+      screen.getByRole("textbox", { name: "End" }),
+    ).toHaveAccessibleDescription("Too late");
   });
 });

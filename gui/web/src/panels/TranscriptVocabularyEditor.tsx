@@ -233,54 +233,56 @@ export function TranscriptVocabularyEditor({
       </p>
       {(["terms", "guest_names"] as const).map((field) => {
         const copy = FIELD_COPY[field];
-        const inputId = `vocabulary-${field}`;
         return (
           <Field
             key={field}
             label={copy.label}
-            htmlFor={inputId}
             className="pipeline-vocabulary-field"
           >
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                add(field);
-              }}
-            >
-              <input
-                id={inputId}
-                value={input[field]}
-                maxLength={VOCABULARY_MAX_ENTRY_CHARS}
-                disabled={!draft || saving}
-                onChange={(event) =>
-                  setInput((current) => ({
-                    ...current,
-                    [field]: event.target.value,
-                  }))
-                }
-              />
-              <Button
-                type="submit"
-                disabled={!draft || saving || !input[field].trim()}
-              >
-                Add {copy.noun}
-              </Button>
-            </form>
-            <ul aria-label={copy.list}>
-              {draft?.[field].map((value) => (
-                <li key={value}>
-                  <span>{value}</span>
+            {(control) => (
+              <>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    add(field);
+                  }}
+                >
+                  <input
+                    {...control}
+                    value={input[field]}
+                    maxLength={VOCABULARY_MAX_ENTRY_CHARS}
+                    disabled={!draft || saving}
+                    onChange={(event) =>
+                      setInput((current) => ({
+                        ...current,
+                        [field]: event.target.value,
+                      }))
+                    }
+                  />
                   <Button
-                    className="ui-control--compact"
-                    aria-label={`Remove ${value}`}
-                    disabled={saving}
-                    onClick={() => remove(field, value)}
+                    type="submit"
+                    disabled={!draft || saving || !input[field].trim()}
                   >
-                    Remove
+                    Add {copy.noun}
                   </Button>
-                </li>
-              ))}
-            </ul>
+                </form>
+                <ul aria-label={copy.list}>
+                  {draft?.[field].map((value) => (
+                    <li key={value}>
+                      <span>{value}</span>
+                      <Button
+                        className="ui-control--compact"
+                        aria-label={`Remove ${value}`}
+                        disabled={saving}
+                        onClick={() => remove(field, value)}
+                      >
+                        Remove
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </Field>
         );
       })}

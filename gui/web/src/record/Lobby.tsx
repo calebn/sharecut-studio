@@ -78,7 +78,6 @@ export function Lobby({
   showRoomTone = true,
   storageHeadroomNotice,
 }: Props) {
-  const nameId = useId();
   const phonesId = useId();
   const grantHintId = useId();
   const headphonesHintId = useId();
@@ -100,13 +99,15 @@ export function Lobby({
     .join(" ");
   return (
     <div className="stack">
-      <Field label="Display name" htmlFor={nameId}>
-        <input
-          id={nameId}
-          value={name}
-          onChange={(e) => onName(e.target.value)}
-          autoComplete="name"
-        />
+      <Field label="Display name">
+        {(control) => (
+          <input
+            {...control}
+            value={name}
+            onChange={(e) => onName(e.target.value)}
+            autoComplete="name"
+          />
+        )}
       </Field>
       {producer ? (
         <Button variant="primary" type="button" onClick={onJoinProducer}>

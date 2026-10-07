@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Dialog, Field, InlineError } from "../ui";
 import { errorMessage } from "../utils/apiError";
 import { localHostMcpUrl, mcpClientSnippet } from "./hostMcp";
@@ -23,8 +23,6 @@ async function copyText(text: string): Promise<void> {
 }
 
 export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
-  const urlId = useId();
-  const snippetId = useId();
   const [copied, setCopied] = useState<CopiedKey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -103,13 +101,15 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
             Open an episode first; tools error until a project is open.
           </p>
         )}
-        <Field label="MCP URL" htmlFor={urlId}>
-          <input
-            id={urlId}
-            className="share-dialog-select"
-            readOnly
-            value={url}
-          />
+        <Field label="MCP URL">
+          {(control) => (
+            <input
+              {...control}
+              className="share-dialog-select"
+              readOnly
+              value={url}
+            />
+          )}
         </Field>
         <div className="share-dialog-actions">
           <Button
@@ -120,15 +120,17 @@ export function HostMcpDialog({ open, onClose, hasProject, mcpUrl }: Props) {
             {copied === "url" ? "Copied" : "Copy URL"}
           </Button>
         </div>
-        <Field label="Cursor snippet" htmlFor={snippetId}>
-          <textarea
-            id={snippetId}
-            className="host-mcp-snippet"
-            readOnly
-            rows={8}
-            value={snippet}
-            spellCheck={false}
-          />
+        <Field label="Cursor snippet">
+          {(control) => (
+            <textarea
+              {...control}
+              className="host-mcp-snippet"
+              readOnly
+              rows={8}
+              value={snippet}
+              spellCheck={false}
+            />
+          )}
         </Field>
         <div className="share-dialog-actions">
           <Button type="button" onClick={() => void copy("snippet", snippet)}>

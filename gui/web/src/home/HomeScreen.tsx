@@ -161,24 +161,28 @@ export function HomeScreen() {
               void onCreate();
             }}
           >
-            <Field label="Name" htmlFor="home-episode-name">
-              <input
-                id="home-episode-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoComplete="off"
-                required
-              />
+            <Field label="Name">
+              {(control) => (
+                <input
+                  {...control}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  autoComplete="off"
+                  required
+                />
+              )}
             </Field>
-            <Field label="Workspace directory" htmlFor="home-workspace-dir">
-              <input
-                id="home-workspace-dir"
-                value={dir}
-                onChange={(e) => setDir(e.target.value)}
-                placeholder="/path/to/my_episode"
-                autoComplete="off"
-                required
-              />
+            <Field label="Workspace directory">
+              {(control) => (
+                <input
+                  {...control}
+                  value={dir}
+                  onChange={(e) => setDir(e.target.value)}
+                  placeholder="/path/to/my_episode"
+                  autoComplete="off"
+                  required
+                />
+              )}
             </Field>
             <div className="cluster">
               <Button
@@ -207,15 +211,17 @@ export function HomeScreen() {
               void onOpen();
             }}
           >
-            <Field label="episode.project.json" htmlFor="home-project-path">
-              <input
-                id="home-project-path"
-                value={path}
-                onChange={(e) => setPath(e.target.value)}
-                placeholder="/path/to/episode.project.json"
-                autoComplete="off"
-                required
-              />
+            <Field label="episode.project.json">
+              {(control) => (
+                <input
+                  {...control}
+                  value={path}
+                  onChange={(e) => setPath(e.target.value)}
+                  placeholder="/path/to/episode.project.json"
+                  autoComplete="off"
+                  required
+                />
+              )}
             </Field>
             <div className="cluster">
               <Button

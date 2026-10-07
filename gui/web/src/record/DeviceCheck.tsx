@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Button, Field } from "../ui";
 import { MicMeter } from "./MicMeter";
 import {
@@ -43,7 +43,6 @@ export function DeviceCheck({
   grantHintId,
   headphonesHintId,
 }: Props) {
-  const selectId = useId();
   const selectRef = useRef<HTMLSelectElement>(null);
   const wasGranted = useRef(false);
   const granted = permission === "granted";
@@ -64,21 +63,23 @@ export function DeviceCheck({
       <h2 id="device-heading">Microphone</h2>
       {granted ? (
         <>
-          <Field label="Input" htmlFor={selectId}>
-            <select
-              ref={selectRef}
-              id={selectId}
-              value={deviceId}
-              disabled={deviceLocked}
-              onChange={(e) => onDeviceId(e.target.value)}
-            >
-              <option value="">Default</option>
-              {devices.map((d) => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.label || "Microphone"}
-                </option>
-              ))}
-            </select>
+          <Field label="Input">
+            {(control) => (
+              <select
+                ref={selectRef}
+                {...control}
+                value={deviceId}
+                disabled={deviceLocked}
+                onChange={(e) => onDeviceId(e.target.value)}
+              >
+                <option value="">Default</option>
+                {devices.map((d) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || "Microphone"}
+                  </option>
+                ))}
+              </select>
+            )}
           </Field>
           <MicMeter stream={stream} label="Level" />
         </>

@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import { waiveTranscriptRefine } from "../api";
 import { Button, Field } from "../ui";
 import {
@@ -27,9 +27,6 @@ export function TranscriptRefineRecovery({
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [recovered, setRecovered] = useState(false);
-  const reasonId = useId();
-  const hintId = useId();
-  const errorId = useId();
 
   if (errorCode !== TRANSCRIPT_REFINE_REQUIRED_CODE) {
     return recovered && !error ? (
@@ -70,25 +67,19 @@ export function TranscriptRefineRecovery({
       </p>
       <Field
         label="Waiver reason"
-        htmlFor={reasonId}
-        hintId={hintId}
         hint="This reason is saved with the transcript-refine status."
+        error={formError}
       >
-        <textarea
-          id={reasonId}
-          value={reason}
-          rows={3}
-          disabled={busy}
-          aria-invalid={Boolean(formError)}
-          aria-describedby={formError ? `${hintId} ${errorId}` : hintId}
-          onChange={(event) => setReason(event.target.value)}
-        />
+        {(control) => (
+          <textarea
+            {...control}
+            value={reason}
+            rows={3}
+            disabled={busy}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        )}
       </Field>
-      {formError ? (
-        <p id={errorId} className="inline-error pipeline-error" role="alert">
-          {formError}
-        </p>
-      ) : null}
       <Button disabled={busy} onClick={() => void submit()}>
         Waive with reason
       </Button>

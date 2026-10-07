@@ -256,8 +256,8 @@ export function HelpDialog({ open, onClose }: Props) {
             </a>
           </p>
         ) : null}
-        <div className="share-dialog-live" aria-live="polite">
-          {error ? <InlineError message={error} /> : null}
+        <div className="share-dialog-live">
+          <InlineError message={error} />
         </div>
       </div>
     </Dialog>

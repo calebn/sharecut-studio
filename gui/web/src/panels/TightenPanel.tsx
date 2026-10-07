@@ -75,13 +75,10 @@ export function TightenPanel() {
     announceStatus: s.announceStatus,
   }));
   const headingId = useId();
-  const searchId = useId();
-  const trackId = useId();
   const harshId = useId();
   const avoidHarshId = useId();
   const statusId = useId();
   const applyAllHintId = useId();
-  const intensityId = useId();
   const proposeErrorId = useId();
   const [classFilter, setClassFilter] = useState<"all" | TightenClass>("all");
   const [trackFilter, setTrackFilter] = useState("");
@@ -195,14 +192,16 @@ export function TightenPanel() {
         <h2 id={headingId} className="tighten-heading sr-only">
           Tighten
         </h2>
-        <Field label="Search hits" htmlFor={searchId}>
-          <input
-            id={searchId}
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Reason, snippet, track…"
-          />
+        <Field label="Search hits">
+          {(control) => (
+            <input
+              {...control}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Reason, snippet, track…"
+            />
+          )}
         </Field>
         <SegmentedControl className="tighten-filters" label="Class">
           {CLASS_FILTERS.map((f) => (
@@ -216,19 +215,21 @@ export function TightenPanel() {
             </ToggleButton>
           ))}
         </SegmentedControl>
-        <Field label="Track" htmlFor={trackId}>
-          <select
-            id={trackId}
-            value={trackFilter}
-            onChange={(e) => setTrackFilter(e.target.value)}
-          >
-            <option value="">All tracks</option>
-            {tracks.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label || t.speaker || t.id}
-              </option>
-            ))}
-          </select>
+        <Field label="Track">
+          {(control) => (
+            <select
+              {...control}
+              value={trackFilter}
+              onChange={(e) => setTrackFilter(e.target.value)}
+            >
+              <option value="">All tracks</option>
+              {tracks.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label || t.speaker || t.id}
+                </option>
+              ))}
+            </select>
+          )}
         </Field>
         <label className="tighten-check" htmlFor={harshId}>
           <input
@@ -242,19 +243,21 @@ export function TightenPanel() {
       </header>
 
       <div className="tighten-toolbar">
-        <Field label="Intensity" htmlFor={intensityId}>
-          <select
-            id={intensityId}
-            value={intensity ?? ""}
-            disabled={intensityDisabled}
-            onChange={(e) => void intensityCfg.setIntensity(e.target.value)}
-          >
-            {intensityOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {tightenIntensityLabel(opt)}
-              </option>
-            ))}
-          </select>
+        <Field label="Intensity">
+          {(control) => (
+            <select
+              {...control}
+              value={intensity ?? ""}
+              disabled={intensityDisabled}
+              onChange={(e) => void intensityCfg.setIntensity(e.target.value)}
+            >
+              {intensityOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {tightenIntensityLabel(opt)}
+                </option>
+              ))}
+            </select>
+          )}
         </Field>
         <Button
           onClick={() => void onFindHits()}

@@ -9,23 +9,23 @@ describe("InlineError", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders a paragraph by default", () => {
+  it("announces a paragraph as an alert", () => {
     render(<InlineError message="Nope" />);
-    const el = screen.getByText("Nope");
+    const el = screen.getByRole("alert");
     expect(el.tagName).toBe("P");
+    expect(el).toHaveTextContent("Nope");
     expect(el).toHaveClass("inline-error", "pipeline-error");
   });
 
-  it("renders an inline span with id and role", async () => {
+  it("announces an inline span with the id a control points at", async () => {
     const { container } = render(
       <p>
-        <InlineError inline id="err" role="alert" message="Nope" />
+        <InlineError inline id="err" message="Nope" />
       </p>,
     );
     const el = screen.getByRole("alert");
     expect(el.tagName).toBe("SPAN");
     expect(el).toHaveAttribute("id", "err");
-    expect(el).toHaveClass("pipeline-error");
     await expectNoA11yViolations(container);
   });
 });
