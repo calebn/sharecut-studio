@@ -185,7 +185,9 @@ def copy_lag(own: np.ndarray, peer: np.ndarray, frames: np.ndarray) -> int | Non
     of n (its Fisher z), so a shorter stretch needs a stronger match: 0.48 over 20 s.
     Under ``MIN_COPY_SEC`` the estimate abstains, because shared phrase starts and
     stops dominate a short stretch, as it does when the best lag is not a peak inside
-    the search (#1068).
+    the search (#1068). Level alone cannot tell a copy from own sound that starts and
+    stops with the peer's, so callers confirm the lag by the copy's timbre
+    (``copy_timbre.confirmed_likeness``, #1070).
     """
     found = envelope_lag(
         syllable_contour(own),

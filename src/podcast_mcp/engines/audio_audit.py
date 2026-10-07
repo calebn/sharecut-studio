@@ -20,7 +20,7 @@ from podcast_mcp.engines.asr_timing import (
     DEFAULT_WORD_SPAN_END_SLACK_SEC,
     word_duration_is_anomalous,
 )
-from podcast_mcp.engines.copy_timbre import LIKENESS_FRAMES, copy_likeness, copy_similarity
+from podcast_mcp.engines.copy_timbre import LIKENESS_FRAMES, confirmed_likeness, copy_similarity
 from podcast_mcp.engines.envelope_lag import (
     COPY_FRAME_SEC,
     COPY_HOP_SEC,
@@ -306,9 +306,9 @@ class CopyPath:
 
     ``lag_sec`` is how far the source's own track trails its copy here (a remote
     participant's track arrives after the room carries their voice); 0.0 when the
-    shared envelope estimator is not confident. ``likeness`` is the fine-spectrum match
-    a typical stretch of the copy reaches (``copy_timbre``); None when the lag is 0.0
-    or no frame shows the copy.
+    shared envelope estimator is not confident or the copy's timbre does not confirm
+    its lag (``copy_timbre.confirmed_likeness``, #1070). ``likeness`` is the
+    fine-spectrum match a typical stretch of the copy reaches; None when the lag is 0.0.
     """
 
     lag_sec: float = 0.0
@@ -410,13 +410,14 @@ class TrackRmsCacheSet:
         direct[lo:hi] = peer[lo + lag : hi + lag]
         frames = (direct > PEER_OPEN_DB) & (own > LEVEL_FLOOR_DB) & (own < direct)
         if not frames.any():
-            return CopyPath(lag * COPY_HOP_SEC)
-        loud = np.flatnonzero(frames & (direct >= np.median(direct[frames])))
+            return CopyPath()
+        loud_db = float(np.median(direct[frames]))
+        loud = np.flatnonzero(frames & (direct >= loud_db))
         sample = loud[:: max(1, loud.size // LIKENESS_FRAMES)]
-        similarity = copy_similarity(
-            bleed.samples, source.samples, sample, lag, sample_rate=bleed.sample_rate
+        likeness = confirmed_likeness(
+            bleed.samples, source.samples, sample, lag, peer, loud_db, sample_rate=bleed.sample_rate
         )
-        return CopyPath(lag * COPY_HOP_SEC, copy_likeness(similarity))
+        return CopyPath() if likeness is None else CopyPath(lag * COPY_HOP_SEC, likeness)
 
 
 def build_track_rms_caches(

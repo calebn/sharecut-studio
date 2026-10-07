@@ -69,7 +69,7 @@ With the acoustic verdict on the same rule (no path, no `bleed`): Whisper-timed 
 
 A remote participant's own track trails their voice on an in-room mic. Read at 0 lag, their copy on the host's mic looks like the host's word, because their own track has barely started. A host word just after them looks like theirs, because their track still carries the syllable they finished. So on a bleed pair the acoustic verdict reads the source mic at the pair's copy lag:
 
-- **The lag.** `TrackRmsCacheSet.copy_path` measures it once per directed bleed pair with the bleed gate's estimator (`envelope_lag.copy_lag`, [below](#acoustic-follow-up-preserve-speech-while-reducing-verified-bleed)). It compares syllable contours over every frame within 300 ms of the source's open track, needs 30 s of them, and needs a peak inside ±300 ms that beats shifted nulls. It reads no transcript. When it abstains (too little of the source's speech, no clear peak, mics on different sample clocks) the lag is 0 and every word gets its 0-lag verdict.
+- **The lag.** `TrackRmsCacheSet.copy_path` measures it once per directed bleed pair with the bleed gate's estimator (`envelope_lag.copy_lag`, [below](#acoustic-follow-up-preserve-speech-while-reducing-verified-bleed)). It compares syllable contours over every frame within 300 ms of the source's open track, needs 20 s of them (and a stronger match under 30 s), and needs a peak inside ±300 ms that beats shifted nulls. The copy's timbre must then confirm the lag, as in the gate ([below](#acoustic-follow-up-preserve-speech-while-reducing-verified-bleed), #1070). It reads no transcript. When it abstains (too little of the source's speech, no clear peak, no timbre at the lag, mics on different sample clocks) the lag is 0 and every word gets its 0-lag verdict.
 - **The rule.** The dominance rule is unchanged (`bleed_dominance_db`, `bleed_min_other_rms_db`, a measured path), with the source read at the lag. A word at the source's level stays its own speaker's.
 - **Crosstalk.** The lag can take a word that the 0-lag reading leaves with its own speaker only if the word also sounds like the copy. The median fine-spectrum match of its frames with the source at the lag (`engines/copy_timbre.py`, the gate's timbre measure) must reach the copy's likeness. The likeness is the 40th percentile of that match where the source, at the lag, talks in its louder half and out-levels the open mic. A soft own word spoken over a louder peer sits under the peer at the lag but carries its own speaker's harmonics, so it keeps its 0-lag verdict with `reason: unlike_copy`. The check runs one way: a word that the 0-lag reading gave away and the lag gives back needs no timbre.
 - `audibility_map_tool` rows report the levels the verdict used in `track_rms_db` and the lags in `copy_lag_ms`.
@@ -235,23 +235,47 @@ The gate measures each lane against every other dialogue track's audio at 8 kHz
   the frame count. So from 30 s 0.4 is enough, and a shorter excerpt needs a
   stronger match: 0.48 over 20 s. Under 20 s the gate abstains (#1070). A remote
   speaker's own Zoom track can trail their voice on an in-room mic. On the lab tape
-  Audra's track trails her copy on Caleb's mic by 140 ms. No path means
+  Audra's track trails her copy on Caleb's mic by 140 ms.
+- **The copy's timbre confirms the lag** (#1070). Level alone cannot tell a copy
+  from own sound that starts and stops with the peer's: people laughing or chanting
+  together, or a voice whose syllables fall on the peer's. Such sound follows the
+  peer's syllable contour at the lag as a copy would. A copy is the peer's voice, so
+  it also matches the peer's fine spectrum (the timbre measure below) at the lag, and
+  not the peer's other syllables. Own sound matches both alike: another voice
+  neither, a steady hum both. On the frames that carry the copy if there is one
+  (the peer at the lag in its louder half, the lane at the copy's level), the copy's
+  likeness, the 40th percentile of that match, must beat by 0.15, the margin the
+  level match must clear, the likeness of the same frames against the peer's speech
+  1 and 2 s away, read only where the peer talks as loud there. A shifted peer that
+  is silent counts as 0. Reconcile's copy path makes the same check
+  (`copy_timbre.confirmed_likeness`). No confirmed path means
   `uncertain_foreign_ownership`.
-  - **Evidence for the rule** (synthetic trials, 2,800 pairs per negative case).
-    Independent voices never passed from 3 s on. Voices that start and
-    stop together passed in 3 trials between 5 and 17.5 s, where shared phrase edges
-    dominate the contour, and never from 20 s. A flat 20 s floor let 5 of 800 of them
-    through, and a flat 10 s floor 25 of 800. A high bar alone (0.6 from 10 s, 0.8
-    from 5 s) is safe but misses real bleed: Audra's copy on Caleb's lab mic
-    matches at about 0.54. 99% of room-coloured copies under the lane's own talk
-    passed at 20 s.
+  - **Evidence** (synthetic trials through the gate's copy check, 100 per kind at
+    each of 20, 25, 30 and 60 s of the peer's speech; the #1053 and #1070 harnesses
+    plus adversarial cases built from lab voices). Own sound that switches on and
+    off with the peer's passed the level match alone in 604 of 4,800 trials from
+    20 s: voices gated together word by word (22 and 28 of 400), the same cadence
+    with 2%, 5% and 10% tempo jitter (167, 21 and 1), and laughing together (8, and 357 of
+    400 at the same pulse rate and phase). Main's 30 s rule passed 213 of them at
+    30 and 60 s. With the timbre check none pass at any length, and independent
+    voices, real co-timed phrases, turn-taking, the same speaker at two times, and
+    music on the peer only stay at 0. End to end, where such sound is untranscribed,
+    the level match alone turned down 14 to 69 s of own sound per 6 excerpts; the
+    check turns down none. True copies: Audra's lab copy against her own track
+    passes in the same trials as before (32, 51, 54 and 68 of 100), and 988 of 993
+    synthetic copies that passed still do (5 room-coloured copies lost at 25 and
+    30 s, 4 of them under the lane's own talk). One shared signal is left: the same
+    music bed on both lanes is a real copy of the bed, and passes in 9 to 10 of 100
+    from 25 s (45 to 46 before, main 40 at 60 s).
   - **Lab coverage** (rev 3b414c4c, realigned, random excerpts cut from the
     project, 100 of each length): the gate acts on Caleb's lane in 49% of 2-minute
     windows (main 32%) and 94% of 5-minute windows (main 87%). Audra's copy left at
     full level falls from 53% to 37% and from 14% to 11%. Half of the 2-minute
     windows hold under 20 s of Audra's speech, which is what limits them. No
     unsuppressed Caleb word is touched, Audra's and Lana's lanes stay untouched, and
-    the whole-episode plans match main exactly.
+    the whole-episode plans match main exactly. The timbre check changes none of
+    these plans: all 480 lane-windows of 160 two-minute excerpts match the level
+    rule alone, and no sound of Caleb's with both peers closed is touched.
   - **Not done.** Reusing the lag `align_tracks` measured, or measuring over the
     whole recording before the excerpt was cut, would cover excerpts cut inside a
     project but not short recordings or exported excerpts. The gate needs the lag
