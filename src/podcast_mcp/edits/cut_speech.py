@@ -6,8 +6,10 @@ transcript). What the edit selected is per track (``RippleRemoval.selected``): a
 deleted clip's own extent, a named track's range. Speech is any scope track's
 unsuppressed transcript words inside a removed span but outside that track's
 selected extents (a range cut that names no tracks selects nothing, so it counts
-every track's speech), or, where those parts have no such words, its own sound at
-speech level (``speech_energy_guard.measure_peer_speech``). With speech there and no
+every track's speech) whose own voice sounds there
+(``speech_energy_guard.word_voice_sounds_in``: ASR stretches word times over
+silence), or, where those parts have no such words, its own sound at speech level
+(``speech_energy_guard.measure_peer_speech``). With speech there and no
 ``confirm_cut_speech``, the edit returns a :class:`CutSpeechConfirmation` and changes
 nothing; confirmed, it applies and the speech it cut is recorded with it. With no
 other speech in the span it applies at once. The apply functions take a
@@ -31,6 +33,7 @@ from podcast_mcp.edits.speech_energy_guard import (
     guard_min_overlap_sec,
     measure_peer_speech,
     speech_energy_guard_enabled,
+    word_voice_sounds_in,
 )
 from podcast_mcp.engines.audio_audit import build_track_rms_caches
 from podcast_mcp.engines.session_timeline import (
@@ -235,6 +238,25 @@ def _owners(removal: RippleRemoval, start: float, end: float) -> frozenset[str]:
     return frozenset(e.track_id for e in removal.selected if e.start < end and e.end > start)
 
 
+def _voiced_in_parts(
+    project: EpisodeProject,
+    removal: RippleRemoval,
+    track_id: str,
+    word: CutSpeechWord,
+    parts: list[tuple[float, float]],
+    cfg: dict[str, Any],
+) -> bool:
+    """Whether ``word``'s own voice sounds where it meets one of the removed ``parts``."""
+    span = (word.timeline_start, word.timeline_end)
+    return any(
+        word_voice_sounds_in(
+            project, track_id, span, (a, b), owner_track_ids=_owners(removal, a, b), defaults=cfg
+        )
+        for start, end in parts
+        if (a := max(start, span[0])) < (b := min(end, span[1]))
+    )
+
+
 def assess_cut_speech(
     project: EpisodeProject,
     removal: RippleRemoval,
@@ -250,6 +272,7 @@ def assess_cut_speech(
     cfg = defaults if defaults is not None else load_defaults()
     min_overlap = guard_min_overlap_sec(cfg)
     scope = ripple_track_ids(project, removal.edited_track_ids)
+    guard_on = speech_energy_guard_enabled(cfg)
     words: dict[str, list[CutSpeechWord]] = {}
     sound: dict[str, list[RangeInterval]] = {}
     unlabeled: list[tuple[str, list[tuple[float, float]]]] = []
@@ -263,11 +286,13 @@ def assess_cut_speech(
             if not parts:
                 continue
             found = _words_in_parts(project, tid, parts, min_overlap)
+            if guard_on:
+                found = [w for w in found if _voiced_in_parts(project, removal, tid, w, parts, cfg)]
             if found:
                 words.setdefault(tid, []).extend(found)
             else:
                 unlabeled.append((tid, parts))
-    if unlabeled and speech_energy_guard_enabled(cfg):
+    if unlabeled and guard_on:
         sound = _own_sound(project, removal, unlabeled, scope, cfg)
     tracks = [
         CutSpeechTrack(

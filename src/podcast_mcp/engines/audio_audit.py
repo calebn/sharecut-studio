@@ -25,7 +25,7 @@ from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.engines.ungated_audio import load_mono_full, raw_samples_on_timeline
 from podcast_mcp.models import EpisodeProject, TrackRole
 from podcast_mcp.util.binaries import resolve_ffmpeg
-from podcast_mcp.util.dsp import rms_db
+from podcast_mcp.util.dsp import frame_rms_db, rms_db
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import CalledProcessError, run
 from podcast_mcp.util.progress import (
@@ -440,6 +440,39 @@ def _word_timeline_span(
     return (start, end) if start is not None and end is not None else None
 
 
+def _timeline_window_samples(
+    project: EpisodeProject,
+    track_id: str,
+    t_start: float,
+    t_end: float,
+    *,
+    caches: TrackRmsCacheSet | None = None,
+) -> tuple[np.ndarray, int] | None:
+    """One track's mono samples over timeline ``[t_start, t_end)`` and their rate."""
+    cache = caches.get(track_id) if caches else None
+    if cache is not None:
+        return cache.window(t_start, t_end), cache.sample_rate
+    proc = _processed_track_path(project, track_id)
+    try:
+        if proc is not None:
+            path, start, end = proc, t_start, t_end
+        else:
+            path, start = timeline_to_source(project, track_id, t_start)
+            _, end = timeline_to_source(project, track_id, t_end)
+        samples = load_mono_window(
+            path, start_sec=start, duration_sec=end - start, sample_rate=_RMS_SAMPLE_RATE
+        )
+    except Exception:
+        return None
+    return samples, _RMS_SAMPLE_RATE
+
+
+def _recorded_gain_db(project: EpisodeProject, track_id: str) -> float:
+    # The recording's level, not the mix: volume and mute are listening choices.
+    track = project.track_by_id(track_id)
+    return track.gain_db if track else 0.0
+
+
 def _rms_for_track_at_timeline(
     project: EpisodeProject,
     track_id: str,
@@ -448,24 +481,42 @@ def _rms_for_track_at_timeline(
     *,
     caches: TrackRmsCacheSet | None = None,
 ) -> float | None:
-    track = project.track_by_id(track_id)
     cache = caches.get(track_id) if caches else None
     if cache is not None:
         rms = cache.rms_db(t_start, t_end)
+    elif t_end - t_start <= 0.005:
+        return None
     else:
-        proc = _processed_track_path(project, track_id)
-        if proc is not None:
-            rms = measure_window_rms_db(proc, t_start, t_end)
-        else:
-            try:
-                path, src0 = timeline_to_source(project, track_id, t_start)
-                _, src1 = timeline_to_source(project, track_id, t_end)
-                rms = measure_window_rms_db(path, src0, src1)
-            except Exception:
-                return None
-    # The recording's level, not the mix: volume and mute are listening choices.
-    gain = track.gain_db if track else 0.0
-    return _effective_rms_db(rms, gain)
+        read = _timeline_window_samples(project, track_id, t_start, t_end)
+        if read is None or read[0].size == 0:
+            return None
+        rms = rms_db(read[0])
+    return _effective_rms_db(rms, _recorded_gain_db(project, track_id))
+
+
+def timeline_frame_levels_db(
+    project: EpisodeProject,
+    track_id: str,
+    t_start: float,
+    t_end: float,
+    *,
+    frame_sec: float,
+    hop_sec: float,
+    caches: TrackRmsCacheSet | None = None,
+) -> np.ndarray | None:
+    """Recorded level (dB) of each ``frame_sec`` frame every ``hop_sec`` from ``t_start``.
+
+    Only frames wholly inside timeline ``[t_start, t_end)`` count. ``None`` when the
+    track cannot be read there or no frame fits.
+    """
+    read = _timeline_window_samples(project, track_id, t_start, t_end, caches=caches)
+    if read is None:
+        return None
+    samples, rate = read
+    levels = frame_rms_db(samples, max(1, round(rate * frame_sec)), max(1, round(rate * hop_sec)))
+    if levels.size == 0:
+        return None
+    return levels + _recorded_gain_db(project, track_id)
 
 
 def measure_timeline_rms_db(

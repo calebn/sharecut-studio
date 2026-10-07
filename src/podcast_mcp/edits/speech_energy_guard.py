@@ -4,7 +4,8 @@ Transcript-guided cuts miss unlabeled words. Before session-wide ripple, check
 whether another dialogue stem is audibly speaking in the mapped window and
 either skip, force review, or convert to a track-local punch (silence hole,
 no peer ripple). :func:`measure_peer_speech` is the own-sound evidence the
-ripple speech guard (``edits/cut_speech.py``) shares.
+ripple speech guard (``edits/cut_speech.py``) shares, and
+:func:`word_voice_sounds_in` tells it whether a word's voice reaches into a cut.
 """
 
 from __future__ import annotations
@@ -14,11 +15,16 @@ from collections.abc import Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+import numpy as np
+
 from podcast_mcp.config import load_defaults
+from podcast_mcp.edits.join_speech import JoinSpeechConfig
+from podcast_mcp.edits.voiced_runs import FRAME_SEC, HOP_SEC
 from podcast_mcp.engines.audio_audit import (
     AnalysisPolicy,
     TrackRmsCacheSet,
     measure_timeline_rms_db,
+    timeline_frame_levels_db,
 )
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EpisodeProject
@@ -132,6 +138,51 @@ def measure_peer_speech(
         if speaks:
             speaking.append(tid)
     return PeerSpeechLevels(owner_rms_db=owner_rms, peer_rms_db=peer_rms, speaking=tuple(speaking))
+
+
+def word_voice_sounds_in(
+    project: EpisodeProject,
+    track_id: str,
+    word_span: tuple[float, float],
+    span: tuple[float, float],
+    *,
+    owner_track_ids: Collection[str],
+    defaults: dict[str, Any] | None = None,
+) -> bool:
+    """Whether a word's own voice on ``track_id`` sounds inside timeline ``span``.
+
+    ASR stretches a word's span over the silence beside its voice, so the span alone
+    does not show that ``span`` holds any of it. The word's loudest frame on its own
+    track is its voice level. A frame of ``span`` is that voice when it sits within
+    the speech range of that level (``JoinSpeechConfig.speech_dynamic_db``) and is not
+    owner bleed: a frame ``dominance_db`` under both the loudest owner track and the
+    word's voice is the owner's voice on this mic. A soft voice under a louder owner
+    still counts, since it is as loud as the word. Frames are the tighten grid
+    (``voiced_runs.FRAME_SEC`` every ``HOP_SEC``). Audio that cannot be read counts
+    as voice, so a missing file never hides speech.
+    """
+    dominance = float(_guard_cfg(defaults).get("dominance_db", 3.0))
+
+    def levels(tid: str, start: float, end: float) -> np.ndarray | None:
+        return timeline_frame_levels_db(
+            project, tid, start, end, frame_sec=FRAME_SEC, hop_sec=HOP_SEC
+        )
+
+    word = levels(track_id, *word_span)
+    inside = levels(track_id, *span)
+    if word is None or inside is None:
+        return True
+    voice = float(word.max())
+    owners = [
+        lv for tid in owner_track_ids if tid != track_id if (lv := levels(tid, *span)) is not None
+    ]
+    n = min([inside.size, *(lv.size for lv in owners)])
+    inside = inside[:n]
+    voiced = inside >= voice - JoinSpeechConfig().speech_dynamic_db
+    if owners:
+        loudest = np.max([lv[:n] for lv in owners], axis=0)
+        voiced &= (loudest - inside < dominance) | (voice - inside < dominance)
+    return bool(voiced.any())
 
 
 def guard_min_overlap_sec(defaults: dict[str, Any] | None = None) -> float:
