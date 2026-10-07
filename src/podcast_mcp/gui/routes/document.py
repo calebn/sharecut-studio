@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from podcast_mcp.edits.range_edits import RangeChangedError
 from podcast_mcp.edits.transcript_refine_status import TranscriptRefineRequiredError
 from podcast_mcp.gui.routes.deps import (
+    document_conflict_error,
     peer_host,
     project_busy_http_error,
     require_authz,
@@ -92,10 +93,7 @@ def post_document_command(
     try:
         return svc.submit(cmd, structural_mode=body.structural_mode, range_policy="apply")
     except DocumentConflictError as exc:
-        raise HTTPException(
-            status_code=409,
-            detail={"detail": str(exc), "conflict": True},
-        ) from exc
+        raise document_conflict_error(exc) from exc
     except TranscriptRefineRequiredError as exc:
         raise HTTPException(
             status_code=409,

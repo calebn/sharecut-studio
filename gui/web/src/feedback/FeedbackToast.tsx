@@ -2,38 +2,40 @@ import { useEffect, useState } from "react";
 import { executePointerCommand } from "../commands/pointer";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
+import type { HistoryEntryId } from "../types/project";
 import { Toast } from "../ui";
 import { errorMessage } from "../utils/apiError";
 
 /**
  * The visible twin of `announceStatus`. The shell's polite live region already
- * speaks the same string, so this toast does not announce. Undo runs
- * `history.undo` through the command bus, and only while history still sits on
- * the change the toast names; once anything else moves history, Undo goes away.
+ * speaks the same string, so this toast does not announce. Undo names the
+ * history entry the change recorded and shows only while that entry is the
+ * head this tab sees; the server refuses the undo (`history_stale`) if another
+ * edit landed first, so Undo never reverses someone else's change.
  */
 export function FeedbackToast() {
-  const { toast, cursor } = useDaw((s) => ({
+  const { toast, headId } = useDaw((s) => ({
     toast: s.feedbackToast,
-    cursor: s.project?.history?.cursor ?? null,
+    headId: s.project?.history?.head_id ?? null,
   }));
   const [undoing, setUndoing] = useState(false);
-  const undoValid = toast?.undo != null && toast.undo.cursor === cursor;
+  const undoEntry =
+    toast?.undo != null && toast.undo === headId ? toast.undo : null;
 
   useEffect(() => {
-    if (toast?.undo && !undoValid) {
+    if (toast?.undo && undoEntry == null) {
       useDawStore.getState().dropFeedbackUndo(toast.id);
     }
-  }, [toast, undoValid]);
+  }, [toast, undoEntry]);
 
-  const undo = async (message: string) => {
+  const undo = async (message: string, expectedHeadId: HistoryEntryId) => {
     setUndoing(true);
     try {
-      const result = await executePointerCommand("history.undo");
-      const s = useDawStore.getState();
+      const result = await executePointerCommand("history.undo", {
+        expectedHeadId,
+      });
       if (result.status === "ok") {
-        s.announceStatus(`Undone: ${message}`);
-      } else if (result.status === "disabled") {
-        s.announceStatus(`Undo failed: ${result.reason}`);
+        useDawStore.getState().announceStatus(`Undone: ${message}`);
       }
     } catch (e) {
       useDawStore.getState().announceStatus(`Undo failed: ${errorMessage(e)}`);
@@ -50,7 +52,11 @@ export function FeedbackToast() {
       onDismiss={() => {
         if (toast) useDawStore.getState().dismissFeedbackToast(toast.id);
       }}
-      onUndo={toast && undoValid ? () => void undo(toast.message) : undefined}
+      onUndo={
+        toast && undoEntry
+          ? () => void undo(toast.message, undoEntry)
+          : undefined
+      }
       undoDisabled={undoing}
     />
   );

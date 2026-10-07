@@ -37,5 +37,6 @@ podcast pipeline run --project episode.project.json --from assemble_timeline
 ## MCP
 
 - `history_list`, `history_record`, `history_goto_tool`, `history_undo`, `history_redo` (`rerender=true` optional; stales only the stems the move changed)
+- To undo only the change you inspected, pass `expected_head_id` (the `head_id` from `history_status_tool`) to `history_undo` / `history_redo`, or `--expected-head` to `podcast undo` / `redo`. If someone else's edit landed since, the call refuses with `error_code` `history_stale` and nothing moves; re-check `history_status_tool` before retrying.
 
 See [docs/history.md](../../docs/history.md).

@@ -57,7 +57,7 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `low_audibility_words_tool` / `apply_low_audibility_suppression_tool` | Legacy single-track suppression (explicit apply) |
 | `gate_overreach_tool` | Noise gate clipping detection |
 | `render_preview` | Premix after edits |
-| `history_undo` | Optional `rerender=true` |
+| `history_undo` | Optional `rerender=true`; optional `expected_head_id` (from `history_status_tool`) refuses with `history_stale` if another edit landed since |
 | `play_transcript_query_tool` | Search transcript + play match (topic audition) |
 | `play_audio_tool` | Play by time range, `query`, or `processed:<id>` / `premix` |
 | `play_compose_tool` | Mix a subset of tracks (`track_ids` + `processed`/`raw`) for a timeline window into `play_cache` (no mute/FX mutation) |

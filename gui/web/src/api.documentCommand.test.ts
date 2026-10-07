@@ -694,20 +694,28 @@ describe("host document command queue", () => {
     const { approveEdits } = await import("./api");
     await expect(
       approveEdits("/tmp/episode.project.json", ["a"]),
-    ).resolves.toEqual({ queued: true, asked: false });
+    ).resolves.toEqual({ queued: true, asked: false, historyHead: null });
   });
 
-  it("reports a sent approval as not queued", async () => {
+  it("reports a sent approval as not queued, with the history entry it recorded", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(
-        async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+        async () =>
+          new Response(
+            JSON.stringify({ ok: true, history_head_id: "a1b2c3d4e5f6" }),
+            { status: 200 },
+          ),
       ),
     );
     const { approveEdits } = await import("./api");
     await expect(
       approveEdits("/tmp/episode.project.json", ["a"]),
-    ).resolves.toEqual({ queued: false, asked: false });
+    ).resolves.toEqual({
+      queued: false,
+      asked: false,
+      historyHead: "a1b2c3d4e5f6",
+    });
   });
 
   it("keeps a guest command queued when its POST times out", async () => {

@@ -124,10 +124,22 @@ class AddActionPayload(BaseModel):
 
 class UndoHistoryPayload(BaseModel):
     rerender: bool = False
+    expected_head_id: str | None = Field(
+        default=None,
+        max_length=64,
+        description="History entry id the caller saw as the latest (history.head_id). "
+        "When set, the server refuses with 409 history_stale unless it is still the latest.",
+    )
 
 
 class RedoHistoryPayload(BaseModel):
     rerender: bool = False
+    expected_head_id: str | None = Field(
+        default=None,
+        max_length=64,
+        description="History entry id the caller saw as the latest (history.head_id). "
+        "When set, the server refuses with 409 history_stale unless it is still the latest.",
+    )
 
 
 class ApproveEditsPayload(BaseModel):

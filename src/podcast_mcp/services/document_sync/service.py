@@ -18,6 +18,7 @@ from podcast_mcp.edits.decisions import PendingEditChangedError
 from podcast_mcp.edits.range_edits import RangeChangedError
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError
+from podcast_mcp.history import StaleHistoryError
 from podcast_mcp.models import EpisodeProject, SavedDocumentCommand
 from podcast_mcp.project_store import commit_landed
 from podcast_mcp.services.app import ProjectWorkspace
@@ -47,6 +48,7 @@ from podcast_mcp.services.session_sync import (
     resolve_meta_path,
     session_dir_for_workspace,
 )
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.project_state import FileRevision, project_file_revision, project_state_lock
 
 log = logging.getLogger(__name__)
@@ -61,6 +63,7 @@ EXTERNAL_MUTATE_CLIENT_ID = "server:external"
 # raised before mutation, history, or the command log (#650). They subclass ValueError, so
 # ``_apply`` must catch them before its generic ValueError branch.
 STALE_TARGET_ERRORS: tuple[type[ValueError], ...] = (
+    StaleHistoryError,
     RangeChangedError,
     PendingEditChangedError,
     TranscriptTextChangedError,
@@ -137,6 +140,7 @@ def _history_wire(hist: dict[str, Any]) -> dict[str, Any]:
     """History tab payload: undo flags + groups only (no flat entries/params)."""
     return {
         "cursor": hist["cursor"],
+        "head_id": hist["head_id"],
         "can_undo": hist["can_undo"],
         "can_redo": hist["can_redo"],
         "groups": hist["groups"],
@@ -560,6 +564,7 @@ class DocumentSyncService:
                         "Document predecessor projection failed; falling back to shell",
                         exc_info=True,
                     )
+            head_before = self.ws.project.history.head_id()
             result_payload = self._apply_saving_command(
                 command,
                 store,
@@ -568,6 +573,7 @@ class DocumentSyncService:
                 structural_mode=structural_mode,
                 author=author,
             )
+            head_after = self.ws.project.history.head_id()
             row, _snap, claimed = store.append_and_apply(
                 command_id=command.command_id,
                 client_id=command.client_id,
@@ -629,7 +635,14 @@ class DocumentSyncService:
                 ),
                 **asks,
             }
-        return {"ok": True, **event, **asks}
+        # The entry this command left at the head, read under the same lock as the apply, so
+        # a toast can offer Undo for exactly this change (null when history did not move).
+        return {
+            "ok": True,
+            **event,
+            **asks,
+            "history_head_id": head_after if head_after != head_before else None,
+        }
 
     def publish_document_changed(
         self,
@@ -760,7 +773,8 @@ class DocumentSyncService:
         except STALE_TARGET_ERRORS as exc:
             from podcast_mcp.services.document_sync.errors import DocumentConflictError
 
-            raise DocumentConflictError(str(exc)) from exc
+            code = exc.code if isinstance(exc, CodedError) else None
+            raise DocumentConflictError(str(exc), code=code) from exc
         except KeyError as exc:
             from podcast_mcp.services.document_sync.errors import DocumentConflictError
 

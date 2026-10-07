@@ -49,7 +49,13 @@ export function minimalProject(
       total_removed_sec: 0,
       by_track_sec: {},
     },
-    history: { cursor: 0, can_undo: false, can_redo: false, groups: [] },
+    history: {
+      cursor: 0,
+      head_id: null,
+      can_undo: false,
+      can_redo: false,
+      groups: [],
+    },
     transcript: null,
     ...overrides,
   };

@@ -16,8 +16,10 @@ import {
   registerDawCommands,
 } from "./register";
 
-vi.mock("../api", () => ({
-  reorderTrackCommand: vi.fn(async () => undefined),
+vi.mock("../api", async (importOriginal) => ({
+  replyHistoryHead: (await importOriginal<typeof import("../api")>())
+    .replyHistoryHead,
+  reorderTrackCommand: vi.fn(async () => ({})),
   removeTrackCommand: vi.fn(),
   deleteClips: vi.fn(),
   rippleDeleteClips: vi.fn(),

@@ -5,13 +5,13 @@ import {
   pickEpisodeProject,
   removeTrackCommand,
   reorderTrackCommand,
+  replyHistoryHead,
 } from "../api";
 import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
 import { patchTracksOrder } from "../document/projectPatch";
 import { askConfirm, askText } from "../feedback/ask";
-import { historyCursor, historyUndoSince } from "../feedback/historyUndo";
 import { canIngestMedia, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { withAbortTimeout } from "../utils/abortTimeout";
@@ -88,14 +88,13 @@ async function applyTrackReorder(
     return { status: "disabled", reason: "Unknown track" };
   }
   const previous = s.project;
-  const before = historyCursor();
   const seqAtStart = currentDocumentSeq();
   const optimistic = patchTracksOrder(previous, trackId, index);
   s.setProject(optimistic);
   try {
-    await reorderTrackCommand(s.projectPath, trackId, index);
+    const reply = await reorderTrackCommand(s.projectPath, trackId, index);
     useDawStore.getState().announceStatus("Reordered track", {
-      undo: historyUndoSince(before),
+      undo: replyHistoryHead(reply),
     });
     return { status: "ok" };
   } catch (e) {
@@ -262,11 +261,10 @@ export function registerProjectMediaCommands(): void {
       ) {
         return { status: "disabled", reason: "Unknown track" };
       }
-      const before = historyCursor();
       try {
-        await removeTrackCommand(s.projectPath, trackId);
+        const reply = await removeTrackCommand(s.projectPath, trackId);
         useDawStore.getState().announceStatus(`Removed ${label}`, {
-          undo: historyUndoSince(before),
+          undo: replyHistoryHead(reply),
         });
         const next = useDawStore.getState();
         next.setSelectedTrackIds(

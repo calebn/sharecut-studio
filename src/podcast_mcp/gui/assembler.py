@@ -188,6 +188,7 @@ def build_project_view(
         hist_status = history_svc.status()
         history_payload = {
             "cursor": hist_status["cursor"],
+            "head_id": hist_status["head_id"],
             "can_undo": hist_status["can_undo"],
             "can_redo": hist_status["can_redo"],
             "entries": [],
