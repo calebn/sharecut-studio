@@ -496,4 +496,4 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   holds every app shortcut as the native `confirm()` did (Mod+Z no
   longer undoes behind it), names its consequence as the dialog's
   description, and returns focus to the control that opened it in
-  Safari too.
+  Safari too; the toast steps off the control just pressed.

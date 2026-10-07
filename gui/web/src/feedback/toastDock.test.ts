@@ -44,4 +44,46 @@ describe("toastDockBottomPx (phone)", () => {
       844 - 792 + 12,
     );
   });
+
+  it("moves above the control just pressed when the full-sheet spot covers it", () => {
+    // Full sheet: the fallback spot is 718–780; "Move track down" is 730–774.
+    const bottom = toastDockBottomPx({
+      ...phone,
+      floorTopsPx: [792, 0],
+      pressedPx: { top: 730, bottom: 774 },
+    });
+    expect(bottom).toBe(844 - 730 + 12);
+    expect(844 - bottom).toBeLessThanOrEqual(730);
+  });
+
+  it("moves below the control just pressed when there is no room above it", () => {
+    // A tall status area (ceiling 280) over a sheet at 500: the spot is 426–488.
+    const bottom = toastDockBottomPx({
+      ...phone,
+      ceilingPx: 280,
+      floorTopsPx: [792, 500],
+      pressedPx: { top: 290, bottom: 440 },
+    });
+    expect(bottom).toBe(844 - (440 + 12 + 62));
+  });
+
+  it("keeps its spot when the control just pressed is clear of it", () => {
+    expect(
+      toastDockBottomPx({
+        ...phone,
+        floorTopsPx: [792, 0],
+        pressedPx: { top: 300, bottom: 344 },
+      }),
+    ).toBe(844 - 792 + 12);
+  });
+
+  it("keeps its spot when a pressed control fills the whole band", () => {
+    expect(
+      toastDockBottomPx({
+        ...phone,
+        floorTopsPx: [792, 0],
+        pressedPx: { top: 60, bottom: 780 },
+      }),
+    ).toBe(844 - 792 + 12);
+  });
 });
