@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from bisect import bisect_right
+from collections.abc import Callable
+
 import numpy as np
 import pytest
 
 import bleed_helpers as bh
-from podcast_mcp.edits.bleed_lag_segments import lag_segments
+from podcast_mcp.edits.bleed_lag_segments import LagSegment, lag_segments
 from podcast_mcp.edits.conversation_align import plan_conversation_alignment
 from podcast_mcp.models import SpeakerIngestAlignment
 from podcast_mcp.services.app import ProjectWorkspace
@@ -44,6 +47,51 @@ def test_latency_step_at_a_silence_is_two_segments() -> None:
         (0.0, -0.12, None),
         (182.81, -0.2, (152.535, 213.09)),
     ]
+
+
+def _worst_error_ms(
+    segments: tuple[LagSegment, ...] | None, direct: np.ndarray, latency: Callable[[float], float]
+) -> float:
+    """Largest gap between a talk spurt's true latency and the latency its segment plays at."""
+    assert segments is not None
+    starts = [segment.start_sec for segment in segments]
+    errors = []
+    for first, _last in bh.spurts(direct):
+        at = first / bh.RATE
+        segment = segments[bisect_right(starts, at) - 1]
+        errors.append(abs(-segment.shift_sec - latency(at)))
+    return round(max(errors) * 1000, 1)
+
+
+def test_a_step_is_judged_against_its_merged_neighbours() -> None:
+    # After a 21 s pause Audra's latency jumps from 140 to 185 ms on a noisy stretch, then
+    # eases to 200 ms after a 7 s pause. 185 and 200 sit inside the 20 ms deadband of each
+    # other, so they are one piece, and the step into it belongs in the 21 s pause. Judged
+    # against the 185 ms piece alone, a 200 ms piece next to it was forbidden, so the solver
+    # moved the step into an earlier silence and played the speech before the pause 30 ms
+    # late to make the pieces differ.
+    audio = bh.tracks(bleed={"caleb": {"audra": 0.0}}, gated=("audra",))
+    direct = audio["audra"]
+
+    def latency(t: float) -> float:
+        return 0.14 if t < 120.0 else (0.185 if t < 140.0 else 0.2)
+
+    audio["audra"] = bh.relatency(direct, latency)
+    t = np.arange(audio["caleb"].size) / bh.RATE
+    noisy = (t >= 132.0) & (t < 142.3)
+    audio["caleb"] += np.where(noisy, 0.003, 0.0) * np.random.default_rng(1).standard_normal(t.size)
+    levels = bh.levels(audio)
+
+    segments = lag_segments(
+        levels["audra"], levels["caleb"], heard=levels["audra"], around_sec=0.15, deadband_sec=0.02
+    )
+
+    assert segments is not None
+    assert [(round(s.start_sec, 1), round(-s.shift_sec * 1000)) for s in segments] == [
+        (0.0, 140),
+        (121.6, 200),
+    ]
+    assert _worst_error_ms(segments, direct, latency) <= 20.0
 
 
 def test_jitter_inside_the_deadband_is_one_segment() -> None:
