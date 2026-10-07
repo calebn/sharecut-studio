@@ -121,6 +121,30 @@ describe("MobileShell", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("offers the app Menu in the Listen hero, export pair included", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={minimalProject()}>
+        <MobileShell />
+      </DawProvider>,
+    );
+    const hero = screen.getByRole("region", {
+      name: minimalProject().meta.name,
+    });
+    await user.click(within(hero).getByRole("button", { name: "Menu" }));
+    const menu = within(screen.getByRole("menu"));
+    expect(menu.getByRole("menuitem", { name: /^Bounce…/ })).toBeEnabled();
+    expect(
+      menu.getByRole("menuitem", { name: /^Export deliverables…/ }),
+    ).toBeEnabled();
+    expect(menu.getByRole("group", { name: "Audition" })).toBeTruthy();
+    await user.click(
+      menu.getByRole("menuitem", { name: /^Export deliverables…/ }),
+    );
+    expect(useDawStore.getState().exportDialogOpen).toBe(true);
+    await expectNoA11yViolations(container);
+  });
+
   it("shows the lit clip LED in the mobile record status", () => {
     useRecordHostStore
       .getState()

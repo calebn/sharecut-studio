@@ -219,6 +219,7 @@ function ListenMode({ guestShare }: { guestShare: boolean }) {
     <div className="mobile-listen">
       <ListenHero
         title={project.meta.name}
+        menu={<TransportBar compact menuOnly />}
         playing={isPlaying}
         controls={
           <TransportPlayControls

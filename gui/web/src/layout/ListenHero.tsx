@@ -14,12 +14,14 @@ type Props = {
   skipBack?: ReactNode;
   /** Skip-forward button, right of Play. */
   skipForward?: ReactNode;
+  /** The app Menu trigger, beside the title (Listen has no transport bar). */
+  menu?: ReactNode;
 };
 
 /**
- * Phone Listen hero: the transport's dark strip as a card. Title and timecode,
- * a full-width scrubber, then one centered controls row: skip back, Play and
- * Stop, skip forward.
+ * Phone Listen hero: the transport's dark strip as a card. Title and Menu,
+ * timecode, a full-width scrubber, then one centered controls row: skip back,
+ * Play and Stop, skip forward.
  */
 export function ListenHero({
   title,
@@ -29,6 +31,7 @@ export function ListenHero({
   scrubber,
   skipBack,
   skipForward,
+  menu,
 }: Props) {
   const titleId = useId();
   return (
@@ -37,9 +40,12 @@ export function ListenHero({
       data-playing={playing}
       aria-labelledby={titleId}
     >
-      <h1 id={titleId} className="listen-hero-title">
-        {title}
-      </h1>
+      <div className="listen-hero-head">
+        <h1 id={titleId} className="listen-hero-title">
+          {title}
+        </h1>
+        {menu}
+      </div>
       <div className="listen-hero-time">{timecode}</div>
       {scrubber}
       <div className="listen-hero-controls">
