@@ -4,8 +4,9 @@ Written for #1066, whose per-frame pitch and voice gate was rejected; these pin 
 and timbre gate as protections any later rule must keep. The peer speaks with a falling
 400 -> 250 Hz contour; the lane's speaker talks at 100-140 Hz. The lane carries the peer's
 coloured copy 16 dB down, and the peer's own track runs 140 ms late. #1131 adds a peer
-whose track opens late on each word, breaths the peer's call app gates out, a mic noise
-floor, and a host who laughs again and again.
+whose track opens late on each word or on a few, breaths the peer's call app gates out,
+own breaths running into the peer's openings, a mic noise floor, and a host who laughs
+again and again.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.engines.bleed_gate import build_bleed_gate_plan
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -375,10 +377,10 @@ def test_a_host_who_laughs_again_and_again_keeps_each_laugh(
     tmp_path: Path, laughs: int, over_db: float
 ) -> None:
     """#1130's counterexample: untranscribed 800 ms laughs beside the copy, several in the
-    peer's gaps. Own sound louder than the copy cannot lengthen how far ahead of the
-    peer's track the gate expects the copy, so laughing more does not switch the
-    protection off. ``LAUGHS_AT``: the most each laugh may lose; those over 0 have a
-    burst on a loud word of the peer's."""
+    peer's gaps. A laugh lengthens how far ahead the gate expects the copy only at an
+    opening it runs into, so laughing more does not switch the protection off for the
+    others. ``LAUGHS_AT``: the most each laugh may lose; those over 0 have a burst on a
+    loud word of the peer's."""
     starts = LAUGH_STARTS[:laughs]
     project = _episode(
         tmp_path,
@@ -408,9 +410,9 @@ def _copy_at_full_level(
     after: np.ndarray,
     words: list[tuple[float, float]],
     own: tuple[tuple[float, float], ...] = (),
-) -> float:
+) -> tuple[float, int]:
     """Seconds of the peer's words on the host's lane the gate left untouched, away from
-    the host's own words and sounds, in 10 ms blocks."""
+    the host's own words and sounds, in 10 ms blocks, and how many pieces they make."""
     block = RATE // 100
     blocks = before.size // block
     whole = slice(0, blocks * block)
@@ -421,18 +423,79 @@ def _copy_at_full_level(
     inside = np.any([(clock >= start) & (clock < end) for start, end in words], axis=0)
     for start, end in [*((s - 0.3, e + 0.3) for s, e in OWN_WORDS), *own]:
         inside &= (clock < start - 0.1) | (clock >= end + 0.1)
-    return round(float(np.count_nonzero(kept & inside)) / 100, 2)
+    left = kept & inside
+    pieces = np.count_nonzero(left[1:] & ~left[:-1]) + int(left[0])
+    return round(float(np.count_nonzero(left)) / 100, 2), pieces
 
 
 LATE_WORDS = _talk_words(TALK_END)
 LATE_OPENINGS = tuple(np.random.default_rng(31).uniform(0.03, 0.12, len(LATE_WORDS)).round(3))
 
 
+def _late_on(count: int, seed: int) -> tuple[float, ...]:
+    """The peer's track opens 180 ms late on ``count`` words picked at random, on time on
+    the rest, as a call app's gate sometimes reopens late."""
+    late = np.zeros(len(LATE_WORDS))
+    late[np.random.default_rng(seed).choice(len(LATE_WORDS), count, replace=False)] = 0.18
+    return tuple(late)
+
+
+@pytest.mark.parametrize(
+    ("count", "seed", "left"),
+    [
+        pytest.param(2, 1, (0.21, 1), id="2-of-74-late"),
+        pytest.param(3, 1, (0.21, 1), id="3-of-74-late"),
+        pytest.param(7, 0, (1.6, 6), id="7-of-74-late"),
+    ],
+)
+def test_copy_of_a_few_words_whose_track_opens_late_is_reduced_as_much_as_before(
+    tmp_path: Path, count: int, seed: int, left: tuple[float, int]
+) -> None:
+    """Too few late openings for any share of an episode's openings to show them. Each
+    opening reads ahead as far as the lane sounds up to it, so each late word's copy
+    is reduced on its own evidence, and ``left`` is the copy the 200 ms read-ahead
+    everywhere left at full level, in seconds and pieces. An episode-wide 95th
+    percentile read 0 ms here and left up to twice as much in twice as many pieces."""
+    project = _episode(tmp_path, peer_gate_late=_late_on(count, seed))
+    before, after = _gated_over(project, tmp_path)
+    assert _copy_at_full_level(before, after, LATE_WORDS) == left
+
+
+def test_the_lane_is_turned_down_from_200_ms_before_the_peers_track_opens(
+    tmp_path: Path,
+) -> None:
+    """The host's word ends 300 ms before the peer's first one, whose copy here arrives
+    with the peer's track. The measured lead only sets how loud the copy is expected:
+    where the peer can be talking still starts 200 ms before the opening, so the lane
+    is turned down from the end of the host's hold, not 40 ms later. On the lab tape
+    that later start left level frames that hear the copy's onset at full level."""
+    project = _episode(tmp_path, own_words=((0.2, 0.7), (31.5, 32.7)))
+    plan = build_bleed_gate_plan(project, "host")
+    assert plan.protected_spans[0] == pytest.approx((0.16, 0.74))
+    assert plan.attenuation_spans[0] == pytest.approx((0.82, 30.8))
+
+
+def test_own_breaths_running_into_the_peers_openings_leave_no_more_copy(tmp_path: Path) -> None:
+    """150 ms breaths 4 dB over the copy, each ending 20 ms before one of ten openings of
+    the peer's track. The lane sounds through the 20 ms gap into the copy, so those
+    openings read ahead from the breath, as before: the breaths stay whole, and the
+    copy is left at full level no more than with the 200 ms read-ahead everywhere."""
+    starts = [start for start, _ in LATE_WORDS[2::7]][:10]
+    breaths = tuple((s - 0.17, s - 0.02) for s in starts)
+    project = _episode(
+        tmp_path, own=tuple(("breath", a, b, LAB_COUPLING_DB + 4.0, 0.0) for a, b in breaths)
+    )
+    before, after = _gated_over(project, tmp_path)
+    for start, end in breaths:
+        _unchanged(before, after, start, end)
+    assert _copy_at_full_level(before, after, LATE_WORDS, breaths) == (0.84, 12)
+
+
 def test_laughs_beside_a_peer_whose_track_opens_late_are_kept(tmp_path: Path) -> None:
     """The peer's own track opens 30-120 ms late on every word, as a call app's gate does,
-    so its copy here starts first. The gate measures that lead and reads ahead as far,
-    so the copy stays reduced as much as before, and the laughs are kept: main cut a
-    third of the 500 ms one."""
+    so its copy here starts first. Each opening reads ahead as far as the lane sounds up
+    to it, so the copy is reduced as much as with the 200 ms read-ahead everywhere, and
+    the laughs are kept, where that read-ahead cut a third of the 500 ms one."""
     laughs = (("laugh", 5.0, 5.8, 6.0), ("laugh", 20.0, 20.5, 8.0))
     project = _episode(
         tmp_path,
@@ -443,7 +506,7 @@ def test_laughs_beside_a_peer_whose_track_opens_late_are_kept(tmp_path: Path) ->
     for _, start, end, _ in laughs:
         _unchanged(before, after, start, end)
     spans = tuple((a, b) for _, a, b, _ in laughs)
-    assert _copy_at_full_level(before, after, LATE_WORDS, spans) <= 4.07
+    assert _copy_at_full_level(before, after, LATE_WORDS, spans) == (4.07, 19)
 
 
 def _phrases(count: int, words: tuple[int, int]) -> list[tuple[float, float]]:
@@ -466,24 +529,11 @@ def test_copy_that_leads_the_peers_track_past_the_read_ahead_is_reduced_as_befor
 ) -> None:
     """Before every fourth phrase the peer breathes for 300 ms, which the copy here
     carries and the peer's call app gates out of their own track. The lane is already
-    sounding when the gate's 200 ms read-ahead starts, so those openings count as
-    leading by all of it, and the gate keeps reading the full 200 ms rather than the
-    lead of the phrases without a breath."""
+    sounding when the gate's 200 ms read-ahead starts, so those openings read all of it
+    ahead, while the phrases without a breath read nothing ahead."""
     words = _phrases(34, (1, 2))
     starts = [b for (_, a), (b, _) in itertools.pairwise(words) if b - a > 0.1]
     breaths = tuple((start - 0.3, start) for start in starts[1::4])
     project = _episode(tmp_path, peer_words=words, peer_breaths=breaths)
     before, after = _gated_over(project, tmp_path)
-    assert _copy_at_full_level(before, after, [*words, *breaths]) == 0.0
-
-
-def test_a_peer_with_too_few_openings_to_measure_keeps_the_full_read_ahead(
-    tmp_path: Path,
-) -> None:
-    """The peer talks without a pause the gate can time: there is no opening to measure
-    the copy's lead from, so the gate reads the full 200 ms ahead."""
-    words = _phrases(1, (88, 88))
-    project = _episode(tmp_path, peer_words=words)
-    before, after = _gated_over(project, tmp_path)
-    _unchanged(before, after, *OWN_WORDS[0])
-    assert _copy_at_full_level(before, after, words) == 0.0
+    assert _copy_at_full_level(before, after, [*words, *breaths]) == (0.0, 0)
