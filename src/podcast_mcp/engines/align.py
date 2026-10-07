@@ -11,6 +11,7 @@ from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.pcm_stream import no_audio_decoded_message
 from podcast_mcp.util.process import run
+from podcast_mcp.util.wav import open_wav
 
 log = logging.getLogger(__name__)
 
@@ -152,7 +153,7 @@ def read_wav_mono_window(
     accepts 8-, 16-, 24-, and 32-bit integer PCM. Keepers remain 16-bit PCM.
     """
     try:
-        with path.open("rb") as fh, wave.open(fh, "rb") as wf:
+        with open_wav(path) as wf:
             return read_open_wav_mono_window(
                 wf, start_sec=start_sec, duration_sec=duration_sec, out_rate=out_rate
             )

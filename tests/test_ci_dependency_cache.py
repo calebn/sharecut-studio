@@ -253,9 +253,15 @@ def test_install_shell_runs_on_every_hit_and_propagates_tool_failures(
 
 def test_workflow_keeps_installs_checks_and_only_one_ffmpeg_cache_writer() -> None:
     jobs = load_github_yaml(WORKFLOW)["jobs"]
-    assert set(jobs) == {"pytest", "frontend", "frontend-e2e-suites", "frontend-e2e"}
+    assert set(jobs) == {
+        "pytest",
+        "pytest-python-floor",
+        "frontend",
+        "frontend-e2e-suites",
+        "frontend-e2e",
+    }
     writers = []
-    for name in ("pytest", "frontend-e2e-suites"):
+    for name in ("pytest", "pytest-python-floor", "frontend-e2e-suites"):
         steps = jobs[name]["steps"]
         ffmpeg = next(
             step for step in steps if step.get("uses") == "./.github/actions/setup-ffmpeg"
@@ -270,7 +276,9 @@ def test_workflow_keeps_installs_checks_and_only_one_ffmpeg_cache_writer() -> No
         assert python["with"]["cache-dependency-path"].splitlines() == ["pyproject.toml", "uv.lock"]
         install = next(step for step in steps if "pip install -e" in step.get("run", ""))
         assert "if" not in install and not install.get("continue-on-error")
-        extras = "dev,gui,relay,prosody" if name == "pytest" else "gui"
+        extras = {"pytest": "dev,gui,relay,prosody", "pytest-python-floor": "dev,gui"}.get(
+            name, "gui"
+        )
         assert (
             install["run"] == f'python -m pip install --upgrade pip\npip install -e ".[{extras}]"\n'
         )

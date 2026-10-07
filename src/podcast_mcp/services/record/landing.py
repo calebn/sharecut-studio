@@ -84,6 +84,7 @@ from podcast_mcp.util.hashing import sha256_file
 from podcast_mcp.util.keyed_lock import KeyedLocks
 from podcast_mcp.util.progress import resolve_progress_task
 from podcast_mcp.util.project_state import FileRevision, file_revision, project_state_lock
+from podcast_mcp.util.wav import open_wav
 
 log = logging.getLogger(__name__)
 
@@ -218,7 +219,7 @@ def record_source_id(
 def wav_pcm_info(path: Path) -> tuple[int, int, int]:
     """Return (sample_rate, channels, nframes) from a PCM WAV we assembled."""
     try:
-        with path.open("rb") as fh, wave.open(fh, "rb") as wf:
+        with open_wav(path) as wf:
             sample_rate = int(wf.getframerate() or 0)
             channels = int(wf.getnchannels() or 0)
             nframes = int(wf.getnframes() or 0)

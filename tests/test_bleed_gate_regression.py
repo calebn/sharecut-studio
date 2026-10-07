@@ -22,6 +22,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.util.project_state import render_lock
+from podcast_mcp.util.wav import open_wav
 
 pytestmark = pytest.mark.usefixtures("one_phrase_copy_evidence")
 
@@ -39,7 +40,7 @@ def _write_pcm(path: Path, samples: np.ndarray) -> None:
 
 def _read_pcm(path: Path) -> np.ndarray:
     """Samples per frame: 1-D for mono, (frames, channels) otherwise."""
-    with wave.open(str(path), "rb") as source:
+    with open_wav(path) as source:
         assert source.getframerate() == RATE
         data = np.frombuffer(source.readframes(source.getnframes()), dtype="<i2")
         channels = source.getnchannels()

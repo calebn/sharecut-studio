@@ -819,7 +819,7 @@ def test_pad_and_workspace_helpers(tmp_path, sample_wav, monkeypatch):
             return 10
 
     monkeypatch.setattr(
-        "podcast_mcp.services.document.golden_ear.wave.open", lambda *a, **k: _ZeroRate()
+        "podcast_mcp.services.document.golden_ear.open_wav", lambda *a, **k: _ZeroRate()
     )
     assert _wav_frames_and_rate(sample_wav) is None
     monkeypatch.undo()

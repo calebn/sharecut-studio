@@ -53,6 +53,7 @@ from podcast_mcp.util.timeline_zoom import (
     pcm_block_frames,
     waveform_format_version,
 )
+from podcast_mcp.util.wav import open_wav
 from podcast_mcp.util.wav_pcm import decode_integer_pcm
 from podcast_mcp.util.workspace_paths import resolve_within
 
@@ -444,7 +445,7 @@ def _wav_info(path: Path) -> _WavInfo | None:
     whole RIFF chunks (``LIST``, ``id3 ``) stays on the fast path.
     """
     try:
-        with path.open("rb") as fh, wave.open(fh, "rb") as wf:
+        with path.open("rb") as fh, open_wav(fh) as wf:
             data_offset = fh.tell()  # ``wave`` stops right after the data chunk header
             info = _WavInfo(
                 wf.getframerate(), wf.getnchannels(), wf.getsampwidth(), wf.getnframes()
@@ -470,7 +471,7 @@ def _wav_info(path: Path) -> _WavInfo | None:
 
 def _iter_wav(path: Path, info: _WavInfo, chunk_frames: int) -> Generator[np.ndarray, None, None]:
     frame_bytes = info.width * info.channels
-    with wave.open(str(path), "rb") as wf:
+    with open_wav(path) as wf:
         while True:
             want = chunk_frames * frame_bytes
             buf = bytearray()
@@ -492,9 +493,10 @@ def decode_media(
 ) -> tuple[int, int, Generator[np.ndarray, None, None]]:
     """``(sample_rate, channels, chunks)`` of float32 ``(frames, channels)`` arrays.
 
-    Integer-PCM WAVs (widths 1-4, uncompressed) decode with the stdlib; anything
-    ``wave`` rejects (extensible/float WAVs on 3.11, compressed media) streams
-    through ``FFmpegEngine.stream_pcm_f32``.
+    Integer-PCM WAVs (widths 1-4, uncompressed, including integer-PCM
+    WAVE_FORMAT_EXTENSIBLE on every supported Python via ``open_wav``) decode with the
+    stdlib; anything ``wave`` rejects (float WAVs, other EXTENSIBLE sub-formats,
+    compressed media) streams through ``FFmpegEngine.stream_pcm_f32``.
     """
     info = _wav_info(path)
     if info is not None:
@@ -576,7 +578,7 @@ def read_pcm_minmax(
     if info is not None:
         start = min(start_frame, info.frames)
         count = min(frames, info.frames - start)
-        with wave.open(str(path), "rb") as wf:
+        with open_wav(path) as wf:
             wf.setpos(start)
             raw = wf.readframes(count)
         return _minmax_int16(

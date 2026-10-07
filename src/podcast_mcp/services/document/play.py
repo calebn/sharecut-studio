@@ -13,7 +13,6 @@ import shutil
 import tempfile
 import threading
 import time
-import wave
 from collections import OrderedDict
 from contextlib import suppress
 from dataclasses import dataclass
@@ -75,6 +74,7 @@ from podcast_mcp.util.project_state import (
     snapshot_project,
 )
 from podcast_mcp.util.tracks import recording_audio_path, unknown_track
+from podcast_mcp.util.wav import open_wav
 
 from .boundary import (
     BoundaryAudioWindow,
@@ -128,9 +128,7 @@ _boundary_catalog: OrderedDict[str, _BoundaryAudioEntry] = OrderedDict()
 def _wav_peak_abs(path: Path) -> float | None:
     """Peak absolute sample in [0, 1], or None if unreadable."""
     try:
-        import wave
-
-        with wave.open(str(path), "rb") as w:
+        with open_wav(path) as w:
             n = w.getnframes()
             if n <= 0 or w.getsampwidth() != 2:
                 return None
@@ -461,7 +459,7 @@ class PlayService:
         def window(
             path: Path, start: float, end: float, seam: float, side: str
         ) -> BoundaryAudioWindow:
-            with wave.open(str(path), "rb") as wav:
+            with open_wav(path) as wav:
                 duration = wav.getnframes() / wav.getframerate()
             return BoundaryAudioWindow(
                 url=f"/api/boundary/audition/{opaque_id}/{side}?expected_token={expected_token}",
@@ -1702,7 +1700,7 @@ class PlayService:
         if gap_sec <= 1e-9:
             return eng.join_audio_parts([wav_a, wav_b], out)
 
-        with wave.open(str(wav_a), "rb") as w:
+        with open_wav(wav_a) as w:
             rate = w.getframerate() or 48000
             channels = w.getnchannels() or 1
 

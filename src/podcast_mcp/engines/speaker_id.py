@@ -27,6 +27,7 @@ from podcast_mcp.util.progress import (
 )
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, existing_stem_path
+from podcast_mcp.util.wav import open_wav
 
 
 @dataclass
@@ -529,7 +530,7 @@ class _WavWindowReader:
         stack = ExitStack()
         try:
             fh = stack.enter_context(path.open("rb"))
-            wf = stack.enter_context(wave.Wave_read(fh))
+            wf = stack.enter_context(open_wav(fh))
             if (
                 wf.getframerate() <= 0
                 or wf.getnframes() <= 0

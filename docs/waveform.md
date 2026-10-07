@@ -142,8 +142,8 @@ hits EOF.
   instead. An empty `data` chunk followed only by known RIFF metadata chunks
   (`LIST`, `id3 `, `ID3 `, `JUNK`, `bext`, `iXML`, `cue `, `smpl`, `PAD `) is still
   read on the fast path. Unknown printable chunk IDs take the ffmpeg path.
-- **ffmpeg fallback:** anything `wave` rejects (float or `WAVE_FORMAT_EXTENSIBLE`
-  WAVs on Python 3.11, compressed media) streams through
+- **ffmpeg fallback:** anything `wave` rejects (float WAVs, an
+  EXTENSIBLE WAV whose sub-format is not integer PCM, compressed media) streams through
   `FFmpegEngine.stream_pcm_f32`. That method probes with
   `probe(path, untrusted=True)`, then runs ffmpeg with the same
   `-protocol_whitelist file,crypto,data`, `-threads 1`, `-f f32le -ac <ch>

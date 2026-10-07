@@ -15,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
+from podcast_mcp.util.wav import open_wav
 from podcast_mcp.util.wav_pcm import decode_integer_pcm
 
 MIN_SPAN_SEC = 60.0
@@ -29,7 +30,7 @@ _QUIET_MARGIN_DB = 24.0
 def _wav_layout(path: Path) -> tuple[int, int] | None:
     """``(sample rate, frame count)`` of an integer PCM WAV, or None when unreadable."""
     try:
-        with wave.open(str(path), "rb") as audio:
+        with open_wav(path) as audio:
             return audio.getframerate(), audio.getnframes()
     except (wave.Error, OSError, EOFError):
         return None
@@ -39,7 +40,7 @@ def _envelope(track_wavs: list[tuple[Path, float]], start: int, frames: int) -> 
     """Per-frame upper bound on the mix's absolute level: each input's loudest channel at its gain."""
     bound = np.zeros(frames)
     for path, gain_db in track_wavs:
-        with wave.open(str(path), "rb") as audio:
+        with open_wav(path) as audio:
             if start >= audio.getnframes():
                 continue
             audio.setpos(start)

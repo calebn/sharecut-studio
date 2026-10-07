@@ -14,17 +14,19 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from podcast_mcp.engines.align import read_wav_mono_window
 from podcast_mcp.engines.bleed_gate import (
     EVIDENCE_RATE,
     _channels_are_one_signal,
     _lane_signals,
     build_bleed_gate_plan,
 )
-from podcast_mcp.engines.ungated_audio import raw_timeline_samples
+from podcast_mcp.engines.ungated_audio import load_wav_channels_window, raw_timeline_samples
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.binaries import resolve_ffmpeg
 from test_bleed_attenuation import _gated_over, _silent, _talking_over, _unchanged
 from test_bleed_gate_regression import RATE, _read_pcm, _write_pcm
+from test_wav_util import extensible_wav
 
 QUIET_UH_HUH = ("uh-huh", 5.0, 5.3, -10.0)
 DUAL_MONO_SPANS = ((0.88, 4.89), (5.52, 11.89), (12.97, 30.790000000000003))
@@ -369,3 +371,24 @@ def test_lossy_stereo_with_a_second_voice_on_one_channel_is_two_signals(
     left[first : first + own.size] += own.astype(np.float32)
     decoded = _decoded_channels(tmp_path, np.column_stack([left, right]), codec_args, suffix)
     assert not _channels_are_one_signal(decoded)
+
+
+def test_channel_window_reads_an_extensible_wav_like_plain_pcm(tmp_path: Path) -> None:
+    """ffmpeg and most recorders write EXTENSIBLE; Python 3.11's wave alone rejects it (#1183)."""
+    frames = (np.arange(-2400, 2400, dtype=np.int16).reshape(-1, 2) * 10).astype(np.int16)
+    plain, tagged = tmp_path / "plain.wav", tmp_path / "tagged.wav"
+    _write_pcm(plain, frames / 32767)
+    tagged.write_bytes(extensible_wav(frames, rate=RATE, mask=0x3))
+    window = dict(start_sec=0.01, duration_sec=0.02, sample_rate=RATE)
+    expected = load_wav_channels_window(plain, **window)
+    np.testing.assert_array_equal(load_wav_channels_window(tagged, **window), expected)
+    assert expected.shape == (round(0.02 * RATE), 2) and expected.dtype == np.float32
+
+
+def test_mono_window_reads_extensible_24_bit_multichannel_without_ffmpeg(tmp_path: Path) -> None:
+    frames = (np.arange(-300, 300, dtype=np.int32).reshape(-1, 3) * 20_000).astype(np.int32)
+    path = tmp_path / "three.wav"
+    path.write_bytes(extensible_wav(frames, rate=RATE, width=3, mask=0x7))
+    samples, bytes_read = read_wav_mono_window(path, duration_sec=1.0, out_rate=RATE)
+    assert bytes_read == frames.size * 3
+    np.testing.assert_allclose(samples, frames.mean(axis=1) / 8_388_608, atol=1e-9)
