@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache
-from podcast_mcp.edits.word_onset import OnsetKind, next_onset
+from podcast_mcp.edits.word_onset import OnsetKind, next_onset, voice_end, voice_onset
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 
 RATE = 16_000
@@ -117,3 +117,34 @@ def test_no_onset_before_the_planned_end():
     onset = next_onset(cache, 1.3, 2.1, quiet_db=QUIET_DB)
     assert onset is not None
     assert onset.sec == pytest.approx(1.99)
+
+
+@pytest.mark.parametrize(
+    ("voice_until", "expected"),
+    [
+        # The voice runs 80 ms past the word end: it ends with its last audible frame,
+        # as a voiced run does (lab "So" at 230.78 voices until 230.98).
+        (1.08, 1.09),
+        # A voice that stops at the word end reports the word end.
+        (1.0, 1.0),
+    ],
+)
+def test_voice_end_walks_forward_to_the_first_quiet_frame(voice_until, expected):
+    cache = _cache((0.6, _voice(round((voice_until - 0.6) * RATE))))
+
+    assert voice_end(cache, 1.0, 1.5, quiet_db=QUIET_DB) == pytest.approx(expected, abs=1e-6)
+
+
+def test_voice_end_is_none_when_the_voice_runs_through_the_ceiling():
+    cache = _cache((0.6, _voice(round(0.8 * RATE))))
+
+    assert voice_end(cache, 1.0, 1.3, quiet_db=QUIET_DB) is None
+    assert voice_end(cache, 1.0, 1.5, quiet_db=QUIET_DB) == pytest.approx(1.41, abs=1e-6)
+
+
+def test_voice_onset_walks_back_to_the_last_quiet_frame():
+    # The next word voices 110 ms before its word start.
+    cache = _cache((1.49, _voice(round(0.4 * RATE))))
+
+    assert voice_onset(cache, 1.6, 1.0, quiet_db=QUIET_DB) == pytest.approx(1.48, abs=1e-6)
+    assert voice_onset(cache, 1.6, 1.55, quiet_db=QUIET_DB) is None
