@@ -50,17 +50,15 @@ from podcast_mcp.edits.chapters import (
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
     SpeechClearance,
+    UnconfirmedCutSpeech,
     assess_cut_speech,
     clear_ripple,
-    confirmation_for,
-    merge_cut_speech,
 )
 from podcast_mcp.edits.decisions import (
     PendingCutSuggestion,
     PendingEditBaseline,
     preview_pending_cut_range,
     require_pending_edit_baseline,
-    unconfirmed_cut_speech,
     update_pending_edit,
 )
 from podcast_mcp.edits.edit_log import list_applied_edits, revert_applied_edit
@@ -464,12 +462,7 @@ class EditService:
                 )
             return approve_edits(p, ids, confirm_cut_speech=confirm_cut_speech)
 
-        with self.ws.transaction() as project:
-            pending = unconfirmed_cut_speech(project, ids)
-            if pending and not confirm_cut_speech:
-                return confirmation_for(
-                    merge_cut_speech([e.cut_speech for e in pending if e.cut_speech is not None])
-                )
+        try:
             return self.ws.mutate(
                 "before approve edits",
                 "after approve edits",
@@ -477,6 +470,8 @@ class EditService:
                 operation="approve_edits",
                 params={"ids": ids, "confirm_cut_speech": confirm_cut_speech},
             )
+        except UnconfirmedCutSpeech as asked:
+            return asked.confirmation
 
     def approve_eligible_tighten(
         self, ids: list[str] | None = None, *, confirm_cut_speech: bool = False

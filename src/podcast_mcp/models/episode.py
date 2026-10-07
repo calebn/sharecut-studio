@@ -495,8 +495,8 @@ class EditDecision(BaseModel):
     # track_id only when peers are speaking (speech_energy_guard).
     scope: str = "session"
     # A suggested session ripple that cuts other speakers' speech, recorded when it
-    # was suggested. Approving it needs ``confirm_cut_speech``; it then ripples as
-    # suggested instead of falling back to a track-local punch.
+    # was suggested. Approval re-checks the speech either way; a confirmed approval of
+    # a decision with this set ripples as suggested instead of a track-local punch.
     cut_speech: CutSpeech | None = None
     # Multi-track ops (split); when None, use [track_id].
     track_ids: list[str] | None = None

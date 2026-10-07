@@ -9,7 +9,13 @@ from pydantic import Field
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.clips_ops import abutting_pairs, clips_abut, clips_for_track
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms, recommend_post_pad_fade_in_ms
-from podcast_mcp.edits.cut_speech import SpeechClearance
+from podcast_mcp.edits.cut_speech import (
+    CutSpeechConfirmation,
+    UnconfirmedCutSpeech,
+    clear_ripple,
+    confirmation_for,
+    merge_cut_speech,
+)
 from podcast_mcp.edits.edit_impact import ImpactKind, record_impact
 from podcast_mcp.edits.edit_log import archive_decision
 from podcast_mcp.edits.filler_pacing import filler_pad_mode
@@ -189,16 +195,17 @@ def _apply_remove_edit(
     project: EpisodeProject,
     edit: EditDecision,
     *,
+    confirm_cut_speech: bool,
     use_inaudible_opt: bool | None = False,
     record_log: bool = False,
-) -> tuple[float, float, list[str], dict]:
+) -> tuple[float, float, list[str], dict] | CutSpeechConfirmation:
     """Apply one REMOVE via session ripple or track-local punch.
 
-    A suggestion that recorded ``cut_speech`` ripples as suggested: approving it
-    confirmed that speech. Any other session remove keeps the speech-energy scope
-    guard, which turns a cut over speaking peers into a track-local punch.
+    A suggestion that recorded ``cut_speech`` ripples as suggested. Any other session
+    remove keeps the speech-energy scope guard, which turns a cut over speaking peers
+    into a track-local punch. A ripple then clears the speech guard against the
+    current transcript; unconfirmed speech returns the confirmation and changes nothing.
     """
-    from podcast_mcp.config import load_defaults
     from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
 
     scope = getattr(edit, "scope", "session") or "session"
@@ -233,31 +240,36 @@ def _apply_remove_edit(
             record_log=record_log,
         )
         tl_start, tl_end = report["timeline_start"], report["timeline_end"]
-        per_track = report["per_track_source"]
-        track_ids = [edit.track_id]
-    else:
-        removal = plan_ripple_delete(
-            project,
+        return (
             tl_start,
             tl_end,
-            edited_track_ids=[edit.track_id],
-            use_inaudible_opt=use_inaudible_opt,
+            [edit.track_id],
+            {
+                "per_track_source": report["per_track_source"],
+                "replace_gap_sec": edit.replace_gap_sec,
+                "scope": scope,
+            },
         )
-        clearance = (
-            SpeechClearance.scope_guarded(removal)
-            if edit.cut_speech is None
-            else SpeechClearance(removal, cut_speech=edit.cut_speech)
-        )
-        report = ripple_delete(
-            project,
-            clearance,
-            record_log=record_log,
-            params={"use_inaudible_opt": use_inaudible_opt},
-        )
-        tl_start, tl_end = report["timeline_start"], report["timeline_end"]
-        per_track = report["per_track_source"]
-        track_ids = list(per_track.keys()) or dialogue_track_ids(project) or [edit.track_id]
-        _apply_replace_gap_pad(project, edit, tl_start)
+    removal = plan_ripple_delete(
+        project,
+        tl_start,
+        tl_end,
+        edited_track_ids=[edit.track_id],
+        use_inaudible_opt=use_inaudible_opt,
+    )
+    clearance = clear_ripple(project, removal, confirm_cut_speech=confirm_cut_speech)
+    if isinstance(clearance, CutSpeechConfirmation):
+        return clearance
+    report = ripple_delete(
+        project,
+        clearance,
+        record_log=record_log,
+        params={"use_inaudible_opt": use_inaudible_opt},
+    )
+    tl_start, tl_end = report["timeline_start"], report["timeline_end"]
+    per_track = report["per_track_source"]
+    track_ids = list(per_track.keys()) or dialogue_track_ids(project) or [edit.track_id]
+    _apply_replace_gap_pad(project, edit, tl_start)
     return (
         tl_start,
         tl_end,
@@ -266,7 +278,7 @@ def _apply_remove_edit(
             "per_track_source": per_track,
             "replace_gap_sec": edit.replace_gap_sec,
             "scope": scope,
-            **({"cut_speech": edit.cut_speech.model_dump(mode="json")} if edit.cut_speech else {}),
+            **clearance.log_params(),
         },
     )
 
@@ -326,28 +338,18 @@ def _apply_mute_edit(
     )
 
 
-def unconfirmed_cut_speech(project: EpisodeProject, ids: list[str]) -> list[EditDecision]:
-    """Pending suggestions among ``ids`` whose ripple cuts other speakers' speech."""
-    id_set = set(ids)
-    return [
-        e
-        for e in project.edit_decisions
-        if e.id in id_set and not e.applied and e.cut_speech is not None
-    ]
-
-
 def approve_edits(
     project: EpisodeProject, ids: list[str], *, confirm_cut_speech: bool = False
 ) -> int:
     """Apply the pending edits ``ids``.
 
-    A suggestion that records ``cut_speech`` needs ``confirm_cut_speech``; callers ask
-    first (``unconfirmed_cut_speech``), so this refuses rather than cut speech unasked.
+    Each session remove clears the speech guard now, against the current transcript.
+    Unless ``confirm_cut_speech``, a batch whose ripples would cut speech outside their
+    suggested spans raises :class:`UnconfirmedCutSpeech` with every such remove's
+    speech; the caller's mutation rolls back, so nothing applies.
     """
     from podcast_mcp.edits.range_edits import apply_ranges
 
-    if not confirm_cut_speech and unconfirmed_cut_speech(project, ids):
-        raise ValueError("approving these edits cuts other speakers' speech; confirm it first")
     id_set = set(ids)
     applied_ids: set[str] = set()
     to_apply = [e for e in project.edit_decisions if e.id in id_set]
@@ -375,10 +377,19 @@ def approve_edits(
             params=params,
         )
         applied_ids.add(edit.id)
+    asked: list[CutSpeechConfirmation] = []
     for edit in sorted(removes, key=lambda e: e.start, reverse=True):
-        tl_start, tl_end, track_ids, params = _apply_remove_edit(
-            project, edit, use_inaudible_opt=False, record_log=False
+        applied = _apply_remove_edit(
+            project,
+            edit,
+            confirm_cut_speech=confirm_cut_speech,
+            use_inaudible_opt=False,
+            record_log=False,
         )
+        if isinstance(applied, CutSpeechConfirmation):
+            asked.append(applied)
+            continue
+        tl_start, tl_end, track_ids, params = applied
         if not track_ids:
             continue
         archive_decision(
@@ -391,6 +402,8 @@ def approve_edits(
             params=params,
         )
         applied_ids.add(edit.id)
+    if asked:
+        raise UnconfirmedCutSpeech(confirmation_for(merge_cut_speech([a.speech for a in asked])))
     for edit in sorted(splits, key=lambda e: e.start, reverse=True):
         at_time = float(edit.start)
         tids = list(edit.track_ids) if edit.track_ids else [edit.track_id]
@@ -537,7 +550,10 @@ def apply_prefix_edits(
     *,
     config_key: str,
 ) -> int:
-    """Apply auto-approved REMOVE (ripple) or MUTE (in-place) edits for reason prefixes."""
+    """Apply auto-approved REMOVE (ripple) or MUTE (in-place) edits for reason prefixes.
+
+    A remove whose ripple would cut other speech stays pending for review.
+    """
     prefixes = (reason_prefix,) if isinstance(reason_prefix, str) else reason_prefix
     applied_decisions: list[EditDecision] = []
     for e in project.edit_decisions:
@@ -578,12 +594,18 @@ def apply_prefix_edits(
             params=params,
         )
     for edit in sorted(removes, key=lambda e: e.start, reverse=True):
-        tl_start, tl_end, track_ids, params = _apply_remove_edit(
+        applied = _apply_remove_edit(
             project,
             edit,
+            confirm_cut_speech=False,
             use_inaudible_opt=inaudible_opt and edit.boundary_mode is None,
             record_log=False,
         )
+        if isinstance(applied, CutSpeechConfirmation):
+            # Auto-apply never cuts other speech unasked: it stays pending for review.
+            applied_decisions.remove(edit)
+            continue
+        tl_start, tl_end, track_ids, params = applied
         if not track_ids:
             continue
         params = {**params, "config_key": config_key}

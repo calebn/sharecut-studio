@@ -331,20 +331,29 @@ their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment
   leaves silence on the edited tracks. A gap paste replaces the pasted span on the
   pasted tracks in place (paste-over).
 
-Every rippling edit plans its removal first (`RippleRemoval`), and the speech
-guard (`edits/cut_speech.py`) checks it before anything changes. Speech is another
-track's unsuppressed, unignored transcript words inside a removed span, or, where it
-has no such words, its own sound at speech level in half-second windows: the
-`tighten.speech_energy_guard` level and dominance rule, so the edited speaker's bleed
-on another mic does not count (`speech_energy_guard.measure_peer_speech`). Room tone
+Every rippling edit plans its removal first (`RippleRemoval`), and the one speech
+guard (`edits/cut_speech.py` `clear_ripple`) checks it before anything changes. A
+removal carries its merged `spans` (the geometry) and what the edit selected, each
+`TrackExtent` on its own track and never merged across tracks: a deleted clip's own
+extent, a named track's range, the trimmed span, a suggestion's span on its track.
+Speech is any scope track's unsuppressed, unignored transcript words inside a removed
+span but outside that track's own selected extents, or, where those parts have no
+such words, its own sound at speech level in half-second windows: the
+`tighten.speech_energy_guard` level and dominance rule, so a selecting speaker's bleed
+on another mic does not count (`speech_energy_guard.measure_peer_speech`). Deleting
+Host's `h1` with a touching Guest clip `gB` therefore still asks about Host's words in
+the unselected `h2` that the merged span closes over. Room tone
 and suppressed bleed words never ask. With other speech there, the edit changes
 nothing and returns `needs_confirmation` naming the tracks, words and times:
 "This also cuts Avery's speech at 0:12.4 ("so the plan is"). Cut anyway, or leave a
 gap to keep it." Sending it again with `confirm_cut_speech: true` applies it, and the
 applied-edit record keeps the `cut_speech` it confirmed. One History Undo restores
-it. A Commenter's ripple delete suggestion records the speech on the pending
-decision (`cut_speech`), so the Editor or host approving it confirms the same way;
-a confirmed approval ripples as suggested instead of falling back to a punch.
+it. Approving a pending remove runs the same guard at approval time, against the
+current transcript, so a Commenter's suggestion over words added since asks too, and
+one unconfirmed remove in a batch applies none of it. A Commenter's ripple delete
+suggestion also records the speech on the pending decision (`cut_speech`) when it is
+suggested; a confirmed approval of it ripples as suggested instead of falling back to
+a punch.
 
 A range cut names the tracks whose material it means (`track_ids`). Speech on any
 other track asks first, so a range cut that names no tracks asks before cutting
@@ -354,10 +363,12 @@ speech it was not told to cut without asking. Moves, duplicates, inserted gaps a
 restores use the same scope rule; they remove no speech, so the guard does not
 apply.
 
-Tighten and NL removes keep their own guard: `resolve_cut_scope` measures the same
-own-sound evidence at propose and approve time and turns a cut over speaking peers
-into a track-local punch, so it never asks. Its approval ripples through the same
-kernel with that scope already decided.
+Tighten and NL removes first keep their own scope rule: `resolve_cut_scope`
+measures the same own-sound evidence at propose and approve time and turns a cut over
+speaking peers into a track-local punch. A remove that still ripples goes through
+`clear_ripple` like every other ripple: an approval asks, and the pipeline's
+auto-apply (`apply_prefix_edits`) leaves it pending for review instead of cutting
+the other speaker's words.
 
 Today's DAW sends `ripple` for trims, ripple delete, cut and paste, and `gap` for
 Delete. When the host replies `needs_confirmation`, `api/documentEdits.ts` opens

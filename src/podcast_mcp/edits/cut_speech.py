@@ -1,14 +1,18 @@
-"""The speech guard: a ripple that cuts another track's speech asks first.
+"""The speech guard: a ripple that cuts speech it did not select asks first.
 
 Every rippling edit plans its :class:`RippleRemoval` and asks :func:`clear_ripple`
-before it changes anything. Speech is a scope track's unsuppressed transcript words
-inside a removed span whose edit did not name that track (a range cut that names no
-tracks counts every track's speech), or, where it has no such words, its own sound
-at speech level (``speech_energy_guard.measure_peer_speech``). With speech there and no
+before it changes anything, approvals included (at approval time, from the current
+transcript). What the edit selected is per track (``RippleRemoval.selected``): a
+deleted clip's own extent, a named track's range. Speech is any scope track's
+unsuppressed transcript words inside a removed span but outside that track's
+selected extents (a range cut that names no tracks selects nothing, so it counts
+every track's speech), or, where those parts have no such words, its own sound at
+speech level (``speech_energy_guard.measure_peer_speech``). With speech there and no
 ``confirm_cut_speech``, the edit returns a :class:`CutSpeechConfirmation` and changes
 nothing; confirmed, it applies and the speech it cut is recorded with it. With no
 other speech in the span it applies at once. The apply functions take a
-:class:`SpeechClearance`, so no ripple removes time without one.
+:class:`SpeechClearance`, which only :func:`clear_ripple` and a preview make, so no
+ripple removes time without the guard.
 """
 
 from __future__ import annotations
@@ -16,7 +20,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Final, Literal
+from typing import Any, Final, Literal, overload
 
 from pydantic import BaseModel
 
@@ -89,12 +93,6 @@ class SpeechClearance:
         """A preview renders a copy and saves nothing, so it needs no confirmation."""
         return cls(removal)
 
-    @classmethod
-    def scope_guarded(cls, removal: RippleRemoval) -> SpeechClearance:
-        """Tighten and NL removes: ``resolve_cut_scope`` already turned a cut over
-        speaking peers into a track-local punch, so this ripple is the clear case."""
-        return cls(removal)
-
     def require(self, removal: RippleRemoval | None) -> None:
         if removal != self.removal:
             raise ValueError("speech clearance does not match this edit's removal")
@@ -106,6 +104,14 @@ class SpeechClearance:
         return {"cut_speech": self.cut_speech.model_dump(mode="json")}
 
 
+class UnconfirmedCutSpeech(Exception):
+    """An approval that would cut other speech unconfirmed; raised to roll it back."""
+
+    def __init__(self, confirmation: CutSpeechConfirmation) -> None:
+        super().__init__(confirmation.message)
+        self.confirmation = confirmation
+
+
 def _speaker(project: EpisodeProject, track_id: str) -> str:
     track = project.track_by_id(track_id)
     if track is None:
@@ -113,24 +119,31 @@ def _speaker(project: EpisodeProject, track_id: str) -> str:
     return track.speaker or track.label or track_id
 
 
-def _words_in_span(
-    project: EpisodeProject, track_id: str, start: float, end: float, min_overlap: float
+def _words_in_parts(
+    project: EpisodeProject,
+    track_id: str,
+    parts: list[tuple[float, float]],
+    min_overlap: float,
 ) -> list[CutSpeechWord]:
+    """``track_id``'s unsuppressed words overlapping one of the timeline ``parts``."""
     words: list[CutSpeechWord] = []
     for clip in clips_for_track(project, track_id):
-        source = clip_timeline_overlap_to_source(clip, start, end)
-        if source is None:
+        sources = [
+            source
+            for start, end in parts
+            if (source := clip_timeline_overlap_to_source(clip, start, end)) is not None
+        ]
+        if not sources:
             continue
         transcript = project.transcript_for_source(clip.track_id, clip.source_id)
         if transcript is None:
             continue
-        lo, hi = source
         shift = clip_source_to_timeline_shift(clip)
         for word in transcript.words:
             if word.suppressed or word.ignored or word.suspect_hallucination:
                 continue
             w_start, w_end = word_source_span(word.start, word.end)
-            overlap = min(w_end, hi) - max(w_start, lo)
+            overlap = max(min(w_end, hi) - max(w_start, lo) for lo, hi in sources)
             if overlap <= 0 or overlap < min(min_overlap, w_end - w_start) - 1e-9:
                 continue
             words.append(
@@ -152,38 +165,45 @@ def _windows(start: float, end: float) -> list[tuple[float, float]]:
 def _own_sound(
     project: EpisodeProject,
     removal: RippleRemoval,
-    unlabeled: list[tuple[int, list[str]]],
+    unlabeled: list[tuple[str, list[tuple[float, float]]]],
     scope: list[str],
     cfg: dict[str, Any],
 ) -> dict[str, list[RangeInterval]]:
-    """Windows where a peer without words in the span speaks with its own sound.
+    """Windows where a track without words there speaks with its own sound.
 
-    Short windows keep a brief remark from averaging away under a long span.
+    ``unlabeled`` pairs each such track with the parts of the removal it did not
+    select. Short windows keep a brief remark from averaging away under a long span.
+    The tracks that selected a window are its owners for the bleed rule.
     """
     jobs = [
-        (window, removal.spans[index].edited_track_ids, peers)
-        for index, peers in unlabeled
-        for window in _windows(removal.spans[index].start, removal.spans[index].end)
+        (window, _owners(removal, *window), tid)
+        for tid, parts in unlabeled
+        for start, end in parts
+        for window in _windows(start, end)
     ]
     caches = (
         build_track_rms_caches(project, track_ids=scope) if len(jobs) > _WINDOW_READS_MAX else None
     )
     found: dict[str, list[tuple[float, float]]] = {}
-    for window, owners, peers in jobs:
+    for window, owners, tid in jobs:
         levels = measure_peer_speech(
             project,
             [window],
             owner_track_ids=owners,
-            peer_track_ids=peers,
+            peer_track_ids=[tid],
             defaults=cfg,
             caches=caches,
         )
-        for tid in levels.speaking if levels is not None else ():
+        if levels is not None and tid in levels.speaking:
             found.setdefault(tid, []).append(window)
     return {
         tid: [RangeInterval(start=s, end=e) for s, e in merge_intervals(spans, gap=1e-6)]
         for tid, spans in found.items()
     }
+
+
+def _owners(removal: RippleRemoval, start: float, end: float) -> frozenset[str]:
+    return frozenset(e.track_id for e in removal.selected if e.start < end and e.end > start)
 
 
 def assess_cut_speech(
@@ -192,25 +212,23 @@ def assess_cut_speech(
     *,
     defaults: dict[str, Any] | None = None,
 ) -> CutSpeech | None:
-    """Other tracks' speech inside ``removal``, or ``None`` when it cuts none."""
+    """Speech ``removal`` cuts outside what it selected, or ``None`` when it cuts none."""
     cfg = defaults if defaults is not None else load_defaults()
     min_overlap = guard_min_overlap_sec(cfg)
     scope = ripple_track_ids(project, removal.edited_track_ids)
     words: dict[str, list[CutSpeechWord]] = {}
     sound: dict[str, list[RangeInterval]] = {}
-    unlabeled: list[tuple[int, list[str]]] = []
-    for index, span in enumerate(removal.spans):
-        quiet_text: list[str] = []
+    unlabeled: list[tuple[str, list[tuple[float, float]]]] = []
+    for start, end in removal.spans:
         for tid in scope:
-            if tid in span.edited_track_ids:
+            parts = removal.unselected_on(tid, start, end)
+            if not parts:
                 continue
-            found = _words_in_span(project, tid, span.start, span.end, min_overlap)
+            found = _words_in_parts(project, tid, parts, min_overlap)
             if found:
                 words.setdefault(tid, []).extend(found)
             else:
-                quiet_text.append(tid)
-        if quiet_text:
-            unlabeled.append((index, quiet_text))
+                unlabeled.append((tid, parts))
     if unlabeled and speech_energy_guard_enabled(cfg):
         sound = _own_sound(project, removal, unlabeled, scope, cfg)
     tracks = [
@@ -226,7 +244,7 @@ def assess_cut_speech(
     if not tracks:
         return None
     return CutSpeech(
-        spans=[RangeInterval(start=span.start, end=span.end) for span in removal.spans],
+        spans=[RangeInterval(start=start, end=end) for start, end in removal.spans],
         tracks=tracks,
     )
 
@@ -290,6 +308,26 @@ def confirmation_for(speech: CutSpeech, *, owned: bool = True) -> CutSpeechConfi
     return CutSpeechConfirmation(message=cut_speech_message(speech, owned=owned), speech=speech)
 
 
+@overload
+def clear_ripple(
+    project: EpisodeProject,
+    removal: RippleRemoval | None,
+    *,
+    confirm_cut_speech: Literal[True],
+    defaults: dict[str, Any] | None = None,
+) -> SpeechClearance: ...
+
+
+@overload
+def clear_ripple(
+    project: EpisodeProject,
+    removal: RippleRemoval | None,
+    *,
+    confirm_cut_speech: bool,
+    defaults: dict[str, Any] | None = None,
+) -> SpeechClearance | CutSpeechConfirmation: ...
+
+
 def clear_ripple(
     project: EpisodeProject,
     removal: RippleRemoval | None,
@@ -297,12 +335,16 @@ def clear_ripple(
     confirm_cut_speech: bool,
     defaults: dict[str, Any] | None = None,
 ) -> SpeechClearance | CutSpeechConfirmation:
-    """Clear ``removal`` to apply, or ask to confirm the other speech it would cut."""
+    """The one guard every rippling path calls before it removes time.
+
+    Clears ``removal`` to apply, or asks to confirm the speech it would cut outside
+    what it selected. Confirmed, the clearance carries that speech for the record.
+    """
     if removal is None:
         return SpeechClearance(None)
     speech = assess_cut_speech(project, removal, defaults=defaults)
     if speech is None:
         return SpeechClearance(removal)
     if not confirm_cut_speech:
-        return confirmation_for(speech, owned=bool(removal.edited_track_ids))
+        return confirmation_for(speech, owned=bool(removal.selected))
     return SpeechClearance(removal, cut_speech=speech)

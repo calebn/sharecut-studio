@@ -57,11 +57,13 @@ def ripple_cut_spans(
 ) -> dict:
     """Ripple-remove timeline ``ranges`` on every dialogue track in one removal."""
     removal = RippleRemoval.of(
-        span
-        for start, end in ranges
-        for span in plan_ripple_delete(
-            project, start, end, use_inaudible_opt=use_inaudible_opt
-        ).spans
+        unselected=[
+            span
+            for start, end in ranges
+            for span in plan_ripple_delete(
+                project, start, end, use_inaudible_opt=use_inaudible_opt
+            ).spans
+        ]
     )
     return ripple_delete(
         project,

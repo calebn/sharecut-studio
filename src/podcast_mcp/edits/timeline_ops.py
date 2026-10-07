@@ -32,8 +32,8 @@ from podcast_mcp.edits.inaudible_cuts import (
 )
 from podcast_mcp.edits.mute_regions import mute_regions_overlapping, mute_regions_payload
 from podcast_mcp.edits.ripple import (
-    RemovedSpan,
     RippleRemoval,
+    TrackExtent,
     TrimPlan,
     apply_trim_geometry,
     ripple_insert_clips,
@@ -110,7 +110,10 @@ def plan_ripple_delete(
     if timeline_end <= timeline_start:
         raise ValueError("timeline_end must be after timeline_start")
     start, end = _optimized_ripple_span(project, timeline_start, timeline_end, use_inaudible_opt)
-    return RippleRemoval.of([RemovedSpan(start, end, frozenset(edited_track_ids))])
+    return RippleRemoval.of(
+        [TrackExtent(tid, start, end) for tid in dict.fromkeys(edited_track_ids)],
+        unselected=[(start, end)],
+    )
 
 
 def ripple_delete(
@@ -134,20 +137,20 @@ def ripple_delete(
         raise ValueError("ripple_delete needs a removal")
     tracks = ripple_track_ids(project, removal.edited_track_ids)
     seams: list[dict[str, list[float]]] = []
-    for span in reversed(removal.spans):
-        bounds = [(span.start, span.end)]
-        clips_before = ripple_remove_clips(project, RippleRemoval((span,)), tracks)
+    for start, end in reversed(removal.spans):
+        bounds = [(start, end)]
+        clips_before = ripple_remove_clips(project, bounds, tracks)
         apply_batch_transcript_removes(project, bounds, clips_before)
         remap_review_anchors_for_cuts(project, bounds)
-        per_track_source = seam_source_by_track(clips_before, span.start, span.end)
+        per_track_source = seam_source_by_track(clips_before, start, end)
         seams.append(per_track_source)
         if record_log:
             archive_timeline_op(
                 project,
                 operation="ripple_delete",
                 track_ids=tracks,
-                timeline_start=span.start,
-                timeline_end=span.end,
+                timeline_start=start,
+                timeline_end=end,
                 params={
                     **(params or {}),
                     "per_track_source": per_track_source,
@@ -155,13 +158,13 @@ def ripple_delete(
                 },
             )
     update_timeline_duration(project)
-    first = removal.spans[0]
+    first_start, first_end = removal.spans[0]
     return change_summary(
         project,
         operation="ripple_delete",
         affected_tracks=tracks,
-        timeline_start=first.start,
-        timeline_end=first.end,
+        timeline_start=first_start,
+        timeline_end=first_end,
         span_count=len(removal.spans),
         per_track_source=seams[-1],
         **(params or {}),
@@ -299,9 +302,7 @@ def move_segment(
         )
     # Clip-only ripple: keep transcript words (source clocks). Moving remaps
     # them via the new clip placements; deleting words would orphan the audio.
-    ripple_remove_clips(
-        project, RippleRemoval.of([RemovedSpan(source_start, source_end, frozenset())]), tracks
-    )
+    ripple_remove_clips(project, [(source_start, source_end)], tracks)
     remap_review_anchors_for_cuts(project, [(source_start, source_end)])
     insert_gap(project, insert_point, duration)
     for tid in tracks:
@@ -509,9 +510,9 @@ def _clips_by_id(project: EpisodeProject, clip_ids: list[str]) -> list[Clip]:
 
 
 def plan_delete_clips(project: EpisodeProject, clip_ids: list[str]) -> RippleRemoval:
-    """The spans a ripple delete of ``clip_ids`` removes; each clip's track chose its span."""
+    """What a ripple delete of ``clip_ids`` removes; each clip selects only its own extent."""
     return RippleRemoval.of(
-        RemovedSpan(c.timeline_start, c.timeline_end, frozenset({c.track_id}))
+        TrackExtent(c.track_id, c.timeline_start, c.timeline_end)
         for c in _clips_by_id(project, clip_ids)
     )
 
@@ -537,7 +538,7 @@ def ripple_delete_clips(
                 "clip_ids": list(clip_ids),
                 "mode": EditMode.RIPPLE.value,
                 "cut_spans": {
-                    tid: [list(r) for r in removal.bounds] for tid in report["affected_tracks"]
+                    tid: [list(r) for r in removal.spans] for tid in report["affected_tracks"]
                 },
                 **clearance.log_params(),
             },
@@ -851,8 +852,10 @@ def trim_clip_edge(
     previous = (clip.source_start, clip.source_end, clip.timeline_start, clip.timeline_end)
     clips_before = apply_trim_geometry(project, plan)
     if plan.removal is not None:
-        apply_batch_transcript_removes(project, plan.removal.bounds, clips_before, rebuild=False)
-        remap_review_anchors_for_cuts(project, plan.removal.bounds)
+        apply_batch_transcript_removes(
+            project, list(plan.removal.spans), clips_before, rebuild=False
+        )
+        remap_review_anchors_for_cuts(project, list(plan.removal.spans))
     restore_archived_words(project, {move.track_id for move in plan.moves})
     rebuild_combined(project)
     clip = next(c for c in project.clips if c.id == plan.clip_id)
@@ -998,7 +1001,7 @@ def plan_shorten_word_gaps(
     that pause is the speech the guard protects.
     """
     st = SessionTimeline(project)
-    spans: list[RemovedSpan] = []
+    spans: list[TrackExtent] = []
     for tr in project.transcripts:
         words = tr.words
         source_spans: list[tuple[SourceSec, SourceSec]] = []
@@ -1012,7 +1015,7 @@ def plan_shorten_word_gaps(
         for mapped in st.map_source_spans(tr.track_id, source_spans):
             for s, e in mapped:
                 start, end = _optimized_ripple_span(project, float(s), float(e), use_inaudible_opt)
-                spans.append(RemovedSpan(start, end, frozenset({tr.track_id})))
+                spans.append(TrackExtent(tr.track_id, start, end))
     return RippleRemoval.of(spans) if spans else None
 
 

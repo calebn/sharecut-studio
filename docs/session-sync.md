@@ -350,7 +350,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 |------|---------|---------|
 | `AddComment`, `UpdateComment`, `ResolveComment`, `DeleteComment`, `AddReply`, `SetActionDone`, `AddAction` | `CommentService` | Comment fields |
 | `UndoHistory`, `RedoHistory` | `HistoryService` | optional `rerender` |
-| `ApproveEdits`, `RejectEdits` | `EditService` | `ids: string[]`; Approve also takes `confirm_cut_speech?` (a suggested ripple that records `cut_speech` needs it) |
+| `ApproveEdits`, `RejectEdits` | `EditService` | `ids: string[]`; Approve also takes `confirm_cut_speech?` (needed when a remove's ripple would cut other speech, checked at approval time) |
 | `UpdatePendingEdit` | `EditService.update_pending` | `id`, `start`, `end`, `snap?`, `expected?` (saved track/type/clock/bounds) |
 | `RestoreAppliedEdit` | `EditService.revert_applied` | `id` (applied log id) |
 | `SetClipFade` | `EditService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms` |

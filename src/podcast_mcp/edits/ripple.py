@@ -10,7 +10,7 @@ guard (``edits/cut_speech.py``) can check it before anything changes.
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -24,6 +24,7 @@ from podcast_mcp.edits.clips_ops import (
     update_timeline_duration,
 )
 from podcast_mcp.models import Clip, EditMode, EpisodeProject
+from podcast_mcp.util.intervals import merge_intervals
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 TrimEdge = Literal["in", "out"]
@@ -48,58 +49,72 @@ def ripple_track_ids(project: EpisodeProject, edited_track_ids: Iterable[str] = 
 
 
 @dataclass(frozen=True)
-class RemovedSpan:
-    """One timeline span a ripple removes; ``edited_track_ids`` chose to lose it."""
+class TrackExtent:
+    """Time on one track that an edit chose to cut: a deleted clip, a named track's range."""
 
+    track_id: str
     start: float
     end: float
-    edited_track_ids: frozenset[str]
 
 
 @dataclass(frozen=True)
 class RippleRemoval:
-    """Disjoint timeline spans, in order, that a ripple removes from its scope tracks."""
+    """What a ripple removes, planned before anything changes.
 
-    spans: tuple[RemovedSpan, ...]
+    ``spans`` are the disjoint timeline spans, in order, closed on every scope track.
+    ``selected`` is what the edit chose to cut, each extent on its own track and never
+    merged across tracks: speech inside a span but outside its own track's selected
+    extents belongs to someone the edit did not name, so the guard asks about it.
+    """
+
+    spans: tuple[tuple[float, float], ...]
+    selected: tuple[TrackExtent, ...]
 
     @classmethod
-    def of(cls, spans: Iterable[RemovedSpan]) -> RippleRemoval:
-        """Merge overlapping or touching spans; a merged span keeps every edited track."""
-        merged: list[RemovedSpan] = []
-        for span in sorted(spans, key=lambda s: s.start):
-            if span.end <= span.start + _EPS:
-                continue
-            if merged and span.start <= merged[-1].end + _EPS:
-                last = merged[-1]
-                merged[-1] = RemovedSpan(
-                    last.start,
-                    max(last.end, span.end),
-                    last.edited_track_ids | span.edited_track_ids,
-                )
-            else:
-                merged.append(span)
-        if not merged:
+    def of(
+        cls,
+        selected: Iterable[TrackExtent] = (),
+        *,
+        unselected: Iterable[tuple[float, float]] = (),
+    ) -> RippleRemoval:
+        """Spans covering ``selected`` plus ``unselected`` time no track chose to cut."""
+        extents = tuple(e for e in selected if e.end > e.start + _EPS)
+        spans = merge_intervals(
+            [(e.start, e.end) for e in extents] + [(s, e) for s, e in unselected if e > s + _EPS],
+            gap=_EPS,
+        )
+        if not spans:
             raise ValueError("a ripple removal needs a span with end after start")
-        return cls(tuple(merged))
+        return cls(tuple(spans), extents)
 
     @property
     def edited_track_ids(self) -> frozenset[str]:
-        return frozenset().union(*(span.edited_track_ids for span in self.spans))
+        return frozenset(e.track_id for e in self.selected)
 
-    @property
-    def bounds(self) -> list[tuple[float, float]]:
-        return [(span.start, span.end) for span in self.spans]
+    def unselected_on(self, track_id: str, start: float, end: float) -> list[tuple[float, float]]:
+        """Parts of ``[start, end)`` that ``track_id``'s selected extents do not cover."""
+        parts = [(start, end)]
+        for extent in self.selected:
+            if extent.track_id != track_id:
+                continue
+            parts = [
+                piece
+                for lo, hi in parts
+                for piece in ((lo, min(hi, extent.start)), (max(lo, extent.end), hi))
+                if piece[1] > piece[0] + _EPS
+            ]
+        return parts
 
 
 def ripple_remove_clips(
-    project: EpisodeProject, removal: RippleRemoval, track_ids: Iterable[str]
+    project: EpisodeProject, spans: Sequence[tuple[float, float]], track_ids: Iterable[str]
 ) -> dict[str, list[Clip]]:
-    """Remove ``removal`` from ``track_ids`` and close it up; returns each track's clips before."""
+    """Remove disjoint ``spans`` from ``track_ids`` and close them up; returns clips before."""
     before: dict[str, list[Clip]] = {}
     for tid in track_ids:
         clips = before[tid] = clips_for_track(project, tid)
-        for span in reversed(removal.spans):
-            clips = remove_timeline_range_from_clips(clips, span.start, span.end)
+        for start, end in sorted(spans, reverse=True):
+            clips = remove_timeline_range_from_clips(clips, start, end)
         set_track_clips(project, tid, clips)
     update_timeline_duration(project)
     return before
@@ -220,7 +235,7 @@ def plan_trim(
     removal = None
     if delta < 0:
         start, end = (instant + delta, instant) if edge == "out" else (instant, instant - delta)
-        removal = RippleRemoval.of([RemovedSpan(start, end, frozenset({clip.track_id}))])
+        removal = RippleRemoval.of([TrackExtent(clip.track_id, start, end)])
     return TrimPlan(
         clip.id, clip.track_id, edge, mode, instant, delta, tuple(moves), tuple(scope), removal
     )
@@ -247,7 +262,7 @@ def apply_trim_geometry(project: EpisodeProject, plan: TrimPlan) -> dict[str, li
     rest = [tid for tid in plan.scope if tid not in moved_tracks]
     before: dict[str, list[Clip]] = {}
     if plan.removal is not None:
-        before = ripple_remove_clips(project, plan.removal, rest)
+        before = ripple_remove_clips(project, plan.removal.spans, rest)
     elif plan.mode is EditMode.RIPPLE and plan.delta > 0 and rest:
         ripple_insert_clips(project, plan.instant, plan.delta, rest)
     update_timeline_duration(project)
