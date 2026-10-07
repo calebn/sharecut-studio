@@ -1067,9 +1067,11 @@ export function PipelinePanel() {
         </div>
       )}
 
-      {(error ?? workingSet.loadError) && (
-        <InlineError message={error ?? workingSet.loadError ?? ""} />
-      )}
+      <InlineError message={error} />
+      <InlineError
+        origin="state"
+        message={error ? null : workingSet.loadError}
+      />
 
       <div className="pipeline-master-detail">
         <div className="pipeline-step-list">
@@ -1255,7 +1257,7 @@ export function PipelinePanel() {
               <div className="pipeline-bar-fill" style={{ width: `${pct}%` }} />
             </div>
           ) : null}
-          {job.error && <InlineError message={job.error} />}
+          <InlineError origin="state" message={job.error} />
           {analyzeJob == null && (
             <table className="pipeline-steps">
               <thead>

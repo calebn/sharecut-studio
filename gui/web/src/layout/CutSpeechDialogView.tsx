@@ -79,7 +79,7 @@ export function CutSpeechDialogView({
       {canLeaveGap ? (
         <p>Leave a gap keeps their speech and leaves silence where you cut.</p>
       ) : null}
-      <InlineError message={error} role="alert" />
+      <InlineError message={error} />
     </Dialog>
   );
 }

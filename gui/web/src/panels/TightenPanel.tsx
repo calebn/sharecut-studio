@@ -104,10 +104,10 @@ export function TightenPanel() {
     pipelineBusy;
   const findDisabled = intensityDisabled || !intensity;
   const currentRun = findRun?.path === projectPath ? findRun : null;
-  const toolbarError =
-    intensityCfg.saveError ??
+  const runError =
     currentRun?.error ??
     findHitsRunError(currentRun?.jobId ?? null, pipelineJob);
+  const toolbarError = intensityCfg.saveError ?? runError;
 
   async function onFindHits() {
     if (!intensity) return;
@@ -264,15 +264,22 @@ export function TightenPanel() {
           {proposing ? "Starting…" : "Find hits"}
         </Button>
         <div id={proposeErrorId}>
-          <InlineError message={toolbarError} />
+          <InlineError message={intensityCfg.saveError} />
+          <InlineError
+            origin="state"
+            message={intensityCfg.saveError ? null : runError}
+          />
         </div>
+        <InlineError
+          origin="state"
+          message={
+            intensityCfg.loadError
+              ? `Could not load tighten settings: ${intensityCfg.loadError}`
+              : null
+          }
+        />
         {intensityCfg.loadError ? (
-          <>
-            <InlineError
-              message={`Could not load tighten settings: ${intensityCfg.loadError}`}
-            />
-            <Button onClick={intensityCfg.reload}>Retry</Button>
-          </>
+          <Button onClick={intensityCfg.reload}>Retry</Button>
         ) : null}
       </div>
 

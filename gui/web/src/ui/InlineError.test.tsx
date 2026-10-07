@@ -9,7 +9,7 @@ describe("InlineError", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("announces a paragraph as an alert", () => {
+  it("announces an action error as an alert", () => {
     render(<InlineError message="Nope" />);
     const el = screen.getByRole("alert");
     expect(el.tagName).toBe("P");
@@ -27,5 +27,36 @@ describe("InlineError", () => {
     expect(el.tagName).toBe("SPAN");
     expect(el).toHaveAttribute("id", "err");
     await expectNoA11yViolations(container);
+  });
+
+  it("shows a saved state error quietly when its panel comes back", async () => {
+    const failed = "Pipeline failed: ffmpeg exited 1";
+    const { container, rerender } = render(
+      <InlineError key="first visit" origin="state" message={failed} />,
+    );
+    rerender(
+      <InlineError key="tab switched back" origin="state" message={failed} />,
+    );
+    expect(screen.getByText("Pipeline failed: ffmpeg exited 1")).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
+  it("announces a state error politely when it arrives while the line is mounted", () => {
+    const { rerender } = render(<InlineError origin="state" message={null} />);
+    rerender(<InlineError origin="state" message="Find hits failed" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Find hits failed");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("announces the next state error after the saved one changes", () => {
+    const { rerender } = render(
+      <InlineError origin="state" message="Old failure" />,
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    rerender(<InlineError origin="state" message={null} />);
+    rerender(<InlineError origin="state" message="Old failure" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Old failure");
   });
 });

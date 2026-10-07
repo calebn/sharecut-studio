@@ -781,6 +781,13 @@ html[data-shell="phone"] .ui-toast-region--app {
   );
 }
 
+/* A phone bottom sheet (the Inspector, a tool sheet) fills the space above the
+   mode nav, so the toast moves to the top instead of covering the sheet's
+   fields while it waits to dismiss. */
+html[data-shell="phone"]:has(.bottom-sheet) .ui-toast-region--app {
+  inset-block: calc(env(safe-area-inset-top) + var(--space-3)) auto;
+}
+
 .ui-toast-region--app .ui-toast {
   max-inline-size: 32rem;
   pointer-events: auto;
