@@ -1848,6 +1848,7 @@ def _gate_cut_edges(
     """
     track_id = candidate.track_id
     checks = plan.checks
+    paced = plan.start, plan.end
     # Every join starts a word filler at its voice, not its word time; acoustic runs
     # are bounded by audio already.
     if (
@@ -1885,11 +1886,12 @@ def _gate_cut_edges(
         )
         cut_start, cut_end, voiced_flag = voiced.start, voiced.end, voiced.flag
     before_protection = cut_start, cut_end
-    air_moved = False
+    off_proposal = False
     if candidate.cut_kind == "pause":
         # A pause trim removes only air: it shrinks to the longest stretch of air
         # inside it on every track the ripple cuts, so no edge sits in a sound. Until
-        # the owner has listened, a trim that shrank is proposed for review (#1055).
+        # the owner has listened, only a trim that stays as paced applies on its own:
+        # one the kept-voice walks or the air rule moved is proposed for review (#1055).
         air = pause_air_span(
             project,
             track_id,
@@ -1902,7 +1904,7 @@ def _gate_cut_edges(
         )
         if air is None:
             return _CutRejected("no_air")
-        air_moved = air != before_protection
+        off_proposal = air != paced
         cut_start, cut_end = air
     elif checks.breaths is not _BreathEdges.IGNORE:
         breath_safe = protect_cut_breaths(
@@ -1945,7 +1947,7 @@ def _gate_cut_edges(
     plan = replace(plan, start=cut_start, end=cut_end)
 
     def gated(final: str) -> _GatedCut:
-        raised = (voiced_flag, "air_edges" if air_moved else None)
+        raised = (voiced_flag, "air_edges" if off_proposal else None)
         return _GatedCut(plan, final, guard, tuple(flag for flag in raised if flag))
 
     if final_scope != scope:

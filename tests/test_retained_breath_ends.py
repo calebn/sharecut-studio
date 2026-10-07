@@ -299,6 +299,59 @@ def test_a_peers_onset_at_a_ripple_edge_shrinks_the_pause_trim_for_review() -> N
     )
 
 
+@pytest.mark.parametrize("walk", ["between_kept_voices", "voiced"])
+def test_a_pause_trim_a_voice_walk_moved_is_review_only_though_the_air_rule_moved_nothing(
+    walk: str,
+) -> None:
+    # The edges already sit in air, so the air rule has nothing to move. Only a trim
+    # that stays as paced may apply on its own (#1055): one a walk shifted off a kept
+    # word's voice waits for the owner's listen too.
+    from dataclasses import replace
+
+    from podcast_mcp.edits.fillers import _VoicedSpeechCheck
+
+    cache = _cache_with_breaths()
+    candidate = _CutCandidate("host", 4.90, 5.40, "pause:candidate", "pause")
+
+    def propose(walk_start: float):
+        def between(project, plan, candidate, **kw):
+            return replace(plan, start=walk_start) if walk == "between_kept_voices" else plan
+
+        def voiced_check(candidate, start, end, **kw):
+            return _VoicedSpeechCheck(walk_start if walk == "voiced" else start, end, None)
+
+        with (
+            patch("podcast_mcp.edits.fillers._between_kept_voices", side_effect=between),
+            patch(
+                "podcast_mcp.edits.fillers.optimize_and_assess",
+                return_value=(_passthrough_opt(4.90, 5.40), _safe_risk()),
+            ),
+            patch(
+                "podcast_mcp.edits.fillers.apply_filler_pacing",
+                return_value=FillerPacingResult(4.90, 5.40),
+            ),
+            patch("podcast_mcp.edits.fillers._check_voiced_speech", side_effect=voiced_check),
+            patch(
+                "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+                return_value=("session", None),
+            ),
+            patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
+            patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
+        ):
+            result = _analyze_candidate(
+                _host_project(), candidate, {"tighten": {}}, audio_cache=cache
+            )
+        assert not isinstance(result, _CutRejected)
+        return result
+
+    unmoved, walked = propose(4.90), propose(5.00)
+
+    assert (unmoved.start, unmoved.end) == pytest.approx((4.90, 5.40))
+    assert (unmoved.reason, unmoved.review_required) == ("pause:candidate", False)
+    assert (walked.start, walked.end) == pytest.approx((5.00, 5.40))
+    assert (walked.reason, walked.review_required) == ("pause:candidate:air_edges", True)
+
+
 @pytest.mark.parametrize("adjustment", ["min_start", "pacing", "voiced"])
 def test_final_start_boundary_movers_retain_quiet_tail(adjustment: str) -> None:
     from podcast_mcp.edits.fillers import _VoicedSpeechCheck
