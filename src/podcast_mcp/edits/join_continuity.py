@@ -44,6 +44,7 @@ from podcast_mcp.util.dsp import autocorr_peak, clamp01, linear_rms, rms_db
 from podcast_mcp.util.process import DEVNULL, run
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
+from podcast_mcp.util.wav import open_wav
 
 Verdict = Literal["pass", "review", "fail"]
 
@@ -669,7 +670,7 @@ def _highrate_click_scorer(
     """Keep one bounded WAV reader or batch seeked windows for a join sweep."""
     with ExitStack() as stack:
         try:
-            reader = stack.enter_context(wave.open(str(path), "rb"))
+            reader = stack.enter_context(open_wav(path))
         except (OSError, wave.Error):
             reader = None
         if reader is not None:

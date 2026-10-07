@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import wave
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +16,7 @@ from podcast_mcp.util.binaries import resolve_ffmpeg
 from podcast_mcp.util.pcm_stream import NoAudioDecodedError
 from podcast_mcp.util.process import run
 from podcast_mcp.util.tracks import track_audio_path
+from podcast_mcp.util.wav import open_wav
 
 
 def _decode_f32(path: Path, sample_rate: int, ffmpeg: str | None, layout: list[str]) -> np.ndarray:
@@ -191,7 +191,7 @@ def load_wav_channels_window(
     path: Path, *, start_sec: float, duration_sec: float, sample_rate: int
 ) -> np.ndarray:
     """Bounded PCM16 reads retain every channel for speech-preservation vetoes."""
-    with wave.open(str(path), "rb") as source:
+    with open_wav(path) as source:
         rate, channels = source.getframerate(), source.getnchannels()
         if source.getsampwidth() != 2 or rate > sample_rate or channels not in (1, 2):
             raise ValueError(

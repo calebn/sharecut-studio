@@ -71,6 +71,34 @@ jobs:
           name: coverage-xml
           path: coverage.xml
 
+  # requires-python is >=3.11 but the full suite runs on 3.12. This runs the tests that pin the
+  # 3.11 `wave` gap (WAVE_FORMAT_EXTENSIBLE, #1183) on the floor. Advisory: not in the
+  # issue-pipeline's required checks.
+  pytest-python-floor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            uv.lock
+
+      - name: Install FFmpeg
+        uses: ./.github/actions/setup-ffmpeg
+
+      - name: Install package and dev deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,gui]"
+
+      - name: Extensible-WAV readers on the lowest supported Python
+        run: pytest -q --no-cov tests/test_wav_util.py tests/test_bleed_gate_channels.py
+
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 15

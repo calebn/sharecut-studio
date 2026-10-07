@@ -5,7 +5,6 @@ from __future__ import annotations
 import wave
 from contextlib import contextmanager
 from pathlib import Path
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -402,13 +401,13 @@ def test_project_join_sweep_keeps_one_bounded_wav_reader(
         Clip(id="c3", track_id="host", source_start=1.6, source_end=1.9, timeline_start=1.0)
     )
     opened: list[str] = []
-    real_open = wave.open
+    real_open = jc.open_wav
 
-    def counted_open(path, mode):
+    def counted_open(path):
         opened.append(str(path))
-        return real_open(path, mode)
+        return real_open(path)
 
-    monkeypatch.setattr(jc, "wave", SimpleNamespace(open=counted_open, Error=wave.Error))
+    monkeypatch.setattr(jc, "open_wav", counted_open)
     monkeypatch.setattr(
         jc,
         "_click_check_hires",

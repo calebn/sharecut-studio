@@ -45,6 +45,7 @@ from podcast_mcp.util.dsp import bool_runs
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex, merge_intervals
 from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.timebase import SourceSec
+from podcast_mcp.util.wav import open_wav
 
 EVIDENCE_REVISION = 5
 _RATE = 8000
@@ -571,9 +572,7 @@ def plan_retained_bleed_alignment(
             skip(direct_id, "manual_recorder_placement")
             return None
         try:
-            with wave.open(
-                str(resolve_clip_audio_path(project, direct_track, clip)), "rb"
-            ) as media:
+            with open_wav(resolve_clip_audio_path(project, direct_track, clip)) as media:
                 if (
                     media.getnchannels() not in (1, 2)
                     or media.getsampwidth() != 2

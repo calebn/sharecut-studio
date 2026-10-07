@@ -32,6 +32,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
 from podcast_mcp.util.process import CalledProcessError
 from podcast_mcp.util.progress import progress_task
+from podcast_mcp.util.wav import open_wav
 
 from .edit import EditService
 from .play import PlayService
@@ -183,7 +184,7 @@ def _write_answers_template(path: Path, pair_ids: list[str]) -> None:
 
 def _wav_frames_and_rate(path: Path) -> tuple[int, int] | None:
     try:
-        with wave.open(str(path), "rb") as handle:
+        with open_wav(path) as handle:
             rate = handle.getframerate()
             return (handle.getnframes(), rate) if rate > 0 else None
     except (OSError, wave.Error):

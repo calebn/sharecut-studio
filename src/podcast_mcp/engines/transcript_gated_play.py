@@ -17,6 +17,7 @@ from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.timebase import TimelineSec
 from podcast_mcp.util.tracks import mixed_dialogue_track_ids
+from podcast_mcp.util.wav import PCM_SUBFORMAT_GUID
 
 GATE_FADE_SEC = 0.012
 GATE_MERGE_GAP_SEC = DEFAULT_MERGE_GAP_SEC
@@ -166,9 +167,11 @@ def _pcm16_wave_info(source: Any) -> tuple[int, int, int, int]:
             channels = int.from_bytes(fmt[2:4], "little")
             rate = int.from_bytes(fmt[4:8], "little")
             bits = int.from_bytes(fmt[14:16], "little")
-            pcm_guid = bytes.fromhex("0100000000001000800000aa00389b71")
             if (
-                not (tag == 1 or (tag == 65534 and len(fmt) >= 40 and fmt[24:40] == pcm_guid))
+                not (
+                    tag == 1
+                    or (tag == 65534 and len(fmt) >= 40 and fmt[24:40] == PCM_SUBFORMAT_GUID)
+                )
                 or bits != 16
                 or channels < 1
                 or rate < 1
