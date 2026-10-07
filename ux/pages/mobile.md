@@ -115,7 +115,7 @@ A few things live in different places on mobile:
 - **Mute/Solo and Volume** for a track: tap its header row on the left side of Timeline
 - **Solo on · Clear solo** sits above every tab while a track is soloed, so you can see why other voices are silent and turn solo off in one tap
 - **Audition and export** are in the compact transport Menu outside Listen
-- **Undo and Redo** are the two arrow buttons at the right end of the tool row above the Timeline tabs. When there's nothing to undo or redo, the button is dimmed
+- **Undo and Redo** are the two arrow buttons at the right end of the tool row above the Timeline tabs. When there's nothing to undo or redo, the button is dimmed, and tapping it says why
 
 The phone layout groups controls by task so they fit a smaller screen.
 
@@ -123,7 +123,7 @@ The phone layout groups controls by task so they fit a smaller screen.
 
 - **Listen mode** is the fastest way to review. Play through and open **More → Comments** to use the comment tools.
 - **Text mode** with "Follow" on will highlight words as the audio plays — great for catching transcript errors.
-- **Undo and Redo** sit at the right end of the Timeline tool row. A **two-finger tap** also undoes your last action, and History is under More.
+- **Undo and Redo** sit at the right end of the Timeline tool row. On a phone held upright, + Track and Import are in the Menu (under Media) and More instead, to keep that row to one line. A **two-finger tap** also undoes your last action, and History is under More.
 
 ### Full screen on iPhone
 
