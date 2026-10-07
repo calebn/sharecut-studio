@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 from mcp.client import Client
@@ -94,7 +94,7 @@ async def test_client_array_of_objects_reaches_export_audio(tmp_path, encoding) 
             "export_audio_tool",
             {"project_path": path, "formats": _as_sent(formats, encoding)},
         )
-    pipe.return_value.export_audio.assert_called_once_with(formats)
+    pipe.return_value.export_audio.assert_called_once_with(formats, cancel_check=ANY)
 
 
 @pytest.mark.asyncio
