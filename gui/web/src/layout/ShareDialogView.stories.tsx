@@ -113,6 +113,7 @@ const meta: Meta<typeof ShareDialogView> = {
     error: null,
     status: null,
     copiedKey: null,
+    lastCreated: null,
     onCreate: fn(),
     onRefreshMix: fn(),
     onCreateRecord: fn(),
@@ -138,10 +139,10 @@ export const Empty: Story = {
     if (viewMode === "docs") return;
     const dialog = await openDialog(canvasElement);
     await expect(
-      within(dialog).getByText("No live review links."),
+      within(dialog).getByText("No review links yet."),
     ).toBeVisible();
     await expect(
-      within(dialog).getByText("No live record rooms."),
+      within(dialog).getByText("No record rooms yet."),
     ).toBeVisible();
   },
 };
@@ -156,11 +157,18 @@ export const LiveLinks: Story = {
     );
     await waitFor(() =>
       expect(
-        within(dialog).getByRole("button", { name: "Copied" }),
+        within(dialog).getByRole("button", { name: "Copied link" }),
       ).toBeVisible(),
     );
     await userEvent.click(
       within(dialog).getAllByRole("button", { name: "Stop sharing" })[1],
+    );
+    await expect(args.onRevoke).not.toHaveBeenCalled();
+    const confirm = within(dialog).getByRole("group", {
+      name: "Stop sharing this Editor link? Anyone using it loses access.",
+    });
+    await userEvent.click(
+      within(confirm).getByRole("button", { name: "Stop sharing" }),
     );
     await expect(args.onRevoke).toHaveBeenCalledWith("sample-agent-link");
     await waitFor(() =>
@@ -187,8 +195,13 @@ export const RecordRoom: Story = {
     await userEvent.click(
       within(reopened).getByRole("button", { name: "End room" }),
     );
+    await userEvent.click(
+      within(
+        within(reopened).getByRole("group", { name: /^End this record room/ }),
+      ).getByRole("button", { name: "End room" }),
+    );
     await waitFor(() =>
-      expect(within(reopened).getByText("No live record rooms.")).toBeVisible(),
+      expect(within(reopened).getByText("No record rooms yet.")).toBeVisible(),
     );
   },
 };
@@ -210,8 +223,28 @@ export const Busy: Story = {
     if (viewMode === "docs") return;
     const dialog = await openDialog(canvasElement);
     await expect(
-      within(dialog).getByRole("button", { name: "Create link" }),
+      within(dialog).getByRole("button", { name: "Create review link" }),
     ).toBeDisabled();
+  },
+};
+
+export const JustCreated: Story = {
+  args: {
+    rows: [reviewRow],
+    lastCreated: {
+      token: reviewRow.token,
+      url: reviewRow.url ?? "",
+      kind: "review",
+    },
+    status: "Review link created and copied",
+    copiedKey: shareCopyKey("link", reviewRow.token),
+  },
+  play: async ({ canvasElement, viewMode }) => {
+    if (viewMode === "docs") return;
+    const dialog = await openDialog(canvasElement);
+    await expect(
+      within(dialog).getByText("Review link created and copied"),
+    ).toBeVisible();
   },
 };
 

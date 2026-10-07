@@ -65,7 +65,7 @@ to UX partners; for UI copy, this table wins.
 
 | Term | Meaning | Never say |
 |---|---|---|
-| Review link | Async share for follow-along/comment/edit, no live session | "share" alone when record rooms also exist |
+| Review link | Async share for follow-along/comment/edit, no live session. It works until the host chooses Stop sharing | "share link"; "share" alone when record rooms also exist |
 | Record room | The live recording room and its lobby/session | "session link", "call" |
 | Guest link | Record-room link for the person being recorded | "guest role" |
 | Producer link | Record-room link for silent watch/listen (not recorded) | "producer role" — producer is a **link type**, not a review role |
@@ -86,7 +86,7 @@ to UX partners; for UI copy, this table wins.
 | No mix yet | The status when no mix is rendered (never rendered, or a failed render left none) and Full mix is silent. It replaces "Mix out of date" in the one status pill, chip and Menu item, with "· Refresh" only where the person can refresh. A guest reads it without an action | "No preview", "No premix", a second pill beside "Mix out of date" |
 | Bounce | Render the current mix | "export mix" |
 | Deliverables | Mastered export set | "final export" |
-| Stop sharing | Revoke a review link. Links do not expire unless the host chose a date, so this is how a review link ends | "delete link" |
+| Stop sharing | Revoke a review link. Links don't expire, so this is how a review link ends (a date set on the CLI or MCP is the one exception) | "delete link" |
 | End room | Shut down a record room (kills guest + producer links) | "close room" |
 | Online sharing | Making this computer's review and record links reachable from the internet while it runs. Share's status line says what guests can do now, with any fix behind "How to fix" and the online sharing guide | "tunnel", "relay", "host token", "relay URL", a CLI command in UI copy |
 | Guests can open your links | Online sharing is connected | "Online", "Connected" as a bare label |
@@ -158,9 +158,9 @@ is the fix, enforced in copy review.
 - **Defaults are opt-in (least privilege).** A control that mints
   externally visible artifacts (e.g. "Allow AI assistants (MCP)" minting an
   MCP URL on every share) starts OFF. The consequence is disclosed
-  adjacent to the control so the opt-in is informed. (Surface 2;
-  maintainer decision 2026-09-21: MCP stays opt-in. The adjacent note
-  is currently missing from ShareDialog; #1027 restores it.)
+  adjacent to the control so the opt-in is informed: in ShareDialog the
+  helper text sits under the checkbox and is its accessible description.
+  (Surface 2; maintainer decision 2026-09-21: MCP stays opt-in.)
 
 ## Empty states
 
@@ -182,14 +182,19 @@ the empty state, not a separate discovery task.
 - **Destructive confirmations use the app's `Dialog` with a
   `Button variant="danger"` action — never `window.confirm()`.**
   Native confirms are unstyled, can't carry consequences, and bypass
-  the announce pipeline. Eight calls in six files remain; #1027 and
-  #1031 replace them and turn on oxlint's `no-alert` rule (see
-  Governance). The
+  the announce pipeline. #1027 replaced the Share dialog's two; six
+  calls in five files remain, and #1031 replaces them and turns on
+  oxlint's `no-alert` rule (see Governance). The
   blade-cut confirm sheet in `EditingToolRail` (named target, time,
-  Cancel safe-left, action right) is the model. (Surfaces 2, 5, 6.)
+  Cancel safe-left, action right) is the model. Inside an open
+  `Dialog`, confirm in place with `ui/InlineConfirm` instead of
+  stacking a second dialog: the row swaps its actions for the
+  consequence, Keep first and focused, the danger action last. The
+  Share dialog's Stop sharing and End room are the reference.
+  (Surfaces 2, 5, 6.)
 - **Confirm copy names the target and the consequence** in human
   terms: "Stop sharing this Viewer link? Anyone using it loses access.
-  [Stop sharing] [Keep]". Never a raw token. (Surface 2.)
+  [Keep link] [Stop sharing]". Never a raw token. (Surface 2.)
 - **Feedback must be visible, not screen-reader-only.** Every
   `announceStatus` needs a visual twin: a toast stack in `ui/` fed by
   the existing announce channel. `ui/UndoToast` covers comment
@@ -296,7 +301,7 @@ new contributor or agent finds it in under a minute:
   (terminology table, placement rules, mobile checklist)."
 - Existing checks carry specific rules. oxlint's `no-alert` rule
   (`gui/web/.oxlintrc.json`) turns on as an error, with no per-file
-  exceptions, once #1027 and #1031 replace the remaining `alert()`,
+  exceptions, once #1031 replaces the remaining `alert()`,
   `confirm()` and `prompt()` calls; until then review enforces it. axe runs in
   Vitest (`gui/web/src/test/a11y.ts`) and Playwright
   (`make test-web-e2e`) and catches missing names, invalid roles, and
@@ -382,15 +387,15 @@ philosophy wins each one.
 One more change comes from the owner's share-link decision of 2026-10-06, not
 from the UI philosophy. Links do not expire and are revoked by hand. The
 draft's "expiry management lives in Share" now reads "link revocation", and the
-example confirm no longer mentions expiry. ShareDialog still shows expiry copy
-for record links; #1027 removes it.
+example confirm no longer mentions expiry. #1027 removed the Share dialog's
+record-link expiry copy; the dialog now says links don't expire.
 
 The port also corrected references that no longer matched the code. The
 `ux-pack` rule in `contracts/docs-sync.json` replaced
 `scripts/check_ux_pack_sync.py`. The repo has no PR template, so the checklist
 item lives in `docs/contributing.md`. `Dialog` has no `danger` variant;
-`Button` does. The adjacent MCP note and the automatic `Field` and
-`InlineError` wiring are not shipped, and the text now says so.
+`Button` does. The automatic `Field` and `InlineError` wiring is not
+shipped, and the text says so. The adjacent MCP note shipped in #1027.
 
 ## Changelog
 
@@ -413,3 +418,7 @@ item lives in `docs/contributing.md`. `Dialog` has no `danger` variant;
 - 2026-10-06 — Added "No mix yet" (#1113): the one mix status pill says when
   Full mix is silent instead of leaving it in a tooltip, and a guest reads it
   without a Refresh action.
+- 2026-10-07 — Share dialog (#1027): Stop sharing and End room confirm in
+  place with `ui/InlineConfirm` (Keep first, danger last), the MCP opt-in
+  shows its consequence note, and the example confirm lists Keep first. Six
+  native dialogs remain for #1031.

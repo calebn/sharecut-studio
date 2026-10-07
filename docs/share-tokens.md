@@ -100,8 +100,10 @@ no link gets one by default. Once it passes, the link stops working as if it
 were revoked. There is no per-link Extend. Product copy says links do not
 expire and calls revoking **Stop sharing**
 ([communication philosophy](communication-philosophy.md#terminology)). The
-Share dialog has no expiry control; #1027 decides whether it gets one and
-removes its "keeps the original expiry" copy.
+Share dialog has no expiry control (owner decision in #1027): `expires_at` stays
+opt-in on the CLI and MCP, and the dialog shows a date only on a link that has
+one. Its copy says links don't expire, and Stop sharing or End room turns them
+off.
 
 ## Host registry (sqlite)
 
@@ -378,7 +380,7 @@ passkeys, and agent credentials when accounts are enabled. See
 
 ## Operator quick path
 
-**Sharecut Studio (host):** Menu → **Share…** (`share.manage`) lists live links, mints a coolname URL (role Viewer / Commenter / Editor, optional MCP), and stops sharing. If no review mix exists, Create link publishes **Share mix** first. If the premix is behind the project (edits, volume or mute since the last Refresh), the typed conflict offers **Refresh mix**; the dialog waits for the existing render job to finish successfully, then retries the captured Create link request once. A failed or cancelled refresh leaves the recovery action available, and a second stale response requires another explicit refresh. A stale master instead explains that it must be re-mastered; preview refresh does not claim to fix it. Same `ShareService` as CLI.
+**Sharecut Studio (host):** Menu → **Share…** (`share.manage`) lists live links, mints a coolname URL (role Viewer / Commenter / Editor, optional **Allow AI assistants (MCP)**), and stops sharing after an in-place confirmation that names the link and the consequence. If no review mix exists, **Create review link** publishes **Share mix** first. If the premix is behind the project (edits, volume or mute since the last Refresh), the typed conflict offers **Refresh mix**; the dialog waits for the existing render job to finish successfully, then retries the captured Create review link request once. A failed or cancelled refresh leaves the recovery action available, and a second stale response requires another explicit refresh. A stale master instead explains that it must be re-mastered; preview refresh does not claim to fix it. Same `ShareService` as CLI.
 
 CLI:
 

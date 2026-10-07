@@ -194,7 +194,7 @@ export async function expectShareRecordRoomsReachable(
   await expectVisibleInOverlay(body, rooms);
   const roomsTarget = dialog
     .getByRole("button", { name: "End room" })
-    .or(dialog.getByText("No live record rooms."))
+    .or(dialog.getByText("No record rooms yet."))
     .first();
   await expectVisibleInOverlay(body, roomsTarget);
   await expectActionableWhenApplicable(roomsTarget);

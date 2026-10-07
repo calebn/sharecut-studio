@@ -19,9 +19,17 @@ import { useHasFeature } from "../extensions/FeaturesContext";
 import { FEATURE_TUNNEL_STATUS } from "../extensions/features";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
-import type { HostShareRow, ShareRole } from "../types/shares";
+import {
+  type HostShareRow,
+  REVIEW_ROLES,
+  type ShareRole,
+} from "../types/shares";
 import { ApiError, errorMessage } from "../utils/apiError";
-import { type ShareCreateRecovery, ShareDialogView } from "./ShareDialogView";
+import {
+  type ShareCreateRecovery,
+  ShareDialogView,
+  type ShareLastCreated,
+} from "./ShareDialogView";
 import { type ShareCopiedKey, shareCopyKey } from "./shareCopyKey";
 import { useTunnelStatus } from "./useTunnelStatus";
 
@@ -74,6 +82,7 @@ export function ShareDialog() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<ShareCopiedKey | null>(null);
+  const [lastCreated, setLastCreated] = useState<ShareLastCreated | null>(null);
   const [createRecovery, setCreateRecovery] = useState<ShareCreateRecovery>({
     kind: "idle",
   });
@@ -201,6 +210,7 @@ export function ShareDialog() {
     setCreateRecovery({ kind: "idle" });
     clearCopiedTimer();
     setCopiedKey(null);
+    setLastCreated(null);
     scopeRef.current = { projectPath, projectEpoch, shareDialogOpen };
   }, [projectPath, projectEpoch, shareDialogOpen, clearCopiedTimer]);
 
@@ -245,22 +255,23 @@ export function ShareDialog() {
       staleCreateRequest.current = null;
       setCreateRecovery({ kind: "idle" });
       if (share.url) {
+        setLastCreated({ token: share.token, url: share.url, kind: "review" });
         try {
           await copyText(share.url);
           if (!isCurrentScope(request.scope)) {
             return;
           }
           markCopied(shareCopyKey("link", share.token));
-          announce("Share link created and copied");
+          announce("Review link created and copied");
         } catch (err) {
           if (!isCurrentScope(request.scope)) {
             return;
           }
-          announce("Share link created");
+          announce("Review link created");
           setError(errorMessage(err));
         }
       } else {
-        announce("Share link created");
+        announce("Review link created");
       }
       await load(request.scope);
     } catch (err) {
@@ -373,6 +384,11 @@ export function ShareDialog() {
         return;
       }
       if (room.guest.url) {
+        setLastCreated({
+          token: room.guest.token,
+          url: room.guest.url,
+          kind: "guest",
+        });
         try {
           await copyText(room.guest.url);
           if (!isCurrentScope(scope)) {
@@ -478,9 +494,10 @@ export function ShareDialog() {
   }
 
   async function onRevoke(token: string) {
-    if (!window.confirm(`Stop sharing ${token}?`)) {
-      return;
-    }
+    const role =
+      REVIEW_ROLES.find(
+        (r) => r.id === rows.find((row) => row.token === token)?.docs_role,
+      )?.label ?? "review";
     const scope = captureScope();
     const owner = beginOperation(scope);
     if (!owner) {
@@ -491,7 +508,7 @@ export function ShareDialog() {
       if (!isCurrentScope(scope)) {
         return;
       }
-      announce("Share link stopped");
+      announce(`Stopped sharing the ${role} link`);
       await load(scope);
     } catch (err) {
       if (isCurrentScope(scope)) {
@@ -503,13 +520,6 @@ export function ShareDialog() {
   }
 
   async function onEndRoom(sessionId: string) {
-    if (
-      !window.confirm(
-        "End this record room? Both guest and producer links will stop working.",
-      )
-    ) {
-      return;
-    }
     const scope = captureScope();
     const owner = beginOperation(scope);
     if (!owner) {
@@ -545,6 +555,7 @@ export function ShareDialog() {
       error={error}
       status={status}
       copiedKey={copiedKey}
+      lastCreated={lastCreated}
       tunnel={tunnel}
       onCreate={() => void onCreate()}
       onRefreshMix={() => void onRefreshMix()}

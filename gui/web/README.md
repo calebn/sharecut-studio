@@ -162,7 +162,8 @@ DAW state and dispatching through `execute`.
 `Templates/ShareDialog` renders the production `ShareDialogView`, the same
 view the live `ShareDialog` adapter renders. Stories use fictional
 `hostShareRow` fixtures and local callbacks; the adapter keeps the API calls,
-clipboard, `window.confirm` and the record-panel handoff.
+clipboard and the record-panel handoff, and the view owns the in-place Stop
+sharing and End room confirmations.
 `Templates/BounceDialog` renders `BounceDialogView`, the same view the live
 `BounceDialog` adapter renders; the adapter keeps the bounce job start/follow
 and DAW selection state.
