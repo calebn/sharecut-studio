@@ -8,7 +8,10 @@ from __future__ import annotations
 import json
 import os
 import signal
+import subprocess
+import sys
 import threading
+import time
 
 import anyio
 import pytest
@@ -28,19 +31,126 @@ def _export_cmd(slow_export, formats: str) -> list[str]:
     return ["pipeline", "export-audio", "--project", str(slow_export.project), "--formats", formats]
 
 
-def test_ctrl_c_mid_encode_cancels_the_cli_export_and_keeps_the_previous_one(slow_export) -> None:
-    def interrupt_once_encoding() -> None:
-        slow_export.wait_until_encoding()
-        os.kill(os.getpid(), signal.SIGINT)
+# Runs the real CLI in a child process with mastering stubbed: the stub returns the fixture's
+# 15 min master after an ffmpeg that takes ``mastering_sec`` of wall time (0 skips it).
+_CLI_DRIVER = """
+import sys
+from pathlib import Path
 
-    interrupter = threading.Thread(target=interrupt_once_encoding, daemon=True)
-    interrupter.start()
-    result = CliRunner().invoke(app, _export_cmd(slow_export, MP3_FORMATS))
-    interrupter.join(timeout=5)
+from podcast_mcp.cli.main import app
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.pipeline import steps
+from podcast_mcp.util.process import run
 
-    assert result.exit_code == 130
-    assert "Export cancelled. Files from an earlier export are unchanged." in result.output
-    assert result.stdout.strip() == ""
+master, mastering_sec, mastering_out, *argv = sys.argv[1:]
+
+
+def ensure_current_master(project, defaults):
+    if float(mastering_sec) > 0:
+        run(
+            [FFmpegEngine().ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc",
+             "-t", mastering_sec, "-af", "arealtime", mastering_out],
+            check=True,
+        )
+    return Path(master)
+
+
+steps.ensure_current_master = ensure_current_master
+app(argv, prog_name="podcast")
+"""
+
+
+class _TerminalCli:
+    """The CLI in its own session, so ``ctrl_c`` signals its whole process group the way
+    a terminal Ctrl+C does (ffmpeg included, unless it was started in a session of its own)."""
+
+    def __init__(self, slow_export, tmp_path, *, mastering_sec: float = 0) -> None:
+        self.mastering_out = tmp_path / "mastering-in-progress.wav"
+        self.proc = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                _CLI_DRIVER,
+                str(slow_export.master),
+                str(mastering_sec),
+                str(self.mastering_out),
+                *_export_cmd(slow_export, MP3_FORMATS),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        self.marker = str(tmp_path)
+
+    def alive(self) -> bool:
+        if self.proc.poll() is None:
+            return True
+        out, err = self.proc.communicate()
+        raise AssertionError(f"CLI exited {self.proc.returncode} early: {out} {err}")
+
+    def wait_until_mastering(self) -> None:
+        deadline = time.monotonic() + 30
+        while not self.mastering_out.exists():
+            assert self.alive() and time.monotonic() < deadline, "mastering never started"
+            time.sleep(0.02)
+
+    def ctrl_c(self) -> None:
+        os.killpg(self.proc.pid, signal.SIGINT)
+
+    def finish(self, timeout: float = 30) -> tuple[int, str, str]:
+        out, err = self.proc.communicate(timeout=timeout)
+        return self.proc.returncode, out, err
+
+    def ffmpeg_left_running(self) -> list[str]:
+        ps = subprocess.run(["ps", "-axo", "command="], capture_output=True, text=True, check=True)
+        return [line for line in ps.stdout.splitlines() if "ffmpeg" in line and self.marker in line]
+
+
+def test_terminal_ctrl_c_mid_encode_cancels_the_export_and_keeps_the_previous_one(
+    slow_export, tmp_path
+) -> None:
+    cli = _TerminalCli(slow_export, tmp_path)
+    slow_export.wait_until_encoding(alive=cli.alive)
+    cli.ctrl_c()
+    code, out, err = cli.finish()
+
+    assert code == 130, err
+    assert "Export cancelled. Files from an earlier export are unchanged." in err
+    assert "Traceback" not in err
+    assert out.strip() == ""
+    assert slow_export.files() == slow_export.previous
+    assert cli.ffmpeg_left_running() == []
+
+
+def test_terminal_ctrl_c_during_mastering_lets_the_master_finish_then_cancels(
+    slow_export, tmp_path
+) -> None:
+    cli = _TerminalCli(slow_export, tmp_path, mastering_sec=1.5)
+    cli.wait_until_mastering()
+    cli.ctrl_c()
+    code, _out, err = cli.finish()
+
+    assert code == 130, err
+    assert "Export cancelled. Files from an earlier export are unchanged." in err
+    assert slow_export.files() == slow_export.previous
+
+
+def test_second_terminal_ctrl_c_quits_at_once_and_kills_ffmpeg(slow_export, tmp_path) -> None:
+    cli = _TerminalCli(slow_export, tmp_path, mastering_sec=60)
+    cli.wait_until_mastering()
+    cli.ctrl_c()
+    time.sleep(0.3)
+    assert cli.alive(), "the first Ctrl+C must not stop an uninterruptible master"
+    started = time.monotonic()
+    cli.ctrl_c()
+    code, out, err = cli.finish(timeout=15)
+
+    assert time.monotonic() - started < 5
+    assert code == 130, err
+    assert "Traceback" not in err
+    assert out.strip() == ""
+    assert cli.ffmpeg_left_running() == []
     assert slow_export.files() == slow_export.previous
 
 
@@ -193,3 +303,60 @@ def test_sigint_cancel_leaves_ctrl_c_alone_off_the_main_thread() -> None:
 
     assert checks == [False]
     assert signal.getsignal(signal.SIGINT) is before
+
+
+def test_an_encode_stopped_by_the_same_interrupt_is_a_cancel_not_a_failure(tmp_path) -> None:
+    from podcast_mcp.engines.ffmpeg import _run_cancellable
+
+    with pytest.raises(CancelledProgress, match="cancelled"):
+        _run_cancellable([sys.executable, "-c", "raise SystemExit(255)"], lambda: True)
+
+
+def test_a_failed_encode_without_a_cancel_still_fails() -> None:
+    from podcast_mcp.engines.ffmpeg import _run_cancellable
+    from podcast_mcp.util.process import CalledProcessError
+
+    with pytest.raises(CalledProcessError):
+        _run_cancellable([sys.executable, "-c", "raise SystemExit(255)"], lambda: False)
+
+
+@pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX")
+def test_second_ctrl_c_kills_detached_children_then_reaches_the_previous_handler() -> None:
+    from podcast_mcp.cli.cancel import sigint_cancel
+    from podcast_mcp.util.process import popen
+
+    passed_on: list[int] = []
+    before = signal.signal(signal.SIGINT, lambda signum, _frame: passed_on.append(signum))
+    try:
+        with sigint_cancel() as cancel_requested:
+            child = popen([sys.executable, "-c", "import time; time.sleep(30)"])
+            os.kill(os.getpid(), signal.SIGINT)
+            assert cancel_requested() and child.poll() is None and passed_on == []
+            os.kill(os.getpid(), signal.SIGINT)
+            assert child.wait(timeout=5) != 0
+            assert passed_on == [signal.SIGINT]
+    finally:
+        signal.signal(signal.SIGINT, before)
+
+
+def test_mcp_bounce_render_and_pipeline_run_stop_on_the_requests_cancel(minimal_project) -> None:
+    from unittest.mock import patch
+
+    from podcast_mcp.services.media import BounceService
+
+    project = str(minimal_project)
+
+    def cancelled() -> bool:
+        return True
+
+    with render_cancel_scope(cancelled):
+        with patch.object(BounceService, "bounce", return_value=[]) as bounce:
+            mcp_server.bounce_audio_tool(project)
+        assert bounce.call_args.kwargs["cancel_check"] is cancelled
+        with pytest.raises(CancelledProgress, match="Pipeline cancelled"):
+            mcp_server.render_preview(project)
+        with (
+            patch("podcast_mcp.gui.jobs.studio_job_manager", return_value=None),
+            pytest.raises(CancelledProgress, match="Pipeline cancelled"),
+        ):
+            mcp_server.pipeline_run(project, only_step="mix_with_music", use_working_set=False)

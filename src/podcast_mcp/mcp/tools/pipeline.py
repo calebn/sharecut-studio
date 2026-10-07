@@ -102,6 +102,7 @@ def pipeline_run(
         skip_steps=skip_steps,
         unattended=run_unattended,
         config=run_config,
+        cancel_check=current_cancel_check(),
     )
     return _run_message(result.last_step, result.job_result())
 
@@ -184,7 +185,9 @@ def set_envelope(
 def render_preview(project_path: str, rerender: bool = True) -> str:
     """Render a preview mix and return its status and path."""
     ws = ProjectWorkspace.open(project_path)
-    info = PipelineService(ws).render_preview(rerender=rerender)
+    info = PipelineService(ws).render_preview(
+        rerender=rerender, cancel_check=current_cancel_check()
+    )
     return to_json(info)
 
 
@@ -203,8 +206,8 @@ def export_audio_tool(
 
     All or nothing: files replace ``export/`` only after every one is written. When the client
     cancels the request (``notifications/cancelled``) the encode stops, the tool raises
-    ``CancelledProgress("Export cancelled")`` and an earlier export is left untouched. The
-    client has stopped waiting by then, so the SDK sends no result for the cancelled request.
+    ``CancelledProgress("Export cancelled")`` and an earlier export is left untouched. Do not
+    wait for a reply to the cancelled request (over JSON-RPC there is none); check ``export/``.
     """
     ws = ProjectWorkspace.open(project_path)
     result = PipelineService(ws).export_audio(formats, cancel_check=current_cancel_check())
@@ -233,7 +236,8 @@ def bounce_audio_tool(
             start_s=start_s,
             end_s=end_s,
             formats=formats,
-        )
+        ),
+        cancel_check=current_cancel_check(),
     )
     return to_json([str(p) for p in paths])
 

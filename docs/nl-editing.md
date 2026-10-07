@@ -78,7 +78,15 @@ List and object arguments are JSON values, not JSON text: `ids=["e1", "e2"]`, `t
 
 ### Cancelling a long tool
 
-`mcp.request_cancel.install_request_cancel`, installed once on the server in `mcp/server.py`, binds each tool call's cancellation (`notifications/cancelled`, or the client dropping the request) to `util.project_state.current_cancel_check()`. `export_audio_tool` hands it to `PipelineService.export_audio(cancel_check=...)`, which stops the running encode and leaves an earlier `export/` untouched; the tool raises `CancelledProgress("Export cancelled")` and the SDK sends no result for the cancelled request. Waits for the render lock stop the same way. See [pipeline.md](pipeline.md#export-formats) (#1164).
+`mcp.request_cancel.install_request_cancel`, installed once on the server in `mcp/server.py`, binds each host tool call's cancellation (`notifications/cancelled`, or the client dropping the request) to `util.project_state.current_cancel_check()`. What that stops (#1164):
+
+- `export_audio_tool` passes it to `PipelineService.export_audio(cancel_check=...)`: checked before mastering and before encoding, and the running encode is stopped; an earlier `export/` is left untouched and the tool raises `CancelledProgress("Export cancelled")`. See [pipeline.md](pipeline.md#export-formats).
+- `bounce_audio_tool` passes it to `BounceService.bounce`: checked before and after the stem render, after the mix and per trimmed range, and the running encode is stopped.
+- `render_preview` passes it to `PipelineService.render_preview`: stops a wait for the render lock and the render between its steps (assemble timeline, mix); a step that has started runs to its end.
+- `pipeline_run` without Studio running in the same process passes it to `PipelineService.run`: checked before each step and inside steps that poll it (transcribe, prosody, conversation alignment). With Studio's job manager the run is a Studio job with its own **Cancel**; the request's cancel does not reach it.
+- Other host tools see it in two places on the tool's own thread: a wait for the render lock (`render_lock` falls back to `current_cancel_check()`), and a pipeline run nested in the call, such as `render_final` or a preview re-render, which checks it between steps (`render_cancel_scope(None)` and `PipelineRunner.run` without a check keep the enclosing one). Anything else, including work on pool threads (contextvars do not cross `run_parallel`), runs to its end.
+
+After `notifications/cancelled` the SDK sends no response for that request; an in-process `auto`-mode client that cancels its own call can still receive the tool's result or error. An agent should not rely on either: check the files or make the next call.
 
 ### Tool errors
 

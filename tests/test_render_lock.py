@@ -92,6 +92,22 @@ def test_current_cancel_check_is_bound_only_inside_render_cancel_scope() -> None
     assert current_cancel_check() is None
 
 
+def test_a_nested_render_cancel_scope_without_a_check_keeps_the_outer_one() -> None:
+    def check() -> bool:
+        return True
+
+    with render_cancel_scope(check), render_cancel_scope(None):
+        assert current_cancel_check() is check
+
+
+def test_a_pipeline_run_without_its_own_check_stops_on_the_enclosing_cancel(
+    minimal_project,
+) -> None:
+    project = load_project(minimal_project)
+    with render_cancel_scope(lambda: True), pytest.raises(CancelledProgress):
+        PipelineRunner(defaults={}).run(project, only_step="mix_with_music")
+
+
 def test_a_pipeline_step_waiting_for_the_render_lock_stops_on_cancel(minimal_project) -> None:
     project = load_project(minimal_project)
     answers = iter([False])  # the runner's own pre-step check passes, the wait sees True
@@ -115,6 +131,12 @@ def test_a_refresh_waiting_for_the_render_lock_stops_on_cancel(minimal_project) 
     with _held_elsewhere(ws.project), pytest.raises(CancelledProgress):
         PipelineService(ws).render_preview(rerender=True, cancel_check=lambda: True)
     assert time.monotonic() - started < 5
+
+
+def test_a_cancelled_refresh_stops_between_render_steps(minimal_project) -> None:
+    ws = ProjectWorkspace.open(minimal_project)
+    with pytest.raises(CancelledProgress, match="Pipeline cancelled"):
+        PipelineService(ws).render_preview(rerender=True, cancel_check=lambda: True)
 
 
 def test_render_lock_refuses_a_first_acquire_under_the_commit_lock(minimal_project) -> None:

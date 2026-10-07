@@ -188,8 +188,14 @@ def project_commit_lock(project: EpisodeProject) -> Iterator[None]:
 
 @contextmanager
 def render_cancel_scope(cancel_check: Callable[[], bool] | None) -> Iterator[None]:
-    """Let ``render_lock`` waits in this context stop once ``cancel_check()`` is true."""
-    token = _render_cancel_check.set(cancel_check)
+    """Let ``render_lock`` waits in this context stop once ``cancel_check()`` is true.
+
+    ``None`` keeps the enclosing scope's check, so a nested scope never hides an outer
+    cancel (an MCP request's, or an outer pipeline run's).
+    """
+    token = _render_cancel_check.set(
+        cancel_check if cancel_check is not None else _render_cancel_check.get()
+    )
     try:
         yield
     finally:
