@@ -11,6 +11,8 @@ import bleed_helpers as bh
 from podcast_mcp.edits import clipped_onsets
 from podcast_mcp.edits.clipped_onsets import flag_clipped_word_starts
 from podcast_mcp.edits.comments import add_reply, resolve_comment
+from podcast_mcp.edits.transcript_timing import WordTimingTarget
+from podcast_mcp.mcp.tools.timeline import set_word_timing_tool
 from podcast_mcp.models import (
     Clip,
     SpeakerIngestAlignment,
@@ -20,6 +22,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.pipeline import steps
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.document import EditService
 from podcast_mcp.services.pipeline.service import PipelineService
 
 GATE_LATE_SEC = 0.1
@@ -415,3 +418,54 @@ def test_a_third_speaker_in_the_lead_is_not_flagged(tmp_path: Path) -> None:
     _align(ws)
 
     assert [c for c in _onset_comments(ws) if abs(c[0] - turn) < 1.0] == []
+
+
+def _first_word(ws: ProjectWorkspace) -> TranscriptWord:
+    return ws.project.transcript_for_track("audra").words[0]
+
+
+def _edit_by_service(ws: ProjectWorkspace, start: float, end: float) -> None:
+    target = WordTimingTarget("audra", None, 0)
+    service = EditService(ws)
+    context = service.word_timing_context(target)
+    service.set_word_timing(target, context["expected_token"], start, end)
+
+
+def _edit_by_mcp_tool(ws: ProjectWorkspace, start: float, end: float) -> None:
+    set_word_timing_tool(str(ws.path), "audra", 0, start, end)
+
+
+@pytest.mark.parametrize("edit", [_edit_by_service, _edit_by_mcp_tool])
+@pytest.mark.parametrize("after_opening", [True, False])
+def test_a_person_s_word_timing_survives_the_next_align_run(
+    gated: tuple[ProjectWorkspace, float, float], edit, after_opening: bool
+) -> None:
+    ws, clipped, _normal = gated
+    _align(ws)
+    snapped = _first_word(ws)
+    assert snapped.snapped_from is not None and len(_onset_comments(ws)) == 1
+    # Either side of where the track opens: the pass must not move the person's start.
+    start = round(snapped.start + 0.05, 3) if after_opening else round(clipped - 0.02, 3)
+    end = round(start + 0.4, 3)
+
+    edit(ws, start, end)
+    ws = ProjectWorkspace.open(ws.path)
+    _align(ws)
+    ws = ProjectWorkspace.open(ws.path)
+
+    word = _first_word(ws)
+    assert (word.start, word.end) == (start, end)
+    assert word.snapped_from is None
+    assert _onset_comments(ws) == []
+    _align(ws)
+    assert (_first_word(ws).start, _first_word(ws).snapped_from) == (start, None)
+
+
+def test_a_pass_that_retimes_a_word_clears_its_snap_and_a_persons_edit_mark() -> None:
+    from podcast_mcp.engines.word_align import apply_word_spans
+
+    word = TranscriptWord(text="And", start=2.0, end=2.4, snapped_from=1.9, timing_edited=True)
+
+    apply_word_spans([word], [(2.1, 2.5)])
+
+    assert (word.start, word.end, word.snapped_from, word.timing_edited) == (2.1, 2.5, None, False)

@@ -216,7 +216,7 @@ def apply_word_spans(
         if span is None:
             word.alignment_score = None
             continue
-        word.start, word.end = span
+        word.retime(*span)
         word.alignment_score = scores[i] if scores else None
         if word.audibility_status == "deferred":
             word.audibility_status = None

@@ -370,6 +370,11 @@
           "type": ["number", "null"],
           "description": "Start before align_tracks moved it onto where the speaker's own track opens, because the word's start reached only another mic (#1059). Every align_tracks run puts the start back and judges again; null = not moved."
         },
+        "timing_edited": {
+          "type": "boolean",
+          "default": false,
+          "description": "A person set this word's start and end (Adjust word timing). align_tracks never moves or flags the start of such a word; any pass that re-times the word clears it."
+        },
         "overlong": {
           "type": "boolean",
           "default": false,

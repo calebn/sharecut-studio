@@ -44,6 +44,8 @@ inside the closure and that ends after the opening, reading starts ``WORD_SLACK_
 either side. A word that started well before the closure already had its own audio. An
 opening with no such word (a laugh, a breath) is not flagged.
 
+A word a person re-timed (``timing_edited``) is never flagged or moved, and its open comment is withdrawn.
+
 The pass is idempotent. Each run first puts every moved start back on ``snapped_from``,
 judges the words at those original times, and moves only the words it flags again, so the
 transcript depends on where the lanes sit now, never on earlier runs. Comments follow the
@@ -362,7 +364,7 @@ class _Lanes:
         opens = float(span.source_start) + onset.open_sec - float(span.timeline_start)
         closed = opens - (onset.open_sec - onset.closed_sec)
         word = _word_at(transcript.words, closed, opens)
-        if word is None or self._mic_speaks(onset, word, tolerance_sec):
+        if word is None or word.timing_edited or self._mic_speaks(onset, word, tolerance_sec):
             return None
         source_id = span.clip.source_id
         return FlaggedWord(onset, source_id, _original_start(word), opens, _display(word)), word
