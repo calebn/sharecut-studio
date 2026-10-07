@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from bisect import bisect_right
 from collections.abc import Callable
 
@@ -9,9 +10,9 @@ import numpy as np
 import pytest
 
 import bleed_helpers as bh
-from podcast_mcp.edits.bleed_lag_segments import BleedPair, LagSegment, lag_segments
+from podcast_mcp.edits.bleed_lag_segments import STEP_COSTS, BleedPair, LagSegment, lag_segments
 from podcast_mcp.edits.bleed_latency import HOP_SEC
-from podcast_mcp.edits.conversation_align import plan_conversation_alignment
+from podcast_mcp.edits.conversation_align import align_artifact_path, plan_conversation_alignment
 from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB
 from podcast_mcp.models import SpeakerIngestAlignment
 from podcast_mcp.services.app import ProjectWorkspace
@@ -46,7 +47,7 @@ def test_latency_step_at_a_silence_is_two_segments() -> None:
     audio = _stepped()
     levels = bh.levels(audio)
 
-    segments = lag_segments(
+    found = lag_segments(
         levels["audra"],
         _from(levels["caleb"], 0.14),
         heard=levels["audra"],
@@ -54,7 +55,8 @@ def test_latency_step_at_a_silence_is_two_segments() -> None:
         deadband_sec=0.02,
     )
 
-    assert segments is not None
+    assert found is not None
+    segments = found.segments
     assert [(round(s.start_sec, 2), s.shift_sec, s.gap_sec) for s in segments] == [
         (0.0, -0.12, None),
         (182.81, -0.2, (152.535, 213.085)),
@@ -62,10 +64,9 @@ def test_latency_step_at_a_silence_is_two_segments() -> None:
 
 
 def _worst_error_ms(
-    segments: tuple[LagSegment, ...] | None, direct: np.ndarray, latency: Callable[[float], float]
+    segments: tuple[LagSegment, ...], direct: np.ndarray, latency: Callable[[float], float]
 ) -> float:
     """Largest gap between a talk spurt's true latency and the latency its segment plays at."""
-    assert segments is not None
     starts = [segment.start_sec for segment in segments]
     errors = []
     for first, _last in bh.spurts(direct):
@@ -94,7 +95,7 @@ def test_a_step_is_judged_against_its_merged_neighbours() -> None:
     audio["caleb"] += np.where(noisy, 0.003, 0.0) * np.random.default_rng(1).standard_normal(t.size)
     levels = bh.levels(audio)
 
-    segments = lag_segments(
+    found = lag_segments(
         levels["audra"],
         _from(levels["caleb"], 0.15),
         heard=levels["audra"],
@@ -102,7 +103,8 @@ def test_a_step_is_judged_against_its_merged_neighbours() -> None:
         deadband_sec=0.02,
     )
 
-    assert segments is not None
+    assert found is not None
+    segments = found.segments
     assert [(round(s.start_sec, 1), round(-s.shift_sec * 1000)) for s in segments] == [
         (0.0, 140),
         (121.6, 200),
@@ -125,7 +127,7 @@ def test_a_short_clear_stretch_keeps_its_own_lag() -> None:
     audio["audra"] = bh.relatency(direct, latency)
     levels = bh.levels(audio)
 
-    segments = lag_segments(
+    found = lag_segments(
         levels["audra"],
         _from(levels["caleb"], 0.15),
         heard=levels["audra"],
@@ -133,7 +135,8 @@ def test_a_short_clear_stretch_keeps_its_own_lag() -> None:
         deadband_sec=0.02,
     )
 
-    assert segments is not None
+    assert found is not None
+    segments = found.segments
     assert [(round(s.start_sec, 1), round(-s.shift_sec * 1000), s.frames) for s in segments] == [
         (0.0, 140, 8646),
         (121.7, 220, 169),
@@ -163,11 +166,12 @@ def test_a_blip_is_noise_and_an_easing_is_a_step() -> None:
     mic[early : early + 8] = click - 20.0
 
     # The click is drawn on the envelopes; its RMS frames stand in for its peaks.
-    segments = lag_segments(
+    found = lag_segments(
         source, _from(mic, 0.15), heard=source, heard_peak=source, deadband_sec=0.02
     )
 
-    assert segments is not None
+    assert found is not None
+    segments = found.segments
     assert [(round(s.start_sec, 1), round(-s.shift_sec * 1000)) for s in segments] == [
         (0.0, 140),
         (196.6, 200),
@@ -185,7 +189,7 @@ def test_steps_show_through_the_other_voice_on_the_lane_mic() -> None:
     audio = {"audra": late, "caleb": raw["caleb"]}
     levels = bh.levels(audio)
 
-    segments = lag_segments(
+    found = lag_segments(
         levels["audra"],
         [BleedPair(levels["caleb"], lane_talks=False, lag_sec=0.15)],
         heard=levels["audra"],
@@ -193,7 +197,8 @@ def test_steps_show_through_the_other_voice_on_the_lane_mic() -> None:
         deadband_sec=0.02,
     )
 
-    assert segments is not None
+    assert found is not None
+    segments = found.segments
     assert [(round(s.start_sec, 2), s.shift_sec, s.gap_sec) for s in segments] == [
         (0.0, -0.12, None),
         (114.05, -0.2, (111.015, 117.08)),
@@ -229,7 +234,7 @@ def test_a_step_never_skips_a_peak_the_rms_gate_misses() -> None:
     audio["audra"][click] = 0.01
     levels = bh.levels(audio)
 
-    segments = lag_segments(
+    found = lag_segments(
         levels["audra"],
         _from(levels["caleb"], 0.14),
         heard=levels["audra"],
@@ -237,7 +242,8 @@ def test_a_step_never_skips_a_peak_the_rms_gate_misses() -> None:
         deadband_sec=0.02,
     )
 
-    assert segments is not None
+    assert found is not None
+    segments = found.segments
     step = segments[1]
     skipped = (step.start_sec - 0.04, step.start_sec + 0.04)
     assert not skipped[0] <= click / bh.RATE <= skipped[1]
@@ -245,6 +251,40 @@ def test_a_step_never_skips_a_peak_the_rms_gate_misses() -> None:
         (0.0, -0.12, None),
         (197.95, -0.2, (182.815, 213.085)),
     ]
+
+
+def test_the_step_cost_is_chosen_per_recording() -> None:
+    # A jitter buffer re-times Audra to 200 ms after each pause over 3 s and eases her back
+    # 30 ms at a time after shorter ones, down to 140 ms, on a noisy room mic. On this
+    # recording a fixed 10-nat step cost merged three phrases into a piece 30 ms off;
+    # cross-validation picks the cost from the recording's own held-out speech.
+    audio = bh.tracks(bleed={"caleb": {"audra": 0.0}}, gated=("audra",), seed=10)
+    plan: dict[int, float] = {}
+    level, end = 0.14, 0
+    for first, last in bh.spurts(audio["audra"]):
+        pause = (first - end) / bh.RATE
+        level = 0.2 if pause > 3.0 else (max(0.14, level - 0.03) if pause > 0.5 else level)
+        plan[first], end = level, last
+    direct = audio["audra"]
+
+    def latency(t: float) -> float:
+        return plan[round(t * bh.RATE)]
+
+    audio["audra"] = bh.relatency(direct, latency)
+    audio["caleb"] += 0.01 * np.random.default_rng(10).standard_normal(audio["caleb"].size)
+    levels = bh.levels(audio)
+
+    found = lag_segments(
+        levels["audra"],
+        _from(levels["caleb"], 0.15),
+        heard=levels["audra"],
+        heard_peak=bh.peaks(audio)["audra"],
+        deadband_sec=0.02,
+    )
+
+    assert found is not None
+    assert found.step_cost < STEP_COSTS[-1]
+    assert _worst_error_ms(found.segments, direct, latency) <= 5.0
 
 
 def test_jitter_inside_the_deadband_is_one_segment() -> None:
@@ -283,6 +323,8 @@ def test_align_tracks_splits_the_lane_in_the_silence_and_undo_restores(
         (182.85, 240.0, 182.65),
     ]
     assert not np.any(_stepped()["audra"][round(182.77 * bh.RATE) : round(182.85 * bh.RATE)])
+    artifact = json.loads(align_artifact_path(stepped.project).read_text())["bleed_lag_segments"]
+    assert (artifact["audra"]["step_cost"], len(artifact["audra"]["segments"])) == (64.0, 2)
     labels = [entry.label for entry in stepped.project.history.entries]
     assert labels == ["initial", "before pipeline run", "after align_tracks"]
 
