@@ -53,6 +53,8 @@ test.describe("compact transport menu accessibility", () => {
       "Prosody",
       "Show waveforms post-fader",
       "Fit tracks to window height",
+      // View › Labs (#1051): opt-in prototypes, off by default.
+      "Touch target chooser",
     ];
     for (const name of checkboxNames) {
       await expect(
