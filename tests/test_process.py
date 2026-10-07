@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
+import time
 
 import pytest
 
@@ -103,3 +105,27 @@ def test_specs_from_extensions_skips_blank_and_falls_back() -> None:
     assert specs_from_extensions(["", "."]) == [ExportFormatSpec(ext="wav")]
     spec = ExportFormatSpec.from_dict({"ext": "aac", "extra_args": "-movflags"})
     assert spec.extra_args == ("-movflags",)
+
+
+@pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX")
+def test_kill_detached_children_never_signals_a_reaped_pid(monkeypatch) -> None:
+    killed: list[int] = []
+    with detached_children():
+        done = popen([sys.executable, "-c", "pass"])
+        done.wait()
+        monkeypatch.setattr(os, "killpg", lambda pid, _sig: killed.append(pid))
+        kill_detached_children()
+    assert done.pid not in killed
+
+
+@pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX")
+def test_kill_detached_children_kills_a_child_another_thread_is_waiting_on() -> None:
+    with detached_children():
+        child = popen(_SLEEP)
+        waiter = threading.Thread(target=child.wait)
+        waiter.start()
+        time.sleep(0.2)
+        kill_detached_children()
+        waiter.join(timeout=5)
+    assert not waiter.is_alive()
+    assert child.returncode != 0
