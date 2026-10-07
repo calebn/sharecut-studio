@@ -1338,15 +1338,6 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   vector-effect: non-scaling-stroke;
 }
 
-/* The marker lane and lanes are a gesture surface, not text: a held or
-   sliding finger must not start text selection or the iOS callout, which
-   fight the timeline's own touch gestures (#1051). Text to copy lives in the
-   inspector and transcript, which keep selection. */
-.timeline-hit-root {
-  user-select: none;
-  -webkit-touch-callout: none;
-}
-
 /* Touch chooser lab: a finger may scroll from any target that is not
    selected, in the lanes or on the crossfade rail. The press layer then
    decides tap or hold, and only a long press arms a target to drag. */
