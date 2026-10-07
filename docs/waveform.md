@@ -470,8 +470,13 @@ Revocation stops new requests only.
   - The WebGL2 path uploads the geometry as a `cols × 1` RGBA32F texture and
     draws one full-screen triangle.
   - `raster.worker.ts` uses WebGL2 on an `OffscreenCanvas` when it can, and
-    otherwise the CPU rasterizer plus `createImageBitmap`. It falls back to
-    the CPU after a context loss.
+    otherwise the CPU rasterizer. It falls back to the CPU after a context
+    loss. A GL tile comes back as a transferred `ImageBitmap`. A CPU tile
+    comes back as its transferred RGBA pixels, and `rasterClient.ts` builds
+    the bitmap on the main thread with `createImageBitmap`. The worker never
+    makes a bitmap from pixels: in Playwright's WPE WebKit that crashed the
+    web process from a `WebCore: Worker` thread (#1110). A bitmap the page
+    cannot build counts as an error reply.
   - `rasterClient.ts` keeps at most 4 jobs outstanding. It drops queued jobs
     that are no longer wanted, but caches results that arrive late. A
     provisional request never replaces a queued exact one. A `postMessage`

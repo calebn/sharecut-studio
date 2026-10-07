@@ -5,11 +5,12 @@ import {
   type RasterInMsg,
   type RasterOutMsg,
   readyMessage,
+  replyTransfer,
 } from "./rasterProtocol";
 
 /**
  * Raster worker entry: WebGL2 on an `OffscreenCanvas` when available,
- * otherwise the CPU rasterizer plus `createImageBitmap(ImageData)`.
+ * otherwise the CPU rasterizer, whose pixels the page turns into a bitmap.
  */
 
 export type RasterScope = {
@@ -29,8 +30,6 @@ export function createRasterEngine(): RasterEngine {
       }
       return canvas.transferToImageBitmap();
     },
-    cpuBitmap: (px, cols, rows) =>
-      createImageBitmap(new ImageData(px, cols, rows)),
   };
 }
 
@@ -40,9 +39,8 @@ export function startRasterWorker(
 ): void {
   scope.postMessage(readyMessage(engine));
   scope.onmessage = (ev) => {
-    void handleRasterMessage(ev.data, engine).then((out) => {
-      scope.postMessage(out, out.type === "done" ? [out.bitmap] : []);
-    });
+    const out = handleRasterMessage(ev.data, engine);
+    scope.postMessage(out, replyTransfer(out));
   };
 }
 
