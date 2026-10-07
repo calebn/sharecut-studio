@@ -12,9 +12,10 @@ latency. A source lag ``lam`` pairs the other track's frame ``f`` with source fr
 ``f + lam``, and the lane plays in sync where its timeline-minus-source shift is ``-lam``.
 Units are the lane's talk spurts (its full-band envelope open, split at silences of at
 least ``MIN_GAP_SEC``). A frame is silent when its RMS is under ``OPEN_DB`` and its every
-sample peaks under ``SKIP_PEAK_DB``, so a step skips or repeats nothing louder. Per spurt, pair and candidate lag the Pearson sums over frames
-where the talker out-levels the copy are kept, so any run of spurts is measured exactly as
-one window over its frames, and pairs add as independent log-likelihoods.
+sample peaks under ``SKIP_PEAK_DB``, so a step skips or repeats nothing louder. Per spurt,
+pair and candidate lag the Pearson sums over frames where the talker out-levels the copy
+are kept, so any run of spurts is measured exactly as one window over its frames, and
+pairs add as independent log-likelihoods.
 
 A segment is a run of spurts at its own best lag, with correlation at least
 ``MIN_CORRELATION``, the peak inside the search, and enough evidence to pin it: every lag
@@ -22,16 +23,19 @@ beyond the deadband fits worse by ``CONFIDENCE_NATS`` (its likelihood-ratio inte
 inside the deadband), counted over the talker's own voiced frames less the three a
 correlation spends. A short phrase with a sharp peak passes; a long stretch with a flat
 correlation does not, and neither does a lone click, whose surrounding silence correlates
-perfectly with the copy's. The floor scales with the evidence, not with a frame count. Dynamic
-programming picks the segments that minimise ``sum(n / 2 * log(1 - r^2))`` (``n`` in
-independent frames, ``FRAME_SEC`` apart) plus ``STEP_LLR`` per segment, where the widest
-silence between neighbours holds the step plus ``EDGE_SEC`` on each side. A second pass
-then keeps the best subset of those steps in which every step exceeds the deadband,
+perfectly with the copy's. The floor scales with the evidence, not with a frame count.
+Dynamic programming picks the segments that minimise ``sum(n / 2 * log(1 - r^2))`` (``n``
+in independent frames, ``FRAME_SEC`` apart) plus a step cost per segment, where the
+widest silence between neighbours holds the step plus ``EDGE_SEC`` on each side. A second
+pass then keeps the best subset of those steps in which every step exceeds the deadband,
 measuring each step between the merged pieces either side of it: two neighbours inside
 the deadband are one piece, and the step before them is judged against that piece.
-``STEP_LLR`` is about the BIC cost of a step on a 28-minute lane. Cross-validation on the
-lab tape (fit on alternate spurts, score the rest) scores every cost from 2.5 to 40 above
-one constant lag, best at 2.5-5 and still better at 10.
+
+The step cost is chosen per lane by cross-validation: spurts are dealt to ``FOLDS``
+folds, each fold is predicted from pieces fitted on the others, and of the
+``STEP_COSTS`` (or no steps at all) whose held-out fit is within ``CONFIDENCE_NATS`` of
+the best, the largest wins. A clean recording keeps only clear steps; a noisy one with
+many small re-timings gets a cheaper step only when held-out speech confirms it.
 
 Each pair is searched ``SEARCH_SEC`` either side of its steady lag. Speech envelopes
 correlate again one syllable away (about 200 ms), so a wider search lets a short stretch
@@ -58,7 +62,9 @@ SKIP_PEAK_DB = OPEN_DB + 10.0
 SEARCH_SEC = 0.1
 # Half the 95% chi-square(1) quantile: the likelihood-ratio interval of a piece's lag.
 CONFIDENCE_NATS = 1.92
-STEP_LLR = 10.0
+# Step costs (nats) cross-validation chooses from, per lane, over FOLDS interleaved folds.
+STEP_COSTS = (0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0)
+FOLDS = 5
 
 
 @dataclass(frozen=True)
@@ -187,13 +193,25 @@ def _fit(span: np.ndarray, smallest: int) -> tuple[np.ndarray, np.ndarray]:
 Run = tuple[int, int, int]
 
 
-def _partition(cum: np.ndarray, largest: np.ndarray, smallest: int) -> list[Run] | None:
-    """Blocks split into runs ``(first, end, offset)`` minimising fit plus ``STEP_LLR`` per run.
+def _spans(cum: np.ndarray, smallest: int) -> list[np.ndarray]:
+    """``spans[b - 1][a, k]``: the fit of blocks ``[a, b)`` at offset ``k``, inf where invalid.
+
+    Independent of the step cost, so one table serves every cost cross-validation tries.
+    """
+    spans = []
+    for b in range(1, cum.shape[0]):
+        fit, valid = _fit(cum[b] - cum[:b], smallest)
+        spans.append(np.where(valid, fit, np.inf))
+    return spans
+
+
+def _partition(spans: list[np.ndarray], largest: np.ndarray, step_cost: float) -> list[Run] | None:
+    """Blocks split into runs ``(first, end, offset)`` minimising fit plus ``step_cost`` per run.
 
     A step may be any size its silence holds; whether it is worth applying is
     :func:`_keep_steps`'s call, once each piece is measured against its real neighbours.
     """
-    count, size = cum.shape[0] - 1, cum.shape[2]
+    count, size = len(spans), spans[0].shape[1]
     offsets = np.abs(np.subtract.outer(np.arange(size), np.arange(size)))
     # total[b, k]: best cost of blocks [0, b) ending on offset k; entry[b, k]: best cost of
     # blocks [0, b) followed by a step into offset k at block b (0 for b = 0).
@@ -203,10 +221,9 @@ def _partition(cum: np.ndarray, largest: np.ndarray, smallest: int) -> list[Run]
     came = np.zeros((count + 1, size), dtype=int)
     entry[0] = 0.0
     for b in range(1, count + 1):
-        fit, valid = _fit(cum[b] - cum[:b], smallest)
-        options = entry[:b] + np.where(valid, fit, np.inf)
+        options = entry[:b] + spans[b - 1]
         start[b] = np.argmin(options, axis=0)
-        total[b] = options[start[b], np.arange(size)] + STEP_LLR
+        total[b] = options[start[b], np.arange(size)] + step_cost
         if b < count:
             allowed = (offsets > 0) & (offsets <= largest[b])
             stepped = np.where(allowed, total[b][None, :], np.inf)
@@ -224,7 +241,7 @@ def _partition(cum: np.ndarray, largest: np.ndarray, smallest: int) -> list[Run]
 
 
 def _keep_steps(
-    runs: list[Run], cum: np.ndarray, largest: np.ndarray, smallest: int
+    runs: list[Run], cum: np.ndarray, largest: np.ndarray, smallest: int, step_cost: float
 ) -> list[Run] | None:
     """The best subset of ``runs``' steps where every kept step exceeds the deadband.
 
@@ -247,7 +264,7 @@ def _keep_steps(
     # start before it.
     best = np.full((m + 1, m + 1), np.inf)
     came = np.full((m + 1, m + 1), -1, dtype=int)
-    best[1:, 0] = cost[0, 1:] + STEP_LLR
+    best[1:, 0] = cost[0, 1:] + step_cost
     for j in range(2, m + 1):
         for i in range(1, j):
             if not np.isfinite(cost[i, j]):
@@ -257,7 +274,7 @@ def _keep_steps(
             if ok.any():
                 before = np.where(ok, best[i, :i], np.inf)
                 came[j, i] = int(np.argmin(before))
-                best[j, i] = before[came[j, i]] + cost[i, j] + STEP_LLR
+                best[j, i] = before[came[j, i]] + cost[i, j] + step_cost
     i = int(np.argmin(best[m]))
     if not np.isfinite(best[m, i]):
         return None
@@ -270,6 +287,59 @@ def _keep_steps(
         i, j = int(came[j, i]), i
 
 
+def _segment(
+    cum: np.ndarray,
+    spans: list[np.ndarray],
+    largest: np.ndarray,
+    smallest: int,
+    step_cost: float,
+) -> list[Run]:
+    """Runs at ``step_cost`` (one run at the whole lane's best offset when no step stands)."""
+    runs = _partition(spans, largest, step_cost) if np.isfinite(step_cost) else None
+    if runs is not None:
+        runs = _keep_steps(runs, cum, largest, smallest, step_cost)
+    if runs is None:
+        fit, _valid = _fit(cum[-1] - cum[0], smallest)
+        runs = [(0, cum.shape[0] - 1, int(np.argmin(fit)))]
+    return runs
+
+
+def _step_cost(blocks: np.ndarray, largest: np.ndarray, smallest: int) -> float:
+    """The step cost that best predicts held-out speech on this lane (inf: no steps).
+
+    Blocks are dealt to ``FOLDS`` folds in turn. For each fold the lane is segmented on the
+    other folds' evidence and scored on that fold's, at each piece's lag (log-likelihood,
+    lower is better). Of the costs within ``CONFIDENCE_NATS`` of the best total, the
+    largest wins: fewer pieces when the data cannot tell them apart.
+    """
+    fold = np.arange(blocks.shape[0]) % FOLDS
+    candidates = (*STEP_COSTS, np.inf)
+    scores = np.zeros(len(candidates))
+    for f in range(FOLDS):
+        train = np.where((fold == f)[:, None, None, None], 0.0, blocks)
+        cum = np.concatenate([np.zeros((1, *blocks.shape[1:])), np.cumsum(train, axis=0)])
+        held = np.concatenate([np.zeros((1, *blocks.shape[1:])), np.cumsum(blocks - train, axis=0)])
+        spans = _spans(cum, smallest)
+        for c, cost in enumerate(candidates):
+            for a, b, k in _segment(cum, spans, largest, smallest, cost):
+                fit, _valid = _fit(held[b] - held[a], smallest)
+                scores[c] += fit[k]
+    best = scores.min()
+    return max(
+        cost
+        for cost, score in zip(candidates, scores, strict=True)
+        if score <= best + CONFIDENCE_NATS
+    )
+
+
+@dataclass(frozen=True)
+class LagSteps:
+    """A lane's pieces and the step cost cross-validation chose for it."""
+
+    segments: tuple[LagSegment, ...]
+    step_cost: float
+
+
 def lag_segments(
     source: np.ndarray,
     pairs: Sequence[BleedPair],
@@ -277,18 +347,17 @@ def lag_segments(
     heard: np.ndarray,
     heard_peak: np.ndarray,
     deadband_sec: float,
-) -> tuple[LagSegment, ...] | None:
+) -> LagSteps | None:
     """Piecewise shift of a lane (``source``: its media envelope) from every pair it is in.
 
     All envelopes are on the ``HOP_SEC`` grid. ``heard`` is the lane's full-band envelope,
     which decides where it is silent: a decode band-limited for lag work hides sibilants
     above its Nyquist (an "s" at -26 dBFS read as -61 dB at 8 kHz on the lab tape).
     ``heard_peak`` is its per-frame sample peak on the same grid, so a step never skips or
-    repeats a click whose RMS reads as silence. Each
-    pair is searched around its own steady lag, which carries its copy's path delay, and
-    the pieces' steps are common to all of them. The first pair anchors the lane on the
-    reference clock, so callers put a pair with the reference first. None when no step
-    stands.
+    repeats a click whose RMS reads as silence. Each pair is searched around its own
+    steady lag, which carries its copy's path delay, and the pieces' steps are common to
+    all of them. The first pair anchors the lane on the reference clock, so callers put a
+    pair with the reference first. None when no step stands.
     """
     firsts, lasts = _talk_spurts(heard[: source.size], heard_peak)
     if firsts.size < 2 or not pairs:
@@ -323,11 +392,11 @@ def lag_segments(
     # The largest lag step (hops) each gap holds: the silence less its edges.
     largest = np.floor(((gap_at[:, 1] - gap_at[:, 0]) * HOP_SEC - 2 * EDGE_SEC) / HOP_SEC + 1e-9)
     smallest = int(np.floor(deadband_sec / HOP_SEC + 1e-9)) + 1
-    runs = _partition(cum, largest, smallest)
-    if runs is None:
+    step_cost = _step_cost(blocks, largest, smallest)
+    if not np.isfinite(step_cost):
         return None
-    runs = _keep_steps(runs, cum, largest, smallest)
-    if runs is None or len(runs) == 1:
+    runs = _segment(cum, _spans(cum, smallest), largest, smallest, step_cost)
+    if len(runs) == 1:
         return None
     anchor = centres[0]
     segments = []
@@ -348,4 +417,4 @@ def lag_segments(
                 gap_sec=None if quiet is None else (float(quiet[0]), float(quiet[1])),
             )
         )
-    return tuple(segments)
+    return LagSteps(tuple(segments), step_cost)

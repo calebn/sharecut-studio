@@ -178,7 +178,7 @@ class AlignResult:
     skipped_reason: str | None = None
     large_move_sec: float = LARGE_MOVE_SEC
     latency: bleed_latency.LatencySolution | None = None
-    lag_segments: dict[str, tuple[bleed_lag_segments.LagSegment, ...]] = field(default_factory=dict)
+    lag_segments: dict[str, bleed_lag_segments.LagSteps] = field(default_factory=dict)
 
     def summary(self) -> str:
         if self.skipped_reason:
@@ -212,8 +212,7 @@ class AlignResult:
                 )
             )
         notes.extend(
-            f"{track_id}: {_steps_note(segments)}"
-            for track_id, segments in self.lag_segments.items()
+            f"{track_id}: {_steps_note(steps)}" for track_id, steps in self.lag_segments.items()
         )
         notes.extend(
             f"{p.track_id}: bleed lag {p.candidate_offset_sec:+.2f}s proposed ({p.proposal})"
@@ -1750,9 +1749,7 @@ def _bleed_latency_stage(
     ref_track_id: str,
     ref_clips: list[Clip],
     settings: bleed_latency.LatencySettings,
-) -> tuple[
-    bleed_latency.LatencySolution | None, dict[str, tuple[bleed_lag_segments.LagSegment, ...]]
-]:
+) -> tuple[bleed_latency.LatencySolution | None, dict[str, bleed_lag_segments.LagSteps]]:
     """Solve each lane's latency near its planned placement and fold the decision into the plans.
 
     Latencies come back against where each lane sits now. ``apply`` places the lane
@@ -1787,7 +1784,7 @@ def _bleed_latency_stage(
         return None, {}
     solution = bleed_latency.measure_bleed_latency(levels, ref_track_id, settings, measured)
     lanes = _stepped_lanes(project, solution, levels, measured, sources, settings)
-    stepped: dict[str, tuple[bleed_lag_segments.LagSegment, ...]] = {}
+    stepped: dict[str, bleed_lag_segments.LagSteps] = {}
     for track, clip, _tokens, _dur in units:
         found = solution.track(track.id)
         if (
@@ -1800,12 +1797,12 @@ def _bleed_latency_stage(
         key = (track.id, clip.id)
         plan = offsets[key]
         current = clip_source_to_timeline_shift(clip) - _reference_shift_at(clip, ref_clips)
-        segments = lanes.get(track.id)
-        if segments and plan.method != "manual":
+        steps = lanes.get(track.id)
+        if steps and plan.method != "manual":
             offsets[key] = _piecewise_plan(
-                plan, clip, segments, _reference_shift_at(clip, ref_clips), settings
+                plan, clip, steps, _reference_shift_at(clip, ref_clips), settings
             )
-            stepped[track.id] = segments
+            stepped[track.id] = steps
             continue
         target = current - found.latency_sec
         if found.reason == "aligned":
@@ -1933,7 +1930,7 @@ def _stepped_lanes(
     measured: dict[str, float],
     sources: dict[Path, np.ndarray],
     settings: bleed_latency.LatencySettings,
-) -> dict[str, tuple[bleed_lag_segments.LagSegment, ...]]:
+) -> dict[str, bleed_lag_segments.LagSteps]:
     """Where each lane's latency steps, from every pair it shares with a track on the clock.
 
     Lanes join the reference clock outward from the reference: a lane is solved from its
@@ -1959,9 +1956,7 @@ def _stepped_lanes(
             log.debug("align_tracks: bleed lag steps skipped for %s: %s", track.id, exc)
             lanes[track.id] = None
 
-    def solve(
-        track_id: str, clock: dict[str, np.ndarray]
-    ) -> tuple[bleed_lag_segments.LagSegment, ...] | None:
+    def solve(track_id: str, clock: dict[str, np.ndarray]) -> bleed_lag_segments.LagSteps | None:
         media = lanes[track_id]
         if media is None:
             return None
@@ -1973,12 +1968,10 @@ def _stepped_lanes(
             deadband_sec=settings.deadband_sec,
         )
 
-    def place(
-        track_id: str, segments: tuple[bleed_lag_segments.LagSegment, ...] | None
-    ) -> np.ndarray:
+    def place(track_id: str, steps: bleed_lag_segments.LagSteps | None) -> np.ndarray:
         media = lanes[track_id]
-        if segments and media is not None:
-            return _placed(media, segments, size)
+        if steps and media is not None:
+            return _placed(media, steps.segments, size)
         found = solution.track(track_id)
         latency = (found.latency_sec if found else None) or 0.0
         ahead = round((measured.get(track_id, 0.0) + latency) / hop)
@@ -1991,7 +1984,7 @@ def _stepped_lanes(
         return len(_clock_pairs(track_id, 0.0, solution, clock, settings))
 
     clock = {ref: levels[ref]}
-    first: dict[str, tuple[bleed_lag_segments.LagSegment, ...] | None] = {}
+    first: dict[str, bleed_lag_segments.LagSteps | None] = {}
     used: dict[str, int] = {}
     pending = set(lanes)
     while ready := sorted(t for t in pending if linked(t, clock)):
@@ -2001,27 +1994,27 @@ def _stepped_lanes(
             used[track_id] = linked(track_id, reached)
             clock[track_id] = place(track_id, first[track_id])
         pending -= set(ready)
-    stepped: dict[str, tuple[bleed_lag_segments.LagSegment, ...]] = {}
-    for track_id, segments in first.items():
+    stepped: dict[str, bleed_lag_segments.LagSteps] = {}
+    for track_id, steps in first.items():
         others = {t: e for t, e in clock.items() if t != track_id}
-        final = solve(track_id, others) if linked(track_id, others) > used[track_id] else segments
+        final = solve(track_id, others) if linked(track_id, others) > used[track_id] else steps
         if final:
             stepped[track_id] = final
     return stepped
 
 
-def _steps_note(segments: tuple[bleed_lag_segments.LagSegment, ...]) -> str:
-    latencies = [-segment.shift_sec * 1000 for segment in segments]
+def _steps_note(steps: bleed_lag_segments.LagSteps) -> str:
+    latencies = [-segment.shift_sec * 1000 for segment in steps.segments]
     return (
-        f"bleed lag steps at {len(segments) - 1} silences "
-        f"({min(latencies):.0f}-{max(latencies):.0f} ms)"
+        f"bleed lag steps at {len(steps.segments) - 1} silences "
+        f"({min(latencies):.0f}-{max(latencies):.0f} ms; step cost {steps.step_cost:g} nats)"
     )
 
 
 def _piecewise_plan(
     plan: ClipAlignPlan,
     clip: Clip,
-    segments: tuple[bleed_lag_segments.LagSegment, ...],
+    lane: bleed_lag_segments.LagSteps,
     ref_shift: float,
     settings: bleed_latency.LatencySettings,
 ) -> ClipAlignPlan:
@@ -2031,6 +2024,7 @@ def _piecewise_plan(
     ends straddle the middle of the silence, so a step skips or repeats only silence. A clip
     with no step inside it is kept where it sits when that is within the deadband.
     """
+    segments = lane.segments
     steps: list[tuple[float, float]] = []
     for before, segment in itertools.pairwise(segments):
         quiet = segment.gap_sec
@@ -2045,7 +2039,7 @@ def _piecewise_plan(
     first_end = steps[0][0] - clip_source_to_timeline_shift(clip) if steps else clip.source_end
     starts = [segment.start_sec for segment in segments]
     shift = segments[bisect_right(starts, (clip.source_start + first_end) / 2) - 1].shift_sec
-    note = _steps_note(segments)
+    note = _steps_note(lane)
     current = clip_source_to_timeline_shift(clip)
     if not steps and abs(shift - current) <= settings.deadband_sec:
         return replace(
@@ -2257,8 +2251,11 @@ def write_alignment_artifact(project: EpisodeProject, result: AlignResult) -> Pa
         "large_move_sec": result.large_move_sec,
         "bleed_latency": result.latency.to_dict() if result.latency else None,
         "bleed_lag_segments": {
-            track_id: [asdict(segment) for segment in segments]
-            for track_id, segments in result.lag_segments.items()
+            track_id: {
+                "step_cost": steps.step_cost,
+                "segments": [asdict(segment) for segment in steps.segments],
+            }
+            for track_id, steps in result.lag_segments.items()
         },
         "plans": [
             {
