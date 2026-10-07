@@ -43,16 +43,17 @@ def write_snapshot(project: EpisodeProject, snapshot: ProjectStateSnapshot, entr
 HISTORY_STALE_CODE = "history_stale"
 
 
-class StaleHistoryError(CodedError):
+class StaleHistoryError(CodedError, ValueError):
     """An undo or redo named the head entry it expected, and history has moved since."""
+
+    code = HISTORY_STALE_CODE
 
     def __init__(self, action: Literal["undo", "redo"]) -> None:
         done = {"undo": "undone", "redo": "redone"}[action]
         super().__init__(
             f"Did not {action}: the project changed after this {action} was requested, "
             f"so nothing was {done}. Review the latest change, then {action} again "
-            "if you still mean to.",
-            code=HISTORY_STALE_CODE,
+            "if you still mean to."
         )
 
 

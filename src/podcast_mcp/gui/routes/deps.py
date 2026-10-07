@@ -29,14 +29,15 @@ def project_busy_error(detail: str) -> HTTPException:
 
 
 def document_conflict_error(exc: DocumentConflictError) -> HTTPException:
-    """HTTP 409 for a refused document command, with its code (if any) as ``X-Sharecut-Error-Code``.
+    """HTTP 409 for a refused document command, with its code as ``X-Sharecut-Error-Code``
+    (``document_conflict``, or a stale guard's own code such as ``history_stale``).
 
     Shared by the host and guest document-command routes.
     """
     return HTTPException(
         status_code=409,
         detail={"detail": str(exc), "conflict": True},
-        headers={"X-Sharecut-Error-Code": exc.code} if exc.code else None,
+        headers={"X-Sharecut-Error-Code": exc.code},
     )
 
 
