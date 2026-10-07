@@ -19,6 +19,7 @@ import {
   wheelInspector,
 } from "./inspectorResponsiveEvidence";
 import { type InteractionReceipt, test } from "./interactionEvidence";
+import { rememberInspectorDetent } from "./phoneTimeline";
 import { withShareableProject } from "./shareableProject";
 import { openHostShare } from "./shareNavigation";
 import { setTheme } from "./theme";
@@ -37,6 +38,10 @@ async function setup(
   rootFont: number,
   receipts: InteractionReceipt[],
 ) {
+  // A phone's timeline selections open the drawer at full, with the inspector.
+  if (page.viewportSize()!.width < 720) {
+    await rememberInspectorDetent(page, "full");
+  }
   await openHostShare(page, projectPath);
   if (page.viewportSize()!.width < 720) {
     await pointerControl(
@@ -417,6 +422,7 @@ test.describe("independent keyboard envelope root32 phone", () => {
           receipts,
         );
         try {
+          await rememberInspectorDetent(page, "full");
           await openHostShare(page, projectPath);
           const timeline = page
             .getByRole("navigation", { name: "Primary" })
