@@ -494,8 +494,9 @@ def _noise_floor_project(tmp_path: Path, *, uh_sec: float = 0.3) -> EpisodeProje
 # rms_db floors digital silence at -80 dB.
 @pytest.mark.parametrize(
     ("pad_mode", "fill", "inside_db"),
-    # The nearest stretch of the -60 dBFS floor, as a ripple pad samples it.
-    [("room_tone", (0.7, 1.0), -60.0), ("silence", None, -80.0)],
+    # The nearest stretch of the -60 dBFS floor clear of the uh's onset, as a ripple pad
+    # samples it.
+    [("room_tone", (pytest.approx(0.55), pytest.approx(0.85)), -60.0), ("silence", None, -80.0)],
 )
 def test_approved_mute_is_filled_like_the_ripple_pad(tmp_path, pad_mode, fill, inside_db):
     from unittest.mock import patch
