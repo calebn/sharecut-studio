@@ -222,6 +222,7 @@ class BounceService:
                     out_dir / stem_label,
                     specs_from_extensions(req.formats),
                     metadata={"title": f"{project.name} bounce", "album": project.name},
+                    cancel_check=cancel_check,
                 )
                 prog.advance(len(formats), message="Bounce complete")
                 return written

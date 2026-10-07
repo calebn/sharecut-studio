@@ -54,6 +54,11 @@ export function pipelineChipOpensPanel(
   return isPipelineSlotJob(job);
 }
 
+/** Result copy for a job whose cancel arrived after it had written its files. */
+export function lateCancelCopy(resultCopy: string): string {
+  return `Cancel came too late. ${resultCopy}`;
+}
+
 /** Artifact paths from a terminal bounce/export snapshot. */
 export function jobResultPaths(
   job: Pick<PipelineJobSnapshot, "result"> | null | undefined,

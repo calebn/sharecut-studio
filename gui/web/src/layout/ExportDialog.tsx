@@ -31,7 +31,7 @@ type Flow =
     }
   | { kind: "done"; paths: string[]; measured: string | null }
   | { kind: "failed"; reason: string }
-  | { kind: "cancelled" };
+  | { kind: "cancelled"; paths: string[] };
 
 /**
  * Host Export deliverables dialog: the same `PipelineService.export_audio` job
@@ -117,7 +117,7 @@ export function ExportDialog() {
       if (isAbortError(err)) {
         setFlow({ kind: "configure" });
       } else if (err instanceof JobCancelledError) {
-        setFlow({ kind: "cancelled" });
+        setFlow({ kind: "cancelled", paths: jobResultPaths(err.job) });
       } else {
         setFlow({ kind: "failed", reason: errorMessage(err) });
       }

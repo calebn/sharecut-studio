@@ -9,7 +9,7 @@ vi.mock("../api", async (orig) => ({
 }));
 vi.mock("./seedStudioJob", () => ({ seedStudioJob: vi.fn() }));
 
-import { followJobToOk } from "../api";
+import { followJobToOk, JobCancelledError } from "../api";
 import { seedStudioJob } from "./seedStudioJob";
 
 const followMock = vi.mocked(followJobToOk);
@@ -80,6 +80,37 @@ describe("runAnnouncedJob", () => {
       }),
     ).rejects.toThrow("boom");
     expect(useDawStore.getState().pendingJobResults).toEqual({});
+  });
+
+  it("settles a cancel that wrote nothing without announcing", async () => {
+    followMock.mockRejectedValue(
+      new JobCancelledError({ ...snap, status: "cancelled" }, "Cancelled"),
+    );
+    await expect(
+      runAnnouncedJob(async () => snap, {
+        failLabel: "F",
+        resultCopy: (p) => `${p.length} done`,
+      }),
+    ).rejects.toBeInstanceOf(JobCancelledError);
+    expect(useDawStore.getState().pendingJobResults).toEqual({});
+  });
+
+  it("announces the files a cancel arrived too late to stop", async () => {
+    followMock.mockRejectedValue(
+      new JobCancelledError(
+        { ...snap, status: "cancelled", result: { paths: ["a.wav", "a.mp3"] } },
+        "Cancelled",
+      ),
+    );
+    await expect(
+      runAnnouncedJob(async () => snap, {
+        failLabel: "F",
+        resultCopy: (p) => `${p.length} done`,
+      }),
+    ).rejects.toBeInstanceOf(JobCancelledError);
+    expect(useDawStore.getState().pendingJobResults).toEqual({
+      j1: "Cancel came too late. 2 done",
+    });
   });
 
   it("passes the abort signal through", async () => {

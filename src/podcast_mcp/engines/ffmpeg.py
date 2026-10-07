@@ -41,7 +41,15 @@ from podcast_mcp.util.atomic_file import publish_completed_file
 from podcast_mcp.util.binaries import FFmpegPair, resolve_ffmpeg_pair
 from podcast_mcp.util.model_assets import resolve_rnnoise_model
 from podcast_mcp.util.parallel import run_parallel
-from podcast_mcp.util.process import PIPE, CalledProcessError, TimeoutExpired, popen, run
+from podcast_mcp.util.process import (
+    DEVNULL,
+    PIPE,
+    CalledProcessError,
+    TimeoutExpired,
+    popen,
+    run,
+)
+from podcast_mcp.util.progress import raise_if_cancel_requested
 
 if TYPE_CHECKING:
     from podcast_mcp.edits.mute_regions import MuteEnvelope
@@ -54,6 +62,8 @@ PCM_STREAM_TIMEOUT_SEC = 600.0
 PCM_WINDOW_TIMEOUT_SEC = 30.0
 # Bytes of ffmpeg stderr kept for a failed decode's error message.
 PCM_STDERR_TAIL_BYTES = 2048
+CANCEL_POLL_SEC = 0.1
+ENCODE_CANCELLED = "Encoding cancelled"
 # Guest-safe input protocols (same whitelist as ``probe(untrusted=True)``).
 _UNTRUSTED_PROTOCOLS = "file,crypto,data"
 
@@ -312,6 +322,25 @@ def _mono_chunks(chunks: Generator[np.ndarray, None, None]) -> Generator[np.ndar
             yield chunk.reshape(-1)
     finally:
         chunks.close()
+
+
+def _run_cancellable(cmd: list[str], cancel_check: Callable[[], bool]) -> None:
+    """Run ``cmd``; kill it and raise ``CancelledProgress`` once ``cancel_check()`` is true."""
+    with tempfile.TemporaryFile() as err, popen(cmd, stdout=DEVNULL, stderr=err) as proc:
+        try:
+            while True:
+                try:
+                    rc = proc.wait(timeout=CANCEL_POLL_SEC)
+                    break
+                except TimeoutExpired:
+                    raise_if_cancel_requested(cancel_check, ENCODE_CANCELLED)
+        except BaseException:
+            proc.kill()
+            proc.wait()
+            raise
+        if rc != 0:
+            err.seek(0)
+            raise CalledProcessError(rc, cmd, stderr=err.read())
 
 
 def _pcm_decode_error(code: int, timed_out: bool, timeout_sec: float, err: IO[bytes]) -> str:
@@ -1557,7 +1586,13 @@ class FFmpegEngine:
         channels: int | None = None,
         metadata: dict[str, str] | None = None,
         extra_args: list[str] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> Path:
+        """Encode ``wav_path`` to ``output_path``.
+
+        ``cancel_check`` returning true stops ffmpeg and raises ``CancelledProgress``;
+        ``output_path`` may then hold a partial file, so callers render to a temp.
+        """
         output_path.parent.mkdir(parents=True, exist_ok=True)
         cmd = [self.ffmpeg, "-y", "-i", str(wav_path)]
         if format:
@@ -1575,7 +1610,10 @@ class FFmpegEngine:
         if extra_args:
             cmd.extend(extra_args)
         cmd.append(str(output_path))
-        run(cmd, check=True, capture_output=True)
+        if cancel_check is None:
+            run(cmd, check=True, capture_output=True)
+        else:
+            _run_cancellable(cmd, cancel_check)
         return output_path
 
     def export_mp3(

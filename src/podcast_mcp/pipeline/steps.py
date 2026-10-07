@@ -38,7 +38,7 @@ from podcast_mcp.pipeline.helpers import (
 from podcast_mcp.util.atomic_render import render_atomic
 from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.progress import ProgressTask, resolve_progress_task
-from podcast_mcp.util.project_state import with_render_lock
+from podcast_mcp.util.project_state import current_cancel_check, with_render_lock
 from podcast_mcp.whisper_models import DEFAULT_WHISPER_MODEL
 
 log = logging.getLogger(__name__)
@@ -1100,6 +1100,7 @@ def export_deliverables(project: EpisodeProject, defaults: dict[str, Any]) -> St
             mastered,
             export_cfg,
             max_workers=defaults.get("performance", {}).get("max_workers"),
+            cancel_check=current_cancel_check(),
         )
         extras: list[str] = []
         if project.chapters:
