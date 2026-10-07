@@ -31,8 +31,9 @@ describe("AskDialog", () => {
     });
     const dialog = screen.getByRole("dialog", {
       name: "Remove the Host track?",
+      description: "Its clips leave the timeline.",
     });
-    expect(dialog).toHaveTextContent("Its clips leave the timeline.");
+    expect(dialog).toHaveAccessibleDescription("Its clips leave the timeline.");
     const keep = screen.getByRole("button", { name: "Keep track" });
     const remove = screen.getByRole("button", { name: "Remove track" });
     await waitFor(() => expect(keep).toHaveFocus());

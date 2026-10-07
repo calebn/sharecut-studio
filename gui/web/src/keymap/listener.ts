@@ -4,7 +4,7 @@ import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
 import { peekMenuOpen } from "../ui/menuGate";
-import { peekModalOpen } from "../ui/modalGate";
+import { modalShortcuts } from "../ui/modalGate";
 import {
   argsFromKeyEvent,
   ignoresKeyRepeat,
@@ -15,8 +15,11 @@ import { isButtonActivation, isTypingTarget } from "./typing";
 /**
  * Sole window-level Sharecut Studio shortcut listener (governance choke-point).
  * Component-local Escape (e.g. BottomSheet) may use separate listeners —
- * see commands/governance.test.ts allowlist. An open modal dialog owns Escape
- * (`modalGate`), as an open menu owns every key (`menuGate`).
+ * see commands/governance.test.ts allowlist. An open menu owns every key
+ * (`menuGate`); an open modal dialog holds every app shortcut but the ones it
+ * hands on (`modalGate`: M for a marker in the Record room), so nothing runs
+ * behind an in-app confirm. Native keys inside the dialog (typing in its
+ * field, Tab, Enter on its buttons) are left to the browser.
  *
  * When several keymap rows share a key (Backspace clip vs track, Escape
  * comment vs clear selection), try each match in catalog order and run the
@@ -30,39 +33,20 @@ export function useDawKeymapListener(): void {
         s.commandPaletteOpen ||
         s.bounceDialogOpen ||
         (s.shareDialogOpen && s.project) ||
-        peekMenuOpen() ||
-        (e.key === "Escape" && peekModalOpen())
+        peekMenuOpen()
       ) {
+        return;
+      }
+      const handedOn = modalShortcuts();
+      if (handedOn?.length === 0) {
         return;
       }
       if (isTypingTarget(e.target) || isButtonActivation(e)) {
         return;
       }
-      if (s.recordPanelOpen) {
-        const matches = matchKeymapCommands(e);
-        for (const cmd of matches) {
-          if (cmd.id !== "record.marker") {
-            continue;
-          }
-          const def = COMMANDS[cmd.id];
-          if (!def) {
-            continue;
-          }
-          const ctx = buildCommandContext();
-          const gate = evaluateWhen(def.when, ctx);
-          if (!gate.ok) {
-            continue;
-          }
-          e.preventDefault();
-          void execute(cmd.id, argsFromKeyEvent(e, cmd.id), {
-            ctx,
-            skipWhen: true,
-          });
-          return;
-        }
-        return;
-      }
-      const matches = matchKeymapCommands(e);
+      const matches = matchKeymapCommands(e).filter(
+        (cmd) => handedOn == null || handedOn.includes(cmd.id),
+      );
       if (!matches.length) {
         return;
       }

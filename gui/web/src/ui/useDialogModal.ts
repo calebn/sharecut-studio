@@ -2,6 +2,7 @@ import { type RefObject, useEffect, useRef } from "react";
 import { cancelInlineConfirm } from "./inlineConfirmGate";
 import { peekMenuOpen } from "./menuGate";
 import { closeOverlay, isInnermostOverlay, openOverlay } from "./modalGate";
+import { openerControl } from "./pressedControl";
 
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -26,7 +27,8 @@ export type UseDialogModalOptions = {
   panelRef: RefObject<HTMLElement | null>;
   initialFocusRef?: RefObject<HTMLElement | null>;
   /**
-   * Element focus returns to on close; default: the one focused when it opened.
+   * Element focus returns to on close; default: the control that opened it
+   * (`openerControl`: the focused one, or the one just clicked in Safari).
    * A popover passes its trigger, since another overlay closing in the same
    * commit may already have moved focus.
    */
@@ -38,6 +40,11 @@ export type UseDialogModalOptions = {
    * sheet: Escape + initial focus + restore (no trap / inert) — peek BottomSheet.
    */
   mode?: DialogModalMode;
+  /**
+   * Keymap command ids this modal lets through (`modalGate`); every other app
+   * shortcut is held while it is open.
+   */
+  shortcuts?: readonly string[];
 };
 
 /**
@@ -46,7 +53,8 @@ export type UseDialogModalOptions = {
  * GOVERNANCE: installs a window keydown listener for Escape (+ Tab in modal) —
  * allowlisted via this module in commands/governance.test.ts. Each overlay
  * registers in `modalGate`: only the innermost overlay handles Escape, and
- * while a modal is open the Daw keymap leaves Escape alone.
+ * while a modal is open the Daw keymap runs none of its shortcuts but the
+ * ones the modal hands on (`shortcuts`).
  */
 export function useDialogModal({
   open,
@@ -56,9 +64,12 @@ export function useDialogModal({
   returnFocusRef,
   backgroundSelector = "[data-daw-app-chrome]",
   mode = "modal",
+  shortcuts,
 }: UseDialogModalOptions): void {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // A string, so a caller's inline array does not reopen the overlay each render.
+  const shortcutIds = shortcuts?.join(" ") ?? "";
   const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -66,10 +77,7 @@ export function useDialogModal({
       return;
     }
 
-    const previous =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
+    const previous = openerControl();
     restoreFocusRef.current = previous;
     // Read once, not in the cleanup: the ref's value could differ by unmount time.
     const returnTarget = returnFocusRef?.current ?? null;
@@ -82,7 +90,10 @@ export function useDialogModal({
     if (background) {
       background.inert = true;
     }
-    const layer = openOverlay(mode === "modal");
+    const layer = openOverlay(
+      mode === "modal",
+      shortcutIds ? shortcutIds.split(" ") : [],
+    );
 
     const focusInitial = () => {
       const preferred = initialFocusRef?.current;
@@ -175,5 +186,6 @@ export function useDialogModal({
     returnFocusRef,
     backgroundSelector,
     mode,
+    shortcutIds,
   ]);
 }

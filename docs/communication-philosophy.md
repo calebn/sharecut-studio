@@ -192,7 +192,9 @@ the empty state, not a separate discovery task.
   `await askConfirm(...)` opens the app's `AskDialog` (the shared
   `Dialog`, a bottom sheet on phones) with the consequence, Keep first
   and focused, and the action last, `danger` when it discards work;
-  `await askText(...)` replaces `window.prompt()` with a `Field`. #1027
+  `await askText(...)` replaces `window.prompt()` with a `Field`. While
+  either is open it holds every app shortcut, as the native `confirm()`
+  did, so nothing changes behind the question. #1027
   and #1031 replaced every native dialog, and oxlint's `no-alert` rule
   rejects new ones (see Governance). The
   blade-cut confirm sheet in `EditingToolRail` (named target, time,
@@ -490,4 +492,8 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   phones the toast docks above the highest bottom chrome shown (sheet,
   Timeline tool rail, mode nav) and below the transport, so it covers
   no controls; a repeated identical announcement is spoken again; a
-  refused undo is announced once.
+  refused undo is announced once. Third review round: an open confirm
+  holds every app shortcut as the native `confirm()` did (Mod+Z no
+  longer undoes behind it), names its consequence as the dialog's
+  description, and returns focus to the control that opened it in
+  Safari too.

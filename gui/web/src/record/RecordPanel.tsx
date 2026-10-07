@@ -60,6 +60,9 @@ import { useRoomToneCapture } from "./useRoomToneCapture";
 /** Commands whose success the panel shows in place (a copied link is invisible otherwise). */
 const SHOWN_RESULTS = new Set(["record.createRoom", "record.copyGuestLink"]);
 
+/** The one app shortcut the open room hands on: M drops a live marker. */
+const RECORD_ROOM_SHORTCUTS = ["record.marker"] as const;
+
 type Props = {
   recordingLocally?: boolean;
   keeperFinalizing?: boolean;
@@ -347,6 +350,7 @@ export function RecordPanel({
       open={recordPanelOpen}
       onClose={() => setRecordPanelOpen(false)}
       title="Record room"
+      shortcuts={RECORD_ROOM_SHORTCUTS}
       closeDisabled={
         uploadBlocking || micLossNeedsAttention || captureUnavailable
       }

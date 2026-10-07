@@ -33,7 +33,7 @@ import { selectPublishKey } from "./state/publishKey";
 import type { DawState } from "./state/types";
 import { pickDaw, useDaw } from "./state/useDaw";
 import { FollowEngine, TransportEngine } from "./TransportEngine";
-import { Button, ErrorScreen } from "./ui";
+import { Button, ErrorScreen, usePressedControl } from "./ui";
 
 let commandsRegistered = false;
 
@@ -115,6 +115,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
     guestSyncEnabled,
   });
   usePointerType();
+  usePressedControl();
 
   useEffect(() => {
     if (!commandsRegistered) {

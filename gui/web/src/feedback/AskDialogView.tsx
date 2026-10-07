@@ -32,11 +32,13 @@ function ConfirmView({
   onAnswer: (answer: Answer) => void;
 }) {
   const keepRef = useRef<HTMLButtonElement>(null);
+  const messageId = useId();
   return (
     <Dialog
       open
       phoneSheet
       title={question.title}
+      descriptionId={messageId}
       panelClassName="ui-ask"
       initialFocusRef={keepRef}
       onClose={() => onAnswer(null)}
@@ -54,7 +56,9 @@ function ConfirmView({
         </div>
       }
     >
-      <p className="ui-ask-message">{question.message}</p>
+      <p id={messageId} className="ui-ask-message">
+        {question.message}
+      </p>
     </Dialog>
   );
 }
