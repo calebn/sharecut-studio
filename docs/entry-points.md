@@ -60,7 +60,7 @@ and prompt limits stay in the service rather than adapters.
 
 Hard fail when a `COMMANDS` / keymap / registered MCP tool / skill is missing from the manifest (hubs/deprecated skills live under `hub_skills`), when an `effect: project` row has no MCP or CLI surface and no `omit.agent_reason`, when a `surfaces.cli` entry names a command or option the `podcast` CLI does not have, or when the published docs catalog is stale. The catalog shows each row's effect; an approved agent reason appears in its CLI column.
 
-Repo automation skills such as `codex-issue-pipeline` and the upstream UI design skill `impeccable` also live under `hub_skills`: they guide contributors but do not add a Sharecut Studio product command or MCP tool.
+Repo automation skills such as `sharecut-poteto` and the upstream UI design skill `impeccable` also live under `hub_skills`: they guide contributors but do not add a Sharecut Studio product command or MCP tool.
 
 ## Matrix
 

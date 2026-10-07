@@ -1,4 +1,4 @@
-"""Read-only, fail-closed merge-gate check for Codex issue-pipeline PRs."""
+"""Read-only, fail-closed repository merge predicates for issue-backed Poteto PRs."""
 
 from __future__ import annotations
 

@@ -7,10 +7,7 @@ Usage:
   python3 scripts/docs_sync.py table [--check]                    # AGENTS.md § Docs in sync
   python3 scripts/docs_sync.py replay --units units.jsonl         # triage merged PRs + gate health (make docs-sync-replay)
 
-Stdlib only, so CI runs it before installing anything. Never reads ``__file__``:
-review_packet.py pipes this file into ``python3 -`` from a git object (see
-docs_sync_findings in scripts/review_packet.py), so the repo root is found with
-``git rev-parse --show-toplevel`` instead.
+Stdlib only, so CI runs it before installing anything.
 """
 
 from __future__ import annotations
@@ -41,7 +38,6 @@ _TRAILER_RE = re.compile(r"^Docs-Sync-Waive:[ \t]*(?P<id>[a-z0-9-]+)[ \t]*(?P<re
 _LEGACY_RE = re.compile(r"\[skip (?P<id>[a-z0-9-]+)\]")
 # A backticked prose token may be root-relative or (like the rest of AGENTS.md's SOLID/DRY
 # section) shorthand for a path under the package root; try both before giving up.
-# scripts/review_packet.py keeps a copy (PACKAGE_PREFIX); a test pins them equal.
 _PACKAGE_PREFIX = "src/podcast_mcp/"
 
 
@@ -219,10 +215,7 @@ def _resolve_prose_path(token: str, tracked: frozenset[str]) -> str | None:
     is not path-like (a code symbol, env var, make target, or bare skill name never resolve).
 
     Tries ``token`` as a root-relative path first, then as shorthand for a path under
-    ``src/podcast_mcp/`` (the convention this file's own SOLID/DRY section uses).
-
-    scripts/review_packet.py's ``doc_references`` is a smaller copy of this resolver (it runs
-    from a git object and cannot import this module): carry a resolver fix over to it."""
+    ``src/podcast_mcp/`` (the convention this file's own SOLID/DRY section uses)."""
     candidates = [token]
     if not token.startswith(_PACKAGE_PREFIX):
         candidates.append(_PACKAGE_PREFIX + token)
@@ -336,8 +329,7 @@ class Report:
 
 
 def evaluate(contract: Contract, change: Change) -> Report:
-    """Pure. The one function behind the gate, the hook, `make docs-sync`, replay and the
-    review packet."""
+    """Evaluate the docs-sync gate, hook, and replay without I/O."""
     live = tuple(p for p in change.files if not any(g.matches(p) for g in contract.ignore))
     findings: list[Finding] = []
     problems: list[str] = []
@@ -560,7 +552,7 @@ _OUTCOME_ORDER: tuple[Outcome, ...] = ("violated", "satisfied", "waived", "advis
 
 
 def format_report(report: Report) -> str:
-    """Text for humans, CI logs and the review packet. Literal shape:
+    """Text for humans and CI logs. Literal shape:
 
     docs-sync origin/main...HEAD: 2 fired (1 violated, 1 satisfied)
       VIOLATED  ux-pack  UX onboarding pack (shareable site)
@@ -572,9 +564,6 @@ def format_report(report: Report) -> str:
       advisory  python-deps  pyproject.toml
       PROBLEM   abc1234: Docs-Sync-Waive names unknown rule 'ux-pak'
 
-    review_packet.clip_paths shortens the triggered by / satisfied / advisory path lists
-    by splitting on ", ", so keep that separator.
-    tests/test_review_packet.py::test_clip_paths_clips_every_path_list_docs_sync_prints pins this.
     """
     counts = {outcome: 0 for outcome in _OUTCOME_ORDER}
     for finding in report.findings:

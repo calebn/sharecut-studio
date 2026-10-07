@@ -73,7 +73,7 @@ jobs:
 
   # requires-python is >=3.11 but the full suite runs on 3.12. This runs the tests that pin the
   # 3.11 `wave` gap (WAVE_FORMAT_EXTENSIBLE, #1183) on the floor. Advisory: not in the
-  # issue-pipeline's required checks.
+  # required repository merge checks.
   pytest-python-floor:
     runs-on: ubuntu-latest
     timeout-minutes: 15

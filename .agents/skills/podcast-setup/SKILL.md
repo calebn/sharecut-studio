@@ -64,7 +64,7 @@ pip extras, bootstrap components, and npm.
 
 3. MCP and agent config: clients load [.agents/mcp.json](../../mcp.json),
 [rules/engineering-standards.md](../../rules/engineering-standards.md),
-[rules/git-workflow.md](../../rules/git-workflow.md), and [skills](../../skills/)
+[Poteto Git policy](../sharecut-poteto/references/git-workflow.md), and [skills](../../skills/)
 from this repo. Use the venv’s `podcast-mcp` if the IDE does not see `.venv/bin`.
 Reload MCP after install if your IDE was already open.
 
@@ -110,9 +110,9 @@ podcast track add --project /path/to/my_episode/episode.project.json \
 
 ## Code standards
 
-When changing this repository’s Python code, follow [AGENTS.md](../../AGENTS.md),
+When changing this repository’s Python code, follow [AGENTS.md](../../../AGENTS.md),
 [rules/engineering-standards.md](../../rules/engineering-standards.md), and
-[rules/git-workflow.md](../../rules/git-workflow.md) (SOLID/DRY, tests with every
+[Poteto Git policy](../sharecut-poteto/references/git-workflow.md) (SOLID/DRY, tests with every
 change, feature branch → PR → `main`, keep README/docs/skills in sync,
 `make test` ≥95% coverage).
 

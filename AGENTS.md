@@ -16,32 +16,11 @@ The product is in beta and has no users. Breaking changes are allowed; backward 
 
 ## Git workflow
 
-Ship via **feature branch → PR → `main`**. Do not commit or push directly to `main` unless the user explicitly overrides.
-
-1. Update local `main` (`git checkout main && git pull`).
-2. Create a branch: `type/short-kebab-description`.
-3. Implement with tests and docs in the same change. Post per-issue screenshots and receipts on the PR, never under `docs/issue-<n>/` ([docs/contributing.md § Review evidence](docs/contributing.md#review-evidence)).
-4. When the user asks to ship: reread each doc you changed next to the code it describes (docs-sync proves a doc was touched, not that it is right), commit on the branch, `git push -u origin HEAD`, `gh pr create` targeting **`main`**. Put `Fixes #N` (or `Closes` / `Resolves`) in the PR body so merge into `main` auto-closes linked issues, and `Related #N` for issues the PR touches but does not close (including review follow-ups); one part of a multi-PR series uses `Part of #N` instead of `Fixes #N` until the final part ([docs/contributing.md § Automated issue pipeline](docs/contributing.md#automated-issue-pipeline)).
-5. Merge with **rebase** (`gh pr merge --rebase`), not squash, so `main` keeps each focused commit; keep branch commits conventional and self-contained. Merge only when the user asks. Exception: the `issue-pipeline` workflow (`.claude/workflows/issue-pipeline.js`) is pre-approved to rebase-merge its own PRs when its merge gate passes — see [docs/contributing.md § Automated issue pipeline](docs/contributing.md#automated-issue-pipeline).
-
-Before working a GitHub issue, follow [.agents/rules/issue-claims.md](.agents/rules/issue-claims.md): skip issues with a live claim, claim before starting, move `pipeline:*` stage labels, and release when done.
-
-`make hooks` (also run by `./install.sh`) points `core.hooksPath` at `.githooks`, which runs lint-staged (Ruff + Biome write and restage) then the check-only pre-commit hooks (via `pre-commit`, or `uvx pre-commit` when it is not installed). In a new worktree, run `make worktree-setup` (hooks + venv with CI extras + `gui/web` node_modules); the pre-commit hook runs it automatically when `.venv` or `node_modules` is missing. Do not add format-write hooks to `.pre-commit-config.yaml`.
-
-**CI gate:** GitHub Actions runs the required full suite on public pushes and pull requests. `.githooks` has no pre-push full-CI gate; `make ci` is an optional local mirror. Detail: [docs/testing.md § GitHub CI gate](docs/testing.md#github-ci-gate), [docs/contributing.md § Git workflow](docs/contributing.md#git-workflow).
-
-| Prefix      | Use                                          |
-| ----------- | -------------------------------------------- |
-| `feat/`     | New behavior                                 |
-| `fix/`      | Bug fix                                      |
-| `docs/`     | Documentation / agent instructions only      |
-| `chore/`    | Tooling, deps, housekeeping                  |
-| `refactor/` | Internal restructure without behavior change |
-| `test/`     | Tests only                                   |
-
-Examples: `feat/guest-sign-in-ui`, `fix/share-acl-401`, `docs/agent-pr-workflow`.
-
-Detail: [.agents/rules/git-workflow.md](.agents/rules/git-workflow.md), [docs/contributing.md § Git workflow](docs/contributing.md#git-workflow), [.agents/INSTRUCTIONS.md](.agents/INSTRUCTIONS.md).
+For contributor work, use [sharecut-poteto](.agents/skills/sharecut-poteto/SKILL.md).
+Read its [Git policy](.agents/skills/sharecut-poteto/references/git-workflow.md)
+and [issue claims](.agents/skills/sharecut-poteto/references/issue-claims.md)
+before implementation. Native Poteto owns the procedure. Repository engineering,
+product, security, and CSS approval rules still apply.
 
 ## SOLID / DRY (short)
 
@@ -135,8 +114,8 @@ included, through the `.claude/skills` symlink to `.agents/skills`. Setup and tr
 Repo engineering and styling rules take precedence over upstream guidance;
 detector suppressions require explicit user approval.
 
-Tool-agnostic config under `.agents/` — [rules](.agents/rules/) (`engineering-standards.md`, `git-workflow.md`, `gui-styling.md`, `issue-claims.md`; not `.cursor/rules/`), [skills](.agents/skills/), [defaults](.agents/defaults/pipeline.yaml), [MCP](.agents/mcp.json). See [.agents/README.md](.agents/README.md).
+Tool-agnostic config under `.agents/` — [rules](.agents/rules/) (`engineering-standards.md`, `gui-styling.md`; not `.cursor/rules/`), [skills](.agents/skills/), [defaults](.agents/defaults/pipeline.yaml), [MCP](.agents/mcp.json). See [.agents/README.md](.agents/README.md).
 
 ## Skills
 
-Podcast workflows and the Codex issue workflow: `.agents/skills/`. Defaults: `.agents/defaults/pipeline.yaml`.
+Podcast workflows and the native Poteto repository companion: `.agents/skills/`. Defaults: `.agents/defaults/pipeline.yaml`.
