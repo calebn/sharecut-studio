@@ -183,7 +183,10 @@ def measure_pair(
 
     Frames count where the source is open within reach and out-levels the mic by
     ``DOMINANCE_DB``: the source talks and the mic carries only its copy. The
-    neighbourhood maximum keeps that mask the same at every candidate lag.
+    neighbourhood maximum keeps that mask the same at every candidate lag. A window
+    counts when it settles (:func:`_settled`); the lag is their median and drift is a
+    trend inside the runs between steps beyond ``deadband_sec``, so a latency that steps
+    and holds is not drift.
     """
     count = min(source.size, mic.size)
     reach = round(MAX_LAG_SEC / HOP_SEC)
