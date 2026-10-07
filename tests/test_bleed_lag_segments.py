@@ -94,6 +94,34 @@ def test_a_step_is_judged_against_its_merged_neighbours() -> None:
     assert _worst_error_ms(segments, direct, latency) <= 20.0
 
 
+def test_a_short_clear_stretch_keeps_its_own_lag() -> None:
+    # After a 21 s pause Audra says one 0.6 s phrase 220 ms late, pauses 7 s, and is back
+    # at 140 ms. The phrase has 168 source-dominant frames, all at r ~ 1: plenty to pin its
+    # lag. A fixed 200-frame floor rejected it as a piece, so it borrowed frames from the
+    # next phrase and played the start of that phrase 70 ms late.
+    audio = bh.tracks(bleed={"caleb": {"audra": 0.0}}, gated=("audra",))
+    audio["audra"][round(132.7 * bh.RATE) : round(134.9 * bh.RATE)] = 0.0
+    direct = audio["audra"]
+
+    def latency(t: float) -> float:
+        return 0.22 if 132.0 < t < 135.0 else 0.14
+
+    audio["audra"] = bh.relatency(direct, latency)
+    levels = bh.levels(audio)
+
+    segments = lag_segments(
+        levels["audra"], levels["caleb"], heard=levels["audra"], around_sec=0.15, deadband_sec=0.02
+    )
+
+    assert segments is not None
+    assert [(round(s.start_sec, 1), round(-s.shift_sec * 1000), s.frames) for s in segments] == [
+        (0.0, 140, 8646),
+        (121.7, 220, 168),
+        (137.7, 140, 3017),
+    ]
+    assert _worst_error_ms(segments, direct, latency) <= 20.0
+
+
 def test_jitter_inside_the_deadband_is_one_segment() -> None:
     audio = bh.tracks(bleed={"caleb": {"audra": 0.0}}, gated=("audra",))
     rng = np.random.default_rng(3)
