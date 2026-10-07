@@ -23,6 +23,7 @@ from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, ProjectBusyError
 from podcast_mcp.util.tool_refusal import (
     ToolRefusal,
     crash_tool_result,
+    guest_failure_detail,
     lock_timeout_cause,
     refusal_tool_result,
     tool_refusal,
@@ -123,3 +124,11 @@ def test_coded_errors_round_trip_through_pickle(exc: CodedError) -> None:
     assert copy.code == exc.code
     assert copy.args == exc.args
     assert copy.extra == "kept"  # type: ignore[attr-defined]
+
+
+def test_guest_failure_detail_is_a_refusals_guest_message_and_nothing_for_a_crash() -> None:
+    refusal = CodedValueError(f"bad window in {HOST_PATH}", code="invalid_range")
+
+    assert guest_failure_detail(refusal) == "bad window in [path]"
+    assert guest_failure_detail(RuntimeError(f"ffmpeg died on {HOST_PATH}")) is None
+    assert guest_failure_detail(OSError(2, "No such file", HOST_PATH)) is None

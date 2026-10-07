@@ -31,6 +31,7 @@ from podcast_mcp.util.progress import (
     wrapped_ids,
 )
 from podcast_mcp.util.progress_install import install_all_progress_adapters
+from podcast_mcp.util.tool_refusal import guest_failure_detail
 
 
 @pytest.fixture(autouse=True)
@@ -317,7 +318,7 @@ def test_install_guest_tool_progress_binds_reporter():
         seen.append(type(current_progress()).__name__)
         return {"name": name, "args": arguments}
 
-    wrapped = install_guest_tool_progress(impl)
+    wrapped = install_guest_tool_progress(impl, fail_detail=guest_failure_detail)
     out = wrapped("guest_get_project", {"x": 1})
     assert out["name"] == "guest_get_project"
     assert seen == ["NullProgress"]

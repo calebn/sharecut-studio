@@ -32,6 +32,7 @@ from podcast_mcp.services.remote_mcp.allowlist import tool_allowed
 from podcast_mcp.services.remote_mcp.context import get_remote_mcp_context
 from podcast_mcp.util.coded_error import CodedError, CodedKeyError
 from podcast_mcp.util.progress import install_guest_tool_progress
+from podcast_mcp.util.tool_refusal import guest_failure_detail
 
 
 class UnknownToolError(LookupError):
@@ -534,4 +535,4 @@ def _call_tool_impl(name: str, arguments: dict[str, Any] | None = None) -> Any:
     return json.loads(json.dumps(result, default=str))
 
 
-call_tool = install_guest_tool_progress(_call_tool_impl)
+call_tool = install_guest_tool_progress(_call_tool_impl, fail_detail=guest_failure_detail)
