@@ -96,6 +96,7 @@ from podcast_mcp.edits.silence_islands import (
 )
 from podcast_mcp.edits.strip_silence import strip_silence
 from podcast_mcp.edits.timeline_ops import (
+    copy_segment,
     delete_clips,
     duplicate_segment,
     fill_with_room_tone,
@@ -1208,6 +1209,10 @@ class EditService:
             "after duplicate segment",
             lambda p: duplicate_segment(p, source_start, source_end, insert_at),
         )
+
+    def copy_segment(self, start: float, end: float, track_ids: list[str] | None = None) -> dict:
+        """Studio's clipboard for ``[start, end)``; read-only. ``PasteSegment`` takes it back."""
+        return copy_segment(self.ws.project, start, end, track_ids)
 
     def paste_segment(
         self,

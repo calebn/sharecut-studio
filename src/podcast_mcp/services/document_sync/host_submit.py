@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -40,3 +41,24 @@ def submit_host_document_command(
 def host_command_result(reply: dict[str, Any]) -> dict[str, Any]:
     """The handler result inside a submit reply (``command.payload.result``)."""
     return ((reply.get("command") or {}).get("payload") or {}).get("result") or {}
+
+
+def submit_paste_segment(
+    project_path: str | Path,
+    insert_at: float,
+    clipboard: Mapping[str, Any],
+    *,
+    client_id: str = "mcp-agent",
+) -> dict[str, Any]:
+    """Paste a ``copy_segment`` clipboard at ``insert_at`` with Studio Paste's payload.
+
+    The only place host agents build ``PasteSegment``, so a payload change lands here once.
+    """
+    payload = {
+        "insert_at": insert_at,
+        "duration": clipboard.get("duration"),
+        "extracts": clipboard.get("extracts"),
+    }
+    return host_command_result(
+        submit_host_document_command(project_path, "PasteSegment", payload, client_id=client_id)
+    )

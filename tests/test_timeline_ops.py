@@ -597,6 +597,32 @@ def test_paste_segment_after_extract() -> None:
     assert after >= before + 1.0 - 1e-6
 
 
+def test_copy_segment_matches_the_studio_clipboard_shape() -> None:
+    from podcast_mcp.edits.timeline_ops import copy_segment
+
+    p = _two_track_project()
+    p.timeline.clips[0].fade_in_ms = 20
+    assert copy_segment(p, 1.0, 3.0, ["host"]) == {
+        "duration": 2.0,
+        "extracts": [
+            {
+                "track_id": "host",
+                "source_start": 1.0,
+                "source_end": 3.0,
+                "relative_timeline_start": 0.0,
+                "source_id": None,
+                "fade_in_ms": 20,
+                "fade_out_ms": 0,
+                "join_in_mode": "fade",
+                "mute_regions": [],
+            }
+        ],
+    }
+    assert [e["track_id"] for e in copy_segment(p, 1.0, 3.0)["extracts"]] == ["host", "guest"]
+    with pytest.raises(ValueError, match="end must be after start"):
+        copy_segment(p, 3.0, 3.0)
+
+
 def test_shorten_word_gaps() -> None:
     p = _two_track_project()
     summary = shorten_word_gaps(p, max_gap_sec=0.2, use_inaudible_opt=False)

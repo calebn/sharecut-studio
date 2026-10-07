@@ -14,6 +14,7 @@ from podcast_mcp.services.document_sync import (
     DocumentCommandType,
     host_command_result,
     submit_host_document_command,
+    submit_paste_segment,
 )
 from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
 
@@ -358,6 +359,40 @@ def duplicate_segment_tool(
     """Duplicate a timeline segment at a new time."""
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).duplicate_segment(source_start, source_end, insert_at))
+
+
+def copy_segment_tool(
+    project_path: str,
+    start: float,
+    end: float,
+    track_ids_json: str | None = None,
+) -> str:
+    """Copy ``[start, end)`` timeline seconds the way Studio Copy / Cut fill the clipboard.
+
+    Read-only. Returns ``{duration, extracts}``: the clips of every track in range, or
+    only ``track_ids_json`` (a JSON array). Pass it to ``paste_segment_tool``. To cut and
+    paste, copy first, then cut (``propose_range_cut_tool`` or ``delete_clips_tool``).
+    """
+    track_ids = json.loads(track_ids_json) if track_ids_json else None
+    if track_ids is not None and not (
+        isinstance(track_ids, list) and all(isinstance(t, str) for t in track_ids)
+    ):
+        raise ValueError("track_ids_json must be a JSON array of track ids")
+    ws = ProjectWorkspace.open(project_path)
+    return to_json(EditService(ws).copy_segment(start, end, track_ids))
+
+
+def paste_segment_tool(project_path: str, insert_at: float, clipboard_json: str) -> str:
+    """Paste a ``copy_segment_tool`` clipboard at ``insert_at`` timeline seconds (Studio Paste).
+
+    Opens a ``duration`` gap on every dialogue lane at ``insert_at`` and places each
+    extract on its own track; the same clipboard can be pasted again. Submits
+    ``PasteSegment`` on the document plane; undoable.
+    """
+    clipboard = json.loads(clipboard_json)
+    if not isinstance(clipboard, dict):
+        raise ValueError("clipboard_json must be the object copy_segment_tool returns")
+    return to_json(submit_paste_segment(project_path, insert_at, clipboard))
 
 
 def list_clips_tool(project_path: str, track_id: str | None = None) -> str:
@@ -1039,6 +1074,8 @@ def register(mcp: MCPServer) -> None:
         split_clip_tool,
         delete_clips_tool,
         duplicate_segment_tool,
+        copy_segment_tool,
+        paste_segment_tool,
         list_clips_tool,
         list_applied_edits_tool,
         render_status_tool,

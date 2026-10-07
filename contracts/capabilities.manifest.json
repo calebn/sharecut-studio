@@ -849,7 +849,11 @@
       ],
       "surfaces": {
         "command": "edit.copy",
-        "keyboard": "Mod+C"
+        "keyboard": "Mod+C",
+        "mcp": [
+          "copy_segment_tool"
+        ],
+        "cli": "podcast edit copy-segment"
       },
       "omit": {}
     },
@@ -891,10 +895,9 @@
         "command": "edit.paste",
         "keyboard": "Mod+V",
         "mcp": [
-          "move_segment_tool",
-          "duplicate_segment_tool"
+          "paste_segment_tool"
         ],
-        "cli": "podcast edit move"
+        "cli": "podcast edit paste-segment"
       },
       "omit": {}
     },

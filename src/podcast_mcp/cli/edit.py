@@ -474,6 +474,38 @@ def edit_propose_range_cut_cmd(
     typer.echo(json.dumps(host_command_result(reply), indent=2))
 
 
+@edit_app.command("copy-segment")
+def edit_copy_segment_cmd(
+    project: Path = typer.Option(..., "--project"),
+    start: float = typer.Option(..., "--start", help="Timeline seconds"),
+    end: float = typer.Option(..., "--end", help="Timeline seconds"),
+    tracks: str | None = typer.Option(
+        None, "--tracks", help="Comma-separated tracks (default every track with clips)"
+    ),
+) -> None:
+    """Print the clipboard Studio Copy holds for a range; feed it to `edit paste-segment`."""
+    track_ids = [t.strip() for t in tracks.split(",") if t.strip()] if tracks else None
+    ws = ProjectWorkspace.open(project)
+    typer.echo(json.dumps(EditService(ws).copy_segment(start, end, track_ids), indent=2))
+
+
+@edit_app.command("paste-segment")
+def edit_paste_segment_cmd(
+    project: Path = typer.Option(..., "--project"),
+    at: float = typer.Option(..., "--at", help="Timeline seconds to paste at"),
+    clipboard: typer.FileText = typer.Option(
+        ..., "--clipboard", help="JSON from `edit copy-segment` (- for stdin)"
+    ),
+) -> None:
+    """Paste a copied range at --at, as Studio Paste does; undoable."""
+    from podcast_mcp.services.document_sync import submit_paste_segment
+
+    raw = json.load(clipboard)
+    if not isinstance(raw, dict):
+        raise typer.BadParameter("--clipboard must hold the object `edit copy-segment` prints")
+    typer.echo(json.dumps(submit_paste_segment(project, at, raw, client_id="cli"), indent=2))
+
+
 @edit_app.command("insert-gap")
 def edit_insert_gap_cmd(
     project: Path = typer.Option(..., "--project"),

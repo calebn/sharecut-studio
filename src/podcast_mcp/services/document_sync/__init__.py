@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from podcast_mcp.services.document_sync.host_submit import (
         host_command_result,
         submit_host_document_command,
+        submit_paste_segment,
     )
     from podcast_mcp.services.document_sync.payloads import (
         COMMENT_BODY_MAX,
@@ -78,6 +79,7 @@ __all__ = [
     "parse_document_command",
     "parse_view_projection",
     "submit_host_document_command",
+    "submit_paste_segment",
     "validate_payload",
 ]
 
@@ -112,6 +114,7 @@ _MODULE_BY_NAME = {
     "parse_document_command": "payloads",
     "parse_view_projection": "projection_types",
     "submit_host_document_command": "host_submit",
+    "submit_paste_segment": "host_submit",
     "validate_payload": "payloads",
 }
 
