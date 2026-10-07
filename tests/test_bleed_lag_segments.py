@@ -145,6 +145,96 @@ def test_a_short_clear_stretch_keeps_its_own_lag() -> None:
     assert _worst_error_ms(segments, direct, latency) <= 20.0
 
 
+def _phrase_after(dry: np.ndarray, at_sec: float) -> tuple[int, int]:
+    """Sample range of the first phrase (spurts under 0.5 s apart) starting after ``at_sec``."""
+    spurts = bh.spurts(dry)
+    first = next(i for i, (start, _end) in enumerate(spurts) if start / bh.RATE > at_sec)
+    last = first
+    while last + 1 < len(spurts) and spurts[last + 1][0] - spurts[last][1] < 0.5 * bh.RATE:
+        last += 1
+    return spurts[first][0], spurts[last][1]
+
+
+def _lone_phrase_lane(
+    dry: dict[str, np.ndarray],
+    phrase: tuple[int, int],
+    latency: Callable[[float], float],
+    *,
+    gain: np.ndarray,
+    noise: float,
+    seed: int,
+) -> tuple[list[BleedPair], dict[str, np.ndarray], dict[str, np.ndarray]]:
+    """Audra's gated track and Caleb's mic carrying her voice at ``gain``, noisy over ``phrase``."""
+    rng = np.random.default_rng(seed)
+    t = np.arange(dry["audra"].size)
+    caleb = dry["caleb"] + gain * dry["audra"] + 1e-4 * rng.standard_normal(t.size)
+    inside = (t >= phrase[0]) & (t < phrase[1])
+    caleb += np.where(inside, noise, 0.0) * rng.standard_normal(t.size)
+    audio = {"audra": bh.relatency(dry["audra"], latency), "caleb": caleb}
+    levels = bh.levels(audio)
+    return _from(levels["caleb"], 0.15), levels, bh.peaks(audio)
+
+
+def test_a_lone_phrase_after_a_pause_keeps_the_lag_its_own_speech_shows() -> None:
+    # Audra resumes 200 ms late after a minute's pause with one 3.6 s phrase on a noisy
+    # stretch of Caleb's mic, pauses 8 s, and carries on at 200 ms, 10 dB quieter on his mic.
+    # The phrase's level relation to its copy matches the speech before the pause, not after.
+    # Measured as one window per piece, that shared level relation pulled the phrase into
+    # the 140 ms piece before the pause; spurt by spurt, its timing puts it at 200 ms.
+    dry = bh.voices()
+    phrase = _phrase_after(dry["audra"], 212.0)
+    resumes = phrase[1] + round(8.0 * bh.RATE)
+    dry["audra"][phrase[1] : resumes] = 0.0
+    quieter = np.where(np.arange(dry["audra"].size) < resumes, 0.1, 0.03)
+
+    def latency(t: float) -> float:
+        return 0.14 if t < 212.0 else 0.2
+
+    pairs, levels, peaks = _lone_phrase_lane(
+        dry, phrase, latency, gain=quieter, noise=0.02, seed=11
+    )
+
+    found = lag_segments(
+        levels["audra"], pairs, heard=levels["audra"], heard_peak=peaks["audra"], deadband_sec=0.02
+    )
+
+    assert found is not None
+    assert [(round(s.start_sec, 1), round(-s.shift_sec * 1000)) for s in found.segments] == [
+        (0.0, 140),
+        (182.8, 200),
+    ]
+
+
+def test_a_noisy_lone_phrase_between_long_pauses_keeps_its_own_lag() -> None:
+    # Between a 10 s and a 15 s pause Audra says one 2.7 s phrase 170 ms late, on a noisy
+    # stretch of Caleb's mic; the rest of her track is 140 ms late. The phrase's lag is not
+    # pinned as tightly as the deadband, but its spurts each prefer 170 ms. A piece measured
+    # as one window diluted them below that pin, and leaving each fold's spurts out of the
+    # cross-validation left the phrase nothing to be predicted from, so the lane got no
+    # steps and the phrase played 30 ms early.
+    dry = bh.voices()
+    phrase = _phrase_after(dry["audra"], 120.0)
+    dry["audra"][phrase[0] - round(10.0 * bh.RATE) : phrase[0]] = 0.0
+    dry["audra"][phrase[1] : phrase[1] + round(15.0 * bh.RATE)] = 0.0
+    span = (phrase[0] / bh.RATE - 0.01, phrase[1] / bh.RATE)
+
+    def latency(t: float) -> float:
+        return 0.17 if span[0] <= t < span[1] else 0.14
+
+    pairs, levels, peaks = _lone_phrase_lane(dry, phrase, latency, gain=0.1, noise=0.02, seed=5)
+
+    found = lag_segments(
+        levels["audra"], pairs, heard=levels["audra"], heard_peak=peaks["audra"], deadband_sec=0.02
+    )
+
+    assert found is not None
+    assert [(round(s.start_sec, 1), round(-s.shift_sec * 1000)) for s in found.segments] == [
+        (0.0, 140),
+        (121.6, 165),
+        (142.4, 140),
+    ]
+
+
 def test_a_blip_is_noise_and_an_easing_is_a_step() -> None:
     # Audra resumes 200 ms late after a minute's pause and eases to 160 ms after 4.5 s:
     # two clear steps. In the pause a 40 ms click on her track lines up with one on
