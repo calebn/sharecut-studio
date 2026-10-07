@@ -154,7 +154,8 @@ tighten:
   # skip it. Its right edge instead stops 10 ms before the next word's acoustic
   # onset (a plosive's burst kept whole), and it may not cover a whole kept word
   # (skip counts next_onset, kept_word:{word}; #978). Mutes get the same edge
-  # checks and keep breaths whole (#1024).
+  # checks and keep breaths whole (#1024). Every cut stays clear of the flanking
+  # kept words' measured voices or is skipped as kept_voice (#1064).
   filler_room_tone_replace: true
   # room_tone = the track's recorded bed, else a steady stretch of its own audio
   # at its noise floor and 30+ dB under its speech, nearest the cut

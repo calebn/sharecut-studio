@@ -35,12 +35,13 @@ from podcast_mcp.edits.tighten_reasons import ACOUSTIC_FILLER_REASON
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.edits.voiced_runs import (
     FRAME_SEC,
+    HOP_SEC,
     audible_runs,
     run_straddling,
     voiced_runs,
     voiced_sec_inside,
 )
-from podcast_mcp.edits.word_onset import OnsetKind, filler_onset, next_onset
+from podcast_mcp.edits.word_onset import OnsetKind, next_onset, voice_end, voice_onset
 from podcast_mcp.engines.audio_audit import AnalysisPolicy
 from podcast_mcp.models import (
     ClipMuteRegion,
@@ -1503,6 +1504,11 @@ _ONSET_GUARD_SEC = 0.01
 _FILLER_END_SLACK_SEC = 0.04
 
 
+def _onset_guard_sec(defaults: dict[str, Any]) -> float:
+    """How far a faded right edge stops before an onset: the guard, or the declick fade."""
+    return max(_ONSET_GUARD_SEC, join_micro_fade_ms(defaults) / 1000.0)
+
+
 def _audibility_floor_db(defaults: dict[str, Any]) -> float:
     return float(defaults.get("analysis", {}).get("heuristics", {}).get("audibility_rms_db", -42.0))
 
@@ -1524,7 +1530,7 @@ def _shrink_to_next_onset(
     A burst onset stays on the plan, so approval can end the fade-in after the cut
     before it; a gradual onset moves the edge but leaves the fade-in free.
     """
-    guard = max(_ONSET_GUARD_SEC, join_micro_fade_ms(defaults) / 1000.0)
+    guard = _onset_guard_sec(defaults)
     # Look as far as the longest post-pad fade-in could reach: an onset there does
     # not move the cut, but approval must still end the fade before it.
     fade_reach = post_pad_fade_in_bounds_ms(defaults)[1] / 1000.0
@@ -1572,7 +1578,7 @@ def _start_at_filler_onset(
         if w.suppressed or w.end <= w.start or candidate.start <= w.start:
             continue
         floor = max(floor, min(w.end, candidate.start))
-    onset = filler_onset(
+    onset = voice_onset(
         audio_cache, candidate.start, floor, quiet_db=_audibility_floor_db(defaults)
     )
     if onset is None:
@@ -1581,6 +1587,85 @@ def _start_at_filler_onset(
     if onset < candidate.start and start < plan.start:
         return replace(plan, start=start)
     return plan
+
+
+def _kept_neighbours(
+    project: EpisodeProject, candidate: _CutCandidate
+) -> tuple[TranscriptWord | None, TranscriptWord | None]:
+    """The kept words that end last before the candidate and start first after it."""
+    before: TranscriptWord | None = None
+    after: TranscriptWord | None = None
+    tr = project.transcript_for_track(candidate.track_id)
+    for w in tr.words if tr else ():
+        if w.suppressed or w.end <= w.start:
+            continue
+        if w.end <= candidate.start and (before is None or w.end > before.end):
+            before = w
+        if w.start >= candidate.end and (after is None or w.start < after.start):
+            after = w
+    return before, after
+
+
+def _cut_minimum_sec(candidate: _CutCandidate) -> float:
+    return (
+        _ACOUSTIC_MIN_CUT_SEC if candidate.reason == ACOUSTIC_FILLER_REASON else MIN_PACED_CUT_SEC
+    )
+
+
+def _between_kept_voices(
+    project: EpisodeProject,
+    plan: _CutPlan,
+    candidate: _CutCandidate,
+    *,
+    audio_cache: TrackAudioCache,
+    defaults: dict[str, Any],
+) -> _CutPlan | _CutRejected:
+    """Keep ``plan`` out of the voice of the kept words either side of it (#1064).
+
+    Word times end a word before its voice does: the lab "So" ends at 230.78 and
+    voices until 230.98, and a mute from 230.805 cut its second half. The neighbours'
+    voices are read from the audio at the audibility floor, as the filler's own onset
+    is: ``voice_end`` walks forward from the previous kept word's end to its first
+    quiet frame, ``voice_onset`` back from the next kept word's start to its last.
+
+    A cut without words of its own (an acoustic run, a pause) starts after the
+    previous word's voice and ends before the next word's, with the voiced-edge air
+    (``_VOICE_EDGE_PAD_SEC``) either side, in every join. One that a kept word's
+    voice runs on through, or that is too short or misses its run once moved, is
+    dropped as ``kept_voice``. A cut with words of its own reads each neighbour only
+    up to those words and keeps the faded-edge margins its onset rules use: it starts
+    no earlier than the first quiet frame after the previous word (the filler-onset
+    rule's edge, #1061) and ends 10 ms before the next word's voice. Voice that runs
+    on between such a cut and a neighbour with no quiet frame is the filler-onset and
+    next-onset rules' to judge (the latter finds the foot of the rise). Word times
+    cannot stand in for them: Whisper starts the lab "we" after "Uh," 180 ms early.
+    """
+    quiet_db = _audibility_floor_db(defaults)
+    wordless = candidate.cut_kind == "pause" or candidate.reason == ACOUSTIC_FILLER_REASON
+    before, after = _kept_neighbours(project, candidate)
+    start, end = plan.start, plan.end
+    if before is not None:
+        ceiling = end if wordless else min(end, candidate.start)
+        ends = voice_end(audio_cache, before.end, ceiling, quiet_db=quiet_db)
+        if ends is None and wordless:
+            return _CutRejected("kept_voice")
+        if ends is not None and ends > before.end:
+            # A word cut's own onset edge sits at the start of a quiet frame (#1061),
+            # one hop before the voiced-run edge ``voice_end`` reports.
+            start = max(start, ends + _VOICE_EDGE_PAD_SEC if wordless else ends - HOP_SEC)
+    if after is not None:
+        floor = start if wordless else max(start, candidate.end)
+        onset = voice_onset(audio_cache, after.start, floor, quiet_db=quiet_db)
+        if onset is not None and onset < after.start:
+            air = _VOICE_EDGE_PAD_SEC if wordless else _onset_guard_sec(defaults)
+            end = min(end, onset - air)
+    if (start, end) == (plan.start, plan.end):
+        return plan
+    if end - start + 1e-9 < _cut_minimum_sec(candidate) or (
+        candidate.cut_kind != "pause" and not _cut_covers_reparandum(candidate, start, end)
+    ):
+        return _CutRejected("kept_voice")
+    return replace(plan, start=start, end=end)
 
 
 def _covered_kept_word(
@@ -1767,6 +1852,13 @@ def _gate_cut_edges(
         if isinstance(started, _CutRejected):
             return started
         plan = started
+    if audio_cache is not None:
+        between = _between_kept_voices(
+            project, plan, candidate, audio_cache=audio_cache, defaults=defaults
+        )
+        if isinstance(between, _CutRejected):
+            return between
+        plan = between
     if checks.end_before_next_onset and audio_cache is not None:
         shrunk = _shrink_to_next_onset(plan, candidate, audio_cache=audio_cache, defaults=defaults)
         if isinstance(shrunk, _CutRejected):
@@ -1802,8 +1894,7 @@ def _gate_cut_edges(
         cut_start, cut_end = breath_safe
     protected = cut_start, cut_end
     acoustic = candidate.reason == ACOUSTIC_FILLER_REASON
-    minimum = _ACOUSTIC_MIN_CUT_SEC if acoustic else MIN_PACED_CUT_SEC
-    if cut_end - cut_start + 1e-9 < minimum:
+    if cut_end - cut_start + 1e-9 < _cut_minimum_sec(candidate):
         return _CutRejected("too_short")
     if candidate.cut_kind != "pause" and not _cut_covers_reparandum(candidate, cut_start, cut_end):
         return _CutRejected("reparandum")
