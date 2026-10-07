@@ -2611,6 +2611,28 @@ def test_only_unpadded_cuts_go_through_the_splice_gates(gate):
     }
 
 
+def test_only_a_pause_trim_moves_its_edges_into_the_air():
+    # A pause trim removes only air, so breath protection may move its edges out of
+    # sound; a filler's edges must stay on the filler (#1055).
+    words = [
+        TranscriptWord(text="um", start=1.0, end=1.2),
+        TranscriptWord(text="okay.", start=1.25, end=1.5),
+        TranscriptWord(text="two", start=3.5, end=3.9),
+    ]
+    project = _project_with_transcript(words)
+    seen: dict[str, bool] = {}
+
+    def spy(project, track_id, start, end, **kw):
+        seen["pause" if start >= 1.5 else "filler"] = kw["air_only"]
+        return start, end
+
+    defaults = {"tighten": {"filler_words": ["um"], "max_pause_sec": 1.2}}
+    with patch("podcast_mcp.edits.fillers.protect_cut_breaths", side_effect=spy):
+        analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+
+    assert seen == {"pause": True, "filler": False}
+
+
 def test_a_mute_fades_each_edge_against_fill_so_the_join_gate_skips_it():
     from types import SimpleNamespace
 
