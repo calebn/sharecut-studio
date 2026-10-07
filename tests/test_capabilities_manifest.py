@@ -126,3 +126,34 @@ def test_agent_reason_beside_an_agent_surface_is_an_error() -> None:
         _row("project", {"mcp": ["example_tool"]}, {"agent_reason": "Preview only"})
     )
     assert errors == ["daw.example: has an MCP or CLI surface, so drop omit.agent_reason"]
+
+
+def test_cli_entry_that_names_no_real_command_is_an_error() -> None:
+    mod = load_script("check_capabilities_manifest")
+    row = _row(
+        "project",
+        {
+            "cli": [
+                "podcast track",
+                "podcast edit no-such-cmd",
+                "podcast edit delete-clips --no-such-flag",
+                "uv run podcast edit approve",
+            ]
+        },
+    )
+    assert mod.cli_surface_errors(row, mod._cli_root()) == [
+        "daw.example: cli 'podcast track' has no command `podcast track`",
+        "daw.example: cli 'podcast edit no-such-cmd' has no command `podcast edit no-such-cmd`",
+        "daw.example: cli 'podcast edit delete-clips --no-such-flag' "
+        "`podcast edit delete-clips` has no option --no-such-flag",
+        "daw.example: cli 'uv run podcast edit approve' must start with `podcast`",
+    ]
+
+
+def test_cli_entries_that_resolve_in_the_typer_tree_pass() -> None:
+    mod = load_script("check_capabilities_manifest")
+    row = _row(
+        "project",
+        {"cli": ["podcast edit", "podcast edit delete-clips --ripple", "podcast doctor --bundle"]},
+    )
+    assert mod.cli_surface_errors(row, mod._cli_root()) == []

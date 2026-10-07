@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "contracts" / "capabilities.manifest.json"
@@ -105,6 +107,46 @@ def _mcp_tools() -> set[str]:
     from mcp_tool_discovery import discover_mcp_tool_names
 
     return discover_mcp_tool_names()
+
+
+def _cli_root() -> Any:
+    """The real ``podcast`` click tree (Typer app plus installed CLI extensions)."""
+    import typer
+
+    from podcast_mcp.cli.main import app
+
+    return typer.main.get_command(app)
+
+
+def _cli_entry_error(entry: str, root: Any) -> str | None:
+    """Why ``entry`` (``podcast <group> <cmd> [--opt …]``) names no real command, or None."""
+    tokens = shlex.split(entry)
+    if not tokens or tokens[0] != "podcast":
+        return "must start with `podcast`"
+    cmd = root
+    path = ["podcast"]
+    rest = tokens[1:]
+    while rest and not rest[0].startswith("-"):
+        sub = getattr(cmd, "commands", {}).get(rest[0])
+        if sub is None:
+            return f"has no command `{' '.join([*path, rest[0]])}`"
+        cmd, path, rest = sub, [*path, rest[0]], rest[1:]
+    options = {o for param in cmd.params for o in (*param.opts, *param.secondary_opts)}
+    for tok in rest:
+        if tok.startswith("-") and tok.split("=", 1)[0] not in options:
+            return f"`{' '.join(path)}` has no option {tok.split('=', 1)[0]}"
+    return None
+
+
+def cli_surface_errors(cap: dict, root: Any) -> list[str]:
+    """Each ``surfaces.cli`` entry must resolve in the Typer tree, like MCP names."""
+    cid = cap.get("id", "<unknown>")
+    errors: list[str] = []
+    for entry in _as_list((cap.get("surfaces") or {}).get("cli")):
+        problem = _cli_entry_error(entry, root)
+        if problem:
+            errors.append(f"{cid}: cli {entry!r} {problem}")
+    return errors
 
 
 def _skill_description_nonempty(frontmatter: str) -> bool:
@@ -259,6 +301,7 @@ def main() -> int:
     mcp_in_manifest: set[str] = set()
     skills_in_manifest: set[str] = set()
 
+    cli_root = _cli_root()
     for cap in caps:
         cid = cap.get("id", "<unknown>")
         surfaces = cap.get("surfaces") or {}
@@ -284,6 +327,7 @@ def main() -> int:
                 errors.append(f"{cid}: toggle capabilities require tooltip_pressed")
             errors.extend(presence_errors(cap))
         errors.extend(mcp_surface_errors(cap))
+        errors.extend(cli_surface_errors(cap, cli_root))
         mcp_in_manifest.update(_as_list(surfaces.get("mcp")))
         for sk in _as_list(surfaces.get("skill")):
             skills_in_manifest.add(sk)

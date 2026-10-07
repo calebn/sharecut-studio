@@ -58,7 +58,12 @@
                 { "type": "array", "items": { "type": "string" } }
               ]
             },
-            "cli": { "type": "string" },
+            "cli": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
+              ]
+            },
             "skill": {
               "oneOf": [
                 { "type": "string" },

@@ -870,7 +870,11 @@
           "delete_clips_tool",
           "propose_range_cut_tool"
         ],
-        "cli": "podcast edit ripple-delete"
+        "cli": [
+          "podcast edit propose-range-cut",
+          "podcast edit approve",
+          "podcast edit delete-clips --ripple"
+        ]
       },
       "omit": {}
     },
@@ -1955,7 +1959,7 @@
           "episode_create",
           "track_set_meta_tool"
         ],
-        "cli": "podcast episode / podcast track",
+        "cli": "podcast episode",
         "skill": "podcast-setup"
       },
       "omit": {

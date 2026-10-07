@@ -69,7 +69,7 @@ def _keyboard_cell(cap: dict[str, Any]) -> str:
 def _cli_cell(cap: dict[str, Any]) -> str:
     surfaces = cap.get("surfaces") or {}
     if surfaces.get("cli"):
-        return f"`{_esc(str(surfaces['cli']))}`"
+        return _fmt_list(_as_list(surfaces.get("cli")))
     reason = (cap.get("omit") or {}).get("agent_reason")
     if reason and not surfaces.get("mcp"):
         return f"— ({_esc(str(reason))})"
