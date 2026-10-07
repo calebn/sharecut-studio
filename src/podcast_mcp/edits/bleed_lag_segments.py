@@ -11,7 +11,8 @@ another voice copied onto the lane's mic. Both copies on the lane's track move w
 latency. A source lag ``lam`` pairs the other track's frame ``f`` with source frame
 ``f + lam``, and the lane plays in sync where its timeline-minus-source shift is ``-lam``.
 Units are the lane's talk spurts (its full-band envelope open, split at silences of at
-least ``MIN_GAP_SEC``). Per spurt, pair and candidate lag the Pearson sums over frames
+least ``MIN_GAP_SEC``). A frame is silent when its RMS is under ``OPEN_DB`` and its every
+sample peaks under ``SKIP_PEAK_DB``, so a step skips or repeats nothing louder. Per spurt, pair and candidate lag the Pearson sums over frames
 where the talker out-levels the copy are kept, so any run of spurts is measured exactly as
 one window over its frames, and pairs add as independent log-likelihoods.
 
@@ -50,6 +51,10 @@ from podcast_mcp.engines.envelope_lag import LEVEL_FLOOR_DB, MIN_CORRELATION
 
 MIN_GAP_SEC = 0.06
 EDGE_SEC = 0.02
+# A step skips or repeats only audio whose 30 ms RMS is under OPEN_DB and whose every
+# sample peaks under this: 10 dB over the RMS gate, about the crest of a noise floor
+# sitting at the gate, so a click the RMS averages away still counts as sound.
+SKIP_PEAK_DB = OPEN_DB + 10.0
 SEARCH_SEC = 0.1
 # Half the 95% chi-square(1) quantile: the likelihood-ratio interval of a piece's lag.
 CONFIDENCE_NATS = 1.92
@@ -70,9 +75,9 @@ class LagSegment:
     gap_sec: tuple[float, float] | None = None
 
 
-def _talk_spurts(source: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """First and last open frame of each talk spurt."""
-    open_frames = np.flatnonzero(source > OPEN_DB)
+def _talk_spurts(heard: np.ndarray, heard_peak: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """First and last open frame of each talk spurt (RMS or sample peak over its gate)."""
+    open_frames = np.flatnonzero((heard > OPEN_DB) | (heard_peak[: heard.size] > SKIP_PEAK_DB))
     if open_frames.size == 0:
         return open_frames, open_frames
     breaks = np.flatnonzero(np.diff(open_frames) >= round(MIN_GAP_SEC / HOP_SEC))
@@ -270,19 +275,22 @@ def lag_segments(
     pairs: Sequence[BleedPair],
     *,
     heard: np.ndarray,
+    heard_peak: np.ndarray,
     deadband_sec: float,
 ) -> tuple[LagSegment, ...] | None:
     """Piecewise shift of a lane (``source``: its media envelope) from every pair it is in.
 
     All envelopes are on the ``HOP_SEC`` grid. ``heard`` is the lane's full-band envelope,
     which decides where it is silent: a decode band-limited for lag work hides sibilants
-    above its Nyquist (an "s" at -26 dBFS read as -61 dB at 8 kHz on the lab tape). Each
+    above its Nyquist (an "s" at -26 dBFS read as -61 dB at 8 kHz on the lab tape).
+    ``heard_peak`` is its per-frame sample peak on the same grid, so a step never skips or
+    repeats a click whose RMS reads as silence. Each
     pair is searched around its own steady lag, which carries its copy's path delay, and
     the pieces' steps are common to all of them. The first pair anchors the lane on the
     reference clock, so callers put a pair with the reference first. None when no step
     stands.
     """
-    firsts, lasts = _talk_spurts(heard[: source.size])
+    firsts, lasts = _talk_spurts(heard[: source.size], heard_peak)
     if firsts.size < 2 or not pairs:
         return None
     centres = [round(pair.lag_sec / HOP_SEC) for pair in pairs]

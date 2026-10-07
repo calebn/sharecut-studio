@@ -7,7 +7,7 @@ level floors and pitch ranges cannot silently drift between private copies.
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Sequence
 
 import numpy as np
 
@@ -99,29 +99,56 @@ def frame_band_db(
     return out
 
 
-def frame_rms_db_stream(
-    chunks: Iterable[np.ndarray], frame: int, hop: int, *, floor_db: float = -200.0
+def frame_peak_db(
+    samples: np.ndarray, frame: int, hop: int, *, floor_db: float = -200.0
 ) -> np.ndarray:
-    """:func:`frame_rms_db` over a forward-only chunk stream.
+    """Per-frame sample peak in dB on the :func:`frame_rms_db` frame grid."""
+    if frame <= 0 or hop <= 0 or samples.size < frame:
+        return np.empty(0, dtype=np.float64)
+    windows = np.lib.stride_tricks.sliding_window_view(samples, frame)[::hop]
+    peak = np.abs(windows).max(axis=1).astype(np.float64)
+    out = np.full(peak.shape, floor_db, dtype=np.float64)
+    loud = peak >= _SILENCE_RMS
+    out[loud] = 20.0 * np.log10(peak[loud])
+    return out
+
+
+def frame_db_stream(
+    chunks: Iterable[np.ndarray],
+    frame: int,
+    hop: int,
+    reducers: Sequence[Callable[[np.ndarray, int, int], np.ndarray]],
+) -> tuple[np.ndarray, ...]:
+    """Per-frame reductions (:func:`frame_rms_db`, :func:`frame_peak_db`) over a chunk stream.
 
     Same frames and values as on the concatenated samples, holding one chunk plus
-    fewer than ``frame`` carried samples. The carry-buffer loop has the same shape as
-    ``engines.asr_silence.peak_envelope`` and ``engines.waveform_pyramid.build_levels``;
-    the reductions differ (overlapping RMS frames, block max, min/max/sum-of-squares
-    bins), so they stay separate. If a fourth streaming reducer appears, fold all of
-    them into one shared ``util.dsp`` helper instead of adding another copy.
+    fewer than ``frame`` carried samples, in one pass for every reducer. The carry-buffer
+    loop has the same shape as ``engines.asr_silence.peak_envelope`` and
+    ``engines.waveform_pyramid.build_levels``; those reduce whole blocks or bins, not
+    overlapping frames, so they stay separate. A new overlapping-frame reduction is a
+    reducer here, not another loop.
     """
     if frame <= 0 or hop <= 0:
-        return np.empty(0, dtype=np.float64)
-    parts: list[np.ndarray] = []
+        return tuple(np.empty(0, dtype=np.float64) for _ in reducers)
+    parts: list[list[np.ndarray]] = [[] for _ in reducers]
     carry = np.zeros(0, dtype=np.float32)
     for chunk in chunks:
         buf = np.concatenate([carry, np.asarray(chunk).reshape(-1)])
-        levels = frame_rms_db(buf, frame, hop, floor_db=floor_db)
-        if levels.size:
-            parts.append(levels)
-        carry = buf[levels.size * hop :]
-    return np.concatenate(parts) if parts else np.empty(0, dtype=np.float64)
+        levels = [reduce(buf, frame, hop) for reduce in reducers]
+        for part, level in zip(parts, levels, strict=True):
+            if level.size:
+                part.append(level)
+        carry = buf[levels[0].size * hop :] if levels else buf
+    return tuple(np.concatenate(part) if part else np.empty(0, dtype=np.float64) for part in parts)
+
+
+def frame_rms_db_stream(
+    chunks: Iterable[np.ndarray], frame: int, hop: int, *, floor_db: float = -200.0
+) -> np.ndarray:
+    """:func:`frame_rms_db` over a forward-only chunk stream (see :func:`frame_db_stream`)."""
+    return frame_db_stream(
+        chunks, frame, hop, (lambda buf, f, h: frame_rms_db(buf, f, h, floor_db=floor_db),)
+    )[0]
 
 
 def autocorr_peak(
