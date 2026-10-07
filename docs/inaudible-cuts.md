@@ -258,7 +258,7 @@ See also [filler-cut-quality.md](filler-cut-quality.md) for gate + re-enable cri
 - `preview_inaudible_cut_tool` — dry-run: shifted boundaries, mode, confidence.
 - `suggest_handoff_cut_tool` — retain ~1s on each keep, snap to quiet, for narrative handoffs (timeline clock); prefer with `use_inaudible_opt=false`.
 - `join_quality_tool` / `join_qa_sweep_tool` — score one join or sweep every splice (default timebase `timeline`); sweep rows carry `speech` (voiced speech cut through at the join) and the report `speech_cross_count`.
-- `audition_context_tool` — `speech_crosses_cut` for every splice in the window plus `echo_risk` and `clip_skew`; its `evidence.fix` names the `trim_clip_edge_tool` call (`all_tracks=true` for a session-wide cut, so every track's edge moves and the episode stays in sync; a track-local punch trims one clip).
+- `audition_context_tool` — `speech_crosses_cut` for every splice in the window plus `echo_risk` and `clip_skew`; its `evidence.fix` names the `trim_clip_edge_tool` call (`mode=ripple` for a session-wide cut, so every track's edge moves and the episode stays in sync; `mode=gap` for a track-local punch, so only that clip's edge moves).
 - `join_label_tool` — record explicit pass/fail A/B labels into `artifacts/join_labels.jsonl`.
 - `update_pending_edit_tool` — nudge a pending decision’s source range; `snap=true` (default) runs `optimize_source_cut_range` before save (Sharecut Studio drag/inspector uses the same path via `UpdatePendingEdit`).
 - Cut tools accept optional `use_inaudible_opt=false` to skip optimization for one call.

@@ -118,7 +118,7 @@ Shipped:
 - Pending Approve / Reject (inspector) + Impact **Approve/Reject all review-required**
 - `UpdatePendingEdit` — on an origin-track pending cut, drag only the true outer start or end edge; the moving edge snaps to waveform ticks and stays inside its source clip while the opposite edge stays fixed. A pointer-up under `HANDLE_DRAG_MIN_PX` (3 px net) only selects the edit. Fine pointers keep the narrow edge targets. Touch shows 44px inline edge targets only when the drawn region is at least 44px wide and the lane can fit both targets; otherwise **Edit timing** focuses the existing Source start field in the inspector. The timeline writes the exact displayed range without optimizer snapping; changing a bound clears its previous optimizer boundary mode and confidence, so manually timed cuts need audition before approval. The inspector source nudge still uses inaudible snap; its fields take `m:ss.mmm` (or plain seconds), and an untouched field sends its exact stored time. The Impact pending list selects all pending edits; bulk Approve/Reject still apply only to review-required edits. The inspector shows the reason once in words (codes in `edits/edit_reasons.py`, labels pinned by `tests/test_edit_reasons.py`), the type as a word (Cut / Mute / Split), and `crossfade_ms` as **Join fade** (approve applies it as fade lengths).
 - Timeline Approve/Reject uses the same permission policy and queued-review status as the inspector. A host approval stopped by the transcript-refine gate exposes the existing reasoned waiver recovery in the anchored action surface; guests see the safe explanation without host-only waiver controls.
-- `RestoreAppliedEdit` / `revert_applied_edit` — re-insert clip material from `AppliedEditRecord` source clocks for ripple/punch cuts; a ripple reopens the hole on every dialogue track, while a track-scope punch (`params.scope: "track"`) refills its silent hole in place and shifts nothing; mute archives (`params.mute`) subtract intersecting `Clip.mute_regions` without shifting the timeline. Records without source clocks, or whose `params.per_track_source` seam clocks do not span the archived timeline hole (a cut across moved or gapped clips), → History undo
+- `RestoreAppliedEdit` / `revert_applied_edit` — re-insert clip material from `AppliedEditRecord` source clocks for ripple/punch cuts; a ripple reopens the hole on every `ripple_track_ids` track, while a track-scope punch (`params.scope: "track"`) refills its silent hole in place and shifts nothing; mute archives (`params.mute`) subtract intersecting `Clip.mute_regions` without shifting the timeline. Records without source clocks, or whose `params.per_track_source` seam clocks do not span the archived timeline hole (a cut across moved or gapped clips), → History undo
 - Inspector Seek / Play around footers (buttons with seek / play icons) (Current / Suggested / A/B on pending)
 
 **Restore limits:** audio/timeline restore only; hard transcript removes are not fully reversed (reconciliation may go stale). Multi-track `ripple_delete` log rows without `source_*` are not restorable this way.
@@ -208,7 +208,7 @@ while a correction is saving. Enter retains the native Correct/Select word
 action in those modes; Enter in the inline editor saves and Escape cancels.
 
 - Tooltip / `aria-label` copy for GUI chrome lives on capability rows (`tooltip` / `tooltip_pressed`) in [`contracts/capabilities.manifest.json`](../contracts/capabilities.manifest.json); generated into `gui/web/src/capabilities/copy.ts` via `make schema-export`
-- Clip **trim strips** (full-height edges, shown only on hover with a fine pointer, keyboard focus or selection, like a zero-length fade's corner handle; hidden strips stay in the tab order): front = `source_start`, back = `source_end` via `TrimClipEdge` (ripple) with ghost waveform preview; trim/blade magnet to waveform snap ticks (quiet wash + `waveform-snap` API); ticks draw only while trimming or in blade mode (View › Layers › Snap points); a pointer-up under 3 px net, or a trim the snap or clamp leaves on the committed edge, saves nothing
+- Clip **trim strips** (full-height edges, shown only on hover with a fine pointer, keyboard focus or selection, like a zero-length fade's corner handle; hidden strips stay in the tab order): front = `source_start`, back = `source_end` via `TrimClipEdge` (`mode: ripple` today; see [Edit modes](#edit-modes-ripple-and-gap)) with ghost waveform preview; trim/blade magnet to waveform snap ticks (quiet wash + `waveform-snap` API); ticks draw only while trimming or in blade mode (View › Layers › Snap points); a pointer-up under 3 px net, or a trim the snap or clamp leaves on the committed edge, saves nothing
 - Join **seam lines** and transcript Annotate **¦** glyphs (both neighbors): **roll** via `RollClipJoin` — left `source_end` and right `source_start` move together; clips stay timeline-flush; pair duration unchanged; a pointer-up under 3 px net only selects
 - Transcript boundary drag keeps the inline glyph size fixed and shows **ghost cutaway words** in a bounded body portal. The glyph follows raw pointer movement while the source offset stays within legal bounds; holding Shift slows the offset to 1 ms per CSS pixel, including when Shift changes during a drag. The preview uses the same expand-range math as timeline ghost waveform and identifies which side of the join restores words. It displays a 0.01-second delta (0.001 second in fine mode) and limit feedback. Escape, pointer cancellation, lost capture, blur, scroll, resize and unmount cancel without edits. Dragging past the activation threshold commits once on pointer up; a tap, Enter or Space opens a host-only precision dialog with an exact signed offset, 10 ms / 1 ms nudges, legal source bounds, full/partial word-span feedback and separately rendered **Listen current** / **Listen proposed** track audio. Apply checks its preview revision before saving, while Cancel and unchanged Apply leave project history untouched; an offline Apply reports queued sync without retrying the command. Long drag previews report abbreviated or omitted words. Real cuts retain removed words in a source-scoped transcript archive, so the preview can show restored words after a cut. Complete source-span restoration brings their original metadata back into active text; partial words remain archived. Joins across unrelated recordings do not share word previews. Older cuts without an archive require History recovery
 - Fade handles remain distinct from trim/roll
@@ -234,7 +234,7 @@ Shipped:
 - Chapter CRUD: `AddChapter` / `UpdateChapter` / `DeleteChapter` (identity `(time, title)`); MarkerLane drag + ChapterInspector; adding one from the GUI (desktop **Menu › Markers → Add chapter at playhead**, phone More's action, both `edit.addChapter`, host only) titles it from the playhead and turns the Markers layer on. It is single-flight via the DAW store's `chapterAddPending` flag (not a module ref), so the item stays disabled across a menu unmount/remount while the add is in flight; a project switch resets the flag and drops the old project's result (guarded by `projectEpoch`). It announces the start ("Adding chapter at 12.0s…"), the added chapter ("Chapter added at 12.0s") or a failed add in the status live region
 - Social CRUD: `AddSocialClip` / `UpdateSocialClip` / `DeleteSocialClip` (by candidate `id`); MarkerLane range drag + SocialClipInspector
 - `SuggestPendingEdit` → pending `EditDecision` with `review_required=true` (`edit_type`: `remove` default or `mute`)
-- Guest: `POST /api/review/{token}/daw/document/command` + `authorize_document_command` allowlists by review role — Editor = Pass 1–2 apply set + structural apply; Commenter = `SuggestPendingEdit` / `UpdatePendingEdit` + structural **propose** (`SplitAtTime` / `DeleteClip` / `RippleDeleteClip` via `policy.resolve_structural_mode`)
+- Guest: `POST /api/review/{token}/daw/document/command` + `authorize_document_command` allowlists by review role — Editor = Pass 1–2 apply set + structural apply; Commenter = `SuggestPendingEdit` / `UpdatePendingEdit` + structural **propose** (`SplitAtTime` / `DeleteClip` in either edit mode via `policy.resolve_structural_mode`)
 
 **Done when:** host can move a chapter marker and edit an envelope point from the timeline without CLI; Commenters can propose/nudge and Editors approve via the document route.
 
@@ -257,7 +257,7 @@ Shipped:
 
 Shipped:
 
-- **Capability policy** (`services/document_sync/policy.py`): structural commands (`SplitAtTime`, `DeleteClip`, `RippleDeleteClip`) share one type; host/Editor **applies**, Commenter **proposes** pending decisions (`shareMode.canApplyStructural` / `canSuggestStructural`)
+- **Capability policy** (`services/document_sync/policy.py`): structural commands (`SplitAtTime`, `DeleteClip` with its `mode`) share one type; host/Editor **applies**, Commenter **proposes** pending decisions (`shareMode.canApplyStructural` / `canSuggestStructural`)
 - Multi-track `split_clips_at` + document `SplitAtTime`; pending `EditDecision` `type: split` (timeline clock, `start == end`); Approve → `split_clips_at`
 - GUI `toolMode` select|blade, multi-track `selectedTrackIds`, blade cut guide, ModifierInspector for pending splits
 - Select mode: unarmed plain clip **body** drag (`MoveClips`) relocates one clip or a multi-selection chosen with Shift/Mod-click in session time and/or onto another track (gaps and overlap allowed; originating media is pinned via `source_id`). This is **not** `MoveSegment` / `move_segment_tool` (range cut + insert on every dialogue lane). Blade mode still seeks/cuts on clip click. Fade/trim/roll handles are unchanged. Host and share `edit` apply immediately (`canApplyPass12`); suggest-guest propose is out of scope.
@@ -293,6 +293,70 @@ Shipped:
 **Out of scope (follow-ups):** full `ingest.yaml` consolidate UI, mix-music beds, video tracks, auto-transcribe on import.
 
 **Done when:** host can New/Open a project and import audio onto new or existing lanes; share `edit` can add/replace/remove tracks without writing arbitrary host directories.
+
+## Edit modes: ripple and gap
+
+### Decision: Ripples move every dialogue track and ask before cutting other speech
+
+<!-- decision
+id: D-edit-modes-ripple-guard
+status: accepted
+date: 2026-10-06
+decided-by: calebn
+evidence:
+- #1135 trim-mode design audit, #1137
+enforced-by:
+- tests/test_edit_modes.py::test_ripple_trim_shortening_moves_every_dialogue_track_by_the_same_amount
+- tests/test_edit_modes.py::test_ripple_trim_over_another_speakers_words_asks_first_and_changes_nothing
+- tests/test_edit_modes.py::test_room_tone_and_suppressed_bleed_words_need_no_confirmation
+- tests/test_edit_modes.py::test_gap_mode_leaves_an_exact_gap_and_moves_nothing_downstream
+- tests/test_edit_modes.py::test_a_commenters_ripple_suggestion_records_that_approval_must_confirm
+-->
+
+Trim, delete, cut and paste take one `mode` (`EditMode`, `ripple` | `gap`) on
+their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment`).
+
+- **Ripple** closes or opens the time on every track `edits/ripple.py`
+  `ripple_track_ids` names: every dialogue track, plus the edited track when it is
+  not one. Speakers stay in sync. A ripple trim moves the grabbed clip's edge and
+  shifts what follows by the duration change. On each other track, a clip edge at
+  the same instant (a session-wide cut) moves by the same amount, revealing or
+  hiding that track's own material; any other track loses the trimmed span, or gets
+  the same length of silence when the trim lengthens. A ripple trim keeps the clip's
+  timeline start, so trimming the front edge pulls the later material left.
+- **Gap** moves nothing else. A gap trim moves only the grabbed edge (the front edge
+  moves on the timeline too) and stops at the neighbouring clip. A gap delete or cut
+  leaves silence on the edited tracks. A gap paste replaces the pasted span on the
+  pasted tracks in place (paste-over).
+
+Every rippling edit plans its removal first (`RippleRemoval`), and the speech
+guard (`edits/cut_speech.py`) checks it before anything changes. Speech is another
+track's unsuppressed, unignored transcript words inside a removed span, or, where it
+has no such words, its own sound at speech level in half-second windows: the
+`tighten.speech_energy_guard` level and dominance rule, so the edited speaker's bleed
+on another mic does not count (`speech_energy_guard.measure_peer_speech`). Room tone
+and suppressed bleed words never ask. With other speech there, the edit changes
+nothing and returns `needs_confirmation` naming the tracks, words and times:
+"This also cuts Avery's speech at 0:12.4 ("so the plan is"). Cut anyway, or leave a
+gap to keep it." Sending it again with `confirm_cut_speech: true` applies it, and the
+applied-edit record keeps the `cut_speech` it confirmed. One History Undo restores
+it. A Commenter's ripple delete suggestion records the speech on the pending
+decision (`cut_speech`), so the Editor or host approving it confirms the same way;
+a confirmed approval ripples as suggested instead of falling back to a punch.
+
+A range cut names the tracks whose material it means (`track_ids`); with none it
+cuts every track (a whole-session time cut) and asks nothing. Moves, duplicates,
+inserted gaps and restores use the same scope rule; they remove no speech, so the
+guard does not apply.
+
+Tighten and NL removes keep their own guard: `resolve_cut_scope` measures the same
+own-sound evidence at propose and approve time and turns a cut over speaking peers
+into a track-local punch, so it never asks. Its approval ripples through the same
+kernel with that scope already decided.
+
+Today's DAW sends `ripple` for trims, ripple delete, cut and paste, and `gap` for
+Delete. It does not show the confirmation yet; the mode switch and confirmation UI
+are #1138.
 
 ## Near-term non-goals
 

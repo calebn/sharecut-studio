@@ -350,11 +350,11 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 |------|---------|---------|
 | `AddComment`, `UpdateComment`, `ResolveComment`, `DeleteComment`, `AddReply`, `SetActionDone`, `AddAction` | `CommentService` | Comment fields |
 | `UndoHistory`, `RedoHistory` | `HistoryService` | optional `rerender` |
-| `ApproveEdits`, `RejectEdits` | `EditService` | `ids: string[]` |
+| `ApproveEdits`, `RejectEdits` | `EditService` | `ids: string[]`; Approve also takes `confirm_cut_speech?` (a suggested ripple that records `cut_speech` needs it) |
 | `UpdatePendingEdit` | `EditService.update_pending` | `id`, `start`, `end`, `snap?`, `expected?` (saved track/type/clock/bounds) |
 | `RestoreAppliedEdit` | `EditService.revert_applied` | `id` (applied log id) |
 | `SetClipFade` | `EditService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms` |
-| `TrimClipEdge` | `EditService.trim_clip_edge` | `clip_id`, `edge`, `source_sec`, required `expected_token` from boundary context; `mode?` (`ripple`) |
+| `TrimClipEdge` | `EditService.trim_clip_edge` | `clip_id`, `edge`, `source_sec`, `mode` (`ripple` \| `gap`), required `expected_token` from a boundary context minted for that mode, `confirm_cut_speech?` |
 | `RollClipJoin` | `EditService.roll_clip_join` | `left_clip_id`, `right_clip_id`, `delta_sec`, required `expected_token` from boundary context |
 | `SetJoinMode` | `EditService.set_join_mode` | `clip_id`, `join_in_mode` (`fade` \| `crossfade` \| `cut`) — mode only (fades untouched); the result adds the `join_*` render fields (`join_crossfade_blocked`) |
 | `SetClipJoin` | `EditService.set_clip_join` | `left_clip_id`, `right_clip_id`, `mode` (`fade` \| `crossfade` \| `cut`), `length_ms?` (sets mode and both fades in one undo step; the GUI uses this) |
@@ -379,17 +379,18 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `DeleteSocialClip` | `ClipService.reject` | `id` |
 | `SuggestPendingEdit` | `EditService.suggest_pending_edit` | `track_id`, `start`, `end`, `reason?` (source clocks) |
 | `SplitAtTime` | `EditService.split_at_time` | `at_time`, `track_ids?`, `reason?` — host/Editor applies; Commenter proposes `type: split` |
-| `DeleteClip` | `EditService.delete_clips` | `clip_id` or `clip_ids` — punch hole; suggest → pending remove |
-| `RippleDeleteClip` | `EditService.delete_clips(ripple=True)` | same payload — session ripple; suggest → pending remove |
+| `DeleteClip` | `EditService.delete_clips` | `clip_id` or `clip_ids`, `mode` (`gap` punches a hole, `ripple` closes it on every dialogue track), `confirm_cut_speech?`; suggest → pending remove (`scope` `track` or `session`, a ripple records `cut_speech`) |
 | `DuplicateSegment` | `EditService.duplicate_segment` | `source_start`, `source_end`, `insert_at` — same-track paste from live timeline |
 | `MoveSegment` | `EditService.move_segment` | `source_start`, `source_end`, `insert_at` — cut+relocate in one mutate (all dialogue tracks) |
 | `MoveClips` | `EditService.move_clips` | `clips: [{clip_id, timeline_start, track_id}]` — reposition clips (gaps/overlap OK); pins `source_id` on inter-track; not a range shuffle |
-| `PasteSegment` | `EditService.paste_segment` | `insert_at`, `duration`, `extracts[]` — paste clipboard extracts after cut; an unknown track or source or a bad range raises `PasteRejectedError` (`paste_*` code) before any write |
-| `RippleDeleteRange` | `EditService.ripple_delete` | `start`, `end` — clipboard cut (host/`edit` apply-only) |
+| `PasteSegment` | `EditService.paste_segment` | `insert_at`, `duration`, `extracts[]`, `mode` (`ripple` opens the time on every dialogue track; `gap` pastes over the pasted tracks in place); an unknown track or source or a bad range raises `PasteRejectedError` (`paste_*` code) before any write |
+| `CutRange` | `EditService.cut_range` | `start`, `end`, `mode`, `track_ids?` (whose material the cut means; empty = every track), `confirm_cut_speech?` — clipboard cut (host/`edit` apply-only) |
 
 `CorrectTranscriptWord` / `CorrectTranscriptPhrase` / `SetTranscriptWordSuppressed` / `SetTranscriptWordAutomatic` / `SetTranscriptWordsIgnored`'s `expected_text` is optional (#650, #744, #824): the word (or space-joined phrase) text the client saw at these indices, compared whitespace-collapsed and case-sensitive against the current transcript under the submit lock (`edits/transcript_correct.require_word_text`, shared by all five commands via `EditService._guarded_transcript_edit`). A mismatch is a 409 conflict before mutation, history, or the command log — the same contract as `SetEnvelope`'s `expected_points` (`DocumentSyncService._apply` maps every `STALE_TARGET_ERRORS` type to `DocumentConflictError`); indices or a track that no longer exist also count as a mismatch. Omitting it keeps today's unguarded behavior. Host MCP `correct_transcript_tool` / `correct_transcript_phrase_tool` / `set_word_suppressed_tool` / `set_word_automatic_tool` / `set_words_ignored_tool` take the same optional `expected_text`. All five stay host-only: a guest share (HTTP or remote MCP) gets 403 / `-32003` whatever the payload — omission from `EDIT_COMMANDS` / `SUGGEST_COMMANDS` in `services/document_sync/capabilities.py` is what keeps a new transcript command host-only without an explicit denylist.
 
 **Structural apply vs propose:** `services/document_sync/policy.py` (`resolve_structural_mode`). Host (`caps is None`) and Editors apply immediately (History undo). Commenters only append pending decisions; Approve/Reject via existing Pass 1 commands.
+
+**Speech confirmation:** a rippling `TrimClipEdge`, `DeleteClip`, `CutRange` or `ApproveEdits` that would cut another track's speech changes nothing and still answers 200. Its reply carries a top-level `needs_confirmation` (also in the journaled `result`, which marks it `unchanged`): `reason: "cuts_other_speech"`, the `message` to show, `confirm_label: "Cut anyway"`, `confirm_field: "confirm_cut_speech"`, and `speech` (removed `spans`, then per track its `words` with timeline times and `sound_spans`). The client sends the same command again with `confirm_cut_speech: true` as a new command. Guests (HTTP and `guest_submit_document_command`) get the same field. See [daw-editing.md § Edit modes](daw-editing.md#edit-modes-ripple-and-gap).
 
 REST `/api/comments*` still mutates via `CommentService` and best-effort notifies the document hub (`notify_comments_changed` → `COMMENTS` projection). New GUI mutations (history, edits, transcript, envelopes, markers) use the document command path only. Host: `POST /api/document/command`. Guest shares: `POST /api/review/{token}/daw/document/command` with `authorize_document_command` (`ROLE_DOCUMENT_COMMANDS` in `services/document_sync/capabilities.py`: Commenters get the suggest set, Editors the edit set; `policy.py` chooses apply vs propose). **Remote MCP** guests use the same allowlists via `guest_submit_document_command` ([host-online-relay.md](host-online-relay.md) § Remote MCP). Authz: same `authorize_client` as session WS for host (strict mode + token for non-loopback); relayed share traffic is refused.
 

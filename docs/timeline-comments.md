@@ -185,7 +185,7 @@ descriptor-relative platforms refuse the read.
 
 ## Remap after ripple deletes
 
-`ripple_delete` / `batch_ripple_delete` automatically remaps `review.comments[]` and `editorial.chapters[]` via `edits/comment_remap.py`:
+Every ripple that removes time (`ripple_delete`, ripple trims) automatically remaps `review.comments[]` and `editorial.chapters[]` via `edits/comment_remap.py`:
 
 - Anchors fully before the cut stay put
 - Anchors fully inside the cut are dropped

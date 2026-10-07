@@ -213,3 +213,11 @@ Studio find-and-replace validates its reviewed, source-keyed match set before on
 A selected range Cut or Mute is one history mutation across every selected lane and interval. Host approval is also one mutation. Undo restores all clip placements, local mute holes, and the pending decision together. Exact range records require History Undo rather than source-span Restore.
 
 Submitting a reviewed exact MUTE creates pending state; host approval applies an undoable clip-local envelope. History undo restores the previous audio state. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
+
+## Edit modes and confirmed cuts
+
+A ripple or gap trim, delete, cut or paste is one `ProjectWorkspace.mutate()` call
+across every track it moves, so one Undo puts every track back in sync. A ripple that
+would cut another track's speech and is not confirmed runs no mutation and records no
+history. Confirmed, it records one action like any other, and its applied-edit record
+keeps the `cut_speech` it confirmed. See [daw-editing.md § Edit modes](daw-editing.md#edit-modes-ripple-and-gap).

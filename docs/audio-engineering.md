@@ -487,9 +487,10 @@ Three checks make the context an agent's ears at edit boundaries (#775):
   the forced aligner 850 ms after it. `evidence.session_join` says whether every
   dialogue track has a clip edge at that instant (a ripple) or only this track (a
   punch), and `evidence.fix` is the one command that restores the audio without
-  desyncing the episode: `trim_clip_edge_tool(clip_id, edge, source_sec,
-  all_tracks=session_join)`. A session-wide cut trimmed on one track alone leaves that
-  track's later clips out of step with the others (see `clip_skew`). The other fix is
+  desyncing the episode: `trim_clip_edge_tool(clip_id, edge, source_sec, mode)`, with
+  `mode=ripple` at a session join (every track's edge moves with it) and `mode=gap` on a
+  track-local edge (only that edge moves). A ripple trim always moves every dialogue
+  track, so no trim leaves one track out of step (see `clip_skew`). The other fix is
   `suggest_handoff_cut_tool` to move the cut to a silence.
 - **`echo_risk`** — `engines/bleed_echo.py` profiles every directed pair of dialogue
   mics over up to 600 s of **fresh** timeline stems centred on the window (the audio
@@ -544,7 +545,7 @@ Three checks make the context an agent's ears at edit boundaries (#775):
   moves every track alike and a punch moves none, so a pair whose shifts moved apart
   by more than `skew_warn_sec` (50 ms) was rippled on one track only. Such a pair is
   `skewed`, with `skew_sec`, a `clip_skew.warnings[]` line and a `clip_skew`
-  hypothesis (`history_undo`, or `trim_clip_edge_tool` with `all_tracks=true`).
+  hypothesis (`history_undo`, or a `trim_clip_edge_tool` ripple trim of the join).
 
 `clipping_in_window` ignores `flat_factor` below a -20 dBFS peak
 (`CLIPPING_MIN_PEAK_DB`), see [Objective health stats](#objective-health-stats-measure_astats).
