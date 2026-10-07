@@ -1263,6 +1263,8 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   background: var(--color-bg-base);
   border-top: 1px solid var(--border);
   z-index: var(--z-join);
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .join-edit-track {
@@ -1330,9 +1332,9 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 }
 
 /* Touch chooser lab: a finger may scroll from any target that is not
-   selected. The press layer then decides tap or hold; only a selected target
-   claims the touch to drag at once (select first, then drag). */
-.timeline-hit-root[data-touch-press] [data-hit-kind]:not([data-hit-selected]) {
+   selected, in the lanes or on the crossfade rail. The press layer then
+   decides tap or hold, and only a long press arms a target to drag. */
+[data-touch-press] [data-hit-kind]:not([data-hit-selected]) {
   touch-action: pan-x pan-y;
 }
 

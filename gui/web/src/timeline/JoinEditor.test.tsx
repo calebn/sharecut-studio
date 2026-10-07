@@ -1,10 +1,13 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipJoin } from "../api";
+import { LONG_PRESS_MS } from "../hooks/gestureConstants";
 import { shareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import { place } from "../test/hitDom";
+import { setLabEnabled } from "../utils/labFlags";
 import { JoinEditor } from "./JoinEditor";
 
 vi.mock("../api", () => ({ setClipJoin: vi.fn(async () => undefined) }));
@@ -429,5 +432,64 @@ describe("JoinEditor coupled length", () => {
       },
     });
     expect(container.querySelector(".join-blend")).toBeNull();
+  });
+});
+describe("JoinEditor crossfade grip on touch (touch chooser lab)", () => {
+  const touch = {
+    pointerType: "touch",
+    pointerId: 4,
+    isPrimary: true,
+    button: 0,
+    clientY: 20,
+  };
+  beforeEach(() => {
+    vi.useFakeTimers();
+    setLabEnabled("touchChooser", true);
+    document.elementFromPoint = () => null;
+  });
+  afterEach(() => {
+    setLabEnabled("touchChooser", false);
+    vi.useRealTimers();
+  });
+  function placedGrip() {
+    mount();
+    const el = grip();
+    place(el, { left: 978, top: 0, right: 1022, bottom: 44 });
+    return el;
+  }
+
+  it("a finger sliding on the grip edits nothing", () => {
+    const el = placedGrip();
+    fireEvent.pointerDown(el, { ...touch, clientX: 1000 });
+    fireEvent.pointerMove(el, { ...touch, clientX: 1040 });
+    fireEvent.pointerUp(el, { ...touch, clientX: 1040 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS * 2);
+    });
+
+    expect(el.hasAttribute("data-hit-armed")).toBe(false);
+    expect(screen.queryByText(/Draft overlap/)).toBeNull();
+    expect(setClipJoin).not.toHaveBeenCalled();
+  });
+
+  it("a long press arms the grip, which then drags and saves on lift", () => {
+    const el = placedGrip();
+    fireEvent.pointerDown(el, { ...touch, clientX: 1000 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(el.hasAttribute("data-hit-armed")).toBe(true);
+    fireEvent.pointerMove(el, { ...touch, clientX: 1010 });
+    expect(screen.getByText(/Draft overlap 420/)).toBeInTheDocument();
+    fireEvent.pointerUp(el, { ...touch, clientX: 1010 });
+
+    expect(el.hasAttribute("data-hit-armed")).toBe(false);
+    expect(setClipJoin).toHaveBeenCalledExactlyOnceWith(
+      "/tmp/episode.json",
+      "left",
+      "right",
+      "crossfade",
+      420,
+    );
   });
 });

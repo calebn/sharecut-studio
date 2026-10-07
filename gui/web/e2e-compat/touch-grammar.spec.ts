@@ -482,6 +482,78 @@ test("a second finger cancels an armed drag and the create menu", async ({
   expect(menuAfter).toBe(0);
 });
 
+/** The join at 50 s made a 200 ms crossfade; returns its right clip's id. */
+async function crossfadeAt50(page: Page): Promise<string> {
+  const rows = (await projectJson(page, projectPath)).clips.tracks[TRACK];
+  const i = rows.findIndex((c) => c.timeline_start === 50);
+  if (i < 1) throw new Error("join at 50 s missing");
+  await postDocumentCommand(
+    page,
+    CLIENT_ID,
+    "SetClipJoin",
+    {
+      left_clip_id: rows[i - 1].id,
+      right_clip_id: rows[i].id,
+      mode: "crossfade",
+      length_ms: 200,
+    },
+    projectPath,
+  );
+  return rows[i].id;
+}
+
+test("the crossfade grip drags only once a long press arms it", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  const rightId = await openWith(page, () => crossfadeAt50(page));
+  const finger = await newFinger(context, page, browserName);
+  const commands = watchCommands(page);
+  await tap(
+    page,
+    finger,
+    await centerOf(
+      page,
+      `${lane} [data-hit-kind="join"][data-hit-id="${rightId}"]`,
+    ),
+  );
+  const grip = page.getByRole("button", {
+    name: /Drag crossfade right endpoint/,
+  });
+  await expect(grip).toBeVisible();
+  await expect(grip).toHaveAttribute("data-hit-kind", "crossfade-end");
+  const from = await centerOfLocator(grip);
+  // One finger sliding along the grip: no draft and no save.
+  await finger.down(from);
+  await finger.slide({ x: from.x - 40, y: from.y });
+  await expect(page.locator(".join-edit-caption")).not.toContainText("Draft");
+  await finger.up();
+  await page.waitForTimeout(600);
+  const afterSlide = commands.map((c) => c.type);
+
+  const armedFrom = await centerOfLocator(grip);
+  await hold(page, finger, armedFrom);
+  await expect(armed(page)).toHaveCount(1);
+  await expect(grip).toHaveAttribute("data-hit-armed", "");
+  await frame(page, info, `crossfade-armed-${browserName}`);
+  await finger.slide({ x: armedFrom.x - 8, y: armedFrom.y });
+  await expect(page.locator(".join-edit-caption")).toContainText("Draft");
+  await frame(page, info, `crossfade-dragging-${browserName}`);
+  await finger.up();
+  await expect
+    .poll(() => commands.filter((c) => c.type === "SetClipJoin").length)
+    .toBe(1);
+  json(info, `crossfade-${browserName}`, {
+    afterSlide,
+    commands: commands.map((c) => ({ type: c.type, payload: c.payload })),
+  });
+  expect(afterSlide).not.toContain("SetClipJoin");
+  expect(
+    commands.find((c) => c.type === "SetClipJoin")?.payload.length_ms,
+  ).toBeLessThan(200);
+});
+
 test("#1135: a long-press at a join offers the ripple trim, which shows where later clips go", async ({
   page,
   context,
