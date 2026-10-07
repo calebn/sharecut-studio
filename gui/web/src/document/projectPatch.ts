@@ -27,6 +27,7 @@ export type DocumentSnapshot = {
   file_before?: DocumentFileSignature;
   history?: {
     cursor?: number;
+    head_id?: ProjectView["history"]["head_id"];
     can_undo?: boolean;
     can_redo?: boolean;
     groups?: ProjectView["history"]["groups"];

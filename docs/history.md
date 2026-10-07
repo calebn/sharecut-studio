@@ -120,8 +120,9 @@ podcast history goto --project episode.project.json --index 2
 podcast history goto --project episode.project.json --index 2 --rerender  # full stems/premix
 podcast history diff --project episode.project.json
 podcast undo --project episode.project.json
+podcast undo --project episode.project.json --expected-head 3f2a9c1d0b4e  # only while that entry is the latest
 podcast redo --project episode.project.json
-podcast history-status --project episode.project.json   # JSON: cursor, can_undo, can_redo
+podcast history-status --project episode.project.json   # JSON: cursor, head_id, can_undo, can_redo
 ```
 
 `goto` / `undo` / `redo` mark stale only what the move changed (#424). Stem hash sidecars are content-addressed (`track_render_hash`), so a stem stays fresh when the move left its track unchanged (an undone volume or mute stales only the premix). It goes stale when the restored state differs, and fresh again when a redo returns to the state it was rendered at. Without `--rerender`, `play processed:*` segment-renders a stale track (fast A/B); an unchanged track keeps playing its stem. Pass `--rerender` / `rerender=true` when you need full stems or premix. Reconciliation ("Transcript out of date") is marked only when `audio_state_fingerprint` changed. The render cause journal changes only for dialogue tracks whose render hash changed: a track whose stem WAV exists and whose `.hash` names the restored state drops its causes, and any other changed track gets a whole-track marker. A track the move removed (for example, an undone add-track) or took out of the dialogue role (an undone role change) loses its rows, since only dialogue tracks carry them.
@@ -156,20 +157,63 @@ Each `HistoryEntry` may include:
 
 `history diff` compares two snapshot indices and returns clip/decision/mix deltas (see `history/diff.py`) plus a **`summary`** string list (see `history/summary.py`) for GUI/CLI/MCP consumers.
 
+## Guarded undo and redo (expected head)
+
+Each entry's `id` is a fresh 12-character hex string, and `head_id` names the entry at
+the cursor, the state the project holds now. The cursor index cannot identify a change:
+at the 400-entry limit, pruning keeps the cursor at 399 while each new edit replaces the
+entry there, and an undo followed by a new edit lands on the same index again.
+
+Undo and redo take an optional expected head. `HistoryManager.undo` / `redo`
+(`expected_head_id=`) compare it with the head under `project_commit_lock`, after
+adopting the index, and raise `StaleHistoryError` (a `CodedError`, code `history_stale`)
+before anything moves when another entry has become the latest. Every caller goes through
+that one check (`HistoryService.undo` / `redo`):
+
+| Surface | Expected head | Refusal |
+| --- | --- | --- |
+| Document plane `UndoHistory` / `RedoHistory` | `payload.expected_head_id` | HTTP 409, `X-Sharecut-Error-Code: history_stale`; no journal row and no history move |
+| MCP `history_undo` / `history_redo` | `expected_head_id` | `is_error` result, `structured_content.error_code: "history_stale"` |
+| CLI `podcast undo` / `podcast redo` | `--expected-head ID` | exit 1, `Did not undo: … (code history_stale)` on stderr |
+
+`head_id` is reported by `history_status_tool`, `podcast history-status`, `history_list`
+and every project view's `history`. Omitting the expected head keeps the unguarded move,
+for an agent or script that means "whatever is latest now".
+
+**Toast Undo.** A host document command's reply carries `history_head_id`: the entry
+the command left at the head, read in the same locked step as its apply. It is null
+when history did not move and absent on an idempotent retry or a queued command, and
+then the toast offers no Undo.
+`announceStatus(message, { undo: replyHistoryHead(reply) })` binds the toast to that
+entry. The toast shows Undo only while the tab's `history.head_id` is that entry, and
+its click sends `UndoHistory` with it as `expected_head_id`. If another edit landed
+first, the server refuses and the toast says "Can't undo: the project changed since.
+Nothing was undone." The reply, not the tab's store after the await, names the entry,
+because a peer's edit can reach the store while the command is in flight.
+
+**Mod+Z sends the head too.** `history.undo` / `history.redo` (Mod+Z, Mod+Shift+Z, the
+History tab buttons, the phone two-finger tap and the adjacent Undo controls) send the
+`head_id` the tab shows, read after flushing its pending mix saves. An undo the person
+asks for means "undo the latest change I can see"; an agent edit the tab has not
+received yet must not be the one reverted. The cost is that a press racing a remote
+edit is refused once with the same message, and the next press, after the update
+arrives, works. An offline-queued undo keeps its expected head, so a replay after other
+edits is refused (and listed in **Needs attention**) instead of reverting them.
+
 ## MCP tools
 
 - `history_list` — entries, cursor, and grouped mutations
-- `history_status_tool` — cursor and undo/redo flags (JSON)
+- `history_status_tool` — cursor, `head_id` and undo/redo flags (JSON)
 - `history_goto_tool` — jump to snapshot index (`rerender=true` optional; stales only the stems the move changed)
 - `history_diff_tool` — structured delta between indices (clips and pending edit decisions are reported as added, removed or changed; a re-proposed Tighten hit keeps its id, so moved edges show under `changed`)
 - `history_record` — manual snapshot
-- `history_undo` / `history_redo` — navigate history (`rerender=true` optional; stales only the stems the move changed)
+- `history_undo` / `history_redo` — navigate history (`rerender=true` optional; stales only the stems the move changed; `expected_head_id` optional, see [§ Guarded undo and redo](#guarded-undo-and-redo-expected-head))
 
 A busy `project_commit_lock` or `render_lock` raised by a tool is caught once, server-wide, by `mcp.tool_errors.install_tool_errors` (installed on the `MCPServer` in `mcp/server.py`): it returns a structured `is_error` `CallToolResult` (`structured_content {ok: false, error, error_code: "project_busy"}`) instead of the bare `UnexpectedToolError` crash message (#488). A history refusal such as `ProjectMergeConflict` (`merge_conflict`) or `HistoryRerenderError` (`rerender_failed`) is a `CodedError` and takes the same path with its own code and its advice text (#1178).
 
 ### GUI (Sharecut Studio)
 
-History tab **Undo** / **Redo** submit document commands `UndoHistory` / `RedoHistory` via `POST /api/document/command` → `HistoryService` (same path as MCP/CLI). Applied snapshots include lean `history.groups` (not cursor flags only), and the client marks history hydrated when those groups arrive, so the step list updates after comments, track rename/reorder, and other targeted patches without leaving the tab. See [session-sync.md](session-sync.md) and [daw-editing.md](daw-editing.md).
+History tab **Undo** / **Redo**, Mod+Z / Mod+Shift+Z and the app toast's **Undo** submit document commands `UndoHistory` / `RedoHistory` via `POST /api/document/command` → `HistoryService` (same path as MCP/CLI), each with the expected head described in [§ Guarded undo and redo](#guarded-undo-and-redo-expected-head). Applied snapshots include lean `history.groups` (not cursor flags only), and the client marks history hydrated when those groups arrive, so the step list updates after comments, track rename/reorder, and other targeted patches without leaving the tab. See [session-sync.md](session-sync.md) and [daw-editing.md](daw-editing.md).
 
 See [gui-integration.md](gui-integration.md) for GUI-oriented undo and rerender guidance.
 

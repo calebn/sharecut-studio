@@ -9,6 +9,7 @@ from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HISTORY_RERENDER_ERRORS, HistoryService
+from podcast_mcp.util.coded_error import describe_error
 
 history_app = typer.Typer(help="Undo/redo snapshot history (non-destructive edits).")
 
@@ -77,17 +78,24 @@ def history_record(
     typer.echo(HistoryService(ws).record(label))
 
 
+_EXPECTED_HEAD_HELP = (
+    "Refuse (code history_stale) unless this history entry id is still the latest "
+    "(history-status head_id)"
+)
+
+
 @timed_command("undo")
 def undo_cmd(
     project: Path = typer.Option(..., "--project"),
     rerender: bool = typer.Option(False, "--rerender", help="Rebuild premix after undo"),
+    expected_head: str | None = typer.Option(None, "--expected-head", help=_EXPECTED_HEAD_HELP),
 ) -> None:
     ws = ProjectWorkspace.open(project)
     try:
-        HistoryService(ws).undo(rerender=rerender)
+        HistoryService(ws).undo(rerender=rerender, expected_head_id=expected_head)
         status = HistoryManager(ws.path).status(ws.project)
     except _MOVE_ERRORS as exc:
-        typer.echo(str(exc), err=True)
+        typer.echo(describe_error(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(
         f"Undo → [{status.cursor}] {status.current_label} "
@@ -99,13 +107,14 @@ def undo_cmd(
 def redo_cmd(
     project: Path = typer.Option(..., "--project"),
     rerender: bool = typer.Option(False, "--rerender", help="Rebuild premix after redo"),
+    expected_head: str | None = typer.Option(None, "--expected-head", help=_EXPECTED_HEAD_HELP),
 ) -> None:
     ws = ProjectWorkspace.open(project)
     try:
-        HistoryService(ws).redo(rerender=rerender)
+        HistoryService(ws).redo(rerender=rerender, expected_head_id=expected_head)
         status = HistoryManager(ws.path).status(ws.project)
     except _MOVE_ERRORS as exc:
-        typer.echo(str(exc), err=True)
+        typer.echo(describe_error(exc), err=True)
         raise typer.Exit(1) from exc
     typer.echo(
         f"Redo → [{status.cursor}] {status.current_label} "

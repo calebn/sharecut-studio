@@ -17,8 +17,12 @@ vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
   return {
     ...actual,
-    approveEdits: vi.fn(async () => ({ queued: false })),
-    rejectEdits: vi.fn(async () => ({ queued: false })),
+    approveEdits: vi.fn(async () => ({
+      queued: false,
+      asked: false,
+      historyHead: null,
+    })),
+    rejectEdits: vi.fn(async () => ({ queued: false, historyHead: null })),
   };
 });
 
@@ -103,8 +107,9 @@ describe("tighten commands", () => {
   });
 
   it("shares the busy guard across approve and reject before permission checks", async () => {
-    let release!: (value: { queued: boolean; asked: boolean }) => void;
-    const gate = new Promise<{ queued: boolean; asked: boolean }>((resolve) => {
+    type Approved = Awaited<ReturnType<typeof approveEdits>>;
+    let release!: (value: Approved) => void;
+    const gate = new Promise<Approved>((resolve) => {
       release = resolve;
     });
     vi.mocked(approveEdits).mockImplementationOnce(() => gate);
@@ -117,7 +122,7 @@ describe("tighten commands", () => {
       status: "disabled",
       reason: "Tighten action in progress",
     });
-    release({ queued: false, asked: false });
+    release({ queued: false, asked: false, historyHead: null });
     expect(await first).toEqual({ status: "ok" });
   });
 
@@ -125,6 +130,7 @@ describe("tighten commands", () => {
     vi.mocked(approveEdits).mockResolvedValueOnce({
       queued: true,
       asked: false,
+      historyHead: null,
     });
     useDawStore
       .getState()
@@ -142,7 +148,10 @@ describe("tighten commands", () => {
   });
 
   it("skipHit keeps the selection and says Still sending when the rejection is queued", async () => {
-    vi.mocked(rejectEdits).mockResolvedValueOnce({ queued: true });
+    vi.mocked(rejectEdits).mockResolvedValueOnce({
+      queued: true,
+      historyHead: null,
+    });
     useDawStore
       .getState()
       .setSelection({ kind: "pending", id: "e2", trackId: "host" });

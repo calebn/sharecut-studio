@@ -1,6 +1,7 @@
 import type { PresenceDeltaChanges, SessionRoster } from "../presence/roster";
 import type { PendingJobResults, PipelineJobSnapshot } from "../types/pipeline";
 import type {
+  HistoryEntryId,
   ProjectView,
   Selection,
   TranscriptWordBooleanFlag,
@@ -127,26 +128,22 @@ export type SourcePreviewError = {
   message: string;
 };
 
-/** Public DAW API — same shape as the former Context value. */
-/** Toast Undo for one recorded change: valid while history still sits at `cursor`. */
-export interface HistoryUndo {
-  cursor: number;
-}
-
 /** The visible twin of an announcement, with its Undo while one is valid. */
 export interface FeedbackToast {
   id: number;
   message: string;
-  undo: HistoryUndo | null;
+  /** The history entry this change recorded; Undo shows while it is still the head. */
+  undo: HistoryEntryId | null;
 }
 
 export interface AnnounceOptions {
-  /** Offer Undo on the toast (see `historyUndoSince`). */
-  undo?: HistoryUndo | null;
+  /** Offer Undo on the toast for this entry (the command reply's `replyHistoryHead`). */
+  undo?: HistoryEntryId | null;
   /** False when a persistent control already shows this status (the job chip), so only the live region speaks it. */
   toast?: false;
 }
 
+/** Public DAW API — same shape as the former Context value. */
 export interface DawState {
   sourcePreview: SourcePreviewRequest | null;
   sourcePreviewGeneration: number;

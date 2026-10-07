@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from podcast_mcp.history.rollback import rolled_back_on_failure, take_history_checkpoint
 from podcast_mcp.models.episode import EpisodeProject
@@ -17,6 +18,7 @@ from podcast_mcp.project_store import (
     snapshots_equal,
 )
 from podcast_mcp.util.atomic_json import write_json_atomic
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.project_state import project_commit_lock
 
 EDITABLE_FIELDS: tuple[str, ...] = tuple(ProjectStateSnapshot.model_fields.keys())
@@ -38,6 +40,29 @@ def write_snapshot(project: EpisodeProject, snapshot: ProjectStateSnapshot, entr
     return rel
 
 
+HISTORY_STALE_CODE = "history_stale"
+
+
+class StaleHistoryError(CodedError):
+    """An undo or redo named the head entry it expected, and history has moved since."""
+
+    def __init__(self, action: Literal["undo", "redo"]) -> None:
+        done = {"undo": "undone", "redo": "redone"}[action]
+        super().__init__(
+            f"Did not {action}: the project changed after this {action} was requested, "
+            f"so nothing was {done}. Review the latest change, then {action} again "
+            "if you still mean to.",
+            code=HISTORY_STALE_CODE,
+        )
+
+
+def _require_head(
+    history: ProjectHistory, action: Literal["undo", "redo"], expected_head_id: str | None
+) -> None:
+    if expected_head_id is not None and history.head_id() != expected_head_id:
+        raise StaleHistoryError(action)
+
+
 @dataclass
 class HistoryStatus:
     cursor: int
@@ -45,6 +70,7 @@ class HistoryStatus:
     can_undo: bool
     can_redo: bool
     current_label: str | None
+    head_id: str | None
 
 
 class HistoryManager:
@@ -84,13 +110,19 @@ class HistoryManager:
                 project, label, force=force, operation=operation, params=params, snapshot=snapshot
             )
 
-    def undo(self, project: EpisodeProject) -> HistoryStatus:
+    def undo(
+        self, project: EpisodeProject, *, expected_head_id: str | None = None
+    ) -> HistoryStatus:
+        """Step back one entry; with ``expected_head_id``, only while that entry is the head."""
         with project_commit_lock(project):
-            return self._undo_locked(project)
+            return self._undo_locked(project, expected_head_id)
 
-    def redo(self, project: EpisodeProject) -> HistoryStatus:
+    def redo(
+        self, project: EpisodeProject, *, expected_head_id: str | None = None
+    ) -> HistoryStatus:
+        """Step forward one entry; with ``expected_head_id``, only while that entry is the head."""
         with project_commit_lock(project):
-            return self._redo_locked(project)
+            return self._redo_locked(project, expected_head_id)
 
     def goto(self, project: EpisodeProject, index: int) -> HistoryStatus:
         with project_commit_lock(project):
@@ -135,8 +167,9 @@ class HistoryManager:
         self._save_index(project)
         return entry
 
-    def _undo_locked(self, project: EpisodeProject) -> HistoryStatus:
+    def _undo_locked(self, project: EpisodeProject, expected_head_id: str | None) -> HistoryStatus:
         history = self._load_index(project)
+        _require_head(history, "undo", expected_head_id)
         if not history.can_undo():
             raise ValueError("Nothing to undo")
         history.cursor -= 1
@@ -147,8 +180,9 @@ class HistoryManager:
         self._store.commit(project)
         return self.status(project)
 
-    def _redo_locked(self, project: EpisodeProject) -> HistoryStatus:
+    def _redo_locked(self, project: EpisodeProject, expected_head_id: str | None) -> HistoryStatus:
         history = self._load_index(project)
+        _require_head(history, "redo", expected_head_id)
         if not history.can_redo():
             raise ValueError("Nothing to redo")
         history.cursor += 1
@@ -182,6 +216,7 @@ class HistoryManager:
             can_undo=history.can_undo(),
             can_redo=history.can_redo(),
             current_label=label,
+            head_id=history.head_id(),
         )
 
     def list_entries(self, project: EpisodeProject) -> list[HistoryEntry]:

@@ -14,8 +14,10 @@ import {
 
 const confirmReply = vi.fn<(question: Question) => Answer>();
 
-vi.mock("../api", () => ({
-  removeTrackCommand: vi.fn(async () => undefined),
+vi.mock("../api", async (importOriginal) => ({
+  replyHistoryHead: (await importOriginal<typeof import("../api")>())
+    .replyHistoryHead,
+  removeTrackCommand: vi.fn(async () => ({})),
   deleteClips: vi.fn(async () => undefined),
   rippleDeleteClips: vi.fn(async () => undefined),
   pasteSegment: vi.fn(),
@@ -140,16 +142,9 @@ describe("track.remove / nav / Escape fall-through", () => {
     expect(useDawStore.getState().selectedTrackIds).toEqual(["guest"]);
   });
 
-  it("asks by the track's name, then offers Undo for the removal", async () => {
-    vi.mocked(api.removeTrackCommand).mockImplementationOnce(async () => {
-      const project = useDawStore.getState().project!;
-      useDawStore.setState({
-        project: {
-          ...project,
-          history: { ...project.history, cursor: 1, can_undo: true },
-        },
-      });
-      return {};
+  it("asks by the track's name, then offers Undo for the entry its reply names", async () => {
+    vi.mocked(api.removeTrackCommand).mockResolvedValueOnce({
+      history_head_id: "e-remove",
     });
     useDawStore.setState({ selection: { kind: "track", trackId: "host" } });
     expect((await execute("track.remove")).status).toBe("ok");
@@ -164,7 +159,7 @@ describe("track.remove / nav / Escape fall-through", () => {
     expect(useDawStore.getState().feedbackToast).toEqual({
       id: expect.any(Number),
       message: "Removed Host",
-      undo: { cursor: 1 },
+      undo: "e-remove",
     });
   });
 

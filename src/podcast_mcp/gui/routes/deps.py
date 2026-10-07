@@ -9,6 +9,7 @@ from fastapi.exception_handlers import http_exception_handler
 from filelock import Timeout
 from starlette.responses import Response
 
+from podcast_mcp.services.document_sync import DocumentConflictError
 from podcast_mcp.services.session_sync import (
     authorize_client,
     authorize_host,
@@ -24,6 +25,18 @@ def project_busy_error(detail: str) -> HTTPException:
         status_code=503,
         detail=detail,
         headers={"X-Sharecut-Error-Code": PROJECT_BUSY_CODE},
+    )
+
+
+def document_conflict_error(exc: DocumentConflictError) -> HTTPException:
+    """HTTP 409 for a refused document command, with its code (if any) as ``X-Sharecut-Error-Code``.
+
+    Shared by the host and guest document-command routes.
+    """
+    return HTTPException(
+        status_code=409,
+        detail={"detail": str(exc), "conflict": True},
+        headers={"X-Sharecut-Error-Code": exc.code} if exc.code else None,
     )
 
 

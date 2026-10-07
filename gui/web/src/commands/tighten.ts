@@ -1,7 +1,6 @@
 import { approveEdits, rejectEdits } from "../api";
 import { playPendingPreview } from "../audio/pendingPreview";
 import { askConfirm } from "../feedback/ask";
-import { historyCursor, historyUndoSince } from "../feedback/historyUndo";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { PendingEditView } from "../types/project";
@@ -59,8 +58,10 @@ async function runApprove(ids: string[]): Promise<ExecuteResult> {
     }
     try {
       const projectPath = useDawStore.getState().projectPath;
-      const before = historyCursor();
-      const { queued, asked } = await approveEdits(projectPath, ids);
+      const { queued, asked, historyHead } = await approveEdits(
+        projectPath,
+        ids,
+      );
       if (asked) return { status: "ok" };
       const next = useDawStore.getState();
       if (queued) {
@@ -79,7 +80,7 @@ async function runApprove(ids: string[]): Promise<ExecuteResult> {
         ids.length === 1
           ? "Applied tighten hit"
           : `Applied ${ids.length} tighten hits`,
-        { undo: historyUndoSince(before) },
+        { undo: historyHead },
       );
       return { status: "ok" };
     } catch (e) {
@@ -101,8 +102,7 @@ async function runReject(id: string): Promise<ExecuteResult> {
     }
     try {
       const projectPath = useDawStore.getState().projectPath;
-      const before = historyCursor();
-      const { queued } = await rejectEdits(projectPath, [id]);
+      const { queued, historyHead } = await rejectEdits(projectPath, [id]);
       const next = useDawStore.getState();
       if (queued) {
         // Saved but not sent yet: keep the selection and say so.
@@ -113,7 +113,7 @@ async function runReject(id: string): Promise<ExecuteResult> {
         next.setSelection(null);
       }
       next.announceStatus("Skipped tighten hit", {
-        undo: historyUndoSince(before),
+        undo: historyHead,
       });
       return { status: "ok" };
     } catch (e) {

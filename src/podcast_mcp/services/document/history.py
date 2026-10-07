@@ -88,11 +88,23 @@ class HistoryService:
         self.ws = workspace
         self._mgr = HistoryManager(workspace.path)
 
-    def undo(self, *, rerender: bool = False) -> dict:
-        return self._move("undo", self._mgr.undo, rerender=rerender)
+    def undo(self, *, rerender: bool = False, expected_head_id: str | None = None) -> dict:
+        """Undo the head entry. ``expected_head_id`` refuses with ``StaleHistoryError``
+        (``history_stale``) unless that entry is still the head, so an edit that landed
+        after the caller looked is never the one reverted."""
+        return self._move(
+            "undo",
+            lambda project: self._mgr.undo(project, expected_head_id=expected_head_id),
+            rerender=rerender,
+        )
 
-    def redo(self, *, rerender: bool = False) -> dict:
-        return self._move("redo", self._mgr.redo, rerender=rerender)
+    def redo(self, *, rerender: bool = False, expected_head_id: str | None = None) -> dict:
+        """Redo the next entry, guarded by ``expected_head_id`` like ``undo``."""
+        return self._move(
+            "redo",
+            lambda project: self._mgr.redo(project, expected_head_id=expected_head_id),
+            rerender=rerender,
+        )
 
     def goto(self, index: int, *, rerender: bool = False) -> dict:
         return self._move("goto", lambda project: self._mgr.goto(project, index), rerender=rerender)
@@ -166,6 +178,7 @@ class HistoryService:
         ]
         return {
             "cursor": status.cursor,
+            "head_id": status.head_id,
             "can_undo": status.can_undo,
             "can_redo": status.can_redo,
             "entries": flat,

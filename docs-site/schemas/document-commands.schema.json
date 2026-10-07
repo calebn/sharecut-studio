@@ -2985,6 +2985,20 @@
     },
     "RedoHistoryPayload": {
       "properties": {
+        "expected_head_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "History entry id the caller saw as the latest (history.head_id). When set, the server refuses with 409 history_stale unless it is still the latest.",
+          "title": "Expected Head Id"
+        },
         "rerender": {
           "default": false,
           "title": "Rerender",
@@ -6102,6 +6116,20 @@
     },
     "UndoHistoryPayload": {
       "properties": {
+        "expected_head_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "History entry id the caller saw as the latest (history.head_id). When set, the server refuses with 409 history_stale unless it is still the latest.",
+          "title": "Expected Head Id"
+        },
         "rerender": {
           "default": false,
           "title": "Rerender",

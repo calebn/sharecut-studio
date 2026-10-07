@@ -26,7 +26,11 @@ from podcast_mcp.edits.share_registry import SHARE_KIND_REVIEW
 from podcast_mcp.gui.assembler import VIEW_PROJECTION_QUERY_DESCRIPTION, ViewProjection
 from podcast_mcp.gui.audio import pinned_audio_response
 from podcast_mcp.gui.routes.boundary import BoundaryContextInput
-from podcast_mcp.gui.routes.deps import project_busy_from_timeout, project_busy_http_error
+from podcast_mcp.gui.routes.deps import (
+    document_conflict_error,
+    project_busy_from_timeout,
+    project_busy_http_error,
+)
 from podcast_mcp.gui.routes.document import RangeAudioInput
 from podcast_mcp.gui.routes.guest_ws_common import (
     GUEST_MALFORMED_LIMIT,
@@ -171,10 +175,7 @@ def _map_share_exc(exc: Exception) -> HTTPException:
     from podcast_mcp.services.document_sync import DocumentConflictError
 
     if isinstance(exc, DocumentConflictError):
-        return HTTPException(
-            status_code=409,
-            detail={"detail": str(exc), "conflict": True},
-        )
+        return document_conflict_error(exc)
     if isinstance(exc, PermissionError):
         return HTTPException(status_code=403, detail=str(exc))
     if isinstance(exc, KeyError):

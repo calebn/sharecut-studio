@@ -258,6 +258,7 @@ def test_sanitize_guest_project_view_strips_paths():
     assert empty["tracks"][0]["has_source_audio"] is False
     assert out["history"] == {
         "cursor": 0,
+        "head_id": None,
         "can_undo": False,
         "can_redo": False,
         "entries": [],
@@ -486,6 +487,7 @@ def test_share_daw_routes_view_cap(minimal_project, sample_wav, tmp_workspace, m
     assert body["project_path"] == ""
     assert body["history"] == {
         "cursor": 0,
+        "head_id": None,
         "can_undo": False,
         "can_redo": False,
         "entries": [],

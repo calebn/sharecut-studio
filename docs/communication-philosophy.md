@@ -220,11 +220,13 @@ the empty state, not a separate discovery task.
   with an Undo action. The History tab is the backstop, not the
   interface. (Surfaces 3, 4.) A reviewed-pass approval gets one
   pass-level undo, per UI philosophy § 1. Pass `{ undo:
-  historyUndoSince(before) }` to `announceStatus`: the toast's Undo runs
-  `history.undo` only while history still sits on that change, and goes
-  away once anything else moves history, so it never reverses someone
-  else's edit. Tighten apply, skip and Apply eligible, track reorder and
-  track removal offer it; blade, trim and the other timeline edits
+  replyHistoryHead(reply) }` to `announceStatus`: the toast's Undo names
+  the history entry the command recorded, shows only while that entry is
+  the latest, and goes away once anything else moves history. The server
+  refuses an undo whose entry is no longer the latest, and the toast then
+  says "Can't undo: the project changed since. Nothing was undone.", so
+  it never reverses someone else's edit. Tighten apply, skip and Apply
+  eligible, track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
 - **Form errors are wired, not just shown.** `Field` sets
   `aria-describedby` to its error; `InlineError` carries

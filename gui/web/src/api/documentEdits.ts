@@ -22,7 +22,12 @@ import {
   removeConflictsWhere,
   removeHostConflictsWhere,
 } from "../state/offlineStore";
-import type { AutomationPoint, PendingEditView } from "../types/project";
+import {
+  type AutomationPoint,
+  type HistoryEntryId,
+  type PendingEditView,
+  parseHistoryEntryId,
+} from "../types/project";
 import { ApiError, readApiError } from "../utils/apiError";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
 import { loadBoundaryContext } from "./boundary";
@@ -51,21 +56,32 @@ export async function submitDocumentCommand(
   return submitQueuedDocumentCommand(projectPath, type, payload, opts);
 }
 
+/** The server refused an undo or redo because history moved past `expectedHeadId`. */
+export const HISTORY_STALE_CODE = "history_stale";
+
+export type HistoryMoveOptions = {
+  rerender?: boolean;
+  /** The entry the caller saw as the latest; the server refuses (`history_stale`) once it is not. */
+  expectedHeadId: HistoryEntryId | null;
+};
+
 export async function undoHistory(
   projectPath: string,
-  opts?: { rerender?: boolean },
+  opts: HistoryMoveOptions,
 ): Promise<void> {
   await submitDocumentCommand(projectPath, "UndoHistory", {
-    rerender: opts?.rerender ?? false,
+    rerender: opts.rerender ?? false,
+    expected_head_id: opts.expectedHeadId,
   });
 }
 
 export async function redoHistory(
   projectPath: string,
-  opts?: { rerender?: boolean },
+  opts: HistoryMoveOptions,
 ): Promise<void> {
   await submitDocumentCommand(projectPath, "RedoHistory", {
-    rerender: opts?.rerender ?? false,
+    rerender: opts.rerender ?? false,
+    expected_head_id: opts.expectedHeadId,
   });
 }
 
@@ -114,20 +130,34 @@ function confirmed(confirmCutSpeech: boolean): { confirm_cut_speech?: true } {
   return confirmCutSpeech ? { confirm_cut_speech: true } : {};
 }
 
+/**
+ * The history entry a command's own reply says it left at the head, read under
+ * the server's lock with the change. Null when the command moved no history, or
+ * was queued, so a toast never offers to undo someone else's change.
+ */
+export function replyHistoryHead(
+  result: Record<string, unknown>,
+): HistoryEntryId | null {
+  return parseHistoryEntryId(result.history_head_id);
+}
+
 /** `queued`: saved and sent later by the drain, so the outcome is not known yet. */
 export async function approveEdits(
   projectPath: string,
   ids: string[],
   confirmCutSpeech = false,
-): Promise<RippleOutcome> {
+): Promise<RippleOutcome & { historyHead: HistoryEntryId | null }> {
   const result = await submitDocumentCommand(projectPath, "ApproveEdits", {
     ids,
     ...confirmed(confirmCutSpeech),
   });
-  return rippleOutcome(projectPath, result, {
-    cutAnyway: () => approveEdits(projectPath, ids, true),
-    leaveGap: null,
-  });
+  return {
+    ...rippleOutcome(projectPath, result, {
+      cutAnyway: () => approveEdits(projectPath, ids, true),
+      leaveGap: null,
+    }),
+    historyHead: replyHistoryHead(result),
+  };
 }
 
 export async function waiveTranscriptRefine(
@@ -148,11 +178,14 @@ export async function waiveTranscriptRefine(
 export async function rejectEdits(
   projectPath: string,
   ids: string[],
-): Promise<{ queued: boolean }> {
+): Promise<{ queued: boolean; historyHead: HistoryEntryId | null }> {
   const result = await submitDocumentCommand(projectPath, "RejectEdits", {
     ids,
   });
-  return { queued: result.queued === true };
+  return {
+    queued: result.queued === true,
+    historyHead: replyHistoryHead(result),
+  };
 }
 
 export type SourceRange = Readonly<{ start: number; end: number }>;

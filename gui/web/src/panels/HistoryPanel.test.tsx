@@ -31,7 +31,13 @@ function historyProject(count: number) {
     after_id: `after-${i}`,
   }));
   return minimalProject({
-    history: { cursor: 0, can_undo: true, can_redo: false, groups },
+    history: {
+      cursor: 0,
+      head_id: null,
+      can_undo: true,
+      can_redo: false,
+      groups,
+    },
   });
 }
 

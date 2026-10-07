@@ -214,6 +214,7 @@ describe("CutSpeechDialog", () => {
     expect(await approveEdits("/tmp/ep", ["e1"])).toEqual({
       queued: false,
       asked: true,
+      historyHead: null,
     });
     expect(
       await screen.findByRole("button", { name: "Cancel" }),

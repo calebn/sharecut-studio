@@ -223,6 +223,16 @@ export interface AutomationPoint {
   value: number;
 }
 
+/** A history entry's id: stable for the life of the entry, unlike its index. */
+export type HistoryEntryId = string & { readonly __brand: "HistoryEntryId" };
+
+/** Parse a wire value as a history entry id (null when absent or not a non-empty string). */
+export function parseHistoryEntryId(value: unknown): HistoryEntryId | null {
+  return typeof value === "string" && value !== ""
+    ? (value as HistoryEntryId)
+    : null;
+}
+
 export interface HistoryGroup {
   kind: string;
   label?: string;
@@ -387,6 +397,8 @@ export interface ProjectView {
   };
   history: {
     cursor: number;
+    /** The entry the project holds now; unlike `cursor`, it never names a different entry. */
+    head_id: HistoryEntryId | null;
     can_undo: boolean;
     can_redo: boolean;
     groups: HistoryGroup[];

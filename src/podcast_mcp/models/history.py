@@ -31,6 +31,16 @@ class ProjectHistory(BaseModel):
     def can_redo(self) -> bool:
         return self.cursor >= 0 and self.cursor < len(self.entries) - 1
 
+    def head_id(self) -> str | None:
+        """Id of the entry the project currently holds (the cursor's), or None before any.
+
+        Unlike ``cursor``, it names one entry for good: pruning at the entry limit keeps the
+        cursor at the same index while the entry there changes.
+        """
+        if 0 <= self.cursor < len(self.entries):
+            return self.entries[self.cursor].id
+        return None
+
 
 class ProjectStateSnapshot(BaseModel):
     """Editable v2 project layers restored by undo/redo."""

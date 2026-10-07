@@ -8,16 +8,28 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HistoryService
 
 
-def history_undo(project_path: str, rerender: bool = False) -> str:
-    """Undo the last project mutation (timeline, transcript, or settings)."""
+def history_undo(
+    project_path: str, rerender: bool = False, expected_head_id: str | None = None
+) -> str:
+    """Undo the last project mutation (timeline, transcript, or settings).
+
+    Pass expected_head_id (history_status_tool's head_id) to undo only the change you
+    looked at: if another edit landed since, the call refuses with error_code
+    history_stale and nothing changes.
+    """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(HistoryService(ws).undo(rerender=rerender))
+    return to_json(HistoryService(ws).undo(rerender=rerender, expected_head_id=expected_head_id))
 
 
-def history_redo(project_path: str, rerender: bool = False) -> str:
-    """Redo the last undone project mutation."""
+def history_redo(
+    project_path: str, rerender: bool = False, expected_head_id: str | None = None
+) -> str:
+    """Redo the last undone project mutation.
+
+    expected_head_id guards it like history_undo (error_code history_stale).
+    """
     ws = ProjectWorkspace.open(project_path)
-    return to_json(HistoryService(ws).redo(rerender=rerender))
+    return to_json(HistoryService(ws).redo(rerender=rerender, expected_head_id=expected_head_id))
 
 
 def history_list(project_path: str) -> str:

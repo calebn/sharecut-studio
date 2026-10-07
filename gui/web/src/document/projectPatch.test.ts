@@ -213,6 +213,7 @@ describe("projectFromDocumentSnapshot", () => {
       },
       history: {
         cursor: 1,
+        head_id: null,
         can_undo: true,
         can_redo: false,
         groups: [{ kind: "snapshot", title: "s" }],
@@ -238,7 +239,13 @@ describe("projectFromDocumentSnapshot", () => {
           },
         ],
       },
-      history: { cursor: 1, can_undo: true, can_redo: false, groups: [] },
+      history: {
+        cursor: 1,
+        head_id: null,
+        can_undo: true,
+        can_redo: false,
+        groups: [],
+      },
     });
     const next = projectFromDocumentSnapshot(prev, { project: shell });
     const overlaid = next?.transcript?.utterances[0]?.words;
@@ -1156,6 +1163,7 @@ describe("projectFromDocumentSnapshot", () => {
     const prev = minimalProject({
       history: {
         cursor: 0,
+        head_id: null,
         can_undo: false,
         can_redo: false,
         groups: [{ kind: "snapshot", title: "old" }],
@@ -1164,6 +1172,7 @@ describe("projectFromDocumentSnapshot", () => {
     const next = projectFromDocumentSnapshot(prev, {
       history: {
         cursor: 1,
+        head_id: null,
         can_undo: true,
         can_redo: false,
         groups: [{ kind: "mutation", title: "set track meta · on host" }],
@@ -1181,13 +1190,14 @@ describe("projectFromDocumentSnapshot", () => {
     const prev = minimalProject({
       history: {
         cursor: 0,
+        head_id: null,
         can_undo: false,
         can_redo: false,
         groups: [{ kind: "snapshot", title: "old" }],
       },
     });
     const next = projectFromDocumentSnapshot(prev, {
-      history: { cursor: 1, can_undo: true, can_redo: false },
+      history: { cursor: 1, head_id: null, can_undo: true, can_redo: false },
     });
     expect(next?.history.groups).toEqual([{ kind: "snapshot", title: "old" }]);
     expect(next?.history.cursor).toBe(1);
@@ -1202,6 +1212,7 @@ describe("projectFromDocumentSnapshot", () => {
       },
       history: {
         cursor: 0,
+        head_id: null,
         can_undo: false,
         can_redo: false,
         groups: [{ kind: "snapshot", title: "old" }],
@@ -1213,12 +1224,19 @@ describe("projectFromDocumentSnapshot", () => {
         workspace_dir: "/tmp",
         hydration: { transcript_words: false, history_groups: false },
       },
-      history: { cursor: 0, can_undo: false, can_redo: false, groups: [] },
+      history: {
+        cursor: 0,
+        head_id: null,
+        can_undo: false,
+        can_redo: false,
+        groups: [],
+      },
     });
     const next = projectFromDocumentSnapshot(prev, {
       project: shell,
       history: {
         cursor: 1,
+        head_id: null,
         can_undo: true,
         can_redo: false,
         groups: [{ kind: "mutation", title: "add comment" }],
@@ -1237,11 +1255,18 @@ describe("projectFromDocumentSnapshot", () => {
         workspace_dir: "/tmp",
         hydration: { transcript_words: false, history_groups: false },
       },
-      history: { cursor: 0, can_undo: false, can_redo: false, groups: [] },
+      history: {
+        cursor: 0,
+        head_id: null,
+        can_undo: false,
+        can_redo: false,
+        groups: [],
+      },
     });
     const withGroups = projectFromDocumentSnapshot(prev, {
       history: {
         cursor: 1,
+        head_id: null,
         can_undo: true,
         can_redo: false,
         groups: [{ kind: "mutation", title: "add comment" }],
@@ -1258,7 +1283,13 @@ describe("projectFromDocumentSnapshot", () => {
         workspace_dir: "/tmp",
         hydration: { transcript_words: false, history_groups: false },
       },
-      history: { cursor: 0, can_undo: false, can_redo: false, groups: [] },
+      history: {
+        cursor: 0,
+        head_id: null,
+        can_undo: false,
+        can_redo: false,
+        groups: [],
+      },
     });
     const afterPoll = projectFromDocumentSnapshot(withGroups, {
       project: shell,

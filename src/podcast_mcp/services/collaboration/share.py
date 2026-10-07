@@ -625,6 +625,7 @@ _GUEST_IMPACT_STUB: dict[str, Any] = {
 
 _GUEST_EMPTY_HISTORY: dict[str, Any] = {
     "cursor": 0,
+    "head_id": None,
     "can_undo": False,
     "can_redo": False,
     "entries": [],
