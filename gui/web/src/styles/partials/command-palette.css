@@ -64,6 +64,37 @@
   overflow-y: auto;
 }
 
+/* Actions pinned under the scrolling body (Dialog `footer`). */
+.command-palette-footer {
+  flex: 0 0 auto;
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+/* Dialog `phoneSheet`: on the phone shell the panel rises from the bottom
+   edge, full width, so its footer sits in the thumb zone. */
+html[data-shell="phone"] .ui-dialog-root--phone-sheet {
+  place-items: end stretch;
+}
+
+html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
+  width: 100%;
+  max-height: 92dvh;
+  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom));
+  border-width: 1px 0 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  box-shadow: var(--shadow-floating-up);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-shell="phone"]
+    .ui-dialog-root--phone-sheet
+    > .command-palette-panel {
+    animation: bottom-sheet-up var(--motion-panel) var(--motion-ease-out) both;
+  }
+}
+
 .command-palette-header h2 {
   margin: 0;
   font-size: var(--font-size-heading);

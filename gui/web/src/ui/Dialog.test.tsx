@@ -36,3 +36,39 @@ it("keeps a dialog usable outside inert application chrome", async () => {
   expect(container.querySelector<HTMLElement>("main")?.inert).toBe(false);
   expect(trigger).toHaveFocus();
 });
+
+it("pins a footer below the scrolling body and marks phone-sheet dialogs", async () => {
+  const { baseElement, rerender } = render(
+    <Dialog
+      open
+      onClose={() => undefined}
+      title="Share"
+      phoneSheet
+      footer={<button type="button">Create review link</button>}
+    >
+      <p>Body</p>
+    </Dialog>,
+  );
+  const dialog = screen.getByRole("dialog", { name: "Share" });
+  expect(dialog).toHaveClass("ui-dialog-root--phone-sheet");
+  const panel = dialog.querySelector(".command-palette-panel") as HTMLElement;
+  expect([...panel.children].map((child) => child.className)).toEqual([
+    "command-palette-header",
+    "command-palette-body",
+    "command-palette-footer",
+  ]);
+  expect(panel.querySelector(".command-palette-footer")).toContainElement(
+    screen.getByRole("button", { name: "Create review link" }),
+  );
+  await expectNoA11yViolations(baseElement);
+
+  rerender(
+    <Dialog open onClose={() => undefined} title="Share">
+      <p>Body</p>
+    </Dialog>,
+  );
+  expect(screen.getByRole("dialog", { name: "Share" })).not.toHaveClass(
+    "ui-dialog-root--phone-sheet",
+  );
+  expect(document.querySelector(".command-palette-footer")).toBeNull();
+});

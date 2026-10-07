@@ -14,6 +14,10 @@ type Props = {
   initialFocusRef?: React.RefObject<HTMLElement | null>;
   /** Keep the dialog open (no scrim/Escape/Close dismiss). */
   closeDisabled?: boolean;
+  /** Actions pinned below the scrolling body, such as the primary action. */
+  footer?: ReactNode;
+  /** On the phone shell, rise from the bottom edge as a full-width sheet. */
+  phoneSheet?: boolean;
 };
 
 /**
@@ -28,6 +32,8 @@ export function Dialog({
   panelClassName,
   initialFocusRef,
   closeDisabled = false,
+  footer,
+  phoneSheet = false,
 }: Props) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -48,7 +54,11 @@ export function Dialog({
 
   return createPortal(
     <div
-      className="ui-dialog-root command-palette-root"
+      className={
+        phoneSheet
+          ? "ui-dialog-root command-palette-root ui-dialog-root--phone-sheet"
+          : "ui-dialog-root command-palette-root"
+      }
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -84,6 +94,7 @@ export function Dialog({
         >
           {children}
         </div>
+        {footer ? <div className="command-palette-footer">{footer}</div> : null}
       </div>
     </div>,
     document.body,

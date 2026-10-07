@@ -116,7 +116,8 @@ Every interactive library component has Vitest coverage including `expectNoA11yV
 | `useCommand` | Catalog label / enabled / `run` |
 | `Field` / `FieldRow` | Labeled control + hint; horizontal nudge row |
 | `InlineError` | Inline failure text |
-| `Dialog` | Modal scrim + panel + header; uses `useDialogModal` |
+| `Dialog` | Modal scrim + panel + header; uses `useDialogModal`. `footer` pins actions under the scrolling body; `phoneSheet` makes it a full-width sheet from the bottom edge on the phone shell |
+| `InlineConfirm` | Two-step destructive confirmation in place of its trigger: the consequence, **Keep** (focused) then a danger action; use it inside an open `Dialog` instead of stacking a second one |
 | `Menu` / `CommandMenuItem` | Popup menu + command items |
 | `BottomSheet` | Phone/tablet peek sheet (non-modal) with optional Expand/Collapse controls and no drag handle |
 | `CloseButton` | Shared close affordance for `Dialog` and `BottomSheet`: named "Close" (Esc also dismisses) |

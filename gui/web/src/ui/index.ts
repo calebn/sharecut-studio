@@ -15,6 +15,7 @@ export { FieldRow } from "./FieldRow";
 export { FocusPull } from "./FocusPull";
 export { GesturesSheet } from "./GesturesSheet";
 export { Icon, type IconName } from "./Icon";
+export { InlineConfirm } from "./InlineConfirm";
 export { InlineError } from "./InlineError";
 export { InspectorSeekFooter } from "./InspectorSeekFooter";
 export {
