@@ -8,19 +8,17 @@ import {
 afterEach(() => localStorage.clear());
 
 describe("compact inspector preference", () => {
-  it("opens as the strip until the user expands it, then as the inspector", () => {
-    expect(readCompactInspectorView()).toBe("strip");
-    writeCompactInspectorView("inspector");
-    expect(localStorage.getItem(COMPACT_INSPECTOR_STORAGE_KEY)).toBe(
-      "inspector",
-    );
-    expect(readCompactInspectorView()).toBe("inspector");
-    writeCompactInspectorView("strip");
-    expect(readCompactInspectorView()).toBe("strip");
+  it("opens at the peek strip until the user leaves the drawer at another detent", () => {
+    expect(readCompactInspectorView()).toBe("peek");
+    writeCompactInspectorView("full");
+    expect(localStorage.getItem(COMPACT_INSPECTOR_STORAGE_KEY)).toBe("full");
+    expect(readCompactInspectorView()).toBe("full");
+    writeCompactInspectorView("half");
+    expect(readCompactInspectorView()).toBe("half");
   });
 
-  it("reads anything else stored there as the strip", () => {
-    localStorage.setItem(COMPACT_INSPECTOR_STORAGE_KEY, "full");
-    expect(readCompactInspectorView()).toBe("strip");
+  it("reads anything else stored there as the peek strip", () => {
+    localStorage.setItem(COMPACT_INSPECTOR_STORAGE_KEY, "inspector");
+    expect(readCompactInspectorView()).toBe("peek");
   });
 });
