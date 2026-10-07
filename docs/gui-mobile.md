@@ -7,7 +7,12 @@ Phone- and tablet-first shells for Sharecut Studio, plus desktop polish shared w
 Canonical strategy and feature map for agents/contributors. Implementation lives under `gui/web/`.
 
 Reading-room actions and Share dialog actions/checkbox labels use the shared
-`--touch-min` target floor. Dialog and sheet close buttons use the same square
+`--touch-min` target floor. On phones the Share dialog is a modal bottom sheet
+(`Dialog` `phoneSheet`): it rises full width from the bottom edge, and its
+footer pins **Create review link**, the just-created link's **Copy link** and
+the status line in the thumb zone while the body scrolls. Stop sharing and
+End room confirm in place (`ui/InlineConfirm`) rather than stacking a second
+sheet. Dialog and sheet close buttons use the same square
 target. Reading form labels, hints, and errors use `--font-size-body`, while
 actions use reading-body type. Compact timeline/inspector controls retain their
 editor density. See the [component recipes](../gui/web/docs/ui-library.md#composition-recipes)

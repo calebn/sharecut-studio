@@ -103,12 +103,14 @@ their first line. Errors appear above the right-aligned Bounce action.
 |--|--|
 | **Purpose** | Manage public review links and record-room guest / producer invites for the open episode |
 | **Open** | Menu → Project → **Share…** (`share.manage`; collaboration extension slot `share.ui.menu`) |
-| **Primary actions** | Role radios under **Anyone with the link** (Viewer / Commenter / Editor, each with a one-line description; default Commenter) · Allow agent (MCP) · **Create link** · **Create record links** · Copy / stop review links · Copy guest / producer links · Replace a closed record invite · End room |
-| **Data shown** | Online sharing line at the top (when the `tunnel.status` feature is present): “Guests can open your links”, “Connecting…”, “Reconnecting… guests may see a brief interruption” with a “Trying again in N s” countdown (a still clock time under reduced motion), “Not reachable online: guests can't open links until you're back online” with a **How to fix** disclosure and guide link, or “Online sharing is off” with **How to turn it on**; no line on a local-only host; live coolname, review role, review mix label, last used; record room role and invite closure state; MCP URL when `mcp` is granted |
-| **Empty / error** | Quiet “No live review links.” / “No live record rooms.” text (no field-like box). Create publishes a **Share mix** review version if none exists (needs premix/mastered). A stale preview gets a friendly alert and **Refresh mix**; after a successful render, Create retries once. A stale master explains that a new master is needed and does not offer preview refresh. |
-| **Out of scope** | Restricted ACL; expiry picker; in-place review-role edit (rotate = new link + stop old); guest share-token MCP UI |
+| **Primary actions** | Role radios under **Anyone with the link** (Viewer / Commenter / Editor, each with a one-line description; default Commenter) · **Allow AI assistants (MCP)** with its consequence note (“Paste into an MCP client such as Claude or ChatGPT. The assistant gets this link's permissions.”) · **Create review link** (pinned footer) · **Create record links** · per review link **Copy link**, **Copy MCP URL** and **Stop sharing** · Copy guest / producer links · Replace a closed record invite · per room **Open room panel** and **End room** |
+| **Data shown** | Online sharing line at the top (when the `tunnel.status` feature is present): “Guests can open your links”, “Connecting…”, “Reconnecting… guests may see a brief interruption” with a “Trying again in N s” countdown (a still clock time under reduced motion), “Not reachable online: guests can't open links until you're back online” with a **How to fix** disclosure and guide link, or “Online sharing is off” with **How to turn it on**; no line on a local-only host; each review link named by its role (“Commenter link”) with its review mix label, “AI assistants allowed” when it has an MCP URL, when it was created and last opened, a host-chosen expiry only if one was set on the CLI or MCP, and its coolname as the address; each record room with its guest and producer links and invite closure state |
+| **Empty / error** | Quiet “No review links yet.” / “No record rooms yet.” text (no field-like box), with **Create record links** under the rooms. Create publishes a **Share mix** review version if none exists (needs premix/mastered). A stale preview gets a friendly alert and **Refresh mix**; after a successful render, Create retries once. A stale master explains that a new master is needed and does not offer preview refresh. |
+| **Out of scope** | Restricted ACL; expiry picker (links never expire until the host stops sharing; `expires_at` stays on the CLI and MCP); in-place review-role edit (rotate = new link + stop old); guest share-token MCP UI |
 
-The dialog caps to `90dvh` with a single `.command-palette-body` scroller so **Record rooms** and other lower sections stay reachable on phone and short laptop viewports. Header (title + Close) stays pinned.
+The dialog caps to `90dvh` with a single `.command-palette-body` scroller so **Record rooms** and other lower sections stay reachable on phone and short laptop viewports. Header (title + Close) stays pinned, and so does a footer holding **Create review link**, a **Copy link** for the link just created, and the status line (“Review link created and copied”). On phones the dialog rises from the bottom edge as a full-width sheet, so that footer sits in the thumb zone.
+
+**Stop sharing** and **End room** trail their row, apart from the copy actions, and confirm in place: the row swaps its actions for the consequence (“Stop sharing this Commenter link? Anyone using it loses access.” / “End this record room? Both guest and producer links will stop working.”) with **Keep link** / **Keep room** first and focused, and the danger action last. Each record room has one room-level row: **Open room panel**, then **End room**.
 
 When a participant is removed, the Record panel directs the host to **Copy
 links…**. Share marks the affected role's invite closed to new guests, disables
@@ -117,8 +119,8 @@ leases remain valid. Guests never see this dialog (`canManageProjects` is false
 on `share:{token}`).
 
 Storybook `Templates/ShareDialog` previews the production `ShareDialogView`
-with fictional links. The live `ShareDialog` keeps the API calls, clipboard,
-confirm prompts and record-panel handoff.
+with fictional links, including its in-place confirmations. The live
+`ShareDialog` keeps the API calls, clipboard and record-panel handoff.
 
 ---
 
@@ -351,7 +353,7 @@ Every review role (Viewer, Commenter, Editor) holds `view`, so every role opens 
 
 ```mermaid
 flowchart LR
-  shareLink["Share link /r/token"] --> hasView{Has view?}
+  shareLink["Review link /r/token"] --> hasView{Has view?}
   hasView -->|yes, every role| dawGuest[Sharecut Studio guest]
   hasView -->|no, API-only share| noPage[Error: link does not open the project]
 ```
@@ -376,7 +378,7 @@ Step flows: [Guest journeys](#/journeys).
 | `action` | Check off comment action items |
 | `suggest` | Commenter and Editor. Propose structural cuts (pending); nudge its own suggestions; **not** hard-apply |
 | `edit` | Editor only. Approve/reject pending, fades/joins, FX bypass, apply structural cuts |
-| `mcp` | Connect an **external** agent at `{base}/mcp/{token}/mcp` (host Share dialog copies the URL; **no guest in-app MCP connect UI**) |
+| `mcp` | Connect an **external** agent at `{base}/mcp/{token}/mcp` (host Share dialog copies the MCP URL when the host allowed AI assistants; **no guest in-app MCP connect UI**) |
 
 ### Sharecut Studio guest chrome (when `view` is granted)
 
@@ -392,7 +394,7 @@ Step flows: [Guest journeys](#/journeys).
 
 **More hub (guest):** Mix + Comments + Overlay legend.
 
-**Remote agent (`mcp`):** Hosts copy the agent URL from Menu → Share… when minting with Allow agent. Guests still connect via an external MCP client — not a guest Settings pane. Same role as the human on that share. Listen-first Suggested is HTTP (`guest_pending_preview` / `GET …/daw/pending-preview`), not host speakers.
+**AI assistants (`mcp`):** Hosts copy the MCP URL from Menu → Share… after creating the link with **Allow AI assistants (MCP)**. The assistant connects through an MCP client such as Claude or ChatGPT — not a guest Settings pane. Same role as the human on that share. Listen-first Suggested is HTTP (`guest_pending_preview` / `GET …/daw/pending-preview`), not host speakers.
 
 ---
 

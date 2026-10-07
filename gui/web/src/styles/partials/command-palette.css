@@ -358,7 +358,18 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
   min-block-size: var(--touch-min);
 }
 
+.share-dialog-mcp .share-dialog-check {
+  margin-bottom: 0;
+  font-weight: 600;
+}
+
+/* Helper aligns under the label text, past the checkbox. */
+.share-dialog-mcp-help {
+  padding-inline-start: calc(1rem + var(--space-3));
+}
+
 .share-dialog-body .ui-control,
+.share-dialog-footer .ui-control,
 .share-dialog-select {
   min-block-size: var(--touch-min);
 }
@@ -370,19 +381,23 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
 }
 
 .share-dialog-heading {
-  margin: var(--space-5) 0 var(--space-3);
+  margin: var(--space-6) 0 var(--space-1);
   font-size: var(--font-size-body);
   font-weight: 600;
+}
+
+.share-dialog-section-note {
+  margin-bottom: var(--space-4);
+}
+
+.share-dialog-section-actions {
+  display: flex;
+  margin-top: var(--space-4);
 }
 
 .share-dialog-note {
   margin: 0;
   color: var(--color-text-secondary);
-}
-
-.share-dialog-scroller,
-.share-dialog-scroller-rooms {
-  min-height: 0;
 }
 
 .share-dialog-live {
@@ -393,6 +408,45 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
 .share-dialog-status {
   margin: 0;
   color: var(--text-muted);
+}
+
+.share-dialog-footer {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.share-dialog-recovery {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+}
+
+.share-dialog-recovery > p {
+  margin: 0;
+}
+
+.share-dialog-footer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+}
+
+.share-dialog-feedback {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+}
+
+.share-dialog-feedback:empty {
+  display: none;
+}
+
+.share-dialog-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
 }
 
 .share-tunnel {
@@ -494,20 +548,48 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
 .share-dialog-row-main {
   display: grid;
   gap: var(--space-0);
+  min-inline-size: 0;
 }
 
-.share-dialog-token {
+.share-dialog-row-title {
   font-weight: 600;
+}
+
+.share-dialog-link-title {
+  font-weight: 500;
 }
 
 .share-dialog-meta {
   color: var(--text-muted);
 }
 
+/* The slug is the link's address, kept so a host can match a URL they sent. */
+.share-dialog-address {
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-caption);
+}
+
 .share-dialog-row-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
+}
+
+/* Danger gets distance: the end action trails the row, apart from copies. */
+.share-dialog-row-actions > .share-dialog-danger {
+  margin-inline-start: auto;
+}
+
+.share-dialog-link {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.share-dialog-room-actions {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 .host-mcp-lead {

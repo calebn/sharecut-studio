@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
@@ -125,7 +126,7 @@ describe("ShareDialog", () => {
     expect(
       await screen.findByRole("heading", { name: "Record rooms" }),
     ).toBeTruthy();
-    expect(await screen.findByText("No live review links.")).toBeTruthy();
+    expect(await screen.findByText("No review links yet.")).toBeTruthy();
     await expectNoA11yViolations(container);
   });
 
@@ -141,7 +142,7 @@ describe("ShareDialog", () => {
     });
     useDawStore.setState({ shareDialogOpen: true });
     const { unmount } = render(<ShareDialog />);
-    await screen.findByText("No live review links.");
+    await screen.findByText("No review links yet.");
     expect(loadTunnelStatus).not.toHaveBeenCalled();
     unmount();
 
@@ -187,14 +188,14 @@ describe("ShareDialog", () => {
 
     await waitFor(() => expect(listHostShares).toHaveBeenCalledTimes(1));
     act(() => useDawStore.setState({ projectEpoch: 2 }));
-    expect(await screen.findByText("No live review links.")).toBeTruthy();
+    expect(await screen.findByText("No review links yet.")).toBeTruthy();
     await act(async () => {
       oldLoad.reject(new Error("Obsolete list failed"));
       await oldLoad.promise.catch(() => undefined);
     });
 
     expect(screen.queryByText("Obsolete list failed")).toBeNull();
-    expect(screen.getByText("No live review links.")).toBeTruthy();
+    expect(screen.getByText("No review links yet.")).toBeTruthy();
   });
 
   it("creates a link, copies it, and lists the live row", async () => {
@@ -209,8 +210,8 @@ describe("ShareDialog", () => {
       .mockResolvedValue(listed([liveRow]));
     useDawStore.setState({ shareDialogOpen: true });
     render(<ShareDialog />);
-    await screen.findByText("No live review links.");
-    fireEvent.click(screen.getByRole("button", { name: "Create link" }));
+    await screen.findByText("No review links yet.");
+    fireEvent.click(screen.getByRole("button", { name: "Create review link" }));
     await waitFor(() => {
       expect(createHostShare).toHaveBeenCalledWith("/tmp/ep.project.json", {
         role: "commenter",
@@ -218,11 +219,13 @@ describe("ShareDialog", () => {
       });
     });
     expect(await screen.findByText("fantastic-acoustic-whale")).toBeTruthy();
-    expect(screen.getByText(/Commenter · Share mix/)).toBeTruthy();
-    expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
+    expect(screen.getByText("Commenter link")).toBeTruthy();
+    expect(
+      await screen.findAllByRole("button", { name: "Copied link" }),
+    ).toHaveLength(2);
     expect(writeText).toHaveBeenCalledWith(liveRow.url);
     expect(useDawStore.getState().statusAnnouncement).toMatch(
-      /Share link created/,
+      /Review link created/,
     );
   });
 
@@ -232,8 +235,10 @@ describe("ShareDialog", () => {
     createHostShare.mockReturnValue(create.promise);
     useDawStore.setState({ shareDialogOpen: true });
     const view = render(<ShareDialog />);
-    await screen.findByText("No live review links.");
-    await user.click(screen.getByRole("button", { name: "Create link" }));
+    await screen.findByText("No review links yet.");
+    await user.click(
+      screen.getByRole("button", { name: "Create review link" }),
+    );
     view.unmount();
 
     await act(async () => {
@@ -267,7 +272,7 @@ describe("ShareDialog", () => {
     render(<ShareDialog />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Create link" }),
+      await screen.findByRole("button", { name: "Create review link" }),
     );
     expect(
       await screen.findByText(
@@ -278,7 +283,7 @@ describe("ShareDialog", () => {
       screen.queryByText(/premix\.wav|render-preview provenance/),
     ).toBeNull();
     await user.click(screen.getByRole("radio", { name: "Editor" }));
-    await user.click(screen.getByLabelText("Allow agent (MCP)"));
+    await user.click(screen.getByLabelText("Allow AI assistants (MCP)"));
     await user.click(
       await screen.findByRole("button", { name: "Refresh mix" }),
     );
@@ -313,23 +318,27 @@ describe("ShareDialog", () => {
     render(<ShareDialog />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Create link" }),
+      await screen.findByRole("button", { name: "Create review link" }),
     );
     await user.click(screen.getByRole("button", { name: "Close" }));
     act(() => useDawStore.setState({ shareDialogOpen: true }));
     await user.click(
-      await screen.findByRole("button", { name: "Create link" }),
+      await screen.findByRole("button", { name: "Create review link" }),
     );
 
     await act(async () => {
       finishOld(liveRow);
     });
-    expect(screen.getByRole("button", { name: "Create link" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Create review link" }),
+    ).toBeDisabled();
     await act(async () => {
       finishNew(liveRow);
     });
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Create link" })).toBeEnabled(),
+      expect(
+        screen.getByRole("button", { name: "Create review link" }),
+      ).toBeEnabled(),
     );
   });
 
@@ -355,7 +364,7 @@ describe("ShareDialog", () => {
     render(<ShareDialog />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Create link" }),
+      await screen.findByRole("button", { name: "Create review link" }),
     );
     await user.click(
       await screen.findByRole("button", { name: "Refresh mix" }),
@@ -363,7 +372,7 @@ describe("ShareDialog", () => {
     await user.click(screen.getByRole("button", { name: "Close" }));
     act(() => useDawStore.setState({ shareDialogOpen: true }));
     await user.click(
-      await screen.findByRole("button", { name: "Create link" }),
+      await screen.findByRole("button", { name: "Create review link" }),
     );
     await user.click(
       await screen.findByRole("button", { name: "Refresh mix" }),
@@ -372,7 +381,9 @@ describe("ShareDialog", () => {
     await act(async () => {
       finishOld({ status: "ok" });
     });
-    expect(screen.getByRole("button", { name: "Create link" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Create review link" }),
+    ).toBeDisabled();
     await act(async () => {
       finishNew({ status: "disabled", reason: "Render failed" });
     });
@@ -395,7 +406,7 @@ describe("ShareDialog", () => {
     render(<ShareDialog />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Create link" }),
+      await screen.findByRole("button", { name: "Create review link" }),
     );
     await user.click(
       await screen.findByRole("button", { name: "Refresh mix" }),
@@ -420,7 +431,7 @@ describe("ShareDialog", () => {
     render(<ShareDialog />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Create link" }),
+      await screen.findByRole("button", { name: "Create review link" }),
     );
     expect(
       await screen.findByText(
@@ -443,7 +454,7 @@ describe("ShareDialog", () => {
     render(<ShareDialog />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Create link" }),
+      await screen.findByRole("button", { name: "Create review link" }),
     );
     await user.click(
       await screen.findByRole("button", { name: "Refresh mix" }),
@@ -470,7 +481,7 @@ describe("ShareDialog", () => {
     render(<ShareDialog />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Create link" }),
+      await screen.findByRole("button", { name: "Create review link" }),
     );
     await user.click(
       await screen.findByRole("button", { name: "Refresh mix" }),
@@ -479,7 +490,9 @@ describe("ShareDialog", () => {
       projectPath: "/tmp/other.project.json",
       projectEpoch: 2,
     });
-    await user.click(screen.getByRole("button", { name: "Create link" }));
+    await user.click(
+      screen.getByRole("button", { name: "Create review link" }),
+    );
     await waitFor(() => expect(createHostShare).toHaveBeenCalledTimes(2));
     expect(createHostShare).toHaveBeenNthCalledWith(
       2,
@@ -506,7 +519,7 @@ describe("ShareDialog", () => {
     render(<ShareDialog />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Create link" }),
+      await screen.findByRole("button", { name: "Create review link" }),
     );
     await user.click(
       await screen.findByRole("button", { name: "Refresh mix" }),
@@ -532,7 +545,7 @@ describe("ShareDialog", () => {
     render(<ShareDialog />);
 
     await user.click(
-      await screen.findByRole("button", { name: "Create link" }),
+      await screen.findByRole("button", { name: "Create review link" }),
     );
     await user.click(
       await screen.findByRole("button", { name: "Refresh mix" }),
@@ -543,7 +556,7 @@ describe("ShareDialog", () => {
     expect(createHostShare).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps Create link label and reports clipboard errors after mint", async () => {
+  it("keeps the Create review link label and reports clipboard errors after mint", async () => {
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
@@ -558,13 +571,17 @@ describe("ShareDialog", () => {
       .mockResolvedValue(listed([liveRow]));
     useDawStore.setState({ shareDialogOpen: true });
     render(<ShareDialog />);
-    await screen.findByText("No live review links.");
-    expect(screen.getByRole("button", { name: "Create link" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Create link" }));
+    await screen.findByText("No review links yet.");
+    expect(
+      screen.getByRole("button", { name: "Create review link" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create review link" }));
     expect(await screen.findByText("Clipboard unavailable")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Create link" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Create review link" }),
+    ).toBeTruthy();
     expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Share link created",
+      "Review link created",
     );
   });
 
@@ -574,11 +591,13 @@ describe("ShareDialog", () => {
     useDawStore.setState({ shareDialogOpen: true });
     render(<ShareDialog />);
     await user.click(await screen.findByRole("button", { name: "Copy link" }));
-    expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
+    expect(
+      await screen.findByRole("button", { name: "Copied link" }),
+    ).toBeTruthy();
     expect(useDawStore.getState().statusAnnouncement).toBe("Link copied");
   });
 
-  it("copies the agent URL for MCP shares", async () => {
+  it("copies the MCP URL for MCP shares", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -588,13 +607,15 @@ describe("ShareDialog", () => {
     useDawStore.setState({ shareDialogOpen: true });
     render(<ShareDialog />);
     fireEvent.click(
-      await screen.findByRole("button", { name: "Copy agent URL" }),
+      await screen.findByRole("button", { name: "Copy MCP URL" }),
     );
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(mcpRow.mcp_url);
     });
-    expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
-    expect(useDawStore.getState().statusAnnouncement).toBe("Agent URL copied");
+    expect(
+      await screen.findByRole("button", { name: "Copied MCP URL" }),
+    ).toBeTruthy();
+    expect(useDawStore.getState().statusAnnouncement).toBe("MCP URL copied");
   });
 
   it("lists live rows and is axe-clean", async () => {
@@ -603,13 +624,13 @@ describe("ShareDialog", () => {
     const { baseElement: container } = render(<ShareDialog />);
     expect(await screen.findByText("fantastic-acoustic-whale")).toBeTruthy();
     expect(await screen.findByText("editor-mcp-narwhal")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Copy agent URL" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy MCP URL" })).toBeTruthy();
     await expectNoA11yViolations(container);
   });
 
-  it("revokes a live share after confirm", async () => {
+  it("revokes a live share after the in-place confirm, never a native one", async () => {
     const user = userEvent.setup();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const nativeConfirm = vi.spyOn(window, "confirm");
     listHostShares.mockResolvedValue(listed([liveRow]));
     revokeHostShare.mockResolvedValue(undefined);
     useDawStore.setState({ shareDialogOpen: true });
@@ -619,13 +640,25 @@ describe("ShareDialog", () => {
       listed([{ ...liveRow, usable: false, revoked: true }]),
     );
     await user.click(screen.getByRole("button", { name: "Stop sharing" }));
+    expect(revokeHostShare).not.toHaveBeenCalled();
+    await user.click(
+      within(
+        screen.getByRole("group", {
+          name: "Stop sharing this Commenter link? Anyone using it loses access.",
+        }),
+      ).getByRole("button", { name: "Stop sharing" }),
+    );
     await waitFor(() => {
       expect(revokeHostShare).toHaveBeenCalledWith(
         "/tmp/ep.project.json",
         "fantastic-acoustic-whale",
       );
     });
-    expect(await screen.findByText("No live review links.")).toBeTruthy();
+    expect(await screen.findByText("No review links yet.")).toBeTruthy();
+    expect(useDawStore.getState().statusAnnouncement).toBe(
+      "Stopped sharing the Commenter link",
+    );
+    expect(nativeConfirm).not.toHaveBeenCalled();
   });
 
   it("closes on Escape", async () => {
@@ -683,10 +716,9 @@ describe("ShareDialog", () => {
         revoked: [guestRow.token, producerRow.token],
       };
     });
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     useDawStore.setState({ shareDialogOpen: true });
     const { baseElement: container } = render(<ShareDialog />);
-    await screen.findByRole("heading", { name: "Record session" });
+    await screen.findByRole("heading", { name: "Record rooms" });
     fireEvent.click(
       screen.getByRole("button", { name: "Create record links" }),
     );
@@ -696,8 +728,8 @@ describe("ShareDialog", () => {
     expect(await screen.findByText("Guest link")).toBeTruthy();
     expect(screen.getByText("Producer link")).toBeTruthy();
     expect(
-      await screen.findByRole("button", { name: "Copied guest link" }),
-    ).toBeTruthy();
+      await screen.findAllByRole("button", { name: "Copied guest link" }),
+    ).toHaveLength(2);
     expect(
       screen.getByRole("button", { name: "Copy producer link" }),
     ).toBeTruthy();
@@ -707,13 +739,21 @@ describe("ShareDialog", () => {
       ).not.toBeDisabled();
     });
     fireEvent.click(screen.getByRole("button", { name: "End room" }));
+    expect(revokeHostRoom).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(
+        screen.getByRole("group", {
+          name: "End this record room? Both guest and producer links will stop working.",
+        }),
+      ).getByRole("button", { name: "End room" }),
+    );
     await waitFor(() => {
       expect(revokeHostRoom).toHaveBeenCalledWith(
         "/tmp/ep.project.json",
         "sess1",
       );
     });
-    expect(await screen.findByText("No live record rooms.")).toBeTruthy();
+    expect(await screen.findByText("No record rooms yet.")).toBeTruthy();
     await expectNoA11yViolations(container);
   });
 
@@ -752,7 +792,7 @@ describe("ShareDialog", () => {
       .mockResolvedValueOnce(room);
     useDawStore.setState({ shareDialogOpen: true });
     render(<ShareDialog />);
-    await screen.findByRole("heading", { name: "Record session" });
+    await screen.findByRole("heading", { name: "Record rooms" });
     await user.click(
       screen.getByRole("button", { name: "Create record links" }),
     );

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
@@ -52,6 +52,7 @@ function baseProps(): Parameters<typeof ShareDialogView>[0] {
     error: null,
     status: null,
     copiedKey: null,
+    lastCreated: null,
     onCreate: vi.fn(),
     onRefreshMix: vi.fn(),
     onCreateRecord: vi.fn(),
@@ -63,22 +64,65 @@ function baseProps(): Parameters<typeof ShareDialogView>[0] {
   };
 }
 
+/** The Dialog moves focus to Close one frame after it opens. */
+async function dialogSettled() {
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
+  );
+}
+
 describe("ShareDialogView", () => {
-  it("lists usable review links and record rooms; axe-clean", async () => {
+  it("names review links by role, keeps the slug as their address; axe-clean", async () => {
     const props = baseProps();
+    props.rows = [
+      hostShareRow({
+        created_at: "2026-10-01T12:00:00Z",
+        last_used_at: "2026-10-01T12:00:00Z",
+      }),
+      agentRow,
+      guestRow,
+      producerRow,
+      revokedRow,
+    ];
     const { baseElement: container } = render(<ShareDialogView {...props} />);
-    expect(screen.getByText("sample-review-link")).toBeInTheDocument();
-    expect(screen.getByText("sample-agent-link")).toBeInTheDocument();
+    const rows = within(
+      screen.getByRole("region", { name: "Review links" }),
+    ).getAllByRole("listitem");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringMatching(
+        /^Commenter linkShare mix · Created .+sample-review-link/,
+      ),
+      "Editor linkAI assistants allowedsample-agent-linkCopy linkCopy MCP URLStop sharing",
+    ]);
+    expect(rows[0]).not.toHaveTextContent("Last opened");
     expect(screen.queryByText("sample-stale-link")).not.toBeInTheDocument();
-    expect(screen.getByText("Guest link")).toBeInTheDocument();
-    expect(screen.getByText("Producer link")).toBeInTheDocument();
-    expect(screen.getByText(/Commenter · Share mix/)).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Copy link" })[0],
+    ).toHaveAccessibleDescription("Commenter link");
+    expect(
+      screen.getByText("Links don't expire. Stop sharing turns one off."),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Producer links let your producer listen and comment without being recorded. New record links have no expiry. A replacement keeps the original expiry.",
+        "A guest link records the person who joins. A producer link lets your producer listen and comment without being recorded. Record links don't expire. End room turns them off.",
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/expiry/)).not.toBeInTheDocument();
     await expectNoA11yViolations(container);
+  });
+
+  it("shows when a link was last opened and a host-chosen expiry", () => {
+    const props = baseProps();
+    props.rows = [
+      hostShareRow({
+        created_at: "2026-10-01T12:00:00Z",
+        last_used_at: "2026-10-03T12:00:00Z",
+        expires_at: "2026-12-01T12:00:00Z",
+      }),
+    ];
+    render(<ShareDialogView {...props} />);
+    const meta = screen.getByText(/^Share mix · Created/);
+    expect(meta).toHaveTextContent(/Last opened .+ · Expires /);
   });
 
   it("tells the host whether guests can reach their links; axe-clean", async () => {
@@ -119,6 +163,19 @@ describe("ShareDialogView", () => {
     rerender(<ShareDialogView {...props} />);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(screen.queryByText(/offline/i)).not.toBeInTheDocument();
+  });
+
+  it("discloses what Allow AI assistants (MCP) grants, next to it; axe-clean", async () => {
+    const props = baseProps();
+    const { baseElement: container } = render(<ShareDialogView {...props} />);
+    const mcp = screen.getByRole("checkbox", {
+      name: "Allow AI assistants (MCP)",
+    });
+    expect(mcp).not.toBeChecked();
+    expect(mcp).toHaveAccessibleDescription(
+      "Paste into an MCP client such as Claude or ChatGPT. The assistant gets this link's permissions.",
+    );
+    await expectNoA11yViolations(container);
   });
 
   it("offers each review-link role with what it can do; axe-clean", async () => {
@@ -163,8 +220,11 @@ describe("ShareDialogView", () => {
     const props = baseProps();
     props.rows = [];
     const { baseElement: container } = render(<ShareDialogView {...props} />);
-    expect(screen.getByText("No live review links.")).toBeInTheDocument();
-    expect(screen.getByText("No live record rooms.")).toBeInTheDocument();
+    expect(screen.getByText("No review links yet.")).toBeInTheDocument();
+    expect(screen.getByText("No record rooms yet.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create record links" }),
+    ).toBeEnabled();
     await expectNoA11yViolations(container);
   });
 
@@ -191,10 +251,12 @@ describe("ShareDialogView", () => {
     await user.click(screen.getByRole("radio", { name: "Editor" }));
     expect(props.onRoleChange).toHaveBeenCalledWith("editor");
 
-    await user.click(screen.getByLabelText("Allow agent (MCP)"));
+    await user.click(screen.getByLabelText("Allow AI assistants (MCP)"));
     expect(props.onWithMcpChange).toHaveBeenCalledWith(true);
 
-    await user.click(screen.getByRole("button", { name: "Create link" }));
+    await user.click(
+      screen.getByRole("button", { name: "Create review link" }),
+    );
     expect(props.onCreate).toHaveBeenCalledOnce();
 
     await user.click(
@@ -210,18 +272,13 @@ describe("ShareDialogView", () => {
       reviewRow.url,
     );
 
-    await user.click(screen.getByRole("button", { name: "Copy agent URL" }));
+    await user.click(screen.getByRole("button", { name: "Copy MCP URL" }));
     expect(props.onCopy).toHaveBeenCalledWith(
       "mcp",
       "sample-agent-link",
-      "Agent URL",
+      "MCP URL",
       agentRow.mcp_url,
     );
-
-    await user.click(
-      screen.getAllByRole("button", { name: "Stop sharing" })[0],
-    );
-    expect(props.onRevoke).toHaveBeenCalledWith("sample-review-link");
 
     await user.click(screen.getByRole("button", { name: "Copy guest link" }));
     expect(props.onCopy).toHaveBeenCalledWith(
@@ -233,16 +290,132 @@ describe("ShareDialogView", () => {
 
     await user.click(screen.getByRole("button", { name: "Open room panel" }));
     expect(props.onOpenRoomPanel).toHaveBeenCalledOnce();
+  });
 
-    await user.click(screen.getByRole("button", { name: "End room" }));
-    expect(props.onEndRoom).toHaveBeenCalledWith("sample-room");
+  it("confirms Stop sharing in place, naming the link and the consequence; axe-clean", async () => {
+    const user = userEvent.setup();
+    const props = baseProps();
+    const { baseElement: container } = render(<ShareDialogView {...props} />);
+    await dialogSettled();
+    const stop = () =>
+      within(
+        screen.getByText("Commenter link").closest("li") as HTMLElement,
+      ).getByRole("button", { name: "Stop sharing" });
+
+    await user.click(stop());
+    const confirm = screen.getByRole("group", {
+      name: "Stop sharing this Commenter link? Anyone using it loses access.",
+    });
+    expect(
+      within(confirm)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Keep link", "Stop sharing"]);
+    expect(
+      within(confirm).getByRole("button", { name: "Keep link" }),
+    ).toHaveFocus();
+    expect(props.onRevoke).not.toHaveBeenCalled();
+    await expectNoA11yViolations(container);
+
+    await user.click(screen.getByRole("button", { name: "Keep link" }));
+    expect(screen.queryByRole("group", { name: /^Stop sharing/ })).toBeNull();
+    expect(stop()).toHaveFocus();
+    expect(props.onRevoke).not.toHaveBeenCalled();
+
+    await user.click(stop());
+    await user.click(
+      within(
+        screen.getByRole("group", { name: /^Stop sharing this Commenter/ }),
+      ).getByRole("button", { name: "Stop sharing" }),
+    );
+    expect(props.onRevoke).toHaveBeenCalledExactlyOnceWith(
+      "sample-review-link",
+    );
+    expect(screen.getByRole("heading", { name: "Review links" })).toHaveFocus();
+  });
+
+  it("puts room actions in one room row, End room last and confirmed; axe-clean", async () => {
+    const user = userEvent.setup();
+    const props = baseProps();
+    const { baseElement: container } = render(<ShareDialogView {...props} />);
+    await dialogSettled();
+    const room = screen.getByText("Record room").closest("li") as HTMLElement;
+    const endRoom = within(room).getByRole("button", { name: "End room" });
+    expect(endRoom.closest(".share-dialog-link")).toBeNull();
+    expect(
+      [...(endRoom.parentElement?.children ?? [])].map((b) => b.textContent),
+    ).toEqual(["Open room panel", "End room"]);
+
+    await user.click(endRoom);
+    const confirm = screen.getByRole("group", {
+      name: "End this record room? Both guest and producer links will stop working.",
+    });
+    expect(
+      within(confirm).getByRole("button", { name: "Keep room" }),
+    ).toHaveFocus();
+    await expectNoA11yViolations(container);
+    expect(props.onEndRoom).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole("button", { name: "End room" }));
+    expect(props.onEndRoom).toHaveBeenCalledExactlyOnceWith("sample-room");
+  });
+
+  it("pins Create review link and the last created link's copy to the footer", async () => {
+    const user = userEvent.setup();
+    const props = baseProps();
+    props.lastCreated = {
+      token: "sample-review-link",
+      url: "http://127.0.0.1:8765/r/sample-review-link",
+      kind: "review",
+    };
+    props.status = "Review link created and copied";
+    const { rerender } = render(<ShareDialogView {...props} />);
+    const footer = document.querySelector(
+      ".command-palette-footer",
+    ) as HTMLElement;
+    expect(
+      within(footer)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Copy link", "Create review link"]);
+    expect(footer).toHaveTextContent("Review link created and copied");
+    await user.click(within(footer).getByRole("button", { name: "Copy link" }));
+    expect(props.onCopy).toHaveBeenCalledWith(
+      "link",
+      "sample-review-link",
+      "Link",
+      "http://127.0.0.1:8765/r/sample-review-link",
+    );
+
+    rerender(
+      <ShareDialogView
+        {...props}
+        lastCreated={{ token: "sample-guest-link", url: "u", kind: "guest" }}
+      />,
+    );
+    expect(
+      within(footer).getByRole("button", { name: "Copy guest link" }),
+    ).toBeInTheDocument();
+
+    rerender(
+      <ShareDialogView
+        {...props}
+        lastCreated={{ token: "sample-stale-link", url: "u", kind: "review" }}
+      />,
+    );
+    expect(
+      within(footer)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Create review link"]);
   });
 
   it("shows copied labels", () => {
     const props = baseProps();
     props.copiedKey = shareCopyKey("link", "sample-review-link");
     render(<ShareDialogView {...props} />);
-    expect(screen.getAllByRole("button", { name: "Copied" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Copied link" })).toHaveLength(
+      1,
+    );
 
     props.copiedKey = shareCopyKey("link", "sample-guest-link");
     const { unmount } = render(<ShareDialogView {...props} />);
@@ -303,14 +476,16 @@ describe("ShareDialogView", () => {
     for (const radio of screen.getAllByRole("radio")) {
       expect(radio).toBeDisabled();
     }
-    expect(screen.getByLabelText("Allow agent (MCP)")).toBeDisabled();
+    expect(screen.getByLabelText("Allow AI assistants (MCP)")).toBeDisabled();
   });
 
   it("shows a missing producer link as disabled", () => {
     const props = baseProps();
     props.rows = [guestRow];
     render(<ShareDialogView {...props} />);
-    expect(screen.getByText("missing")).toBeInTheDocument();
+    expect(
+      screen.getByText("Missing. End this room and create new record links."),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Copy producer link" }),
     ).toBeDisabled();
@@ -321,7 +496,12 @@ describe("ShareDialogView", () => {
     props.error = "Clipboard unavailable";
     props.status = "Link copied";
     const { rerender } = render(<ShareDialogView {...props} />);
-    expect(screen.getByText("Clipboard unavailable")).toBeInTheDocument();
+    const footer = document.querySelector(
+      ".command-palette-footer",
+    ) as HTMLElement;
+    expect(
+      within(footer).getByText("Clipboard unavailable"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Link copied")).not.toBeInTheDocument();
 
     const okProps = { ...props, error: null };

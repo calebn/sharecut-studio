@@ -73,7 +73,7 @@ organisms; domain screens are templates, colocated with their domain component
 | Level | Contents | Examples |
 | ----- | -------- | -------- |
 | **Atoms** | Irreducible UI elements | Button, ToggleButton, Icon, Avatar, InlineError, LevelMeter, ClipLed, Pill, Timecode, EmptyState, SurfaceLadder (token reference), CloseButton |
-| **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, UndoToast, FocusPull |
+| **Molecules** | Small groups doing one job | Menu, DefinitionList, Field, FieldRow, SegmentedControl, UndoToast, FocusPull, InlineConfirm |
 | **Organisms** | Complex, generic, reusable components / sections | Dialog, BottomSheet, CoverScreen, LoadingScreen, ErrorScreen |
 | **Templates** | Assembled, context-specific domain screens and their shipped chrome, shown with static / representative content and locked domain copy — no live app state | ConsentGate, DeviceCheck, Lobby, RecIndicator, Declined, FullRoom, LiveComments, HostUploadRoster (record room), Transport, TransportPlayControls, PipelineStatusChip, ListenHero, TimelineRange, TimeRuler, AppliedEditOverlay, StaleInvalidationOverlay, PendingEditOverlay, MarkerLane, EditBoundaryMark, ClipBlock, EnvelopeOverlay, PresenceOverlay, CommentPlaybackBubble, TrackHeader, CommentCard, CommentCompose, GhostWordChips, TranscriptTurn, InspectorSeekFooter, BottomTabsSplitter, HostMcpDialog, GesturesSheet, FollowBanner, GuestAttentionBanner, StatusBar, AvatarStack, OverlayLegend, ShareDialog, BounceDialog, ToolModeToggle, EditingToolRail, CommandPalette |
 
@@ -346,11 +346,12 @@ context.
 
 `Templates/ShareDialog` renders the production `ShareDialogView` that the live
 `ShareDialog` adapter renders. The adapter keeps listing, minting and revoking
-links (`../api`), clipboard writes, the copied-flash timer, `window.confirm`,
-and the `record.openPanel` handoff. Stories pass fictional `hostShareRow`
-fixtures and local callbacks, covering empty, live review and agent links, a
-record room, a missing producer link, busy, clipboard error, and a 360px
-phone.
+links (`../api`), clipboard writes, the copied-flash timer and the
+`record.openPanel` handoff; the view owns the in-place Stop sharing and End
+room confirmations (`InlineConfirm`). Stories pass fictional `hostShareRow`
+fixtures and local callbacks, covering empty, live review links with and
+without an MCP URL, a record room, a missing producer link, a just-created
+link, busy, clipboard error, and a 360px phone.
 
 `Templates/BounceDialog` renders `BounceDialogView`. The live `BounceDialog`
 keeps selection and solo resolution, `startBounceJob` / `followExportJob`,
