@@ -25,7 +25,11 @@ def test_ripple_benchmark_runs_on_a_tiny_project(project):
 
     assert result.decisions_proposed > 0
     assert result.ffmpeg_window_calls == 0
-    assert 0 < result.rebuild_combined_calls <= result.merged_ranges
+    assert (
+        0
+        < result.rebuild_combined_calls
+        <= bench.MAX_REBUILDS_PER_MERGED_RANGE * result.merged_ranges
+    )
     assert len(set(result.clip_counts.values())) == 1
 
 

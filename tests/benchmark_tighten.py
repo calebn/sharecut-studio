@@ -191,11 +191,16 @@ def run_tighten_benchmark(project: EpisodeProject) -> TightenBenchmarkResult:
     return result
 
 
+# One ripple per merged range, plus the pad's fill: ``insert_room_tone_pad`` (the default
+# ``filler_pad_mode``) rebuilds once to open the hole and once to lay the fill.
+MAX_REBUILDS_PER_MERGED_RANGE = 2
+
+
 def _assert_ripple_apply_shape(result: TightenBenchmarkResult) -> None:
     """Structural invariants of a propose + apply run, independent of wall-clock speed."""
     assert result.ffmpeg_window_calls == 0
     assert result.decisions_proposed > 0
-    assert 0 < result.rebuild_combined_calls <= result.merged_ranges
+    assert 0 < result.rebuild_combined_calls <= MAX_REBUILDS_PER_MERGED_RANGE * result.merged_ranges
     assert len(set(result.clip_counts.values())) == 1
 
 
