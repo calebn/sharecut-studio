@@ -1274,14 +1274,17 @@ class EditService:
         self,
         target: WordTimingTarget,
         *,
-        expected_text: str,
-        expected_start: float,
-        expected_end: float,
+        expected_text: str | None = None,
+        expected_start: float | None = None,
+        expected_end: float | None = None,
     ) -> dict[str, Any]:
+        """Timing context and token for one word; each given expected value must still hold."""
         with self.ws.transaction() as project:
             transcript = timing_transcript(project, target)
             word = transcript.words[target.word_index]
-            if (word.text, word.start, word.end) != (expected_text, expected_start, expected_end):
+            expected = (expected_text, expected_start, expected_end)
+            actual = (word.text, word.start, word.end)
+            if any(e is not None and e != a for e, a in zip(expected, actual, strict=True)):
                 raise TranscriptTimingChangedError(
                     "This word changed. Select it again before adjusting timing."
                 )

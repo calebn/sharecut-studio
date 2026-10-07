@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+from typer.testing import CliRunner
 
-from podcast_mcp.edits.transcript_timing import WordTimingTarget
+from podcast_mcp.cli.main import app
+from podcast_mcp.edits.transcript_timing import TranscriptTimingChangedError, WordTimingTarget
 from podcast_mcp.engines.waveform_media import collect_media_refs, track_media_refs
 from podcast_mcp.gui.mapper import map_transcript_utterances_to_timeline
 from podcast_mcp.gui.server import create_app
+from podcast_mcp.mcp.tools.timeline import set_word_timing_tool
 from podcast_mcp.models import (
     MediaAsset,
     SourceRecording,
@@ -244,3 +249,42 @@ def test_transcript_handlers_have_disjoint_complete_projections():
     assert projection_for_command("SetTranscriptWordTiming") == ViewProjection.TRANSCRIPT_AUDIO
     assert projection_for_command("SetTranscriptWordsIgnored") == ViewProjection.TRANSCRIPT_AUDIO
     assert projection_for_command("CorrectTranscriptWord") == ViewProjection.DETAIL
+
+
+def _word_spans(ws) -> list[tuple[float, float]]:
+    project = load_project(ws.path)
+    return [(t.words[0].start, t.words[0].end) for t in project.transcripts]
+
+
+def test_set_word_timing_tool_submits_the_document_command(timing_workspace):
+    ws = timing_workspace
+    out = json.loads(set_word_timing_tool(str(ws.path), "host", 0, 1.25, 2.5, source_id="extra"))
+    assert out["changed"] is True
+    assert _word_spans(ws) == [(1.25, 2.5), (1, 2)]
+    rows = DocumentSyncService.open(ws.path).store.commands_after(0)
+    assert [r["type"] for r in rows] == ["SetTranscriptWordTiming"]
+
+
+def test_set_word_timing_tool_refuses_a_changed_word(timing_workspace):
+    with pytest.raises(TranscriptTimingChangedError):
+        set_word_timing_tool(
+            str(timing_workspace.path), "host", 0, 1.25, 2.5, expected_text="other"
+        )
+    assert _word_spans(timing_workspace) == [(1, 2), (1, 2)]
+
+
+def test_cli_set_word_timing_is_undoable(timing_workspace):
+    ws = timing_workspace
+    runner = CliRunner()
+    args = ["--project", str(ws.path)]
+    result = runner.invoke(
+        app,
+        [
+            *("transcript", "set-word-timing", *args, "--track", "host", "--word-index", "0"),
+            *("--start", "0.5", "--end", "1.5", "--expected-text", "primary"),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert _word_spans(ws) == [(1, 2), (0.5, 1.5)]
+    assert runner.invoke(app, ["undo", *args]).exit_code == 0
+    assert _word_spans(ws) == [(1, 2), (1, 2)]

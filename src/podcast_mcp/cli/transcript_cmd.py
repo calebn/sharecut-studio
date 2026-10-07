@@ -115,6 +115,46 @@ def transcript_correct_phrase_cmd(
     typer.echo("Corrected.")
 
 
+@transcript_app.command("set-word-timing")
+@timed_command("transcript set-word-timing")
+def transcript_set_word_timing_cmd(
+    project: Path = typer.Option(..., "--project"),
+    track: str = typer.Option(..., "--track"),
+    word_index: int = typer.Option(..., "--word-index"),
+    start: float = typer.Option(..., "--start", help="New start in source seconds"),
+    end: float = typer.Option(..., "--end", help="New end in source seconds"),
+    source: str | None = typer.Option(
+        None, "--source", help="Recording id whose transcript holds the word"
+    ),
+    expected_text: str | None = typer.Option(
+        None, "--expected-text", help="Word text you read; refuse the change if it changed"
+    ),
+) -> None:
+    """Set one word's source-clock start and end (Studio Adjust word timing)."""
+    from podcast_mcp.edits.transcript_timing import WordTimingTarget
+    from podcast_mcp.services.document_sync import (
+        host_command_result,
+        submit_host_document_command,
+    )
+
+    target = WordTimingTarget(track_id=track, source_id=source, word_index=word_index)
+    context = EditService(ProjectWorkspace.open(project)).word_timing_context(
+        target, expected_text=expected_text
+    )
+    reply = submit_host_document_command(
+        project,
+        "SetTranscriptWordTiming",
+        {
+            "target": context["target"],
+            "expected_token": context["expected_token"],
+            "start": start,
+            "end": end,
+        },
+        client_id="cli",
+    )
+    typer.echo(json.dumps(host_command_result(reply), indent=2))
+
+
 @transcript_app.command("suppress-word")
 @timed_command("transcript suppress-word")
 def transcript_suppress_word_cmd(
