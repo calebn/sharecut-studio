@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.engines.media_probe import probe_media
 from podcast_mcp.engines.session_timeline import (
     SessionTimeline,
     TimelineClipSpan,
@@ -18,7 +19,7 @@ from podcast_mcp.util.process import run
 from podcast_mcp.util.tracks import track_audio_path
 
 
-def load_mono_full(path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = None) -> np.ndarray:
+def _decode_f32(path: Path, sample_rate: int, ffmpeg: str | None, layout: list[str]) -> np.ndarray:
     result = run(
         [
             ffmpeg or resolve_ffmpeg(),
@@ -26,8 +27,7 @@ def load_mono_full(path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = 
             "error",
             "-i",
             str(path),
-            "-ac",
-            "1",
+            *layout,
             "-ar",
             str(sample_rate),
             "-f",
@@ -43,16 +43,33 @@ def load_mono_full(path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = 
     return samples
 
 
+def load_mono_full(path: Path, *, sample_rate: int = 8000, ffmpeg: str | None = None) -> np.ndarray:
+    return _decode_f32(path, sample_rate, ffmpeg, ["-ac", "1"])
+
+
+def load_channels_full(path: Path, *, sample_rate: int = 8000) -> np.ndarray:
+    """Every channel of the first audio stream, one column each."""
+    probe = probe_media(path)
+    if probe is None:
+        raise ValueError(f"{path} could not be probed")
+    channels = max(1, probe.channels)
+    return _decode_f32(path, sample_rate, None, ["-ac", str(channels)]).reshape(-1, channels)
+
+
 def raw_samples_on_timeline(
     spans: list[TimelineClipSpan],
     paths: list[Path],
     *,
     sources: dict[Path, np.ndarray],
     sample_rate: int = 8000,
+    preserve_channels: bool = False,
 ) -> np.ndarray:
+    """Raw clips placed on the timeline: mono, or ``(frames, channels)`` with
+    ``preserve_channels``, where a mono clip on a multichannel lane fills every channel."""
+    load = load_channels_full if preserve_channels else load_mono_full
     for path in paths:
         if path not in sources:
-            sources[path] = load_mono_full(path, sample_rate=sample_rate)
+            sources[path] = load(path, sample_rate=sample_rate)
     if not spans:
         return sources[paths[0]]
     if len(spans) == 1:
@@ -62,18 +79,19 @@ def raw_samples_on_timeline(
             span.timeline_start == 0
             and span.source_start == 0
             and span.timeline_end == span.source_end
-            and round(float(span.source_end) * sample_rate) == source.size
+            and round(float(span.source_end) * sample_rate) == source.shape[0]
         ):
             return source
     timeline_end = max(span.timeline_end for span in spans)
-    placed = np.zeros(max(0, round(float(timeline_end) * sample_rate)), dtype=np.float32)
+    layout = max(sources[path].shape[1:] for path in paths)
+    placed = np.zeros((max(0, round(float(timeline_end) * sample_rate)), *layout), dtype=np.float32)
     for span, path in zip(spans, paths, strict=True):
         source = sources[path]
         target_start = round(float(span.timeline_start) * sample_rate)
         target_end = round(float(span.timeline_end) * sample_rate)
         source_start = round(float(span.source_start) * sample_rate)
         count = target_end - target_start
-        if target_start < 0 or source_start < 0 or source_start + count > source.size:
+        if target_start < 0 or source_start < 0 or source_start + count > source.shape[0]:
             raise ValueError(f"clip {span.clip.id} source samples are unavailable")
         placed[target_start:target_end] += source[source_start : source_start + count]
     return placed
@@ -85,6 +103,7 @@ def raw_timeline_samples(
     *,
     sample_rate: int = 8000,
     sources: dict[Path, np.ndarray] | None = None,
+    preserve_channels: bool = False,
 ) -> np.ndarray:
     from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 
@@ -98,7 +117,11 @@ def raw_timeline_samples(
         else [track_audio_path(project, track_id).resolve()]
     )
     return raw_samples_on_timeline(
-        spans, paths, sources=sources if sources is not None else {}, sample_rate=sample_rate
+        spans,
+        paths,
+        sources=sources if sources is not None else {},
+        sample_rate=sample_rate,
+        preserve_channels=preserve_channels,
     )
 
 

@@ -39,7 +39,7 @@ from podcast_mcp.util.project_state import file_revision
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
-BLEED_GATE_REV = 10
+BLEED_GATE_REV = 11
 EVIDENCE_RATE = 8000
 # Gain ramps inside each reduced span, after a hold at full level around the lane's
 # own speech. On the lab tape (#945) the level just outside Caleb's reduced spans is
@@ -85,6 +85,7 @@ _OWNER_FLOOR_DB = -80.0
 _OWNER_FLOOR_PERCENTILE = 10
 _OWNER_FLOOR_MARGIN_DB = 6
 _OWNER_BRIDGE_FRAMES = 15
+_DOWNMIX_GAIN = np.float32(math.sqrt(0.5))
 
 
 @dataclass(frozen=True)
@@ -512,7 +513,7 @@ def _own_voice(
         copy_like |= copy.timbre_windows(
             own_samples, above & (copy.power(own.size, held=False) > noise)
         )
-    clear = excess > max(_OWN_MARGIN_DB, *(copy.spread_db for copy in copies))
+    clear = excess > max([_OWN_MARGIN_DB, *(copy.spread_db for copy in copies)])
     heard = (bridge_short_dips(above, _OWNER_BRIDGE_FRAMES) & ~copy_like) | clear
     hot = excess > _OWN_MARGIN_DB
     least = round(_MIN_OWN_SEC / _OWNER_HOP_SEC)
@@ -537,6 +538,25 @@ def _foreign_speech(size: int, copies: list[_PeerCopy]) -> list[tuple[float, flo
     return _frame_spans(
         bool_runs(bridge_short_dips(reached, _OWNER_BRIDGE_FRAMES)), whole_frame=True
     )
+
+
+def _lane_signals(project: EpisodeProject, track_id: str) -> list[np.ndarray]:
+    """Each channel the lane records, or one mixdown when every channel is the same.
+
+    A stereo or ambisonic mic can carry its speaker on one channel while a peer's
+    copy reaches all of them. A mixdown halves that own sound against the copy, so a
+    quiet "uh-huh" there was judged copy (#1094). Channels that all carry the same
+    signal are judged once, on ffmpeg's stereo downmix (each channel at -3 dB), the
+    level the gate's absolute floors were set on.
+    """
+    channels = raw_timeline_samples(
+        project, track_id, sample_rate=EVIDENCE_RATE, preserve_channels=True
+    )
+    if channels.shape[1] == 1:
+        return [channels[:, 0]]
+    if (channels == channels[:, :1]).all():
+        return [channels.sum(axis=1) * _DOWNMIX_GAIN]
+    return [np.ascontiguousarray(channel) for channel in channels.T]
 
 
 def _bed_db(
@@ -647,17 +667,17 @@ def _compute_bleed_gate_plan(
     policy = AnalysisPolicy.from_defaults()
     sources: dict[Path, np.ndarray] = {}
     try:
-        own = raw_timeline_samples(project, track_id, sources=sources, sample_rate=EVIDENCE_RATE)
+        signals = _lane_signals(project, track_id)
     except (OSError, ValueError, wave.Error, CalledProcessError):
         return BleedGatePlan(reasons=("unavailable_owner_source",))
-    own_levels = _levels_db(own)
+    lanes = [(_levels_db(signal), signal) for signal in signals]
     seeds = [
         (float(start), float(end))
         for mapped in geometry.words
         if not mapped.word.suppressed
         for start, end in mapped.spans
     ]
-    copies: list[_PeerCopy] = []
+    copies: list[list[_PeerCopy]] = [[] for _ in lanes]
     reasons = {"untranscribed_source_protected"} if untranscribed_spans else set()
     for peer_id in peer_ids:
         try:
@@ -668,17 +688,31 @@ def _compute_bleed_gate_plan(
             reasons.add("unavailable_peer_source")
             continue
         levels = _levels_db(peer)
-        speech = _frame_spans(bool_runs(levels > _PEER_OPEN_DB), whole_frame=True)
-        copy = _peer_copy(own_levels, own, levels, peer, subtract_intervals(speech, seeds), seeds)
-        if copy is None:
-            reasons.add("uncertain_foreign_ownership")
-            continue
-        copies.append(copy)
-    foreign = _foreign_speech(own_levels.size, copies)
+        speech = subtract_intervals(
+            _frame_spans(bool_runs(levels > _PEER_OPEN_DB), whole_frame=True), seeds
+        )
+        for found, (own_levels, own) in zip(copies, lanes, strict=True):
+            copy = _peer_copy(own_levels, own, levels, peer, speech, seeds)
+            if copy is None:
+                reasons.add("uncertain_foreign_ownership")
+            else:
+                found.append(copy)
+    size = lanes[0][0].size
+    verified = [copy for found in copies for copy in found]
+    foreign = _foreign_speech(size, verified)
+    own_voice = (
+        [
+            span
+            for found, (own_levels, own) in zip(copies, lanes, strict=True)
+            for span in _own_voice(own_levels, own, found)
+        ]
+        if verified
+        else []
+    )
     protected = merge_intervals(
         [
-            *_owner_protection(own, seeds, foreign),
-            *(_own_voice(own_levels, own, copies) if copies else []),
+            *(span for _, own in lanes for span in _owner_protection(own, seeds, foreign)),
+            *own_voice,
             *untranscribed_spans,
         ]
     )
@@ -687,13 +721,17 @@ def _compute_bleed_gate_plan(
     )
     attenuation = subtract_intervals(foreign, kept)
     placements = timeline.lane_clip_spans(track_id)
-    bed_db = _bed_db(
-        own_levels,
+    placed = (
         [(float(span.timeline_start), float(span.timeline_end)) for span in placements]
         if placements
-        else [(0.0, own_levels.size * _OWNER_HOP_SEC)],
-        [*foreign, *kept],
+        else [(0.0, size * _OWNER_HOP_SEC)]
     )
+    beds = [
+        bed
+        for own_levels, _ in lanes
+        if (bed := _bed_db(own_levels, placed, [*foreign, *kept])) is not None
+    ]
+    bed_db = max(beds, default=None)
     if not ignore_scope:
         attenuation = intersect_intervals(attenuation, _scope_intervals(project, track_id))
     attenuation = [(start, end) for start, end in attenuation if end - start > 2 * GATE_FADE_SEC]
