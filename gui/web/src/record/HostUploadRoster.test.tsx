@@ -53,7 +53,7 @@ describe("HostUploadRoster", () => {
         segments={[]}
       />,
     );
-    expect(container).toBeEmptyDOMElement();
+    expect(container).toHaveTextContent("");
     expect(screen.queryByRole("list", { name: LIST })).toBeNull();
   });
 
@@ -90,8 +90,11 @@ describe("HostUploadRoster", () => {
         ]}
       />,
     );
-    expect(screen.getByText("Ava: Saved to project")).toBeInTheDocument();
-    expect(screen.getByText("Host: Saving to project…")).toBeInTheDocument();
+    const list = screen.getByRole("list", { name: LIST });
+    expect(within(list).getByText("Ava: Saved to project")).toBeInTheDocument();
+    expect(
+      within(list).getByText("Host: Saving to project…"),
+    ).toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
 
@@ -106,11 +109,12 @@ describe("HostUploadRoster", () => {
         ]}
       />,
     );
+    const list = screen.getByRole("list", { name: LIST });
     expect(
-      screen.getByText("Ava, take 1 segment 1: Saved to project"),
+      within(list).getByText("Ava, take 1 segment 1: Saved to project"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Ava, take 1 segment 2: Saving to project…"),
+      within(list).getByText("Ava, take 1 segment 2: Saving to project…"),
     ).toBeInTheDocument();
   });
 
@@ -130,5 +134,40 @@ describe("HostUploadRoster", () => {
       ),
     ).toBeInTheDocument();
     await expectNoA11yViolations(container);
+  });
+
+  it("announces a segment finishing, not its chunk count moving", () => {
+    const region = (container: HTMLElement) =>
+      container.querySelector('[aria-live="polite"]');
+    const { container, rerender } = render(
+      <HostUploadRoster
+        stopped
+        participants={[guest]}
+        segments={[row({ acked_parts: [0], expected_parts: 3 })]}
+      />,
+    );
+    const first = region(container)?.textContent;
+    expect(first).toBe("Ava: Saving to project…");
+
+    rerender(
+      <HostUploadRoster
+        stopped
+        participants={[guest]}
+        segments={[row({ acked_parts: [0, 1], expected_parts: 3 })]}
+      />,
+    );
+    expect(
+      screen.getByText("Ava: Saving to project… 2 of 3 chunks"),
+    ).toBeInTheDocument();
+    expect(region(container)?.textContent).toBe(first);
+
+    rerender(
+      <HostUploadRoster
+        stopped
+        participants={[guest]}
+        segments={[row({ acked_parts: [0, 1, 2], file_ack: true })]}
+      />,
+    );
+    expect(region(container)).toHaveTextContent("Ava: Saved to project");
   });
 });

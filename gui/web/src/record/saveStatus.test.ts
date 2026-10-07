@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import { recordParticipant } from "../test/fixtures";
 import {
   hostSaveLines,
+  mergeSegmentSaves,
   ownSaveLines,
   SAVE_STATE_COPY,
+  type SaveLine,
   type SegmentAckRow,
   type SegmentSave,
+  saveAnnouncement,
   segmentSaveFromAck,
   segmentStatusText,
 } from "./saveStatus";
@@ -89,8 +92,18 @@ describe("segmentStatusText", () => {
 describe("hostSaveLines", () => {
   it("lists a recorded participant with nothing uploaded as saving, never a producer", () => {
     expect(hostSaveLines([host, ava, pat], [])).toEqual([
-      { key: "p_host", text: "Host: Saving to project…" },
-      { key: "p_a", text: "Ava: Saving to project…" },
+      {
+        key: "p_host",
+        text: "Host: Saving to project…",
+        state: "saving",
+        announce: "Host: Saving to project…",
+      },
+      {
+        key: "p_a",
+        text: "Ava: Saving to project…",
+        state: "saving",
+        announce: "Ava: Saving to project…",
+      },
     ]);
   });
 
@@ -124,7 +137,12 @@ describe("hostSaveLines", () => {
 
   it("falls back to the participant id for a row outside the roster", () => {
     expect(hostSaveLines([], [row({ participant_id: "p_gone" })])).toEqual([
-      { key: "p_gone:0:0", text: "p_gone: Saving to project…" },
+      {
+        key: "p_gone:0:0",
+        text: "p_gone: Saving to project…",
+        state: "saving",
+        announce: "p_gone: Saving to project…",
+      },
     ]);
   });
 });
@@ -152,5 +170,55 @@ describe("ownSaveLines", () => {
       "Take 1 segment 1: Saved to project",
       "Take 1 segment 2: Saving to project… 1 of 2 chunks",
     ]);
+  });
+});
+
+describe("mergeSegmentSaves", () => {
+  const save = (segment: number, state: SegmentSave["state"]): SegmentSave => ({
+    take: 0,
+    segment,
+    state,
+    chunks: null,
+    landFailed: false,
+  });
+
+  it("replaces a segment by identity and keeps ones the pass has not reached", () => {
+    expect(
+      mergeSegmentSaves(
+        [save(0, "saving"), save(2, "saved")],
+        [save(0, "saved"), save(1, "saving")],
+      ),
+    ).toEqual([save(0, "saved"), save(1, "saving"), save(2, "saved")]);
+  });
+});
+
+describe("saveAnnouncement", () => {
+  const line = (key: string, state: SaveLine["state"]): SaveLine => ({
+    key,
+    state,
+    text: `${key}: ${state} 1 of 3 chunks`,
+    announce: `${key}: ${SAVE_STATE_COPY[state]}`,
+  });
+
+  it("announces a segment that starts saving and one that finishes", () => {
+    expect(saveAnnouncement(new Map(), [line("a", "saving")])).toBe(
+      "a: Saving to project…",
+    );
+    expect(
+      saveAnnouncement(new Map([["a", "saving"]]), [
+        line("a", "saved"),
+        line("b", "saving"),
+      ]),
+    ).toBe("a: Saved to project. b: Saving to project…");
+  });
+
+  it("stays silent for chunk progress and for state it never saw change", () => {
+    expect(
+      saveAnnouncement(new Map([["a", "saving"]]), [line("a", "saving")]),
+    ).toBe("");
+    expect(saveAnnouncement(new Map(), [line("a", "saved")])).toBe("");
+    expect(
+      saveAnnouncement(new Map([["a", "saved"]]), [line("a", "saved")]),
+    ).toBe("");
   });
 });

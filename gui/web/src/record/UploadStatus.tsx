@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Button } from "../ui";
+import { SaveAnnouncer } from "./SaveAnnouncer";
 import { ownSaveLines } from "./saveStatus";
 import {
   KEEPER_RECLAIM_FAILED_COPY,
@@ -133,6 +134,7 @@ export function UploadStatus({
   return (
     <>
       {status}
+      {segmentList ? <SaveAnnouncer lines={segmentLines} /> : null}
       {segmentLines.length > 0 ? (
         <ul
           aria-label="Your full-quality recording status"

@@ -874,7 +874,11 @@ describe("RecordPanel", () => {
     expect(
       await screen.findByText("Ava: Saved to project"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Host: Saving to project…")).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole("list", { name: "Full-quality recording status" }),
+      ).getByText("Host: Saving to project…"),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
     const land = screen.getByRole("button", { name: "Land" });
     expect(land).toBeEnabled();
