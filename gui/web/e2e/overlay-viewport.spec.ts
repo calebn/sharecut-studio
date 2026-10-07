@@ -108,11 +108,13 @@ test.describe("dialog consumers reachability", () => {
         await openHostProject(page);
         await openDialogFromMenu(page, dialogCase.menuItem);
         // The command palette has no trailing dialog action; target its last
-        // runnable command row (rows that cannot run here are disabled).
+        // runnable command option (options that cannot run here are disabled).
         const targetFor =
           dialogCase.name === "Commands and shortcuts"
             ? (dialog: Locator) =>
-                dialog.locator(".command-palette-run:not(:disabled)").last()
+                dialog
+                  .locator('[role="option"]:not([aria-disabled="true"])')
+                  .last()
             : (dialog: Locator) =>
                 dialog.getByRole("button", {
                   name: dialogCase.targetName,

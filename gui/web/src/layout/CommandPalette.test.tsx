@@ -31,9 +31,9 @@ describe("CommandPalette", () => {
     expect(
       screen.getByRole("dialog", { name: "Commands and shortcuts" }),
     ).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^Select tool/ })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Select tool" })).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Annotate transcript" }),
+      screen.getByRole("option", { name: "Annotate transcript" }),
     ).toBeTruthy();
   });
 
@@ -56,7 +56,7 @@ describe("CommandPalette", () => {
       "Focus edit boundary",
       "Focus cut-away word",
     ]) {
-      expect(screen.queryByRole("button", { name: label })).toBeNull();
+      expect(screen.queryByRole("option", { name: label })).toBeNull();
     }
   });
 
@@ -77,7 +77,7 @@ describe("CommandPalette", () => {
     await waitForDialogFocus();
     await user.keyboard("export deliv");
     await user.click(
-      screen.getByRole("button", { name: /^Export deliverables…/ }),
+      screen.getByRole("option", { name: /^Export deliverables…/ }),
     );
     expect(useDawStore.getState().commandPaletteOpen).toBe(false);
     await waitFor(() =>

@@ -319,7 +319,7 @@ describe("MobileShell", () => {
     const palette = screen.getByRole("dialog", {
       name: "Commands and shortcuts",
     });
-    const search = within(palette).getByRole("searchbox", {
+    const search = within(palette).getByRole("combobox", {
       name: "Search commands",
     });
     await waitFor(() => expect(search).toHaveFocus());
