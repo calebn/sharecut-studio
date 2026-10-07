@@ -49,6 +49,8 @@ EDIT_COMMANDS: frozenset[str] = frozenset(
         "SetTrackMute",
         "RemoveTrack",
         "ReorderTrack",
+        # Editors change volume envelopes as the host does (owner, #1051).
+        "SetEnvelope",
         *STRUCTURAL_COMMANDS,
     }
 )

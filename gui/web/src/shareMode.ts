@@ -166,9 +166,21 @@ export function canRetimePendingEdit(
   );
 }
 
-/** Host-only mutations (envelopes, markers, transcript, FX). */
+/** Host-only mutations (markers, transcript, FX). */
 export function canHostMutate(projectPath: string): boolean {
   return !isShareProjectKey(projectPath);
+}
+
+/**
+ * Host or an Editor may change volume envelopes, as the server's
+ * ``EDIT_COMMANDS`` allows ``SetEnvelope`` (owner decision, #1051).
+ */
+export function canEditEnvelopes(
+  projectPath: string,
+  guestMode: string | null,
+  capabilities?: string[] | null,
+): boolean {
+  return canApplyPass12(projectPath, guestMode, capabilities);
 }
 
 /** Host or Docs Editor may rebuild stems/premix (render_preview). */
