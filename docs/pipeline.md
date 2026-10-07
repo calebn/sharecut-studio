@@ -16,16 +16,41 @@ Default step order (see [transcript-workflow.md](transcript-workflow.md) for tra
 12. `focus_from_transcript` — No-op unless `focus.auto_apply`
 13. `analyze_fillers_pauses` — Mark filler words and long pauses (**no-op** unless `tighten.enabled`). Manual `propose_edits` uses `tighten.edit_mode` (`ripple` default, or `mute`); `tighten.intensity` (`light`/`medium`/`aggressive`, [filler-cut-quality.md § Intensity presets](filler-cut-quality.md#intensity-presets)) overlays preset values at propose time.
 14. `tighten_from_transcript` — Apply filler/pause edit decisions (**no-op** unless `tighten.enabled`)
-15. `clean_audio` — HPF per dialogue track
-16. `compress_tracks` — acompressor on dialogue (attack/release/makeup from `compression.*`; default makeup 0; balance measures after it; the step owns each dialogue chain's single acompressor: any existing one, whether from an earlier run, the `podcast_standard` preset or `add_effect`, is overwritten in place with `compression.*` (position and bypass kept), extra acompressors are removed, and both are logged and counted in the step summary; to keep a hand-tuned compressor, skip the step: MCP `pipeline_run(skip_steps=["compress_tracks"])`, CLI `--skip compress_tracks`, or uncheck **Compress tracks** in the Pipeline pane)
-17. `balance_tracks` — gain staging from **post-FX, speech-gated** loudness (the track's chain, own non-suppressed transcript words; ungated without a transcript); the summary reports the achieved level per track
-18. `assemble_timeline` — Final stems after edits + FX
-19. `reconcile_transcript` — Pass 2: post-FX audibility refresh
-20. `mix_with_music` — Intro/outro/bed + ducking envelopes
-21. `master_loudness` — masters to the podcast target from one `ebur128` pass over the premix: linear two-pass loudnorm when the gain fits under the true-peak ceiling, otherwise the gain into a 4x-oversampled limiter plus a trim onto the target ([audio-engineering.md § Mastering plan](audio-engineering.md#mastering-plan--mastering-qc); `master_qc.json` records `premix_input`, `plan`, `normalization_type` and `limiter`); rebuilds a missing or stale premix first; writes `artifacts/master_qc.json` verification report and `artifacts/mastered.hash`. Progress: `master_loudnorm` / `master_qc_measure` children in media seconds (ffmpeg `-progress`).
-22. `export_deliverables` — re-masters when `mastered.hash` doesn't match the current premix and `master.integrated_lufs` / `true_peak_db` / `lra` ([audio-engineering.md § Mastering cache](audio-engineering.md#mastering-cache)). A master with no hash (mastered before #425) is re-mastered once, and an imported or legacy episode with only `mastered.wav` and no `premix.wav` is re-assembled, re-mixed and re-mastered instead of exported as-is; audio (WAV + configured FFmpeg formats), SRT, MD; writes `artifacts/export_qc.json` (reconciliation staleness + mastering QC + unaccepted relative align drift rollup — check `ok` before shipping; a clean run is `ok` — `mix_with_music` does not stale reconciliation (#621))
+15. `fill_gate_holes` — room tone under each dialogue track's source-gate holes, the digital silence a recorder's noise gate (Zoom) leaves between words: the track's recorded bed, else comfort noise matched to its own noise under its speech, never another track. Sets `timeline.tracks[].gate_fill`; render sums the fill under the track's media, so own audio stays byte-identical. See [§ Gate fill](#gate-fill)
+16. `clean_audio` — HPF per dialogue track
+17. `compress_tracks` — acompressor on dialogue (attack/release/makeup from `compression.*`; default makeup 0; balance measures after it; the step owns each dialogue chain's single acompressor: any existing one, whether from an earlier run, the `podcast_standard` preset or `add_effect`, is overwritten in place with `compression.*` (position and bypass kept), extra acompressors are removed, and both are logged and counted in the step summary; to keep a hand-tuned compressor, skip the step: MCP `pipeline_run(skip_steps=["compress_tracks"])`, CLI `--skip compress_tracks`, or uncheck **Compress tracks** in the Pipeline pane)
+18. `balance_tracks` — gain staging from **post-FX, speech-gated** loudness (the track's chain, own non-suppressed transcript words; ungated without a transcript); the summary reports the achieved level per track
+19. `assemble_timeline` — Final stems after edits + FX
+20. `reconcile_transcript` — Pass 2: post-FX audibility refresh
+21. `mix_with_music` — Intro/outro/bed + ducking envelopes
+22. `master_loudness` — masters to the podcast target from one `ebur128` pass over the premix: linear two-pass loudnorm when the gain fits under the true-peak ceiling, otherwise the gain into a 4x-oversampled limiter plus a trim onto the target ([audio-engineering.md § Mastering plan](audio-engineering.md#mastering-plan--mastering-qc); `master_qc.json` records `premix_input`, `plan`, `normalization_type` and `limiter`); rebuilds a missing or stale premix first; writes `artifacts/master_qc.json` verification report and `artifacts/mastered.hash`. Progress: `master_loudnorm` / `master_qc_measure` children in media seconds (ffmpeg `-progress`).
+23. `export_deliverables` — re-masters when `mastered.hash` doesn't match the current premix and `master.integrated_lufs` / `true_peak_db` / `lra` ([audio-engineering.md § Mastering cache](audio-engineering.md#mastering-cache)). A master with no hash (mastered before #425) is re-mastered once, and an imported or legacy episode with only `mastered.wav` and no `premix.wav` is re-assembled, re-mixed and re-mastered instead of exported as-is; audio (WAV + configured FFmpeg formats), SRT, MD; writes `artifacts/export_qc.json` (reconciliation staleness + mastering QC + unaccepted relative align drift rollup — check `ok` before shipping; a clean run is `ok` — `mix_with_music` does not stale reconciliation (#621))
 
 Transcript quality runs **before** focus/tighten so search and narrative edits use reconciled, precorrected, refined text.
+
+## Gate fill
+
+`fill_gate_holes` (step 15, `group=mix`) fills the holes a recorder's noise gate leaves in
+a dialogue track. Zoom records each participant through a gate, so between words those
+tracks are exact digital zero, and the mix drops to dead air wherever every track is
+gated at once. The step reads each track's media once for its holes and once for its
+noise. It writes `artifacts/gate_fill/{track}_{digest}.flac` (the fill inside each hole,
+digital silence elsewhere, on the media's clock) and sets `timeline.tracks[].gate_fill`.
+Render sums that file under the track's own media, so own audio stays byte-identical, and
+our mutes, cuts and pads apply to the fill as they apply to the media.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `gate_fill.mode` | `auto` | `auto` fills every dialogue track that has source-gate holes: its recorded room-tone bed first, else comfort noise matched to its own noise under its speech. A track whose noise is not a floor (within 30 dB of its speech) or cannot be measured stays silent. `off` clears every fill. |
+| `gate_fill.fade_ms` | `10` | Raised-cosine fade in and out inside each hole (half the hole when it is shorter), so the gate's edges keep every sample. |
+
+The step is idempotent: the same media and settings write the same file, which is reused.
+Undo of `after fill_gate_holes` restores the previous fill. A track with no holes, such as
+a local recorder with a real room floor, is left alone. Rules, the comfort-noise estimate,
+and lab evidence: [audio-engineering.md § Gate fill](audio-engineering.md#gate-fill-fill_gate_holes).
+
+On the lab tape the step takes 19 s for three 28-minute tracks, about 6 s per track. That
+time is one native-rate decode for holes, one for the hangover frames, and one FLAC encode.
 
 ## Long raw sessions: content cut before tighten
 
