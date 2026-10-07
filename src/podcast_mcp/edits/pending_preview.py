@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from podcast_mcp.edits.timeline_span import map_source_span_fields
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import AppliedEditRecord, EditDecision, EditDecisionType, EpisodeProject
+from podcast_mcp.util.coded_error import CodedKeyError
 
 DEFAULT_PAD_SEC = 0.5
 DEFAULT_AB_GAP_SEC = 0.4
@@ -64,7 +65,7 @@ def resolve_pending_preview(
 ) -> PendingPreviewWindow:
     edit = next((e for e in project.edit_decisions if e.id == edit_id), None)
     if edit is None:
-        raise KeyError(f"pending edit not found: {edit_id}")
+        raise CodedKeyError(f"pending edit not found: {edit_id}", code="edit_not_found")
     return preview_window_for_edit(project, edit, pad_sec=pad_sec)
 
 

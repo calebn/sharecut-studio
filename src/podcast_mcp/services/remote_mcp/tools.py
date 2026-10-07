@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import functools
+import inspect
 import json
+import typing
+from collections.abc import Callable
 from typing import Any
+
+from pydantic import BaseModel, ConfigDict, ValidationError, create_model
 
 from podcast_mcp.edits.share_capabilities import CAP_PLAY, CAP_VIEW, has_capability
 from podcast_mcp.services.collaboration import (
@@ -24,7 +30,18 @@ from podcast_mcp.services.document_sync import (
 )
 from podcast_mcp.services.remote_mcp.allowlist import tool_allowed
 from podcast_mcp.services.remote_mcp.context import get_remote_mcp_context
+from podcast_mcp.util.coded_error import CodedError, CodedKeyError
 from podcast_mcp.util.progress import install_guest_tool_progress
+
+
+class UnknownToolError(LookupError):
+    """``tools/call`` named no guest tool (JSON-RPC ``-32602``, as the MCP spec has it)."""
+
+
+class InvalidToolArgumentsError(CodedError, ValueError):
+    """The guest's arguments do not fit the tool (JSON-RPC ``-32602``); the message says why."""
+
+    code = "invalid_arguments"
 
 
 def _require_tool(name: str) -> None:
@@ -190,7 +207,7 @@ def guest_upload_media(
     try:
         data = base64.b64decode(data_base64, validate=True)
     except Exception as exc:
-        raise ValueError("data_base64 must be valid base64") from exc
+        raise InvalidToolArgumentsError("data_base64 must be valid base64") from exc
     return share_upload_media(
         ctx.token,
         filename=filename,
@@ -259,7 +276,10 @@ def guest_submit_document_command(**kwargs: Any) -> dict[str, Any]:
     data.setdefault("role", "guest")
     if "payload" not in data:
         data["payload"] = {}
-    cmd = parse_document_command(data)
+    try:
+        cmd = parse_document_command(data)
+    except ValidationError as exc:
+        raise InvalidToolArgumentsError(str(exc)) from exc
     cmd.role = "guest"
     svc = DocumentSyncService(ctx.workspace)
     result = svc.submit(
@@ -282,7 +302,7 @@ def guest_render_preview() -> dict[str, Any]:
     require_guest_render()
     ctx = get_remote_mcp_context()
     jobs = shared_job_manager()
-    # RuntimeError (busy lock) propagates as MCP -32000, not caps deny (-32003).
+    # A busy job slot (``JobSlotBusyError``) is a refusal the guest sees, not a caps deny (-32003).
     job = jobs.start_render_preview(ctx.workspace.path)
     projected = guest_render_job(job, ctx.workspace.path)
     if projected is None:
@@ -298,7 +318,7 @@ def guest_render_preview_job(job_id: str) -> dict[str, Any]:
     ctx = get_remote_mcp_context()
     job = guest_render_job(shared_job_manager().get_job(job_id), ctx.workspace.path)
     if job is None:
-        raise LookupError("Render preview job not found")
+        raise CodedKeyError("Render preview job not found", code="job_not_found")
     return {"job": job}
 
 
@@ -467,15 +487,48 @@ def list_tool_defs(caps: list[str] | None) -> list[dict[str, Any]]:
     ]
 
 
+@functools.cache
+def _arguments_model(handler: Callable[..., Any]) -> type[BaseModel] | None:
+    """A model of ``handler``'s keyword arguments, or ``None`` when it validates its own."""
+    params = inspect.signature(handler).parameters.values()
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params):
+        return None
+    hints = typing.get_type_hints(handler)
+    fields: dict[str, Any] = {
+        p.name: (hints.get(p.name, Any), ... if p.default is inspect.Parameter.empty else p.default)
+        for p in params
+    }
+    return create_model(
+        f"{getattr(handler, '__name__', 'tool')} arguments",
+        __config__=ConfigDict(extra="forbid"),
+        **fields,
+    )
+
+
+def _validated_arguments(handler: Callable[..., Any], arguments: dict[str, Any]) -> dict[str, Any]:
+    """Check the guest's arguments against ``handler`` before it runs.
+
+    A bad argument is the guest's mistake, reported as ``InvalidToolArgumentsError``; a
+    ``TypeError`` or ``ValidationError`` raised later, inside the tool, is a crash.
+    """
+    model = _arguments_model(handler)
+    if model is None:
+        return arguments
+    try:
+        parsed = model.model_validate(arguments)
+    except ValidationError as exc:
+        raise InvalidToolArgumentsError(str(exc)) from exc
+    return {name: getattr(parsed, name) for name in type(parsed).model_fields}
+
+
 def _call_tool_impl(name: str, arguments: dict[str, Any] | None = None) -> Any:
     handler = TOOL_HANDLERS.get(name)
     if handler is None:
-        raise KeyError(f"unknown tool: {name}")
-    # Capability gate before binding kwargs so denials are not masked by TypeError
-    # from missing required arguments on disallowed tools.
+        raise UnknownToolError(f"unknown tool: {name}")
+    # Capability gate before checking arguments so a denial is not masked by a missing
+    # required argument on a disallowed tool.
     _require_tool(name)
-    args = arguments or {}
-    result = handler(**args)
+    result = handler(**_validated_arguments(handler, arguments or {}))
     if isinstance(result, (dict, list)):
         return result
     return json.loads(json.dumps(result, default=str))

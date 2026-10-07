@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import re
 import threading
 import time
 from typing import Any
@@ -21,6 +20,7 @@ from podcast_mcp.util.progress import (
     ProgressReporter,
     short_fail_headline,
 )
+from podcast_mcp.util.redact import HOST_PATH_PLACEHOLDER, redact_host_paths
 
 GUEST_PROGRESS_COALESCE_SEC = PROGRESS_UPDATE_MIN_INTERVAL_SEC
 """Guest WS sink cadence: same cap as the source-side per-task coalesce (docs/progress.md)."""
@@ -30,16 +30,6 @@ GUEST_PROGRESS_LAZY_SEC = PROGRESS_LAZY_CHIP_SEC
 _TERMINAL = frozenset({"end", "fail", "cancel"})
 _LIVE = frozenset({"start", "update", "message", "heartbeat"})
 _TEXT_FIELDS = frozenset({"task_id", "label", "message", "phase"})
-_PATHISH = re.compile(
-    r"(?:"
-    r"file:\S+"
-    r"|\\\\[^\s\\]+\\\S+"
-    r"|~/[^\s]+"
-    r"|[A-Za-z]:\\[^\s]+"
-    r"|/(?:Users|home|tmp|var|opt|private|Volumes|mnt|root)[^\s]*"
-    r"|/(?:[A-Za-z0-9._-]+/){1,}[A-Za-z0-9._-]+"
-    r")"
-)
 
 
 def scrub_guest_progress_text(text: str | None) -> str | None:
@@ -49,8 +39,8 @@ def scrub_guest_progress_text(text: str | None) -> str | None:
     stripped = text.strip()
     if not stripped:
         return None
-    redacted = _PATHISH.sub("[path]", stripped)
-    if redacted == "[path]":
+    redacted = redact_host_paths(stripped)
+    if redacted == HOST_PATH_PLACEHOLDER:
         return None
     if len(redacted) > GUEST_PROGRESS_MESSAGE_MAX:
         return redacted[: GUEST_PROGRESS_MESSAGE_MAX - 1] + "…"

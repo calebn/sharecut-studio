@@ -61,6 +61,7 @@ from podcast_mcp.services.media import (
     upload_review_version_to_object_store,
 )
 from podcast_mcp.util.atomic_render import render_atomic
+from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedValueError
 from podcast_mcp.util.project_state import FileRevision, ProjectBusyError, file_revision
 
 log = logging.getLogger(__name__)
@@ -1068,7 +1069,7 @@ def _require_pending_preview_caps(token: str) -> tuple[dict[str, Any], ProjectWo
 def _normalize_pending_preview_mode(mode: str | None) -> str:
     kind = (mode or "suggested").strip().lower()
     if kind not in _PENDING_PREVIEW_MODES:
-        raise ValueError("mode must be current, suggested, or ab")
+        raise CodedValueError("mode must be current, suggested, or ab", code="invalid_mode")
     return kind
 
 
@@ -1133,7 +1134,7 @@ def share_pending_preview_wav(
     _, ws = _require_pending_preview_caps(token)
     premix = premix_path(ws.project)
     if not premix.is_file():
-        raise FileNotFoundError("premix.wav not found")
+        raise CodedFileNotFoundError("premix.wav not found", code="no_mix")
     result = PlayService(ws).play_pending_preview(
         edit_id,
         mode=kind,

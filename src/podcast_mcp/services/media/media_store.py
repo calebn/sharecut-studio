@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 import time
@@ -12,6 +13,10 @@ from typing import Any
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.models.episode import workspace_artifacts_dir
 from podcast_mcp.util.body_limits import env_max_bytes
+from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.process import CalledProcessError
+
+log = logging.getLogger(__name__)
 
 ALLOWED_AUDIO_EXTENSIONS = frozenset({".wav", ".mp3", ".m4a", ".flac", ".aiff", ".aif", ".ogg"})
 
@@ -43,9 +48,10 @@ def safe_audio_filename(name: str) -> str:
     cleaned = _SAFE_NAME.sub("_", base).strip("._") or "audio"
     suffix = Path(cleaned).suffix.lower()
     if suffix not in ALLOWED_AUDIO_EXTENSIONS:
-        raise ValueError(
+        raise CodedValueError(
             f"unsupported audio type {suffix!r}; "
-            f"allowed: {', '.join(sorted(ALLOWED_AUDIO_EXTENSIONS))}"
+            f"allowed: {', '.join(sorted(ALLOWED_AUDIO_EXTENSIONS))}",
+            code="unsupported_audio_type",
         )
     stem = Path(cleaned).stem[:80] or "audio"
     return f"{stem}{suffix}"
@@ -136,9 +142,9 @@ def write_complete_upload(
     """Write a complete audio payload into ``raw/`` and verify ffprobe succeeds."""
     limit = gui_media_max_bytes()
     if len(data) > limit:
-        raise ValueError(f"upload exceeds {limit} bytes")
+        raise CodedValueError(f"upload exceeds {limit} bytes", code="upload_too_large")
     if not data:
-        raise ValueError("empty upload")
+        raise CodedValueError("empty upload", code="empty_upload")
     dest = unique_raw_path(workspace_dir, filename)
     dest.write_bytes(data)
     return _finalize_upload(workspace_dir, dest)
@@ -152,13 +158,13 @@ def write_complete_upload_from_parts(
 ) -> dict[str, Any]:
     """Stream chunk part files into ``raw/`` without loading the full assemble into RAM."""
     if not part_paths:
-        raise ValueError("empty upload")
+        raise CodedValueError("empty upload", code="empty_upload")
     limit = gui_media_max_bytes()
     total = sum(p.stat().st_size for p in part_paths)
     if total > limit:
-        raise ValueError(f"upload exceeds {limit} bytes")
+        raise CodedValueError(f"upload exceeds {limit} bytes", code="upload_too_large")
     if total <= 0:
-        raise ValueError("empty upload")
+        raise CodedValueError("empty upload", code="empty_upload")
     dest = unique_raw_path(workspace_dir, filename)
     try:
         with dest.open("wb") as out:
@@ -174,11 +180,17 @@ def write_complete_upload_from_parts(
 def _finalize_upload(workspace_dir: Path, dest: Path) -> dict[str, Any]:
     try:
         probe = FFmpegEngine().probe(dest, untrusted=True)
-        if not probe.duration_sec or probe.duration_sec <= 0:
-            raise ValueError("ffprobe returned zero duration")
+    except (CalledProcessError, ValueError) as exc:
+        dest.unlink(missing_ok=True)
+        # ffprobe's own error names the upload's host path; keep it in the log.
+        log.info("Rejected upload %s: ffprobe could not read it", dest.name, exc_info=True)
+        raise CodedValueError("not a playable audio file", code="invalid_audio") from exc
     except Exception:
         dest.unlink(missing_ok=True)
         raise
+    if not probe.duration_sec or probe.duration_sec <= 0:
+        dest.unlink(missing_ok=True)
+        raise CodedValueError("ffprobe returned zero duration", code="invalid_audio")
     rel = str(dest.relative_to(workspace_dir.resolve()))
     return {
         "rel_path": rel,
@@ -201,24 +213,27 @@ def write_upload_chunk(
     sweep_stale_uploads(workspace_dir)
     chunk_limit = gui_media_chunk_max_bytes()
     if len(data) > chunk_limit:
-        raise ValueError(f"chunk exceeds {chunk_limit} bytes")
+        raise CodedValueError(f"chunk exceeds {chunk_limit} bytes", code="upload_too_large")
     if total_chunks < 1:
-        raise ValueError("total_chunks must be >= 1")
+        raise CodedValueError("total_chunks must be >= 1", code="invalid_upload_chunk")
     max_chunks = max_upload_chunks()
     if total_chunks > max_chunks:
-        raise ValueError(f"total_chunks exceeds max {max_chunks}")
+        raise CodedValueError(f"total_chunks exceeds max {max_chunks}", code="invalid_upload_chunk")
     if chunk_index < 0 or chunk_index >= total_chunks:
-        raise ValueError("chunk_index out of range")
+        raise CodedValueError("chunk_index out of range", code="invalid_upload_chunk")
     if total_chunks == 1:
         out = write_complete_upload(workspace_dir, filename=filename, data=data)
         return {**out, "complete": True, "upload_id": upload_id or ""}
 
     if pending_upload_bytes(workspace_dir) + len(data) > _PENDING_UPLOAD_QUOTA:
-        raise ValueError("pending upload quota exceeded; retry after incomplete uploads expire")
+        raise CodedValueError(
+            "pending upload quota exceeded; retry after incomplete uploads expire",
+            code="upload_quota_exceeded",
+        )
 
     uid = (upload_id or "").strip() or uuid.uuid4().hex
     if not re.fullmatch(r"[a-fA-F0-9_-]{8,64}", uid):
-        raise ValueError("invalid upload_id")
+        raise CodedValueError("invalid upload_id", code="invalid_upload_chunk")
     part_dir = uploads_dir(workspace_dir) / uid
     part_dir.mkdir(parents=True, exist_ok=True)
     meta = part_dir / "meta.txt"
@@ -227,10 +242,12 @@ def write_upload_chunk(
     else:
         lines = meta.read_text(encoding="utf-8").splitlines()
         if len(lines) >= 2 and int(lines[1]) != total_chunks:
-            raise ValueError("total_chunks mismatch for upload_id")
+            raise CodedValueError(
+                "total_chunks mismatch for upload_id", code="invalid_upload_chunk"
+            )
     part_path = part_dir / f"chunk_{chunk_index:05d}"
     if part_path.exists():
-        raise ValueError("duplicate chunk_index")
+        raise CodedValueError("duplicate chunk_index", code="invalid_upload_chunk")
     part_path.write_bytes(data)
 
     expected = [part_dir / f"chunk_{i:05d}" for i in range(total_chunks)]
@@ -241,7 +258,7 @@ def write_upload_chunk(
         for p in part_dir.iterdir():
             p.unlink(missing_ok=True)
         part_dir.rmdir()
-        raise ValueError(f"upload exceeds {limit} bytes")
+        raise CodedValueError(f"upload exceeds {limit} bytes", code="upload_too_large")
     if len(received) < total_chunks:
         return {
             "complete": False,

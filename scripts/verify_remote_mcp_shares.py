@@ -119,6 +119,11 @@ def _no_host_paths(blob: str) -> bool:
     return "/Users/" not in blob and "workspace_dir" not in blob
 
 
+def _ok(response: dict[str, Any]) -> bool:
+    """No JSON-RPC error and no ``isError`` tool result (a refusal or a crash)."""
+    return "error" not in response and not (response.get("result") or {}).get("isError")
+
+
 def _capability_error(msg: str) -> bool:
     low = msg.lower()
     return (
@@ -220,7 +225,7 @@ def verify_mcp_tier(
         _assert(
             report,
             "call_review_summary",
-            "error" not in r and _no_host_paths(text),
+            _ok(r) and _no_host_paths(text),
             str(r.get("error") or "ok"),
         )
 
@@ -235,7 +240,7 @@ def verify_mcp_tier(
         _assert(
             report,
             "call_audio_info",
-            "error" not in r and f"/api/review/{token}/" in text and "/Users/" not in text,
+            _ok(r) and f"/api/review/{token}/" in text and "/Users/" not in text,
             text[:200],
         )
 
@@ -254,7 +259,7 @@ def verify_mcp_tier(
         _assert(
             report,
             "call_get_project",
-            "error" not in r and payload.get("project_path") == "" and _no_host_paths(text),
+            _ok(r) and payload.get("project_path") == "" and _no_host_paths(text),
             f"project_path={payload.get('project_path')!r}",
         )
         for tool in (
@@ -267,7 +272,7 @@ def verify_mcp_tier(
             if tool not in expected:
                 continue
             rr = mcp_rpc(base, token, "tools/call", {"name": tool, "arguments": {}})
-            _assert(report, f"call_{tool}", "error" not in rr, str(rr.get("error")))
+            _assert(report, f"call_{tool}", _ok(rr), str(rr.get("error") or rr.get("result")))
 
         if "guest_search_transcript" in expected:
             rr = mcp_rpc(
@@ -279,7 +284,7 @@ def verify_mcp_tier(
             _assert(
                 report,
                 "call_search_transcript",
-                "error" not in rr and _no_host_paths(json.dumps(rr)),
+                _ok(rr) and _no_host_paths(json.dumps(rr)),
                 str(rr.get("error") or "ok"),
             )
 
@@ -325,7 +330,7 @@ def verify_mcp_tier(
         _assert(
             report,
             "call_add_comment",
-            "error" not in r and bool(comment_id),
+            _ok(r) and bool(comment_id),
             str(r.get("error") or comment_id),
         )
 
@@ -343,7 +348,7 @@ def verify_mcp_tier(
                 },
             },
         )
-        _assert(report, "call_add_reply", "error" not in r, str(r.get("error")))
+        _assert(report, "call_add_reply", _ok(r), str(r.get("error") or r.get("result")))
 
     if "guest_set_action_done" in expected:
         # Need an action item - add via comment+action if possible is host-only;

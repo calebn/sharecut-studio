@@ -32,6 +32,7 @@ from podcast_mcp.engines.bleed_echo import EchoConfig, EchoPairProfile, echo_pro
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EditMode, EpisodeProject
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.text import count_noun
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -351,7 +352,7 @@ def build_audition_context(
     prosody_params: ProsodyParams | None = None,
 ) -> dict[str, Any]:
     if timeline_end <= timeline_start:
-        raise ValueError("timeline_end must be after timeline_start")
+        raise CodedValueError("timeline_end must be after timeline_start", code="invalid_range")
     if detail not in ("summary", "full", "visual"):
         raise ValueError("detail must be summary, full, or visual")
 

@@ -20,6 +20,7 @@ from podcast_mcp.services.media.media_store import (
     write_complete_upload,
     write_upload_chunk,
 )
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def test_safe_audio_filename_rejects_exe():
@@ -393,8 +394,11 @@ def test_write_complete_rejects_unreadable_audio(minimal_project):
 
     ws = ProjectWorkspace.open(minimal_project)
     root = ws.project.workspace_path()
-    with pytest.raises(subprocess.CalledProcessError):
+    with pytest.raises(CodedValueError, match=r"^not a playable audio file$") as exc:
         write_complete_upload(root, filename="bad.wav", data=b"not a wav")
+    # ffprobe's error names the upload's host path: it is the cause, never the message.
+    assert exc.value.code == "invalid_audio"
+    assert isinstance(exc.value.__cause__, subprocess.CalledProcessError)
     raw = root / "raw"
     if raw.is_dir():
         assert list(raw.glob("bad*.wav")) == []

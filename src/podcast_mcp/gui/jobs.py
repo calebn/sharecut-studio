@@ -20,6 +20,7 @@ from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import BounceRequest, BounceService
 from podcast_mcp.services.pipeline import PipelineService
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.progress import (
     PROGRESS_LAZY_CHIP_SEC,
     ElapsedProgressMixin,
@@ -57,6 +58,12 @@ def _gui_fail_message(message: str | None, phase: str | None = None) -> str | No
     if not line:
         return None
     return line[:_GUI_FAIL_MAX]
+
+
+class JobSlotBusyError(CodedError, RuntimeError):
+    """Another pipeline-slot job (pipeline run, render preview, export) is still running."""
+
+    code = "job_running"
 
 
 @dataclass(frozen=True)
@@ -983,12 +990,12 @@ class PipelineJobManager:
     ) -> PipelineJob:
         with self._catalog._lock:
             if self._catalog._job is not None and self._catalog._job.status in LIVE_JOB_STATUSES:
-                raise RuntimeError("A pipeline-slot job is already running")
+                raise JobSlotBusyError("A pipeline-slot job is already running")
         if validate is not None:
             validate()
         with self._catalog._lock:
             if self._catalog._job is not None and self._catalog._job.status in LIVE_JOB_STATUSES:
-                raise RuntimeError("A pipeline-slot job is already running")
+                raise JobSlotBusyError("A pipeline-slot job is already running")
             current = self._catalog._job
             if current is not None and current.status in TERMINAL_JOB_STATUSES:
                 self._catalog._archive_job(current)

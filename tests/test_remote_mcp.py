@@ -204,7 +204,7 @@ def test_guest_tool_surface_and_protocol_edges(
     assert wrong["error"]["code"] == -32602
 
     unknown_tool = _call(token, "pipeline_run", {}, req_id=6)
-    assert unknown_tool["error"]["code"] == -32601
+    assert unknown_tool["error"]["code"] == -32602
 
     assert "error" not in missing
     assert "error" not in _call(token, "guest_audio_info", req_id=7)
@@ -246,7 +246,8 @@ def test_guest_tool_surface_and_protocol_edges(
         {"comment_id": cid, "action_id": "missing", "done": True},
         req_id=16,
     )
-    assert "error" in action
+    assert action["result"]["isError"] is True
+    assert action["result"]["structuredContent"]["error_code"] == "action_item_not_found"
 
     suggest = _call(
         token,
@@ -579,19 +580,96 @@ def test_guest_applied_edits_shapes(monkeypatch):
     assert rows[2]["text"] == "plain"
 
 
-def test_protocol_surfaces_tool_exceptions(minimal_project, sample_wav, tmp_workspace, monkeypatch):
+_HOST_SECRET = "/Users/host/private/episode/raw/host.wav"
+
+
+def _raising_tool(monkeypatch, exc: BaseException, name: str = "guest_get_project") -> None:
+    """Replace one guest tool with a handler that raises ``exc``."""
     from podcast_mcp.services.remote_mcp import tools as rt
 
+    def _raise():
+        raise exc
+
+    monkeypatch.setattr(rt, "TOOL_HANDLERS", {**rt.TOOL_HANDLERS, name: _raise})
+
+
+def _tool_error(out: dict) -> tuple[str, dict | None]:
+    """A tool-level failure: an ``isError`` result, never a JSON-RPC protocol error."""
+    assert "error" not in out, out
+    result = out["result"]
+    assert result["isError"] is True
+    texts = [c["text"] for c in result["content"]]
+    assert len(texts) == 1
+    return texts[0], result.get("structuredContent")
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        ValueError(f"boom at {_HOST_SECRET}"),
+        KeyError(_HOST_SECRET),
+        TypeError("_internal_helper() missing 1 required positional argument: 'x'"),
+        RuntimeError(f"ffmpeg failed reading {_HOST_SECRET}"),
+        PermissionError(13, "Permission denied", _HOST_SECRET),
+    ],
+    ids=["value", "key", "type", "runtime", "os-permission"],
+)
+def test_guest_tool_crash_is_generic_and_logged_on_the_host(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog, exc
+):
     ws = _seed_premix(minimal_project, sample_wav)
     share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"], label="boom")
+    _raising_tool(monkeypatch, exc)
 
-    def _boom():
-        raise ValueError("boom")
+    with caplog.at_level("ERROR", logger="podcast_mcp.services.remote_mcp.protocol"):
+        out = _call(share["token"], "guest_get_project", {})
 
-    monkeypatch.setattr(rt, "TOOL_HANDLERS", {**rt.TOOL_HANDLERS, "guest_get_project": _boom})
-    err = _call(share["token"], "guest_get_project", {})
-    assert err["error"]["code"] == -32000
-    assert "boom" in err["error"]["message"]
+    text, structured = _tool_error(out)
+    assert text == "Error executing tool guest_get_project"
+    assert structured is None
+    assert "/Users/host" not in json.dumps(out)
+    assert "_internal_helper" not in json.dumps(out)
+    logged = [r for r in caplog.records if r.exc_info and r.exc_info[1] is exc]
+    assert logged, "the crash is logged on the host with its traceback"
+    assert "guest_get_project" in logged[0].getMessage()
+
+
+def test_guest_tool_refusal_returns_message_and_code(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.util.coded_error import CodedKeyError
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"], label="refuse")
+    _raising_tool(monkeypatch, CodedKeyError("comment not found: c9", code="comment_not_found"))
+
+    text, structured = _tool_error(_call(share["token"], "guest_get_project", {}))
+    assert text == "comment not found: c9"
+    assert structured == {
+        "ok": False,
+        "error": "comment not found: c9",
+        "error_code": "comment_not_found",
+    }
+
+
+def test_guest_tool_refusal_redacts_host_paths(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    from podcast_mcp.util.coded_error import CodedFileNotFoundError
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"], label="paths")
+    _raising_tool(
+        monkeypatch,
+        CodedFileNotFoundError(f"raw media not found: {_HOST_SECRET}", code="file_not_found"),
+    )
+
+    out = _call(share["token"], "guest_get_project", {})
+    text, structured = _tool_error(out)
+    assert text == "raw media not found: [path]"
+    assert structured is not None
+    assert structured["error_code"] == "file_not_found"
+    assert "/Users/host" not in json.dumps(out)
 
 
 def test_protocol_maps_busy_lock_timeout_to_project_busy(
@@ -599,19 +677,158 @@ def test_protocol_maps_busy_lock_timeout_to_project_busy(
 ):
     from filelock import Timeout
 
-    from podcast_mcp.services.remote_mcp import tools as rt
-
     ws = _seed_premix(minimal_project, sample_wav)
     share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"], label="busy")
+    _raising_tool(monkeypatch, Timeout("/some/secret/lock/path"))
 
-    def _busy():
-        raise Timeout("/some/secret/lock/path")
+    out = _call(share["token"], "guest_get_project", {})
+    text, structured = _tool_error(out)
+    assert structured is not None
+    assert structured["error_code"] == "project_busy"
+    assert structured["error"] == text
+    assert "/secret" not in json.dumps(out)
 
-    monkeypatch.setattr(rt, "TOOL_HANDLERS", {**rt.TOOL_HANDLERS, "guest_get_project": _busy})
-    err = _call(share["token"], "guest_get_project", {})
-    assert err["error"]["code"] == -32000
-    assert err["error"]["data"] == {"error_code": "project_busy"}
-    assert "/secret" not in err["error"]["message"]
+
+def test_guest_unknown_comment_is_a_refusal_not_method_not_found(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(
+        ws, monkeypatch, tmp_workspace, ["play", "view", "comment", "reply", "mcp"], label="nf"
+    )
+    out = _call(
+        share["token"],
+        "guest_add_reply",
+        {"comment_id": "no-such-comment", "body": "hi", "author": "guest"},
+    )
+    text, structured = _tool_error(out)
+    assert text == "comment not found: no-such-comment"
+    assert structured is not None
+    assert structured["error_code"] == "comment_not_found"
+
+
+def test_guest_protocol_errors_are_reserved_for_the_protocol(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"], label="rpc")
+    token = share["token"]
+
+    unknown_method = handle_mcp_jsonrpc(
+        token, {"jsonrpc": "2.0", "id": 1, "method": "tools/nope", "params": {}}
+    )
+    assert unknown_method["error"]["code"] == -32601
+
+    # An unknown tool is an invalid tools/call parameter (MCP spec), not an unknown method.
+    unknown_tool = _call(token, "pipeline_run", {})
+    assert unknown_tool["error"]["code"] == -32602
+    assert unknown_tool["error"]["message"] == "unknown tool: pipeline_run"
+
+    missing = _call(token, "guest_search_transcript", {})
+    assert missing["error"]["code"] == -32602
+    assert missing["error"]["data"] == {"error_code": "invalid_arguments"}
+    assert "query" in missing["error"]["message"]
+
+    wrong_type = _call(token, "guest_search_transcript", {"query": "x", "limit": "many"})
+    assert wrong_type["error"]["code"] == -32602
+    assert "limit" in wrong_type["error"]["message"]
+
+    extra = _call(token, "guest_get_project", {"project_path": "/etc"})
+    assert extra["error"]["code"] == -32602
+    assert "project_path" in extra["error"]["message"]
+
+    denied = _call(token, "guest_add_comment", {"body": "x", "author": "a", "timeline_start": 0})
+    assert denied["error"]["code"] == -32003
+
+
+def test_guest_share_whose_project_is_gone_is_not_found_without_its_path(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"], label="gone")
+
+    def _missing(_token):
+        raise FileNotFoundError(f"Project not found: {_HOST_SECRET}")
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.remote_mcp.protocol.resolve_remote_mcp_context", _missing
+    )
+    out = handle_mcp_jsonrpc(share["token"], {"jsonrpc": "2.0", "id": 1, "method": "ping"})
+    assert out["error"] == {"code": -32004, "message": "share not found"}
+
+
+def test_guest_share_resolution_crash_is_generic(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch, caplog
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"], label="crash")
+
+    def _crash(_token):
+        raise RuntimeError(f"registry corrupt at {_HOST_SECRET}")
+
+    monkeypatch.setattr(
+        "podcast_mcp.services.remote_mcp.protocol.resolve_remote_mcp_context", _crash
+    )
+    with caplog.at_level("ERROR", logger="podcast_mcp.services.remote_mcp.protocol"):
+        out = handle_mcp_jsonrpc(share["token"], {"jsonrpc": "2.0", "id": 1, "method": "ping"})
+    assert out["error"] == {"code": -32603, "message": "internal error"}
+    assert any(r.exc_info for r in caplog.records)
+
+
+def test_guest_mcp_sse_failure_is_generic(monkeypatch, caplog):
+    import asyncio
+
+    from podcast_mcp.services.remote_mcp import progress as rp
+
+    def _explode(*_args, **_kwargs):
+        raise RuntimeError(f"pool died near {_HOST_SECRET}")
+
+    monkeypatch.setattr("podcast_mcp.services.remote_mcp.protocol.handle_mcp_jsonrpc", _explode)
+
+    async def _frames() -> list[str]:
+        body = {"jsonrpc": "2.0", "id": 7, "method": "ping", "params": {}}
+        return [frame async for frame in rp.iter_mcp_sse("tok", body)]
+
+    with caplog.at_level("ERROR", logger="podcast_mcp.services.remote_mcp.progress"):
+        frames = asyncio.run(_frames())
+    last = json.loads(frames[-1].split("data: ", 1)[1])
+    assert last["error"] == {"code": -32603, "message": "internal error"}
+    assert last["id"] == 7
+    assert "/Users/host" not in "".join(frames)
+    assert any(r.exc_info for r in caplog.records)
+
+
+def test_guest_render_job_lookups_and_upload_arguments_are_refusals(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(
+        ws, monkeypatch, tmp_workspace, capabilities_for_role("editor", with_mcp=True), label="ed"
+    )
+    token = share["token"]
+
+    text, structured = _tool_error(_call(token, "guest_render_preview_job", {"job_id": "nope"}))
+    assert text == "Render preview job not found"
+    assert structured is not None
+    assert structured["error_code"] == "job_not_found"
+
+    bad = _call(token, "guest_upload_media", {"filename": "a.wav", "data_base64": "%%%"})
+    assert bad["error"]["code"] == -32602
+    assert bad["error"]["message"] == "data_base64 must be valid base64"
+    assert bad["error"]["data"] == {"error_code": "invalid_arguments"}
+
+
+def test_guest_pending_preview_unknown_edit_is_a_refusal(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"], label="pp")
+    text, structured = _tool_error(
+        _call(share["token"], "guest_pending_preview", {"edit_id": "missing"})
+    )
+    assert text == "pending edit not found: missing"
+    assert structured is not None
+    assert structured["error_code"] == "edit_not_found"
 
 
 def test_search_transcript_requires_view_cap(monkeypatch):
