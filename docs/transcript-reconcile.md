@@ -250,7 +250,13 @@ The gate measures each lane against every other dialogue track's audio at 8 kHz
   there. A null under 0 counts as 0. A peer that speaks in short bursts far apart
   can be silent at all four of those; its speech 3 to 10 s away, pooled over those
   shifts, is then the comparison, and with no peer speech there either the lag is
-  not confirmed. Reconcile's copy path makes the same check
+  not confirmed. Under half a second of frames at the copy's level (50) the lag is
+  not confirmed either: true copies in the trials below had 90 or more, and one
+  co-timed own voice passed on 6. The level lag is only as sharp as a 100 ms level
+  frame, and a peer's gate opening late on every word moves it later (60 ms at
+  180 ms late), so the likeness and its nulls are read at the lag up to 50 ms
+  earlier where the likeness is highest; a gate never opens early. The likeness the
+  gate then uses is the one at the level lag. Reconcile's copy path makes the same check
   (`copy_timbre.confirmed_likeness`). No confirmed path means
   `uncertain_foreign_ownership`.
   - **Limits** (#1190). Fine spectrum is mostly pitch. Own sound whose pitch
@@ -261,7 +267,7 @@ The gate measures each lane against every other dialogue track's audio at 8 kHz
     passes it. The reverse costs true copies on the safe side: a copy of a peer
     whose other syllables share its spectrum matches those as well. In synthetic
     trials a near-monotone peer's copy (±0.15 semitone) passes 30 of 100 at 30 s and
-    34 at 60 s, where main passes all; a sung melody's copy 91 and 98, a repeated
+    34 at 60 s, where main passes all; a sung melody's copy 90 and 97, a repeated
     phrase's almost never. That bleed is kept.
   - **Evidence** (synthetic trials through the gate's copy check, 100 per kind at
     each of 20, 25, 30 and 60 s of the peer's speech; the #1053 and #1070 harnesses
@@ -277,10 +283,10 @@ The gate measures each lane against every other dialogue track's audio at 8 kHz
     peer only stay at 0. End to end, where such sound is untranscribed, the level
     match alone turned down 14 to 69 s of own sound per 6 excerpts; the check turns
     down none. Pitch-following own sound is the exception above: unison singing
-    passes 96, 99, 99 and 100 of 100, pitch-following speech (±0.3 semitone) 96 to
+    passes 97, 99, 99 and 100 of 100, pitch-following speech (±0.3 semitone) 96 to
     100, and the same with a sparse peer 92 to 100 (main: 0 under 30 s, 91 to 100
     from 30 s). True copies: Audra's lab copy against her own track passes 17, 49,
-    54 and 68 of 100, and synthetic room copies 93, 295, 299 and 300 of 300; under
+    54 and 68 of 100, and synthetic room copies 93, 296, 299 and 300 of 300; under
     30 s that is fewer than when the 20 to 30 s floor was mistakenly 0.40 (32 and
     51 lab, 93 and 300 synthetic). Copies of a sparse peer pass 99 to 100 of 100,
     nearly all against its speech 3 to 10 s away; abstaining whenever the near nulls are
