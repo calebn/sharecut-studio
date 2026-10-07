@@ -16,8 +16,10 @@ is measured exactly as one window over its frames.
 A segment is a run of spurts at its own best lag, with correlation at least
 ``MIN_CORRELATION``, the peak inside the search, and enough evidence to pin it: every lag
 beyond the deadband fits worse by ``CONFIDENCE_NATS`` (its likelihood-ratio interval lies
-inside the deadband). A short phrase with a sharp peak passes; a long stretch with a flat
-correlation does not, so the floor scales with the evidence, not with a frame count. Dynamic
+inside the deadband), counted over the lane's own voiced frames less the three a
+correlation spends. A short phrase with a sharp peak passes; a long stretch with a flat
+correlation does not, and neither does a lone click, whose surrounding silence correlates
+perfectly with the mic's. The floor scales with the evidence, not with a frame count. Dynamic
 programming picks the segments that minimise ``sum(n / 2 * log(1 - r^2))`` (``n`` in
 independent frames, ``FRAME_SEC`` apart) plus ``STEP_LLR`` per segment, where the widest
 silence between neighbours holds the step plus ``EDGE_SEC`` on each side. A second pass
@@ -91,20 +93,26 @@ def _dominant(source: np.ndarray, mic: np.ndarray, lags: np.ndarray) -> np.ndarr
 def _sums(
     source: np.ndarray, mic: np.ndarray, owner: np.ndarray, units: int, lags: np.ndarray
 ) -> np.ndarray:
-    """``[unit, lag, (n, Σx, Σy, Σxx, Σyy, Σxy)]``: x the mic, y the source, unit by source frame."""
-    sums = np.zeros((units, lags.size, 6))
+    """``[unit, lag, (n, Σx, Σy, Σxx, Σyy, Σxy, voiced)]``: x the mic, y the source.
+
+    Units go by source frame. ``voiced`` counts the frames where the source itself is
+    open at that lag; the rest pair the mic with the source's silence around a word.
+    """
+    sums = np.zeros((units, lags.size, 7))
     frames = _dominant(source, mic, lags)
     for j, lag in enumerate(lags):
         f = frames[(frames + lag >= 0) & (frames + lag < source.size)]
         x, y, k = mic[f], source[f + lag], owner[f + lag]
-        for col, value in enumerate((np.ones_like(x), x, y, x * x, y * y, x * y)):
+        for col, value in enumerate(
+            (np.ones_like(x), x, y, x * x, y * y, x * y, (y > OPEN_DB).astype(float))
+        ):
             sums[:, j, col] = np.bincount(k, weights=value, minlength=units)
     return sums
 
 
 def _correlation(sums: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Correlation and frame count per lag (the last axis of ``sums`` holds the six sums)."""
-    n, sx, sy, sxx, syy, sxy = np.moveaxis(sums, -1, 0)
+    """Correlation and frame count per lag (the last axis of ``sums`` holds the sums)."""
+    n, sx, sy, sxx, syy, sxy = np.moveaxis(sums[..., :6], -1, 0)
     with np.errstate(invalid="ignore", divide="ignore"):
         r = (sxy - sx * sy / n) / np.sqrt((sxx - sx * sx / n) * (syy - sy * sy / n))
     return np.nan_to_num(r, nan=0.0), n
@@ -127,23 +135,30 @@ def _pooled_lag(source: np.ndarray, mic: np.ndarray, around: int) -> int | None:
 Run = tuple[int, int, int]
 
 
-def _valid(r: np.ndarray, n: np.ndarray, smallest: int) -> np.ndarray:
+def _valid(r: np.ndarray, voiced: np.ndarray, smallest: int) -> np.ndarray:
     """Lags a segment may sit at: its own best, inside the search, and pinned by its evidence.
 
     Pinned means every lag ``smallest`` hops or more away (beyond the deadband) fits worse
     by at least ``CONFIDENCE_NATS``: the likelihood-ratio interval of the lag lies inside
     the deadband. A short stretch with a sharp peak qualifies; a long one with a flat
-    correlation does not.
+    correlation does not. The interval counts only the source's own voiced frames, in
+    independent frames less the three a correlation spends (Fisher's ``n - 3``): around a
+    lone click the source's silence correlates perfectly with the mic's, but that is one
+    event, not evidence for a lag.
     """
     size = r.shape[-1]
-    best = np.argmax(r, axis=-1)
-    fit = _log_fit(r, n)
-    far = np.abs(np.arange(size) - best[..., None]) >= smallest
-    worse = fit - np.take_along_axis(fit, best[..., None], axis=-1)
-    pinned = np.where(far, worse, np.inf).min(axis=-1) >= CONFIDENCE_NATS
+    best = np.argmax(r, axis=-1)[..., None]
+    per_frame = np.log1p(-(np.clip(r, 0.0, 0.999) ** 2)) / 2
+    worse = per_frame - np.take_along_axis(per_frame, best, axis=-1)
+    events = np.take_along_axis(voiced, best, axis=-1) * HOP_SEC / FRAME_SEC - 3
+    far = np.abs(np.arange(size) - best) >= smallest
+    pinned = np.maximum(events, 0.0) * np.where(far, worse, np.inf).min(axis=-1, keepdims=True)
     inside = (best > 0) & (best < size - 1)
     return (
-        (r == r.max(axis=-1, keepdims=True)) & (r >= MIN_CORRELATION) & (pinned & inside)[..., None]
+        (r == r.max(axis=-1, keepdims=True))
+        & (r >= MIN_CORRELATION)
+        & (pinned >= CONFIDENCE_NATS)
+        & inside
     )
 
 
@@ -163,8 +178,9 @@ def _partition(cum: np.ndarray, largest: np.ndarray, smallest: int) -> list[Run]
     came = np.zeros((count + 1, size), dtype=int)
     entry[0] = 0.0
     for b in range(1, count + 1):
-        r, n = _correlation(cum[b] - cum[:b])
-        options = entry[:b] + np.where(_valid(r, n, smallest), _log_fit(r, n), np.inf)
+        span = cum[b] - cum[:b]
+        r, n = _correlation(span)
+        options = entry[:b] + np.where(_valid(r, span[..., 6], smallest), _log_fit(r, n), np.inf)
         start[b] = np.argmin(options, axis=0)
         total[b] = options[start[b], np.arange(size)] + STEP_LLR
         if b < count:
@@ -199,8 +215,9 @@ def _keep_steps(
     fit = np.full((m + 1, m + 1), np.inf)
     for i in range(m):
         ends = np.array(bounds[i + 1 :])
-        r, n = _correlation(cum[ends] - cum[bounds[i]])
-        valid = _valid(r, n, smallest)
+        span = cum[ends] - cum[bounds[i]]
+        r, n = _correlation(span)
+        valid = _valid(r, span[..., 6], smallest)
         for j, row in zip(range(i + 1, m + 1), valid, strict=True):
             if row.any():
                 lag[i, j] = int(np.argmax(row))
