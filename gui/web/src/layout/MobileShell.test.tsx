@@ -281,6 +281,55 @@ describe("MobileShell", () => {
     ).toBeTruthy();
   });
 
+  it("explains Add to Home Screen in More only in an iOS Safari tab", async () => {
+    const user = userEvent.setup();
+    const hint = /choose Add to Home Screen to open Sharecut full screen/;
+    const setNavigator = (values: Record<string, unknown>) => {
+      for (const [key, value] of Object.entries(values))
+        Object.defineProperty(navigator, key, { value, configurable: true });
+    };
+    setNavigator({ standalone: false, maxTouchPoints: 5 });
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({
+          media: query,
+          matches: query === "(display-mode: browser)",
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }) as unknown as MediaQueryList,
+    );
+    try {
+      const { container, unmount } = render(
+        <DawProvider
+          projectPath="/tmp/p.json"
+          initialProject={minimalProject()}
+        >
+          <MobileShell />
+        </DawProvider>,
+      );
+      await user.click(screen.getByRole("button", { name: "More" }));
+      expect(screen.getByText(hint)).toBeTruthy();
+      await expectNoA11yViolations(container);
+      unmount();
+      setNavigator({ standalone: true });
+      render(
+        <DawProvider
+          projectPath="/tmp/p.json"
+          initialProject={minimalProject()}
+        >
+          <MobileShell />
+        </DawProvider>,
+      );
+      expect(screen.getByRole("button", { name: "Gestures" })).toBeTruthy();
+      expect(screen.queryByText(hint)).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+      for (const key of ["standalone", "maxTouchPoints"])
+        Reflect.deleteProperty(navigator, key);
+    }
+  });
+
   it("hides Add chapter at playhead in More for a share guest", async () => {
     const user = userEvent.setup();
     useDawStore

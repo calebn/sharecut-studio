@@ -14,6 +14,13 @@ body,
   background: var(--color-bg-canvas);
 }
 
+/* `viewport-fit=cover` (#1077) draws pages edge to edge; content keeps clear
+   of the notch side of a phone held sideways. The editor shell pads itself. */
+body {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
 /* Native checkboxes, radios, and range thumbs take the brand accent. */
 html {
   accent-color: var(--color-accent-solid);

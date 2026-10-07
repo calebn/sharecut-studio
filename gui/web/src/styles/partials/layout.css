@@ -8,6 +8,37 @@ html[data-shell] body {
   overscroll-behavior: none;
 }
 
+/* Touch shells sit fixed to the viewport and pad themselves clear of the
+ * notch, Dynamic Island and home indicator (`viewport-fit=cover`, #1077), so
+ * a page scroll never moves them against the fixed sheets. */
+@media (pointer: coarse) {
+  html[data-shell="phone"] .daw-shell,
+  html[data-shell="tablet"] .daw-shell {
+    position: fixed;
+    inset: 0;
+    height: auto;
+    max-height: none;
+    /* The inset bands match the nav and rail they border. */
+    background: var(--color-bg-base);
+  }
+}
+
+/* Safari minimizes its address bar and toolbar only when the document
+ * scrolls. In a browser tab the editor page is a runway under the fixed
+ * shell: a swipe on the shell's chrome scrolls it, Safari collapses its bars,
+ * and the shell grows into the room. A Home Screen app has no bars to hide. */
+@media (pointer: coarse) and (display-mode: browser) {
+  html[data-shell="phone"],
+  html[data-shell="tablet"] {
+    scrollbar-width: none;
+  }
+
+  html[data-shell="phone"] body,
+  html[data-shell="tablet"] body {
+    min-height: calc(100lvh + 25svh);
+  }
+}
+
 /* Named rows: banner rows are always present and `auto` (0 when empty), so a
  * layout or a banner never shifts another child. Layouts change only
  * --shell-main-row / --shell-tabs-row (responsive.css). */
@@ -31,6 +62,10 @@ html[data-shell] body {
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
+  /* Zero everywhere except edge-to-edge screens; the rows stay clear of the
+     notch side in landscape and the home indicator (#1077). */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
   font-size: var(--font-size-ui);
   /* Size container for shell-local queries; do not put size containment on body
    * (that blocks resize/overflow and fights Home Cover scroll). */
