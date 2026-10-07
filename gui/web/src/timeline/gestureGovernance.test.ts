@@ -37,6 +37,8 @@ const TOUCH_ALLOWLIST: Record<string, string> = {
   "timeline/TrackLane.tsx": "skips hover lane highlighting for a finger",
   "timeline/useRangeGesture.ts":
     "an armed Select range is the one mode that owns its touches",
+  "timeline/precision/precisionController.ts":
+    "the precision drag lab (#1184) owns a target the router handed it, and a second finger cancels it",
 };
 
 /** Pointer handlers on elements outside the routed lanes, by a marker in the element. */

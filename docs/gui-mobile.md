@@ -195,6 +195,18 @@ beside it (`--z-sheet-docked`); the editor page never rubber-bands. Decision and
 measurements: [touch-editor-decisions.md § Compact inspector](touch-editor-decisions.md#compact-inspector-1051-round-3)
 and [§ Collapse stays in reach](touch-editor-decisions.md#collapse-stays-in-reach-1051-round-4).
 
+The precision drag lab (#1184, prototype) compares three ways to move an
+armed fade, trim, pending edge or envelope point to the exact 10 ms step,
+chosen in View › Labs › Precision drag or with `?lab=precision:jog`, `lens`
+or `grip`: a **jog pad** in the drawer's place (slide up to slow it: Full,
+Half, Quarter, Fine), an **auto-zoom lens** (the timeline zooms to about
+±1 s around the edge until you lift or tap Done), or an **offset grip** (a
+loupe above the finger leads down to the edge). Each runs the target's own
+drag edit, so the ripple or gap mark, the arrows on every lane, the
+Cut anyway / Leave a gap question and one Undo are unchanged; a second
+finger cancels it. Detail: [touch-editor-decisions.md § Precision drag
+bake-off](touch-editor-decisions.md#precision-drag-bake-off-1184-lab).
+
 Modifier inspector sheets use one scroll owner for their complete content, including sheet chrome, actions, fields, errors, related commands, and audition footer. The content has natural height, so enlarged headers cannot compress a separate field scroller. Scroll to the top to reach **Expand**, **Collapse**, and **Close**. Desktop modifier inspectors also scroll as one aside; their fields and errors flow with the header and footer. Envelope focus transitions reveal the current control within its sheet or inspector without scrolling the page or timeline. The taller half peek applies to every modifier inspector. Sheets remain transient with no stacking. Deferred mutation errors across shell remount, Firefox layout CI, and overlapping Approve remain in [ROADMAP.md § Follow-up](../ROADMAP.md#follow-up).
 
 **More → Mix** opens one full-height non-modal sheet for every role. Rows follow

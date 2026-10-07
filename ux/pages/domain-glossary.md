@@ -35,6 +35,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Mix out of date** | Mix preview is behind recent edits — refresh/re-render. Export re-mixes and re-masters a stale mix itself; publishing a review version asks you to refresh first |
 | **Ripple** | A trim that moves every later clip on every speaker's track to close the change. A wave mark and the word "Ripple" show it while you drag, with arrows on each track to where its later clips go; a grab at a join rolls the join instead |
 | **Armed (touch)** | A long press picks up one timeline target, such as a fade, an envelope point or a whole clip; only it drags, along its own axes, until you lift. A second finger cancels it |
+| **Precision drag (lab)** | A prototype bake-off for moving an armed edge to the exact 10 ms step on a phone, chosen in View › Labs › Precision drag: a **jog pad** in the drawer's place (slide up to slow it), an **auto-zoom lens** that zooms to about ±1 s around the edge, or an **offset grip** whose loupe sits above the finger. Done, a tap outside or lifting finishes it; a second finger cancels it |
 | **Create menu (touch)** | A long press on empty timeline space: add an envelope point, a blade cut, a chapter or a comment at that time |
 | **Bleed / suppress** | Wrong-mic words hidden so cuts don’t follow bleed |
 | **Bleed gate** | Reduce verified wrong-mic audio while retaining speech and uncertain audio. Suppressing a word alone does not mute it. A selected gate region follows its original audio through later edits. |

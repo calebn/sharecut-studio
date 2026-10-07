@@ -25,6 +25,10 @@ import { errorMessage } from "../utils/apiError";
 import type { ClipHandle } from "./ClipBlockView";
 import type { ClipFadePreview, ClipTrimPreview } from "./clipBlockGeometry";
 import { HIT_KINDS } from "./inputContract";
+import {
+  driverKey,
+  registerPrecisionDriver,
+} from "./precision/precisionDrivers";
 import { magnetSec } from "./snapOverlay";
 
 type Context = {
@@ -44,7 +48,9 @@ type Capture = Omit<Context, "getTicks" | "onSelect"> & {
 };
 type Input =
   | { kind: "pointer"; pointerId: number; originX: number }
-  | { kind: "keyboard"; key: "ArrowLeft" | "ArrowRight" };
+  | { kind: "keyboard"; key: "ArrowLeft" | "ArrowRight" }
+  /** A precision drag (#1184) sets the value directly. */
+  | { kind: "precision" };
 type Draft = {
   phase: "preview" | "committing";
   capture: Capture;
@@ -404,10 +410,38 @@ export function useClipEdgeHandles(context: Context) {
     }
     return { status: "ok" as const };
   };
-  const actions = useRef({ run, cancel });
+  const precision = {
+    begin: (handle: ClipHandle) => begin(handle, { kind: "precision" }) != null,
+    show: (value: number) => {
+      const d = draftRef.current;
+      if (d?.phase === "preview" && d.input.kind === "precision") {
+        update(d, value);
+      }
+    },
+    commit: finish,
+    cancel: () => {
+      if (draftRef.current?.input.kind === "precision") cancel();
+    },
+  };
+  const actions = useRef({ run, cancel, precision });
   useLayoutEffect(() => {
-    actions.current = { run, cancel };
+    actions.current = { run, cancel, precision };
   });
+  const clipId = context.clip.id;
+  useLayoutEffect(() => {
+    const handles = ["fade-in", "fade-out", "trim-in", "trim-out"] as const;
+    const off = handles.map((handle) =>
+      registerPrecisionDriver(driverKey(handle, clipId), {
+        begin: () => actions.current.precision.begin(handle),
+        show: (value) => actions.current.precision.show(value),
+        commit: () => actions.current.precision.commit(),
+        cancel: () => actions.current.precision.cancel(),
+      }),
+    );
+    return () => {
+      for (const unregister of off) unregister();
+    };
+  }, [clipId]);
 
   useLayoutEffect(() => {
     mounted.current = true;

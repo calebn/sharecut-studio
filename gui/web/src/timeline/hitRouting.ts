@@ -221,6 +221,19 @@ export interface HitRoutingOptions {
    * a second finger turns the gesture into a pinch or pan.
    */
   snapshot?: () => () => void;
+  /**
+   * The precision drag lab (#1184): takes over an armed target's drag, or
+   * returns false from `arm` to let it drag as usual. The arming finger's
+   * moves and lift go to it; a second finger or a cancel calls `cancel`.
+   */
+  precision?: PrecisionHandoff;
+}
+
+export interface PrecisionHandoff {
+  arm: (element: Element, down: PointerEvent) => boolean;
+  move: (event: PointerEvent) => void;
+  up: (event: PointerEvent) => void;
+  cancel: () => void;
 }
 
 export interface HitRouter {
@@ -288,6 +301,11 @@ type Phase =
       /** Where it last went. */
       at: HitPoint;
       detents: DetentTrack | null;
+    }
+  | {
+      /** An armed target the precision lab took over (`options.precision`). */
+      kind: "precision";
+      pointerId: number;
     };
 
 const IDLE: Phase = { kind: "idle" };
@@ -329,6 +347,7 @@ export function attachHitRouting(
     const owned =
       phase.kind === "open" ||
       phase.kind === "grabbed" ||
+      phase.kind === "precision" ||
       (phase.kind === "create" && phase.view.fingerDown) ||
       (phase.kind === "routed" && phase.touch);
     if (owned && event.cancelable) event.preventDefault();
@@ -349,6 +368,9 @@ export function attachHitRouting(
       phase.element.removeAttribute(ARMED_ATTR);
       if (phase.detents?.held) options.onDetent?.(null);
       options.onArm?.(null);
+    }
+    if (phase.kind === "precision" && next !== phase) {
+      options.precision?.cancel();
     }
     phase = next;
   };
@@ -429,6 +451,11 @@ export function attachHitRouting(
     finger: HitPoint,
     at: HitPoint = finger,
   ) => {
+    if (options.precision?.arm(element, source)) {
+      setPhase({ kind: "precision", pointerId: source.pointerId });
+      report(element);
+      return;
+    }
     const offset = { x: target.x - finger.x, y: target.y - finger.y };
     const moved = travel(at, finger) >= HANDLE_DRAG_MIN_PX;
     const routed = targetOf(element);
@@ -643,6 +670,12 @@ export function attachHitRouting(
         replayPointer("pointermove", phase.element, event, phase.at);
         return;
       }
+      case "precision": {
+        if (event.pointerId !== phase.pointerId) return;
+        stop(event);
+        options.precision?.move(event);
+        return;
+      }
       case "routed": {
         if (
           event.pointerId === phase.pointerId &&
@@ -727,6 +760,15 @@ export function attachHitRouting(
         replayPointer("pointerup", armed.element, event, to);
         // A hold released where it started is a slow tap.
         replaceClick(armed.element, event, to, !armed.moved);
+        return;
+      }
+      case "precision": {
+        if (event.pointerId !== phase.pointerId) return;
+        stop(event);
+        suppressClickUntil = Date.now() + GHOST_CLICK_MS;
+        // Lifting hands the target to the lab, which may keep it open.
+        phase = IDLE;
+        options.precision?.up(event);
         return;
       }
       case "routed": {

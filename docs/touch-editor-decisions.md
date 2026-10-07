@@ -721,3 +721,65 @@ chooser lab until the owner made it the default (2026-10-07).
   the same router, so a finger arms it before it drags; a mouse drags it as
   before. The conformance test also fails when any kind with an axis drags
   on touch before a long press arms it, selected or not.
+
+## Precision drag bake-off (#1184, lab)
+
+A fingertip is wider than the gap it targets and covers what it moves, so an
+armed edge is hard to place to the step on a phone. Three prototypes compete
+behind one lab switch, for a comparison by feel on a real iPhone. Pick one
+from View › Labs › Precision drag (Off, Jog pad, Auto-zoom lens, Offset grip)
+or open the app with `?lab=precision:jog`, `?lab=precision:lens` or
+`?lab=precision:grip`; `?lab=-precision` turns it off. Choosing one also turns
+the touch chooser lab on, since only a long press arms. The choice persists
+per browser (`sharecut.labs.precision`, `timeline/precision/precisionLab.ts`).
+
+Every variant takes over the same targets: an armed fade, trim, pending edge
+or envelope point's time. Any other armed target (a clip body, a roll, a
+crossfade grip, a chapter, a social clip) drags as before. A precision drag is
+one state machine (`timeline/precision/precisionSession.ts`):
+
+    idle → armed → precision(variant, gain, origin) → committed | cancelled
+
+- **Steps.** The value lands on whole steps of the target's smallest nudge
+  (10 ms for a trim, pending edge or envelope point's time, 1 ms for a fade),
+  counted from where it was armed, so one step is one frame.
+- **Boundaries.** Hard limits always stop it. A soft boundary (the playhead, a
+  chapter, a neighbour edge, from `softBoundaries`) holds it with the strip's
+  bump and a "stopped at" note until the finger pushes `DRAG_DETENT_PX` past;
+  moving back frees it at once.
+- **Same edit.** The hit router hands an armed target to the lab
+  (`HitRoutingOptions.precision`) instead of replaying the drag on it. A fade
+  or trim drives its own drag draft by value (`useClipEdgeHandles` registers a
+  driver), so the edge, the ripple wave or gap mark, the arrows and lost spans
+  on every dialogue lane, the save (`saveClipEdge`), the cut-speech question
+  (Cut anyway or Leave a gap) and the one Undo are the drag's own. A pending
+  edge or envelope point previews and saves as a held strip nudge does.
+- **Exits.** A second finger anywhere cancels and rolls back. Commit is per
+  variant, below.
+
+The variants:
+
+- **Jog pad.** Arming puts a trackpad in the drawer's place. A drag anywhere
+  on it moves the target by the finger's travel at the timeline's zoom.
+  Sliding the finger up while dragging slows it a step every 40 px, like iOS
+  media scrubbing: Full, Half, Quarter, Fine. Fine is 1/8, or slower where the
+  zoom would leave a step under 8 px of finger travel. A ladder on the pad
+  shows the speed and the label at its centre names it. Done or a tap
+  anywhere outside the pad finishes.
+- **Auto-zoom lens.** Arming zooms the timeline itself, anchored under the
+  finger, until about ±1 s fills the time column, and frames it. Dragging
+  anywhere in the frame moves the target 1:1 at that zoom. Lifting after a
+  drag (the arming finger's or a later one) finishes, or Done; the zoom,
+  scroll and playhead animate back.
+- **Offset grip.** The arming finger keeps dragging, at a loupe zoom of at
+  least 200 px per second, so a step is at least 2 px. A loupe above the
+  finger magnifies the lane around the edge with 10 ms ticks from where it
+  was armed, and a leader runs down to the edge, so the finger never covers
+  it. Lifting finishes.
+
+`e2e-compat/precision-drag.spec.ts` moves the last clip's trim end exactly one
+step with each variant at 390×844 in WebKit and Chromium, saves it, and shows
+a second finger cancelling each with nothing saved. A jog over the guest's
+speech asks Cut anyway or Leave a gap, and a tap outside the pad saves. The
+owner picks one after trying them on a phone. The winner then needs the
+real build, and the other two are deleted.

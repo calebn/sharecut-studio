@@ -86,6 +86,8 @@ import { MarkerLane } from "./MarkerLane";
 import { Playhead } from "./Playhead";
 import { PresenceOverlay } from "./PresenceOverlay";
 import { ProsodyStatusAnnouncer } from "./ProsodyStatusAnnouncer";
+import { PrecisionLayer } from "./precision/PrecisionLayer";
+import { precisionHandoff } from "./precision/precisionController";
 import { RecordingOverlay, RecordingScrollExtent } from "./RecordingOverlay";
 import { TargetChooser } from "./TargetChooser";
 import { BladeGuide, FollowPlayheadChip } from "./TimelineLeaves";
@@ -286,6 +288,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
               : null,
         ),
       onTarget: (hit) => useDawStore.getState().setSelectionHit(hit),
+      precision: precisionHandoff,
       snapshot: () => {
         const { selection, selectionHit } = useDawStore.getState();
         return () => {
@@ -1140,6 +1143,7 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
               bounds={visibleBox(lanesRef.current ?? scrollRef.current)}
             />
           ) : null}
+          <PrecisionLayer />
           <div className="timeline-edge timeline-edge--start" aria-hidden />
           <div className="timeline-edge timeline-edge--end" aria-hidden />
         </div>
