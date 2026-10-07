@@ -3,19 +3,20 @@ import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { recordMobileViewport } from "../record/recordStoryDecorator";
 import { Button } from "./Button";
-import { UndoToast, type UndoToastState } from "./UndoToast";
+import { Toast, type ToastState } from "./Toast";
 
 const MESSAGE = "Resolved comment at 00:12";
 
-function UndoToastPreview(args: {
-  onUndo: () => void;
+function ToastPreview({
+  message = MESSAGE,
+  ...args
+}: {
+  onUndo?: () => void;
   onDismiss: () => void;
   undoDisabled?: boolean;
+  message?: string;
 }) {
-  const [toast, setToast] = useState<UndoToastState | null>({
-    id: 1,
-    message: MESSAGE,
-  });
+  const [toast, setToast] = useState<ToastState | null>({ id: 1, message });
   return (
     <main aria-label="Comments">
       <Button
@@ -23,19 +24,23 @@ function UndoToastPreview(args: {
         onClick={() =>
           setToast((current) => ({
             id: (current?.id ?? 0) + 1,
-            message: MESSAGE,
+            message,
           }))
         }
       >
         Show toast
       </Button>
-      <UndoToast
+      <Toast
         {...args}
         toast={toast}
-        onUndo={() => {
-          setToast(null);
-          args.onUndo();
-        }}
+        onUndo={
+          args.onUndo
+            ? () => {
+                setToast(null);
+                args.onUndo?.();
+              }
+            : undefined
+        }
         onDismiss={() => {
           setToast(null);
           args.onDismiss();
@@ -45,17 +50,17 @@ function UndoToastPreview(args: {
   );
 }
 
-const meta: Meta<typeof UndoToast> = {
-  title: "Molecules/UndoToast",
-  component: UndoToast,
+const meta: Meta<typeof Toast> = {
+  title: "Molecules/Toast",
+  component: Toast,
   tags: ["autodocs"],
   args: { toast: null, onUndo: fn(), onDismiss: fn() },
   argTypes: { toast: { control: false } },
-  render: (args) => <UndoToastPreview {...args} />,
+  render: (args) => <ToastPreview {...args} />,
 };
 
 export default meta;
-type Story = StoryObj<typeof UndoToast>;
+type Story = StoryObj<typeof Toast>;
 
 export const Shown: Story = {
   play: async ({ canvasElement }) => {
@@ -96,5 +101,17 @@ export const Phone: Story = {
   play: async ({ canvasElement }) => {
     const status = within(canvasElement).getByRole("status");
     await waitFor(() => expect(status).toHaveTextContent(MESSAGE));
+  },
+};
+
+export const WithoutUndo: Story = {
+  render: (args) => (
+    <ToastPreview onDismiss={args.onDismiss} message="Guest link copied" />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const status = canvas.getByRole("status");
+    await waitFor(() => expect(status).toHaveTextContent("Guest link copied"));
+    await expect(canvas.queryByRole("button", { name: "Undo" })).toBeNull();
   },
 };

@@ -128,6 +128,25 @@ export type SourcePreviewError = {
 };
 
 /** Public DAW API — same shape as the former Context value. */
+/** Toast Undo for one recorded change: valid while history still sits at `cursor`. */
+export interface HistoryUndo {
+  cursor: number;
+}
+
+/** The visible twin of an announcement, with its Undo while one is valid. */
+export interface FeedbackToast {
+  id: number;
+  message: string;
+  undo: HistoryUndo | null;
+}
+
+export interface AnnounceOptions {
+  /** Offer Undo on the toast (see `historyUndoSince`). */
+  undo?: HistoryUndo | null;
+  /** False when a persistent control already shows this status (the job chip), so only the live region speaks it. */
+  toast?: false;
+}
+
 export interface DawState {
   sourcePreview: SourcePreviewRequest | null;
   sourcePreviewGeneration: number;
@@ -256,8 +275,12 @@ export interface DawState {
   ingestBusy: boolean;
   /** Track id highlighted while dragging audio over a lane (TCP sync). */
   ingestDropTrackId: string | null;
-  /** Polite live-region status (refresh mix, etc.). */
+  /** Polite live-region status: the last announcement. */
   statusAnnouncement: string;
+  /** Counts announcements, so the live region speaks a repeated message again. */
+  statusAnnouncementSeq: number;
+  /** Visible twin of the last announcement that has one; null once dismissed. */
+  feedbackToast: FeedbackToast | null;
   /**
    * Result copy owed by jobs whose callers announce their own outcome (#704):
    * `useJobStatusAnnouncement` holds back the generic "ok" headline for these
@@ -418,7 +441,12 @@ export interface DawState {
   setRenderPreviewBusy: (on: boolean) => void;
   setIngestBusy: (on: boolean) => void;
   setIngestDropTrackId: (trackId: string | null) => void;
-  announceStatus: (message: string) => void;
+  /** Speak `message` in the live region and show it as a toast (see `AnnounceOptions`). */
+  announceStatus: (message: string, options?: AnnounceOptions) => void;
+  /** Close the toast if it is still `id`. */
+  dismissFeedbackToast: (id: number) => void;
+  /** Remove the toast's Undo once history has moved past its change. */
+  dropFeedbackUndo: (id: number) => void;
   /** Mark a job whose caller will post its own result copy (holds back its generic "ok" headline). */
   expectJobResult: (jobId: string) => void;
   /** Hand over a job's own result copy for `useJobStatusAnnouncement` to speak. */

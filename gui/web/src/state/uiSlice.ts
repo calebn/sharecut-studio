@@ -115,6 +115,8 @@ type UiSlice = Pick<
   | "ingestBusy"
   | "ingestDropTrackId"
   | "statusAnnouncement"
+  | "statusAnnouncementSeq"
+  | "feedbackToast"
   | "pendingJobResults"
   | "spokenJobResultIds"
   | "setHighlightStaleRender"
@@ -122,6 +124,8 @@ type UiSlice = Pick<
   | "setIngestBusy"
   | "setIngestDropTrackId"
   | "announceStatus"
+  | "dismissFeedbackToast"
+  | "dropFeedbackUndo"
   | "expectJobResult"
   | "announceJobResult"
   | "settleJobResult"
@@ -256,6 +260,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     ingestBusy: false,
     ingestDropTrackId: null as string | null,
     statusAnnouncement: "",
+    statusAnnouncementSeq: 0,
+    feedbackToast: null,
     pendingJobResults: {},
     spokenJobResultIds: [] as readonly string[],
     setHighlightStaleRender: (highlightStaleRender) =>
@@ -263,7 +269,26 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     setRenderPreviewBusy: (renderPreviewBusy) => set({ renderPreviewBusy }),
     setIngestBusy: (ingestBusy) => set({ ingestBusy }),
     setIngestDropTrackId: (ingestDropTrackId) => set({ ingestDropTrackId }),
-    announceStatus: (statusAnnouncement) => set({ statusAnnouncement }),
+    announceStatus: (message, options = {}) =>
+      set((s) => {
+        const id = s.statusAnnouncementSeq + 1;
+        const showToast = message !== "" && options.toast !== false;
+        return {
+          statusAnnouncement: message,
+          statusAnnouncementSeq: id,
+          ...(showToast
+            ? { feedbackToast: { id, message, undo: options.undo ?? null } }
+            : {}),
+        };
+      }),
+    dismissFeedbackToast: (id) =>
+      set((s) => (s.feedbackToast?.id === id ? { feedbackToast: null } : {})),
+    dropFeedbackUndo: (id) =>
+      set((s) =>
+        s.feedbackToast?.id === id && s.feedbackToast.undo
+          ? { feedbackToast: { ...s.feedbackToast, undo: null } }
+          : {},
+      ),
     expectJobResult: (jobId) =>
       set((s) => ({
         pendingJobResults: { ...s.pendingJobResults, [jobId]: null },

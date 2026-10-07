@@ -1,5 +1,7 @@
 import { approveEdits, rejectEdits } from "../api";
 import { playPendingPreview } from "../audio/pendingPreview";
+import { askConfirm } from "../feedback/ask";
+import { historyCursor, historyUndoSince } from "../feedback/historyUndo";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { PendingEditView } from "../types/project";
@@ -57,6 +59,7 @@ async function runApprove(ids: string[]): Promise<ExecuteResult> {
     }
     try {
       const projectPath = useDawStore.getState().projectPath;
+      const before = historyCursor();
       const { queued, asked } = await approveEdits(projectPath, ids);
       if (asked) return { status: "ok" };
       const next = useDawStore.getState();
@@ -76,6 +79,7 @@ async function runApprove(ids: string[]): Promise<ExecuteResult> {
         ids.length === 1
           ? "Applied tighten hit"
           : `Applied ${ids.length} tighten hits`,
+        { undo: historyUndoSince(before) },
       );
       return { status: "ok" };
     } catch (e) {
@@ -97,6 +101,7 @@ async function runReject(id: string): Promise<ExecuteResult> {
     }
     try {
       const projectPath = useDawStore.getState().projectPath;
+      const before = historyCursor();
       const { queued } = await rejectEdits(projectPath, [id]);
       const next = useDawStore.getState();
       if (queued) {
@@ -107,7 +112,9 @@ async function runReject(id: string): Promise<ExecuteResult> {
       if (next.selection?.kind === "pending" && next.selection.id === id) {
         next.setSelection(null);
       }
-      next.announceStatus("Skipped tighten hit");
+      next.announceStatus("Skipped tighten hit", {
+        undo: historyUndoSince(before),
+      });
       return { status: "ok" };
     } catch (e) {
       const msg = errorMessage(e);
@@ -180,7 +187,7 @@ export function registerTightenCommands(): void {
     if (ids.length === 0) {
       return { status: "disabled", reason: "Nothing is eligible to apply" };
     }
-    if (typeof window !== "undefined" && !window.confirm(summary.confirm)) {
+    if (!(await askConfirm(summary.question))) {
       return { status: "disabled", reason: "Cancelled" };
     }
     const fresh = useDawStore.getState();

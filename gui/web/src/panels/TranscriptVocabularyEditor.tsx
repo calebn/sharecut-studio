@@ -212,8 +212,8 @@ export function TranscriptVocabularyEditor({
     }
   };
 
-  const retranscribe = () => {
-    const overwrite = confirmReplaceEdited(
+  const retranscribe = async () => {
+    const overwrite = await confirmReplaceEdited(
       saved?.edited_tracks ?? [],
       "Re-transcribe",
     );
@@ -317,7 +317,10 @@ export function TranscriptVocabularyEditor({
       {saved?.needs_retranscription && (
         <p role="status">
           Transcript needs re-transcription to use this vocabulary.{" "}
-          <Button disabled={busy || saving || changed} onClick={retranscribe}>
+          <Button
+            disabled={busy || saving || changed}
+            onClick={() => void retranscribe()}
+          >
             Re-transcribe
           </Button>
         </p>

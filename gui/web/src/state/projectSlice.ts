@@ -123,6 +123,8 @@ export const createProjectSlice: StateCreator<
             // stale id must not hush a headline on the next project.
             pendingJobResults: {},
             spokenJobResultIds: [],
+            // A toast's Undo targets this project's history; never carry it over.
+            feedbackToast: null,
             ...waveformViewState(projectPath),
           }),
       ...zoomReclampPatch(get(), sessionSecOf({ project: initialProject })),

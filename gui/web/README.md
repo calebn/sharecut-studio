@@ -170,9 +170,10 @@ and DAW selection state.
 
 `Organisms/LoadingScreen` and `Organisms/ErrorScreen` show the shared cover
 screens, and `Atoms/CloseButton` shows the one close affordance `Dialog` and
-`BottomSheet` both use. `Molecules/UndoToast` shows the undo/dismiss toast
+`BottomSheet` both use. `Molecules/Toast` shows the undo/dismiss toast
 with a launcher that replays it, including the disabled-Undo (paused timer)
-state and a 360px phone variant; `Molecules/FocusPull` shows its initial view
+state, a toast with nothing to undo, and a 360px phone variant;
+`Organisms/AskDialog` shows the app's confirm and text prompt; `Molecules/FocusPull` shows its initial view
 and the exit/enter transition. `Templates/PipelineStatusChip`'s `Stalled`
 story previews the stall copy against a fixed `nowSec` so it renders
 deterministically instead of depending on a ticking clock — see
@@ -232,7 +233,7 @@ helper, keymap listener, and WebMCP adapter.
 | E2E smoke + a11y | `e2e/*.spec.ts` | Playwright + `@axe-core/playwright` via shared `expectPageAxeClean` (dense DAW) or `expectReadingSurfaceAxeClean` (Home / marketing HTML; required for green CI). Timeline helpers: `e2e/timelineZoom.ts` (`zoomTimelineIn`: focus the timeline, then bounded `=` presses; the first press must widen the ruler, optional scroll-range threshold or zoom ceiling) and `e2e/scroll.ts` (`scrollTimelineBy`). |
 | Browser compatibility | `e2e-compat/*.spec.ts` | Cross-browser matrix for playback progress and stable Pause, IndexedDB comment queue persistence and command-identity replay, document update delivery after WebSocket reconnect, phone layout, synthetic-media recording consent, deep-zoom geometry at the 15 M px content ceiling (`e2e/deepZoom.ts`; `e2e/deepZoom.test.ts` validates the stretched fixture with the episode schema and malformed clip/envelope values), and a core-flow walk on both engines (`e2e-compat/core-flow.spec.ts`: keeper capture → upload → landing with a non-silent peak, transcript hydrate and word correct/undo, Tighten empty state, viewer-share MP3 proxy playback, host Bounce (full-page axe with the dialog open) to a non-silent WAV; #704 turned WebKit on, via `e2e/keeperContexts.ts`'s `RECORDER_CONTEXT` microphone grant and `keeperContextSource`'s `launchPersistentContext("")` for WebKit's OPFS gap); runs Chromium and Playwright WebKit with zero retries. Shared helpers: `e2e/queuedComment.ts` (comment route interception and host posting), `e2e/recordRoom.ts` (record rooms, E2E flag, record links, `openHostRecordRoom`, `ensureHostRecordCommand`, `clickHostTransport`, `landParticipant`, `joinAsGuest`, `fillGuestDisplayName`, `joinAsProducer`, `fillDisplayNameField`), `e2e/keeperContexts.ts` (`RECORDER_CONTEXT`, `keeperContextSource`), `e2e/keeperOpfs.ts` (keeper OPFS inspection), `e2e/wavPeak.ts` (landed and bounced WAV peaks), `e2e/playback.ts` (`expectPlaybackAdvancesThenHolds`), `e2e/transcriptEdit.ts` (`openTranscriptPanel`, `withDocumentCommandTypes`), `e2e/exportFiles.ts` (`bouncedWavs`), `e2e/launchOptions.ts` (`withLaunchArgs` on top of the base launch options; `CHROMIUM_FAKE_MEDIA_ARGS`, the fake-media flags shared by the compat Chromium projects and the main suite's record specs), `e2e/shareNavigation.ts` (`createReviewShare` for guest review shares), `e2e/syntheticMicrophone.ts` (oscillator mic stub) and `e2e/scroll.ts` (`scrollToEnd`, re-applied until the end is reachable; `scrollTimelineBy`, a clamped relative scroll). Set `E2E_BRANDED_CHROME=1` locally to also use installed Chrome. Per-engine results (Chromium, WebKit, Firefox) and what stays manual (Apple Safari and Private Browsing, native microphone prompts, hardware capture): [docs/testing.md § Browser acceptance matrix](../../docs/testing.md#browser-acceptance-matrix), guarded by `tests/test_browser_acceptance_matrix.py`. |
 | Static a11y | oxlint `jsx-a11y` | Interaction + media rules are **errors** — fix the markup; do not add lint suppressions |
-| TS hygiene | oxlint + `oxlint-tsgolint` (see `.oxlintrc.json`) | No explicit `any` / `@ts-*` escapes; `===`; `const`; no `var`; no `console` in `src/` (allowed in `scripts/`); type-aware promise + stringification hygiene (`options.typeAware`) |
+| TS hygiene | oxlint + `oxlint-tsgolint` (see `.oxlintrc.json`) | No explicit `any` / `@ts-*` escapes; `===`; `const`; no `var`; no `console` in `src/` (allowed in `scripts/`); no `alert` / `confirm` / `prompt` anywhere (`no-alert`, no per-file exceptions: ask with `feedback/ask` instead); type-aware promise + stringification hygiene (`options.typeAware`) |
 | Theme tokens | Stylelint + pytest | Color, padding, margin, gap, font-size, radius outside `src/styles/theme/` must use `var(--…)`; the five timeline partials also require `--z-*` roles for positive z-index values. Hex only in theme files. Chrome rem (`meowtec/no-px`); canvas `px` needs `-- user-approved:`. Inline JS styles and Python-authored CSS colors: `tests/test_css_policy.py` |
 | Motion | Stylelint + pytest | In partials, `transition*` / `animation*` time with `--motion-*` tokens, never a literal `ms`/`s` (`declaration-property-unit-disallowed-list`; stop motion with `none`); `tests/test_css_policy.py` also requires every one, loops included, inside `@media (prefers-reduced-motion: no-preference)` |
 | `!important` / `@layer` / viewport `@media` | Stylelint + pytest | Default-off; allowed only with `stylelint-disable` + `-- user-approved:`. `tests/test_css_policy.py` does **not** strip comments. `font-size: 62.5%` is a hard ban |
@@ -401,8 +402,9 @@ Sharecut Studio chrome library — see [`docs/ui-library.md`](docs/ui-library.md
 | `Dialog` / `useDialogModal` | Modal scrim+panel; trap + inert chrome; Escape closes the innermost layer (an open `Menu`, then an open `InlineConfirm`'s Keep, then the dialog) |
 | `useResizeObserver` | Resize → callback (one observer, latest callback, `enabled`); never `new ResizeObserver` inline |
 | `BottomSheet` | Phone/tablet peek sheet (non-modal) |
-| `Field` / `FieldRow` | Labeled control + hint; horizontal nudge row |
-| `InlineError` | Non-pipeline error lines |
+| `Field` / `FieldRow` | Labeled control + hint + error; horizontal nudge row. `Field` owns the ids: its children are a function that receives `control` (`id`, `aria-describedby`, `aria-invalid`) to spread on the control, so the hint and error always reach it |
+| `InlineError` | Error lines; always `role="alert"`, so a new error is announced once when it appears |
+| `Toast` | Short-lived message with optional Undo and Dismiss; pauses on hover/focus. The app toast is `feedback/FeedbackToast` (below) |
 | `LoadingScreen` / `ErrorScreen` | App boot states |
 | `DefinitionList` / `DefItem` | Inspector `<dl>` rows |
 | `InspectorSeekFooter` | Seek + play-around footers |
@@ -433,6 +435,8 @@ Double-submit guards: use `hooks/useSingleFlight()` (`busy` / `run`) instead of 
 For caught values, use `utils/apiError.errorMessage(error, fallback)` when the caller has a specific fallback for non-`Error` values. Omit the fallback only when showing the string form of any thrown value is intentional.
 
 Comments: shared `src/comments/` (`CommentCard`, `CommentCompose`, `useCommentActions`).
+
+Feedback: `src/feedback/`. `announceStatus(message, { undo })` speaks in the shell's live region and shows the same string in `FeedbackToast`. Pass `{ toast: false }` only when a persistent control already shows the status (the job chip, presence avatars). For Undo, read `historyCursor()` before the mutation and pass `historyUndoSince(before)` after it; the toast runs `history.undo` through the command bus while history still sits on that change, and drops Undo once anything else moves history. Ask before an action with `await askConfirm({ title, message, keepLabel, actionLabel, danger })` or `await askText(...)`; `AskDialog` renders the question in the shared `Dialog` (a bottom sheet on phones). Never call `window.confirm` / `alert` / `prompt`; in tests, answer with `test/ask.answerQuestions(reply)`.
 
 ## Layout constants
 

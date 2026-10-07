@@ -6,10 +6,11 @@ import { errorMessage } from "../utils/apiError";
 
 import { addTrackCommand, setTrackMediaCommand, uploadMediaFile } from "../api";
 import { refreshDocumentProject } from "../document/applyDocumentUpdate";
+import { askConfirm } from "../feedback/ask";
 import { useDawStore } from "../state/dawStore";
 import {
   formatIngestDuration,
-  replaceAudioConfirmMessage,
+  replaceAudioQuestion,
   trackHasMedia,
 } from "./dropLabels";
 
@@ -89,28 +90,27 @@ export async function ingestFiles(
 
   const list = [...files];
   const taken = new Set((s.project?.tracks ?? []).map((t) => t.id));
+  let replaced = false;
+  if (target.kind === "track") {
+    const track = s.project?.tracks.find((t) => t.id === target.id);
+    replaced = trackHasMedia({
+      mediaPath: track?.media_path,
+      clipCount: s.project?.clips?.tracks?.[target.id]?.length ?? 0,
+    });
+    if (
+      replaced &&
+      (!(await askConfirm(replaceAudioQuestion(track?.label || target.id))) ||
+        useDawStore.getState().projectPath !== projectPath)
+    ) {
+      return;
+    }
+  }
   s.setIngestBusy(true);
   s.announceStatus(`Importing ${list.length} file(s)…`);
   let focusId: string | null = null;
-  let replaced = false;
   try {
     if (target.kind === "track") {
       const first = list[0]!;
-      const track = s.project?.tracks.find((t) => t.id === target.id);
-      const laneClips = s.project?.clips?.tracks?.[target.id] ?? [];
-      const hasClips = trackHasMedia({
-        mediaPath: track?.media_path,
-        clipCount: laneClips.length,
-      });
-      if (hasClips) {
-        const ok = window.confirm(
-          replaceAudioConfirmMessage(track?.label || target.id),
-        );
-        if (!ok) {
-          return;
-        }
-        replaced = true;
-      }
       const uploaded = await uploadMediaFile(projectPath, first);
       await setTrackMediaCommand(projectPath, target.id, uploaded.rel_path!);
       focusId = target.id;

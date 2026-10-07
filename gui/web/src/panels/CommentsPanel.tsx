@@ -15,9 +15,9 @@ import {
   EmptyState,
   InlineError,
   SegmentedControl,
+  Toast,
+  type ToastState,
   ToggleButton,
-  UndoToast,
-  type UndoToastState,
 } from "../ui";
 import { errorMessage } from "../utils/apiError";
 import { saveCommentAuthor, sessionDisplayName } from "../utils/commentAuthor";
@@ -85,7 +85,7 @@ export function CommentsPanel({
   const toastSeq = useRef(0);
   const panelRef = useRef<HTMLDivElement>(null);
   const [undoToast, setUndoToast] = useState<
-    (UndoToastState & { comment: TimelineComment }) | null
+    (ToastState & { comment: TimelineComment }) | null
   >(null);
   const dismissUndo = useCallback(() => setUndoToast(null), []);
   const mounted = useMountedRef();
@@ -112,7 +112,8 @@ export function CommentsPanel({
     // Suppress its later app-wide announcement. Revisit if toast ownership moves.
     if (!ok || !mounted.current) return;
     setUndoToast(null);
-    announceStatus("Comment reopened");
+    // The reopened card is the visual twin; a second toast would cover the panel's.
+    announceStatus("Comment reopened", { toast: false });
   };
 
   const comments = project?.comments;
@@ -332,7 +333,7 @@ export function CommentsPanel({
         )}
       </ul>
       {guestShare ? null : (
-        <UndoToast
+        <Toast
           toast={undoToast}
           undoDisabled={busy}
           onUndo={() => void onUndoResolve()}

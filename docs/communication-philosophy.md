@@ -188,9 +188,13 @@ the empty state, not a separate discovery task.
 - **Destructive confirmations use the app's `Dialog` with a
   `Button variant="danger"` action — never `window.confirm()`.**
   Native confirms are unstyled, can't carry consequences, and bypass
-  the announce pipeline. #1027 replaced the Share dialog's two; six
-  calls in five files remain, and #1031 replaces them and turns on
-  oxlint's `no-alert` rule (see Governance). The
+  the announce pipeline. Code asks with `gui/web/src/feedback/ask.ts`:
+  `await askConfirm(...)` opens the app's `AskDialog` (the shared
+  `Dialog`, a bottom sheet on phones) with the consequence, Keep first
+  and focused, and the action last, `danger` when it discards work;
+  `await askText(...)` replaces `window.prompt()` with a `Field`. #1027
+  and #1031 replaced every native dialog, and oxlint's `no-alert` rule
+  rejects new ones (see Governance). The
   blade-cut confirm sheet in `EditingToolRail` (named target, time,
   Cancel safe-left, action right) is the model. Inside an open
   `Dialog`, confirm in place with `ui/InlineConfirm` instead of
@@ -203,21 +207,31 @@ the empty state, not a separate discovery task.
   terms: "Stop sharing this Viewer link? Anyone using it loses access.
   [Keep link] [Stop sharing]". Never a raw token. (Surface 2.)
 - **Feedback must be visible, not screen-reader-only.** Every
-  `announceStatus` needs a visual twin: a toast stack in `ui/` fed by
-  the existing announce channel. `ui/UndoToast` covers comment
-  resolution today; the app-wide stack is #1031. A multi-minute export
-  whose only "done" signal is invisible is a high-severity bug.
-  (Surface 6.)
+  `announceStatus` shows the same string in the app toast
+  (`feedback/FeedbackToast`, built on `ui/Toast`): one toast at a time,
+  centred at the bottom above the status bar or the phone mode nav,
+  while the shell's live region speaks it. Only a status that a
+  persistent control already shows (the job chip, the presence avatars)
+  passes `{ toast: false }`. The Comments panel keeps its own `ui/Toast`
+  for comment resolution. A multi-minute export whose only "done"
+  signal is invisible is a high-severity bug. (Surface 6.)
 - **Destructive list actions get toast-with-undo.** Approve, reject,
   skip, blade, trim: after the mutation, a transient confirmation
   with an Undo action. The History tab is the backstop, not the
   interface. (Surfaces 3, 4.) A reviewed-pass approval gets one
-  pass-level undo, per UI philosophy § 1.
+  pass-level undo, per UI philosophy § 1. Pass `{ undo:
+  historyUndoSince(before) }` to `announceStatus`: the toast's Undo runs
+  `history.undo` only while history still sits on that change, and goes
+  away once anything else moves history, so it never reverses someone
+  else's edit. Tighten apply, skip and Apply eligible, track reorder and
+  track removal offer it; blade, trim and the other timeline edits
+  still need to adopt it.
 - **Form errors are wired, not just shown.** `Field` sets
   `aria-describedby` to its error; `InlineError` carries
   `role="alert"`. Fix the primitives once; every caller inherits it.
-  (Surface 6; today callers pass the error ID and role, and #1031
-  moves that into the primitives.)
+  (Surface 6; #1031 moved this into the primitives: `Field` owns the
+  ids and hands its control `aria-describedby` and `aria-invalid`
+  through a render prop, and `InlineError` always alerts.)
 - **Heavyweight actions get a dialog, not a menu item.** Starting a
   minutes-long mastered export from one menu tap with no cancel is
   the wrong weight for the interaction — give it the bounce-dialog
@@ -275,9 +289,10 @@ audited finding.
   near the action, not only in History.
 - [ ] Empty states include the recovery action; error states name the
   fix.
-- [ ] No `window.confirm()`; destructive actions use `Dialog` with a
-  `danger` action and consequence-naming copy, spatially separated
-  from safe actions.
+- [ ] No `window.confirm()`, `alert()` or `prompt()` (lint rejects
+  them); destructive actions ask with `askConfirm` (or `InlineConfirm`
+  inside an open dialog) with a `danger` action and consequence-naming
+  copy, spatially separated from safe actions.
 - [ ] Copy uses the Terminology table verbs-first; no raw tokens/IDs
   in user-facing strings.
 
@@ -307,14 +322,13 @@ new contributor or agent finds it in under a minute:
   control placement follow `docs/communication-philosophy.md`
   (terminology table, placement rules, mobile checklist)."
 - Existing checks carry specific rules. oxlint's `no-alert` rule
-  (`gui/web/.oxlintrc.json`) turns on as an error, with no per-file
-  exceptions, once #1031 replaces the remaining `alert()`,
-  `confirm()` and `prompt()` calls; until then review enforces it. axe runs in
-  Vitest (`gui/web/src/test/a11y.ts`) and Playwright
+  (`gui/web/.oxlintrc.json`) is an error with no per-file exceptions,
+  so any `alert()`, `confirm()` or `prompt()` call fails lint. axe
+  runs in Vitest (`gui/web/src/test/a11y.ts`) and Playwright
   (`make test-web-e2e`) and catches missing names, invalid roles, and
-  missing labels. It does not check that `Field` wires its error or
-  that every target meets 44px; review checks those until #1031 and
-  #1032 land.
+  missing labels. `Field` wires its own hint and error, and its tests
+  pin that. axe does not check that every target meets 44px; review
+  checks that until #1032 lands.
 - The `user-facing-copy-and-controls` docs-sync row is advisory. It
   cannot detect a renamed concept, so copy review is what keeps the
   Terminology table current.
@@ -401,8 +415,8 @@ The port also corrected references that no longer matched the code. The
 `ux-pack` rule in `contracts/docs-sync.json` replaced
 `scripts/check_ux_pack_sync.py`. The repo has no PR template, so the checklist
 item lives in `docs/contributing.md`. `Dialog` has no `danger` variant;
-`Button` does. The automatic `Field` and `InlineError` wiring is not
-shipped, and the text says so. The adjacent MCP note shipped in #1027.
+`Button` does. The automatic `Field` and `InlineError` wiring was not
+shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
 
 ## Changelog
 
@@ -450,3 +464,8 @@ shipped, and the text says so. The adjacent MCP note shipped in #1027.
   keeps Bounce… and Export deliverables… together between New / Open and
   Share / Record room; the command palette is **Commands and shortcuts**,
   searchable from **?** or More → **Search commands**.
+- 2026-10-07 — Feedback primitives (#1031): every announcement shows in the
+  app toast with a scoped Undo where history recorded the change; the last
+  native dialogs became `askConfirm` / `askText` in `AskDialog`; oxlint
+  `no-alert` is an error; `Field` wires its hint and error and `InlineError`
+  always alerts.

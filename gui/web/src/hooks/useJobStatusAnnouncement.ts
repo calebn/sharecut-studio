@@ -70,7 +70,7 @@ export function useJobStatusAnnouncement(): void {
     if (activityRunningCount > 1) {
       parts.push(`${activityRunningCount} activities`);
     }
-    announceStatus(parts.join(": "));
+    announceStatus(parts.join(": "), { toast: false });
   }, [
     activityRunningCount,
     announceStatus,

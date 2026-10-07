@@ -1,3 +1,4 @@
+import type { ConfirmQuestion } from "../feedback/ask";
 import type {
   CombinedUtterance,
   PendingEditView,
@@ -207,16 +208,37 @@ export function eligibleApplyAllIds(
   return hits.filter((hit) => !avoidHarsh || !hit.harsh).map((hit) => hit.id);
 }
 
+function hitCount(n: number): string {
+  return n === 1 ? "1 tighten hit" : `${n} tighten hits`;
+}
+
+/** Counts for "Apply eligible" and the question it asks before applying. */
 export function applyAllSummary(
   listed: number,
   eligible: number,
-): { apply: number; skipped: number; confirm: string } {
+): {
+  apply: number;
+  skipped: number;
+  question: Omit<ConfirmQuestion, "kind">;
+} {
   const skipped = Math.max(0, listed - eligible);
-  const confirm =
-    skipped > 0
-      ? `Apply ${eligible} of ${listed}; ${skipped} skipped as harsh`
-      : `Apply ${eligible} of ${listed}`;
-  return { apply: eligible, skipped, confirm };
+  const kept =
+    skipped === 1
+      ? " 1 harsh hit stays pending."
+      : skipped > 1
+        ? ` ${skipped} harsh hits stay pending.`
+        : "";
+  return {
+    apply: eligible,
+    skipped,
+    question: {
+      title: `Apply ${hitCount(eligible)}?`,
+      message: `Their cuts go into the timeline.${kept}`,
+      keepLabel: "Keep reviewing",
+      actionLabel: `Apply ${eligible}`,
+      danger: false,
+    },
+  };
 }
 
 export function tightenHitsForListedIds(

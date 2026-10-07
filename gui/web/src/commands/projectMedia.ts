@@ -10,6 +10,8 @@ import { desktopCloseGuardArmed } from "../desktop/useDesktopCloseGuard";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
 import { patchTracksOrder } from "../document/projectPatch";
+import { askConfirm, askText } from "../feedback/ask";
+import { historyCursor, historyUndoSince } from "../feedback/historyUndo";
 import { canIngestMedia, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { withAbortTimeout } from "../utils/abortTimeout";
@@ -86,12 +88,15 @@ async function applyTrackReorder(
     return { status: "disabled", reason: "Unknown track" };
   }
   const previous = s.project;
+  const before = historyCursor();
   const seqAtStart = currentDocumentSeq();
   const optimistic = patchTracksOrder(previous, trackId, index);
   s.setProject(optimistic);
   try {
     await reorderTrackCommand(s.projectPath, trackId, index);
-    useDawStore.getState().announceStatus("Reordered track");
+    useDawStore.getState().announceStatus("Reordered track", {
+      undo: historyUndoSince(before),
+    });
     return { status: "ok" };
   } catch (e) {
     revertOptimisticIfUnchanged(
@@ -170,9 +175,14 @@ export function registerProjectMediaCommands(): void {
             return;
           }
           if ("unavailable" in picked && picked.unavailable) {
-            path = window.prompt(
-              picked.detail || "Path to episode.project.json",
-            );
+            path = await askText({
+              title: "Open project",
+              label: "Path to episode.project.json",
+              hint: picked.detail,
+              submitLabel: "Open project",
+              requiredMessage:
+                "Enter the path to an episode.project.json file.",
+            });
           } else if ("project_path" in picked) {
             path = picked.project_path;
           }
@@ -218,23 +228,46 @@ export function registerProjectMediaCommands(): void {
   });
 
   registerCommand("track.remove", async (args) => {
+    const asked = useDawStore.getState();
+    if (
+      !canIngestMedia(
+        asked.projectPath,
+        asked.guestMode,
+        asked.shareCapabilities,
+      )
+    ) {
+      return { status: "disabled", reason: "Media ingest not allowed" };
+    }
+    const trackId = resolveInspectorTrackId(args);
+    if (!trackId) {
+      return { status: "disabled", reason: "No track selected in inspector" };
+    }
+    const label =
+      asked.project?.tracks.find((t) => t.id === trackId)?.label || trackId;
+    const confirmed = await askConfirm({
+      title: `Remove the ${label} track?`,
+      message: "Its clips leave the timeline.",
+      keepLabel: "Keep track",
+      actionLabel: "Remove track",
+      danger: true,
+    });
+    if (!confirmed) {
+      return { status: "disabled", reason: "Cancelled" };
+    }
     return enqueueTrackMutate(async () => {
       const s = useDawStore.getState();
-      if (!canIngestMedia(s.projectPath, s.guestMode, s.shareCapabilities)) {
-        return { status: "disabled", reason: "Media ingest not allowed" };
+      if (
+        s.projectPath !== asked.projectPath ||
+        !s.project?.tracks.some((t) => t.id === trackId)
+      ) {
+        return { status: "disabled", reason: "Unknown track" };
       }
-      const trackId = resolveInspectorTrackId(args);
-      if (!trackId) {
-        return { status: "disabled", reason: "No track selected in inspector" };
-      }
-      const track = s.project?.tracks.find((t) => t.id === trackId);
-      const label = track?.label || trackId;
-      if (!window.confirm(`Remove track ${label}?`)) {
-        return { status: "disabled", reason: "Cancelled" };
-      }
+      const before = historyCursor();
       try {
         await removeTrackCommand(s.projectPath, trackId);
-        useDawStore.getState().announceStatus(`Removed ${label}`);
+        useDawStore.getState().announceStatus(`Removed ${label}`, {
+          undo: historyUndoSince(before),
+        });
         const next = useDawStore.getState();
         next.setSelectedTrackIds(
           next.selectedTrackIds.filter((id) => id !== trackId),

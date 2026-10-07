@@ -1,4 +1,5 @@
 import type { startPipelineRun } from "../api";
+import type { ConfirmQuestion } from "../feedback/ask";
 import type {
   PipelineConfigResponse,
   PipelineJobSnapshot,
@@ -60,9 +61,22 @@ export function tightenProposeRunOptions(
 }
 
 /** Confirm text when Find hits would replace listed hits; null for an empty list. */
-export function findHitsConfirm(pendingCount: number): string | null {
+/** The question before Find hits replaces the pending hits; null when there are none to lose. */
+export function findHitsConfirm(
+  pendingCount: number,
+): Omit<ConfirmQuestion, "kind"> | null {
   if (pendingCount <= 0) return null;
-  return `Find hits re-runs tighten analysis and replaces pending hits in this list (${pendingCount} now), including ones you nudged. Continue?`;
+  const hits =
+    pendingCount === 1
+      ? "the 1 pending hit"
+      : `the ${pendingCount} pending hits`;
+  return {
+    title: "Find hits again?",
+    message: `Tighten analysis runs again and replaces ${hits} in this list, including ones you nudged.`,
+    keepLabel: "Keep hits",
+    actionLabel: "Find hits",
+    danger: true,
+  };
 }
 
 /** Error of the Find hits job this panel started, once that job fails. */

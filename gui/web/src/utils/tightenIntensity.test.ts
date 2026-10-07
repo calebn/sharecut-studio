@@ -85,7 +85,15 @@ describe("tightenIntensity helpers", () => {
 describe("findHitsConfirm", () => {
   it("asks only when hits are listed", () => {
     expect(findHitsConfirm(0)).toBeNull();
-    expect(findHitsConfirm(3)).toContain("(3 now)");
+    expect(findHitsConfirm(3)).toEqual({
+      title: "Find hits again?",
+      message:
+        "Tighten analysis runs again and replaces the 3 pending hits in this list, including ones you nudged.",
+      keepLabel: "Keep hits",
+      actionLabel: "Find hits",
+      danger: true,
+    });
+    expect(findHitsConfirm(1)?.message).toContain("the 1 pending hit in");
   });
 });
 
