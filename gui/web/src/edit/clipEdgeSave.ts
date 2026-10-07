@@ -31,7 +31,7 @@ export async function saveClipEdge(
   const { id, source_start, source_end, timeline_start, source_id } = clip;
   const boundary = await loadBoundaryContext(
     projectPath,
-    { kind: "trim", clip_id: id, edge: change.edge },
+    { kind: "trim", clip_id: id, edge: change.edge, mode: "ripple" },
     [{ id, source_start, source_end, timeline_start, source_id }],
   );
   if (!fresh()) return false;

@@ -603,6 +603,74 @@ test("#1135: a long-press at a join offers the ripple trim, which shows where la
   expect(arrows).toBeGreaterThan(0);
 });
 
+test("#1154: a touch ripple trim over the guest's speech asks first, and Leave a gap keeps it", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  await open(page);
+  const pps = await setZoom(page, 1);
+  const finger = await newFinger(context, page, browserName);
+  const commands = watchCommands(page);
+  const seam = await centerOf(
+    page,
+    `${lane} .join-seam[data-hit-kind="roll"] >> nth=1`,
+  );
+  await tap(page, finger, { x: seam.x + 20, y: seam.y });
+  const crowded = await centerOf(
+    page,
+    `${lane} .join-seam[data-hit-kind="roll"] >> nth=1`,
+  );
+  await hold(page, finger, crowded);
+  const chooser = page.getByRole("menu", { name: "Targets here" });
+  await expect(chooser).toBeVisible();
+  const chip = await centerOfLocator(
+    chooser.getByRole("menuitemradio", { name: /^Trim start/ }),
+  );
+  await finger.slide(chip, 6, 30);
+  await page.waitForTimeout(HOLD_MS);
+  // The reference clip from 40 s loses its first 6 s; the guest speaks from
+  // 43.5 s, so the ripple would cut "antonia pointed up to the sky".
+  await finger.slide({ x: chip.x + 6 * pps, y: chip.y }, 12, 30);
+  await expect(page.locator(".trim-readout")).toContainText("Ripple");
+  await finger.up();
+  const dialog = page.getByRole("dialog", { name: "Cut guest's speech too?" });
+  await expect(dialog).toBeVisible();
+  await frame(page, info, `cut-speech-asked-${browserName}`);
+  const trims = () => commands.filter((c) => c.type === "TrimClipEdge");
+  expect(trims().map((c) => c.payload.mode)).toEqual(["ripple"]);
+  expect(trims()[0].payload).not.toHaveProperty("confirm_cut_speech");
+  const asked = (await projectJson(page, projectPath)).clips.tracks;
+  expect(asked[TRACK].map((c) => c.timeline_start)).toEqual([0, 10, 40, 50]);
+
+  const leaveGap = await centerOfLocator(
+    dialog.getByRole("button", { name: "Leave a gap" }),
+  );
+  await tap(page, finger, leaveGap);
+  await expect(dialog).toBeHidden();
+  await expect.poll(() => trims().length).toBe(2);
+  expect(trims()[1].payload.mode).toBe("gap");
+  expect(trims()[1].payload).not.toHaveProperty("confirm_cut_speech");
+  const after = (await projectJson(page, projectPath)).clips.tracks;
+  const starts = after[TRACK].map((c) => c.timeline_start);
+  await expect(page.locator(".guest-attention")).toHaveCount(0);
+  await frame(page, info, `cut-speech-gap-${browserName}`);
+  json(info, `cut-speech-${browserName}`, {
+    pps,
+    starts,
+    guest: after.guest.map((c) => c.timeline_start),
+    commands: trims().map((c) => c.payload),
+  });
+  expect(starts).toHaveLength(4);
+  expect(starts.slice(0, 2)).toEqual([0, 10]);
+  expect(starts[2]).toBeGreaterThan(44);
+  expect(starts[3]).toBe(50);
+  expect(after.guest).toEqual(asked.guest);
+  await expect(
+    page.getByRole("status").filter({ hasText: "Left a gap" }),
+  ).toHaveCount(1);
+});
+
 test("#1135: a plain mouse grab at a join rolls it, as on main", async ({
   page,
 }, info) => {
