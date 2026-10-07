@@ -3,6 +3,8 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+import pytest
+
 from podcast_mcp.gui.jobs import PipelineJob, PipelineJobManager
 from podcast_mcp.services.pipeline import AudioExportResult
 
@@ -266,3 +268,38 @@ def test_start_analyze_runs_working_set_and_takes_slot(minimal_project, monkeypa
         raise AssertionError("analyze should take the pipeline lock")
     except RuntimeError as exc:
         assert "already running" in str(exc)
+
+
+def test_cancelling_an_export_mid_encode_keeps_the_previous_export(
+    minimal_project, monkeypatch, tmp_path
+) -> None:
+    from podcast_mcp.engines.ffmpeg import FFmpegEngine
+
+    eng = FFmpegEngine()
+    if not eng.check_available()[0]:
+        pytest.skip("ffmpeg not available")
+    master = eng.generate_tone(tmp_path / "mastered.wav", duration_sec=900)
+    monkeypatch.setattr(
+        "podcast_mcp.services.pipeline.service.pipeline_steps.ensure_current_master",
+        lambda project, defaults: master,
+    )
+    export_dir = Path(minimal_project).parent / "export"
+    export_dir.mkdir(exist_ok=True)
+    (export_dir / "test_episode.wav").write_bytes(b"OLD-WAV")
+    (export_dir / "test_episode.mp3").write_bytes(b"OLD-MP3")
+
+    mgr = PipelineJobManager()
+    job = mgr.start_export(Path(minimal_project), formats=[{"ext": "mp3", "codec": "libmp3lame"}])
+    deadline = time.monotonic() + 30
+    while not any(p.name.endswith(".partial.mp3") for p in export_dir.iterdir()):
+        assert job.status == "running" and time.monotonic() < deadline
+        time.sleep(0.02)
+    mgr.cancel(job.id)
+    mgr.wait(job, timeout=10)
+
+    assert job.status == "cancelled"
+    assert job.result is None
+    assert {p.name: p.read_bytes() for p in export_dir.iterdir()} == {
+        "test_episode.wav": b"OLD-WAV",
+        "test_episode.mp3": b"OLD-MP3",
+    }
