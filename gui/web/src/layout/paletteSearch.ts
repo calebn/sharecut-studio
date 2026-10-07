@@ -9,7 +9,7 @@ export type PaletteCommand = {
   id: string;
   label: string;
   category: CommandCategory;
-  /** Platform shortcut text, e.g. "⌘+Shift+E"; null for commands without keys. */
+  /** Platform shortcut text, e.g. "⌘⇧E" or "Ctrl+Shift+E"; null without keys. */
   shortcut: string | null;
   /** Registry key, the remap field's placeholder; only on keyed commands. */
   defaultKey?: string;
