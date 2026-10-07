@@ -13,6 +13,7 @@ from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.engines.waveform_media import track_pyramid
 from podcast_mcp.engines.waveform_pyramid import PyramidMeta, pyramid_peak
 from podcast_mcp.models import EpisodeProject, SocialClipCandidate
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.review import approve_by_id, reject_by_id
 from podcast_mcp.util.timebase import SourceSec
 
@@ -333,7 +334,7 @@ def update_social_clip_times(
         updated = clip.model_copy(update={"start": float(start), "end": float(end)})
         project.social_clip_candidates[i] = updated
         return updated
-    raise ValueError(f"social clip not found: {clip_id!r}")
+    raise CodedValueError(f"social clip not found: {clip_id!r}", code="social_clip_not_found")
 
 
 def _source_audio(project: EpisodeProject) -> Path | None:

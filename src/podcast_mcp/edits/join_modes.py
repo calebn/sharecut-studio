@@ -17,6 +17,7 @@ from podcast_mcp.edits.clips_ops import (
 from podcast_mcp.edits.cut_quality import recommend_cut_fade_ms
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject, Track, TrackRole
 from podcast_mcp.util.change_summary import change_summary
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.tracks import dialogue_track_ids, resolve_track
 
 
@@ -83,7 +84,7 @@ def set_clip_join_mode(
     """
     clip = next((c for c in project.clips if c.id == clip_id), None)
     if not clip:
-        raise ValueError(f"unknown clip_id: {clip_id!r}")
+        raise CodedValueError(f"unknown clip_id: {clip_id!r}", code="clip_not_found")
     join_mode = mode if isinstance(mode, ClipJoinMode) else ClipJoinMode(mode)
     clip.join_in_mode = join_mode
     prev = previous_clip(clips_for_track(project, clip.track_id), clip.id)

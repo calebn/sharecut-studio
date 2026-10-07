@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from podcast_mcp.models import ChapterMarker, EpisodeProject
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def add_chapter(project: EpisodeProject, at_time: float, title: str) -> ChapterMarker:
@@ -27,7 +28,7 @@ def _find_chapter_index(project: EpisodeProject, time: float, title: str) -> int
     for i, ch in enumerate(project.chapters):
         if ch.title == title and abs(ch.time - time) < 1e-6:
             return i
-    raise ValueError(f"chapter not found: {title!r} at {time}")
+    raise CodedValueError(f"chapter not found: {title!r} at {time}", code="chapter_not_found")
 
 
 def update_chapter(

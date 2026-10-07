@@ -17,6 +17,7 @@ from podcast_mcp.edits.mute_regions import (
 from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.models import Clip, ClipJoinMode, EditDecision, EpisodeProject, Track
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.process import run
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
@@ -514,13 +515,17 @@ def render_track_segment(
 
     track = project.track_by_id(track_id)
     if not track:
-        raise ValueError(f"track {track_id!r} not found or has no media")
+        raise CodedValueError(
+            f"track {track_id!r} not found or has no media", code="track_not_found"
+        )
     track_clips = clips_for_track(project, track.id)
     if not track_clips and track.timeline_empty:
         return (engine or FFmpegEngine()).silence(output_path, timeline_end - timeline_start)
     if not track_clips:
         if not track.media:
-            raise ValueError(f"track {track_id!r} not found or has no media")
+            raise CodedValueError(
+                f"track {track_id!r} not found or has no media", code="track_has_no_media"
+            )
         primary = resolve_under_workspace(project, track.media.path)
         eng = engine or FFmpegEngine()
         probe = eng.probe(primary)
