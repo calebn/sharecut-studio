@@ -7,7 +7,7 @@ import {
   test,
 } from "@playwright/test";
 import { STUDIO_AXE_DISABLED_RULES } from "../e2e/axe";
-import { postDocumentCommand } from "../e2e/documentCommand";
+import { postDocumentCommand, postHistoryMove } from "../e2e/documentCommand";
 import { e2eProjectPath } from "../e2e/env";
 import { type Finger, newFinger, type Point } from "../e2e/finger";
 import {
@@ -192,13 +192,7 @@ test("a held nudge repeats, saves once, and one Undo restores it", async ({
   );
   const after = await pointTime(page, "env-c");
   const types = commands.map((c) => c.type);
-  await postDocumentCommand(
-    page,
-    CLIENT_ID,
-    "UndoHistory",
-    { rerender: false },
-    projectPath,
-  );
+  await postHistoryMove(page, CLIENT_ID, "UndoHistory", projectPath);
   const undone = await pointTime(page, "env-c");
   json(info, `hold-repeat-${browserName}`, { values, types, after, undone });
   // The value moves on during the hold, not only on release.

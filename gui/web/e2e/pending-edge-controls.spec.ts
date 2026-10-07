@@ -449,7 +449,8 @@ test("phone pending controls stay clear of handles and dense labels follow layou
     name: "Confirm blade cut",
   });
   await expect(bladeConfirmation).toBeVisible();
-  await page.getByRole("button", { name: "Dismiss" }).click();
+  // The confirmation's scrim; a toast may also offer a Dismiss link.
+  await page.getByLabel("Dismiss", { exact: true }).click();
   await expect(bladeConfirmation).toHaveCount(0);
   const reselectHit = dragRegion.first().locator(".pending-hit");
   await reselectHit.focus();
