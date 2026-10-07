@@ -71,10 +71,11 @@ DROPOUT = (3.8, 3.805)
 
 
 def _write_wav(path: Path, samples: np.ndarray, sr: int = SR) -> None:
+    """``samples`` is mono, or ``(frames, channels)``."""
     path.parent.mkdir(parents=True, exist_ok=True)
     pcm = np.round(np.clip(samples, -1.0, 1.0) * 32767).astype("<i2")
     with wave.open(str(path), "wb") as f:
-        f.setnchannels(1)
+        f.setnchannels(1 if pcm.ndim == 1 else pcm.shape[1])
         f.setsampwidth(2)
         f.setframerate(sr)
         f.writeframes(pcm.tobytes())
@@ -371,6 +372,20 @@ def test_comfort_noise_matches_the_room_the_gate_held_open(
     rendered = _render(project, tmp_path, "filled")
     holes = _holes(ring_sec + hold + residue_sec)
     _assert_fill_matches_the_room(rendered, holes, _floor(room_db, pink=True))
+
+
+def test_a_dual_mono_tracks_fill_matches_each_channels_room(tmp_path: Path) -> None:
+    # Zoom writes one participant to both channels. A mono downmix of identical channels
+    # reads 3 dB over either; the fill is written to each channel at the level measured.
+    project = _project(tmp_path, _gated_track(pink=True))
+    mono = _gated_track(pink=True)
+    _write_wav(tmp_path / "raw" / "guest.wav", np.stack([mono, mono], axis=1))
+    project.track_by_id("guest").media.channels = 2
+
+    fill_gate_holes(project, _defaults())
+
+    rendered = _render(project, tmp_path, "filled")
+    _assert_fill_matches_the_room(rendered, HOLES, _floor(pink=True))
 
 
 def test_comfort_noise_is_read_from_the_tracks_own_pauses_when_it_has_them(
