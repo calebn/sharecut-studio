@@ -112,10 +112,13 @@ def _search_end(words: Sequence[TranscriptWord], i: int, slack: float) -> float:
 def trim_implausible_words(
     words: Sequence[TranscriptWord], audio: TrackRmsCache, caps: WordSpanCaps
 ) -> SpanCounts:
-    """Trim each stretched word in place onto ``audio`` and mark each merged one overlong."""
+    """Trim each stretched word in place onto ``audio`` and mark each merged one overlong.
+
+    A span a person set (``timing_edited``) is deliberate, so the pass leaves it alone.
+    """
     trimmed = overlong = 0
     for i, word in enumerate(words):
-        if not caps.is_implausible(word):
+        if word.timing_edited or not caps.is_implausible(word):
             continue
         search_end = _search_end(words, i, caps.end_slack_sec)
         runs = voiced_runs(audio, word.start, search_end, floor_db=caps.floor_db)

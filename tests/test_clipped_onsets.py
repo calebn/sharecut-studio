@@ -469,3 +469,105 @@ def test_a_pass_that_retimes_a_word_clears_its_snap_and_a_persons_edit_mark() ->
     apply_word_spans([word], [(2.1, 2.5)])
 
     assert (word.start, word.end, word.snapped_from, word.timing_edited) == (2.1, 2.5, None, False)
+
+
+def _gated_with_filler(path: Path) -> tuple[ProjectWorkspace, float]:
+    """The gated fixture with a filler right after the clipped "And", for merging edits."""
+    ws, clipped = _gated_ws(path)
+    ws.project.transcript_for_track("audra").words.insert(1, _word("um", clipped + 0.45))
+    ws.save()
+    return ws, clipped
+
+
+def _correct_phrase(ws: ProjectWorkspace, last_index: int, text: str) -> None:
+    EditService(ws).correct_phrase("audra", 0, last_index, text)
+
+
+def _find_replace(ws: ProjectWorkspace, search: str, text: str) -> None:
+    service = EditService(ws)
+    preview = service.preview_transcript_replacement(search, text, match_case=True)
+    assert service.replace_transcript_matches(
+        search, text, preview["preview_token"], match_case=True
+    )
+
+
+# Each rebuilds the clipped "And": one word, split into more words, or merged with the next.
+PHRASE_EDITS = {
+    "correct-phrase-same": lambda ws: _correct_phrase(ws, 0, "and"),
+    "correct-phrase-more": lambda ws: _correct_phrase(ws, 0, "And then"),
+    "correct-phrase-fewer": lambda ws: _correct_phrase(ws, 1, "And"),
+    "replace-more": lambda ws: _find_replace(ws, "And", "And then"),
+    "replace-fewer": lambda ws: _find_replace(ws, "And um", "And"),
+}
+
+
+@pytest.mark.parametrize("edit", PHRASE_EDITS.values(), ids=PHRASE_EDITS.keys())
+def test_a_phrase_edit_keeps_a_persons_word_timing_through_the_next_align(
+    tmp_path: Path, edit
+) -> None:
+    ws, _clipped = _gated_with_filler(tmp_path)
+    _align(ws)
+    start = round(_first_word(ws).start + 0.05, 3)
+    _edit_by_service(ws, start, round(start + 0.3, 3))
+
+    edit(ProjectWorkspace.open(ws.path))
+    ws = ProjectWorkspace.open(ws.path)
+    assert (_first_word(ws).start, _first_word(ws).timing_edited) == (start, True)
+    _align(ws)
+    ws = ProjectWorkspace.open(ws.path)
+
+    word = _first_word(ws)
+    assert (word.start, word.snapped_from, word.timing_edited) == (start, None, True)
+    assert _onset_comments(ws) == []
+
+
+def _demote_other_lanes(ws: ProjectWorkspace) -> None:
+    for track in ws.project.tracks:
+        if track.id != "audra":
+            track.role = TrackRole.MUSIC
+    ws.save()
+
+
+@pytest.mark.parametrize("edit", PHRASE_EDITS.values(), ids=PHRASE_EDITS.keys())
+def test_a_phrase_edit_keeps_a_snap_that_the_next_runs_restore(tmp_path: Path, edit) -> None:
+    ws, clipped = _gated_with_filler(tmp_path)
+    _align(ws)
+    snapped = (_first_word(ws).start, round(clipped, 3))
+    [comment] = _onset_comments(ws)
+
+    edit(ProjectWorkspace.open(ws.path))
+    ws = ProjectWorkspace.open(ws.path)
+    assert (_first_word(ws).start, _first_word(ws).snapped_from) == snapped
+    _align(ws)
+    ws = ProjectWorkspace.open(ws.path)
+
+    # Judged again from the original start: the same snap and the same one comment.
+    assert (_first_word(ws).start, _first_word(ws).snapped_from) == snapped
+    assert [c[:3] for c in _onset_comments(ws)] == [comment[:3]]
+    _demote_other_lanes(ws)
+    _align(ws)
+    ws = ProjectWorkspace.open(ws.path)
+    # Nothing flags it any more, so the start goes back to where it was before any snap.
+    assert (_first_word(ws).start, _first_word(ws).snapped_from) == (round(clipped, 3), None)
+
+
+def test_a_rebuilt_phrase_carries_timing_provenance_by_rule() -> None:
+    from podcast_mcp.edits.transcript_correct import build_phrase_replacement
+
+    snapped = TranscriptWord(text="And", start=2.0, end=2.4, snapped_from=1.9)
+    later = TranscriptWord(text="so", start=2.4, end=2.8, snapped_from=2.3)
+    timed = TranscriptWord(text="um", start=2.8, end=3.2, timing_edited=True)
+
+    split = build_phrase_replacement([snapped, later], "And then so")
+    merged = build_phrase_replacement([snapped, later], "And")
+    with_person = build_phrase_replacement([snapped, timed], "And um")
+
+    # A snap moves to the rebuilt word on its start; one with no such word ends with it.
+    assert [(w.snapped_from, w.timing_edited) for w in split] == [
+        (1.9, False),
+        (None, False),
+        (None, False),
+    ]
+    assert [(w.snapped_from, w.timing_edited) for w in merged] == [(1.9, False)]
+    # Any person-timed word makes the whole rebuilt span the person's, with no snap.
+    assert [(w.snapped_from, w.timing_edited) for w in with_person] == [(None, True)] * 2
