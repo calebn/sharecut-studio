@@ -202,3 +202,103 @@ export async function newFinger(
   };
   return finger;
 }
+
+/** Two fingers: the first presses and drags alone, then the second joins. */
+export interface TwoFingers {
+  down(a: Point): Promise<void>;
+  move(a: Point): Promise<void>;
+  /** The second finger lands at `b` while the first is at `a`. */
+  join(a: Point, b: Point): Promise<void>;
+  both(a: Point, b: Point): Promise<void>;
+  up(): Promise<void>;
+}
+
+export async function twoFingers(
+  context: BrowserContext,
+  page: Page,
+  browserName: string,
+): Promise<TwoFingers> {
+  if (browserName === "chromium") {
+    const cdp = await context.newCDPSession(page);
+    const send = async (type: string, points: Point[]) => {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: type as "touchStart" | "touchMove" | "touchEnd",
+        touchPoints: points.map((p, id) => ({ x: p.x, y: p.y, id })),
+      });
+    };
+    return {
+      down: (a) => send("touchStart", [a]),
+      move: (a) => send("touchMove", [a]),
+      join: (a, b) => send("touchStart", [a, b]),
+      both: (a, b) => send("touchMove", [a, b]),
+      up: () => send("touchEnd", []),
+    };
+  }
+  // The first finger is e2e/finger.ts's touch pointer (with its emulated
+  // capture); the second is another touch pointer, and the touch events
+  // carry both, as a real pinch's do.
+  const first = await newFinger(context, page, browserName);
+  const second = (type: string, a: Point, b: Point | null) =>
+    page.evaluate(
+      ({ type, a, b }) => {
+        const w = window as unknown as { __second?: Element };
+        if (type === "pointerdown" && b) {
+          w.__second = document.elementFromPoint(b.x, b.y) ?? document.body;
+        }
+        const target = w.__second ?? document.body;
+        if (b) {
+          target.dispatchEvent(
+            new PointerEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              composed: true,
+              pointerId: 42,
+              pointerType: "touch",
+              isPrimary: false,
+              clientX: b.x,
+              clientY: b.y,
+              button: type === "pointermove" ? -1 : 0,
+              buttons: type === "pointerup" ? 0 : 1,
+            }),
+          );
+        }
+        const touchType =
+          type === "pointerdown"
+            ? "touchstart"
+            : type === "pointermove"
+              ? "touchmove"
+              : "touchend";
+        const touches = (b ? [a, b] : []).map((p, identifier) => ({
+          identifier,
+          clientX: p.x,
+          clientY: p.y,
+          target,
+        }));
+        const touch = new Event(touchType, { bubbles: true, cancelable: true });
+        Object.defineProperty(touch, "touches", { value: touches });
+        target.dispatchEvent(touch);
+      },
+      { type, a, b },
+    );
+  let at: Point = { x: 0, y: 0 };
+  return {
+    down: async (a) => {
+      at = a;
+      await first.down(a);
+    },
+    move: async (a) => {
+      at = a;
+      await first.move(a);
+    },
+    join: (a, b) => second("pointerdown", a, b),
+    both: async (a, b) => {
+      at = a;
+      await first.move(a);
+      await second("pointermove", a, b);
+    },
+    up: async () => {
+      await second("pointerup", at, { x: 0, y: 0 });
+      await first.up();
+    },
+  };
+}
