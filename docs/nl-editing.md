@@ -21,12 +21,15 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `list_edit_decisions_tool` | List cuts |
 | `approve_edits_tool` / `reject_edits_tool` | Review workflow; exact range proposals need the interactive host or an Editor, so these host agent tools refuse them |
 | `propose_range_mute_tool` | Submit a serialized exact range as pending MUTE with an explicit retry command ID; see [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges) |
+| `propose_range_cut_tool` | Seal a timeline `start`/`end` on chosen lanes (`track_ids_json`, default every dialogue lane) and submit it as pending exact CUT with an explicit retry command ID. Approved, it leaves a hole and later clips keep their places; same `EditSelectedRange` as the Studio range Cut. Agents only propose; the interactive host or `podcast edit approve` applies it |
 | `edit_impact_report_tool` | Seconds cut and applied-edit count, read from `editorial.edit_log` (approved edits) plus applied decisions still in `edit_decisions`; mutes and structural ops (splits, trims, moves) remove no time. A cross-track ripple counts once in `total_removed_sec` and on every track in `by_track_sec`. Classification: `edits/edit_impact.py` |
 | `propose_edits` / `apply_edits` | Filler/pause tightening (`propose_edits` returns `{operation, edits, skip_counts, summary}`; discourse skips are `discourse:{token}` and kept acknowledgments (`tighten.backchannels`, such as a split `Uh` + `-huh.`) are `backchannel:{phrase}`; every candidate analysis rejects counts under its reason, such as `breath`, `next_onset` or `kept_word:{word}`, and a mute adds `voiced_edge` and `inaudible` ([filler-cut-quality.md § CLI / MCP](filler-cut-quality.md#cli--mcp)); optional `edit_mode=ripple|mute`, optional `intensity=light|medium|aggressive`; without it, shipped `pipeline.yaml` applies, not the GUI working set ([filler-cut-quality.md § Intensity presets](filler-cut-quality.md#intensity-presets))). Default is listen-first review, not bulk apply. |
 | `ripple_delete_tool` | Cross-track ripple delete by time |
 | `ripple_delete_text_tool` | Ripple delete by transcript query |
 | `move_segment_tool` / `move_by_text_tool` | Rearrange a time range on **all dialogue tracks** (shuffle, not clip-body drag) |
 | `move_clips_tool` | Reposition specific clips (`timeline_start` / `track_id`); same as GUI body drag |
+| `delete_clips_tool` | Delete whole clips by id (`clip_ids_json`); each leaves a gap, or `ripple=true` closes it. Same `DeleteClip` / `RippleDeleteClip` as the Studio clip Delete / Ripple delete |
+| `roll_clip_join_tool` | Roll the join between two neighbouring clips by `delta_sec` source seconds (positive is later); the pair keeps its length so later clips stay put. Reads the boundary token, then submits `RollClipJoin` like the Studio roll seam; a join that changed meanwhile is a conflict |
 | `insert_gap_tool` | Open space on the timeline (splits straddling clips, then shifts later media) |
 | `strip_silence_tool` | Per-track silence stripping |
 | `shorten_gaps_tool` | Tighten inter-word pauses |
@@ -43,6 +46,8 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `add_comment_action_tool` / `set_comment_action_done_tool` / `resolve_comment_tool` / `delete_comment_tool` | Comment action items + resolve |
 | `add_effect_tool` / `list_effects_tool` | Per-track FFmpeg presets |
 | `correct_transcript_tool` / `correct_transcript_phrase_tool` / `apply_transcript_cleanup_tool` / `low_confidence_words_tool` | Transcript fixes (history-safe; prefer batch cleanup for undo); pass `expected_text` to refuse a fix whose word indices changed meanwhile (#650) |
+| `find_replace_transcript_tool` | Replace a literal word or phrase everywhere (whole words, every track and recording) in one undo step; `dry_run=true` returns `matches` / `count` / `skipped_words` only. Same preview and `ReplaceTranscriptMatches` as Studio Find and replace |
+| `set_word_timing_tool` | Set one word's `start` / `end` in source seconds (`source_id` for a recording's own transcript, optional `expected_text` guard); same `SetTranscriptWordTiming` as the Studio Adjust word timing |
 | `check_loudness_tool` | Measures the existing export WAV, falling back to premix. `pass` is the LUFS verdict. `stale` and `stale_reason` report known render age without writing audio; an explicit unrelated file has `stale: null` |
 | `analyze_cleanup_tool` | Gate risk, low-audibility words, bleed flags, fade recommendations, reconciliation staleness |
 | `audibility_map_tool` / `flagged_words_tool` | Cross-track word audibility map and suppression candidates |
@@ -112,6 +117,11 @@ podcast play --project ... --source processed:host --start 0 --end 15
 podcast play compose --project ... --track-ids host,guest --tier processed --start 12 --end 18 --dry-run
 podcast play context --project ... --start 12 --end 18
 podcast edit trim-clip --project ... --clip clip_9c2a08cf --edge in --source-sec 1575.55 --all-tracks   # session-wide cut; omit --all-tracks for a punch
+podcast edit roll-join --project ... --left clip_a --right clip_b --delta-sec 0.12
+podcast edit delete-clips --project ... --ids clip_a,clip_b --ripple            # omit --ripple to leave gaps
+podcast edit propose-range-cut --project ... --start 41.2 --end 43.0 --tracks host,guest
+podcast transcript find-replace --project ... --search "Jon" --replace "John" --dry-run
+podcast transcript set-word-timing --project ... --track host --word-index 812 --start 1201.40 --end 1201.62
 podcast edit analyze-cleanup --project ...
 podcast edit recommend-fades --project ...
 podcast edit fade-joins --project ...

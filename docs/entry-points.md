@@ -20,7 +20,7 @@ Rules:
 1. **Service first** — never put mix/encode/edit logic in GUI, skill markdown, or MCP adapters.
 2. **Command bus for Sharecut Studio** — if the capability has GUI chrome, it must have a `surfaces.command` and call `execute(id)`.
 3. **Keyboard** — required when `industry_standard_key: true`; otherwise set `omit.keyboard_reason`.
-4. **Agent** — host workflows need `mcp` and/or `cli`; add `skill` only for multi-step procedures.
+4. **Agent (enforced)** — every row declares `effect`. `project` means the action changes the saved episode project, review state, transcripts or artifacts; `session` means live, unsaved working state (transport, playhead, selection, solo, presence, clipboard); `view` means only how this client shows things (layout, zoom, panels, modes, dialogs). An `effect: project` row must list `surfaces.mcp` or `surfaces.cli`, or carry an owner-approved `omit.agent_reason`; `make capabilities-check` fails otherwise, and also fails a reason left beside an agent surface. An agent twin calls the same service as the GUI; where the GUI sends a document command, the twin submits that command with `submit_host_document_command` (`services/document_sync`), so open tabs see it and History can undo it. One tool may serve several rows (`approve_edits_tool` covers Apply hit and Apply eligible). Add `skill` only for multi-step procedures.
 5. **Guest** — share/remote MCP stays on the guest allowlist (`allowlist.py`). Host capabilities with `omit.guest: true` are documented as host-only; runtime share gates use `has_capability` + document-command allowlists.
 6. **Presence** — every GUI surface declares `presence` (Look / Hear / Do rubric in [`docs/session-sync.md`](session-sync.md) § Follow scope); `cursor: anchor` surfaces must render `data-presence-anchor` via `presenceAnchorProps`.
 
@@ -31,7 +31,7 @@ Rules:
 ## Adding a new capability
 
 1. Implement / extend the **service** (with tests).
-2. Add or update a row in `contracts/capabilities.manifest.json`.
+2. Add or update a row in `contracts/capabilities.manifest.json`, with its `effect`. A `project` row lists the MCP tool or CLI command that makes the same change.
    - For a command surface, include its default `COMMANDS[id].when` predicate in manifest `gates`. The catalog controls command execution; the manifest records its gate and any additional handler prerequisites. Keep the governance test free of per-command exceptions.
    - GUI chrome must set `surfaces.gui` **and** a non-empty `tooltip` (toggles also need `tooltip_pressed` + `"toggle": true`).
    - Copy is generated to `gui/web/src/capabilities/copy.ts` (`capabilityTooltip`) — do not hardcode toolbar/handle strings in React.
@@ -56,7 +56,7 @@ and prompt limits stay in the service rather than adapters.
 | Frontend | `gui/web/src/commands/governance.test.ts` (single keydown listener) |
 | Unit | `tests/test_capabilities_manifest.py` |
 
-Hard fail when a `COMMANDS` / keymap / registered MCP tool / skill is missing from the manifest (hubs/deprecated skills live under `hub_skills`), or when the published docs catalog is stale.
+Hard fail when a `COMMANDS` / keymap / registered MCP tool / skill is missing from the manifest (hubs/deprecated skills live under `hub_skills`), when an `effect: project` row has no MCP or CLI surface and no `omit.agent_reason`, or when the published docs catalog is stale. The catalog shows each row's effect; an approved agent reason appears in its CLI column.
 
 Repo automation skills such as `codex-issue-pipeline` and the upstream UI design skill `impeccable` also live under `hub_skills`: they guide contributors but do not add a Sharecut Studio product command or MCP tool.
 
@@ -80,8 +80,8 @@ Contributor recipe stays in this file; the JSON contract is [`contracts/capabili
 
 `align_retained_bleed_tool` and `podcast edit align-retained-bleed` preview or apply supported local phrase corrections. `set_retained_bleed_alignment_mode_tool` and `podcast edit bleed-alignment-choice` save or reset user timing decisions. `apply_transcript_gate_tool` checks retained-bleed alignment by default. Explicit selected lane and finite start/end enable bounded owner-phrase discovery without copy words; other requests remain transcript-seeded. Both paths exclude explicit foreign attribution from owner seeds, including manually retained foreign text, and refuse completed selected-source intervals overlapping foreign attribution. `no_retained_bleed_candidate` reports an eligible window without either permitted candidate origin as unmeasured. See [audio engineering](audio-engineering.md#retained-bleed-during-overlapping-speech) for scope, persistent choices, and abstention behavior.
 
-Studio **Find and replace transcript** is a host-only toolbar and command-palette action (`transcript.findReplace`, capability `daw.transcript.findReplace`). It previews literal source-keyed replacements through `POST /api/transcript/replacement-preview` and applies them through `ReplaceTranscriptMatches`. Both delegate to `EditService`; guests cannot access the private source preview or batch mutation.
+Studio **Find and replace transcript** is a host-only toolbar and command-palette action (`transcript.findReplace`, capability `daw.transcript.findReplace`). It previews literal source-keyed replacements through `POST /api/transcript/replacement-preview` and applies them through `ReplaceTranscriptMatches`. Both delegate to `EditService`; guests cannot access the private source preview or batch mutation. Host agents use `find_replace_transcript_tool` or `podcast transcript find-replace` (preview, then the same command with its preview token).
 
-The host **Adjust word timing** capability (`daw.transcript.adjustTiming`, command `transcript.adjustTiming`) opens the selected word's inline Wordbar from its inspector or the command palette. It uses native keyboard range controls and exact numeric fields; no global shortcut, dedicated CLI command or MCP tool is registered. Saving uses host-only `SetTranscriptWordTiming` through `EditService.set_word_timing`. See [Wordbar source timing](daw-editing.md#wordbar-source-timing).
+The host **Adjust word timing** capability (`daw.transcript.adjustTiming`, command `transcript.adjustTiming`) opens the selected word's inline Wordbar from its inspector or the command palette. It uses native keyboard range controls and exact numeric fields; no global shortcut is registered. Saving uses host-only `SetTranscriptWordTiming` through `EditService.set_word_timing`; host agents submit the same command with `set_word_timing_tool` or `podcast transcript set-word-timing`. See [Wordbar source timing](daw-editing.md#wordbar-source-timing).
 
-`daw.range.mute` exposes registered `propose_range_mute_tool` for agent proposals with a serialized exact target and explicit retry command ID. It submits pending state through the existing document service; interactive host approval remains separate. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
+`daw.range.mute` exposes registered `propose_range_mute_tool` for agent proposals with a serialized exact target and explicit retry command ID. It submits pending state through the existing document service; interactive host approval remains separate. `daw.range.cut` has the twin `propose_range_cut_tool` (and `podcast edit propose-range-cut`), which seals a timeline interval on chosen lanes and proposes an exact cut the same way. See [reviewed bleed ranges](transcript-reconcile.md#reviewed-bleed-ranges).
