@@ -149,7 +149,7 @@ Omit track and speaker for session handoffs; explicit selectors analyze one lane
 `apply_edit_plan_tool` with **`review_required: true`** and segment-aligned
 `start`/`end` from the outline.
 
-**Structural content cuts** (the `focus:dead_start` pre-show, whole off-topic runs, meta talk) span every speaker. After the user signs off on the kept ranges, remove them with `ripple_delete_tool`, from the end toward the start: mid-episode runs first (`suggest_handoff_cut_tool` → `ripple_delete_tool(use_inaudible_opt=false)`), then the dead start (`start=0`) last, because it shifts everything after it. A per-track `apply_edit_plan_tool` cut with peer speech in the window becomes a track-local punch and leaves a hole. Then tighten; the refine gate stays clear through the ripple. Order: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
+**Structural content cuts** (the `focus:dead_start` pre-show, whole off-topic runs, meta talk) span every speaker. After the user signs off on the kept ranges, remove them with `ripple_delete_tool` (no `track_ids_json`: a whole-session time cut), from the end toward the start: mid-episode runs first (`suggest_handoff_cut_tool` → `ripple_delete_tool(use_inaudible_opt=false)`), then the dead start (`start=0`) last, because it shifts everything after it. A per-track `apply_edit_plan_tool` cut with peer speech in the window becomes a track-local punch and leaves a hole. Then tighten; the refine gate stays clear through the ripple. Order: [docs/pipeline.md § Long raw sessions](../../../docs/pipeline.md#long-raw-sessions-content-cut-before-tighten).
 
 Present the brief + impact report. **Lead with theme**, not minutes removed.
 
@@ -208,7 +208,7 @@ Session without duration goal:
 2. Write `focus_brief.md` with theme + core/support/divert map.
 3. Propose 4–8 REVIEW/DIVERT cuts (repeats, travel digressions that don't pay off).
 4. User: “Keep the Facebook-group safety story” → reclassify that segment as CORE.
-5. Approve → assemble → `audition_context_tool` on every applied join (or one `join_qa_sweep_tool`), fix each `speech_crosses_cut` with its `evidence.fix` (`trim_clip_edge_tool`, `all_tracks=true` on a session-wide cut), confirm each `echo_risk` by listening or from its per-pair evidence before **podcast-mute-bleed** → premix audition at act boundaries → export.
+5. Approve → assemble → `audition_context_tool` on every applied join (or one `join_qa_sweep_tool`), fix each `speech_crosses_cut` with its `evidence.fix` (`trim_clip_edge_tool`, `mode=ripple` on a session-wide cut, `mode=gap` on a punch), confirm each `echo_risk` by listening or from its per-pair evidence before **podcast-mute-bleed** → premix audition at act boundaries → export.
 
 **Alignment:** if audition text ≠ audio, fix transcript source times before bulk cuts.
 

@@ -261,7 +261,7 @@ podcast review share --kind record --session-id <id> --role producer --expires-a
 | `reply`    | Reply to existing comments |
 | `join`     | Be recorded in a record room (no MCP) |
 | `monitor`  | Hear a record room (producer or guest; no MCP) |
-| `suggest`  | Commenter and Editor. Propose pending edits (`SuggestPendingEdit`), retime only its own suggestions (`UpdatePendingEdit` on edits whose `author` is this share; other guests', host and agent edits are refused), and **propose** structural ops (`SplitAtTime`, `DeleteClip`, `RippleDeleteClip`) and selected ranges (`EditSelectedRange`, incl. transcript Select) — cannot approve/apply |
+| `suggest`  | Commenter and Editor. Propose pending edits (`SuggestPendingEdit`), retime only its own suggestions (`UpdatePendingEdit` on edits whose `author` is this share; other guests', host and agent edits are refused), and **propose** structural ops (`SplitAtTime`, `DeleteClip` in either edit mode; a ripple suggestion that cuts another speaker records it, so approving asks to confirm) and selected ranges (`EditSelectedRange`, incl. transcript Select) — cannot approve/apply |
 | `edit`     | Editor only. Apply Pass 1–2 document commands (approve/reject any pending edit including exact range proposals, restore, fades, join, clip body move / `MoveClips`, undo/redo) **and apply** structural ops and selected ranges (`EditSelectedRange`) on the guest document route and guest MCP alike |
 | `mcp`      | Allow **capability-scoped** remote MCP at `{base}/mcp/{token}/mcp` (same powers as the other caps on this token — not the full host MCP surface) |
 

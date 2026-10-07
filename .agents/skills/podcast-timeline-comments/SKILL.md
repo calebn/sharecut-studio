@@ -80,7 +80,7 @@ When the user asks you to note something for later (or for a human):
 - Instant: omit `timeline_end` (or equal to start)
 - Span: `timeline_end` > `timeline_start`
 
-`ripple_delete` / `batch_ripple_delete` automatically remaps comment (and chapter) anchors — no separate remap call.
+Every ripple that removes time (`ripple_delete`, ripple trims) automatically remaps comment (and chapter) anchors — no separate remap call.
 
 ## Review mix versions
 

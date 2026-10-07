@@ -76,7 +76,7 @@ Auto-tighten (`propose-edits` → `apply-edits` / pipeline `tighten_from_transcr
 ## Timeline helpers
 
 - `strip_silence_tool(speaker=…)` — per-track dead air (does not ripple other tracks)
-- `shorten_gaps_tool` — ripple-delete excess inter-word pauses on all dialogue tracks
+- `shorten_gaps_tool` — ripple-delete excess inter-word pauses on all dialogue tracks; another speaker talking in a pause returns `needs_confirmation` (ask, then `confirm_cut_speech=true`)
 - `ripple_delete_text_tool(query)` — remove a spoken phrase across tracks
 
 ## Workflow
@@ -127,7 +127,7 @@ returns the same hits, under the same ids, each run. An Ask thread
    After approving, `render_preview` and run **`audition_context_tool` on every
    applied join** (or one `join_qa_sweep_tool`; **podcast-play-audition** § Ears)
    before export: fix each `speech_crosses_cut` with the `trim_clip_edge_tool` call in
-   its `evidence.fix` (`all_tracks=true` on a session-wide cut), and confirm each
+   its `evidence.fix` (`mode=ripple` on a session-wide cut, `mode=gap` on a punch), and confirm each
    `echo_risk` by listening or from its per-pair evidence before **podcast-mute-bleed**.
 6. For NL cuts by topic, use skill **podcast-edit-natural-language**.
 7. Do **not** run pipeline from `tighten_from_transcript` on production while
