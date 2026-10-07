@@ -239,9 +239,9 @@ LAB_COUPLING_DB = -16.0
 LAB_LAG_SEC = 0.14
 
 
-def _talk_words(end: float) -> list[tuple[float, float]]:
+def _talk_words(end: float, seed: int = 3) -> list[tuple[float, float]]:
     """Words of uneven length and spacing from 1 s to ``end``, so no shift repeats them."""
-    rng = np.random.default_rng(3)
+    rng = np.random.default_rng(seed)
     words: list[tuple[float, float]] = []
     start = TALK_START
     while (finish := start + rng.uniform(0.2, 0.4)) <= end:
@@ -254,9 +254,9 @@ def _db(samples: np.ndarray) -> float:
     return 10 * np.log10(float(np.mean(samples**2)))
 
 
-def _peer_voice(words: list[tuple[float, float]], clock: np.ndarray) -> np.ndarray:
+def _peer_voice(words: list[tuple[float, float]], clock: np.ndarray, seed: int = 11) -> np.ndarray:
     """Separate words, each two syllables of speech-band noise, like the peer's speech."""
-    noise = np.convolve(np.random.default_rng(11).normal(0, 1, clock.size), np.ones(16), "same")
+    noise = np.convolve(np.random.default_rng(seed).normal(0, 1, clock.size), np.ones(16), "same")
     noise *= 0.25 / noise.std()
     voice = np.zeros(clock.size)
     for start, end in words:
@@ -320,8 +320,12 @@ def _talking_over(
     room_floor_spans: tuple[tuple[float, float], ...] | None = None,
     copy_lift: tuple[float, float, float] | None = None,
     channel_copy_db: tuple[float, ...] = (),
+    co_talker: bool = False,
 ) -> EpisodeProject:
     """The peer talks from 1 s to ``talk_end``; the host mic carries a coloured copy 16 dB down.
+
+    ``co_talker`` puts another voice on the host mic instead of the copy: it talks over
+    the same stretch at the copy's level, with words of its own.
 
     The peer's direct track runs ``lag_sec`` late, 140 ms by default as on the lab
     tape. ``own`` adds the host's own sounds (kind, start, end, level in dB against the
@@ -339,7 +343,11 @@ def _talking_over(
     words = _talk_words(talk_end)
     voice = _peer_voice(words, clock)
     talk = slice(round(TALK_START * RATE), round(talk_end * RATE))
-    host = _colored(voice)
+    host = (
+        _peer_voice(_talk_words(talk_end, seed=17), clock, seed=19)
+        if co_talker
+        else _colored(voice)
+    )
     host *= 10 ** ((LAB_COUPLING_DB + _db(voice[talk]) - _db(host[talk])) / 20)
     if copy_lift is not None:
         lifted = (clock >= copy_lift[0]) & (clock < copy_lift[1])
@@ -568,16 +576,34 @@ def test_changing_bleed_handling_replans_the_same_project(
 @pytest.mark.parametrize(
     ("talk_end", "attenuated"),
     [
-        pytest.param(29.0, False, id="28s-of-peer-speech-abstains"),
+        pytest.param(19.0, False, id="18s-of-peer-speech-abstains"),
+        pytest.param(21.0, True, id="20s"),
         pytest.param(31.0, True, id="30s"),
     ],
 )
-def test_copy_path_needs_thirty_seconds_of_peer_speech(
+def test_strong_copy_path_needs_twenty_seconds_of_peer_speech(
     tmp_path: Path, talk_end: float, attenuated: bool
 ) -> None:
     plan = build_bleed_gate_plan(_talking_over(tmp_path, talk_end=talk_end), "host")
     assert bool(plan.attenuation_spans) is attenuated
     assert plan.reasons == (() if attenuated else ("uncertain_foreign_ownership",))
+
+
+def test_short_excerpt_with_a_strong_copy_is_muted(tmp_path: Path) -> None:
+    _, after = _gated_over(_talking_over(tmp_path, talk_end=23.0), tmp_path)
+    _silent(after, 1.05, 22.65)
+
+
+@pytest.mark.parametrize("talk_end", [23.0, 31.0])
+def test_another_voice_talking_over_the_same_stretch_is_untouched(
+    tmp_path: Path, talk_end: float
+) -> None:
+    project = _talking_over(tmp_path, talk_end=talk_end, co_talker=True)
+    plan = build_bleed_gate_plan(project, "host")
+    assert plan.attenuation_spans == ()
+    assert plan.reasons == ("uncertain_foreign_ownership",)
+    before, after = _gated_over(project, tmp_path)
+    _unchanged(before, after, 0.0, talk_end + 1.0)
 
 
 @pytest.mark.parametrize("lag_sec", [0.3, 0.32])
