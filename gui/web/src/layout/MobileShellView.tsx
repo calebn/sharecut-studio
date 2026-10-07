@@ -4,6 +4,7 @@ import { isHostOnlyTab } from "../presence/followSync";
 import type { MobileMode, MoreDestination } from "../state/types";
 import { BottomSheet } from "../ui/BottomSheet";
 import { Icon, type IconName } from "../ui/Icon";
+import { StatusLiveRegion } from "../ui/StatusLiveRegion";
 import { ToggleButton } from "../ui/ToggleButton";
 import type { ShellAppearance, ShellNotices } from "./shellPresentation";
 
@@ -41,6 +42,8 @@ export type MobileShellViewProps = {
   chrome: {
     notices: ShellNotices;
     announcement: string;
+    /** Re-speaks a repeated identical announcement (`statusAnnouncementSeq`). */
+    announcementSeq?: number;
     transport: ReactNode;
     status: ReactNode;
     overlay: ReactNode;
@@ -75,14 +78,10 @@ export function MobileShellView({
     >
       <div className="daw-shell-banners">{chrome.notices.banners}</div>
       {chrome.notices.follow}
-      <span
-        className="sr-only"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        {chrome.announcement}
-      </span>
+      <StatusLiveRegion
+        message={chrome.announcement}
+        seq={chrome.announcementSeq ?? 0}
+      />
       {screen.kind !== "listen" ? (
         <div ref={bindings?.transport} className="daw-shell-transport">
           {chrome.transport}

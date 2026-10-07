@@ -274,7 +274,10 @@ export interface DawState {
   ingestDropTrackId: string | null;
   /** Polite live-region status: the last announcement. */
   statusAnnouncement: string;
-  /** Counts announcements, so the live region speaks a repeated message again. */
+  /**
+   * Counts announcements. `StatusLiveRegion` keys its text on it, so a
+   * repeated message is spoken again; the toast uses it as its id.
+   */
   statusAnnouncementSeq: number;
   /** Visible twin of the last announcement that has one; null once dismissed. */
   feedbackToast: FeedbackToast | null;

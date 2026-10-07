@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectFeedback } from "./feedback";
 import {
   type Command,
   hit,
@@ -120,9 +121,10 @@ for (const delivery of ["409", "abort-replay"] as const)
       await page.mouse.up();
       await expect.poll(() => attempts.length).toBeGreaterThanOrEqual(1);
       if (delivery === "409") {
-        await expect(
-          page.getByText(/Clip edit failed:.*Lifecycle audit refused fade/),
-        ).toBeVisible();
+        await expectFeedback(
+          page,
+          /Clip edit failed:.*Lifecycle audit refused fade/,
+        );
         expect(snapshot(p)).toEqual(origin);
         expect(await hostOfflineQueueCount(page, p)).toBe(0);
         await expect(block.locator(".clip-fade-line")).toHaveCount(0);

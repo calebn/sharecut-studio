@@ -39,6 +39,7 @@ export {
 export { Pill } from "./Pill";
 export { type PillTone, pillClassName } from "./pillClassName";
 export { SegmentedControl } from "./SegmentedControl";
+export { StatusLiveRegion } from "./StatusLiveRegion";
 export { Timecode } from "./Timecode";
 export { TOAST_MS, Toast, type ToastState } from "./Toast";
 export { ToggleButton } from "./ToggleButton";

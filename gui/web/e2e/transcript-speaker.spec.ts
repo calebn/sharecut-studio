@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
 import { e2eProjectPath } from "./env";
+import { expectFeedback } from "./feedback";
 import {
   openTranscriptPanel,
   withDocumentCommandTypes,
@@ -113,9 +114,5 @@ test("queued speaker save stays visible and reports pending delivery", async ({
       .first(),
   ).toBeVisible();
   await expect(page.locator(".guest-attention")).toContainText("1 pending");
-  await expect(
-    page.getByText("Track metadata change queued. Still sending.", {
-      exact: true,
-    }),
-  ).toBeVisible();
+  await expectFeedback(page, "Track metadata change queued. Still sending.");
 });
