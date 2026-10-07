@@ -40,10 +40,13 @@ jobs:
         with:
           python-version: "3.12"
 
+      # The outer runner needs the project's own deps: tests/conftest.py imports
+      # podcast_mcp.config (yaml). It is locked on purpose; only the per-extra venvs the
+      # test builds are unlocked, and they never see this environment.
       - name: Install the test runner
-        run: pip install pytest pytest-xdist pytest-timeout
+        run: uv sync --extra dev --locked
 
       - name: Import each extra in a clean venv
         env:
           PODCAST_CHECK_EXTRAS: "1"
-        run: pytest -o addopts="" -n 3 --timeout=1500 -m extras_install tests/test_extras_import.py
+        run: uv run --no-sync pytest -o addopts="" -n 3 --timeout=1500 -m extras_install tests/test_extras_import.py
