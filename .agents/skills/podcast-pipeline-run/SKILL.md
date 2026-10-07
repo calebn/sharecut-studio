@@ -28,14 +28,15 @@ Transcript hub: **podcast-transcript-workflow** — [docs/transcript-workflow.md
 12. focus_from_transcript (no-op unless `focus.auto_apply: true`)
 13. analyze_fillers_pauses (no-op unless `tighten.enabled: true`)
 14. tighten_from_transcript (no-op unless `tighten.enabled: true`)
-15. clean_audio
-16. compress_tracks
-17. balance_tracks
-18. assemble_timeline — final stems (edits + FX)
-19. reconcile_transcript — **pass 2** (post-FX audibility refresh)
-20. mix_with_music
-21. master_loudness
-22. export_deliverables
+15. fill_gate_holes (`gate_fill.mode`, **auto by default**) — room tone under the digital silence a recorder's noise gate (Zoom) leaves between words on each dialogue track: its recorded bed, else comfort noise matched to its own noise under its speech; never another track. The summary names each track's holes, seconds filled and level, or why it stayed silent. Undo `after fill_gate_holes` to remove it. See [docs/pipeline.md § Gate fill](../../docs/pipeline.md#gate-fill).
+16. clean_audio
+17. compress_tracks
+18. balance_tracks
+19. assemble_timeline — final stems (edits + FX)
+20. reconcile_transcript — **pass 2** (post-FX audibility refresh)
+21. mix_with_music
+22. master_loudness
+23. export_deliverables
 
 **Alignment:** After ASR, `align_tracks` places whole-file dialogue clips on one session clock (see **podcast-align-audio**). Unattended runs keep the scorer result and waive `require_align_accept` when `align.accept.mode` is `waive_unattended`. Agents clear the gate with listen + `podcast align done`.
 

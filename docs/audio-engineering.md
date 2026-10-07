@@ -308,6 +308,111 @@ rolling up `master_qc.json`'s issues **plus** transcript reconciliation stalenes
 see [podcast-master-export](../.agents/skills/podcast-master-export/SKILL.md#final-ship-gate-export_qcjson)
 for the exact shape and what to do when `ok` is `false`.
 
+## Gate fill (`fill_gate_holes`)
+
+Zoom records each participant through a noise gate, and so do many other conferencing
+recorders. Between words the gate drops the track to exact digital zero. Where every
+track is gated at once the mix falls to dead air. Where one gate dips mid-phrase, the
+voice seems to cut in and out. Editors fill those holes with matched room tone so the
+noise floor stays continuous. The `fill_gate_holes` pipeline step does that
+(`edits/gate_fill.py`, #1111).
+
+**Holes come from the media, not from our edits.** A hole is a run, on every channel, of
+samples below half a 16-bit step (−96 dBFS). It is at least 20 ms long, holds an exact
+zero, and has live audio on both sides. No microphone and converter hold exact zero for
+20 ms, but a gate does. A lossy codec leaves sub-LSB residue at the gate's edges, and the
+run takes it in. Silence before the track's first sound or after its last is a late
+joiner or padding, not a gate closing between words, so it is never filled. Our own
+mutes, cuts and pads are not in the media, so they are never holes.
+
+**Fill sources**, tried in order:
+
+1. the track's recorded room-tone bed (`track.room_tone`, registered and audible), tiled;
+2. comfort noise matched to the track's own noise under its speech;
+3. never another track. Bleed is never the main audio (#945). No source reads a peer.
+
+A track whose noise is not a floor stays silent. That means a measured noise less than
+30 dB under its own speech level (the room-tone sampler's rule), or no measurable frames.
+
+**Comfort noise** follows telephony comfort-noise generation (CNG). The step measures
+the noise the track carries under its own speech, then synthesises Gaussian noise with
+that power spectrum. A gated track has no pauses to measure, so the measurement reads the
+gate's hangover. That is the last 120 ms the gate held open before each closure, after the
+voice fell below its threshold. A telephony encoder sends its SID frames from the same
+hangover. The louder half of those 20 ms frames is dropped, which holds back a word's
+tail, and the rest are averaged per frequency bin. The noise is synthesised once as a
+seamless loop of at least 20 s (random phases, one inverse FFT). Each hole reads the loop at its own
+position on the media's clock, so no two holes start on the same noise and the texture
+never repeats on a short cycle.
+
+**Own audio is never touched.** The step writes one FLAC per track on the media's clock,
+`artifacts/gate_fill/{track}_{digest}.flac`. It holds the fill inside each hole and
+digital silence everywhere else. Inside each hole the fill fades in over its first
+`gate_fill.fade_ms` (10 ms, raised cosine) and out over its last. Render sums the file
+under each segment of the track's own media, before the segment's fades and mute
+regions, then converts back to the media decoder's sample format. Wherever the fill is
+silent, every later filter sees the samples it would see without it. Stems, play
+segments and guest proxies are byte-identical outside the holes. Our mutes and
+ignored-word regions silence the fill as they silence the media. Cuts drop it, and pads
+have no media to fill. The fill applies only while the media keeps the size and mtime it
+was measured at. A replaced recording renders without it until the step runs again.
+
+**Undo and visibility.** The step sets `timeline.tracks[].gate_fill` (source, file, holes,
+seconds filled, fill level, the measured noise under speech, fade). Undo of
+`after fill_gate_holes` restores the previous fill, and the render hash follows it. The
+step summary reports each track: holes, seconds filled, source and level, or why it was
+left silent. `gate_fill.mode: off` clears every fill.
+
+**Not covered.** A bleed-gate mute (`transcript_gate`) on a gated track and a tighten mute
+whose `filler_pad_mode: room_tone` finds no room tone still render digital silence. They
+are our own edits, and their fill is decided by their own setting.
+
+### Evidence: comfort-noise estimators
+
+These are one-off measurements from the private lab tape (three Zoom tracks, rev
+3b414c4c) and a synthetic set, not asserted by CI. The prototype is under the session
+scratchpad. Two kinds of truth were used:
+
+- **Lab, real room.** Caleb's track has a real floor. Its quiet runs of at least 0.3 s
+  are the truth. The estimators read his audio with those runs zeroed, as if gated.
+- **Synthetic.** Harmonic syllables, 14 dB direct-to-reverb, pink noise plus hum, and a
+  Zoom-like gate. There are six cases: noise −60 to −80 dBFS, gate 15 to 32 dB over the
+  noise, hold 40 to 150 ms.
+
+| Estimator | Lab, real room: mean band error | Synthetic: mean band error over 6 cases | Lab Audra / Lana estimate |
+| --- | --- | --- | --- |
+| Quietest 10% of open frames | 1.2 dB | 18.7 dB | −84.7 / −81.7 dBFS |
+| Minimum statistics (Martin 2001) | 4.3 dB | 11.6 dB | −74.9 / −72.2 dBFS |
+| Hangover, median ÷ ln 2 | 6.1 dB | 12.3 dB | −80.3 / −78.7 dBFS |
+| **Hangover, quieter half (shipped)** | 3.0 dB | 13.8 dB | −86.3 / −86.6 dBFS |
+| Per-bin minimum of minimum statistics and quieter-half hangover | 5.2 dB | 10.6 dB | ≈ hangover |
+
+Every estimator runs high when the gate threshold sits far over the noise or the hold is
+short, because reverb and word tails fill its frames. The 30 dB credibility rule is the
+backstop there. Minimum statistics reads 10 to 14 dB above the hangover on the gated lab
+tracks. In the product, with fixed ~0.26 s blocks, it read −56 to −62 dBFS. The per-bin
+minimum then always took the hangover (equal to 0.1 dB on all three tracks), so it was
+removed. The quietest-tenth estimate only works where pauses make up a tenth of the open
+audio, and it reads 17 to 32 dB high when the gate holds briefly. By ear, clip 4 of the
+#1111 listening set plays the shipped fill against minimum statistics on Audra's stem.
+
+### Evidence: lab tape
+
+The step ran on the whole lab tape in 19 s (three 28-minute tracks). The fill FLACs
+take 12 MB (Caleb) and 68 MB (Audra, Lana), against 324 MB for each raw WAV.
+
+| Track | Exact-zero runs ≥ 20 ms | Filled (interior holes) | Holes | Fill level (= noise under speech) | Open-gate floor before closures | Speech p90 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Caleb | 190 s (11.2%) | 190 s (11.2%) | 606 | −82.6 dBFS | −82.3 dBFS | −14.7 dBFS |
+| Audra | 1248 s (73.9%) | 1242 s (73.5%) | 1142 | −87.7 dBFS | −91.6 dBFS | −12.2 dBFS |
+| Lana | 1241 s (73.4%) | 1238 s (73.3%) | 1024 | −87.8 dBFS | −91.8 dBFS | −15.7 dBFS |
+
+The open-gate floor is the median 5 ms frame 20 to 100 ms before each closure. On the
+premix, the all-tracks dead air at 1660.29 to 1660.76 now sits at −84.1 dBFS, against
+−86.3 dBFS in the 150 ms before it. At 1499.65 to 1501.63 it sits at −83.8 dBFS, against
+−82.5 dBFS before it. Both A/B windows, rendered through `podcast play` with main's code
+and this step, are sample-identical outside every track's holes.
+
 ## Transcript gate diagnostics
 
 `analyze_gate_overreach` recognizes `track.transcript_gate` as well as `agate`

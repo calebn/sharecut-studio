@@ -21,6 +21,7 @@ description: >-
 - `remove_effect_tool`, `list_effects_tool`
 - `set_effect_bypass_tool(project_path, effect_index=…, bypass=…, speaker=…)` — A/B without removing the chain entry (Sharecut Studio Track inspector Bypass toggles use the same path via `SetEffectBypass`)
 - `fill_with_room_tone_tool` — fill clip gaps with room tone from the track: its recorded bed, else a steady stretch at its noise floor near each gap. A Zoom-gated track has none, so its gaps stay silent
+- **Dead air inside a gated track** (Zoom drops each track to digital silence between words, so the mix goes dead where everyone is quiet, or a voice seems to cut in and out): the pipeline's `fill_gate_holes` step fills those source-gate holes, on by default (`gate_fill.mode: auto`). Run it alone with `pipeline_run(only_step="fill_gate_holes")` / `podcast pipeline run --only fill_gate_holes`. Source order: the track's recorded bed, then comfort noise matched to its own noise under its speech, never another track. Own audio, our mutes, cuts and pads are untouched. Undo `after fill_gate_holes`, or set `gate_fill.mode: off` and run it again, to remove it. Rules and lab evidence: [audio-engineering.md § Gate fill](../../../docs/audio-engineering.md#gate-fill-fill_gate_holes).
 - After adding or removing effects, re-run `balance_tracks`: it measures loudness through the track's chain.
 - `check_loudness_tool` — measure LUFS on export/premix; for tracked project audio, its
   `balance` map also reports per-dialogue-track measurement freshness

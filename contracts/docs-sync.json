@@ -387,6 +387,26 @@
       }
     },
     {
+      "id": "gate-fill",
+      "when": "Gate fill (`fill_gate_holes` step: source-gate hole detection, fill sources, comfort-noise estimate, render mixing)",
+      "update": "`docs/audio-engineering.md` § Gate fill, `docs/pipeline.md` § Gate fill, `docs/persistence.md`, `docs/episode-format-v2.md`, `schemas/episode.project.schema.json`, `.agents/defaults/pipeline.yaml` → `gate_fill`, skills `podcast-audio-cleanup`, `podcast-pipeline-run`",
+      "docs": [
+        "docs/audio-engineering.md",
+        "docs/pipeline.md",
+        "docs/persistence.md",
+        "docs/episode-format-v2.md",
+        "schemas/episode.project.schema.json",
+        ".agents/defaults/pipeline.yaml",
+        ".agents/skills/podcast-audio-cleanup/",
+        ".agents/skills/podcast-pipeline-run/"
+      ],
+      "gate": {
+        "include": [
+          "src/podcast_mcp/edits/gate_fill.py"
+        ]
+      }
+    },
+    {
       "id": "bounce-stem-range-export",
       "when": "Bounce / stem range export (GUI + MCP)",
       "update": "`docs/gui-integration.md`, `docs/daw-editing.md`, `.agents/skills/podcast-bounce-export/`, `services/media/bounce.py`",
