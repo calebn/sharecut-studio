@@ -294,7 +294,10 @@
         "mcp": [
           "resolve_comment_tool"
         ],
-        "cli": "podcast comment resolve"
+        "cli": "podcast comment resolve",
+        "touch": [
+          "swipe-left"
+        ]
       },
       "omit": {
         "guest": true,
@@ -606,11 +609,15 @@
         "command": "edit.bladeCut",
         "gui": [
           "editingToolRail",
-          "timeline"
+          "timeline",
+          "timeline.createMenu"
         ],
         "keyboard": "Mod+K",
         "mcp": [
           "split_clip_tool"
+        ],
+        "touch": [
+          "long-press-empty"
         ]
       },
       "omit": {},
@@ -1153,7 +1160,10 @@
         "gui": [
           "transport.menu"
         ],
-        "keyboard": "="
+        "keyboard": "=",
+        "touch": [
+          "pinch"
+        ]
       },
       "omit": {},
       "tooltip": "Zoom in",
@@ -1177,7 +1187,10 @@
         "gui": [
           "transport.menu"
         ],
-        "keyboard": "-"
+        "keyboard": "-",
+        "touch": [
+          "pinch"
+        ]
       },
       "omit": {},
       "tooltip": "Zoom out",
@@ -1404,7 +1417,10 @@
           "history_undo"
         ],
         "cli": "podcast undo",
-        "skill": "podcast-history"
+        "skill": "podcast-history",
+        "touch": [
+          "two-finger-tap"
+        ]
       },
       "omit": {},
       "tooltip": "Undo",
@@ -2533,7 +2549,10 @@
           "correct_transcript_tool",
           "correct_transcript_phrase_tool"
         ],
-        "cli": "podcast transcript correct"
+        "cli": "podcast transcript correct",
+        "touch": [
+          "double-tap"
+        ]
       },
       "presence": {
         "cursor": "anchor",
@@ -2754,7 +2773,11 @@
           "trim_clip_edge_tool"
         ],
         "cli": "podcast edit trim-clip",
-        "keyboard": "ArrowLeft"
+        "keyboard": "ArrowLeft",
+        "touch": [
+          "long-press-arm-drag",
+          "hold-nudge"
+        ]
       },
       "omit": {},
       "presence": {
@@ -2804,12 +2827,16 @@
         "command": "edit.addChapter",
         "gui": [
           "transport.menu",
-          "mobileShell.more"
+          "mobileShell.more",
+          "timeline.createMenu"
         ],
         "mcp": [
           "add_chapter_tool"
         ],
-        "cli": "podcast edit add-chapter"
+        "cli": "podcast edit add-chapter",
+        "touch": [
+          "long-press-empty"
+        ]
       },
       "omit": {
         "keyboard_reason": "no default shortcut; Menu \u203a Markers or the phone More action",
@@ -2817,6 +2844,63 @@
       },
       "presence": {
         "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.envelope.addPoint",
+      "label": "Add envelope point",
+      "effect": "project",
+      "tooltip": "Add a volume envelope point at the held time, at the level already there",
+      "service": "Sharecut Studio \u2192 SetEnvelope document command",
+      "industry_standard_key": false,
+      "gates": [
+        "canEditEnvelopes"
+      ],
+      "surfaces": {
+        "command": "envelope.addPoint",
+        "gui": [
+          "timeline.createMenu"
+        ],
+        "touch": [
+          "long-press-empty"
+        ],
+        "mcp": [
+          "set_envelope"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "touch create menu; the envelope inspector's Add point is the keyboard route"
+      },
+      "presence": {
+        "cursor": "time",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.comment.draftAt",
+      "label": "Comment here",
+      "effect": "view",
+      "tooltip": "Start a comment at the held time",
+      "service": "CommentService",
+      "industry_standard_key": false,
+      "gates": [
+        "canComment"
+      ],
+      "surfaces": {
+        "command": "comment.draftAt",
+        "gui": [
+          "timeline.createMenu"
+        ],
+        "touch": [
+          "long-press-empty"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "touch create menu; comment mode on the ruler is the pointer route"
+      },
+      "presence": {
+        "cursor": "time",
         "follow": "none"
       }
     },
@@ -2839,7 +2923,10 @@
         "mcp": [
           "roll_clip_join_tool"
         ],
-        "cli": "podcast edit roll-join"
+        "cli": "podcast edit roll-join",
+        "touch": [
+          "long-press-arm-drag"
+        ]
       },
       "omit": {
         "keyboard_reason": "pointer join diamond; no industry-standard key"
@@ -2868,6 +2955,10 @@
         "keyboard": "ArrowLeft",
         "mcp": [
           "set_clip_fade_tool"
+        ],
+        "touch": [
+          "long-press-arm-drag",
+          "hold-nudge"
         ]
       },
       "omit": {},

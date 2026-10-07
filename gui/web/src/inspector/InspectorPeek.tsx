@@ -14,16 +14,17 @@ import {
 } from "../edit/nudge";
 import {
   canApplyPass12,
+  canEditEnvelopes,
   canRetimePendingEdit,
-  isShareProjectKey,
 } from "../shareMode";
 import type { DawState } from "../state/types";
 import { useDaw } from "../state/useDaw";
 import type { ProjectView } from "../types/project";
+import { RippleMark } from "../ui/RippleMark";
 import type { PeekNudgeRow, PeekTarget } from "./peekTarget";
 import { type NudgeBump, useNudgeRun } from "./useNudgeRun";
 
-/** May the current user change `field`? Envelopes stay host-only for now. */
+/** May the current user change `field`? */
 type Access = Pick<
   DawState,
   | "projectPath"
@@ -55,7 +56,7 @@ function mayNudge(s: Access, project: ProjectView, field: NudgeField) {
     }
     case "envelope-time":
     case "envelope-level":
-      return !isShareProjectKey(s.projectPath);
+      return canEditEnvelopes(s.projectPath, s.guestMode, s.shareCapabilities);
   }
 }
 
@@ -127,6 +128,7 @@ export function InspectorPeek({ peek }: { peek: PeekTarget }) {
   const rows = project
     ? peek.nudges.filter((row) => mayNudge(access, project, row.field))
     : [];
+  const ripples = rows.some((row) => NUDGE_KINDS[row.field.kind].ripples);
   // Rows with labels carry their own values; a lone row shows the key value.
   const summary = !rows.some((row) => row.label);
   const bumped = run.bump != null && rows.length === 1 && !rows[0].label;
@@ -136,6 +138,7 @@ export function InspectorPeek({ peek }: { peek: PeekTarget }) {
         {peek.owner ? (
           <span className="inspector-peek-owner">{peek.owner}</span>
         ) : null}
+        {ripples ? <RippleMark /> : null}
         {summary ? (
           <output
             key={bumped ? run.bump?.n : undefined}

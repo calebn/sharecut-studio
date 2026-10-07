@@ -6,8 +6,8 @@
  * not a timeline target; that one opens the full inspector as before.
  */
 import { type NudgeField, nudgeAxis } from "../edit/nudge";
-import { HIT_KINDS, type HitKind } from "../timeline/hitCandidates";
 import type { RoutedTarget } from "../timeline/hitRouting";
+import { clipEdgeOf, HIT_KINDS, type HitKind } from "../timeline/inputContract";
 import type { ClipRow, ProjectView, Selection } from "../types/project";
 import { clipIdentityTrack, clipSpeakerLabel } from "../utils/clipLabels";
 import { formatTime } from "../utils/time";
@@ -40,14 +40,15 @@ const attr = (name: string, value: string) =>
 const hitSelector = (kind: HitKind, id: string) =>
   `${attr("data-hit-kind", kind)}${attr("data-hit-id", id)}`;
 
-const CLIP_EDGES: Partial<
-  Record<HitKind, { kind: "fade" | "trim"; edge: "in" | "out" }>
-> = {
-  "fade-in": { kind: "fade", edge: "in" },
-  "fade-out": { kind: "fade", edge: "out" },
-  "trim-in": { kind: "trim", edge: "in" },
-  "trim-out": { kind: "trim", edge: "out" },
-};
+/** The clip edge field a clip handle kind's strip row steps, from the contract. */
+function clipEdgeField(
+  kind: HitKind,
+): { kind: "fade" | "trim"; edge: "in" | "out" } | undefined {
+  const [nudge] = HIT_KINDS[kind].nudges;
+  return nudge === "fade" || nudge === "trim"
+    ? { kind: nudge, edge: clipEdgeOf(kind) }
+    : undefined;
+}
 
 /** `rows` whose fields exist in `project` (a pending split has no edges). */
 function present(project: ProjectView, rows: PeekNudgeRow[]): PeekNudgeRow[] {
@@ -65,7 +66,7 @@ function clipPeek(
     trackLabel: track?.label,
     role: track?.role ?? "audio",
   })} clip`;
-  const edge = hit?.id === clip.id ? CLIP_EDGES[hit.kind] : undefined;
+  const edge = hit?.id === clip.id ? clipEdgeField(hit.kind) : undefined;
   if (hit && edge) {
     const title = HIT_KINDS[hit.kind].label;
     const field: NudgeField = {

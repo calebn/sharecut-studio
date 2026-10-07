@@ -6,13 +6,12 @@
  */
 import {
   type HitCandidate,
-  type HitKind,
   type HitPoint,
   type HitTarget,
   hitRadiusPx,
-  isHitKind,
   rankHitTargets,
 } from "./hitCandidates";
+import { type HitKind, isHitKind } from "./inputContract";
 
 const KIND_ATTR = "data-hit-kind";
 const SURFACE_ATTR = "data-hit-surface";

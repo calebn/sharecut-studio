@@ -224,6 +224,27 @@ describe("ClipBlock waveform", () => {
       );
     });
 
+    it("stops a held arrow at a soft boundary with a bump and a note (#1115)", async () => {
+      const { container } = renderWithKeymap(clip);
+      useDawStore.setState({ playheadSec: 2.025 });
+      const handle = container.querySelector(
+        "button.trim-handle.out",
+      ) as HTMLElement;
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowRight" });
+      for (let i = 0; i < 4; i += 1) {
+        fireEvent.keyDown(handle, { key: "ArrowRight", repeat: true });
+      }
+      expect(useDawStore.getState().statusAnnouncement).toBe(
+        "Trim end stopped at the playhead",
+      );
+      expect(handle).toHaveAttribute("data-bump");
+      fireEvent.keyUp(handle, { key: "ArrowRight" });
+      await waitFor(() => expect(trimClipEdge).toHaveBeenCalledOnce());
+      expect(vi.mocked(trimClipEdge).mock.calls[0]?.[3]).toBeCloseTo(2.025, 6);
+      expect(handle).not.toHaveAttribute("data-bump");
+    });
+
     it("commits the active preview on blur and cancels it on Escape", async () => {
       const { container, rerender } = renderWithKeymap({
         ...clip,

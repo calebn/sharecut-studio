@@ -3,6 +3,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useLayoutEffect,
+  useMemo,
   useRef,
 } from "react";
 import { rollClipJoin } from "../api";
@@ -18,6 +19,7 @@ import {
   waveformTicksToTimeline,
 } from "../edit/clipMove";
 import { isHandleDrag, ROLL_COMMIT_MIN_PX } from "../edit/dragThreshold";
+import { type RipplePreview, rippleOf } from "../edit/ripplePreview";
 import { MOVE_THRESHOLD_PX } from "../hooks/gestureConstants";
 import { useSnapTicks } from "../hooks/useSnapTicks";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
@@ -71,6 +73,11 @@ export interface ClipBlockProps {
    */
   rollPreview: RollPreview | null;
   onRollPreview: (preview: RollPreview | null) => void;
+  /**
+   * A trim of this clip ripples the later clips on its lane; the lane moves
+   * them live while the trim previews (#1135).
+   */
+  onRipplePreview?: (preview: RipplePreview | null) => void;
   /** Select-only (e.g. fade drag start). Callbacks take the clip id first,
    *  so a lane passes one stable function to every clip. */
   onSelect: (clipId: string) => void;
@@ -146,6 +153,7 @@ export function ClipBlockLive({
   mediaDurationSec,
   rollPreview,
   onRollPreview,
+  onRipplePreview,
   onSelect,
   onHit,
   onSelectClip,
@@ -225,6 +233,14 @@ export function ClipBlockLive({
     onSelect,
   });
   const { fadePreview, trimPreview } = edgeHandles;
+  const ripple = useMemo(
+    () => (trimPreview ? rippleOf(clip, trimPreview) : null),
+    [clip, trimPreview],
+  );
+  useLayoutEffect(() => {
+    onRipplePreview?.(ripple);
+  }, [ripple, onRipplePreview]);
+  useLayoutEffect(() => () => onRipplePreview?.(null), [onRipplePreview]);
 
   const geometry = clipBlockGeometry({
     clip,
@@ -665,6 +681,7 @@ export function ClipBlockLive({
       onHandleBlur={edgeHandles.onBlur}
       onHandleKeyDown={edgeHandles.onKeyDown}
       onHandleKeyUp={edgeHandles.onKeyUp}
+      bumpedHandle={edgeHandles.bumped}
     />
   );
 }

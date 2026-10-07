@@ -16,12 +16,15 @@ import { saveClipEdge } from "../edit/clipEdgeSave";
 import { CLIP_HANDLE_STEPS } from "../edit/clipHandleSteps";
 import { isHandleDrag } from "../edit/dragThreshold";
 import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
+import { nudgeAxis, nudgeStep } from "../edit/nudge";
+import { softBoundaries } from "../edit/nudgeBoundaries";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 import type { ClipHandle } from "./ClipBlockView";
 import type { ClipFadePreview, ClipTrimPreview } from "./clipBlockGeometry";
+import { HIT_KINDS } from "./inputContract";
 import { magnetSec } from "./snapOverlay";
 
 type Context = {
@@ -124,6 +127,12 @@ export function useClipEdgeHandles(context: Context) {
   });
   const draftRef = useRef<Draft | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  /** A held arrow stopped at a soft boundary or limit: the handle it stopped. */
+  const [bumped, setBumped] = useState<ClipHandle | null>(null);
+  /** The key's auto-repeat stopped; only a fresh press steps on. */
+  const keyStopped = useRef(false);
+  /** A pointer drag is pressed against a hard limit. */
+  const atLimit = useRef(false);
   const focusRef = useRef<{
     handle: ClipHandle;
     element: HTMLButtonElement;
@@ -136,6 +145,10 @@ export function useClipEdgeHandles(context: Context) {
   const mounted = useRef(true);
 
   const publish = (next: Draft | null) => {
+    if (!next && atLimit.current) {
+      atLimit.current = false;
+      setBumped(null);
+    }
     draftRef.current = next;
     if (mounted.current) setDraft(next);
   };
@@ -229,6 +242,34 @@ export function useClipEdgeHandles(context: Context) {
     }
     publish(projectEdge(d, candidate));
   };
+  /**
+   * A pointer drag to `candidate`: past a hard limit (the source's start or
+   * end, a neighbour, a fade's clip) it stops there, with the strip's bump
+   * and note, as a held nudge does (#1135).
+   */
+  const drag = (d: Draft, candidate: number) => {
+    const next = projectEdge(d, candidate);
+    const value =
+      next.kind === "fade"
+        ? next.edge === "in"
+          ? next.preview.inMs
+          : next.preview.outMs
+        : next.edge === "in"
+          ? next.preview.sourceStart
+          : next.preview.sourceEnd;
+    const limited = Math.abs(value - candidate) > 1e-6;
+    if (limited !== atLimit.current) {
+      atLimit.current = limited;
+      const handle: ClipHandle = `${d.kind}-${d.edge}`;
+      setBumped(limited ? handle : null);
+      if (limited) {
+        useDawStore
+          .getState()
+          .announceStatus(`${HIT_KINDS[handle].label} is at its limit`);
+      }
+    }
+    update(d, candidate);
+  };
   const finish = async () => {
     const d = draftRef.current;
     if (!d || d.phase !== "preview") return;
@@ -302,6 +343,7 @@ export function useClipEdgeHandles(context: Context) {
       return finish().then(() => ({ status: "ok" as const }));
     }
     const key = action.direction === -1 ? "ArrowLeft" : "ArrowRight";
+    if (!draftRef.current) keyStopped.current = false;
     const d = draftRef.current ?? begin(handle, { kind: "keyboard", key });
     if (!d || d.phase !== "preview" || d.input.kind !== "keyboard")
       return { status: "disabled" as const, reason: "Clip edit in progress" };
@@ -318,7 +360,45 @@ export function useClipEdgeHandles(context: Context) {
       d.kind === "fade" && d.edge === "out"
         ? -action.direction
         : action.direction;
-    update(d, current + direction * step);
+    // The strip's held nudges and these keys share one step: hard limits
+    // always stop it, and a held key stops at a soft boundary that a fresh
+    // press then crosses (#1115).
+    if (action.held && keyStopped.current) return { status: "ok" as const };
+    keyStopped.current = false;
+    const project = s.project;
+    const axis = project
+      ? nudgeAxis(project, {
+          kind: d.kind,
+          trackId: c.trackId,
+          clipId: c.clip.id,
+          edge: d.edge,
+        })
+      : null;
+    if (!project || !axis) {
+      update(d, current + direction * step);
+      return { status: "ok" as const };
+    }
+    const boundaries = axis.mover
+      ? softBoundaries(project, axis.mover, useDawStore.getState().playheadSec)
+      : [];
+    const next = nudgeStep(
+      axis,
+      boundaries,
+      current,
+      direction * step,
+      action.held,
+    );
+    update(d, next.value);
+    if (next.stop && action.held) {
+      keyStopped.current = true;
+      setBumped(handle);
+      const name = HIT_KINDS[handle].label;
+      s.announceStatus(
+        next.stop.kind === "boundary"
+          ? `${name} stopped at ${next.stop.boundary.label}`
+          : `${name} is at its limit`,
+      );
+    }
     return { status: "ok" as const };
   };
   const actions = useRef({ run, cancel });
@@ -357,6 +437,7 @@ export function useClipEdgeHandles(context: Context) {
   const command = (handle: ClipHandle) =>
     handle.startsWith("fade") ? "edit.setClipFade" : "edit.trimClipEdge";
   return {
+    bumped,
     fadePreview: draft?.kind === "fade" ? draft.preview : null,
     trimPreview: draft?.kind === "trim" ? draft.preview : null,
     active: draft != null,
@@ -387,6 +468,7 @@ export function useClipEdgeHandles(context: Context) {
     },
     onKeyUp: (handle: ClipHandle, event: KeyboardEvent<HTMLButtonElement>) => {
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        setBumped(null);
         void execute(command(handle), { phase: "finish", key: event.key });
       }
     },
@@ -426,7 +508,7 @@ export function useClipEdgeHandles(context: Context) {
         d.input.pointerId !== event.pointerId
       )
         return;
-      update(d, pointerCandidate(d, d.input.originX, event.clientX));
+      drag(d, pointerCandidate(d, d.input.originX, event.clientX));
     },
     onPointerUp: (event: PointerEvent<HTMLButtonElement>) => {
       const d = draftRef.current;

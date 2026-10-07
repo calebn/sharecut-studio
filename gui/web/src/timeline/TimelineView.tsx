@@ -64,13 +64,17 @@ import { WaveformStatusSync } from "../waveform/WaveformStatusSync";
 import { AuditionOverlay } from "./AuditionOverlay";
 import { CommentPlaybackBubble } from "./CommentPlaybackBubble";
 import { CommentSelectionOverlay } from "./CommentSelectionOverlay";
+import { CreateMenu, type CreateMenuPlace } from "./CreateMenu";
 import { visibleBox } from "./chooserLayout";
 import { clippingFlags } from "./clippingFlags";
+import { DetentMark } from "./DetentMark";
 import { attachDragWatch } from "./dragWatch";
 import { selectFollowColorIndex } from "./followTarget";
 import {
   attachHitRouting,
   type ChooserView,
+  type CreateView,
+  type DetentView,
   type HitRouter,
 } from "./hitRouting";
 import {
@@ -97,6 +101,12 @@ import {
   useTimelineMetrics,
 } from "./timelineMetrics";
 import { attachTimelineZoomGestures } from "./timelineZoomGestures";
+import {
+  announceArmed,
+  armedDetents,
+  createPlace,
+  vibrate,
+} from "./touchGrammar";
 import {
   FixedPlayheadRecenter,
   TimelineScrollSync,
@@ -236,10 +246,35 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
     view: ChooserView;
     closing: boolean;
   } | null>(null);
+  const [create, setCreate] = useState<{
+    view: CreateView;
+    place: CreateMenuPlace;
+  } | null>(null);
+  const [detent, setDetent] = useState<DetentView | null>(null);
   const hitRootRef = useCallback((root: HTMLDivElement | null) => {
     if (!root) return;
     const router = attachHitRouting(root, {
       touchLab: () => isLabEnabled("touchChooser"),
+      onCreate: (view) =>
+        setCreate((prev) =>
+          view
+            ? {
+                view,
+                place:
+                  prev?.view.surface === view.surface &&
+                  prev.view.origin === view.origin
+                    ? prev.place
+                    : createPlace(view, root),
+              }
+            : null,
+        ),
+      onArm: announceArmed,
+      detents: armedDetents,
+      pxPerSec: () => useDawStore.getState().zoomPxPerSec,
+      onDetent: (next) => {
+        if (next) vibrate();
+        setDetent(next);
+      },
       onChooser: (view) =>
         setChooser((prev) =>
           view
@@ -1073,6 +1108,27 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
               router={hitRouter}
               bounds={visibleBox(scrollRef.current)}
               onClosed={clearChooser}
+            />
+          ) : null}
+          {create && hitRouter ? (
+            <CreateMenu
+              view={create.view}
+              place={create.place}
+              router={hitRouter}
+              bounds={visibleBox(scrollRef.current)}
+              avoidX={
+                fixedPlayhead
+                  ? (scrollRef.current?.getBoundingClientRect().left ?? 0) +
+                    headerOffsetPx +
+                    timeViewportPx / 2
+                  : null
+              }
+            />
+          ) : null}
+          {detent ? (
+            <DetentMark
+              detent={detent}
+              bounds={visibleBox(lanesRef.current ?? scrollRef.current)}
             />
           ) : null}
           <div className="timeline-edge timeline-edge--start" aria-hidden />

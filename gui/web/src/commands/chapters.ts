@@ -6,7 +6,8 @@ import { hostProjectGate } from "./host";
 import type { ExecuteResult } from "./types";
 
 /**
- * `edit.addChapter`: the Menu › Markers item and MobileShell's More action
+ * `edit.addChapter`: the Menu › Markers item, MobileShell's More action and
+ * the touch create menu (`{ atTime }`, the held time; else the playhead)
  * share this one implementation (previously OverlayLegend's own + Chapter
  * button). Single-flight via the store's `chapterAddPending` flag rather
  * than a module ref, so a menu unmounting/remounting the control mid-add
@@ -18,7 +19,7 @@ import type { ExecuteResult } from "./types";
 export function registerChapterCommands(): void {
   registerCommand(
     "edit.addChapter",
-    async (_args, ctx): Promise<ExecuteResult> => {
+    async (args, ctx): Promise<ExecuteResult> => {
       const blocked = hostProjectGate(ctx);
       if (blocked) {
         return blocked;
@@ -29,26 +30,32 @@ export function registerChapterCommands(): void {
       }
       store.setChapterAddPending(true);
       store.setLayerVisible("showMarkers", true);
-      const { playheadSec, projectEpoch, projectPath } = useDawStore.getState();
-      const title = `Chapter ${playheadSec.toFixed(1)}s`;
+      const {
+        playheadSec: playhead,
+        projectEpoch,
+        projectPath,
+      } = useDawStore.getState();
+      const at = Number(args.atTime);
+      const atSec = args.atTime != null && Number.isFinite(at) ? at : playhead;
+      const title = `Chapter ${atSec.toFixed(1)}s`;
       const sameProject = () =>
         useDawStore.getState().projectEpoch === projectEpoch;
       useDawStore
         .getState()
-        .announceStatus(`Adding chapter at ${playheadSec.toFixed(1)}s…`);
+        .announceStatus(`Adding chapter at ${atSec.toFixed(1)}s…`);
       try {
-        await addChapter(projectPath, playheadSec, title);
+        await addChapter(projectPath, atSec, title);
         if (!sameProject()) {
           return { status: "ok" };
         }
         useDawStore.getState().setSelection({
           kind: "chapter",
           id: title,
-          time: playheadSec,
+          time: atSec,
         });
         useDawStore
           .getState()
-          .announceStatus(`Chapter added at ${playheadSec.toFixed(1)}s`);
+          .announceStatus(`Chapter added at ${atSec.toFixed(1)}s`);
         return { status: "ok" };
       } catch (err) {
         const reason = errorMessage(err);

@@ -131,3 +131,51 @@ export function layoutChips(
     },
   };
 }
+
+/** Gap between the finger and the create menu's near edge (px). */
+export const CREATE_MENU_GAP_PX = 24;
+
+export interface MenuLayout {
+  placement: "above" | "below";
+  left: number;
+  top: number;
+}
+
+/**
+ * Where the create menu of `size` sits for `finger`: above it (below near
+ * the top), inside `bounds`, and beside the fixed playhead at `avoidX`
+ * rather than over it when there is room, so the line stays in view.
+ */
+export function layoutMenu(
+  finger: HitPoint,
+  bounds: ChooserBounds,
+  size: { width: number; height: number },
+  avoidX: number | null,
+): MenuLayout {
+  const roomAbove = finger.y - bounds.top - CHOOSER_EDGE_PX;
+  const roomBelow = bounds.bottom - CHOOSER_EDGE_PX - finger.y;
+  const need = size.height + CREATE_MENU_GAP_PX;
+  const placement =
+    roomAbove >= need || roomAbove >= roomBelow ? "above" : "below";
+  const top =
+    placement === "above"
+      ? Math.max(bounds.top + CHOOSER_EDGE_PX, finger.y - need)
+      : Math.min(
+          bounds.bottom - CHOOSER_EDGE_PX - size.height,
+          finger.y + CREATE_MENU_GAP_PX,
+        );
+  let left = finger.x - size.width / 2;
+  if (avoidX != null && left < avoidX && left + size.width > avoidX) {
+    left =
+      finger.x <= avoidX
+        ? avoidX - CHOOSER_GAP_PX - size.width
+        : avoidX + CHOOSER_GAP_PX;
+  }
+  const minLeft = bounds.left + CHOOSER_EDGE_PX;
+  const maxLeft = bounds.right - CHOOSER_EDGE_PX - size.width;
+  return {
+    placement,
+    left: Math.max(minLeft, Math.min(maxLeft, left)),
+    top,
+  };
+}
