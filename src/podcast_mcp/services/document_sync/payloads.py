@@ -416,9 +416,10 @@ class CutRangePayload(BaseModel):
     track_ids: list[str] = Field(
         default_factory=list,
         description=(
-            "Tracks whose material the cut means to remove; empty means every track "
-            "(a whole-session time cut). A ripple asks to confirm before cutting speech "
-            "on any other track; a gap cut punches only these."
+            "Tracks whose material the cut means to remove. A ripple asks to confirm "
+            "before cutting speech on any other track, so with none named it asks before "
+            "cutting anyone's. A gap cut punches only these (every dialogue track when "
+            "none are named)."
         ),
     )
     confirm_cut_speech: ConfirmCutSpeech = False

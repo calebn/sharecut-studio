@@ -1,9 +1,10 @@
 """The speech guard: a ripple that cuts another track's speech asks first.
 
 Every rippling edit plans its :class:`RippleRemoval` and asks :func:`clear_ripple`
-before it changes anything. Speech is another scope track's unsuppressed transcript
-words inside a removed span, or, where it has no such words, its own sound at speech
-level (``speech_energy_guard.measure_peer_speech``). With speech there and no
+before it changes anything. Speech is a scope track's unsuppressed transcript words
+inside a removed span whose edit did not name that track (a range cut that names no
+tracks counts every track's speech), or, where it has no such words, its own sound
+at speech level (``speech_energy_guard.measure_peer_speech``). With speech there and no
 ``confirm_cut_speech``, the edit returns a :class:`CutSpeechConfirmation` and changes
 nothing; confirmed, it applies and the speech it cut is recorded with it. With no
 other speech in the span it applies at once. The apply functions take a
@@ -250,10 +251,17 @@ def _join(parts: Sequence[str]) -> str:
     return ", ".join(parts[:-1]) + " and " + parts[-1]
 
 
-def cut_speech_message(speech: CutSpeech) -> str:
-    """Confirmation copy: what else gets cut, then the two ways forward."""
-    phrases = [_track_phrase(t) for t in sorted(speech.tracks, key=_first_time)]
-    return f"This also cuts {_join(phrases)}. Cut anyway, or leave a gap to keep it."
+def cut_speech_message(speech: CutSpeech, *, owned: bool = True) -> str:
+    """Confirmation copy: what gets cut, then the two ways forward.
+
+    An ``owned`` cut names tracks it means to cut, so the speech is on the others and
+    a gap keeps it. An unowned cut (a range with no tracks named) cuts everyone's, so
+    the way to keep some is to name the tracks to cut.
+    """
+    phrases = _join([_track_phrase(t) for t in sorted(speech.tracks, key=_first_time)])
+    if owned:
+        return f"This also cuts {phrases}. Cut anyway, or leave a gap to keep it."
+    return f"This cuts {phrases}. Cut anyway, or choose which tracks to cut."
 
 
 def merge_cut_speech(speeches: Sequence[CutSpeech]) -> CutSpeech:
@@ -278,8 +286,8 @@ def merge_cut_speech(speeches: Sequence[CutSpeech]) -> CutSpeech:
     )
 
 
-def confirmation_for(speech: CutSpeech) -> CutSpeechConfirmation:
-    return CutSpeechConfirmation(message=cut_speech_message(speech), speech=speech)
+def confirmation_for(speech: CutSpeech, *, owned: bool = True) -> CutSpeechConfirmation:
+    return CutSpeechConfirmation(message=cut_speech_message(speech, owned=owned), speech=speech)
 
 
 def clear_ripple(
@@ -296,5 +304,5 @@ def clear_ripple(
     if speech is None:
         return SpeechClearance(removal)
     if not confirm_cut_speech:
-        return confirmation_for(speech)
+        return confirmation_for(speech, owned=bool(removal.edited_track_ids))
     return SpeechClearance(removal, cut_speech=speech)

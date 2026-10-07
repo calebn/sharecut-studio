@@ -311,6 +311,7 @@ enforced-by:
 - tests/test_edit_modes.py::test_room_tone_and_suppressed_bleed_words_need_no_confirmation
 - tests/test_edit_modes.py::test_gap_mode_leaves_an_exact_gap_and_moves_nothing_downstream
 - tests/test_edit_modes.py::test_a_commenters_ripple_suggestion_records_that_approval_must_confirm
+- tests/test_edit_modes.py::test_a_ripple_range_cut_naming_no_tracks_asks_before_cutting_anyones_speech
 -->
 
 Trim, delete, cut and paste take one `mode` (`EditMode`, `ripple` | `gap`) on
@@ -344,10 +345,13 @@ it. A Commenter's ripple delete suggestion records the speech on the pending
 decision (`cut_speech`), so the Editor or host approving it confirms the same way;
 a confirmed approval ripples as suggested instead of falling back to a punch.
 
-A range cut names the tracks whose material it means (`track_ids`); with none it
-cuts every track (a whole-session time cut) and asks nothing. Moves, duplicates,
-inserted gaps and restores use the same scope rule; they remove no speech, so the
-guard does not apply.
+A range cut names the tracks whose material it means (`track_ids`). Speech on any
+other track asks first, so a range cut that names no tracks asks before cutting
+anyone's speech: "This cuts Avery's speech at 0:12.0 and Sam's speech at 0:12.4
+("so the plan is"). Cut anyway, or choose which tracks to cut." No ripple removes
+speech it was not told to cut without asking. Moves, duplicates, inserted gaps and
+restores use the same scope rule; they remove no speech, so the guard does not
+apply.
 
 Tighten and NL removes keep their own guard: `resolve_cut_scope` measures the same
 own-sound evidence at propose and approve time and turns a cut over speaking peers

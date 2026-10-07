@@ -57,8 +57,8 @@ def ripple_delete_tool(
     ``suggest_handoff_cut_tool`` first and pass ``use_inaudible_opt=false`` so
     local snap does not pull mid-silence bounds onto speech. ``track_ids_json``
     names the tracks whose speech you mean to cut (a JSON list); speech on any
-    other track in the range needs confirmation. Omitted, the cut takes every
-    track (a whole-session time cut) and asks nothing.
+    other track in the range needs confirmation. Omitted, the cut names no track,
+    so speech on every track needs confirmation (a whole-session time cut).
     ``confirm_cut_speech``: a ripple that would cut another track's speech changes
     nothing and returns ``needs_confirmation`` (which tracks, words and times);
     ask the person, then call again with ``confirm_cut_speech=true`` to cut anyway.

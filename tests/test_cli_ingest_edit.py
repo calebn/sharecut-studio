@@ -730,6 +730,8 @@ def test_edit_timeline_ops(minimal_project):
             "0.2",
             "--end",
             "0.3",
+            "--track",
+            "host",
             "--json",
         ],
     )

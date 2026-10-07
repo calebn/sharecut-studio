@@ -523,13 +523,15 @@ def test_no_word_ripples_preserve_refine_clearance_after_reopen(minimal_project,
     fingerprint = reviewed_transcript_fingerprint(proj)
     save_project(proj, minimal_project)
     EditService(ProjectWorkspace.open(minimal_project)).cut_range(
-        1, 2, use_inaudible_opt=False, mode=EditMode.RIPPLE
+        1, 2, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]
     )
     reopened = ProjectWorkspace.open(minimal_project)
     assert reviewed_transcript_fingerprint(reopened.project) == fingerprint
     assert refine_status_report(reopened.project)["clear"] is True
     assert load_status(reopened.project)["status"] == clearance
-    EditService(reopened).cut_range(0.6, 1.6, use_inaudible_opt=False, mode=EditMode.RIPPLE)
+    EditService(reopened).cut_range(
+        0.6, 1.6, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]
+    )
     again = load_project(minimal_project)
     assert reviewed_transcript_fingerprint(again) == fingerprint
     assert status_is_clear(again)
@@ -565,10 +567,12 @@ def test_word_removing_ripple_keeps_refine_clearance_after_reopen(minimal_projec
         mark_refine_waived(proj, reason="structural edit")
     save_project(proj, minimal_project)
     EditService(ProjectWorkspace.open(minimal_project)).cut_range(
-        0, 0.25, use_inaudible_opt=False, mode=EditMode.RIPPLE
+        0, 0.25, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]
     )
     reopened = ProjectWorkspace.open(minimal_project)
     assert [word.text for word in reopened.project.transcripts[0].words] == ["world"]
     assert refine_status_report(reopened.project)["clear"] is True
-    EditService(reopened).cut_range(1, 2, use_inaudible_opt=False, mode=EditMode.RIPPLE)
+    EditService(reopened).cut_range(
+        1, 2, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]
+    )
     assert load_status(reopened.project)["status"] == clearance

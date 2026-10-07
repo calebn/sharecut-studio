@@ -210,7 +210,7 @@ def test_history_undo_redo_restores_archive_and_active_words(minimal_project):
     project = _episode(minimal_project)
     save_project(project, minimal_project)
     EditService(ProjectWorkspace.open(minimal_project)).cut_range(
-        5, 15, use_inaudible_opt=False, mode=EditMode.RIPPLE
+        5, 15, use_inaudible_opt=False, mode=EditMode.RIPPLE, track_ids=["host"]
     )
     cut = load_project(minimal_project)
     assert cut.transcripts[0].words == []
