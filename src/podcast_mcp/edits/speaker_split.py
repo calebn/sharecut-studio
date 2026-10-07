@@ -135,9 +135,9 @@ def _turn_records(attribution: SpeakerAttribution, lanes: list[str]) -> list[Spe
     ]
 
 
-def _split_transcripts(project: EpisodeProject, split: SpeakerSplit, source_id: str) -> None:
+def _split_transcripts(project: EpisodeProject, split: SpeakerSplit, track_id: str) -> None:
     """Give each word to the most likely speaker of the turn holding its midpoint."""
-    original = project.transcript_for_source(source_id, None)
+    original = project.transcript_for_source(track_id, None)
     if original is None:
         return
     starts = [t.start_s for t in split.turns]
@@ -145,10 +145,10 @@ def _split_transcripts(project: EpisodeProject, split: SpeakerSplit, source_id: 
     for word in original.words:
         mid = (word.start + max(word.end, word.start)) / 2.0
         i = max(0, bisect_right(starts, mid) - 1)
-        by_lane[split.turns[i].speakers[0] if split.turns else source_id].append(word)
-    original.words = by_lane[source_id]
+        by_lane[split.turns[i].speakers[0] if split.turns else track_id].append(word)
+    original.words = by_lane[track_id]
     for lane in split.lanes:
-        if lane == source_id:
+        if lane == track_id:
             continue
         project.transcripts.append(
             Transcript.model_validate(
