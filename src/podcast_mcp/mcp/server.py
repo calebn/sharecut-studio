@@ -5,6 +5,7 @@ import sys
 from mcp.server import MCPServer
 
 from podcast_mcp import __version__
+from podcast_mcp.mcp.args import install_free_text_args
 from podcast_mcp.mcp.busy_errors import install_busy_errors
 from podcast_mcp.mcp.project_default import install_project_default
 from podcast_mcp.mcp.tools import register_all
@@ -14,6 +15,7 @@ mcp = MCPServer("podcast-mcp", version=__version__)
 install_mcp_progress(mcp)
 install_project_default(mcp)
 install_busy_errors(mcp)
+install_free_text_args(mcp)
 register_all(mcp)
 
 _HELP_TEXT = f"""podcast-mcp {__version__}
