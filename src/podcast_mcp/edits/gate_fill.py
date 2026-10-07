@@ -21,15 +21,20 @@ another track: bleed is never the main audio (#945).
 
 **Comfort noise** follows telephony comfort-noise generation: estimate the noise the track
 carries under its own speech, then synthesise noise with that power spectrum. The estimate
-reads the gate's *hangover*: the last ``HANGOVER_SEC`` the gate held open before each
-closure, after the voice fell below its threshold, which is the noise a telephony encoder
-sends its SID frames from. The louder half of those frames is dropped, which holds back a
-word's tail, and the rest are averaged per frequency bin. A gate that closes as the voice
-ends leaves tails in those frames and reads high, so the estimate must also sit
-``MIN_BELOW_SPEECH_DB`` under the track's own speech level, as room tone must
-(``edits/room_tone.py``); otherwise it is not a floor and the holes stay silent.
-Minimum statistics (Martin 2001) and the quietest tenth of all open frames were measured
-against it and read high on gated tracks: [audio-engineering.md § Gate fill].
+reads the gate's *hangover*: what the gate held open before each closure, after the voice
+fell below its threshold, which is the noise a telephony encoder sends its SID frames from.
+The hold is measured per track, never assumed (``_measure_hold``). Going back from the
+closures, the median level of each ``BLOCK_SEC`` stays level while the gate holds open on
+the floor and rises where the voice's tail begins; a release ramp or a codec's last frame
+may sit a step under the floor right at the closure. A voice's tail slopes, a floor does
+not, so a gate that closes on a tail with no hold has no level run and its holes stay
+silent. Over the measured hold, frames ``SPEECH_ABOVE_NOISE_DB`` over the median (the odd
+closure a word still reaches) are dropped and the rest are averaged per frequency bin; a
+hold shorter than a frame is read as one shorter frame per closure. The estimate must also
+sit ``MIN_BELOW_SPEECH_DB`` under the track's own speech level, as room tone must
+(``edits/room_tone.py``); otherwise it is not a floor and the holes stay silent. Minimum
+statistics (Martin 2001) and the quietest tenth of all open frames were measured against
+it and read high on gated tracks: [audio-engineering.md § Gate fill].
 
 The noise is synthesised once as a seamless loop (random phases over the spectrum, one
 inverse FFT), and each hole reads the loop at its own position on the media's clock, so no
@@ -68,11 +73,18 @@ SILENT_AMPLITUDE = 2.0**-16
 MIN_HOLE_SEC = 0.02
 # Analysis frames of about 20 ms (a power of two), hopped by half.
 FRAME_SEC = 0.02
-# Frames the gate held open before a closure; EDGE_SEC at each hole edge is the gate's
-# own ramp, never analysed.
-HANGOVER_SEC = 0.12
+# Speech frames skip EDGE_SEC at each hole edge, the gate's own ramp.
 EDGE_SEC = 0.01
-MIN_HANGOVER_FRAMES = 8
+# The gate's hold is read from the median level of each BLOCK_SEC going back from its
+# closures, up to MAX_HOLD_SEC; a block's median needs MIN_CLOSURES closures that reach it.
+# The hold is the longest level run there: within FLAT_DB of its own quietest block, rising
+# less than FLAT_DB / 2 across it, at least MIN_HOLD_SEC long, with any release edge
+# between it and the closure more than FLAT_DB under it, and the voice back above it.
+BLOCK_SEC = 0.005
+MAX_HOLD_SEC = 0.5
+FLAT_DB = 2.0
+MIN_HOLD_SEC = 0.015
+MIN_CLOSURES = 8
 # Frames read per window, so a long open stretch is never held whole.
 READ_FRAMES = 512
 # The speech level is read from frames this far over the noise estimate.
@@ -112,6 +124,8 @@ class FillLoop:
     samples: np.ndarray
     level_db: float
     noise_db: float | None
+    # The gate hold the noise was read from, in seconds; None for a recorded bed.
+    hold_sec: float | None = None
 
 
 FillSourceFn = Callable[[EpisodeProject, Track, Path, GateHoles], FillLoop | str]
@@ -195,21 +209,95 @@ def _open_stretches(holes: GateHoles) -> Iterator[tuple[int, int, bool]]:
     yield start, last, holes.frames - last >= round(MIN_HOLE_SEC * holes.sample_rate)
 
 
-def _noise_frames(path: Path, holes: GateHoles) -> _NoiseFrames:
+def _mono_reader(path: Path, sample_rate: int) -> SequentialWindowReader:
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
+    chunks = FFmpegEngine().stream_mono_f32(path, sample_rate=sample_rate)
+    return SequentialWindowReader(chunks, sample_rate)
+
+
+def _closure_profile(path: Path, holes: GateHoles) -> np.ndarray:
+    """Median level (dBFS) of each block going back from the gate's closures; [0] ends at one.
+
+    Stops at the first block fewer than ``MIN_CLOSURES`` closures reach.
+    """
+    sr = holes.sample_rate
+    block = round(BLOCK_SEC * sr)
+    blocks = round(MAX_HOLD_SEC / BLOCK_SEC)
+    rows: list[np.ndarray] = []
+    with closing(_mono_reader(path, sr)) as reader:
+        for start, end, closes in _open_stretches(holes):
+            n = min(blocks, (end - start) // block)
+            if not closes or n == 0:
+                continue
+            samples, _ = reader.window_samples(end - n * block, end)
+            if samples.size < n * block:
+                continue
+            power = np.mean(np.square(samples.reshape(n, block), dtype=np.float64), axis=1)
+            rows.append(np.pad(power[::-1], (0, blocks - n), constant_values=np.nan))
+    if len(rows) < MIN_CLOSURES:
+        return np.zeros(0)
+    table = np.vstack(rows)
+    short = np.flatnonzero(np.sum(~np.isnan(table), axis=0) < MIN_CLOSURES)
+    reached = int(short[0]) if short.size else blocks
+    return 10.0 * np.log10(np.maximum(np.nanmedian(table[:, :reached], axis=0), 1e-30))
+
+
+def _level_run(levels: np.ndarray) -> int:
+    """Blocks from ``levels[0]`` that stay level: within ``FLAT_DB`` of the quietest so far,
+    and with a least-squares rise across them under ``FLAT_DB / 2`` (a voice's tail still
+    slopes up away from the closure; a floor does not)."""
+    floor = np.minimum.accumulate(levels)
+    above = np.flatnonzero(levels > floor + FLAT_DB)
+    n = int(above[0]) if above.size else levels.size
+    m = np.arange(2, n + 1, dtype=np.float64)
+    k = np.arange(n, dtype=np.float64)
+    sy, sky = np.cumsum(levels[:n])[1:], np.cumsum(k * levels[:n])[1:]
+    sk, skk = m * (m - 1) / 2, (m - 1) * m * (2 * m - 1) / 6
+    rise = (m * sky - sk * sy) / (m * skk - sk**2) * m
+    level = np.flatnonzero(rise <= FLAT_DB / 2)
+    return int(level[-1]) + 2 if level.size else min(n, 1)
+
+
+def _measure_hold(profile_db: np.ndarray, sample_rate: int) -> tuple[int, int]:
+    """``(edge, hold)`` in samples: the gate's release edge just before each closure (a ramp,
+    or a codec's last frame), and the hold on the track's floor before that edge: the
+    longest level run that qualifies. The hold is 0 when none does."""
+    block = round(BLOCK_SEC * sample_rate)
+    best = (0, 0)
+    for edge in range(profile_db.size):
+        run = _level_run(profile_db[edge:])
+        floor = profile_db[edge : edge + run]
+        if (
+            run > best[1]
+            and run * BLOCK_SEC >= MIN_HOLD_SEC
+            and profile_db[:edge].max(initial=-np.inf) < floor.min() - FLAT_DB
+            and profile_db[edge + run :].max(initial=-np.inf)
+            >= floor.mean() + SPEECH_ABOVE_NOISE_DB
+        ):
+            best = (edge, run)
+    return best[0] * block, best[1] * block
+
+
+def _noise_frames(path: Path, holes: GateHoles, release: int, hold: int) -> _NoiseFrames:
+    """Speech-level frames over the open stretches, and the hold's frames before each closure."""
     sr = holes.sample_rate
     nfft = _frame_len(sr)
     hop = nfft // 2
     window = np.hanning(nfft)
     norm = float(np.sum(window**2))
+    # A hold shorter than a frame is read as one shorter frame per closure, zero-padded.
+    held_len = min(nfft, hold)
+    held_window = np.hanning(held_len)
+    held_norm = float(np.sum(held_window**2))
+    held_starts = np.arange(0, hold - held_len + 1, max(1, held_len // 2))
+    held_idx = held_starts[:, None] + np.arange(held_len)[None, :]
     edge = round(EDGE_SEC * sr)
-    hang = round(HANGOVER_SEC * sr)
     out = _NoiseFrames(nfft=nfft, hangover=[], frame_db=[])
-    chunks = FFmpegEngine().stream_mono_f32(path, sample_rate=sr)
-    with closing(SequentialWindowReader(chunks, sr)) as reader:
+    with closing(_mono_reader(path, sr)) as reader:
         for start, end, closes in _open_stretches(holes):
-            a, b = start + edge, end - edge
+            held = closes and end - start > release + hold
+            a, b = start + edge, (end - release - hold) if held else (end - edge)
             count = 1 + (b - a - nfft) // hop if b - a >= nfft else 0
             for f0 in range(0, count, READ_FRAMES):
                 f1 = min(count, f0 + READ_FRAMES)
@@ -219,30 +307,36 @@ def _noise_frames(path: Path, holes: GateHoles) -> _NoiseFrames:
                 psd = np.abs(np.fft.rfft(frames, axis=1)) ** 2 / norm
                 power = (psd[:, 0] + psd[:, -1] + 2.0 * psd[:, 1:-1].sum(axis=1)) / nfft
                 out.frame_db.append(10.0 * np.log10(np.maximum(power, 1e-30)))
-                if closes:
-                    starts = a + (f0 + np.arange(f1 - f0)) * hop
-                    held = starts >= end - hang
-                    if held.any():
-                        out.hangover.append(psd[held])
+            if not held:
+                continue
+            tail, _ = reader.window_samples(end - release - hold, end - release)
+            if tail.size == hold:
+                frames = tail[held_idx] * held_window
+                out.hangover.append(np.abs(np.fft.rfft(frames, n=nfft, axis=1)) ** 2 / held_norm)
     return out
 
 
 def _noise_psd(frames: _NoiseFrames) -> np.ndarray | None:
-    """Mean periodogram of the quieter half of the hangover frames, or None unmeasured."""
-    if not frames.hangover:
+    """Mean periodogram of the hangover frames that carry no voice, or None unmeasured."""
+    if len(frames.hangover) < MIN_CLOSURES:
         return None
     held = np.concatenate(frames.hangover)
-    if held.shape[0] < MIN_HANGOVER_FRAMES:
-        return None
     power = held.sum(axis=1)
-    return held[power <= np.median(power)].mean(axis=0)
+    return held[power <= np.median(power) * 10 ** (SPEECH_ABOVE_NOISE_DB / 10)].mean(axis=0)
 
 
 def _comfort_noise(
     project: EpisodeProject, track: Track, path: Path, holes: GateHoles
 ) -> FillLoop | str:
     del project, track
-    frames = _noise_frames(path, holes)
+    profile = _closure_profile(path, holes)
+    if profile.size == 0:
+        return "no noise measured under its speech"
+    release, hold = _measure_hold(profile, holes.sample_rate)
+    if not hold:
+        return "its gate holds no level floor open before closing, too short to measure"
+    hold_sec = hold / holes.sample_rate
+    frames = _noise_frames(path, holes, release, hold)
     psd = _noise_psd(frames)
     if psd is None:
         return "no noise measured under its speech"
@@ -258,7 +352,7 @@ def _comfort_noise(
             "not a floor"
         )
     loop = _synthesise(psd, frames.nfft, holes.sample_rate)
-    return FillLoop(samples=loop, level_db=noise_db, noise_db=noise_db)
+    return FillLoop(samples=loop, level_db=noise_db, noise_db=noise_db, hold_sec=hold_sec)
 
 
 def _synthesise(psd: np.ndarray, nfft: int, sample_rate: int) -> np.ndarray:
@@ -363,11 +457,17 @@ class GateFillResult:
     fill: GateFill | None
     holes: int
     reason: str | None = None
+    hold_sec: float | None = None
 
     def describe(self) -> str:
         if self.fill is not None:
             f = self.fill
-            noise = f" (noise under speech {f.noise_db:.1f})" if f.noise_db is not None else ""
+            noise = (
+                f" (noise under speech {f.noise_db:.1f}, read over a {1000 * self.hold_sec:.0f} ms "
+                "gate hold)"
+                if f.noise_db is not None and self.hold_sec is not None
+                else ""
+            )
             what = "comfort noise" if f.source is GateFillSource.COMFORT_NOISE else "room-tone bed"
             return (
                 f"{self.track_id}: {f.holes} holes, {f.filled_sec:.1f}s filled with {what} "
@@ -408,7 +508,7 @@ def plan_gate_fill(project: EpisodeProject, track: Track, *, fade_ms: int) -> Ga
             noise_db=None if made.noise_db is None else round(made.noise_db, 2),
             fade_ms=fade_ms,
         )
-        return GateFillResult(track.id, fill, len(holes.bounds))
+        return GateFillResult(track.id, fill, len(holes.bounds), hold_sec=made.hold_sec)
     return GateFillResult(track.id, None, len(holes.bounds), reasons[-1])
 
 

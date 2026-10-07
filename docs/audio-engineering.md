@@ -337,10 +337,29 @@ A track whose noise is not a floor stays silent. That means a measured noise les
 **Comfort noise** follows telephony comfort-noise generation (CNG). The step measures
 the noise the track carries under its own speech, then synthesises Gaussian noise with
 that power spectrum. A gated track has no pauses to measure, so the measurement reads the
-gate's hangover. That is the last 120 ms the gate held open before each closure, after the
-voice fell below its threshold. A telephony encoder sends its SID frames from the same
-hangover. The louder half of those 20 ms frames is dropped, which holds back a word's
-tail, and the rest are averaged per frequency bin. The noise is synthesised once as a
+gate's hangover: what the gate held open before each closure, after the voice fell below
+its threshold. A telephony encoder sends its SID frames from the same hangover.
+
+The hold is measured per track, never assumed. The step takes the median level of each
+5 ms block going back from every closure (up to 0.5 s, and only as far as 8 closures
+reach). While the gate holds open on the floor that level stays put. Where the voice's
+tail begins it rises. The hold is the longest level run in that profile:
+
+- every block within 2 dB of the quietest block between it and the run's closure end;
+- a least-squares rise across it under 1 dB, because a voice's tail slopes and a floor
+  does not;
+- at least 15 ms long;
+- the voice back at least 10 dB above it further from the closure.
+
+A release ramp or a codec's last frame (AAC fades the floor out over its final frame) may
+sit right at the closure. It counts as the gate's edge only when it is more than 2 dB under
+the run, so a run partway up a ringing tail never qualifies. A gate that closes on a
+decaying tail with no hold has no qualifying run, and its holes stay silent rather than
+filled from the tail.
+
+Each closure's hold is read in frames of about 20 ms, or as one shorter frame zero-padded when the
+hold is shorter. Frames 10 dB over the median (the odd closure a word still reaches) are
+dropped, and the rest are averaged per frequency bin. The noise is synthesised once as a
 seamless loop of at least 20 s (random phases, one inverse FFT). Each hole reads the loop at its own
 position on the media's clock, so no two holes start on the same noise and the texture
 never repeats on a short cycle.
@@ -360,12 +379,18 @@ was measured at. A replaced recording renders without it until the step runs aga
 **Undo and visibility.** The step sets `timeline.tracks[].gate_fill` (source, file, holes,
 seconds filled, fill level, the measured noise under speech, fade). Undo of
 `after fill_gate_holes` restores the previous fill, and the render hash follows it. The
-step summary reports each track: holes, seconds filled, source and level, or why it was
-left silent. `gate_fill.mode: off` clears every fill.
+step summary reports each track: holes, seconds filled, source and level, and the gate
+hold the noise was read over, or why it was left silent. `gate_fill.mode: off` clears
+every fill.
 
 **Not covered.** A bleed-gate mute (`transcript_gate`) on a gated track and a tighten mute
 whose `filler_pad_mode: room_tone` finds no room tone still render digital silence. They
-are our own edits, and their fill is decided by their own setting.
+are our own edits, and their fill is decided by their own setting. A hold under 15 ms is
+unmeasured, so those holes stay silent. On AAC (`.m4a`) media, a multi-source render
+(for example under a room-tone-filled mute) seeks the media up to one AAC
+frame off the exact decode the fill is placed on, so the fill can land on speech there
+(#1141; `test_fill_never_overlaps_speech_in_a_multi_source_render[m4a]` is marked
+`xfail` until it lands).
 
 ### Evidence: comfort-noise estimators
 
@@ -384,7 +409,7 @@ scratchpad. Two kinds of truth were used:
 | Quietest 10% of open frames | 1.2 dB | 18.7 dB | −84.7 / −81.7 dBFS |
 | Minimum statistics (Martin 2001) | 4.3 dB | 11.6 dB | −74.9 / −72.2 dBFS |
 | Hangover, median ÷ ln 2 | 6.1 dB | 12.3 dB | −80.3 / −78.7 dBFS |
-| **Hangover, quieter half (shipped)** | 3.0 dB | 13.8 dB | −86.3 / −86.6 dBFS |
+| Hangover, quieter half of a fixed 120 ms (first draft) | 3.0 dB | 13.8 dB | −86.3 / −86.6 dBFS |
 | Per-bin minimum of minimum statistics and quieter-half hangover | 5.2 dB | 10.6 dB | ≈ hangover |
 
 Every estimator runs high when the gate threshold sits far over the noise or the hold is
@@ -394,24 +419,53 @@ tracks. In the product, with fixed ~0.26 s blocks, it read −56 to −62 dBFS. 
 minimum then always took the hangover (equal to 0.1 dB on all three tracks), so it was
 removed. The quietest-tenth estimate only works where pauses make up a tenth of the open
 audio, and it reads 17 to 32 dB high when the gate holds briefly. By ear, clip 4 of the
-#1111 listening set plays the shipped fill against minimum statistics on Audra's stem.
+#1111 listening set plays the first-draft fill against minimum statistics on Audra's stem.
+
+### Evidence: measured hold
+
+The first draft read a fixed 120 ms before each closure. On a gate that holds briefly that
+window reaches back into the voice. Synthetic gated tracks (harmonic phrases at −20 dBFS,
+a −66 dBFS floor, 8 to 12 closures) put each estimate against the true floor. Each case
+ran at 16 and 48 kHz; a range covers both.
+
+| Gate | Fixed 120 ms | Measured hold |
+| --- | --- | --- |
+| 250 ms hold | | +0.0 dB (250 ms) |
+| 150 ms hold | −0.5 dB | +0.0 dB (150 ms) |
+| 60 ms hold | +0.1 dB | +0.1 dB (60 ms) |
+| 20 ms hold | +5.4 dB | −0.1 to +0.2 dB (20 ms) |
+| 10 ms or no hold | | silent (unmeasured) |
+| No hold, closing on a decaying tail | +9 dB | silent (unmeasured) at RT60 0.3, 0.6 and 1.0 s |
+| Ringing tail (RT60 0.3 s), then a 150 ms hold | | +0.6 to +1.1 dB (20 to 30 ms) |
+| Pink noise plus 60 Hz hum, 20 and 150 ms holds | | −0.3 to +0.3 dB |
+| AAC (`.m4a`), 150 and 250 ms holds | | −0.1 to +0.0 dB (75 to 215 ms) |
+| Sub-bass rumble only (below 50 Hz) | | −1.7 dB, or silent at 16 kHz |
+
+The fixed-window column is the verifier's measurement of the first draft. The
+measured-hold column comes from a session-scratchpad sweep. `tests/test_gate_fill.py` pins
+the 20 ms, 250 ms, ringing-room and AAC cases within 2 dB, and the no-hold ringing case as
+silent.
 
 ### Evidence: lab tape
 
-The step ran on the whole lab tape in 19 s (three 28-minute tracks). The fill FLACs
-take 12 MB (Caleb) and 68 MB (Audra, Lana), against 324 MB for each raw WAV.
+The step ran on the whole lab tape in 23 to 28 s (three 28-minute tracks, two runs). The
+fill FLACs take 10 MB (Caleb) and 64 MB (Audra, Lana), against 324 MB for each raw WAV.
 
-| Track | Exact-zero runs ≥ 20 ms | Filled (interior holes) | Holes | Fill level (= noise under speech) | Open-gate floor before closures | Speech p90 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Caleb | 190 s (11.2%) | 190 s (11.2%) | 606 | −82.6 dBFS | −82.3 dBFS | −14.7 dBFS |
-| Audra | 1248 s (73.9%) | 1242 s (73.5%) | 1142 | −87.7 dBFS | −91.6 dBFS | −12.2 dBFS |
-| Lana | 1241 s (73.4%) | 1238 s (73.3%) | 1024 | −87.8 dBFS | −91.8 dBFS | −15.7 dBFS |
+| Track | Exact-zero runs ≥ 20 ms | Filled (interior holes) | Holes | Measured hold | Fill level (= noise under speech) | First draft (fixed 120 ms) | Open-gate floor before closures | Speech p90 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Caleb | 190 s (11.2%) | 190 s (11.2%) | 606 | 25 ms | −89.8 dBFS | −82.6 dBFS | −82.3 dBFS | −14.9 dBFS |
+| Audra | 1248 s (73.9%) | 1242 s (73.5%) | 1142 | 25 ms | −89.9 dBFS | −87.7 dBFS | −91.6 dBFS | −12.3 dBFS |
+| Lana | 1241 s (73.4%) | 1238 s (73.3%) | 1024 | 25 ms | −89.9 dBFS | −87.8 dBFS | −91.8 dBFS | −15.7 dBFS |
 
-The open-gate floor is the median 5 ms frame 20 to 100 ms before each closure. On the
-premix, the all-tracks dead air at 1660.29 to 1660.76 now sits at −84.1 dBFS, against
-−86.3 dBFS in the 150 ms before it. At 1499.65 to 1501.63 it sits at −83.8 dBFS, against
-−82.5 dBFS before it. Both A/B windows, rendered through `podcast play` with main's code
-and this step, are sample-identical outside every track's holes.
+The open-gate floor is the median 5 ms frame 20 to 100 ms before each closure. Zoom's
+gate holds about 25 ms on a level floor before each closure on all three tracks. Before
+that, Caleb's track carries speech and Audra's bleed, and Audra's and Lana's carry word
+tails. The fixed 120 ms window read those, 2 to 7 dB over the measured hold.
+
+On the premix, the all-tracks dead air at 1660.29 to 1660.76 now sits at −88.6 dBFS,
+against −86.5 dBFS in the 150 ms before it. At 1499.65 to 1501.63 it sits at −88.0 dBFS,
+against −84.7 dBFS before it. Both A/B windows, rendered through `podcast play` with
+main's code and this step, are sample-identical outside every track's holes.
 
 ## Transcript gate diagnostics
 
