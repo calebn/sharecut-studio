@@ -567,16 +567,7 @@ def test_segment_render_keeps_own_audio_byte_identical(tmp_path: Path) -> None:
     assert _rms_db(_span(filled, 2.76 - 2.5, 3.36 - 2.5)) == pytest.approx(ROOM_DB, abs=4.0)
 
 
-@pytest.mark.parametrize(
-    "suffix",
-    [
-        "wav",
-        # Multi-source renders input-seek AAC media, and ffmpeg 9 lands that seek up to a
-        # frame off an exact decode while the fill is seeked exactly, so the fill lands on
-        # speech there until #1141 lands. ffmpeg 6.1 seeks it exactly and passes.
-        pytest.param("m4a", marks=pytest.mark.xfail(reason="#1141 on ffmpeg 9", strict=False)),
-    ],
-)
+@pytest.mark.parametrize("suffix", ["wav", "m4a"])
 def test_fill_never_overlaps_speech_in_a_multi_source_render(tmp_path: Path, suffix: str) -> None:
     # A room-tone-filled mute reads a second stretch of the media, so the render seeks it.
     clip = Clip(

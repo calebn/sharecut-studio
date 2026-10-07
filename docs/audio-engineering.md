@@ -425,11 +425,10 @@ every hold raises the median the holds are judged against, so it is read as part
 room. The credibility rule compares the noise with the room-tone sampler's speech level,
 which is read on a mono downmix, so on identical channels the rule's margin is 27 dB
 rather than 30. The sampler also picks the quiet runs the fallback reads on its own
-levels, which keep the DC offset; the fill reads their spectrum with DC removed. On AAC (`.m4a`) media, ffmpeg 9 lands
-a multi-source render's input seek (for example under a room-tone-filled mute) up to one
-AAC frame off the exact decode the fill is placed on, so the fill can land on speech there
-(#1141). ffmpeg 6.1 seeks it exactly. `test_fill_never_overlaps_speech_in_a_multi_source_render[m4a]`
-is marked as a non-strict `xfail` until #1141 lands.
+levels, which keep the DC offset; the fill reads their spectrum with DC removed. The
+render reads the fill through the same `MediaSeek` as its media (#1141), so on AAC
+(`.m4a`) media too the fill lands on the samples of the exact decode it was placed on;
+`test_fill_never_overlaps_speech_in_a_multi_source_render[m4a]` pins it.
 
 ### Evidence: comfort-noise estimators
 
