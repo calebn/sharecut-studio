@@ -71,8 +71,17 @@ class SpectralBackend:
         return np.sqrt(np.array(bands)).astype(np.float32)
 
 
-def _voice(speaker: int, seconds: float, rng: np.random.Generator) -> np.ndarray:
-    f0, formants = VOICES[speaker]
+# Four distinct voices in two close-sounding pairs (two low, two high).
+CLOSE_VOICES = (
+    (110.0, (600.0, 1100.0)),
+    (130.0, (700.0, 1250.0)),
+    (290.0, (450.0, 2700.0)),
+    (310.0, (520.0, 3100.0)),
+)
+
+
+def _voice(speaker: int, seconds: float, rng: np.random.Generator, voices=VOICES) -> np.ndarray:
+    f0, formants = voices[speaker]
     t = np.arange(round(seconds * RATE)) / RATE
     pitch = f0 * (1 + 0.04 * np.sin(2 * np.pi * rng.uniform(3, 6) * t))
     phase = 2 * np.pi * np.cumsum(pitch) / RATE
@@ -85,7 +94,12 @@ def _voice(speaker: int, seconds: float, rng: np.random.Generator) -> np.ndarray
 
 
 def _mix(
-    speakers: int, seconds: float, *, seed: int, crosstalk: tuple[tuple[float, float], ...] = ()
+    speakers: int,
+    seconds: float,
+    *,
+    seed: int,
+    crosstalk: tuple[tuple[float, float], ...] = (),
+    voices=VOICES,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Turn-taking speech with pauses, and per-frame truth (speakers x frames)."""
     rng = np.random.default_rng(seed)
@@ -94,7 +108,7 @@ def _mix(
 
     def place(speaker: int, start: float, length: float) -> None:
         first = round(start * RATE)
-        voice = _voice(speaker, length, rng)[: audio.size - first]
+        voice = _voice(speaker, length, rng, voices)[: audio.size - first]
         audio[first : first + voice.size] += voice
         truth[speaker, round(start / FRAME_SEC) : round((start + length) / FRAME_SEC)] = True
 
@@ -577,6 +591,63 @@ def test_too_high_a_speaker_count_warns_which_two_are_one_person(
     assert "sound like one person" in warning
     assert sum(name in warning for name in ("Ana", "Ben", "Cy")) == 2
     assert len(result["lanes"]) == 3
+
+
+NAMES = ["Ana", "Ben", "Cy", "Di"]
+
+
+@pytest.fixture
+def close_voices() -> tuple[np.ndarray, dict[str, list[tuple[float, float]]]]:
+    """Four distinct voices in two close pairs, and 2 s of each speaking alone."""
+    audio, truth = _mix(4, 90.0, seed=1, voices=CLOSE_VOICES)
+    spans = {}
+    for name, row in zip(NAMES, truth, strict=True):
+        start = np.flatnonzero(row & (truth.sum(axis=0) == 1))[0] * FRAME_SEC
+        spans[name] = [(float(start), float(start) + 2.0)]
+    return audio, spans
+
+
+def _close_voices_split(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    audio: np.ndarray,
+    enrollment: dict[str, list[tuple[float, float]]],
+) -> list[str]:
+    monkeypatch.setattr(
+        "podcast_mcp.services.media.speaker.resolve_speaker_backend",
+        lambda name=None: SpectralBackend(),
+    )
+    result = SpeakerService(_room_workspace(tmp_path, audio, [])).split_speakers(
+        "room", speaker_count=4, names=NAMES, enrollment=enrollment, dry_run=True
+    )
+    return result["warnings"]
+
+
+def test_close_voices_nobody_enrolled_warn_to_enroll_the_pair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, close_voices
+) -> None:
+    audio, _ = close_voices
+    [warning] = _close_voices_split(tmp_path, monkeypatch, audio, {})
+    named = [name for name in NAMES if name in warning.split(":")[0]]
+    assert len(named) == 2
+    assert warning.endswith(f"enroll {named[0]} and {named[1]}.")
+
+
+def test_close_voices_all_enrolled_do_not_warn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, close_voices
+) -> None:
+    audio, spans = close_voices
+    assert _close_voices_split(tmp_path, monkeypatch, audio, spans) == []
+
+
+def test_a_close_pair_with_one_speaker_enrolled_still_warns_about_the_other(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, close_voices
+) -> None:
+    audio, spans = close_voices
+    [blind] = _close_voices_split(tmp_path, monkeypatch, audio, {})
+    pair = [name for name in NAMES if name in blind.split(":")[0]]
+    [warning] = _close_voices_split(tmp_path, monkeypatch, audio, {pair[0]: spans[pair[0]]})
+    assert warning.endswith(f"enroll {pair[1]}.")
 
 
 def test_split_refuses_the_ci_mock_backend(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
