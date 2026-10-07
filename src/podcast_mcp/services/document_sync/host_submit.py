@@ -35,3 +35,8 @@ def submit_host_document_command(
             raise ValueError("command_id must be nonempty")
         cmd.command_id = command_id
     return svc.submit(cmd)
+
+
+def host_command_result(reply: dict[str, Any]) -> dict[str, Any]:
+    """The handler result inside a submit reply (``command.payload.result``)."""
+    return ((reply.get("command") or {}).get("payload") or {}).get("result") or {}

@@ -417,6 +417,25 @@ def edit_move_clips_cmd(
     typer.echo(json.dumps(EditService(ws).move_clips(raw), indent=2))
 
 
+@edit_app.command("delete-clips")
+def edit_delete_clips_cmd(
+    project: Path = typer.Option(..., "--project"),
+    ids: str = typer.Option(..., "--ids", help="Comma-separated clip ids"),
+    ripple: bool = typer.Option(False, "--ripple", help="Close the gap (later clips move up)"),
+) -> None:
+    """Delete whole clips; without --ripple each clip leaves a gap."""
+    from podcast_mcp.services.document_sync import (
+        DocumentCommandType,
+        host_command_result,
+        submit_host_document_command,
+    )
+
+    clip_ids = [x.strip() for x in ids.split(",") if x.strip()]
+    command: DocumentCommandType = "RippleDeleteClip" if ripple else "DeleteClip"
+    reply = submit_host_document_command(project, command, {"clip_ids": clip_ids}, client_id="cli")
+    typer.echo(json.dumps(host_command_result(reply), indent=2))
+
+
 @edit_app.command("insert-gap")
 def edit_insert_gap_cmd(
     project: Path = typer.Option(..., "--project"),

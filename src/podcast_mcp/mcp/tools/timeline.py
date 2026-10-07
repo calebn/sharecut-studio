@@ -9,6 +9,11 @@ from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import notify_after_mutation
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, TrimBoundaryTarget
+from podcast_mcp.services.document_sync import (
+    DocumentCommandType,
+    host_command_result,
+    submit_host_document_command,
+)
 from podcast_mcp.util.project_state import REQUEST_RENDER_LOCK_TIMEOUT_SEC
 
 
@@ -91,18 +96,13 @@ def move_clips_tool(project_path: str, clips_json: str) -> str:
     Inter-track moves keep the originating media via ``source_id``. Unlike
     ``move_segment_tool``, this does not cut a range on every dialogue lane.
     """
-    from podcast_mcp.services.document_sync import submit_host_document_command
-
     raw = json.loads(clips_json)
     if not isinstance(raw, list):
         raise ValueError("clips_json must be a JSON array")
-    result = submit_host_document_command(
-        project_path,
-        "MoveClips",
-        {"clips": raw},
+    result = submit_host_document_command(project_path, "MoveClips", {"clips": raw})
+    return to_json(
+        host_command_result(result) or {"ok": result.get("ok"), "operation": "move_clips"}
     )
-    payload = (result.get("command") or {}).get("payload") or {}
-    return to_json(payload.get("result") or {"ok": result.get("ok"), "operation": "move_clips"})
 
 
 def move_by_text_tool(
@@ -275,9 +275,6 @@ def split_clip_tool(
     When omitted, uses ``track_id`` / ``speaker``, or all dialogue tracks.
     Submits ``SplitAtTime`` on the document plane (same path as Sharecut Studio blade).
     """
-    import json
-
-    from podcast_mcp.services.document_sync import submit_host_document_command
     from podcast_mcp.util.tracks import dialogue_track_ids
 
     ws = ProjectWorkspace.open(project_path)
@@ -297,8 +294,24 @@ def split_clip_tool(
         "SplitAtTime",
         {"at_time": float(at_time), "track_ids": track_ids},
     )
-    payload = (result.get("command") or {}).get("payload") or {}
-    return to_json(payload.get("result") or {"ok": result.get("ok"), "operation": "split"})
+    return to_json(host_command_result(result) or {"ok": result.get("ok"), "operation": "split"})
+
+
+def delete_clips_tool(project_path: str, clip_ids_json: str, ripple: bool = False) -> str:
+    """Delete whole clips by id, as the Studio clip Delete and Ripple delete do.
+
+    ``clip_ids_json`` is a JSON array of clip ids (see ``list_clips_tool``). Without
+    ``ripple`` each clip leaves a gap and nothing else moves; with ``ripple`` later
+    clips close the gap. Submits ``DeleteClip`` / ``RippleDeleteClip`` on the document
+    plane; undoable. For a time range across tracks use ``ripple_delete_tool``.
+    """
+    ids = json.loads(clip_ids_json)
+    if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
+        raise ValueError("clip_ids_json must be a JSON array of clip ids")
+    command: DocumentCommandType = "RippleDeleteClip" if ripple else "DeleteClip"
+    return to_json(
+        host_command_result(submit_host_document_command(project_path, command, {"clip_ids": ids}))
+    )
 
 
 def duplicate_segment_tool(
@@ -921,6 +934,7 @@ def register(mcp: MCPServer) -> None:
         trim_clip_edge_tool,
         shorten_gaps_tool,
         split_clip_tool,
+        delete_clips_tool,
         duplicate_segment_tool,
         list_clips_tool,
         list_applied_edits_tool,
