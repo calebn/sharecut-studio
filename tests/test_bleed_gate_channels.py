@@ -257,3 +257,115 @@ def test_identical_channels_are_judged_at_ffmpegs_mono_level(
         capture_output=True,
     ).stdout
     np.testing.assert_array_equal(signal, np.frombuffer(decoded, dtype=np.float32))
+
+
+def _gated_speech(seed: int, seconds: int = 40) -> np.ndarray:
+    """Voiced bursts of varying length and level over digital silence, like a call app's lane."""
+    rng = np.random.default_rng(seed)
+    clock = np.arange(RATE * seconds) / RATE
+    lane = np.zeros(clock.size, dtype=np.float32)
+    start = 1.0
+    while start < seconds - 2:
+        length = rng.uniform(0.15, 1.5)
+        level = 10 ** (rng.uniform(-40, -12) / 20)
+        first, last = round(start * RATE), round((start + length) * RATE)
+        envelope = np.hanning(last - first) ** 0.5
+        pitch = rng.uniform(90, 250)
+        voice = sum(
+            np.sin(2 * np.pi * pitch * harmonic * clock[first:last] + harmonic) / harmonic
+            for harmonic in range(1, 12)
+        )
+        voice = voice + 0.3 * rng.standard_normal(last - first)
+        lane[first:last] += (voice * envelope * level / np.std(voice)).astype(np.float32)
+        start += length + rng.uniform(0.1, 1.0)
+    return lane
+
+
+def _silent_gap(lane: np.ndarray, after_sec: float = 5.0, length_sec: float = 0.5) -> int:
+    """First sample at or after ``after_sec`` that starts ``length_sec`` of digital silence."""
+    width = round(length_sec * RATE)
+    for first in range(round(after_sec * RATE), lane.size - width, RATE // 100):
+        if not lane[first : first + width].any():
+            return first
+    raise AssertionError("the lane has no silent gap")
+
+
+def _decoded_channels(
+    tmp_path: Path, channels: np.ndarray, codec_args: list[str], suffix: str
+) -> np.ndarray:
+    """The lane encoded with ``codec_args`` and decoded as the gate reads it, per channel."""
+    source = tmp_path / "lane.wav"
+    _write_pcm(source, channels)
+    lossy = source.with_suffix(suffix)
+    ffmpeg = resolve_ffmpeg()
+    subprocess.run(
+        [ffmpeg, "-v", "error", "-y", "-i", str(source), *codec_args, str(lossy)], check=True
+    )
+    decoded = subprocess.run(
+        [
+            ffmpeg,
+            "-v",
+            "error",
+            "-i",
+            str(lossy),
+            "-ar",
+            str(EVIDENCE_RATE),
+            "-f",
+            "f32le",
+            "pipe:1",
+        ],
+        check=True,
+        capture_output=True,
+    ).stdout
+    return np.frombuffer(decoded, dtype=np.float32).reshape(-1, channels.shape[1])
+
+
+LOSSY_CODECS = [
+    pytest.param(["-c:a", "libopus", "-b:a", "32k"], ".opus", id="opus-32k"),
+    pytest.param(["-c:a", "libopus", "-b:a", "64k"], ".opus", id="opus-64k"),
+    pytest.param(["-c:a", "libopus", "-b:a", "128k"], ".opus", id="opus-128k"),
+    pytest.param(["-c:a", "aac", "-b:a", "64k"], ".m4a", id="aac-64k"),
+    pytest.param(["-c:a", "aac", "-b:a", "128k"], ".m4a", id="aac-128k"),
+]
+# A codec spreads its quantisation noise over its transform block, so the 20 ms frames at
+# the edge of a burst read the loud block's noise against their own, quieter level (#1159).
+# Seed 5 reads as two signals at Opus 32k and 64k, seed 4 at Opus 32k, 64k and 128k.
+CODEC_NOISE_SEEDS = (4, 5)
+
+
+@pytest.mark.parametrize("seed", CODEC_NOISE_SEEDS)
+@pytest.mark.parametrize(("codec_args", "suffix"), LOSSY_CODECS)
+def test_codec_noise_at_the_edge_of_a_sound_is_one_signal(
+    tmp_path: Path, codec_args: list[str], suffix: str, seed: int
+) -> None:
+    voice = _gated_speech(seed)
+    decoded = _decoded_channels(tmp_path, np.column_stack([voice, voice]), codec_args, suffix)
+    assert not np.array_equal(decoded[:, 0], decoded[:, 1])
+    assert _channels_are_one_signal(decoded)
+
+
+@pytest.mark.parametrize(("codec_args", "suffix"), LOSSY_CODECS)
+def test_lossy_stereo_with_a_short_sound_on_one_channel_is_two_signals(
+    tmp_path: Path, codec_args: list[str], suffix: str
+) -> None:
+    """A 60 ms sound at speech level in a gap is on one channel only; no codec hides it."""
+    voice = _gated_speech(CODEC_NOISE_SEEDS[-1])
+    left = voice.copy()
+    first = _silent_gap(voice)
+    burst = np.random.default_rng(3).standard_normal(round(0.06 * RATE)) * 0.05
+    left[first : first + burst.size] += burst.astype(np.float32)
+    decoded = _decoded_channels(tmp_path, np.column_stack([left, voice]), codec_args, suffix)
+    assert not _channels_are_one_signal(decoded)
+
+
+@pytest.mark.parametrize(("codec_args", "suffix"), LOSSY_CODECS)
+def test_lossy_stereo_with_a_second_voice_on_one_channel_is_two_signals(
+    tmp_path: Path, codec_args: list[str], suffix: str
+) -> None:
+    left = _gated_speech(CODEC_NOISE_SEEDS[-1])
+    right = left.copy()
+    first = _silent_gap(left, after_sec=10.0, length_sec=0.9)
+    own = np.random.default_rng(4).standard_normal(round(0.8 * RATE)) * 0.05
+    left[first : first + own.size] += own.astype(np.float32)
+    decoded = _decoded_channels(tmp_path, np.column_stack([left, right]), codec_args, suffix)
+    assert not _channels_are_one_signal(decoded)
