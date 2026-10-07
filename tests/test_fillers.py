@@ -2793,8 +2793,8 @@ def test_audio_mute_ends_before_a_plosive_burst_and_carries_it(tmp_path):
 @pytest.mark.parametrize(
     ("level_db", "proposed", "skips"),
     [
-        (-20.0, [("mute", "filler:acoustic", 1.48, 1.915)], {"acoustic:voiced_edge": 1}),
-        (-50.0, [], {"acoustic:voiced_edge": 1, "acoustic:inaudible": 1}),
+        (-20.0, [("mute", "filler:acoustic", 1.48, 1.915)], {"acoustic:kept_voice": 1}),
+        (-50.0, [], {"acoustic:kept_voice": 1, "acoustic:inaudible": 1}),
     ],
 )
 def test_audio_mute_proposes_only_audible_acoustic_runs_apart_from_kept_words(
@@ -2806,7 +2806,7 @@ def test_audio_mute_proposes_only_audible_acoustic_runs_apart_from_kept_words(
         tmp_path,
         [
             # "So" runs on, voiced, 300 ms past its word time: the run in the gap
-            # after it is the word's own sound.
+            # after it is the word's own sound, and no quiet frame is left to mute.
             (0.3, _voice(0.6)),
             (1.5, _voice(0.4, level_db=level_db)),
             (2.6, _voice(0.4)),
@@ -2864,6 +2864,153 @@ def test_audio_acoustic_run_in_a_short_gap_is_muted_but_not_rippled(
         proposed
     )
     assert found == skips
+
+
+def _breathy_voice(sec: float, *, level_db: float = -20.0, rate: int = 16_000):
+    """A voice with as much noise as tone: its pitch peak (0.4-0.5) passes the gap
+    scan's voicing check but not the voiced-run check, like the lab "So" at 230.6
+    (0.15-0.49)."""
+    import numpy as np
+
+    noise = np.random.default_rng(5).standard_normal(round(sec * rate))
+    voice = _voice(sec, level_db=0.0, rate=rate) + noise / np.sqrt(np.mean(noise**2))
+    return voice / np.sqrt(np.mean(voice**2)) * 10 ** (level_db / 20)
+
+
+def _acoustic_mute_defaults() -> dict:
+    from podcast_mcp.config import load_defaults
+
+    defaults = load_defaults()
+    defaults["tighten"]["edit_mode"] = "mute"
+    return defaults
+
+
+def test_acoustic_mute_starts_after_the_voice_a_kept_word_runs_on_with(tmp_path):
+    project = _audio_project(
+        tmp_path,
+        [
+            # "So" voices 70 ms past its word end, falls quiet for 70 ms (one run to
+            # the gap scan, two to the voiced-run check), then a hesitation follows.
+            (0.3, _breathy_voice(0.37)),
+            (0.74, _voice(0.38)),
+            (1.8, _voice(0.4)),
+        ],
+        [
+            TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+            TranscriptWord(text="okay.", start=1.8, end=2.2, confidence=0.95),
+        ],
+    )
+
+    (decision,) = analyze_fillers_and_pauses(
+        project, project.transcripts[0], _acoustic_mute_defaults()
+    )
+
+    # The last audible frame of "So" ends at 0.68 s, not at its word end (0.6); the
+    # mute keeps 60 ms of voiced-edge air after it.
+    assert decision.reason == "filler:acoustic"
+    assert decision.start == pytest.approx(0.74, abs=0.005)
+    assert decision.end >= 1.1
+
+
+def test_acoustic_mute_ends_before_the_voice_a_kept_word_starts_with(tmp_path):
+    project = _audio_project(
+        tmp_path,
+        [
+            (0.3, _voice(0.3)),
+            (0.9, _voice(0.53, level_db=-26.0)),
+            # "okay." voices 110 ms before its word start, after 60 ms of quiet (one
+            # run to the gap scan), and louder than the hesitation, so the onset scan
+            # from the run's tail starts inside it.
+            (1.49, _breathy_voice(0.41, level_db=-18.0)),
+        ],
+        [
+            TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+            TranscriptWord(text="okay.", start=1.6, end=1.9, confidence=0.95),
+        ],
+    )
+
+    (decision,) = analyze_fillers_and_pauses(
+        project, project.transcripts[0], _acoustic_mute_defaults()
+    )
+
+    # The first audible frame of "okay." starts at 1.48 s; the mute keeps 60 ms of
+    # voiced-edge air before it.
+    assert decision.reason == "filler:acoustic"
+    assert decision.start <= 0.9
+    assert decision.end == pytest.approx(1.42, abs=0.005)
+
+
+@pytest.mark.parametrize(
+    "segments",
+    [
+        # Lab clip at 230.8: the run in the gap is the word's own voice, 250 ms past its
+        # word end, with nothing after it.
+        [(0.3, _breathy_voice(0.55))],
+        # "So" voices 120 ms past its word end. After it falls quiet, a 30 ms sound
+        # 60 ms later is all that is left: less than half of the run.
+        [(0.3, _breathy_voice(0.42)), (0.78, _voice(0.03))],
+    ],
+)
+def test_acoustic_mute_too_short_beside_a_kept_words_voice_is_skipped(tmp_path, segments):
+    project = _audio_project(
+        tmp_path,
+        [*segments, (1.6, _voice(0.4))],
+        [
+            TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+            TranscriptWord(text="okay.", start=1.6, end=2.0, confidence=0.95),
+        ],
+    )
+    found: dict[str, int] = {}
+
+    decisions = analyze_fillers_and_pauses(
+        project, project.transcripts[0], _acoustic_mute_defaults(), skip_counts=found
+    )
+
+    assert decisions == []
+    assert found == {"acoustic:kept_voice": 1}
+
+
+@pytest.mark.parametrize(
+    ("reason", "start"),
+    [
+        # A word cut starts no earlier than the first quiet frame after the kept word,
+        # where its own onset rule puts its edge (#1061).
+        ("filler:uh", 0.68),
+        # A cut without words keeps the voiced-edge air after the last audible frame.
+        ("filler:acoustic", 0.75),
+    ],
+)
+def test_cut_starting_in_a_kept_words_tail_starts_after_its_voice(tmp_path, reason, start):
+    from podcast_mcp.config import load_defaults
+    from podcast_mcp.edits.audio_cache import build_track_audio_caches
+    from podcast_mcp.edits.fillers import _between_kept_voices, _CutCandidate, _CutPlan
+
+    project = _audio_project(
+        tmp_path,
+        # "So" voices 80 ms past its word end; the "uh" voices from 0.85.
+        [(0.3, _voice(0.38)), (0.85, _voice(0.25)), (1.6, _voice(0.4))],
+        [
+            TranscriptWord(text="So", start=0.3, end=0.6, confidence=0.95),
+            TranscriptWord(text="uh", start=0.85, end=1.1, confidence=0.9),
+            TranscriptWord(text="okay.", start=1.6, end=2.0, confidence=0.95),
+        ],
+    )
+    candidate = _CutCandidate(
+        track_id="host", start=0.85, end=1.1, reason=reason, cut_kind="filler"
+    )
+    # Pacing or snapping left the start inside the tail of "So".
+    plan = _CutPlan.for_cut(0.62, 1.1, mute=True, scope="track", pad=None)
+
+    moved = _between_kept_voices(
+        project,
+        plan,
+        candidate,
+        audio_cache=build_track_audio_caches(project, {"host"})["host"],
+        defaults=load_defaults(),
+    )
+
+    assert isinstance(moved, _CutPlan)
+    assert (moved.start, moved.end) == (pytest.approx(start, abs=1e-6), 1.1)
 
 
 def test_audio_mute_is_the_same_whoever_else_is_talking(tmp_path):
