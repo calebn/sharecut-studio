@@ -178,7 +178,7 @@ def set_envelope(
     omitted, the envelope as read at call time is the baseline.
     """
     from podcast_mcp.edits.envelopes import volume_envelope_baseline
-    from podcast_mcp.mcp.tools.agent_document import submit_host_document_command
+    from podcast_mcp.services.document_sync import submit_host_document_command
 
     if expected_points_json is None:
         expected = volume_envelope_baseline(ProjectWorkspace.open(project_path).project, track_id)

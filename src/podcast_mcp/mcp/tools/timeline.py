@@ -91,7 +91,7 @@ def move_clips_tool(project_path: str, clips_json: str) -> str:
     Inter-track moves keep the originating media via ``source_id``. Unlike
     ``move_segment_tool``, this does not cut a range on every dialogue lane.
     """
-    from podcast_mcp.mcp.tools.agent_document import submit_host_document_command
+    from podcast_mcp.services.document_sync import submit_host_document_command
 
     raw = json.loads(clips_json)
     if not isinstance(raw, list):
@@ -277,7 +277,7 @@ def split_clip_tool(
     """
     import json
 
-    from podcast_mcp.mcp.tools.agent_document import submit_host_document_command
+    from podcast_mcp.services.document_sync import submit_host_document_command
     from podcast_mcp.util.tracks import dialogue_track_ids
 
     ws = ProjectWorkspace.open(project_path)

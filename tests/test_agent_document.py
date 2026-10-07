@@ -7,9 +7,8 @@ from pathlib import Path
 
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
-from podcast_mcp.mcp.tools.agent_document import submit_host_document_command
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
-from podcast_mcp.services.document_sync import DocumentSyncService
+from podcast_mcp.services.document_sync import DocumentSyncService, submit_host_document_command
 
 
 def _seed(path: str, sample_wav) -> None:

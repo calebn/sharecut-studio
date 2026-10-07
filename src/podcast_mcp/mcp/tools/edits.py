@@ -7,10 +7,10 @@ from mcp.server import MCPServer
 
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.mcp.serialize import to_json
-from podcast_mcp.mcp.tools.agent_document import submit_host_document_command
 from podcast_mcp.mcp.tools.agent_notify import agent_mutated
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService
+from podcast_mcp.services.document_sync import submit_host_document_command
 
 
 def propose_range_mute_tool(project_path: str, target: dict[str, Any], command_id: str) -> str:

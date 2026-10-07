@@ -487,8 +487,8 @@ def test_manual_range_and_exact_only_approval_work_with_pending_refinement(minim
 
 
 def test_supported_agent_cannot_approve_exact_proposal(minimal_project):
-    from podcast_mcp.mcp.tools.agent_document import submit_host_document_command
     from podcast_mcp.mcp.tools.edits import approve_edits_tool
+    from podcast_mcp.services.document_sync import submit_host_document_command
 
     ws = ProjectWorkspace.open(minimal_project)
     fixture(ws.project)
