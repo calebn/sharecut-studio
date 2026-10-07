@@ -15,6 +15,7 @@ from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.util.dsp import (
     bool_runs,
+    bridge_short_dips,
     db_to_amplitude,
     frame_rms_db,
     high_band_energy_fraction,
@@ -60,6 +61,20 @@ _SPEECH_PERCENTILE = 90.0
 _DIGITAL_SILENCE_DB = -200.0
 _BREATH_ABOVE_FLOOR_DB = 9.5
 _BREATH_BELOW_SPEECH_DB = (7.0, 40.0)
+# A pause trim's air (#1055). Room tone wanders above its own 10th percentile, so that
+# floor separates nothing from the air; the air's ceiling is the 90th percentile of the
+# live frames under the sound floor and at least 0.3 s from any sound, from at least
+# 0.5 s of them. Own quiet sound (a word's decay, a breath's fade-in) sits next to the
+# louder sound it belongs to, and these decays last up to about 0.3 s on the lab tape.
+# Air that ends a sound must also last: a breath's or a voiced decay's 10 ms level
+# flutters across the air, and creaky voice, common as a phrase trails off, pulses as
+# slowly as about 20 times a second, so a gap of up to 40 ms between its pulses still
+# belongs to the sound. On the lab tape single 10-20 ms dips ended a breath body, two
+# voiced decays and a breath onset.
+_AIR_PERCENTILE = 90.0
+_AIR_CLEAR_OF_SOUND_SEC = 0.3
+_MIN_AIR_CONTEXT_SEC = 0.5
+_MIN_AIR_SEC = 0.05
 
 
 @dataclass(frozen=True)
@@ -797,16 +812,19 @@ def protect_cut_breaths(
     audio_cache: TrackAudioCache | None = None,
     word_index: CutWordIndex | None = None,
     strict: bool = True,
+    air_only: bool = False,
 ) -> tuple[float, float] | None:
     """Shrink final edges around complete breaths, or suppress uncertain cuts.
 
     ``strict`` (a splice): missing evidence and protected connected activity are
-    not clean boundaries, so either suppresses the cut. Otherwise (an edge that
-    fades against fill) only a breath matters: an edge inside a complete breath
-    moves out of it, keeping the breath whole, an edge with no breath found stays
-    put, and a cut that is mostly breath is suppressed. A cut that a breath fills
-    edge to edge is suppressed either way. Disabled handling returns the input
-    without reading audio. Source seconds.
+    not clean boundaries, so either suppresses the cut. ``air_only`` (a splice that
+    exists to remove air, i.e. a pause trim) instead shrinks the cut to the longest
+    stretch of air inside it (:func:`_pause_air_span`), so no sound is cut.
+    Otherwise (an edge that fades against fill) only a breath matters: an edge
+    inside a complete breath moves out of it, keeping the breath whole, an edge
+    with no breath found stays put, and a cut that is mostly breath is suppressed.
+    A cut that a breath fills edge to edge is suppressed either way. Disabled
+    handling returns the input without reading audio. Source seconds.
     """
     if not (math.isfinite(start) and math.isfinite(end) and start < end):
         return None
@@ -817,6 +835,8 @@ def protect_cut_breaths(
     read = _audio_reader(project, track_id, sample_rate, audio_cache)
     if read is None:
         return no_evidence
+    if strict and air_only:
+        return _pause_air_span(read, start, end, sample_rate=sample_rate)
     context_start = max(
         0.0, math.floor((start - _LEVEL_CONTEXT_SEC) / _LEVEL_FRAME_SEC + 1e-9) * _LEVEL_FRAME_SEC
     )
@@ -881,6 +901,58 @@ def protect_cut_breaths(
         # Keeping breaths whole also means not removing one that is most of the cut.
         return None
     return new_start, new_end
+
+
+def _pause_air_span(
+    read: Callable[[float, float], np.ndarray], start: float, end: float, *, sample_rate: int
+) -> tuple[float, float] | None:
+    """The longest stretch of air in ``[start, end)``, or ``None`` when there is none.
+
+    Reads the span and 5 s on each side. Sound is a run of 10 ms frames above the air
+    that reaches 40 dB under the speech level somewhere (the breath band's speech-relative
+    floor), with any air shorter than 50 ms inside it. That floor is never raised by the
+    room-tone floor: where the live audio is mostly speech (a tight noise gate, bleed, a
+    busy stretch) the quietest frames are word tails and breaths, not room tone. So every
+    frame left in the span is at least 40 dB under the speech level, and no frame of a
+    sound that reaches it is cut. The air's ceiling is measured away from sound (see
+    ``_AIR_PERCENTILE``), never under the room-tone floor nor over the sound floor.
+    """
+    dt = _LEVEL_FRAME_SEC
+    origin = max(0.0, math.floor((start - _LEVEL_CONTEXT_SEC) / dt + 1e-9) * dt)
+    samples = _read_evidence(read, origin, end + _LEVEL_CONTEXT_SEC - origin)
+    if not samples.size or not np.all(np.isfinite(samples)):
+        return None
+    profile = level_profile(samples, sample_rate)
+    if profile is None:
+        return None
+    floor_db, speech_db = (20.0 * math.log10(level) for level in profile)
+    sound_db = speech_db - _BREATH_BELOW_SPEECH_DB[1]
+    frame = max(1, round(sample_rate * dt))
+    levels = frame_rms_db(samples, frame, frame, floor_db=_DIGITAL_SILENCE_DB)
+    reach = round(_AIR_CLEAR_OF_SOUND_SEC / dt)
+    near_sound = np.convolve(levels >= sound_db, np.ones(2 * reach + 1), mode="same") > 0
+    air = levels[(levels > _DIGITAL_SILENCE_DB) & ~near_sound]
+    ceiling = (
+        float(np.percentile(air, _AIR_PERCENTILE))
+        if air.size >= _MIN_AIR_CONTEXT_SEC / dt
+        else floor_db
+    )
+    air_db = min(max(ceiling, floor_db), sound_db) + 1e-6
+    above = bridge_short_dips(levels > air_db, round(_MIN_AIR_SEC / dt) - 1)
+    sound = np.zeros(levels.size, dtype=bool)
+    for lo, hi in bool_runs(above):
+        sound[lo:hi] = levels[lo:hi].max() >= sound_db
+    first = max(0, math.floor((start - origin) / dt + 1e-9))
+    last = min(levels.size, math.ceil((end - origin) / dt - 1e-9))
+    stretches = bool_runs(~sound[first:last])
+    if not stretches:
+        return None
+    lo, hi = max(stretches, key=lambda run: run[1] - run[0])
+    at = round(origin * sample_rate)
+    return (
+        max(start, (at + (first + lo) * frame) / sample_rate),
+        min(end, (at + (first + hi) * frame) / sample_rate),
+    )
 
 
 def _mostly_breath(
