@@ -96,12 +96,20 @@ describe("handleRasterMessage", () => {
     const e = engine({ ...mirrorGl(), lost: true });
     const job = parityJob();
     const out = await handleRasterMessage({ type: "render", id: 4, job }, e);
-    expect(out).toEqual({ type: "done", id: 4, bitmap, backend: "cpu-worker" });
-    expect(cpuBitmaps.get(e)).toHaveBeenCalledWith(
-      rasterCpu(jobGeometry(job), job.cols, job.rows, job.core, job.edge),
-      job.cols,
-      job.rows,
-    );
+    expect(out).toEqual({
+      type: "done",
+      id: 4,
+      backend: "cpu-worker",
+      pixels: rasterCpu(
+        jobGeometry(job),
+        job.cols,
+        job.rows,
+        job.core,
+        job.edge,
+      ),
+      cols: job.cols,
+      rows: job.rows,
+    });
   });
 
   it("reports errors with the job id", async () => {
