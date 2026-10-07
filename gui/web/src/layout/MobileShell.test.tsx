@@ -162,7 +162,7 @@ describe("MobileShell", () => {
     expect(screen.queryByText("Mix out of date")).toBeNull();
   });
 
-  it("shows Mix out of date when a project with media has no mix preview", () => {
+  it("shows No mix yet when a project with media has no mix preview", () => {
     const project = minimalProject({
       tracks: [
         {
@@ -193,7 +193,8 @@ describe("MobileShell", () => {
       </DawProvider>,
     );
 
-    expect(screen.getByText("Mix out of date")).toBeTruthy();
+    expect(screen.getByText("No mix yet")).toBeTruthy();
+    expect(screen.queryByText("Mix out of date")).toBeNull();
   });
 
   it("shows queued host commands in the attention banner", async () => {

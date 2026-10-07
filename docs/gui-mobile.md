@@ -124,7 +124,7 @@ pending range proposals; Viewers keep the five actions visible with disabled rea
 | Transcript tab | Text mode |
 | Comments | Listen list + More → Comments |
 | History / Impact / Tighten / Pipeline | More hub |
-| Status bar | Actionable chips (tap → panel) except **Activity** (`kind=agent`), which is status-only until the activity-history drawer; Listen **Pending** selects first review-required pending and opens Timeline; **Mix out of date** uses the shared render-status breakdown, so a new empty project stays fresh; **Pipeline** chip shows truncated headline, elapsed, and pulse (not `●`) and opens Pipeline; **Activity** chip uses the same chrome plus a count badge when more than one job is live |
+| Status bar | Actionable chips (tap → panel) except **Activity** (`kind=agent`), which is status-only until the activity-history drawer; Listen **Pending** selects first review-required pending and opens Timeline; **Mix out of date** (**No mix yet** when nothing is rendered) uses the shared render-status breakdown, so a new empty project stays fresh; **Pipeline** chip shows truncated headline, elapsed, and pulse (not `●`) and opens Pipeline; **Activity** chip uses the same chrome plus a count badge when more than one job is live |
 
 ### Gestures
 
@@ -280,7 +280,7 @@ The host recording chip remains a full touch target in the collapsed tablet tran
 
 Ferrite-style bottom rail (`EditingToolRail`): **Select | Blade** icon toggle (structural guests), **Cut at playhead**, and a confirm sheet for blade cuts (tracks + timecode). **Comment** stays on the collapsed transport so Listen/More still have it (compact `ToolModeToggle` omits Comment to avoid a duplicate). Desktop uses the expanded transport toggle (**V** / **C** when timeline-focused; same `execute` command bus as the rail — see `gui/web/src/keymap/` + `gui/web/src/commands/`); in blade mode a pointer-following cut preview marks target lanes, and click on **clip / empty-lane / ruler** splits immediately (no confirm sheet). Multi-track selection: Shift/Cmd-click track headers; blade with no selection targets all dialogue tracks.
 
-Labeled audition/pills do not stay in the bar when collapsed — that was clipping Comment/Fit/Menu off-screen. The **Mix out of date** pill is wide-bar only; collapsed transport keeps timecode pinned (`flex: 0 0 auto`) and moves refresh into Menu so digits cannot paint over status. A missing mix preview is not a pill in either bar: the Menu's Mix status section says "No mix preview yet. Refresh the mix to hear it." above the refresh item, and the wide bar puts the same reason on the Full mix segment.
+Labeled audition/pills do not stay in the bar when collapsed — that was clipping Comment/Fit/Menu off-screen. The **Mix out of date** pill is wide-bar only; collapsed transport keeps timecode pinned (`flex: 0 0 auto`) and moves refresh into Menu so digits cannot paint over status. A missing mix is the same single status, reworded: the pill, the Menu's refresh item and the phone status chip read **No mix yet** (**No mix yet · Refresh** where the person can refresh; a guest sees **No mix yet** only) instead of **Mix out of date**. The Menu's Mix status section adds "Full mix is silent until you refresh the mix." above the refresh item, and the wide bar puts the same reason on the Full mix segment.
 
 ## Desktop / tablet back-apply
 

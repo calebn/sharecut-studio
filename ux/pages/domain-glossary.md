@@ -29,6 +29,7 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Remote agent link** | MCP URL for an external agent: `{base}/mcp/{token}/mcp` |
 | **Full mix / Edited stems / Original** | What you’re hearing: all tracks mixed with edits and effects, each track on its own (not mixed) with edits and effects, or the source audio without edits or effects |
 | **Source vs timeline time** | Original recording time vs “when you hear it on the mix” |
+| **No mix yet** | No mix has been rendered (never rendered, or a failed render left none), so Full mix plays nothing until the host refreshes it. Shown in place of Mix out of date |
 | **Mix out of date** | Mix preview is behind recent edits — refresh/re-render. Export re-mixes and re-masters a stale mix itself; publishing a review version asks you to refresh first |
 | **Bleed / suppress** | Wrong-mic words hidden so cuts don’t follow bleed |
 | **Bleed gate** | Reduce verified wrong-mic audio while retaining speech and uncertain audio. Suppressing a word alone does not mute it. A selected gate region follows its original audio through later edits. |

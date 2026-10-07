@@ -46,7 +46,7 @@ import {
 } from "../utils/audioErrorLabel";
 import { AUDITION_MODES, GUESTS_HEAR_FULL_MIX } from "../utils/auditionModes";
 import { joinSentences } from "../utils/format";
-import { MIX_FRESH_LABEL, MIX_STALE_LABEL } from "../utils/staleRender";
+import { MIX_FRESH_LABEL, staleMixLabel } from "../utils/staleRender";
 import { AvatarStack } from "./AvatarStack";
 import { commentModeTitle } from "./commentModeTitle";
 import { LayoutRestoreChip, LayoutToggle } from "./LayoutControls";
@@ -153,8 +153,9 @@ export function TransportBar({
   const duration = project?.timeline_duration_sec ?? 0;
 
   // No rendered premix is a fact about Full mix, not a second transport
-  // error: the stale pill already names it and carries the fix, so the reason
-  // sits on the Full mix segment instead of squeezing the title (#1113).
+  // error: the one status pill already says "No mix yet" and carries the fix,
+  // so the audio error is dropped rather than squeezing the title (#1113).
+  // The Full mix segment keeps the longer reason.
   const noPreview = audioError === NO_PREVIEW_ERROR;
   const noPreviewHint = noPreviewReason(mayRefresh);
   const transportError = noPreview ? null : audioError;
@@ -201,13 +202,13 @@ export function TransportBar({
     ? `Click or ${displayShortcutFor("render.refreshMix") ?? "use the Menu"} to refresh mix.`
     : null;
   const staleTitle = joinSentences([breakdown?.summary, refreshHint]);
-  const staleCause =
-    breakdown?.summary && breakdown.summary !== MIX_STALE_LABEL
-      ? breakdown.summary
-      : null;
+  const mixLabel = breakdown?.stale
+    ? staleMixLabel(breakdown)
+    : MIX_FRESH_LABEL;
+  const mixPillText = mayRefresh ? `${mixLabel} · Refresh` : mixLabel;
   const staleAria = renderPreviewBusy
     ? "Refreshing mix preview"
-    : `${joinSentences([MIX_STALE_LABEL, staleCause, mayRefresh ? "Refresh mix" : null])}.`;
+    : `${joinSentences([mixLabel, breakdown?.detail, mayRefresh ? "Refresh mix" : null])}.`;
   const setStaleHighlight = (on: boolean) => {
     setHighlightStaleRender(on);
   };
@@ -398,11 +399,7 @@ export function TransportBar({
               }
             }}
           >
-            {renderPreviewBusy
-              ? "Refreshing…"
-              : mayRefresh
-                ? `${MIX_STALE_LABEL} · Refresh`
-                : MIX_STALE_LABEL}
+            {renderPreviewBusy ? "Refreshing…" : mixPillText}
           </CommandButton>
         ) : null}
         {!collapsed && !stale ? <Pill tone="ok">{MIX_FRESH_LABEL}</Pill> : null}
@@ -639,14 +636,10 @@ export function TransportBar({
                     onFocus={() => setStaleHighlight(true)}
                     onBlur={() => setStaleHighlight(false)}
                   >
-                    {renderPreviewBusy
-                      ? "Refreshing…"
-                      : `${MIX_STALE_LABEL} · Refresh`}
+                    {renderPreviewBusy ? "Refreshing…" : mixPillText}
                   </CommandMenuItem>
                 ) : (
-                  <p className="transport-menu-note">
-                    {stale ? MIX_STALE_LABEL : MIX_FRESH_LABEL}
-                  </p>
+                  <p className="transport-menu-note">{mixLabel}</p>
                 )}
               </MenuSection>
             ) : null}
