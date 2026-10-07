@@ -1,7 +1,5 @@
 import { type RefObject, useEffect } from "react";
-import { execute } from "../commands/execute";
-import { useDawStore } from "../state/dawStore";
-import { errorMessage } from "../utils/apiError";
+import { runHistoryAction } from "../commands/history";
 
 const MAX_TAP_DURATION_MS = 300;
 const MAX_SECOND_FINGER_DELAY_MS = 150;
@@ -131,17 +129,7 @@ export function useTwoFingerTap(
           MAX_ROTATION_RAD
       );
     };
-    const reportFailure = (reason: string) => {
-      useDawStore.getState().announceStatus(`Undo failed: ${reason}`);
-    };
-    const undo = () => {
-      void execute("history.undo")
-        .then((result) => {
-          if (result.status !== "ok")
-            reportFailure("reason" in result ? result.reason : "unavailable");
-        })
-        .catch((error: unknown) => reportFailure(errorMessage(error)));
-    };
+    const undo = () => runHistoryAction("undo");
 
     const onTouchStart = (event: TouchEvent) => {
       if (event.defaultPrevented) {

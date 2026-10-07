@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import type { ToolMode } from "../state/types";
-import { BottomSheet, Button, InlineError } from "../ui";
+import { BottomSheet, Button, Icon, InlineError } from "../ui";
 import { formatTime } from "../utils/time";
 
 export interface EditingToolRailViewProps {
@@ -13,6 +13,10 @@ export interface EditingToolRailViewProps {
   bladeConfirmSec: number | null;
   trackIdsForCut: readonly string[];
   toolToggle: ReactNode;
+  /** Undo and Redo for people who can edit; null hides them. */
+  history: { canUndo: boolean; canRedo: boolean } | null;
+  onUndo: () => void;
+  onRedo: () => void;
   onAddTrack: () => void;
   onImport: () => void;
   onCutAtPlayhead: () => void;
@@ -31,13 +35,16 @@ export function EditingToolRailView({
   bladeConfirmSec,
   trackIdsForCut,
   toolToggle,
+  history,
+  onUndo,
+  onRedo,
   onAddTrack,
   onImport,
   onCutAtPlayhead,
   onCancelCut,
   onConfirmCut,
 }: EditingToolRailViewProps) {
-  if (!bladeAllowed && !mayIngest) {
+  if (!bladeAllowed && !mayIngest && !history) {
     return null;
   }
 
@@ -67,6 +74,24 @@ export function EditingToolRailView({
           >
             Cut at playhead
           </Button>
+        ) : null}
+        {history ? (
+          <div
+            className="editing-tool-rail-history"
+            role="group"
+            aria-label="Undo and redo"
+          >
+            <HistoryButton
+              action="undo"
+              enabled={history.canUndo}
+              onClick={onUndo}
+            />
+            <HistoryButton
+              action="redo"
+              enabled={history.canRedo}
+              onClick={onRedo}
+            />
+          </div>
         ) : null}
       </div>
       {bladeAllowed ? (
@@ -98,6 +123,44 @@ export function EditingToolRailView({
           ) : null}
         </BottomSheet>
       ) : null}
+    </>
+  );
+}
+
+const HISTORY_COPY = {
+  undo: { label: "Undo", reason: "Nothing to undo" },
+  redo: { label: "Redo", reason: "Nothing to redo" },
+} as const;
+
+/** An icon Undo or Redo; disabled, it names why next to itself (#1077). */
+function HistoryButton({
+  action,
+  enabled,
+  onClick,
+}: {
+  action: keyof typeof HISTORY_COPY;
+  enabled: boolean;
+  onClick: () => void;
+}) {
+  const reasonId = useId();
+  const { label, reason } = HISTORY_COPY[action];
+  return (
+    <>
+      <Button
+        className="editing-tool-rail-icon"
+        aria-label={label}
+        title={enabled ? label : reason}
+        disabled={!enabled}
+        aria-describedby={enabled ? undefined : reasonId}
+        onClick={onClick}
+      >
+        <Icon name={action} size={20} />
+      </Button>
+      {enabled ? null : (
+        <span id={reasonId} className="sr-only">
+          {reason}
+        </span>
+      )}
     </>
   );
 }

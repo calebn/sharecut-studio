@@ -26,6 +26,8 @@ const ICONS = {
   check: true,
   refresh: true,
   seek: true,
+  undo: true,
+  redo: true,
   warning: true,
 } satisfies Record<IconName, true>;
 

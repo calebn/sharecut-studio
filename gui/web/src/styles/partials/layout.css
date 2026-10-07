@@ -690,11 +690,47 @@ html[data-shell] body {
 
 .editing-tool-rail {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--border);
   background: var(--color-bg-base);
+}
+
+/* Labels never break inside a button; a narrow phone wraps whole buttons, so
+   Undo and Redo move to a second row there (#1077). */
+.editing-tool-rail .ui-control {
+  white-space: nowrap;
+}
+
+/* Undo and Redo close the rail at its inline end, apart from the tools
+   (#1077). Icon buttons keep the full touch square. */
+.editing-tool-rail-history {
+  display: flex;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}
+
+.editing-tool-rail-icon {
+  justify-content: center;
+  min-inline-size: var(--touch-min);
+  min-block-size: var(--touch-min);
+  padding: 0;
+}
+
+/* A finger gets the full touch target on every shell, sideways included. */
+@media (pointer: coarse) {
+  .editing-tool-rail .ui-control {
+    min-block-size: var(--touch-min);
+  }
+}
+
+/* A phone held sideways: the rail gives its padding back to the lanes. */
+@container app (max-height: 40rem) {
+  .editing-tool-rail {
+    padding-block: var(--space-0);
+  }
 }
 
 .blade-confirm-sheet {

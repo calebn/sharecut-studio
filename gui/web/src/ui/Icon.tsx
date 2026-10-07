@@ -23,6 +23,8 @@ export type IconName =
   | "check"
   | "refresh"
   | "seek"
+  | "undo"
+  | "redo"
   | "warning";
 
 type Props = {
@@ -177,6 +179,18 @@ const PATHS: Record<IconName, ReactElement> = {
       <path d="m10 3 8 14H2L10 3Z" />
       <path d="M10 8v4" />
       <path d="M10 14h.01" />
+    </>
+  ),
+  undo: (
+    <>
+      <path d="M7.5 5 4 8.5 7.5 12" />
+      <path d="M4 8.5h7.5a4.5 4.5 0 0 1 0 9H9" />
+    </>
+  ),
+  redo: (
+    <>
+      <path d="M12.5 5 16 8.5 12.5 12" />
+      <path d="M16 8.5H8.5a4.5 4.5 0 0 0 0 9H11" />
     </>
   ),
   seek: (
