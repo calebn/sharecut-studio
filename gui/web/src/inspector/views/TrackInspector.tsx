@@ -5,9 +5,9 @@ import { useTrackMetaMutation } from "../../hooks/useTrackMetaMutation";
 import { ingestFiles, pickAudioFiles } from "../../ingest/ingestFiles";
 import {
   canApplyPass12,
+  canEditEnvelopes,
   canIngestMedia,
   guestHearsMixOnly,
-  isShareProjectKey,
 } from "../../shareMode";
 import { useDaw } from "../../state/useDaw";
 import { TrackFader } from "../../tracks/TrackFader";
@@ -152,7 +152,7 @@ export function TrackInspector({
             setSelection({ kind: "envelope", trackId: track.id });
           }}
         >
-          {isShareProjectKey(projectPath)
+          {!canEditEnvelopes(projectPath, guestMode, shareCapabilities)
             ? "View volume envelope"
             : sortedVolumePoints(project?.envelopes, track.id).length
               ? "Edit volume envelope"
