@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useEffect, useId, useState } from "react";
 import type { ToolMode } from "../state/types";
 import { BottomSheet, Button, Icon, InlineError } from "../ui";
 import { formatTime } from "../utils/time";
@@ -44,9 +44,24 @@ export function EditingToolRailView({
   onCancelCut,
   onConfirmCut,
 }: EditingToolRailViewProps) {
+  const [blocked, setBlocked] = useState<{ action: HistoryAction } | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!blocked) {
+      return;
+    }
+    const timer = window.setTimeout(() => setBlocked(null), HINT_MS);
+    return () => window.clearTimeout(timer);
+  }, [blocked]);
+
   if (!bladeAllowed && !mayIngest && !history) {
     return null;
   }
+  const blockedReason =
+    blocked && !historyEnabled(history, blocked.action)
+      ? HISTORY_COPY[blocked.action].reason
+      : "";
 
   return (
     <>
@@ -58,10 +73,18 @@ export function EditingToolRailView({
         {bladeAllowed ? toolToggle : null}
         {mayIngest ? (
           <>
-            <Button onClick={onAddTrack} title="Add empty track">
+            <Button
+              className="editing-tool-rail-ingest"
+              onClick={onAddTrack}
+              title="Add empty track"
+            >
               + Track
             </Button>
-            <Button onClick={onImport} title="Import audio files">
+            <Button
+              className="editing-tool-rail-ingest"
+              onClick={onImport}
+              title="Import audio files"
+            >
               Import
             </Button>
           </>
@@ -85,14 +108,19 @@ export function EditingToolRailView({
               action="undo"
               enabled={history.canUndo}
               onClick={onUndo}
+              onBlocked={() => setBlocked({ action: "undo" })}
             />
             <HistoryButton
               action="redo"
               enabled={history.canRedo}
               onClick={onRedo}
+              onBlocked={() => setBlocked({ action: "redo" })}
             />
           </div>
         ) : null}
+        <span className="editing-tool-rail-hint" role="status">
+          {blockedReason}
+        </span>
       </div>
       {bladeAllowed ? (
         <BottomSheet
@@ -132,15 +160,34 @@ const HISTORY_COPY = {
   redo: { label: "Redo", reason: "Nothing to redo" },
 } as const;
 
-/** An icon Undo or Redo; disabled, it names why next to itself (#1077). */
+type HistoryAction = keyof typeof HISTORY_COPY;
+
+/** How long a tapped, unavailable Undo or Redo keeps naming its reason. */
+const HINT_MS = 3500;
+
+function historyEnabled(
+  history: EditingToolRailViewProps["history"],
+  action: HistoryAction,
+): boolean {
+  return action === "undo" ? !!history?.canUndo : !!history?.canRedo;
+}
+
+/**
+ * An icon Undo or Redo (#1077). Unavailable, it stays focusable and
+ * `aria-disabled`: a native disabled button swallows a tap, so a finger would
+ * get nothing. The tap names the reason in the rail's status line instead;
+ * hover, focus and screen readers get it as the title and description.
+ */
 function HistoryButton({
   action,
   enabled,
   onClick,
+  onBlocked,
 }: {
-  action: keyof typeof HISTORY_COPY;
+  action: HistoryAction;
   enabled: boolean;
   onClick: () => void;
+  onBlocked: () => void;
 }) {
   const reasonId = useId();
   const { label, reason } = HISTORY_COPY[action];
@@ -150,9 +197,9 @@ function HistoryButton({
         className="editing-tool-rail-icon"
         aria-label={label}
         title={enabled ? label : reason}
-        disabled={!enabled}
+        aria-disabled={enabled ? undefined : true}
         aria-describedby={enabled ? undefined : reasonId}
-        onClick={onClick}
+        onClick={enabled ? onClick : onBlocked}
       >
         <Icon name={action} size={20} />
       </Button>

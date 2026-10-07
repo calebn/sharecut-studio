@@ -161,8 +161,13 @@ export const UndoAndRedo: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Undo" }));
     await expect(args.onUndo).toHaveBeenCalled();
     const redo = canvas.getByRole("button", { name: "Redo" });
-    await expect(redo).toBeDisabled();
+    await expect(redo).toHaveAttribute("aria-disabled", "true");
     await expect(redo).toHaveAccessibleDescription("Nothing to redo");
+    await userEvent.click(redo);
+    await expect(canvas.getByRole("status")).toHaveTextContent(
+      "Nothing to redo",
+    );
+    await expect(args.onRedo).not.toHaveBeenCalled();
   },
 };
 
