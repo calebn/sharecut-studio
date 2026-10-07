@@ -355,6 +355,24 @@ def test_rerun_keeps_the_pieces_where_they_are(stepped: ProjectWorkspace) -> Non
     assert [entry.label for entry in stepped.project.history.entries] == labels
 
 
+def test_rerun_finds_the_same_pieces_wherever_the_first_piece_sits(tmp_path) -> None:
+    # Audra's first minute is 220 ms late and the rest 120 ms. After one run her first
+    # piece plays 215 ms early while the latency solve reads the placed lane as aligned. If
+    # a pair's steady lag came from that placement, a re-run would search around 215 ms
+    # instead of 120 and cut a new piece; it must come from her media.
+    audio = bh.tracks(bleed={"caleb": {"audra": 0.0}}, gated=("audra",))
+    audio["audra"] = bh.relatency(audio["audra"], lambda t: 0.22 if t < 63.4 else 0.12)
+    ws = bh.workspace(tmp_path, audio)
+    PipelineService(ws).run(only_step="align_tracks", unattended=True)
+    once = _clips(ws, "audra")
+    labels = [entry.label for entry in ws.project.history.entries]
+
+    PipelineService(ws).run(only_step="align_tracks", unattended=True)
+
+    assert _clips(ws, "audra") == once
+    assert [entry.label for entry in ws.project.history.entries] == labels
+
+
 def test_drifting_lane_is_flagged_and_not_split(tmp_path) -> None:
     audio = bh.tracks(bleed={"caleb": {"audra": 0.0}}, gated=("audra",))
     index = np.arange(audio["audra"].size)
