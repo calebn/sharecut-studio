@@ -99,8 +99,8 @@ describe("tighten commands", () => {
   });
 
   it("shares the busy guard across approve and reject before permission checks", async () => {
-    let release!: (value: { queued: boolean }) => void;
-    const gate = new Promise<{ queued: boolean }>((resolve) => {
+    let release!: (value: { queued: boolean; asked: boolean }) => void;
+    const gate = new Promise<{ queued: boolean; asked: boolean }>((resolve) => {
       release = resolve;
     });
     vi.mocked(approveEdits).mockImplementationOnce(() => gate);
@@ -113,12 +113,15 @@ describe("tighten commands", () => {
       status: "disabled",
       reason: "Tighten action in progress",
     });
-    release({ queued: false });
+    release({ queued: false, asked: false });
     expect(await first).toEqual({ status: "ok" });
   });
 
   it("applyHit keeps the selection and says Still sending when the approval is queued", async () => {
-    vi.mocked(approveEdits).mockResolvedValueOnce({ queued: true });
+    vi.mocked(approveEdits).mockResolvedValueOnce({
+      queued: true,
+      asked: false,
+    });
     useDawStore
       .getState()
       .setSelection({ kind: "pending", id: "e1", trackId: "host" });

@@ -84,8 +84,8 @@ to UX partners; for UI copy, this table wins.
 | Suggest cut | Propose a cut from the transcript | — |
 | Blade cut | Split at the playhead on the timeline | "slice" |
 | Ripple | The edit mode that closes or opens time on every dialogue track, so speakers stay in sync. Its icon mark is a wave | "ripple trim mode", "shift" |
-| Leave gap | The edit mode that leaves silence (or pastes over) and moves nothing else. Its icon mark is a broken flatline | "gap mode", "lift", "non-ripple" |
-| Cut anyway | The confirm action when a ripple would also cut another speaker's speech. The prompt names the speaker, the time and the words, then offers Cut anyway or Leave gap: "This also cuts Avery's speech at 0:12.4 ("so the plan is"). Cut anyway, or leave a gap to keep it." | "Proceed", "Force", "Ignore warning" |
+| Leave a gap | The edit mode that leaves silence (or pastes over) and moves nothing else. Its icon mark is a broken flatline | "Leave gap", "gap mode", "lift", "non-ripple" |
+| Cut anyway | The confirm action when a ripple would also cut another speaker's speech. The dialog, titled "Cut Avery's speech too?", lists each speaker, the time and the words, then offers Leave a gap (safe, left) or Cut anyway (danger, right); approving a suggestion has no gap form, so it offers Cancel instead. Agents and the CLI get the same facts in one line: "This also cuts Avery's speech at 0:12.4 ("so the plan is"). Cut anyway, or leave a gap to keep it." | "Proceed", "Force", "Ignore warning" |
 | Solo on | The button shown while any track is soloed: in the corner above the track headers on desktop and tablet, in the status row and Mix sheet on phone. It reads "Solo on · Clear solo", and one press unsolos every track. Solo is listen-only: only you hear it | "solo mode", "solo active" |
 | Implied mute | A track silent only because you soloed another track. Its row, lane and clips go grey like a saved mute; its M and identity stripe are dashed, because it is never saved | "auto-muted", "muted by solo" |
 | No mix yet | The status when no mix is rendered (never rendered, or a failed render left none) and Full mix is silent. It replaces "Mix out of date" in the one status pill, chip and Menu item, with "· Refresh" only where the person can refresh. A guest reads it without an action | "No preview", "No premix", a second pill beside "Mix out of date" |
@@ -425,8 +425,8 @@ shipped, and the text says so. The adjacent MCP note shipped in #1027.
 - 2026-10-06 — Added "No mix yet" (#1113): the one mix status pill says when
   Full mix is silent instead of leaving it in a tooltip, and a guest reads it
   without a Refresh action.
-- 2026-10-06 — Added "Ripple", "Leave gap" and "Cut anyway" (#1137): one edit
-  mode for trim, delete, cut and paste, and the confirmation a ripple asks
+- 2026-10-06 — Added "Ripple", "Leave a gap" and "Cut anyway" (#1137): one
+  edit mode for trim, delete, cut and paste, and the dialog a ripple opens
   before it cuts another speaker, naming who, when and what they said.
 - 2026-10-07 — Share dialog (#1027): Stop sharing and End room confirm in
   place with `ui/InlineConfirm` (Keep first, danger last), the MCP opt-in

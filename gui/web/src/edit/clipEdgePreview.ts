@@ -3,6 +3,8 @@
 import type { ClipRow, ProjectView } from "../types/project";
 
 export type TrimEdge = "in" | "out";
+/** What an edit does to the time after it: ripple closes or opens it on every dialogue track; gap moves nothing else. */
+export type EditMode = "ripple" | "gap";
 
 /** Shortest span (seconds) an edge drag may leave: clip trims and rolls, pending edits and social clips. */
 export const MIN_EDGE_SPAN_SEC = 0.05;

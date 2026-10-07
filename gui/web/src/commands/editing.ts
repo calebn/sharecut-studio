@@ -4,7 +4,6 @@ import {
   moveClips,
   pasteSegment,
   rippleDeleteClips,
-  rippleDeleteRange,
   splitAtTime,
 } from "../api";
 import { currentDocumentSeq } from "../document/cursor";
@@ -89,7 +88,8 @@ async function runDeleteClip(
   }
   try {
     if (ripple) {
-      await rippleDeleteClips(s.projectPath, [clipId]);
+      if ((await rippleDeleteClips(s.projectPath, [clipId])).asked)
+        return { status: "ok" };
     } else {
       await deleteClips(s.projectPath, [clipId]);
     }
@@ -258,8 +258,11 @@ export function registerClipboardCommands(): void {
         reason: "Use Select mode for media cut (Correct is ASR-only)",
       };
     }
-    const payload = payloadFromSelection(s.project, s.selection, "cut");
-    if (!payload) {
+    const payload =
+      s.selection?.kind === "clip"
+        ? payloadFromSelection(s.project, s.selection, "cut")
+        : null;
+    if (s.selection?.kind !== "clip" || !payload) {
       return { status: "disabled", reason: "Nothing to cut" };
     }
     setClipboard(payload);
@@ -267,15 +270,8 @@ export function registerClipboardCommands(): void {
       void navigator.clipboard?.writeText?.(payload.plainText).catch(() => {});
     }
     try {
-      if (s.selection?.kind === "clip") {
-        await rippleDeleteClips(s.projectPath, [s.selection.id]);
-      } else {
-        await rippleDeleteRange(
-          s.projectPath,
-          payload.timelineStart,
-          payload.timelineEnd,
-        );
-      }
+      if ((await rippleDeleteClips(s.projectPath, [s.selection.id])).asked)
+        return { status: "ok" };
       const store = useDawStore.getState();
       store.setSelection(null);
       store.announceStatus("Cut to clipboard");

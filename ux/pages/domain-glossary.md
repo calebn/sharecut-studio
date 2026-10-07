@@ -14,8 +14,8 @@ Two layers: **Partner terms** (plain language) and **Schema map** (for people wh
 | **Clip** | A kept stretch of audio on the session |
 | **Pending cut** | A suggested remove not yet approved |
 | **Approve / Reject** | Commit or discard a pending cut |
-| **Ripple / Leave gap** | The two edit modes for trim, delete, cut and paste. Ripple closes or opens the time on every speaker's track, so everyone stays in sync; Leave gap leaves silence (or pastes over) and moves nothing else |
-| **Cut anyway** | The confirmation a ripple asks for when it would also cut another speaker's words or voice. It names who and when; nothing changes until you confirm |
+| **Ripple / Leave a gap** | The two edit modes for trim, delete, cut and paste. Ripple closes or opens the time on every speaker's track, so everyone stays in sync; Leave a gap leaves silence (or pastes over) and moves nothing else |
+| **Cut anyway** | The confirmation a ripple asks for when it would also cut another speaker's words or voice. A dialog names who, when and what; nothing changes until you choose Cut anyway or Leave a gap |
 | **Comment** | A note at a time on the mix |
 | **Review mix** | Frozen listen file for guests (link previews and agents) |
 | **Review link** | `/r/…` URL with limited powers. It works until the host chooses **Stop sharing**; it never expires on its own |

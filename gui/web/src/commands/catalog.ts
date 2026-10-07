@@ -180,6 +180,28 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "canSuggestStructural",
     notes: "Mod+Backspace: selected clip (close gap)",
   },
+  "edit.cutSpeech.cutAnyway": {
+    id: "edit.cutSpeech.cutAnyway",
+    category: "edit",
+    label: "Cut anyway",
+    when: "always",
+    notes:
+      "Apply the ripple the host held back because it cuts another speaker's speech (confirm_cut_speech)",
+  },
+  "edit.cutSpeech.leaveGap": {
+    id: "edit.cutSpeech.leaveGap",
+    category: "edit",
+    label: "Leave a gap",
+    when: "always",
+    notes:
+      "Redo the held-back ripple in gap mode: other speakers keep their speech",
+  },
+  "edit.cutSpeech.cancel": {
+    id: "edit.cutSpeech.cancel",
+    category: "edit",
+    label: "Cancel cut",
+    when: "always",
+  },
   "edit.copy": {
     id: "edit.copy",
     category: "edit",

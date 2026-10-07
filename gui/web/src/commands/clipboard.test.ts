@@ -8,8 +8,7 @@ import { registerDawCommands } from "./register";
 
 vi.mock("../api", () => ({
   pasteSegment: vi.fn(async () => undefined),
-  rippleDeleteRange: vi.fn(async () => undefined),
-  rippleDeleteClips: vi.fn(async () => undefined),
+  rippleDeleteClips: vi.fn(async () => ({ queued: false, asked: false })),
   deleteClips: vi.fn(async () => undefined),
   duplicateSegment: vi.fn(async () => undefined),
   setTrackMuteCommand: vi.fn(async () => ({})),
@@ -64,7 +63,6 @@ describe("edit.copy/cut/paste", () => {
     registerDawCommands();
     _resetClipboardForTests();
     vi.mocked(api.pasteSegment).mockClear();
-    vi.mocked(api.rippleDeleteRange).mockClear();
     vi.mocked(api.rippleDeleteClips).mockClear();
     vi.mocked(api.duplicateSegment).mockClear();
     useDawStore.setState({

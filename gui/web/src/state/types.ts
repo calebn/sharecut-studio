@@ -199,6 +199,8 @@ export interface DawState {
   selectedClipIds: string[];
   /** Phone: pending blade cut time awaiting confirm sheet. */
   bladeConfirmSec: number | null;
+  /** A ripple the host refused because it would cut other speech, awaiting the person's choice. */
+  cutSpeechPrompt: import("../edit/cutSpeech").CutSpeechPrompt | null;
   audioError: string | null;
   sessionRegion: SessionRegion | null;
   lastAgentQuery: string | null;
@@ -400,6 +402,9 @@ export interface DawState {
   setGesturesSheetOpen: (on: boolean) => void;
   toggleCommandPalette: () => void;
   setBounceDialogOpen: (on: boolean) => void;
+  setCutSpeechPrompt: (
+    prompt: import("../edit/cutSpeech").CutSpeechPrompt | null,
+  ) => void;
   setShareDialogOpen: (on: boolean) => void;
   setRecordPanelOpen: (on: boolean) => void;
   setHostMcpDialogOpen: (on: boolean) => void;

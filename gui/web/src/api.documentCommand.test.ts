@@ -694,7 +694,7 @@ describe("host document command queue", () => {
     const { approveEdits } = await import("./api");
     await expect(
       approveEdits("/tmp/episode.project.json", ["a"]),
-    ).resolves.toEqual({ queued: true });
+    ).resolves.toEqual({ queued: true, asked: false });
   });
 
   it("reports a sent approval as not queued", async () => {
@@ -707,7 +707,7 @@ describe("host document command queue", () => {
     const { approveEdits } = await import("./api");
     await expect(
       approveEdits("/tmp/episode.project.json", ["a"]),
-    ).resolves.toEqual({ queued: false });
+    ).resolves.toEqual({ queued: false, asked: false });
   });
 
   it("keeps a guest command queued when its POST times out", async () => {

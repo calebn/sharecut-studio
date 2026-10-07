@@ -15,7 +15,6 @@ vi.mock("../api", () => ({
   deleteClips: vi.fn(async () => undefined),
   rippleDeleteClips: vi.fn(async () => undefined),
   pasteSegment: vi.fn(),
-  rippleDeleteRange: vi.fn(),
   duplicateSegment: vi.fn(),
   undoHistory: vi.fn(),
   redoHistory: vi.fn(),

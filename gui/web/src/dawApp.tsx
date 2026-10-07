@@ -15,6 +15,7 @@ import { useProjectBootstrap } from "./hooks/useProjectBootstrap";
 import { useDawKeymapListener } from "./keymap/listener";
 import { BounceDialog } from "./layout/BounceDialog";
 import { CheatsheetDialogs } from "./layout/CheatsheetDialogs";
+import { CutSpeechDialog } from "./layout/CutSpeechDialog";
 import { HostMcpDialog } from "./layout/HostMcpDialog";
 import { ShareDialog } from "./layout/ShareDialog";
 import { StudioShell } from "./layout/StudioShell";
@@ -198,6 +199,7 @@ export function DawApp({ guestShare = false }: { guestShare?: boolean }) {
       </div>
       <CheatsheetDialogs />
       <BounceDialog />
+      <CutSpeechDialog />
       <ShareDialog />
       <RecordPanel
         recordingLocally={hostKeeper.recordingLocally}

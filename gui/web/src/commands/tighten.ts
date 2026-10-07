@@ -57,7 +57,8 @@ async function runApprove(ids: string[]): Promise<ExecuteResult> {
     }
     try {
       const projectPath = useDawStore.getState().projectPath;
-      const { queued } = await approveEdits(projectPath, ids);
+      const { queued, asked } = await approveEdits(projectPath, ids);
+      if (asked) return { status: "ok" };
       const next = useDawStore.getState();
       if (queued) {
         // Saved but not sent yet: keep the selection and say so.

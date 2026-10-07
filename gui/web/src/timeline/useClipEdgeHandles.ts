@@ -270,7 +270,7 @@ export function useClipEdgeHandles(context: Context) {
           { id, source_start, source_end, timeline_start, source_id },
         ]);
         if (!fresh(c)) return;
-        await trimClipEdge(
+        const { asked } = await trimClipEdge(
           c.projectPath,
           clip.id,
           d.edge,
@@ -278,6 +278,7 @@ export function useClipEdgeHandles(context: Context) {
           "ripple",
           boundary.token,
         );
+        if (asked) return;
       }
       if (fresh(c))
         useDawStore

@@ -69,7 +69,9 @@ function project() {
 describe("ImpactPanel transcript refine recovery", () => {
   beforeEach(() => {
     loadHostCommandCount.mockReset().mockResolvedValue(1);
-    vi.mocked(approveEdits).mockReset().mockResolvedValue({ queued: false });
+    vi.mocked(approveEdits)
+      .mockReset()
+      .mockResolvedValue({ queued: false, asked: false });
     vi.mocked(waiveTranscriptRefine).mockReset();
     useDawStore.getState().hydrate("/tmp/p.json", project());
     useDawStore.setState({ guestMode: null, shareCapabilities: [] });
@@ -170,7 +172,7 @@ describe("ImpactPanel transcript refine recovery", () => {
 
   it("says a bulk approval that is still sending is not done yet", async () => {
     const user = userEvent.setup();
-    vi.mocked(approveEdits).mockResolvedValue({ queued: true });
+    vi.mocked(approveEdits).mockResolvedValue({ queued: true, asked: false });
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={project()}>
         <ImpactPanel />
@@ -184,7 +186,7 @@ describe("ImpactPanel transcript refine recovery", () => {
 
   it("clears Still sending once the queued approval leaves the queue", async () => {
     const user = userEvent.setup();
-    vi.mocked(approveEdits).mockResolvedValue({ queued: true });
+    vi.mocked(approveEdits).mockResolvedValue({ queued: true, asked: false });
     render(
       <DawProvider projectPath="/tmp/p.json" initialProject={project()}>
         <ImpactPanel />
