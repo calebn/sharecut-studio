@@ -53,7 +53,8 @@ export function DeviceCheck({
 
   useEffect(() => {
     if (granted && !wasGranted.current) {
-      selectRef.current?.focus();
+      // Keep the page still: on a phone the grant can land mid-scroll.
+      selectRef.current?.focus({ preventScroll: true });
     }
     wasGranted.current = granted;
   }, [granted]);

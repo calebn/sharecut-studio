@@ -156,7 +156,8 @@ describe("DeviceCheck", () => {
     await expectNoA11yViolations(container);
   });
 
-  it("shows the meter after grant and focuses Input", async () => {
+  it("shows the meter after grant and focuses Input without scrolling", async () => {
+    const focus = vi.spyOn(HTMLSelectElement.prototype, "focus");
     const { container, rerender } = render(
       <DeviceCheck
         {...base}
@@ -176,6 +177,8 @@ describe("DeviceCheck", () => {
     );
     expect(screen.getByRole("meter", { name: "Level" })).toBeInTheDocument();
     expect(screen.getByLabelText("Input")).toHaveFocus();
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    focus.mockRestore();
     expect(screen.queryByRole("button", { name: MIC_ALLOW_LABEL })).toBeNull();
     await expectNoA11yViolations(container);
   });
