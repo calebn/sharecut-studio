@@ -57,3 +57,10 @@ def test_explicit_project_runs_in_place(monkeypatch: pytest.MonkeyPatch, tmp_pat
 def test_run_rejects_missing_project(tmp_path: Path) -> None:
     mod = _load_script()
     assert mod._run(tmp_path / "missing.json", "http://127.0.0.1:1", revoke=True) == 2
+
+
+def test_ok_treats_tool_errors_as_failures() -> None:
+    mod = _load_script()
+    assert mod._ok({"result": {"content": [], "isError": False}})
+    assert not mod._ok({"result": {"content": [], "isError": True}})
+    assert not mod._ok({"error": {"code": -32003, "message": "denied"}})

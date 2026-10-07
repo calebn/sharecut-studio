@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import threading
 from collections.abc import AsyncIterator
 from typing import Any
@@ -12,6 +13,8 @@ from typing import Any
 from podcast_mcp.services.collaboration import scrub_guest_progress_text
 from podcast_mcp.services.remote_mcp.executor import run_guest_mcp_call
 from podcast_mcp.util.progress import _mcp_progress_token, short_fail_headline
+
+log = logging.getLogger(__name__)
 
 _SSE_DONE = object()
 _MCP_SSE_QUEUE_MAX = 64
@@ -167,17 +170,9 @@ def rpc_progress_token(message: dict[str, Any]) -> Any:
     return _mcp_progress_token(params)
 
 
-def _error_payload(req_id: Any, code: int, message: str) -> dict[str, Any]:
-    return {
-        "jsonrpc": "2.0",
-        "id": req_id,
-        "error": {"code": code, "message": message},
-    }
-
-
 async def iter_mcp_sse(token: str, body: dict[str, Any]) -> AsyncIterator[str]:
     """Yield SSE frames: notifications as they happen, then the JSON-RPC result."""
-    from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc
+    from podcast_mcp.services.remote_mcp.protocol import handle_mcp_jsonrpc, internal_error
 
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=_MCP_SSE_QUEUE_MAX)
@@ -212,7 +207,10 @@ async def iter_mcp_sse(token: str, body: dict[str, Any]) -> AsyncIterator[str]:
             if isinstance(item, dict):
                 yield format_mcp_sse(item)
         if err is not None:
-            yield format_mcp_sse(_error_payload(body.get("id"), -32000, str(err)))
+            # handle_mcp_jsonrpc answers every tool failure itself; this is the guest pool
+            # failing. Its text stays on the host.
+            log.error("Guest MCP request failed outside any tool", exc_info=err)
+            yield format_mcp_sse(internal_error(body.get("id")))
         elif result is not None:
             yield format_mcp_sse(result)
     finally:

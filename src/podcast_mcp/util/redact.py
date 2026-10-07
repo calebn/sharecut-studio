@@ -28,6 +28,19 @@ _IPV6 = re.compile(
 )
 _HEX_RUN = re.compile(r"(?<![0-9A-Fa-f])[0-9A-Fa-f]{32,}(?![0-9A-Fa-f])")
 _B64_RUN = re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{32,}={1,2}(?![A-Za-z0-9+/=])")
+# A host filesystem path in free text: ``file:`` URLs, UNC and drive-letter paths, ``~/``,
+# common POSIX roots, and any absolute path of two or more segments.
+_HOST_PATH = re.compile(
+    r"(?:"
+    r"file:\S+"
+    r"|\\\\[^\s\\]+\\\S+"
+    r"|~/[^\s]+"
+    r"|[A-Za-z]:\\[^\s]+"
+    r"|/(?:Users|home|tmp|var|opt|private|Volumes|mnt|root)[^\s]*"
+    r"|/(?:[A-Za-z0-9._-]+/){1,}[A-Za-z0-9._-]+"
+    r")"
+)
+HOST_PATH_PLACEHOLDER = "[path]"
 _LOOPBACK_V4 = re.compile(r"^127\.")
 _LOOPBACK_V6 = frozenset({"::1", "0:0:0:0:0:0:0:1"})
 
@@ -119,3 +132,13 @@ def redact_secrets(text: str, secrets: Sequence[str] = ()) -> str:
     out = _SECRET_ASSIGN.sub(lambda m: f"{m.group(1)}=<redacted>", out)
     out = _SHARE_TOKEN.sub(lambda m: f"{m.group('prefix')}<share-token>", out)
     return _HEX_RUN.sub("<hex>", out)
+
+
+def redact_host_paths(text: str) -> str:
+    """Replace each host filesystem path in ``text`` with ``[path]``, without knowing the paths.
+
+    For text bound for share guests (guest progress, guest remote MCP refusals), where
+    any host path is too much. Unlike ``sanitize`` it needs no home or workspace and keeps
+    everything else as written.
+    """
+    return _HOST_PATH.sub(HOST_PATH_PLACEHOLDER, text)

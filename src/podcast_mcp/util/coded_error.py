@@ -2,12 +2,13 @@
 
 A ``CodedError`` says the request cannot be honoured as asked (a stale guard, an unknown id,
 an out-of-range index, a missing file or project, a required step not done yet). Its message
-is safe to show, and its ``code`` is a stable, machine-readable name for the refusal. Any other
-exception is treated as a bug: adapters that must not leak internals (MCP) keep its text on
-the server.
+is safe to show the host, and its ``code`` is a stable, machine-readable name for the refusal.
+Any other exception is treated as a bug: adapters that must not leak internals (MCP, owner and
+guest) keep its text on the server.
 
 Every adapter reports the same message and code: the MCP tool result's
-``structured_content.error_code`` (``mcp/tool_errors.py``), the CLI's
+``structured_content.error_code`` (``mcp/tool_errors.py`` and guest remote MCP, both through
+``util/tool_refusal.py``, which redacts host paths from the message for a share guest), the CLI's
 ``Error: <message> (code <code>)`` line (``cli/busy.py``) and, on routes that map one, the
 GUI's ``X-Sharecut-Error-Code`` header. ``project_busy`` (a lock timeout) uses the same
 adapters but is not a ``CodedError``; see ``util/project_state.py``.

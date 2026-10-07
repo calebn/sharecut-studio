@@ -779,7 +779,7 @@ def test_render_final_mcp_surfaces_merge_conflict(minimal_project):
 def test_lock_timeout_cause_walks_the_chain():
     from filelock import Timeout
 
-    from podcast_mcp.mcp.tool_errors import lock_timeout_cause
+    from podcast_mcp.util.tool_refusal import lock_timeout_cause
 
     inner = Timeout("/artifacts/episode.project.json.lock")
     middle = RuntimeError("wrapped")
