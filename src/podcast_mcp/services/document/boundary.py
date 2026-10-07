@@ -12,6 +12,7 @@ from podcast_mcp.edits.clips_ops import neighbour_clips, roll_join_limits, trim_
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.play_audit import track_render_hash
 from podcast_mcp.models import Clip, EditMode, EpisodeProject
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.tracks import recording_audio_path
 
 
@@ -127,7 +128,7 @@ def boundary_context(
         if clip is None:
             if expected_geometry is not None:
                 raise DocumentConflictError("boundary changed; reload its current position")
-            raise ValueError(f"unknown clip_id: {target.clip_id!r}")
+            raise CodedValueError(f"unknown clip_id: {target.clip_id!r}", code="clip_not_found")
         lo, hi = trim_edge_limits(project, clip, target.edge, target.mode)
         clips = [clip]
         position = BoundaryPosition(
@@ -145,7 +146,7 @@ def boundary_context(
         raise DocumentConflictError("boundary changed; reload its current position")
     track = project.track_by_id(clips[0].track_id)
     if track is None:
-        raise ValueError("boundary track is missing")
+        raise CodedValueError("boundary track is missing", code="track_not_found")
     defaults = load_defaults()
     selected_media = []
     for source_id in dict.fromkeys(c.source_id for c in project.clips if c.track_id == track.id):

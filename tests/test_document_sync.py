@@ -48,6 +48,7 @@ from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.payloads import parse_document_command, validate_payload
 from podcast_mcp.services.session_sync.authz import authorize_client
 from podcast_mcp.services.session_sync.hub import get_hub
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.project_state import RenderBusyError
 from sqlite_helpers import FailingConnection
 from sync_helpers import _foreign_document_write
@@ -3180,3 +3181,33 @@ def test_submit_publishes_applied_inside_the_project_transaction(minimal_project
     )
     svc.submit(_comment("ordered"))
     assert depths and all(depth >= 1 for depth in depths)
+
+
+@pytest.mark.parametrize(
+    ("raised", "conflict"),
+    [
+        # A refusal that names a missing target is a conflict whatever its message says.
+        (lambda: CodedValueError("unknown track_id: 'x'", code="track_not_found"), True),
+        (lambda: CodedValueError("track 'x' has no media", code="track_has_no_media"), True),
+        (lambda: CodedValueError("gone", code="clip_not_found"), True),
+        # Any other refusal, or a bare ValueError, is not: its wording no longer decides.
+        (lambda: CodedValueError("timeline_start must be >= 0", code="invalid_range"), False),
+        (lambda: ValueError("thing not found"), False),
+        (lambda: ValueError("payload missing a field"), False),
+    ],
+)
+def test_conflict_is_decided_by_the_refusal_code_not_its_message(minimal_project, raised, conflict):
+    svc = DocumentSyncService.open(minimal_project)
+    exc = raised()
+
+    def _apply(*_args, **_kwargs):
+        raise exc
+
+    with patch("podcast_mcp.services.document_sync.service.apply_command", _apply):
+        with pytest.raises(DocumentConflictError if conflict else ValueError) as caught:
+            svc.submit(_comment("blocked"))
+    if conflict:
+        assert caught.value.__cause__ is exc
+        assert str(caught.value) == str(exc)
+    else:
+        assert caught.value is exc

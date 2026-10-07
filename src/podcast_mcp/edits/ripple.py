@@ -24,6 +24,7 @@ from podcast_mcp.edits.clips_ops import (
     update_timeline_duration,
 )
 from podcast_mcp.models import Clip, EditMode, EpisodeProject
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -198,7 +199,7 @@ def plan_trim(
         raise ValueError(f"edge must be 'in' or 'out', got {edge!r}")
     clip = next((c for c in project.clips if c.id == clip_id), None)
     if clip is None:
-        raise ValueError(f"unknown clip_id: {clip_id!r}")
+        raise CodedValueError(f"unknown clip_id: {clip_id!r}", code="clip_not_found")
     lo, hi = trim_edge_limits(project, clip, edge, mode)
     target = min(max(float(source_sec), lo), hi)
     old = _edge_sec(clip, edge)

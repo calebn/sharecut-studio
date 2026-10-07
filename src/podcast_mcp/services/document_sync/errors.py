@@ -20,3 +20,16 @@ class DocumentConflictError(CodedError, ValueError):
 
 class DocumentSequenceConflictError(DocumentConflictError):
     """``(client_id, client_seq)`` or ``command_id`` already names a different edit (#377)."""
+
+
+# A command whose target has gone (a clip, track, comment or edit deleted since the client
+# read it) is an offline-rebase conflict, not a bad request. Decided by the refusal's code,
+# never by its wording.
+_MISSING_TARGET_CODES = frozenset({"track_has_no_media"})
+
+
+def names_missing_target(exc: BaseException) -> bool:
+    """True for a ``CodedError`` whose code says its target no longer exists."""
+    if not isinstance(exc, CodedError):
+        return False
+    return exc.code.endswith("_not_found") or exc.code in _MISSING_TARGET_CODES

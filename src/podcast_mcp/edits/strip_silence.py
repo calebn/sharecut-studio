@@ -12,6 +12,7 @@ from podcast_mcp.edits.ranges import merge_timeline_ranges, subtract_ranges_from
 from podcast_mcp.edits.transcript_sync import apply_source_transcript_removes
 from podcast_mcp.engines.silence import SilenceInterval, detect_silence
 from podcast_mcp.models import Clip, ClipJoinMode, EpisodeProject
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def _kept_source_ranges(
@@ -63,7 +64,10 @@ def strip_silence(
     del use_inaudible_opt
     track = project.track_by_id(track_id)
     if not track or not track.media:
-        raise ValueError(f"track {track_id!r} not found or has no media")
+        raise CodedValueError(
+            f"track {track_id!r} not found or has no media",
+            code="track_has_no_media" if track else "track_not_found",
+        )
 
     src = Path(track.media.path)
     if not src.is_absolute():

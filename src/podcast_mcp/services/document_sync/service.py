@@ -24,7 +24,10 @@ from podcast_mcp.project_store import commit_landed
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HISTORY_RERENDER_ERRORS, HistoryService
 from podcast_mcp.services.document_sync.commands import ClientRole, DocumentCommand
-from podcast_mcp.services.document_sync.errors import DocumentSequenceConflictError
+from podcast_mcp.services.document_sync.errors import (
+    DocumentSequenceConflictError,
+    names_missing_target,
+)
 from podcast_mcp.services.document_sync.handlers import apply_command
 from podcast_mcp.services.document_sync.projection_delta import diff_projection
 from podcast_mcp.services.document_sync.projection_types import (
@@ -781,8 +784,7 @@ class DocumentSyncService:
 
             raise DocumentConflictError(str(exc) or "target not found") from exc
         except ValueError as exc:
-            msg = str(exc).lower()
-            if "not found" in msg or "unknown clip" in msg or "missing" in msg:
+            if names_missing_target(exc):
                 from podcast_mcp.services.document_sync.errors import (
                     DocumentConflictError,
                 )
