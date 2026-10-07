@@ -63,10 +63,11 @@ enforced-by:
 - tests/test_bleed_latency.py::test_loudspeaker_loop_on_one_pair_is_proposed_never_applied
 - tests/test_bleed_latency.py::test_conflicting_pairs_flag_the_track_instead_of_shifting_it
 - tests/test_bleed_latency.py::test_align_tracks_shifts_a_held_late_track_and_undo_restores
+- tests/test_bleed_lag_segments.py::test_a_long_step_is_split_not_read_as_drift_or_scatter
 - docs-sync: decision-alignment
 -->
 
-Equal-length files share one container clock, not one latency. Each recorder track reaches that clock after its own capture and network delay. On the lab Zoom tape, Audra's track trails her bleed on Caleb's mic by 143 ms, so the mix carried an early copy of her voice under the direct one. The last `align_tracks` stage measures each lane's lag behind its own bleed on the other mics, for every ordered pair, from level envelopes in 30 s windows. It then solves one latency per lane across all pairs (weighted least squares, reference at 0). A `hold` or scored lane moves by its latency (method `bleed_lag`) only when its direct track trails its own copy, which only latency explains, and its pairs agree within `align.bleed_lag_tolerance_sec` (40 ms). A copy that arrives after the direct sound can be a loudspeaker loop or monitoring, so the bleed never moves a lane solved only from later copies, on one pair or several, even with `--realign`; it gets the shift as a proposal. Direction is judged where the lane sits before the run, not at a scorer's planned move. A lane whose pairs conflict, or whose lag drifts across the episode, is flagged in the step summary and left in place. A manifest-pinned lane keeps its placement and gets the shift as a proposed `candidate_offset_sec`. A lane already within `align.bleed_lag_deadband_sec` (20 ms) of its corrected placement does not move, so re-runs are no-ops.
+Equal-length files share one container clock, not one latency. Each recorder track reaches that clock after its own capture and network delay. On the lab Zoom tape, Audra's track trails her bleed on Caleb's mic by 143 ms, so the mix carried an early copy of her voice under the direct one. The last `align_tracks` stage measures each lane's lag behind its own bleed on the other mics, for every ordered pair, from level envelopes in 30 s windows. It then solves one latency per lane across all pairs (weighted least squares, reference at 0). A `hold` or scored lane moves by its latency (method `bleed_lag`) only when its direct track trails its own copy, which only latency explains, and its pairs agree within `align.bleed_lag_tolerance_sec` (40 ms). A copy that arrives after the direct sound can be a loudspeaker loop or monitoring, so the bleed never moves a lane solved only from later copies, on one pair or several, even with `--realign`; it gets the shift as a proposal. Direction is judged where the lane sits before the run, not at a scorer's planned move. A lane whose pairs conflict, or whose lag drifts across the episode, is flagged in the step summary and left in place. Drift is a trend inside the stretches between steps; a lag that steps and holds for a long stretch is split into pieces instead (#1090). A manifest-pinned lane keeps its placement and gets the shift as a proposed `candidate_offset_sec`. A lane already within `align.bleed_lag_deadband_sec` (20 ms) of its corrected placement does not move, so re-runs are no-ops.
 
 #### Decision: Split a lane at its silences now; a timing map later
 
@@ -80,17 +81,35 @@ evidence:
 - #1071 lab: at 646 to 658 s the lag is about 285 ms (r=0.986) against 0.59 at the constant 142.5 ms
 - #1088 owner: "ship the 37 silence-bounded pieces now. The timing map comes later (#1089)."
 - #1088 owner listening: the pieces "all sound pretty good… much better" than the constant shift
+- #1090 owner: "Pick the threshold by cross-validation per recording, not as a constant."
+- #1090 owner: "A rerun with no change should write no history entry." and "Add an explicit peak bound."
+- #1090 owner: steps use only the reference mic; "use every pair when available"
+- #1090 lab: 23 steps (36 before), 15 s windows over the deadband 7 of 83 (8), loudest skipped or repeated sample -57.5 dBFS (-50.3)
 enforced-by:
 - tests/test_bleed_lag_segments.py::test_align_tracks_splits_the_lane_in_the_silence_and_undo_restores
 - tests/test_bleed_lag_segments.py::test_drifting_lane_is_flagged_and_not_split
 - tests/test_bleed_lag_segments.py::test_manifest_pin_proposes_one_shift_and_keeps_the_clip_whole
+- tests/test_bleed_lag_segments.py::test_a_step_is_judged_against_its_merged_neighbours
+- tests/test_bleed_lag_segments.py::test_a_short_clear_stretch_keeps_its_own_lag
+- tests/test_bleed_lag_segments.py::test_a_blip_is_noise_and_an_easing_is_a_step
+- tests/test_bleed_lag_segments.py::test_steps_use_a_mic_other_than_the_reference
+- tests/test_bleed_lag_segments.py::test_steps_show_through_the_other_voice_on_the_lane_mic
+- tests/test_bleed_lag_segments.py::test_rerun_keeps_the_pieces_where_they_are
+- tests/test_bleed_lag_segments.py::test_rerun_finds_the_same_pieces_wherever_the_first_piece_sits
+- tests/test_bleed_lag_segments.py::test_a_step_never_skips_a_peak_the_rms_gate_misses
+- tests/test_bleed_lag_segments.py::test_the_step_cost_is_chosen_per_recording
 - docs-sync: decision-alignment
 -->
 
-One latency is not always enough. Zoom's jitter buffer can re-time a track when its talker resumes after a pause, then ease it back. On the lab tape Audra trails her bleed by 130-150 ms most of the time and by 185-225 ms in the first stretch after several pauses (about 270 ms at the start of 646-660 s). So for a lane the bleed moves or keeps on latency grounds, `align_tracks` also finds where its latency against the reference mic steps, with each step inside one of the lane's own silences. It splits the lane's clip in those silences and slips each piece to its own latency, in the same undoable history entry. A step skips or repeats only silence, never a word. Silence is judged on the full-band audio, because the 8 kHz lag decode hides sibilants. A re-run finds the same steps and keeps the pieces. A manifest-pinned, `copy_later`, conflicting or drifting lane gets no steps. On the lab tape Audra's lane gets 36 steps, and 15 s windows still off by more than the deadband fall from 29 of 82 to 8. Bleed is evidence of timing only; it is never used as audio for another speaker. Thresholds and the artifact fields are in [pipeline.md § Conversation align](pipeline.md#conversation-align-align_tracks--gate).
+One latency is not always enough. Zoom's jitter buffer can re-time a track when its talker resumes after a pause, then ease it back. On the lab tape Audra trails her bleed by 130-150 ms most of the time and by 185-225 ms in the first stretch after several pauses (about 270 ms at the start of 646-660 s). So for a lane the bleed moves or keeps on latency grounds, `align_tracks` also finds where its latency steps, with each step inside one of the lane's own silences. It splits the lane's clip in those silences and slips each piece to its own latency, in the same undoable history entry. A step skips or repeats only silence, never a word: the full-band audio there has 30 ms RMS under -60 dB and every sample under -50 dBFS. Silence is judged on the full-band audio, because the 8 kHz lag decode hides sibilants. A manifest-pinned, `copy_later`, conflicting or drifting lane gets no steps. Bleed is evidence of timing only; it is never used as audio for another speaker.
+
+The rules are relative to each recording (#1090). Steps come from every pair the lane shares with a track on the reference clock, in either direction, not only from the reference mic. A piece needs its lag pinned by its own evidence (its likelihood-ratio interval inside the deadband, counted in the talker's voiced frames), not a fixed frame count, so a short clear phrase is a piece and a lone click is not. A step is judged against the merged pieces either side of it, so two neighbours inside the deadband become one piece instead of forcing the step into the wrong silence. The step cost is chosen per lane by cross-validation on held-out speech. Each pair's steady lag is measured on the lane's media, so a re-run finds the same steps, keeps the pieces and their `meta.ingest_alignment` records, and writes no history entry. Thresholds, the artifact fields and the lab numbers are in [pipeline.md § Conversation align](pipeline.md#conversation-align-align_tracks--gate).
 
 A per-track timing map that keeps the lane as one clip and follows lag changes
-inside continuous speech is planned in #1089. Known residuals are in #1090.
+inside continuous speech is planned in #1089. On the lab tape a lone phrase between
+two long pauses can still ride the piece before it when its own evidence is weak
+(568 s and 1171 s), and a lag change inside continuous speech (646-660 s, 728 s)
+needs that timing map.
 
 #### Human acceptance
 
