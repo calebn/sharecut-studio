@@ -142,12 +142,12 @@ tighten:
   # (skip counts next_onset, kept_word:{word}; #978). Mutes get the same edge
   # checks and keep breaths whole (#1024).
   filler_room_tone_replace: true
-  # silence = hard gap (default; good for dry rooms). room_tone = the track's
-  # recorded bed, else a steady stretch of its own audio at its noise floor and
-  # 30+ dB under its speech, nearest the cut (edits/room_tone.py, #1054); a
-  # track gated to digital silence stays silent. Also the fill laid under an
+  # room_tone = the track's recorded bed, else a steady stretch of its own audio
+  # at its noise floor and 30+ dB under its speech, nearest the cut
+  # (edits/room_tone.py, #1054); a track gated to digital silence stays silent
+  # (default). silence = hard gap on every track. Also the fill laid under an
   # approved mute.
-  filler_pad_mode: silence
+  filler_pad_mode: room_tone
   # Cap how far replace may expand a cut toward flanking words.
   filler_room_tone_max_expand_sec: 2.0
   # Both splice sides below this RMS (dBFS) are inaudible: room tone against gated

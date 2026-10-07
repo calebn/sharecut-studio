@@ -530,11 +530,14 @@ def test_approved_mute_is_filled_like_the_ripple_pad(tmp_path, pad_mode, fill, i
     ],
 )
 def test_approved_mute_fades_like_a_padded_cut(tmp_path, next_burst_sec, region, resume_db):
+    from unittest.mock import patch
+
     project = _noise_floor_project(tmp_path, uh_sec=0.8)
     project.transcripts[0].words.append(TranscriptWord(text="go", start=1.3, end=1.8))
     project.edit_decisions[0].next_burst_sec = next_burst_sec
 
-    assert approve_edits(project, ["m1"]) == 1
+    with patch("podcast_mcp.edits.decisions.filler_pad_mode", return_value="silence"):
+        assert approve_edits(project, ["m1"]) == 1
 
     (muted,) = project.clips[0].mute_regions
     assert (muted.start_s, muted.end_s, muted.fade_out_ms, muted.fade_in_ms) == (
