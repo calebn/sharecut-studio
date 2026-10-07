@@ -176,7 +176,8 @@ another entry has become the head. Every caller goes through that one check
 
 | Surface | Expected head | Refusal |
 | --- | --- | --- |
-| Document plane `UndoHistory` / `RedoHistory` (host GUI, guest editors, guest MCP) | `payload.expected_head_id`, **required** | Missing, null or empty: refused as invalid (HTTP 422 / 400), nothing moves. Stale: HTTP 409, `X-Sharecut-Error-Code: history_stale`; no journal row and no history move |
+| Document plane `UndoHistory` / `RedoHistory` over HTTP (host GUI, guest editors) | `payload.expected_head_id`, **required** | Missing, null or empty: refused as invalid (HTTP 422 / 400), nothing moves. Stale: HTTP 409, `X-Sharecut-Error-Code: history_stale`; no journal row and no history move |
+| Guest remote MCP `guest_submit_document_command` (`UndoHistory` / `RedoHistory`) | `payload.expected_head_id`, **required** | Missing, null or empty: JSON-RPC `-32602`, nothing moves. Stale: JSON-RPC `-32000` whose message is the refusal text (`Did not undo: …`); nothing moves. No `error_code` yet: `remote_mcp/protocol.py` adds `data.error_code` only for `project_busy` (guest tool-error codes: #1182, #1191) |
 | MCP `history_undo` / `history_redo` | `expected_head_id`, optional | `is_error` result, `structured_content.error_code: "history_stale"` |
 | CLI `podcast undo` / `podcast redo` | `--expected-head ID`, optional | exit 1, `Did not undo: … (code history_stale)` on stderr |
 
