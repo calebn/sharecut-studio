@@ -4,6 +4,7 @@ import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { execute } from "../commands/execute";
 import { useDawStore } from "../state/dawStore";
 import { peekMenuOpen } from "../ui/menuGate";
+import { peekModalOpen } from "../ui/modalGate";
 import {
   argsFromKeyEvent,
   ignoresKeyRepeat,
@@ -14,7 +15,8 @@ import { isButtonActivation, isTypingTarget } from "./typing";
 /**
  * Sole window-level Sharecut Studio shortcut listener (governance choke-point).
  * Component-local Escape (e.g. BottomSheet) may use separate listeners —
- * see commands/governance.test.ts allowlist.
+ * see commands/governance.test.ts allowlist. An open modal dialog owns Escape
+ * (`modalGate`), as an open menu owns every key (`menuGate`).
  *
  * When several keymap rows share a key (Backspace clip vs track, Escape
  * comment vs clear selection), try each match in catalog order and run the
@@ -28,7 +30,8 @@ export function useDawKeymapListener(): void {
         s.commandPaletteOpen ||
         s.bounceDialogOpen ||
         (s.shareDialogOpen && s.project) ||
-        peekMenuOpen()
+        peekMenuOpen() ||
+        (e.key === "Escape" && peekModalOpen())
       ) {
         return;
       }

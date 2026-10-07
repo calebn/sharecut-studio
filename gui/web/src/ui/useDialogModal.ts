@@ -1,6 +1,7 @@
 import { type RefObject, useEffect, useRef } from "react";
 import { cancelInlineConfirm } from "./inlineConfirmGate";
 import { peekMenuOpen } from "./menuGate";
+import { closeOverlay, isInnermostOverlay, openOverlay } from "./modalGate";
 
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -43,7 +44,9 @@ export type UseDialogModalOptions = {
  * Overlay a11y without Radix.
  *
  * GOVERNANCE: installs a window keydown listener for Escape (+ Tab in modal) —
- * allowlisted via this module in commands/governance.test.ts.
+ * allowlisted via this module in commands/governance.test.ts. Each overlay
+ * registers in `modalGate`: only the innermost overlay handles Escape, and
+ * while a modal is open the Daw keymap leaves Escape alone.
  */
 export function useDialogModal({
   open,
@@ -79,6 +82,7 @@ export function useDialogModal({
     if (background) {
       background.inert = true;
     }
+    const layer = openOverlay(mode === "modal");
 
     const focusInitial = () => {
       const preferred = initialFocusRef?.current;
@@ -99,6 +103,10 @@ export function useDialogModal({
       if (e.key === "Escape") {
         // Open menus own Escape first (transport Menu over peek BottomSheet).
         if (peekMenuOpen()) {
+          return;
+        }
+        // A dialog opened over this one (a confirm over a sheet) owns Escape.
+        if (!isInnermostOverlay(layer)) {
           return;
         }
         e.preventDefault();
@@ -143,6 +151,7 @@ export function useDialogModal({
       if (background) {
         background.inert = false;
       }
+      closeOverlay(layer);
       const restore = returnTarget ?? restoreFocusRef.current;
       const active = document.activeElement;
       const movedOutsideSheet =

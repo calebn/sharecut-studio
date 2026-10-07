@@ -201,3 +201,66 @@ function OpenFromOutside() {
     </>
   );
 }
+
+/** A peek sheet with a modal confirm opened over it, like Remove track over the Inspector. */
+function SheetWithConfirm() {
+  const [sheetOpen, setSheetOpen] = useState(true);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const confirmRef = useRef<HTMLDivElement>(null);
+  const keepRef = useRef<HTMLButtonElement>(null);
+  useDialogModal({
+    open: sheetOpen,
+    onClose: () => setSheetOpen(false),
+    panelRef: sheetRef,
+    mode: "sheet",
+  });
+  useDialogModal({
+    open: confirmOpen,
+    onClose: () => setConfirmOpen(false),
+    panelRef: confirmRef,
+    initialFocusRef: keepRef,
+  });
+  return (
+    <>
+      <div data-daw-app-chrome>
+        {sheetOpen ? (
+          <div ref={sheetRef} role="dialog" aria-label="Inspector">
+            <button type="button" onClick={() => setConfirmOpen(true)}>
+              Remove track
+            </button>
+          </div>
+        ) : null}
+      </div>
+      {confirmOpen ? (
+        <div role="dialog" aria-modal="true" aria-label="Remove track?">
+          <div ref={confirmRef}>
+            <button ref={keepRef} type="button">
+              Keep track
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+describe("useDialogModal stacking", () => {
+  it("Escape closes only the confirm over a sheet, and focus returns to its opener", async () => {
+    const user = userEvent.setup();
+    render(<SheetWithConfirm />);
+    const remove = screen.getByRole("button", { name: "Remove track" });
+    await user.click(remove);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Keep track" })).toHaveFocus(),
+    );
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Remove track?" })).toBeNull();
+    expect(
+      screen.getByRole("dialog", { name: "Inspector" }),
+    ).toBeInTheDocument();
+    expect(remove).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Inspector" })).toBeNull();
+  });
+});
