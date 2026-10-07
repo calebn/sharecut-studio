@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { postDocumentCommand, waiveRefineGate } from "./documentCommand";
+import {
+  postDocumentCommand,
+  postHistoryMove,
+  waiveRefineGate,
+} from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import { setTheme } from "./theme";
 
@@ -122,9 +126,7 @@ test.describe("Transcript edit-boundary touch drag", () => {
       expect(rolls[0]?.delta_sec ?? 0).toBeGreaterThan(0);
     } finally {
       for (let i = 0; i < applied; i += 1) {
-        await postDocumentCommand(page, CLIENT_ID, "UndoHistory", {
-          rerender: false,
-        });
+        await postHistoryMove(page, CLIENT_ID, "UndoHistory");
       }
     }
   });
@@ -248,10 +250,7 @@ for (const width of [1440, 360]) {
         expect(boundaryCommands).toEqual([]);
       } finally {
         await page.mouse.up();
-        if (applied)
-          await postDocumentCommand(page, CLIENT_ID, "UndoHistory", {
-            rerender: false,
-          });
+        if (applied) await postHistoryMove(page, CLIENT_ID, "UndoHistory");
       }
     });
   }

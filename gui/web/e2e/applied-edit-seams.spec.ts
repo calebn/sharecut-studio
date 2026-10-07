@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { postDocumentCommand, waiveRefineGate } from "./documentCommand";
+import {
+  postDocumentCommand,
+  postHistoryMove,
+  waiveRefineGate,
+} from "./documentCommand";
 import { e2eProjectPath } from "./env";
 
 test.describe("Applied-edit seam ticks", () => {
@@ -46,8 +50,8 @@ test.describe("Applied-edit seam ticks", () => {
       const after = await scroll.evaluate((el) => el.scrollWidth);
       expect(after).toBeLessThanOrEqual(base + 1);
     } finally {
-      await command("UndoHistory", { rerender: false });
-      await command("UndoHistory", { rerender: false });
+      await postHistoryMove(page, "e2e-applied-seams", "UndoHistory");
+      await postHistoryMove(page, "e2e-applied-seams", "UndoHistory");
       await expect(lanes.first().locator(".clip-block")).toHaveCount(1);
     }
   });

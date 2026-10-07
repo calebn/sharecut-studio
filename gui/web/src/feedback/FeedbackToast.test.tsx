@@ -3,7 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { undoHistory } from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
-import { registerHistoryCommands } from "../commands/history";
+import {
+  _resetHistoryMovesForTests,
+  registerHistoryCommands,
+} from "../commands/history";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
@@ -13,7 +16,7 @@ import { FeedbackToast } from "./FeedbackToast";
 
 vi.mock("../api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../api")>()),
-  undoHistory: vi.fn(async () => undefined),
+  undoHistory: vi.fn(async () => null),
 }));
 
 const entry = (id: string) => id as HistoryEntryId;
@@ -38,8 +41,9 @@ describe("FeedbackToast", () => {
   beforeEach(() => {
     clearRegisteredCommands();
     registerHistoryCommands();
+    _resetHistoryMovesForTests();
     vi.mocked(undoHistory).mockReset();
-    vi.mocked(undoHistory).mockResolvedValue(undefined);
+    vi.mocked(undoHistory).mockResolvedValue(null);
     useDawStore.setState({
       projectPath: "/tmp/ep",
       project: minimalProject(),

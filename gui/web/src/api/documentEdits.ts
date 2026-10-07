@@ -61,28 +61,39 @@ export const HISTORY_STALE_CODE = "history_stale";
 
 export type HistoryMoveOptions = {
   rerender?: boolean;
-  /** The entry the caller saw as the latest; the server refuses (`history_stale`) once it is not. */
-  expectedHeadId: HistoryEntryId | null;
+  /**
+   * The head the caller saw (`history.head_id`, `root` before any entry).
+   * Required: the server refuses (`history_stale`) once it is not the head.
+   */
+  expectedHeadId: HistoryEntryId;
 };
 
-export async function undoHistory(
+async function moveHistoryHead(
+  type: "UndoHistory" | "RedoHistory",
   projectPath: string,
   opts: HistoryMoveOptions,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "UndoHistory", {
+): Promise<HistoryEntryId | null> {
+  const result = await submitDocumentCommand(projectPath, type, {
     rerender: opts.rerender ?? false,
     expected_head_id: opts.expectedHeadId,
   });
+  return replyHistoryHead(result);
 }
 
-export async function redoHistory(
+/** Undo; resolves with the head the move left (null when queued offline or a retry). */
+export function undoHistory(
   projectPath: string,
   opts: HistoryMoveOptions,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "RedoHistory", {
-    rerender: opts.rerender ?? false,
-    expected_head_id: opts.expectedHeadId,
-  });
+): Promise<HistoryEntryId | null> {
+  return moveHistoryHead("UndoHistory", projectPath, opts);
+}
+
+/** Redo; resolves with the head the move left (null when queued offline or a retry). */
+export function redoHistory(
+  projectPath: string,
+  opts: HistoryMoveOptions,
+): Promise<HistoryEntryId | null> {
+  return moveHistoryHead("RedoHistory", projectPath, opts);
 }
 
 /**

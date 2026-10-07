@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { expectPageAxeClean } from "./axe";
+import { postHistoryMove } from "./documentCommand";
 import { e2eProjectPath } from "./env";
 import {
   openTranscriptPanel,
@@ -92,17 +93,7 @@ test.describe("Transcript inline word edit", () => {
     } finally {
       if (committed) {
         // Leave the shared live E2E project as later specs expect it.
-        await page.request.post(
-          `/api/document/command?path=${encodeURIComponent(e2eProjectPath)}`,
-          {
-            data: {
-              type: "UndoHistory",
-              payload: { rerender: false },
-              client_id: "e2e-inline-edit",
-              role: "viewer",
-            },
-          },
-        );
+        await postHistoryMove(page, "e2e-inline-edit", "UndoHistory");
       }
     }
   });

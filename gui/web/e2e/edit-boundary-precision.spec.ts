@@ -2,7 +2,11 @@ import fs from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import type { ProjectView } from "../src/types/project";
 import { expectPageAxeClean } from "./axe";
-import { postDocumentCommand, waiveRefineGate } from "./documentCommand";
+import {
+  postDocumentCommand,
+  postHistoryMove,
+  waiveRefineGate,
+} from "./documentCommand";
 import { assertDisposableE2eProject, e2eProjectPath } from "./env";
 import { setTheme } from "./theme";
 
@@ -461,9 +465,7 @@ test("precision boundary editing previews, cancels, and restores transcript audi
     await page.keyboard.up("Shift").catch(() => undefined);
     await page.mouse.up().catch(() => undefined);
     for (let index = 0; index < applied; index += 1) {
-      await postDocumentCommand(page, CLIENT_ID, "UndoHistory", {
-        rerender: false,
-      });
+      await postHistoryMove(page, CLIENT_ID, "UndoHistory");
     }
   }
 });

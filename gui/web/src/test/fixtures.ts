@@ -4,13 +4,14 @@ import type { RecordParticipant, RecordSnapshot } from "../record/types";
 import type { OfflineConflict, QueuedCommand } from "../state/offlineStore";
 import type { LayerVisibility } from "../state/types";
 import type { PipelineJobSnapshot } from "../types/pipeline";
-import type {
-  AppliedEditRecord,
-  ClipRow,
-  PendingEditView,
-  ProjectView,
-  TimelineComment,
-  TrackView,
+import {
+  type AppliedEditRecord,
+  type ClipRow,
+  HISTORY_ROOT_ID,
+  type PendingEditView,
+  type ProjectView,
+  type TimelineComment,
+  type TrackView,
 } from "../types/project";
 import type { SessionClient } from "../types/session";
 import type { HostShareRow } from "../types/shares";
@@ -51,7 +52,7 @@ export function minimalProject(
     },
     history: {
       cursor: 0,
-      head_id: null,
+      head_id: HISTORY_ROOT_ID,
       can_undo: false,
       can_redo: false,
       groups: [],

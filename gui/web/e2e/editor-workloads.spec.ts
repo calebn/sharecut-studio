@@ -3,7 +3,11 @@ import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import type { ProjectView } from "../src/types/project";
 import { rulerWidthPx } from "./deepZoom";
-import { postDocumentCommand, waiveRefineGate } from "./documentCommand";
+import {
+  postDocumentCommand,
+  postHistoryMove,
+  waiveRefineGate,
+} from "./documentCommand";
 import { createEditorProfiler } from "./editorProfile";
 import {
   type ClipGeometry,
@@ -210,7 +214,7 @@ async function clipDrag(page: Page, recorder: Recorder) {
       };
     },
   );
-  await postDocumentCommand(page, CLIENT, "UndoHistory", { rerender: false });
+  await postHistoryMove(page, CLIENT, "UndoHistory");
   const restored = (await fullProject(page)).clips;
   expect(restored).toEqual(before.clips);
   if (
@@ -348,7 +352,7 @@ async function boundaryDrag(page: Page, recorder: Recorder) {
       };
     },
   );
-  await postDocumentCommand(page, CLIENT, "UndoHistory", { rerender: false });
+  await postHistoryMove(page, CLIENT, "UndoHistory");
   const restored = (await fullProject(page)).clips;
   expect(restored).toEqual(before.clips);
   if (
