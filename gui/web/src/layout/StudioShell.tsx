@@ -263,7 +263,7 @@ function StudioShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
                 open: sheetOpen,
                 expanded: sheetExpanded,
                 content:
-                  compact?.view === "strip" ? (
+                  compact?.view === "peek" ? (
                     <InspectorPeek peek={compact.peek} />
                   ) : (
                     <Inspector />

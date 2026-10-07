@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -180,6 +180,90 @@ describe("BottomSheet", () => {
     expect(screen.queryByRole("button", { name: "Expand" })).toBeNull();
     expect(dialog.querySelector(".bottom-sheet-grab")).toBeNull();
     await expectNoA11yViolations(dialog);
+  });
+
+  describe("as a swipeable drawer (#1051 round 4b)", () => {
+    function Drawer({ start = "peek" }: { start?: "peek" | "half" | "full" }) {
+      const [detent, setDetent] = useState<"peek" | "half" | "full">(start);
+      return (
+        <BottomSheet
+          open
+          onClose={() => undefined}
+          backgroundPolicy="interactive"
+          title="Trim start"
+          drawer={{
+            detents: ["peek", "half", "full"],
+            detent,
+            onDetentChange: setDetent,
+            label: "Inspector height",
+          }}
+        >
+          <p>{detent}</p>
+        </BottomSheet>
+      );
+    }
+    const chrome = () =>
+      document.querySelector(".bottom-sheet-chrome") as HTMLElement;
+    const dialog = () => screen.getByRole("dialog", { name: "Trim start" });
+    const swipe = (dy: number, steps = 4, msPerStep = 40) => {
+      let t = 1000;
+      fireEvent.pointerDown(chrome(), {
+        pointerId: 5,
+        clientY: 500,
+        timeStamp: t,
+      });
+      for (let i = 1; i <= steps; i += 1) {
+        t += msPerStep;
+        fireEvent.pointerMove(chrome(), {
+          pointerId: 5,
+          clientY: 500 + (dy * i) / steps,
+          timeStamp: t,
+        });
+      }
+      fireEvent.pointerUp(chrome(), {
+        pointerId: 5,
+        clientY: 500 + dy,
+        timeStamp: t,
+      });
+    };
+
+    it("swipes up a detent, down a detent, and snaps back from a short drag", () => {
+      render(<Drawer />);
+      swipe(-60);
+      expect(dialog()).toHaveClass("bottom-sheet--half");
+      swipe(-10);
+      expect(dialog()).toHaveClass("bottom-sheet--half");
+      swipe(60);
+      expect(dialog()).toHaveClass("bottom-sheet--peek");
+    });
+
+    it("drops a swipe a second finger joins", () => {
+      render(<Drawer />);
+      fireEvent.pointerDown(chrome(), { pointerId: 5, clientY: 500 });
+      fireEvent.pointerMove(chrome(), { pointerId: 5, clientY: 420 });
+      expect(dialog()).toHaveClass("is-dragging");
+      fireEvent.pointerDown(chrome(), { pointerId: 6, clientY: 300 });
+      fireEvent.pointerUp(chrome(), { pointerId: 5, clientY: 420 });
+      expect(dialog()).not.toHaveClass("is-dragging");
+      expect(dialog()).toHaveClass("bottom-sheet--peek");
+    });
+
+    it("keeps Expand and Collapse, and a named range for keys and screen readers", async () => {
+      render(<Drawer start="half" />);
+      expect(
+        screen.getByRole("button", { name: "Expand to full height" }),
+      ).toBeVisible();
+      const range = screen.getByRole("slider", { name: "Inspector height" });
+      expect(range).toHaveAttribute("aria-valuetext", "Half height");
+      fireEvent.change(range, { target: { value: "2" } });
+      expect(dialog()).toHaveClass("bottom-sheet--full");
+      expect(screen.queryByRole("button", { name: /^Expand/ })).toBeNull();
+      await userEvent.click(
+        screen.getByRole("button", { name: "Collapse to strip" }),
+      );
+      expect(dialog()).toHaveClass("bottom-sheet--peek");
+      await expectNoA11yViolations(dialog());
+    });
   });
 
   it("peeks as a strip, expands one size up with named actions, and stows without losing focus", async () => {
