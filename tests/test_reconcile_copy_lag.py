@@ -152,7 +152,7 @@ def test_the_lag_and_the_copys_likeness_are_measured_once_per_pair() -> None:
 
 
 def test_too_little_of_the_peer_to_measure_falls_back_to_zero_lag() -> None:
-    """Under 30 s of Audra's speech the lag is not trusted, so each word gets its 0-lag verdict."""
+    """Under 20 s of Audra's speech the lag is not trusted, so each word gets its 0-lag verdict."""
     caches = _caches(background=False)
     with patch.object(TrackRmsCacheSet, "echo_pairs", lambda self: [BLEED_PATH]):
         assert caches.copy_path("audra", "caleb").lag_sec == 0.0
@@ -160,6 +160,36 @@ def test_too_little_of_the_peer_to_measure_falls_back_to_zero_lag() -> None:
     found = _verdicts(caches)
     assert found[("caleb", "copy")] == ("audible", None)
     assert found[("caleb", "after")] == ("bleed", "audra")
+
+
+def test_own_voice_starting_and_stopping_with_the_peer_is_no_copy_path() -> None:
+    """Caleb's own syllables switch on and off with Audra's, as voices laughing together do.
+
+    His level contour follows hers at her track's latency as a copy's would, but his
+    voice does not carry her fine spectrum there, so no lag is trusted (#1070).
+    """
+    from podcast_mcp.engines.audio_audit import CopyPath
+
+    rng = np.random.default_rng(3)
+    caleb, audra = np.zeros(round(240 * RATE)), np.zeros(round(240 * RATE))
+    start = 1.0
+    while start < 236.0:
+        size, first = round(rng.uniform(0.08, 0.25) * RATE), round(start * RATE)
+        shape = np.hanning(size) * rng.uniform(0.1, 0.3)
+        caleb[first : first + size] = rng.standard_normal(size) * shape
+        audra[first : first + size] = rng.standard_normal(size) * shape
+        start += size / RATE + rng.uniform(0.03, 0.2) + (rng.random() < 0.2) * rng.uniform(0.2, 0.8)
+    noise = np.random.default_rng(11).standard_normal((2, caleb.size))
+    caches = TrackRmsCacheSet(
+        caches={
+            "caleb": TrackRmsCache(samples=(caleb + ROOM_NOISE * noise[0]).astype(np.float32)),
+            "audra": TrackRmsCache(
+                samples=(delay(audra, LATENCY_SEC) + 1e-4 * noise[1]).astype(np.float32)
+            ),
+        }
+    )
+    with patch.object(TrackRmsCacheSet, "echo_pairs", lambda self: [BLEED_PATH]):
+        assert caches.copy_path("audra", "caleb") == CopyPath()
 
 
 def test_mics_on_different_sample_clocks_fall_back_to_zero_lag() -> None:

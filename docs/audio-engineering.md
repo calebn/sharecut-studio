@@ -901,8 +901,9 @@ enforced-by:
 - tests/test_bleed_gate_generality.py::test_copy_beside_a_peer_whose_track_opens_late_on_every_word_leaks_no_more_than_accepted
 - tests/test_bleed_gate_generality.py::test_the_lane_is_turned_down_from_200_ms_before_the_peers_track_opens
 - tests/test_bleed_gate_generality.py::test_own_breaths_running_into_the_peers_openings_leave_no_more_copy
-- tests/test_bleed_attenuation.py::test_another_voice_talking_over_the_same_stretch_is_untouched
+- tests/test_bleed_attenuation.py::test_own_voice_talking_with_the_peer_is_untouched
 - tests/test_bleed_attenuation.py::test_short_excerpt_with_a_strong_copy_is_muted
+- tests/test_reconcile_copy_lag.py::test_own_voice_starting_and_stopping_with_the_peer_is_no_copy_path
 - docs-sync: decision-bleed
 supersedes: D-bleed-keep-onset-copies
 -->

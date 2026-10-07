@@ -254,16 +254,31 @@ def _db(samples: np.ndarray) -> float:
     return 10 * np.log10(float(np.mean(samples**2)))
 
 
-def _peer_voice(words: list[tuple[float, float]], clock: np.ndarray, seed: int = 11) -> np.ndarray:
-    """Separate words, each two syllables of speech-band noise, like the peer's speech."""
-    noise = np.convolve(np.random.default_rng(seed).normal(0, 1, clock.size), np.ones(16), "same")
+def _peer_voice(
+    words: list[tuple[float, float]], clock: np.ndarray, seed: int = 11, hum_hz: float | None = None
+) -> np.ndarray:
+    """Separate words, each two syllables of speech-band noise, like the peer's speech.
+
+    ``hum_hz`` hums every word at that one steady pitch instead, each word starting at
+    its own phase.
+    """
+    rng = np.random.default_rng(seed)
+    noise = np.convolve(rng.normal(0, 1, clock.size), np.ones(16), "same")
     noise *= 0.25 / noise.std()
     voice = np.zeros(clock.size)
     for start, end in words:
         inside = (clock >= start) & (clock < end)
         local = clock[inside] - start
+        carrier = (
+            noise[inside]
+            if hum_hz is None
+            else sum(
+                np.sin(2 * np.pi * h * hum_hz * local + rng.uniform(0, 2 * np.pi)) / h
+                for h in range(1, 6)
+            )
+        )
         shape = np.sin(np.pi * local / (end - start)) ** 2
-        voice[inside] = noise[inside] * shape * (0.6 + 0.4 * np.cos(2 * np.pi * 5 * local) ** 2)
+        voice[inside] = carrier * shape * (0.6 + 0.4 * np.cos(2 * np.pi * 5 * local) ** 2)
     return voice
 
 
@@ -320,12 +335,15 @@ def _talking_over(
     room_floor_spans: tuple[tuple[float, float], ...] | None = None,
     copy_lift: tuple[float, float, float] | None = None,
     channel_copy_db: tuple[float, ...] = (),
-    co_talker: bool = False,
+    own_voice: str | None = None,
 ) -> EpisodeProject:
     """The peer talks from 1 s to ``talk_end``; the host mic carries a coloured copy 16 dB down.
 
-    ``co_talker`` puts another voice on the host mic instead of the copy: it talks over
-    the same stretch at the copy's level, with words of its own.
+    ``own_voice`` puts the host's own voice on its mic instead of the copy, at the copy's
+    level. ``"own words"`` talks over the same stretch with words of its own.
+    ``"co-timed"`` starts and stops with the peer word by word, as people laughing or
+    chanting together do. ``"co-timed hum"`` does that with both voices hummed at one
+    steady 150 Hz pitch.
 
     The peer's direct track runs ``lag_sec`` late, 140 ms by default as on the lab
     tape. ``own`` adds the host's own sounds (kind, start, end, level in dB against the
@@ -341,13 +359,14 @@ def _talking_over(
     project.ensure_dirs()
     clock = np.arange(int(duration * RATE)) / RATE
     words = _talk_words(talk_end)
-    voice = _peer_voice(words, clock)
+    hum_hz = 150.0 if own_voice == "co-timed hum" else None
+    voice = _peer_voice(words, clock, hum_hz=hum_hz)
     talk = slice(round(TALK_START * RATE), round(talk_end * RATE))
-    host = (
-        _peer_voice(_talk_words(talk_end, seed=17), clock, seed=19)
-        if co_talker
-        else _colored(voice)
-    )
+    if own_voice is None:
+        host = _colored(voice)
+    else:
+        own_words = _talk_words(talk_end, seed=17) if own_voice == "own words" else words
+        host = _peer_voice(own_words, clock, seed=19, hum_hz=hum_hz)
     host *= 10 ** ((LAB_COUPLING_DB + _db(voice[talk]) - _db(host[talk])) / 20)
     if copy_lift is not None:
         lifted = (clock >= copy_lift[0]) & (clock < copy_lift[1])
@@ -594,11 +613,18 @@ def test_short_excerpt_with_a_strong_copy_is_muted(tmp_path: Path) -> None:
     _silent(after, 1.05, 22.65)
 
 
-@pytest.mark.parametrize("talk_end", [23.0, 31.0])
-def test_another_voice_talking_over_the_same_stretch_is_untouched(
-    tmp_path: Path, talk_end: float
+@pytest.mark.parametrize("talk_end", [23.0, 31.0, 61.0])
+@pytest.mark.parametrize("own_voice", ["own words", "co-timed", "co-timed hum"])
+def test_own_voice_talking_with_the_peer_is_untouched(
+    tmp_path: Path, own_voice: str, talk_end: float
 ) -> None:
-    project = _talking_over(tmp_path, talk_end=talk_end, co_talker=True)
+    """Own sound that starts and stops with the peer's is no copy at any evidence length.
+
+    Its level contour follows the peer's as a copy's would, but a copy also keeps the
+    peer's timbre at the lag, and only there. Every host word is marked bleed, so
+    nothing but the acoustic check protects the own voice.
+    """
+    project = _talking_over(tmp_path, talk_end=talk_end, own_voice=own_voice)
     plan = build_bleed_gate_plan(project, "host")
     assert plan.attenuation_spans == ()
     assert plan.reasons == ("uncertain_foreign_ownership",)
