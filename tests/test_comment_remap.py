@@ -166,7 +166,7 @@ def test_ripple_delete_remaps_comments_and_chapters():
     assert p.editorial.chapters[1].time == 12.0
 
 
-def test_batch_ripple_delete_remaps_right_to_left():
+def test_multi_span_ripple_cut_remaps_right_to_left():
     p = _project_with_anchors()
     # Two cuts on original timeline: [3,4) and [10,11)
     ripple_cut_spans(p, [(3.0, 4.0), (10.0, 11.0)], use_inaudible_opt=False)
