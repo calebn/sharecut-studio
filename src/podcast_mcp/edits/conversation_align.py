@@ -28,7 +28,7 @@ from podcast_mcp.edits.track_media import clip_media_duration, refresh_timeline_
 from podcast_mcp.engines.envelope_lag import (
     LEVEL_FLOOR_DB,
     level_envelope_db,
-    stream_level_envelope_db,
+    stream_level_and_peak_db,
 )
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
 from podcast_mcp.engines.play_audit import probe_wav_duration_sec
@@ -1846,6 +1846,7 @@ class _LaneMedia:
 
     source: np.ndarray
     heard: np.ndarray
+    heard_peak: np.ndarray
     shift_sec: float
 
 
@@ -1858,13 +1859,15 @@ def _lane_media(
     if len(paths) != 1 or (path := next(iter(paths))) not in sources:
         return None
     grid = {"frame_sec": bleed_latency.FRAME_SEC, "hop_sec": bleed_latency.HOP_SEC}
+    heard, heard_peak = stream_level_and_peak_db(
+        FFmpegEngine().stream_mono_f32(path, sample_rate=SILENCE_RATE),
+        sample_rate=SILENCE_RATE,
+        **grid,
+    )
     return _LaneMedia(
         source=level_envelope_db(sources[path], sample_rate=LATENCY_RATE, **grid),
-        heard=stream_level_envelope_db(
-            FFmpegEngine().stream_mono_f32(path, sample_rate=SILENCE_RATE),
-            sample_rate=SILENCE_RATE,
-            **grid,
-        ),
+        heard=heard,
+        heard_peak=heard_peak,
         shift_sec=clip_source_to_timeline_shift(clips[0]),
     )
 
@@ -1966,6 +1969,7 @@ def _stepped_lanes(
             media.source,
             _clock_pairs(track_id, media.shift_sec, solution, clock, settings),
             heard=media.heard,
+            heard_peak=media.heard_peak,
             deadband_sec=settings.deadband_sec,
         )
 

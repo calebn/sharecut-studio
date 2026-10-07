@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from podcast_mcp.util.dsp import frame_rms_db_stream
+from podcast_mcp.util.dsp import frame_db_stream, frame_peak_db, frame_rms_db, frame_rms_db_stream
 
 LEVEL_FLOOR_DB = -90.0
 NULL_SHIFTS_SEC = (-2.0, -1.0, 1.0, 2.0)
@@ -48,6 +48,15 @@ def stream_level_envelope_db(
     """:func:`level_envelope_db` over a forward-only chunk stream (a whole track at full rate)."""
     frame, hop = round(frame_sec * sample_rate), round(hop_sec * sample_rate)
     return np.maximum(frame_rms_db_stream(chunks, frame, hop), LEVEL_FLOOR_DB)
+
+
+def stream_level_and_peak_db(
+    chunks: Iterable[np.ndarray], *, sample_rate: int, frame_sec: float, hop_sec: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """:func:`stream_level_envelope_db` and each frame's sample peak (dB), in one pass."""
+    frame, hop = round(frame_sec * sample_rate), round(hop_sec * sample_rate)
+    level, peak = frame_db_stream(chunks, frame, hop, (frame_rms_db, frame_peak_db))
+    return np.maximum(level, LEVEL_FLOOR_DB), np.maximum(peak, LEVEL_FLOOR_DB)
 
 
 @dataclass(frozen=True)
