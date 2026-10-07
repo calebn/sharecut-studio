@@ -9,10 +9,12 @@ const hostQueue = vi.fn();
 const guestQueue = vi.fn();
 const removeHostQueuedCommands = vi.fn();
 const clearSuperseded = vi.fn(async () => {});
+const askIfReplayHeldBack = vi.fn();
 
 vi.mock("../api", () => ({ submitDocumentCommand: submit }));
 vi.mock("../api/documentEdits", () => ({
   clearSupersededCorrectionConflicts: clearSuperseded,
+  askIfReplayHeldBack,
 }));
 vi.mock("./offlineStore", () => ({
   loadCommandQueue: guestQueue,
@@ -629,6 +631,30 @@ describe("replayQueuedCommands", () => {
       "c",
       "d",
     ]);
+  });
+
+  it("hands each landed replay's reply to the cut-speech prompt", async () => {
+    const { replayQueuedCommands } = await import("./drainOfflineQueue");
+    const held = { ok: true, needs_confirmation: { speech: {} } };
+    const ripple = {
+      ...rec("a"),
+      type: "DeleteClip",
+      payload: { clip_ids: ["h2"], mode: "ripple" },
+    };
+    submit.mockResolvedValueOnce(held);
+    askIfReplayHeldBack.mockClear();
+
+    await replayQueuedCommands({
+      path: "/projects/driver.project.json",
+      load: async () => [ripple],
+    });
+
+    expect(askIfReplayHeldBack).toHaveBeenCalledWith(
+      "/projects/driver.project.json",
+      "DeleteClip",
+      { clip_ids: ["h2"], mode: "ripple" },
+      held,
+    );
   });
 
   it("clears superseded correction refusals after a replayed correction lands", async () => {

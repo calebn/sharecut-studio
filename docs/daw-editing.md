@@ -312,6 +312,7 @@ enforced-by:
 - tests/test_edit_modes.py::test_gap_mode_leaves_an_exact_gap_and_moves_nothing_downstream
 - tests/test_edit_modes.py::test_a_commenters_ripple_suggestion_records_that_approval_must_confirm
 - tests/test_edit_modes.py::test_a_ripple_range_cut_naming_no_tracks_asks_before_cutting_anyones_speech
+- gui/web/src/layout/CutSpeechDialog.test.tsx::asks before a ripple delete cuts another speaker, naming who, when and what
 -->
 
 Trim, delete, cut and paste take one `mode` (`EditMode`, `ripple` | `gap`) on
@@ -359,7 +360,16 @@ into a track-local punch, so it never asks. Its approval ripples through the sam
 kernel with that scope already decided.
 
 Today's DAW sends `ripple` for trims, ripple delete, cut and paste, and `gap` for
-Delete. It does not show the confirmation yet; the mode switch and confirmation UI
+Delete. When the host replies `needs_confirmation`, `api/documentEdits.ts` opens
+`CutSpeechDialog` (the shared `Dialog`): its title names the speakers ("Cut
+Avery's speech too?"), it lists each one's time and words, and it offers Leave a
+gap and Cut anyway (Cancel for an approval, which has no gap form). Both choices
+run through the command bus (`edit.cutSpeech.leaveGap`, `edit.cutSpeech.cutAnyway`,
+`edit.cutSpeech.cancel`): Cut anyway resends the command with
+`confirm_cut_speech: true`, and Leave a gap resends it with `mode: gap` (a trim
+first mints a gap-mode boundary token). A ripple held back for confirmation is
+never announced as done, and one the offline queue replays later opens the same
+dialog (`askIfReplayHeldBack`). The Edges mode switch and the dialog's final look
 are #1138.
 
 ## Near-term non-goals

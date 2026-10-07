@@ -165,6 +165,8 @@ type UiSlice = Pick<
   | "selectedTrackIds"
   | "selectedClipIds"
   | "bladeConfirmSec"
+  | "cutSpeechPrompt"
+  | "setCutSpeechPrompt"
   | "shellBreakpoint"
   | "pointerKind"
   | "mobileMode"
@@ -704,6 +706,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         commandPaletteOpen: !s.commandPaletteOpen,
         ...(!s.commandPaletteOpen ? { gesturesSheetOpen: false } : {}),
       })),
+    cutSpeechPrompt: null,
+    setCutSpeechPrompt: (cutSpeechPrompt) => set({ cutSpeechPrompt }),
     bounceRangeTarget: null,
     setBounceRangeTarget: (bounceRangeTarget) => set({ bounceRangeTarget }),
     bounceDialogOpen: false,

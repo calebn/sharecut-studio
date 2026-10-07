@@ -58,7 +58,6 @@ export {
   reorderTrackCommand,
   restoreAppliedEdit,
   rippleDeleteClips,
-  rippleDeleteRange,
   rollClipJoin,
   setClipFade,
   setClipJoin,

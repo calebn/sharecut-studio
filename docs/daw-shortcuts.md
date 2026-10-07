@@ -132,6 +132,9 @@ Available via toolbar / `execute`; some also appear in the in-app palette. Comma
 | Resolve comment | `comment.resolve` | Loaded host project | Args: { commentId: string, resolved: boolean, by: string } — host only; use a comment's Resolve/Reopen control |
 | Confirm blade cut | `edit.bladeCut.confirm` | Structural edits allowed |  |
 | Cancel blade cut | `edit.bladeCut.cancel` | Always (when not typing in an input) |  |
+| Cut anyway | `edit.cutSpeech.cutAnyway` | Always (when not typing in an input) | Apply the ripple the host held back because it cuts another speaker's speech (confirm_cut_speech) |
+| Leave a gap | `edit.cutSpeech.leaveGap` | Always (when not typing in an input) | Redo the held-back ripple in gap mode: other speakers keep their speech |
+| Cancel cut | `edit.cutSpeech.cancel` | Always (when not typing in an input) |  |
 | Play range | `range.play` | Project loaded |  |
 | Cut selected range | `range.cut` | Project loaded |  |
 | Mute selected range | `range.mute` | Project loaded |  |

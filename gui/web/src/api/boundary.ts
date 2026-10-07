@@ -1,4 +1,4 @@
-import type { TrimEdge } from "../edit/clipEdgePreview";
+import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
 import { withSessionTokenQuery } from "../sessionAuth";
 import {
   isShareProjectKey,
@@ -10,7 +10,7 @@ import { hostFetch } from "./documentTransport";
 
 export type BoundaryTarget =
   | { kind: "roll"; left_clip_id: string; right_clip_id: string }
-  | { kind: "trim"; clip_id: string; edge: TrimEdge };
+  | { kind: "trim"; clip_id: string; edge: TrimEdge; mode?: EditMode };
 
 export type BoundaryGeometryClip = {
   id: string;

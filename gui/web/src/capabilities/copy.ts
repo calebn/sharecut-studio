@@ -140,6 +140,18 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
     label: "Ripple delete clip",
     tooltip: "Ripple delete clip",
   },
+  "daw.edit.cutSpeech.cutAnyway": {
+    label: "Cut anyway",
+    tooltip: "Cut, including the other speaker's speech",
+  },
+  "daw.edit.cutSpeech.leaveGap": {
+    label: "Leave a gap",
+    tooltip: "Leave silence and keep the other speaker's speech",
+  },
+  "daw.edit.cutSpeech.cancel": {
+    label: "Cancel cut",
+    tooltip: "Cancel cut",
+  },
   "daw.edit.copy": {
     label: "Copy",
   },
@@ -483,6 +495,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   clipInspector: "daw.edit.rippleDelete",
   trackInspector: "daw.track.setVolume",
   trackHeader: "daw.track.soloToggle",
+  cutSpeechDialog: "daw.edit.cutSpeech.cancel",
   trackHeadersWell: "daw.track.deselectAll",
   "trackHeaders.soloChip": "daw.track.clearSolo",
   "mobileShell.statusRow": "daw.track.clearSolo",

@@ -838,6 +838,75 @@
       }
     },
     {
+      "id": "daw.edit.cutSpeech.cutAnyway",
+      "label": "Cut anyway",
+      "service": "Sharecut Studio command bus \u2192 resubmits the ripple the host held back (confirm_cut_speech, or mode gap)",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "edit.cutSpeech.cutAnyway",
+        "gui": [
+          "cutSpeechDialog"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed"
+      },
+      "tooltip": "Cut, including the other speaker's speech",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.cutSpeech.leaveGap",
+      "label": "Leave a gap",
+      "service": "Sharecut Studio command bus \u2192 resubmits the ripple the host held back (confirm_cut_speech, or mode gap)",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "edit.cutSpeech.leaveGap",
+        "gui": [
+          "cutSpeechDialog"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed"
+      },
+      "tooltip": "Leave silence and keep the other speaker's speech",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
+      "id": "daw.edit.cutSpeech.cancel",
+      "label": "Cancel cut",
+      "service": "Sharecut Studio command bus \u2192 resubmits the ripple the host held back (confirm_cut_speech, or mode gap)",
+      "industry_standard_key": false,
+      "gates": [
+        "always"
+      ],
+      "surfaces": {
+        "command": "edit.cutSpeech.cancel",
+        "gui": [
+          "cutSpeechDialog"
+        ]
+      },
+      "omit": {
+        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed"
+      },
+      "tooltip": "Cancel cut",
+      "presence": {
+        "cursor": "none",
+        "follow": "none"
+      }
+    },
+    {
       "id": "daw.edit.copy",
       "label": "Copy",
       "effect": "session",

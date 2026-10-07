@@ -22,7 +22,6 @@ vi.mock("../api", () => ({
   deleteClips: vi.fn(),
   rippleDeleteClips: vi.fn(),
   pasteSegment: vi.fn(),
-  rippleDeleteRange: vi.fn(),
   duplicateSegment: vi.fn(),
   undoHistory: vi.fn(),
   redoHistory: vi.fn(),

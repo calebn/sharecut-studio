@@ -4,6 +4,12 @@ import {
   activateDocumentScope,
   isCurrentDocumentScope,
 } from "../document/authorityState";
+import type { EditMode, TrimEdge } from "../edit/clipEdgePreview";
+import {
+  type CutSpeechChoices,
+  cutSpeechOf,
+  type RippleOutcome,
+} from "../edit/cutSpeech";
 import { submitQueuedDocumentCommand } from "../services/commandQueue";
 import {
   isShareProjectKey,
@@ -19,6 +25,7 @@ import {
 import type { AutomationPoint, PendingEditView } from "../types/project";
 import { ApiError, readApiError } from "../utils/apiError";
 import { withVolumeEnvelopePoints } from "../utils/envelopes";
+import { loadBoundaryContext } from "./boundary";
 import { loadDocumentState } from "./project";
 
 /** Wire shape for a guarded transcript command's optional stale-text guard. */
@@ -62,15 +69,65 @@ export async function redoHistory(
   });
 }
 
+/**
+ * A rippling command's outcome. When the host refused it because it would cut
+ * other speech, nothing changed: open the cut-speech prompt with `choices` and
+ * report `asked`.
+ */
+function rippleOutcome(
+  projectPath: string,
+  result: Record<string, unknown>,
+  choices: CutSpeechChoices,
+): RippleOutcome {
+  const speech = cutSpeechOf(result);
+  if (speech)
+    useDawStore
+      .getState()
+      .setCutSpeechPrompt({ projectPath, speech, ...choices });
+  return { queued: result.queued === true, asked: speech !== null };
+}
+
+/** Commands whose gap form is the same payload in `mode: gap` (a trim's needs a new token). */
+const GAP_BY_MODE = new Set(["DeleteClip", "CutRange"]);
+
+/** A queued ripple the host held back when the drain replayed it asks now, as a live send does. */
+export function askIfReplayHeldBack(
+  projectPath: string,
+  type: string,
+  payload: Record<string, unknown>,
+  result: Record<string, unknown>,
+): void {
+  rippleOutcome(projectPath, result, {
+    cutAnyway: () =>
+      submitDocumentCommand(projectPath, type, {
+        ...payload,
+        confirm_cut_speech: true,
+      }),
+    leaveGap: GAP_BY_MODE.has(type)
+      ? () =>
+          submitDocumentCommand(projectPath, type, { ...payload, mode: "gap" })
+      : null,
+  });
+}
+
+function confirmed(confirmCutSpeech: boolean): { confirm_cut_speech?: true } {
+  return confirmCutSpeech ? { confirm_cut_speech: true } : {};
+}
+
 /** `queued`: saved and sent later by the drain, so the outcome is not known yet. */
 export async function approveEdits(
   projectPath: string,
   ids: string[],
-): Promise<{ queued: boolean }> {
+  confirmCutSpeech = false,
+): Promise<RippleOutcome> {
   const result = await submitDocumentCommand(projectPath, "ApproveEdits", {
     ids,
+    ...confirmed(confirmCutSpeech),
   });
-  return { queued: result.queued === true };
+  return rippleOutcome(projectPath, result, {
+    cutAnyway: () => approveEdits(projectPath, ids, true),
+    leaveGap: null,
+  });
 }
 
 export async function waiveTranscriptRefine(
@@ -272,19 +329,62 @@ export async function setClipFade(
 export async function trimClipEdge(
   projectPath: string,
   clipId: string,
-  edge: "in" | "out",
+  edge: TrimEdge,
   sourceSec: number,
-  mode: "ripple",
+  mode: EditMode,
   expectedToken: string,
-): Promise<{ queued: boolean }> {
+  confirmCutSpeech = false,
+): Promise<RippleOutcome> {
   const result = await submitDocumentCommand(projectPath, "TrimClipEdge", {
     clip_id: clipId,
     edge,
     source_sec: sourceSec,
     mode,
     expected_token: expectedToken,
+    ...confirmed(confirmCutSpeech),
   });
-  return { queued: result.queued === true };
+  return rippleOutcome(projectPath, result, {
+    cutAnyway: () =>
+      trimClipEdge(
+        projectPath,
+        clipId,
+        edge,
+        sourceSec,
+        mode,
+        expectedToken,
+        true,
+      ),
+    leaveGap: () =>
+      trimClipEdgeLeavingGap(projectPath, clipId, edge, sourceSec),
+  });
+}
+
+/** A gap trim has its own limits, so it needs a token minted for gap mode. */
+async function trimClipEdgeLeavingGap(
+  projectPath: string,
+  clipId: string,
+  edge: TrimEdge,
+  sourceSec: number,
+): Promise<RippleOutcome> {
+  const clips = useDawStore.getState().project?.clips.tracks ?? {};
+  const clip = Object.values(clips)
+    .flat()
+    .find((c) => c.id === clipId);
+  if (!clip) throw new Error("This clip changed. Trim it again.");
+  const { id, source_start, source_end, timeline_start, source_id } = clip;
+  const boundary = await loadBoundaryContext(
+    projectPath,
+    { kind: "trim", clip_id: clipId, edge, mode: "gap" },
+    [{ id, source_start, source_end, timeline_start, source_id }],
+  );
+  return trimClipEdge(
+    projectPath,
+    clipId,
+    edge,
+    sourceSec,
+    "gap",
+    boundary.token,
+  );
 }
 
 export async function rollClipJoin(
@@ -650,10 +750,16 @@ export async function deleteClips(
 export async function rippleDeleteClips(
   projectPath: string,
   clipIds: string[],
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "DeleteClip", {
+  confirmCutSpeech = false,
+): Promise<RippleOutcome> {
+  const result = await submitDocumentCommand(projectPath, "DeleteClip", {
     clip_ids: clipIds,
     mode: "ripple",
+    ...confirmed(confirmCutSpeech),
+  });
+  return rippleOutcome(projectPath, result, {
+    cutAnyway: () => rippleDeleteClips(projectPath, clipIds, true),
+    leaveGap: () => deleteClips(projectPath, clipIds),
   });
 }
 
@@ -693,18 +799,6 @@ export async function pasteSegment(
     insert_at: insertAt,
     duration,
     extracts,
-    mode: "ripple",
-  });
-}
-
-export async function rippleDeleteRange(
-  projectPath: string,
-  start: number,
-  end: number,
-): Promise<void> {
-  await submitDocumentCommand(projectPath, "CutRange", {
-    start,
-    end,
     mode: "ripple",
   });
 }

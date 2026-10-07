@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**113** capabilities · **97** Sharecut Studio commands · **54** keyed · **179** MCP tools · **17** skills on rows (+ **19** hub skills).
+**116** capabilities · **100** Sharecut Studio commands · **54** keyed · **179** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -63,6 +63,9 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Move track up | project | `track.moveUp` | `ArrowUp` | `transport.menu` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
 | Move track down | project | `track.moveDown` | `ArrowDown` | `transport.menu` | `track_reorder_tool` | `podcast episode reorder-track` | — | — | none · none |
 | Ripple delete clip | project | `edit.rippleDelete` | `Mod+Backspace` | `clipInspector` | `ripple_delete_tool`, `delete_clips_tool` | `podcast edit delete-clips --ripple` | — | — | none · none |
+| Cut anyway | None | `edit.cutSpeech.cutAnyway` | — (not industry-standard; menu/toolbar or unkeyed) | `cutSpeechDialog` | — | — | — | — | none · none |
+| Leave a gap | None | `edit.cutSpeech.leaveGap` | — (not industry-standard; menu/toolbar or unkeyed) | `cutSpeechDialog` | — | — | — | — | none · none |
+| Cancel cut | None | `edit.cutSpeech.cancel` | — (not industry-standard; menu/toolbar or unkeyed) | `cutSpeechDialog` | — | — | — | — | none · none |
 | Copy | session | `edit.copy` | `Mod+C` | — | `copy_segment_tool` | `podcast edit copy-segment` | — | — | — |
 | Cut | project | `edit.cut` | `Mod+X` | — | `ripple_delete_tool`, `delete_clips_tool`, `propose_range_cut_tool` | `podcast edit propose-range-cut`, `podcast edit approve`, `podcast edit delete-clips --ripple` | — | — | — |
 | Paste | project | `edit.paste` | `Mod+V` | — | `paste_segment_tool` | `podcast edit paste-segment` | — | — | — |
