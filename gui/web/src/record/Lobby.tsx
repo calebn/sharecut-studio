@@ -167,7 +167,7 @@ export function Lobby({
                   <p id={localStorageGateId}>{localStorageCopy}</p>
                   {localStorageError && onRetryStorage ? (
                     <Button type="button" onClick={onRetryStorage}>
-                      Retry local backup
+                      Retry storage check
                     </Button>
                   ) : null}
                 </div>

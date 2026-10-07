@@ -1,11 +1,9 @@
 import type { KeeperClipRegion } from "../keeper/clipRegions";
-import type { RecordSegmentAck } from "../types";
+import type { SegmentAckRow } from "../saveStatus";
 
 export type RecordUploadStatus = {
   session_id?: string;
-  segments: Array<
-    RecordSegmentAck & { take_index: number; segment_index: number }
-  >;
+  segments: SegmentAckRow[];
 };
 
 export type RecordUploadAck = {

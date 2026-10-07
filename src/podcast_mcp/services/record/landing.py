@@ -222,9 +222,9 @@ def wav_pcm_info(path: Path) -> tuple[int, int, int]:
             width = int(wf.getsampwidth() or 0)
             comptype = str(wf.getcomptype() or "NONE")
     except (OSError, wave.Error) as exc:
-        raise RecordLandingError("invalid keeper wav") from exc
+        raise RecordLandingError("invalid full-quality recording wav") from exc
     if sample_rate <= 0 or nframes < 0 or width not in (1, 2) or comptype != "NONE":
-        raise RecordLandingError("invalid keeper wav")
+        raise RecordLandingError("invalid full-quality recording wav")
     return sample_rate, channels or 1, nframes
 
 
@@ -548,7 +548,7 @@ class RecordLandingService:
         room_tone_copied: list[dict[str, Any]] = []
         with resolve_progress_task(
             "record_land_tool",
-            "Landing record keepers",
+            "Landing full-quality recordings",
             total=max(len(pending) + len(pending_room_tone), 1),
             prefer_parent=True,
         ) as progress:
@@ -572,7 +572,7 @@ class RecordLandingService:
                 drift_ms,
                 drift_rows,
             )
-            progress.set_phase("copy", "Copying keepers into raw/")
+            progress.set_phase("copy", "Copying full-quality recordings into raw/")
             for row in pending:
                 pid = str(row["participant_id"])
                 take = int(row["take_index"])

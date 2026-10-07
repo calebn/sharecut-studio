@@ -59,9 +59,9 @@ describe("downloadLocalKeepers", () => {
     await expect(
       downloadLocalKeepers(sink, "room1", "p_guest", 0),
     ).rejects.toThrow(
-      "Downloaded 1 local keeper copy; 1 segment expired after seven days",
+      "Downloaded 1 full-quality recording; 1 segment expired after seven days",
     );
-    expect(filenames).toEqual(["keepers-p_guest.zip"]);
+    expect(filenames).toEqual(["full-quality-recordings-p_guest.zip"]);
     await vi.runAllTimersAsync();
   });
 
@@ -79,7 +79,9 @@ describe("downloadLocalKeepers", () => {
     await pruneExpiredKeeperWavs(sink, () => true);
     await expect(
       downloadLocalKeepers(sink, "room1", "p_guest", 0),
-    ).rejects.toThrow("1 local keeper segment expired after seven days");
+    ).rejects.toThrow(
+      "1 segment of your full-quality recording expired after seven days",
+    );
   });
   it.each(["p_host", "p_guest"])(
     "exports every retained take and segment for %s, labeling partials, without deleting OPFS",
@@ -134,19 +136,21 @@ describe("downloadLocalKeepers", () => {
       }
       const remove = vi.spyOn(sink, "remove");
       await downloadLocalKeepers(sink, "room1", participantId, 1);
-      expect(filenames).toEqual([`keepers-${participantId}.zip`]);
+      expect(filenames).toEqual([
+        `full-quality-recordings-${participantId}.zip`,
+      ]);
       expect(blobs[0]?.type).toBe("application/zip");
       const archive = new TextDecoder("latin1").decode(
         await blobs[0]!.arrayBuffer(),
       );
       for (const name of [
-        "keeper-0-0.wav",
-        "keeper-0-1-partial.wav",
-        "keeper-1-0.wav",
+        "full-quality-take-1-segment-1.wav",
+        "full-quality-take-1-segment-2-partial.wav",
+        "full-quality-take-2-segment-1.wav",
       ]) {
         expect(archive).toContain(name);
       }
-      expect(archive).not.toContain("keeper-0-1.wav");
+      expect(archive).not.toContain("full-quality-take-1-segment-2.wav");
       expect(remove).not.toHaveBeenCalled();
       await vi.runAllTimersAsync();
       expect(revokeObjectURL).toHaveBeenCalledTimes(1);
@@ -156,7 +160,7 @@ describe("downloadLocalKeepers", () => {
   it("reports a missing local copy rather than silently succeeding", async () => {
     await expect(
       downloadLocalKeepers(new MemorySink(), "room1", "p_guest", 0),
-    ).rejects.toThrow("No local keeper copy");
+    ).rejects.toThrow("No full-quality recording is available");
   });
 
   it("exports surviving sparse segments before reporting missing copies", async () => {
@@ -189,8 +193,10 @@ describe("downloadLocalKeepers", () => {
     }
     await expect(
       downloadLocalKeepers(sink, "room1", "p_guest", 1),
-    ).rejects.toThrow("Downloaded 3 local keeper copies; 1 missing segment");
-    expect(filenames).toEqual(["keepers-p_guest.zip"]);
+    ).rejects.toThrow(
+      "Downloaded 3 full-quality recordings; 1 missing segment",
+    );
+    expect(filenames).toEqual(["full-quality-recordings-p_guest.zip"]);
     await vi.runAllTimersAsync();
   });
 
@@ -218,8 +224,10 @@ describe("downloadLocalKeepers", () => {
     );
     await expect(
       downloadLocalKeepers(sink, "room1", "p_guest", 0),
-    ).rejects.toThrow("Downloaded 1 local keeper copy; 2 missing segments");
-    expect(filenames).toEqual(["keepers-p_guest.zip"]);
+    ).rejects.toThrow(
+      "Downloaded 1 full-quality recording; 2 missing segments",
+    );
+    expect(filenames).toEqual(["full-quality-recordings-p_guest.zip"]);
     await vi.runAllTimersAsync();
   });
 
@@ -273,7 +281,7 @@ describe("downloadLocalKeepers", () => {
     await expect(
       downloadLocalKeepers(sink, "room1", "p_guest", 0),
     ).resolves.toBeUndefined();
-    expect(filenames).toEqual(["keepers-p_guest.zip"]);
+    expect(filenames).toEqual(["full-quality-recordings-p_guest.zip"]);
     await vi.runAllTimersAsync();
   });
 
@@ -522,7 +530,7 @@ describe("keeper recovery", () => {
     const result = await inspectKeeperRecovery(sink, path);
     expect(result).toMatchObject({
       kind: "unrecoverable",
-      reason: expect.stringMatching(/committed PCM/i),
+      reason: expect.stringMatching(/no saved audio/i),
     });
   });
 
@@ -531,7 +539,7 @@ describe("keeper recovery", () => {
     await sink.write(path, wavBytes(0, [1, 0]));
     expect(await inspectKeeperRecovery(sink, path)).toMatchObject({
       kind: "unrecoverable",
-      reason: expect.stringMatching(/no readable recovery metadata/),
+      reason: expect.stringMatching(/no readable recovery information/),
     });
     await sink.write(keeperMetaPath(path), new TextEncoder().encode("{"));
     expect((await inspectKeeperRecovery(sink, path)).kind).toBe(
@@ -549,7 +557,7 @@ describe("keeper recovery", () => {
     await writeRawMeta(sink, path, { ...META, sessionId: "wrong-room" });
     expect(await inspectKeeperRecovery(sink, path)).toMatchObject({
       kind: "unrecoverable",
-      reason: expect.stringMatching(/invalid placement/),
+      reason: expect.stringMatching(/invalid placement information/),
     });
   });
 
@@ -561,7 +569,7 @@ describe("keeper recovery", () => {
     await writeRawMeta(sink, path, META);
     expect(await inspectKeeperRecovery(sink, path)).toMatchObject({
       kind: "unrecoverable",
-      reason: expect.stringMatching(/not a readable PCM WAV/),
+      reason: expect.stringMatching(/not a readable WAV/),
     });
     await sink.write(path, new Uint8Array(48).fill(7));
     expect((await inspectKeeperRecovery(sink, path)).kind).toBe(

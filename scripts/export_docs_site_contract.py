@@ -132,11 +132,11 @@ _ROUTE_NOTES: dict[tuple[str, str], tuple[str, str]] = {
     ),
     ("GET", "/api/rec/{token}/upload"): (
         "join",
-        "Record keeper chunk ACK status (own participant)",
+        "Full-quality recording chunk ACK status (own participant)",
     ),
     ("POST", "/api/rec/{token}/upload"): (
         "join",
-        "Record keeper chunk upload (sha256 + resume)",
+        "Full-quality recording chunk upload (sha256 + resume)",
     ),
     ("DELETE", "/api/rec/{token}/upload"): (
         "join",
@@ -200,7 +200,10 @@ _ROUTE_AGENT: dict[tuple[str, str], str] = {
     ),
     ("GET", "/api/rec/{token}/features"): "http-only: extension manifest for record shell",
     ("GET", "/api/rec/{token}/upload"): "http-only: record keeper upload status",
-    ("POST", "/api/rec/{token}/upload"): "http-only: record keeper chunk upload; no MCP yet",
+    (
+        "POST",
+        "/api/rec/{token}/upload",
+    ): "http-only: full-quality recording chunk upload; no MCP yet",
     ("DELETE", "/api/rec/{token}/upload"): ("http-only: revoke ACK'd room-tone bed; no MCP yet"),
     ("WEBSOCKET", "/api/rec/{token}/ws"): (
         "http-only: record room / live comments / WebRTC signal; no MCP by design "

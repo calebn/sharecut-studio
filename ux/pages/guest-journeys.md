@@ -148,7 +148,7 @@ Product still needs polished “link died” copy and a free-tier story ([Backlo
 
 ---
 
-## 6. Join a recording session (keepers + mix-minus + upload)
+## 6. Join a recording session (full-quality recording + mix-minus + saving)
 
 **Setup:** Host mints a record link (`/rec/{token}`, guest role). Guest opens it
 on a laptop with headphones. Spec:
@@ -163,8 +163,8 @@ flowchart TD
   meter --> roomTone[Record or skip 3s room tone]
   roomTone --> consent[Accept recording notice]
   consent --> wait[Wait for host Start]
-  wait --> rec[REC: local dry WAV + mix-minus]
-  rec --> lost[Mic disconnected: local capture paused]
+  wait --> rec[REC: full-quality recording + mix-minus]
+  rec --> lost[Mic disconnected: full-quality recording paused]
   lost --> reconnect[Reconnect microphone]
   reconnect --> rec
   rec --> silent[No audio reaching the recorder]
@@ -174,11 +174,11 @@ flowchart TD
   clip --> rec
   rec --> stop[Host Stop]
   stop --> report[Clipping report]
-  report --> upload[Upload panel with N/M or stalled state]
-  upload --> recovery[Resume upload or Download local keeper]
-  recovery --> upload
-  upload --> staged[File uploaded; local OPFS WAV kept]
-  staged --> opfs[Local OPFS WAV cleared automatically after confirmed landing]
+  report --> saving[Saving to project… N of M, or stalled]
+  saving --> recovery[Resume saving or Download full-quality recording]
+  recovery --> saving
+  saving --> staged[Saved to project; this device keeps its copy]
+  staged --> opfs[This device's copy clears automatically after confirmed landing]
   staged --> failed[Landing failed; ask host to Retry land]
   failed --> staged
   opfs --> done[Tracks on host timeline]
@@ -194,35 +194,37 @@ flowchart TD
    microphone privacy settings; Linux identifies its WebKit prompt and directs
    blocked users to the supported browser recording path.
 3. Optional **Record 3 seconds of room tone** (skip allowed). Too-loud beds warn
-   if RMS is above −35 dBFS and stay off the host. The bed is captured locally;
-   nothing is uploaded until Accept. Producers never see this step.
-4. Separate **recording consent** step. Encoder armed on Accept; **zero keeper
-   WAV bytes** until host Start. Room-tone PUT waits for Accept (local lobby
-   capture is allowed; Skip/Decline discards it). The upload route re-checks
-   consent server-side, per take: a keeper chunk needs the guest in that
-   take's consented roster, room tone needs current consent, and either
-   miss returns `403 consent required` — never trust the client alone.
-5. Host Start requires a verified writable local OPFS backup for the host and
+   if RMS is above −35 dBFS and stay off the host. The bed stays on your
+   device; nothing is sent to the host until Accept. Producers never see this step.
+4. Separate **recording consent** step. The recorder is armed on Accept and
+   writes **no full-quality recording audio** until host Start. The room-tone
+   upload waits for Accept (lobby capture on your device is allowed;
+   Skip/Decline discards it). The host re-checks consent server-side, per
+   take: a full-quality recording chunk needs the guest in that take's
+   consented roster, room tone needs current consent, and either miss returns
+   `403 consent required` — never trust the client alone.
+5. Host Start requires a passed device storage check for the host and
    is enabled when every **recorded guest** currently in the lobby has consented
    (producers skip this gate). The host's Start lists what it waits for right
    under it: "No guest has joined yet. Send them the guest link." with **Copy
    guest link**, then "Waiting for Ava to accept recording." per guest. A host
    with no room yet sees "No record room yet." with **Create record room**,
    which creates it in place and copies the guest link. A
-   guest who rejoins before a new take must retry local backup readiness and
-   Accept again. The previous take’s upload and download recovery stays available
-   in the lobby. Failed backup readiness offers **Retry local backup**.
-6. While REC is on, guest sees the roster, clock, "Recording locally on this
-   device," and **Hearing the room.** Press **M** for a Marker or type a note
-   The encoder notes where your mic clipped (sample peak) in the local keeper
-   metadata, so the report can survive a reload.
-   (other guests in the record room never see it; after land it is an ordinary
-   timeline comment on the host). While the local keeper is writing, a refresh
+   guest who rejoins before a new take must pass the device storage check again
+   and Accept again. Saving and download recovery for the previous take stay
+   available in the lobby. A failed storage check offers **Retry storage
+   check**.
+6. While REC is on, guest sees the roster, clock, "Recording in full quality
+   on this device," and **Hearing the room.** Press **M** for a Marker or type a
+   note (other guests in the record room never see it; after land it is an
+   ordinary timeline comment on the host). The recorder notes where your mic
+   clipped (sample peak) with your full-quality recording, so the report can
+   survive a reload. While your full-quality recording is being written, a refresh
    or navigation asks for the browser's native leave confirmation; dismissing
    it keeps the guest in the live take. Browsers require prior page activation
    before they may show that prompt, and they control its wording. PAUSED does
    not show this native prompt. If the tab is closed or crashes during REC,
-   audio already written stays in the local keeper (at most the last couple of
+   audio already written stays on this device (at most the last couple of
    seconds are lost); after Stop, reopen the room link and use **Recover
    partial take**.
 7. If the room reports a non-terminal error (for example an action that is not
@@ -235,14 +237,15 @@ flowchart TD
    still missing, and the notice stays even if that Retry fails. Declining or
    leaving the room never restores the dead choice, and a microphone that is
    plugged back in is tried again on the next Retry.
-   If the microphone ends involuntarily, the local keeper closes its current
-   segment and a persistent warning offers **Reconnect microphone**. The room
+   If the microphone ends involuntarily, your full-quality recording closes its
+   current segment and a persistent warning offers **Reconnect microphone**. The room
    clock follows the shared take while REC says local capture failed and has no
    healthy dot. Reconnect changes the local label to waiting for microphone;
    failed retry returns to failed, and a live stream restores healthy REC.
    Revoking browser mic permission also shows failed local capture and a
    reconnect action, even if the stream hook clears its loss flag.
-   Stop clears the mic-loss warning but retains incomplete keeper recovery.
+   Stop clears the mic-loss warning but keeps recovery for an incomplete
+   full-quality recording.
    If the microphone stays connected but about 5 seconds of silence or no
    audio reach the recorder while recording (not paused or muted), a persistent
    "No audio is reaching the recorder." alert with **Check mic** appears and REC
@@ -256,10 +259,10 @@ flowchart TD
    panel reopens and stays open with an actionable Retry. Both the panel and
    transport chip show local capture as failed, or waiting while a retry is
    acquiring the microphone. A successful Retry restores the live capture
-   state without discarding existing keeper segments.
-   On rejoin, a transient local segment scan error halts capture and exposes
-   local backup failure; it never resets the cursor to segment zero and
-   overwrites a retained keeper.
+   state without discarding existing segments of the full-quality recording.
+   On rejoin, a transient storage error on this device halts capture and says
+   the device can't store the recording; it never restarts at segment one and
+   overwrites a kept full-quality recording.
    During a healthy host take, the persistent transport control has a red dot,
    REC, and a running clock on desktop; phone keeps the same control in a row
    above every mode body. Reduced-motion settings keep
@@ -268,9 +271,9 @@ flowchart TD
    If the host's connection to the record room drops mid-take, the control
    reads "REC (reconnecting)" without the dot until the socket returns (not
    while the page is still making its first connection).
-   After Stop, microphone loss no longer locks the host dialog. A take with no
-   host keeper warns that no local audio was captured, even if the mic never
-   became available. If a host record command (Start, Pause, Resume, Stop,
+   After Stop, microphone loss no longer locks the host dialog. A take where
+   the host never captured a full-quality recording warns "No full-quality
+   recording was captured", even if the mic never became available. If a host record command (Start, Pause, Resume, Stop,
    Land) fails, the Record room panel opens and shows the error; over the
    Share dialog the failure is only announced, and an already open panel shows it
    without announcing it a second time. Closing the panel clears it.
@@ -278,33 +281,39 @@ flowchart TD
    Resume while paused) and keeps Stop alone at the end behind a divider; Stop
    asks once ("Stop this take? Recording ends for everyone in the room.",
    **Keep recording** or **Stop take**). Land stays disabled with its reason
-   beside it until there is something to land. The native leave warning stays until the keeper finishes saving
-   the final WAV and metadata, then clears. The upload panel warns the guest
-   to keep the tab open until the final file ACK, shows N/M chunks where all
-   totals are known, and offers **Resume upload** and **Download local keeper**
-   for an incomplete or stalled take. Download produces one ZIP containing all
-   retained WAV segments. The local WAVs stay in
-   OPFS (`Sharecut Recordings/`) until a fresh host status confirms **Landed**.
+   beside it until there is something to land. The native leave warning stays
+   until your full-quality recording finishes writing its final file, then
+   clears. The saving panel reads "Saving to project… N of M chunks" where all
+   totals are known, then "Saved to project" once the host holds the verified
+   file. It warns the guest to keep the tab open until then, lists each segment
+   ("Take 1 segment 2: Saving to project…") when there are several, and offers
+   **Resume saving** and **Download full-quality recording** for an incomplete
+   or stalled take. The host's panel shows the same two states for every
+   recorded participant and segment. Download produces one ZIP containing all
+   retained segments. This device's copy stays in browser storage
+   (`Sharecut Recordings/`) until a fresh host status confirms the segment is
+   on the timeline.
    The finalized WAV is then reclaimed only when its SHA-256 and byte length
    match both local completion metadata and the landed host status. A mismatch
-   or older marker keeps the WAV and shows a download warning alongside upload
-   progress or landing errors, with one set of recovery actions. A landed take
-   with a retained WAV does not claim that the local backup was cleared. Its small completion
-   marker remains to preserve segment numbering; recovery downloads skip
-   reclaimed segments rather than reporting them missing. If landing fails, the guest sees
-   **Uploaded but not landed on the host** and keeps the backup while the host
-   uses **Retry land**. The lobby and host Start panel warn when browser storage
+   or older marker keeps this device's copy and shows a download warning alongside
+   saving progress or landing errors, with one set of recovery actions. A landed
+   take whose copy is still on this device does not claim it was cleared. Its
+   small completion marker remains to preserve segment numbering; recovery
+   downloads skip cleared segments rather than reporting them missing. If
+   landing fails, the guest sees "Saved to project, but not on the timeline
+   yet." and keeps this device's copy while the host uses **Retry land**. The lobby and host Start panel warn when browser storage
    headroom is low or cannot be estimated; this advisory never blocks recording.
    If a rejoin finds a readable pending PCM segment, the panel also offers
-   **Recover partial take** before upload and announces what it recovered;
+   **Recover partial take** before saving and announces what it recovered;
    zero-byte or malformed files explain that uncommitted PCM cannot be
    reconstructed and remain available for export.
 9. If the host laptop drops during REC: reconnect the same link (lease reuse);
-   the keeper keeps growing ("Host offline: still recording locally.") and
-   segments that already closed retry their upload; the open segment uploads
-   once it closes. If the host is gone for **10 s or more**, the take is forced
+   the full-quality recording keeps growing ("Host offline: still recording
+   locally.") and segments that already closed retry saving to the project; the
+   open segment saves once it closes. If the host is gone for **10 s or more**, the take is forced
    **PAUSED** when they return (host must Resume; guests see the usual PAUSED
-   indicator). A shorter blip stays REC and does not remount the host keeper. A
+   indicator). A shorter blip stays REC and does not restart the host's full-quality
+   recording. A
    sidecar crash that never sent Leave still pauses on the next host Join.
    Reminting a new room while REC/PAUSED is refused until the take is Stopped.
    The host sees you disconnect after your last room tab closes. Closing one
@@ -315,11 +324,11 @@ flowchart TD
    removal close, and a reload retains the revoked identity. The host's removal
    closes that invite link to new people ("Invite link closed"); guests who
    already joined keep their saved lease, and new people need a fresh link.
-   Removal also blocks outstanding uploads from earlier stopped takes, even
-   when the guest consented to those takes. The host should wait for keeper
-   uploads to finish before removal when those parts matter.
-   Removal during REC stops microphone capture and upload, then offers local
-   keeper recovery or download. A naturally expired lease can start a fresh
+   Removal also blocks saving earlier stopped takes that are still in progress,
+   even when the guest consented to those takes. The host should wait for
+   "Saved to project" before removal when those parts matter.
+   Removal during REC stops microphone capture and saving, then offers recovery
+   or download of the full-quality recording kept on this device. A naturally expired lease can start a fresh
    guest identity in the still-open room, unless someone who joined through the
    same link was removed; then the guest sees "Invite link closed" and needs a
    fresh link from the host. The Join lease check and host removal
@@ -331,48 +340,50 @@ flowchart TD
 9. In the native desktop app, a host or recorded guest who closes the window
    during REC, PAUSED, or finalizing sees a role-specific confirmation. The
    host warning says closing stops the session for everyone; the guest warning
-   says it can lose that guest's local keeper. This protects the native window
+   says it can lose that guest's full-quality recording. This protects the native window
    close request while the take is still recoverable, without sending a remote
    close command. On macOS, the app menu and **Cmd+Q** use the native
    confirmation path. Dock **Quit** and OS shutdown can bypass the app menu
    and remain best-effort paths.
 
-   If local OPFS capture fails, the client stops claiming that REC is safely
-   backed up, preserves finalized segments, and shows **Retry local recording**.
+   If this device can't keep writing the full-quality recording, the client
+   stops claiming that REC is safely saved on the device, preserves finalized
+   segments, and shows **Retry full-quality recording**.
    The host resumes or starts a take before Retry when needed. Retry starts a
    new segment only after the failed writable closes or its bounded close
    deadline passes, so the leave guard holds until then; a failed open segment
    is not treated as durable and exports as a `-partial` WAV. A storage stall
-   reads "Local recording stopped: this device's storage couldn't keep up."
-   Retry places the new segment at the current recording clock. After Stop, an incomplete local WAV remains for
-   recovery but does not hold Leave once complete segments have uploaded.
+   reads "Full-quality recording stopped: this device's storage couldn't keep up."
+   Retry places the new segment at the current recording clock. After Stop, an incomplete segment stays on this device
+   for recovery but does not hold Leave once complete segments are saved.
    A metadata-free partial is eligible for cleanup seven days after its last
    write. When a room is stopped and capture settles, background cleanup scans
-   all rooms on this device, including older rooms. It does not delay uploads
+   all rooms on this device, including older rooms. It does not delay saving
    or status checks. When you revisit an expired segment, the panel says its
-   local copy expired, and the segment number remains reserved. An active
+   copy on this device expired, and the segment number remains reserved. An active
    capture or recovery download holds an origin-wide lock so cleanup cannot
    delete its WAV. If Web Locks are unavailable, cleanup leaves WAVs in place.
    Pending metadata and finalized WAVs follow their separate recovery and
    landed-file rules.
 
 **Success:** Guest consents, appears on the host roster, sees REC/PAUSED, hears
-the mix-minus, writes a local dry WAV, and uploads chunks until ACK. Timeline
-landing copies ACK'd keepers into `raw/` as one clip per segment and reports
-staged, uploaded, landed, or land-failed state. Only the landed state permits local
-backup deletion; a segment whose staged host copy went missing before reaching raw/
-reports land-failed (never landed), so the guest keeps the backup; `land_failed_ns`
+the mix-minus, records a full-quality recording on their device, and sees
+"Saving to project…" turn into "Saved to project" for each segment. Timeline
+landing copies the saved recordings into `raw/` as one clip per segment and
+reports landed or land-failed state. Only the landed state lets this device
+clear its copy; a segment whose staged host copy went missing before reaching
+raw/ reports land-failed (never landed), so the guest keeps the copy; `land_failed_ns`
 remains in the existing upload manifest across reconnects, and Retry land does not
 discard staged parts. Landing also compares
 sample-count vs recording-clock duration (`drift_ms`; unknown is `null`).
 `|drift| > 50 ms` or a missing `session_start` sets `align_fallback` as a
 post-transcribe `align_tracks` hint. Live comments and Markers land as ordinary timeline comments.
-A keeper or room-tone bed that gets re-uploaded or revoked while landing is registering it is
+A full-quality recording or room-tone bed that gets saved again or revoked while landing is registering it is
 never reported landed; its earlier project registration is rolled back instead. If that rollback
 write itself fails, it is saved and retried automatically on the next land, and the track's media is
 moved off the stale file meanwhile. Overlapping lands (an ACK auto-land and a Land click) each re-read the saved project first, so neither drops the clips or live comments the other landed.
 
-**Automated check:** the Playwright US-1 scenario (`gui/web/e2e/record-lobby.spec.ts`, "records a remote interview end to end") walks this journey in three browsers. The Playwright US-2 scenario (`gui/web/e2e/record-host-reconnect.spec.ts`) drops the host mid-take: the guest keeps recording with "Host offline: still recording locally.", and after a long drop the take returns PAUSED until the host resumes. The keeper capture → upload → landing path also runs on Chromium and Playwright WebKit in the compat core flow ([browser acceptance matrix](../../docs/testing.md#browser-acceptance-matrix)); Firefox is not covered.
+**Automated check:** the Playwright US-1 scenario (`gui/web/e2e/record-lobby.spec.ts`, "records a remote interview end to end") walks this journey in three browsers. The Playwright US-2 scenario (`gui/web/e2e/record-host-reconnect.spec.ts`) drops the host mid-take: the guest keeps recording with "Host offline: still recording locally.", and after a long drop the take returns PAUSED until the host resumes. The full-quality recording capture → saving → landing path also runs on Chromium and Playwright WebKit in the compat core flow ([browser acceptance matrix](../../docs/testing.md#browser-acceptance-matrix)); Firefox is not covered.
 
 ---
 
@@ -392,7 +403,7 @@ flowchart TD
 ```
 
 1. Producer lands on the same record lobby, listed under **Not recorded**.
-2. No `getUserMedia`, no consent, no room tone, no keeper, no upload panel,
+2. No `getUserMedia`, no consent, no room tone, no full-quality recording, no saving panel,
    no mic meter or clip LED.
 3. Host Start does not wait on the producer.
 4. During REC/PAUSED they see the roster and clock and **Hearing the room.**

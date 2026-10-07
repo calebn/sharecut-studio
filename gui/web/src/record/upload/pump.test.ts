@@ -20,7 +20,7 @@ describe("uploadKeeperWav", () => {
         ackedParts: [],
         fileAck: false,
       }),
-    ).rejects.toThrow("Resume the upload or download the local keeper copy");
+    ).rejects.toThrow("Resume saving, or download your full-quality recording");
   });
   it("resumes after a killed mid-session PUT", async () => {
     const transport = memoryUploadTransport();

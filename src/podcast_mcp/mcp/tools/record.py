@@ -48,12 +48,12 @@ def record_marker_tool(project_path: str, body: str = "Marker") -> str:
 
 
 def record_land_tool(project_path: str) -> str:
-    """Copy ACK'd keepers into raw/ and land live comments on the timeline."""
+    """Land saved full-quality recordings and live comments on the timeline."""
     return json.dumps(_ctrl(project_path).land(), indent=2)
 
 
 def record_discard_take_tool(project_path: str, take_index: int) -> str:
-    """Delete a terminal take (refused while its upload manifest is in flight)."""
+    """Delete a terminal take (refused while its full-quality recordings are still saving to the project)."""
     return json.dumps(_ctrl(project_path).discard_take(take_index), indent=2)
 
 

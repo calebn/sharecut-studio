@@ -335,9 +335,9 @@ All under `/api/review/{token}/…` (proxied by the relay; **no** `?project=` pa
 | `GET …/daw/pending-preview` | `play` + `view` | Listen-first Current / Suggested / A/B WAV (Suggested renders the approved edit; not host speakers). First hit is FFmpeg (mutate RPM); cached GET uses audio concurrency. |
 | `GET …/daw/pending-preview-image` | `play` + `view` | Waveform (`kind=wave`) or spectrogram (`kind=spec`) of that extract |
 | `POST …/daw/document/command` | `view` + role command set | Commenter → SuggestPendingEdit, UpdatePendingEdit on its own suggestions only (`EditDecision.author`, `policy.authorize_pending_update`), structural and selected-range propose; Editor → Pass 1–2 apply + structural and selected-range (`EditSelectedRange`) apply + track ingest (`AddTrack` / `SetTrackMedia` / `SetTrackMeta` / `RemoveTrack` / `ReorderTrack`) + saved mix (`SetTrackFader` / `SetTrackMute`) via `document_command_types_for_caps` / `authorize_document_command` + `policy.resolve_structural_mode` / `policy.resolve_range_mode`. A guest's review role decides apply vs propose on every surface: an Editor applies a range on this route and through the guest MCP `guest_submit_document_command`, a Commenter proposes on both, and `structural_mode: "propose"` (offline replay) still demotes to a proposal. Editors approve and reject any pending edit, exact range proposals included (`policy.may_decide_exact_range`); only the host's own MCP/CLI agents are refused exact decisions. Typed payloads: `schemas/document-commands.schema.json`. |
-| `POST …/daw/media/upload` | Editor (`edit_commands_allowed`) | Chunked audio into host `raw/` (allowlist + assembled size cap); then guest submits `SetTrackMedia` / `AddTrack`. Not for Commenters or Viewers. Not the record keeper route. |
-| `GET /api/rec/{token}/upload` | record `join` | Own keeper chunk ACK status (lease required; host removal revokes it and returns 403 `invalid lease`) |
-| `POST /api/rec/{token}/upload` | record `join` | Keeper PCM parts (5 MB / 30 s); resume on the same token. Keeper parts only for takes the participant consented to; `kind=room_tone` only while consented (403 `consent required`). Host removal revokes the lease (403 `invalid lease`). Not `…/daw/media/upload`. |
+| `POST …/daw/media/upload` | Editor (`edit_commands_allowed`) | Chunked audio into host `raw/` (allowlist + assembled size cap); then guest submits `SetTrackMedia` / `AddTrack`. Not for Commenters or Viewers. Not the record full-quality recording route. |
+| `GET /api/rec/{token}/upload` | record `join` | Own full-quality recording chunk ACK status (lease required; host removal revokes it and returns 403 `invalid lease`) |
+| `POST /api/rec/{token}/upload` | record `join` | Full-quality recording PCM parts (5 MB / 30 s); resume on the same token. Full-quality recording parts only for takes the participant consented to; `kind=room_tone` only while consented (403 `consent required`). Host removal revokes the lease (403 `invalid lease`). Not `…/daw/media/upload`. |
 | `DELETE /api/rec/{token}/upload` | record `join` | Revoke an ACK'd room-tone bed (`kind=room_tone`) |
 | `POST …/daw/render-preview` | Editor (`edit_commands_allowed`) | Start a stem/premix render via the host `PipelineJobManager` lock. Returns **202** with a job ID immediately; **409** if the slot is busy. |
 | `GET …/daw/render-preview/{job_id}` | Editor (`edit_commands_allowed`) | Read a job's status for this share's project. Response includes only safe progress fields, with no host paths. |
@@ -709,7 +709,7 @@ src/podcast_mcp/
   no mapped path reaches host-only APIs.
 - **Body / WS size**: `PODCAST_RELAY_MAX_BODY_BYTES` (4 MiB), `PODCAST_RELAY_WS_MAX_SIZE`
   (16 MiB), GUI `PODCAST_GUI_MAX_BODY_BYTES` (pure ASGI `MaxBodySizeMiddleware` on the host),
-  MCP `PODCAST_REMOTE_MCP_MAX_BODY_BYTES` (1 MiB). Record keeper `POST …/upload`
+  MCP `PODCAST_REMOTE_MCP_MAX_BODY_BYTES` (1 MiB). Record full-quality recording `POST …/upload`
   skips the 4 MiB GUI cap and uses `max(relay cap, PODCAST_RECORD_UPLOAD_MAX_PART_BYTES)`
   (default 5 MiB) on the relay so a full part is not 413'd. See [testing.md](testing.md) § Body limit middleware.
 - **Share tokens**: capability-scoped, expiry enforced, revoke list on both relay and host.

@@ -108,7 +108,7 @@ test.describe("core flow", () => {
             await landParticipant(roomDlg, "Ava");
             await expect(
               guest.getByText(
-                "Landed on the host. The local backup is cleared automatically.",
+                "Saved to project and on the timeline. This device's copy clears automatically.",
               ),
             ).toBeVisible({ timeout: 30_000 });
 

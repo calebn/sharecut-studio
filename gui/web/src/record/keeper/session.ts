@@ -180,7 +180,7 @@ export class KeeperSession {
     if (queued + int16.length > this.maxQueuedSamples) {
       this.fail(
         new KeeperStallError(
-          `keeper PCM backlog exceeded ${this.maxQueuedSamples} samples`,
+          `full-quality recording backlog exceeded ${this.maxQueuedSamples} samples`,
         ),
       );
       return;
@@ -403,7 +403,7 @@ export class KeeperSession {
           WAV_HEADER_BYTES + samplesWritten * BYTES_PER_SAMPLE
       ) {
         throw new Error(
-          "The finalized keeper WAV changed before metadata was written.",
+          "The finalized full-quality recording changed before its details were saved.",
         );
       }
       await this.writeMeta(wavPath, open, samplesWritten, true, fingerprint);
@@ -511,7 +511,7 @@ export class KeeperSession {
   ): Promise<T> {
     return raceTimeout(operation, timeoutMs, () => {
       throw new KeeperStallError(
-        `keeper ${label} timed out after ${timeoutMs}ms`,
+        `full-quality recording ${label} timed out after ${timeoutMs}ms`,
       );
     });
   }

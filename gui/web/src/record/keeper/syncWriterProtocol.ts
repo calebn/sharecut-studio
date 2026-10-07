@@ -41,19 +41,19 @@ export function createSyncWriterHandler(
     try {
       if (msg.type === "open") {
         if (handle) {
-          throw new Error("keeper writer already open");
+          throw new Error("The full-quality recording writer is already open");
         }
         handle = await engine.openHandle(msg.path);
         flushedAt = engine.now();
       } else if (msg.type === "write") {
         if (!handle) {
-          throw new Error("keeper writer is not open");
+          throw new Error("The full-quality recording writer is not open");
         }
         const bytes = new Uint8Array(msg.bytes);
         const n = handle.write(bytes, { at: msg.offset });
         if (n !== bytes.byteLength) {
           throw new Error(
-            `keeper short write: ${n} of ${bytes.byteLength} bytes`,
+            `The full-quality recording writer wrote ${n} of ${bytes.byteLength} bytes`,
           );
         }
         if (engine.now() - flushedAt >= KEEPER_FLUSH_INTERVAL_MS) {

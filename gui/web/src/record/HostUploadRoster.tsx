@@ -1,8 +1,5 @@
-import {
-  hostUploadLine,
-  type RecordParticipant,
-  type RecordSegmentAck,
-} from "./types";
+import { hostSaveLines, type SegmentAckRow } from "./saveStatus";
+import type { RecordParticipant } from "./types";
 
 export function HostUploadRoster({
   participants,
@@ -10,89 +7,21 @@ export function HostUploadRoster({
   stopped,
 }: {
   participants: RecordParticipant[];
-  segments: RecordSegmentAck[];
+  segments: SegmentAckRow[];
   stopped: boolean;
 }) {
-  const recorded = participants.filter((person) => person.role !== "producer");
-  const ids = new Set([
-    ...recorded.map((person) => person.participant_id),
-    ...segments.map((row) => row.participant_id),
-  ]);
-  if (ids.size === 0) {
-    return null;
-  }
-  // Before Stop with no uploaded segments, every row would be "waiting to upload" — hide the roster.
+  // Before Stop with no saved segments, every row would read "Saving to project…": hide the roster.
   if (!stopped && segments.length === 0) {
     return null;
   }
-  const names = new Map(
-    recorded.map((person) => [person.participant_id, person.display_name]),
-  );
-  const byId = new Map<
-    string,
-    {
-      acked: number;
-      total: number;
-      totalKnown: boolean;
-      fileAck: boolean;
-      landed: boolean;
-      landFailed: boolean;
-      seen: boolean;
-    }
-  >();
-  for (const id of ids) {
-    byId.set(id, {
-      acked: 0,
-      total: 0,
-      totalKnown: true,
-      fileAck: false,
-      landed: false,
-      landFailed: false,
-      seen: false,
-    });
+  const lines = hostSaveLines(participants, segments);
+  if (lines.length === 0) {
+    return null;
   }
-  for (const row of segments) {
-    const slot = byId.get(row.participant_id) ?? {
-      acked: 0,
-      total: 0,
-      totalKnown: true,
-      fileAck: false,
-      landed: false,
-      landFailed: false,
-      seen: false,
-    };
-    slot.acked += row.file_ack
-      ? (row.expected_parts ?? row.acked_parts.length)
-      : row.acked_parts.length;
-    if (row.expected_parts != null) {
-      slot.total += row.expected_parts;
-    } else {
-      slot.totalKnown = false;
-    }
-    const ack = Boolean(row.file_ack);
-    slot.fileAck = slot.seen ? slot.fileAck && ack : ack;
-    slot.landed = slot.seen
-      ? slot.landed && Boolean(row.landed)
-      : Boolean(row.landed);
-    slot.landFailed = slot.landFailed || Boolean(row.land_failed);
-    slot.seen = true;
-    byId.set(row.participant_id, slot);
-  }
-  const lines = [...byId.entries()].map(([id, slot]) => ({
-    id,
-    text: hostUploadLine(
-      names.get(id) || id,
-      slot.fileAck,
-      slot.acked,
-      slot.seen && slot.totalKnown ? slot.total : null,
-      slot.landed,
-      slot.landFailed,
-    ),
-  }));
   return (
-    <ul aria-label="Upload status" className="record-roster">
+    <ul aria-label="Full-quality recording status" className="record-roster">
       {lines.map((row) => (
-        <li key={row.id}>{row.text}</li>
+        <li key={row.key}>{row.text}</li>
       ))}
     </ul>
   );

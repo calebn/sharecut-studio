@@ -109,7 +109,7 @@ Host MCP agents can read and replace it with revision checks. See the
 
 - [Sharecut Studio Extensions](docs/extensions.md) — public plugin SPI (absent = no render); [seams](docs/extension-seams.md)
 - [Host-online relay](docs/host-online-relay.md) — Docker share edge, tunnel, **capability-scoped remote MCP** (via the FOSS collaboration extension)
-- [Recording session (design)](docs/recording-session.md) — record links, local WAV keepers, mix-minus monitor, consent
+- [Recording session (design)](docs/recording-session.md) — record links, full-quality recording on each device, mix-minus monitor, consent
 - [UX onboarding pack](ux/README.md) — shareable brief, screens, glossary, backlog ([live site](https://ux.sharecut.studio/); [See the UI](https://ux.sharecut.studio/#/demo))
 - [UI philosophy](docs/ui-philosophy.md) — trust-first beta design principles for automation, recovery, and the free core workflow
 - [Communication philosophy](docs/communication-philosophy.md) — voice, terminology, control placement, and the mobile ergonomics checklist for user-facing UI

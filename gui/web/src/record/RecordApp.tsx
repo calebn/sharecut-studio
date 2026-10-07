@@ -327,10 +327,10 @@ export function RecordApp({ token }: { token: string }) {
             ? "The host closed this invite link to new participants. Ask the host for a new link."
             : "Your access to this recording room has ended."}
         </p>
-        {!captureSettled ? <p>Finishing your local recording…</p> : null}
+        {!captureSettled ? <p>Finishing your full-quality recording…</p> : null}
         {captureSettled && keeperActions.recover ? (
           <Button onClick={keeperActions.recover} disabled={keeperActions.busy}>
-            Recover local recording
+            Recover full-quality recording
           </Button>
         ) : null}
         {captureSettled && keeperActions.download ? (
@@ -338,7 +338,7 @@ export function RecordApp({ token }: { token: string }) {
             onClick={keeperActions.download}
             disabled={keeperActions.busy}
           >
-            Download local recording
+            Download full-quality recording
           </Button>
         ) : null}
         {keeperActions.error ? <p role="alert">{keeperActions.error}</p> : null}

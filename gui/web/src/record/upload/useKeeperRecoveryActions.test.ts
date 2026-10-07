@@ -43,10 +43,10 @@ function renderActions(
 describe("recoveryNotice", () => {
   it("describes what was recovered", () => {
     expect(recoveryNotice({ recovered: 0, trimmed: 0 })).toMatch(
-      /No partial keeper/,
+      /No partial recording/,
     );
     expect(recoveryNotice({ recovered: 1, trimmed: 0 })).toBe(
-      "Recovered 1 partial segment. Upload will resume.",
+      "Recovered 1 partial segment. Saving to the project will resume.",
     );
     expect(recoveryNotice({ recovered: 2, trimmed: 1 })).toMatch(
       /2 partial segments.*trailing sample was dropped/,
@@ -57,13 +57,13 @@ describe("recoveryNotice", () => {
 describe("recoveryNotice with ended upload access", () => {
   it("keeps the zero-recovered notice independent of upload access", () => {
     expect(recoveryNotice({ recovered: 0, trimmed: 0 }, false)).toBe(
-      "No partial keeper needed recovery.",
+      "No partial recording needed recovery.",
     );
   });
 
   it("gives download advice and preserves trimmed-sample feedback", () => {
     expect(recoveryNotice({ recovered: 1, trimmed: 1 }, false)).toBe(
-      "Recovered 1 partial segment. Download your local recording to keep a copy. An incomplete trailing sample was dropped from the end.",
+      "Recovered 1 partial segment. Download your full-quality recording to keep a copy. An incomplete trailing sample was dropped from the end.",
     );
   });
 });
@@ -90,7 +90,7 @@ describe("useKeeperRecoveryActions", () => {
     await waitFor(() => expect(result.current.busy).toBe(false));
     expect(run).toHaveBeenCalledOnce();
     expect(result.current.notice).toBe(
-      "Recovered 1 partial segment. Upload will resume.",
+      "Recovered 1 partial segment. Saving to the project will resume.",
     );
     expect(result.current.error).toBeNull();
     expect(onRecovered).toHaveBeenCalledOnce();
@@ -127,7 +127,9 @@ describe("useKeeperRecoveryActions", () => {
     const { result } = renderActions(new MemorySink());
     act(() => result.current.download?.());
     await waitFor(() =>
-      expect(result.current.error).toMatch(/No local keeper copy/),
+      expect(result.current.error).toMatch(
+        /No full-quality recording is available/,
+      ),
     );
     expect(result.current.notice).toBeNull();
   });
@@ -156,7 +158,7 @@ describe("useKeeperRecoveryActions", () => {
     act(() => result.current.recover?.());
     await waitFor(() => expect(result.current.busy).toBe(false));
     expect(result.current.notice).toBe(
-      "Recovered 1 partial segment. Download your local recording to keep a copy.",
+      "Recovered 1 partial segment. Download your full-quality recording to keep a copy.",
     );
     expect(result.current.error).toBeNull();
   });
@@ -182,7 +184,7 @@ describe("useKeeperRecoveryActions", () => {
     await act(async () => release());
     await waitFor(() => expect(result.current.busy).toBe(false));
     expect(result.current.notice).toBe(
-      "Recovered 1 partial segment. Download your local recording to keep a copy.",
+      "Recovered 1 partial segment. Download your full-quality recording to keep a copy.",
     );
   });
 });

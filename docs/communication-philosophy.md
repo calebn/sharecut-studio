@@ -74,10 +74,10 @@ to UX partners; for UI copy, this table wins.
 | Allow AI assistants (MCP) | The opt-in control that mints an MCP URL. Helper text: "Paste into an MCP client such as Claude or ChatGPT. The assistant gets this link's permissions." | "Allow agent" |
 | Take | One continuous recording pass | "clip" for a recording pass |
 | Lobby | Pre-recording staging state | "waiting room" |
-| Land | Finish a recording and ingest the takes. Disabled with its reason beside it until there is something to land; "Retry land" after a failed land | "save", "finalize" |
+| Land | Finish a recording and ingest the takes. Disabled with its reason beside it until there is something to land; "Retry land" after a failed land | "save", "finalize" (a recording is "Saved to project"; Land places it on the timeline) |
 | Stop take | End the open take for everyone in the record room. Stop sits alone behind a divider and asks once: "Stop this take? Recording ends for everyone in the room." [Keep recording] [Stop take] | "End take", "Finish recording" |
 | Start blocker | One reason Start is disabled, listed under Start with its fix when the host has one: "No guest has joined yet." [Copy guest link], "Waiting for Ava to accept recording." | a comma-joined list of bare names |
-| Full-quality recording | Each participant's lossless recording, captured on their own device and uploaded to the project during the session. Its status reads "Saving to project…", then "Saved to project" | "keeper", "local recording", "backup" |
+| Full-quality recording | Each participant's lossless recording, captured on their own device and saved to the project during the session. Its status reads "Saving to project…", then "Saved to project", shown per participant and per segment wherever the host or a guest can see it. A segment is saved once the host holds the verified file; landing it on the timeline is the separate Land step. The copy kept on the person's device is "this device's copy". "Keeper" stays in code and schema only | "keeper", "local keeper", "local recording", "local backup", "uploading" |
 | Room tone | The ambient-noise capture step | — |
 | Tighten hit | One candidate tightening decision | — |
 | Pending edit | A proposed edit awaiting approve/reject | — |
@@ -432,3 +432,9 @@ shipped, and the text says so. The adjacent MCP note shipped in #1027.
   Start reasons in place.
 - 2026-10-07 — Escape inside an open `InlineConfirm` keeps the choice instead of
   closing the whole dialog (#1151).
+- 2026-10-07 — Full-quality recording copy and status (#1148, from the #1038
+  decision): "keeper", "local keeper", "local recording" and "local backup"
+  leave every user-visible string (host panel, guest pages, errors, download
+  names, MCP and CLI descriptions) for "full-quality recording" and "this
+  device's copy". The status is "Saving to project…", then "Saved to project",
+  per participant and segment. Land keeps its meaning.

@@ -3,7 +3,7 @@ import { keeperPcmParts, sha256Hex } from "./chunker";
 import type { RecordUploadTransport } from "./transport";
 
 /**
- * Upload a finalized keeper WAV. Pending (still-open or abandoned) segments are
+ * Upload a finalized full-quality recording WAV. Pending (still-open or abandoned) segments are
  * never uploaded; they must be finalized or recovered first.
  */
 export async function uploadKeeperWav(args: {
@@ -40,7 +40,7 @@ export async function uploadKeeperWav(args: {
   const parts = keeperPcmParts(args.wav);
   if (parts.length === 0) {
     throw new Error(
-      "No audio was captured for this take. Resume the upload or download the local keeper copy.",
+      "No audio was captured for this take. Resume saving, or download your full-quality recording.",
     );
   }
   const acked = new Set(args.ackedParts);

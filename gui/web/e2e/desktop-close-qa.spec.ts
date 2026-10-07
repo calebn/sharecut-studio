@@ -40,7 +40,7 @@ test("host publishes close risk across recording and pause, then clears after st
       ).toBeEnabled();
       await dialog.getByRole("button", { name: "Start", exact: true }).click();
       await expect(
-        dialog.getByText("Recording locally on this device."),
+        dialog.getByText("Recording in full quality on this device."),
       ).toBeVisible();
       await expect
         .poll(() => new URL(host.url()).searchParams.get("sc_close_guard"))

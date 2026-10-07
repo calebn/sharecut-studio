@@ -86,7 +86,9 @@ export function createSyncWriterClient(
           settleReady("failed");
           return;
         }
-        fail(new Error("The local recording writer stopped unexpectedly."));
+        fail(
+          new Error("The full-quality recording writer stopped unexpectedly."),
+        );
       };
       worker.onerror = onFailure;
       worker.onmessageerror = onFailure;
@@ -136,7 +138,7 @@ export function createSyncWriterClient(
         throw new SyncWriterUnavailableError();
       }
       const openTimeout = new Error(
-        `keeper writer open timed out after ${openTimeoutMs}ms`,
+        `full-quality recording writer open timed out after ${openTimeoutMs}ms`,
       );
       const openTimer = setTimeout(() => fail(openTimeout), openTimeoutMs);
       try {
@@ -189,7 +191,7 @@ export function createSyncWriterClient(
           }
         },
         abort() {
-          fail(new Error("The local recording writer was aborted."));
+          fail(new Error("The full-quality recording writer was aborted."));
         },
       };
     },

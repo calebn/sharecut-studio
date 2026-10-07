@@ -127,7 +127,7 @@ export function Room({
         {keeperError ? (
           <>
             <p className="record-warn">
-              Local recording stopped: {keeperError}
+              Full-quality recording stopped: {keeperError}
             </p>
             {onRetryKeeper ? (
               <Button
@@ -135,14 +135,14 @@ export function Room({
                 onClick={onRetryKeeper}
                 disabled={snapshot.state !== "recording"}
               >
-                Retry local recording
+                Retry full-quality recording
               </Button>
             ) : null}
             {snapshot.state !== "recording" ? (
               <p>
                 {snapshot.state === "paused"
-                  ? "Ask the host to resume the take before retrying local recording."
-                  : "Ask the host to start a new take before retrying local recording."}
+                  ? "Ask the host to resume the take before retrying full-quality recording."
+                  : "Ask the host to start a new take before retrying full-quality recording."}
               </p>
             ) : null}
           </>

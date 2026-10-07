@@ -304,7 +304,9 @@ describe("useKeeperCapture", () => {
       }),
     );
     await waitFor(() => {
-      expect(result.current.error).toMatch(/does not support OPFS/);
+      expect(result.current.error).toMatch(
+        /does not support private file storage/,
+      );
     });
     expect(result.current.recordingLocally).toBe(false);
 

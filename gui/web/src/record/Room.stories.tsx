@@ -99,7 +99,7 @@ export const PausedKeeperFailed: Story = {
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByRole("button", {
-        name: "Retry local recording",
+        name: "Retry full-quality recording",
       }),
     ).toBeDisabled();
   },
@@ -121,6 +121,7 @@ export const StoppedUploadPending: Story = {
       uploading: true,
       pending: true,
       recoverable: false,
+      segments: [],
       error: null,
     },
   },
@@ -144,6 +145,7 @@ export const StoppedLanded: Story = {
       uploading: false,
       pending: false,
       recoverable: false,
+      segments: [],
       error: null,
     },
   },

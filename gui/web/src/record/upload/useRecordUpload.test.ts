@@ -127,7 +127,9 @@ describe("useRecordUpload", () => {
     await waitFor(() =>
       expect(result.current.error).toMatch(/expired after seven days/),
     );
-    expect(result.current.error).toMatch(/Recover it before uploading/);
+    expect(result.current.error).toMatch(
+      /Recover it before saving to the project/,
+    );
     unmount();
   });
 
@@ -303,7 +305,7 @@ describe("useRecordUpload", () => {
       }),
     );
     await waitFor(() =>
-      expect(result.current.error).toMatch(/no committed PCM/i),
+      expect(result.current.error).toMatch(/no saved audio/i),
     );
     expect(result.current.recoverable).toBe(false);
     expect(result.current.uploading).toBe(false);
@@ -359,6 +361,22 @@ describe("useRecordUpload", () => {
     });
     expect(transport.puts).toBe(2);
     expect(transport.joinOffsets).toEqual([0, 2000]);
+    expect(result.current.segments).toEqual([
+      {
+        take: 0,
+        segment: 0,
+        state: "saved",
+        chunks: null,
+        landFailed: false,
+      },
+      {
+        take: 1,
+        segment: 0,
+        state: "saved",
+        chunks: null,
+        landFailed: false,
+      },
+    ]);
     const status = await transport.status();
     expect(
       status.segments.map((row) => row.take_index).sort((a, b) => a - b),
@@ -452,7 +470,9 @@ describe("useRecordUpload", () => {
 
     rerender({ settled: true });
     await waitFor(() =>
-      expect(result.current.error).toContain("no readable recovery metadata"),
+      expect(result.current.error).toContain(
+        "no readable recovery information",
+      ),
     );
     expect(result.current.fileAck).toBe(false);
     expect(result.current.uploading).toBe(false);
@@ -653,7 +673,7 @@ describe("useRecordUpload", () => {
       }),
     );
     await waitFor(() =>
-      expect(result.current.error).toMatch(/no local keeper/i),
+      expect(result.current.error).toMatch(/no full-quality recording/i),
     );
     expect(result.current.fileAck).toBe(false);
     expect(leaveBlocked("stopped", result.current)).toBe(false);
@@ -805,7 +825,7 @@ describe("useRecordUpload", () => {
       fileAck: false,
       landed: false,
       recoverable: true,
-      error: expect.stringMatching(/Recover it before uploading/),
+      error: expect.stringMatching(/Recover it before saving to the project/),
     });
     unmount();
   });
@@ -1139,7 +1159,9 @@ describe("useRecordUpload finalization and recovery", () => {
 
     rerender({ roomState: "stopped", captureSettled: true });
     await waitFor(() => expect(result.current.recoverable).toBe(true));
-    expect(result.current.error).toMatch(/Recover it before uploading/);
+    expect(result.current.error).toMatch(
+      /Recover it before saving to the project/,
+    );
     expect(leaveBlocked("stopped", result.current)).toBe(false);
     unmount();
   });
@@ -1203,8 +1225,10 @@ describe("useRecordUpload finalization and recovery", () => {
     await sink.write(keeperMetaPath(empty), pendingMeta(ids, 1));
     const { result, unmount } = render(sink, "stopped", true);
     await waitFor(() => expect(result.current.recoverable).toBe(true));
-    expect(result.current.error).toMatch(/Recover it before uploading/);
-    expect(result.current.error).toMatch(/no committed PCM/);
+    expect(result.current.error).toMatch(
+      /Recover it before saving to the project/,
+    );
+    expect(result.current.error).toMatch(/no saved audio/);
     unmount();
   });
 });
@@ -1238,6 +1262,7 @@ describe("leaveBlocked", () => {
         pending: true,
         recoverable: false,
         error: null,
+        segments: [],
       }),
     ).toBe(true);
     expect(
@@ -1252,6 +1277,7 @@ describe("leaveBlocked", () => {
         pending: false,
         recoverable: false,
         error: "fail",
+        segments: [],
       }),
     ).toBe(false);
   });

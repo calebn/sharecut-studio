@@ -18,6 +18,7 @@ function progress(
     uploading: false,
     pending: false,
     recoverable: false,
+    segments: [],
     error: null,
     ...overrides,
   };
@@ -61,7 +62,7 @@ export const UploadFailed: Story = {
   },
   play: async ({ canvasElement, args }) => {
     await userEvent.click(
-      within(canvasElement).getByRole("button", { name: "Resume upload" }),
+      within(canvasElement).getByRole("button", { name: "Resume saving" }),
     );
     await expect(args.onResume).toHaveBeenCalledOnce();
   },
@@ -70,6 +71,7 @@ export const PartialKeeper: Story = {
   args: {
     progress: progress({
       recoverable: true,
+      segments: [],
       error: "A readable partial keeper was retained.",
     }),
   },
@@ -86,6 +88,7 @@ export const RecoveryBusy: Story = {
   args: {
     progress: progress({
       recoverable: true,
+      segments: [],
       error: "A readable partial keeper was retained.",
     }),
     actions: {
@@ -108,6 +111,7 @@ export const RecoveryFailed: Story = {
   args: {
     progress: progress({
       recoverable: true,
+      segments: [],
       error: "A readable partial keeper was retained.",
     }),
     actions: {
@@ -141,7 +145,7 @@ export const FingerprintMismatch: Story = {
   play: async ({ canvasElement, args }) => {
     await userEvent.click(
       within(canvasElement).getByRole("button", {
-        name: "Download local keeper",
+        name: "Download full-quality recording",
       }),
     );
     await expect(args.actions?.download).toHaveBeenCalledOnce();

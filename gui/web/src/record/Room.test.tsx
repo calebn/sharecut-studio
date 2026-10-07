@@ -51,7 +51,7 @@ describe("Room", () => {
     expect(screen.queryByText(HEARING_COPY)).not.toBeInTheDocument();
     expect(screen.getByText(/keeper failed/)).toBeInTheDocument();
     await userEvent.click(
-      screen.getByRole("button", { name: "Retry local recording" }),
+      screen.getByRole("button", { name: "Retry full-quality recording" }),
     );
     expect(retry).toHaveBeenCalledOnce();
     await expectNoA11yViolations(container);
@@ -91,7 +91,7 @@ describe("Room", () => {
       />,
     );
     expect(
-      screen.getByRole("button", { name: "Retry local recording" }),
+      screen.getByRole("button", { name: "Retry full-quality recording" }),
     ).toBeDisabled();
     expect(screen.getByText(/ask the host to resume/i)).toBeInTheDocument();
     await expectNoA11yViolations(container);
@@ -133,6 +133,7 @@ describe("Room", () => {
           uploading: true,
           pending: false,
           recoverable: false,
+          segments: [],
           error: null,
         }}
       />,
@@ -302,6 +303,7 @@ describe("Room", () => {
           uploading: false,
           pending: false,
           recoverable: false,
+          segments: [],
           error: null,
         }}
       />,
@@ -323,6 +325,7 @@ describe("Room", () => {
           uploading: false,
           pending: false,
           recoverable: false,
+          segments: [],
           error: "upload failed",
         }}
       />,

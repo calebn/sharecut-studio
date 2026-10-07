@@ -11,6 +11,7 @@ import {
   keeperSegmentPaths,
   pruneExpiredKeeperWavs,
 } from "../keeper/store";
+import type { SegmentSave } from "../saveStatus";
 import { UPLOAD_STALLED_COPY } from "../types";
 import { uploadKeeperWav } from "./pump";
 import { inspectKeeperRecovery } from "./recovery";
@@ -30,6 +31,8 @@ export type RecordUploadProgress = {
   pending: boolean;
   recoverable: boolean;
   error: string | null;
+  /** Each complete local segment's save state, in take and segment order. */
+  segments: SegmentSave[];
 };
 
 export function leaveBlocked(
@@ -61,9 +64,9 @@ export function keeperCaptureSettled(keeper: {
 }
 
 const RECOVERABLE_COPY =
-  "A readable partial keeper was retained. Recover it before uploading.";
+  "A readable partial full-quality recording was kept on this device. Recover it before saving to the project.";
 const INCOMPLETE_COPY =
-  "An incomplete local keeper segment was retained for recovery.";
+  "An incomplete segment of your full-quality recording was kept on this device for recovery.";
 
 /** Every retained-segment problem is reported, not only the first. */
 function abandonedCopy(recoverable: boolean, lossReasons: string[]): string {
@@ -83,6 +86,7 @@ const EMPTY: RecordUploadProgress = {
   pending: false,
   recoverable: false,
   error: null,
+  segments: [],
 };
 
 export function useRecordUpload(args: {
@@ -178,6 +182,7 @@ export function useRecordUpload(args: {
         let expired = false;
         let recoverable = false;
         let reclaimMismatch = false;
+        const segments: SegmentSave[] = [];
         const lossReasons = new Set<string>();
         for await (const {
           takeIndex: take,
@@ -206,6 +211,13 @@ export function useRecordUpload(args: {
             const n = remoteSeg.expected_parts ?? remoteSeg.acked_parts.length;
             acked += n;
             total += n;
+            segments.push({
+              take,
+              segment: segmentIndex,
+              state: "saved",
+              chunks: null,
+              landFailed: Boolean(remoteSeg.land_failed),
+            });
             allLanded = allLanded && Boolean(remoteSeg.landed);
             landFailed = landFailed || Boolean(remoteSeg.land_failed);
             if (
@@ -267,6 +279,15 @@ export function useRecordUpload(args: {
           });
           acked += result.acked;
           total += result.total;
+          segments.push({
+            take,
+            segment: segmentIndex,
+            state: result.fileAck ? "saved" : "saving",
+            chunks: result.fileAck
+              ? null
+              : { acked: result.acked, total: result.total },
+            landFailed: result.landFailed,
+          });
           if (!result.fileAck) {
             allAcked = false;
             awaitingAck = true;
@@ -290,7 +311,7 @@ export function useRecordUpload(args: {
               ? abandonedCopy(recoverable, [...lossReasons])
               : null;
           const expiredError = expired
-            ? "A local keeper without recovery metadata expired after seven days; that audio is no longer available here."
+            ? "A segment of your full-quality recording without recovery information expired after seven days; that audio is no longer available here."
             : null;
           const recoveryError = [abandonedError, expiredError]
             .filter(Boolean)
@@ -306,10 +327,11 @@ export function useRecordUpload(args: {
             uploading: (awaitingAck && !stalled) || finalizing,
             pending: false,
             recoverable,
+            segments,
             error:
               (recoveryError || null) ??
               (!saw && stopped && current.captureExpected !== false
-                ? "No local keeper was captured. Check the local copy before leaving."
+                ? "No full-quality recording was captured. Check this device's copy before leaving."
                 : stalled
                   ? UPLOAD_STALLED_COPY
                   : null),

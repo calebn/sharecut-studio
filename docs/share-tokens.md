@@ -185,7 +185,7 @@ Mint a room (`session_id` + guest + producer tokens) with
 take first, or `revoke_room` as an explicit owner action. Re-invite (`--session-id`) requires that room
 to already exist. A crash after the guest mint can leave a one-token room;
 the same revoke path still clears it. Prefix↔kind is enforced by
-`lookup_share(..., kind=)`. Recorded clients (`join`) upload keeper chunks on
+`lookup_share(..., kind=)`. Recorded clients (`join`) upload full-quality recording chunks on
 `GET`/`POST /api/rec/{token}/upload` (lease + sha256 resume) and may
 `DELETE` `kind=room_tone` to revoke an ACK'd bed; the host twin is
 `/api/record/upload`. After file ACK, landing copies assembled WAV into `raw/`

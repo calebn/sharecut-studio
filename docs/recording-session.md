@@ -10,6 +10,16 @@ Optional 3 s room-tone beds land at `raw/room-tone/{session}/{participant}.wav`
 (the older `raw/room-tone/{participant}.wav` path still works for projects
 that used it).
 
+**Terminology.** In Sharecut Studio copy a participant's *keeper* is their
+**full-quality recording**: the lossless WAV captured on their own device and
+saved to the project during the session. Its status reads **Saving to
+project…**, then **Saved to project**, per participant and per segment (a
+segment is saved once the host holds the verified file, the file ACK; landing it
+on the timeline is the separate **Land** step). "Keeper" stays in code, schema,
+API paths, the wire `kind`, and this document's engineering sections. It never
+appears in UI copy, notifications, errors, MCP tool descriptions or user docs
+([Terminology](communication-philosophy.md#terminology)).
+
 ## Scope and non-goals
 
 MVP is **audio**. Later work is on the ROADMAP — do not start it without a
@@ -83,7 +93,7 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 | **Producer** | Listen + comment, not recorded; shown in the "Not recorded" roster group. |
 | **Host** | Owns the episode; starts/stops/pauses; is also a recorded participant. |
 | **Live marker (comment)** | Same `TimelineComment` as review notes. `M` posts `body` `"Marker"` — a live marker comment, **not** a `ChapterMarker` or a second type. Lands in `review.comments[]`. |
-| **Keeper** | Local dry WAV per recorded participant. |
+| **Full-quality recording** (code: *keeper*) | Local dry WAV per recorded participant. UI status per participant and segment: "Saving to project…", then "Saved to project". |
 | **Monitor** | WebRTC send/receive graph (lossy, may use AEC). |
 | **Mix-minus** | Speaker bus plays remotes only; local capture never to destination. |
 | **Sidetone** | Optional 0 ms dry tap into headphones (gain-limited), never the WebRTC round-trip. |
@@ -91,7 +101,7 @@ download; it is at most a lossy backup. Keepers must target WAV/PCM.
 | **ACK** | Host ingest confirmation (sha256 + byte length per chunk, then per file). |
 | **Lobby** | Name, headphones, mic test, device picker, optional 3 s room tone — before consent. |
 | **Consent gate** | Per-person blocking step before any encoder, keeper chunk, or room-tone PUT to the host. Lobby may capture a 3 s bed into OPFS; those bytes stay local until Accept. |
-| **Recovery window** | 7 days to resume upload on the same `/rec/` link. |
+| **Recovery window** | 7 days to resume saving on the same `/rec/` link. |
 
 ## Session kind and URLs
 
@@ -181,7 +191,7 @@ replacement for the OPFS recovery path.
 | Start / stop / pause | Yes | No | No (`control` later) |
 | Adds live comments | Yes | Yes | Yes |
 | Sees live comments (pre-landing) | All | Own only | All |
-| Sees upload states | All participants | Own | None (no keeper) |
+| Sees saving status ("Saving to project…", "Saved to project") | All participants, per segment | Own, per segment | None (no full-quality recording) |
 | Counts toward | Recorded cap (4) | Recorded cap (4) | Producer cap (2) |
 
 Prior art: Descript Control Room (silent producer + editor comments) is the
@@ -197,7 +207,7 @@ guest.
 When the host or a recorded guest is running or finalizing a local keeper in
 the Tauri desktop shell, native window close and the macOS app menu/Cmd+Q
 prompt before the keeper is lost. Host copy warns that quitting stops the room
-for everyone; guest copy warns about that guest's local keeper. Dock Quit and
+for everyone; guest copy warns about that guest's full-quality recording. Dock Quit and
 OS shutdown may bypass the app menu and remain best-effort paths.
 
 ## Two graphs
@@ -290,7 +300,7 @@ Mute zeros never trigger the silent PCM watchdog (it is disarmed while muted).
 
 ## Progressive upload and recovery
 
-Relay never stores audio, but keeper chunks may transit the tunnel. Keeper + local backup live on each device until
+Relay never stores audio, but keeper chunks may transit the tunnel. The full-quality recording lives on each device until
 chunked upload and host ingest **ACK** (sha256 + byte length per chunk, then
 per file) and confirmed timeline landing. Upload is progressive per **segment**, not per sample: a segment's
 chunks are sent only after its writable closes and its metadata says
@@ -302,17 +312,18 @@ still be writing it. Assembled WAV lands in `artifacts/record/acked/` until land
 Chunks (30 s of PCM each, the final part shorter) `POST` to a **dedicated record
 upload route** gated by `join` (not `edit`, not `POST …/daw/media/upload`).
 Tunnel pass-through to the host only — no relay disk, no object-store
-keeper backup in MVP. Stop shows a **blocking upload panel** (host sees all
+keeper backup in MVP. Stop shows a **blocking saving panel** ("Saving to project…", then "Saved to project"; host sees all
 participants; guest sees own) until ACK or stall. An incomplete local segment
 after capture has settled is retained for recovery and reported separately;
 it cannot receive a file ACK and does not hold Leave after complete segments
 are acknowledged. While Stop is still finalizing the last segment, Leave stays
 held until its complete metadata lands or capture latches a failure (a latched
-failure counts as settled so recovery and export appear). The panel shows `N/M` chunks when finalized WAV totals are
-known. Resume on the **same `/rec/` token** inside a **7-day recovery window**.
+failure counts as settled so recovery and export appear). The panel reads "Saving to project… N of M chunks"
+while finalized WAV totals are known, then "Saved to project" once the file is ACK'd. When a participant has
+several segments, a list shows one "Saving to project…" or "Saved to project" line per segment. Resume on the **same `/rec/` token** inside a **7-day recovery window**.
 A pending segment is never uploaded automatically; the stopped panel offers
-**Recover partial take** only for a validated readable segment, alongside the
-retained keeper export for every failure mode.
+**Recover partial take** only for a validated readable segment, alongside
+**Download full-quality recording** for every failure mode.
 A stalled or zero-sample keeper remains in OPFS for a single ZIP download
 containing every retained take and segment. Surviving files still export if a
 segment is missing, and Leave is never held indefinitely by an errored upload.
@@ -350,8 +361,8 @@ deleting the local WAV or hide its recovery action from the stopped panel.
 A WAV that is absent but has a complete marker is **reclaimed**, not lost
 (`missingKeeperWavState` in `keeper/store.ts`; recovery treats absent WAVs
 with legacy metadata the same way): upload treats it as done even
-if the host row later disappears (e.g. Discard take), and **Download local
-keeper** skips it instead of counting it as a missing segment. While a
+if the host row later disappears (e.g. Discard take), and **Download
+full-quality recording** skips it instead of counting it as a missing segment. While a
 recovery download runs, and for a grace window after it is handed to the
 browser, reclaim is paused (`holdKeeperReclaim`) so the lazily read OPFS
 `File`s in the archive stay readable. OPFS downloads hold a shared origin-wide
@@ -364,7 +375,7 @@ run inside that lock. A held candidate is never marked pruned. WAVs remain in
 place when Web Locks are unavailable or rejected. `ByteSink.remove` rejects on real delete
 failures; room-tone cleanup uses `removeBestEffort`. Reclaim failures are
 non-fatal and leave the WAV in place; after three consecutive failures the
-upload panel warns that the local backup could not be cleared. Landing never
+saving panel warns that this device's copy could not be cleared. Landing never
 reports `landed` for a segment whose staged `artifacts/record/acked/` WAV is
 missing unless its registered source (`rec-…` clip source or room-tone bed)
 already exists in the workspace with the row's ACK'd `file_sha256` (so a
@@ -493,8 +504,8 @@ that participant's track at `join_offset_ms`. No trailing pad.
 
 An involuntary microphone loss is distinct from an intentional track stop: the
 browser `ended` event freezes the current keeper segment and clears the live
-stream. The host and guest show a persistent "Microphone disconnected. Local
-recording is paused." warning with a Reconnect microphone action. The guest
+stream. The host and guest show a persistent "Microphone disconnected.
+Full-quality recording is paused." warning with a Reconnect microphone action. The guest
 REC indicator shows local capture waiting while retry acquisition is
 pending; a failed retry returns to local capture failed. The room clock keeps
 following the shared take throughout, and the healthy REC dot returns only
@@ -537,8 +548,8 @@ the microphone during acquisition) until a live stream is restored; the
 transport chip uses the same capture state. Retry reacquires the mic without
 deleting any keeper segment. A stopped take clears the capture warning. An
 empty, zero-sample WAV cannot be acknowledged as an uploaded take.
-If the host joined the take but never captured a keeper, Stop shows an explicit
-"No local keeper was captured" warning even when no mic stream was ever
+If the host joined the take but never captured a full-quality recording, Stop shows an explicit
+"No full-quality recording was captured" warning even when no mic stream was ever
 available; zero upload parts are not presented as a completed host recording.
 After Stop, a prior microphone-loss notice no longer holds the panel open.
 
@@ -583,7 +594,7 @@ sequenceDiagram
 
 **Stop → Start again = takes.** The room (`session_id`) holds `takes[]`; each
 take has its own `session_start`, `pauses[]`, and roster. Host Stop ends take
-N (upload panel); host Start may begin take N+1 **without** re-consent for
+N (saving panel); host Start may begin take N+1 **without** re-consent for
 anyone already consented **while take N is still uploading**. Manifest, ACK,
 and segment rows are partitioned by `take_index` with one mutating owner per
 take. Landing appends takes **sequentially** on the timeline with a fixed
@@ -591,7 +602,7 @@ take. Landing appends takes **sequentially** on the timeline with a fixed
 participants across takes; a participant absent from a take simply has no
 clip there. Deleting a bad take before landing is refused while that take's
 manifest is non-terminal; otherwise a take-tombstone aborts in-flight upload
-and voids ACK. The local backup is reclaimed automatically only after ACK
+and voids ACK. This device's copy is cleared automatically only after ACK
 **and** confirmed landing. Same-room retakes are not auto-spliced into the
 previous take — that is an edit.
 
@@ -769,12 +780,12 @@ Before a host can Start or a recorded guest can Accept, the client completes an
 OPFS preflight that creates, writes, closes, and removes a disposable file in
 the `Sharecut Recordings/` keeper directory. The action remains disabled
 while the preflight is pending or if the browser/app environment cannot provide writable OPFS; the UI
-asks the participant to use a compatible browser and offers Retry local backup.
+asks the participant to use a compatible browser and offers **Retry storage check**.
 The host Start transport checks the same verified sink even when invoked outside
 the room panel, and host capture uses that sink. A guest who leaves and rejoins
 in the lobby or between takes must complete a fresh preflight and Accept again
 before host Start. While waiting to re-consent after a stopped take, the guest
-can still resume upload or download the previous local keeper from the lobby. Producers are not recorded and do not need this preflight. There is no upload-only or
+can still resume saving or download the previous full-quality recording from the lobby. Producers are not recorded and do not need this preflight. There is no upload-only or
 alternate local sink path.
 
 The upload route enforces consent per take, not just per participant. Each
@@ -814,7 +825,7 @@ The browser treats a 4403 close or explicit removed-participant error as termina
 and keeps that identity on reload; it does not automatically join as a new
 participant. An expired or otherwise invalid lease can rejoin with a fresh
 identity, unless the token's invite is closed (below). Removal during a take stops local microphone capture and upload; the
-guest can recover or download the retained local keeper after capture settles.
+guest can recover or download the retained full-quality recording after capture settles.
 Join validates saved leases under the same room authority as removal, so a
 concurrent removal cannot be misreported to the browser as lease expiry.
 **Decision (#370): removal closes that invite to new identities.** When the host
@@ -844,7 +855,7 @@ and applies equally to direct and relayed joins. Nobody else is disconnected.
   closes it for all of them. An unaffected guest who loses the saved lease (new
   device, cleared data, lease older than 7 days) cannot be told apart from the
   removed person omitting their lease, so they see a terminal "Invite link
-  closed" screen with the Recover / Download local recording buttons and need the
+  closed" screen with the Recover / Download full-quality recording buttons and need the
   replacement link. Guests who keep their lease are unaffected. The check only
   queries `record_participants` once the room has a removal.
 - **Keeper recovery:** unaffected guests keep uploading and recovering through
@@ -885,7 +896,7 @@ stateDiagram-v2
   stopped --> uploading: chunks until ACK
   uploading --> staged: file_ack
   staged --> done: landed
-  staged --> land_failed: landing failure (keep local backup)
+  staged --> land_failed: landing failure (device keeps its copy)
   land_failed --> staged: host Retry land
   stopped --> recording: host Start take N+1
 ```
@@ -905,16 +916,22 @@ stateDiagram-v2
 | Room tone | "Record 3 seconds of room tone" |
 | Room tone too loud | "Too loud: is something playing?" |
 | Room tone saved | "Room tone saved" |
-| Consent | "This session will be recorded locally on your device. Files stay on this browser until they finish uploading to the host after you Accept. Producers/listeners may be present and are shown in the roster. [Accept] [Decline]" |
+| Consent | "This session will be recorded in full quality on your device. After you Accept, your full-quality recording stays in this browser until it finishes saving to the host's project. Producers/listeners may be present and are shown in the roster. [Accept] [Decline]" |
+| Recording on device | "Recording in full quality on this device." |
 | REC | "REC" persistent indicator + start notification |
 | No audio | "No audio is reaching the recorder." + **Check mic**; REC reads "REC: no audio" |
 | Mic check failed | "Still no audio: unmute or reconnect your microphone, then Check mic again." |
 | PAUSED | "PAUSED — still listening, not recording" |
 | Host reconnect pause | "Paused: the host was offline for {N}s. Resume when everyone is ready." (host DAW only; guests keep the PAUSED indicator) |
 | Host offline | "Host offline: still recording locally." |
-| Upload panel | "Uploading your take… {n}/{total} chunks. Keep this tab open." |
-| Landed | "Landed on the host. The local backup is cleared automatically." (only after ACK **and** confirmed landing) |
-| Reclaim stuck | "Landed on the host, but this browser could not clear the local backup. Free device storage manually before recording again." (after 3 consecutive failed deletes of a landed WAV) |
+| Saving (own status) | "Saving to project… {n} of {total} chunks. Keep this tab open." Several segments add one line each: "Take 1 segment 2: Saving to project… 1 of 2 chunks". |
+| Saved, not landed | "Saved to project. This device keeps its copy until the host lands it on the timeline." |
+| Saved and landed | "Saved to project and on the timeline. This device's copy clears automatically." (only after ACK **and** confirmed landing) |
+| Landing failed | "Saved to project, but not on the timeline yet. This device keeps its copy; ask the host to Retry land." |
+| Reclaim stuck | "Saved to project, but this browser could not clear this device's copy. Free device storage manually before recording again." (after 3 consecutive failed deletes of a landed WAV) |
+| Stalled | "Saving stalled. Resume saving, or download your full-quality recording." with **Resume saving** and **Download full-quality recording** |
+| Storage unavailable | "This device can't store your full-quality recording. Check that this browser or app allows local storage, then retry." with **Retry storage check** |
+| Host status (per participant and segment) | "Ava: Saving to project… 1 of 3 chunks", "Ava: Saved to project"; with several segments "Ava, take 1 segment 2: Saved to project"; a failed land adds "Landing failed. Use Retry land." |
 | Full room | "This room is full (4 recorded / 2 producers)." |
 | Declined | "You declined recording. You can wait in the lobby, or the host can invite you as a producer (listen only)." |
 
@@ -935,13 +952,17 @@ cannot. Every button runs the same `record.*` command as the palette.
 - **Start blockers.** A disabled Start lists its reasons right under it
   (`aria-describedby`): "No guest has joined yet. Send them the guest link." with
   **Copy guest link** (`record.copyGuestLink`, the room's live guest link),
-  "Waiting for {name} to accept recording.", the local backup preflight (with
-  **Retry local backup** when it failed) and "Recording room tone. Start is
+  "Waiting for {name} to accept recording.", the device storage check (with
+  **Retry storage check** when it failed) and "Recording room tone. Start is
   available when it finishes."
 - **Stop.** Stop sits alone at the end of the controls behind a divider and asks
   once: "Stop this take? Recording ends for everyone in the room." with **Keep
   recording** (focused) and **Stop take**. Keep returns focus to Stop. The
   palette's **Stop recording** runs without the question.
+- **Saving status.** After Stop, a list names each recorded participant (never
+  a producer) with "Saving to project…" or "Saved to project", one line per
+  segment when a participant has several (`HostUploadRoster`, `saveStatus.ts`).
+  The host's own recording reads the same way beside it.
 - **Land.** Shown once the room has a take. It is disabled with its reason beside
   it while a take is open ("Stop the take to land it on the timeline."), while
   recordings are still saving ("Recordings are still saving to the project."),
@@ -1029,8 +1050,9 @@ segment path and never reopens the stuck one. The guest sees plain wording
 stays on the error's `cause`. The REC indicator is no longer a claim that a
 durable local copy is being made. Already finalized segments remain available,
 while the failed open segment is not advertised as complete; **Download
-local keeper** still exports it, named `keeper-<take>-<segment>-partial.wav`.
-The client offers **Retry local recording** while the take is recording; during
+full-quality recording** still exports it, named
+`full-quality-take-<take>-segment-<segment>-partial.wav` (one-based).
+The client offers **Retry full-quality recording** while the take is recording; during
 pause or after Stop, the host must resume or start a take first. Retry waits
 for the failed stream to close (bounded by the close deadline) and starts a
 new segment without overwriting the failed one.
@@ -1076,8 +1098,8 @@ a later cleanup retry. Any existing pending, complete, empty or unreadable
 metadata protects its WAV from age cleanup. Normal landed-file reclaim still
 requires the host fingerprint check. Download metadata-free keepers within
 seven days if recovery is needed. When a pruned slot is revisited, the upload
-panel reports that its local copy expired after seven days; **Download local
-keeper** skips that slot and reports expired counts alongside any retained
+panel reports that its copy expired after seven days; **Download
+full-quality recording** skips that slot and reports expired counts alongside any retained
 copies. Neither reports an expired segment as uploaded or landed.
 The retry segment uses the current recording clock so its landing offset follows
 the lost span. A stopped, incomplete local `.wav` remains in OPFS for recovery
@@ -1125,7 +1147,7 @@ once every 5 seconds. A host timer maintains record presence in lobby and
 paused states. During REC, only healthy keeper PCM can drive host heartbeats;
 the timer cannot mask a missing microphone stream, stalled keeper setup, or
 failed local capture. The existing local-capture failure latch stops activity
-beats until Retry local recording succeeds. Starting or resuming a take resets
+beats until Retry full-quality recording succeeds. Starting or resuming a take resets
 the stored host beat baseline so a long stopped or paused interval cannot make
 a brief reconnect look stale. An observed
 host socket close starts the 10-second reconnect window at close time when the
@@ -1139,7 +1161,7 @@ offline gap may be underestimated.
 
 See [Progressive upload and recovery](#progressive-upload-and-recovery) for relay
 store-versus-transit (nothing stored on the relay; keeper chunks may transit).
-Keeper + local backup live on each device until chunked upload and host ingest ACK.
+The full-quality recording lives on each device until chunked upload and host ingest ACK.
 Assembled WAV is stored under
 `artifacts/record/acked/` until landing writes `raw/` + clips. Guest
 device keeps keepers under `Sharecut Recordings/` (OPFS, plus optional
@@ -1173,7 +1195,7 @@ row; `mutate_snapshot` and `reset` are transactional too (#332).
 | Local keeper WAV | Guest/host OPFS `Sharecut Recordings/{session}/{take}/{participant}/{segment}.wav` (+ `.json` tags). Not a host sidecar. |
 | Room-tone bed | OPFS `Sharecut Recordings/{session}/room-tone/{participant}.wav` (local until Accept); upload `kind=room_tone` after consent (storage take `2147483647`); assembled `artifacts/record/acked/{session}/room_tone/{participant}.wav` until landing atomically copies `raw/room-tone/{session}/{participant}.wav` and sets `track.room_tone` |
 | Chunk / ACK manifests | `record_upload_parts` / `record_upload_files` in the same `sync.db`; finalized file rows persist `expected_parts` and file ACK requires that count. Current clients declare it; older open tabs infer it from the final part sequence, still requiring contiguous parts and the whole-file hash. Part bytes live in `artifacts/record/uploads/`; assembled WAV in `artifacts/record/acked/` until landing copies to `raw/`. `land_failed_ns` records a failed landing attempt and keeps the staged WAV available for retry. |
-| Timeline landing | `RecordLandingService` copies ACK'd WAV into `raw/`, one clip per segment at `take_offset_s + join_offset_ms/1000`, 2 s take gap. `join_offset_ms` is stored on `record_upload_files`. The UI distinguishes staged/uploaded/landed/land-failed; only confirmed `landed` permits deleting the local keeper. Host `Retry land` reuses the existing `record.land` command. A corrupt registered raw file is replaced at a fresh path on retry, and its track media path follows the replaced source. A new clip is registered and returned only after its raw WAV matches the row's `file_sha256`; missing or mismatched raw stays land-failed. Landed and failed writes compare the expected ACK hash so a concurrent replacement remains pending. Landing publishes `landed` only after the project JSON commits; the source check, project commit, and landed-state write share the project mutation lock. The registered-source re-check and the landed mark run inside `ProjectWorkspace.transaction()`, so they are atomic against writers in other processes too (#309, #213). **Lock/latency boundary (#365):** each copied keeper and room-tone bed is hashed once before any project lock, with a stat before and after the hash. The locked section (`mutate` plus the landed marks) only stats and compares the file revision, so project mutations and snapshots wait for the registration commit, not for disk reads of large keepers (a 512 MiB keeper no longer blocks edits for its read time). Lock order: land lock (`artifacts/record/land-<session_id>.lock`) first, then the project commit lock, then sidecar locks. Land and discard also hold a per-room file lock (`artifacts/record/land-<session_id>.lock`), so a land in another process (GUI ACK auto-land vs. CLI/MCP `record land`) waits, then re-reads the saved project. The wait is bounded (`RECORD_LAND_LOCK_TIMEOUT_SEC`, 120 s); on timeout the land fails with `land in progress` and can be retried. The lock file is deleted when the room is revoked, unless a land still holds it. This relies on an OS advisory lock (`filelock`); on network or cloud-synced workspace folders (SMB, NFS, Dropbox/iCloud-style sync) such locks may not exclude across machines or processes, so run only one landing process per room there (normally the GUI). Other writers in separate processes and direct filesystem changes still need their own coordination. **Cross-plane boundary:** the `sync.db` upload row and the project JSON commit share no transaction (and landing may run in a different process from GUI ingest), so a re-ACK or revoke can land between the raw-file copy and project registration. Landing checks each item's whole-file ACK hash against the upload row again right before registering it, skipping any item whose generation has already moved on; if the row instead changes *while* the project commit is in flight, a follow-up `record_land_rollback` mutation reverts that item's source, clip, and `track.media`/`track.room_tone`, newest first, only while the project still points at the raw path it registered. A room-tone bed whose prior registration reused that same raw path is cleared rather than restored, since the stale copy already overwrote it in place. Because beds share that fixed path, the rollback first confirms the on-disk bed still hashes to the stale generation; if a newer bed has already been copied over it, the registration is kept. A newer ACK or keeper is never marked landed or land-failed by this path — it stays pending for the next `land()`. If the rollback mutation itself fails, it is logged and the land still returns its confirmed clips. Before the rollback runs, the stale item is persisted in `record_land_rollbacks` in `sync.db` (keyed by session, take, participant, segment, and stale file hash; first deferral wins; it survives a re-ACK or revoke, which rewrites or deletes the upload row). This write happens after the `record_land` commit, so a crash between that commit and the deferral still loses the rollback (the same window as before #422): the stale registration stays, and a later land neither retries it nor counts it in `deferred_rollbacks_pending`; undo the `record_land` step through history. Persisting is best effort: if the row cannot be written, the rollback still runs. If the rollback fails, a best-effort `record_land_media_repair` mutation sets `track.media` to what the rollback would leave (the prior media, else the earliest non-stale clip's source), so a later retry ends with the same media as an immediate rollback. The next `land()` (and `delete_take`, which lands too) retries the rollback at its start, after reloading the project and before planning. A deferred row is dropped without mutating when its ACK generation is current again, when the project no longer registers the stale path, or, for a bed, when the file revision changed or was never recorded; each drop is logged with its reason (a bed whose revision changed or was never recorded logs a warning, since its stale registration is kept). An unreadable row is kept, logged, backed off like a failed retry, and counted in `deferred_rollbacks_pending`. A retry that fails is logged, keeps its rows without failing the land, and backs them off exponentially (`attempts` / `retry_after_ns`: 30 s doubling to at most 30 min); a land skips rows still backing off. Land JSON reports `deferred_rollbacks_pending`: rows still deferred for the room after that land, including ones backing off or unreadable (`null` if the store cannot be read), so hosts and agents can see that a stale registration may remain. No path here marks a row landed or land-failed, and no raw file is deleted. Rows are purged when their take is discarded (the discard already removed its sources) or the room is revoked (logged with the count; the purge holds the room's land lock, so an in-flight land defers its rows before they are purged, and a purge that fails is logged with the same undo-through-history hint); a room whose links only expired keeps its rows until it is revoked. Rows of a room that is no longer active are not retried, because landing requires an active room; undo the `record_land` step through history in that case. Raw files copied under a since-superseded generation are not deleted, since project history can still reference them; only the undone project registration is undoable via the normal history stack. |
+| Timeline landing | `RecordLandingService` copies ACK'd WAV into `raw/`, one clip per segment at `take_offset_s + join_offset_ms/1000`, 2 s take gap. `join_offset_ms` is stored on `record_upload_files`. The UI reads "Saving to project…" until the file ACK and "Saved to project" after it, and the Land control reports landed and land-failed; only confirmed `landed` permits clearing the device's copy of the keeper. Host `Retry land` reuses the existing `record.land` command. A corrupt registered raw file is replaced at a fresh path on retry, and its track media path follows the replaced source. A new clip is registered and returned only after its raw WAV matches the row's `file_sha256`; missing or mismatched raw stays land-failed. Landed and failed writes compare the expected ACK hash so a concurrent replacement remains pending. Landing publishes `landed` only after the project JSON commits; the source check, project commit, and landed-state write share the project mutation lock. The registered-source re-check and the landed mark run inside `ProjectWorkspace.transaction()`, so they are atomic against writers in other processes too (#309, #213). **Lock/latency boundary (#365):** each copied keeper and room-tone bed is hashed once before any project lock, with a stat before and after the hash. The locked section (`mutate` plus the landed marks) only stats and compares the file revision, so project mutations and snapshots wait for the registration commit, not for disk reads of large keepers (a 512 MiB keeper no longer blocks edits for its read time). Lock order: land lock (`artifacts/record/land-<session_id>.lock`) first, then the project commit lock, then sidecar locks. Land and discard also hold a per-room file lock (`artifacts/record/land-<session_id>.lock`), so a land in another process (GUI ACK auto-land vs. CLI/MCP `record land`) waits, then re-reads the saved project. The wait is bounded (`RECORD_LAND_LOCK_TIMEOUT_SEC`, 120 s); on timeout the land fails with `land in progress` and can be retried. The lock file is deleted when the room is revoked, unless a land still holds it. This relies on an OS advisory lock (`filelock`); on network or cloud-synced workspace folders (SMB, NFS, Dropbox/iCloud-style sync) such locks may not exclude across machines or processes, so run only one landing process per room there (normally the GUI). Other writers in separate processes and direct filesystem changes still need their own coordination. **Cross-plane boundary:** the `sync.db` upload row and the project JSON commit share no transaction (and landing may run in a different process from GUI ingest), so a re-ACK or revoke can land between the raw-file copy and project registration. Landing checks each item's whole-file ACK hash against the upload row again right before registering it, skipping any item whose generation has already moved on; if the row instead changes *while* the project commit is in flight, a follow-up `record_land_rollback` mutation reverts that item's source, clip, and `track.media`/`track.room_tone`, newest first, only while the project still points at the raw path it registered. A room-tone bed whose prior registration reused that same raw path is cleared rather than restored, since the stale copy already overwrote it in place. Because beds share that fixed path, the rollback first confirms the on-disk bed still hashes to the stale generation; if a newer bed has already been copied over it, the registration is kept. A newer ACK or keeper is never marked landed or land-failed by this path — it stays pending for the next `land()`. If the rollback mutation itself fails, it is logged and the land still returns its confirmed clips. Before the rollback runs, the stale item is persisted in `record_land_rollbacks` in `sync.db` (keyed by session, take, participant, segment, and stale file hash; first deferral wins; it survives a re-ACK or revoke, which rewrites or deletes the upload row). This write happens after the `record_land` commit, so a crash between that commit and the deferral still loses the rollback (the same window as before #422): the stale registration stays, and a later land neither retries it nor counts it in `deferred_rollbacks_pending`; undo the `record_land` step through history. Persisting is best effort: if the row cannot be written, the rollback still runs. If the rollback fails, a best-effort `record_land_media_repair` mutation sets `track.media` to what the rollback would leave (the prior media, else the earliest non-stale clip's source), so a later retry ends with the same media as an immediate rollback. The next `land()` (and `delete_take`, which lands too) retries the rollback at its start, after reloading the project and before planning. A deferred row is dropped without mutating when its ACK generation is current again, when the project no longer registers the stale path, or, for a bed, when the file revision changed or was never recorded; each drop is logged with its reason (a bed whose revision changed or was never recorded logs a warning, since its stale registration is kept). An unreadable row is kept, logged, backed off like a failed retry, and counted in `deferred_rollbacks_pending`. A retry that fails is logged, keeps its rows without failing the land, and backs them off exponentially (`attempts` / `retry_after_ns`: 30 s doubling to at most 30 min); a land skips rows still backing off. Land JSON reports `deferred_rollbacks_pending`: rows still deferred for the room after that land, including ones backing off or unreadable (`null` if the store cannot be read), so hosts and agents can see that a stale registration may remain. No path here marks a row landed or land-failed, and no raw file is deleted. Rows are purged when their take is discarded (the discard already removed its sources) or the room is revoked (logged with the count; the purge holds the room's land lock, so an in-flight land defers its rows before they are purged, and a purge that fails is logged with the same undo-through-history hint); a room whose links only expired keeps its rows until it is revoked. Rows of a room that is no longer active are not retried, because landing requires an active room; undo the `record_land` step through history in that case. Raw files copied under a since-superseded generation are not deleted, since project history can still reference them; only the undone project registration is undoable via the normal history stack. |
 
 Locked for the lobby PR: roles from the token; host-only Start/Pause/Resume/Stop;
 Start blocked until connected guests have `consented is True` (`None` pending;
@@ -1351,7 +1373,7 @@ the written WAV within 1 ms), `keeper/takeClipping.test.ts`,
 | Removed guest | The host stops consented take 0, starts take 1, then removes the guest. Take 0 retains its historical consent roster, but both take indices and room tone deny upload consent. The guest lease is revoked, so retrying take 0 returns `403 invalid lease`. Reducer coverage is `tests/test_record_reducer.py::test_remove_participant_revokes_stopped_and_current_take_upload_consent`; HTTP coverage is `tests/test_record_upload.py::test_removed_guest_cannot_upload_stopped_take_after_next_take_starts`. Current-take removal is covered by `::test_guest_keeper_upload_rejected_after_host_removal`. |
 | Room tone | After mic granted, optional 3 s keeper-constraint PCM→WAV (skip allowed); RMS > −35 dBFS warns "Too loud: is something playing?" and does not upload; guest PUT `kind=room_tone` only after Accept (403 before consent), 403 for producer, reject > 10 s 48 kHz mono; Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers omit the step. |
 | Late-join pad | Joiner at T+10 s → clip at `join_offset_ms` = 10 s ± 1 frame (default, no in-file pad). Optional origin encoding of **segment 0 only**: leading zeros 10 s ± 1 frame at 48 kHz. Later segments never padded in-file. |
-| Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants with `N/M` where every segment total is known; only `complete: true` (or verified legacy) segments upload, pending WAVs are never read during REC, Leave is held while Stop finalizes a lone segment, and **Recover partial take** (host + guest) patches the header once, re-polls upload, and reports failures outside the storage error channel. |
+| Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants and segments, and the host list reads "Saving to project… N of M chunks" while saving and "Saved to project" after the file ACK; only `complete: true` (or verified legacy) segments upload, pending WAVs are never read during REC, Leave is held while Stop finalizes a lone segment, and **Recover partial take** (host + guest) patches the header once, re-polls upload, and reports failures outside the storage error channel. |
 | Host offline | Monitor tracks end; if the segment is still open, local WAV length **keeps growing**; copy string asserted. Intentional leave / lost mic finalizes the segment; browser end-to-end in the Playwright US-2 scenario (`e2e/record-host-reconnect.spec.ts`). |
 | Hard tab kill | `keeper/syncWriterProtocol.test.ts`, `syncWriterClient.test.ts`, `syncWriter.worker.test.ts`, `opfsPath.test.ts` (in-place write, 2 s flush, fallback); `keeper/session.test.ts` recoverable-after-kill case; Playwright closed-tab test in `e2e/record-lobby.spec.ts` offers **Recover partial take**. |
 | Silent PCM | `keeper/silenceWatchdog.test.ts`, `keeper/useKeeperCapture.test.ts`: ~5 s of zero or missing PCM while recording locally raises the no-audio alert (host and guest); quiet input, pause, and mute do not; real PCM or a successful Check mic clears it, a failed check does not; arms only once the tap is attached and re-arms when the tap reopens; a late tick restarts the window; a re-alarm after a healthy check keeps the Still no audio guidance; a suspended tap context is reported, not thrown (`keeper/graph.test.ts`). |

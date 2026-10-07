@@ -295,7 +295,7 @@ def test_paused_span_does_not_consume_take_offset() -> None:
 def test_wav_pcm_info_rejects_junk(tmp_path: Path) -> None:
     path = tmp_path / "x.wav"
     path.write_bytes(b"not a wav")
-    with pytest.raises(RecordLandingError, match="invalid keeper wav"):
+    with pytest.raises(RecordLandingError, match="invalid full-quality recording wav"):
         wav_pcm_info(path)
     import wave
 
@@ -305,7 +305,7 @@ def test_wav_pcm_info_rejects_junk(tmp_path: Path) -> None:
         wf.setsampwidth(3)
         wf.setframerate(8000)
         wf.writeframes(b"\x00\x00\x01" * 16)
-    with pytest.raises(RecordLandingError, match="invalid keeper wav"):
+    with pytest.raises(RecordLandingError, match="invalid full-quality recording wav"):
         wav_pcm_info(packed24)
 
 

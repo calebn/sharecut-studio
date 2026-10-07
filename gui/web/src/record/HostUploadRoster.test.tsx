@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { expectNoA11yViolations } from "../test/a11y";
 import { recordParticipant } from "../test/fixtures";
 import { HostUploadRoster } from "./HostUploadRoster";
-import { hostUploadLine } from "./types";
+import type { SegmentAckRow } from "./saveStatus";
 
 const host = recordParticipant({
   participant_id: "p_host",
@@ -19,6 +19,18 @@ const producer = recordParticipant({
   display_name: "Pat",
 });
 
+function row(overrides: Partial<SegmentAckRow> = {}): SegmentAckRow {
+  return {
+    participant_id: "p_g",
+    take_index: 0,
+    segment_index: 0,
+    acked_parts: [],
+    ...overrides,
+  };
+}
+
+const LIST = "Full-quality recording status";
+
 describe("HostUploadRoster", () => {
   it("never lists a producer, even after Stop", () => {
     render(
@@ -28,12 +40,12 @@ describe("HostUploadRoster", () => {
         segments={[]}
       />,
     );
-    const list = screen.getByRole("list", { name: "Upload status" });
+    const list = screen.getByRole("list", { name: LIST });
     expect(within(list).getAllByRole("listitem")).toHaveLength(2);
     expect(within(list).queryByText(/Pat/)).toBeNull();
   });
 
-  it("renders nothing while recording when no participant has uploaded", () => {
+  it("renders nothing while recording when no participant has saved anything", () => {
     const { container } = render(
       <HostUploadRoster
         stopped={false}
@@ -42,198 +54,81 @@ describe("HostUploadRoster", () => {
       />,
     );
     expect(container).toBeEmptyDOMElement();
-    expect(screen.queryByRole("list", { name: "Upload status" })).toBeNull();
+    expect(screen.queryByRole("list", { name: LIST })).toBeNull();
   });
 
-  it("lists waiting participants after Stop even with no segments", () => {
+  it("lists waiting participants as saving after Stop even with no segments", () => {
     render(
       <HostUploadRoster stopped participants={[host, guest]} segments={[]} />,
     );
-    expect(
-      screen.getByText(hostUploadLine("Ava", false, 0)),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(hostUploadLine("Host", false, 0)),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Ava: Saving to project…")).toBeInTheDocument();
+    expect(screen.getByText("Host: Saving to project…")).toBeInTheDocument();
   });
 
-  it("renders while recording once a participant has an acked segment", () => {
+  it("renders while recording once a participant has a segment in flight", () => {
     render(
       <HostUploadRoster
         stopped={false}
         participants={[host, guest]}
-        segments={[
-          {
-            participant_id: "p_g",
-            acked_parts: [0],
-            file_ack: false,
-          },
-        ]}
+        segments={[row({ acked_parts: [0], expected_parts: 3 })]}
       />,
     );
     expect(
-      screen.getByText(hostUploadLine("Ava", false, 1)),
+      screen.getByText("Ava: Saving to project… 1 of 3 chunks"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(hostUploadLine("Host", false, 0)),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Host: Saving to project…")).toBeInTheDocument();
   });
 
-  it("lists every recorded participant after Stop", async () => {
+  it("shows each participant's state after Stop", async () => {
     const { container } = render(
       <HostUploadRoster
         stopped
         participants={[host, guest]}
         segments={[
-          {
-            participant_id: "p_g",
-            acked_parts: [0, 1],
-            file_ack: true,
-          },
-          {
-            participant_id: "p_host",
-            acked_parts: [0],
-            file_ack: false,
-          },
+          row({ acked_parts: [0, 1], file_ack: true }),
+          row({ participant_id: "p_host", acked_parts: [0] }),
         ]}
       />,
     );
-    expect(
-      screen.getByText(hostUploadLine("Ava", true, 2)),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(hostUploadLine("Host", false, 1)),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Ava: Saved to project")).toBeInTheDocument();
+    expect(screen.getByText("Host: Saving to project…")).toBeInTheDocument();
     await expectNoA11yViolations(container);
   });
 
-  it("requires every segment for a participant before uploaded copy", () => {
+  it("gives each segment of a participant its own state", () => {
     render(
       <HostUploadRoster
         stopped
         participants={[guest]}
         segments={[
-          {
-            participant_id: "p_g",
-            acked_parts: [0, 1],
-            file_ack: true,
-          },
-          {
-            participant_id: "p_g",
-            acked_parts: [0],
-            file_ack: false,
-          },
+          row({ acked_parts: [0, 1], file_ack: true }),
+          row({ segment_index: 1, acked_parts: [0] }),
         ]}
       />,
     );
     expect(
-      screen.getByText(hostUploadLine("Ava", false, 3)),
+      screen.getByText("Ava, take 1 segment 1: Saved to project"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText(hostUploadLine("Ava", true, 3)),
-    ).not.toBeInTheDocument();
+      screen.getByText("Ava, take 1 segment 2: Saving to project…"),
+    ).toBeInTheDocument();
   });
 
-  it("reports land failure separately from upload acknowledgement", async () => {
+  it("keeps a failed landing visible beside the saved state", async () => {
     const { container } = render(
       <HostUploadRoster
         stopped
         participants={[guest]}
         segments={[
-          {
-            participant_id: "p_g",
-            acked_parts: [0, 1],
-            file_ack: true,
-            landed: false,
-            land_failed: true,
-          },
+          row({ acked_parts: [0, 1], file_ack: true, land_failed: true }),
         ]}
       />,
-    );
-    expect(screen.getByText(/landing failed/)).toBeInTheDocument();
-    await expectNoA11yViolations(container);
-  });
-
-  it("reports declared chunk totals and includes assembled segments", () => {
-    const { rerender } = render(
-      <HostUploadRoster
-        stopped
-        participants={[guest]}
-        segments={[
-          {
-            participant_id: "p_g",
-            acked_parts: [0],
-            expected_parts: 3,
-            file_ack: false,
-          },
-        ]}
-      />,
-    );
-    expect(screen.getByText("Ava: 1/3 chunks acked.")).toBeInTheDocument();
-    rerender(
-      <HostUploadRoster
-        stopped
-        participants={[guest]}
-        segments={[
-          {
-            participant_id: "p_g",
-            acked_parts: [],
-            expected_parts: 2,
-            file_ack: true,
-          },
-          {
-            participant_id: "p_g",
-            acked_parts: [0],
-            expected_parts: 3,
-            file_ack: false,
-          },
-        ]}
-      />,
-    );
-    expect(screen.getByText("Ava: 3/5 chunks acked.")).toBeInTheDocument();
-  });
-
-  it("does not show a partial total when another segment has no declared size", () => {
-    render(
-      <HostUploadRoster
-        stopped
-        participants={[guest]}
-        segments={[
-          {
-            participant_id: "p_g",
-            acked_parts: [0],
-            expected_parts: 3,
-            file_ack: false,
-          },
-          {
-            participant_id: "p_g",
-            acked_parts: [],
-            file_ack: false,
-          },
-        ]}
-      />,
-    );
-    expect(screen.getByText("Ava: 1 chunk acked.")).toBeInTheDocument();
-    expect(screen.queryByText("Ava: 1/3 chunks acked.")).toBeNull();
-  });
-
-  it("renders nothing while recording before any segment arrives", () => {
-    const { container } = render(
-      <HostUploadRoster
-        participants={[host, guest]}
-        segments={[]}
-        stopped={false}
-      />,
-    );
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("lists waiting participants after Stop even with no segments", () => {
-    render(
-      <HostUploadRoster participants={[host, guest]} segments={[]} stopped />,
     );
     expect(
-      screen.getByText(hostUploadLine("Ava", false, 0)),
+      screen.getByText(
+        "Ava: Saved to project. Landing failed. Use Retry land.",
+      ),
     ).toBeInTheDocument();
+    await expectNoA11yViolations(container);
   });
 });

@@ -252,7 +252,9 @@ describe("KeeperSession", () => {
     await vi.advanceTimersByTimeAsync(10);
     expect(session.error).toBeInstanceOf(KeeperStallError);
     expect(session.error?.message).toBe(KEEPER_STALL_MESSAGE);
-    expect(stallDetail(session)).toBe("keeper write timed out after 10ms");
+    expect(stallDetail(session)).toBe(
+      "full-quality recording write timed out after 10ms",
+    );
     expect(session.isWriting).toBe(false);
     expect(failures).toHaveLength(1);
 
@@ -423,7 +425,9 @@ describe("KeeperSession", () => {
     );
     await vi.advanceTimersByTimeAsync(10);
     await apply;
-    expect(stallDetail(session)).toBe("keeper open timed out after 10ms");
+    expect(stallDetail(session)).toBe(
+      "full-quality recording open timed out after 10ms",
+    );
 
     lateOpen.resolve({ write: async () => undefined, close: lateClose });
     await vi.advanceTimersByTimeAsync(0);
@@ -460,7 +464,7 @@ describe("KeeperSession", () => {
     await vi.advanceTimersByTimeAsync(10);
     await apply;
     expect(stallDetail(session)).toBe(
-      "keeper header write timed out after 10ms",
+      "full-quality recording header write timed out after 10ms",
     );
     expect(closes).toEqual([1]);
 
@@ -498,7 +502,7 @@ describe("KeeperSession", () => {
     await vi.advanceTimersByTimeAsync(10);
     await stop;
     expect(stallDetail(session)).toBe(
-      "keeper final header write timed out after 10ms",
+      "full-quality recording final header write timed out after 10ms",
     );
     expect(session.files).toHaveLength(0);
     expect(closes).toHaveBeenCalledTimes(1);
@@ -527,7 +531,7 @@ describe("KeeperSession", () => {
     session.push(tone(220, 0.01), KEEPER_SAMPLE_RATE);
     await vi.advanceTimersByTimeAsync(10);
     expect(stallDetail(session)).toBe(
-      "keeper pending metadata write timed out after 10ms",
+      "full-quality recording pending metadata write timed out after 10ms",
     );
     await session.dispose();
     expect(session.files).toHaveLength(0);

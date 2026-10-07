@@ -30,7 +30,7 @@ privately; contributors update and verify the contents locally.
 | Mobile | [pages/mobile.md](pages/mobile.md) |
 | Backlog | [pages/ux-backlog.md](pages/ux-backlog.md) |
 
-Remote-agent / share MCP context for UX partners is in [Brief](pages/brief.md) (personas) and [Glossary](pages/domain-glossary.md) (partner terms). Guest chrome: [Screens → Guest / share](pages/screen-inventory.md) + [Guest / record](pages/screen-inventory.md) (lobby + keepers + mix-minus shipped) + [Guest journeys](pages/guest-journeys.md). Engineer depth: [docs/host-online-relay.md](../docs/host-online-relay.md), [docs/session-sync.md](../docs/session-sync.md), [docs/recording-session.md](../docs/recording-session.md). API contracts: [docs.sharecut.studio](https://docs.sharecut.studio/).
+Remote-agent / share MCP context for UX partners is in [Brief](pages/brief.md) (personas) and [Glossary](pages/domain-glossary.md) (partner terms). Guest chrome: [Screens → Guest / share](pages/screen-inventory.md) + [Guest / record](pages/screen-inventory.md) (lobby + full-quality recording + mix-minus shipped) + [Guest journeys](pages/guest-journeys.md). Engineer depth: [docs/host-online-relay.md](../docs/host-online-relay.md), [docs/session-sync.md](../docs/session-sync.md), [docs/recording-session.md](../docs/recording-session.md). API contracts: [docs.sharecut.studio](https://docs.sharecut.studio/).
 
 Each site view has **Copy Markdown** for pasting into Google Docs / Notion. Mermaid diagrams render on the site; paste the fenced `mermaid` blocks into a Mermaid-aware tool if Docs strips them.
 

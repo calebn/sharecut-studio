@@ -143,7 +143,7 @@ export async function openGuardedKeeperStream(
   };
   return {
     async write(bytes, offset) {
-      if (ended) throw new Error("keeper writer is closed");
+      if (ended) throw new Error("The full-quality recording writer is closed");
       try {
         await stream.write(bytes, offset);
       } catch (error) {

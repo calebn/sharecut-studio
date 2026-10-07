@@ -274,7 +274,7 @@ export function registerHostCommands(): void {
   registerCommand("record.land", () => {
     const s = useDawStore.getState();
     if (!canManageProjects(s.projectPath)) {
-      return { status: "disabled", reason: "Landing keepers is host-only" };
+      return { status: "disabled", reason: "Landing recordings is host-only" };
     }
     const snap = useRecordHostStore.getState().snapshot;
     const gate = snap ? landGate(snap, null) : null;
