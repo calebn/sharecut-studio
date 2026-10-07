@@ -384,7 +384,10 @@ measures the same own-sound evidence at propose and approve time and turns a cut
 speaking peers into a track-local punch. A remove that still ripples goes through
 `clear_ripple` like every other ripple: an approval asks, and the pipeline's
 auto-apply (`apply_prefix_edits`) leaves it pending for review instead of cutting
-the other speaker's words.
+the other speaker's words. A remove held back that way chooses nothing for the rest
+of the batch: auto-apply runs the batch on a copy, drops the held-back removes, and
+repeats until none more is held back, so another remove cannot ripple away the
+speech only the held-back one covered.
 
 Today's DAW sends `ripple` for trims, ripple delete, cut and paste, and `gap` for
 Delete. When the host replies `needs_confirmation`, `api/documentEdits.ts` opens
