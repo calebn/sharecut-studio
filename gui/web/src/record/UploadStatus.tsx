@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import { Button } from "../ui";
-import { SaveAnnouncer } from "./SaveAnnouncer";
+import { PoliteAnnouncer, SaveAnnouncer } from "./SaveAnnouncer";
 import { ownSaveLines } from "./saveStatus";
 import {
   KEEPER_RECLAIM_FAILED_COPY,
   KEEPER_RECLAIM_MISMATCH_COPY,
+  UPLOAD_COPY,
   UPLOAD_DONE_COPY,
   UPLOAD_LAND_FAILED_COPY,
   UPLOAD_STATUS_ID,
@@ -88,52 +89,71 @@ export function UploadStatus({
   segmentList?: boolean;
 }) {
   const canRecover = stopped && progress.recoverable;
+  // One segment reads as the status line below; a list only earns its place
+  // when several segments could each be in a different state.
+  const segmentLines =
+    segmentList && progress.segments.length > 1
+      ? ownSaveLines(progress.segments)
+      : [];
   let status: ReactNode = null;
+  // Outcomes carry no chunk counts, so each speaks as its own status. The
+  // saving line carries them, so it stays silent and an announcer says only that
+  // saving started. A save list already speaks each segment starting, and the
+  // host panel's roster speaks the host's.
+  let savingLine = false;
   let showRecoveryActions = Boolean(progress.reclaimMismatch);
   if (progress.error) {
     showRecoveryActions = true;
     status = (
-      <div id={UPLOAD_STATUS_ID} className="record-warn">
+      <div id={UPLOAD_STATUS_ID} className="record-warn" role="status">
         <p>{progress.error}</p>
       </div>
     );
   } else if (progress.landFailed) {
     status = (
-      <p id={UPLOAD_STATUS_ID} className="record-warn">
+      <p id={UPLOAD_STATUS_ID} className="record-warn" role="status">
         {UPLOAD_LAND_FAILED_COPY}
       </p>
     );
   } else if (stopped && progress.landed && alive) {
     status = progress.reclaimFailed ? (
-      <p id={UPLOAD_STATUS_ID} className="record-warn">
+      <p id={UPLOAD_STATUS_ID} className="record-warn" role="status">
         {KEEPER_RECLAIM_FAILED_COPY}
       </p>
     ) : progress.reclaimMismatch ? null : (
-      <p id={UPLOAD_STATUS_ID}>{UPLOAD_DONE_COPY}</p>
+      <p id={UPLOAD_STATUS_ID} role="status">
+        {UPLOAD_DONE_COPY}
+      </p>
     );
   } else if (stopped && progress.fileAck && !progress.landed) {
-    status = <p id={UPLOAD_STATUS_ID}>{UPLOAD_WAITING_TO_LAND_COPY}</p>;
+    status = (
+      <p id={UPLOAD_STATUS_ID} role="status">
+        {UPLOAD_WAITING_TO_LAND_COPY}
+      </p>
+    );
   } else if (
     progress.uploading ||
     (progress.pending && progress.total > 0) ||
     (stopped && !progress.fileAck)
   ) {
     showRecoveryActions = showRecoveryActions || stopped;
+    savingLine = true;
     status = (
       <div id={UPLOAD_STATUS_ID}>
         <p>{uploadProgressCopy(progress.acked, progress.total)}</p>
       </div>
     );
   }
-  // One segment reads as the status line above; a list only earns its place
-  // when several segments could each be in a different state.
-  const segmentLines =
-    segmentList && progress.segments.length > 1
-      ? ownSaveLines(progress.segments)
-      : [];
   return (
     <>
       {status}
+      <PoliteAnnouncer
+        message={
+          savingLine && segmentLines.length === 0 && segmentList
+            ? UPLOAD_COPY
+            : ""
+        }
+      />
       {segmentList ? <SaveAnnouncer lines={segmentLines} /> : null}
       {segmentLines.length > 0 ? (
         <ul

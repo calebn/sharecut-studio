@@ -447,13 +447,6 @@ export function RecordPanel({
               {MIC_RETRY_LABEL}
             </Button>
           ) : null}
-          <UploadStatus
-            progress={upload}
-            stopped={state === "stopped"}
-            segmentList={false}
-            onResume={() => setUploadRetryNonce((value) => value + 1)}
-            actions={keeperActions}
-          />
           {snapshot ? (
             <TakeClippingReport
               report={takeClipping}
@@ -480,13 +473,6 @@ export function RecordPanel({
                   setRecordPanelOpen(false);
                 };
               }}
-            />
-          ) : null}
-          {snapshot ? (
-            <HostUploadRoster
-              participants={snapshot.participants}
-              segments={hostSegments}
-              stopped={state === "stopped"}
             />
           ) : null}
           {keeperError ? (
@@ -531,6 +517,20 @@ export function RecordPanel({
             <p className="record-warn">{transportError}</p>
           ) : null}
         </div>
+        <UploadStatus
+          progress={upload}
+          stopped={state === "stopped"}
+          segmentList={false}
+          onResume={() => setUploadRetryNonce((value) => value + 1)}
+          actions={keeperActions}
+        />
+        {snapshot ? (
+          <HostUploadRoster
+            participants={snapshot.participants}
+            segments={hostSegments}
+            stopped={state === "stopped"}
+          />
+        ) : null}
         {snapshot ? (
           hasRemovedParticipant ? (
             <p className="record-warn">

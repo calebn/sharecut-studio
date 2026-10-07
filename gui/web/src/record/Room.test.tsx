@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { expectNoA11yViolations } from "../test/a11y";
+import { expectNoA11yViolations, expectOutsideLiveRegions } from "../test/a11y";
 import { recordParticipant, recordSnapshot } from "../test/fixtures";
 import { Room } from "./Room";
 import { HEARING_COPY, HOST_OFFLINE_COPY, LOCAL_KEEPER_COPY } from "./types";
@@ -139,6 +139,64 @@ describe("Room", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Leave" })).toBeDisabled();
+  });
+
+  it("keeps every chunk count outside a live region and speaks only segment changes", async () => {
+    const props = {
+      snapshot: { ...snapshot, state: "stopped" as const },
+      me,
+      onMute: () => undefined,
+      onLeave: () => undefined,
+    };
+    const upload = (acked: number, saved: boolean) => ({
+      acked,
+      total: 5,
+      fileAck: false,
+      landed: false,
+      landFailed: false,
+      reclaimFailed: false,
+      uploading: true,
+      pending: false,
+      recoverable: false,
+      segments: [
+        {
+          take: 0,
+          segment: 0,
+          state: "saved" as const,
+          chunks: null,
+          landFailed: false,
+        },
+        {
+          take: 0,
+          segment: 1,
+          state: saved ? ("saved" as const) : ("saving" as const),
+          chunks: saved ? null : { acked, total: 5 },
+          landFailed: false,
+        },
+      ],
+      error: null,
+    });
+    const spoken = (container: HTMLElement) =>
+      [...container.querySelectorAll('[aria-live="polite"]')]
+        .map((el) => el.textContent)
+        .join("|");
+    const { container, rerender } = render(
+      <Room {...props} upload={upload(2, false)} />,
+    );
+    expectOutsideLiveRegions(container, /\d of 5 chunks/);
+    expect(screen.getAllByText(/2 of 5 chunks/)).toHaveLength(2);
+    const before = spoken(container);
+    expect(before).toContain("Take 1 segment 2: Saving to project…");
+    expect(before).not.toMatch(/chunk/);
+
+    rerender(<Room {...props} upload={upload(3, false)} />);
+    expect(screen.getAllByText(/3 of 5 chunks/)).toHaveLength(2);
+    expectOutsideLiveRegions(container, /\d of 5 chunks/);
+    expect(spoken(container)).toBe(before);
+
+    rerender(<Room {...props} upload={upload(5, true)} />);
+    expect(spoken(container)).toContain("Take 1 segment 2: Saved to project");
+    await expectNoA11yViolations(container);
   });
 
   describe("no audio", () => {
