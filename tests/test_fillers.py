@@ -3124,6 +3124,59 @@ def test_filler_whose_voice_runs_on_from_a_kept_word_is_skipped(tmp_path, join):
     assert skips == {"filler_onset": 1}
 
 
+@pytest.mark.parametrize(
+    ("word_start", "cut"),
+    [
+        # The aligner starts the "um" 600 ms into its voice: pacing sees a 0.1 s word,
+        # and the onset walk-back widens the cut to the voice (lab 616.26, #1074).
+        (1.2, (0.58, 1.3, 0.612)),
+        # A word start on the voice onset: nothing widens.
+        (0.6, (0.6, 1.3, 0.595)),
+    ],
+)
+def test_filler_pad_is_paced_from_the_span_the_cut_removes(tmp_path, word_start, cut):
+    project = _audio_project(
+        tmp_path,
+        [(0.2, _voice(0.3)), (0.6, _voice(0.7)), (3.4, _voice(0.3))],
+        [
+            TranscriptWord(text="So", start=0.2, end=0.5, confidence=0.95),
+            TranscriptWord(text="um,", start=word_start, end=1.3, confidence=0.9),
+            TranscriptWord(text="okay.", start=3.4, end=3.7, confidence=0.95),
+        ],
+    )
+
+    (decision,) = analyze_fillers_and_pauses(
+        project, project.transcripts[0], _late_filler_defaults("padded")
+    )
+
+    # clamp(0.35, 0.85 x span, 1.0) of the span shipped, wherever the word time sat.
+    assert (decision.start, decision.end, decision.replace_gap_sec) == pytest.approx(cut, abs=0.002)
+
+
+def test_cut_plan_paces_its_pad_from_its_own_span():
+    from dataclasses import replace
+
+    from podcast_mcp.edits.filler_pacing import PacedPad
+    from podcast_mcp.edits.fillers import _CutPlan, _Join
+
+    pad = PacedPad(gap_sec=0.0, min_sec=0.35, retain=0.85, max_sec=1.0)
+    plan = _CutPlan.for_cut(1.2, 1.3, mute=False, scope="session", pad=pad)
+
+    assert (plan.join, plan.replace_gap_sec) == (_Join.PADDED, pytest.approx(0.35))
+    # An edge check that moves the left edge to the voice resizes the pad with it.
+    assert replace(plan, start=0.5).replace_gap_sec == pytest.approx(0.68)
+    # Air the cut took whole still sets the floor when the span shrinks inside it.
+    gap_plan = _CutPlan.for_cut(
+        1.0, 2.0, mute=False, scope="session", pad=replace(pad, gap_sec=1.1)
+    )
+    assert replace(gap_plan, end=1.5).replace_gap_sec == pytest.approx(0.935)
+    # A track punch and a mute keep their time, so they insert no pad.
+    punch = _CutPlan.for_cut(1.2, 1.3, mute=False, scope="track", pad=pad)
+    mute = _CutPlan.for_cut(1.2, 1.3, mute=True, scope="session", pad=pad)
+    assert (punch.join, punch.replace_gap_sec) == (_Join.SPLICE, None)
+    assert (mute.join, mute.replace_gap_sec) == (_Join.MUTE, None)
+
+
 def _scope_result(scope: str):
     from podcast_mcp.edits.speech_energy_guard import SpeechEnergyGuardResult
 
