@@ -66,6 +66,16 @@ def _keyboard_cell(cap: dict[str, Any]) -> str:
     return "—"
 
 
+def _cli_cell(cap: dict[str, Any]) -> str:
+    surfaces = cap.get("surfaces") or {}
+    if surfaces.get("cli"):
+        return f"`{_esc(str(surfaces['cli']))}`"
+    reason = (cap.get("omit") or {}).get("agent_reason")
+    if reason and not surfaces.get("mcp"):
+        return f"— ({_esc(str(reason))})"
+    return "—"
+
+
 def _host_only(cap: dict[str, Any]) -> str:
     omit = cap.get("omit") or {}
     return "yes" if omit.get("guest") else "—"
@@ -121,8 +131,13 @@ def _render_generated(data: dict[str, Any]) -> str:
         "",
         "## Sharecut Studio capabilities",
         "",
-        "| Label | Command | Keyboard | GUI | MCP | CLI | Skill | Host-only | Presence |",
-        "| ----- | ------- | -------- | --- | --- | --- | ----- | --------- | -------- |",
+        "Effect `project` changes the saved project, review state, transcripts or "
+        "artifacts, and needs an MCP or CLI surface (or an owner-approved reason, "
+        "shown in the CLI column). `session` changes live unsaved state; `view` "
+        "changes only this client's display.",
+        "",
+        "| Label | Effect | Command | Keyboard | GUI | MCP | CLI | Skill | Host-only | Presence |",
+        "| ----- | ------ | ------- | -------- | --- | --- | --- | ----- | --------- | -------- |",
     ]
     for cap in daw:
         surfaces = cap.get("surfaces") or {}
@@ -131,11 +146,12 @@ def _render_generated(data: dict[str, Any]) -> str:
             + " | ".join(
                 [
                     _esc(str(cap.get("label") or cap.get("id"))),
+                    str(cap.get("effect")),
                     f"`{_esc(str(surfaces.get('command')))}`",
                     _keyboard_cell(cap),
                     _fmt_list(_as_list(surfaces.get("gui"))),
                     _fmt_list(_as_list(surfaces.get("mcp")), preview=MCP_PREVIEW),
-                    (f"`{_esc(str(surfaces['cli']))}`" if surfaces.get("cli") else "—"),
+                    _cli_cell(cap),
                     _fmt_list(_as_list(surfaces.get("skill"))),
                     _host_only(cap),
                     _presence_cell(cap),
@@ -152,8 +168,8 @@ def _render_generated(data: dict[str, Any]) -> str:
             "Host/agent capabilities without a Sharecut Studio `command` id "
             "(pipeline, transcript, NL, clips, …).",
             "",
-            "| Label | MCP | CLI | Skill | Host-only |",
-            "| ----- | --- | --- | ----- | --------- |",
+            "| Label | Effect | MCP | CLI | Skill | Host-only |",
+            "| ----- | ------ | --- | --- | ----- | --------- |",
         ]
     )
     for cap in agent:
@@ -163,8 +179,9 @@ def _render_generated(data: dict[str, Any]) -> str:
             + " | ".join(
                 [
                     _esc(str(cap.get("label") or cap.get("id"))),
+                    str(cap.get("effect")),
                     _fmt_list(_as_list(surfaces.get("mcp")), preview=MCP_PREVIEW),
-                    (f"`{_esc(str(surfaces['cli']))}`" if surfaces.get("cli") else "—"),
+                    _cli_cell(cap),
                     _fmt_list(_as_list(surfaces.get("skill"))),
                     _host_only(cap),
                 ]
