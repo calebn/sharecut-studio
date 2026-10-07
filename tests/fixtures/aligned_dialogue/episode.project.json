@@ -59,6 +59,7 @@
           "channels": 1
         },
         "room_tone": null,
+        "gate_fill": null,
         "gain_db": 0.0,
         "balance_basis": null,
         "fader_db": 0.0,
@@ -80,6 +81,7 @@
           "channels": 1
         },
         "room_tone": null,
+        "gate_fill": null,
         "gain_db": 0.0,
         "balance_basis": null,
         "fader_db": 0.0,
