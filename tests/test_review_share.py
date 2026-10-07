@@ -25,6 +25,7 @@ from podcast_mcp.services.collaboration.share import (
     share_daw_project_view,
     share_project_view,
 )
+from podcast_mcp.services.document import HistoryService
 
 
 def _seed_premix(minimal_project, sample_wav):
@@ -487,7 +488,7 @@ def test_share_daw_routes_view_cap(minimal_project, sample_wav, tmp_workspace, m
     assert body["project_path"] == ""
     assert body["history"] == {
         "cursor": 0,
-        "head_id": None,
+        "head_id": HistoryService(ProjectWorkspace.open(minimal_project)).status()["head_id"],
         "can_undo": False,
         "can_redo": False,
         "entries": [],
@@ -1091,7 +1092,8 @@ def test_sanitize_guest_document_event_strips_paths():
     }
     out = sanitize_guest_document_event(event)
     assert out["command"] == {"type": "ApproveEdits"}
-    assert "history" not in out["snapshot"]
+    assert out["snapshot"]["history"]["groups"] == []
+    assert "add comment" not in str(out)
     assert out["snapshot"]["project"]["project_path"] == ""
     assert "workspace_dir" not in out["snapshot"]["project"]["meta"]
     blob = str(out)
@@ -1167,7 +1169,15 @@ def test_guest_daw_ws_snapshots_and_fanout(minimal_project, sample_wav, tmp_work
         doc_snap = by_plane["document"]["snapshot"]
         assert doc_snap["project"]["project_path"] == ""
         assert "workspace_dir" not in doc_snap["project"]["meta"]
-        assert "history" not in doc_snap
+        assert doc_snap["history"]["groups"] == []
+        assert set(doc_snap["history"]) == {
+            "cursor",
+            "head_id",
+            "can_undo",
+            "can_redo",
+            "entries",
+            "groups",
+        }
 
         # PresenceHeartbeat on connect may fan out a Presence event - drain it.
         SessionSyncService(ws.project).submit_control(

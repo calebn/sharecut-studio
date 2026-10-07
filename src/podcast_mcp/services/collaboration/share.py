@@ -625,12 +625,19 @@ _GUEST_IMPACT_STUB: dict[str, Any] = {
 
 _GUEST_EMPTY_HISTORY: dict[str, Any] = {
     "cursor": 0,
-    "head_id": None,
     "can_undo": False,
     "can_redo": False,
     "entries": [],
     "groups": [],
 }
+
+
+def _guest_history(history: Any) -> dict[str, Any]:
+    """History for guests: no labels or params (they can embed local paths), only the
+    opaque ``head_id`` (random hex, or ``root``). A guest's undo or redo must send it,
+    so a guest never reverts an edit it has not seen."""
+    head = history.get("head_id") if isinstance(history, dict) else None
+    return {**_GUEST_EMPTY_HISTORY, "head_id": head}
 
 
 def _guest_view_is_full(view: dict[str, Any]) -> bool:
@@ -670,9 +677,9 @@ def sanitize_guest_project_view(
         out["meta"] = guest_meta
     if "tracks" in out:
         out["tracks"] = _sanitize_guest_tracks(out.get("tracks"))
-    # History can embed local paths in labels/params - omit for guests.
+    # History can embed local paths in labels/params - keep only the opaque head.
     if "history" in out:
-        out["history"] = dict(_GUEST_EMPTY_HISTORY)
+        out["history"] = _guest_history(out["history"])
     # Guest Sharecut Studio keeps a zeroed impact stub so StatusBar/ImpactPanel stay safe.
     if full or "edit_impact" in out:
         out["edit_impact"] = dict(_GUEST_IMPACT_STUB)
@@ -709,8 +716,8 @@ def sanitize_guest_document_event(
     """Sanitize a document-plane hub event for share guests.
 
     Drops host filesystem paths from ``snapshot.project`` / ``snapshot.patch``
-    and reduces ``command`` to ``{"type": ...}`` only. ``snapshot.history``
-    (groups and entries) is omitted — labels/params can embed local paths.
+    and reduces ``command`` to ``{"type": ...}`` only. ``snapshot.history`` keeps
+    only the opaque ``head_id`` (``_guest_history``): labels/params can embed local paths.
     ``snapshot.file`` / ``snapshot.file_before`` are reduced to numeric
     ``{mtime_ns, size}``.
     """
@@ -731,7 +738,8 @@ def sanitize_guest_document_event(
                 snap[key] = sanitize_guest_project_view(
                     snap[key], transcript_words=transcript_words
                 )
-        snap.pop("history", None)
+        if "history" in snap:
+            snap["history"] = _guest_history(snap["history"])
         for key in ("file", "file_before"):
             if key in snap:
                 signature = _guest_file_signature(snap[key])

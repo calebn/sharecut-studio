@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 from typer.testing import CliRunner
 
+from history_helpers import history_move
 from podcast_mcp.cli.main import app
 from podcast_mcp.edits.cut_speech import (
     CutSpeechConfirmation,
@@ -696,7 +697,7 @@ def _submit(path: Path, command_type: str, payload: dict, **kwargs) -> dict:
 
 
 def _undo(path: Path) -> None:
-    _submit(path, "UndoHistory", {})
+    _submit(path, "UndoHistory", history_move(path))
 
 
 def _trim_payload(path: Path, mode: EditMode, **extra) -> dict:

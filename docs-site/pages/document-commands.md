@@ -45,7 +45,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `MoveClips` | `clips` (array[object]) | — |
 | `MoveSegment` | `insert_at` (number), `source_end` (number), `source_start` (number) | — |
 | `PasteSegment` | `duration` (number), `insert_at` (number), `mode` (ripple \| gap) | `extracts` (array[object]) |
-| `RedoHistory` | — | `expected_head_id` (string \| null), `rerender` (boolean) |
+| `RedoHistory` | `expected_head_id` (string) | `rerender` (boolean) |
 | `RejectEdits` | `ids` (array[string]) | — |
 | `RemoveTrack` | `track_id` (string) | — |
 | `ReorderTrack` | `index` (integer), `track_id` (string) | — |
@@ -70,7 +70,7 @@ Raw JSON Schema (site copy): [document-commands.schema.json](../schemas/document
 | `SplitAtTime` | `at_time` (number) | `reason` (string \| null), `track_ids` (array \| null) |
 | `SuggestPendingEdit` | `end` (number), `start` (number), `track_id` (string) | `edit_type` (remove \| mute), `reason` (string \| null) |
 | `TrimClipEdge` | `clip_id` (string), `edge` (in \| out), `expected_token` (string), `mode` (ripple \| gap), `source_sec` (number) | `confirm_cut_speech` (boolean) |
-| `UndoHistory` | — | `expected_head_id` (string \| null), `rerender` (boolean) |
+| `UndoHistory` | `expected_head_id` (string) | `rerender` (boolean) |
 | `UpdateChapter` | `old_time` (number), `old_title` (string), `time` (number), `title` (string) | — |
 | `UpdateComment` | `comment_id` (string) | `body` (string \| null), `timeline_end` (number \| null), `timeline_start` (number \| null), `track_ids` (array \| null) |
 | `UpdatePendingEdit` | `end` (number), `id` (string), `start` (number) | `expected` (object \| null), `snap` (boolean), `track_ids` (array \| null) |

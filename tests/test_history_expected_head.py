@@ -9,13 +9,18 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
+from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.history.manager import StaleHistoryError
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import EditDecision, EditDecisionType, HistoryEntry
-from podcast_mcp.models.history import ProjectHistory
+from podcast_mcp.models.history import HISTORY_ROOT_ID, ProjectHistory
 from podcast_mcp.project_store import HISTORY_ENTRY_LIMIT, history_index_path, history_snapshot_path
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.services.collaboration.share import (
+    sanitize_guest_document_event,
+    sanitize_guest_project_view,
+)
 from podcast_mcp.services.document import HistoryService
 from podcast_mcp.services.document_sync import DocumentSyncService
 from podcast_mcp.services.document_sync.commands import DocumentCommand
@@ -267,3 +272,152 @@ def test_cli_undo_refuses_a_stale_expected_head_and_undoes_a_current_one(minimal
     )
     assert undone.exit_code == 0, undone.output
     assert "agent-cut" not in _decision_ids(minimal_project)
+
+
+def test_mcp_and_cli_without_an_expected_head_undo_whatever_is_latest(minimal_project):
+    """Agents and scripts may undo "the latest change" on purpose; only the GUI and
+    guest document plane must name the head they saw."""
+    _seed(minimal_project)
+    _agent_edit(minimal_project)
+    mcp_server.history_undo(str(minimal_project))
+    assert "agent-cut" not in _decision_ids(minimal_project)
+
+    _agent_edit(minimal_project, "second-agent-cut")
+    undone = runner.invoke(app, ["undo", "--project", str(minimal_project)])
+    assert undone.exit_code == 0, undone.output
+    assert "second-agent-cut" not in _decision_ids(minimal_project)
+
+
+# --- An empty history is a head too -------------------------------------------------
+
+
+def test_a_project_before_any_history_holds_the_root_head(minimal_project):
+    assert ProjectHistory().head_id() == HISTORY_ROOT_ID
+    assert _status(minimal_project)["head_id"] == HISTORY_ROOT_ID
+    shell = DocumentSyncService.open(minimal_project).document_snapshot(projection="shell")
+    assert shell["history"]["head_id"] == HISTORY_ROOT_ID
+    assert shell["project"]["history"]["head_id"] == HISTORY_ROOT_ID
+
+
+def test_an_undo_that_saw_an_empty_history_refuses_once_an_agent_edit_lands(minimal_project):
+    svc = DocumentSyncService.open(minimal_project)
+    seen = svc.document_snapshot(projection="shell")["history"]["head_id"]
+
+    _agent_edit(minimal_project)
+
+    with pytest.raises(DocumentConflictError) as refused:
+        _undo(svc, seen)
+    assert refused.value.code == "history_stale"
+    assert "agent-cut" in _decision_ids(minimal_project)
+
+
+# --- The document plane always names the head it saw ---------------------------------
+
+
+@pytest.mark.parametrize("command_type", ["UndoHistory", "RedoHistory"])
+@pytest.mark.parametrize(
+    "payload",
+    [{}, {"expected_head_id": None}, {"expected_head_id": ""}],
+    ids=["missing", "null", "empty"],
+)
+def test_a_document_history_move_without_the_head_it_saw_is_refused(
+    minimal_project, command_type, payload
+):
+    _seed(minimal_project)
+    _agent_edit(minimal_project)
+    if command_type == "RedoHistory":
+        HistoryService(ProjectWorkspace.open(minimal_project)).undo()
+    before = _status(minimal_project)
+
+    response = TestClient(create_app()).post(
+        "/api/document/command",
+        params={"path": str(minimal_project)},
+        json={
+            "type": command_type,
+            "payload": payload,
+            "client_id": "tab",
+            "role": "viewer",
+            "client_seq": 1,
+        },
+    )
+
+    assert response.status_code in (400, 422), response.text
+    assert _status(minimal_project)["head_id"] == before["head_id"]
+
+
+# --- Guests see the real head and are held to it -------------------------------------
+
+
+def _editor_share(published_share) -> str:
+    return published_share(capabilities=capabilities_for_role("editor"))[2]["token"]
+
+
+def _guest_undo(client: TestClient, token: str, payload: dict, seq: int = 1):
+    return client.post(
+        f"/api/review/{token}/daw/document/command",
+        json={
+            "type": "UndoHistory",
+            "payload": payload,
+            "client_id": "guest-tab",
+            "client_seq": seq,
+            "role": "guest",
+        },
+    )
+
+
+def test_a_guest_view_carries_the_opaque_head_and_no_history_labels(
+    minimal_project, published_share
+):
+    _seed(minimal_project)
+    _agent_edit(minimal_project)
+    token = _editor_share(published_share)
+    head = _status(minimal_project)["head_id"]
+
+    state = TestClient(create_app()).get(f"/api/review/{token}/daw/document/state").json()
+
+    assert state["project"]["history"]["head_id"] == head
+    assert state["project"]["history"]["groups"] == []
+    assert "agent cut" not in str(state)
+
+
+def test_guest_history_sanitizers_keep_only_the_head():
+    host_history = {
+        "cursor": 3,
+        "head_id": "a1b2c3d4e5f6",
+        "can_undo": True,
+        "can_redo": False,
+        "groups": [{"kind": "mutation", "title": "cut /Users/host/secret.wav"}],
+    }
+    view = sanitize_guest_project_view({"history": host_history})
+    event = sanitize_guest_document_event(
+        {"type": "Applied", "snapshot": {"server_seq": 4, "history": host_history}}
+    )
+
+    for history in (view["history"], event["snapshot"]["history"]):
+        assert history["head_id"] == "a1b2c3d4e5f6"
+        assert history["groups"] == [] and history["entries"] == []
+        assert "secret" not in str(history)
+
+
+def test_a_guest_undo_refuses_an_agent_edit_the_guest_never_saw(minimal_project, published_share):
+    _seed(minimal_project)
+    token = _editor_share(published_share)
+    client = TestClient(create_app())
+    seen = client.get(f"/api/review/{token}/daw/document/state").json()["project"]["history"][
+        "head_id"
+    ]
+
+    _agent_edit(minimal_project)
+
+    stale = _guest_undo(client, token, {"expected_head_id": seen})
+    assert stale.status_code == 409, stale.text
+    assert stale.headers["X-Sharecut-Error-Code"] == "history_stale"
+    blind = _guest_undo(client, token, {"expected_head_id": None}, seq=2)
+    assert blind.status_code in (400, 422), blind.text
+    assert "agent-cut" in _decision_ids(minimal_project)
+
+    current = _status(minimal_project)["head_id"]
+    undone = _guest_undo(client, token, {"expected_head_id": current}, seq=3)
+    assert undone.status_code == 200, undone.text
+    assert "agent-cut" not in _decision_ids(minimal_project)
+    assert undone.json()["history_head_id"] == _status(minimal_project)["head_id"]

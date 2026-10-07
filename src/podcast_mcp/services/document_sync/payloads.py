@@ -122,24 +122,24 @@ class AddActionPayload(BaseModel):
     text: str
 
 
-class UndoHistoryPayload(BaseModel):
+class _HistoryMovePayload(BaseModel):
     rerender: bool = False
-    expected_head_id: str | None = Field(
-        default=None,
+    expected_head_id: str = Field(
+        min_length=1,
         max_length=64,
-        description="History entry id the caller saw as the latest (history.head_id). "
-        "When set, the server refuses with 409 history_stale unless it is still the latest.",
+        description='The history head the client saw (history.head_id; "root" for a '
+        "history with no entry yet). Required: the server refuses with 409 history_stale "
+        "unless it is still the head, so a GUI or guest move never reverts an edit the "
+        "client had not seen.",
     )
 
 
-class RedoHistoryPayload(BaseModel):
-    rerender: bool = False
-    expected_head_id: str | None = Field(
-        default=None,
-        max_length=64,
-        description="History entry id the caller saw as the latest (history.head_id). "
-        "When set, the server refuses with 409 history_stale unless it is still the latest.",
-    )
+class UndoHistoryPayload(_HistoryMovePayload):
+    pass
+
+
+class RedoHistoryPayload(_HistoryMovePayload):
+    pass
 
 
 class ApproveEditsPayload(BaseModel):
@@ -533,12 +533,12 @@ class AddActionCommand(DocumentCommandEnvelope):
 
 class UndoHistoryCommand(DocumentCommandEnvelope):
     type: Literal["UndoHistory"] = "UndoHistory"
-    payload: UndoHistoryPayload = Field(default_factory=UndoHistoryPayload)
+    payload: UndoHistoryPayload
 
 
 class RedoHistoryCommand(DocumentCommandEnvelope):
     type: Literal["RedoHistory"] = "RedoHistory"
-    payload: RedoHistoryPayload = Field(default_factory=RedoHistoryPayload)
+    payload: RedoHistoryPayload
 
 
 class ApproveEditsCommand(DocumentCommandEnvelope):

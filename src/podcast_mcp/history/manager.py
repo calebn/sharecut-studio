@@ -59,6 +59,9 @@ class StaleHistoryError(CodedError):
 def _require_head(
     history: ProjectHistory, action: Literal["undo", "redo"], expected_head_id: str | None
 ) -> None:
+    """Refuse unless the head is ``expected_head_id``. ``None`` means the caller asked for
+    an unguarded move (MCP/CLI "undo the latest"); a caller that saw an empty history sends
+    ``HISTORY_ROOT_ID``, which is checked like any entry id."""
     if expected_head_id is not None and history.head_id() != expected_head_id:
         raise StaleHistoryError(action)
 
@@ -70,7 +73,7 @@ class HistoryStatus:
     can_undo: bool
     can_redo: bool
     current_label: str | None
-    head_id: str | None
+    head_id: str
 
 
 class HistoryManager:

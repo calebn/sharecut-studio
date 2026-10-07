@@ -618,6 +618,11 @@ class DocumentSyncService:
         # guest) gets the confirmation to show, beside the sanitized event.
         confirmation = result_payload.get("needs_confirmation")
         asks = {"needs_confirmation": confirmation} if confirmation is not None else {}
+        # The entry this command left at the head, read under the same lock as the apply:
+        # a toast offers Undo for exactly this change, and the client's next own history
+        # move expects it. Null when history did not move. The id is opaque, so guests
+        # get it too.
+        moved = {"history_head_id": head_after if head_after != head_before else None}
         if audience == "guest":
             from podcast_mcp.services.collaboration import sanitize_guest_document_event
 
@@ -634,15 +639,9 @@ class DocumentSyncService:
                     }
                 ),
                 **asks,
+                **moved,
             }
-        # The entry this command left at the head, read under the same lock as the apply, so
-        # a toast can offer Undo for exactly this change (null when history did not move).
-        return {
-            "ok": True,
-            **event,
-            **asks,
-            "history_head_id": head_after if head_after != head_before else None,
-        }
+        return {"ok": True, **event, **asks, **moved}
 
     def publish_document_changed(
         self,
@@ -743,7 +742,9 @@ class DocumentSyncService:
             resolve_structural_mode,
         )
 
-        if command.type in {"ApproveEdits", "RejectEdits"}:
+        # History moves must name the head they saw; a payload without it is refused here
+        # (ValueError), never applied as an unguarded "undo the latest".
+        if command.type in {"ApproveEdits", "RejectEdits", "UndoHistory", "RedoHistory"}:
             from podcast_mcp.services.document_sync.payloads import validate_payload
 
             command = replace(command, payload=validate_payload(command.type, command.payload))

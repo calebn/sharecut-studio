@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from history_helpers import history_move
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.gui.assembler import projection_dependencies
 from podcast_mcp.models import (
@@ -201,8 +202,15 @@ def test_guest_delta_is_diffed_after_sanitization_and_host_variant_is_private(mi
     guest = sanitize_guest_document_event(event)
     assert guest["snapshot"]["delta"]["audience"] == "guest"
     assert guest["snapshot"] == result["snapshot"]
-    sections = {operation["section"] for operation in guest["snapshot"]["delta"]["operations"]}
-    assert not sections.intersection({"history", "history_groups", "history_entries"})
+    operations = guest["snapshot"]["delta"]["operations"]
+    sections = {operation["section"] for operation in operations}
+    assert not sections.intersection({"history_groups", "history_entries"})
+    # A guest's history section moves only the opaque head, never labels or params.
+    assert all(
+        set(op.get("value") or {}) <= {"head_id", "cursor", "can_undo", "can_redo"}
+        for op in operations
+        if op["section"] == "history"
+    )
     assert "_guest_snapshot" not in guest
     assert "_guest_snapshot" not in host_document_event(event)
     assert str(minimal_project.parent) not in json.dumps(guest)
@@ -212,7 +220,7 @@ def test_guest_delta_is_diffed_after_sanitization_and_host_variant_is_private(mi
 def test_undo_and_external_mutations_remain_replacements(minimal_project):
     svc = DocumentSyncService.open(minimal_project)
     svc.submit(comment())
-    undo = svc.submit(command("UndoHistory", {}, 2))
+    undo = svc.submit(command("UndoHistory", history_move(minimal_project), 2))
     assert "project" in undo["snapshot"] and "delta" not in undo["snapshot"]
     external = svc.publish_document_changed()
     assert "project" in external["snapshot"] and "delta" not in external["snapshot"]

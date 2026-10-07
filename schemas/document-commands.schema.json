@@ -2978,7 +2978,8 @@
         }
       },
       "required": [
-        "client_id"
+        "client_id",
+        "payload"
       ],
       "title": "RedoHistoryCommand",
       "type": "object"
@@ -2986,18 +2987,11 @@
     "RedoHistoryPayload": {
       "properties": {
         "expected_head_id": {
-          "anyOf": [
-            {
-              "maxLength": 64,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "History entry id the caller saw as the latest (history.head_id). When set, the server refuses with 409 history_stale unless it is still the latest.",
-          "title": "Expected Head Id"
+          "description": "The history head the client saw (history.head_id; \"root\" for a history with no entry yet). Required: the server refuses with 409 history_stale unless it is still the head, so a GUI or guest move never reverts an edit the client had not seen.",
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Expected Head Id",
+          "type": "string"
         },
         "rerender": {
           "default": false,
@@ -3005,6 +2999,9 @@
           "type": "boolean"
         }
       },
+      "required": [
+        "expected_head_id"
+      ],
       "title": "RedoHistoryPayload",
       "type": "object"
     },
@@ -6109,7 +6106,8 @@
         }
       },
       "required": [
-        "client_id"
+        "client_id",
+        "payload"
       ],
       "title": "UndoHistoryCommand",
       "type": "object"
@@ -6117,18 +6115,11 @@
     "UndoHistoryPayload": {
       "properties": {
         "expected_head_id": {
-          "anyOf": [
-            {
-              "maxLength": 64,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "History entry id the caller saw as the latest (history.head_id). When set, the server refuses with 409 history_stale unless it is still the latest.",
-          "title": "Expected Head Id"
+          "description": "The history head the client saw (history.head_id; \"root\" for a history with no entry yet). Required: the server refuses with 409 history_stale unless it is still the head, so a GUI or guest move never reverts an edit the client had not seen.",
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Expected Head Id",
+          "type": "string"
         },
         "rerender": {
           "default": false,
@@ -6136,6 +6127,9 @@
           "type": "boolean"
         }
       },
+      "required": [
+        "expected_head_id"
+      ],
       "title": "UndoHistoryPayload",
       "type": "object"
     },

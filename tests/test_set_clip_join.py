@@ -10,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
+from history_helpers import history_move
 from podcast_mcp.cli.main import app
 from podcast_mcp.edits.clips_ops import crossfade_ms_at_join, roll_clip_join
 from podcast_mcp.edits.join_modes import (
@@ -218,7 +219,13 @@ def test_document_command_applies_and_undoes(minimal_project):
     assert row["fade_in_ms"] == 25
     assert row["join_crossfade_ms"] == 25
     undone = svc.submit(
-        DocumentCommand(type="UndoHistory", payload={}, client_id="c1", role="viewer", client_seq=2)
+        DocumentCommand(
+            type="UndoHistory",
+            payload=history_move(minimal_project),
+            client_id="c1",
+            role="viewer",
+            client_seq=2,
+        )
     )
     assert undone["ok"]
     c2 = ProjectWorkspace.open(minimal_project).project.clips[1]
