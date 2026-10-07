@@ -303,6 +303,8 @@ internally, via a shared thread-pool helper (`util/parallel.py`):
 | `assemble_timeline` / `render_dialogue_stems` | Each track's stem is rendered concurrently (`_render_track_stems`) |
 | `export_deliverables` | Each configured output format is encoded concurrently |
 
+`tests/benchmark_tighten.py` (`pytest -m slow`) times Find hits and apply per cut on a synthetic project. Its tracks must be real audio on disk: a track that cannot decode gets no audio cache, so every candidate falls back to one ffmpeg spawn per window read and the run takes minutes (#1129). `tests/test_benchmark_tighten_smoke.py` runs each scenario on a 40-word project in the normal suite so the benchmark cannot rot unnoticed.
+
 Analyze's digital-silence fraction (`engines/asr_silence.digital_silence_fraction`) is
 cached in-process per (resolved path, `file_revision` — device, inode, size, mtime — a
 SHA-256 of the file's first and last 64 KiB, and `peak_dbfs`), so re-running Analyze
