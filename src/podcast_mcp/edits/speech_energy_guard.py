@@ -145,44 +145,30 @@ def word_voice_sounds_in(
     track_id: str,
     word_span: tuple[float, float],
     span: tuple[float, float],
-    *,
-    owner_track_ids: Collection[str],
-    defaults: dict[str, Any] | None = None,
 ) -> bool:
     """Whether a word's own voice on ``track_id`` sounds inside timeline ``span``.
 
     ASR stretches a word's span over the silence beside its voice, so the span alone
     does not show that ``span`` holds any of it. The word's loudest frame on its own
-    track is its voice level. A frame of ``span`` is that voice when it sits within
-    the speech range of that level (``JoinSpeechConfig.speech_dynamic_db``) and is not
-    owner bleed: a frame ``dominance_db`` under both the loudest owner track and the
-    word's voice is the owner's voice on this mic. A soft voice under a louder owner
-    still counts, since it is as loud as the word. Frames are the tighten grid
-    (``voiced_runs.FRAME_SEC`` every ``HOP_SEC``). Audio that cannot be read counts
-    as voice, so a missing file never hides speech.
+    track is its voice level, and a frame of ``span`` is that voice when it sits within
+    the speech range of that level (``JoinSpeechConfig.speech_dynamic_db``). Another
+    speaker's bleed on this mic is not discounted: it is no louder than the word's own
+    quiet start or end, so telling them apart would hide real speech, and a false
+    positive only asks. Frames are the tighten grid (``voiced_runs.FRAME_SEC`` every
+    ``HOP_SEC``). Audio that cannot be read counts as voice, so a missing file never
+    hides speech.
     """
-    dominance = float(_guard_cfg(defaults).get("dominance_db", 3.0))
 
-    def levels(tid: str, start: float, end: float) -> np.ndarray | None:
+    def levels(start: float, end: float) -> np.ndarray | None:
         return timeline_frame_levels_db(
-            project, tid, start, end, frame_sec=FRAME_SEC, hop_sec=HOP_SEC
+            project, track_id, start, end, frame_sec=FRAME_SEC, hop_sec=HOP_SEC
         )
 
-    word = levels(track_id, *word_span)
-    inside = levels(track_id, *span)
+    word = levels(*word_span)
+    inside = levels(*span)
     if word is None or inside is None:
         return True
-    voice = float(word.max())
-    owners = [
-        lv for tid in owner_track_ids if tid != track_id if (lv := levels(tid, *span)) is not None
-    ]
-    n = min([inside.size, *(lv.size for lv in owners)])
-    inside = inside[:n]
-    voiced = inside >= voice - JoinSpeechConfig().speech_dynamic_db
-    if owners:
-        loudest = np.max([lv[:n] for lv in owners], axis=0)
-        voiced &= (loudest - inside < dominance) | (voice - inside < dominance)
-    return bool(voiced.any())
+    return bool((inside >= float(word.max()) - JoinSpeechConfig().speech_dynamic_db).any())
 
 
 def guard_min_overlap_sec(defaults: dict[str, Any] | None = None) -> float:

@@ -346,15 +346,15 @@ stretches word times over the silence beside a voice
 (`speech_energy_guard.word_voice_sounds_in`). Its own track is read in tighten's
 20 ms frames every 10 ms. The word's loudest frame is its voice level, and a frame
 in the part is that voice when it is within the speech range of that level
-(`JoinSpeechConfig.speech_dynamic_db`, 25 dB). A frame `dominance_db` under both the
-loudest selecting track and the word's own voice is that speaker's bleed and does not
-count, while a soft voice under a louder speaker still does. Audio that cannot be
+(`JoinSpeechConfig.speech_dynamic_db`, 25 dB). The selecting speaker's bleed on that
+mic is not discounted: it is no louder than the word's own quiet start or end, so a
+filter would hide real speech, and a false positive only asks. Audio that cannot be
 read counts as voice. On the lab tape this drops two medium-intensity tighten cuts
 that asked only because Whisper ran Lana's "Yes." and Audra's "And" into them while
 both tracks were digitally silent (their voices start 40 ms and 270 ms after the
 cut), and keeps the aggressive "you know" cut that clips the soft start of Lana's
 "Okay," (her frames from 200.94 to the cut end at 200.99 are within 25 dB of her
-voice, and Caleb's "know" has faded to her level or below there). Deleting
+voice). Deleting
 Host's `h1` with a touching Guest clip `gB` therefore still asks about Host's words in
 the unselected `h2` that the merged span closes over. Room tone
 and suppressed bleed words never ask. With other speech there, the edit changes
