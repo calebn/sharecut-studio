@@ -76,6 +76,10 @@ through their owning context facades. Tool names and permissions are unchanged.
 
 List and object arguments are JSON values, not JSON text: `ids=["e1", "e2"]`, `track_ids=["host"]`, `config={"balance": {"dialogue_lufs": -18}}`, `selection={"kind": "clip", "id": "c1"}`. The tool schema gives each shape, and the server validates it before the tool runs. A client that sends the same structure as a JSON string still works. Free-text arguments are taken as written: `body="null"` stores the word "null" and `expected_text="[1]"` compares against "[1]"; send JSON `null` or omit the argument to leave it unset. Contract: [contributing.md § Structured MCP arguments](contributing.md#structured-mcp-arguments).
 
+### Cancelling a long tool
+
+`mcp.request_cancel.install_request_cancel`, installed once on the server in `mcp/server.py`, binds each tool call's cancellation (`notifications/cancelled`, or the client dropping the request) to `util.project_state.current_cancel_check()`. `export_audio_tool` hands it to `PipelineService.export_audio(cancel_check=...)`, which stops the running encode and leaves an earlier `export/` untouched; the tool raises `CancelledProgress("Export cancelled")` and the SDK sends no result for the cancelled request. Waits for the render lock stop the same way. See [pipeline.md](pipeline.md#export-formats) (#1164).
+
 ### Tool errors
 
 The mcp SDK passes an exception's text to the client only for its own `ToolError`; anything else reaches the agent as a bare `Error executing tool <name>`. `mcp.tool_errors.install_tool_errors`, installed once on the server in `mcp/server.py`, is the one boundary that decides what the agent sees (#488, #1178):

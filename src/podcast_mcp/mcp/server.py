@@ -7,6 +7,7 @@ from mcp.server import MCPServer
 from podcast_mcp import __version__
 from podcast_mcp.mcp.args import install_free_text_args
 from podcast_mcp.mcp.project_default import install_project_default
+from podcast_mcp.mcp.request_cancel import install_request_cancel
 from podcast_mcp.mcp.tool_errors import install_tool_errors
 from podcast_mcp.mcp.tools import register_all
 from podcast_mcp.util.progress_install import install_mcp_progress
@@ -16,6 +17,7 @@ install_mcp_progress(mcp)
 install_project_default(mcp)
 install_tool_errors(mcp)
 install_free_text_args(mcp)
+install_request_cancel(mcp)
 register_all(mcp)
 
 _HELP_TEXT = f"""podcast-mcp {__version__}
