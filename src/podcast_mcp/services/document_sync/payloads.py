@@ -17,6 +17,7 @@ from podcast_mcp.models.episode import (
     FADER_MAX_DB,
     FADER_MIN_DB,
     ClipJoinMode,
+    EditMode,
     ExactRangeTarget,
     RangeInterval,
 )
@@ -24,6 +25,25 @@ from podcast_mcp.services.document_sync.commands import ClientRole, DocumentComm
 from podcast_mcp.util.text import has_meaningful_text
 
 JoinInMode = Literal["fade", "crossfade", "cut"]
+
+EditModeField = Annotated[
+    EditMode,
+    Field(
+        description=(
+            "ripple: close or open the time on every dialogue track, so speakers stay "
+            "in sync. gap: leave silence (or paste over) and move nothing else."
+        )
+    ),
+]
+ConfirmCutSpeech = Annotated[
+    bool,
+    Field(
+        description=(
+            "Apply a ripple that cuts another track's speech. Without it such a ripple "
+            "changes nothing and returns needs_confirmation."
+        )
+    ),
+]
 
 
 class EnvelopePoint(BaseModel):
@@ -112,6 +132,7 @@ class RedoHistoryPayload(BaseModel):
 
 class ApproveEditsPayload(BaseModel):
     ids: list[str]
+    confirm_cut_speech: ConfirmCutSpeech = False
 
 
 class RejectEditsPayload(BaseModel):
@@ -147,8 +168,9 @@ class TrimClipEdgePayload(BaseModel):
     clip_id: str
     edge: Literal["in", "out"]
     source_sec: float = Field(allow_inf_nan=False)
-    mode: Literal["ripple"] = "ripple"
+    mode: EditModeField
     expected_token: str = Field(min_length=1)
+    confirm_cut_speech: ConfirmCutSpeech = False
 
 
 class RollClipJoinPayload(BaseModel):
@@ -353,13 +375,9 @@ class SplitAtTimePayload(BaseModel):
 class DeleteClipPayload(BaseModel):
     clip_id: str | None = None
     clip_ids: list[str] | None = None
+    mode: EditModeField
     reason: str | None = None
-
-
-class RippleDeleteClipPayload(BaseModel):
-    clip_id: str | None = None
-    clip_ids: list[str] | None = None
-    reason: str | None = None
+    confirm_cut_speech: ConfirmCutSpeech = False
 
 
 class DuplicateSegmentPayload(BaseModel):
@@ -388,11 +406,28 @@ class PasteSegmentPayload(BaseModel):
     insert_at: float
     duration: float
     extracts: list[PasteExtract | dict[str, Any]] = Field(default_factory=list)
+    mode: EditModeField
 
 
-class RippleDeleteRangePayload(BaseModel):
-    start: float
-    end: float
+class CutRangePayload(BaseModel):
+    start: float = Field(ge=0, allow_inf_nan=False)
+    end: float = Field(allow_inf_nan=False)
+    mode: EditModeField
+    track_ids: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Tracks whose material the cut means to remove; empty means every track "
+            "(a whole-session time cut). A ripple asks to confirm before cutting speech "
+            "on any other track; a gap cut punches only these."
+        ),
+    )
+    confirm_cut_speech: ConfirmCutSpeech = False
+
+    @model_validator(mode="after")
+    def _end_after_start(self) -> CutRangePayload:
+        if self.end <= self.start:
+            raise ValueError("end must be after start")
+        return self
 
 
 class AddTrackPayload(BaseModel):
@@ -640,11 +675,6 @@ class DeleteClipCommand(DocumentCommandEnvelope):
     payload: DeleteClipPayload
 
 
-class RippleDeleteClipCommand(DocumentCommandEnvelope):
-    type: Literal["RippleDeleteClip"] = "RippleDeleteClip"
-    payload: RippleDeleteClipPayload
-
-
 class DuplicateSegmentCommand(DocumentCommandEnvelope):
     type: Literal["DuplicateSegment"] = "DuplicateSegment"
     payload: DuplicateSegmentPayload
@@ -665,9 +695,9 @@ class PasteSegmentCommand(DocumentCommandEnvelope):
     payload: PasteSegmentPayload
 
 
-class RippleDeleteRangeCommand(DocumentCommandEnvelope):
-    type: Literal["RippleDeleteRange"] = "RippleDeleteRange"
-    payload: RippleDeleteRangePayload
+class CutRangeCommand(DocumentCommandEnvelope):
+    type: Literal["CutRange"] = "CutRange"
+    payload: CutRangePayload
 
 
 class AddTrackCommand(DocumentCommandEnvelope):
@@ -744,12 +774,11 @@ DocumentCommandBody = Annotated[
     | SuggestPendingEditCommand
     | SplitAtTimeCommand
     | DeleteClipCommand
-    | RippleDeleteClipCommand
     | DuplicateSegmentCommand
     | MoveSegmentCommand
     | MoveClipsCommand
     | PasteSegmentCommand
-    | RippleDeleteRangeCommand
+    | CutRangeCommand
     | AddTrackCommand
     | SetTrackMediaCommand
     | SetTrackMetaCommand
@@ -784,8 +813,9 @@ def document_command_from_body(body: Any) -> DocumentCommand:
             e if isinstance(e, dict) else e.model_dump() if hasattr(e, "model_dump") else dict(e)
             for e in payload["extracts"]
         ]
-    if "join_in_mode" in payload and hasattr(payload["join_in_mode"], "value"):
-        payload["join_in_mode"] = payload["join_in_mode"].value
+    for key in ("join_in_mode", "mode"):
+        if key in payload and hasattr(payload[key], "value"):
+            payload[key] = payload[key].value
     return DocumentCommand(
         type=body.type,
         payload=payload,
@@ -852,12 +882,11 @@ _PAYLOAD_BY_TYPE: dict[str, type[BaseModel]] = {
     "SuggestPendingEdit": SuggestPendingEditPayload,
     "SplitAtTime": SplitAtTimePayload,
     "DeleteClip": DeleteClipPayload,
-    "RippleDeleteClip": RippleDeleteClipPayload,
     "DuplicateSegment": DuplicateSegmentPayload,
     "MoveSegment": MoveSegmentPayload,
     "MoveClips": MoveClipsPayload,
     "PasteSegment": PasteSegmentPayload,
-    "RippleDeleteRange": RippleDeleteRangePayload,
+    "CutRange": CutRangePayload,
     "AddTrack": AddTrackPayload,
     "SetTrackMedia": SetTrackMediaPayload,
     "SetTrackMeta": SetTrackMetaPayload,
@@ -880,6 +909,7 @@ def validate_payload(command_type: str, payload: dict[str, Any] | None) -> dict[
             e if isinstance(e, dict) else e.model_dump() if hasattr(e, "model_dump") else dict(e)
             for e in out["extracts"]
         ]
-    if "join_in_mode" in out and hasattr(out["join_in_mode"], "value"):
-        out["join_in_mode"] = out["join_in_mode"].value
+    for key in ("join_in_mode", "mode"):
+        if key in out and hasattr(out[key], "value"):
+            out[key] = out[key].value
     return out

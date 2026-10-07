@@ -47,11 +47,20 @@ from podcast_mcp.edits.chapters import (
     remove_chapter,
     update_chapter,
 )
+from podcast_mcp.edits.cut_speech import (
+    CutSpeechConfirmation,
+    SpeechClearance,
+    assess_cut_speech,
+    clear_ripple,
+    confirmation_for,
+    merge_cut_speech,
+)
 from podcast_mcp.edits.decisions import (
     PendingCutSuggestion,
     PendingEditBaseline,
     preview_pending_cut_range,
     require_pending_edit_baseline,
+    unconfirmed_cut_speech,
     update_pending_edit,
 )
 from podcast_mcp.edits.edit_log import list_applied_edits, revert_applied_edit
@@ -86,6 +95,7 @@ from podcast_mcp.edits.retained_bleed_alignment import (
     plan_retained_bleed_alignment,
     set_retained_bleed_alignment_mode,
 )
+from podcast_mcp.edits.ripple import RippleRemoval, TrimEdge, plan_trim, ripple_track_ids
 from podcast_mcp.edits.silence_islands import (
     SilenceIsland,
     silence_islands_from_hops,
@@ -97,7 +107,6 @@ from podcast_mcp.edits.silence_islands import (
 from podcast_mcp.edits.strip_silence import strip_silence
 from podcast_mcp.edits.timeline_ops import (
     copy_segment,
-    delete_clips,
     duplicate_segment,
     fill_with_room_tone,
     insert_gap,
@@ -106,11 +115,16 @@ from podcast_mcp.edits.timeline_ops import (
     move_clips,
     move_segment,
     paste_segment,
+    plan_delete_clips,
+    plan_ripple_delete,
+    plan_ripple_delete_text,
+    plan_shorten_word_gaps,
+    punch_delete_clips,
+    punch_delete_range,
     ripple_delete,
-    ripple_delete_text,
+    ripple_delete_clips,
     roll_clip_join,
     set_clip_fade,
-    shorten_word_gaps,
     split_clips_at,
     trim_clip_edge,
 )
@@ -167,14 +181,15 @@ from podcast_mcp.effects.presets import (
     set_effect_bypass,
 )
 from podcast_mcp.engines.render_status import render_status_report
-from podcast_mcp.models import EditDecision, EpisodeProject
+from podcast_mcp.models import EditDecision, EditMode, EpisodeProject
 from podcast_mcp.models.episode import ExactRangeTarget
 from podcast_mcp.render import rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.util.change_summary import change_summary
 from podcast_mcp.util.progress import ProgressReporter
 from podcast_mcp.util.project_state import RENDER_LOCK_TIMEOUT_SEC, render_lock
 from podcast_mcp.util.timeline_zoom import snap_tick_decimals
-from podcast_mcp.util.tracks import resolve_track
+from podcast_mcp.util.tracks import dialogue_track_ids, resolve_track
 
 from .boundary import (
     BoundaryContext,
@@ -212,6 +227,32 @@ def _alignment_preview(plan: AlignmentPlan) -> dict[str, Any]:
 class EditService:
     def __init__(self, workspace: ProjectWorkspace) -> None:
         self.ws = workspace
+
+    def _cleared_ripple(
+        self,
+        label: str,
+        removal: RippleRemoval | None,
+        apply: Callable[[EpisodeProject, SpeechClearance], dict],
+        *,
+        operation: str,
+        confirm_cut_speech: bool,
+        params: dict[str, Any] | None = None,
+    ) -> dict:
+        """Run the speech guard on ``removal``, then ``apply`` as one undoable mutation.
+
+        Call inside ``self.ws.transaction()`` with ``removal`` planned on that project.
+        Unconfirmed speech returns the confirmation result and changes nothing.
+        """
+        clearance = clear_ripple(self.ws.project, removal, confirm_cut_speech=confirm_cut_speech)
+        if isinstance(clearance, CutSpeechConfirmation):
+            return clearance.result(operation)
+        return self.ws.mutate(
+            f"before {label}",
+            f"after {label}",
+            lambda p: apply(p, clearance),
+            operation=operation,
+            params={**(params or {}), "confirm_cut_speech": confirm_cut_speech},
+        )
 
     def _resolve(self, track_id: str | None, speaker: str | None) -> str:
         return resolve_track(self.ws.project, track_id=track_id, speaker=speaker)
@@ -402,7 +443,15 @@ class EditService:
 
         return build_range_target(self.ws.project, [RangeInterval(start=start, end=end)], track_ids)
 
-    def approve(self, ids: list[str], *, allow_exact: bool = False) -> int:
+    def approve(
+        self,
+        ids: list[str],
+        *,
+        allow_exact: bool = False,
+        confirm_cut_speech: bool = False,
+    ) -> int | CutSpeechConfirmation:
+        """Apply pending edits; a suggested ripple over other speech asks to confirm first."""
+
         def mutate(p) -> int:
             selected = [e for e in p.edit_decisions if e.id in ids]
             if not selected or any(e.exact_range is None for e in selected):
@@ -413,21 +462,31 @@ class EditService:
                 raise PermissionError(
                     "Only the interactive host or an Editor can approve exact range proposals"
                 )
-            return approve_edits(p, ids)
+            return approve_edits(p, ids, confirm_cut_speech=confirm_cut_speech)
 
-        return self.ws.mutate(
-            "before approve edits",
-            "after approve edits",
-            mutate,
-            operation="approve_edits",
-            params={"ids": ids},
-        )
+        with self.ws.transaction() as project:
+            pending = unconfirmed_cut_speech(project, ids)
+            if pending and not confirm_cut_speech:
+                return confirmation_for(
+                    merge_cut_speech([e.cut_speech for e in pending if e.cut_speech is not None])
+                )
+            return self.ws.mutate(
+                "before approve edits",
+                "after approve edits",
+                mutate,
+                operation="approve_edits",
+                params={"ids": ids, "confirm_cut_speech": confirm_cut_speech},
+            )
 
-    def approve_eligible_tighten(self, ids: list[str] | None = None) -> dict[str, Any]:
+    def approve_eligible_tighten(
+        self, ids: list[str] | None = None, *, confirm_cut_speech: bool = False
+    ) -> dict[str, Any]:
         """Studio Apply eligible with Avoid harsh cuts: approve the non-harsh tighten hits.
 
         ``ids`` narrows the candidates the way Studio's filtered list does; ``None`` means
         every pending decision. One undo step, like the GUI's single ``ApproveEdits`` batch.
+        A batch whose ripples cut another speaker's speech applies nothing and returns
+        ``needs_confirmation`` until ``confirm_cut_speech``.
         """
         from podcast_mcp.edits.tighten_hits import eligible_tighten_ids, is_tighten_reason
 
@@ -441,14 +500,14 @@ class EditService:
                 and is_tighten_reason(d.reason)
             ]
             eligible = eligible_tighten_ids(listed)
-            approved = self.approve(eligible) if eligible else 0
+            approved = (
+                self.approve(eligible, confirm_cut_speech=confirm_cut_speech) if eligible else 0
+            )
         skipped = [d.id for d in listed if d.id not in eligible]
-        return {
-            "operation": "approve_edits",
-            "approved_count": approved,
-            "ids": eligible,
-            "skipped_harsh": skipped,
-        }
+        batch = {"ids": eligible, "skipped_harsh": skipped}
+        if isinstance(approved, CutSpeechConfirmation):
+            return {**approved.result("approve_edits"), **batch}
+        return {"operation": "approve_edits", "approved_count": approved, **batch}
 
     def reject(self, ids: list[str], *, allow_exact: bool = False) -> int:
         def mutate(p) -> int:
@@ -585,34 +644,59 @@ class EditService:
             },
         )
 
-    def ripple_delete(
+    def cut_range(
         self,
         start: float,
         end: float,
         *,
+        mode: EditMode,
+        track_ids: list[str] | None = None,
         use_inaudible_opt: bool | None = None,
+        confirm_cut_speech: bool = False,
     ) -> dict:
+        """Cut a timeline range: ripple closes it on every track; gap leaves silence.
+
+        ``track_ids`` name whose material the cut means to remove; omitted, the cut
+        takes every track (a whole-session time cut). A ripple asks to confirm before
+        it cuts speech on any other track; a gap cut punches only ``track_ids``.
+        """
         self._require_refine_clear()
-        out = self.ws.mutate(
-            "before ripple delete",
-            "after ripple delete",
-            lambda p: ripple_delete(
-                p,
+        tids = list(track_ids or [])
+        if mode is EditMode.GAP:
+            return self.ws.mutate(
+                "before cut range",
+                "after cut range",
+                lambda p: punch_delete_range(p, start, end, tids or dialogue_track_ids(p)),
+                operation="punch_delete",
+                params={"timeline_start": start, "timeline_end": end, "track_ids": tids},
+            )
+        with self.ws.transaction() as project:
+            removal = plan_ripple_delete(
+                project,
                 start,
                 end,
+                edited_track_ids=tids or ripple_track_ids(project),
                 use_inaudible_opt=use_inaudible_opt,
-            ),
-            operation="ripple_delete",
-            params={
-                "timeline_start": start,
-                "timeline_end": end,
-                "use_inaudible_opt": use_inaudible_opt,
-            },
-        )
+            )
+            out = self._cleared_ripple(
+                "ripple delete",
+                removal,
+                lambda p, clearance: ripple_delete(
+                    p, clearance, params={"use_inaudible_opt": use_inaudible_opt}
+                ),
+                operation="ripple_delete",
+                confirm_cut_speech=confirm_cut_speech,
+                params={
+                    "timeline_start": start,
+                    "timeline_end": end,
+                    "track_ids": tids,
+                    "use_inaudible_opt": use_inaudible_opt,
+                },
+            )
+        if out.get("needs_confirmation") is not None:
+            return out
         # Advisory only - does not block the edit
         try:
-            from podcast_mcp.util.tracks import dialogue_track_ids
-
             dialogue_ids = dialogue_track_ids(self.ws.project)
             tid = dialogue_ids[0] if dialogue_ids else None
             if tid:
@@ -718,8 +802,6 @@ class EditService:
         hop_ms: int = 20,
         retain_sec: float = 1.0,
     ) -> dict:
-        from podcast_mcp.util.tracks import dialogue_track_ids
-
         tids = (
             [self._resolve(track_id, speaker)]
             if track_id is not None or speaker is not None
@@ -849,19 +931,22 @@ class EditService:
         query: str,
         *,
         use_inaudible_opt: bool | None = None,
+        confirm_cut_speech: bool = False,
     ) -> dict:
         self._require_refine_clear()
-        return self.ws.mutate(
-            "before ripple delete text",
-            "after ripple delete text",
-            lambda p: ripple_delete_text(
-                p,
-                query,
-                use_inaudible_opt=use_inaudible_opt,
-            ),
-            operation="ripple_delete_text",
-            params={"query": query, "use_inaudible_opt": use_inaudible_opt},
-        )
+        with self.ws.transaction() as project:
+            removal = plan_ripple_delete_text(project, query, use_inaudible_opt=use_inaudible_opt)
+            out = self._cleared_ripple(
+                "ripple delete text",
+                removal,
+                lambda p, clearance: ripple_delete(
+                    p, clearance, params={"use_inaudible_opt": use_inaudible_opt}
+                ),
+                operation="ripple_delete_text",
+                confirm_cut_speech=confirm_cut_speech,
+                params={"query": query, "use_inaudible_opt": use_inaudible_opt},
+            )
+        return {**out, "query": query}
 
     def move_segment(self, source_start: float, source_end: float, insert_at: float) -> dict:
         return self.ws.mutate(
@@ -1000,46 +1085,33 @@ class EditService:
     def trim_clip_edge(
         self,
         clip_id: str,
-        edge: str,
+        edge: TrimEdge,
         source_sec: float,
         *,
-        mode: str = "ripple",
-        all_tracks: bool = False,
+        mode: EditMode,
         expected_token: str,
+        confirm_cut_speech: bool = False,
     ) -> dict:
+        """Move one clip edge; a ripple keeps every track in sync and guards their speech."""
         if not math.isfinite(source_sec):
             raise ValueError("source_sec must be finite")
-        target = TrimBoundaryTarget.model_validate({"clip_id": clip_id, "edge": edge})
-
-        def apply(p: EpisodeProject) -> dict:
-            assert_boundary_token(p, target, expected_token)
-            return trim_clip_edge(p, clip_id, edge, source_sec, mode=mode, all_tracks=all_tracks)
-
+        target = TrimBoundaryTarget.model_validate({"clip_id": clip_id, "edge": edge, "mode": mode})
         with self.ws.transaction() as project:
-            current = assert_boundary_token(project, target, expected_token)
-            bounded = min(max(source_sec, current.limits.min), current.limits.max)
-            if abs(bounded - current.current.source_sec) < 1e-12:
-                if all_tracks:
-                    trim_clip_edge(
-                        project.model_copy(deep=True),
-                        clip_id,
-                        edge,
-                        source_sec,
-                        mode=mode,
-                        all_tracks=True,
-                    )
+            assert_boundary_token(project, target, expected_token)
+            plan = plan_trim(project, clip_id, edge, source_sec, mode)
+            if plan.unchanged:
                 return {"operation": "trim_clip_edge", "unchanged": True}
-            return self.ws.mutate(
-                "before trim clip edge",
-                "after trim clip edge",
-                apply,
+            return self._cleared_ripple(
+                "trim clip edge",
+                plan.removal,
+                lambda p, clearance: trim_clip_edge(p, plan, clearance),
                 operation="trim_clip_edge",
+                confirm_cut_speech=confirm_cut_speech,
                 params={
                     "clip_id": clip_id,
                     "edge": edge,
                     "source_sec": source_sec,
-                    "mode": mode,
-                    "all_tracks": all_tracks,
+                    "mode": mode.value,
                 },
             )
 
@@ -1111,21 +1183,32 @@ class EditService:
         max_gap_sec: float = 0.35,
         *,
         use_inaudible_opt: bool | None = None,
+        confirm_cut_speech: bool = False,
     ) -> dict:
-        return self.ws.mutate(
-            "before shorten gaps",
-            "after shorten gaps",
-            lambda p: shorten_word_gaps(
-                p,
-                max_gap_sec,
-                use_inaudible_opt=use_inaudible_opt,
-            ),
-            operation="shorten_word_gaps",
-            params={
-                "max_gap_sec": max_gap_sec,
-                "use_inaudible_opt": use_inaudible_opt,
-            },
-        )
+        """Ripple out long pauses; another speaker talking in a pause asks to confirm first."""
+        with self.ws.transaction() as project:
+            removal = plan_shorten_word_gaps(
+                project, max_gap_sec, use_inaudible_opt=use_inaudible_opt
+            )
+            if removal is None:
+                return change_summary(
+                    project, operation="shorten_word_gaps", affected_tracks=[], unchanged=True
+                )
+
+            def apply(p: EpisodeProject, clearance: SpeechClearance) -> dict:
+                report = ripple_delete(
+                    p, clearance, params={"use_inaudible_opt": use_inaudible_opt}
+                )
+                return {**report, "operation": "shorten_word_gaps"}
+
+            return self._cleared_ripple(
+                "shorten gaps",
+                removal,
+                apply,
+                operation="shorten_word_gaps",
+                confirm_cut_speech=confirm_cut_speech,
+                params={"max_gap_sec": max_gap_sec, "use_inaudible_opt": use_inaudible_opt},
+            )
 
     def split_clip(
         self,
@@ -1158,7 +1241,6 @@ class EditService:
         author: str | None = None,
     ) -> dict:
         """Blade cut: apply split or append pending ``type=split`` proposal."""
-        from podcast_mcp.util.tracks import dialogue_track_ids
 
         def mutate(p) -> dict:
             tids = list(track_ids) if track_ids else dialogue_track_ids(p)
@@ -1185,21 +1267,23 @@ class EditService:
         self,
         clip_ids: list[str],
         *,
-        ripple: bool = False,
+        mode: EditMode,
         propose: bool = False,
         reason: str | None = None,
         author: str | None = None,
+        confirm_cut_speech: bool = False,
     ) -> dict:
-        """Delete clips (punch) or ripple-delete their spans; optional propose."""
+        """Delete clips: ripple closes their spans on every track; gap leaves silence.
 
-        def mutate(p) -> dict:
-            if not clip_ids:
-                raise ValueError("clip_ids required")
-            by_id = {c.id: c for c in p.clips}
-            missing = [cid for cid in clip_ids if cid not in by_id]
-            if missing:
-                raise KeyError(f"unknown clip_id(s): {missing}")
-            if propose:
+        A proposal appends one pending remove per clip. A suggested ripple that would
+        cut other speakers' speech records it, so approving it asks to confirm.
+        """
+        ripple = mode is EditMode.RIPPLE
+        if propose:
+
+            def suggest(p: EpisodeProject) -> dict:
+                plan_delete_clips(p, clip_ids)
+                by_id = {c.id: c for c in p.clips}
                 edits = []
                 for cid in clip_ids:
                     clip = by_id[cid]
@@ -1219,16 +1303,30 @@ class EditService:
                         scope="session" if ripple else "track",
                         author=author,
                     )
-                    edits.append(decision.model_dump())
-                return {
-                    "operation": "propose_delete_clips",
-                    "ripple": ripple,
-                    "edits": edits,
-                }
-            return delete_clips(p, list(clip_ids), ripple=ripple)
+                    if ripple:
+                        decision.cut_speech = assess_cut_speech(p, plan_delete_clips(p, [cid]))
+                    edits.append(decision.model_dump(mode="json"))
+                return {"operation": "propose_delete_clips", "mode": mode.value, "edits": edits}
 
-        label = "ripple delete clips" if ripple else "delete clips"
-        return self.ws.mutate(f"before {label}", f"after {label}", mutate)
+            label = "ripple delete clips" if ripple else "delete clips"
+            return self.ws.mutate(f"before {label}", f"after {label}", suggest)
+        if not ripple:
+            return self.ws.mutate(
+                "before delete clips",
+                "after delete clips",
+                lambda p: punch_delete_clips(p, list(clip_ids)),
+                operation="delete_clips",
+                params={"clip_ids": list(clip_ids), "mode": mode.value},
+            )
+        with self.ws.transaction() as project:
+            return self._cleared_ripple(
+                "ripple delete clips",
+                plan_delete_clips(project, clip_ids),
+                lambda p, clearance: ripple_delete_clips(p, list(clip_ids), clearance),
+                operation="ripple_delete_clips",
+                confirm_cut_speech=confirm_cut_speech,
+                params={"clip_ids": list(clip_ids), "mode": mode.value},
+            )
 
     def duplicate_segment(self, source_start: float, source_end: float, insert_at: float) -> dict:
         return self.ws.mutate(
@@ -1246,11 +1344,16 @@ class EditService:
         insert_at: float,
         duration: float,
         extracts: list[dict],
+        *,
+        mode: EditMode,
     ) -> dict:
+        """Paste clips: ripple opens time on every track; gap pastes over in place."""
         return self.ws.mutate(
             "before paste segment",
             "after paste segment",
-            lambda p: paste_segment(p, insert_at, duration, extracts),
+            lambda p: paste_segment(p, insert_at, duration, extracts, mode=mode),
+            operation="paste_segment",
+            params={"insert_at": insert_at, "duration": duration, "mode": mode.value},
         )
 
     def list_clips(self, track_id: str | None = None) -> dict:

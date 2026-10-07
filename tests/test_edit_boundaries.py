@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from podcast_mcp.edits.timeline_ops import ripple_delete, trim_clip_edge
 from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.gui.mapper import map_edit_boundaries
 from podcast_mcp.models import (
@@ -15,6 +14,7 @@ from podcast_mcp.models import (
     TranscriptWord,
 )
 from podcast_mcp.services.app.workspace import ProjectWorkspace
+from ripple_helpers import ripple_cut, trim
 
 
 def test_map_edit_boundaries_includes_cutaway_words(minimal_project):
@@ -136,12 +136,12 @@ def test_ripple_cut_boundary_previews_removed_word_and_trim_restores_it(minimal_
         )
     ]
 
-    ripple_delete(project, 5.0, 15.0, use_inaudible_opt=False)
+    ripple_cut(project, 5.0, 15.0, use_inaudible_opt=False)
     assert [w.text for w in project.transcripts[0].words] == ["before", "after"]
     (join,) = map_edit_boundaries(project)
     assert [w["text"] for w in join["cutaway_word_ids"]] == ["removed"]
 
-    trim_clip_edge(project, join["right_clip_id"], "in", 5.0)
+    trim(project, join["right_clip_id"], "in", 5.0)
     assert [w.text for w in project.transcripts[0].words] == [
         "before",
         "removed",
@@ -174,8 +174,8 @@ def test_repeated_overlapping_cuts_preview_words_in_source_order(minimal_project
         )
     ]
 
-    ripple_delete(project, 10, 12, use_inaudible_opt=False)
-    ripple_delete(project, 8, 12, use_inaudible_opt=False)
+    ripple_cut(project, 10, 12, use_inaudible_opt=False)
+    ripple_cut(project, 8, 12, use_inaudible_opt=False)
     (join,) = map_edit_boundaries(project)
     refs = join["cutaway_word_ids"]
     assert [ref["text"] for ref in refs] == ["nine", "eleven", "thirteen"]

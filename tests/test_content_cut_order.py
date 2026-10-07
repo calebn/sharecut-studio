@@ -9,6 +9,7 @@ import pytest
 from podcast_mcp.config import load_defaults
 from podcast_mcp.models import (
     Clip,
+    EditMode,
     MediaAsset,
     Track,
     TrackRole,
@@ -58,7 +59,7 @@ def test_content_ripple_drops_cut_words_and_keeps_refine_waive(minimal_project):
     refine = TranscriptRefineService(ws)
     refine.waive(reason="lab prep", source="agent")
 
-    EditService(ws).ripple_delete(0.0, 1.0, use_inaudible_opt=False)
+    EditService(ws).cut_range(0.0, 1.0, use_inaudible_opt=False, mode=EditMode.RIPPLE)
 
     assert [w.text for w in ws.project.transcripts[0].words] == ["welcome", "everyone"]
     assert refine.status()["clear"] is True

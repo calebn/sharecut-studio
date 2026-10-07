@@ -5,6 +5,7 @@ from typing import Any
 
 from mcp.server import MCPServer
 
+from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import agent_mutated
@@ -341,7 +342,10 @@ def list_edit_decisions_tool(
 
 
 def approve_edits_tool(
-    project_path: str, ids_json: str | None = None, apply_all_safe: bool = False
+    project_path: str,
+    ids_json: str | None = None,
+    apply_all_safe: bool = False,
+    confirm_cut_speech: bool = False,
 ) -> str:
     """Approve pending edits by id, applying them to the timeline.
 
@@ -349,17 +353,24 @@ def approve_edits_tool(
     every pending tighten hit (or only those in ``ids_json``) except harsh ones
     (``review_required`` or a ``:risky`` / ``:join_review`` join risk), in one undo
     step. ``skipped_harsh`` lists the hits it left for review.
+
+    A ripple that cuts another speaker's speech returns ``needs_confirmation`` and
+    applies nothing; ask the person, then call again with ``confirm_cut_speech=true``.
     """
     ws = ProjectWorkspace.open(project_path)
     ids = json.loads(ids_json) if ids_json else None
     service = EditService(ws)
     if apply_all_safe:
-        result = service.approve_eligible_tighten(ids)
+        result = service.approve_eligible_tighten(ids, confirm_cut_speech=confirm_cut_speech)
     elif ids is None:
         raise ValueError("pass ids_json, or apply_all_safe=true")
     else:
-        result = {"operation": "approve_edits", "approved_count": service.approve(ids), "ids": ids}
-    agent_mutated(ws)
+        outcome = service.approve(ids, confirm_cut_speech=confirm_cut_speech)
+        if isinstance(outcome, CutSpeechConfirmation):
+            return to_json(outcome.result("approve_edits"))
+        result = {"operation": "approve_edits", "approved_count": outcome, "ids": ids}
+    if "needs_confirmation" not in result:
+        agent_mutated(ws)
     return to_json(result)
 
 

@@ -1021,6 +1021,12 @@
     },
     "ApproveEditsPayload": {
       "properties": {
+        "confirm_cut_speech": {
+          "default": false,
+          "description": "Apply a ripple that cuts another track's speech. Without it such a ripple changes nothing and returns needs_confirmation.",
+          "title": "Confirm Cut Speech",
+          "type": "boolean"
+        },
         "ids": {
           "items": {
             "type": "string"
@@ -1445,6 +1451,139 @@
       "title": "CorrectTranscriptWordPayload",
       "type": "object"
     },
+    "CutRangeCommand": {
+      "properties": {
+        "causation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causation Id"
+        },
+        "client_id": {
+          "title": "Client Id",
+          "type": "string"
+        },
+        "client_seq": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Seq"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "payload": {
+          "$ref": "#/$defs/CutRangePayload"
+        },
+        "role": {
+          "default": "viewer",
+          "enum": [
+            "agent",
+            "viewer",
+            "cli",
+            "guest"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "structural_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Structural Mode"
+        },
+        "token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Token"
+        },
+        "type": {
+          "const": "CutRange",
+          "default": "CutRange",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client_id",
+        "payload"
+      ],
+      "title": "CutRangeCommand",
+      "type": "object"
+    },
+    "CutRangePayload": {
+      "properties": {
+        "confirm_cut_speech": {
+          "default": false,
+          "description": "Apply a ripple that cuts another track's speech. Without it such a ripple changes nothing and returns needs_confirmation.",
+          "title": "Confirm Cut Speech",
+          "type": "boolean"
+        },
+        "end": {
+          "title": "End",
+          "type": "number"
+        },
+        "mode": {
+          "$ref": "#/$defs/EditMode",
+          "description": "ripple: close or open the time on every dialogue track, so speakers stay in sync. gap: leave silence (or paste over) and move nothing else."
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "track_ids": {
+          "description": "Tracks whose material the cut means to remove; empty means every track (a whole-session time cut). A ripple asks to confirm before cutting speech on any other track; a gap cut punches only these.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Track Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "mode"
+      ],
+      "title": "CutRangePayload",
+      "type": "object"
+    },
     "DeleteChapterCommand": {
       "properties": {
         "causation_id": {
@@ -1682,6 +1821,16 @@
           "default": null,
           "title": "Clip Ids"
         },
+        "confirm_cut_speech": {
+          "default": false,
+          "description": "Apply a ripple that cuts another track's speech. Without it such a ripple changes nothing and returns needs_confirmation.",
+          "title": "Confirm Cut Speech",
+          "type": "boolean"
+        },
+        "mode": {
+          "$ref": "#/$defs/EditMode",
+          "description": "ripple: close or open the time on every dialogue track, so speakers stay in sync. gap: leave silence (or paste over) and move nothing else."
+        },
         "reason": {
           "anyOf": [
             {
@@ -1695,6 +1844,9 @@
           "title": "Reason"
         }
       },
+      "required": [
+        "mode"
+      ],
       "title": "DeleteClipPayload",
       "type": "object"
     },
@@ -2039,6 +2191,15 @@
         "split"
       ],
       "title": "EditDecisionType",
+      "type": "string"
+    },
+    "EditMode": {
+      "description": "What a trim, delete, cut or paste does to the time after it.\n\n``ripple`` closes or opens time on every dialogue track (and the edited track),\nso speakers stay in sync. ``gap`` leaves silence or overwrites in place and moves\nnothing else.",
+      "enum": [
+        "ripple",
+        "gap"
+      ],
+      "title": "EditMode",
       "type": "string"
     },
     "EditSelectedRangeCommand": {
@@ -2653,11 +2814,16 @@
         "insert_at": {
           "title": "Insert At",
           "type": "number"
+        },
+        "mode": {
+          "$ref": "#/$defs/EditMode",
+          "description": "ripple: close or open the time on every dialogue track, so speakers stay in sync. gap: leave silence (or paste over) and move nothing else."
         }
       },
       "required": [
         "insert_at",
-        "duration"
+        "duration",
+        "mode"
       ],
       "title": "PasteSegmentPayload",
       "type": "object"
@@ -3512,259 +3678,6 @@
         "id"
       ],
       "title": "RestoreAppliedEditPayload",
-      "type": "object"
-    },
-    "RippleDeleteClipCommand": {
-      "properties": {
-        "causation_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Causation Id"
-        },
-        "client_id": {
-          "title": "Client Id",
-          "type": "string"
-        },
-        "client_seq": {
-          "anyOf": [
-            {
-              "minimum": 1,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Client Seq"
-        },
-        "command_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Command Id"
-        },
-        "payload": {
-          "$ref": "#/$defs/RippleDeleteClipPayload"
-        },
-        "role": {
-          "default": "viewer",
-          "enum": [
-            "agent",
-            "viewer",
-            "cli",
-            "guest"
-          ],
-          "title": "Role",
-          "type": "string"
-        },
-        "structural_mode": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Structural Mode"
-        },
-        "token": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Token"
-        },
-        "type": {
-          "const": "RippleDeleteClip",
-          "default": "RippleDeleteClip",
-          "title": "Type",
-          "type": "string"
-        }
-      },
-      "required": [
-        "client_id",
-        "payload"
-      ],
-      "title": "RippleDeleteClipCommand",
-      "type": "object"
-    },
-    "RippleDeleteClipPayload": {
-      "properties": {
-        "clip_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Clip Id"
-        },
-        "clip_ids": {
-          "anyOf": [
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Clip Ids"
-        },
-        "reason": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Reason"
-        }
-      },
-      "title": "RippleDeleteClipPayload",
-      "type": "object"
-    },
-    "RippleDeleteRangeCommand": {
-      "properties": {
-        "causation_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Causation Id"
-        },
-        "client_id": {
-          "title": "Client Id",
-          "type": "string"
-        },
-        "client_seq": {
-          "anyOf": [
-            {
-              "minimum": 1,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Client Seq"
-        },
-        "command_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Command Id"
-        },
-        "payload": {
-          "$ref": "#/$defs/RippleDeleteRangePayload"
-        },
-        "role": {
-          "default": "viewer",
-          "enum": [
-            "agent",
-            "viewer",
-            "cli",
-            "guest"
-          ],
-          "title": "Role",
-          "type": "string"
-        },
-        "structural_mode": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Structural Mode"
-        },
-        "token": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Token"
-        },
-        "type": {
-          "const": "RippleDeleteRange",
-          "default": "RippleDeleteRange",
-          "title": "Type",
-          "type": "string"
-        }
-      },
-      "required": [
-        "client_id",
-        "payload"
-      ],
-      "title": "RippleDeleteRangeCommand",
-      "type": "object"
-    },
-    "RippleDeleteRangePayload": {
-      "properties": {
-        "end": {
-          "title": "End",
-          "type": "number"
-        },
-        "start": {
-          "title": "Start",
-          "type": "number"
-        }
-      },
-      "required": [
-        "start",
-        "end"
-      ],
-      "title": "RippleDeleteRangePayload",
       "type": "object"
     },
     "RollClipJoinCommand": {
@@ -6055,6 +5968,12 @@
           "title": "Clip Id",
           "type": "string"
         },
+        "confirm_cut_speech": {
+          "default": false,
+          "description": "Apply a ripple that cuts another track's speech. Without it such a ripple changes nothing and returns needs_confirmation.",
+          "title": "Confirm Cut Speech",
+          "type": "boolean"
+        },
         "edge": {
           "enum": [
             "in",
@@ -6069,10 +5988,8 @@
           "type": "string"
         },
         "mode": {
-          "const": "ripple",
-          "default": "ripple",
-          "title": "Mode",
-          "type": "string"
+          "$ref": "#/$defs/EditMode",
+          "description": "ripple: close or open the time on every dialogue track, so speakers stay in sync. gap: leave silence (or paste over) and move nothing else."
         },
         "source_sec": {
           "title": "Source Sec",
@@ -6083,6 +6000,7 @@
         "clip_id",
         "edge",
         "source_sec",
+        "mode",
         "expected_token"
       ],
       "title": "TrimClipEdgePayload",
@@ -6793,6 +6711,7 @@
       "ApproveEdits": "#/$defs/ApproveEditsCommand",
       "CorrectTranscriptPhrase": "#/$defs/CorrectTranscriptPhraseCommand",
       "CorrectTranscriptWord": "#/$defs/CorrectTranscriptWordCommand",
+      "CutRange": "#/$defs/CutRangeCommand",
       "DeleteChapter": "#/$defs/DeleteChapterCommand",
       "DeleteClip": "#/$defs/DeleteClipCommand",
       "DeleteComment": "#/$defs/DeleteCommentCommand",
@@ -6809,8 +6728,6 @@
       "ReplaceTranscriptMatches": "#/$defs/ReplaceTranscriptMatchesCommand",
       "ResolveComment": "#/$defs/ResolveCommentCommand",
       "RestoreAppliedEdit": "#/$defs/RestoreAppliedEditCommand",
-      "RippleDeleteClip": "#/$defs/RippleDeleteClipCommand",
-      "RippleDeleteRange": "#/$defs/RippleDeleteRangeCommand",
       "RollClipJoin": "#/$defs/RollClipJoinCommand",
       "SetActionDone": "#/$defs/SetActionDoneCommand",
       "SetClipFade": "#/$defs/SetClipFadeCommand",
@@ -6953,9 +6870,6 @@
       "$ref": "#/$defs/DeleteClipCommand"
     },
     {
-      "$ref": "#/$defs/RippleDeleteClipCommand"
-    },
-    {
       "$ref": "#/$defs/DuplicateSegmentCommand"
     },
     {
@@ -6968,7 +6882,7 @@
       "$ref": "#/$defs/PasteSegmentCommand"
     },
     {
-      "$ref": "#/$defs/RippleDeleteRangeCommand"
+      "$ref": "#/$defs/CutRangeCommand"
     },
     {
       "$ref": "#/$defs/AddTrackCommand"

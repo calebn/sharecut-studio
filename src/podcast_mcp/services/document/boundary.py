@@ -11,14 +11,18 @@ from podcast_mcp.config import load_defaults, mix_peak_ceiling_db
 from podcast_mcp.edits.clips_ops import neighbour_clips, roll_join_limits, trim_edge_limits
 from podcast_mcp.engines.ffmpeg import MIX_SEMANTICS_REV
 from podcast_mcp.engines.play_audit import track_render_hash
-from podcast_mcp.models import Clip, EpisodeProject
+from podcast_mcp.models import Clip, EditMode, EpisodeProject
 from podcast_mcp.util.tracks import recording_audio_path
 
 
 class TrimBoundaryTarget(BaseModel):
+    """A clip edge to trim. ``mode`` decides its limits: a gap trim also stops at the
+    neighbouring clip on the timeline. The token is minted for one mode."""
+
     kind: Literal["trim"] = "trim"
     clip_id: str
     edge: Literal["in", "out"]
+    mode: EditMode = EditMode.RIPPLE
 
 
 class RollBoundaryTarget(BaseModel):
@@ -32,7 +36,6 @@ BoundaryTarget = Annotated[TrimBoundaryTarget | RollBoundaryTarget, Field(discri
 
 class TrimBoundaryEdit(TrimBoundaryTarget):
     source_sec: float = Field(allow_inf_nan=False)
-    mode: Literal["ripple"] = "ripple"
 
 
 class RollBoundaryEdit(RollBoundaryTarget):
@@ -125,7 +128,7 @@ def boundary_context(
             if expected_geometry is not None:
                 raise DocumentConflictError("boundary changed; reload its current position")
             raise ValueError(f"unknown clip_id: {target.clip_id!r}")
-        lo, hi = trim_edge_limits(project, clip, target.edge)
+        lo, hi = trim_edge_limits(project, clip, target.edge, target.mode)
         clips = [clip]
         position = BoundaryPosition(
             source_sec=clip.source_start if target.edge == "in" else clip.source_end,

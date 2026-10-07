@@ -30,6 +30,7 @@ from podcast_mcp.models import (
     ClipMuteRegion,
     EditDecision,
     EditDecisionType,
+    EditMode,
     EpisodeProject,
     MediaAsset,
     SourceRecording,
@@ -185,6 +186,7 @@ def test_mute_region_fill_travels_with_its_span():
 
     paste_segment(
         project,
+        mode=EditMode.RIPPLE,
         insert_at=5.0,
         duration=4.0,
         extracts=[
@@ -803,8 +805,8 @@ def test_update_pending_mute_and_split_at_bounds(minimal_project):
 
 def test_extract_and_rebuild_clips_keep_mute_regions():
     from podcast_mcp.edits.clips_ops import (
-        build_clips_after_removes,
         extract_clips_in_timeline_range,
+        remove_timeline_range_from_clips,
     )
 
     clip = Clip(
@@ -819,10 +821,7 @@ def test_extract_and_rebuild_clips_keep_mute_regions():
     assert extracted
     assert [(r.start_s, r.end_s) for r in extracted[0].mute_regions] == [(0.2, 0.8)]
 
-    project = EpisodeProject.create("p", "/tmp/ws")
-    project.tracks = [Track(id="host", label="Host", role=TrackRole.DIALOGUE)]
-    project.clips = [clip]
-    rebuilt = build_clips_after_removes(project, "host", [(0.4, 0.5)])
+    rebuilt = remove_timeline_range_from_clips([clip], 0.4, 0.5)
     mutes = [(r.start_s, r.end_s) for c in rebuilt for r in c.mute_regions]
     assert mutes == [(0.2, 0.8), (0.2, 0.8)]
 
@@ -1108,8 +1107,9 @@ def test_revert_mute_subtracts_regions_without_ripple(tmp_path, sample_wav):
 
 
 def test_paste_trim_and_roll_keep_overlapping_mute_regions_whole():
-    from podcast_mcp.edits.clips_ops import roll_clip_join, trim_clip_edge
+    from podcast_mcp.edits.clips_ops import roll_clip_join
     from podcast_mcp.edits.timeline_ops import paste_segment
+    from ripple_helpers import trim
 
     project = EpisodeProject.create("p", "/tmp/ws")
     project.tracks = [
@@ -1136,6 +1136,7 @@ def test_paste_trim_and_roll_keep_overlapping_mute_regions_whole():
     ]
     paste_segment(
         project,
+        mode=EditMode.RIPPLE,
         insert_at=10.0,
         duration=1.0,
         extracts=[
@@ -1152,7 +1153,7 @@ def test_paste_trim_and_roll_keep_overlapping_mute_regions_whole():
     assert pasted
     assert [(r.start_s, r.end_s) for r in pasted[0].mute_regions] == [(1.0, 3.0)]
 
-    trim_clip_edge(project, "c1", "out", 2.0)
+    trim(project, "c1", "out", 2.0)
     trimmed = next(c for c in project.clips if c.id == "c1")
     assert [(r.start_s, r.end_s) for r in trimmed.mute_regions] == [(1.0, 3.0)]
 
@@ -1390,6 +1391,7 @@ def test_paste_skips_invalid_mute_region_entries():
     ]
     paste_segment(
         project,
+        mode=EditMode.RIPPLE,
         insert_at=3.0,
         duration=1.0,
         extracts=[
@@ -1603,12 +1605,12 @@ def test_split_inside_a_mute_renders_like_the_unsplit_mute(tmp_path):
 
 @pytest.mark.parametrize("edge", ["in", "out"])
 def test_trim_inside_a_mute_keeps_the_kept_part_silent(tmp_path, edge):
-    from podcast_mcp.edits.clips_ops import trim_clip_edge
+    from ripple_helpers import trim
 
     project, region, whole = _approved_silent_mute(tmp_path)
     silent_start, silent_end = _silent_span(region)
 
-    trim_clip_edge(project, "c1", edge, 1.15)
+    trim(project, "c1", edge, 1.15)
 
     rendered = _render_samples(project)
     if edge == "in":
@@ -1632,6 +1634,7 @@ def test_partial_copy_of_a_mute_pastes_silent_up_to_the_cut(tmp_path):
 
     paste_segment(
         project,
+        mode=EditMode.RIPPLE,
         insert_at=4.0,
         duration=0.85,
         extracts=[
@@ -1662,7 +1665,9 @@ def _trim(ws: ProjectWorkspace, edge: str, source_sec: float) -> None:
     from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
 
     token = boundary_context(ws.project, TrimBoundaryTarget(clip_id="c1", edge=edge)).token
-    EditService(ws).trim_clip_edge("c1", edge, source_sec, expected_token=token)
+    EditService(ws).trim_clip_edge(
+        "c1", edge, source_sec, mode=EditMode.RIPPLE, expected_token=token
+    )
 
 
 def _regions(ws: ProjectWorkspace) -> list[tuple[float, float]]:

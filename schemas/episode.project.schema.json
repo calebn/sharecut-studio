@@ -395,6 +395,11 @@
         "replace_gap_sec": { "type": ["number", "null"] },
         "next_burst_sec": { "type": ["number", "null"] },
         "scope": { "type": "string", "enum": ["session", "track"], "default": "session" },
+        "cut_speech": {
+          "anyOf": [{ "$ref": "#/$defs/CutSpeech" }, { "type": "null" }],
+          "default": null,
+          "description": "Other speakers' speech a suggested session ripple cuts, recorded when it was suggested; approving it needs confirm_cut_speech"
+        },
         "track_ids": {
           "type": ["array", "null"],
           "items": { "type": "string" }
@@ -404,6 +409,38 @@
           "enum": ["source", "timeline"],
           "default": "source"
         }
+      }
+    },
+    "CutSpeech": {
+      "type": "object",
+      "description": "The other tracks' speech a ripple removes, on the timeline clock",
+      "required": ["spans", "tracks"],
+      "properties": {
+        "spans": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/RangeInterval" } },
+        "tracks": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/CutSpeechTrack" } }
+      }
+    },
+    "CutSpeechTrack": {
+      "type": "object",
+      "required": ["track_id", "speaker"],
+      "properties": {
+        "track_id": { "type": "string" },
+        "speaker": { "type": "string" },
+        "words": { "type": "array", "items": { "$ref": "#/$defs/CutSpeechWord" } },
+        "sound_spans": {
+          "type": "array",
+          "description": "Spans where the track's own sound is speech-level with no transcript word",
+          "items": { "$ref": "#/$defs/RangeInterval" }
+        }
+      }
+    },
+    "CutSpeechWord": {
+      "type": "object",
+      "required": ["text", "timeline_start", "timeline_end"],
+      "properties": {
+        "text": { "type": "string" },
+        "timeline_start": { "type": "number" },
+        "timeline_end": { "type": "number" }
       }
     },
     "MixSection": {

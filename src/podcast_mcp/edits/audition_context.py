@@ -31,7 +31,7 @@ from podcast_mcp.engines.audio_audit import clipping_indicated
 from podcast_mcp.engines.bleed_echo import EchoConfig, EchoPairProfile, echo_profiles
 from podcast_mcp.engines.render_status import render_status_report
 from podcast_mcp.engines.session_timeline import SessionTimeline
-from podcast_mcp.models import EpisodeProject
+from podcast_mcp.models import EditMode, EpisodeProject
 from podcast_mcp.util.text import count_noun
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids
@@ -716,7 +716,7 @@ def _speech_cut_fix(c: SpeechCrossing, session_join: bool) -> dict[str, Any]:
         "clip_id": c.clip_id,
         "edge": "in" if c.direction == "clipped_onset" else "out",
         "source_sec": round(c.suggested_source_sec, 3),
-        "all_tracks": session_join,
+        "mode": (EditMode.RIPPLE if session_join else EditMode.GAP).value,
     }
 
 
@@ -748,9 +748,11 @@ def _speech_cut_meaning(c: SpeechCrossing, session_join: bool) -> str:
         else f"extend the out-point to {c.suggested_source_sec:.2f}s"
     )
     scope = (
-        " on every track (trim_clip_edge_tool with all_tracks=true; this join is a session-wide cut)"
+        " on every track (trim_clip_edge_tool mode=ripple; this join is a session-wide cut,"
+        " so every track's edge moves with it)"
         if session_join
-        else f" on clip {c.clip_id} (trim_clip_edge_tool; this edge is track-local)"
+        else f" on clip {c.clip_id} (trim_clip_edge_tool mode=gap; this edge is track-local,"
+        " so only it moves; use mode=ripple when the next clip leaves no room)"
     )
     return f"speech_crosses_cut: {head}{asr}. {move}{scope}, or move the cut to a handoff silence."
 

@@ -129,10 +129,9 @@ def _two_track_ripple_project(minimal_project, sample_wav, tmp_workspace):
 def test_single_track_trim_after_a_shared_join_is_clip_skew(
     minimal_project, sample_wav, tmp_workspace
 ):
-    from podcast_mcp.edits.timeline_ops import trim_clip_edge
-
     proj = _two_track_ripple_project(minimal_project, sample_wav, tmp_workspace)
-    trim_clip_edge(proj, "guest_b", "in", 19.6)
+    # The geometry a one-track ripple trim left before ripples moved every track.
+    next(c for c in proj.clips if c.id == "guest_b").source_start = 19.6
     ctx = build_audition_context(
         proj, 10.0, 12.0, skew_warn_sec=0.05, include_dsp=False, include_prosody=False
     )
@@ -154,11 +153,13 @@ def test_single_track_trim_after_a_shared_join_is_clip_skew(
     )
 
 
-def test_all_tracks_trim_keeps_the_tracks_in_sync(minimal_project, sample_wav, tmp_workspace):
-    from podcast_mcp.edits.timeline_ops import trim_clip_edge
+def test_ripple_trim_at_a_shared_join_keeps_the_tracks_in_sync(
+    minimal_project, sample_wav, tmp_workspace
+):
+    from ripple_helpers import trim
 
     proj = _two_track_ripple_project(minimal_project, sample_wav, tmp_workspace)
-    trim_clip_edge(proj, "guest_b", "in", 19.6, all_tracks=True)
+    trim(proj, "guest_b", "in", 19.6)
     ctx = build_audition_context(
         proj, 10.0, 12.0, skew_warn_sec=0.05, include_dsp=False, include_prosody=False
     )

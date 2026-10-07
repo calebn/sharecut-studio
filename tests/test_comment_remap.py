@@ -7,7 +7,6 @@ from podcast_mcp.edits.comment_remap import (
     remap_comments_for_cut,
     remap_interval_for_cut,
 )
-from podcast_mcp.edits.timeline_ops import batch_ripple_delete, ripple_delete
 from podcast_mcp.models import (
     ChapterMarker,
     Clip,
@@ -17,6 +16,7 @@ from podcast_mcp.models import (
     Track,
     TrackRole,
 )
+from ripple_helpers import ripple_cut, ripple_cut_spans
 
 
 def test_remap_before_unchanged():
@@ -156,7 +156,7 @@ def _project_with_anchors() -> EpisodeProject:
 
 def test_ripple_delete_remaps_comments_and_chapters():
     p = _project_with_anchors()
-    ripple_delete(p, 5.0, 8.0, use_inaudible_opt=False)
+    ripple_cut(p, 5.0, 8.0, use_inaudible_opt=False)
     ids = {c.id for c in p.review.comments}
     assert ids == {"before", "after"}
     after = next(c for c in p.review.comments if c.id == "after")
@@ -169,7 +169,7 @@ def test_ripple_delete_remaps_comments_and_chapters():
 def test_batch_ripple_delete_remaps_right_to_left():
     p = _project_with_anchors()
     # Two cuts on original timeline: [3,4) and [10,11)
-    batch_ripple_delete(p, [(3.0, 4.0), (10.0, 11.0)], use_inaudible_opt=False)
+    ripple_cut_spans(p, [(3.0, 4.0), (10.0, 11.0)], use_inaudible_opt=False)
     after = next(c for c in p.review.comments if c.id == "after")
     # after was [12,14); remove 1s at 10 then 1s at 3 → shift by 2
     assert after.timeline_start == 10.0

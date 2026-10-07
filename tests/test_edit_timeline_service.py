@@ -4,6 +4,7 @@ from podcast_mcp.models import (
     Clip,
     CombinedTranscript,
     CombinedUtterance,
+    EditMode,
     EpisodeProject,
     MediaAsset,
     Track,
@@ -70,7 +71,7 @@ def test_edit_service_timeline_and_transcript(tmp_path, sample_wav) -> None:
     low = svc.low_confidence_words(0.8)
     assert low
 
-    r = svc.ripple_delete(0.5, 1.0)
+    r = svc.cut_range(0.5, 1.0, mode=EditMode.RIPPLE)
     assert r["operation"] == "ripple_delete"
 
     svc.insert_gap(1.0, 0.5)

@@ -8,6 +8,7 @@ import pytest
 from podcast_mcp.models import (
     CombinedTranscript,
     CombinedUtterance,
+    EditMode,
     MediaAsset,
     Track,
     Transcript,
@@ -181,7 +182,7 @@ def test_history_moves_keep_content_addressed_stem_hashes(minimal_project, sampl
 
 def test_history_service_mutation_groups_and_rerender(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
-    EditService(ws).ripple_delete(0.0, 0.1)
+    EditService(ws).cut_range(0.0, 0.1, mode=EditMode.RIPPLE)
     groups = HistoryService(ws).list_entries()["groups"]
     mut = next(g for g in groups if g.get("kind") == "mutation")
     assert mut.get("title")

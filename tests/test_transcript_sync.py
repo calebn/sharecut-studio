@@ -51,7 +51,7 @@ def _project_with_clip_and_words() -> EpisodeProject:
 
 def test_drop_words_in_timeline_range_keeps_source_times() -> None:
     p = _project_with_clip_and_words()
-    apply_batch_transcript_removes(p, [(2.0, 4.0)])
+    apply_batch_transcript_removes(p, [(2.0, 4.0)], {"host": list(p.timeline.clips)})
     words = p.transcripts[0].words
     assert len(words) == 2
     assert words[1].start == 5.0
@@ -61,12 +61,7 @@ def test_apply_batch_transcript_removes_does_not_shift_source_times() -> None:
     p = _project_with_clip_and_words()
     p.transcripts[0].words.append(TranscriptWord(text="late", start=15.0, end=16.0))
     clips_before = {"host": list(p.timeline.clips)}
-    apply_batch_transcript_removes(
-        p,
-        [(2.0, 4.0)],
-        rebuild=False,
-        clips_before=clips_before,
-    )
+    apply_batch_transcript_removes(p, [(2.0, 4.0)], clips_before, rebuild=False)
     words = {w.text: w.start for w in p.transcripts[0].words}
     assert words["a"] == 0.0
     assert words["b"] == 5.0
@@ -123,7 +118,7 @@ def test_timeline_removes_to_source_merges_overlapping() -> None:
 def test_apply_batch_transcript_removes_empty_is_noop() -> None:
     p = _project_with_clip_and_words()
     before = list(p.transcripts[0].words)
-    apply_batch_transcript_removes(p, [], rebuild=False)
+    apply_batch_transcript_removes(p, [], {"host": list(p.timeline.clips)}, rebuild=False)
     assert p.transcripts[0].words == before
 
 
@@ -172,5 +167,5 @@ def test_drop_words_skips_when_no_source_ranges() -> None:
             words=[TranscriptWord(text="keep", start=1.0, end=2.0)],
         )
     ]
-    apply_batch_transcript_removes(p, [(20.0, 25.0)])
+    apply_batch_transcript_removes(p, [(20.0, 25.0)], {"host": list(p.timeline.clips)})
     assert len(p.transcripts[0].words) == 1

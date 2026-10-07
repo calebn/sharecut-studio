@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from podcast_mcp.edits.edit_log import archive_decision
-from podcast_mcp.edits.timeline_ops import ripple_delete
 from podcast_mcp.history.diff import diff_snapshots
 from podcast_mcp.models import (
     Clip,
@@ -17,6 +16,7 @@ from podcast_mcp.models import (
     TrackRole,
 )
 from podcast_mcp.models.history import ProjectStateSnapshot
+from ripple_helpers import ripple_cut
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -101,7 +101,7 @@ def test_ripple_delete_archives_edit_log() -> None:
     from podcast_mcp.edits.edit_log import list_applied_edits
 
     p = _project_with_two_clips()
-    ripple_delete(p, 1.0, 1.5, use_inaudible_opt=False)
+    ripple_cut(p, 1.0, 1.5, use_inaudible_opt=False)
     records = list_applied_edits(p)
     assert len(records) == 1
     assert records[0].operation == "ripple_delete"
@@ -213,7 +213,7 @@ def test_ripple_across_a_moved_clip_records_the_seam_not_the_source_envelope() -
 
     p = _project_with_moved_clip()
     move_clips(p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}])
-    ripple_delete(p, 10.0, 21.0, use_inaudible_opt=False)
+    ripple_cut(p, 10.0, 21.0, use_inaudible_opt=False)
     record = list_applied_edits(p)[-1]
     assert record.operation == "ripple_delete"
     # Merged source spans sort to [5, 33]; the cut actually joins X@15 to Z@33.
@@ -247,7 +247,7 @@ def test_revert_refuses_seam_clocks_that_do_not_span_the_hole() -> None:
 
     p = _project_with_moved_clip()
     move_clips(p, [{"clip_id": "y", "track_id": "host", "timeline_start": 15.0}])
-    ripple_delete(p, 10.0, 21.0, use_inaudible_opt=False)
+    ripple_cut(p, 10.0, 21.0, use_inaudible_opt=False)
     record = list_applied_edits(p)[-1]
     # Give the timeline op decision source clocks so revert reaches the seam check.
     record.source_start = 10.0
@@ -362,7 +362,7 @@ def test_revert_refuses_a_session_cut_across_a_late_joining_track() -> None:
         # Guest recorder joined 3 s late.
         Clip(id="g", track_id="guest", source_start=0.0, source_end=8.0, timeline_start=3.0),
     ]
-    ripple_delete(p, 1.0, 5.0, use_inaudible_opt=False)
+    ripple_cut(p, 1.0, 5.0, use_inaudible_opt=False)
     record = list_applied_edits(p)[-1]
     assert record.params["per_track_source"] == {
         "host": [pytest.approx(1.0), pytest.approx(5.0)],
@@ -384,7 +384,8 @@ def test_applied_edit_source_clocks_still_bind_after_chained_edits() -> None:
 
     from podcast_mcp.edits.clips_ops import clips_for_track
     from podcast_mcp.edits.edit_log import list_applied_edits
-    from podcast_mcp.edits.timeline_ops import roll_clip_join, split_clips_at, trim_clip_edge
+    from podcast_mcp.edits.timeline_ops import roll_clip_join, split_clips_at
+    from ripple_helpers import trim
 
     ticks_ts = (ROOT / "gui/web/src/timeline/appliedEditTicks.ts").read_text(encoding="utf-8")
     match = re.search(r"export const APPLIED_EDGE_EPS_SEC = ([\d.e-]+);", ticks_ts)
@@ -397,14 +398,14 @@ def test_applied_edit_source_clocks_still_bind_after_chained_edits() -> None:
         Clip(id="a", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0),
         Clip(id="b", track_id="host", source_start=10.0, source_end=20.0, timeline_start=10.0),
     ]
-    ripple_delete(p, 2.1, 3.37, use_inaudible_opt=False)
+    ripple_cut(p, 2.1, 3.37, use_inaudible_opt=False)
     first = list_applied_edits(p)[-1]
     split_clips_at(p, 6.123)
     clips = clips_for_track(p, "host")
-    trim_clip_edge(p, clips[-1].id, "out", 19.5)
+    trim(p, clips[-1].id, "out", 19.5)
     clips = clips_for_track(p, "host")
     roll_clip_join(p, clips[1].id, clips[2].id, 0.237)
-    ripple_delete(p, 0.5, 1.1, use_inaudible_opt=False)
+    ripple_cut(p, 0.5, 1.1, use_inaudible_opt=False)
 
     pre, post = first.params["per_track_source"]["host"]
     clips = clips_for_track(p, "host")

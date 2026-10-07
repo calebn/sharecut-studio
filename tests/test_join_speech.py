@@ -275,15 +275,16 @@ def test_audition_context_flags_the_clipped_onset_with_a_concrete_fix(tmp_path: 
         "clip_id": "c1",
         "edge": "in",
         "source_sec": pytest.approx(0.94, abs=0.02),
-        "all_tracks": True,
+        "mode": "ripple",
     }
     warning = next(w for w in ctx["warnings"] if w.startswith("speech_crosses_cut:"))
     assert re.search(r"host: clip starts 3[45]0 ms into voiced speech \(voice from source", warning)
     assert "'Um,' starts 1.49s" in warning
     assert "word times disagree with the audio here" in warning
     assert re.search(
-        r"trim the in-point back to 0\.9[34]s on every track \(trim_clip_edge_tool with "
-        r"all_tracks=true; this join is a session-wide cut\), or move the cut",
+        r"trim the in-point back to 0\.9[34]s on every track \(trim_clip_edge_tool "
+        r"mode=ripple; this join is a session-wide cut, so every track's edge moves with "
+        r"it\), or move the cut",
         warning,
     )
     assert "cannot_hear" in ctx["limits"]
@@ -309,10 +310,13 @@ def test_track_local_edge_gets_a_single_clip_fix(tmp_path: Path) -> None:
     ctx = build_audition_context(project, 0.0, 1.5, include_prosody=False)
     (hyp,) = [h for h in ctx["hypotheses"] if h["code"] == "speech_crosses_cut"]
     assert hyp["evidence"]["session_join"] is False
-    assert hyp["evidence"]["fix"]["all_tracks"] is False
+    assert hyp["evidence"]["fix"]["mode"] == "gap"
     assert hyp["evidence"]["fix"]["clip_id"] == "c1"
     warning = next(w for w in ctx["warnings"] if w.startswith("speech_crosses_cut:"))
-    assert "on clip c1 (trim_clip_edge_tool; this edge is track-local)" in warning
+    assert (
+        "on clip c1 (trim_clip_edge_tool mode=gap; this edge is track-local, so only it "
+        "moves; use mode=ripple when the next clip leaves no room)"
+    ) in warning
 
 
 def test_audition_context_skips_the_join_check_without_dsp(tmp_path: Path) -> None:

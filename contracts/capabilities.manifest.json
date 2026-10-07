@@ -675,7 +675,7 @@
       "id": "daw.edit.delete",
       "label": "Delete clip",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "Sharecut Studio command bus \u2192 DeleteClip document command (mode gap)",
       "industry_standard_key": true,
       "gates": [
         "canSuggestStructural"
@@ -813,7 +813,7 @@
       "id": "daw.edit.rippleDelete",
       "label": "Ripple delete clip",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "Sharecut Studio command bus \u2192 DeleteClip document command (mode ripple; asks before cutting another track's speech)",
       "industry_standard_key": true,
       "gates": [
         "canSuggestStructural"
@@ -860,7 +860,7 @@
       "id": "daw.edit.cut",
       "label": "Cut",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "Sharecut Studio command bus \u2192 DeleteClip / CutRange document command (mode ripple; asks before cutting another track's speech)",
       "industry_standard_key": true,
       "gates": [
         "canApplyPass12"
@@ -885,7 +885,7 @@
       "id": "daw.edit.paste",
       "label": "Paste",
       "effect": "project",
-      "service": "Sharecut Studio command bus \u2192 services/document",
+      "service": "Sharecut Studio command bus \u2192 PasteSegment document command (mode ripple or gap)",
       "industry_standard_key": true,
       "gates": [
         "canApplyPass12"
@@ -2644,7 +2644,7 @@
       "label": "Trim clip edge",
       "effect": "project",
       "tooltip": "Drag or use focused Left/Right arrows to trim a clip edge",
-      "service": "Sharecut Studio \u2192 TrimClipEdge document command",
+      "service": "Sharecut Studio \u2192 TrimClipEdge document command (mode ripple or gap; a ripple asks before cutting another track's speech)",
       "industry_standard_key": false,
       "gates": [
         "canApplyPass12",

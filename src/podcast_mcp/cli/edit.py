@@ -7,9 +7,11 @@ from typing import Literal, cast
 import typer
 
 from podcast_mcp.cli.context import get_progress
+from podcast_mcp.cli.cut_speech import YES_HELP, with_cut_speech_confirmation
 from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
+from podcast_mcp.models import EditMode
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, TrimBoundaryTarget
 
@@ -135,17 +137,29 @@ def edit_approve_cmd(
         help="Apply every non-harsh tighten hit (only those in --ids when given), "
         "as Studio Apply eligible does",
     ),
+    yes: bool = typer.Option(False, "--yes", help=YES_HELP),
 ) -> None:
     ws = ProjectWorkspace.open(project)
     id_list = [x.strip() for x in ids.split(",") if x.strip()] if ids else None
     if all_safe:
-        result = EditService(ws).approve_eligible_tighten(id_list)
+        result = with_cut_speech_confirmation(
+            lambda confirm: EditService(ws).approve_eligible_tighten(
+                id_list, confirm_cut_speech=confirm
+            ),
+            yes=yes,
+        )
         n = result["approved_count"]
         typer.echo(f"Approved {n} edit(s); skipped {len(result['skipped_harsh'])} as harsh.")
     elif id_list is None:
         raise typer.BadParameter("pass --ids, or --all-safe")
     else:
-        n = EditService(ws).approve(id_list, allow_exact=True)
+        edit_ids = id_list
+        n = with_cut_speech_confirmation(
+            lambda confirm: EditService(ws).approve(
+                edit_ids, allow_exact=True, confirm_cut_speech=confirm
+            ),
+            yes=yes,
+        )
         typer.echo(f"Approved {n} edit(s).")
     if n == 0:
         typer.echo("Warning: no edits were approved — check the edit ids.", err=True)
@@ -374,19 +388,32 @@ def edit_ripple_delete_cmd(
     end: float | None = typer.Option(None, "--end"),
     query: str | None = typer.Option(None, "--query"),
     inaudible_opt: bool = typer.Option(True, "--inaudible-opt/--no-inaudible-opt"),
+    track: list[str] = typer.Option(
+        [], "--track", help="Track whose speech this cut removes (repeatable)"
+    ),
+    yes: bool = typer.Option(False, "--yes", help=YES_HELP),
     as_json: bool = typer.Option(False, "--json", help="Emit the full per-detector result as JSON"),
 ) -> None:
+    """Ripple-delete a range on every dialogue track; asks before cutting other speech."""
     ws = ProjectWorkspace.open(project)
     if query:
-        result = EditService(ws).ripple_delete_text(
-            query,
-            use_inaudible_opt=inaudible_opt,
+        result = with_cut_speech_confirmation(
+            lambda confirm: EditService(ws).ripple_delete_text(
+                query, use_inaudible_opt=inaudible_opt, confirm_cut_speech=confirm
+            ),
+            yes=yes,
         )
     elif start is not None and end is not None:
-        result = EditService(ws).ripple_delete(
-            start,
-            end,
-            use_inaudible_opt=inaudible_opt,
+        result = with_cut_speech_confirmation(
+            lambda confirm: EditService(ws).cut_range(
+                start,
+                end,
+                mode=EditMode.RIPPLE,
+                track_ids=list(track),
+                use_inaudible_opt=inaudible_opt,
+                confirm_cut_speech=confirm,
+            ),
+            yes=yes,
         )
     else:
         raise typer.BadParameter("provide --start and --end, or --query")
@@ -435,19 +462,30 @@ def edit_move_clips_cmd(
 def edit_delete_clips_cmd(
     project: Path = typer.Option(..., "--project"),
     ids: str = typer.Option(..., "--ids", help="Comma-separated clip ids"),
-    ripple: bool = typer.Option(False, "--ripple", help="Close the gap (later clips move up)"),
+    mode: EditMode = typer.Option(
+        EditMode.GAP,
+        "--mode",
+        help="gap: each clip leaves silence; ripple: every dialogue track closes the span",
+    ),
+    yes: bool = typer.Option(False, "--yes", help=YES_HELP),
 ) -> None:
-    """Delete whole clips; without --ripple each clip leaves a gap."""
+    """Delete whole clips; a ripple asks before it cuts speech outside them."""
     from podcast_mcp.services.document_sync import (
-        DocumentCommandType,
         host_command_result,
         submit_host_document_command,
     )
 
     clip_ids = [x.strip() for x in ids.split(",") if x.strip()]
-    command: DocumentCommandType = "RippleDeleteClip" if ripple else "DeleteClip"
-    reply = submit_host_document_command(project, command, {"clip_ids": clip_ids}, client_id="cli")
-    typer.echo(json.dumps(host_command_result(reply), indent=2))
+
+    def delete(confirm: bool) -> dict:
+        payload: dict = {"clip_ids": clip_ids, "mode": mode.value}
+        if confirm:
+            payload["confirm_cut_speech"] = True
+        return host_command_result(
+            submit_host_document_command(project, "DeleteClip", payload, client_id="cli")
+        )
+
+    typer.echo(json.dumps(with_cut_speech_confirmation(delete, yes=yes), indent=2))
 
 
 @edit_app.command("propose-range-cut")
@@ -510,6 +548,11 @@ def edit_paste_segment_cmd(
     clipboard: typer.FileText = typer.Option(
         ..., "--clipboard", help="JSON from `edit copy-segment` (- for stdin)"
     ),
+    mode: EditMode = typer.Option(
+        EditMode.RIPPLE,
+        "--mode",
+        help="ripple: open the time on every dialogue track; gap: paste over in place",
+    ),
 ) -> None:
     """Paste a copied range at --at, as Studio Paste does; undoable."""
     from podcast_mcp.services.document_sync import submit_paste_segment
@@ -517,7 +560,9 @@ def edit_paste_segment_cmd(
     raw = json.load(clipboard)
     if not isinstance(raw, dict):
         raise typer.BadParameter("--clipboard must hold the object `edit copy-segment` prints")
-    typer.echo(json.dumps(submit_paste_segment(project, at, raw, client_id="cli"), indent=2))
+    typer.echo(
+        json.dumps(submit_paste_segment(project, at, raw, mode=mode, client_id="cli"), indent=2)
+    )
 
 
 @edit_app.command("insert-gap")
@@ -595,27 +640,35 @@ def edit_trim_clip_cmd(
     source_sec: float = typer.Option(
         ..., "--source-sec", help="New edge position in source-media seconds"
     ),
-    all_tracks: bool = typer.Option(
-        False,
-        "--all-tracks",
-        help="Move the same join instant on every dialogue track (session-wide cut)",
+    mode: EditMode = typer.Option(
+        EditMode.RIPPLE,
+        "--mode",
+        help="ripple: every dialogue track moves with the edge; gap: only this edge moves",
     ),
+    yes: bool = typer.Option(False, "--yes", help=YES_HELP),
 ) -> None:
-    """Move one clip edge (later clips ripple); `play context` suggests the value."""
+    """Move one clip edge; `play context` suggests the value."""
+    if edge not in ("in", "out"):
+        raise typer.BadParameter("--edge must be in or out")
+    trim_edge = cast(Literal["in", "out"], edge)
     ws = ProjectWorkspace.open(project)
-    with ws.transaction():
-        service = EditService(ws)
-        revision = service.boundary_context(
-            TrimBoundaryTarget.model_validate({"clip_id": clip, "edge": edge})
-        ).token
-        typer.echo(
-            json.dumps(
-                service.trim_clip_edge(
-                    clip, edge, source_sec, all_tracks=all_tracks, expected_token=revision
-                ),
-                indent=2,
+
+    def trim(confirm: bool) -> dict:
+        with ws.transaction():
+            service = EditService(ws)
+            revision = service.boundary_context(
+                TrimBoundaryTarget(clip_id=clip, edge=trim_edge, mode=mode)
+            ).token
+            return service.trim_clip_edge(
+                clip,
+                trim_edge,
+                source_sec,
+                mode=mode,
+                expected_token=revision,
+                confirm_cut_speech=confirm,
             )
-        )
+
+    typer.echo(json.dumps(with_cut_speech_confirmation(trim, yes=yes), indent=2))
 
 
 @edit_app.command("roll-join")
@@ -719,17 +772,16 @@ def edit_shorten_gaps_cmd(
     project: Path = typer.Option(..., "--project"),
     max_gap: float = typer.Option(0.35, "--max-gap"),
     inaudible_opt: bool = typer.Option(True, "--inaudible-opt/--no-inaudible-opt"),
+    yes: bool = typer.Option(False, "--yes", help=YES_HELP),
 ) -> None:
     ws = ProjectWorkspace.open(project)
-    typer.echo(
-        json.dumps(
-            EditService(ws).shorten_word_gaps(
-                max_gap,
-                use_inaudible_opt=inaudible_opt,
-            ),
-            indent=2,
-        )
+    result = with_cut_speech_confirmation(
+        lambda confirm: EditService(ws).shorten_word_gaps(
+            max_gap, use_inaudible_opt=inaudible_opt, confirm_cut_speech=confirm
+        ),
+        yes=yes,
     )
+    typer.echo(json.dumps(result, indent=2))
 
 
 @edit_app.command("analyze-cleanup")

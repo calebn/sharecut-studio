@@ -4,19 +4,18 @@ from unittest.mock import patch
 
 import pytest
 
+from podcast_mcp.edits.cut_speech import SpeechClearance
 from podcast_mcp.edits.join_modes import crossfade_joins, fade_joins, set_clip_join_mode
 from podcast_mcp.edits.timeline_ops import (
-    batch_ripple_delete,
     duplicate_segment,
     fill_with_room_tone,
     insert_gap,
     list_clips,
     move_by_text,
     move_segment,
+    plan_ripple_delete_text,
     ripple_delete,
-    ripple_delete_text,
     set_clip_fade,
-    shorten_word_gaps,
     split_clip,
 )
 from podcast_mcp.engines.render_invalidations import record_after_audio_mutation
@@ -26,6 +25,7 @@ from podcast_mcp.models import (
     ClipJoinMode,
     CombinedTranscript,
     CombinedUtterance,
+    EditMode,
     EpisodeProject,
     MediaAsset,
     Track,
@@ -33,6 +33,7 @@ from podcast_mcp.models import (
     Transcript,
     TranscriptWord,
 )
+from ripple_helpers import ripple_cut, shorten_gaps
 
 
 def _two_track_project() -> EpisodeProject:
@@ -88,7 +89,7 @@ def _two_track_project() -> EpisodeProject:
 
 def test_ripple_delete_shortens_clips() -> None:
     p = _two_track_project()
-    summary = ripple_delete(p, 2.0, 5.0)
+    summary = ripple_cut(p, 2.0, 5.0)
     assert summary["operation"] == "ripple_delete"
     host_clips = [c for c in p.clips if c.track_id == "host"]
     assert len(host_clips) >= 1
@@ -342,7 +343,8 @@ def test_list_clips() -> None:
 
 def test_ripple_delete_text() -> None:
     p = _two_track_project()
-    summary = ripple_delete_text(p, "hello", use_inaudible_opt=False)
+    removal = plan_ripple_delete_text(p, "hello", use_inaudible_opt=False)
+    summary = ripple_delete(p, SpeechClearance(removal))
     assert summary["operation"] == "ripple_delete"
 
 
@@ -446,7 +448,7 @@ def test_move_by_text_uses_timeline_clocks_not_source() -> None:
     """After an early ripple, source word times diverge from timeline - move must use timeline."""
     p = _two_track_project()
     # Cut [1, 3) so later material keeps source times but sits earlier on the timeline.
-    ripple_delete(p, 1.0, 3.0)
+    ripple_cut(p, 1.0, 3.0)
     p.transcripts = [
         Transcript(
             track_id="host",
@@ -591,7 +593,7 @@ def test_paste_segment_after_extract() -> None:
         },
     ]
     before = max((c.timeline_end for c in p.clips), default=0.0)
-    summary = paste_segment(p, insert_at=6.0, duration=1.0, extracts=extracts)
+    summary = paste_segment(p, insert_at=6.0, duration=1.0, extracts=extracts, mode=EditMode.RIPPLE)
     assert summary["operation"] == "paste_segment"
     after = max((c.timeline_end for c in p.clips), default=0.0)
     assert after >= before + 1.0 - 1e-6
@@ -674,7 +676,7 @@ def test_copy_segment_matches_the_studio_clipboard_shape() -> None:
 
 def test_shorten_word_gaps() -> None:
     p = _two_track_project()
-    summary = shorten_word_gaps(p, max_gap_sec=0.2, use_inaudible_opt=False)
+    summary = shorten_gaps(p, max_gap_sec=0.2, use_inaudible_opt=False)
     assert summary["operation"] == "shorten_word_gaps"
 
 
@@ -692,16 +694,10 @@ def test_shorten_word_gaps_batches_mapping_but_deletes_right_to_left() -> None:
             autospec=True,
             side_effect=SessionTimeline.map_source_spans,
         ) as map_spans,
-        patch("podcast_mcp.edits.timeline_ops.ripple_delete", wraps=ripple_delete) as delete,
     ):
-        shorten_word_gaps(p, max_gap_sec=0.2, use_inaudible_opt=False)
+        shorten_gaps(p, max_gap_sec=0.2, use_inaudible_opt=False)
     assert map_spans.call_count == 1
-    assert delete.call_count == 2
-    assert [call.args[1:] for call in delete.call_args_list] == [
-        (2.2, 4.8),
-        (0.5, 1.8),
-    ]
-    assert all(call.kwargs == {"use_inaudible_opt": False} for call in delete.call_args_list)
+    assert all(record.params["use_inaudible_opt"] is False for record in p.editorial.edit_log)
     assert [(record.timeline_start, record.timeline_end) for record in p.editorial.edit_log] == [
         (2.2, 4.8),
         (0.5, 1.8),
@@ -756,7 +752,7 @@ def test_shorten_word_gaps_preserves_hole_clip_id_fades_and_regional_edits() -> 
         TranscriptWord(text="two", start=1.5, end=1.7),
     ]
 
-    shorten_word_gaps(p, max_gap_sec=0.2, use_inaudible_opt=False)
+    shorten_gaps(p, max_gap_sec=0.2, use_inaudible_opt=False)
 
     host = sorted((c for c in p.clips if c.track_id == "host"), key=lambda c: c.timeline_start)
     assert host[0].id == "upstream"
@@ -780,12 +776,6 @@ def test_shorten_word_gaps_preserves_hole_clip_id_fades_and_regional_edits() -> 
     assert invalidations[0].track_ids == ["host", "guest"]
     assert invalidations[0].timeline_start == pytest.approx(0.7)
     assert invalidations[0].timeline_end == pytest.approx(1.3)
-
-
-def test_batch_ripple_empty_ranges() -> None:
-    p = _two_track_project()
-    summary = batch_ripple_delete(p, [])
-    assert summary["affected_tracks"] == []
 
 
 def test_fill_with_room_tone_two_clips() -> None:
@@ -825,7 +815,7 @@ def test_fill_with_room_tone_two_clips() -> None:
 def test_ripple_delete_invalid_range() -> None:
     p = _two_track_project()
     try:
-        ripple_delete(p, 5.0, 5.0)
+        ripple_cut(p, 5.0, 5.0)
     except ValueError:
         pass
     else:
@@ -842,51 +832,10 @@ def test_set_clip_fade_unknown_id() -> None:
         raise AssertionError("expected ValueError")
 
 
-def test_batch_ripple_delete_with_ranges() -> None:
-    p = _two_track_project()
-    summary = batch_ripple_delete(p, [(2.0, 5.0)], use_inaudible_opt=False)
-    assert summary["operation"] == "batch_ripple_delete"
-    assert summary["affected_tracks"] == ["host", "guest"]
-
-
-def test_batch_ripple_delete_with_inaudible_opt() -> None:
-    p = _two_track_project()
-
-    def fake_opt(_project, _tid, start, end, force_enabled=None):
-        if _tid == "host":
-            return type("R", (), {"start": start + 0.1, "end": end - 0.1})()
-        return type("R", (), {"start": start, "end": end})()
-
-    with patch(
-        "podcast_mcp.edits.timeline_ops.optimize_timeline_cut_range",
-        side_effect=fake_opt,
-    ):
-        summary = batch_ripple_delete(p, [(2.0, 5.0)])
-    assert summary["operation"] == "batch_ripple_delete"
-
-
-def test_batch_ripple_inverted_median_fallback() -> None:
-    p = _two_track_project()
-
-    def fake_opt(_project, tid, start, end, force_enabled=None):
-        if tid == "host":
-            return type("R", (), {"start": end, "end": start})()
-        return type("R", (), {"start": start, "end": end})()
-
-    with patch(
-        "podcast_mcp.edits.timeline_ops.optimize_timeline_cut_range",
-        side_effect=fake_opt,
-    ):
-        batch_ripple_delete(p, [(2.0, 5.0)])
-
-    host_clips = [c for c in p.clips if c.track_id == "host"]
-    assert host_clips
-
-
 def test_ripple_delete_text_no_match() -> None:
     p = _two_track_project()
     try:
-        ripple_delete_text(p, "missing phrase")
+        plan_ripple_delete_text(p, "missing phrase")
     except ValueError as exc:
         assert "no transcript match" in str(exc)
     else:
@@ -980,7 +929,7 @@ def test_shorten_word_gaps_merges_overlapping_ranges() -> None:
             ],
         )
     ]
-    summary = shorten_word_gaps(p, max_gap_sec=0.2, use_inaudible_opt=False)
+    summary = shorten_gaps(p, max_gap_sec=0.2, use_inaudible_opt=False)
     assert summary["operation"] == "shorten_word_gaps"
 
 
@@ -1076,7 +1025,7 @@ def test_ripple_delete_median_fallback_when_inverted() -> None:
         "podcast_mcp.edits.timeline_ops.optimize_timeline_cut_range",
         side_effect=fake_opt,
     ):
-        summary = ripple_delete(p, 2.0, 5.0)
+        summary = ripple_cut(p, 2.0, 5.0)
     assert summary["operation"] == "ripple_delete"
 
 

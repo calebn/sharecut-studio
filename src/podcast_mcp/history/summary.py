@@ -3,20 +3,7 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
-
-def _fmt_sec(sec: float | None) -> str:
-    if sec is None:
-        return "?"
-    s = float(sec)
-    if s < 0:
-        s = 0.0
-    m = int(s // 60)
-    rem = s - m * 60
-    if m >= 60:
-        h = m // 60
-        m = m % 60
-        return f"{h}:{m:02d}:{rem:04.1f}"
-    return f"{m}:{rem:04.1f}"
+from podcast_mcp.util.timebase import clock_label
 
 
 def _human_op(operation: str | None, label: str | None) -> str:
@@ -56,12 +43,12 @@ def format_history_group_title(
     if start is not None and end is not None:
         try:
             dur = float(end) - float(start)
-            bits.append(f"{_fmt_sec(float(start))}-{_fmt_sec(float(end))} ({dur:.1f}s)")
+            bits.append(f"{clock_label(float(start))}-{clock_label(float(end))} ({dur:.1f}s)")
         except (TypeError, ValueError):
             pass
     elif start is not None:
         with contextlib.suppress(TypeError, ValueError):
-            bits.append(f"@{_fmt_sec(float(start))}")
+            bits.append(f"@{clock_label(float(start))}")
 
     tracks = params.get("track_ids") or params.get("affected_tracks")
     if isinstance(tracks, list):
@@ -110,7 +97,7 @@ def summarize_diff(
         if ts is not None and te is not None:
             try:
                 dur = float(te) - float(ts)
-                parts.append(f"{_fmt_sec(float(ts))}-{_fmt_sec(float(te))} ({dur:.1f}s)")
+                parts.append(f"{clock_label(float(ts))}-{clock_label(float(te))} ({dur:.1f}s)")
             except (TypeError, ValueError):
                 pass
         tracks = _track_list(rec.get("track_ids"))
@@ -176,7 +163,7 @@ def summarize_diff(
             try:
                 delta = float(new_d) - float(old_d)
                 lines.append(
-                    f"duration {_fmt_sec(float(old_d))} → {_fmt_sec(float(new_d))} ({delta:+.1f}s)"
+                    f"duration {clock_label(float(old_d))} → {clock_label(float(new_d))} ({delta:+.1f}s)"
                 )
             except (TypeError, ValueError):
                 pass

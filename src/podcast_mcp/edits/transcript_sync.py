@@ -8,6 +8,8 @@ shifted or remapped. Consumers that need timeline positions map through
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from podcast_mcp.edits.ranges import overlaps_remove_range
 from podcast_mcp.engines.session_timeline import (
     clip_timeline_overlap_to_source,
@@ -121,19 +123,16 @@ def restore_archived_words(project: EpisodeProject, track_ids: set[str]) -> None
 def apply_batch_transcript_removes(
     project: EpisodeProject,
     removes: list[tuple[float, float]],
+    clips_by_track: Mapping[str, list[Clip]],
     *,
     rebuild: bool = True,
-    clips_before: dict[str, list[Clip]] | None = None,
 ) -> None:
-    """Drop words removed from the timeline; word times stay in source media coordinates."""
-    if not removes:
-        return
-    from podcast_mcp.edits.clips_ops import clips_for_track
+    """Archive the words under timeline ``removes`` of each lane's pre-edit clips.
 
+    Word times stay in source media coordinates.
+    """
     removes_by_track: dict[TranscriptKey, list[tuple[float, float]]] = {}
-    track_ids = {tr.track_id for tr in project.transcripts}
-    for track_id in track_ids:
-        clips = (clips_before or {}).get(track_id) or clips_for_track(project, track_id)
+    for clips in clips_by_track.values():
         for key, ranges in timeline_removes_by_transcript(project, clips, removes).items():
             removes_by_track.setdefault(key, []).extend(ranges)
     apply_source_transcript_removes(project, removes_by_track, rebuild=rebuild)

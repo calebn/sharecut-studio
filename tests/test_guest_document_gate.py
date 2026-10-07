@@ -48,7 +48,6 @@ COMMENTER_COMMANDS = {
     "EditSelectedRange",
     "SplitAtTime",
     "DeleteClip",
-    "RippleDeleteClip",
 }
 
 

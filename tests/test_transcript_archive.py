@@ -6,11 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from podcast_mcp.edits.timeline_ops import (
-    batch_ripple_delete,
     punch_delete,
-    ripple_delete,
     roll_clip_join,
-    trim_clip_edge,
 )
 from podcast_mcp.edits.transcript_sync import (
     apply_source_transcript_removes,
@@ -19,6 +16,7 @@ from podcast_mcp.edits.transcript_sync import (
 from podcast_mcp.gui.mapper import map_edit_boundaries
 from podcast_mcp.models import (
     Clip,
+    EditMode,
     MediaAsset,
     SourceRecording,
     Track,
@@ -30,6 +28,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EditService, HistoryService, TrimBoundaryTarget
+from ripple_helpers import ripple_cut, ripple_cut_spans, trim
 
 
 def _episode(path, *, word: TranscriptWord | None = None):
@@ -79,7 +78,7 @@ def test_archive_preserves_word_metadata_across_save_and_restoration(minimal_pro
         audibility_locked=True,
     )
     project = _episode(minimal_project, word=original)
-    ripple_delete(project, 5, 15, use_inaudible_opt=False)
+    ripple_cut(project, 5, 15, use_inaudible_opt=False)
     assert project.transcripts[0].words == []
     assert project.transcripts[0].archived_words[0].word.model_dump() == original.model_dump()
     save_project(project, minimal_project)
@@ -87,32 +86,32 @@ def test_archive_preserves_word_metadata_across_save_and_restoration(minimal_pro
     loaded = load_project(minimal_project)
     (join,) = map_edit_boundaries(loaded)
     assert join["cutaway_word_ids"][0]["word_index"] < 0
-    trim_clip_edge(loaded, join["right_clip_id"], "in", 5)
+    trim(loaded, join["right_clip_id"], "in", 5)
     assert [w.model_dump() for w in loaded.transcripts[0].words] == [original.model_dump()]
     assert loaded.transcripts[0].archived_words == []
-    ripple_delete(loaded, 6, 10, use_inaudible_opt=False)
+    ripple_cut(loaded, 6, 10, use_inaudible_opt=False)
     assert len(loaded.transcripts[0].archived_words) == 1
 
 
 def test_partial_source_exposure_does_not_restore_word(minimal_project):
     project = _episode(minimal_project, word=TranscriptWord(text="partial", start=7.5, end=9.5))
-    ripple_delete(project, 8, 9, use_inaudible_opt=False)
+    ripple_cut(project, 8, 9, use_inaudible_opt=False)
     assert [entry.word.text for entry in project.transcripts[0].archived_words] == ["partial"]
     (join,) = map_edit_boundaries(project)
-    trim_clip_edge(project, join["right_clip_id"], "in", 8.5)
+    trim(project, join["right_clip_id"], "in", 8.5)
     assert project.transcripts[0].words == []
     assert len(project.transcripts[0].archived_words) == 1
-    trim_clip_edge(project, join["right_clip_id"], "in", 8)
+    trim(project, join["right_clip_id"], "in", 8)
     assert [w.text for w in project.transcripts[0].words] == ["partial"]
 
 
 def test_zero_length_word_needs_its_padded_source_span(minimal_project):
     project = _episode(minimal_project, word=TranscriptWord(text="point", start=8.1, end=8.1))
-    ripple_delete(project, 8, 9, use_inaudible_opt=False)
+    ripple_cut(project, 8, 9, use_inaudible_opt=False)
     (join,) = map_edit_boundaries(project)
-    trim_clip_edge(project, join["right_clip_id"], "in", 8.1005)
+    trim(project, join["right_clip_id"], "in", 8.1005)
     assert project.transcripts[0].words == []
-    trim_clip_edge(project, join["right_clip_id"], "in", 8.1)
+    trim(project, join["right_clip_id"], "in", 8.1)
     assert [w.text for w in project.transcripts[0].words] == ["point"]
 
 
@@ -161,7 +160,7 @@ def test_restore_uses_source_time_after_active_token_count_changes(minimal_proje
 
 def test_roll_restores_full_word_from_cutaway(minimal_project):
     project = _episode(minimal_project)
-    ripple_delete(project, 5, 15, use_inaudible_opt=False)
+    ripple_cut(project, 5, 15, use_inaudible_opt=False)
     (join,) = map_edit_boundaries(project)
     roll_clip_join(project, join["left_clip_id"], join["right_clip_id"], 4)
     assert [w.text for w in project.transcripts[0].words] == ["cut"]
@@ -192,9 +191,9 @@ def test_cut_maps_each_recording_separately(minimal_project, operation):
         ),
     ]
     if operation == "ripple":
-        ripple_delete(project, 7, 13, use_inaudible_opt=False)
+        ripple_cut(project, 7, 13, use_inaudible_opt=False)
     elif operation == "batch":
-        batch_ripple_delete(project, [(7, 13)], use_inaudible_opt=False)
+        ripple_cut_spans(project, [(7, 13)], use_inaudible_opt=False)
     else:
         punch_delete(project, "host", 7, 13, use_inaudible_opt=False)
     assert [t.words for t in project.transcripts] == [[], []]
@@ -210,8 +209,8 @@ def test_cut_maps_each_recording_separately(minimal_project, operation):
 def test_history_undo_redo_restores_archive_and_active_words(minimal_project):
     project = _episode(minimal_project)
     save_project(project, minimal_project)
-    EditService(ProjectWorkspace.open(minimal_project)).ripple_delete(
-        5, 15, use_inaudible_opt=False
+    EditService(ProjectWorkspace.open(minimal_project)).cut_range(
+        5, 15, use_inaudible_opt=False, mode=EditMode.RIPPLE
     )
     cut = load_project(minimal_project)
     assert cut.transcripts[0].words == []
@@ -222,7 +221,9 @@ def test_history_undo_redo_restores_archive_and_active_words(minimal_project):
     revision = service.boundary_context(
         TrimBoundaryTarget(clip_id=join["right_clip_id"], edge="in")
     ).token
-    service.trim_clip_edge(join["right_clip_id"], "in", 5, expected_token=revision)
+    service.trim_clip_edge(
+        join["right_clip_id"], "in", 5, mode=EditMode.RIPPLE, expected_token=revision
+    )
     assert [w.text for w in load_project(minimal_project).transcripts[0].words] == ["cut"]
     HistoryService(ProjectWorkspace.open(minimal_project)).undo(rerender=False)
     undone = load_project(minimal_project)

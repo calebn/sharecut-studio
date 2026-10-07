@@ -145,7 +145,7 @@ def test_suggest_guest_cut_is_a_pending_suggestion_and_direct_edits_are_refused(
         "guest:suggest",
     )
     assert _clip_spans(path) == [(0.0, 2.0)]
-    direct = _command(client, token, "RippleDeleteRange", {"start": 0.2, "end": 0.6})
+    direct = _command(client, token, "CutRange", {"start": 0.2, "end": 0.6, "mode": "ripple"})
     assert direct.status_code == 403
     approve = _command(client, token, "ApproveEdits", {"ids": [proposal.id]})
     assert approve.status_code == 403

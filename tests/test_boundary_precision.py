@@ -10,6 +10,7 @@ from podcast_mcp.edits.clips_ops import roll_join_limits, trim_edge_limits
 from podcast_mcp.models import (
     ArchivedTranscriptWord,
     Clip,
+    EditMode,
     MediaAsset,
     SourceRecording,
     Track,
@@ -75,19 +76,19 @@ def _project(path: Path) -> ProjectWorkspace:
 def test_bounds_use_each_recording_clock_and_physical_alias(minimal_project: Path) -> None:
     p = _project(minimal_project).project
     left, right, last = p.clips
-    assert trim_edge_limits(p, left, "out") == pytest.approx((2.05, 100))
-    assert trim_edge_limits(p, right, "in") == pytest.approx((0, 5.95))
-    assert trim_edge_limits(p, right, "out") == pytest.approx((1.05, 8))
-    assert trim_edge_limits(p, last, "in") == pytest.approx((0, 4.95))
+    assert trim_edge_limits(p, left, "out", EditMode.RIPPLE) == pytest.approx((2.05, 100))
+    assert trim_edge_limits(p, right, "in", EditMode.RIPPLE) == pytest.approx((0, 5.95))
+    assert trim_edge_limits(p, right, "out", EditMode.RIPPLE) == pytest.approx((1.05, 8))
+    assert trim_edge_limits(p, last, "in", EditMode.RIPPLE) == pytest.approx((0, 4.95))
     assert roll_join_limits(p, "left", "right") == pytest.approx((-1, 4.95))
     p.clips[1] = right.model_copy(update={"source_id": "alias", "source_start": 6})
-    assert trim_edge_limits(p, left, "out") == pytest.approx((2.05, 6))
+    assert trim_edge_limits(p, left, "out", EditMode.RIPPLE) == pytest.approx((2.05, 6))
 
 
 def test_unknown_duration_abstains_from_expansion(minimal_project: Path) -> None:
     p = _project(minimal_project).project
     p.clips[0].source_id = "unknown"
-    assert trim_edge_limits(p, p.clips[0], "out")[1] == 5
+    assert trim_edge_limits(p, p.clips[0], "out", EditMode.RIPPLE)[1] == 5
     assert roll_join_limits(p, "left", "right")[1] == 0
 
 
@@ -158,7 +159,9 @@ def test_archived_word_change_invalidates_proposed_preview(minimal_project: Path
     ws.save()
     assert boundary_context(ws.project, target).token != first
     with pytest.raises(DocumentConflictError):
-        EditService(ws).trim_clip_edge("left", "out", 5.2, expected_token=first)
+        EditService(ws).trim_clip_edge(
+            "left", "out", 5.2, mode=EditMode.RIPPLE, expected_token=first
+        )
 
 
 def test_document_noop_apply_does_not_add_history(minimal_project: Path) -> None:
@@ -174,6 +177,7 @@ def test_document_noop_apply_does_not_add_history(minimal_project: Path) -> None
                 "clip_id": "left",
                 "edge": "out",
                 "source_sec": 5,
+                "mode": "ripple",
                 "expected_token": token,
             },
             client_id="precision-test",
@@ -189,14 +193,16 @@ def test_document_noop_apply_does_not_add_history(minimal_project: Path) -> None
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), -float("inf")])
 def test_boundary_commands_refuse_nonfinite_positions(minimal_project: Path, bad: float) -> None:
     with pytest.raises(ValidationError):
-        TrimClipEdgePayload(clip_id="c", edge="out", source_sec=bad, expected_token="revision")
+        TrimClipEdgePayload(
+            clip_id="c", edge="out", source_sec=bad, mode="ripple", expected_token="revision"
+        )
     with pytest.raises(ValidationError):
         RollClipJoinPayload(
             left_clip_id="a", right_clip_id="b", delta_sec=bad, expected_token="revision"
         )
     service = EditService(_project(minimal_project))
     with pytest.raises(ValueError, match="finite"):
-        service.trim_clip_edge("left", "out", bad, expected_token="invalid")
+        service.trim_clip_edge("left", "out", bad, mode=EditMode.RIPPLE, expected_token="invalid")
     with pytest.raises(ValueError, match="finite"):
         service.roll_clip_join("left", "right", bad, expected_token="invalid")
 

@@ -1,5 +1,6 @@
-"""trim_clip_edge: the clips_ops geometry, the TrimClipEdge document command, and the
-MCP / CLI adapters over EditService.trim_clip_edge (the speech_crosses_cut fix)."""
+"""trim_clip_edge: the trim plan geometry, the TrimClipEdge document command, and the
+MCP / CLI adapters over EditService.trim_clip_edge (the speech_crosses_cut fix).
+Both edit modes and the speech guard are covered in ``test_edit_modes.py``."""
 
 from __future__ import annotations
 
@@ -11,14 +12,22 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.edits.clips_ops import trim_clip_edge
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
-from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole, load_project, save_project
+from podcast_mcp.models import (
+    Clip,
+    EditMode,
+    MediaAsset,
+    Track,
+    TrackRole,
+    load_project,
+    save_project,
+)
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document import EditService
 from podcast_mcp.services.document.boundary import TrimBoundaryTarget, boundary_context
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import DocumentSyncService
+from ripple_helpers import trim
 
 
 def _two_clips_with_cutaway(ws: ProjectWorkspace) -> None:
@@ -54,7 +63,7 @@ def test_trim_clip_edge_out_expands_into_cutaway_and_ripples(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _two_clips_with_cutaway(ws)
     project = ws.project
-    trim_clip_edge(project, "c1", "out", 12.0)
+    trim(project, "c1", "out", 12.0)
     c1 = next(c for c in project.clips if c.id == "c1")
     c2 = next(c for c in project.clips if c.id == "c2")
     assert c1.source_end == 12.0
@@ -67,7 +76,7 @@ def test_trim_clip_edge_out_clamps_to_next_source_start(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _two_clips_with_cutaway(ws)
     project = ws.project
-    trim_clip_edge(project, "c1", "out", 20.0)  # would invade c2 source
+    trim(project, "c1", "out", 20.0)  # would invade c2 source
     c1 = next(c for c in project.clips if c.id == "c1")
     assert c1.source_end == 15.0
 
@@ -76,7 +85,7 @@ def test_trim_clip_edge_in_restores_cutaway(minimal_project):
     ws = ProjectWorkspace.open(minimal_project)
     _two_clips_with_cutaway(ws)
     project = ws.project
-    trim_clip_edge(project, "c2", "in", 10.0)
+    trim(project, "c2", "in", 10.0)
     c2 = next(c for c in project.clips if c.id == "c2")
     assert c2.source_start == 10.0
     assert c2.timeline_start == pytest.approx(5.0)
@@ -180,7 +189,12 @@ def test_cli_trim_clip(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert json.loads(result.output)["operation"] == "trim_clip_edge"
     service.return_value.trim_clip_edge.assert_called_once_with(
-        "c1", "in", 1575.55, all_tracks=False, expected_token="current-revision"
+        "c1",
+        "in",
+        1575.55,
+        mode=EditMode.RIPPLE,
+        expected_token="current-revision",
+        confirm_cut_speech=False,
     )
 
 
@@ -221,14 +235,12 @@ def _session_ripple_project(minimal_project: Path) -> Path:
     return minimal_project
 
 
-def test_trim_clip_edge_all_tracks_moves_the_session_join_on_every_track(
+def test_ripple_trim_moves_the_session_join_on_every_track(
     minimal_project: Path,
 ) -> None:
     path = _session_ripple_project(minimal_project)
-    out = json.loads(
-        mcp_timeline.trim_clip_edge_tool(str(path), "remote_b", "in", 19.94, all_tracks=True)
-    )
-    assert out["all_tracks"] is True
+    out = json.loads(mcp_timeline.trim_clip_edge_tool(str(path), "remote_b", "in", 19.94))
+    assert out["mode"] == "ripple"
     assert sorted(out["clip_ids"]) == ["guest_b", "host_b", "remote_b"]
     clips = {c.id: c for c in load_project(path).clips}
     for tid in ("host", "guest", "remote"):
@@ -237,21 +249,21 @@ def test_trim_clip_edge_all_tracks_moves_the_session_join_on_every_track(
         assert clips[f"{tid}_c"].timeline_start == pytest.approx(20.06)
 
 
-def test_all_tracks_zero_delta_does_not_save_or_add_history(minimal_project: Path) -> None:
+def test_zero_delta_ripple_trim_does_not_save_or_add_history(minimal_project: Path) -> None:
     path = _session_ripple_project(minimal_project)
     ws = ProjectWorkspace.open(path)
     revision = boundary_context(ws.project, TrimBoundaryTarget(clip_id="remote_b", edge="in")).token
     before = path.read_bytes()
     history = len(ws.project.history.entries)
     result = EditService(ws).trim_clip_edge(
-        "remote_b", "in", 20.34, all_tracks=True, expected_token=revision
+        "remote_b", "in", 20.34, mode=EditMode.RIPPLE, expected_token=revision
     )
     assert result["unchanged"] is True
     assert path.read_bytes() == before
     assert len(load_project(path).history.entries) == history
 
 
-def test_trim_clip_edge_all_tracks_refuses_a_track_local_boundary(minimal_project: Path) -> None:
+def test_gap_trim_moves_only_a_track_local_edge(minimal_project: Path) -> None:
     path = _session_ripple_project(minimal_project)
     project = load_project(path)
     # A punch on one track: its later clip resumes where no other track has an edge.
@@ -259,12 +271,15 @@ def test_trim_clip_edge_all_tracks_refuses_a_track_local_boundary(minimal_projec
         Clip(id="host_d", track_id="host", source_start=50.0, source_end=52.0, timeline_start=30.0)
     )
     save_project(project, path)
-    with pytest.raises(ValueError, match="track-local"):
-        mcp_timeline.trim_clip_edge_tool(str(path), "host_d", "in", 49.5, all_tracks=True)
-    assert load_project(path).clips[-1].source_start == 50.0
+    before = {c.id: c.timeline_start for c in load_project(path).clips if c.id != "host_d"}
+    out = json.loads(mcp_timeline.trim_clip_edge_tool(str(path), "host_d", "in", 49.5, mode="gap"))
+    assert out["clip_ids"] == ["host_d"]
+    clips = {c.id: c for c in load_project(path).clips}
+    assert (clips["host_d"].source_start, clips["host_d"].timeline_start) == (49.5, 29.5)
+    assert {cid: clips[cid].timeline_start for cid in before} == before
 
 
-def test_cli_trim_clip_all_tracks(tmp_path: Path) -> None:
+def test_cli_trim_clip_gap_mode(tmp_path: Path) -> None:
     ws = tmp_path / "ep"
     runner.invoke(app, ["episode", "init", "--dir", str(ws)])
     with patch("podcast_mcp.cli.edit.EditService") as service:
@@ -283,27 +298,42 @@ def test_cli_trim_clip_all_tracks(tmp_path: Path) -> None:
                 "in",
                 "--source-sec",
                 "1575.55",
-                "--all-tracks",
+                "--mode",
+                "gap",
             ],
         )
     assert result.exit_code == 0, result.output
     service.return_value.trim_clip_edge.assert_called_once_with(
-        "c1", "in", 1575.55, all_tracks=True, expected_token="current-revision"
+        "c1",
+        "in",
+        1575.55,
+        mode=EditMode.GAP,
+        expected_token="current-revision",
+        confirm_cut_speech=False,
     )
 
 
-def test_trim_clip_edge_all_tracks_refuses_when_a_peer_would_clamp(minimal_project: Path) -> None:
-    """A punch-in clip on host ends 140 ms before the join, so host could only move 140 ms
-    where the others move 400 ms: refuse instead of desyncing by 260 ms."""
+def test_a_peer_that_cannot_reveal_as_much_gets_silence_and_stays_in_sync(
+    minimal_project: Path,
+) -> None:
+    """A punch-in clip on host ends 140 ms before the join, so host cannot reveal the
+    400 ms the others do: host gets 400 ms of silence there instead, and every track
+    still moves the same amount."""
     path = _session_ripple_project(minimal_project)
     project = load_project(path)
     project.clips.append(
         Clip(id="host_p", track_id="host", source_start=19.7, source_end=20.2, timeline_start=9.5)
     )
     save_project(project, path)
-    with pytest.raises(ValueError) as exc:
-        mcp_timeline.trim_clip_edge_tool(str(path), "remote_b", "in", 19.94, all_tracks=True)
-    assert "host: in-point can move to 20.200..29.950s, needs 19.940s" in str(exc.value)
-    assert "desync" in str(exc.value)
+    out = json.loads(mcp_timeline.trim_clip_edge_tool(str(path), "remote_b", "in", 19.94))
+    assert sorted(out["clip_ids"]) == ["guest_b", "remote_b"]
     clips = {c.id: c for c in load_project(path).clips}
-    assert [clips[f"{tid}_b"].source_start for tid in ("host", "guest", "remote")] == [20.34] * 3
+    assert [clips[f"{tid}_b"].source_start for tid in ("host", "guest", "remote")] == [
+        20.34,
+        19.94,
+        19.94,
+    ]
+    assert round(clips["host_b"].timeline_start, 6) == 10.4
+    assert [round(clips[f"{tid}_c"].timeline_start, 6) for tid in ("host", "guest", "remote")] == [
+        20.06
+    ] * 3

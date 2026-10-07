@@ -1716,7 +1716,7 @@ def test_authorize_document_command_caps():
     authorize_document_command(capabilities_for_role("editor"), "SplitAtTime")
     authorize_document_command(capabilities_for_role("commenter"), "SplitAtTime")
     authorize_document_command(capabilities_for_role("editor"), "PasteSegment")
-    authorize_document_command(capabilities_for_role("editor"), "RippleDeleteRange")
+    authorize_document_command(capabilities_for_role("editor"), "CutRange")
     authorize_document_command(capabilities_for_role("editor"), "AddTrack")
     authorize_document_command(capabilities_for_role("editor"), "SetTrackMedia")
     authorize_document_command(capabilities_for_role("editor"), "SetTrackMeta")
