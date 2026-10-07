@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import uuid4
 
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.record.commands import RecordCommand
 from podcast_mcp.services.record.landing import RecordLandingService, RecordTakeOpenError
+from podcast_mcp.services.record.live_comments import LIVE_COMMENT_ID_PREFIX
 from podcast_mcp.services.record.service import RecordSessionService, next_record_client_seq
 from podcast_mcp.services.record.state import HOST_PARTICIPANT_ID
 
@@ -36,6 +38,12 @@ class RecordControlService:
 
     def stop(self) -> dict[str, Any]:
         return self._host("Stop")
+
+    def marker(self, body: str = "Marker") -> dict[str, Any]:
+        """Drop a live comment at this moment of the open take; it lands as a comment."""
+        marker_id = f"{LIVE_COMMENT_ID_PREFIX}{uuid4().hex}"
+        snapshot = self._host("Comment", {"id": marker_id, "body": body})
+        return {"marker_id": marker_id, **snapshot}
 
     def land(self) -> dict[str, Any]:
         """Host land (HTTP, MCP, CLI); refuses an open take.

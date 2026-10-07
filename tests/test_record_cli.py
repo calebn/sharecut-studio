@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app as cli_app
 from podcast_mcp.mcp.tools.record import (
+    record_marker_tool,
     record_pause_tool,
     record_resume_tool,
     record_start_tool,
@@ -20,6 +21,7 @@ from podcast_mcp.models import load_project, save_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.share import ShareService
 from podcast_mcp.services.record.control import RecordControlService
+from podcast_mcp.services.record.live_comments import live_comment_store_for
 from podcast_mcp.services.record.reducer import RecordStateError
 from podcast_mcp.services.record.service import (
     RecordSessionService,
@@ -39,6 +41,36 @@ def _seed(minimal_project, sample_wav):
     (art / "premix.wav").write_bytes(sample_wav.read_bytes())
     save_project(proj, minimal_project)
     return ProjectWorkspace.open(minimal_project)
+
+
+def _consented_room(ws) -> None:
+    """Open a record room whose one guest has consented, so the host can start."""
+    room = ShareService(ws).create_record_room()
+    svc = RecordSessionService(ws.project, session_id=room["session_id"])
+    echo, _snap = svc.join(
+        token=room["guest"]["token"],
+        role="guest",
+        display_name="Ava",
+        client_id="rec-guest",
+        connection_id="c1",
+        capabilities=["join", "monitor"],
+        client_seq=1,
+    )
+    apply_record_ws_message(
+        svc,
+        {
+            "type": "Record",
+            "command_type": "Consent",
+            "payload": {"accepted": True},
+            "client_seq": 2,
+        },
+        client_id="rec-guest",
+        role="guest",
+        participant_id=echo["participant_id"],
+        seq=2,
+        capabilities=["join", "monitor"],
+        connection_id="c1",
+    )
 
 
 def test_record_cli_state_without_room(minimal_project, sample_wav, tmp_workspace, monkeypatch):
@@ -90,32 +122,7 @@ def test_record_cli_and_mcp_transport_after_consent(
 ):
     _isolate()
     ws = _seed(minimal_project, sample_wav)
-    room = ShareService(ws).create_record_room()
-    svc = RecordSessionService(ws.project, session_id=room["session_id"])
-    echo, _snap = svc.join(
-        token=room["guest"]["token"],
-        role="guest",
-        display_name="Ava",
-        client_id="rec-guest",
-        connection_id="c1",
-        capabilities=["join", "monitor"],
-        client_seq=1,
-    )
-    apply_record_ws_message(
-        svc,
-        {
-            "type": "Record",
-            "command_type": "Consent",
-            "payload": {"accepted": True},
-            "client_seq": 2,
-        },
-        client_id="rec-guest",
-        role="guest",
-        participant_id=echo["participant_id"],
-        seq=2,
-        capabilities=["join", "monitor"],
-        connection_id="c1",
-    )
+    _consented_room(ws)
     runner = CliRunner()
     started = runner.invoke(cli_app, ["record", "start", "--project", str(minimal_project)])
     assert started.exit_code == 0, started.output
@@ -174,3 +181,25 @@ def test_record_state_reaches_agents_with_coded_start_blockers(
         }
     ]
     assert blockers() == (pending, pending)
+
+
+def test_record_marker_cli_and_mcp_stamp_the_open_take(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    _isolate()
+    ws = _seed(minimal_project, sample_wav)
+    _consented_room(ws)
+    runner = CliRunner()
+    args = ["--project", str(minimal_project)]
+    refused = runner.invoke(cli_app, ["record", "marker", *args])
+    assert refused.exit_code == 1
+    assert "cannot comment" in refused.output
+    assert runner.invoke(cli_app, ["record", "start", *args]).exit_code == 0
+    marked = runner.invoke(cli_app, ["record", "marker", *args, "--body", "Retake intro"])
+    assert marked.exit_code == 0, marked.output
+    tool_marker = json.loads(record_marker_tool(str(minimal_project)))
+    session_id = RecordSessionService.active_session_id(ws.project)
+    rows = live_comment_store_for(ws.project).list_unlanded(session_id)
+    assert sorted(r["body"] for r in rows) == ["Marker", "Retake intro"]
+    assert tool_marker["marker_id"] in {r["comment_id"] for r in rows}
+    assert {r["take_index"] for r in rows} == {0}

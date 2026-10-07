@@ -1731,11 +1731,14 @@
           "LiveComments"
         ],
         "keyboard": "M",
+        "mcp": [
+          "record_marker_tool"
+        ],
+        "cli": "podcast record marker",
         "skill": "podcast-record-session"
       },
       "omit": {
-        "guest": true,
-        "agent_reason": "TODO #1140"
+        "guest": true
       },
       "tooltip": "Record marker",
       "presence": {
