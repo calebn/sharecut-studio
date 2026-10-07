@@ -36,6 +36,85 @@ Hook: [`gui/web/src/hooks/useViewportClass.ts`](../gui/web/src/hooks/useViewport
 
 Chrome type/space is rem via theme tokens. Pane density (status chips, pipeline, header rail) follows named `@container` (`app` on `.daw-shell`, `timeline` on `.timeline-area`), not viewport-width `@media`. Short-viewport `@media (max-height: 40rem)` for portaled sheets is a documented exception (`-- user-approved:`). Policy: [.agents/rules/gui-styling.md](../.agents/rules/gui-styling.md).
 
+## Browser chrome, safe areas and Home Screen (#1077)
+
+On iPhone the owner found landscape close to unusable: Safari's bars and the
+bottom drawer left less than one whole 104px track. iOS gives a page no API to
+hide Safari's bars. Safari minimizes them only while the document itself
+scrolls ([WebKit bug 231878](https://bugs.webkit.org/show_bug.cgi?id=231878),
+[bug 266835](https://bugs.webkit.org/show_bug.cgi?id=266835)), and since iOS 26
+any site added to the Home Screen opens as a web app with no browser chrome
+([WebKit, Safari 26](https://webkit.org/blog/16993/news-from-wwdc25-web-technology-coming-this-fall-in-safari-26-beta/)).
+
+- **Runway.** On a touch screen the phone and tablet shells are
+  `position: fixed; inset: 0`. In a browser tab (`display-mode: browser`) the
+  page under them is `100lvh + 25svh` tall with a hidden scrollbar. A swipe on
+  non-scrolling chrome (transport, tool rail, status row, mode nav) scrolls
+  the page, Safari collapses its bars, and the fixed shell grows into the room.
+  The shell and every fixed sheet stay put, so the round-4 rule still holds:
+  nothing slides under the strip, and `overscroll-behavior: none` keeps the
+  page from rubber-banding. The timeline scroller keeps
+  `overscroll-behavior: contain`, so a one-finger scroll on the lanes still
+  scrolls only the lanes. Units: the shell follows the dynamic viewport through
+  `inset: 0`; the runway uses `lvh` and `svh`, which do not change while the
+  bars move.
+- **Safe areas.** `index.html` sets `viewport-fit=cover`. The shell pads all
+  four sides with `env(safe-area-inset-*)`, so rows clear the notch or Dynamic
+  Island side held sideways and the home indicator; the inset bands take
+  `--color-bg-base`. Other pages pad the body's left and right.
+- **Home Screen app.** `public/assets/app/manifest.webmanifest` declares
+  `display: standalone`, the name "Sharecut Studio" (short "Sharecut"), the
+  transport colour `#1b1815` as theme and background, and icons rendered from
+  `icon.svg` by `gui/web/scripts/render-app-icons.ts` (`apple-touch-icon.png`
+  at 180px, 192px and 512px PNGs; the mark sits inside the maskable circle).
+  The manifest omits `start_url`, so a review link added to the Home Screen
+  opens that link. The files live under `/assets/`, which the relay already
+  maps to `/r/{token}/assets/`. A standalone app gets no runway.
+- **Add to Home Screen hint.** In an iPhone or iPad Safari tab
+  (`navigator.standalone === false`, touch points, `display-mode: browser`;
+  `utils/homeScreenHint.ts`, so desktop Safari stays quiet), More shows
+  one quiet line under Gestures: "In Safari's Share menu, choose Add to Home
+  Screen to open Sharecut full screen." There is no banner, toast or dismiss.
+
+Short touch screens (at most 40rem tall with a coarse primary pointer, a phone
+held sideways) compact the editor:
+
+- Touch lanes drop from 104px to the 72px compact lane (`LaneFit` `touchShort`
+  in `timeline/timelineMetrics.ts`), whatever the saved fixed height, so three
+  or more fit. The lane does not follow the stage height, so the strip opening
+  or closing never resizes lanes under a finger; **Fit tracks to window
+  height** still fills the stage. With large text the lane is 3.25rem
+  (`shortTouchFloorPx`), so the 2.75rem identity chip and its meter stay whole
+  (104px at a 32px root). Track headers switch to their compact one-row layout,
+  and a sideways pane at least 50rem wide keeps the full 11.25rem header so
+  the name still reads beside M and S.
+- An empty marker lane gives its quiet row to the tracks; rows with chapters,
+  clips, comments or clip flags still show.
+- The tablet timeline row takes all spare height and the tool rail keeps its
+  own (`grid-template-rows: minmax(0, 1fr) auto`), with 2px of block padding
+  (`@container app (max-height: 40rem)`).
+
+Measured in Playwright WebKit with the iPhone 17 Pro Max descriptor and the
+timeline maximized (px of lanes above the rail; 2-track demo, so capacity is
+usable height over lane height):
+
+| Viewport | Before: lane, usable, capacity | After: lane, usable, capacity |
+|---|---|---|
+| 838×390 sideways, Safari bars | 104, 211, 2 | 72, 234, 3 |
+| 838×390 with the strip open | 104, 151, 1 | 72, 174, 2 |
+| 932×432 sideways, bars hidden | 104, 253, 2 | 72, 276, 3 |
+| 932×432 with the strip open | 104, 193, 1 | 72, 216, 3 |
+| 440×763 portrait, Safari bars | 104, 550, 5 | 104, 498, 4 |
+
+Portrait gives up 52px: at 440px and narrower, Undo and Redo wrap to a second
+rail row rather than squeezing the tool labels onto two lines.
+
+`e2e-compat/phone-chrome.spec.ts` checks three 72px lanes at 932×432, Undo and
+Redo on both shells, and the runway with a still shell, in Chromium and WebKit.
+Playwright cannot show Safari's bars collapsing; a real iPhone check remains
+for the collapse itself, the Dynamic Island side in landscape, and the Home
+Screen launch.
+
 Phone four-mode chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport override can leave the CSS viewport at tablet width while the OS window is narrower — hard refresh does not clear that; clear the override (or set 390×844) before judging Listen / Text.
 
 ## Phone: four modes + one sheet
@@ -105,7 +184,7 @@ Inspector sheets keep the timeline interactive behind them: their background scr
 
 Pending timeline edits use the same lane-wide region on phones. A selected region shows 44px start/end touch targets only when its drawn width is at least 44px and the lane leaves room for both targets. For a narrow region or compact lane, the edge handles stay hidden on touch; the selected action card offers **Edit timing**, which focuses the existing Source start field in the inspector. The card keeps its label and Approve/Reject controls in a fixed, viewport-anchored surface below or above the lane; it does not cover the region or add horizontal timeline scroll. Dense unselected cuts reveal a floating label on hover or keyboard focus, and labels follow zoom and responsive layout changes. A host transcript-refine recovery card stays inside the measured, scrollable action surface. The Impact panel lists every pending edit for selection, while bulk review actions remain limited to review-required edits.
 
-Coarse-pointer timeline lanes keep a minimum height of 104 canvas pixels, matching the compact header floor already used by the phone timeline. The lower seam roll target is 48 canvas pixels high and at least the shared touch target width. It stays below the fade corners and inside its clip, while the join badge remains in the top gutter and the crossfade endpoint control uses its separate rail below the timeline.
+Coarse-pointer timeline lanes keep a minimum height of 104 canvas pixels, matching the compact header floor already used by the phone timeline. A short screen (a phone held sideways) is the exception: lanes drop to 72px so three fit (see [Browser chrome](#browser-chrome-safe-areas-and-home-screen-1077)), and the hit router's crowded-target chooser resolves the tighter targets. The lower seam roll target is 48 canvas pixels high and at least the shared touch target width. It stays below the fade corners and inside its clip, while the join badge remains in the top gutter and the crossfade endpoint control uses its separate rail below the timeline.
 
 On phones, Pipeline step parameters open in the shared modal Dialog. Escape and
 Close dismiss it and return focus to the selected step; Tab stays inside the
@@ -143,7 +222,7 @@ range proposals; view guests keep the five actions visible with disabled reasons
 
 ### Gestures
 
-Touch gestures for common actions, documented in the **Gestures** cheatsheet (More hub → Gestures). It is an app-level modal (outside inert app chrome) and can switch directly to **Keyboard shortcuts**; that dialog links back to Gestures without stacking. Two-finger Undo is an optional Sharecut shortcut, not an iOS system convention; More also has the visible History route. Pinch zoom remains available, and it never edits: a second finger on the timeline cancels any one-finger drag or press in progress without saving it and puts the selection back ([decision](touch-editor-decisions.md#pinch-never-edits-1051-round-4)). Visible command routes remain available for the shipped gesture shortcuts; the cheatsheet lists only shipped gestures. Remaining non-drag edit alternatives are tracked in [the touch-editor decision record](touch-editor-decisions.md). Gesture thresholds (hold time, touch slop, click-versus-drag distances, ghost-click window, double-tap gap, swipe distances and drag cap) live in one module, `gui/web/src/hooks/gestureConstants.ts`, which every gesture reads. The hold is 500 ms and a held finger may drift 10 px, after iOS's long-press defaults (0.5 s, 10 pt) and inside Android's (400–500 ms, 8 dp touch slop); the module cites the platform sources. Long-press selection varies by target (clip, comment, track, or transcript word), so it is explicitly exempt from a single command ID; each target keeps its existing selection or correction action.
+Touch gestures for common actions, documented in the **Gestures** cheatsheet (More hub → Gestures). It is an app-level modal (outside inert app chrome) and can switch directly to **Keyboard shortcuts**; that dialog links back to Gestures without stacking. Two-finger Undo is an optional Sharecut shortcut, not an iOS system convention; the Timeline tool rail has visible Undo and Redo, and More has the History route. Pinch zoom remains available, and it never edits: a second finger on the timeline cancels any one-finger drag or press in progress without saving it and puts the selection back ([decision](touch-editor-decisions.md#pinch-never-edits-1051-round-4)). Visible command routes remain available for the shipped gesture shortcuts; the cheatsheet lists only shipped gestures. Remaining non-drag edit alternatives are tracked in [the touch-editor decision record](touch-editor-decisions.md). Gesture thresholds (hold time, touch slop, click-versus-drag distances, ghost-click window, double-tap gap, swipe distances and drag cap) live in one module, `gui/web/src/hooks/gestureConstants.ts`, which every gesture reads. The hold is 500 ms and a held finger may drift 10 px, after iOS's long-press defaults (0.5 s, 10 pt) and inside Android's (400–500 ms, 8 dp touch slop); the module cites the platform sources. Long-press selection varies by target (clip, comment, track, or transcript word), so it is explicitly exempt from a single command ID; each target keeps its existing selection or correction action.
 
 - **Long-press** (`useLongPress`) selects a comment or track and opens the existing inspector sheet; on a transcript word it opens correction. Clips already select on pointerdown (a hold is just a tap there; with the touch chooser lab on, a timeline touch selects only on a tap and never while scrolling, see [touch-editor-decisions.md](touch-editor-decisions.md#touch-target-chooser-prototype-1051-lab)), so they have no separate recognizer and a hold never reselects or collapses a multi-selection. Movement, cancellation, and a second finger (even on an element that stops propagation) abort it. It fires on release and consumes the synthesized click; a press whose click never arrives is flushed by the next pointerdown rather than dropped. On coarse pointers, transcript words and comment headers set `user-select: none` / `-webkit-touch-callout: none`, and the native context menu is suppressed while a press is armed, so the OS selection UI does not claim the hold. Physical iOS/Android verification is still required; CDP touch in CI does not trigger native selection.
 - **Double-tap word**: the first tap seeks immediately (no added latency); a second tap on the same word within the double-tap gap opens correction. `.transcript-list` sets `touch-action: manipulation` so browser double-tap zoom cannot eat the second tap. On desktop, a host's double-click opens inline word editing instead (the first click still seeks); touch double-tap keeps the correction sheet. The navigate-mode hint under the transcript toolbar follows the pointer: coarse pointers read "Double-tap a word to correct its text…" and fine pointers get the inline Enter/Esc hint. The split is deliberate: the sheet leaves room for the on-screen keyboard and keeps Suppress and phrase (End index) correction one tap away, which a chip-sized inline input cannot. Both paths submit through `submitWordCorrection` (`gui/web/src/transcript/wordCorrection.ts`), so they cannot drift.
@@ -293,7 +372,7 @@ The host recording chip remains a full touch target in the collapsed tablet tran
 
 ### Editing tool rail (phone / tablet Timeline)
 
-Ferrite-style bottom rail (`EditingToolRail`): **Select | Blade** icon toggle (structural guests), **Cut at playhead**, and a confirm sheet for blade cuts (tracks + timecode). **Comment** stays on the collapsed transport so Listen/More still have it (compact `ToolModeToggle` omits Comment to avoid a duplicate). Desktop uses the expanded transport toggle (**V** / **C** when timeline-focused; same `execute` command bus as the rail — see `gui/web/src/keymap/` + `gui/web/src/commands/`); in blade mode a pointer-following cut preview marks target lanes, and click on **clip / empty-lane / ruler** splits immediately (no confirm sheet). Multi-track selection: Shift/Cmd-click track headers; blade with no selection targets all dialogue tracks.
+Ferrite-style bottom rail (`EditingToolRail`): **Select | Blade** icon toggle (structural guests), **Cut at playhead**, and a confirm sheet for blade cuts (tracks + timecode). **Undo** and **Redo** icon buttons close the rail at its inline end for the host and `edit` guests (#1077, the #1028 phone scope): bottom zone, beside the tools they reverse, through `history.undo` / `history.redo` on the command bus (`runHistoryAction`, which also announces a failure). Each is a 44px square. With nothing to undo or redo it is dimmed and disabled, the platform convention; a screen reader hears why ("Nothing to undo", "Nothing to redo") through `aria-describedby`, and a mouse or pen sees it as the tooltip. Buttons never break their labels; a narrow phone wraps Undo and Redo onto a second rail row. The two-finger tap and More → History remain. **Comment** stays on the collapsed transport so Listen/More still have it (compact `ToolModeToggle` omits Comment to avoid a duplicate). Desktop uses the expanded transport toggle (**V** / **C** when timeline-focused; same `execute` command bus as the rail — see `gui/web/src/keymap/` + `gui/web/src/commands/`); in blade mode a pointer-following cut preview marks target lanes, and click on **clip / empty-lane / ruler** splits immediately (no confirm sheet). Multi-track selection: Shift/Cmd-click track headers; blade with no selection targets all dialogue tracks.
 
 Labeled audition/pills do not stay in the bar when collapsed — that was clipping Comment/Fit/Menu off-screen. The **Mix out of date** pill is wide-bar only; collapsed transport keeps timecode pinned (`flex: 0 0 auto`) and moves refresh into Menu so digits cannot paint over status.
 
@@ -318,7 +397,8 @@ remains free of the meter's reset hit area. Reduced motion keeps the bar and pea
 marker still while the clip light can latch. Pause and Stop
 retain that light until cleared.
 Phone lanes have a 104px minimum in both fixed and fit modes, leaving separate
-touch targets for opening track details and clearing clipping. The saved track
+touch targets for opening track details and clearing clipping. On a short
+screen the minimum is 72px, or 3.25rem with large text (#1077). The saved track
 height still applies when it is larger than that minimum.
 
 - Transport overflow (theme, layers, zoom; host-only More → Add chapter at playhead, `edit.addChapter`)
@@ -339,6 +419,7 @@ Host offline command attention occupies its own shell row on phone, tablet, and 
 
 - Vitest: `useViewportClass`, `BottomSheet`, mobile shell smoke, follow live region + Listen unfollow, layout CSS classes, shell grid areas (`layout/shellGrid.test.ts`), layout controls; Playwright `e2e/layout-modes.spec.ts` (layout × attention × following geometry at 1512×805)
 - Playwright: phone viewport (`390×844`) asserts `.daw-shell--phone` + mode nav; `e2e/overlay-viewport.spec.ts` Menu + Share dialog reachability at `1280×715` and `390×844`; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; `e2e-compat/timeline-scroll-end.spec.ts` checks the desktop horizontal end with short lanes and classic scrollbars on Chromium and WebKit
+- Playwright compat: `e2e-compat/phone-chrome.spec.ts` (#1077) checks three 72px lanes sideways at 932×432, rail Undo and Redo, and the page runway under a still shell, in Chromium and WebKit with touch emulation
 - Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)
 
 See [`gui/web/README.md`](../gui/web/README.md) and [gui-integration.md](gui-integration.md) § Responsive shells.

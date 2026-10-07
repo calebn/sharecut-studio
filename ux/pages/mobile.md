@@ -114,6 +114,7 @@ A few things live in different places on mobile:
 - **Gestures** has a reference list under More
 - **Mute/Solo and Volume** for a track: tap its header row on the left side of Timeline
 - **Audition and export** are in the compact transport Menu outside Listen
+- **Undo and Redo** are the two arrow buttons at the right end of the tool row above the Timeline tabs. When there's nothing to undo or redo, the button is dimmed
 
 The phone layout groups controls by task so they fit a smaller screen.
 
@@ -121,7 +122,16 @@ The phone layout groups controls by task so they fit a smaller screen.
 
 - **Listen mode** is the fastest way to review. Play through and open **More → Comments** to use the comment tools.
 - **Text mode** with "Follow" on will highlight words as the audio plays — great for catching transcript errors.
-- If enabled, **two-finger tap** can undo your last action. History is also under More.
+- **Undo and Redo** sit at the right end of the Timeline tool row. A **two-finger tap** also undoes your last action, and History is under More.
+
+### Full screen on iPhone
+
+Safari's address bar and toolbar take a lot of room, especially with the phone held sideways. Two ways to get it back:
+
+- **Add Sharecut to your Home Screen.** In Safari's Share menu, choose **Add to Home Screen**. Opened from its icon, Sharecut runs full screen with no browser bars. More shows this tip when you're in Safari.
+- **Swipe up on the top bar or the tool row.** Safari shrinks its bars. Swiping on the waveforms scrolls only the timeline.
+
+Held sideways, tracks get shorter so at least three fit on screen, and the controls keep their full-size touch targets. The empty marker band under the ruler steps aside until there are markers to show. The layout also stays clear of the camera cutout and the home indicator.
 
 ### Mix tracks from More
 
