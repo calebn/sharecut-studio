@@ -161,17 +161,24 @@ export function useNudgeRun() {
     endedAt.current = Date.now();
     if (r.timer) clearTimeout(r.timer);
     if (r.moved === 0) return;
+    const revert = () => {
+      if (r.preview) {
+        revertOptimisticIfUnchanged(r.origin, r.seq, r.projectPath, r.preview);
+      }
+    };
     setSaving(true);
     try {
-      await saveNudge(r.projectPath, r.origin, r.field, r.value);
+      if (!(await saveNudge(r.projectPath, r.origin, r.field, r.value))) {
+        // The host asked first and changed nothing; its dialog speaks.
+        revert();
+        return;
+      }
       const saved = NUDGE_KINDS[r.field.kind].saved;
       useDawStore
         .getState()
         .announceStatus(r.stoppedAt ? `${saved} at ${r.stoppedAt}` : saved);
     } catch (error) {
-      if (r.preview) {
-        revertOptimisticIfUnchanged(r.origin, r.seq, r.projectPath, r.preview);
-      }
+      revert();
       useDawStore
         .getState()
         .announceStatus(`${r.name} not saved: ${errorMessage(error)}`);

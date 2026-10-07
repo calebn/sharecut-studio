@@ -23,6 +23,17 @@ vi.mock("../api", async (importOriginal) => ({
   setClipFade: api.setClipFade,
   setEnvelope: api.setEnvelope,
 }));
+const host = vi.hoisted(() => ({
+  submit: vi.fn(),
+  loadBoundaryContext: vi.fn(),
+}));
+vi.mock("../services/commandQueue", () => ({
+  submitQueuedDocumentCommand: host.submit,
+}));
+vi.mock("../api/boundary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api/boundary")>()),
+  loadBoundaryContext: host.loadBoundaryContext,
+}));
 
 const left = clipRow({
   id: "c1",
@@ -70,6 +81,10 @@ function Strip({
 const FADE = {
   selection: { kind: "clip", id: "c2", trackId: "host" },
   hit: { kind: "fade-in", id: "c2" },
+} as const;
+const TRIM_END = {
+  selection: { kind: "clip", id: "c2", trackId: "host" },
+  hit: { kind: "trim-out", id: "c2" },
 } as const;
 const POINT = {
   selection: { kind: "envelopePoint", trackId: "host", pointId: "e1" },
@@ -259,6 +274,55 @@ describe("InspectorPeek nudges", () => {
     expect(announce).toHaveBeenCalledWith(
       "Envelope point level is at its limit",
     );
+  });
+
+  it("leaves a trim nudge unsaved and restores it when the ripple would cut another speaker", async () => {
+    const speech = {
+      spans: [{ start: 39.9, end: 40 }],
+      tracks: [
+        {
+          track_id: "guest",
+          speaker: "Avery",
+          words: [{ text: "so", timeline_start: 39.92, timeline_end: 39.98 }],
+          sound_spans: [],
+        },
+      ],
+    };
+    host.loadBoundaryContext.mockResolvedValue({ token: "ripple-token" });
+    host.submit.mockResolvedValue({
+      ok: true,
+      needs_confirmation: { status: "needs_confirmation", speech },
+    });
+    open(TRIM_END);
+    const earlier = button("Trim end 0.1 s earlier");
+    fireEvent.pointerDown(earlier, { button: 0 });
+    expect(
+      useDawStore.getState().project?.clips.tracks.host[1].source_end,
+    ).toBe(39.9);
+    fireEvent.pointerUp(earlier);
+    await flush();
+    await flush();
+    expect(host.loadBoundaryContext.mock.calls[0]?.[1]).toEqual({
+      kind: "trim",
+      clip_id: "c2",
+      edge: "out",
+      mode: "ripple",
+    });
+    expect(host.submit.mock.calls[0]?.slice(1, 3)).toEqual([
+      "TrimClipEdge",
+      {
+        clip_id: "c2",
+        edge: "out",
+        source_sec: 39.9,
+        mode: "ripple",
+        expected_token: "ripple-token",
+      },
+    ]);
+    const state = useDawStore.getState();
+    expect(state.project?.clips.tracks.host[1].source_end).toBe(40);
+    expect(state.cutSpeechPrompt?.speech).toEqual(speech);
+    expect(announce).not.toHaveBeenCalledWith("Trim saved");
+    state.setCutSpeechPrompt(null);
   });
 
   it("offers envelope nudges to editors only (D-touch-input-grammar), and fade nudges from a guest without edit", () => {

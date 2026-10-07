@@ -453,14 +453,15 @@ export function withNudge(
 
 /**
  * Saves `field` at `value` as one document command, against `origin`, the
- * project as it was saved when the nudges began.
+ * project as it was saved when the nudges began. False when nothing saved:
+ * a ripple trim over another speaker's speech asks first (`CutSpeechDialog`).
  */
 export async function saveNudge(
   projectPath: string,
   origin: ProjectView,
   field: NudgeField,
   value: number,
-): Promise<void> {
+): Promise<boolean> {
   switch (field.kind) {
     case "fade":
     case "trim": {
@@ -473,14 +474,13 @@ export async function saveNudge(
           field.edge === "in" ? value : clip.fade_in_ms,
           field.edge === "out" ? value : clip.fade_out_ms,
         );
-        return;
+        return true;
       }
-      await saveClipEdge(projectPath, clip, {
+      return saveClipEdge(projectPath, clip, {
         kind: "trim",
         edge: field.edge,
         sourceSec: value,
       });
-      return;
     }
     case "pending": {
       const edit = pendingEdit(origin, field.editId);
@@ -498,7 +498,7 @@ export async function saveNudge(
         undefined,
         pendingEditBaseline(edit),
       );
-      return;
+      return true;
     }
     case "envelope-time":
     case "envelope-level": {
@@ -517,7 +517,7 @@ export async function saveNudge(
         replaceEnvelopePoint(raw, next),
         raw,
       );
-      return;
+      return true;
     }
   }
 }
