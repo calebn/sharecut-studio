@@ -18,7 +18,9 @@ little speech still measures its voice rather than its floor.
 
 A track with more digital silence than quiet live frames is gated: its bed is the
 silence, and its live frames are speech whose quiet onsets and tails would pass for a
-floor. It has no room tone, so the result does not hang on the voice detector.
+floor. It has no quiet runs, so no room tone, and the result does not hang on the voice
+detector. Its floor and speech level are still measured: the gate fill reads its speech
+level for the same credibility rule (``edits/gate_fill.py``).
 
 A request ranks the quiet runs by distance from the cut (all of them sit at the floor,
 so the nearest matches the room at the cut best), takes the window of its length nearest
@@ -78,8 +80,8 @@ Span = tuple[float, float]
 class TrackFloor:
     """One track's source audio as room-tone candidates.
 
-    ``runs`` are the quiet runs, in source seconds. ``speech_db`` is None when no frame
-    rises above the floor band.
+    ``runs`` are the quiet runs, in source seconds; none on a gated track. ``speech_db`` is
+    None when no frame rises above the floor band.
     """
 
     path: Path
@@ -139,7 +141,7 @@ def room_tone_span(
     track = project.track_by_id(track_id)
     if track is None or track.media is None:
         return None
-    floor = _track_floor_for(track_audio_path(project, track_id))
+    floor = track_floor(track_audio_path(project, track_id))
     if floor is None:
         return None
     sample = _pick_sample(floor, near_sec=near_sec, duration_sec=duration_sec)
@@ -194,7 +196,9 @@ def _speech_prob(audio: np.ndarray) -> float | None:
     return float(np.max(vad.speech_probs(audio)))
 
 
-def _track_floor_for(path: Path) -> TrackFloor | None:
+def track_floor(path: Path) -> TrackFloor | None:
+    """``path``'s floor, speech level and quiet runs (cached per file revision); None when
+    it holds no live audio or cannot be read."""
     try:
         resolved = path.resolve(strict=True)
         return _track_floor(resolved, file_revision(resolved))
@@ -207,8 +211,8 @@ def _track_floor_for(path: Path) -> TrackFloor | None:
 def _track_floor(path: Path, revision: FileRevision) -> TrackFloor | None:
     """Decode ``path`` once per file revision into its floor, speech level and quiet runs.
 
-    None when the track's bed is digital silence (more of it is digital silence than
-    live audio at its floor): a gated track's holes already match its bed.
+    A track whose bed is digital silence (more of it is digital silence than live audio
+    at its floor) is gated and has no quiet runs: its holes already match its bed.
     """
     del revision  # part of the cache key: a replaced file is measured again
     from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -221,12 +225,11 @@ def _track_floor(path: Path, revision: FileRevision) -> TrackFloor | None:
         return None
     floor_db = float(np.percentile(frames[live], FLOOR_PERCENTILE))
     quiet = live & (frames <= floor_db + FLOOR_BAND_DB)
-    if np.count_nonzero(~live) > np.count_nonzero(quiet):
-        return None
+    gated = np.count_nonzero(~live) > np.count_nonzero(quiet)
     guard = round(SPEECH_GUARD_SEC / FRAME_SEC)
     runs = [
         (i + guard if i > 0 else i, j - guard if j < frames.size else j)
-        for i, j in bool_runs(quiet)
+        for i, j in ([] if gated else bool_runs(quiet))
     ]
     loud = frames[frames > floor_db + FLOOR_BAND_DB]
     return TrackFloor(

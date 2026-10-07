@@ -418,7 +418,7 @@ def test_a_gate_that_closes_on_a_ringing_voice_leaves_its_holes_silent(tmp_path:
     summary = fill_gate_holes(project, _defaults())
 
     assert project.track_by_id("guest").gate_fill is None
-    assert "near its speech" in summary
+    assert "no steady floor" in summary
 
 
 def test_recorded_room_tone_bed_comes_before_comfort_noise(tmp_path: Path) -> None:
