@@ -107,16 +107,12 @@ test.describe("dialog consumers reachability", () => {
         await page.setViewportSize(viewport);
         await openHostProject(page);
         await openDialogFromMenu(page, dialogCase.menuItem);
-        // The shortcuts cheatsheet has no trailing dialog action; target its
-        // final command row rather than the final section heading.
+        // The command palette has no trailing dialog action; target its last
+        // runnable command row (rows that cannot run here are disabled).
         const targetFor =
           dialogCase.name === "Commands and shortcuts"
             ? (dialog: Locator) =>
-                dialog
-                  .locator(".command-palette-section")
-                  .last()
-                  .locator(".command-palette-run")
-                  .last()
+                dialog.locator(".command-palette-run:not(:disabled)").last()
             : (dialog: Locator) =>
                 dialog.getByRole("button", {
                   name: dialogCase.targetName,
