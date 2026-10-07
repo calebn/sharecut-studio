@@ -242,6 +242,10 @@ class TranscriptWord(BaseModel):
     alignment_score: float | None = None
     # The ASR/aligner span before the word-span plausibility trim shortened it (#979).
     trimmed_from: tuple[float, float] | None = None
+    # The start before align_tracks moved it onto where the speaker's own track opens,
+    # because the word's start reached only another mic (#1059). Each align_tracks run
+    # puts it back and judges again, so it holds only while the start is still missing.
+    snapped_from: float | None = None
     # Over its class cap but holding more of its speaker's voice than the cap: words
     # missing from the transcript, not one stretched token. Times kept, queued for refine.
     overlong: bool = False
