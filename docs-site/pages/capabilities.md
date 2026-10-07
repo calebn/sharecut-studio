@@ -102,7 +102,7 @@ Effect `project` changes the saved project, review state, transcripts or artifac
 | Record marker | project | `record.marker` | `M` | `LiveComments` | `record_marker_tool` | `podcast record marker` | `podcast-record-session` | yes | none · none |
 | Connect agent… | view | `mcp.connect` | — (dialog from Menu) | `transport.menu`, `HostMcpDialog` | — | — | — | yes | none · none |
 | Export diagnostics… | view | `help.diagnosticsBundle` | — (dialog from Home / Menu) | `home.help`, `HelpDialog`, `transport.menu` | — | `podcast doctor --bundle` | — | yes | none · none |
-| Export deliverables… | project | `export.deliverables` | `Mod+Shift+E` | `transport.menu` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
+| Export deliverables… | project | `export.deliverables` | `Mod+Shift+E` | `transport.menu`, `ExportDialog` | `export_audio_tool` | `podcast pipeline export-audio` | `podcast-master-export` | yes | none · none |
 | New project | project | `project.new` | `Mod+N` | `transport.menu` | `episode_create` | `podcast episode init` | — | yes | none · none |
 | Open project | session | `project.open` | `Mod+O` | `transport.menu` | — | — | — | yes | none · none |
 | New track | project | `track.add` | `Mod+Shift+T (Shift avoids browser New Tab; Reaper uses Mod+T)` | `transport.menu`, `editingToolRail`, `trackLane` | `track_add_empty_tool`, `track_add` | — | — | — | none · none |

@@ -519,6 +519,7 @@ export const GUI_SURFACE_TO_CAPABILITY: Record<string, string> = {
   HostMcpDialog: "daw.mcp.connect",
   "home.help": "daw.help.diagnosticsBundle",
   HelpDialog: "daw.help.diagnosticsBundle",
+  ExportDialog: "daw.export.deliverables",
   trackLane: "daw.track.add",
   drop: "daw.media.import",
   "transcript.annotate": "daw.view.transcriptAnnotate",

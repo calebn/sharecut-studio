@@ -292,16 +292,36 @@ export async function startRenderPreview(
   const data = (await res.json()) as { job: PipelineJobSnapshot };
   return { mode: "job", job: data.job };
 }
+/** A followed job ended `cancelled`: someone asked it to stop. Not a failure. */
+export class JobCancelledError extends Error {
+  override name = "JobCancelledError";
+}
+
+/**
+ * Follow a job to its terminal snapshot. Resolves only on `ok`; a cancelled job
+ * throws `JobCancelledError`, a failed one an `Error` with its message.
+ */
+export async function followJobToOk(
+  jobId: string,
+  failLabel: string,
+  opts?: { timeoutMs?: number; signal?: AbortSignal },
+): Promise<PipelineJobSnapshot> {
+  const done = await waitForPipelineJob(jobId, opts);
+  if (done.status === "cancelled") {
+    throw new JobCancelledError(done.message || failLabel);
+  }
+  if (done.status !== "ok") {
+    throw new Error(done.error || done.message || failLabel);
+  }
+  return done;
+}
+
 export async function followExportJob(
   jobId: string,
   failLabel: string,
   opts?: { timeoutMs?: number; signal?: AbortSignal },
 ): Promise<string[]> {
-  const done = await waitForPipelineJob(jobId, opts);
-  if (done.status !== "ok") {
-    throw new Error(done.error || done.message || failLabel);
-  }
-  return jobResultPaths(done);
+  return jobResultPaths(await followJobToOk(jobId, failLabel, opts));
 }
 
 /** Slow status re-check while a job SSE stream is open: backstop for a stream that stays OPEN but goes silent (buffering proxy, half-open socket, backgrounded webview). */

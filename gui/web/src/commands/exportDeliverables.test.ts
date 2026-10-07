@@ -1,194 +1,41 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { useDawStore } from "../state/dawStore";
-import { seedStudioJob } from "../state/seedStudioJob";
 import { minimalProject } from "../test/fixtures";
-import type { PipelineJobSnapshot } from "../types/pipeline";
 import { clearRegisteredCommands, execute } from "./execute";
-import { _resetSingleFlightsForTests, registerDawCommands } from "./register";
+import { registerDawCommands } from "./register";
 
-vi.mock("../api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../api")>();
-  return {
-    ...actual,
-    startExportJob: vi.fn(),
-    followExportJob: vi.fn(),
-  };
-});
-
-vi.mock("../state/seedStudioJob", () => ({
-  seedStudioJob: vi.fn(),
+vi.mock("../api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../api")>()),
+  startExportJob: vi.fn(),
 }));
-
-const startMock = vi.mocked(api.startExportJob);
-const followMock = vi.mocked(api.followExportJob);
-
-function jobSnapshot(id: string): PipelineJobSnapshot {
-  return {
-    id,
-    project_path: "/tmp/test/episode.project.json",
-    from_step: null,
-    only_step: null,
-    kind: "export",
-    status: "running",
-  } as PipelineJobSnapshot;
-}
 
 describe("export.deliverables", () => {
   beforeEach(() => {
     clearRegisteredCommands();
-    _resetSingleFlightsForTests();
     registerDawCommands();
-    startMock.mockReset();
-    followMock.mockReset();
+    vi.mocked(api.startExportJob).mockReset();
     useDawStore.setState({
       projectPath: "/tmp/test/episode.project.json",
       project: minimalProject(),
       guestMode: null,
-      statusAnnouncement: "",
-      pendingJobResults: {},
+      exportDialogOpen: false,
     });
   });
 
-  afterEach(() => {
-    _resetSingleFlightsForTests();
+  it("opens the export dialog instead of starting a render", async () => {
+    expect(
+      await execute("export.deliverables", {}, { skipWhen: true }),
+    ).toEqual({ status: "ok" });
+    expect(useDawStore.getState().exportDialogOpen).toBe(true);
+    expect(api.startExportJob).not.toHaveBeenCalled();
   });
 
-  it("rejects a second invocation while the first export is in flight", async () => {
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    startMock.mockImplementation(() => gate.then(() => jobSnapshot("job-1")));
-    followMock.mockResolvedValue(["export/a.wav"]);
-
-    const first = execute("export.deliverables");
-    const second = execute("export.deliverables");
-
-    const secondResult = await second;
-    expect(secondResult.status).toBe("disabled");
-    if (secondResult.status === "disabled") {
-      expect(secondResult.reason).toBe("Export already running");
-    } else {
-      expect.unreachable("expected disabled result");
-    }
-    expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Export already in progress…",
-    );
-
-    release();
-    expect((await first).status).toBe("ok");
-    expect(startMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("allows a new export after the previous one finishes", async () => {
-    startMock.mockResolvedValue(jobSnapshot("job-1"));
-    followMock.mockResolvedValue(["export/a.wav"]);
-
-    expect((await execute("export.deliverables")).status).toBe("ok");
-    // The result is the job's own copy, held for useJobStatusAnnouncement to
-    // speak once that job's chip goes terminal (#704), not written to
-    // statusAnnouncement here.
-    expect(useDawStore.getState().pendingJobResults).toEqual({
-      "job-1": "Exported 1 file(s) to export/",
-    });
-    expect((await execute("export.deliverables")).status).toBe("ok");
-    expect(startMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("drops the pending result when the export job fails", async () => {
-    startMock.mockResolvedValue(jobSnapshot("job-1"));
-    followMock.mockRejectedValue(new Error("render failed"));
-
-    const result = await execute("export.deliverables");
-    expect(result.status).toBe("disabled");
-    expect(useDawStore.getState().pendingJobResults).toEqual({});
-    expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Export failed: render failed",
-    );
-  });
-
-  it("clears the guard when the export fails", async () => {
-    startMock.mockRejectedValue(new Error("disk full"));
-
-    const failed = await execute("export.deliverables");
-    expect(failed.status).toBe("disabled");
-    expect(useDawStore.getState().statusAnnouncement).toBe(
-      "Export failed: disk full",
-    );
-
-    startMock.mockResolvedValue(jobSnapshot("job-2"));
-    followMock.mockResolvedValue(["export/a.wav"]);
-    expect((await execute("export.deliverables")).status).toBe("ok");
-    expect(startMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("aborts the follow when the project changes and announces nothing", async () => {
-    startMock.mockResolvedValue(jobSnapshot("job-1"));
-    followMock.mockImplementation(
-      (_id, _label, opts) =>
-        new Promise((_resolve, reject) => {
-          opts?.signal?.addEventListener("abort", () => {
-            reject(new DOMException("Aborted", "AbortError"));
-          });
-        }),
-    );
-
-    const run = execute("export.deliverables");
-    await vi.waitFor(() => expect(followMock).toHaveBeenCalled());
-    useDawStore.setState({ projectPath: "/tmp/other/episode.project.json" });
-
-    const result = await run;
-    expect(result.status).toBe("disabled");
-    if (result.status === "disabled") {
-      expect(result.reason).toBe("Project changed");
-    }
-    expect(useDawStore.getState().pendingJobResults).toEqual({});
-    expect(useDawStore.getState().statusAnnouncement).not.toContain(
-      "Export failed",
-    );
-
-    startMock.mockResolvedValue(jobSnapshot("job-2"));
-    followMock.mockResolvedValue(["export/a.wav"]);
-    expect((await execute("export.deliverables")).status).toBe("ok");
-  });
-
-  it("does not seed the chip when the project changes while the export starts", async () => {
-    vi.mocked(seedStudioJob).mockClear();
-    let resolveStart!: (job: PipelineJobSnapshot) => void;
-    startMock.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveStart = resolve;
-        }),
-    );
-    const run = execute("export.deliverables");
-    await vi.waitFor(() => expect(startMock).toHaveBeenCalled());
-    useDawStore.setState({ projectPath: "/tmp/other/episode.project.json" });
-    resolveStart(jobSnapshot("job-1"));
-
-    const result = await run;
-    expect(result.status).toBe("disabled");
-    if (result.status === "disabled") {
-      expect(result.reason).toBe("Project changed");
-    }
-    expect(vi.mocked(seedStudioJob)).not.toHaveBeenCalled();
-    expect(followMock).not.toHaveBeenCalled();
-    expect(useDawStore.getState().pendingJobResults).toEqual({});
-  });
-
-  it("does not block another project's export", async () => {
-    _resetSingleFlightsForTests();
-    startMock.mockResolvedValue(jobSnapshot("job-1"));
-    followMock.mockImplementationOnce(() => new Promise(() => {}));
-
-    void execute("export.deliverables");
-    await vi.waitFor(() => expect(followMock).toHaveBeenCalledTimes(1));
-
-    useDawStore.setState({ projectPath: "/tmp/other/episode.project.json" });
-
-    startMock.mockResolvedValue(jobSnapshot("job-2"));
-    followMock.mockResolvedValueOnce(["export/b.wav"]);
-    expect((await execute("export.deliverables")).status).toBe("ok");
+  it("stays closed without a loaded host project", async () => {
+    useDawStore.setState({ project: null });
+    expect(
+      await execute("export.deliverables", {}, { skipWhen: true }),
+    ).toEqual({ status: "disabled", reason: "No project loaded" });
+    expect(useDawStore.getState().exportDialogOpen).toBe(false);
   });
 });

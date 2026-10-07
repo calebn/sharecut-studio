@@ -285,6 +285,45 @@ html[data-shell="phone"] .ui-dialog-root--phone-sheet > .command-palette-panel {
   gap: var(--space-3);
 }
 
+.export-dialog-lead,
+.export-dialog-status,
+.export-dialog-note {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.export-dialog-status {
+  font-weight: 600;
+}
+
+.export-dialog-note {
+  color: var(--color-text-secondary);
+}
+
+/* Lines up under a checkbox label, past the 1rem box and its gap. */
+.export-dialog-indent {
+  padding-inline-start: calc(1rem + var(--space-4));
+}
+
+.export-dialog-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--touch-min);
+}
+
+.export-dialog-files {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-caption);
+  overflow-wrap: anywhere;
+}
+
 .command-palette-panel.share-dialog-panel {
   width: min(32rem, calc(100vw - 2rem));
 }
