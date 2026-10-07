@@ -6,15 +6,15 @@ from mcp.server import MCPServer
 
 from podcast_mcp import __version__
 from podcast_mcp.mcp.args import install_free_text_args
-from podcast_mcp.mcp.busy_errors import install_busy_errors
 from podcast_mcp.mcp.project_default import install_project_default
+from podcast_mcp.mcp.tool_errors import install_tool_errors
 from podcast_mcp.mcp.tools import register_all
 from podcast_mcp.util.progress_install import install_mcp_progress
 
 mcp = MCPServer("podcast-mcp", version=__version__)
 install_mcp_progress(mcp)
 install_project_default(mcp)
-install_busy_errors(mcp)
+install_tool_errors(mcp)
 install_free_text_args(mcp)
 register_all(mcp)
 

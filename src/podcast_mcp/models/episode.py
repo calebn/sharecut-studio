@@ -16,6 +16,7 @@ from podcast_mcp.models.words_revision import (
     bumps_words_revision,
     words_revision,
 )
+from podcast_mcp.util.coded_error import CodedFileNotFoundError
 
 EPISODE_PROJECT_FILENAME = "episode.project.json"
 _T = TypeVar("_T")
@@ -1103,9 +1104,18 @@ def workspace_artifacts_dir(workspace: Path | str) -> Path:
     return Path(workspace) / "artifacts"
 
 
+def project_not_found(path: Path | str) -> CodedFileNotFoundError:
+    """The refusal for a project file that does not exist (raise it)."""
+    return CodedFileNotFoundError(f"Project not found: {path}", code="project_not_found")
+
+
 def load_project(path: Path) -> EpisodeProject:
     path = Path(path)
-    data = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise project_not_found(path) from exc
+    data = json.loads(text)
     if not isinstance(data, dict):
         raise ValueError("project file must be a JSON object")
     require_v2_document(data)

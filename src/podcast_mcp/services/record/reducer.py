@@ -21,14 +21,19 @@ from podcast_mcp.services.record.state import (
     start_blockers,
     take_consented_participant_ids,
 )
+from podcast_mcp.util.coded_error import CodedError
 
 
-class RecordStateError(ValueError):
+class RecordStateError(CodedError, ValueError):
     """Illegal record-session transition."""
+
+    code = "record_state_refused"
 
 
 class RoomFullError(RecordStateError):
     """Recorded or producer cap would be exceeded."""
+
+    code = "room_full"
 
 
 def _iso(now_wall_ms: int) -> str:

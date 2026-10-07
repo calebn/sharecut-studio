@@ -33,7 +33,7 @@ from podcast_mcp.engines.play_audit import (
 )
 from podcast_mcp.models import EpisodeProject, ReviewMixVersion
 from podcast_mcp.util.atomic_file import publish_completed_file
-from podcast_mcp.util.coded_error import CodedError
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.datetime_utils import now_iso as _now_iso
 from podcast_mcp.util.pinned_media import (
     descriptor_walk_supported,
@@ -227,7 +227,7 @@ def _new_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
-class MixUnavailableError(CodedError):
+class MixUnavailableError(CodedValueError):
     """No current mix can be published; ``code`` is the typed reason (HTTP 409)."""
 
 

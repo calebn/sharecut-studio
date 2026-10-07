@@ -19,6 +19,7 @@ from podcast_mcp.edits.comments import (
 )
 from podcast_mcp.models.episode import RangeInterval
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.util.coded_error import CodedKeyError
 from podcast_mcp.util.project_state import FileRevision
 
 T = TypeVar("T")
@@ -137,7 +138,7 @@ class CommentService:
         def mutate(p) -> dict[str, Any]:
             ok = delete_comment(p, comment_id)
             if not ok:
-                raise KeyError(f"comment not found: {comment_id}")
+                raise CodedKeyError(f"comment not found: {comment_id}", code="comment_not_found")
             return {"deleted": True, "id": comment_id}
 
         return self.ws.mutate("before delete comment", "after delete comment", mutate)

@@ -10,6 +10,7 @@ from typing import Any, Literal
 from podcast_mcp.edits.pipeline_unattended import is_unattended
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.atomic_json import load_json_object, write_json_atomic
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.workspace_paths import workspace_relpath
 
@@ -28,8 +29,10 @@ GATE_HINT = (
 )
 
 
-class TranscriptRefineRequiredError(RuntimeError):
+class TranscriptRefineRequiredError(CodedError, RuntimeError):
     """Raised when narrative edits run while refine status is pending/stale."""
+
+    code = "transcript_refine_required"
 
 
 def status_path(project: EpisodeProject) -> Path:

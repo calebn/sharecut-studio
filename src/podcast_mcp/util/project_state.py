@@ -61,7 +61,7 @@ class ProjectBusyError(Timeout):
 
     A ``filelock.Timeout`` subclass, so every existing ``except Timeout`` keeps working.
     Fixed text that never names the lock path; every adapter's single busy-error choke
-    point (CLI ``BusyErrorGroup``, MCP ``install_busy_errors``, guest remote MCP, and the
+    point (CLI ``BusyErrorGroup``, MCP ``install_tool_errors``, guest remote MCP, and the
     GUI's app-wide exception handler) maps it to the same ``project_busy`` code.
     """
 

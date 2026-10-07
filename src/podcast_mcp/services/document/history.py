@@ -11,6 +11,7 @@ from podcast_mcp.models import EpisodeProject
 from podcast_mcp.project_merge import ConflictAdvice, ProjectMergeConflict
 from podcast_mcp.render import render_preview_result, rerender_preview
 from podcast_mcp.services.app import ProjectWorkspace
+from podcast_mcp.util.coded_error import CodedError
 
 
 def _group_history_entries(entries: list) -> list[dict]:
@@ -67,8 +68,10 @@ def _group_history_entries(entries: list) -> list[dict]:
     return groups
 
 
-class HistoryRerenderError(RuntimeError):
+class HistoryRerenderError(CodedError, RuntimeError):
     """A history move was saved, but re-rendering its preview failed."""
+
+    code = "rerender_failed"
 
 
 # A history move with ``rerender=True`` raises these after the move is saved; their

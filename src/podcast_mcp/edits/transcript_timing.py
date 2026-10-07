@@ -10,10 +10,13 @@ from typing import Any
 
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.models import EpisodeProject, Transcript, TranscriptWord
+from podcast_mcp.util.coded_error import CodedError
 
 
-class TranscriptTimingChangedError(ValueError):
+class TranscriptTimingChangedError(CodedError, ValueError):
     """The source word or its editing context changed before Apply."""
+
+    code = "transcript_timing_changed"
 
 
 @dataclass(frozen=True)

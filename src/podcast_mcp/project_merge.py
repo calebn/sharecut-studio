@@ -15,6 +15,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from podcast_mcp.models import EpisodeProject
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.project_state import project_state_lock
 
 # Lists of objects merge item by item when every item carries one of these keys
@@ -54,8 +55,10 @@ class _Missing:
 _MISSING: Any = _Missing()
 
 
-class ProjectMergeConflict(RuntimeError):
+class ProjectMergeConflict(CodedError, RuntimeError):
     """Another writer changed a value this job changed too; nothing was saved."""
+
+    code = "merge_conflict"
 
     def __init__(self, paths: list[str], *, advice: ConflictAdvice = RERUN_ADVICE) -> None:
         """``advice`` ends the message: what the caller should do next."""

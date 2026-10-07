@@ -100,7 +100,7 @@ def post_document_command(
         raise HTTPException(
             status_code=409,
             detail=str(exc),
-            headers={"X-Sharecut-Error-Code": "transcript_refine_required"},
+            headers={"X-Sharecut-Error-Code": exc.code},
         ) from exc
     except (Timeout, sqlite3.OperationalError) as exc:
         busy = project_busy_http_error(exc)

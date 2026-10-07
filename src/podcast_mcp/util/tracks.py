@@ -3,7 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from podcast_mcp.models import EpisodeProject, Track, TrackRole
+from podcast_mcp.util.coded_error import CodedKeyError, CodedValueError
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
+
+
+def unknown_track(track_id: str) -> CodedValueError:
+    """The refusal for a ``track_id`` the project does not have (raise it)."""
+    return CodedValueError(f"unknown track_id: {track_id!r}", code="track_not_found")
 
 
 def stem_path(project: EpisodeProject, track_id: str) -> Path:
@@ -20,8 +26,10 @@ def existing_stem_path(project: EpisodeProject, track_id: str) -> Path | None:
 def track_audio_path(project: EpisodeProject, track_id: str) -> Path:
     """Resolve a dialogue track's raw source audio file path."""
     track = project.track_by_id(track_id)
-    if not track or not track.media:
-        raise ValueError(f"track {track_id!r} not found or has no media")
+    if not track:
+        raise unknown_track(track_id)
+    if not track.media:
+        raise CodedValueError(f"track {track_id!r} has no media", code="track_has_no_media")
     src = Path(track.media.path)
     if not src.is_absolute():
         src = project.workspace_path() / src
@@ -38,10 +46,10 @@ def resolve_track(
     if track_id:
         if project.track_by_id(track_id):
             return track_id
-        raise ValueError(f"unknown track_id: {track_id!r}")
+        raise unknown_track(track_id)
 
     if not speaker:
-        raise ValueError("track_id or speaker is required")
+        raise CodedValueError("track_id or speaker is required", code="missing_argument")
 
     key = speaker.strip().lower()
     matches: list[Track] = []
@@ -57,11 +65,14 @@ def resolve_track(
         return matches[0].id
     if len(matches) > 1:
         ids = ", ".join(t.id for t in matches)
-        raise ValueError(f"ambiguous speaker {speaker!r}; matches: {ids}")
+        raise CodedValueError(
+            f"ambiguous speaker {speaker!r}; matches: {ids}", code="ambiguous_speaker"
+        )
 
-    raise ValueError(
+    raise CodedValueError(
         f"no track for speaker {speaker!r}; available: "
-        + ", ".join(f"{t.id} ({t.speaker or t.label})" for t in project.tracks)
+        + ", ".join(f"{t.id} ({t.speaker or t.label})" for t in project.tracks),
+        code="track_not_found",
     )
 
 
@@ -84,8 +95,8 @@ def recording_audio_path(project: EpisodeProject, track_id: str, source_id: str 
     if source_id is None:
         return resolve_under_workspace(project, str(track_audio_path(project, track_id)))
     if project.track_by_id(track_id) is None:
-        raise KeyError(f"unknown track {track_id!r}")
+        raise CodedKeyError(f"unknown track {track_id!r}", code="track_not_found")
     source = project.source_by_id(source_id)
     if source is None:
-        raise KeyError(f"unknown source recording {source_id!r}")
+        raise CodedKeyError(f"unknown source recording {source_id!r}", code="source_not_found")
     return resolve_under_workspace(project, source.path)

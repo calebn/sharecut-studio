@@ -63,6 +63,7 @@ from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import schedule_stem_waveforms
 from podcast_mcp.services.session_sync import publish_agent_play
 from podcast_mcp.util.atomic_render import render_atomic
+from podcast_mcp.util.coded_error import CodedFileNotFoundError, CodedKeyError, CodedValueError
 from podcast_mcp.util.file_locks import hold_shared_file_lock
 from podcast_mcp.util.hashing import short_digest
 from podcast_mcp.util.process import run
@@ -73,7 +74,7 @@ from podcast_mcp.util.project_state import (
     render_lock,
     snapshot_project,
 )
-from podcast_mcp.util.tracks import recording_audio_path
+from podcast_mcp.util.tracks import recording_audio_path, unknown_track
 
 from .boundary import (
     BoundaryAudioWindow,
@@ -335,7 +336,7 @@ class PlayService:
     ) -> Path:
         track = project.track_by_id(track_id)
         if track is None:
-            raise ValueError(f"unknown track {track_id!r}")
+            raise unknown_track(track_id)
         ceiling = mix_peak_ceiling_db(self._defaults)
         identity = {
             "project": str(self.ws.path.resolve()),
@@ -563,7 +564,7 @@ class PlayService:
             if not track_id:
                 raise ValueError("track_id required for stem/processed transport")
             if self.project.track_by_id(track_id) is None:
-                raise KeyError(f"unknown track {track_id!r}")
+                raise CodedKeyError(f"unknown track {track_id!r}", code="track_not_found")
             busy = False
             if rerender or build_stem:
                 try:
@@ -596,7 +597,7 @@ class PlayService:
                 raise ValueError("track_id required for raw/track transport")
             path = recording_audio_path(self.project, track_id, source_id)
             if not path.is_file():
-                raise FileNotFoundError(f"raw media not found: {path}")
+                raise CodedFileNotFoundError(f"raw media not found: {path}", code="file_not_found")
             return TransportPath(
                 path=path.resolve(),
                 source=f"source:{source_id}" if source_id is not None else f"track:{track_id}",
@@ -686,7 +687,9 @@ class PlayService:
         if req.query:
             matches = search_transcript(self.project, req.query)
             if not matches:
-                raise ValueError(f"no transcript match for {req.query!r}")
+                raise CodedValueError(
+                    f"no transcript match for {req.query!r}", code="no_transcript_match"
+                )
             if req.match_index < 0 or req.match_index >= len(matches):
                 raise ValueError(
                     f"match index {req.match_index} out of range (0..{len(matches) - 1})"
@@ -855,7 +858,9 @@ class PlayService:
                 busy = isinstance(exc, RenderBusyError)
                 log.info("render or project busy; playing the existing premix")
         if not premix.is_file():
-            raise FileNotFoundError("premix.wav not found; run render-preview or pipeline first")
+            raise CodedFileNotFoundError(
+                "premix.wav not found; run render-preview or pipeline first", code="no_mix"
+            )
         return premix, busy
 
     def _invalidate_processed_cache(self, track_id: str) -> None:
@@ -893,7 +898,7 @@ class PlayService:
             render_project = snapshot_project(self.project)
             track = render_project.track_by_id(track_id)
             if not track:
-                raise ValueError(f"unknown track {track_id!r}")
+                raise unknown_track(track_id)
             out = publish_stem(
                 render_project,
                 track_id,
@@ -929,7 +934,7 @@ class PlayService:
         export = self.project.export_dir()
         wavs = sorted(export.glob("*.wav"), key=lambda p: p.stat().st_mtime, reverse=True)
         if not wavs:
-            raise FileNotFoundError(f"no WAV files in {export}")
+            raise CodedFileNotFoundError(f"no WAV files in {export}", code="file_not_found")
         return wavs[0]
 
     def _cache_path(self, label: str, start: float, end: float, src: Path, extra: str = "") -> Path:
@@ -992,7 +997,7 @@ class PlayService:
     ) -> tuple[Path, str, float, float]:
         track = self.project.track_by_id(track_id)
         if track is None:
-            raise ValueError(f"track {track_id!r} not found")
+            raise unknown_track(track_id)
         if track.transcript_gate:
             return self._processed_audio(track_id, start, end, rerender=rerender)
         render_project = snapshot_project(self.project)
@@ -1324,7 +1329,7 @@ class PlayService:
         known = {t.id for t in self.project.tracks}
         unknown = [tid for tid in ids if tid not in known]
         if unknown:
-            raise ValueError(f"unknown track_ids: {sorted(unknown)}")
+            raise CodedValueError(f"unknown track_ids: {sorted(unknown)}", code="track_not_found")
 
         segments: list[tuple[Path, float]] = []
         for tid in ids:
@@ -1391,9 +1396,9 @@ class PlayService:
         path_a = Path(wav_a)
         path_b = Path(wav_b)
         if not path_a.is_file():
-            raise FileNotFoundError(f"A wav not found: {path_a}")
+            raise CodedFileNotFoundError(f"A wav not found: {path_a}", code="file_not_found")
         if not path_b.is_file():
-            raise FileNotFoundError(f"B wav not found: {path_b}")
+            raise CodedFileNotFoundError(f"B wav not found: {path_b}", code="file_not_found")
 
         gap = max(0.0, float(gap_sec))
         out = self._ab_concat_path(path_a, path_b, gap)

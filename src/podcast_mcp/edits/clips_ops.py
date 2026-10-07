@@ -13,7 +13,8 @@ from podcast_mcp.engines.session_timeline import (
     clip_timeline_point_to_source,
 )
 from podcast_mcp.models import Clip, ClipJoinMode, EditMode, EpisodeProject, SourceRecording
-from podcast_mcp.util.tracks import recording_audio_path
+from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.tracks import recording_audio_path, unknown_track
 
 JOIN_GAP_TOLERANCE_SEC = 0.05
 """Largest timeline gap (seconds) between neighbouring clips still treated as a join."""
@@ -299,7 +300,9 @@ def _source_duration(project: EpisodeProject, clip: Clip) -> float | None:
     if clip.source_id is not None:
         source = project.source_by_id(clip.source_id)
         if source is None:
-            raise ValueError(f"unknown source recording {clip.source_id!r}")
+            raise CodedValueError(
+                f"unknown source recording {clip.source_id!r}", code="source_not_found"
+            )
         return float(source.duration_sec) if source.duration_sec is not None else None
     track = project.track_by_id(clip.track_id)
     if track is None or track.media is None or track.media.duration_sec is None:
@@ -417,7 +420,7 @@ def clip_index(track_clips: Sequence[Clip], clip_id: str) -> int:
     """Index of ``clip_id`` in ``track_clips``; ``ValueError`` when it is not there."""
     idx = next((i for i, c in enumerate(track_clips) if c.id == clip_id), None)
     if idx is None:
-        raise ValueError(f"unknown clip_id: {clip_id!r}")
+        raise CodedValueError(f"unknown clip_id: {clip_id!r}", code="clip_not_found")
     return idx
 
 
@@ -439,9 +442,9 @@ def neighbour_clips(
     left = next((c for c in project.clips if c.id == left_clip_id), None)
     right = next((c for c in project.clips if c.id == right_clip_id), None)
     if left is None:
-        raise ValueError(f"unknown left_clip_id: {left_clip_id!r}")
+        raise CodedValueError(f"unknown left_clip_id: {left_clip_id!r}", code="clip_not_found")
     if right is None:
-        raise ValueError(f"unknown right_clip_id: {right_clip_id!r}")
+        raise CodedValueError(f"unknown right_clip_id: {right_clip_id!r}", code="clip_not_found")
     if left.track_id != right.track_id:
         raise ValueError("join requires clips on the same track")
     track_clips = clips_for_track(project, left.track_id)
@@ -555,13 +558,13 @@ def move_clips(project: EpisodeProject, moves: Sequence[Mapping[str, Any]]) -> l
         seen.add(cid)
         clip = next((c for c in project.clips if c.id == cid), None)
         if clip is None:
-            raise ValueError(f"unknown clip_id: {cid!r}")
+            raise CodedValueError(f"unknown clip_id: {cid!r}", code="clip_not_found")
         tl = float(raw["timeline_start"])
         if not math.isfinite(tl) or tl < 0:
             raise ValueError(f"timeline_start must be >= 0, got {tl!r}")
         tid = str(raw["track_id"])
         if project.track_by_id(tid) is None:
-            raise ValueError(f"unknown track_id: {tid!r}")
+            raise unknown_track(tid)
         parsed.append((clip, tl, tid))
     for clip, tl, tid in parsed:
         if tid != clip.track_id:

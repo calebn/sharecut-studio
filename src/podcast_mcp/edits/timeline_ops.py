@@ -61,8 +61,9 @@ from podcast_mcp.models import (
     RoomToneFill,
 )
 from podcast_mcp.util.change_summary import change_summary
+from podcast_mcp.util.coded_error import CodedError, CodedKeyError, CodedValueError
 from podcast_mcp.util.timebase import SourceSec
-from podcast_mcp.util.tracks import dialogue_track_ids
+from podcast_mcp.util.tracks import dialogue_track_ids, unknown_track
 
 
 def _optimized_ripple_span(
@@ -247,7 +248,7 @@ def plan_ripple_delete_text(
     """The ripple removal for the first transcript match of ``query``, its speaker edited."""
     matches = search_transcript(project, query)
     if not matches:
-        raise ValueError(f"no transcript match for {query!r}")
+        raise CodedValueError(f"no transcript match for {query!r}", code="no_transcript_match")
     m = matches[0]
     if m.timeline_start is None or m.timeline_end is None:
         raise ValueError(f"transcript match for {query!r} falls in removed timeline material")
@@ -385,7 +386,7 @@ def _resolve_move_match(project: EpisodeProject, query: str, *, label: str):
         return exact
     matches = search_transcript(project, query)
     if not matches:
-        raise ValueError(f"no {label} match for {query!r}")
+        raise CodedValueError(f"no {label} match for {query!r}", code="no_transcript_match")
     return _tightest_timeline_match(matches, label=label, query=query)
 
 
@@ -427,7 +428,9 @@ def split_clip(
         else:
             new_clips.append(clip)
     if not split:
-        raise ValueError(f"no clip at timeline {at_time} on track {track_id}")
+        raise CodedValueError(
+            f"no clip at timeline {at_time} on track {track_id}", code="clip_not_found"
+        )
     fades = recommend_micro_fades()
     if len(new_clips) >= 2:
         ordered = sorted(new_clips, key=lambda c: c.timeline_start)
@@ -466,7 +469,9 @@ def split_clips_at(
         except ValueError:
             skipped.append(tid)
     if not affected:
-        raise ValueError(f"no clip at timeline {at_time} on tracks {tracks}")
+        raise CodedValueError(
+            f"no clip at timeline {at_time} on tracks {tracks}", code="clip_not_found"
+        )
     split_source_by_track: dict[str, float] = {}
     for tid in affected:
         left = next(
@@ -505,7 +510,7 @@ def _clips_by_id(project: EpisodeProject, clip_ids: list[str]) -> list[Clip]:
     by_id = {c.id: c for c in project.clips}
     missing = [cid for cid in clip_ids if cid not in by_id]
     if missing:
-        raise KeyError(f"unknown clip_id(s): {missing}")
+        raise CodedKeyError(f"unknown clip_id(s): {missing}", code="clip_not_found")
     return [by_id[cid] for cid in clip_ids]
 
 
@@ -671,12 +676,11 @@ def copy_segment(
     return {"duration": end - start, "extracts": extracts}
 
 
-class PasteRejectedError(ValueError):
+class PasteRejectedError(CodedError, ValueError):
     """A clipboard the project cannot take; ``code`` names why (also the message prefix)."""
 
     def __init__(self, code: str, detail: str) -> None:
-        super().__init__(f"{code}: {detail}")
-        self.code = code
+        super().__init__(f"{code}: {detail}", code=code)
 
 
 _PASTE_EDGE_TOLERANCE_SEC = 1e-3
@@ -830,7 +834,7 @@ def set_clip_fade(
 
     clip = next((c for c in project.clips if c.id == clip_id), None)
     if not clip:
-        raise ValueError(f"unknown clip_id: {clip_id!r}")
+        raise CodedValueError(f"unknown clip_id: {clip_id!r}", code="clip_not_found")
     clip.fade_in_ms, clip.fade_out_ms = clamp_clip_fades(
         project, clip, int(fade_in_ms), int(fade_out_ms)
     )
@@ -905,7 +909,7 @@ def move_clips(project: EpisodeProject, clips: list[dict]) -> dict:
         cid = str(raw["clip_id"])
         clip = next((c for c in project.clips if c.id == cid), None)
         if clip is None:
-            raise ValueError(f"unknown clip_id: {cid!r}")
+            raise CodedValueError(f"unknown clip_id: {cid!r}", code="clip_not_found")
         before[cid] = (clip.track_id, clip.timeline_start, clip.timeline_end)
     moved = move_clips_bounds(project, clips)
     rebuild_combined(project)
@@ -951,7 +955,7 @@ def roll_clip_join(
     left = next((c for c in project.clips if c.id == left_clip_id), None)
     right = next((c for c in project.clips if c.id == right_clip_id), None)
     if not left or not right:
-        raise ValueError("unknown clip id for roll join")
+        raise CodedValueError("unknown clip id for roll join", code="clip_not_found")
     old_left_end = left.source_end
     old_right_start = right.source_start
     old_right_tl = right.timeline_start
@@ -1071,9 +1075,9 @@ def fill_with_room_tone(
 
     track = project.track_by_id(track_id)
     if not track:
-        raise ValueError(f"track {track_id} not found")
+        raise unknown_track(track_id)
     if not track.media and track.room_tone is None:
-        raise ValueError(f"track {track_id} has no media")
+        raise CodedValueError(f"track {track_id} has no media", code="track_has_no_media")
 
     new_clips: list[Clip] = []
     for i, clip in enumerate(clips):

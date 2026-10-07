@@ -476,7 +476,7 @@ def test_transcript_correct_phrase_cmd_stale_index_prints_clean_error(minimal_pr
     assert "Traceback" not in result.output
     assert click.unstyle(result.stderr.strip()) == (
         "Error: Transcript words 0-1 on track 'host' changed since you read them, "
-        "so the edit was not applied. Re-read the transcript and try again. "
+        "so the edit was not applied. Re-read the transcript and try again. (code transcript_changed) "
         "(set PODCAST_DEBUG=1 for the traceback)"
     )
 

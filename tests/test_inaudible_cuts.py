@@ -454,7 +454,7 @@ def test_full_mode_matches_subprocess_snap(sample_wav, tmp_path):
 
 def test_track_audio_path_raises(tmp_path):
     p = _project(tmp_path)
-    with pytest.raises(ValueError, match="not found"):
+    with pytest.raises(ValueError, match="unknown track_id"):
         from podcast_mcp.util.tracks import track_audio_path
 
         track_audio_path(p, "missing")
