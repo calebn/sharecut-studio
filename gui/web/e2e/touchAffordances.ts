@@ -82,10 +82,12 @@ export async function exerciseTouchSheetAffordances(
     }
   });
 
-  const clipTrigger = page.locator(".clip-hit").first();
-  await clipTrigger.focus();
-  await expect(clipTrigger).toBeFocused();
-  await clipTrigger.click();
+  // A track opens the plain inspector sheet; a timeline target on a phone
+  // opens the compact drawer instead, which touch-peek.spec.ts covers.
+  const trigger = page.locator(".track-header-open").first();
+  await trigger.focus();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
   const sheet = page.locator(".bottom-sheet");
   if (!viewport.sheetExpected) {
     await expect(sheet).toHaveCount(0);
@@ -184,7 +186,7 @@ export async function exerciseTouchSheetAffordances(
 
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
-  await expect(clipTrigger).toBeFocused();
+  await expect(trigger).toBeFocused();
   const focusAfterEscape = await page.evaluate(() => ({
     tag: document.activeElement?.tagName ?? null,
     className:
@@ -196,8 +198,8 @@ export async function exerciseTouchSheetAffordances(
         ? document.activeElement.getAttribute("aria-label")
         : null,
   }));
-  await expect(clipTrigger).toBeFocused();
-  await clipTrigger.click();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
   await expect(sheet).toBeVisible();
   await sheet.evaluate(async (element) => {
     await Promise.all(
@@ -295,7 +297,7 @@ export async function exerciseTouchSheetAffordances(
 
   await pointerControl(page, close, []);
   await expect(sheet).toHaveCount(0);
-  await expect(clipTrigger).toBeFocused();
+  await expect(trigger).toBeFocused();
   const focusAfterClose = await page.evaluate(() => ({
     tag: document.activeElement?.tagName ?? null,
     className:

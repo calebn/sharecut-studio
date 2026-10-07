@@ -206,7 +206,7 @@ async function secondFingerCancels(
     const saved = (await clips(p)).find((c) => c.id === clip.id);
     const zoomBefore = await rulerWidthPx(p);
     const commands = watchCommands(p);
-    const slug = `pinch-${RUN}-${name}-${browserName}-${start.replaceAll(" ", "-")}`;
+    const slug = `pinch-${RUN}-${size}-${browserName}-${start.replaceAll(" ", "-")}`;
     const mid = await dragThenPinch(
       fingers,
       p,
