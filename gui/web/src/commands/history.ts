@@ -1,8 +1,8 @@
 import { HISTORY_STALE_CODE, redoHistory, undoHistory } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { type HistoryEntryId, parseHistoryEntryId } from "../types/project";
-import { ApiError } from "../utils/apiError";
-import { registerCommand } from "./execute";
+import { ApiError, errorMessage } from "../utils/apiError";
+import { execute, registerCommand } from "./execute";
 import { flushPendingMix } from "./trackMix";
 import type { ExecuteResult } from "./types";
 
@@ -124,4 +124,31 @@ export function registerHistoryCommands(): void {
   registerCommand("history.redo", (args, ctx) =>
     moveHistory("redo", ctx.projectPath, args),
   );
+}
+
+const HISTORY_LABEL = { undo: "Undo", redo: "Redo" } as const;
+
+/**
+ * Runs Undo or Redo from a control or gesture. A failure is announced
+ * ("Undo failed: …"), never dropped. `dispatch` is `execute` (keyboard-style
+ * gates) unless the caller passes the pointer bridge.
+ */
+export function runHistoryAction(
+  action: keyof typeof HISTORY_LABEL,
+  dispatch: (id: string) => Promise<ExecuteResult> = (id) => execute(id),
+): void {
+  const report = (reason: string) =>
+    useDawStore
+      .getState()
+      .announceStatus(`${HISTORY_LABEL[action]} failed: ${reason}`);
+  void dispatch(`history.${action}`)
+    .then((result) => {
+      if (result.status === "ok") return;
+      if (result.status === "disabled") {
+        if (!result.announced) report(result.reason);
+        return;
+      }
+      report("unavailable");
+    })
+    .catch((error: unknown) => report(errorMessage(error)));
 }

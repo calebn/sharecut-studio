@@ -24,6 +24,8 @@ export type IconName =
   | "refresh"
   | "search"
   | "seek"
+  | "undo"
+  | "redo"
   | "warning"
   | "ripple";
 
@@ -189,6 +191,18 @@ const PATHS: Record<IconName, ReactElement> = {
   ),
   // Trim mode Option A (#1135): a wave, sound carrying on past the edit.
   ripple: <path d="M2.5 10c1.5-4 3.5-4 5 0s3.5 4 5 0 3.5-4 5 0" />,
+  undo: (
+    <>
+      <path d="M7.5 5 4 8.5 7.5 12" />
+      <path d="M4 8.5h7.5a4.5 4.5 0 0 1 0 9H9" />
+    </>
+  ),
+  redo: (
+    <>
+      <path d="M12.5 5 16 8.5 12.5 12" />
+      <path d="M16 8.5H8.5a4.5 4.5 0 0 0 0 9H11" />
+    </>
+  ),
   seek: (
     <>
       <path d="M15.5 4v12" />
