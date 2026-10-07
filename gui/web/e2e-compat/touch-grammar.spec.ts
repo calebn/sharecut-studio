@@ -37,7 +37,7 @@ import {
  * armed drag detents at a soft boundary; the strip swipes between drawer
  * detents; a second finger cancels it all. #1135: a long-press at a join offers the ripple
  * trim, whose drag keeps the edge under the finger and shows how far later
- * clips will move. Chromium drives CDP touch, WebKit touch-typed pointer
+ * clips will move on every dialogue lane. Chromium drives CDP touch, WebKit touch-typed pointer
  * events (e2e/finger.ts). Frames go to TOUCH_CHOOSER_EVIDENCE_DIR.
  */
 
@@ -588,6 +588,7 @@ test("#1135: a long-press at a join offers the ripple trim, which shows where la
   await expect(page.locator(".clip-landing")).toBeVisible();
   await frame(page, info, `ripple-drag-${browserName}`);
   const arrows = await page.locator(".lane-inner > .ripple-arrow").count();
+  const lanes = await rippleLanes(page);
   await finger.up();
   await expect
     .poll(() => commands.filter((c) => c.type === "TrimClipEdge").length)
@@ -597,11 +598,49 @@ test("#1135: a long-press at a join offers the ripple trim, which shows where la
   json(info, `ripple-${browserName}`, {
     chips,
     arrows,
+    lanes,
     commands: commands.map((c) => ({ type: c.type, payload: c.payload })),
   });
   expect(chips.some((label) => label?.startsWith("Roll"))).toBe(true);
-  expect(arrows).toBeGreaterThan(0);
+  // The trimmed start sheds time on the reference lane: its later clip (50 s)
+  // moves back by that much.
+  const [moved] = lanes[TRACK].arrows;
+  expect(moved.width).toBeGreaterThan(4);
+  // The guest's dialogue lane ripples with it: it loses the same span from
+  // 40 s, and the rest of its clip moves back by the same distance.
+  const guestLane = lanes.guest;
+  expect(guestLane.arrows).toHaveLength(1);
+  expect(guestLane.cuts).toHaveLength(1);
+  expect(Math.abs(guestLane.arrows[0].width - moved.width)).toBeLessThan(1.5);
+  expect(Math.abs(guestLane.cuts[0].width - moved.width)).toBeLessThan(1.5);
+  expect(
+    Math.abs(guestLane.arrows[0].left - guestLane.cuts[0].left),
+  ).toBeLessThan(1.5);
 });
+
+type Box = { left: number; width: number };
+
+/** Each lane's ripple arrows and lost spans, as drawn. */
+async function rippleLanes(
+  page: Page,
+): Promise<Record<string, { arrows: Box[]; cuts: Box[] }>> {
+  return page.evaluate(() => {
+    const boxes = (row: Element, selector: string) =>
+      [...row.querySelectorAll(selector)].map((el) => {
+        const box = el.getBoundingClientRect();
+        return { left: box.left, width: box.width };
+      });
+    return Object.fromEntries(
+      [...document.querySelectorAll(".lane-row")].map((row) => [
+        row.getAttribute("data-track-id") ?? "",
+        {
+          arrows: boxes(row, ".lane-inner > .ripple-arrow"),
+          cuts: boxes(row, ".lane-inner > .clip-trimmed-span"),
+        },
+      ]),
+    );
+  });
+}
 
 test("#1154: a touch ripple trim over the guest's speech asks first, and Leave a gap keeps it", async ({
   page,

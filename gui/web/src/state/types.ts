@@ -272,6 +272,12 @@ export interface DawState {
    * (timeline/JoinPopover.tsx); a project switch clears it. Store state lets sibling JoinBadges render from it.
    */
   joinMutationInFlight: boolean;
+  /**
+   * The ripple trim a drag or a focused handle's arrows are previewing, or
+   * null. Every lane it ripples draws where its later clips go
+   * (edit/ripplePreview.ts); a project switch clears it.
+   */
+  rippleTrim: import("../edit/ripplePreview").RippleTrim | null;
   /** Hover/focus Stale pill → highlight stale lanes on the timeline. */
   highlightStaleRender: boolean;
   /** Refresh-mix / render_preview in flight. */
@@ -448,6 +454,9 @@ export interface DawState {
   setHelpDialogOpen: (on: boolean) => void;
   setOpenJoinId: (id: string | null) => void;
   setJoinMutationInFlight: (on: boolean) => void;
+  setRippleTrim: (
+    trim: import("../edit/ripplePreview").RippleTrim | null,
+  ) => void;
   setHighlightStaleRender: (on: boolean) => void;
   setRenderPreviewBusy: (on: boolean) => void;
   setIngestBusy: (on: boolean) => void;

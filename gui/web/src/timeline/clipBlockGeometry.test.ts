@@ -33,7 +33,12 @@ describe("clipBlockGeometry", () => {
       clip,
       zoomPxPerSec: ZOOM,
       rollPreview: null,
-      trimPreview: { edge: "out", sourceStart: 5, sourceEnd: 13.5 },
+      trimPreview: {
+        edge: "out",
+        mode: "ripple",
+        sourceStart: 5,
+        sourceEnd: 13.5,
+      },
       fadePreview: null,
       previewTimelineStart: null,
     });
@@ -54,7 +59,7 @@ describe("clipBlockGeometry", () => {
         clip,
         zoomPxPerSec: ZOOM,
         rollPreview: null,
-        trimPreview: { edge: "in", sourceStart, sourceEnd: 12 },
+        trimPreview: { edge: "in", mode: "ripple", sourceStart, sourceEnd: 12 },
         fadePreview: null,
         previewTimelineStart: null,
       });
@@ -99,7 +104,12 @@ describe("clipBlockGeometry", () => {
       clip,
       zoomPxPerSec: ZOOM,
       rollPreview: null,
-      trimPreview: { edge: "out", sourceStart: 5, sourceEnd: 10.5 },
+      trimPreview: {
+        edge: "out",
+        mode: "ripple",
+        sourceStart: 5,
+        sourceEnd: 10.5,
+      },
       fadePreview: null,
       previewTimelineStart: null,
     });
@@ -108,6 +118,51 @@ describe("clipBlockGeometry", () => {
       rippleSec: g.rippleSec,
       left: g.left,
     }).toEqual({ landing: null, rippleSec: -1.5, left: 4 * ZOOM });
+  });
+
+  it("shows the gap a gap trim leaves and ripples nothing", () => {
+    const clip = clipRow({
+      source_start: 5,
+      source_end: 12,
+      timeline_start: 4,
+      timeline_end: 11,
+    });
+    const gap = (
+      edge: "in" | "out",
+      sourceStart: number,
+      sourceEnd: number,
+    ) => {
+      const g = geometry({
+        clip,
+        zoomPxPerSec: ZOOM,
+        rollPreview: null,
+        trimPreview: { edge, mode: "gap", sourceStart, sourceEnd },
+        fadePreview: null,
+        previewTimelineStart: null,
+      });
+      return {
+        left: g.left,
+        landing: g.landing,
+        gap: g.gap,
+        rippleSec: g.rippleSec,
+      };
+    };
+    // The start moves 2 s later with the finger and stays there.
+    expect(gap("in", 7, 12)).toEqual({
+      left: 6 * ZOOM,
+      landing: null,
+      gap: { left: -2 * ZOOM, width: 2 * ZOOM },
+      rippleSec: 0,
+    });
+    // The end moves 1.5 s earlier; the time after it stays empty.
+    expect(gap("out", 5, 10.5)).toEqual({
+      left: 4 * ZOOM,
+      landing: null,
+      gap: { left: 5.5 * ZOOM, width: 1.5 * ZOOM },
+      rippleSec: 0,
+    });
+    // A lengthened end leaves no gap.
+    expect(gap("out", 5, 13).gap).toBeNull();
   });
 
   it("shifts sourceStart and timelineStart under a roll and ignores previewTimelineStart", () => {

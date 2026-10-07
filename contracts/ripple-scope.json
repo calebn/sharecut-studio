@@ -1,0 +1,202 @@
+{
+  "$comment": "Which tracks a ripple moves, and what a trim leaves on each. gui/web/src/edit/ripplePreview.ts rippleTrackIds mirrors edits/ripple.ripple_track_ids, and its trim preview mirrors plan_trim + apply_trim_geometry. gui/web/src/edit/ripplePreview.test.ts and tests/test_ripple_scope_contract.py both read these cases. Clips are [id, timeline_start, source_start, source_end]; lanes after a trim are [timeline_start, timeline_end, source_start, source_end] in timeline order; arrows are [from, to] seconds, the preview's downstream moves; cuts are the span a lane loses.",
+  "scope_cases": [
+    {
+      "name": "every dialogue track in project order",
+      "tracks": [{ "id": "guest", "role": "dialogue" }, { "id": "music", "role": "music" }, { "id": "host", "role": "dialogue" }],
+      "edited": [],
+      "scope": ["guest", "host"]
+    },
+    {
+      "name": "an edited non-dialogue track joins after them",
+      "tracks": [{ "id": "guest", "role": "dialogue" }, { "id": "music", "role": "music" }, { "id": "host", "role": "dialogue" }],
+      "edited": ["music"],
+      "scope": ["guest", "host", "music"]
+    },
+    {
+      "name": "an edited dialogue track adds nothing",
+      "tracks": [{ "id": "guest", "role": "dialogue" }, { "id": "music", "role": "music" }, { "id": "host", "role": "dialogue" }],
+      "edited": ["host", "host"],
+      "scope": ["guest", "host"]
+    },
+    {
+      "name": "an unknown edited track is ignored",
+      "tracks": [{ "id": "guest", "role": "dialogue" }, { "id": "sfx", "role": "sfx" }],
+      "edited": ["ghost", "sfx"],
+      "scope": ["guest", "sfx"]
+    },
+    {
+      "name": "a muted dialogue track still ripples",
+      "tracks": [{ "id": "host", "role": "dialogue", "muted": true }, { "id": "intro", "role": "intro" }, { "id": "guest", "role": "dialogue" }],
+      "edited": [],
+      "scope": ["host", "guest"]
+    }
+  ],
+  "trim_tracks": [
+    { "id": "host", "role": "dialogue", "duration_sec": 60 },
+    { "id": "guest", "role": "dialogue", "duration_sec": 60 },
+    { "id": "music", "role": "music", "duration_sec": 60 }
+  ],
+  "trim_cases": [
+    {
+      "name": "shortening an end cuts the same span from every dialogue track",
+      "clips": {
+        "host": [["h1", 0, 0, 10], ["h2", 12, 12, 20]],
+        "guest": [["g1", 0, 0, 20], ["g2", 25, 30, 35]],
+        "music": [["m1", 0, 0, 30]]
+      },
+      "trim": { "clip_id": "h1", "edge": "out", "source_sec": 8, "mode": "ripple" },
+      "lanes": {
+        "host": [[0, 8, 0, 8], [10, 18, 12, 20]],
+        "guest": [[0, 8, 0, 8], [8, 18, 10, 20], [23, 28, 30, 35]],
+        "music": [[0, 30, 0, 30]]
+      },
+      "arrows": { "host": [[12, 10]], "guest": [[10, 8], [25, 23]] },
+      "cuts": { "guest": [8, 10] }
+    },
+    {
+      "name": "a peer start at the same instant trims with it",
+      "clips": {
+        "host": [["h1", 0, 0, 10], ["h2", 10, 10, 20], ["h3", 25, 30, 32]],
+        "guest": [["g1", 0, 0, 10], ["g2", 10, 10, 20]],
+        "music": []
+      },
+      "trim": { "clip_id": "h2", "edge": "in", "source_sec": 11, "mode": "ripple" },
+      "lanes": {
+        "host": [[0, 10, 0, 10], [10, 19, 11, 20], [24, 26, 30, 32]],
+        "guest": [[0, 10, 0, 10], [10, 19, 11, 20]],
+        "music": []
+      },
+      "arrows": { "host": [[25, 24]], "guest": [[11, 10]] },
+      "cuts": { "guest": [10, 11] }
+    },
+    {
+      "name": "lengthening an end opens time on every dialogue track",
+      "clips": {
+        "host": [["h1", 0, 0, 10], ["h2", 15, 20, 25]],
+        "guest": [["g1", 0, 0, 20]],
+        "music": [["m1", 0, 0, 30]]
+      },
+      "trim": { "clip_id": "h1", "edge": "out", "source_sec": 12, "mode": "ripple" },
+      "lanes": {
+        "host": [[0, 12, 0, 12], [17, 22, 20, 25]],
+        "guest": [[0, 10, 0, 10], [12, 22, 10, 20]],
+        "music": [[0, 30, 0, 30]]
+      },
+      "arrows": { "host": [[15, 17]], "guest": [[10, 12]] },
+      "cuts": {}
+    },
+    {
+      "name": "a peer end that can grow keeps step with it",
+      "clips": {
+        "host": [["h1", 0, 0, 10], ["h2", 15, 20, 25]],
+        "guest": [["g1", 0, 0, 10], ["g2", 12, 30, 35]],
+        "music": []
+      },
+      "trim": { "clip_id": "h1", "edge": "out", "source_sec": 12, "mode": "ripple" },
+      "lanes": {
+        "host": [[0, 12, 0, 12], [17, 22, 20, 25]],
+        "guest": [[0, 12, 0, 12], [14, 19, 30, 35]],
+        "music": []
+      },
+      "arrows": { "host": [[15, 17]], "guest": [[12, 14]] },
+      "cuts": {}
+    },
+    {
+      "name": "a peer end that cannot grow as far leaves silence instead",
+      "clips": {
+        "host": [["h1", 0, 0, 10], ["h2", 15, 20, 25]],
+        "guest": [["g1", 0, 0, 10], ["g2", 12, 11, 16]],
+        "music": []
+      },
+      "trim": { "clip_id": "h1", "edge": "out", "source_sec": 12, "mode": "ripple" },
+      "lanes": {
+        "host": [[0, 12, 0, 12], [17, 22, 20, 25]],
+        "guest": [[0, 10, 0, 10], [14, 19, 11, 16]],
+        "music": []
+      },
+      "arrows": { "host": [[15, 17]], "guest": [[12, 14]] },
+      "cuts": {}
+    },
+    {
+      "name": "a peer start that can grow keeps its place and grows",
+      "clips": {
+        "host": [["h1", 0, 0, 5], ["h2", 10, 10, 15]],
+        "guest": [["g1", 0, 0, 4], ["g2", 10, 10, 15], ["g3", 16, 20, 22]],
+        "music": []
+      },
+      "trim": { "clip_id": "h2", "edge": "in", "source_sec": 8, "mode": "ripple" },
+      "lanes": {
+        "host": [[0, 5, 0, 5], [10, 17, 8, 15]],
+        "guest": [[0, 4, 0, 4], [10, 17, 8, 15], [18, 20, 20, 22]],
+        "music": []
+      },
+      "arrows": { "host": [], "guest": [[16, 18]] },
+      "cuts": {}
+    },
+    {
+      "name": "a start that cannot grow as far rides along instead",
+      "clips": {
+        "host": [["h1", 0, 0, 5], ["h2", 10, 10, 15]],
+        "guest": [["g1", 0, 5, 9], ["g2", 10, 10, 15]],
+        "music": []
+      },
+      "trim": { "clip_id": "h2", "edge": "in", "source_sec": 8, "mode": "ripple" },
+      "lanes": {
+        "host": [[0, 5, 0, 5], [10, 17, 8, 15]],
+        "guest": [[0, 4, 5, 9], [12, 17, 10, 15]],
+        "music": []
+      },
+      "arrows": { "host": [], "guest": [[10, 12]] },
+      "cuts": {}
+    },
+    {
+      "name": "a music trim ripples the dialogue tracks with it",
+      "clips": {
+        "host": [["h1", 0, 0, 10], ["h2", 12, 12, 20]],
+        "guest": [["g1", 20, 0, 20]],
+        "music": [["m1", 0, 0, 30]]
+      },
+      "trim": { "clip_id": "m1", "edge": "out", "source_sec": 25, "mode": "ripple" },
+      "lanes": {
+        "host": [[0, 10, 0, 10], [12, 20, 12, 20]],
+        "guest": [[20, 25, 0, 5], [25, 35, 10, 20]],
+        "music": [[0, 25, 0, 25]]
+      },
+      "arrows": { "host": [], "guest": [[30, 25]], "music": [] },
+      "cuts": { "host": [25, 30], "guest": [25, 30] }
+    },
+    {
+      "name": "a gap trim moves nothing else",
+      "clips": {
+        "host": [["h1", 0, 0, 10], ["h2", 12, 12, 20]],
+        "guest": [["g1", 0, 0, 20]],
+        "music": []
+      },
+      "trim": { "clip_id": "h1", "edge": "out", "source_sec": 8, "mode": "gap" },
+      "lanes": {
+        "host": [[0, 8, 0, 8], [12, 20, 12, 20]],
+        "guest": [[0, 20, 0, 20]],
+        "music": []
+      },
+      "arrows": {},
+      "cuts": {}
+    },
+    {
+      "name": "a gap trim of a start leaves the time before it empty",
+      "clips": {
+        "host": [["h1", 0, 0, 10], ["h2", 12, 12, 20]],
+        "guest": [["g1", 0, 0, 20]],
+        "music": []
+      },
+      "trim": { "clip_id": "h2", "edge": "in", "source_sec": 14, "mode": "gap" },
+      "lanes": {
+        "host": [[0, 10, 0, 10], [14, 20, 14, 20]],
+        "guest": [[0, 20, 0, 20]],
+        "music": []
+      },
+      "arrows": {},
+      "cuts": {}
+    }
+  ]
+}

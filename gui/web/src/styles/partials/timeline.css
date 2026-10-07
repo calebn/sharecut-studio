@@ -348,8 +348,10 @@
 
 /* Trim mode Option A (#1135): a ripple trim of the start keeps the grabbed
    edge under the finger, dims the span it trims, and outlines where the
-   clip lands; arrows show how far it and every later clip will move. They
-   slide there when the trim lands. */
+   clip lands; arrows show how far it and every later clip will move, on
+   every lane the trim ripples, and each other lane dims the span it loses.
+   A gap trim dims the gap it leaves instead. Clips slide there when the
+   trim lands. */
 .clip-trimmed-span {
   position: absolute;
   top: 0;
@@ -383,6 +385,20 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   pointer-events: none;
+}
+
+/* A lane's own ripple marks draw over its clips, the dragged one included:
+   they follow the clips in the lane, which breaks the tie with
+   .trim-dragging. */
+.lane-inner > .ripple-arrow,
+.lane-inner > .clip-trimmed-span {
+  z-index: var(--z-timeline-interaction);
+}
+
+.lane-inner > .clip-trimmed-span {
+  top: var(--clip-inset-top);
+  bottom: auto;
+  height: calc(var(--lane-height) - 2 * var(--clip-inset-top));
 }
 
 .trim-readout {
