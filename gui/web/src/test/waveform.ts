@@ -61,6 +61,18 @@ export function rasterRequest(
   };
 }
 
+/** jsdom has no `ImageData`: a stand-in that keeps what it was built from. */
+export class FakeImageData {
+  readonly data: Uint8ClampedArray;
+  readonly width: number;
+  readonly height: number;
+  constructor(data: Uint8ClampedArray, width: number, height: number) {
+    this.data = data;
+    this.width = width;
+    this.height = height;
+  }
+}
+
 export function fakeBitmap(close = vi.fn()): ImageBitmap {
   return { close } as unknown as ImageBitmap;
 }

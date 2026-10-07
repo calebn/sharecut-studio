@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   doneMsg,
+  FakeImageData,
   FakeRasterWorker,
   fakeBitmap,
   rasterRequest,
@@ -173,9 +174,9 @@ describe("rasterClient", () => {
     wanted = false;
     const w = FakeRasterWorker.last!;
     const bx = bitmap();
-    w.reply({ type: "done", id: 1, bitmap: bx, backend: "cpu-worker" });
-    w.reply({ type: "done", id: 2, bitmap: bitmap(), backend: "cpu-worker" });
-    expect(getRasterBackend()).toBe("cpu-worker");
+    w.reply({ type: "done", id: 1, bitmap: bx, backend: "webgl2" });
+    w.reply({ type: "done", id: 2, bitmap: bitmap(), backend: "webgl2" });
+    expect(getRasterBackend()).toBe("webgl2");
     expect(bitmapCache.get("x")).toMatchObject({
       bitmap: bx,
       width: 96,
@@ -185,6 +186,56 @@ describe("rasterClient", () => {
     });
     expect(bitmapCache.get("y")).toBeUndefined();
     expect(done.mock.calls.map((c) => c[0])).toEqual(["x", "y"]);
+  });
+
+  it("builds a CPU tile's bitmap from its pixels on the page", async () => {
+    const bx = bitmap();
+    const createImageBitmap = vi.fn(async () => bx);
+    vi.stubGlobal("createImageBitmap", createImageBitmap);
+    vi.stubGlobal("ImageData", FakeImageData);
+    const done = vi.fn();
+    subscribeRasterDone(done);
+    requestRaster(req("x"));
+    const pixels = new Uint8ClampedArray(96 * 57 * 4);
+    FakeRasterWorker.last!.reply({
+      type: "done",
+      id: 1,
+      backend: "cpu-worker",
+      pixels,
+      cols: 96,
+      rows: 57,
+    });
+    await vi.waitFor(() =>
+      expect(done).toHaveBeenCalledWith("x", expect.anything()),
+    );
+    expect(createImageBitmap).toHaveBeenCalledWith(
+      new FakeImageData(pixels, 96, 57),
+    );
+    expect(getRasterBackend()).toBe("cpu-worker");
+    expect(bitmapCache.get("x")).toMatchObject({ bitmap: bx, width: 96 });
+  });
+
+  it("asks again for a CPU tile whose bitmap cannot be built", async () => {
+    vi.stubGlobal(
+      "createImageBitmap",
+      vi.fn(async () => {
+        throw new DOMException("too big", "InvalidStateError");
+      }),
+    );
+    vi.stubGlobal("ImageData", FakeImageData);
+    const failed = vi.fn();
+    subscribeRasterFailed(failed);
+    requestRaster(req("x"));
+    FakeRasterWorker.last!.reply({
+      type: "done",
+      id: 1,
+      backend: "cpu-worker",
+      pixels: new Uint8ClampedArray(4),
+      cols: 1,
+      rows: 1,
+    });
+    await vi.waitFor(() => expect(failed).toHaveBeenCalledWith("x"));
+    expect(bitmapCache.get("x")).toBeUndefined();
   });
 
   it("dedupes a job already outstanding", () => {
