@@ -406,6 +406,95 @@ def test_auto_apply_leaves_a_remove_over_other_words_pending(episode):
     assert _geometry(episode) == before
 
 
+def test_auto_apply_does_not_count_a_held_back_edit_as_chosen(episode):
+    """Guest's cut asks (it would cut Host's "later") and stays pending, so Host's cut
+    may not ripple away Guest's "so the plan" as if Guest's cut had chosen it.
+
+    Both speak softly over 10-12 s, so neither cut turns into a track-local punch."""
+    _quiet_guest(episode)
+    host = _tone(220)
+    host[int(10.0 * SR) : int(12.0 * SR)] *= 0.02
+    _write_wav(load_project(episode).raw_dir() / "host.wav", host)
+    project = load_project(episode)
+    host = next(t for t in project.transcripts if t.track_id == "host")
+    host.words.append(TranscriptWord(text="later", start=11.5, end=11.8))
+    project.edit_decisions = [
+        EditDecision(
+            id=eid,
+            track_id=tid,
+            type=EditDecisionType.REMOVE,
+            start=start,
+            end=end,
+            reason="pause:1.0s",
+            review_required=False,
+        )
+        for eid, tid, start, end in (
+            ("guest-pause", "guest", 10.0, 12.0),
+            ("host-um", "host", 10.0, 11.0),
+        )
+    ]
+    before = _geometry(episode)
+
+    assert apply_auto_edits(project) == 0
+    assert sorted(e.id for e in project.edit_decisions) == ["guest-pause", "host-um"]
+    save_project(project)
+    assert _geometry(episode) == before
+
+
+def _word_at_the_cut_end(path: Path, guest_in_cut: str, host_until: float) -> None:
+    """Guest's "yes" runs 11.2-12.4 by word time, but its voice starts at 11.8.
+
+    Host talks until ``host_until``. Inside the 11.0-11.7 cut, Guest's track holds
+    ``guest_in_cut``: room tone, the soft onset of "yes" from 11.55, or Host's voice
+    as bleed 12 dB under Host.
+    """
+    noise = np.random.default_rng(7).normal(0.0, 0.0003, int(DUR * SR))
+    host = noise.copy()
+    host[: int(host_until * SR)] = _tone(220)[: int(host_until * SR)]
+    guest = noise.copy()
+    voice = slice(int(11.8 * SR), int(12.4 * SR))
+    guest[voice] = _tone(330)[voice]
+    if guest_in_cut == "onset":
+        onset = slice(int(11.55 * SR), int(11.8 * SR))
+        guest[onset] = 0.1 * _tone(330)[onset]
+    elif guest_in_cut == "host_bleed":
+        cut = slice(int(11.0 * SR), int(11.7 * SR))
+        guest[cut] = 0.25 * _tone(220)[cut]
+    raw = load_project(path).raw_dir()
+    _write_wav(raw / "host.wav", host)
+    _write_wav(raw / "guest.wav", guest)
+    project = load_project(path)
+    guest_words = next(t for t in project.transcripts if t.track_id == "guest").words
+    guest_words.append(TranscriptWord(text="yes", start=11.2, end=12.4))
+    save_project(project)
+
+
+@pytest.mark.parametrize(
+    ("guest_in_cut", "host_until", "asks"),
+    [("room_tone", 11.7, False), ("host_bleed", 11.7, False), ("onset", 11.4, True)],
+    ids=["silent-track", "owner-bleed", "clipped-onset"],
+)
+def test_a_word_counts_only_where_its_own_track_sounds_inside_the_cut(
+    episode, guest_in_cut, host_until, asks
+):
+    """Word times run past the voice (Whisper stretches them over silence), so a word
+    counts only where its own track has its own sound inside the cut."""
+    _word_at_the_cut_end(episode, guest_in_cut, host_until)
+    project = load_project(episode)
+    removal = plan_ripple_delete(
+        project, 11.0, 11.7, edited_track_ids=["host"], use_inaudible_opt=False
+    )
+
+    cleared = clear_ripple(project, removal, confirm_cut_speech=False)
+
+    if asks:
+        assert isinstance(cleared, CutSpeechConfirmation)
+        (track,) = cleared.speech.tracks
+        assert [(w.text, w.timeline_start) for w in track.words] == [("yes", 11.2)]
+    else:
+        assert cleared == SpeechClearance(removal)
+
+
 def test_ripple_delete_clip_over_another_speakers_words_asks_first(episode):
     service = EditService(ProjectWorkspace.open(episode))
     before = _geometry(episode)
