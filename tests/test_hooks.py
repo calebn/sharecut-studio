@@ -37,7 +37,7 @@ def _git(cwd: Path, *args: str) -> str:
 
 
 def _stub_bin(tmp_path: Path) -> tuple[Path, Path]:
-    """Fake `uv` / `npm` that only log their argv."""
+    """Fake `uv` / `npm` that only log their argv, and a `node` at the `.nvmrc` major."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     log = tmp_path / "calls.log"
@@ -45,6 +45,10 @@ def _stub_bin(tmp_path: Path) -> tuple[Path, Path]:
         stub = bin_dir / tool
         stub.write_text(f'#!/bin/sh\necho "{tool} $*" >> "{log}"\n', encoding="utf-8")
         stub.chmod(0o755)
+    pinned = (ROOT / ".nvmrc").read_text(encoding="utf-8").strip().split(".")[0]
+    node = bin_dir / "node"
+    node.write_text(f'#!/bin/sh\necho "{pinned}"\n', encoding="utf-8")
+    node.chmod(0o755)
     return bin_dir, log
 
 
@@ -54,6 +58,8 @@ def _repo_with_worktree(tmp_path: Path) -> tuple[Path, Path]:
     (main / ".githooks").mkdir()
     (main / "gui" / "web").mkdir(parents=True)
     shutil.copy(ROOT / "scripts" / "worktree-setup.sh", main / "scripts" / "worktree-setup.sh")
+    shutil.copy(ROOT / "scripts" / "node-env.sh", main / "scripts" / "node-env.sh")
+    shutil.copy(ROOT / ".nvmrc", main / ".nvmrc")
     shutil.copy(ROOT / ".githooks" / "pre-commit", main / ".githooks" / "pre-commit")
     (main / "gui" / "web" / "package-lock.json").write_text("{}", encoding="utf-8")
     _git(tmp_path, "init", "-q", "-b", "main", str(main))
@@ -108,5 +114,49 @@ def test_pre_commit_self_provisions_and_falls_back_to_uvx() -> None:
     assert "sh scripts/worktree-setup.sh" in text
     assert "uvx pre-commit run --hook-stage pre-commit" in text
     assert "exit 1" not in text
+    # Branches cut before node-env.sh existed still run this hook via a shared hooksPath.
+    assert "[ -f scripts/node-env.sh ] && . scripts/node-env.sh" in text
     make = (ROOT / "Makefile").read_text(encoding="utf-8")
     assert "worktree-setup:\n\tsh scripts/worktree-setup.sh" in make
+
+
+def _fake_node(bin_dir: Path, version: str) -> None:
+    bin_dir.mkdir(parents=True)
+    node = bin_dir / "node"
+    node.write_text(f'#!/bin/sh\necho "{version.split(".")[0]}"\n', encoding="utf-8")
+    node.chmod(0o755)
+
+
+def _node_env_path(tmp_path: Path, path: str) -> str:
+    shutil.copy(ROOT / "scripts" / "node-env.sh", tmp_path / "node-env.sh")
+    (tmp_path / ".nvmrc").write_text("24\n", encoding="utf-8")
+    env = {"PATH": path, "NVM_DIR": str(tmp_path / "nvm"), "HOME": str(tmp_path)}
+    out = subprocess.run(
+        ["sh", "-c", '. ./node-env.sh; command -v node; echo "$PATH"'],
+        cwd=tmp_path,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return out.stdout
+
+
+def test_node_env_puts_the_nvmrc_node_first(tmp_path: Path) -> None:
+    old = tmp_path / "old" / "bin"
+    _fake_node(old, "16.20.2")
+    for version in ("24.1.0", "24.14.1", "22.21.1"):
+        _fake_node(tmp_path / "nvm" / "versions" / "node" / f"v{version}" / "bin", version)
+
+    out = _node_env_path(tmp_path, f"{old}:/usr/bin:/bin")
+
+    assert out.splitlines()[0] == str(tmp_path / "nvm/versions/node/v24.14.1/bin/node")
+
+
+def test_node_env_keeps_path_when_node_already_matches(tmp_path: Path) -> None:
+    current = tmp_path / "cur" / "bin"
+    _fake_node(current, "24.3.0")
+
+    out = _node_env_path(tmp_path, f"{current}:/usr/bin:/bin")
+
+    assert out.splitlines() == [str(current / "node"), f"{current}:/usr/bin:/bin"]

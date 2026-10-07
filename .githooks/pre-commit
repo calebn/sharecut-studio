@@ -2,6 +2,7 @@
 # Format staged Ruff/Biome files via lint-staged, then run check-only pre-commit hooks.
 set -e
 cd "$(git rev-parse --show-toplevel)"
+[ -f scripts/node-env.sh ] && . scripts/node-env.sh
 
 # Fresh worktrees have no .venv / node_modules yet: provision instead of failing.
 if [ ! -x .venv/bin/python ] || [ ! -x gui/web/node_modules/.bin/lint-staged ]; then

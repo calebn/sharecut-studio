@@ -53,6 +53,8 @@ make worktree-setup                                 # per git worktree: hooks + 
 podcast gui --project /path/to/episode.project.json
 ```
 
+The pre-commit hook and `make worktree-setup` source `scripts/node-env.sh`, which puts the Node major pinned in `.nvmrc` first on `PATH` from nvm's install tree (`$NVM_DIR/versions/node`). Shells that don't load nvm, such as git hooks and agent shells, still get the pinned Node instead of an older default. If that version isn't installed, the script warns; run `nvm install` in the repo.
+
 The opt-in editor profiler also needs the Playwright Chromium install:
 
 ```bash

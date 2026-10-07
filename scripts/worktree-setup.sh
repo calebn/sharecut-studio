@@ -7,6 +7,7 @@
 # Also invoked automatically by .githooks/pre-commit when a worktree is unprovisioned.
 set -e
 cd "$(git rev-parse --show-toplevel)"
+[ -f scripts/node-env.sh ] && . scripts/node-env.sh
 
 # A per-worktree absolute hooksPath (e.g. copied from the main checkout) would run
 # another checkout's hook scripts; drop it so the shared relative setting applies.
