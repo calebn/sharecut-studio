@@ -5,14 +5,21 @@ import { runAnnouncedJob } from "./runAnnouncedJob";
 
 vi.mock("../api", async (orig) => ({
   ...(await orig<typeof import("../api")>()),
-  followExportJob: vi.fn(),
+  followJobToOk: vi.fn(),
 }));
 vi.mock("./seedStudioJob", () => ({ seedStudioJob: vi.fn() }));
 
-import { followExportJob } from "../api";
+import { followJobToOk } from "../api";
 import { seedStudioJob } from "./seedStudioJob";
 
-const followMock = vi.mocked(followExportJob);
+const followMock = vi.mocked(followJobToOk);
+
+const okJob = {
+  id: "j1",
+  kind: "export",
+  status: "ok",
+  result: { paths: ["a.wav"] },
+} as PipelineJobSnapshot;
 const seedMock = vi.mocked(seedStudioJob);
 
 const snap = {
@@ -33,7 +40,7 @@ describe("runAnnouncedJob", () => {
     seedMock.mockImplementation(() => {
       registeredBeforeSeed = "j1" in useDawStore.getState().pendingJobResults;
     });
-    followMock.mockResolvedValue(["a.wav"]);
+    followMock.mockResolvedValue(okJob);
     await runAnnouncedJob(async () => snap, {
       failLabel: "F",
       resultCopy: (p) => `${p.length} done`,
@@ -42,15 +49,26 @@ describe("runAnnouncedJob", () => {
   });
 
   it("hands the result copy over on success", async () => {
-    followMock.mockResolvedValue(["a.wav"]);
+    followMock.mockResolvedValue(okJob);
     const result = await runAnnouncedJob(async () => snap, {
       failLabel: "F",
       resultCopy: (p) => `${p.length} done`,
     });
-    expect(result).toEqual(["a.wav"]);
+    expect(result).toBe(okJob);
     expect(useDawStore.getState().pendingJobResults).toEqual({
       j1: "1 done",
     });
+  });
+
+  it("hands the started job to onStart before following it", async () => {
+    followMock.mockResolvedValue(okJob);
+    const onStart = vi.fn();
+    await runAnnouncedJob(async () => snap, {
+      failLabel: "F",
+      resultCopy: (p) => `${p.length} done`,
+      onStart,
+    });
+    expect(onStart).toHaveBeenCalledWith(snap);
   });
 
   it("settles and rethrows when the job fails", async () => {
@@ -65,7 +83,7 @@ describe("runAnnouncedJob", () => {
   });
 
   it("passes the abort signal through", async () => {
-    followMock.mockResolvedValue(["a.wav"]);
+    followMock.mockResolvedValue(okJob);
     const ac = new AbortController();
     await runAnnouncedJob(async () => snap, {
       failLabel: "F",

@@ -98,6 +98,8 @@ export {
   analyzePipeline,
   cancelPipelineRun,
   followExportJob,
+  followJobToOk,
+  JobCancelledError,
   loadPipelineConfig,
   loadPipelineStatus,
   loadPipelineSteps,

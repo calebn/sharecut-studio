@@ -109,7 +109,7 @@ file's bytes match the master. For tracked project audio, also inspect the `bala
 re-run `balance_tracks` when a dialogue entry's `stale` value is true. Run Export to refresh
 stale audio.
 
-Same `PipelineService.export_audio` / `render_final` path as Sharecut Studio **⋯ → Export deliverables…** / `Mod+Shift+E` and the Pipeline tab’s `export_deliverables` step.
+Same `PipelineService.export_audio` / `render_final` path as Sharecut Studio **Menu → Export deliverables…** / `Mod+Shift+E` (a dialog that picks formats, shows progress with Cancel export, then lists the written files) and the Pipeline tab’s `export_deliverables` step.
 
 ```bash
 podcast pipeline run --project episode.project.json --from master_loudness

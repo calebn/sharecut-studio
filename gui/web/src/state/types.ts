@@ -228,6 +228,8 @@ export interface DawState {
     target: import("../types/project").ExactRangeTarget | null,
   ) => void;
   bounceDialogOpen: boolean;
+  /** Host Export deliverables dialog (configure, progress, outcome). */
+  exportDialogOpen: boolean;
   /** Host share management dialog. */
   shareDialogOpen: boolean;
   /** Host record-room control panel. */
@@ -405,6 +407,7 @@ export interface DawState {
   setCutSpeechPrompt: (
     prompt: import("../edit/cutSpeech").CutSpeechPrompt | null,
   ) => void;
+  setExportDialogOpen: (on: boolean) => void;
   setShareDialogOpen: (on: boolean) => void;
   setRecordPanelOpen: (on: boolean) => void;
   setHostMcpDialogOpen: (on: boolean) => void;

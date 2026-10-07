@@ -225,6 +225,8 @@ type UiSlice = Pick<
   | "setBounceRangeTarget"
   | "bounceDialogOpen"
   | "setBounceDialogOpen"
+  | "exportDialogOpen"
+  | "setExportDialogOpen"
   | "shareDialogOpen"
   | "setShareDialogOpen"
   | "recordPanelOpen"
@@ -717,6 +719,8 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
           ? { bounceDialogOpen }
           : { bounceDialogOpen, bounceRangeTarget: null },
       ),
+    exportDialogOpen: false,
+    setExportDialogOpen: (exportDialogOpen) => set({ exportDialogOpen }),
     shareDialogOpen: false,
     setShareDialogOpen: (shareDialogOpen) => set({ shareDialogOpen }),
     recordPanelOpen: false,

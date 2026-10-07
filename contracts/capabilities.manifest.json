@@ -1911,7 +1911,8 @@
       "surfaces": {
         "command": "export.deliverables",
         "gui": [
-          "transport.menu"
+          "transport.menu",
+          "ExportDialog"
         ],
         "keyboard": "Mod+Shift+E",
         "mcp": [

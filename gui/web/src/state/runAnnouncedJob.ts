@@ -1,5 +1,6 @@
-import { followExportJob } from "../api";
+import { followJobToOk } from "../api";
 import type { PipelineJobSnapshot } from "../types/pipeline";
+import { jobResultPaths } from "../utils/pipeline";
 import { useDawStore } from "./dawStore";
 import { seedStudioJob } from "./seedStudioJob";
 
@@ -8,8 +9,10 @@ import { seedStudioJob } from "./seedStudioJob";
  * seed it onto the Activity chip, follow it to a terminal status, and hand the
  * copy to `useJobStatusAnnouncement` (#704). The job is registered with
  * `expectJobResult` before the chip sees it, so the generic "ok" headline
- * never races the copy. A failure or abort settles that registration and rethrows
- * for the caller. An abort only stops this client following the job. The server job
+ * never races the copy. `onStart` receives the started job (for Cancel and
+ * live progress). Resolves with the `ok` snapshot. A failure, a cancel
+ * (`JobCancelledError`) or an abort settles that registration and rethrows for
+ * the caller. An abort only stops this client following the job. The server job
  * is not cancelled: it keeps running, may still write files to `export/`, and its
  * result is never announced. An abort that lands while `start()` runs throws
  * before anything is registered or seeded.
@@ -20,8 +23,9 @@ export async function runAnnouncedJob(
     failLabel: string;
     resultCopy: (paths: string[]) => string;
     signal?: AbortSignal;
+    onStart?: (job: PipelineJobSnapshot) => void;
   },
-): Promise<string[]> {
+): Promise<PipelineJobSnapshot> {
   const job = await start();
   // A project switch (or dialog close) while the start POST was in flight: the
   // server job keeps running, but do not put it on the chip that now belongs to
@@ -32,12 +36,13 @@ export async function runAnnouncedJob(
   const s = useDawStore.getState();
   s.expectJobResult(job.id);
   seedStudioJob(job);
+  opts.onStart?.(job);
   try {
-    const paths = await followExportJob(job.id, opts.failLabel, {
+    const done = await followJobToOk(job.id, opts.failLabel, {
       signal: opts.signal,
     });
-    s.announceJobResult(job.id, opts.resultCopy(paths));
-    return paths;
+    s.announceJobResult(job.id, opts.resultCopy(jobResultPaths(done)));
+    return done;
   } catch (err) {
     s.settleJobResult(job.id);
     throw err;

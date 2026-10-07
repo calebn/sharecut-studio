@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { followExportJob, startBounceJob } from "../api";
+import { followJobToOk, startBounceJob } from "../api";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import type { PipelineJobSnapshot } from "../types/pipeline";
@@ -9,7 +9,7 @@ import { BounceDialog } from "./BounceDialog";
 
 vi.mock("../api", () => ({
   startBounceJob: vi.fn(),
-  followExportJob: vi.fn(),
+  followJobToOk: vi.fn(),
 }));
 
 const projectStub = {
@@ -35,6 +35,11 @@ const bounceJobSnapshot: PipelineJobSnapshot = {
   steps: [],
 };
 
+/** A terminal ok snapshot that wrote `paths`. */
+function bounced(...paths: string[]): PipelineJobSnapshot {
+  return { ...bounceJobSnapshot, status: "ok", result: { paths } };
+}
+
 describe("BounceDialog", () => {
   beforeEach(() => {
     useDawStore.setState({
@@ -48,7 +53,7 @@ describe("BounceDialog", () => {
       pendingJobResults: {},
     });
     vi.mocked(startBounceJob).mockReset();
-    vi.mocked(followExportJob).mockReset();
+    vi.mocked(followJobToOk).mockReset();
   });
 
   it("shows bounce dialog and is axe-clean", async () => {
@@ -83,25 +88,24 @@ describe("BounceDialog", () => {
     });
   });
 
-  it("aborts followExportJob when the dialog closes", async () => {
+  it("stops following the job when the dialog closes", async () => {
     const user = userEvent.setup();
     let captured: AbortSignal | undefined;
     vi.mocked(startBounceJob).mockResolvedValue(bounceJobSnapshot);
-    vi.mocked(followExportJob).mockImplementation(async (_id, _label, opts) => {
+    vi.mocked(followJobToOk).mockImplementation(async (_id, _label, opts) => {
       captured = opts?.signal;
-      await new Promise<never>((_resolve, reject) => {
+      return new Promise<never>((_resolve, reject) => {
         opts?.signal?.addEventListener("abort", () => {
           reject(new DOMException("Aborted", "AbortError"));
         });
       });
-      return [];
     });
     render(<BounceDialog />);
     useDawStore.setState({ bounceDialogOpen: true });
     const bounceBtn = await screen.findByRole("button", { name: "Bounce" });
     await user.click(bounceBtn);
     await waitFor(() => {
-      expect(followExportJob).toHaveBeenCalled();
+      expect(followJobToOk).toHaveBeenCalled();
     });
     expect(captured?.aborted).toBe(false);
     useDawStore.setState({ bounceDialogOpen: false });
@@ -114,10 +118,9 @@ describe("BounceDialog", () => {
   it("records the bounce result under its job id instead of announcing it directly", async () => {
     const user = userEvent.setup();
     vi.mocked(startBounceJob).mockResolvedValue(bounceJobSnapshot);
-    vi.mocked(followExportJob).mockResolvedValue([
-      "export/bounces/a.wav",
-      "export/bounces/a.mp3",
-    ]);
+    vi.mocked(followJobToOk).mockResolvedValue(
+      bounced("export/bounces/a.wav", "export/bounces/a.mp3"),
+    );
     render(<BounceDialog />);
     useDawStore.setState({ bounceDialogOpen: true });
     const bounceBtn = await screen.findByRole("button", { name: "Bounce" });
@@ -154,7 +157,9 @@ it("keeps an exact range preset when lane and transport selections change", asyn
     sessionRegion: { start_sec: 0, end_sec: 60 },
   });
   vi.mocked(startBounceJob).mockResolvedValue(bounceJobSnapshot);
-  vi.mocked(followExportJob).mockResolvedValue(["export/bounces/range.wav"]);
+  vi.mocked(followJobToOk).mockResolvedValue(
+    bounced("export/bounces/range.wav"),
+  );
   render(<BounceDialog />);
   expect(screen.queryByText("Entire mix")).toBeNull();
   expect(screen.getByText(/11.00–12.00 s/)).toBeTruthy();
