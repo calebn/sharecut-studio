@@ -1,12 +1,19 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { hostRecordUploadTransport, loadHostRecordState } from "../api";
 import { executePointerCommand } from "../commands/pointer";
+import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { Button, Dialog } from "../ui";
 import { errorMessage } from "../utils/apiError";
 import { sourceIdPointToTimeline } from "../utils/timebase";
-import { startBlockers } from "./blockers";
 import { HostUploadRoster } from "./HostUploadRoster";
+import {
+  landGate,
+  START_FIX_LABEL,
+  type StartFix,
+  startBlockerItems,
+  TAKE_CONTROL,
+} from "./hostControls";
 import {
   prepareHostKeeperStorage,
   retryHostKeeperStorage,
@@ -27,6 +34,7 @@ import { NoAudioNotice } from "./NoAudioNotice";
 import { RecIndicator } from "./RecIndicator";
 import { RoomToneCapture } from "./RoomToneCapture";
 import { Roster } from "./Roster";
+import { StopTakeControl } from "./StopTakeControl";
 import { StorageHeadroomWarning } from "./StorageHeadroomWarning";
 import { TakeClippingReport } from "./TakeClippingReport";
 import {
@@ -34,7 +42,6 @@ import {
   HEARING_COPY,
   hostReconnectPauseCopyFromSnapshot,
   LOCAL_KEEPER_COPY,
-  LOCAL_KEEPER_PENDING_COPY,
   RECORD_ROOM_RECONNECTING_COPY,
   recordSourceId,
   shouldApplyRecordSnapshot,
@@ -49,6 +56,9 @@ import {
 } from "./upload/useRecordUpload";
 import { useRecordLiveComments } from "./useRecordLiveComments";
 import { useRoomToneCapture } from "./useRoomToneCapture";
+
+/** Commands whose success the panel shows in place (a copied link is invisible otherwise). */
+const SHOWN_RESULTS = new Set(["record.createRoom", "record.copyGuestLink"]);
 
 type Props = {
   recordingLocally?: boolean;
@@ -84,6 +94,8 @@ export function RecordPanel({
   micCheckFailed = false,
 }: Props) {
   const micHintId = useId();
+  const blockersId = useId();
+  const landReasonId = useId();
   const {
     recordPanelOpen,
     setRecordPanelOpen,
@@ -107,7 +119,6 @@ export function RecordPanel({
   const takeClipping = useRecordHostStore((s) => s.takeClipping);
   const setSnapshot = useRecordHostStore((s) => s.setSnapshot);
   const captureHealth = useRecordHostStore((s) => s.captureHealth);
-  const blockers = startBlockers(snapshot);
   const state = snapshot?.state;
   const recording = state === "recording";
   const paused = state === "paused";
@@ -164,6 +175,13 @@ export function RecordPanel({
   const transportError = useRecordHostStore((s) => s.transportError);
   const setTransportError = useRecordHostStore((s) => s.setTransportError);
   const [hydrateError, setHydrateError] = useState<string | null>(null);
+  /** Whether a record room exists, as the last state read found it. */
+  const [roomLookup, setRoomLookup] = useState<
+    "checking" | "none" | "found" | "failed"
+  >("checking");
+  const [lookupNonce, setLookupNonce] = useState(0);
+  /** The last record command's announcement, shown in the panel as its visible twin. */
+  const [doneNotice, setDoneNotice] = useState<string | null>(null);
   const [transportBusy, setTransportBusy] = useState(false);
   const sink = useRecordHostStore((s) => s.keeperSink);
   const sinkError = useRecordHostStore((s) => s.keeperStorageError);
@@ -171,11 +189,6 @@ export function RecordPanel({
   useEffect(() => {
     void prepareHostKeeperStorage().catch(() => undefined);
   }, []);
-  const localStorageReady = sink !== null;
-  const canStart =
-    blockers.length === 0 &&
-    (state === "lobby" || state === "stopped") &&
-    localStorageReady;
   const uploadTransport = useMemo(
     () => (projectPath ? hostRecordUploadTransport(projectPath) : null),
     [projectPath],
@@ -217,17 +230,57 @@ export function RecordPanel({
     sink,
     transport: uploadTransport,
   });
-  const capturingRoomTone = roomTone.status === "capturing";
   const hostSegments = useHostUploadSegments(uploadTransport, !!snapshot);
-  const landFailed = hostSegments.some((row) => row.land_failed);
-
-  // Same path as the keyboard and palette for all five buttons: record.* owns clearing, storing and announcing errors; transportBusy blocks double sends.
-  const runTransport = (commandId: string) => {
-    setTransportBusy(true);
-    void executePointerCommand(commandId, {}).finally(() => {
-      setTransportBusy(false);
-    });
+  const control = snapshot ? TAKE_CONTROL[snapshot.state] : null;
+  const blockers = snapshot
+    ? startBlockerItems(snapshot, {
+        storageReady: sink !== null,
+        storageError: sinkError,
+        capturingRoomTone: roomTone.status === "capturing",
+      })
+    : [];
+  const startBlocked =
+    control?.commandId === "record.start" && blockers.length > 0;
+  const land =
+    snapshot && snapshot.take_index >= 0
+      ? landGate(snapshot, hostSegments)
+      : null;
+  const startFixes: Record<StartFix, () => void> = {
+    copyGuestLink: () => runCommand("record.copyGuestLink"),
+    retryStorage: () => {
+      void retryHostKeeperStorage().catch(() => undefined);
+    },
   };
+
+  // Every button runs the same command as the keyboard and palette: record.* owns clearing, storing and announcing errors; transportBusy blocks double sends.
+  const runCommand = (commandId: string) => {
+    if (transportBusy) {
+      return;
+    }
+    setTransportBusy(true);
+    setDoneNotice(null);
+    void executePointerCommand(commandId, {})
+      .then((result) => {
+        if (result.status === "ok" && SHOWN_RESULTS.has(commandId)) {
+          setDoneNotice(useDawStore.getState().statusAnnouncement);
+        }
+      })
+      .finally(() => {
+        setTransportBusy(false);
+      });
+  };
+
+  // A pressed control can unmount when the room changes state (Stop take, Start); keep focus on the take control.
+  const takeControlRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!state) {
+      return;
+    }
+    const active = document.activeElement;
+    if (!active || active === document.body) {
+      takeControlRef.current?.focus({ preventScroll: true });
+    }
+  }, [state]);
 
   // Single owner for clearing: a stored command failure lives only while this panel shows it.
   useEffect(() => {
@@ -250,9 +303,16 @@ export function RecordPanel({
     setHydrateError(null);
     void loadHostRecordState(projectPath)
       .then((snap) => {
-        if (cancelled || !snap) {
+        if (cancelled) {
           return;
         }
+        if (!snap) {
+          // The room was never created or has ended: drop any stale snapshot.
+          setSnapshot(null);
+          setRoomLookup("none");
+          return;
+        }
+        setRoomLookup("found");
         const current = useRecordHostStore.getState().snapshot;
         if (shouldApplyRecordSnapshot(snap, current)) {
           setSnapshot(snap);
@@ -260,13 +320,14 @@ export function RecordPanel({
       })
       .catch((err: unknown) => {
         if (!cancelled) {
+          setRoomLookup("failed");
           setHydrateError(errorMessage(err));
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [recordPanelOpen, projectPath, setSnapshot]);
+  }, [recordPanelOpen, projectPath, setSnapshot, lookupNonce]);
 
   const dropped = useRecordHostStore((s) => s.dropped);
   const offline =
@@ -291,6 +352,35 @@ export function RecordPanel({
       }
     >
       <div className="stack record-panel">
+        {!snapshot && roomLookup === "none" ? (
+          <div className="stack record-empty">
+            <p>
+              No record room yet. Creating one copies a guest link you can send.
+            </p>
+            <div className="cluster">
+              <Button
+                variant="primary"
+                aria-disabled={transportBusy || undefined}
+                onClick={() => runCommand("record.createRoom")}
+              >
+                Create record room
+              </Button>
+            </div>
+          </div>
+        ) : null}
+        {!snapshot && roomLookup === "failed" ? (
+          <div className="cluster record-empty">
+            <Button
+              aria-disabled={transportBusy || undefined}
+              onClick={() => setLookupNonce((value) => value + 1)}
+            >
+              Check again
+            </Button>
+          </div>
+        ) : null}
+        {!snapshot && roomLookup === "checking" ? (
+          <p role="status">Looking for a record room…</p>
+        ) : null}
         {snapshot ? (
           <RecIndicator
             snapshot={snapshot}
@@ -304,7 +394,7 @@ export function RecordPanel({
             {RECORD_ROOM_RECONNECTING_COPY}
           </p>
         ) : null}
-        <MicMeter stream={stream} label="Your mic level" />
+        {snapshot ? <MicMeter stream={stream} label="Your mic level" /> : null}
         <StorageHeadroomWarning
           visible={state === "lobby" || state === "stopped"}
           recheck={state === "stopped"}
@@ -315,10 +405,11 @@ export function RecordPanel({
             status={roomTone.status}
             error={roomTone.error}
             micReady={!!stream}
-            captureReady={localStorageReady && roomTone.captureReady}
+            captureReady={sink !== null && roomTone.captureReady}
             onRecord={roomTone.record}
             onSkip={roomTone.skip}
             onRetry={roomTone.retry}
+            primary={false}
           />
         ) : null}
         <div aria-live="polite">
@@ -420,7 +511,7 @@ export function RecordPanel({
               ) : null}
             </>
           ) : null}
-          {sinkError ? (
+          {sinkError && control?.stop ? (
             <>
               <p className="record-warn">{sinkError}</p>
               <Button
@@ -448,11 +539,7 @@ export function RecordPanel({
             </p>
           ) : null
         ) : null}
-        {snapshot ? (
-          <Roster participants={snapshot.participants} />
-        ) : (
-          <p>No live room snapshot yet. Mint a record room from Share…</p>
-        )}
+        {snapshot ? <Roster participants={snapshot.participants} /> : null}
         {snapshot ? (
           <LiveComments
             snapshot={snapshot}
@@ -463,82 +550,89 @@ export function RecordPanel({
             onSubmitNote={liveComments.submitNote}
           />
         ) : null}
-        {!canStart &&
-        (blockers.length > 0 || (!localStorageReady && !sinkError)) ? (
-          <p className="record-warn">
-            {[
-              ...blockers,
-              ...(!localStorageReady && !sinkError
-                ? [LOCAL_KEEPER_PENDING_COPY]
-                : []),
-            ].join(", ")}
-          </p>
+        {snapshot ? (
+          <div className="cluster">
+            <Button
+              onClick={() => {
+                setRecordPanelOpen(false);
+                setShareDialogOpen(true);
+              }}
+            >
+              Copy links…
+            </Button>
+          </div>
         ) : null}
-        {host ? (
-          <label className="cluster">
-            <input
-              type="checkbox"
-              checked={host.muted}
-              onChange={(e) =>
-                sendRecordHostCommand("SetMuted", { muted: e.target.checked })
-              }
-            />
-            Mute
-          </label>
+        {snapshot && control ? (
+          <section className="stack record-controls" aria-label="Take controls">
+            {host ? (
+              <label className="cluster record-mute">
+                <input
+                  type="checkbox"
+                  checked={host.muted}
+                  onChange={(e) =>
+                    sendRecordHostCommand("SetMuted", {
+                      muted: e.target.checked,
+                    })
+                  }
+                />
+                Mute my mic
+              </label>
+            ) : null}
+            <div className="cluster">
+              <Button
+                ref={takeControlRef}
+                variant={
+                  control.commandId === "record.pause" ? "default" : "primary"
+                }
+                disabled={startBlocked}
+                aria-disabled={transportBusy || undefined}
+                aria-describedby={startBlocked ? blockersId : undefined}
+                onClick={() => runCommand(control.commandId)}
+              >
+                {control.label}
+              </Button>
+              {land ? (
+                <Button
+                  disabled={!land.enabled}
+                  aria-disabled={transportBusy || undefined}
+                  aria-describedby={land.enabled ? undefined : landReasonId}
+                  onClick={() => runCommand("record.land")}
+                >
+                  {land.label}
+                </Button>
+              ) : null}
+            </div>
+            {startBlocked ? (
+              <ul id={blockersId} className="record-blockers">
+                {blockers.map((item) => (
+                  <li key={item.key}>
+                    <span>{item.text}</span>
+                    {item.fix ? (
+                      <Button
+                        aria-disabled={transportBusy || undefined}
+                        onClick={startFixes[item.fix]}
+                      >
+                        {START_FIX_LABEL[item.fix]}
+                      </Button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {doneNotice ? <p className="record-hint">{doneNotice}</p> : null}
+            {land && !land.enabled ? (
+              <p id={landReasonId} className="record-hint">
+                {land.reason}
+              </p>
+            ) : null}
+            {control.stop ? (
+              <StopTakeControl
+                busy={transportBusy}
+                onStop={() => runCommand("record.stop")}
+              />
+            ) : null}
+          </section>
         ) : null}
-        <div className="cluster">
-          <Button
-            variant="primary"
-            type="button"
-            disabled={!canStart || transportBusy || capturingRoomTone}
-            onClick={() => {
-              if (capturingRoomTone) {
-                roomTone.skip();
-              }
-              runTransport("record.start");
-            }}
-          >
-            Start
-          </Button>
-          <Button
-            type="button"
-            disabled={!recording || transportBusy}
-            onClick={() => runTransport("record.pause")}
-          >
-            Pause
-          </Button>
-          <Button
-            type="button"
-            disabled={!paused || transportBusy}
-            onClick={() => runTransport("record.resume")}
-          >
-            Resume
-          </Button>
-          <Button
-            variant="danger"
-            type="button"
-            disabled={(!recording && !paused) || transportBusy}
-            onClick={() => runTransport("record.stop")}
-          >
-            Stop
-          </Button>
-          <Button
-            type="button"
-            disabled={transportBusy}
-            onClick={() => runTransport("record.land")}
-          >
-            {landFailed ? "Retry land" : "Land"}
-          </Button>
-          <Button
-            type="button"
-            onClick={() => {
-              setRecordPanelOpen(false);
-              setShareDialogOpen(true);
-            }}
-          >
-            Copy links…
-          </Button>
-        </div>
       </div>
     </Dialog>
   );

@@ -204,7 +204,11 @@ flowchart TD
    miss returns `403 consent required` — never trust the client alone.
 5. Host Start requires a verified writable local OPFS backup for the host and
    is enabled when every **recorded guest** currently in the lobby has consented
-   (producers skip this gate; `"No one has joined"` until a guest connects). A
+   (producers skip this gate). The host's Start lists what it waits for right
+   under it: "No guest has joined yet. Send them the guest link." with **Copy
+   guest link**, then "Waiting for Ava to accept recording." per guest. A host
+   with no room yet sees "No record room yet." with **Create record room**,
+   which creates it in place and copies the guest link. A
    guest who rejoins before a new take must retry local backup readiness and
    Accept again. The previous take’s upload and download recovery stays available
    in the lobby. Failed backup readiness offers **Retry local backup**.
@@ -270,7 +274,11 @@ flowchart TD
    Land) fails, the Record room panel opens and shows the error; over the
    Share dialog the failure is only announced, and an already open panel shows it
    without announcing it a second time. Closing the panel clears it.
-8. Host Stop. The native leave warning stays until the keeper finishes saving
+8. Host Stop. The host panel shows one take control (Pause while recording,
+   Resume while paused) and keeps Stop alone at the end behind a divider; Stop
+   asks once ("Stop this take? Recording ends for everyone in the room.",
+   **Keep recording** or **Stop take**). Land stays disabled with its reason
+   beside it until there is something to land. The native leave warning stays until the keeper finishes saving
    the final WAV and metadata, then clears. The upload panel warns the guest
    to keep the tab open until the final file ACK, shows N/M chunks where all
    totals are known, and offers **Resume upload** and **Download local keeper**

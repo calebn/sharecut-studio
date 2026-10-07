@@ -14,6 +14,7 @@ from podcast_mcp.services.record.state import (
     PauseReason,
     RecordSnapshot,
     TakeState,
+    describe_start_blockers,
     find_participant,
     producer_count,
     recorded_count,
@@ -243,7 +244,7 @@ def apply_record_command(
             raise RecordStateError(f"cannot start from {out.state}")
         blockers = start_blockers(out)
         if blockers:
-            raise RecordStateError("waiting for consent: " + ", ".join(blockers))
+            raise RecordStateError(describe_start_blockers(blockers))
         take_index = out.take_index + 1
         out.take_index = take_index
         out.takes.append(

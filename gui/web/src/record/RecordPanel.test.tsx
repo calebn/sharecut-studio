@@ -10,7 +10,6 @@ import {
   recordSnapshot,
 } from "../test/fixtures";
 import { seedPendingKeeper } from "../test/keepers";
-import { startBlockers } from "./blockers";
 import { useRecordHostStore } from "./hostStore";
 import {
   createOpfsSink,
@@ -116,8 +115,15 @@ const lobby = recordSnapshot({
   state: "lobby",
   take_index: -1,
   recording_ms: 0,
-  start_blockers: ["No one has joined"],
+  start_blockers: [{ code: "no_guest" }],
 });
+
+/** The dialog moves focus to Close one frame after it opens; wait so it cannot land later. */
+async function settleDialogFocus() {
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus(),
+  );
+}
 
 describe("RecordPanel", () => {
   afterEach(() => {
@@ -134,7 +140,10 @@ describe("RecordPanel", () => {
     uploadStatus.mockReset();
     uploadStatus.mockResolvedValue({ segments: [] });
     vi.mocked(loadHostRecordState).mockReset();
-    vi.mocked(loadHostRecordState).mockResolvedValue(null);
+    // The server returns the room the test put in the store (null: no room).
+    vi.mocked(loadHostRecordState).mockImplementation(
+      async () => useRecordHostStore.getState().snapshot,
+    );
     roomTone.status = "idle";
     roomTone.error = null;
     roomTone.ready = false;
@@ -155,13 +164,87 @@ describe("RecordPanel", () => {
     useRecordHostStore.getState().setTakeClipping(null);
   });
 
-  it("disables Start with the no-one-joined reason", async () => {
+  it("lists who Start waits for under it, with the guest-link fix", async () => {
     useRecordHostStore.getState().setSnapshot(lobby);
     const { baseElement: container } = render(<RecordPanel />);
-    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
-    expect(await screen.findByText("No one has joined")).toBeInTheDocument();
+    const start = screen.getByRole("button", { name: "Start" });
+    expect(start).toBeDisabled();
+    await waitFor(() =>
+      expect(start).toHaveAccessibleDescription(
+        "No guest has joined yet. Send them the guest link. Copy guest link",
+      ),
+    );
     expect(screen.getByText(ROOM_TONE_PROMPT_COPY)).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Copy guest link" }),
+    );
+    expect(exec).toHaveBeenCalledWith(
+      "record.copyGuestLink",
+      {},
+      { skipWhen: true },
+    );
     await expectNoA11yViolations(container);
+  });
+
+  it("names each guest Start is waiting for", async () => {
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      participants: [avaGuest()],
+      start_blockers: [
+        { code: "consent_pending", participant_id: "p_g", display_name: "Ava" },
+      ],
+    });
+    render(<RecordPanel />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Start" }),
+      ).toHaveAccessibleDescription("Waiting for Ava to accept recording."),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Copy guest link" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("creates a record room in place when none exists", async () => {
+    const { baseElement: container } = render(<RecordPanel />);
+    const create = await screen.findByRole("button", {
+      name: "Create record room",
+    });
+    expect(
+      screen.getByText(
+        "No record room yet. Creating one copies a guest link you can send.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Start" }),
+    ).not.toBeInTheDocument();
+    exec.mockImplementationOnce(async () => {
+      useDawStore
+        .getState()
+        .announceStatus("Record room created and guest link copied");
+      useRecordHostStore.getState().setSnapshot(lobby);
+      return { status: "ok" as const };
+    });
+    await userEvent.click(create);
+    expect(exec).toHaveBeenCalledWith(
+      "record.createRoom",
+      {},
+      { skipWhen: true },
+    );
+    expect(
+      await screen.findByText("Record room created and guest link copied"),
+    ).toBeVisible();
+    await expectNoA11yViolations(container);
+  });
+
+  it("drops a stale room once the server says it has ended", async () => {
+    useRecordHostStore.getState().setSnapshot(lobby);
+    vi.mocked(loadHostRecordState).mockResolvedValue(null);
+    render(<RecordPanel />);
+    expect(
+      await screen.findByRole("button", { name: "Create record room" }),
+    ).toBeInTheDocument();
+    expect(useRecordHostStore.getState().snapshot).toBeNull();
   });
 
   it("shows host microphone recovery and retries it", async () => {
@@ -251,6 +334,7 @@ describe("RecordPanel", () => {
   });
 
   it("shows your own mic meter while the panel is open", async () => {
+    useRecordHostStore.getState().setSnapshot(lobby);
     render(<RecordPanel stream={{} as MediaStream} />);
     expect(await screen.findByTestId("mic-meter")).toHaveTextContent(
       "Your mic level",
@@ -416,7 +500,6 @@ describe("RecordPanel", () => {
       participants: [avaGuest()],
     });
     render(<RecordPanel />);
-    expect(startBlockers(useRecordHostStore.getState().snapshot)).toEqual([]);
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
     });
@@ -440,23 +523,74 @@ describe("RecordPanel", () => {
     const start = await screen.findByRole("button", { name: "Start" });
     await waitFor(() => expect(start).toBeEnabled());
     await userEvent.click(start);
-    expect(start).toBeDisabled();
+    expect(start).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(start);
+    expect(exec).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       resolveCommand({ status: "ok" });
       await pendingCommand;
     });
-    await waitFor(() => expect(start).toBeEnabled());
+    await waitFor(() => expect(start).not.toHaveAttribute("aria-disabled"));
+  });
+
+  it("offers one take control that follows the room state", () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
+    render(<RecordPanel />);
+    expect(screen.getByRole("button", { name: "Pause" })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Resume" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Start" }),
+    ).not.toBeInTheDocument();
+    act(() =>
+      useRecordHostStore
+        .getState()
+        .setSnapshot({ ...lobby, state: "paused", take_index: 0 }),
+    );
+    expect(screen.getByRole("button", { name: "Resume" })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Pause" }),
+    ).not.toBeInTheDocument();
   });
 
   it("routes panel Stop through the record.stop command", async () => {
     useRecordHostStore
       .getState()
       .setSnapshot({ ...lobby, state: "recording", take_index: 0 });
-    render(<RecordPanel />);
+    const { baseElement: container } = render(<RecordPanel />);
+    await settleDialogFocus();
     await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(exec).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("group", {
+        name: "Stop this take? Recording ends for everyone in the room.",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Keep recording" }),
+    ).toHaveFocus();
+    await expectNoA11yViolations(container);
+    await userEvent.click(screen.getByRole("button", { name: "Stop take" }));
     expect(exec).toHaveBeenCalledWith("record.stop", {}, { skipWhen: true });
     expect(postTransport).not.toHaveBeenCalled();
+  });
+
+  it("keeps recording when the Stop question is declined", async () => {
+    useRecordHostStore
+      .getState()
+      .setSnapshot({ ...lobby, state: "paused", take_index: 0 });
+    render(<RecordPanel />);
+    await settleDialogFocus();
+    await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Keep recording" }),
+    );
+    expect(exec).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Stop" })).toHaveFocus();
   });
 
   it("warns about low storage without disabling Start", async () => {
@@ -502,7 +636,7 @@ describe("RecordPanel", () => {
     );
   });
 
-  it("disables Start while room tone is capturing", () => {
+  it("disables Start while room tone is capturing", async () => {
     roomTone.status = "capturing";
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
@@ -510,7 +644,13 @@ describe("RecordPanel", () => {
       participants: [avaGuest()],
     });
     render(<RecordPanel />);
-    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+    const start = screen.getByRole("button", { name: "Start" });
+    expect(start).toBeDisabled();
+    await waitFor(() =>
+      expect(start).toHaveAccessibleDescription(
+        "Recording room tone. Start is available when it finishes.",
+      ),
+    );
   });
 
   it("mutes the host from the room panel", async () => {
@@ -526,7 +666,7 @@ describe("RecordPanel", () => {
       ],
     });
     render(<RecordPanel />);
-    await userEvent.click(screen.getByLabelText("Mute"));
+    await userEvent.click(screen.getByLabelText("Mute my mic"));
     expect(send).toHaveBeenCalledWith("SetMuted", { muted: true });
   });
 
@@ -932,25 +1072,7 @@ describe("RecordPanel", () => {
     );
   });
 
-  it("keeps Land enabled while a later take is recording", () => {
-    useRecordHostStore.getState().setSnapshot({
-      ...lobby,
-      state: "recording",
-      take_index: 1,
-      start_blockers: [],
-    });
-    render(<RecordPanel />);
-    expect(screen.getByRole("button", { name: "Land" })).toBeEnabled();
-  });
-
-  it("disables every transport button while Land is in flight", async () => {
-    let finish: ((value: { status: "ok" }) => void) | undefined;
-    exec.mockImplementationOnce(
-      () =>
-        new Promise<{ status: "ok" }>((resolve) => {
-          finish = resolve;
-        }),
-    );
+  it("disables Land mid-take with the reason beside it", () => {
     useRecordHostStore.getState().setSnapshot({
       ...lobby,
       state: "recording",
@@ -959,9 +1081,76 @@ describe("RecordPanel", () => {
     });
     render(<RecordPanel />);
     const land = screen.getByRole("button", { name: "Land" });
-    await userEvent.click(land);
     expect(land).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
+    expect(land).toHaveAccessibleDescription(
+      "Stop the take to land it on the timeline.",
+    );
+  });
+
+  it("holds Land while recordings are still saving", async () => {
+    uploadStatus.mockResolvedValue({
+      segments: [
+        {
+          take_index: 0,
+          participant_id: "p_g",
+          segment_index: 0,
+          acked_parts: [0],
+          file_ack: false,
+        },
+      ],
+    });
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      state: "stopped",
+      take_index: 0,
+      start_blockers: [],
+      participants: [avaGuest()],
+    });
+    render(<RecordPanel />);
+    const land = screen.getByRole("button", { name: "Land" });
+    await waitFor(() =>
+      expect(land).toHaveAccessibleDescription(
+        "Recordings are still saving to the project.",
+      ),
+    );
+    expect(land).toBeDisabled();
+  });
+
+  it("keeps every take control busy while Land is in flight", async () => {
+    let finish: ((value: { status: "ok" }) => void) | undefined;
+    exec.mockImplementationOnce(
+      () =>
+        new Promise<{ status: "ok" }>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    uploadStatus.mockResolvedValue({
+      segments: [
+        {
+          take_index: 0,
+          participant_id: "p_g",
+          segment_index: 0,
+          acked_parts: [0],
+          file_ack: true,
+          land_failed: true,
+        },
+      ],
+    });
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      state: "stopped",
+      take_index: 0,
+      start_blockers: [],
+      participants: [avaGuest()],
+    });
+    render(<RecordPanel />);
+    const land = await screen.findByRole("button", { name: "Retry land" });
+    await userEvent.click(land);
+    expect(land).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Start" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     await userEvent.click(land);
     expect(
       exec.mock.calls.filter(
@@ -971,7 +1160,7 @@ describe("RecordPanel", () => {
     await act(async () => {
       finish?.({ status: "ok" });
     });
-    expect(screen.getByRole("button", { name: "Land" })).toBeEnabled();
+    expect(land).not.toHaveAttribute("aria-disabled");
   });
 
   it("hides room tone capture while recording", () => {
@@ -1010,6 +1199,7 @@ describe("RecordPanel", () => {
   });
 
   it("clears a stored command failure when Copy links closes the panel", async () => {
+    useRecordHostStore.getState().setSnapshot(lobby);
     useRecordHostStore.getState().setTransportError("Stop failed");
     render(<RecordPanel />);
     await userEvent.click(screen.getByRole("button", { name: "Copy links…" }));
@@ -1056,6 +1246,12 @@ describe("RecordPanel", () => {
     vi.mocked(loadHostRecordState).mockRejectedValue(new Error("state failed"));
     render(<RecordPanel />);
     expect(await screen.findByText("state failed")).toBeInTheDocument();
+    vi.mocked(loadHostRecordState).mockResolvedValue(null);
+    await userEvent.click(screen.getByRole("button", { name: "Check again" }));
+    expect(
+      await screen.findByRole("button", { name: "Create record room" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("state failed")).not.toBeInTheDocument();
   });
 
   it("shows host-reconnect pause copy from live pause_reason", async () => {

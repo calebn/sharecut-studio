@@ -32,6 +32,7 @@ import {
   openHostRecordRoom,
   readSavedProject,
   recordParticipantId,
+  stopHostTake,
   waitForSegmentsAcked,
 } from "./recordRoom";
 import { withShareableProject } from "./shareableProject";
@@ -321,13 +322,7 @@ test.describe("record host reconnect", () => {
         });
 
         await test.step("stop, upload resumes on the same token, land", async () => {
-          await clickHostTransport(
-            host,
-            roomDlg.getByRole("button", { name: "Stop", exact: true }),
-            projectPath,
-            "Stop",
-            "stopped",
-          );
+          await stopHostTake(host, roomDlg, projectPath);
           await expect(guest.locator(".record-rec-label")).toHaveText(
             "Stopped",
           );

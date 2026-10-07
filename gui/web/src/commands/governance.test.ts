@@ -324,6 +324,8 @@ describe("command governance", () => {
       "export.deliverables",
       "share.manage",
       "record.openPanel",
+      "record.createRoom",
+      "record.copyGuestLink",
       "edit.addChapter",
     ];
     for (const id of hostProjectCommands) {

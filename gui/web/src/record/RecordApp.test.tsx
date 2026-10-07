@@ -80,7 +80,13 @@ const guestSnap = {
   state: "lobby" as const,
   take_index: -1,
   recording_ms: 0,
-  start_blockers: ["Ava"],
+  start_blockers: [
+    {
+      code: "consent_pending" as const,
+      participant_id: "p_g",
+      display_name: "Ava",
+    },
+  ],
   caps: { recorded: 4, producers: 2 },
   participants: [
     {

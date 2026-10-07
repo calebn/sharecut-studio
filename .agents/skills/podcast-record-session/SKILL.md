@@ -64,16 +64,22 @@ podcast record discard-take --project episode.project.json --take-index 0
    bytes** until Start. Producers enter a name and
    **Join** (no mic, no room tone, no consent, no keeper).
 4. `record_state_tool` / the panel: Start stays disabled while `start_blockers`
-   is non-empty.
-   - `"No one has joined"` — no connected guest yet (host alone does not count).
-   - Guest display names — those people have not accepted yet (`consented` is
-     `null`). A **declined** guest (`consented: false`) does **not** block Start.
-   Producers never appear in `start_blockers`.
+   is non-empty. Each row has a `code`:
+   - `{"code": "no_guest"}` — no connected guest yet (host alone does not count).
+     The panel offers **Copy guest link**.
+   - `{"code": "consent_pending", "participant_id", "display_name"}` — that
+     person has not accepted yet (`consented` is `null`). A **declined** guest
+     (`consented: false`) does **not** block Start.
+   Producers never appear in `start_blockers`. A refused Start reads
+   `cannot start: no guest has joined` or `cannot start: Ava has not accepted
+   recording`. With no room, the panel's **Create record room** mints one in
+   place (same as `create_record_room_tool`).
 5. Start → every client shows **REC** and a recording clock; recorded clients
    show **Recording locally on this device.** Everyone who is connected hears
    the room (**Hearing the room.**). Pause freezes the clock (PAUSED)
    and the current keeper segment; the monitor stays live. Resume opens a new
-   segment. Stop ends the take (Stopped) and keeps a **blocking upload panel**
+   segment. Stop (the panel asks once: **Stop take** or **Keep recording**) ends
+   the take (Stopped) and keeps a **blocking upload panel**
    until chunk ACK. Mute writes zeros (file stays continuous) and stops that
    person's send. **M** (or the Marker button) posts a live comment with body
    `"Marker"`; typed notes use the same path. Guests see only their own comments

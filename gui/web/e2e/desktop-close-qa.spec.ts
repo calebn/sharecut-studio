@@ -53,6 +53,9 @@ test("host publishes close risk across recording and pause, then clears after st
       );
 
       await dialog.getByRole("button", { name: "Stop", exact: true }).click();
+      await dialog
+        .getByRole("button", { name: "Stop take", exact: true })
+        .click();
       await expect(dialog.locator(".record-rec-label")).toHaveText("Stopped");
       await expect
         .poll(() => new URL(host.url()).searchParams.has("sc_close_guard"))

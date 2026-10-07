@@ -19,7 +19,7 @@ documentation annotation, not the runtime share gate.
 
 > **Auto-generated** from [`contracts/capabilities.manifest.json`](https://github.com/calebn/sharecut-studio/blob/main/contracts/capabilities.manifest.json). Do not edit by hand — run `make schema-export`.
 
-**111** capabilities · **95** Sharecut Studio commands · **54** keyed · **171** MCP tools · **17** skills on rows (+ **19** hub skills).
+**113** capabilities · **97** Sharecut Studio commands · **54** keyed · **171** MCP tools · **17** skills on rows (+ **19** hub skills).
 
 Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Document plane: [Document commands](#/document-commands). Guest MCP allowlist: [Remote MCP](#/remote-mcp).
 
@@ -86,6 +86,8 @@ Keyboard chords: [UX shortcuts](https://ux.sharecut.studio/#/shortcuts). Documen
 | Refresh mix | `render.refreshMix` | `Mod+B` | `staleRenderPill` | `render_preview` | `podcast render-preview` | `podcast-play-audition` | — | none · none |
 | Bounce… | `export.bounce` | `Mod+Shift+B` | `transport.menu`, `BounceDialog` | `bounce_audio_tool` | `podcast pipeline bounce` | `podcast-bounce-export` | yes | none · none |
 | Share… | `share.manage` | — (dialog from Menu) | `transport.menu`, `ShareDialog` | — | `podcast review share` | — | yes | none · none |
+| Create record room | `record.createRoom` | — (empty-state action in the Record room panel) | `RecordPanel` | `create_record_room_tool` | `podcast review share --kind record` | `podcast-record-session` | yes | none · none |
+| Copy guest link | `record.copyGuestLink` | — (Start blocker fix in the Record room panel) | `RecordPanel` | — | — | — | yes | none · none |
 | Start recording | `record.start` | — (chords in a later PR) | `RecordPanel`, `transport.recChip` | `record_start_tool` | `podcast record start` | `podcast-record-session` | yes | none · none |
 | Pause recording | `record.pause` | — (chords in a later PR) | `RecordPanel`, `transport.recChip` | `record_pause_tool` | `podcast record pause` | `podcast-record-session` | yes | none · none |
 | Resume recording | `record.resume` | — (chords in a later PR) | `RecordPanel`, `transport.recChip` | `record_resume_tool` | `podcast record resume` | `podcast-record-session` | yes | none · none |
@@ -136,7 +138,7 @@ Host/agent capabilities without a Sharecut Studio `command` id (pipeline, transc
 | Timeline / FX / reconcile | `strip_silence_tool`, `ripple_delete_text_tool`, `move_segment_tool`, `move_by_text_tool`, `insert_gap_tool`, `fade_joins_tool`, +42 | `podcast edit` | `podcast-audio-cleanup` | yes |
 | Social clips | `propose_social_clips_tool`, `list_social_clips_tool`, `approve_social_clips_tool`, `reject_social_clips_tool`, `social_clip_report_tool`, `export_social_clips_tool` | `podcast clips` | `podcast-social-clips` | yes |
 | Timeline comments | `add_comment_tool`, `list_comments_tool`, `get_comment_tool`, `update_comment_tool`, `resolve_comment_tool`, `add_comment_action_tool`, +3 | `podcast comment` | `podcast-timeline-comments` | — |
-| Review versions / share | `publish_review_version_tool`, `list_review_versions_tool`, `set_active_review_version_tool`, `create_review_share_tool`, `create_record_room_tool`, `revoke_record_room_tool` | `podcast review` | `podcast-timeline-comments` | yes |
+| Review versions / share | `publish_review_version_tool`, `list_review_versions_tool`, `set_active_review_version_tool`, `create_review_share_tool`, `revoke_record_room_tool` | `podcast review` | `podcast-timeline-comments` | yes |
 | Pipeline / master / bounce | `pipeline_run`, `pipeline_get_config_tool`, `pipeline_set_config_tool`, `pipeline_analyze_tool`, `set_envelope`, `render_final` | `podcast pipeline` | `podcast-pipeline-run` | yes |
 | History | `history_list`, `history_status_tool`, `history_goto_tool`, `history_diff_tool`, `history_record` | `podcast history` | `podcast-history` | yes |
 | Play / audition | `play_transcript_query_tool`, `audition_context_tool`, `play_compose_tool`, `play_ab_tool`, `play_ab_wavs_tool`, `play_pending_preview_tool` | `podcast play` | `podcast-play-audition` | yes |

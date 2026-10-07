@@ -384,6 +384,20 @@ export const COMMANDS: Record<string, CommandDef> = {
     when: "hostProjectLoaded",
     notes: "Open host share dialog: live links, create, revoke",
   },
+  "record.createRoom": {
+    id: "record.createRoom",
+    category: "ui",
+    label: "Create record room",
+    when: "hostProjectLoaded",
+    notes: "Mint guest + producer links in place and copy the guest link",
+  },
+  "record.copyGuestLink": {
+    id: "record.copyGuestLink",
+    category: "ui",
+    label: "Copy guest link",
+    when: "hostProjectLoaded",
+    notes: "Copy the open record room's guest link",
+  },
   "record.start": {
     id: "record.start",
     category: "ui",

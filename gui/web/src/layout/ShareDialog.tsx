@@ -6,7 +6,6 @@ import {
   useState,
 } from "react";
 import {
-  createHostRecordRoom,
   createHostShare,
   listHostShares,
   replaceHostRecordInvite,
@@ -17,6 +16,10 @@ import { execute } from "../commands/execute";
 import type { ExecuteResult } from "../commands/types";
 import { useHasFeature } from "../extensions/FeaturesContext";
 import { FEATURE_TUNNEL_STATUS } from "../extensions/features";
+import {
+  copyText,
+  createRecordRoomAndCopyGuestLink,
+} from "../record/recordLinks";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import {
@@ -48,13 +51,6 @@ type ShareCreateRequest = {
 type BusyOwner = {
   scope: DialogScope;
 };
-
-async function copyText(text: string): Promise<void> {
-  if (!navigator.clipboard?.writeText) {
-    throw new Error("Clipboard unavailable");
-  }
-  await navigator.clipboard.writeText(text);
-}
 
 export function ShareDialog() {
   const {
@@ -379,7 +375,8 @@ export function ShareDialog() {
       return;
     }
     try {
-      const room = await createHostRecordRoom(scope.projectPath);
+      const { room, copied, copyError } =
+        await createRecordRoomAndCopyGuestLink(scope.projectPath);
       if (!isCurrentScope(scope)) {
         return;
       }
@@ -389,22 +386,15 @@ export function ShareDialog() {
           url: room.guest.url,
           kind: "guest",
         });
-        try {
-          await copyText(room.guest.url);
-          if (!isCurrentScope(scope)) {
-            return;
-          }
-          markCopied(shareCopyKey("link", room.guest.token));
-          announce("Record links created and guest link copied");
-        } catch (err) {
-          if (!isCurrentScope(scope)) {
-            return;
-          }
-          announce("Record links created");
-          setError(errorMessage(err));
-        }
+      }
+      if (copied) {
+        markCopied(shareCopyKey("link", room.guest.token));
+        announce("Record links created and guest link copied");
       } else {
         announce("Record links created");
+        if (copyError) {
+          setError(copyError);
+        }
       }
       if (isCurrentScope(scope)) {
         await load(scope);
