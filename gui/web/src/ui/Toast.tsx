@@ -32,6 +32,8 @@ type Props = {
   announce?: boolean;
   /** Placement class for the region. */
   className?: string;
+  /** The always-mounted region, for a caller that positions it (the phone dock). */
+  regionRef?: RefObject<HTMLDivElement | null>;
 };
 
 /**
@@ -44,12 +46,19 @@ type Props = {
  * `<body>` (the browser blurs a focused Undo when it becomes disabled), focus
  * moves to `returnFocusRef`.
  */
-export function Toast({ toast, announce = true, className, ...rest }: Props) {
+export function Toast({
+  toast,
+  announce = true,
+  className,
+  regionRef,
+  ...rest
+}: Props) {
   const regionClass = className
     ? `ui-toast-region ${className}`
     : "ui-toast-region";
   return (
     <div
+      ref={regionRef}
       className={regionClass}
       {...(announce ? { role: "status", "aria-live": "polite" as const } : {})}
     >
@@ -58,7 +67,10 @@ export function Toast({ toast, announce = true, className, ...rest }: Props) {
   );
 }
 
-type CardProps = Omit<Props, "toast" | "announce" | "className"> & {
+type CardProps = Omit<
+  Props,
+  "toast" | "announce" | "className" | "regionRef"
+> & {
   toast: ToastState;
 };
 

@@ -99,7 +99,23 @@ Coarse-pointer timeline lanes keep a minimum height of 104 canvas pixels, matchi
 
 On phones, Pipeline step parameters open in the shared modal Dialog. Escape and
 Close dismiss it and return focus to the selected step; Tab stays inside the
-dialog. Tablet and desktop keep the parameter form inline.
+dialog. Tablet and desktop keep the parameter form inline. An open modal dialog
+owns Escape (`ui/modalGate.ts`): Escape closes the dialog and does not also run
+the app's Escape shortcut (clear selection), so an in-app confirm over the
+Inspector returns focus to the control that opened it.
+
+### Feedback toast
+
+The app toast (`feedback/FeedbackToast`) waits up to 8 s, so on a phone it must
+not sit over controls. It docks just above the highest bottom chrome that is
+shown: an open sheet, the Timeline tool rail (Select, Blade, Import), or the
+mode nav, and below the transport and status row. With a half sheet open it
+sits over the timeline between the transport and the sheet. A full-height sheet
+leaves no free band; the toast then sits above the mode nav, over the sheet's
+scrolling body, which can be scrolled past. `feedback/toastDock.ts` measures
+those edges every frame while a toast shows (like an open menu) into the
+region's `--toast-dock-bottom`; without it the CSS places the toast above the
+mode nav. Desktop and tablet keep it above the status bar.
 
 ### Selection sheet: three zones
 
