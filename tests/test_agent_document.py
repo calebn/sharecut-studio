@@ -170,6 +170,65 @@ def test_paste_segment_tool_rejects_a_non_object(tmp_path):
         mcp_timeline.paste_segment_tool(path, 0.0, "[]")
 
 
+def _on_disk(path: str) -> tuple[bytes, list[str], dict]:
+    """Everything a paste could write: the project file, the command journal, the history index."""
+    return (
+        Path(path).read_bytes(),
+        _journal_types(path),
+        load_project(Path(path)).history.model_dump(mode="json"),
+    )
+
+
+_BAD_CLIPBOARDS = {
+    "paste_unknown_track": {"track_id": "ghost", "source_start": 1.0, "source_end": 3.0},
+    "paste_unknown_source": {
+        "track_id": "host",
+        "source_id": "ghost",
+        "source_start": 1.0,
+        "source_end": 3.0,
+    },
+    "paste_bad_range": {"track_id": "host", "source_start": 1.0, "source_end": 99.0},
+}
+
+
+@pytest.mark.parametrize("code", sorted(_BAD_CLIPBOARDS))
+def test_paste_segment_tool_rejects_a_bad_clipboard_and_writes_nothing(tmp_path, sample_wav, code):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_two_clips(path, sample_wav)
+    before = _on_disk(path)
+    clipboard = json.dumps({"duration": 2.0, "extracts": [_BAD_CLIPBOARDS[code]]})
+    with pytest.raises(ValueError, match=f"^{code}: "):
+        mcp_timeline.paste_segment_tool(path, 4.0, clipboard)
+    assert _on_disk(path) == before
+
+
+def test_cli_paste_segment_rejects_a_bad_clipboard_and_writes_nothing(tmp_path, sample_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_two_clips(path, sample_wav)
+    before = _on_disk(path)
+    clipboard = json.dumps({"duration": 2.0, "extracts": [_BAD_CLIPBOARDS["paste_unknown_track"]]})
+    result = CliRunner().invoke(
+        app,
+        ["edit", "paste-segment", "--project", path, "--at", "4", "--clipboard", "-"],
+        input=clipboard,
+    )
+    assert result.exit_code != 0
+    assert "paste_unknown_track: " in result.output
+    assert _on_disk(path) == before
+
+
+def test_paste_segment_document_command_rejects_a_bad_clipboard_and_writes_nothing(
+    tmp_path, sample_wav
+):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_two_clips(path, sample_wav)
+    before = _on_disk(path)
+    payload = {"insert_at": 4.0, "duration": 2.0, "extracts": [_BAD_CLIPBOARDS["paste_bad_range"]]}
+    with pytest.raises(ValueError, match="paste_bad_range: "):
+        submit_host_document_command(path, "PasteSegment", payload)
+    assert _on_disk(path) == before
+
+
 def test_copy_segment_tool_rejects_bad_track_ids(tmp_path):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     with pytest.raises(ValueError, match="JSON array of track ids"):

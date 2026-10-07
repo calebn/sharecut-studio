@@ -125,6 +125,20 @@ describe("tightenHits", () => {
     ).toBe(false);
   });
 
+  it("treats a missing harsh flag as harsh", () => {
+    const unclassified = edit();
+    delete (unclassified as { harsh?: boolean }).harsh;
+    expect(isHarshTightenHit(unclassified)).toBe(true);
+  });
+
+  it("leaves an unclassified edit out of apply-all when avoid-harsh is on", () => {
+    const unclassified = edit({ id: "unclassified" });
+    delete (unclassified as { harsh?: boolean }).harsh;
+    const hits = listTightenHits([edit({ id: "safe" }), unclassified], null);
+    expect(eligibleApplyAllIds(hits, true)).toEqual(["safe"]);
+    expect(eligibleApplyAllIds(hits, false)).toEqual(["safe", "unclassified"]);
+  });
+
   it("builds a ±3 word snippet", () => {
     expect(tightenSnippet(edit(), transcript)).toBe("so um hello there friend");
   });
