@@ -370,8 +370,10 @@ recording: a pair whose centroids sit closer than 0.4 of the median cosine dista
 between the other pairs is reported as likely one person. The dry run and the split
 both return `warnings`, for example "Speaker 2 and Speaker 3 sound like one person:
 their voices are 0.05 apart, against 0.60 between the other speakers. Check the speaker
-count, or enroll each person." With two speakers there is no other pair to compare,
-so nothing is reported.
+count, or enroll Speaker 2 and Speaker 3." The advice names the speakers in the pair
+who are not enrolled. A pair whose speakers are both enrolled is not reported:
+enrolling is the user's own statement that they are two people. With two speakers
+there is no other pair to compare, so nothing is reported.
 
 ### Evidence: lab mixdown (#1095)
 
@@ -439,7 +441,7 @@ Caleb's mic, which follows her into her lane.
   On the lab with Resemblyzer, Audra and Lana sit at 0.49 of the other pairs' distance,
   just above the 0.4 line; with ECAPA at 0.90. One voice split in two measured 0.21-0.37
   on the lab (count 4 and 5, both backends) and 0.05-0.10 on the synthetic voices. The
-  warning does not block the split.
+  warning does not block the split, and enrolling both speakers of a pair clears it.
 - *Truth limits.* The bleed gate keeps some of Audra's copy on Caleb's mic as his own
   ([audio-engineering.md](audio-engineering.md)), so part of the Caleb errors and of the
   Caleb+Audra crosstalk is a truth artefact: 60% of Caleb's errors fall in his quietest
