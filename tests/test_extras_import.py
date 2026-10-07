@@ -79,8 +79,19 @@ def test_every_declared_extra_has_an_import_check() -> None:
     assert _declared_extras() == {*EXTRA_IMPORTS, ALL_EXTRA}
 
 
+# The outer runner is a locked `uv sync` env (`uv run` exports VIRTUAL_ENV; a shell may
+# export PYTHONPATH). Neither may reach the per-extra venv or its import probe.
+_OUTER_ENV_VARS = ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME", "UV_PROJECT_ENVIRONMENT")
+
+
+def _clean_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if k not in _OUTER_ENV_VARS}
+
+
 def _run(cmd: list[str], *, timeout: int) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+    return subprocess.run(
+        cmd, capture_output=True, text=True, timeout=timeout, check=False, env=_clean_env()
+    )
 
 
 @pytest.mark.extras_install
@@ -114,14 +125,22 @@ def test_extra_imports_in_clean_venv(extra: str, tmp_path: Path) -> None:
     assert installed.returncode == 0, installed.stderr[-4000:]
 
     imports = ", ".join(_imports_for(extra))
+    # `-I` drops PYTHONPATH/user site; the prefix check proves the probe runs in the clean
+    # venv (not the outer runner), so an import cannot pass on the runner's packages.
+    code = (
+        "import sys, pathlib; "
+        f"assert pathlib.Path(sys.prefix).resolve() == pathlib.Path({str(venv)!r}).resolve(), sys.prefix; "
+        f"import {imports}"
+    )
     # Run from tmp_path so the checkout's src/ cannot shadow the installed package.
     probe = subprocess.run(
-        [str(python), "-c", f"import {imports}"],
+        [str(python), "-I", "-c", code],
         capture_output=True,
         text=True,
         timeout=300,
         cwd=tmp_path,
         check=False,
+        env=_clean_env(),
     )
     assert probe.returncode == 0, f"extra [{extra}] failed to import:\n{probe.stderr[-4000:]}"
 
