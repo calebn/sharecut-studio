@@ -178,7 +178,10 @@ def set_envelope(
     omitted, the envelope as read at call time is the baseline.
     """
     from podcast_mcp.edits.envelopes import volume_envelope_baseline
-    from podcast_mcp.services.document_sync import submit_host_document_command
+    from podcast_mcp.services.document_sync import (
+        host_command_result,
+        submit_host_document_command,
+    )
 
     if expected_points_json is None:
         expected = volume_envelope_baseline(ProjectWorkspace.open(project_path).project, track_id)
@@ -189,8 +192,7 @@ def set_envelope(
         "SetEnvelope",
         {"track_id": track_id, "points": json.loads(points_json), "expected_points": expected},
     )
-    payload = (result.get("command") or {}).get("payload") or {}
-    count = (payload.get("result") or {}).get("count", 0)
+    count = host_command_result(result).get("count", 0)
     return f"Envelope set for {track_id} ({count} points)"
 
 

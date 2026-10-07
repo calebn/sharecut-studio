@@ -686,11 +686,13 @@
         "gui": [
           "clipInspector"
         ],
-        "keyboard": "Backspace"
+        "keyboard": "Backspace",
+        "mcp": [
+          "delete_clips_tool"
+        ],
+        "cli": "podcast edit delete-clips"
       },
-      "omit": {
-        "agent_reason": "TODO #1140"
-      },
+      "omit": {},
       "tooltip": "Delete clip",
       "presence": {
         "cursor": "none",
@@ -824,8 +826,10 @@
         ],
         "keyboard": "Mod+Backspace",
         "mcp": [
-          "ripple_delete_tool"
-        ]
+          "ripple_delete_tool",
+          "delete_clips_tool"
+        ],
+        "cli": "podcast edit delete-clips --ripple"
       },
       "omit": {},
       "tooltip": "Ripple delete clip",
@@ -862,7 +866,8 @@
         "command": "edit.cut",
         "keyboard": "Mod+X",
         "mcp": [
-          "ripple_delete_tool"
+          "ripple_delete_tool",
+          "delete_clips_tool"
         ],
         "cli": "podcast edit ripple-delete"
       },

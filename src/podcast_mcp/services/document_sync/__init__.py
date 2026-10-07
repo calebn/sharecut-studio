@@ -12,7 +12,10 @@ if TYPE_CHECKING:
         DocumentCommandType,
     )
     from podcast_mcp.services.document_sync.errors import DocumentConflictError
-    from podcast_mcp.services.document_sync.host_submit import submit_host_document_command
+    from podcast_mcp.services.document_sync.host_submit import (
+        host_command_result,
+        submit_host_document_command,
+    )
     from podcast_mcp.services.document_sync.payloads import (
         COMMENT_BODY_MAX,
         DocumentCommandBody,
@@ -67,6 +70,7 @@ __all__ = [
     "dump_projection_locked",
     "edit_commands_allowed",
     "file_certificate",
+    "host_command_result",
     "host_document_event",
     "list_delta",
     "notify_comments_changed",
@@ -100,6 +104,7 @@ _MODULE_BY_NAME = {
     "dump_projection_locked": "service",
     "edit_commands_allowed": "capabilities",
     "file_certificate": "snapshot_cache",
+    "host_command_result": "host_submit",
     "host_document_event": "service",
     "list_delta": "projection_delta",
     "notify_comments_changed": "service",
