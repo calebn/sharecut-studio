@@ -82,6 +82,7 @@ CONFIDENCE_NATS = CONFIDENCE_Z**2 / 2
 STEP_COSTS = (0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0)
 FOLDS = 5
 CHUNK_SEC = 2 * SEARCH_SEC
+_EPS = float(np.finfo(np.float64).eps)
 
 
 @dataclass(frozen=True)
@@ -197,11 +198,23 @@ def _sums(
 
 
 def _correlation(sums: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Correlation and frame count per lag (the last axis of ``sums`` holds the sums)."""
+    """Correlation and frame count per lag (the last axis of ``sums`` holds the sums).
+
+    A series whose centred variance ``Σxx - Σx² / n`` the float64 sums cannot resolve has
+    nothing to correlate: the correlation is 0, which adds no evidence. The subtraction
+    loses about ``n`` half-ulps of ``Σxx`` accumulating ``n`` terms, so a variance at or
+    under ``n * EPS * Σxx`` is that rounding, not signal. It also covers the envelope's own
+    quantization: a float32 sample is exact to 2^-23, 7e-7 dB, and a series that varies by
+    that much has a relative variance of 1e-16 at the floor, under ``n * EPS`` for any
+    ``n``. A copy gated to ``LEVEL_FLOOR_DB`` for a whole spurt is the common case: scored
+    by its rounding noise it read as a perfect (or perfectly opposite) correlation.
+    """
     n, sx, sy, sxx, syy, sxy = np.moveaxis(sums[..., :6], -1, 0)
     with np.errstate(invalid="ignore", divide="ignore"):
-        r = (sxy - sx * sy / n) / np.sqrt((sxx - sx * sx / n) * (syy - sy * sy / n))
-    return np.nan_to_num(r, nan=0.0), n
+        var_x, var_y = sxx - sx * sx / n, syy - sy * sy / n
+        resolved = (var_x > n * _EPS * sxx) & (var_y > n * _EPS * syy)
+        r = (sxy - sx * sy / n) / np.sqrt(np.where(resolved, var_x * var_y, 1.0))
+    return np.where(resolved, r, 0.0), n
 
 
 @dataclass(frozen=True)
