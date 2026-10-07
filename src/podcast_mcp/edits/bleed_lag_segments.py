@@ -16,11 +16,14 @@ is measured exactly as one window over its frames.
 A segment is a run of spurts at its own best lag, with at least ``MIN_SEGMENT_FRAMES``
 frames, correlation at least ``MIN_CORRELATION`` and the peak inside the search. Dynamic
 programming picks the segments that minimise ``sum(n / 2 * log(1 - r^2))`` (``n`` in
-independent frames, ``FRAME_SEC`` apart) plus ``STEP_LLR`` per segment, where neighbours
-differ by more than the deadband and the widest silence between them holds the step plus
-``EDGE_SEC`` on each side. ``STEP_LLR`` is about the BIC cost of a step on a 28-minute
-lane. Cross-validation on the lab tape (fit on alternate spurts, score the rest) scores
-every cost from 2.5 to 40 above one constant lag, best at 2.5-5 and still better at 10.
+independent frames, ``FRAME_SEC`` apart) plus ``STEP_LLR`` per segment, where the widest
+silence between neighbours holds the step plus ``EDGE_SEC`` on each side. A second pass
+then keeps the best subset of those steps in which every step exceeds the deadband,
+measuring each step between the merged pieces either side of it: two neighbours inside
+the deadband are one piece, and the step before them is judged against that piece.
+``STEP_LLR`` is about the BIC cost of a step on a 28-minute lane. Cross-validation on the
+lab tape (fit on alternate spurts, score the rest) scores every cost from 2.5 to 40 above
+one constant lag, best at 2.5-5 and still better at 10.
 
 Lags are searched ``SEARCH_SEC`` either side of the lane's pooled lag. Speech envelopes
 correlate again one syllable away (about 200 ms), so a wider search lets a short stretch
@@ -117,6 +120,105 @@ def _pooled_lag(source: np.ndarray, mic: np.ndarray, around: int) -> int | None:
     return None if k in (0, lags.size - 1) else int(lags[k])
 
 
+Run = tuple[int, int, int]
+
+
+def _valid(r: np.ndarray, n: np.ndarray) -> np.ndarray:
+    """Lags a segment may sit at: its own best, inside the search, on enough evidence."""
+    inside = np.ones(r.shape[-1], dtype=bool)
+    inside[[0, -1]] = False
+    return (
+        (r == r.max(axis=-1, keepdims=True))
+        & (n >= MIN_SEGMENT_FRAMES)
+        & (r >= MIN_CORRELATION)
+        & inside
+    )
+
+
+def _partition(cum: np.ndarray, largest: np.ndarray) -> list[Run] | None:
+    """Blocks split into runs ``(first, end, lag)`` minimising fit plus ``STEP_LLR`` per run.
+
+    A step may be any size its silence holds; whether it is worth applying is
+    :func:`_keep_steps`'s call, once each piece is measured against its real neighbours.
+    """
+    count, size = cum.shape[0] - 1, cum.shape[1]
+    offsets = np.abs(np.subtract.outer(np.arange(size), np.arange(size)))
+    # total[b, k]: best cost of blocks [0, b) ending on lag k; entry[b, k]: best cost of
+    # blocks [0, b) followed by a step into lag k at block b (0 for b = 0).
+    total = np.full((count + 1, size), np.inf)
+    entry = np.full((count + 1, size), np.inf)
+    start = np.zeros((count + 1, size), dtype=int)
+    came = np.zeros((count + 1, size), dtype=int)
+    entry[0] = 0.0
+    for b in range(1, count + 1):
+        r, n = _correlation(cum[b] - cum[:b])
+        options = entry[:b] + np.where(_valid(r, n), _log_fit(r, n), np.inf)
+        start[b] = np.argmin(options, axis=0)
+        total[b] = options[start[b], np.arange(size)] + STEP_LLR
+        if b < count:
+            allowed = (offsets > 0) & (offsets <= largest[b])
+            stepped = np.where(allowed, total[b][None, :], np.inf)
+            came[b] = np.argmin(stepped, axis=1)
+            entry[b] = stepped[np.arange(size), came[b]]
+    b, k = count, int(np.argmin(total[count]))
+    if not np.isfinite(total[count, k]):
+        return None
+    runs: list[Run] = []
+    while b > 0:
+        a = int(start[b, k])
+        runs.append((a, b, k))
+        b, k = a, int(came[a, k])
+    return runs[::-1]
+
+
+def _keep_steps(
+    runs: list[Run], cum: np.ndarray, largest: np.ndarray, smallest: int
+) -> list[Run] | None:
+    """The best subset of ``runs``' steps where every kept step exceeds the deadband.
+
+    Dropping a step merges its two runs into one piece at that piece's own best lag, and
+    each remaining step is judged between the merged pieces either side of it, so a step
+    is never rejected against a neighbour that a dropped step created. A kept step is at
+    least ``smallest`` hops and fits its silence.
+    """
+    bounds = [a for a, _b, _k in runs] + [runs[-1][1]]
+    m = len(runs)
+    lag = np.full((m + 1, m + 1), -1, dtype=int)
+    fit = np.full((m + 1, m + 1), np.inf)
+    for i in range(m):
+        ends = np.array(bounds[i + 1 :])
+        r, n = _correlation(cum[ends] - cum[bounds[i]])
+        valid = _valid(r, n)
+        for j, row in zip(range(i + 1, m + 1), valid, strict=True):
+            if row.any():
+                lag[i, j] = int(np.argmax(row))
+                fit[i, j] = float(_log_fit(r[j - i - 1, lag[i, j]], n[j - i - 1, lag[i, j]]))
+    # best[j, i]: cost of bounds [0, j) whose last piece is (i, j); came[j, i]: the piece's start before.
+    best = np.full((m + 1, m + 1), np.inf)
+    came = np.full((m + 1, m + 1), -1, dtype=int)
+    best[1:, 0] = fit[0, 1:] + STEP_LLR
+    for j in range(2, m + 1):
+        for i in range(1, j):
+            if not np.isfinite(fit[i, j]):
+                continue
+            step = np.abs(lag[:i, i] - lag[i, j])
+            ok = np.isfinite(best[i, :i]) & (step >= smallest) & (step <= largest[bounds[i]])
+            if ok.any():
+                before = np.where(ok, best[i, :i], np.inf)
+                came[j, i] = int(np.argmin(before))
+                best[j, i] = before[came[j, i]] + fit[i, j] + STEP_LLR
+    i = int(np.argmin(best[m]))
+    if not np.isfinite(best[m, i]):
+        return None
+    kept: list[Run] = []
+    j = m
+    while True:
+        kept.append((bounds[i], bounds[j], int(lag[i, j])))
+        if i == 0:
+            return kept[::-1]
+        i, j = int(came[j, i]), i
+
+
 def lag_segments(
     source: np.ndarray,
     mic: np.ndarray,
@@ -157,45 +259,13 @@ def lag_segments(
         spurts = np.arange(evidence[block - 1], evidence[block])
         g = spurts[int(np.argmax(firsts[spurts + 1] - lasts[spurts]))]
         gap_at[block] = lasts[g] + 1, firsts[g + 1]
-    # Lag steps (hops) a gap can take: beyond the deadband, within the silence less its edges.
-    smallest = int(np.floor(deadband_sec / HOP_SEC + 1e-9)) + 1
+    # The largest lag step (hops) each gap holds: the silence less its edges.
     largest = np.floor(((gap_at[:, 1] - gap_at[:, 0]) * HOP_SEC - 2 * EDGE_SEC) / HOP_SEC + 1e-9)
-    offsets = np.abs(np.subtract.outer(np.arange(lags.size), np.arange(lags.size)))
-    edge = np.zeros(lags.size, dtype=bool)
-    edge[[0, -1]] = True
-    # total[b, k]: best cost of blocks [0, b) ending on lag k; entry[b, k]: best cost of
-    # blocks [0, b) followed by a step into lag k at block b (0 for b = 0).
-    total = np.full((count + 1, lags.size), np.inf)
-    entry = np.full((count + 1, lags.size), np.inf)
-    start = np.zeros((count + 1, lags.size), dtype=int)
-    came = np.zeros((count + 1, lags.size), dtype=int)
-    entry[0] = 0.0
-    for b in range(1, count + 1):
-        r, n = _correlation(cum[b] - cum[:b])
-        own = r == r.max(axis=1, keepdims=True)
-        cost = np.where(
-            own & (n >= MIN_SEGMENT_FRAMES) & (r >= MIN_CORRELATION) & ~edge,
-            _log_fit(r, n),
-            np.inf,
-        )
-        options = entry[:b] + cost
-        start[b] = np.argmin(options, axis=0)
-        total[b] = options[start[b], np.arange(lags.size)] + STEP_LLR
-        if b < count:
-            allowed = (offsets >= smallest) & (offsets <= largest[b])
-            stepped = np.where(allowed, total[b][None, :], np.inf)
-            came[b] = np.argmin(stepped, axis=1)
-            entry[b] = stepped[np.arange(lags.size), came[b]]
-    runs: list[tuple[int, int, int]] = []
-    b, k = count, int(np.argmin(total[count]))
-    if not np.isfinite(total[count, k]):
+    runs = _partition(cum, largest)
+    if runs is None:
         return None
-    while b > 0:
-        a = int(start[b, k])
-        runs.append((a, b, k))
-        b, k = a, int(came[a, k])
-    runs.reverse()
-    if len(runs) == 1:
+    runs = _keep_steps(runs, cum, largest, int(np.floor(deadband_sec / HOP_SEC + 1e-9)) + 1)
+    if runs is None or len(runs) == 1:
         return None
     segments = []
     for a, b, k in runs:
