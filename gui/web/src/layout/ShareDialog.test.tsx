@@ -299,6 +299,39 @@ describe("ShareDialog", () => {
     expect(await screen.findByText("fantastic-acoustic-whale")).toBeTruthy();
   });
 
+  it("pairs a project with no mix with Refresh mix, then creates the link; axe-clean", async () => {
+    const user = userEvent.setup();
+    createHostShare
+      .mockRejectedValueOnce(
+        new ApiError(
+          "this project has no mix yet (no premix.wav or mastered.wav); Refresh (render-preview) to render one",
+          "no_mix",
+          409,
+        ),
+      )
+      .mockResolvedValueOnce(liveRow);
+    execute.mockResolvedValue({ status: "ok" });
+    listHostShares.mockResolvedValue(listed([liveRow]));
+    useDawStore.setState({ shareDialogOpen: true });
+    const { baseElement } = render(<ShareDialog />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Create review link" }),
+    );
+    expect(
+      await screen.findByText(
+        "This project has no mix yet. Refresh the mix to create the link.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/render-preview|pipeline|premix/)).toBeNull();
+    await expectNoA11yViolations(baseElement);
+
+    await user.click(screen.getByRole("button", { name: "Refresh mix" }));
+    expect(execute).toHaveBeenCalledWith("render.refreshMix");
+    await waitFor(() => expect(createHostShare).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("fantastic-acoustic-whale")).toBeTruthy();
+  });
+
   it("keeps a reopened create busy when the earlier create resolves", async () => {
     const user = userEvent.setup();
     let finishOld!: (row: HostShareRow) => void;

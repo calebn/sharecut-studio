@@ -135,7 +135,7 @@ export type ShareDialogViewProps = {
 
 export type ShareCreateRecovery =
   | { kind: "idle" }
-  | { kind: "stale_mix"; message: string; refreshError: string | null }
+  | { kind: "needs_refresh"; message: string; refreshError: string | null }
   | { kind: "refreshing" }
   | { kind: "retrying" };
 
@@ -181,7 +181,7 @@ function ShareDialogFooter({
   const reCopyLabel = reCopy?.kind === "guest" ? "guest link" : "link";
   return (
     <div className="share-dialog-footer">
-      {createRecovery.kind === "stale_mix" ? (
+      {createRecovery.kind === "needs_refresh" ? (
         <div className="share-dialog-recovery">
           <p role="alert">{createRecovery.message}</p>
           <Button type="button" disabled={busy} onClick={onRefreshMix}>

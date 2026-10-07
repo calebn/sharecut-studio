@@ -206,7 +206,14 @@ def test_host_shares_create_without_premix(minimal_project, tmp_workspace, monke
     path = str(minimal_project)
     client = TestClient(create_app(served_project=Path(minimal_project)))
     res = client.post("/api/shares", json={"path": path, "role": "commenter"})
-    assert res.status_code == 400
+    assert res.status_code == 409
+    assert res.headers["X-Sharecut-Error-Code"] == "no_mix"
+    detail = res.json()["detail"]
+    assert "no mix yet" in detail
+    assert "Refresh" in detail
+    assert "pipeline" not in detail
+    ws = ProjectWorkspace.open(minimal_project)
+    assert ReviewService(ws).list_versions() == []
 
 
 def test_host_shares_absent_without_online(monkeypatch):

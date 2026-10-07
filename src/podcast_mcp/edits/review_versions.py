@@ -226,12 +226,23 @@ def _new_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
-class StaleMixError(ValueError):
-    """A preview or master no longer represents the current mix."""
+class MixUnavailableError(ValueError):
+    """No current mix can be published; ``code`` is the typed reason (HTTP 409)."""
 
     def __init__(self, message: str, *, code: str) -> None:
         super().__init__(message)
         self.code = code
+
+
+class StaleMixError(MixUnavailableError):
+    """A preview or master no longer represents the current mix."""
+
+
+class NoMixError(MixUnavailableError):
+    """The project has no rendered premix or master yet."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, code="no_mix")
 
 
 def resolve_source_mix(
@@ -280,7 +291,10 @@ def resolve_source_mix(
                 code="stale_master",
             )
         return path.resolve(), name
-    raise FileNotFoundError("no premix.wav or mastered.wav; run render-preview / pipeline first")
+    raise NoMixError(
+        "this project has no mix yet (no premix.wav or mastered.wav); Refresh "
+        "(render-preview) to render one before publishing a review version"
+    )
 
 
 def list_versions(project: EpisodeProject) -> list[ReviewMixVersion]:

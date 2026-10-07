@@ -19,6 +19,7 @@ from podcast_mcp.edits import review_versions
 from podcast_mcp.edits.comments import add_comment
 from podcast_mcp.edits.review_versions import (
     REVIEW_ARTIFACTS_RELDIR,
+    NoMixError,
     StaleMixError,
     discard_created_version,
     encode_version_mp3,
@@ -105,15 +106,17 @@ def test_publish_version_and_stamp_comment(minimal_project, sample_wav, tmp_work
 
 def test_publish_requires_mix(minimal_project):
     proj = load_project(minimal_project)
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(NoMixError, match="no mix yet") as exc_info:
         publish_version(proj, label="x")
+    assert exc_info.value.code == "no_mix"
+    assert "Refresh" in str(exc_info.value)
 
 
 def test_publish_reports_a_missing_mix_before_the_platform_refusal(minimal_project, monkeypatch):
     """The portable "no mix" check runs before the platform-support refusal."""
     monkeypatch.setattr(review_versions, "_SAFE_FAILED_CLEANUP_SUPPORTED", False)
     proj = load_project(minimal_project)
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(NoMixError):
         publish_version(proj, label="x")
 
 
