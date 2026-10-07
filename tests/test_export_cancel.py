@@ -34,8 +34,16 @@ def _export_cmd(slow_export, formats: str) -> list[str]:
 # Runs the real CLI in a child process with mastering stubbed: the stub returns the fixture's
 # 15 min master after an ffmpeg that takes ``mastering_sec`` of wall time (0 skips it).
 _CLI_DRIVER = """
+import resource
+import signal
 import sys
 from pathlib import Path
+
+# A terminal job starts with the default actions, whatever the test runner inherited, and a
+# SIGQUIT in a test should not leave a core file.
+for name in ("SIGTERM", "SIGHUP", "SIGQUIT"):
+    signal.signal(getattr(signal, name), signal.SIG_DFL)
+resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
 from podcast_mcp.cli.main import app
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
@@ -96,7 +104,41 @@ class _TerminalCli:
             time.sleep(0.02)
 
     def ctrl_c(self) -> None:
-        os.killpg(self.proc.pid, signal.SIGINT)
+        self.signal_group(signal.SIGINT)
+
+    def signal_group(self, signum: int) -> None:
+        os.killpg(self.proc.pid, signum)
+
+    def ffmpeg_children(self) -> list[int]:
+        """PIDs of the ffmpeg processes the CLI is running, once there is one."""
+        deadline = time.monotonic() + 10
+        while True:
+            ps = subprocess.run(
+                ["ps", "-axo", "pid=,ppid=,command="], capture_output=True, text=True, check=True
+            )
+            rows = (line.split(None, 2) for line in ps.stdout.splitlines())
+            pids = [
+                int(pid)
+                for pid, ppid, command in rows
+                if int(ppid) == self.proc.pid and "ffmpeg" in command and self.marker in command
+            ]
+            if pids:
+                return pids
+            assert self.alive() and time.monotonic() < deadline, "the CLI started no ffmpeg"
+            time.sleep(0.02)
+
+    def end_by(self, signum: int, ffmpeg_pids: list[int]) -> tuple[int, list[int]]:
+        """Send ``signum`` to the CLI's group; return its exit code and which of
+        ``ffmpeg_pids`` still run just after it exits. Those are killed, so a failing run
+        leaves no ffmpeg behind (an orphan would also hold the CLI's stderr pipe open)."""
+        self.signal_group(signum)
+        code = self.proc.wait(timeout=15)
+        time.sleep(0.2)
+        left = [pid for pid in ffmpeg_pids if self.marker in _command_of(pid)]
+        for pid in left:
+            os.kill(pid, signal.SIGKILL)
+        self.proc.communicate(timeout=15)
+        return code, left
 
     def finish(self, timeout: float = 30) -> tuple[int, str, str]:
         out, err = self.proc.communicate(timeout=timeout)
@@ -151,6 +193,47 @@ def test_second_terminal_ctrl_c_quits_at_once_and_kills_ffmpeg(slow_export, tmp_
     assert "Traceback" not in err
     assert out.strip() == ""
     assert cli.ffmpeg_left_running() == []
+    assert slow_export.files() == slow_export.previous
+
+
+def _command_of(pid: int) -> str:
+    ps = subprocess.run(["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True)
+    return ps.stdout.strip()
+
+
+_ENDING_SIGNALS = [
+    pytest.param(getattr(signal, name), id=name)
+    for name in ("SIGHUP", "SIGTERM", "SIGQUIT")
+    if hasattr(signal, name)
+]
+
+
+@pytest.mark.parametrize("signum", _ENDING_SIGNALS)
+def test_terminal_signal_that_ends_the_cli_mid_encode_takes_its_ffmpeg_with_it(
+    slow_export, tmp_path, signum
+) -> None:
+    """Terminal closed (SIGHUP), ``kill %1`` (SIGTERM), Ctrl+\\ (SIGQUIT): ffmpeg runs in a
+    session of its own, so the CLI must kill it before it dies by the signal."""
+    cli = _TerminalCli(slow_export, tmp_path)
+    slow_export.wait_until_encoding(alive=cli.alive)
+    code, ffmpeg_left = cli.end_by(signum, cli.ffmpeg_children())
+
+    assert code == -signum
+    assert ffmpeg_left == []
+    assert {name: slow_export.files()[name] for name in slow_export.previous} == (
+        slow_export.previous
+    )
+
+
+def test_terminal_closed_during_mastering_takes_the_mastering_ffmpeg_with_it(
+    slow_export, tmp_path
+) -> None:
+    cli = _TerminalCli(slow_export, tmp_path, mastering_sec=60)
+    cli.wait_until_mastering()
+    code, ffmpeg_left = cli.end_by(signal.SIGHUP, cli.ffmpeg_children())
+
+    assert code == -signal.SIGHUP
+    assert ffmpeg_left == []
     assert slow_export.files() == slow_export.previous
 
 
@@ -337,6 +420,46 @@ def test_second_ctrl_c_kills_detached_children_then_reaches_the_previous_handler
             assert passed_on == [signal.SIGINT]
     finally:
         signal.signal(signal.SIGINT, before)
+
+
+@pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX")
+@pytest.mark.parametrize("signum", _ENDING_SIGNALS)
+def test_a_signal_that_ends_the_cli_kills_detached_children_then_reaches_the_previous_handler(
+    signum,
+) -> None:
+    from podcast_mcp.cli.cancel import FATAL_SIGNALS, sigint_cancel
+    from podcast_mcp.util.process import popen
+
+    passed_on: list[int] = []
+    before = signal.signal(signum, lambda got, _frame: passed_on.append(got))
+    sigint_before = signal.getsignal(signal.SIGINT)
+    try:
+        with sigint_cancel() as cancel_requested:
+            child = popen([sys.executable, "-c", "import time; time.sleep(30)"])
+            os.kill(os.getpid(), signum)
+            assert child.wait(timeout=5) != 0
+            assert passed_on == [signum]
+            assert cancel_requested(), "a previous handler that returns leaves a cancel"
+        assert signum in FATAL_SIGNALS
+        assert signal.getsignal(signal.SIGINT) is sigint_before
+    finally:
+        signal.signal(signum, before)
+
+
+@pytest.mark.skipif(not hasattr(signal, "SIGHUP"), reason="SIGHUP is POSIX")
+def test_sigint_cancel_keeps_an_ignored_signal_ignored_and_restores_handlers() -> None:
+    from podcast_mcp.cli.cancel import sigint_cancel
+
+    before = signal.signal(signal.SIGHUP, signal.SIG_IGN)
+    term_before = signal.getsignal(signal.SIGTERM)
+    try:
+        with sigint_cancel():
+            assert signal.getsignal(signal.SIGHUP) == signal.SIG_IGN
+            assert signal.getsignal(signal.SIGTERM) is not term_before
+        assert signal.getsignal(signal.SIGHUP) == signal.SIG_IGN
+        assert signal.getsignal(signal.SIGTERM) is term_before
+    finally:
+        signal.signal(signal.SIGHUP, before)
 
 
 def test_mcp_bounce_render_and_pipeline_run_stop_on_the_requests_cancel(minimal_project) -> None:

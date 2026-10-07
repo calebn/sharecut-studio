@@ -60,15 +60,32 @@ def kill_detached_children() -> None:
     with _detach_lock:
         procs = list(_detached)
     for proc in procs:
+        _kill_unless_reaped(proc)
+
+
+def _kill_unless_reaped(proc: subprocess.Popen[Any]) -> None:
+    """Kill ``proc``'s group only while its pid still names it.
+
+    Popen reaps a child and sets ``returncode`` under its own reap lock, so holding that lock
+    makes the check and the kill one step: a reaped pid the OS hands to another process is
+    never signalled. When a waiter holds it (a blocking ``wait`` on another thread, or the
+    main thread this handler interrupted), the child is not reaped yet, so the kill is safe
+    apart from the waiter's few instructions between ``waitpid`` and setting ``returncode``.
+    """
+    reap_lock = getattr(proc, "_waitpid_lock", None) or threading.Lock()  # POSIX CPython only
+    held = reap_lock.acquire(blocking=False)
+    try:
         if proc.returncode is not None:
-            continue
-        try:
-            if hasattr(os, "killpg"):
-                os.killpg(proc.pid, signal.SIGKILL)
-            else:
-                proc.kill()
-        except OSError:
-            continue
+            return
+        if hasattr(os, "killpg"):
+            os.killpg(proc.pid, signal.SIGKILL)
+        else:
+            proc.kill()
+    except OSError:
+        return
+    finally:
+        if held:
+            reap_lock.release()
 
 
 def _check_argv(argv: Sequence[str | bytes | Path]) -> list[str]:
