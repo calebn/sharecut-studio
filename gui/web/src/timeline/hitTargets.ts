@@ -24,13 +24,15 @@ export type HitTargetAttrs = {
   "data-hit-time": string;
   /** Envelope gain, or the join glyph / pending edit type. */
   "data-hit-detail"?: string;
+  /** A body's length in seconds from `data-hit-time`, its start. */
+  "data-hit-span"?: string;
 };
 
 export function hitTargetProps(
   kind: HitKind,
   id: string,
   timeSec: number,
-  opts: { selected?: boolean; detail?: string } = {},
+  opts: { selected?: boolean; detail?: string; spanSec?: number } = {},
 ): HitTargetAttrs {
   return {
     "data-hit-kind": kind,
@@ -38,10 +40,14 @@ export function hitTargetProps(
     "data-hit-time": String(timeSec),
     ...(opts.selected ? { "data-hit-selected": "true" } : {}),
     ...(opts.detail != null ? { "data-hit-detail": opts.detail } : {}),
+    ...(opts.spanSec != null ? { "data-hit-span": String(opts.spanSec) } : {}),
   };
 }
 
-/** A hit area behind the targets (clip body, lane, wide pending region). */
+/**
+ * A hit area behind the targets that only takes taps (a lane, the envelope
+ * layer, a wide pending region): a long-press there opens the create menu.
+ */
 export const HIT_SURFACE_PROPS = { [SURFACE_ATTR]: "" } as const;
 
 /** A ranked candidate and the element that owns its gestures. */
@@ -60,6 +66,11 @@ export function closestHitSurface(node: EventTarget | null): Element | null {
 
 export function hitTimeSec(element: Element): number {
   return Number(element.getAttribute("data-hit-time"));
+}
+
+/** A body's length in seconds; 0 for a target that is a point or an edge. */
+export function hitSpanSec(element: Element): number {
+  return Number(element.getAttribute("data-hit-span") ?? 0);
 }
 
 export function hitDetail(element: Element): string | null {

@@ -26,11 +26,15 @@ evidence:
 - #1051 owner asked for one input framework "so the input language becomes familiar"
 - #1051 round 1: candidate A (fan-out chooser) chosen; the offset loupe and hold-to-zoom cannot separate targets at one time position
 - #1051 round 4a phone test (2026-10-06): pinch never edits, collapse is remembered, hold-to-repeat and soft stops work
+- #1051 round 4b fix (2026-10-07): the first 4b cut made the clip body a create-menu surface, so touch clip moves were lost; the coordinator restored them under the approved grammar, since a clip body drags in time
 enforced-by:
 - gui/web/src/timeline/gestureGovernance.test.ts::keeps touch-specific handling in the router
 - gui/web/src/timeline/gestureGovernance.test.ts::puts every pointerdown handler on an element the router can see
 - gui/web/src/timeline/gestureGovernance.test.ts::routes arrow-key edits through the focused-handle commands
 - gui/web/src/timeline/inputContract.conformance.test.ts::one finger moving never edits it
+- gui/web/src/timeline/inputContract.conformance.test.ts::has a reachable touch path: an element that marks it owns the drag
+- gui/web/src/timeline/inputContract.conformance.test.ts::starts no drag on a plain surface, where a long-press opens the create menu
+- gui/web/src/timeline/ClipBlock.test.tsx::arms the body on a long press and moves the clip in time only
 - gui/web/src/timeline/inputContract.manifest.test.ts::lists, for each command, exactly the touch gestures the grammar derives
 - gui/web/src/timeline/hitRouting.grammar.test.ts::holds an armed drag at a soft boundary, then follows a push past it
 - gui/web/src/timeline/hitRouting.grammar.test.ts::closes, with the selection put back, when a second finger lands
@@ -49,7 +53,8 @@ all timeline editing. Portrait phone is the primary target.
   likely target.
 - A long press arms a target, through the fan-out chooser when the spot is
   crowded. Only an armed target drags, and only along its own axes: an
-  envelope point moves in time and level, an edge moves in time.
+  envelope point moves in time and level, an edge moves in time, and a clip
+  body moves its clip in time.
 - A long press on empty space opens a create menu: envelope point, split,
   marker, comment.
 - A second finger means pinch or pan. It cancels and rolls back any
@@ -57,7 +62,8 @@ all timeline editing. Portrait phone is the primary target.
 - Nudges in the strip repeat while held.
 
 Hard limits always stop a change: source bounds, a fade longer than its clip,
-and envelope points passing each other in time. Soft boundaries are neighbour
+envelope points passing each other in time, and a clip moving before the
+session start. Soft boundaries are neighbour
 clip edges, adjacent pending edges, markers and the playhead. A held nudge
 stops at one with a visible, accessible bump, and a fresh press crosses it. A
 drag pauses briefly at a soft boundary. The bottom strip is a swipeable drawer
@@ -70,11 +76,15 @@ The checks (#1096) live with the code:
 - **One contract.** `HIT_KINDS` in `gui/web/src/timeline/inputContract.ts`
   is the typed table of each target kind's axes, whether a long press arms
   it, its strip nudge rows, whether soft boundaries apply, its keys, its
-  catalog command and the kinds it outranks. The router, the chooser, the
-  strip, the keys and the tests read it.
+  catalog command, the kinds it outranks and whether it is a body (a clip
+  body, which counts only when nothing else is in reach). The router, the
+  chooser, the strip, the keys and the tests read it.
 - **Generated conformance.** `inputContract.conformance.test.ts` runs every
   kind in the table through a tap, a long press, an armed drag, a second
-  finger, its strip rows, its soft boundaries and its keys.
+  finger, its strip rows, its soft boundaries and its keys. It also scans the
+  timeline's components: every kind with an axis must be marked on an element
+  that owns its drag, so it has a reachable touch path, and no drag may sit
+  behind a plain surface, where a long press opens the create menu instead.
 - **One router.** `gestureGovernance.test.ts` fails when a `timeline/`
   component adds its own touch handling, puts a pointerdown handler on an
   element the router cannot see, or handles arrow keys outside the
@@ -345,8 +355,9 @@ Dense timeline targets no longer compete by CSS z-index and DOM order. Each
 small target marks itself with `hitTargetProps` (`timeline/hitTargets.ts`):
 envelope points, fade corners, trim strips, roll seams, join badges, pending
 edit edges and split flags, and chapter markers. Plain hit areas behind them
-(clip body, lane seek, envelope lane, wide pending region) carry
-`HIT_SURFACE_PROPS`.
+(lane seek, envelope lane, wide pending region, and the body of a clip that
+cannot move) carry `HIT_SURFACE_PROPS`. A movable clip's body is the `clip`
+kind, a body that counts only when no other target is in reach (round 4b).
 
 The resolver's data shape is `HitCandidate` in `timeline/hitCandidates.ts`:
 `{kind, id, x, y, distance, priority, selected}`, in viewport pixels. A touch
@@ -634,18 +645,26 @@ Round 4b builds the grammar on the 4a branch, behind the touch chooser lab.
   and Android gives a haptic tick. It drags along its own axes only: the
   router holds an edge's y, and an envelope point moves freely. Lifting
   commits. A touch on a selected target no longer drags at once.
-- **Create menu.** A long press with no target in reach (a clip body, an
-  empty lane, the envelope layer) opens a menu above the finger, beside the
-  fixed playhead when there is room, with a dashed mark at the held time on
-  its lane. Its title is the time and lane ("00:30.000 · Avery"). Entries:
+- **Clip moves.** A movable clip's body is a target, the `clip` kind. With
+  the finger on it and no other target in reach, a long press arms the clip
+  ("Clip armed: drag sideways to move it") and the drag moves it in time
+  only, in its own lane, through `edit.moveClips`. Either end of the clip
+  detents at a soft boundary, so it holds where it meets a neighbour. Pressed
+  against the session start, its hard limit, the clip takes the bump tint
+  and "Clip is at its limit" is read out. A tap on the body still selects
+  the clip, but a target in reach takes the long press.
+- **Create menu.** A long press with no target in reach (an empty lane, the
+  envelope layer, the body of a clip that cannot move, as in blade mode or
+  on a view-only link) opens a menu above the finger, beside the fixed
+  playhead when there is room, with a dashed mark at the held time on its
+  lane. Its title is the time and lane ("00:30.000 · Avery"). Entries:
   **Add envelope point** (with the level it adds at), **Blade cut**, then
   **Add chapter** and **Add comment**. Each runs a catalog command at the held
   time (`envelope.addPoint`, `edit.bladeCut`, `edit.addChapter` with
   `atTime`, `comment.draftAt`); an entry the link cannot run stays, disabled,
   with the command's reason beside it. Slide onto an item and lift to pick
   it, or lift anywhere and tap one. The scrim, Escape and a second finger
-  close it. A clip body no longer moves on a touch long press; touch clip
-  moves are not part of the grammar.
+  close it.
 - **Detents.** An armed drag that reaches a soft boundary holds there until
   the finger pushes `DRAG_DETENT_PX` (16 px) past it, with a line and an
   "At the playhead" caption. The boundaries come from `softBoundaries`, the
@@ -653,5 +672,12 @@ Round 4b builds the grammar on the 4a branch, behind the touch chooser lab.
 - **Drawer.** The compact inspector swipes between peek (the strip), half
   and full; Expand and Collapse step between them, and the visually hidden
   "Inspector height" range does it for keys and screen readers.
-- **Second finger.** It cancels and rolls back arming, a detent drag and the
-  create menu, as it does any one-finger action.
+- **Second finger.** It cancels and rolls back arming, a detent drag, a clip
+  move and the create menu, as it does any one-finger action.
+- **Touch paths.** The first 4b cut made the clip body a plain surface, so a
+  long press there opened the create menu and touch clip moves were lost
+  without a failing test. The conformance test now fails when a kind with an
+  axis has no element that owns its drag, or when a drag sits behind a plain
+  surface. The scan reads `onPointerDown` props and spread handler bags. It
+  found no other kind without a touch path. The crossfade endpoint grip, in
+  its own rail below the lanes, still drags at once without a long press.

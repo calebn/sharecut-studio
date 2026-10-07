@@ -180,6 +180,84 @@ describe("drag detents", () => {
   });
 });
 
+/** A clip body from 1 s to 5 s: x 100 to 500 at 100 px/s. */
+function clipBody(): HTMLButtonElement {
+  const el = button(hitTargetProps("clip", "clip-b", 1, { spanSec: 4 }), {
+    left: 100,
+    top: 106,
+    right: 500,
+    bottom: 206,
+  });
+  root.append(el);
+  record("clip", el);
+  return el;
+}
+
+describe("clip body", () => {
+  it("arms on a long press, not the create menu, and moves in time only", () => {
+    const el = clipBody();
+    press(el, "pointerdown", 300, 150);
+    router.longPress();
+    press(el, "pointermove", 260, 190);
+    press(el, "pointerup", 260, 190);
+
+    expect(creates).toEqual([]);
+    expect(armed).toEqual([{ kind: "clip", id: "clip-b", axis: "x" }, null]);
+    expect(log).toEqual([
+      "clip:pointerdown@300,150",
+      "clip:pointermove@260,150",
+      "clip:pointerup@260,150",
+    ]);
+  });
+
+  it("holds when its far end meets a boundary, and marks the boundary", () => {
+    attach([{ sec: 5.5, label: "a clip edge" }]);
+    const el = clipBody();
+    press(el, "pointerdown", 300, 150);
+    router.longPress();
+    // The end (5 s) reaches 5.5 s once the finger has gone 50 px.
+    press(el, "pointermove", 340, 150);
+    press(el, "pointermove", 356, 150);
+    press(el, "pointerup", 356, 150);
+
+    expect(log).toEqual([
+      "clip:pointerdown@300,150",
+      "clip:pointermove@340,150",
+      "clip:pointermove@350,150",
+      "clip:pointerup@350,150",
+    ]);
+    expect(detents).toEqual([
+      { x: 550, boundary: { sec: 5.5, label: "a clip edge" } },
+      null,
+    ]);
+  });
+
+  it("leaves a long press to a target in reach, but keeps its tap", () => {
+    const el = clipBody();
+    const fade = button(hitTargetProps("fade-in", "clip-b", 1.2), {
+      left: 314,
+      top: 144,
+      right: 326,
+      bottom: 156,
+    });
+    root.append(fade);
+    record("fade", fade);
+    press(el, "pointerdown", 300, 150);
+    press(el, "pointerup", 300, 150);
+    vi.runAllTimers();
+    press(el, "pointerdown", 300, 150);
+    router.longPress();
+
+    expect(log).toEqual([
+      "clip:pointerdown@300,150",
+      "clip:pointerup@300,150",
+      "clip:click@300,150",
+      "fade:pointerdown@320,150",
+    ]);
+    expect(armed).toEqual([{ kind: "fade-in", id: "clip-b", axis: "x" }]);
+  });
+});
+
 describe("create menu", () => {
   it("opens on a long press over empty space; a lift leaves it open", () => {
     const el = lane();

@@ -17,7 +17,8 @@
  *   pointer is no longer live and an owner that captures it would refuse it.
  * - A long press (the layer calls `longPress`) over 2+ targets opens the
  *   chooser. Over one target it arms it, if the contract lets it drag, or
- *   selects it. Over no target it opens the create menu.
+ *   selects it. A clip body under the finger is that one target when no
+ *   other is in reach. Over no target it opens the create menu.
  * - Only an armed target drags, and only along its own axes. It drags from
  *   where it is, with a brief detent at each soft boundary (`dragDetent.ts`),
  *   and lifting commits it.
@@ -49,11 +50,17 @@ import {
   moveOnChips,
   pressChip,
 } from "./chipGesture";
-import { type DetentTrack, detentMove, startDetents } from "./dragDetent";
+import {
+  boundaryX,
+  type DetentTrack,
+  detentMove,
+  startDetents,
+} from "./dragDetent";
 import type { HitPoint } from "./hitCandidates";
 import {
   closestHitSurface,
   closestHitTarget,
+  hitSpanSec,
   hitTimeSec,
   type ResolvedHit,
   resolveHits,
@@ -75,6 +82,11 @@ export function isReplayed(event: Event): boolean {
 
 function pointOf(event: PointerEvent): HitPoint {
   return { x: event.clientX, y: event.clientY };
+}
+
+function isBody(element: Element): boolean {
+  const kind = element.getAttribute("data-hit-kind");
+  return isHitKind(kind) && HIT_KINDS[kind].body;
 }
 
 function travel(a: HitPoint, b: HitPoint): number {
@@ -165,7 +177,7 @@ export const ARMED_ATTR = "data-hit-armed";
 export interface CreateView {
   /** Where the long-press landed, viewport px. */
   origin: HitPoint;
-  /** The surface under it: a clip body, a lane, the envelope layer. */
+  /** The surface under it: a lane, the envelope layer, a pending region. */
   surface: Element;
   /** The opening finger is still down: lifting on an item picks it. */
   fingerDown: boolean;
@@ -398,7 +410,10 @@ export function attachHitRouting(
     if (!armed.detents) return { x: wantX, y };
     const step = detentMove(armed.detents, wantX);
     if (step.caught) {
-      options.onDetent?.({ x: step.x, boundary: step.caught });
+      options.onDetent?.({
+        x: boundaryX(armed.detents, step.caught),
+        boundary: step.caught,
+      });
     } else if (step.released) {
       options.onDetent?.(null);
     }
@@ -425,6 +440,7 @@ export function attachHitRouting(
         ? (options.detents?.(routed, sec) ?? [])
         : [];
     const pxPerSec = options.pxPerSec?.() ?? 0;
+    const span = hitSpanSec(element);
     const armed: Extract<Phase, { kind: "grabbed" }> = {
       kind: "grabbed",
       pointerId: source.pointerId,
@@ -437,7 +453,16 @@ export function attachHitRouting(
       at: target,
       detents:
         boundaries.length > 0 && pxPerSec > 0
-          ? startDetents(sec, target.x, pxPerSec, boundaries)
+          ? startDetents(
+              sec,
+              target.x,
+              pxPerSec,
+              boundaries,
+              // A body is held where the finger is, away from its start.
+              span > 0
+                ? { span, anchorX: element.getBoundingClientRect().left }
+                : undefined,
+            )
           : null,
     };
     setPhase(armed);
@@ -533,7 +558,9 @@ export function attachHitRouting(
     if (!hit && !closestHitSurface(event.target)) return;
     const origin = pointOf(event);
     const hits = resolveHits(root, origin, event.pointerType, hit);
-    const winner = hit ? hits[0].element : event.target;
+    // A tap on a body is its own, though a target in reach takes a long-press.
+    const winner =
+      hit && !isBody(hit) ? hits[0].element : (hit ?? event.target);
     const touch = event.pointerType === "touch";
     // One finger moving never edits: every touch, on a selected target too,
     // waits for the press layer, which arms only on a long press. An armed

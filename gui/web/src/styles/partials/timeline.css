@@ -1661,6 +1661,18 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   box-shadow: 0 0 0 var(--space-1) var(--color-accent-muted);
 }
 
+/* A move pressed the clip against the session start, its hard limit: the
+   clip takes the bump tint and, motion allowing, the strip's bump. */
+.clip-hit[data-bump] {
+  background: var(--color-accent-muted);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .clip-block:has(> .clip-hit[data-bump]) {
+    animation: nudge-bump var(--motion-state) var(--motion-ease-out);
+  }
+}
+
 .envelope-overlay .envelope-svg circle[data-hit-armed] {
   stroke: var(--accent);
   stroke-width: var(--focus-ring-width);

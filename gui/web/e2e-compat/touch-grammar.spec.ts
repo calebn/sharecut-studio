@@ -7,6 +7,7 @@ import {
   test,
 } from "@playwright/test";
 import { STUDIO_AXE_DISABLED_RULES } from "../e2e/axe";
+import { postDocumentCommand } from "../e2e/documentCommand";
 import { e2eProjectPath } from "../e2e/env";
 import { type Finger, newFinger, type Point, twoFingers } from "../e2e/finger";
 import {
@@ -21,6 +22,7 @@ import {
   centerOf,
   json,
   lane,
+  projectJson,
   save,
   setZoom,
   TRACK,
@@ -30,10 +32,10 @@ import {
 
 /*
  * #1051 round 4b, the touch grammar on a 430x932 iPhone viewport: a
- * long-press arms a target and only it drags, along its own axes; a
- * long-press on empty space opens the create menu; an armed drag detents
- * at a soft boundary; the strip swipes between drawer detents; a second
- * finger cancels it all. #1135: a long-press at a join offers the ripple
+ * long-press arms a target and only it drags, along its own axes (a clip
+ * body moves in time); a long-press on empty space opens the create menu; an
+ * armed drag detents at a soft boundary; the strip swipes between drawer
+ * detents; a second finger cancels it all. #1135: a long-press at a join offers the ripple
  * trim, whose drag keeps the edge under the finger and shows how far later
  * clips will move. Chromium drives CDP touch, WebKit touch-typed pointer
  * events (e2e/finger.ts). Frames go to TOUCH_CHOOSER_EVIDENCE_DIR.
@@ -79,17 +81,84 @@ async function saved(page: Page): Promise<Saved> {
 const points = async (page: Page) =>
   (await saved(page)).envelopes.find((e) => e.track_id === TRACK)?.points ?? [];
 
-async function open(page: Page, theme: "dark" | "light" = "dark") {
+/** The guest lane after `open`: a clip from 0 to 20 s, a gap, and one from 30 s. */
+type GuestLane = { trackId: string; movedId: string };
+
+async function splitGuestLane(page: Page): Promise<GuestLane> {
+  const run = (type: string, payload: Record<string, unknown>) =>
+    postDocumentCommand(page, CLIENT_ID, type, payload, projectPath);
+  const tracks = (await projectJson(page, projectPath)).clips.tracks;
+  const trackId = Object.keys(tracks).find((id) => id !== TRACK);
+  if (!trackId) throw new Error("no guest track");
+  await run("SplitAtTime", { at_time: 20, track_ids: [trackId] });
+  const right = (await projectJson(page, projectPath)).clips.tracks[
+    trackId
+  ].find((c) => c.timeline_start === 20);
+  if (!right) throw new Error("split at 20 s missing");
+  await run("MoveClips", {
+    clips: [{ clip_id: right.id, timeline_start: 30, track_id: trackId }],
+  });
+  return { trackId, movedId: right.id };
+}
+
+/** Opens the fixture on the phone timeline, after `setup` edits the project. */
+async function openWith<T>(page: Page, setup: () => Promise<T>): Promise<T> {
   await page.setViewportSize(IPHONE);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await buildFixture(page, projectPath, CLIENT_ID);
+  const made = await setup();
   await page.goto(
     `/?project=${encodeURIComponent(projectPath)}&lab=touch-chooser`,
   );
   await expect(page.locator(".daw-shell")).toBeVisible();
   await openPhoneTimeline(page);
-  await setTheme(page, theme);
+  await setTheme(page, "dark");
   await setZoom(page, 3);
+  return made;
+}
+
+const open = (page: Page) => openWith(page, async () => undefined);
+
+const openWithGap = (page: Page) => openWith(page, () => splitGuestLane(page));
+
+/**
+ * Lays the guest lane's gap out in the time column, the moved clip's start
+ * (30 s) left of the fixed playhead, so a drag left meets the neighbour's end
+ * (20 s) before the playhead. Returns the clip, the zoom and where it starts.
+ */
+async function showGap(page: Page, guest: GuestLane) {
+  const clip = `.lane-row[data-track-id="${guest.trackId}"] .clip-block[data-clip-id="${guest.movedId}"]`;
+  for (const steps of [3, 2, 1, 0]) {
+    await setZoom(page, steps);
+    const layout = await page.evaluate((selector) => {
+      const el = document.querySelector(selector);
+      const scroller = document.querySelector<HTMLElement>(".timeline-scroll");
+      if (!el || !scroller) return null;
+      const view = scroller.getBoundingClientRect();
+      const left =
+        scroller.querySelector(".track-headers")?.getBoundingClientRect()
+          .right ?? view.left;
+      const right = view.left + scroller.clientWidth;
+      const box = el.getBoundingClientRect();
+      const pps = box.width / 40;
+      scroller.scrollLeft +=
+        box.left - (left + (right - left) * 0.1 + 10 * pps);
+      return { pps, center: (left + right) / 2 };
+    }, clip);
+    if (!layout) throw new Error("guest clip not found");
+    await page.waitForTimeout(300);
+    const box = await page.locator(clip).boundingBox();
+    if (!box) throw new Error("guest clip has no box");
+    if (box.x + 40 < layout.center) {
+      return {
+        clip,
+        pps: layout.pps,
+        start: box.x,
+        y: box.y + box.height / 2,
+      };
+    }
+  }
+  throw new Error("no zoom shows the gap left of the playhead");
 }
 
 async function frame(page: Page, info: TestInfo, name: string) {
@@ -175,23 +244,119 @@ test("an armed drag holds at a soft boundary, and saves there", async ({
     .toBeCloseTo(20, 3);
 });
 
+type ClipMove = { clip_id: string; timeline_start: number; track_id: string };
+
+/** On the moved clip's body, clear of its edge handles' 22 px finger reach. */
+const onBody = (gap: { start: number; y: number }) => ({
+  x: gap.start + 80,
+  y: gap.y,
+});
+
+const clipStart = async (page: Page, guest: GuestLane) =>
+  (await projectJson(page, projectPath)).clips.tracks[guest.trackId].find(
+    (c) => c.id === guest.movedId,
+  )?.timeline_start;
+
+test("a long-press arms a clip, which moves in time only, holds at its neighbour's edge and saves there", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  const guest = await openWithGap(page);
+  const finger = await newFinger(context, page, browserName);
+  const commands = watchCommands(page);
+  const gap = await showGap(page, guest);
+  const from = onBody(gap);
+  await hold(page, finger, from);
+  await expect(page.locator(`${gap.clip} .clip-hit`)).toHaveAttribute(
+    "data-hit-armed",
+    "",
+  );
+  await expect(page.getByRole("menu", { name: /^Create at / })).toHaveCount(0);
+  await frame(page, info, `clip-move-armed-${browserName}`);
+  // Left until the clip's start passes the neighbour's end (20 s) by less
+  // than the detent, the finger drifting down: the clip stays in its lane.
+  const neighbourEnd = gap.start - 10 * gap.pps;
+  await finger.slide({ x: from.x - 10 * gap.pps - 8, y: from.y + 24 }, 16, 24);
+  await expect(page.locator(".detent-mark-caption")).toHaveText(
+    "At a clip edge",
+  );
+  const mark = await page.locator(".detent-mark").boundingBox();
+  await frame(page, info, `clip-move-detent-${browserName}`);
+  await finger.up();
+  await expect(armed(page)).toHaveCount(0);
+  await expect
+    .poll(() => commands.filter((c) => c.type === "MoveClips").length)
+    .toBe(1);
+  await expect.poll(() => clipStart(page, guest)).toBeCloseTo(20, 3);
+  await page.waitForTimeout(400);
+  await frame(page, info, `clip-move-saved-${browserName}`);
+  const moves = (commands.find((c) => c.type === "MoveClips")?.payload.clips ??
+    []) as ClipMove[];
+  json(info, `clip-move-${browserName}`, {
+    pps: gap.pps,
+    neighbourEnd,
+    mark,
+    moves,
+    commands: commands.map((c) => c.type),
+  });
+  expect(moves).toHaveLength(1);
+  expect(moves[0].clip_id).toBe(guest.movedId);
+  expect(moves[0].track_id).toBe(guest.trackId);
+  expect(moves[0].timeline_start).toBeCloseTo(20, 3);
+  expect(Math.abs((mark?.x ?? 0) - neighbourEnd)).toBeLessThan(4);
+});
+
+test("a second finger cancels an armed clip move", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  const guest = await openWithGap(page);
+  const commands = watchCommands(page);
+  const gap = await showGap(page, guest);
+  const fingers = await twoFingers(context, page, browserName);
+  const from = onBody(gap);
+  await fingers.down(from);
+  await page.waitForTimeout(HOLD_MS);
+  await expect(armed(page)).toHaveCount(1);
+  await fingers.move({ x: from.x - 40, y: from.y });
+  await expect(page.locator(`${gap.clip}.clip-moving`)).toHaveCount(1);
+  await frame(page, info, `clip-move-before-second-finger-${browserName}`);
+  await fingers.join(
+    { x: from.x - 40, y: from.y },
+    { x: from.x + 80, y: from.y - 40 },
+  );
+  await fingers.both(
+    { x: from.x - 60, y: from.y },
+    { x: from.x + 110, y: from.y - 40 },
+  );
+  await frame(page, info, `clip-move-second-finger-${browserName}`);
+  await fingers.up();
+  await page.waitForTimeout(600);
+  const armedAfter = await armed(page).count();
+  const start = await clipStart(page, guest);
+  json(info, `clip-move-second-finger-${browserName}`, {
+    commands: commands.map((c) => c.type),
+    armedAfter,
+    start,
+  });
+  expect(commands.filter((c) => c.type === "MoveClips")).toEqual([]);
+  expect(armedAfter).toBe(0);
+  expect(start).toBe(30);
+});
+
 test("a long-press on empty space opens the create menu; Add envelope point adds one there", async ({
   page,
   context,
   browserName,
 }, info) => {
-  await open(page);
+  const guest = await openWithGap(page);
   const finger = await newFinger(context, page, browserName);
   const commands = watchCommands(page);
-  // The guest's lane: one long clip, no envelope points or pending edits.
-  const body = await visiblePoint(
-    page,
-    '.lane-row:not([data-track-id="reference"])',
-    0.5,
-    0.6,
-  );
-  if (!body) throw new Error("guest lane not in view");
-  await hold(page, finger, body);
+  // The gap in the guest's lane, which has no envelope points or pending edits.
+  const gap = await showGap(page, guest);
+  await hold(page, finger, { x: gap.start - 5 * gap.pps, y: gap.y });
   await finger.up();
   const menu = page.getByRole("menu", { name: /^Create at / });
   await expect(menu).toBeVisible();
@@ -226,7 +391,7 @@ test("a long-press on empty space opens the create menu; Add envelope point adds
   const added = commands.find((c) => c.type === "SetEnvelope")?.payload as
     | { track_id: string; points: unknown[] }
     | undefined;
-  expect(added?.track_id).not.toBe(TRACK);
+  expect(added?.track_id).toBe(guest.trackId);
   expect(added?.points).toHaveLength(1);
 });
 
@@ -275,7 +440,7 @@ test("a second finger cancels an armed drag and the create menu", async ({
   context,
   browserName,
 }, info) => {
-  await open(page);
+  const guest = await openWithGap(page);
   const commands = watchCommands(page);
   const fingers = await twoFingers(context, page, browserName);
   const from = await centerOf(page, envC);
@@ -296,8 +461,8 @@ test("a second finger cancels an armed drag and the create menu", async ({
   await page.waitForTimeout(600);
   const armedAfter = await armed(page).count();
 
-  const body = await visiblePoint(page, lane, 0.5, 0.75);
-  if (!body) throw new Error("lane not in view");
+  const gap = await showGap(page, guest);
+  const body = { x: gap.start - 5 * gap.pps, y: gap.y };
   await fingers.down(body);
   await page.waitForTimeout(HOLD_MS);
   await expect(page.getByRole("menu", { name: /^Create at / })).toBeVisible();
