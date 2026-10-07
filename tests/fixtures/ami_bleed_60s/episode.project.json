@@ -65,7 +65,8 @@
   },
   "editorial": {
     "edit_decisions": [],
-    "chapters": []
+    "chapters": [],
+    "speaker_splits": []
   },
   "transcripts": {
     "per_track": [
