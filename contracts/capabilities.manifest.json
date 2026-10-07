@@ -27,6 +27,7 @@
     {
       "id": "daw.transport.togglePlay",
       "label": "Play / pause",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -55,6 +56,7 @@
     {
       "id": "daw.transport.seek",
       "label": "Seek playhead",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
@@ -73,6 +75,7 @@
     {
       "id": "daw.transport.stop",
       "label": "Stop playback",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -99,6 +102,7 @@
     {
       "id": "daw.transport.audition",
       "label": "Audition Full mix / Edited stems / Original",
+      "effect": "session",
       "service": "Sharecut Studio command bus",
       "industry_standard_key": false,
       "gates": [
@@ -125,6 +129,7 @@
     {
       "id": "daw.presence.follow",
       "label": "Follow",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/session_sync",
       "industry_standard_key": false,
       "gates": [
@@ -151,6 +156,7 @@
     {
       "id": "daw.presence.unfollow",
       "label": "Stop following",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/session_sync",
       "industry_standard_key": true,
       "gates": [
@@ -173,6 +179,7 @@
     {
       "id": "daw.tool.select",
       "label": "Select tool",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -195,6 +202,7 @@
     {
       "id": "daw.tool.blade",
       "label": "Blade tool",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -217,6 +225,7 @@
     {
       "id": "daw.review.exitCommentMode",
       "label": "Exit comment mode",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
@@ -232,6 +241,7 @@
     {
       "id": "daw.edit.clearSelection",
       "label": "Clear selection",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -247,6 +257,7 @@
     {
       "id": "daw.review.toggleCommentMode",
       "label": "Toggle comment mode",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -269,6 +280,7 @@
     {
       "id": "daw.review.resolveComment",
       "label": "Resolve comment",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 comment patch service",
       "industry_standard_key": false,
       "gates": [
@@ -282,7 +294,8 @@
       },
       "omit": {
         "guest": true,
-        "keyboard_reason": "Direct comment card gesture and button; no standard shortcut"
+        "keyboard_reason": "Direct comment card gesture and button; no standard shortcut",
+        "agent_reason": "TODO #1140"
       },
       "tooltip": "Resolve this comment",
       "presence": {
@@ -293,6 +306,7 @@
     {
       "id": "daw.tighten.applyHit",
       "label": "Apply tighten hit",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 ApproveEdits",
       "industry_standard_key": false,
       "gates": [
@@ -306,7 +320,9 @@
         "keyboard": "Enter",
         "skill": "podcast-tighten-dialogue"
       },
-      "omit": {},
+      "omit": {
+        "agent_reason": "TODO #1140"
+      },
       "tooltip": "Apply the selected tighten cut",
       "presence": {
         "cursor": "none",
@@ -316,6 +332,7 @@
     {
       "id": "daw.tighten.skipHit",
       "label": "Skip tighten hit",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 RejectEdits",
       "industry_standard_key": false,
       "gates": [
@@ -329,7 +346,9 @@
         "keyboard": "Backspace",
         "skill": "podcast-tighten-dialogue"
       },
-      "omit": {},
+      "omit": {
+        "agent_reason": "TODO #1140"
+      },
       "tooltip": "Skip the selected tighten cut",
       "presence": {
         "cursor": "none",
@@ -339,6 +358,7 @@
     {
       "id": "daw.tighten.applyAllSafe",
       "label": "Apply eligible tighten hits",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 ApproveEdits",
       "industry_standard_key": false,
       "gates": [
@@ -352,7 +372,9 @@
         "keyboard": "Mod+Shift+Enter",
         "skill": "podcast-tighten-dialogue"
       },
-      "omit": {},
+      "omit": {
+        "agent_reason": "TODO #1140"
+      },
       "tooltip": "Apply listed tighten hits, skipping harsh cuts when enabled",
       "presence": {
         "cursor": "none",
@@ -362,6 +384,7 @@
     {
       "id": "daw.tighten.previewHit",
       "label": "Preview tighten hit",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 listen-first preview",
       "industry_standard_key": false,
       "gates": [
@@ -385,6 +408,7 @@
     {
       "id": "daw.tighten.goToHit",
       "label": "Go to tighten hit",
+      "effect": "session",
       "service": "Sharecut Studio command bus",
       "industry_standard_key": false,
       "gates": [
@@ -409,6 +433,7 @@
     {
       "id": "daw.layout.default",
       "label": "Restore layout",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
@@ -431,6 +456,7 @@
     {
       "id": "daw.layout.timeline",
       "label": "Maximize timeline",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
@@ -453,6 +479,7 @@
     {
       "id": "daw.layout.text",
       "label": "Maximize transcript",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
@@ -475,6 +502,7 @@
     {
       "id": "daw.layout.review",
       "label": "Review layout",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
@@ -497,6 +525,7 @@
     {
       "id": "daw.navigation.nudgePlayheadBack",
       "label": "Nudge playhead back",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -511,6 +540,7 @@
     {
       "id": "daw.navigation.nudgePlayheadForward",
       "label": "Nudge playhead forward",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -525,6 +555,7 @@
     {
       "id": "daw.navigation.goToStart",
       "label": "Go to start",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -540,6 +571,7 @@
     {
       "id": "daw.navigation.goToEnd",
       "label": "Go to end",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -555,6 +587,7 @@
     {
       "id": "daw.edit.bladeCut",
       "label": "Blade cut",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -581,6 +614,7 @@
     {
       "id": "daw.edit.bladeCut.confirm",
       "label": "Confirm blade cut",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
@@ -593,7 +627,8 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed"
+        "keyboard_reason": "not industry-standard; menu/toolbar or unkeyed",
+        "agent_reason": "TODO #1140"
       },
       "tooltip": "Confirm blade cut",
       "presence": {
@@ -604,6 +639,7 @@
     {
       "id": "daw.edit.bladeCut.cancel",
       "label": "Cancel blade cut",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
@@ -627,6 +663,7 @@
     {
       "id": "daw.edit.delete",
       "label": "Delete clip",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -639,7 +676,9 @@
         ],
         "keyboard": "Backspace"
       },
-      "omit": {},
+      "omit": {
+        "agent_reason": "TODO #1140"
+      },
       "tooltip": "Delete clip",
       "presence": {
         "cursor": "none",
@@ -649,6 +688,7 @@
     {
       "id": "daw.track.remove",
       "label": "Remove track",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -676,6 +716,7 @@
     {
       "id": "daw.track.reorder",
       "label": "Reorder track",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
@@ -703,6 +744,7 @@
     {
       "id": "daw.track.moveUp",
       "label": "Move track up",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -715,7 +757,9 @@
         ],
         "keyboard": "ArrowUp"
       },
-      "omit": {},
+      "omit": {
+        "agent_reason": "TODO #1140"
+      },
       "tooltip": "Move track up",
       "presence": {
         "cursor": "none",
@@ -725,6 +769,7 @@
     {
       "id": "daw.track.moveDown",
       "label": "Move track down",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -737,7 +782,9 @@
         ],
         "keyboard": "ArrowDown"
       },
-      "omit": {},
+      "omit": {
+        "agent_reason": "TODO #1140"
+      },
       "tooltip": "Move track down",
       "presence": {
         "cursor": "none",
@@ -747,6 +794,7 @@
     {
       "id": "daw.edit.rippleDelete",
       "label": "Ripple delete clip",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -772,6 +820,7 @@
     {
       "id": "daw.edit.copy",
       "label": "Copy",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -786,6 +835,7 @@
     {
       "id": "daw.edit.cut",
       "label": "Cut",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -795,11 +845,14 @@
         "command": "edit.cut",
         "keyboard": "Mod+X"
       },
-      "omit": {}
+      "omit": {
+        "agent_reason": "TODO #1140"
+      }
     },
     {
       "id": "daw.edit.paste",
       "label": "Paste",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -809,11 +862,14 @@
         "command": "edit.paste",
         "keyboard": "Mod+V"
       },
-      "omit": {}
+      "omit": {
+        "agent_reason": "TODO #1140"
+      }
     },
     {
       "id": "daw.track.selectAll",
       "label": "Select all tracks",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -829,6 +885,7 @@
     {
       "id": "daw.track.deselectAll",
       "label": "Deselect all tracks",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -851,6 +908,7 @@
     {
       "id": "daw.track.muteToggle",
       "label": "Toggle track mute",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -879,6 +937,7 @@
     {
       "id": "daw.track.soloToggle",
       "label": "Toggle track solo",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -903,7 +962,8 @@
     {
       "id": "daw.track.clearSolo",
       "label": "Clear solo",
-      "service": "Sharecut Studio command bus → services/document",
+      "effect": "session",
+      "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
         "hasProject"
@@ -928,6 +988,7 @@
     {
       "id": "daw.track.setVolume",
       "label": "Set track volume",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
@@ -955,6 +1016,7 @@
     {
       "id": "daw.view.zoomIn",
       "label": "Zoom in",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -978,6 +1040,7 @@
     {
       "id": "daw.view.zoomOut",
       "label": "Zoom out",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -1001,6 +1064,7 @@
     {
       "id": "daw.view.fit",
       "label": "Fit session width",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -1024,6 +1088,7 @@
     {
       "id": "daw.view.setTab",
       "label": "Switch editor tab",
+      "effect": "view",
       "service": "Sharecut Studio command bus",
       "industry_standard_key": false,
       "gates": [
@@ -1049,6 +1114,7 @@
     {
       "id": "daw.view.setMobileMode",
       "label": "Switch phone mode",
+      "effect": "view",
       "service": "Sharecut Studio command bus",
       "industry_standard_key": false,
       "gates": [
@@ -1073,6 +1139,7 @@
     {
       "id": "daw.view.waveformZoomIn",
       "label": "Waveform amplitude zoom in",
+      "effect": "view",
       "service": "Sharecut Studio command bus",
       "industry_standard_key": true,
       "gates": [
@@ -1097,6 +1164,7 @@
     {
       "id": "daw.view.waveformZoomOut",
       "label": "Waveform amplitude zoom out",
+      "effect": "view",
       "service": "Sharecut Studio command bus",
       "industry_standard_key": true,
       "gates": [
@@ -1121,6 +1189,7 @@
     {
       "id": "daw.view.fitTracksHeight",
       "label": "Fit tracks to window height",
+      "effect": "view",
       "tooltip": "Fit tracks to window height",
       "tooltip_pressed": "Use a fixed track height",
       "toggle": true,
@@ -1147,6 +1216,7 @@
     {
       "id": "daw.view.trackHeightIncrease",
       "label": "Increase track height",
+      "effect": "view",
       "tooltip": "Increase track height",
       "service": "Sharecut Studio command bus",
       "industry_standard_key": true,
@@ -1169,6 +1239,7 @@
     {
       "id": "daw.view.trackHeightDecrease",
       "label": "Decrease track height",
+      "effect": "view",
       "tooltip": "Decrease track height",
       "service": "Sharecut Studio command bus",
       "industry_standard_key": true,
@@ -1191,6 +1262,7 @@
     {
       "id": "daw.history.undo",
       "label": "Undo",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -1219,6 +1291,7 @@
     {
       "id": "daw.history.redo",
       "label": "Redo",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -1246,6 +1319,7 @@
     {
       "id": "daw.ui.toggleCommandPalette",
       "label": "Keyboard shortcuts",
+      "effect": "view",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": false,
       "gates": [
@@ -1268,6 +1342,7 @@
     {
       "id": "daw.render.refreshMix",
       "label": "Refresh mix",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -1295,6 +1370,7 @@
     {
       "id": "daw.export.bounce",
       "label": "Bounce\u2026",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -1325,6 +1401,7 @@
     {
       "id": "daw.share.manage",
       "label": "Share\u2026",
+      "effect": "project",
       "service": "ShareService",
       "industry_standard_key": false,
       "gates": [
@@ -1404,6 +1481,7 @@
     {
       "id": "daw.record.start",
       "label": "Start recording",
+      "effect": "session",
       "service": "RecordSessionService",
       "industry_standard_key": false,
       "gates": [
@@ -1434,6 +1512,7 @@
     {
       "id": "daw.record.pause",
       "label": "Pause recording",
+      "effect": "session",
       "service": "RecordSessionService",
       "industry_standard_key": false,
       "gates": [
@@ -1464,6 +1543,7 @@
     {
       "id": "daw.record.resume",
       "label": "Resume recording",
+      "effect": "session",
       "service": "RecordSessionService",
       "industry_standard_key": false,
       "gates": [
@@ -1494,6 +1574,7 @@
     {
       "id": "daw.record.stop",
       "label": "Stop recording",
+      "effect": "session",
       "service": "RecordSessionService",
       "industry_standard_key": false,
       "gates": [
@@ -1524,6 +1605,7 @@
     {
       "id": "daw.record.land",
       "label": "Land recording on timeline",
+      "effect": "project",
       "service": "RecordLandingService",
       "industry_standard_key": false,
       "gates": [
@@ -1553,6 +1635,7 @@
     {
       "id": "daw.record.discardTake",
       "label": "Discard recording take",
+      "effect": "project",
       "service": "RecordLandingService",
       "industry_standard_key": false,
       "gates": [
@@ -1578,6 +1661,7 @@
     {
       "id": "daw.record.panel",
       "label": "Record panel",
+      "effect": "view",
       "service": "RecordSessionService",
       "industry_standard_key": false,
       "gates": [
@@ -1607,6 +1691,7 @@
     {
       "id": "daw.record.marker",
       "label": "Record marker",
+      "effect": "project",
       "service": "RecordSessionService",
       "industry_standard_key": true,
       "gates": [
@@ -1621,7 +1706,8 @@
         "skill": "podcast-record-session"
       },
       "omit": {
-        "guest": true
+        "guest": true,
+        "agent_reason": "TODO #1140"
       },
       "tooltip": "Record marker",
       "presence": {
@@ -1632,6 +1718,7 @@
     {
       "id": "daw.mcp.connect",
       "label": "Connect agent\u2026",
+      "effect": "view",
       "service": "Host Streamable HTTP MCP (mcp SDK)",
       "industry_standard_key": false,
       "gates": [
@@ -1657,6 +1744,7 @@
     {
       "id": "daw.help.diagnosticsBundle",
       "label": "Export diagnostics\u2026",
+      "effect": "view",
       "service": "DiagnosticsService",
       "industry_standard_key": false,
       "gates": [
@@ -1684,6 +1772,7 @@
     {
       "id": "daw.export.deliverables",
       "label": "Export deliverables\u2026",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -1713,6 +1802,7 @@
     {
       "id": "daw.project.new",
       "label": "New project",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -1726,7 +1816,8 @@
         "keyboard": "Mod+N"
       },
       "omit": {
-        "guest": true
+        "guest": true,
+        "agent_reason": "TODO #1140"
       },
       "tooltip": "New project",
       "presence": {
@@ -1737,6 +1828,7 @@
     {
       "id": "daw.project.open",
       "label": "Open project",
+      "effect": "session",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -1761,6 +1853,7 @@
     {
       "id": "daw.track.add",
       "label": "New track",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -1789,6 +1882,7 @@
     {
       "id": "daw.media.import",
       "label": "Import audio",
+      "effect": "project",
       "service": "Sharecut Studio command bus \u2192 services/document",
       "industry_standard_key": true,
       "gates": [
@@ -1816,6 +1910,7 @@
     {
       "id": "agent.episode",
       "label": "Episode / track CRUD",
+      "effect": "project",
       "service": "EpisodeProject / track services",
       "industry_standard_key": false,
       "gates": [
@@ -1837,6 +1932,7 @@
     {
       "id": "agent.transcript",
       "label": "Transcript layers",
+      "effect": "project",
       "service": "TranscriptService / refine",
       "industry_standard_key": false,
       "gates": [
@@ -1866,6 +1962,7 @@
     {
       "id": "agent.edits",
       "label": "Edit decisions / NL cuts",
+      "effect": "project",
       "service": "EditService",
       "industry_standard_key": false,
       "gates": [
@@ -1905,6 +2002,7 @@
     {
       "id": "agent.timeline",
       "label": "Timeline / FX / reconcile",
+      "effect": "project",
       "service": "timeline / document sync",
       "industry_standard_key": false,
       "gates": [
@@ -1972,6 +2070,7 @@
     {
       "id": "agent.social_clips",
       "label": "Social clips",
+      "effect": "project",
       "service": "clips.social",
       "industry_standard_key": false,
       "gates": [
@@ -1997,6 +2096,7 @@
     {
       "id": "agent.comments",
       "label": "Timeline comments",
+      "effect": "project",
       "service": "CommentService",
       "industry_standard_key": false,
       "gates": [
@@ -2025,6 +2125,7 @@
     {
       "id": "agent.review",
       "label": "Review versions / share",
+      "effect": "project",
       "service": "ShareService / review",
       "industry_standard_key": false,
       "gates": [
@@ -2049,6 +2150,7 @@
     {
       "id": "agent.pipeline",
       "label": "Pipeline / master / bounce",
+      "effect": "project",
       "service": "PipelineService / BounceService",
       "industry_standard_key": false,
       "gates": [
@@ -2074,6 +2176,7 @@
     {
       "id": "agent.history",
       "label": "History",
+      "effect": "project",
       "service": "HistoryManager",
       "industry_standard_key": false,
       "gates": [
@@ -2098,6 +2201,7 @@
     {
       "id": "agent.play",
       "label": "Play / audition",
+      "effect": "session",
       "service": "PlayService",
       "industry_standard_key": false,
       "gates": [
@@ -2123,6 +2227,7 @@
     {
       "id": "agent.session",
       "label": "DAW session sync",
+      "effect": "session",
       "service": "SessionSyncService",
       "industry_standard_key": false,
       "gates": [
@@ -2146,6 +2251,7 @@
     {
       "id": "agent.ingest",
       "label": "Ingest alignment",
+      "effect": "project",
       "service": "ingest alignment",
       "industry_standard_key": false,
       "gates": [
@@ -2169,6 +2275,7 @@
     {
       "id": "agent.align-accept",
       "label": "Align accept gate",
+      "effect": "project",
       "service": "align accept",
       "industry_standard_key": false,
       "gates": [
@@ -2192,6 +2299,7 @@
     {
       "id": "agent.speaker",
       "label": "Speaker attribution",
+      "effect": "project",
       "service": "speaker tools",
       "industry_standard_key": false,
       "gates": [
@@ -2221,6 +2329,7 @@
     {
       "id": "agent.gui",
       "label": "Open Sharecut Studio GUI",
+      "effect": "session",
       "service": "gui_launch",
       "industry_standard_key": false,
       "gates": [
@@ -2241,6 +2350,7 @@
     {
       "id": "daw.view.transcriptAnnotate",
       "label": "Annotate transcript",
+      "effect": "view",
       "tooltip": "Annotate: show edit boundaries, low-confidence words, unsuppressed words with no matching speech, and cut-away text",
       "tooltip_pressed": "Hide annotate marks (clean reading view)",
       "toggle": true,
@@ -2266,6 +2376,7 @@
     {
       "id": "daw.transcript.correct",
       "label": "Correct transcript",
+      "effect": "project",
       "tooltip": "Correct: click a word to fix ASR text or suppress it (text only; audio and timing unchanged), or ignore it to mute its audio at render (no cut)",
       "tooltip_pressed": "Exit Correct (restore seek-on-click)",
       "toggle": true,
@@ -2288,12 +2399,14 @@
         "anchor": "transcript:word:<track>:<i>"
       },
       "omit": {
-        "keyboard_reason": "toolbar toggle; inline correction uses F2"
+        "keyboard_reason": "toolbar toggle; inline correction uses F2",
+        "agent_reason": "TODO #1140"
       }
     },
     {
       "id": "daw.transcript.adjustTiming",
       "label": "Adjust word timing",
+      "effect": "project",
       "tooltip": "Adjust source-word boundaries against the raw recording waveform; one Undo per drag",
       "service": "EditService.set_word_timing",
       "industry_standard_key": false,
@@ -2312,12 +2425,14 @@
         "anchor": "transcript:word:<track>:<i>"
       },
       "omit": {
-        "keyboard_reason": "Native range controls and numeric fields in the word inspector"
+        "keyboard_reason": "Native range controls and numeric fields in the word inspector",
+        "agent_reason": "TODO #1140"
       }
     },
     {
       "id": "daw.transcript.editWordInline",
       "label": "Edit focused transcript word",
+      "effect": "project",
       "tooltip": "F2: edit the focused timed word in Navigate mode; Enter saves, Escape cancels",
       "service": "Sharecut Studio UI",
       "industry_standard_key": false,
@@ -2332,11 +2447,15 @@
         "cursor": "anchor",
         "follow": "none",
         "anchor": "transcript:word:<track>:<i>"
+      },
+      "omit": {
+        "agent_reason": "TODO #1140"
       }
     },
     {
       "id": "daw.transcript.select",
       "label": "Select transcript range",
+      "effect": "view",
       "tooltip": "Select: click/shift/drag words for copy/cut (Mod+C/X/V); cuts remove audio",
       "tooltip_pressed": "Exit Select (restore seek-on-click)",
       "toggle": true,
@@ -2363,6 +2482,7 @@
     {
       "id": "daw.transcript.ignore",
       "label": "Ignore / restore transcript words",
+      "effect": "project",
       "tooltip": "Ignore: strike through and mute the selection at render (no cut); Restore brings it back",
       "tooltip_pressed": "Restore: un-mute the selection and remove its strikethrough",
       "service": "Sharecut Studio command bus \u2192 services/document",
@@ -2379,7 +2499,8 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "no industry-standard key (#649)"
+        "keyboard_reason": "no industry-standard key (#649)",
+        "agent_reason": "TODO #1140"
       },
       "presence": {
         "cursor": "anchor",
@@ -2390,6 +2511,7 @@
     {
       "id": "daw.transcript.nextLowConfidence",
       "label": "Next low-confidence word",
+      "effect": "session",
       "tooltip": "Next low-confidence word: seek and scroll to it, wrapping to the first; in Correct mode it opens in the word editor",
       "service": "Sharecut Studio command bus",
       "industry_standard_key": false,
@@ -2415,6 +2537,7 @@
     {
       "id": "daw.transcript.prevLowConfidence",
       "label": "Previous low-confidence word",
+      "effect": "session",
       "tooltip": "Previous low-confidence word: seek and scroll to it, wrapping to the last; in Correct mode it opens in the word editor",
       "service": "Sharecut Studio command bus",
       "industry_standard_key": false,
@@ -2440,6 +2563,7 @@
     {
       "id": "daw.view.showCutAway",
       "label": "Show cut away",
+      "effect": "view",
       "tooltip": "Show words removed by timeline cuts (drag boundaries to restore)",
       "tooltip_pressed": "Hide cut-away words",
       "toggle": true,
@@ -2465,6 +2589,7 @@
     {
       "id": "daw.edit.trimClipEdge",
       "label": "Trim clip edge",
+      "effect": "project",
       "tooltip": "Drag or use focused Left/Right arrows to trim a clip edge",
       "service": "Sharecut Studio \u2192 TrimClipEdge document command",
       "industry_standard_key": false,
@@ -2492,6 +2617,7 @@
     {
       "id": "daw.edit.moveClips",
       "label": "Move clips",
+      "effect": "project",
       "tooltip": "Drag clip bodies to move in time or onto another track \u00b7 gaps and overlap allowed",
       "service": "Sharecut Studio \u2192 MoveClips document command",
       "industry_standard_key": false,
@@ -2519,6 +2645,7 @@
     {
       "id": "daw.edit.addChapter",
       "label": "Add chapter at playhead",
+      "effect": "project",
       "tooltip": "Add a chapter marker at the playhead \u00b7 turns Markers on",
       "service": "Sharecut Studio \u2192 AddChapter document command",
       "industry_standard_key": false,
@@ -2534,7 +2661,8 @@
       },
       "omit": {
         "keyboard_reason": "no default shortcut; Menu \u203a Markers or the phone More action",
-        "guest": true
+        "guest": true,
+        "agent_reason": "TODO #1140"
       },
       "presence": {
         "cursor": "none",
@@ -2544,6 +2672,7 @@
     {
       "id": "daw.edit.rollClipJoin",
       "label": "Roll clip join",
+      "effect": "project",
       "tooltip": "Drag join to roll both clip edges \u00b7 clips stay flush",
       "service": "Sharecut Studio \u2192 RollClipJoin document command",
       "industry_standard_key": false,
@@ -2558,7 +2687,8 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "pointer join diamond; no industry-standard key"
+        "keyboard_reason": "pointer join diamond; no industry-standard key",
+        "agent_reason": "TODO #1140"
       },
       "presence": {
         "cursor": "time",
@@ -2568,6 +2698,7 @@
     {
       "id": "daw.edit.setClipFade",
       "label": "Set clip fade",
+      "effect": "project",
       "tooltip": "Drag or use focused Left/Right arrows to set fade length",
       "service": "Sharecut Studio \u2192 SetClipFade document command",
       "industry_standard_key": false,
@@ -2582,7 +2713,9 @@
         ],
         "keyboard": "ArrowLeft"
       },
-      "omit": {},
+      "omit": {
+        "agent_reason": "TODO #1140"
+      },
       "presence": {
         "cursor": "time",
         "follow": "none"
@@ -2591,6 +2724,7 @@
     {
       "id": "daw.edit.setClipJoin",
       "label": "Set clip join",
+      "effect": "project",
       "tooltip": "How this clip meets the previous one: cut, fade or crossfade, with its length",
       "service": "Sharecut Studio \u2192 SetClipJoin document command",
       "industry_standard_key": false,
@@ -2619,6 +2753,7 @@
     {
       "id": "daw.transcript.findReplace",
       "label": "Find and replace transcript",
+      "effect": "project",
       "tooltip": "Preview literal replacements across all source transcripts, then apply them as one undoable pass.",
       "service": "EditService.replace_transcript_matches",
       "industry_standard_key": false,
@@ -2633,7 +2768,8 @@
       },
       "omit": {
         "keyboard_reason": "toolbar and command palette; no shortcut yet",
-        "guest": true
+        "guest": true,
+        "agent_reason": "TODO #1140"
       },
       "presence": {
         "cursor": "none",
@@ -2643,6 +2779,7 @@
     {
       "id": "daw.range.play",
       "label": "Play range",
+      "effect": "session",
       "service": "PlayService.play_selected_range",
       "industry_standard_key": false,
       "gates": [
@@ -2666,6 +2803,7 @@
     {
       "id": "daw.range.cut",
       "label": "Cut range",
+      "effect": "project",
       "service": "EditService.edit_selected_range",
       "industry_standard_key": false,
       "gates": [
@@ -2678,7 +2816,8 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "Context action with explicit range selection"
+        "keyboard_reason": "Context action with explicit range selection",
+        "agent_reason": "TODO #1140"
       },
       "tooltip": "Cut range",
       "presence": {
@@ -2689,6 +2828,7 @@
     {
       "id": "daw.range.mute",
       "label": "Mute range",
+      "effect": "project",
       "service": "EditService.edit_selected_range",
       "industry_standard_key": false,
       "gates": [
@@ -2696,7 +2836,9 @@
       ],
       "surfaces": {
         "command": "range.mute",
-        "mcp": ["propose_range_mute_tool"],
+        "mcp": [
+          "propose_range_mute_tool"
+        ],
         "gui": [
           "RangeActions"
         ]
@@ -2713,6 +2855,7 @@
     {
       "id": "daw.range.comment",
       "label": "Comment on range",
+      "effect": "project",
       "service": "CommentService",
       "industry_standard_key": false,
       "gates": [
@@ -2725,7 +2868,8 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "Context action with explicit range selection"
+        "keyboard_reason": "Context action with explicit range selection",
+        "agent_reason": "TODO #1140"
       },
       "tooltip": "Comment on range",
       "presence": {
@@ -2736,6 +2880,7 @@
     {
       "id": "daw.range.bounce",
       "label": "Bounce range",
+      "effect": "project",
       "service": "BounceService",
       "industry_standard_key": false,
       "gates": [
@@ -2748,7 +2893,8 @@
         ]
       },
       "omit": {
-        "keyboard_reason": "Context action with explicit range selection"
+        "keyboard_reason": "Context action with explicit range selection",
+        "agent_reason": "TODO #1140"
       },
       "tooltip": "Bounce range",
       "presence": {
@@ -2759,6 +2905,7 @@
     {
       "id": "daw.range.arm",
       "label": "Select a range",
+      "effect": "view",
       "service": "Sharecut Studio range selection",
       "industry_standard_key": false,
       "gates": [

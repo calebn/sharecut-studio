@@ -24,11 +24,15 @@
   "$defs": {
     "capability": {
       "type": "object",
-      "required": ["id", "label", "surfaces"],
+      "required": ["id", "label", "effect", "surfaces"],
       "additionalProperties": false,
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "label": { "type": "string" },
+        "effect": {
+          "enum": ["project", "session", "view"],
+          "description": "What the action changes. project: the saved episode project, review state, transcripts or artifacts; requires surfaces.mcp or surfaces.cli, or omit.agent_reason. session: live working state that is not saved (transport, playhead, selection, solo, presence, clipboard). view: only how this client shows things (layout, zoom, panels, modes, dialogs)."
+        },
         "tooltip": { "type": "string", "minLength": 1 },
         "tooltip_pressed": { "type": "string", "minLength": 1 },
         "toggle": { "type": "boolean" },
@@ -71,7 +75,12 @@
               "type": "boolean",
               "description": "Documentation-only Host-only column on the capabilities catalog. Not the runtime share ACL (edits/share_capabilities.py has_capability)."
             },
-            "keyboard_reason": { "type": ["string", "null"] }
+            "keyboard_reason": { "type": ["string", "null"] },
+            "agent_reason": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Owner-approved reason an effect: project capability has no MCP or CLI surface."
+            }
           }
         },
         "presence": {

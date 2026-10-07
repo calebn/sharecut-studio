@@ -190,6 +190,28 @@ def presence_errors(cap: dict) -> list[str]:
     return errors
 
 
+EFFECTS = frozenset({"project", "session", "view"})
+
+
+def agent_parity_errors(cap: dict) -> list[str]:
+    """An ``effect: project`` capability needs MCP or CLI, or an approved omit.agent_reason."""
+    cid = cap.get("id", "<unknown>")
+    effect = cap.get("effect")
+    if effect not in EFFECTS:
+        return [f"{cid}: effect must be one of {sorted(EFFECTS)} (got {effect!r})"]
+    surfaces = cap.get("surfaces") or {}
+    has_agent = bool(surfaces.get("mcp") or surfaces.get("cli"))
+    reason = ((cap.get("omit") or {}).get("agent_reason") or "").strip()
+    if has_agent and reason:
+        return [f"{cid}: has an MCP or CLI surface, so drop omit.agent_reason"]
+    if effect == "project" and not has_agent and not reason:
+        return [
+            f"{cid}: effect: project needs surfaces.mcp or surfaces.cli "
+            "(or an owner-approved omit.agent_reason)"
+        ]
+    return []
+
+
 def main() -> int:
     errors: list[str] = []
     if not MANIFEST.is_file():
@@ -233,6 +255,7 @@ def main() -> int:
             errors.append(f"{cid}: industry_standard_key requires surfaces.keyboard")
         if surfaces.get("gui") and not cmd:
             errors.append(f"{cid}: surfaces.gui requires surfaces.command")
+        errors.extend(agent_parity_errors(cap))
         if surfaces.get("gui"):
             tip = (cap.get("tooltip") or "").strip()
             if not tip:
