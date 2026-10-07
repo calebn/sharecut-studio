@@ -1281,6 +1281,8 @@ def test_clip_mute_region_and_suggest_payload_reject_invalid():
 
 def test_apply_prefix_mutes_before_overlapping_remove(tmp_path, sample_wav):
     project = _project_with_audio(tmp_path, sample_wav)
+    guest = next(c for c in project.clips if c.track_id == "guest")
+    guest.timeline_start = 2.0
     project.edit_decisions = [
         EditDecision(
             id="r1",

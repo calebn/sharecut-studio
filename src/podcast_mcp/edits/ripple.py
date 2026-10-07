@@ -24,7 +24,7 @@ from podcast_mcp.edits.clips_ops import (
     update_timeline_duration,
 )
 from podcast_mcp.models import Clip, EditMode, EpisodeProject
-from podcast_mcp.util.intervals import merge_intervals
+from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 TrimEdge = Literal["in", "out"]
@@ -93,17 +93,11 @@ class RippleRemoval:
 
     def unselected_on(self, track_id: str, start: float, end: float) -> list[tuple[float, float]]:
         """Parts of ``[start, end)`` that ``track_id``'s selected extents do not cover."""
-        parts = [(start, end)]
-        for extent in self.selected:
-            if extent.track_id != track_id:
-                continue
-            parts = [
-                piece
-                for lo, hi in parts
-                for piece in ((lo, min(hi, extent.start)), (max(lo, extent.end), hi))
-                if piece[1] > piece[0] + _EPS
-            ]
-        return parts
+        return subtract_intervals(
+            [(start, end)],
+            [(e.start, e.end) for e in self.selected if e.track_id == track_id],
+            epsilon=_EPS,
+        )
 
 
 def ripple_remove_clips(

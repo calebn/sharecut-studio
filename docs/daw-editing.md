@@ -350,7 +350,9 @@ gap to keep it." Sending it again with `confirm_cut_speech: true` applies it, an
 applied-edit record keeps the `cut_speech` it confirmed. One History Undo restores
 it. Approving a pending remove runs the same guard at approval time, against the
 current transcript, so a Commenter's suggestion over words added since asks too, and
-one unconfirmed remove in a batch applies none of it. A Commenter's ripple delete
+one unconfirmed remove in a batch applies none of it. Speech that another remove in
+the same batch cuts counts as chosen (`also_chosen`), so approving both speakers'
+overlapping fillers together does not ask. A Commenter's ripple delete
 suggestion also records the speech on the pending decision (`cut_speech`) when it is
 suggested; a confirmed approval of it ripples as suggested instead of falling back to
 a punch.
