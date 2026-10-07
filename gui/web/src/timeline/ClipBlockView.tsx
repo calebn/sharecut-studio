@@ -141,8 +141,11 @@ export interface ClipBlockViewProps {
     handle: ClipHandle,
     event: ReactKeyboardEvent<HTMLButtonElement>,
   ) => void;
-  /** A held arrow key stopped this handle at a soft boundary or limit. */
-  bumpedHandle?: ClipHandle | null;
+  /**
+   * A held arrow key stopped this handle at a soft boundary or limit, or a
+   * move pressed the clip (`"clip"`) against the session start.
+   */
+  bumpedHandle?: ClipHandle | "clip" | null;
 }
 
 export function ClipBlockView({
@@ -241,8 +244,20 @@ export function ClipBlockView({
           title={title}
           aria-label={labels.select}
           aria-pressed={selected}
-          {...HIT_SURFACE_PROPS}
-          {...hitHandlers}
+          {...(canMove && !bladeMode
+            ? hitTargetProps("clip", clip.id, savedStart, {
+                selected,
+                spanSec: savedEnd - savedStart,
+              })
+            : HIT_SURFACE_PROPS)}
+          data-bump={bumpedHandle === "clip" ? "" : undefined}
+          onPointerDown={hitHandlers?.onPointerDown}
+          onPointerMove={hitHandlers?.onPointerMove}
+          onPointerUp={hitHandlers?.onPointerUp}
+          onPointerCancel={hitHandlers?.onPointerCancel}
+          onLostPointerCapture={hitHandlers?.onLostPointerCapture}
+          onBlur={hitHandlers?.onBlur}
+          onClick={hitHandlers?.onClick}
         />
       ) : null}
       {showHandles && prevClip ? (

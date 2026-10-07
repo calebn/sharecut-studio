@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { rollClipJoin, setClipFade, trimClipEdge } from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
@@ -7,10 +7,12 @@ import { useDawKeymapListener } from "../keymap/listener";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import { place, press } from "../test/hitDom";
 import type { ClipRow, ProjectView } from "../types/project";
 import { ClipBlock } from "./ClipBlock";
 import { ClipBlockView } from "./ClipBlockView";
 import { clipBlockGeometry } from "./clipBlockGeometry";
+import { attachHitRouting } from "./hitRouting";
 
 type LayerProps = {
   mediaRef: string;
@@ -1219,6 +1221,91 @@ describe("ClipBlock waveform", () => {
     expect(onMoveCommit).toHaveBeenCalled();
     expect(onMoveCommit.mock.calls[0]?.[0]).toBe("c1");
     expect(onMoveCommit.mock.calls[0]?.[1].deltaSec).toBeCloseTo(0.8, 5);
+  });
+
+  describe("touch move (#1051 round 4b)", () => {
+    /** The clip under the touch grammar's router, its body 100 px wide. */
+    const touchClip = (row: ClipRow, extra: Record<string, unknown> = {}) => {
+      const view = render(
+        <div>
+          <ClipBlock {...base} canMove {...extra} clip={row} />
+        </div>,
+      );
+      const root = view.container.firstElementChild as HTMLElement;
+      const hit = root.querySelector(".clip-hit") as HTMLElement;
+      place(hit, { left: 0, top: 0, right: 100, bottom: 100 });
+      const router = attachHitRouting(root, { touchLab: () => true });
+      root.addEventListener(
+        "pointerdown",
+        (e) => {
+          if (router.defers(e)) e.stopPropagation();
+        },
+        true,
+      );
+      return { ...view, hit, router };
+    };
+    const later = { ...clip, timeline_start: 4, timeline_end: 6 };
+
+    it("arms the body on a long press and moves the clip in time only", () => {
+      const onMovePreview = vi.fn();
+      const onMoveCommit = vi.fn();
+      const { hit, router } = touchClip(later, { onMovePreview, onMoveCommit });
+      press(hit, "pointerdown", 50, 50);
+      press(hit, "pointermove", 52, 50);
+      expect(onMovePreview).not.toHaveBeenCalled();
+      router.longPress();
+      press(hit, "pointermove", 90, 95);
+      press(hit, "pointerup", 90, 95);
+      router.dispose();
+
+      expect(onMovePreview).toHaveBeenCalledTimes(1);
+      expect(onMovePreview.mock.calls[0][1]).toMatchObject({
+        clientX: 90,
+        clientY: 50,
+      });
+      expect(onMoveCommit).toHaveBeenCalledTimes(1);
+      expect(onMoveCommit.mock.calls[0][0]).toBe("c1");
+      expect(onMoveCommit.mock.calls[0][1].deltaSec).toBeCloseTo(0.8, 5);
+    });
+
+    it("bumps at the session start, a clip's hard limit, and says so", () => {
+      const { hit, router } = touchClip(clip);
+      press(hit, "pointerdown", 50, 50);
+      router.longPress();
+      act(() => {
+        press(hit, "pointermove", 20, 50);
+      });
+      const atLimit = {
+        bump: hit.getAttribute("data-bump"),
+        said: useDawStore.getState().statusAnnouncement,
+      };
+      act(() => {
+        press(hit, "pointermove", 80, 50);
+      });
+      const back = hit.getAttribute("data-bump");
+      press(hit, "pointerup", 80, 50);
+      router.dispose();
+
+      expect(atLimit).toEqual({ bump: "", said: "Clip is at its limit" });
+      expect(back).toBeNull();
+    });
+
+    it("drops the move, saving nothing, when a second finger lands", () => {
+      const onMoveCommit = vi.fn();
+      const onMoveCancel = vi.fn();
+      const { hit, router } = touchClip(later, { onMoveCommit, onMoveCancel });
+      press(hit, "pointerdown", 50, 50);
+      router.longPress();
+      press(hit, "pointermove", 90, 50);
+      press(hit, "pointerdown", 200, 60, 8);
+      press(hit, "pointerup", 90, 50);
+      press(hit, "pointerup", 200, 60, 8);
+      router.dispose();
+
+      expect(onMoveCancel).toHaveBeenCalledWith("c1");
+      expect(onMoveCommit).not.toHaveBeenCalled();
+      expect(hit.hasAttribute("data-hit-armed")).toBe(false);
+    });
   });
 
   it("does not body-move in blade mode", () => {
