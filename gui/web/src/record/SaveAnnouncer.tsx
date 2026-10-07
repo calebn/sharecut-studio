@@ -2,10 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import { type SaveLine, type SaveState, saveAnnouncement } from "./saveStatus";
 
 /**
- * A polite, screen-reader-only live region for the save lists. It stays
- * mounted so a later change is announced, and speaks a segment starting or
- * finishing, not each chunk.
+ * The one polite, screen-reader-only live region. It stays mounted so a later
+ * change is announced. Visible save text never sits inside a live region, so a
+ * chunk count that moves is read by sight and never spoken.
  */
+export function PoliteAnnouncer({ message }: { message: string }) {
+  return (
+    <div aria-live="polite" className="sr-only">
+      {message}
+    </div>
+  );
+}
+
+/** Speaks a save-list segment starting or finishing, never each chunk. */
 export function SaveAnnouncer({ lines }: { lines: readonly SaveLine[] }) {
   const seen = useRef<ReadonlyMap<string, SaveState>>(new Map());
   const [announcement, setAnnouncement] = useState("");
@@ -14,9 +23,5 @@ export function SaveAnnouncer({ lines }: { lines: readonly SaveLine[] }) {
     seen.current = new Map(lines.map((line) => [line.key, line.state]));
     if (text) setAnnouncement(text);
   }, [lines]);
-  return (
-    <div aria-live="polite" className="sr-only">
-      {announcement}
-    </div>
-  );
+  return <PoliteAnnouncer message={announcement} />;
 }

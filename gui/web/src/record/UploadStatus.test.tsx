@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { expectNoA11yViolations } from "../test/a11y";
+import { expectNoA11yViolations, expectOutsideLiveRegions } from "../test/a11y";
 import {
   KEEPER_RECLAIM_FAILED_COPY,
   KEEPER_RECLAIM_MISMATCH_COPY,
@@ -443,9 +443,9 @@ describe("UploadStatus", () => {
         actions={keeperActions({ notice: "Recovered 1 partial segment." })}
       />,
     );
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Recovered 1 partial segment.",
-    );
+    expect(
+      screen.getAllByRole("status").map((status) => status.textContent),
+    ).toEqual([UPLOAD_DONE_COPY, "Recovered 1 partial segment."]);
     await expectNoA11yViolations(container);
     rerender(
       <UploadStatus
@@ -454,9 +454,57 @@ describe("UploadStatus", () => {
         actions={keeperActions({ error: "incomplete PCM frame" })}
       />,
     );
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "incomplete PCM frame",
-    );
+    expect(
+      screen.getAllByRole("status").map((status) => status.textContent),
+    ).toEqual([UPLOAD_DONE_COPY, "incomplete PCM frame"]);
+  });
+
+  describe("saving line", () => {
+    const saving = (acked: number) => ({
+      acked,
+      total: 5,
+      fileAck: false,
+      landed: false,
+      landFailed: false,
+      reclaimFailed: false,
+      uploading: true,
+      pending: false,
+      recoverable: false,
+      segments: [],
+      error: null,
+    });
+    const spoken = (container: HTMLElement) =>
+      [...container.querySelectorAll('[aria-live="polite"]')]
+        .map((el) => el.textContent)
+        .join("");
+
+    it("says saving started once and never speaks the chunk count", async () => {
+      const { container, rerender } = render(
+        <UploadStatus stopped={false} progress={saving(1)} />,
+      );
+      expect(screen.getByText(uploadProgressCopy(1, 5))).toBeInTheDocument();
+      expectOutsideLiveRegions(container, /\d of 5 chunks/);
+      expect(spoken(container)).toBe(UPLOAD_COPY);
+
+      rerender(<UploadStatus stopped={false} progress={saving(4)} />);
+      expect(screen.getByText(uploadProgressCopy(4, 5))).toBeInTheDocument();
+      expectOutsideLiveRegions(container, /\d of 5 chunks/);
+      expect(spoken(container)).toBe(UPLOAD_COPY);
+      await expectNoA11yViolations(container);
+    });
+
+    it("leaves the start to the host roster when the panel lists segments itself", () => {
+      const { container } = render(
+        <UploadStatus
+          stopped={false}
+          segmentList={false}
+          progress={saving(2)}
+        />,
+      );
+      expect(screen.getByText(uploadProgressCopy(2, 5))).toBeInTheDocument();
+      expectOutsideLiveRegions(container, /\d of 5 chunks/);
+      expect(spoken(container)).toBe("");
+    });
   });
 
   describe("per-segment status", () => {
@@ -590,7 +638,7 @@ describe("UploadStatus", () => {
       landFailed: false,
     });
     const region = (container: HTMLElement) =>
-      container.querySelector('[aria-live="polite"]');
+      container.querySelectorAll('[aria-live="polite"]').item(1);
 
     it("lists each segment as it starts and announces only state changes", async () => {
       const { container, rerender } = render(

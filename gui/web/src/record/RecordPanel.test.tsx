@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadHostRecordState } from "../api";
 import { useDawStore } from "../state/dawStore";
-import { expectNoA11yViolations } from "../test/a11y";
+import { expectNoA11yViolations, expectOutsideLiveRegions } from "../test/a11y";
 import {
   minimalProject,
   recordParticipant,
@@ -884,6 +884,54 @@ describe("RecordPanel", () => {
     expect(land).toBeEnabled();
     await userEvent.click(land);
     expect(exec).toHaveBeenCalledWith("record.land", {}, { skipWhen: true });
+  });
+
+  it("keeps every roster chunk count outside a live region", async () => {
+    uploadStatus.mockResolvedValue({
+      segments: [
+        {
+          take_index: 0,
+          participant_id: "p_g",
+          segment_index: 0,
+          acked_parts: [0, 1],
+          expected_parts: 4,
+          file_ack: false,
+        },
+        {
+          take_index: 0,
+          participant_id: "p_host",
+          segment_index: 0,
+          acked_parts: [0],
+          expected_parts: 4,
+          file_ack: false,
+        },
+      ],
+    });
+    useRecordHostStore.getState().setSnapshot({
+      ...lobby,
+      state: "stopped",
+      take_index: 0,
+      start_blockers: [],
+      participants: [
+        recordParticipant({
+          participant_id: "p_host",
+          role: "host",
+          display_name: "Host",
+        }),
+        avaGuest(),
+      ],
+    });
+    const { baseElement } = render(<RecordPanel />);
+    expect(
+      await screen.findByText("Ava: Saving to project… 2 of 4 chunks"),
+    ).toBeInTheDocument();
+    expectOutsideLiveRegions(baseElement, /\d of 4 chunks/);
+    const spoken = [...baseElement.querySelectorAll('[aria-live="polite"]')]
+      .map((el) => el.textContent)
+      .join("|");
+    expect(spoken).toContain("Ava: Saving to project…");
+    expect(spoken).not.toMatch(/chunk/);
+    await expectNoA11yViolations(baseElement);
   });
 
   it("leaves a producer out of the upload roster and Close gating after Stop", async () => {

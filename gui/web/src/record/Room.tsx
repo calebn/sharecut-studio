@@ -154,16 +154,16 @@ export function Room({
         {me && me.role !== "producer" ? (
           <TakeClippingReport report={clipping} roomState={snapshot.state} />
         ) : null}
-        {upload ? (
-          <UploadStatus
-            progress={upload}
-            stopped={snapshot.state === "stopped"}
-            alive={connected}
-            onResume={onResumeUpload}
-            actions={keeperActions}
-          />
-        ) : null}
       </div>
+      {upload ? (
+        <UploadStatus
+          progress={upload}
+          stopped={snapshot.state === "stopped"}
+          alive={connected}
+          onResume={onResumeUpload}
+          actions={keeperActions}
+        />
+      ) : null}
       {me && me.role !== "producer" ? (
         <MicMeter stream={stream} label="Your mic level" />
       ) : null}
