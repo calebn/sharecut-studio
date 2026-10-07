@@ -33,6 +33,7 @@ import { BottomTabsSplitter } from "./BottomTabsSplitter";
 import { EditingToolRail } from "./EditingToolRail";
 import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
+import { HomeScreenHint } from "./HomeScreenHint";
 import { MobileShell } from "./MobileShell";
 import { StatusBar } from "./StatusBar";
 import { StudioShellView, type StudioWorkspace } from "./StudioShellView";
@@ -233,6 +234,7 @@ function StudioShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
                 ) : null}
               </Slot>
               <GuestAttentionBanner />
+              <HomeScreenHint />
             </>
           ),
           follow: <FollowBanner />,

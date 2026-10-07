@@ -44,25 +44,26 @@ Chrome type/space is rem via theme tokens. Pane density (status chips, pipeline,
 ## Browser chrome, safe areas and Home Screen (#1077)
 
 On iPhone the owner found landscape close to unusable: Safari's bars and the
-bottom drawer left less than one whole 104px track. iOS gives a page no API to
-hide Safari's bars. Safari minimizes them only while the document itself
-scrolls ([WebKit bug 231878](https://bugs.webkit.org/show_bug.cgi?id=231878),
-[bug 266835](https://bugs.webkit.org/show_bug.cgi?id=266835)), and since iOS 26
-any site added to the Home Screen opens as a web app with no browser chrome
-([WebKit, Safari 26](https://webkit.org/blog/16993/news-from-wwdc25-web-technology-coming-this-fall-in-safari-26-beta/)).
+bottom drawer left less than one whole 104px track. iPhone Safari gives a page
+no way to hide its bars: `minimal-ui` has been ignored since iOS 8, and the
+Fullscreen API covers video only on iPhone. Safari minimizes the bars only
+while the document itself scrolls
+([WebKit bug 231878](https://bugs.webkit.org/show_bug.cgi?id=231878),
+[bug 266835](https://bugs.webkit.org/show_bug.cgi?id=266835)), which the fixed
+app shell never does. An earlier round scrolled a hidden runway under the
+shell to trigger that collapse; the owner's iPhone test found the bars stayed
+in both orientations, so it is gone. Since iOS 26 any site added to the Home
+Screen opens as a web app with no browser chrome
+([WebKit, Safari 26](https://webkit.org/blog/16993/news-from-wwdc25-web-technology-coming-this-fall-in-safari-26-beta/)),
+and the owner confirmed it on the phone: **the Home Screen app is the phone's
+full-screen path.**
 
-- **Runway.** On a touch screen the phone and tablet shells are
-  `position: fixed; inset: 0`. In a browser tab (`display-mode: browser`) the
-  page under them is `100lvh + 25svh` tall with a hidden scrollbar. A swipe on
-  non-scrolling chrome (transport, tool rail, status row, mode nav) scrolls
-  the page, Safari collapses its bars, and the fixed shell grows into the room.
-  The shell and every fixed sheet stay put, so the round-4 rule still holds:
-  nothing slides under the strip, and `overscroll-behavior: none` keeps the
-  page from rubber-banding. The timeline scroller keeps
-  `overscroll-behavior: contain`, so a one-finger scroll on the lanes still
-  scrolls only the lanes. Units: the shell follows the dynamic viewport through
-  `inset: 0`; the runway uses `lvh` and `svh`, which do not change while the
-  bars move.
+- **Fixed shell.** On a touch screen the phone and tablet shells are
+  `position: fixed; inset: 0` and follow the dynamic viewport. The page under
+  them never scrolls, and `overscroll-behavior: none` keeps it from
+  rubber-banding, so nothing slides under the strip (the round-4 rule). The
+  timeline scroller keeps `overscroll-behavior: contain`, so a one-finger
+  scroll on the lanes scrolls only the lanes.
 - **Safe areas.** `index.html` sets `viewport-fit=cover`. The shell pads all
   four sides with `env(safe-area-inset-*)`, so rows clear the notch or Dynamic
   Island side held sideways and the home indicator; the inset bands take
@@ -74,12 +75,17 @@ any site added to the Home Screen opens as a web app with no browser chrome
   at 180px, 192px and 512px PNGs; the mark sits inside the maskable circle).
   The manifest omits `start_url`, so a review link added to the Home Screen
   opens that link. The files live under `/assets/`, which the relay already
-  maps to `/r/{token}/assets/`. A standalone app gets no runway.
+  maps to `/r/{token}/assets/`.
 - **Add to Home Screen hint.** In an iPhone or iPad Safari tab
   (`navigator.standalone === false`, touch points, `display-mode: browser`;
-  `utils/homeScreenHint.ts`, so desktop Safari stays quiet), More shows
-  one quiet line under Gestures: "In Safari's Share menu, choose Add to Home
-  Screen to open Sharecut full screen." There is no banner, toast or dismiss.
+  `utils/homeScreenHint.ts`, so desktop Safari and the Home Screen app stay
+  quiet), both touch shells show a banner in their banner row (`layout/HomeScreenHint.tsx`):
+  "In Safari's Share menu, choose Add to Home Screen to open Sharecut full
+  screen." with **Dismiss**. Dismissing it is remembered in this browser
+  (`localStorage` `sharecut.homeScreenHintDismissed`, read and written through
+  `utils/storage.ts`, so blocked storage only means the banner comes back).
+  More keeps the same sentence as a quiet line under Gestures, so the tip
+  stays findable after the banner is gone.
 
 Short touch screens (at most 40rem tall with a coarse primary pointer, a phone
 held sideways) compact the editor:
@@ -112,7 +118,7 @@ clip's name and span:
 |---|---|---|
 | 838×390 sideways, Safari bars | 104, 211, 2 | 72, 228, 3 |
 | 838×390 with the strip open | 104, 151, 1 | 72, 187, 2 |
-| 932×432 sideways, bars hidden | 104, 253, 2 | 72, 270, 3 |
+| 932×432 sideways, Home Screen app | 104, 253, 2 | 72, 270, 3 |
 | 932×432 with the strip open | 104, 193, 1 | 72, 229, 3 |
 | 440×763 portrait, Safari bars | 104, 550, 5 | 104, 544, 5 |
 
@@ -122,10 +128,10 @@ non-wrapping unit and **+ Track** and **Import** give way on a rail at most
 30rem wide, so the rail stays one 67px row at 440, 390 and 360px.
 
 `e2e-compat/phone-chrome.spec.ts` checks three 72px lanes at 932×432, Undo and
-Redo on both shells, and the runway with a still shell, in Chromium and WebKit.
-Playwright cannot show Safari's bars collapsing; a real iPhone check remains
-for the collapse itself, the Dynamic Island side in landscape, and the Home
-Screen launch.
+Redo on both shells, a page that never scrolls under the shell, and the Add to
+Home Screen banner (shown in an emulated iPhone Safari tab, gone after Dismiss
+and a reload), in Chromium and WebKit. A real iPhone check remains for the
+Dynamic Island side in landscape.
 
 Phone four-mode chrome is **≤767 CSS px**. DevTools device-mode / CDP viewport override can leave the CSS viewport at tablet width while the OS window is narrower — hard refresh does not clear that; clear the override (or set 390×844) before judging Listen / Text.
 
@@ -471,7 +477,7 @@ Host offline command attention occupies its own shell row on phone, tablet, and 
 
 - Vitest: `useViewportClass`, `BottomSheet`, mobile shell smoke, follow live region + Listen unfollow, layout CSS classes, shell grid areas (`layout/shellGrid.test.ts`), layout controls; Playwright `e2e/layout-modes.spec.ts` (layout × attention × following geometry at 1512×805)
 - Playwright: phone viewport (`390×844`) asserts `.daw-shell--phone` + mode nav; `e2e/overlay-viewport.spec.ts` Menu + Share dialog reachability at `1280×715` and `390×844`; `e2e/presence-follow.spec.ts` two-client follow at 390 / 820 / 1440; `e2e-compat/timeline-scroll-end.spec.ts` checks the desktop horizontal end with short lanes and classic scrollbars on Chromium and WebKit
-- Playwright compat: `e2e-compat/phone-chrome.spec.ts` (#1077) checks three 72px lanes sideways at 932×432, rail Undo and Redo, and the page runway under a still shell, in Chromium and WebKit with touch emulation
+- Playwright compat: `e2e-compat/phone-chrome.spec.ts` (#1077) checks three 72px lanes sideways at 932×432, rail Undo and Redo, a page that never scrolls under the shell, and the once-per-browser Add to Home Screen banner, in Chromium and WebKit with touch emulation
 - Manual / guest parity: [`gui/web/e2e/PARITY.md`](../gui/web/e2e/PARITY.md)
 
 See [`gui/web/README.md`](../gui/web/README.md) and [gui-integration.md](gui-integration.md) § Responsive shells.

@@ -46,6 +46,7 @@ import { AvatarStack } from "./AvatarStack";
 import { EditingToolRail } from "./EditingToolRail";
 import { FollowBanner } from "./FollowBanner";
 import { GuestAttentionBanner } from "./GuestAttentionBanner";
+import { HomeScreenHint } from "./HomeScreenHint";
 import { ListenHero } from "./ListenHero";
 import { ListenScrubber } from "./ListenPlayhead";
 import { LISTEN_SKIP_SEC, seekListen, skipListen } from "./listenSeek";
@@ -582,6 +583,7 @@ function MobileShellAdapter({ guestShare = false }: { guestShare?: boolean }) {
                 ) : null}
               </Slot>
               <GuestAttentionBanner />
+              <HomeScreenHint />
             </>
           ),
           follow: <FollowBanner />,

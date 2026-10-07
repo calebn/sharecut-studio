@@ -344,7 +344,7 @@ describe("MobileShell", () => {
     ).toBeTruthy();
   });
 
-  it("explains Add to Home Screen in More only in an iOS Safari tab", async () => {
+  it("explains Add to Home Screen in a banner and in More only in an iOS Safari tab", async () => {
     const user = userEvent.setup();
     const hint = /choose Add to Home Screen to open Sharecut full screen/;
     const setNavigator = (values: Record<string, unknown>) => {
@@ -372,7 +372,10 @@ describe("MobileShell", () => {
         </DawProvider>,
       );
       await user.click(screen.getByRole("button", { name: "More" }));
-      expect(screen.getByText(hint)).toBeTruthy();
+      expect(screen.getAllByText(hint).map((el) => el.className)).toEqual([
+        "home-screen-hint-text",
+        "mobile-more-hint",
+      ]);
       await expectNoA11yViolations(container);
       unmount();
       setNavigator({ standalone: true });
@@ -385,7 +388,7 @@ describe("MobileShell", () => {
         </DawProvider>,
       );
       expect(screen.getByRole("button", { name: "Gestures" })).toBeTruthy();
-      expect(screen.queryByText(hint)).toBeNull();
+      expect(screen.queryAllByText(hint)).toEqual([]);
     } finally {
       vi.unstubAllGlobals();
       for (const key of ["standalone", "maxTouchPoints"])

@@ -6,9 +6,9 @@ import { withShareableProject } from "../e2e/shareableProject";
 /*
  * #1077 phone chrome on Chromium and WebKit with touch emulation: a phone
  * held sideways (932x432, the timeline maximized) keeps three compact lanes in
- * view, the tool rail carries Undo and Redo on both shells, and the editor
- * page scrolls a runway under the fixed shell so Safari can collapse its bars
- * without moving the shell.
+ * view, the tool rail carries Undo and Redo on both shells, the editor page
+ * never scrolls under the fixed shell, and a Safari tab offers Add to Home
+ * Screen (the phone's full-screen path) once per browser.
  */
 
 test.use({ hasTouch: true, isMobile: true });
@@ -136,10 +136,19 @@ test("a phone in portrait keeps Undo and Redo on the tool row and five lanes", a
   });
 });
 
-test("the phone timeline shows Undo and Redo and lets Safari hide its bars", async ({
+test("the phone timeline shows Undo and Redo; a Safari tab offers the Home Screen once", async ({
   page,
 }) => {
   await page.setViewportSize(PORTRAIT);
+  // An iPhone Safari tab: iOS reports `standalone` false until launched from
+  // the Home Screen, and touch points (desktop WebKit reports none).
+  await page.addInitScript(() => {
+    for (const [key, value] of Object.entries({
+      standalone: false,
+      maxTouchPoints: 5,
+    }))
+      Object.defineProperty(navigator, key, { value, configurable: true });
+  });
   await withShareableProject(async (projectPath) => {
     await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
     await expect(page.locator(".daw-shell--phone")).toBeVisible();
@@ -151,17 +160,30 @@ test("the phone timeline shows Undo and Redo and lets Safari hide its bars", asy
     const scroll = await page.evaluate(() => {
       const shell = document.querySelector(".daw-shell")!;
       window.scrollTo(0, 100_000);
-      const result = {
+      return {
         scrollY: Math.round(window.scrollY),
         shellTop: Math.round(shell.getBoundingClientRect().top),
         shellBottom: Math.round(shell.getBoundingClientRect().bottom),
       };
-      window.scrollTo(0, 0);
-      return result;
     });
-    // A runway of a quarter screen scrolls; the fixed shell does not move.
-    expect(scroll.scrollY).toBeGreaterThan(100);
-    expect(scroll.shellTop).toBe(0);
-    expect(scroll.shellBottom).toBe(PORTRAIT.height);
+    expect(scroll).toEqual({
+      scrollY: 0,
+      shellTop: 0,
+      shellBottom: PORTRAIT.height,
+    });
+
+    const hint = page.getByRole("complementary", { name: "Full screen" });
+    await expect(
+      hint.getByText(
+        "In Safari's Share menu, choose Add to Home Screen to open Sharecut full screen.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await hint.getByRole("button", { name: "Dismiss" }).click();
+    await expect(hint).toBeHidden();
+    await page.reload();
+    await expect(page.locator(".daw-shell--phone")).toBeVisible();
+    await expect(page.getByRole("button", { name: "More" })).toBeVisible();
+    await expect(hint).toBeHidden();
   });
 });
