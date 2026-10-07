@@ -429,7 +429,7 @@ def split_clip(
             new_clips.append(clip)
     if not split:
         raise CodedValueError(
-            f"no clip at timeline {at_time} on track {track_id}", code="clip_not_found"
+            f"no clip at timeline {at_time} on track {track_id}", code="no_clip_at_time"
         )
     fades = recommend_micro_fades()
     if len(new_clips) >= 2:
@@ -470,7 +470,7 @@ def split_clips_at(
             skipped.append(tid)
     if not affected:
         raise CodedValueError(
-            f"no clip at timeline {at_time} on tracks {tracks}", code="clip_not_found"
+            f"no clip at timeline {at_time} on tracks {tracks}", code="no_clip_at_time"
         )
     split_source_by_track: dict[str, float] = {}
     for tid in affected:

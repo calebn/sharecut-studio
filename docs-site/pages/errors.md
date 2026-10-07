@@ -20,6 +20,23 @@ Comment / reply body max: **8000** characters.
 | Guest offline / apply conflict | **409** | May include `conflict: true` in JSON detail |
 | Render / job busy | **409** | Retry after host finishes |
 
+## Guest MCP tool failures
+
+A failed `tools/call` is a tool result, not a JSON-RPC error. JSON-RPC `error` is for the
+protocol only.
+
+| Case | Shape |
+|------|-------|
+| Refusal (the call was understood and declined: unknown id, stale target, busy project, bad value) | `result.isError: true`, the refusal's message as text, and `structuredContent {ok: false, error, error_code}`. Codes are stable, for example `comment_not_found`, `edit_not_found`, `clip_not_found`, `no_clip_at_time`, `invalid_range`, `job_running`, `project_busy`. Host file paths in the message read `[path]` |
+| Crash (anything unexpected) | `result.isError: true` with only `Error executing tool <name>`; no `structuredContent`. The host logs the detail |
+| Unknown tool, or arguments that do not fit the tool | JSON-RPC **`-32602`** (`error.data.error_code: "invalid_arguments"` for arguments) |
+| Share capability denied | JSON-RPC **`-32003`** |
+| Share revoked, expired or its project gone | JSON-RPC **`-32004`** `share not found` |
+| Failure outside any tool | JSON-RPC **`-32603`** `internal error` |
+
+With a `progressToken`, a failed task's `notifications/progress` message reads `<name> failed`
+for a crash and adds the refusal's message only for a refusal.
+
 ## AuthZ / missing caps
 
 | Case | HTTP / MCP |
