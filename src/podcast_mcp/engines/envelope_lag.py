@@ -200,5 +200,5 @@ def copy_lag(own: np.ndarray, peer: np.ndarray, frames: np.ndarray) -> int | Non
     if found is None or not found.supported:
         return None
     full = FULL_COPY_SEC / COPY_HOP_SEC
-    needed = math.tanh(math.atanh(MIN_CORRELATION) * math.sqrt(full / max(frames.size, full)))
+    needed = math.tanh(math.atanh(MIN_CORRELATION) * math.sqrt(full / min(frames.size, full)))
     return found.lag if found.correlation >= needed else None

@@ -1,11 +1,15 @@
-"""Envelope lag estimator: a boundary peak abstains (#1068); scoring matches the per-lag loop (#1092)."""
+"""Envelope lag estimator: a boundary peak abstains (#1068); scoring matches the per-lag loop (#1092).
+
+A copy path under 30 s of the peer's speech needs a stronger level match (#1070).
+"""
 
 from __future__ import annotations
 
 import numpy as np
 import pytest
 
-from podcast_mcp.engines.envelope_lag import NULL_SHIFTS_SEC, EnvelopeLag, envelope_lag
+from podcast_mcp.engines import envelope_lag as envelope_lag_module
+from podcast_mcp.engines.envelope_lag import NULL_SHIFTS_SEC, EnvelopeLag, copy_lag, envelope_lag
 
 HOP_SEC = 0.005
 REACH = 100
@@ -211,3 +215,53 @@ def test_too_few_frames_in_range_abstain() -> None:
 
     assert envelope_lag(own, peer, frames, reach=30, hop_sec=HOP_SEC, min_frames=151) is None
     assert envelope_lag(own, peer, frames[:0], reach=30, hop_sec=HOP_SEC, min_frames=1) is None
+
+
+def _copy_lag_with_match(
+    monkeypatch: pytest.MonkeyPatch, frame_count: int, correlation: float
+) -> int | None:
+    """``copy_lag`` over ``frame_count`` frames when the level match is ``correlation``.
+
+    The estimate itself is pinned above, so it is replaced by a supported 120 ms lag
+    with that correlation and a null well under it: only the evidence floor decides.
+    """
+    found = EnvelopeLag(lag=14, correlation=correlation, null_correlation=0.0)
+    monkeypatch.setattr(envelope_lag_module, "envelope_lag", lambda *_args, **_kwargs: found)
+    levels = np.zeros(frame_count + 100)
+    return copy_lag(levels, levels, np.arange(frame_count))
+
+
+@pytest.mark.parametrize(
+    ("frame_count", "correlation"),
+    [
+        pytest.param(2000, 0.40, id="20s-at-the-30s-floor"),
+        pytest.param(2000, 0.47, id="20s-just-under-0.48"),
+        pytest.param(2250, 0.45, id="22.5s"),
+        pytest.param(2500, 0.43, id="25s"),
+    ],
+)
+def test_a_short_stretch_with_a_weaker_match_than_its_floor_abstains(
+    monkeypatch: pytest.MonkeyPatch, frame_count: int, correlation: float
+) -> None:
+    """Under 30 s the match must carry 30 s worth of evidence at 0.4: 0.48 over 20 s."""
+    assert _copy_lag_with_match(monkeypatch, frame_count, correlation) is None
+
+
+@pytest.mark.parametrize(
+    ("frame_count", "correlation", "trusted"),
+    [
+        pytest.param(2000, 0.4768, False, id="20s-just-under"),
+        pytest.param(2000, 0.4769, True, id="20s-at-the-floor"),
+        pytest.param(2500, 0.4333, False, id="25s-just-under"),
+        pytest.param(2500, 0.4335, True, id="25s-at-the-floor"),
+        pytest.param(3000, 0.40, True, id="30s-at-0.4"),
+        pytest.param(6000, 0.40, True, id="60s-at-0.4"),
+        pytest.param(6000, 0.39, False, id="60s-under-0.4"),
+    ],
+)
+def test_the_evidence_floor_at_its_boundaries(
+    monkeypatch: pytest.MonkeyPatch, frame_count: int, correlation: float, trusted: bool
+) -> None:
+    got = _copy_lag_with_match(monkeypatch, frame_count, correlation)
+
+    assert got == (14 if trusted else None)

@@ -237,36 +237,56 @@ The gate measures each lane against every other dialogue track's audio at 8 kHz
   speaker's own Zoom track can trail their voice on an in-room mic. On the lab tape
   Audra's track trails her copy on Caleb's mic by 140 ms.
 - **The copy's timbre confirms the lag** (#1070). Level alone cannot tell a copy
-  from own sound that starts and stops with the peer's: people laughing or chanting
-  together, or a voice whose syllables fall on the peer's. Such sound follows the
-  peer's syllable contour at the lag as a copy would. A copy is the peer's voice, so
-  it also matches the peer's fine spectrum (the timbre measure below) at the lag, and
-  not the peer's other syllables. Own sound matches both alike: another voice
-  neither, a steady hum both. On the frames that carry the copy if there is one
-  (the peer at the lag in its louder half, the lane at the copy's level), the copy's
-  likeness, the 40th percentile of that match, must beat by 0.15, the margin the
-  level match must clear, the likeness of the same frames against the peer's speech
-  1 and 2 s away, read only where the peer talks as loud there. A shifted peer that
-  is silent counts as 0. Reconcile's copy path makes the same check
+  from own sound that starts and stops with the peer's: people laughing together,
+  or a voice whose syllables fall on the peer's. Such sound follows the peer's
+  syllable contour at the lag as a copy would. A copy is the peer's voice, so it
+  also matches the peer's fine spectrum (the timbre measure below) at the lag, and
+  not the peer's other syllables. Own sound at its own pitch matches both alike:
+  another voice neither, a steady hum both. On the frames that carry the copy if
+  there is one (the peer at the lag in its louder half, the lane at the copy's
+  level), the copy's likeness, the 40th percentile of that match, must beat by
+  0.15, the margin the level match must clear, the likeness of the same frames
+  against the peer's speech 1 and 2 s away, read only where the peer talks as loud
+  there. A null under 0 counts as 0. A peer that speaks in short bursts far apart
+  can be silent at all four of those; its speech 3 to 10 s away, pooled over those
+  shifts, is then the comparison, and with no peer speech there either the lag is
+  not confirmed. Reconcile's copy path makes the same check
   (`copy_timbre.confirmed_likeness`). No confirmed path means
   `uncertain_foreign_ownership`.
+  - **Limits** (#1190). Fine spectrum is mostly pitch. Own sound whose pitch
+    follows the peer's (singing the peer's melody in unison or an octave apart,
+    chanting a line together, speaking along at the peer's pitch) matches the peer
+    at the lag and nowhere else, as a copy does, and still reads as a copy: from
+    20 s of the peer's speech here, and from 30 s on main, whose level match alone
+    passes it. The reverse costs true copies on the safe side: a copy of a peer
+    whose other syllables share its spectrum matches those as well. In synthetic
+    trials a near-monotone peer's copy (±0.15 semitone) passes 30 of 100 at 30 s and
+    34 at 60 s, where main passes all; a sung melody's copy 91 and 98, a repeated
+    phrase's almost never. That bleed is kept.
   - **Evidence** (synthetic trials through the gate's copy check, 100 per kind at
     each of 20, 25, 30 and 60 s of the peer's speech; the #1053 and #1070 harnesses
-    plus adversarial cases built from lab voices). Own sound that switches on and
-    off with the peer's passed the level match alone in 604 of 4,800 trials from
-    20 s: voices gated together word by word (22 and 28 of 400), the same cadence
-    with 2%, 5% and 10% tempo jitter (167, 21 and 1), and laughing together (8, and 357 of
-    400 at the same pulse rate and phase). Main's 30 s rule passed 213 of them at
-    30 and 60 s. With the timbre check none pass at any length, and independent
-    voices, real co-timed phrases, turn-taking, the same speaker at two times, and
-    music on the peer only stay at 0. End to end, where such sound is untranscribed,
-    the level match alone turned down 14 to 69 s of own sound per 6 excerpts; the
-    check turns down none. True copies: Audra's lab copy against her own track
-    passes in the same trials as before (32, 51, 54 and 68 of 100), and 988 of 993
-    synthetic copies that passed still do (5 room-coloured copies lost at 25 and
-    30 s, 4 of them under the lane's own talk). One shared signal is left: the same
-    music bed on both lanes is a real copy of the bed, and passes in 9 to 10 of 100
-    from 25 s (45 to 46 before, main 40 at 60 s).
+    plus an independent source-filter voice synth and adversarial cases built from
+    lab voices). Own sound at its own pitch that switches on and off with the
+    peer's passed the level match alone in 604 of 4,800 trials from 20 s: voices
+    gated together word by word (22 and 28 of 400), the same cadence with 2%, 5% and
+    10% tempo jitter (167, 21 and 1), and laughing together (8, and 357 of 400 at
+    the same pulse rate and phase). Main's 30 s rule passed 213 of them at 30 and
+    60 s. With the timbre check none pass at any length, nor do 17 more such kinds
+    (6,762 trials) from the independent synth, and independent voices, real
+    co-timed phrases, turn-taking, the same speaker at two times, and music on the
+    peer only stay at 0. End to end, where such sound is untranscribed, the level
+    match alone turned down 14 to 69 s of own sound per 6 excerpts; the check turns
+    down none. Pitch-following own sound is the exception above: unison singing
+    passes 96, 99, 99 and 100 of 100, pitch-following speech (±0.3 semitone) 96 to
+    100, and the same with a sparse peer 92 to 100 (main: 0 under 30 s, 91 to 100
+    from 30 s). True copies: Audra's lab copy against her own track passes 17, 49,
+    54 and 68 of 100, and synthetic room copies 93, 295, 299 and 300 of 300; under
+    30 s that is fewer than when the 20 to 30 s floor was mistakenly 0.40 (32 and
+    51 lab, 93 and 300 synthetic). Copies of a sparse peer pass 99 to 100 of 100,
+    nearly all against its speech 3 to 10 s away; abstaining whenever the near nulls are
+    silent would have lost every one (main passes 94 and 100 from 30 s). One shared
+    signal is left: the same music bed on both lanes is a real copy of the bed, and
+    passes in 9 to 10 of 100 from 25 s (45 to 46 before, main 40 at 60 s; #1187).
   - **Lab coverage** (rev 3b414c4c, realigned, random excerpts cut from the
     project, 100 of each length): the gate acts on Caleb's lane in 49% of 2-minute
     windows (main 32%) and 94% of 5-minute windows (main 87%). Audra's copy left at
@@ -275,7 +295,11 @@ The gate measures each lane against every other dialogue track's audio at 8 kHz
     unsuppressed Caleb word is touched, Audra's and Lana's lanes stay untouched, and
     the whole-episode plans match main exactly. The timbre check changes none of
     these plans: all 480 lane-windows of 160 two-minute excerpts match the level
-    rule alone, and no sound of Caleb's with both peers closed is touched.
+    rule alone, and no sound of Caleb's with both peers closed is touched. The
+    corrected 20 to 30 s floor leaves every one of these plans, 600 lane-windows of
+    200 excerpts and both listening excerpts unchanged: no lab path in that band
+    matches between 0.40 and its floor. No lab copy trial is silent at every near
+    null, so the farther comparison never applies there.
   - **Not done.** Reusing the lag `align_tracks` measured, or measuring over the
     whole recording before the excerpt was cut, would cover excerpts cut inside a
     project but not short recordings or exported excerpts. The gate needs the lag
