@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-
 from mcp.server import MCPServer
 
 from podcast_mcp.mcp.serialize import to_json
@@ -31,18 +29,16 @@ def list_social_clips_tool(
     return to_json([c.model_dump() for c in clips])
 
 
-def approve_social_clips_tool(project_path: str, ids_json: str) -> str:
-    """Approve social clips by id from a JSON id array."""
+def approve_social_clips_tool(project_path: str, ids: list[str]) -> str:
+    """Approve social clips by id."""
     ws = ProjectWorkspace.open(project_path)
-    ids = json.loads(ids_json)
     ClipService(ws).approve(ids)
     return f"Approved {len(ids)} clip(s)"
 
 
-def reject_social_clips_tool(project_path: str, ids_json: str) -> str:
-    """Reject social clips by id from a JSON id array."""
+def reject_social_clips_tool(project_path: str, ids: list[str]) -> str:
+    """Reject social clips by id."""
     ws = ProjectWorkspace.open(project_path)
-    ids = json.loads(ids_json)
     ClipService(ws).reject(ids)
     return f"Rejected {len(ids)} clip(s)"
 
@@ -53,10 +49,9 @@ def social_clip_report_tool(project_path: str) -> str:
     return ClipService(ws).report()
 
 
-def export_social_clips_tool(project_path: str, ids_json: str | None = None) -> str:
+def export_social_clips_tool(project_path: str, ids: list[str] | None = None) -> str:
     """Export specified clips, or all approved and non-review-required drafts when IDs are omitted."""
     ws = ProjectWorkspace.open(project_path)
-    ids = json.loads(ids_json) if ids_json else None
     exported = ClipService(ws).export(ids)
     return to_json(exported)
 

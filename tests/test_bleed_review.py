@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import wave
 from pathlib import Path
 
@@ -152,7 +151,7 @@ async def test_registered_proposal_pending_repeat_host_approve_and_undo(tmp_path
     assert not pending.project.clips[0].mute_regions
     np.testing.assert_array_equal(render(pending, tmp_path / "pending.wav"), before)
     with pytest.raises(PermissionError, match="host"):
-        approve_edits_tool(str(ws.path), json.dumps(["review-945"]))
+        approve_edits_tool(str(ws.path), ["review-945"])
     response = host_approve(ws.path, "review-945")
     assert response.status_code == 200, response.text
     applied = ProjectWorkspace.open(ws.path)

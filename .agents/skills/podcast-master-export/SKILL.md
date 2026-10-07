@@ -156,7 +156,7 @@ Re-encode without full pipeline:
 podcast pipeline export-audio --project episode.project.json
 ```
 
-MCP: `export_audio_tool(project_path, formats_json?)` — optional JSON array overrides `formats` for that run. Returns `{"paths": [...], "master": {...}}`; `master` is `master_qc.json` (check `target_integrated_lufs`, `target_true_peak_db` and `within_tolerance`).
+MCP: `export_audio_tool(project_path, formats?)` — an optional list of format objects overrides the yaml `formats` for that run. Returns `{"paths": [...], "master": {...}}`; `master` is `master_qc.json` (check `target_integrated_lufs`, `target_true_peak_db` and `within_tolerance`).
 
 ## Configurable caption cue limits
 

@@ -115,7 +115,7 @@ def test_approve_edits_tool_apply_all_safe_applies_only_eligible(tmp_path, sampl
 def test_apply_all_safe_narrows_to_listed_ids(tmp_path, sample_wav) -> None:
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed(path, sample_wav)
-    out = json.loads(mcp_server.approve_edits_tool(path, '["risky", "nl"]', apply_all_safe=True))
+    out = json.loads(mcp_server.approve_edits_tool(path, ["risky", "nl"], apply_all_safe=True))
     assert out["ids"] == []
     assert out["skipped_harsh"] == ["risky"]
     assert _pending(path) == ["join", "nl", "review", "risky", "safe"]

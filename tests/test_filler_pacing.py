@@ -766,18 +766,8 @@ def test_clips_cli_approve_and_export_paths(tmp_path, monkeypatch):
     assert r.exit_code == 1
 
 
-def test_session_parse_selection_and_tool(monkeypatch, tmp_path):
+def test_session_selection_tool(monkeypatch, tmp_path):
     from podcast_mcp.mcp.tools import session as sess
-
-    assert sess._parse_selection(None) is None
-    assert sess._parse_selection("") is None
-    assert sess._parse_selection("null") is None
-    assert sess._parse_selection('{"kind":"clip"}') == {"kind": "clip"}
-    try:
-        sess._parse_selection("[1]")
-        raise AssertionError("expected ValueError")
-    except ValueError:
-        pass
 
     class FakeCtrl:
         def __init__(self, ws):
@@ -790,7 +780,7 @@ def test_session_parse_selection_and_tool(monkeypatch, tmp_path):
         sess, "ProjectWorkspace", type("W", (), {"open": staticmethod(lambda p: object())})
     )
     monkeypatch.setattr(sess, "SessionControlService", FakeCtrl)
-    out = sess.set_session_selection_tool(str(tmp_path), '{"kind":"region"}')
+    out = sess.set_session_selection_tool(str(tmp_path), {"kind": "region"})
     assert "region" in out
 
 

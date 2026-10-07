@@ -270,7 +270,7 @@ Shipped:
 - Frontend ids (`tool.blade`, `edit.bladeCut`) are **not** SyncCommand/DocumentCommand types. Blade cut resolves local playhead/tracks then submits `SplitAtTime`. Host MCP `split_clip_tool` also submits `SplitAtTime` via `submit_host_document_command` in `services/document_sync/host_submit.py` (shared document journal; host CLI commands use the same helper).
 - Phone/tablet **editing tool rail** + blade confirm sheet (`EditingToolRail`)
 - Clip inspector Delete / Ripple delete under the same policy
-- MCP `split_clip_tool` accepts optional `track_ids_json`
+- MCP `split_clip_tool` accepts optional `track_ids`
 
 **Residual holes:** remaps are localStorage-only (cheatsheet UI) — leave the stub until preferences-backed remaps are available; other host MCP mutators may still use `EditService` + ExternalMutate.
 

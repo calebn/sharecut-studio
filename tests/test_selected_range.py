@@ -501,7 +501,7 @@ def test_supported_agent_cannot_approve_exact_proposal(minimal_project):
     with pytest.raises(PermissionError):
         submit_host_document_command(str(minimal_project), "ApproveEdits", {"ids": [proposal.id]})
     with pytest.raises(PermissionError):
-        approve_edits_tool(str(minimal_project), '["' + proposal.id + '"]')
+        approve_edits_tool(str(minimal_project), [proposal.id])
     assert len(load_project(minimal_project).edit_decisions) == 1
 
 
@@ -532,8 +532,6 @@ def test_saved_receipt_replay_has_no_result_or_second_history(minimal_project):
 
 
 def test_direct_mcp_cannot_reject_exact_proposal_but_human_cli_can(minimal_project):
-    import json
-
     from typer.testing import CliRunner
 
     from podcast_mcp.cli.main import app
@@ -545,7 +543,7 @@ def test_direct_mcp_cannot_reject_exact_proposal_but_human_cli_can(minimal_proje
     save_project(ws.project)
     before = deepcopy(ws.project.clips)
     with pytest.raises(PermissionError, match="interactive host"):
-        server.reject_edits_tool(str(minimal_project), json.dumps(["range_action"]))
+        server.reject_edits_tool(str(minimal_project), ["range_action"])
     assert len(load_project(minimal_project).edit_decisions) == 1
     result = CliRunner().invoke(
         app, ["edit", "reject", "--project", str(minimal_project), "--ids", "range_action"]
@@ -583,7 +581,7 @@ def test_propose_range_cut_tool_only_proposes(minimal_project):
     save_project(ws.project)
     before = deepcopy(ws.project.clips)
     out = json.loads(
-        propose_range_cut_tool(str(minimal_project), 11, 12, "agent-cut-1", '["a", "b"]')
+        propose_range_cut_tool(str(minimal_project), 11, 12, "agent-cut-1", ["a", "b"])
     )
     assert (out["action_id"], out["proposed"]) == ("agent-cut-1", True)
     saved = load_project(minimal_project)

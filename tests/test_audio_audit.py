@@ -581,9 +581,7 @@ def test_edit_service_suppress_low_audibility(minimal_project, tmp_workspace):
     ]
     save_project(proj, minimal_project)
     ws = ProjectWorkspace.open(minimal_project)
-    out = EditService(ws).suppress_low_audibility(
-        words_json=[{"track_id": "host", "word_index": 0}]
-    )
+    out = EditService(ws).suppress_low_audibility(word_keys=[{"track_id": "host", "word_index": 0}])
     assert out["suppressed_count"] == 1
 
 

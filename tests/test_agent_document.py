@@ -103,7 +103,7 @@ def _journal_types(path: str) -> list[str]:
 def test_delete_clips_tool_leaves_a_gap_through_the_document_plane(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_two_clips(path, sample_wav)
-    mcp_timeline.delete_clips_tool(path, '["c1"]')
+    mcp_timeline.delete_clips_tool(path, ["c1"])
     assert _clip_starts(path) == {"c2": 4.0}
     assert _journal_types(path) == ["DeleteClip"]
 
@@ -111,15 +111,9 @@ def test_delete_clips_tool_leaves_a_gap_through_the_document_plane(tmp_path, sam
 def test_delete_clips_tool_ripple_closes_the_gap(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_two_clips(path, sample_wav)
-    mcp_timeline.delete_clips_tool(path, '["c1"]', mode="ripple")
+    mcp_timeline.delete_clips_tool(path, ["c1"], mode="ripple")
     assert _clip_starts(path) == {"c2": 0.0}
     assert _journal_types(path) == ["DeleteClip"]
-
-
-def test_delete_clips_tool_rejects_a_non_list(tmp_path):
-    path = mcp_server.episode_create(str(tmp_path / "ws"))
-    with pytest.raises(ValueError, match="JSON array of clip ids"):
-        mcp_timeline.delete_clips_tool(path, '"c1"')
 
 
 def _seed_two_lanes(path: str, sample_wav) -> None:
@@ -150,7 +144,7 @@ def _layout(path: str) -> list[tuple[str, float, float, float]]:
 def test_paste_segment_tool_pastes_one_track_copy_twice(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_two_lanes(path, sample_wav)
-    clipboard = mcp_timeline.copy_segment_tool(path, 1.0, 3.0, '["host"]')
+    clipboard = json.loads(mcp_timeline.copy_segment_tool(path, 1.0, 3.0, ["host"]))
     mcp_timeline.paste_segment_tool(path, 4.0, clipboard)
     mcp_timeline.paste_segment_tool(path, 4.0, clipboard)
     assert _layout(path) == [
@@ -167,7 +161,7 @@ def test_paste_segment_tool_pastes_one_track_copy_twice(tmp_path, sample_wav):
 def test_paste_segment_tool_gap_mode_pastes_over_in_place(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_two_lanes(path, sample_wav)
-    clipboard = mcp_timeline.copy_segment_tool(path, 1.0, 3.0, '["host"]')
+    clipboard = json.loads(mcp_timeline.copy_segment_tool(path, 1.0, 3.0, ["host"]))
     mcp_timeline.paste_segment_tool(path, 5.0, clipboard, mode="gap")
     assert _layout(path) == [
         ("guest", 0.0, 0.0, 8.0),
@@ -177,12 +171,6 @@ def test_paste_segment_tool_gap_mode_pastes_over_in_place(tmp_path, sample_wav):
         ("host", 7.0, 9.0, 10.0),
     ]
     assert _journal_types(path) == ["PasteSegment"]
-
-
-def test_paste_segment_tool_rejects_a_non_object(tmp_path):
-    path = mcp_server.episode_create(str(tmp_path / "ws"))
-    with pytest.raises(ValueError, match="copy_segment_tool returns"):
-        mcp_timeline.paste_segment_tool(path, 0.0, "[]")
 
 
 def _on_disk(path: str) -> tuple[bytes, list[str], dict]:
@@ -211,7 +199,7 @@ def test_paste_segment_tool_rejects_a_bad_clipboard_and_writes_nothing(tmp_path,
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_two_clips(path, sample_wav)
     before = _on_disk(path)
-    clipboard = json.dumps({"duration": 2.0, "extracts": [_BAD_CLIPBOARDS[code]]})
+    clipboard = {"duration": 2.0, "extracts": [_BAD_CLIPBOARDS[code]]}
     with pytest.raises(ValueError, match=f"^{code}: "):
         mcp_timeline.paste_segment_tool(path, 4.0, clipboard)
     assert _on_disk(path) == before
@@ -247,12 +235,6 @@ def test_paste_segment_document_command_rejects_a_bad_clipboard_and_writes_nothi
     with pytest.raises(ValueError, match="paste_bad_range: "):
         submit_host_document_command(path, "PasteSegment", payload)
     assert _on_disk(path) == before
-
-
-def test_copy_segment_tool_rejects_bad_track_ids(tmp_path):
-    path = mcp_server.episode_create(str(tmp_path / "ws"))
-    with pytest.raises(ValueError, match="JSON array of track ids"):
-        mcp_timeline.copy_segment_tool(path, 0.0, 1.0, '"host"')
 
 
 def test_cli_copy_then_paste_segment_is_undoable(tmp_path, sample_wav):

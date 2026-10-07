@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
 
 def whitelist_overrides(overrides: dict[str, Any] | None) -> dict[str, Any]:
-    """Keep only ``ALLOWED_CONFIG_TOP_KEYS``. MCP ``config_json`` / GUI config PUT use this
+    """Keep only ``ALLOWED_CONFIG_TOP_KEYS``. MCP ``config`` / GUI config PUT use this
     filter only; ``effects`` may name custom presets. CLI ``--set`` validates further
     (``parse_config_assignments``).
     """
@@ -54,7 +54,7 @@ def merge_pipeline_config(
 ) -> dict[str, Any]:
     """Defaults (or ``base``) with whitelisted ``overrides`` merged on top, validated.
 
-    The one place MCP ``config_json``, GUI config PUT / run, the CLI and the working-set
+    The one place MCP ``config``, GUI config PUT / run, the CLI and the working-set
     store turn a config into a run's config, so a bad value raises ``ValueError`` here
     instead of reaching the pipeline.
     """

@@ -29,7 +29,7 @@ def test_comment_tools_mcp(tmp_path):
             author="agent",
             timeline_start=10.0,
             timeline_end=15.0,
-            action_texts_json='["Cut filler"]',
+            action_texts=["Cut filler"],
         )
     )
     assert created["author"] == "agent"
@@ -128,9 +128,9 @@ def test_episode_create_and_track_add(tmp_path, sample_wav):
     assert isinstance(report, str)
     proposed = json.loads(mcp_server.propose_social_clips_tool(path))
     assert isinstance(proposed, list)
-    approved = mcp_server.approve_social_clips_tool(path, "[]")
+    approved = mcp_server.approve_social_clips_tool(path, [])
     assert "Approved" in approved
-    rejected = mcp_server.reject_social_clips_tool(path, "[]")
+    rejected = mcp_server.reject_social_clips_tool(path, [])
     assert "Rejected" in rejected
     from unittest.mock import patch
 
@@ -155,7 +155,7 @@ def test_episode_create_and_track_add(tmp_path, sample_wav):
         assert str(mcp_server.render_final(path)).endswith("f.wav")
         ex = json.loads(mcp_server.export_audio_tool(path))
         assert ex == {"paths": ["/tmp/e.wav"], "master": None}
-        ex2 = json.loads(mcp_server.export_audio_tool(path, formats_json='[{"format":"mp3"}]'))
+        ex2 = json.loads(mcp_server.export_audio_tool(path, formats=[{"format": "mp3"}]))
         assert ex2["paths"] == ["/tmp/e.wav"]
     with patch("podcast_mcp.mcp.tools.speaker.SpeakerService") as sp:
         sp.return_value.attribute.return_value = {"ok": True}
@@ -170,7 +170,7 @@ def test_set_envelope(tmp_path):
     project = load_project(Path(path))
     project.timeline.tracks.append(Track(id="music", label="Music"))
     save_project(project)
-    points = json.dumps([{"time": 0, "value": 0}, {"time": 1, "value": 1}])
+    points = [{"time": 0, "value": 0}, {"time": 1, "value": 1}]
     result = mcp_server.set_envelope(path, "music", points)
     assert result == "Envelope set for music (2 points)"
 
@@ -183,20 +183,20 @@ def test_set_envelope_goes_through_document_log_and_baseline(tmp_path):
     project = load_project(Path(path))
     project.timeline.tracks.append(Track(id="music", label="Music"))
     save_project(project)
-    first = json.dumps([{"id": "a", "time": 0, "value": 1}])
+    first = [{"id": "a", "time": 0, "value": 1}]
     mcp_server.set_envelope(path, "music", first)
     svc = DocumentSyncService.open(path)
     assert svc.store.get_snapshot()["last_type"] == "SetEnvelope"
 
     # A peer edit landed after the agent read ``first``: conflict, no overwrite.
     peer = [{"id": "a", "time": 0, "value": 0.25}]
-    mcp_server.set_envelope(path, "music", json.dumps(peer), expected_points_json=first)
+    mcp_server.set_envelope(path, "music", peer, expected_points=first)
     with pytest.raises(DocumentConflictError, match="not applied"):
         mcp_server.set_envelope(
             path,
             "music",
-            json.dumps([{"id": "a", "time": 0, "value": 0.9}]),
-            expected_points_json=first,
+            [{"id": "a", "time": 0, "value": 0.9}],
+            expected_points=first,
         )
     stored = load_project(Path(path)).volume_envelope_for("music")
     assert stored is not None
@@ -719,17 +719,15 @@ def test_cut_utterance_and_words_mcp(tmp_path):
 def test_apply_edit_plan_mcp(tmp_path):
     ws = tmp_path / "workspace"
     path = mcp_server.episode_create(str(ws))
-    plan = json.dumps(
-        [
-            {
-                "track_id": "host",
-                "type": "remove",
-                "start": 0.0,
-                "end": 0.5,
-                "reason": "test",
-            }
-        ]
-    )
+    plan = [
+        {
+            "track_id": "host",
+            "type": "remove",
+            "start": 0.0,
+            "end": 0.5,
+            "reason": "test",
+        }
+    ]
     out = mcp_server.apply_edit_plan_tool(path, plan, review_required=False)
     data = json.loads(out)
     assert data["operation"] == "apply_edit_plan"

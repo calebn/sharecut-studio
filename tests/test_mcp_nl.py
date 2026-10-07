@@ -53,13 +53,13 @@ def test_approve_reject_edits(tmp_path):
     mcp_server.cut_time_range_tool(path, "host", 0.5, 1.5, review_required=True)
     proj = load_project(Path(path))
     eid = proj.edit_decisions[0].id
-    mcp_server.approve_edits_tool(path, json.dumps([eid]))
+    mcp_server.approve_edits_tool(path, [eid])
     proj2 = load_project(Path(path))
     assert not any(e.id == eid for e in proj2.edit_decisions)
     mcp_server.cut_time_range_tool(path, "host", 2.0, 3.0, review_required=True)
     proj2 = load_project(Path(path))
     eid2 = proj2.edit_decisions[0].id
-    mcp_server.reject_edits_tool(path, json.dumps([eid2]))
+    mcp_server.reject_edits_tool(path, [eid2])
     proj3 = load_project(Path(path))
     assert not any(e.id == eid2 for e in proj3.edit_decisions)
 
@@ -71,7 +71,7 @@ def test_social_clips_mcp(tmp_path):
     data = json.loads(out)
     assert len(data) >= 1
     cid = data[0]["id"]
-    mcp_server.approve_social_clips_tool(path, json.dumps([cid]))
+    mcp_server.approve_social_clips_tool(path, [cid])
     with patch("podcast_mcp.clips.social._source_audio") as src:
         src.return_value = tmp_path / "fake.wav"
         (tmp_path / "fake.wav").write_bytes(b"\x00")

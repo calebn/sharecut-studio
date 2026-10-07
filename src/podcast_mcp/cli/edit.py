@@ -1018,8 +1018,8 @@ def edit_suppress_bleed_cmd(
             EditService(ws).suppress_bleed(
                 track_id=track,
                 speaker=speaker,
-                words_json=words,
-                exclude_words_json=exclude,
+                word_keys=words,
+                exclude_word_keys=exclude,
                 start_sec=start,
                 end_sec=end,
                 apply=not dry_run,

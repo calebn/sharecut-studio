@@ -4,20 +4,9 @@ import json
 
 from mcp.server import MCPServer
 
+from podcast_mcp.mcp.args import JsonObject
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import SessionControlService
-
-
-def _parse_selection(selection_json: str | None) -> dict | None:
-    """Parse an optional JSON selection object (internal helper, not an MCP tool)."""
-    if selection_json is None or selection_json == "":
-        return None
-    data = json.loads(selection_json)
-    if data is None:
-        return None
-    if not isinstance(data, dict):
-        raise ValueError("selection_json must be a JSON object or null")
-    return data
 
 
 def get_session_state_tool(project_path: str) -> str:
@@ -59,24 +48,21 @@ def get_session_presence_tool(project_path: str) -> str:
 def seek_session_tool(
     project_path: str,
     playhead_sec: float,
-    selection_json: str | None = None,
+    selection: JsonObject | None = None,
 ) -> str:
-    """Seek the open DAW playhead (no OS audio). Optional selection_json highlights a modifier."""
+    """Seek the open DAW playhead (no OS audio). Optional selection highlights a modifier."""
     ws = ProjectWorkspace.open(project_path)
-    state = SessionControlService(ws).seek(
-        playhead_sec,
-        selection=_parse_selection(selection_json),
-    )
+    state = SessionControlService(ws).seek(playhead_sec, selection=selection)
     return json.dumps(state, indent=2)
 
 
 def set_session_selection_tool(
     project_path: str,
-    selection_json: str | None = None,
+    selection: JsonObject | None = None,
 ) -> str:
-    """Highlight a DAW modifier: {kind, id?, track_id?, time?} or null to clear."""
+    """Highlight a DAW modifier: selection {kind, id?, track_id?, time?}; null or omit to clear."""
     ws = ProjectWorkspace.open(project_path)
-    state = SessionControlService(ws).set_selection(_parse_selection(selection_json))
+    state = SessionControlService(ws).set_selection(selection)
     return json.dumps(state, indent=2)
 
 
@@ -107,7 +93,7 @@ def set_session_region_tool(
     end_sec: float,
     playing: bool = False,
     query: str | None = None,
-    selection_json: str | None = None,
+    selection: JsonObject | None = None,
 ) -> str:
     """Highlight a timeline region in the DAW; optionally start browser playback."""
     ws = ProjectWorkspace.open(project_path)
@@ -116,7 +102,7 @@ def set_session_region_tool(
         end_sec,
         playing=playing,
         query=query,
-        selection=_parse_selection(selection_json),
+        selection=selection,
     )
     return json.dumps(state, indent=2)
 

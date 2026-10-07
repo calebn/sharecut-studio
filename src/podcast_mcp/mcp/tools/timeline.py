@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 from typing import Literal
 
 from mcp.server import MCPServer
 
 from podcast_mcp.edits.transcript_timing import WordTimingTarget
+from podcast_mcp.mcp.args import JsonObject, JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import notify_after_mutation
 from podcast_mcp.models import EditMode
@@ -47,7 +47,7 @@ def ripple_delete_tool(
     start: float,
     end: float,
     use_inaudible_opt: bool | None = None,
-    track_ids_json: str | None = None,
+    track_ids: list[str] | None = None,
     confirm_cut_speech: bool = False,
 ) -> str:
     """Ripple-delete a timeline range across every dialogue track.
@@ -55,8 +55,8 @@ def ripple_delete_tool(
     Default inaudible opt absorbs trailing quiet air to ~0.4s before the next
     word. For punchline-to-pivot / leave-a-beat handoffs, call
     ``suggest_handoff_cut_tool`` first and pass ``use_inaudible_opt=false`` so
-    local snap does not pull mid-silence bounds onto speech. ``track_ids_json``
-    names the tracks whose speech you mean to cut (a JSON list); speech on any
+    local snap does not pull mid-silence bounds onto speech. ``track_ids``
+    names the tracks whose speech you mean to cut; speech on any
     other track in the range needs confirmation. Omitted, the cut names no track,
     so speech on every track needs confirmation (a whole-session time cut).
     ``confirm_cut_speech``: a ripple that would cut another track's speech changes
@@ -64,13 +64,12 @@ def ripple_delete_tool(
     ask the person, then call again with ``confirm_cut_speech=true`` to cut anyway.
     """
     ws = ProjectWorkspace.open(project_path)
-    track_ids = json.loads(track_ids_json) if track_ids_json else []
     return to_json(
         EditService(ws).cut_range(
             start,
             end,
             mode=EditMode.RIPPLE,
-            track_ids=[str(t) for t in track_ids],
+            track_ids=track_ids or [],
             use_inaudible_opt=use_inaudible_opt,
             confirm_cut_speech=confirm_cut_speech,
         )
@@ -112,17 +111,14 @@ def move_segment_tool(
     return to_json(EditService(ws).move_segment(source_start, source_end, insert_at))
 
 
-def move_clips_tool(project_path: str, clips_json: str) -> str:
+def move_clips_tool(project_path: str, clips: JsonObjectList) -> str:
     """Move clips in session time and/or onto another track (no neighbor ripple).
 
-    ``clips_json`` is a JSON array of ``{clip_id, timeline_start, track_id}``.
+    ``clips`` is a list of ``{clip_id, timeline_start, track_id}``.
     Inter-track moves keep the originating media via ``source_id``. Unlike
     ``move_segment_tool``, this does not cut a range on every dialogue lane.
     """
-    raw = json.loads(clips_json)
-    if not isinstance(raw, list):
-        raise ValueError("clips_json must be a JSON array")
-    result = submit_host_document_command(project_path, "MoveClips", {"clips": raw})
+    result = submit_host_document_command(project_path, "MoveClips", {"clips": clips})
     return to_json(
         host_command_result(result) or {"ok": result.get("ok"), "operation": "move_clips"}
     )
@@ -343,27 +339,22 @@ def split_clip_tool(
     at_time: float,
     track_id: str | None = None,
     speaker: str | None = None,
-    track_ids_json: str | None = None,
+    track_ids: list[str] | None = None,
 ) -> str:
     """Split clip(s) at a timeline timecode.
 
-    Pass ``track_ids_json`` as a JSON array for multi-track blade cuts.
+    Pass ``track_ids`` for multi-track blade cuts.
     When omitted, uses ``track_id`` / ``speaker``, or all dialogue tracks.
     Submits ``SplitAtTime`` on the document plane (same path as Sharecut Studio blade).
     """
     from podcast_mcp.util.tracks import dialogue_track_ids
 
     ws = ProjectWorkspace.open(project_path)
-    track_ids: list[str] | None = None
-    if track_ids_json:
-        raw = json.loads(track_ids_json)
-        if not isinstance(raw, list):
-            raise ValueError("track_ids_json must be a JSON array of track ids")
-        track_ids = [str(t) for t in raw]
-    elif track_id is not None or speaker is not None:
-        track_ids = [EditService(ws)._resolve(track_id, speaker)]
-    else:
-        track_ids = dialogue_track_ids(ws.project)
+    if track_ids is None:
+        if track_id is not None or speaker is not None:
+            track_ids = [EditService(ws)._resolve(track_id, speaker)]
+        else:
+            track_ids = dialogue_track_ids(ws.project)
 
     result = submit_host_document_command(
         project_path,
@@ -375,13 +366,13 @@ def split_clip_tool(
 
 def delete_clips_tool(
     project_path: str,
-    clip_ids_json: str,
+    clip_ids: list[str],
     mode: Literal["ripple", "gap"] = "gap",
     confirm_cut_speech: bool = False,
 ) -> str:
     """Delete whole clips by id, as the Studio clip Delete and Ripple delete do.
 
-    ``clip_ids_json`` is a JSON array of clip ids (see ``list_clips_tool``).
+    ``clip_ids`` lists the clips to delete (see ``list_clips_tool``).
     ``mode="gap"`` leaves silence where each clip was and moves nothing else;
     ``mode="ripple"`` closes the clips' spans on every dialogue track, so speakers stay
     in sync. A ripple that would cut speech outside the deleted clips (another track's,
@@ -390,10 +381,7 @@ def delete_clips_tool(
     ``confirm_cut_speech=true``. Submits ``DeleteClip`` on the document plane; undoable.
     For a time range across tracks use ``ripple_delete_tool``.
     """
-    ids = json.loads(clip_ids_json)
-    if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
-        raise ValueError("clip_ids_json must be a JSON array of clip ids")
-    payload: dict = {"clip_ids": ids, "mode": EditMode(mode).value}
+    payload: dict = {"clip_ids": clip_ids, "mode": EditMode(mode).value}
     if confirm_cut_speech:
         payload["confirm_cut_speech"] = True
     return to_json(
@@ -416,20 +404,15 @@ def copy_segment_tool(
     project_path: str,
     start: float,
     end: float,
-    track_ids_json: str | None = None,
+    track_ids: list[str] | None = None,
 ) -> str:
     """Copy ``[start, end)`` timeline seconds the way Studio Copy / Cut fill the clipboard.
 
     Read-only. Returns ``{duration, extracts}``: the clips of every track in range, or
-    only ``track_ids_json`` (a JSON array). Pass it to ``paste_segment_tool``, which takes
+    only ``track_ids``. Pass it to ``paste_segment_tool``, which takes
     the edit mode. To cut and paste, copy first, then cut (``propose_range_cut_tool``, or
     ``delete_clips_tool`` with its ``mode``).
     """
-    track_ids = json.loads(track_ids_json) if track_ids_json else None
-    if track_ids is not None and not (
-        isinstance(track_ids, list) and all(isinstance(t, str) for t in track_ids)
-    ):
-        raise ValueError("track_ids_json must be a JSON array of track ids")
     ws = ProjectWorkspace.open(project_path)
     return to_json(EditService(ws).copy_segment(start, end, track_ids))
 
@@ -437,7 +420,7 @@ def copy_segment_tool(
 def paste_segment_tool(
     project_path: str,
     insert_at: float,
-    clipboard_json: str,
+    clipboard: JsonObject,
     mode: Literal["ripple", "gap"] = "ripple",
 ) -> str:
     """Paste a ``copy_segment_tool`` clipboard at ``insert_at`` timeline seconds (Studio Paste).
@@ -449,9 +432,6 @@ def paste_segment_tool(
     unknown track or source, or an impossible range, is rejected with a ``paste_*``
     code. Submits ``PasteSegment`` on the document plane; undoable.
     """
-    clipboard = json.loads(clipboard_json)
-    if not isinstance(clipboard, dict):
-        raise ValueError("clipboard_json must be the object copy_segment_tool returns")
     return to_json(submit_paste_segment(project_path, insert_at, clipboard, mode=EditMode(mode)))
 
 
@@ -702,17 +682,16 @@ def set_words_ignored_tool(
 def apply_transcript_cleanup_tool(
     project_path: str,
     track_id: str,
-    corrections_json: str,
+    corrections: JsonObject,
 ) -> str:
     """Batch word + phrase fixes in one undoable history step.
 
-    JSON: ``{"words": [{word_index, text}], "phrases": [{start_word_index, end_word_index, text}]}``
+    ``corrections``: ``{"words": [{word_index, text}], "phrases": [{start_word_index, end_word_index, text}]}``
     """
     ws = ProjectWorkspace.open(project_path)
-    payload = json.loads(corrections_json)
-    words = payload.get("words")
-    phrases = payload.get("phrases")
-    n = EditService(ws).apply_transcript_cleanup(track_id, words=words, phrases=phrases)
+    n = EditService(ws).apply_transcript_cleanup(
+        track_id, words=corrections.get("words"), phrases=corrections.get("phrases")
+    )
     return to_json({"track_id": track_id, "applied": n})
 
 
@@ -725,11 +704,10 @@ def low_confidence_words_tool(project_path: str, threshold: float = 0.7) -> str:
 def verify_transcript_tool(
     project_path: str,
     track_id: str,
-    corrections_json: str,
+    corrections: JsonObjectList,
 ) -> str:
     """Apply bulk corrections and mark words verified on a track's transcript."""
     ws = ProjectWorkspace.open(project_path)
-    corrections = json.loads(corrections_json)
     n = EditService(ws).verify_transcript(track_id, corrections)
     return to_json({"verified": n})
 
@@ -740,11 +718,10 @@ def add_effect_tool(
     speaker: str | None = None,
     preset: str | None = None,
     effect: str | None = None,
-    params_json: str | None = None,
+    params: JsonObject | None = None,
 ) -> str:
     """Add an effect (or preset) to a track or speaker's effect chain."""
     ws = ProjectWorkspace.open(project_path)
-    params = json.loads(params_json) if params_json else None
     return to_json(
         EditService(ws).add_effect(
             track_id=track_id,
@@ -834,14 +811,11 @@ def recommend_fades_tool(
 
 def apply_fade_recommendations_tool(
     project_path: str,
-    recommendations_json: str,
+    recommendations: JsonObjectList,
 ) -> str:
-    """Apply a JSON array of fade recommendations to the project."""
+    """Apply a list of fade recommendations (from ``recommend_fades_tool``) to the project."""
     ws = ProjectWorkspace.open(project_path)
-    recs = json.loads(recommendations_json)
-    if not isinstance(recs, list):
-        raise ValueError("recommendations_json must be a JSON array")
-    return to_json(EditService(ws).apply_fade_recommendations(recs))
+    return to_json(EditService(ws).apply_fade_recommendations(recommendations))
 
 
 def low_audibility_words_tool(
@@ -858,17 +832,12 @@ def apply_low_audibility_suppression_tool(
     project_path: str,
     track_id: str | None = None,
     speaker: str | None = None,
-    words_json: str | None = None,
+    words: JsonObjectList | None = None,
 ) -> str:
-    """Suppress low-audibility transcript words, optionally from a JSON word list; leaves audio unchanged."""
+    """Suppress low-audibility transcript words, optionally only ``words``; leaves audio unchanged."""
     ws = ProjectWorkspace.open(project_path)
-    words = json.loads(words_json) if words_json else None
-    if words is not None and not isinstance(words, list):
-        raise ValueError("words_json must be a JSON array")
     return to_json(
-        EditService(ws).suppress_low_audibility(
-            track_id=track_id, speaker=speaker, words_json=words
-        )
+        EditService(ws).suppress_low_audibility(track_id=track_id, speaker=speaker, word_keys=words)
     )
 
 
@@ -952,8 +921,8 @@ def apply_bleed_suppression_tool(
     project_path: str,
     track_id: str | None = None,
     speaker: str | None = None,
-    words_json: str | None = None,
-    exclude_words_json: str | None = None,
+    words: JsonObjectList | None = None,
+    exclude_words: JsonObjectList | None = None,
     start_sec: float | None = None,
     end_sec: float | None = None,
     apply: bool = True,
@@ -961,18 +930,12 @@ def apply_bleed_suppression_tool(
 ) -> str:
     """Suppress mic-bleed words (dry_run previews without applying)."""
     ws = ProjectWorkspace.open(project_path)
-    words = json.loads(words_json) if words_json else None
-    exclude = json.loads(exclude_words_json) if exclude_words_json else None
-    if words is not None and not isinstance(words, list):
-        raise ValueError("words_json must be a JSON array")
-    if exclude is not None and not isinstance(exclude, list):
-        raise ValueError("exclude_words_json must be a JSON array")
     return to_json(
         EditService(ws).suppress_bleed(
             track_id=track_id,
             speaker=speaker,
-            words_json=words,
-            exclude_words_json=exclude,
+            word_keys=words,
+            exclude_word_keys=exclude_words,
             start_sec=start_sec,
             end_sec=end_sec,
             apply=apply and not dry_run,

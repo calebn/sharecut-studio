@@ -127,12 +127,12 @@ def test_mcp_pipeline_config_tools(tmp_path, sample_wav):
     assert "config" in got and "enabled_steps" in got and "params" in got
     assert got["unattended"] is True
 
-    mcp_pipeline.pipeline_set_config_tool(path, enabled_steps_json="[]")
+    mcp_pipeline.pipeline_set_config_tool(path, enabled_steps=[])
     updated = json.loads(
         mcp_pipeline.pipeline_set_config_tool(
             path,
-            config_json='{"balance": {"dialogue_lufs": -18.0}}',
-            enabled_steps_json='["export_deliverables"]',
+            config={"balance": {"dialogue_lufs": -18.0}},
+            enabled_steps=["export_deliverables"],
             unattended=False,
         )
     )
@@ -226,8 +226,8 @@ def test_mcp_pipeline_run_working_set_and_overrides(tmp_path, sample_wav):
         mcp_pipeline.pipeline_run(
             path,
             only_step="ingest_tracks",
-            config_json='{"balance": {"dialogue_lufs": -17.0}}',
-            skip_steps_json='["merge_transcript"]',
+            config={"balance": {"dialogue_lufs": -17.0}},
+            skip_steps=["merge_transcript"],
         )
         defaults = mock_runner.call_args.kwargs.get("defaults")
         assert defaults is not None
@@ -244,38 +244,14 @@ def test_mcp_pipeline_run_working_set_and_overrides(tmp_path, sample_wav):
         run_kwargs = instance.run.call_args.kwargs
         assert run_kwargs.get("unattended") is False
 
-    try:
-        mcp_pipeline.pipeline_run(path, config_json="[]")
-        raise AssertionError("expected ValueError")
-    except ValueError as exc:
-        assert "JSON object" in str(exc)
-
-    try:
-        mcp_pipeline.pipeline_run(path, skip_steps_json="{}")
-        raise AssertionError("expected ValueError")
-    except ValueError as exc:
-        assert "JSON array" in str(exc)
-
     with pytest.raises(ValueError, match=r"silense.*valid values: silence, room_tone"):
         mcp_pipeline.pipeline_set_config_tool(
-            path, config_json='{"tighten": {"filler_pad_mode": "silense"}}'
+            path, config={"tighten": {"filler_pad_mode": "silense"}}
         )
     with pytest.raises(ValueError, match="valid values: silence, room_tone"):
         mcp_pipeline.pipeline_run(
-            path, config_json='{"tighten": {"filler_pad_mode": "silense"}}', use_working_set=False
+            path, config={"tighten": {"filler_pad_mode": "silense"}}, use_working_set=False
         )
-
-    try:
-        mcp_pipeline.pipeline_set_config_tool(path, config_json="[]")
-        raise AssertionError("expected ValueError")
-    except ValueError as exc:
-        assert "JSON object" in str(exc)
-
-    try:
-        mcp_pipeline.pipeline_set_config_tool(path, enabled_steps_json="{}")
-        raise AssertionError("expected ValueError")
-    except ValueError as exc:
-        assert "JSON array" in str(exc)
 
 
 def test_mcp_pipeline_export_audio(tmp_path, sample_wav):
@@ -291,7 +267,7 @@ def test_mcp_pipeline_export_audio(tmp_path, sample_wav):
     ):
         (ws / "artifacts").mkdir(parents=True, exist_ok=True)
         (ws / "artifacts" / "mastered.wav").write_bytes(b"wav")
-        out = json.loads(mcp_pipeline.export_audio_tool(path, formats_json='[{"ext":"mp3"}]'))
+        out = json.loads(mcp_pipeline.export_audio_tool(path, formats=[{"ext": "mp3"}]))
     assert out["paths"] == [str(ws / "export" / "demo.mp3")]
 
 
@@ -303,9 +279,7 @@ def test_mcp_bounce_audio_tool(tmp_path, sample_wav, monkeypatch):
         "podcast_mcp.services.media.bounce.BounceService.bounce",
         lambda self, req=None, **_k: [self.ws.project.export_dir() / "bounces" / "b.wav"],
     )
-    out = json.loads(
-        mcp_pipeline.bounce_audio_tool(path, formats_json='["wav"]', start_s=0.0, end_s=1.0)
-    )
+    out = json.loads(mcp_pipeline.bounce_audio_tool(path, formats=["wav"], start_s=0.0, end_s=1.0))
     assert out[0].endswith("b.wav")
 
 

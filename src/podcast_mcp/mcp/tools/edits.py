@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from mcp.server import MCPServer
 
 from podcast_mcp.edits.cut_speech import CutSpeechConfirmation
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
+from podcast_mcp.mcp.args import JsonObjectList
 from podcast_mcp.mcp.serialize import to_json
 from podcast_mcp.mcp.tools.agent_notify import agent_mutated
 from podcast_mcp.services.app import ProjectWorkspace
@@ -36,11 +36,11 @@ def propose_range_cut_tool(
     start: float,
     end: float,
     command_id: str,
-    track_ids_json: str | None = None,
+    track_ids: list[str] | None = None,
 ) -> str:
     """Propose an exact range cut for host review (Studio range Cut), replay-safe.
 
-    ``start`` / ``end`` are timeline seconds; ``track_ids_json`` is a JSON array of lanes
+    ``start`` / ``end`` are timeline seconds; ``track_ids`` lists the lanes
     (default every dialogue lane). The cut leaves a hole: later clips keep their places.
     This never applies audio: it creates a pending exact cut that the host auditions and
     approves (``podcast edit approve`` also can). Reuse command_id only when retrying the
@@ -49,8 +49,8 @@ def propose_range_cut_tool(
     from podcast_mcp.util.tracks import dialogue_track_ids
 
     ws = ProjectWorkspace.open(project_path)
-    track_ids = json.loads(track_ids_json) if track_ids_json else dialogue_track_ids(ws.project)
-    target = EditService(ws).selected_range_target(start, end, track_ids)
+    lanes = track_ids if track_ids is not None else dialogue_track_ids(ws.project)
+    target = EditService(ws).selected_range_target(start, end, lanes)
     reply = submit_host_document_command(
         project_path,
         "EditSelectedRange",
@@ -181,15 +181,14 @@ def cut_words_tool(
 
 def apply_edit_plan_tool(
     project_path: str,
-    edits_json: str,
+    edits: JsonObjectList,
     review_required: bool = True,
     use_inaudible_opt: bool | None = None,
 ) -> str:
-    """Stage a batch of pending cuts from a JSON edit-plan array."""
+    """Stage a batch of pending cuts from an edit-plan list (one object per cut)."""
     ws = ProjectWorkspace.open(project_path)
-    raw = json.loads(edits_json)
     n = EditService(ws).apply_plan(
-        raw,
+        edits,
         review_required=review_required,
         use_inaudible_opt=use_inaudible_opt,
     )
@@ -343,14 +342,14 @@ def list_edit_decisions_tool(
 
 def approve_edits_tool(
     project_path: str,
-    ids_json: str | None = None,
+    ids: list[str] | None = None,
     apply_all_safe: bool = False,
     confirm_cut_speech: bool = False,
 ) -> str:
     """Approve pending edits by id, applying them to the timeline.
 
     ``apply_all_safe`` is Studio **Apply eligible** with Avoid harsh cuts on: it applies
-    every pending tighten hit (or only those in ``ids_json``) except harsh ones
+    every pending tighten hit (or only those in ``ids``) except harsh ones
     (``review_required`` or a ``:risky`` / ``:join_review`` join risk), in one undo
     step. ``skipped_harsh`` lists the hits it left for review.
 
@@ -358,12 +357,11 @@ def approve_edits_tool(
     applies nothing; ask the person, then call again with ``confirm_cut_speech=true``.
     """
     ws = ProjectWorkspace.open(project_path)
-    ids = json.loads(ids_json) if ids_json else None
     service = EditService(ws)
     if apply_all_safe:
         result = service.approve_eligible_tighten(ids, confirm_cut_speech=confirm_cut_speech)
     elif ids is None:
-        raise ValueError("pass ids_json, or apply_all_safe=true")
+        raise ValueError("pass ids, or apply_all_safe=true")
     else:
         outcome = service.approve(ids, confirm_cut_speech=confirm_cut_speech)
         if isinstance(outcome, CutSpeechConfirmation):
@@ -374,10 +372,9 @@ def approve_edits_tool(
     return to_json(result)
 
 
-def reject_edits_tool(project_path: str, ids_json: str) -> str:
+def reject_edits_tool(project_path: str, ids: list[str]) -> str:
     """Reject pending edits by id, discarding them without applying."""
     ws = ProjectWorkspace.open(project_path)
-    ids = json.loads(ids_json)
     n = EditService(ws).reject(ids)
     agent_mutated(ws)
     return to_json({"operation": "reject_edits", "rejected_count": n, "ids": ids})
