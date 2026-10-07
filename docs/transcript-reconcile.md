@@ -227,15 +227,35 @@ The gate measures each lane against every other dialogue track's audio at 8 kHz
 - **A copy path.** Over the peer's own speech (its track open above −60 dBFS), the
   lane's syllable contour (its level less the half-second mean) must follow the
   peer's at one lag within ±300 ms, with correlation at least 0.4 and 0.15 above the
-  same lag shifted by ±1 s and ±2 s, over at least 30 s of frames. The lag is found
-  by the shared `engines/envelope_lag.py` estimator and must be a peak at least one
-  hop inside the search (#1068). The contour drops the shared on/off timing of two
-  people who start and stop talking together. In synthetic trials (200 pairs per
-  case) independent and co-timed voices never passed with 30 s of evidence and true
-  copies always did; with 20 s, 4% of co-timed long phrases still passed. A remote
+  same lag shifted by ±1 s and ±2 s. The lag is found by the shared
+  `engines/envelope_lag.py` estimator and must be a peak at least one hop inside the
+  search (#1068). The contour drops the shared on/off timing of two people who start
+  and stop talking together. The match must carry the evidence of 0.4 over 30 s of
+  frames, counted as the correlation's Fisher z (atanh r) times the square root of
+  the frame count. So from 30 s 0.4 is enough, and a shorter excerpt needs a
+  stronger match: 0.48 over 20 s. Under 20 s the gate abstains (#1070). A remote
   speaker's own Zoom track can trail their voice on an in-room mic. On the lab tape
   Audra's track trails her copy on Caleb's mic by 140 ms. No path means
   `uncertain_foreign_ownership`.
+  - **Evidence for the rule** (synthetic trials, 2,800 pairs per negative case).
+    Independent voices never passed from 3 s on. Voices that start and
+    stop together passed in 3 trials between 5 and 17.5 s, where shared phrase edges
+    dominate the contour, and never from 20 s. A flat 20 s floor let 5 of 800 of them
+    through, and a flat 10 s floor 25 of 800. A high bar alone (0.6 from 10 s, 0.8
+    from 5 s) is safe but misses real bleed: Audra's copy on Caleb's lab mic
+    matches at about 0.54. 99% of room-coloured copies under the lane's own talk
+    passed at 20 s.
+  - **Lab coverage** (rev 3b414c4c, realigned, random excerpts cut from the
+    project, 100 of each length): the gate acts on Caleb's lane in 49% of 2-minute
+    windows (main 32%) and 94% of 5-minute windows (main 87%). Audra's copy left at
+    full level falls from 53% to 37% and from 14% to 11%. Half of the 2-minute
+    windows hold under 20 s of Audra's speech, which is what limits them. No
+    unsuppressed Caleb word is touched, Audra's and Lana's lanes stay untouched, and
+    the whole-episode plans match main exactly.
+  - **Not done.** Reusing the lag `align_tracks` measured, or measuring over the
+    whole recording before the excerpt was cut, would cover excerpts cut inside a
+    project but not short recordings or exported excerpts. The gate needs the lag
+    where clips sit now, and alignment moves clips piece by piece.
 - **Where the peer is talking.** Every frame the peer's open direct track, read at
   that lag, can reach on the lane is foreign, whether or not the lane's transcript
   has a word there. Spans used to grow only from suppressed `bleed` words on the

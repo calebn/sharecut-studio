@@ -184,12 +184,13 @@ def _isolate_host_object_store(
 def one_phrase_copy_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
     """Let the bleed gate trust a copy path from one short foreign phrase.
 
-    The gate needs 30 s of the peer's speech before it trusts a copy path, which
+    The gate needs 20 to 30 s of the peer's speech before it trusts a copy path, which
     ``test_bleed_attenuation`` pins. Fixtures with one phrase test other behaviour.
     """
     from podcast_mcp.engines import envelope_lag
 
     monkeypatch.setattr(envelope_lag, "MIN_COPY_SEC", 0.5)
+    monkeypatch.setattr(envelope_lag, "FULL_COPY_SEC", 0.5)
 
 
 @pytest.fixture
