@@ -20,6 +20,16 @@ from podcast_mcp.engines.asr_timing import (
     DEFAULT_WORD_SPAN_END_SLACK_SEC,
     word_duration_is_anomalous,
 )
+from podcast_mcp.engines.copy_timbre import LIKENESS_FRAMES, copy_likeness, copy_similarity
+from podcast_mcp.engines.envelope_lag import (
+    COPY_FRAME_SEC,
+    COPY_HOP_SEC,
+    LEVEL_FLOOR_DB,
+    MAX_COPY_LAG_SEC,
+    PEER_OPEN_DB,
+    copy_lag,
+    copy_levels_db,
+)
 from podcast_mcp.engines.session_timeline import SessionTimeline, TimelineClipSpan
 from podcast_mcp.engines.timemap import timeline_to_source
 from podcast_mcp.engines.ungated_audio import load_mono_full, raw_samples_on_timeline
@@ -290,11 +300,33 @@ class TrackRmsCache:
         return rms_db(window)
 
 
+@dataclass(frozen=True)
+class CopyPath:
+    """How a source mic's voice reaches a bleed mic, measured from the audio (#1052).
+
+    ``lag_sec`` is how far the source's own track trails its copy here (a remote
+    participant's track arrives after the room carries their voice); 0.0 when the
+    shared envelope estimator is not confident. ``likeness`` is the fine-spectrum match
+    a typical stretch of the copy reaches (``copy_timbre``); None when the lag is 0.0
+    or no frame shows the copy.
+    """
+
+    lag_sec: float = 0.0
+    likeness: float | None = None
+
+    def carries(self, match: float) -> bool:
+        """Whether a window with this fine-spectrum match sounds like the copy."""
+        return self.likeness is not None and match >= self.likeness
+
+
 @dataclass
 class TrackRmsCacheSet:
     caches: dict[str, TrackRmsCache] = field(default_factory=dict)
     _echo_pairs: list[EchoPairProfile] | None = field(
         default=None, init=False, repr=False, compare=False
+    )
+    _copy_paths: dict[tuple[str, str], CopyPath] = field(
+        default_factory=dict, init=False, repr=False, compare=False
     )
 
     def get(self, track_id: str) -> TrackRmsCache | None:
@@ -316,11 +348,75 @@ class TrackRmsCacheSet:
             )
         return self._echo_pairs
 
-    def bleed_sources(self, track_id: str) -> frozenset[str]:
-        """Mics whose voice reaches ``track_id`` over a measured path."""
-        return frozenset(
-            p.source_track_id for p in self.echo_pairs() if p.bleed_track_id == track_id
+    def bleed_paths(self, track_id: str) -> dict[str, CopyPath]:
+        """Mics whose voice reaches ``track_id`` over a measured path, and how."""
+        return {
+            p.source_track_id: self.copy_path(p.source_track_id, track_id)
+            for p in self.echo_pairs()
+            if p.bleed_track_id == track_id
+        }
+
+    def copy_path(self, source_track_id: str, bleed_track_id: str) -> CopyPath:
+        """The source's copy lag and likeness on the bleed mic, measured once per pair.
+
+        The lag comes from the bleed gate's envelope estimator (``envelope_lag.copy_lag``)
+        over every frame near the source's speech. The likeness is read where the
+        source, at that lag, talks in its louder half and out-levels this open mic:
+        there the mic carries the copy, whoever its transcript says is talking.
+        """
+        key = (source_track_id, bleed_track_id)
+        if key not in self._copy_paths:
+            self._copy_paths[key] = self._measure_copy_path(source_track_id, bleed_track_id)
+        return self._copy_paths[key]
+
+    def copy_match(
+        self, source_track_id: str, bleed_track_id: str, t_start: float, t_end: float
+    ) -> float:
+        """Median fine-spectrum match of a bleed-mic window with the source at its lag."""
+        source, bleed = self.caches[source_track_id], self.caches[bleed_track_id]
+        lag = round(self.copy_path(source_track_id, bleed_track_id).lag_sec / COPY_HOP_SEC)
+        first = round((t_start - bleed.timeline_offset_sec) / COPY_HOP_SEC)
+        last = round((t_end - bleed.timeline_offset_sec - COPY_FRAME_SEC) / COPY_HOP_SEC)
+        frames = np.arange(first, max(first, last) + 1)
+        return float(
+            np.median(
+                copy_similarity(
+                    bleed.samples, source.samples, frames, lag, sample_rate=bleed.sample_rate
+                )
+            )
         )
+
+    def _measure_copy_path(self, source_track_id: str, bleed_track_id: str) -> CopyPath:
+        source, bleed = self.caches.get(source_track_id), self.caches.get(bleed_track_id)
+        if (
+            source is None
+            or bleed is None
+            or source.sample_rate != bleed.sample_rate
+            or source.timeline_offset_sec != bleed.timeline_offset_sec
+        ):
+            return CopyPath()
+        own = copy_levels_db(bleed.samples, sample_rate=bleed.sample_rate)
+        peer = copy_levels_db(source.samples, sample_rate=source.sample_rate)
+        reach = round(MAX_COPY_LAG_SEC / COPY_HOP_SEC)
+        count = min(own.size, peer.size)
+        talking = np.zeros(own.size)
+        talking[:count] = peer[:count] > PEER_OPEN_DB
+        near = np.convolve(talking, np.ones(2 * reach + 1), mode="same") > 0
+        lag = copy_lag(own, peer, np.flatnonzero(near))
+        if not lag:
+            return CopyPath()
+        direct = np.full(own.size, LEVEL_FLOOR_DB)
+        lo, hi = max(0, -lag), min(own.size, peer.size - lag)
+        direct[lo:hi] = peer[lo + lag : hi + lag]
+        frames = (direct > PEER_OPEN_DB) & (own > LEVEL_FLOOR_DB) & (own < direct)
+        if not frames.any():
+            return CopyPath(lag * COPY_HOP_SEC)
+        loud = np.flatnonzero(frames & (direct >= np.median(direct[frames])))
+        sample = loud[:: max(1, loud.size // LIKENESS_FRAMES)]
+        similarity = copy_similarity(
+            bleed.samples, source.samples, sample, lag, sample_rate=bleed.sample_rate
+        )
+        return CopyPath(lag * COPY_HOP_SEC, copy_likeness(similarity))
 
 
 def build_track_rms_caches(
@@ -543,8 +639,9 @@ def _classify_word_audibility(
 
     ``bleed`` needs a louder mic *and* a measured bleed path from that mic to this one
     (``bleed_sources``): a word quieter than another mic on a pair with no path is two
-    people talking, not a copy, and keeps its own audibility (#774). The levels stay in
-    the row's ``track_rms_db`` for review.
+    people talking, not a copy, and keeps its own audibility (#774). A source mic's
+    level is read at its copy lag (#1052). The levels stay in the row's
+    ``track_rms_db`` for review.
     """
     if own_rms is None:
         return "inaudible", None
@@ -566,6 +663,24 @@ def _classify_word_audibility(
     return "audible", None
 
 
+def _track_levels(
+    project: EpisodeProject,
+    track_ids: list[str],
+    t_start: float,
+    t_end: float,
+    lags: dict[str, float],
+    caches: TrackRmsCacheSet,
+) -> dict[str, float]:
+    """Each track's level for a timeline window, a lagged source read that much later."""
+    levels: dict[str, float] = {}
+    for tid in track_ids:
+        lag = lags.get(tid, 0.0)
+        rms = _rms_for_track_at_timeline(project, tid, t_start + lag, t_end + lag, caches=caches)
+        if rms is not None:
+            levels[tid] = rms
+    return levels
+
+
 def compute_word_audibility_map(
     project: EpisodeProject,
     *,
@@ -578,6 +693,15 @@ def compute_word_audibility_map(
 
     A ``bleed`` verdict needs a measured path from the louder mic into the word's own
     (``TrackRmsCacheSet.echo_pairs``), so it needs rendered stems for both mics.
+
+    A path's source is read at its copy lag (``TrackRmsCacheSet.copy_path``): a remote
+    participant's own track can trail their voice on an in-room mic, so at 0 lag their
+    copy reads as the mic owner's word and an owner's word just after them reads as
+    theirs (#1052). The lag can only take a word the 0-lag reading leaves with its owner
+    when the word also carries the source's fine spectrum, at least the copy's
+    likeness: during crosstalk a soft own word sits under a louder peer at the lag but
+    sounds like its own speaker. Such a word keeps its 0-lag verdict, ``reason:
+    unlike_copy``. ``copy_lag_ms`` reports the lags used.
     """
     pol = policy or AnalysisPolicy.from_defaults()
     if pol.transcript_mode == "off":
@@ -611,7 +735,8 @@ def compute_word_audibility_map(
             tr = project.transcript_for_track(tid)
             if not tr:
                 continue
-            bleed_sources = caches.bleed_sources(tid)
+            paths = caches.bleed_paths(tid)
+            lags = {src: path.lag_sec for src, path in paths.items() if path.lag_sec}
             for i, w in enumerate(tr.words):
                 # Degenerate ASR timestamps (start==end) never produce an RMS window.
                 # Isolated junk → inaudible/suppress. Sandwiched between normal-duration
@@ -675,18 +800,22 @@ def compute_word_audibility_map(
                     _tick()
                     continue
                 tl_start, tl_end = tl_span
-                track_rms: dict[str, float] = {}
-                for other_tid in all_tracks:
-                    rms = _rms_for_track_at_timeline(
-                        project, other_tid, tl_start, tl_end, caches=caches
-                    )
-                    if rms is not None:
-                        track_rms[other_tid] = rms
-
+                track_rms = _track_levels(project, all_tracks, tl_start, tl_end, lags, caches)
                 own_rms = track_rms.get(tid)
                 status, dominant = _classify_word_audibility(
-                    tid, own_rms, track_rms, policy=pol, bleed_sources=bleed_sources
+                    tid, own_rms, track_rms, policy=pol, bleed_sources=paths
                 )
+                unlike_copy = False
+                if status == "bleed" and dominant in lags:
+                    at_zero = _track_levels(project, all_tracks, tl_start, tl_end, {}, caches)
+                    zero = _classify_word_audibility(
+                        tid, at_zero.get(tid), at_zero, policy=pol, bleed_sources=paths
+                    )
+                    unlike_copy = zero[0] != "bleed" and not paths[dominant].carries(
+                        caches.copy_match(dominant, tid, tl_start, tl_end)
+                    )
+                    if unlike_copy:
+                        status, dominant = zero
 
                 entry: dict[str, Any] = {
                     "track_id": tid,
@@ -700,10 +829,14 @@ def compute_word_audibility_map(
                     "dominant_track": dominant,
                     "suppressed": w.suppressed,
                 }
+                if lags:
+                    entry["copy_lag_ms"] = {k: round(v * 1000) for k, v in lags.items()}
                 if status == "inaudible":
                     entry["reason"] = "below_audibility_threshold"
                 elif status == "bleed":
                     entry["reason"] = "cross_track_bleed"
+                elif unlike_copy:
+                    entry["reason"] = "unlike_copy"
                 out.append(entry)
                 done += 1
                 _tick()
