@@ -647,6 +647,38 @@ def duplicate_segment(
     return change_summary(project, operation="duplicate_segment", affected_tracks=tracks)
 
 
+def copy_segment(
+    project: EpisodeProject,
+    start: float,
+    end: float,
+    track_ids: list[str] | None = None,
+) -> dict:
+    """The clipboard Studio Copy / Cut holds for ``[start, end)``: ``duration`` + ``extracts``.
+
+    Mirrors ``extractClipsInRange`` (``gui/web/src/edit/selectionClipboard.ts``): every
+    track with clips in range, or only ``track_ids``. ``paste_segment`` takes it back.
+    """
+    if end <= start:
+        raise ValueError("end must be after start")
+    tracks = track_ids or list(dict.fromkeys(c.track_id for c in project.clips))
+    extracts = [
+        {
+            "track_id": clip.track_id,
+            "source_start": clip.source_start,
+            "source_end": clip.source_end,
+            "relative_timeline_start": clip.timeline_start,
+            "source_id": clip.source_id,
+            "fade_in_ms": clip.fade_in_ms,
+            "fade_out_ms": clip.fade_out_ms,
+            "join_in_mode": clip.join_in_mode.value,
+            "mute_regions": mute_regions_payload(clip.mute_regions),
+        }
+        for tid in tracks
+        for clip in extract_clips_in_timeline_range(clips_for_track(project, tid), start, end)
+    ]
+    return {"duration": end - start, "extracts": extracts}
+
+
 def paste_segment(
     project: EpisodeProject,
     insert_at: float,

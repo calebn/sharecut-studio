@@ -122,6 +122,82 @@ def test_delete_clips_tool_rejects_a_non_list(tmp_path):
         mcp_timeline.delete_clips_tool(path, '"c1"')
 
 
+def _seed_two_lanes(path: str, sample_wav) -> None:
+    _seed_two_clips(path, sample_wav)
+    proj = load_project(Path(path))
+    proj.tracks.append(
+        Track(
+            id="guest",
+            label="Guest",
+            role=TrackRole.DIALOGUE,
+            speaker="Guest",
+            media=MediaAsset(path=str(sample_wav), duration_sec=10.0),
+        )
+    )
+    proj.clips.append(
+        Clip(id="g1", track_id="guest", source_start=0.0, source_end=8.0, timeline_start=0.0)
+    )
+    save_project(proj, Path(path))
+
+
+def _layout(path: str) -> list[tuple[str, float, float, float]]:
+    return sorted(
+        (c.track_id, round(c.timeline_start, 6), c.source_start, c.source_end)
+        for c in load_project(Path(path)).clips
+    )
+
+
+def test_paste_segment_tool_pastes_one_track_copy_twice(tmp_path, sample_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_two_lanes(path, sample_wav)
+    clipboard = mcp_timeline.copy_segment_tool(path, 1.0, 3.0, '["host"]')
+    mcp_timeline.paste_segment_tool(path, 4.0, clipboard)
+    mcp_timeline.paste_segment_tool(path, 4.0, clipboard)
+    assert _layout(path) == [
+        ("guest", 0.0, 0.0, 4.0),
+        ("guest", 8.0, 4.0, 8.0),
+        ("host", 0.0, 0.0, 4.0),
+        ("host", 4.0, 1.0, 3.0),
+        ("host", 6.0, 1.0, 3.0),
+        ("host", 8.0, 6.0, 10.0),
+    ]
+    assert _journal_types(path) == ["PasteSegment", "PasteSegment"]
+
+
+def test_paste_segment_tool_rejects_a_non_object(tmp_path):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    with pytest.raises(ValueError, match="copy_segment_tool returns"):
+        mcp_timeline.paste_segment_tool(path, 0.0, "[]")
+
+
+def test_copy_segment_tool_rejects_bad_track_ids(tmp_path):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    with pytest.raises(ValueError, match="JSON array of track ids"):
+        mcp_timeline.copy_segment_tool(path, 0.0, 1.0, '"host"')
+
+
+def test_cli_copy_then_paste_segment_is_undoable(tmp_path, sample_wav):
+    path = mcp_server.episode_create(str(tmp_path / "ws"))
+    _seed_two_clips(path, sample_wav)
+    before = _layout(path)
+    runner = CliRunner()
+    copied = runner.invoke(
+        app, ["edit", "copy-segment", "--project", path, "--start", "1", "--end", "3"]
+    )
+    assert copied.exit_code == 0, copied.output
+    pasted = runner.invoke(
+        app,
+        ["edit", "paste-segment", "--project", path, "--at", "8", "--clipboard", "-"],
+        input=copied.output,
+    )
+    assert pasted.exit_code == 0, pasted.output
+    assert json.loads(pasted.output)["operation"] == "paste_segment"
+    assert _layout(path) == [*before, ("host", 8.0, 1.0, 3.0)]
+    assert _journal_types(path) == ["PasteSegment"]
+    assert runner.invoke(app, ["undo", "--project", path]).exit_code == 0
+    assert _layout(path) == before
+
+
 def test_cli_delete_clips_is_undoable(tmp_path, sample_wav):
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed_two_clips(path, sample_wav)

@@ -33,6 +33,8 @@ TOOL_TIMEBASE: dict[str, TimebaseKind] = {
     "move_clips_tool": "timeline",
     "move_by_text_tool": "source",
     "duplicate_segment_tool": "timeline",
+    "copy_segment_tool": "timeline",
+    "paste_segment_tool": "timeline",
     "overlap_duplicates_tool": "timeline",
     "insert_gap_tool": "timeline",
     "fade_joins_tool": "na",

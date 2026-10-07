@@ -28,6 +28,7 @@ Podcast MCP supports agent-driven editing in any **MCP-capable client**. Editing
 | `ripple_delete_text_tool` | Ripple delete by transcript query |
 | `move_segment_tool` / `move_by_text_tool` | Rearrange a time range on **all dialogue tracks** (shuffle, not clip-body drag) |
 | `move_clips_tool` | Reposition specific clips (`timeline_start` / `track_id`); same as GUI body drag |
+| `copy_segment_tool` / `paste_segment_tool` | Studio Copy and Paste. `copy_segment_tool` (read-only) returns the clipboard for `start`/`end`: `{duration, extracts}` from every track with clips in range, or only `track_ids_json`. `paste_segment_tool` submits that clipboard at `insert_at` as `PasteSegment`, the payload Studio Paste sends: a `duration` gap on every dialogue lane, each extract back on its own track. Paste again to place it twice. To cut and paste, copy first, then cut (`propose_range_cut_tool` leaves a hole; `delete_clips_tool` with `ripple=true` closes one clip's gap). Unlike `move_segment_tool`, the source range is not removed and the timeline grows; undoable |
 | `delete_clips_tool` | Delete whole clips by id (`clip_ids_json`); each leaves a gap, or `ripple=true` closes it. Same `DeleteClip` / `RippleDeleteClip` as the Studio clip Delete / Ripple delete |
 | `roll_clip_join_tool` | Roll the join between two neighbouring clips by `delta_sec` source seconds (positive is later); the pair keeps its length so later clips stay put. Reads the boundary token, then submits `RollClipJoin` like the Studio roll seam; a join that changed meanwhile is a conflict |
 | `insert_gap_tool` | Open space on the timeline (splits straddling clips, then shifts later media) |
@@ -120,6 +121,8 @@ podcast edit trim-clip --project ... --clip clip_9c2a08cf --edge in --source-sec
 podcast edit roll-join --project ... --left clip_a --right clip_b --delta-sec 0.12
 podcast edit delete-clips --project ... --ids clip_a,clip_b --ripple            # omit --ripple to leave gaps
 podcast edit propose-range-cut --project ... --start 41.2 --end 43.0 --tracks host,guest
+podcast edit copy-segment --project ... --start 41.2 --end 43.0 > clip.json     # --tracks host for one lane
+podcast edit paste-segment --project ... --at 120 --clipboard clip.json         # - reads stdin
 podcast transcript find-replace --project ... --search "Jon" --replace "John" --dry-run
 podcast transcript set-word-timing --project ... --track host --word-index 812 --start 1201.40 --end 1201.62
 podcast edit analyze-cleanup --project ...
