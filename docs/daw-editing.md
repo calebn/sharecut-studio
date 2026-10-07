@@ -361,7 +361,8 @@ kernel with that scope already decided.
 
 Today's DAW sends `ripple` for trims, ripple delete, cut and paste, and `gap` for
 Delete. When the host replies `needs_confirmation`, `api/documentEdits.ts` opens
-`CutSpeechDialog` (the shared `Dialog`): its title names the speakers ("Cut
+`CutSpeechDialog` (the shared `Dialog`, a bottom sheet on phones with the choices
+pinned in its footer): its title names the speakers ("Cut
 Avery's speech too?"), it lists each one's time and words, and it offers Leave a
 gap and Cut anyway (Cancel for an approval, which has no gap form). Both choices
 run through the command bus (`edit.cutSpeech.leaveGap`, `edit.cutSpeech.cutAnyway`,

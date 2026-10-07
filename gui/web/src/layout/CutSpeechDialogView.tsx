@@ -49,6 +49,23 @@ export function CutSpeechDialogView({
       title={`Cut ${names}'s speech too?`}
       panelClassName="cut-speech-dialog-panel"
       closeDisabled={busy}
+      phoneSheet
+      footer={
+        <div className="bounce-dialog-actions cut-speech-dialog-actions">
+          {canLeaveGap ? (
+            <Button disabled={busy} onClick={onLeaveGap}>
+              Leave a gap
+            </Button>
+          ) : (
+            <Button disabled={busy} onClick={onClose}>
+              Cancel
+            </Button>
+          )}
+          <Button variant="danger" disabled={busy} onClick={onCutAnyway}>
+            Cut anyway
+          </Button>
+        </div>
+      }
     >
       <p>Ripple edits keep speakers in sync, so this also cuts:</p>
       <ul className="cut-speech-dialog-list">
@@ -63,20 +80,6 @@ export function CutSpeechDialogView({
         <p>Leave a gap keeps their speech and leaves silence where you cut.</p>
       ) : null}
       <InlineError message={error} role="alert" />
-      <div className="bounce-dialog-actions cut-speech-dialog-actions">
-        {canLeaveGap ? (
-          <Button disabled={busy} onClick={onLeaveGap}>
-            Leave a gap
-          </Button>
-        ) : (
-          <Button disabled={busy} onClick={onClose}>
-            Cancel
-          </Button>
-        )}
-        <Button variant="danger" disabled={busy} onClick={onCutAnyway}>
-          Cut anyway
-        </Button>
-      </div>
     </Dialog>
   );
 }
