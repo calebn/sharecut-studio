@@ -19,7 +19,8 @@
  * - Entering another chip, or leaving every chip, starts over there.
  */
 import { CHIP_SETTLE_MS, TOUCH_SLOP_PX } from "../hooks/gestureConstants";
-import type { DragAxis, HitPoint } from "./hitCandidates";
+import type { HitPoint } from "./hitCandidates";
+import type { DragAxis } from "./inputContract";
 
 export type ChipFinger =
   | { kind: "away" }

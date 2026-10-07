@@ -62,8 +62,17 @@ function ranked(
 }
 
 describe("rankHitTargets", () => {
-  it("ranks a same-time cluster at a clip edge by core distance, then priority", () => {
+  it("ranks a same-time cluster at a clip edge: the roll first, as it outranks the trims (#1135), then by core distance and priority", () => {
     expect(ranked(cluster, 22)).toEqual([
+      {
+        kind: "roll",
+        id: "clip-b",
+        x: 200,
+        y: 140,
+        distance: Math.hypot(3, 24),
+        priority: 6,
+        selected: false,
+      },
       {
         kind: "trim-in",
         id: "clip-b",
@@ -109,15 +118,6 @@ describe("rankHitTargets", () => {
         priority: 10,
         selected: false,
       },
-      {
-        kind: "roll",
-        id: "clip-b",
-        x: 200,
-        y: 140,
-        distance: Math.hypot(3, 24),
-        priority: 6,
-        selected: false,
-      },
     ]);
   });
 
@@ -129,9 +129,9 @@ describe("rankHitTargets", () => {
       ),
     ).toEqual([
       "fade-in:true",
+      "roll:false",
       "trim-in:false",
       "envelope-point:false",
-      "roll:false",
     ]);
   });
 

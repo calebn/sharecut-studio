@@ -15,6 +15,7 @@ import type { DawState } from "../state/types";
 import type { ExactRangeTarget } from "../types/project";
 import { errorMessage, readApiError } from "../utils/apiError";
 import { staleRenderBreakdown } from "../utils/staleRender";
+import { openCommentDraft } from "./comments";
 import { registerCommand } from "./execute";
 import type { ExecuteResult } from "./types";
 
@@ -131,15 +132,12 @@ export async function runRangeAction(
         descriptor.reason ?? resolved.reason ?? "Choose the audible occurrence",
     };
   if (action === "comment") {
-    state.setCommentDraft({
+    openCommentDraft({
       startSec: target.intervals[0]!.start,
       endSec: target.intervals.at(-1)!.end,
       trackIds: [...target.track_ids],
       intervals: target.intervals,
     });
-    state.setActiveTab("comments");
-    state.setMobileMode("more");
-    state.setMoreDestination("comments");
     return { status: "ok" };
   }
   if (action === "bounce") {

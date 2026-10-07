@@ -71,6 +71,24 @@ export function nudgeRepeatDelayMs(repeats: number): number {
     : NUDGE_REPEAT_FAST_MS;
 }
 
+/**
+ * How far past a soft boundary (the playhead, a chapter, a neighbouring clip
+ * or pending edge) the finger must push an armed drag before the target
+ * leaves it (px). More than `TOUCH_SLOP_PX`, so a resting finger's natural
+ * drift never pops a detent, and a deliberate push always does.
+ */
+export const DRAG_DETENT_PX = 16;
+
+/**
+ * The compact inspector drawer (#1051 round 4b): a swipe on its header must
+ * travel this far, or release at this speed (px/ms, about a quick flick), to
+ * change detent; anything less snaps back. The travel matches
+ * `SWIPE_MAX_DY_PX` below, the distance that already tells a swipe from a
+ * press.
+ */
+export const DRAWER_SWIPE_MIN_PX = 24;
+export const DRAWER_FLICK_PX_PER_MS = 0.5;
+
 /** A clip-body press must travel this far (any direction) before it becomes a move. */
 export const MOVE_THRESHOLD_PX = 5;
 

@@ -40,6 +40,8 @@ const WHEN_HINTS: Record<string, string> = {
   canRefreshMix: "Refresh mix allowed",
   canIngestMedia: "Media ingest allowed",
   canEditMix: "Host or shared edit mode",
+  canEditEnvelopes: "Host or shared edit mode",
+  canComment: "Host or a link that can comment",
   canManageProjects: "Host project management",
   hostProjectLoaded: "Loaded host project",
   following: "While following another client",

@@ -22,7 +22,12 @@ export type NudgeMover =
   /** A clip's fade or trim. A trim ripples the rest of its track along. */
   | { kind: "clip"; clipId: string; trackId: string; ripple: boolean }
   | { kind: "pending"; editId: string; trackId: string }
-  | { kind: "envelope-point"; trackId: string; pointId: string };
+  | { kind: "envelope-point"; trackId: string; pointId: string }
+  /**
+   * A marker (a chapter or a social clip) at `sec`; it has no track, so no
+   * clip or pending edges stop it.
+   */
+  | { kind: "marker"; sec: number };
 
 /** Positions this close are the same place. */
 const SAME_SEC = 1e-6;
@@ -30,7 +35,8 @@ const SAME_SEC = 1e-6;
 /**
  * The soft boundaries for `mover`: the playhead, chapter markers, and the
  * clip and pending-edit edges on its own track, less its own edges and
- * anything that moves with it.
+ * anything that moves with it. A marker has no track: only the playhead and
+ * the chapters (less itself) stop it.
  */
 export function softBoundaries(
   project: ProjectView,
@@ -42,8 +48,14 @@ export function softBoundaries(
     out.push({ sec: playheadSec, label: "the playhead" });
   }
   for (const chapter of project.chapters ?? []) {
+    if (
+      mover.kind === "marker" &&
+      Math.abs(chapter.time - mover.sec) < SAME_SEC
+    )
+      continue;
     out.push({ sec: chapter.time, label: `chapter “${chapter.title}”` });
   }
+  if (mover.kind === "marker") return out;
   const lane = project.clips.tracks[mover.trackId] ?? [];
   const self =
     mover.kind === "clip" ? lane.find((c) => c.id === mover.clipId) : null;

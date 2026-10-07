@@ -536,13 +536,14 @@ html[data-shell="phone"]
   margin-inline-start: var(--space-3);
 }
 
-/* A held nudge stopped at a boundary or limit: the value it stopped on is
-   ringed (and bumps, motion allowing) while the note is read out. */
+/* A held nudge stopped at a boundary or limit: the value it stopped on gets
+   the armed halo (and bumps, motion allowing) while the note is read out.
+   A halo, not an outline, so it never reads as keyboard focus. */
 .nudge-row[data-bump] .nudge-row-value,
 .inspector-peek-value[data-bump] {
   border-radius: var(--radius-xs);
-  outline: var(--focus-ring-width) solid var(--color-accent);
-  outline-offset: var(--focus-ring-offset);
+  background: var(--color-accent-muted);
+  box-shadow: 0 0 0 var(--space-1) var(--color-accent-muted);
 }
 
 @media (prefers-reduced-motion: no-preference) {

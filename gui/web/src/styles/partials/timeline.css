@@ -346,6 +346,65 @@
   z-index: var(--z-timeline-interaction);
 }
 
+/* Trim mode Option A (#1135): a ripple trim of the start keeps the grabbed
+   edge under the finger, dims the span it trims, and outlines where the
+   clip lands; arrows show how far it and every later clip will move. They
+   slide there when the trim lands. */
+.clip-trimmed-span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: var(--z-clip-overlay);
+  background: var(--color-overlay-black-90);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.clip-landing {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: var(--z-clip-overlay);
+  border: 1px dashed var(--color-timeline-text);
+  border-radius: var(--radius-xs);
+  pointer-events: none;
+}
+
+.ripple-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: var(--z-clip-overlay);
+  height: 0.75rem;
+  translate: 0 -50%;
+  overflow: visible;
+  fill: none;
+  stroke: var(--color-timeline-text);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.trim-readout {
+  position: absolute;
+  top: 0.75rem;
+  left: var(--space-1);
+  z-index: var(--z-bubble);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-xs);
+  background: var(--color-overlay-black-90);
+  color: var(--color-clip-label);
+  font-size: var(--font-size-micro);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lane-inner.is-settling .clip-block {
+    transition: left var(--motion-state) var(--motion-ease-out);
+  }
+}
+
 .clip-trim-ghost {
   position: absolute;
   top: 0;
@@ -1530,6 +1589,10 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   fill: var(--marker);
 }
 
+.target-glyph-social {
+  fill: var(--social-marker);
+}
+
 /* Chips fly out from the finger and the room dims; closing fades. Reduced
    motion shows the chips in place at once. */
 @keyframes chooser-chip-in {
@@ -1574,4 +1637,163 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   .target-chip-axis {
     animation: fade-in var(--motion-press) var(--motion-ease-out);
   }
+
+  .create-menu-scrim,
+  .create-menu-mark,
+  .detent-mark {
+    animation: fade-in var(--motion-press) var(--motion-ease-out);
+  }
+}
+
+/* Armed (#1051 round 4b): the target a long-press picked up wears the
+   chooser's about-to-grab look, a muted halo inside an accent ring set off
+   from it (never the focus ring's offset), until the finger lifts. */
+[data-hit-armed]:not(circle) {
+  box-shadow: 0 0 0 var(--space-1) var(--color-accent-muted);
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--space-1);
+}
+
+/* A held arrow key stopped this handle at a soft boundary or limit: the
+   strip's bump halo, on the handle itself. */
+.fade-corner[data-bump],
+.trim-handle[data-bump] {
+  box-shadow: 0 0 0 var(--space-1) var(--color-accent-muted);
+}
+
+.envelope-overlay .envelope-svg circle[data-hit-armed] {
+  stroke: var(--accent);
+  stroke-width: var(--focus-ring-width);
+  filter: drop-shadow(0 0 0.25rem var(--color-accent-muted));
+}
+
+/* A drag held at a soft boundary: a line through the lanes there, and a
+   caption naming it, in the chooser caption's ink. */
+.detent-mark {
+  position: fixed;
+  z-index: var(--z-menu);
+  inline-size: 0;
+  border-inline-start: var(--focus-ring-width) solid var(--accent);
+  box-shadow: 0 0 0 var(--space-1) var(--color-accent-muted);
+  translate: -50% 0;
+  pointer-events: none;
+}
+
+.detent-mark-caption {
+  position: absolute;
+  inset-block-start: var(--space-1);
+  inset-inline-start: var(--space-1);
+  padding: var(--space-0) var(--space-3);
+  border-radius: var(--radius-xs);
+  background: var(--color-overlay-black-90);
+  color: var(--color-clip-label);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* The create menu (#1051 round 4b): what to make at a held spot on the
+   timeline. A dashed accent mark (never the solid playhead) shows the held
+   time on its lane; the menu sits above the finger, beside the fixed
+   playhead when there is room. */
+.create-menu-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-menu);
+}
+
+.create-menu-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  touch-action: none;
+}
+
+.create-menu-mark {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.create-menu-mark line {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+}
+
+.create-menu-mark circle {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.create-menu {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 15rem;
+  max-inline-size: min(20rem, 100vw - 2rem);
+  max-block-size: none;
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-overlay);
+  box-shadow: var(--shadow-floating);
+  touch-action: none;
+}
+
+.create-menu-title {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.create-menu [role="menuitem"] {
+  min-block-size: var(--touch-min);
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Under the sliding finger: lifting here picks it. */
+.create-menu-item.is-over {
+  background: var(--color-hover);
+}
+
+.create-menu-item[aria-disabled="true"] {
+  color: var(--color-text-secondary);
+  cursor: default;
+}
+
+.create-menu-item-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  min-inline-size: 0;
+}
+
+.create-menu-reason {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-micro);
+}
+
+.create-menu-detail {
+  margin-inline-start: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.create-menu-separator {
+  border: 0;
+  block-size: 1px;
+  margin-block: var(--space-1);
+  background: var(--color-border-subtle);
 }

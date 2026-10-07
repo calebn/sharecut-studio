@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { clipRowDuringRoll, type RollPreview } from "../edit/clipEdgePreview";
 import type {
   ClipMovePointerInfo,
@@ -6,6 +6,7 @@ import type {
   MoveGhost,
 } from "../edit/clipMove";
 import { isDrawnJoin } from "../edit/joinRender";
+import { type RipplePreview, rippledStarts } from "../edit/ripplePreview";
 import {
   audioFilesFromDrop,
   fileCountFromDataTransfer,
@@ -41,10 +42,17 @@ import { JoinEditor } from "./JoinEditor";
 import { laneColor } from "./laneColors";
 import { PendingEditOverlay } from "./PendingEditOverlay";
 import { ProsodyOverlay } from "./ProsodyOverlay";
+import { RippleArrow } from "./RippleArrow";
 import { StaleInvalidationOverlay } from "./StaleInvalidationOverlay";
 import { timelineTestIds } from "./selectors";
 
 const NOOP = () => undefined;
+
+/**
+ * How long, after a ripple trim's preview ends, its lane's clips glide to
+ * where the saved trim puts them: the commit's round trip plus the slide.
+ */
+const RIPPLE_SETTLE_MS = 1000;
 
 interface TrackLaneProps {
   onRangeGesture?: import("./useRangeGesture").RangeGesture;
@@ -153,6 +161,21 @@ export function TrackLaneView({
   const [dropOver, setDropOver] = useState(false);
   const [dragFileCount, setDragFileCount] = useState(1);
   const [rollPreview, setRollPreview] = useState<RollPreview | null>(null);
+  const [ripple, setRipple] = useState<RipplePreview | null>(null);
+  const rippled = rippledStarts(clips, ripple);
+  // A trim that ends lets the later clips slide to where it put them.
+  const [settling, setSettling] = useState(false);
+  const rippleRef = useRef<RipplePreview | null>(null);
+  const onRipplePreview = useCallback((next: RipplePreview | null) => {
+    if (rippleRef.current && !next) setSettling(true);
+    rippleRef.current = next;
+    setRipple(next);
+  }, []);
+  useEffect(() => {
+    if (!settling) return;
+    const done = setTimeout(() => setSettling(false), RIPPLE_SETTLE_MS);
+    return () => clearTimeout(done);
+  }, [settling]);
   const canDrop = canIngestMedia(projectPath, guestMode, shareCapabilities);
   const replacing = trackHasMedia({
     mediaPath: track.media_path,
@@ -272,7 +295,20 @@ export function TrackLaneView({
         {...HIT_SURFACE_PROPS}
         onClick={(e) => onSeek(e.clientX, e.currentTarget)}
       />
-      <div className="lane-inner" style={{ width }}>
+      <div
+        className={`lane-inner${settling ? " is-settling" : ""}`}
+        style={{ width }}
+      >
+        {Object.entries(rippled).map(([id, sec]) => {
+          const from = clips.find((c) => c.id === id)?.timeline_start ?? sec;
+          return (
+            <RippleArrow
+              key={`ripple-${id}`}
+              from={from * zoomPxPerSec}
+              to={sec * zoomPxPerSec}
+            />
+          );
+        })}
         {selection?.kind === "range" &&
         selection.target.track_ids.includes(track.id)
           ? selection.target.intervals.map((r) => (
@@ -328,6 +364,7 @@ export function TrackLaneView({
                   : null
               }
               onRollPreview={setRollPreview}
+              onRipplePreview={onRipplePreview}
               onSelect={selectClip}
               onHit={onClipHit}
               onSelectClip={selectClip}

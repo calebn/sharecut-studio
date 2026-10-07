@@ -4,7 +4,7 @@ import {
   LONG_PRESS_MS,
   TOUCH_SLOP_PX,
 } from "../hooks/gestureConstants";
-import type { HitRect } from "./hitCandidates";
+import { button, press } from "../test/hitDom";
 import {
   attachHitRouting,
   CHOOSER_ITEM_ATTR,
@@ -14,47 +14,6 @@ import {
   type RoutedTarget,
 } from "./hitRouting";
 import { HIT_SURFACE_PROPS, hitTargetProps } from "./hitTargets";
-
-function place(element: Element, r: HitRect): void {
-  element.getBoundingClientRect = () =>
-    ({
-      left: r.left,
-      top: r.top,
-      right: r.right,
-      bottom: r.bottom,
-      width: r.right - r.left,
-      height: r.bottom - r.top,
-      x: r.left,
-      y: r.top,
-    }) as DOMRect;
-}
-
-function button(attrs: Record<string, string>, r: HitRect): HTMLButtonElement {
-  const el = document.createElement("button");
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
-  place(el, r);
-  return el;
-}
-
-function press(
-  target: Element,
-  type: string,
-  x: number,
-  y: number,
-  pointerId = 7,
-): PointerEvent {
-  const event = new PointerEvent(type, {
-    bubbles: true,
-    cancelable: true,
-    pointerId,
-    pointerType: "touch",
-    isPrimary: pointerId === 7,
-    clientX: x,
-    clientY: y,
-  });
-  target.dispatchEvent(event);
-  return event;
-}
 
 let root: HTMLDivElement;
 let router: HitRouter;
@@ -458,14 +417,17 @@ describe("touch chooser lab", () => {
     ]);
   });
 
-  it("lets a selected target under the finger take the touch at once", () => {
-    onlyReplays = false;
+  it("defers a touch on a selected target too: one finger moving never edits it", () => {
     const { fade } = edgeCluster();
     fade.setAttribute("data-hit-selected", "true");
     const down = press(fade, "pointerdown", 204, 117);
+    expect(router.defers(down)).toBe(true);
+    press(fade, "pointermove", 260, 117);
+    press(fade, "pointerup", 260, 117);
+    vi.runAllTimers();
 
-    expect(router.defers(down)).toBe(false);
-    expect(log).toEqual(["fade:pointerdown@204,117"]);
+    expect(log).toEqual([]);
+    expect(targets).toEqual([]);
   });
 
   it("still defers a touch on an unselected target beside a selected one", () => {
@@ -596,11 +558,12 @@ describe("touch chooser lab", () => {
 
     expect(views.at(-1)).toBeNull();
     expect(targets).toEqual([{ kind: "fade-in", id: "clip-b" }]);
-    // Offset from where the finger settled (250,53) to the fade (206,112).
+    // Offset from where the finger settled (250,53) to the fade (206,112),
+    // along time only: the 1 px down never reaches it.
     expect(log).toEqual([
       "fade:pointerdown@206,112",
-      "fade:pointermove@220,113",
-      "fade:pointerup@230,113",
+      "fade:pointermove@220,112",
+      "fade:pointerup@230,112",
     ]);
   });
 
@@ -650,7 +613,7 @@ describe("touch chooser lab", () => {
     expect(log).toEqual([
       "fade:pointerdown@206,112",
       "fade:pointermove@218,112",
-      "fade:pointerup@226,113",
+      "fade:pointerup@226,112",
     ]);
   });
 

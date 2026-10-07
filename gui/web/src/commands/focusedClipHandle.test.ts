@@ -54,6 +54,7 @@ it("routes edits to the current focused handle and preserves replacement ownersh
       phase: "nudge",
       direction: 1,
       shift: true,
+      held: false,
     }),
   ).toEqual({ status: "ok" });
   expect(actions.at(-1)).toBe("trim 1 large");
@@ -66,6 +67,7 @@ it("routes edits to the current focused handle and preserves replacement ownersh
       phase: "nudge",
       direction: 1,
       shift: false,
+      held: false,
     }),
   ).toMatchObject({ status: "disabled" });
   expect(actions).not.toContain("fade");
@@ -87,6 +89,7 @@ it("rejects malformed actions without changing the active preview", () => {
       phase: "nudge",
       direction: 0,
       shift: true,
+      held: false,
     }),
   ).toMatchObject({ status: "disabled" });
   expect(actions).toEqual([]);

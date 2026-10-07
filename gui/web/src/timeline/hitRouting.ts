@@ -7,26 +7,34 @@
  * unchanged. One target in reach, or a press on a plain surface, passes
  * through untouched.
  *
- * With the touch chooser lab on, a touch on a target or surface that is not
- * already selected is handed to the press layer (`useTouchPress`, React Aria)
- * instead, and reaches no target while it decides. A touch the browser takes
- * to scroll ends in pointercancel and does nothing. A long press (the layer
- * calls `longPress`) opens the chooser over 2+ targets, or grabs the winner.
- * A release within the slop is a tap, replayed on the winner at once: React
- * Aria reports a press only from the click that follows, when the pointer is
- * no longer live and an owner that captures it would refuse the press. The
- * chooser's chips commit a pick the same way, or a grab by replaying the
- * press and forwarding the drag, on the real target. A finger on a chip grabs
- * by resting there, or by sliding along the target's drag axis once the chip
- * is armed (`chipGesture.ts`).
+ * With the touch chooser lab on, every touch on a target or surface follows
+ * the touch input grammar (`inputContract.ts`). It is handed to the press
+ * layer (`useTouchPress`, React Aria) and reaches no target while it decides:
+ * - One finger moving scrolls: the browser takes it, it ends in
+ *   pointercancel, and nothing is edited, selected target or not.
+ * - A release within the slop is a tap, replayed on the winner at once:
+ *   React Aria reports a press only from the click that follows, when the
+ *   pointer is no longer live and an owner that captures it would refuse it.
+ * - A long press (the layer calls `longPress`) over 2+ targets opens the
+ *   chooser. Over one target it arms it, if the contract lets it drag, or
+ *   selects it. Over no target it opens the create menu.
+ * - Only an armed target drags, and only along its own axes. It drags from
+ *   where it is, with a brief detent at each soft boundary (`dragDetent.ts`),
+ *   and lifting commits it.
+ * The chooser's chips commit a pick the same way, or arm by replaying the
+ * press and forwarding the drag, on the real target. A finger on a chip arms
+ * it by resting there, or by sliding along the target's drag axis once the
+ * chip is armed (`chipGesture.ts`).
  *
  * Pinch never edits: the moment a second finger lands on the timeline, every
- * pointer's uncommitted action (a drag, trim, fade, chip grab, range or a
- * press still deciding) gets a `pointercancel`, which each owner already
- * treats as "drop the draft, save nothing", and the selection goes back to
- * what it was before the first press. Until every pointer lifts, their
- * pointer events stop here, so the pinch or pan (touch events) owns them.
+ * pointer's uncommitted action (an armed drag, trim, fade, chip grab, range,
+ * create menu or a press still deciding) gets a `pointercancel`, which each
+ * owner already treats as "drop the draft, save nothing", and the selection
+ * goes back to what it was before the first press. Until every pointer lifts,
+ * their pointer events stop here, so the pinch or pan (touch events) owns them.
  */
+
+import type { SoftBoundary } from "../edit/nudgeBoundaries";
 import {
   CHIP_SETTLE_MS,
   GHOST_CLICK_MS,
@@ -41,18 +49,22 @@ import {
   moveOnChips,
   pressChip,
 } from "./chipGesture";
-import {
-  HIT_KINDS,
-  type HitKind,
-  type HitPoint,
-  isHitKind,
-} from "./hitCandidates";
+import { type DetentTrack, detentMove, startDetents } from "./dragDetent";
+import type { HitPoint } from "./hitCandidates";
 import {
   closestHitSurface,
   closestHitTarget,
+  hitTimeSec,
   type ResolvedHit,
   resolveHits,
 } from "./hitTargets";
+import {
+  type DragAxis,
+  HIT_KINDS,
+  type HitKind,
+  isHitKind,
+  longPressAction,
+} from "./inputContract";
 
 const replayed = new WeakSet<Event>();
 
@@ -144,14 +156,53 @@ export interface RoutedTarget {
 
 /** Marks a chooser chip so the router can find it under a finger. */
 export const CHOOSER_ITEM_ATTR = "data-chooser-item";
+/** Marks a create menu item so the router can find it under a finger. */
+export const CREATE_ITEM_ATTR = "data-create-item";
+/** Set on a target while it is armed, for its armed look. */
+export const ARMED_ATTR = "data-hit-armed";
+
+/** What the create menu shows; the router owns it and the view renders it. */
+export interface CreateView {
+  /** Where the long-press landed, viewport px. */
+  origin: HitPoint;
+  /** The surface under it: a clip body, a lane, the envelope layer. */
+  surface: Element;
+  /** The opening finger is still down: lifting on an item picks it. */
+  fingerDown: boolean;
+  /** The item under that finger, by index. */
+  over: number | null;
+}
+
+/** An armed target, for the timeline to name and announce. */
+export interface ArmedTarget extends RoutedTarget {
+  axis: DragAxis;
+}
+
+/** A soft boundary holding an armed drag, at viewport x. */
+export interface DetentView {
+  x: number;
+  boundary: SoftBoundary;
+}
 
 export interface HitRoutingOptions {
   /** The touch chooser lab: touch goes through the press layer and chooser. */
   touchLab?: () => boolean;
   onChooser?: (view: ChooserView | null) => void;
+  onCreate?: (view: CreateView | null) => void;
+  /** A target was armed (`null`: the armed drag ended or was cancelled). */
+  onArm?: (armed: ArmedTarget | null) => void;
+  /**
+   * The soft boundaries, in timeline seconds, an armed `target` (at `sec`)
+   * detents at; none when absent.
+   */
+  detents?: (target: RoutedTarget, sec: number) => readonly SoftBoundary[];
+  /** The timeline's zoom, to place those boundaries. */
+  pxPerSec?: () => number;
+  /** An armed drag reached a soft boundary (`null`: it left it, or ended). */
+  onDetent?: (detent: DetentView | null) => void;
   /**
    * A press went to a target (`null`: to a surface such as a clip body): a
-   * tap, a chip pick, a grab, or a press on a target that takes it at once.
+   * tap, a chip pick, an arm, or a press on a target that takes it at once.
    */
   onTarget?: (target: RoutedTarget | null) => void;
   /**
@@ -166,7 +217,10 @@ export interface HitRouter {
   dispose: () => void;
   /** True when the press layer owns `down`, a touch the router deferred. */
   defers: (down: PointerEvent) => boolean;
-  /** The press layer saw a long press: open the chooser, or grab the winner. */
+  /**
+   * The press layer saw a long press: open the chooser, arm or select the
+   * one target, or open the create menu.
+   */
   longPress: () => void;
   /**
    * Commits chip `index`: a tap replay for a pointer pick, or the target's
@@ -174,7 +228,7 @@ export interface HitRouter {
    */
   choose: (index: number, pointerType: string | null) => void;
   nextPage: () => void;
-  /** Closes the chooser with no change. */
+  /** Closes the chooser or the create menu with no change. */
   close: () => void;
 }
 
@@ -206,12 +260,24 @@ type Phase =
       timers: ReturnType<typeof setTimeout>[];
     }
   | {
+      kind: "create";
+      view: CreateView;
+      pointerId: number;
+    }
+  | {
+      /** An armed target: the finger drives it along its axes. */
       kind: "grabbed";
       pointerId: number;
       element: Element;
       offset: HitPoint;
       origin: HitPoint;
       moved: boolean;
+      axis: DragAxis;
+      /** Where the target was armed; an `x` drag keeps this y. */
+      from: HitPoint;
+      /** Where it last went. */
+      at: HitPoint;
+      detents: DetentTrack | null;
     };
 
 const IDLE: Phase = { kind: "idle" };
@@ -253,6 +319,7 @@ export function attachHitRouting(
     const owned =
       phase.kind === "open" ||
       phase.kind === "grabbed" ||
+      (phase.kind === "create" && phase.view.fingerDown) ||
       (phase.kind === "routed" && phase.touch);
     if (owned && event.cancelable) event.preventDefault();
   };
@@ -261,21 +328,28 @@ export function attachHitRouting(
   });
 
   const emit = (view: ChooserView | null) => options.onChooser?.(view);
+  const emitCreate = (view: CreateView | null) => options.onCreate?.(view);
   const setPhase = (next: Phase) => {
     if (phase.kind === "open") {
       for (const timer of phase.timers) clearTimeout(timer);
       if (next.kind !== "open") emit(null);
     }
+    if (phase.kind === "create" && next.kind !== "create") emitCreate(null);
+    if (phase.kind === "grabbed" && next !== phase) {
+      phase.element.removeAttribute(ARMED_ATTR);
+      if (phase.detents?.held) options.onDetent?.(null);
+      options.onArm?.(null);
+    }
     phase = next;
   };
-  const report = (element: Element | null) => {
+  const targetOf = (element: Element | null): RoutedTarget | null => {
     const kind = element?.getAttribute("data-hit-kind");
-    options.onTarget?.(
-      element && isHitKind(kind)
-        ? { kind, id: element.getAttribute("data-hit-id") ?? "" }
-        : null,
-    );
+    return element && isHitKind(kind)
+      ? { kind, id: element.getAttribute("data-hit-id") ?? "" }
+      : null;
   };
+  const report = (element: Element | null) =>
+    options.onTarget?.(targetOf(element));
   const stop = (event: Event) => {
     event.stopPropagation();
     if (event.cancelable) event.preventDefault();
@@ -308,9 +382,32 @@ export function attachHitRouting(
     if (item == null) return null;
     return item === "more" ? "more" : Number(item);
   };
+  const createItemAt = (at: HitPoint): Element | null =>
+    doc.elementFromPoint?.(at.x, at.y)?.closest(`[${CREATE_ITEM_ATTR}]`) ??
+    null;
   /**
-   * Presses `element` at `target`; the finger, which pressed at `finger`,
-   * drives it from `offset` away. A finger already at `at` moves it there.
+   * Where an armed target goes for a finger at `at`: along its own axes
+   * only, and held at a soft boundary until pushed past it.
+   */
+  const drive = (
+    armed: Extract<Phase, { kind: "grabbed" }>,
+    at: HitPoint,
+  ): HitPoint => {
+    const wantX = at.x + armed.offset.x;
+    const y = armed.axis === "x" ? armed.from.y : at.y + armed.offset.y;
+    if (!armed.detents) return { x: wantX, y };
+    const step = detentMove(armed.detents, wantX);
+    if (step.caught) {
+      options.onDetent?.({ x: step.x, boundary: step.caught });
+    } else if (step.released) {
+      options.onDetent?.(null);
+    }
+    return { x: step.x, y };
+  };
+  /**
+   * Arms `element`: presses it at `target`; the finger, which pressed at
+   * `finger`, drives it from `offset` away along the target's own axes. A
+   * finger already at `at` moves it there.
    */
   const grab = (
     element: Element,
@@ -321,24 +418,42 @@ export function attachHitRouting(
   ) => {
     const offset = { x: target.x - finger.x, y: target.y - finger.y };
     const moved = travel(at, finger) >= HANDLE_DRAG_MIN_PX;
-    setPhase({
+    const routed = targetOf(element);
+    const sec = hitTimeSec(element);
+    const boundaries =
+      routed && Number.isFinite(sec)
+        ? (options.detents?.(routed, sec) ?? [])
+        : [];
+    const pxPerSec = options.pxPerSec?.() ?? 0;
+    const armed: Extract<Phase, { kind: "grabbed" }> = {
       kind: "grabbed",
       pointerId: source.pointerId,
       element,
       offset,
       origin: finger,
       moved,
-    });
+      axis: routed ? HIT_KINDS[routed.kind].axis : "xy",
+      from: target,
+      at: target,
+      detents:
+        boundaries.length > 0 && pxPerSec > 0
+          ? startDetents(sec, target.x, pxPerSec, boundaries)
+          : null,
+    };
+    setPhase(armed);
+    element.setAttribute(ARMED_ATTR, "");
+    if (routed) options.onArm?.({ ...routed, axis: armed.axis });
     report(element);
     replayPointer("pointerdown", element, source, target);
     if (moved) {
-      replayPointer("pointermove", element, source, {
-        x: at.x + offset.x,
-        y: at.y + offset.y,
-      });
+      armed.at = drive(armed, at);
+      replayPointer("pointermove", element, source, armed.at);
     }
   };
-  /** Grabs chip `index`'s target, measured from where the finger settled. */
+  /**
+   * Chip `index`'s target, measured from where the finger settled: armed if
+   * it drags, else selected, as a long-press on it would.
+   */
   const grabChip = (
     index: number,
     source: PointerEvent,
@@ -347,6 +462,10 @@ export function attachHitRouting(
   ) => {
     if (phase.kind !== "open") return;
     const { candidate, element } = phase.view.hits[index];
+    if (longPressAction(candidate.kind) === "select") {
+      router.choose(index, source.pointerType);
+      return;
+    }
     grab(element, source, candidate, anchor, at);
   };
   /** The open chooser's finger is now `finger`; a new anchor restarts its timers. */
@@ -416,17 +535,12 @@ export function attachHitRouting(
     const hits = resolveHits(root, origin, event.pointerType, hit);
     const winner = hit ? hits[0].element : event.target;
     const touch = event.pointerType === "touch";
-    // Select first, then drag: the finger on a selected target drags it at
-    // once, and an armed Select range owns every touch. Anything else, even a
-    // spot where a selected neighbour would win a tap, waits for the press
-    // layer, so a hold there still opens the chooser.
-    const onSelected = hits.some(
-      (h) => h.element === hit && h.candidate.selected,
-    );
+    // One finger moving never edits: every touch, on a selected target too,
+    // waits for the press layer, which arms only on a long press. An armed
+    // Select range is the one mode that owns its touches.
     if (
       touch &&
       options.touchLab?.() &&
-      !onSelected &&
       !event.target.closest("[data-range-armed]")
     ) {
       phase = {
@@ -487,14 +601,24 @@ export function attachHitRouting(
         }
         return;
       }
+      case "create": {
+        if (event.pointerId !== phase.pointerId || !phase.view.fingerDown)
+          return;
+        stop(event);
+        const item = createItemAt(at);
+        const over = item ? Number(item.getAttribute(CREATE_ITEM_ATTR)) : null;
+        if (over !== phase.view.over) {
+          phase.view = { ...phase.view, over };
+          emitCreate(phase.view);
+        }
+        return;
+      }
       case "grabbed": {
         if (event.pointerId !== phase.pointerId) return;
         stop(event);
         if (travel(at, phase.origin) >= HANDLE_DRAG_MIN_PX) phase.moved = true;
-        replayPointer("pointermove", phase.element, event, {
-          x: at.x + phase.offset.x,
-          y: at.y + phase.offset.y,
-        });
+        phase.at = drive(phase, at);
+        replayPointer("pointermove", phase.element, event, phase.at);
         return;
       }
       case "routed": {
@@ -555,15 +679,32 @@ export function attachHitRouting(
         emit(phase.view);
         return;
       }
+      case "create": {
+        if (!phase.view.fingerDown || event.pointerId !== phase.pointerId)
+          return;
+        stop(event);
+        suppressClickUntil = Date.now() + GHOST_CLICK_MS;
+        const item = createItemAt(at);
+        if (item) {
+          // Picked by lifting on it: the item's own click runs its command.
+          setPhase(IDLE);
+          replayClick(item, event, at);
+          return;
+        }
+        // Lifting anywhere but an item leaves the menu open to tap.
+        phase.view = { ...phase.view, fingerDown: false, over: null };
+        emitCreate(phase.view);
+        return;
+      }
       case "grabbed": {
         if (event.pointerId !== phase.pointerId) return;
-        const { element, offset, moved } = phase;
+        const armed = phase;
         stop(event);
+        const to = drive(armed, at);
         setPhase(IDLE);
-        const to = { x: at.x + offset.x, y: at.y + offset.y };
-        replayPointer("pointerup", element, event, to);
+        replayPointer("pointerup", armed.element, event, to);
         // A hold released where it started is a slow tap.
-        replaceClick(element, event, to, !moved);
+        replaceClick(armed.element, event, to, !armed.moved);
         return;
       }
       case "routed": {
@@ -597,10 +738,10 @@ export function attachHitRouting(
 
   const onClick = (event: MouseEvent) => {
     if (isReplayed(event) || Date.now() >= suppressClickUntil) return;
-    // A chip's own press needs its click.
+    // A chip's or create item's own press needs its click.
     if (
       event.target instanceof Element &&
-      event.target.closest(`[${CHOOSER_ITEM_ATTR}]`)
+      event.target.closest(`[${CHOOSER_ITEM_ATTR}],[${CREATE_ITEM_ATTR}]`)
     ) {
       return;
     }
@@ -709,8 +850,24 @@ export function attachHitRouting(
       const press = settle();
       if (!press) return;
       const { down, origin, hits, winner } = press;
-      if (hits.length < 2) {
-        grab(winner, down, origin, origin);
+      if (hits.length === 0) {
+        // Empty space: what can be made here.
+        phase = {
+          kind: "create",
+          pointerId: down.pointerId,
+          view: { origin, surface: winner, fingerDown: true, over: null },
+        };
+        emitCreate(phase.view);
+        return;
+      }
+      if (hits.length === 1) {
+        const [{ candidate, element }] = hits;
+        if (longPressAction(candidate.kind) === "arm") {
+          grab(element, down, candidate, origin);
+        } else {
+          report(element);
+          tapOn(element, down, down, candidate);
+        }
         return;
       }
       phase = {
@@ -769,10 +926,10 @@ export function attachHitRouting(
       emit(phase.view);
     },
     close() {
-      if (phase.kind !== "open") return;
+      if (phase.kind !== "open" && phase.kind !== "create") return;
       setPhase(IDLE);
       // A tap outside closes on its press; its click must not reach whatever
-      // the chooser was covering.
+      // the chooser or menu was covering.
       suppressClickUntil = Date.now() + GHOST_CLICK_MS;
     },
   };

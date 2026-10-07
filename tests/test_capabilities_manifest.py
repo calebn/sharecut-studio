@@ -163,3 +163,20 @@ def test_cli_entries_that_resolve_in_the_typer_tree_pass() -> None:
         },
     )
     assert mod.cli_surface_errors(row, mod._cli_root()) == []
+
+
+def test_touch_column_names_only_contract_gestures_on_command_rows() -> None:
+    mod = load_script("check_capabilities_manifest")
+    assert mod._touch_gestures()[:2] == ["long-press-arm-drag", "long-press-empty"]
+    errors = mod.touch_errors(
+        [
+            {"id": "daw.ok", "surfaces": {"command": "x", "touch": ["pinch"]}},
+            {"id": "daw.unknown", "surfaces": {"command": "y", "touch": ["wiggle"]}},
+            {"id": "agent.touch", "surfaces": {"mcp": "z", "touch": ["pinch"]}},
+        ],
+        None,
+    )
+    assert errors == [
+        "daw.unknown: unknown touch gesture 'wiggle'",
+        "agent.touch: surfaces.touch requires surfaces.command",
+    ]
