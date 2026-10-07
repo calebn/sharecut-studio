@@ -437,9 +437,15 @@ and a 10 px slop, after the iOS and Android long-press defaults it cites.
   finger that just lifted: the next press anywhere clears it, so a tap on a
   dialog the drag opened (the cut-speech question) clicks at once.
 
-The marker lane and lanes set `user-select: none` and
-`-webkit-touch-callout: none` with the lab on or off, so a held or sliding
-finger starts no text selection or iOS callout over the timeline.
+The whole timeline scroller (headers, ruler, marker lane, lanes, the pads
+past either end and the well under the last lane) sets `user-select: none`
+and `-webkit-touch-callout: none` with the lab on or off, so a held or
+sliding finger starts no text selection or iOS callout over the timeline.
+On the phone's fixed-playhead timeline each lane's surface reaches across the
+pads (`::before` / `::after` on `.lane-seek`), so a long-press past the last
+clip opens that lane's create menu at the session's end, and one before 0 at
+0. The owner's phone test found that spot selecting text when the rule sat on
+the lanes alone.
 
 The chooser is a `role="menu"` of `menuitemradio` chips (checked marks the
 currently selected target, with an accent edge and corner notch). It announces
