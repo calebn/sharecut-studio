@@ -4,10 +4,12 @@ Every lane plays the same media through copies of the original lane's clips; not
 is decoded or written. Each lane is muted (``Clip.mute_regions``) wherever it does not
 own the audio. Ownership comes from the speaker turns, which cover the recording
 without gaps, so outside crosstalk exactly one lane is open at any moment and the
-lanes sum back to the original mix. Crosstalk plays on every lane talking in it
+lanes sum back to the original mix. Flagged crosstalk plays on its most likely
+speaker's lane only (``owner``, the default: the flag is often wrong, so nothing plays
+twice and the flag stays on the turn for review), on every lane talking in it
 (``both``, where the mix carries it twice) or only on a shared crosstalk lane
-(``lane``, where the sum stays exact). The fade at each hand-over is centred on the
-boundary, so one lane's linear fade-out and the next lane's fade-in sum to one.
+(``lane``). The fade at each hand-over is centred on the boundary, so one lane's
+linear fade-out and the next lane's fade-in sum to one.
 
 Room tone under a mute (``room_tone_fill``) is off by default: the lane that owns the
 moment already carries the bed, so a fill adds another copy of it to the mix.
@@ -18,7 +20,6 @@ from __future__ import annotations
 import uuid
 from bisect import bisect_right
 from collections.abc import Sequence
-from typing import Literal
 
 from podcast_mcp.edits.clips_ops import clips_for_track, new_clip_id
 from podcast_mcp.edits.mute_regions import add_source_mute
@@ -31,6 +32,7 @@ from podcast_mcp.models import (
     ClipMuteRegion,
     EpisodeProject,
     SpeakerSplit,
+    SpeakerSplitCrosstalk,
     SpeakerTurnRecord,
     Track,
     Transcript,
@@ -38,8 +40,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.intervals import merge_intervals, subtract_intervals
 
-CrosstalkMode = Literal["both", "lane"]
-CROSSTALK_MODES: tuple[CrosstalkMode, ...] = ("both", "lane")
+CROSSTALK_MODES: tuple[SpeakerSplitCrosstalk, ...] = ("owner", "both", "lane")
 SPLIT_FADE_MS = 20
 """Hand-over fade: long enough not to click, short next to a syllable."""
 CROSSTALK_LANE_NAME = "crosstalk"
@@ -59,18 +60,22 @@ def split_for_track(project: EpisodeProject, track_id: str) -> SpeakerSplit | No
     )
 
 
+def _turn_owners(split: SpeakerSplit, turn: SpeakerTurnRecord) -> list[str]:
+    if turn.crosstalk and split.crosstalk_lane is not None:
+        return [split.crosstalk_lane]
+    if split.crosstalk_mode == "both":
+        return turn.speakers
+    return turn.speakers[:1]
+
+
 def owned_spans(split: SpeakerSplit) -> dict[str, list[Span]]:
-    """Source spans each lane plays, from the split's turns and crosstalk lane."""
+    """Source spans each lane plays, from the split's turns and crosstalk mode."""
     owned: dict[str, list[Span]] = {lane: [] for lane in split.lanes}
     if split.crosstalk_lane is not None:
         owned[split.crosstalk_lane] = []
     for turn in split.turns:
-        span = (turn.start_s, turn.end_s)
-        if turn.crosstalk and split.crosstalk_lane is not None:
-            owned[split.crosstalk_lane].append(span)
-        else:
-            for lane in turn.speakers:
-                owned[lane].append(span)
+        for lane in _turn_owners(split, turn):
+            owned[lane].append((turn.start_s, turn.end_s))
     return {lane: merge_intervals(spans) for lane, spans in owned.items()}
 
 
@@ -167,7 +172,7 @@ def split_track_by_speaker(
     attribution: SpeakerAttribution,
     *,
     names: Sequence[str],
-    crosstalk_mode: CrosstalkMode = "both",
+    crosstalk_mode: SpeakerSplitCrosstalk = "owner",
     room_tone_fill: bool = False,
     fade_ms: int = SPLIT_FADE_MS,
 ) -> dict:
@@ -205,6 +210,7 @@ def split_track_by_speaker(
         id=f"split_{uuid.uuid4().hex[:8]}",
         media_path=track.media.path,
         lanes=lanes,
+        crosstalk_mode=crosstalk_mode,
         crosstalk_lane=crosstalk_lane,
         turns=_turn_records(attribution, lanes),
         backend=attribution.backend,

@@ -364,29 +364,17 @@ class SourceStack:
     overlap_sec: float
 
 
-def _quiet_timeline_spans(project: EpisodeProject, a: Clip, b: Clip) -> list[tuple[float, float]]:
-    """Where ``a`` or ``b`` is muted, or both play crosstalk their speaker split declares."""
-    spans = [
+def _audible_overlap_sec(a: Clip, b: Clip, lo: float, hi: float) -> float:
+    """Seconds of ``[lo, hi)`` where neither clip mutes its audio."""
+    if not a.mute_regions and not b.mute_regions:
+        return hi - lo
+    muted = [
         (region.start_s + shift, region.end_s + shift)
         for clip in (a, b)
         for shift in (clip_source_to_timeline_shift(clip),)
         for region in clip.mute_regions
     ]
-    for split in project.editorial.speaker_splits:
-        if a.track_id in split.lanes and b.track_id in split.lanes:
-            shift = clip_source_to_timeline_shift(a)
-            spans.extend((start + shift, end + shift) for start, end in split.crosstalk_spans())
-    return spans
-
-
-def _audible_overlap_sec(project: EpisodeProject, a: Clip, b: Clip, lo: float, hi: float) -> float:
-    """Seconds of ``[lo, hi)`` where both clips sound and nothing declares the overlap."""
-    if not a.mute_regions and not b.mute_regions:
-        return hi - lo
-    return sum(
-        end - start
-        for start, end in subtract_intervals([(lo, hi)], _quiet_timeline_spans(project, a, b))
-    )
+    return sum(end - start for start, end in subtract_intervals([(lo, hi)], muted))
 
 
 def same_source_timeline_overlaps(
@@ -399,8 +387,8 @@ def same_source_timeline_overlaps(
 
     Flags stacked whole-file copies of a split track (see #520): two clips that would
     play the same audio at the same time. Cross-lane pairs require two dialogue tracks.
-    Time either clip mutes does not count, nor crosstalk that a speaker split (#1095)
-    declares on both lanes.
+    Time either clip mutes does not count, so speaker-split lanes (#1095) flag only
+    where two lanes play at once, as ``both`` crosstalk does.
     Checks ``clips`` (default: every project clip); empty clips are ignored.
     """
     groups: dict[str, list[Clip]] = {}
@@ -426,7 +414,7 @@ def same_source_timeline_overlaps(
                 ):
                     continue
                 overlap = _audible_overlap_sec(
-                    project, a, b, b.timeline_start, min(a.timeline_end, b.timeline_end)
+                    a, b, b.timeline_start, min(a.timeline_end, b.timeline_end)
                 )
                 if overlap > tolerance_sec + _EPS:
                     stacks.append(

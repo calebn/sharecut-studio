@@ -7,6 +7,7 @@ import typer
 
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.timed import timed_command
+from podcast_mcp.edits.speaker_split import CROSSTALK_MODES
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import SpeakerService
 
@@ -161,25 +162,29 @@ def speaker_split_cmd(
     ),
     name: list[str] | None = typer.Option(None, "--name", help="Speaker name, in order"),
     enroll: list[str] | None = typer.Option(
-        None, "--enroll", help="NAME=START:END of only that speaker (repeat; sets names)"
+        None, "--enroll", help="NAME=START:END of only that speaker (repeat; some or all speakers)"
     ),
     crosstalk: str = typer.Option(
-        "both", "--crosstalk", help="both: keep it on each speaker's lane; lane: a shared lane"
+        "owner",
+        "--crosstalk",
+        help="Flagged crosstalk plays on owner: the likeliest speaker's lane; "
+        "both: every talking speaker's lane (twice in the mix); lane: a shared lane",
     ),
     room_tone_fill: bool = typer.Option(
         False, "--room-tone-fill", help="Lay room tone under each lane's mutes"
     ),
     dry_run: bool = typer.Option(True, "--dry-run/--apply"),
 ) -> None:
-    if crosstalk not in ("both", "lane"):
-        raise typer.BadParameter("--crosstalk must be both or lane")
+    mode = next((m for m in CROSSTALK_MODES if m == crosstalk), None)
+    if mode is None:
+        raise typer.BadParameter("--crosstalk must be owner, both or lane")
     ws = ProjectWorkspace.open(project)
     result = SpeakerService(ws).split_speakers(
         track,
         speaker_count=speakers,
         names=name or None,
         enrollment=_parse_enroll(enroll) if enroll else None,
-        crosstalk_mode="lane" if crosstalk == "lane" else "both",
+        crosstalk_mode=mode,
         room_tone_fill=room_tone_fill,
         dry_run=dry_run,
         progress=get_progress(),
