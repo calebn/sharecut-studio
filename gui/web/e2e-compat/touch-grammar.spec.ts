@@ -444,7 +444,7 @@ test("a long-press past the last clip opens the create menu and selects no text"
   expect(selected).toBe("");
 });
 
-test("the strip swipes between peek, half and full, and its buttons still work", async ({
+test("the strip follows the finger; a flick opens or closes it fully, a slow drag lands at the nearest detent", async ({
   page,
   context,
   browserName,
@@ -455,26 +455,76 @@ test("the strip swipes between peek, half and full, and its buttons still work",
   const sheet = page.locator(".bottom-sheet--compact");
   await expect(sheet).toHaveClass(/bottom-sheet--peek/);
   await frame(page, info, `grammar-drawer-peek-${browserName}`);
+  const top = async () => {
+    const box = await sheet.boundingBox();
+    if (!box) throw new Error("no sheet");
+    return box.y;
+  };
+  // The drawer's slot, and its half and full shares (bottom-sheet.css).
+  const slot = await page.evaluate(() => {
+    const root = document.querySelector(".bottom-sheet-root");
+    if (!root) throw new Error("no drawer");
+    const rem = Number.parseFloat(
+      getComputedStyle(document.documentElement).fontSize,
+    );
+    const box = root.getBoundingClientRect();
+    return {
+      bottom: box.bottom,
+      half: Math.min(box.height / 2, 26.25 * rem, box.height - 13 * rem),
+      full: Math.min(box.height, 56.25 * rem),
+    };
+  });
   const grab = async () => {
     const box = await page.locator(".bottom-sheet-grabber").boundingBox();
     if (!box) throw new Error("no grabber");
     return { x: box.x + box.width / 2 + 60, y: box.y + 4 };
   };
-  const swipe = async (dy: number) => {
+  /** `dy` px in four moves `stepMs` apart, lifted at once: 8 is a flick. */
+  const flick = async (dy: number, stepMs = 8) => {
     const at = await grab();
-    await finger.down(at);
-    await finger.slide({ x: at.x, y: at.y + dy }, 10, 30);
-    await finger.up();
-    await page.waitForTimeout(400);
+    await finger.flick(at, { x: at.x, y: at.y + dy }, 4, stepMs);
+    await page.waitForTimeout(500);
   };
-  await swipe(-120);
-  await expect(sheet).toHaveClass(/bottom-sheet--half/);
-  await frame(page, info, `grammar-drawer-half-${browserName}`);
-  await swipe(-160);
+  /** A slow drag by `dy`, held still, then lifted: where the top was and is held. */
+  const drag = async (dy: number) => {
+    const at = await grab();
+    const before = await top();
+    await finger.down(at);
+    await finger.slide({ x: at.x, y: at.y + dy }, 15, 40);
+    await page.waitForTimeout(300);
+    const held = await top();
+    await finger.up();
+    await page.waitForTimeout(500);
+    return { before, held };
+  };
+
+  await flick(-60);
   await expect(sheet).toHaveClass(/bottom-sheet--full/);
-  await frame(page, info, `grammar-drawer-full-${browserName}`);
-  await swipe(120);
+  await frame(page, info, `grammar-drawer-flick-full-${browserName}`);
+  await flick(60);
+  await expect(sheet).toHaveClass(/bottom-sheet--peek/);
+  // The same 60px drawn out over 800 ms is a drag: the strip stays.
+  await flick(-60, 200);
+  await expect(sheet).toHaveClass(/bottom-sheet--peek/);
+
+  // Up to the half detent's height and held there: it follows 1:1 and stays.
+  const strip = slot.bottom - (await top());
+  const toHalf = await drag(-(slot.half - strip));
   await expect(sheet).toHaveClass(/bottom-sheet--half/);
+  await frame(page, info, `grammar-drawer-slow-half-${browserName}`);
+  // Slowly up past the middle of half and full: full.
+  const toFull = await drag(-0.7 * (slot.full - slot.half));
+  await expect(sheet).toHaveClass(/bottom-sheet--full/);
+  // Down a little and held: still full, not a detent lower.
+  await drag(40);
+  await expect(sheet).toHaveClass(/bottom-sheet--full/);
+  json(info, `grammar-drawer-${browserName}`, { slot, strip, toHalf, toFull });
+  expect(toHalf.before - toHalf.held).toBeCloseTo(slot.half - strip, -1);
+  expect(toFull.before - toFull.held).toBeCloseTo(
+    0.7 * (slot.full - slot.half),
+    -1,
+  );
+
   await page.getByRole("button", { name: "Collapse to strip" }).click();
   await expect(sheet).toHaveClass(/bottom-sheet--peek/);
   const range = page.getByRole("slider", { name: "Inspector height" });
