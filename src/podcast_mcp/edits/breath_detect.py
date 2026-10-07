@@ -10,7 +10,12 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 
 from podcast_mcp.config import load_defaults
-from podcast_mcp.edits.audio_cache import TrackAudioCache
+from podcast_mcp.edits.audio_cache import (
+    DIGITAL_SILENCE_DB,
+    LEVEL_FRAME_SEC,
+    TrackAudioCache,
+    level_profile,
+)
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.util.dsp import (
@@ -47,17 +52,11 @@ _SIBILANT_SPLIT_HZ = 4000.0
 _SIBILANT_HIGH_BAND_FRACTION = 0.5
 _BREATH_BAND_HZ = (100.0, 8000.0)
 # A breath's level is only meaningful against the track's own room tone and speech.
-# Both are read from the kept audio flanking a cut: 10 ms frames over this much on
-# each side, the 10th percentile of live (not digitally silent) frames as the floor
-# and the 90th as the speech level. On the lab tape breaths sit 6-39 dB below that
-# speech level and 12-45 dB above that floor (#814); a fixed audibility floor put
-# the band at -32.4 to -31 dBFS and found 1 of 26.
+# Both are read from the kept audio flanking a cut, this much on each side
+# (``level_profile``). On the lab tape breaths sit 6-39 dB below that speech level
+# and 12-45 dB above that floor (#814); a fixed audibility floor put the band at
+# -32.4 to -31 dBFS and found 1 of 26.
 _LEVEL_CONTEXT_SEC = 5.0
-_LEVEL_FRAME_SEC = 0.01
-_MIN_LIVE_CONTEXT_SEC = 0.5
-_FLOOR_PERCENTILE = 10.0
-_SPEECH_PERCENTILE = 90.0
-_DIGITAL_SILENCE_DB = -200.0
 _BREATH_ABOVE_FLOOR_DB = 9.5
 _BREATH_BELOW_SPEECH_DB = (7.0, 40.0)
 
@@ -88,17 +87,6 @@ def breath_level_band(noise_floor_rms: float, speech_rms: float) -> LevelBand | 
     if not (0.0 < lo < hi):
         return None
     return LevelBand(lo=lo, hi=hi)
-
-
-def level_profile(samples: np.ndarray, sample_rate: int) -> tuple[float, float] | None:
-    """``(noise_floor_rms, speech_rms)`` of the live 10 ms frames, or ``None`` when too few."""
-    frame = max(1, round(sample_rate * _LEVEL_FRAME_SEC))
-    levels = frame_rms_db(samples, frame, frame, floor_db=_DIGITAL_SILENCE_DB)
-    live = levels[levels > _DIGITAL_SILENCE_DB]
-    if live.size < _MIN_LIVE_CONTEXT_SEC / _LEVEL_FRAME_SEC:
-        return None
-    floor_db, speech_db = np.percentile(live, (_FLOOR_PERCENTILE, _SPEECH_PERCENTILE))
-    return db_to_amplitude(float(floor_db)), db_to_amplitude(float(speech_db))
 
 
 def _breath_cfg(defaults: dict | None) -> dict:
@@ -149,7 +137,7 @@ def _is_unvoiced(samples: np.ndarray, sample_rate: int, *, min_rms: float = 0.0)
     if probes.size and min_rms > 0.0:
         frame = min(samples.size, max(1, round(sample_rate * _PITCH_FRAME_SEC)))
         hop = max(1, round(sample_rate * _PITCH_HOP_SEC))
-        levels = frame_rms_db(samples, frame, hop, floor_db=_DIGITAL_SILENCE_DB)
+        levels = frame_rms_db(samples, frame, hop, floor_db=DIGITAL_SILENCE_DB)
         probes = probes[levels >= 20.0 * math.log10(min_rms)]
     return probes.size == 0 or float(probes.max()) < _CLEAR_PITCH_PEAK
 
@@ -329,7 +317,7 @@ def _find_breath_in_window(
     The predicate sees every frame of ``samples``, so the window may carry audio
     beyond the search span for the kept-word adjacency walk.
     """
-    frame_size = max(1, int(sample_rate * _LEVEL_FRAME_SEC))
+    frame_size = max(1, int(sample_rate * LEVEL_FRAME_SEC))
     if samples.size < frame_size * 3:
         return None
 
@@ -441,7 +429,7 @@ def _complete_crossing_span(
 ) -> BreathSpan | None:
     if band is None or noise_floor_rms is None or noise_floor_rms <= 0.0:
         return None
-    frame_size = max(1, round(sample_rate * _LEVEL_FRAME_SEC))
+    frame_size = max(1, round(sample_rate * LEVEL_FRAME_SEC))
     frame_duration = frame_size / sample_rate
     levels = _frame_levels(samples, frame_size, samples.size // frame_size)
     floor = min(noise_floor_rms, band.lo) * (1.0 + 1e-6)
@@ -752,7 +740,7 @@ def _edge_evidence(
     band = breath_level_band(*profile)
     if band is None or not samples.size or not np.all(np.isfinite(samples)):
         return _UncertainEdge("missing_evidence")
-    frame_size = max(1, round(sample_rate * _LEVEL_FRAME_SEC))
+    frame_size = max(1, round(sample_rate * LEVEL_FRAME_SEC))
     dt = frame_size / sample_rate
     levels = _frame_levels(samples, frame_size, samples.size // frame_size)
     if not origin < edge < origin + levels.size * dt:
@@ -818,10 +806,10 @@ def protect_cut_breaths(
     if read is None:
         return no_evidence
     context_start = max(
-        0.0, math.floor((start - _LEVEL_CONTEXT_SEC) / _LEVEL_FRAME_SEC + 1e-9) * _LEVEL_FRAME_SEC
+        0.0, math.floor((start - _LEVEL_CONTEXT_SEC) / LEVEL_FRAME_SEC + 1e-9) * LEVEL_FRAME_SEC
     )
-    before_end = math.floor(start / _LEVEL_FRAME_SEC + 1e-9) * _LEVEL_FRAME_SEC
-    after_start = math.ceil(end / _LEVEL_FRAME_SEC - 1e-9) * _LEVEL_FRAME_SEC
+    before_end = math.floor(start / LEVEL_FRAME_SEC + 1e-9) * LEVEL_FRAME_SEC
+    after_start = math.ceil(end / LEVEL_FRAME_SEC - 1e-9) * LEVEL_FRAME_SEC
     before = _read_evidence(read, context_start, before_end - context_start)
     after = _read_evidence(read, after_start, _LEVEL_CONTEXT_SEC)
     context = np.concatenate([before, after])
@@ -835,7 +823,7 @@ def protect_cut_breaths(
     for edge in (start, end):
         origin = max(
             0.0,
-            math.floor((edge - _LEVEL_CONTEXT_SEC) / _LEVEL_FRAME_SEC + 1e-9) * _LEVEL_FRAME_SEC,
+            math.floor((edge - _LEVEL_CONTEXT_SEC) / LEVEL_FRAME_SEC + 1e-9) * LEVEL_FRAME_SEC,
         )
         samples = _read_evidence(read, origin, edge + _LEVEL_CONTEXT_SEC - origin)
         windows.append((origin, samples))
@@ -901,7 +889,7 @@ def _mostly_breath(
     """
     mid = (start + end) / 2
     origin = max(
-        0.0, math.floor((mid - _LEVEL_CONTEXT_SEC) / _LEVEL_FRAME_SEC + 1e-9) * _LEVEL_FRAME_SEC
+        0.0, math.floor((mid - _LEVEL_CONTEXT_SEC) / LEVEL_FRAME_SEC + 1e-9) * LEVEL_FRAME_SEC
     )
     samples = _read_evidence(read, origin, mid + _LEVEL_CONTEXT_SEC - origin)
     if not samples.size or not np.all(np.isfinite(samples)):
