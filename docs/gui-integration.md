@@ -583,7 +583,7 @@ Keyboard **`=` / `+` / `-` / `\`** (zoom in / out / fit session width) require *
 | `POST /api/document/command?path=` | Typed document commands (`UndoHistory`, `SetClipFade`, `TrimClipEdge`, `SetEnvelope`, `AddChapter`, …) |
 | `POST /api/review/{token}/daw/document/command` | Guest document commands (capability-gated; see [host-online-relay.md](host-online-relay.md)) |
 | `GET /api/pending-preview` | Host full-mix Current/Suggested/A/B WAV; authenticated, every pending GUI preview |
-| `GET /api/review/{token}/daw/pending-preview` | Guest listen-first Current/Suggested/A/B WAV (`play`+`view`) |
+| `GET /api/review/{token}/daw/pending-preview` | Guest listen-first Current/Suggested/A/B WAV (`play`+`view`); unavailable Suggested/A/B returns 400 with `pending_preview_unavailable` and its authored reason, including splits that do not change the mix |
 | `GET /api/review/{token}/daw/pending-preview-image` | Guest waveform/spectrogram of that extract |
 | `GET /api/review/{token}/daw/proxy/{track_id}/{hash}/{i}` | Local proxy chunk fallback when object storage unset |
 | `POST /api/review/{token}/comments/{id}/actions/{aid}/done` | Guest action-item toggle (`action` cap; MCP twin) |

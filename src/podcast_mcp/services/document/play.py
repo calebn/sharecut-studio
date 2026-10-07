@@ -1537,7 +1537,7 @@ class PlayService:
             raise ValueError("mode must be current, suggested, or ab")
         window = resolve_pending_preview(self.project, edit_id, pad_sec=pad_sec)
         if kind != "current" and window.suggest_reason:
-            raise ValueError(window.suggest_reason)
+            raise CodedValueError(window.suggest_reason, code="pending_preview_unavailable")
         wavs = [
             self._pending_window_wav(window, side, rerender=rerender)
             for side in _PENDING_SIDES[kind]
@@ -1579,7 +1579,7 @@ class PlayService:
             raise ValueError("mode must be current, suggested, or ab")
         window = resolve_pending_preview(self.project, edit_id, pad_sec=pad_sec)
         if kind != "current" and window.suggest_reason:
-            raise ValueError(window.suggest_reason)
+            raise CodedValueError(window.suggest_reason, code="pending_preview_unavailable")
         paths = [self._pending_window_path(window, side) for side in _PENDING_SIDES[kind]]
         if not all(path.is_file() for path in paths):
             return None
