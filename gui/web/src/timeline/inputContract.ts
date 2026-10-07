@@ -9,7 +9,8 @@
  * - one finger moving scrolls and never edits;
  * - a tap selects;
  * - a long-press arms a target (the chooser fans out when targets crowd), and
- *   only an armed target drags, along its own axes; lifting commits;
+ *   only an armed target drags, along its own axes; lifting commits. A clip
+ *   body is a target too: armed, it moves the clip in time;
  * - a long-press on empty timeline space opens the create menu;
  * - a second finger cancels and rolls back any uncommitted one-finger action;
  * - held nudges and held arrow keys stop at soft boundaries; drags get a
@@ -33,7 +34,8 @@ export type KeyInput = "arrows" | "activate";
 export type KindCommand =
   | "edit.setClipFade"
   | "edit.trimClipEdge"
-  | "edit.rollClipJoin";
+  | "edit.rollClipJoin"
+  | "edit.moveClips";
 
 export interface HitKindContract {
   /** Tie-break when targets crowd one spot (higher wins). */
@@ -62,6 +64,13 @@ export interface HitKindContract {
    * the clip beside it (#1135). The chooser still lists both.
    */
   outranks: readonly string[];
+  /**
+   * The wide area behind the other targets (a clip body). A finger reaches
+   * it only by landing on it with no other target in reach, so it never
+   * crowds the chooser, and a long-press there arms it instead of opening the
+   * create menu. It drags as a whole: both its ends meet soft boundaries.
+   */
+  body: boolean;
 }
 
 /** Every hit-testable timeline target kind and its input contract. */
@@ -75,6 +84,7 @@ export const HIT_KINDS = {
     keys: "activate",
     command: null,
     outranks: [],
+    body: false,
   },
   "envelope-point": {
     priority: 9,
@@ -85,6 +95,7 @@ export const HIT_KINDS = {
     keys: "activate",
     command: null,
     outranks: [],
+    body: false,
   },
   "pending-start": {
     priority: 8,
@@ -95,6 +106,7 @@ export const HIT_KINDS = {
     keys: "activate",
     command: null,
     outranks: [],
+    body: false,
   },
   "pending-end": {
     priority: 8,
@@ -105,6 +117,7 @@ export const HIT_KINDS = {
     keys: "activate",
     command: null,
     outranks: [],
+    body: false,
   },
   "pending-flag": {
     priority: 7,
@@ -115,6 +128,7 @@ export const HIT_KINDS = {
     keys: "activate",
     command: null,
     outranks: [],
+    body: false,
   },
   roll: {
     priority: 6,
@@ -125,6 +139,7 @@ export const HIT_KINDS = {
     keys: "activate",
     command: "edit.rollClipJoin",
     outranks: ["trim-in", "trim-out"],
+    body: false,
   },
   "fade-in": {
     priority: 5,
@@ -135,6 +150,7 @@ export const HIT_KINDS = {
     keys: "arrows",
     command: "edit.setClipFade",
     outranks: [],
+    body: false,
   },
   "fade-out": {
     priority: 5,
@@ -145,6 +161,7 @@ export const HIT_KINDS = {
     keys: "arrows",
     command: "edit.setClipFade",
     outranks: [],
+    body: false,
   },
   // A trim of the start ripples: the clip's start stays put and its content
   // slides under it, so nothing moves in time for a boundary to stop.
@@ -157,6 +174,7 @@ export const HIT_KINDS = {
     keys: "arrows",
     command: "edit.trimClipEdge",
     outranks: [],
+    body: false,
   },
   "trim-out": {
     priority: 4,
@@ -167,6 +185,7 @@ export const HIT_KINDS = {
     keys: "arrows",
     command: "edit.trimClipEdge",
     outranks: [],
+    body: false,
   },
   chapter: {
     priority: 3,
@@ -177,6 +196,7 @@ export const HIT_KINDS = {
     keys: "activate",
     command: null,
     outranks: [],
+    body: false,
   },
   "social-clip": {
     priority: 2,
@@ -187,6 +207,19 @@ export const HIT_KINDS = {
     keys: "activate",
     command: null,
     outranks: [],
+    body: false,
+  },
+  // A touch move keeps the clip in its lane; a mouse drag can still change it.
+  clip: {
+    priority: 1,
+    label: "Clip",
+    axis: "x",
+    nudges: [],
+    soft: true,
+    keys: "activate",
+    command: "edit.moveClips",
+    outranks: [],
+    body: true,
   },
 } as const satisfies Record<string, HitKindContract>;
 
@@ -242,7 +275,8 @@ export function softMover(
     case "fade-in":
     case "fade-out":
     case "trim-out":
-    case "roll": {
+    case "roll":
+    case "clip": {
       for (const [trackId, lane] of Object.entries(project.clips.tracks)) {
         if (lane.some((clip) => clip.id === id)) {
           return {

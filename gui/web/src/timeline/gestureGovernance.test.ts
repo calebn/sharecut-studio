@@ -7,6 +7,12 @@
  */
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  jsxElements,
+  markedKinds,
+  marksSurface,
+  ownsPointerDown,
+} from "../test/jsxElements";
 import { SRC_ROOT, sourceFiles } from "../test/sourceFiles";
 
 const TIMELINE = join(SRC_ROOT, "timeline");
@@ -61,6 +67,12 @@ const POINTER_ALLOWLIST: { file: string; marker: string; reason: string }[] = [
     reason: "the ruler sits above the routed lanes: seek and comment anchors",
   },
   {
+    file: "timeline/JoinEditor.tsx",
+    marker: 'className="join-length-grip"',
+    reason:
+      "the crossfade endpoint grip lives in its own rail below the lanes, opened from the join popover",
+  },
+  {
     file: "timeline/PendingEditOverlayView.tsx",
     marker: 'className="pending-actionbar"',
     reason: "the portaled action card only stops presses reaching the lanes",
@@ -97,21 +109,13 @@ describe("timeline gesture governance", () => {
     const offenders: string[] = [];
     for (const { rel, text } of timelineSources()) {
       if (!rel.endsWith(".tsx")) continue;
-      for (const match of text.matchAll(/\bonPointerDown(Capture)?=\{/g)) {
-        const at = match.index ?? 0;
-        const opens = [...text.slice(0, at).matchAll(/<[a-z][a-z0-9]*\s/g)];
-        const start = opens.at(-1)?.index ?? 0;
-        const element = text.slice(start, at);
-        const marked =
-          element.includes("hitTargetProps(") ||
-          element.includes("HIT_SURFACE_PROPS");
+      for (const element of jsxElements(text)) {
+        if (!ownsPointerDown(element)) continue;
+        const marked = markedKinds(element).length > 0 || marksSurface(element);
         const allowed = POINTER_ALLOWLIST.some(
-          (entry) => entry.file === rel && element.includes(entry.marker),
+          (entry) => entry.file === rel && element.text.includes(entry.marker),
         );
-        if (!marked && !allowed) {
-          const line = text.slice(0, at).split("\n").length;
-          offenders.push(`${rel}:${line}`);
-        }
+        if (!marked && !allowed) offenders.push(`${rel}:${element.line}`);
       }
     }
     expect(offenders).toEqual([]);

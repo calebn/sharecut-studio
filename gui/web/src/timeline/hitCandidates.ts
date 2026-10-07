@@ -75,7 +75,9 @@ export function corePoint(rect: HitRect, p: HitPoint): HitPoint {
 /**
  * Targets whose box is within `radiusPx` of the pointer (plus `hit`, the one
  * the browser hit, at any reach), ranked: selected first, then nearest core,
- * then kind priority. Each candidate keeps the target it came from.
+ * then kind priority. Each candidate keeps the target it came from. A body
+ * (`HIT_KINDS[kind].body`) counts only when it is `hit` and nothing else is
+ * in reach, and then it is held where the pointer is.
  */
 export function rankHitTargets<T extends HitTarget>(
   targets: readonly T[],
@@ -84,7 +86,24 @@ export function rankHitTargets<T extends HitTarget>(
   hit: T | null = null,
 ): { candidate: HitCandidate; target: T }[] {
   const ranked: { candidate: HitCandidate; target: T }[] = [];
+  let body: { candidate: HitCandidate; target: T } | null = null;
   for (const target of targets) {
+    if (HIT_KINDS[target.kind].body) {
+      if (target === hit) {
+        body = {
+          target,
+          candidate: {
+            kind: target.kind,
+            id: target.id,
+            ...pointer,
+            distance: 0,
+            priority: HIT_KINDS[target.kind].priority,
+            selected: target.selected,
+          },
+        };
+      }
+      continue;
+    }
     if (target !== hit && rectDistance(target.rect, pointer) > radiusPx) {
       continue;
     }
@@ -108,6 +127,7 @@ export function rankHitTargets<T extends HitTarget>(
       a.distance - b.distance ||
       b.priority - a.priority,
   );
+  if (ranked.length === 0 && body) return [body];
   return applyOutranks(ranked);
 }
 

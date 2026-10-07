@@ -2,8 +2,12 @@
  * Conformance (#1096): every hit kind in `HIT_KINDS` behaves as its contract
  * says, for every input. The cases are generated from the table, so a new
  * kind gets them all without a new test, and a kind whose row changes fails
- * here until the router, strip and keys agree.
+ * here until the router, strip and keys agree. A scan of the timeline's
+ * components checks that every kind with an axis is marked on an element
+ * that owns its drag, and that no drag hides behind a plain surface, so a
+ * mouse drag cannot lose its touch path unnoticed (the clip move did once).
  */
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nudgeAxis, nudgeStep } from "../edit/nudge";
 import { softBoundaries } from "../edit/nudgeBoundaries";
@@ -17,6 +21,13 @@ import {
   sampleTrack,
 } from "../test/fixtures";
 import { button, press } from "../test/hitDom";
+import {
+  jsxElements,
+  markedKinds,
+  marksSurface,
+  ownsPointerDown,
+} from "../test/jsxElements";
+import { SRC_ROOT, sourceFiles } from "../test/sourceFiles";
 import type { Selection } from "../types/project";
 import {
   ARMED_ATTR,
@@ -87,6 +98,7 @@ const TARGET: Record<HitKind, { id: string; sec: number }> = {
   "trim-out": { id: "c2", sec: 40 },
   chapter: { id: "30-Middle", sec: 30 },
   "social-clip": { id: "s1", sec: 50 },
+  clip: { id: "c2", sec: 10 },
 };
 
 /** The selection the strip shows each kind's rows for. */
@@ -161,6 +173,38 @@ function lone(kind: HitKind): HTMLButtonElement {
   return el;
 }
 
+/** Timeline elements that own a pointer press, and what they mark themselves as. */
+const PRESS_OWNERS = [...sourceFiles(join(SRC_ROOT, "timeline"))]
+  .filter(
+    ({ rel }) =>
+      rel.endsWith(".tsx") &&
+      !rel.includes(".test.") &&
+      !rel.includes(".stories."),
+  )
+  .flatMap(({ rel, text }) =>
+    jsxElements(text)
+      .filter(ownsPointerDown)
+      .map((element) => ({
+        at: `${rel}:${element.line}`,
+        kinds: markedKinds(element),
+        surface: marksSurface(element),
+      })),
+  );
+
+describe("touch paths", () => {
+  it("finds the timeline's press owners", () => {
+    expect(PRESS_OWNERS.length).toBeGreaterThan(HIT_KIND_NAMES.length);
+  });
+
+  it("starts no drag on a plain surface, where a long-press opens the create menu", () => {
+    expect(
+      PRESS_OWNERS.filter((o) => o.surface && o.kinds.length === 0).map(
+        (o) => o.at,
+      ),
+    ).toEqual([]);
+  });
+});
+
 const OUTRANKS = HIT_KIND_NAMES.flatMap((winner) =>
   HIT_KINDS[winner].outranks.map((loser) => [winner, loser] as const),
 );
@@ -223,6 +267,19 @@ describe.each(OUTRANKS)("%s outranks %s (#1135)", (winner, loser) => {
 
 describe.each(HIT_KIND_NAMES)("%s", (kind) => {
   const contract = HIT_KINDS[kind];
+
+  // A long-press arms a kind with an axis, and the router replays the drag
+  // on the element that marks it; one without an axis only selects.
+  it(
+    contract.axis === "none"
+      ? "owns no drag, which a finger could not reach"
+      : "has a reachable touch path: an element that marks it owns the drag",
+    () => {
+      const owners = PRESS_OWNERS.filter((o) => o.kinds.includes(kind));
+      if (contract.axis === "none") expect(owners).toEqual([]);
+      else expect(owners).not.toEqual([]);
+    },
+  );
 
   it("one finger moving never edits it", () => {
     const el = lone(kind);
