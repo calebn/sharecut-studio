@@ -209,6 +209,7 @@ def apply_filler_pacing(
     defaults: dict[str, Any] | None = None,
     cut_kind: str = "filler",
     allow_gap_expand: bool = True,
+    keeps_time: bool = False,
 ) -> FillerPacingResult | None:
     """Enforce post-filler pacing; return adjusted cut or ``None`` to skip.
 
@@ -224,6 +225,11 @@ def apply_filler_pacing(
     ``min_gap_after_filler_sec`` and no pad is added. Strictly bounded
     candidates (``filler:acoustic``) use this so the edit can never widen onto
     the rest of the gap or leave a longer pause than the original.
+
+    ``keeps_time=True`` (a mute) never shrinks or drops the cut to keep
+    ``min_gap_after_filler_sec``: nothing closes up, so the flanking words keep
+    the gap they had. The room-tone expansion still sets the span, so a mute
+    silences what a padded ripple would remove (#1064).
     """
     if cut_kind in {"pause", "repeat", "restart"}:
         return FillerPacingResult(start=cut_start, end=cut_end)
@@ -285,7 +291,7 @@ def apply_filler_pacing(
             end_margin_sec=end_margin,
         )
         if expanded is None:
-            return None
+            return FillerPacingResult(start=cut_start, end=cut_end) if keeps_time else None
         # Safety: never expand a short filler cut across a huge hesitation by mistake.
         if _takes_whole_gap(expanded[1] - expanded[0], cut_dur, cfg):
             return FillerPacingResult(
@@ -303,6 +309,8 @@ def apply_filler_pacing(
             allow_trailing_past_end=overlap_next,
         )
 
+    if keeps_time:
+        return FillerPacingResult(start=cut_start, end=cut_end)
     shrunk = shrink_cut_for_min_gap(cut_start, cut_end, prev.end, nxt.start, min_gap)
     if shrunk is None:
         return None

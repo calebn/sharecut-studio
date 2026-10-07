@@ -1916,6 +1916,7 @@ def _analyze_candidate(
     ):
         return _CutRejected("not_owner")
 
+    mute_mode = _edit_mode(tighten) == "mute"
     paced = apply_filler_pacing(
         project,
         track_id,
@@ -1926,6 +1927,7 @@ def _analyze_candidate(
         # Bounded candidates never widen onto the rest of the gap or get a pad,
         # so the pause left behind is never longer than the original.
         allow_gap_expand=not candidate.strictly_bounded,
+        keeps_time=mute_mode,
     )
     if paced is None:
         return _CutRejected("pacing")
@@ -1933,7 +1935,6 @@ def _analyze_candidate(
     if paced_span is None:
         return _CutRejected("bounds")
     cut_start, cut_end = paced_span
-    mute_mode = _edit_mode(tighten) == "mute"
     try:
         scope, _ = _cut_scope(
             project, track_id, cut_start, cut_end, peer_scoped=not mute_mode, defaults=defaults
