@@ -1432,3 +1432,67 @@ def test_a_silent_peer_track_never_blocks_a_pause_trim() -> None:
         return np.zeros(round(duration_sec * sample_rate), dtype=np.float32)
 
     assert _air((4.4, 5.3), guest=silent) == pytest.approx((4.4, 5.3))
+
+
+def _fixture_words() -> list[tuple[str, float, float]]:
+    """The fixture track's words (300 ms every 500 ms around the 4.3-5.45 pause)."""
+    starts = [*np.arange(0.0, 4.3, 0.5), *np.arange(5.45, 9.9, 0.5)]
+    return [(f"w{i}", float(at), float(at) + 0.3) for i, at in enumerate(starts)]
+
+
+def _air_with_words(cut, *, placed=(), pause=(4.3, 5.45), guest=None):
+    """:func:`_air` over a project whose transcript names the fixture words, so each
+    track's room is read between its own words."""
+    from podcast_mcp.edits.breath_detect import pause_air_span
+
+    host = _fake_windows(placed=placed)
+    project = _host_project(_fixture_words())
+    if guest is not None:
+        project = _with_guest(project)
+
+    def windows(path, start_sec, duration_sec, sample_rate=16000):
+        reader = guest if guest is not None and "guest" in str(path) else host
+        return reader(path, start_sec, duration_sec, sample_rate)
+
+    with patch("podcast_mcp.edits.breath_detect.load_mono_window", side_effect=windows):
+        return pause_air_span(project, "host", *cut, pause=pause)
+
+
+def test_a_pause_mostly_its_own_sound_is_not_its_own_air() -> None:
+    # A breath 42 dB under the speech fills 87% of the pause (4.36-5.34): the pause's
+    # 20th percentile sits inside it. Against the track's room tone (-70 dBFS, 13 dB
+    # under the breath) it is a sound, so a trim keeps its edges out of it.
+    breath = _frames_at([-72.0] + [-57.0] * 98 + [-72.0])
+
+    assert _air_with_words((4.5, 5.3), placed=((breath, 4.35),)) is None
+    assert _air_with_words((4.4, 5.44), placed=((breath, 4.35),)) == pytest.approx((5.35, 5.44))
+    # Whole, a sound that quiet may go with the air around it.
+    assert _air_with_words((4.31, 5.44), placed=((breath, 4.35),)) == pytest.approx((4.31, 5.44))
+
+
+def test_a_peer_breathing_through_the_pause_leaves_no_air_on_its_track() -> None:
+    # The guest's room is -70 dBFS and it breathes at -57 from 4.36 to 5.5, past both
+    # edges of the trim. The guest's own 20th percentile of the pause is the breath.
+    breath = _frames_at([-57.0] * 114)
+    guest = _fake_windows(placed=((breath, 4.36),))
+
+    assert _air_with_words((4.45, 5.3), guest=guest) is None
+    assert _air_with_words((4.4, 5.44), guest=guest) is None
+
+
+def test_a_peer_breath_that_ends_inside_the_pause_moves_the_end_edge_out_of_it() -> None:
+    # The same breath ends at 5.0 with a 60 ms fade, and the trim's start sits inside it:
+    # the start moves to the end of the breath's sound, a guard frame past its fade.
+    breath = _frames_at([-57.0] * 60 + [-60.0, -63.0, -66.0, -68.0, -69.0, -70.0])
+    guest = _fake_windows(placed=((breath, 4.36),))
+
+    assert _air_with_words((4.45, 5.3), guest=guest) == pytest.approx((4.99, 5.3))
+
+
+def test_a_silent_peer_mic_with_only_room_tone_never_blocks_a_pause_trim() -> None:
+    # An ungated second mic that carries -70 dBFS room tone and never speaks nearby:
+    # its room tone is its air.
+    def room_only(path, start_sec, duration_sec, sample_rate=16000):
+        return _shaped_noise(round(duration_sec * sample_rate), _FLOOR_RMS, sample_rate)
+
+    assert _air_with_words((4.4, 5.3), guest=room_only) == pytest.approx((4.4, 5.3))
