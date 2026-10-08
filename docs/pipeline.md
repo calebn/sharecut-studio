@@ -466,6 +466,8 @@ share, and the word indexes it reads the room between words with are built once 
 run (`_word_indexes`). On a 1-hour, 4-track episode with 300 pauses the levels cost
 7 s in all (every block once) and 4 ms a call after that, where filtering each pause's
 own window took 52 s (172 ms a call).
+The track's speech level, the ceiling a trim removes a sound whole under, is read from the same
+blocks once for the whole track, so every pause classifies a sound alike.
 The full cleanup report passes one processed-stem cache set through its
 subanalyses, and the project join sweep shares source decode and calibration
 per track while checking each join with a bounded high-rate window.
