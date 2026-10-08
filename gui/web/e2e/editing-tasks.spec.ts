@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import { expect, test } from "@playwright/test";
+import { editingTaskRegistry } from "./editingTaskCases";
 import { assessEditingTrial } from "./editingTaskReport";
-import { editingTaskRegistry, runEditingTask } from "./editingTasks";
+import { runEditingTask } from "./editingTasks";
 
 test("current-main editing task saved-state proof", async ({
   page,

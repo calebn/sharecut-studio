@@ -4,15 +4,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
+import { editingTaskRegistry } from "../e2e/editingTaskCases";
+import { verifyEditingDistribution } from "../e2e/editingTaskEvidence";
 import {
   assessEditingTrial,
   type EditingTrial,
   summarizeEditingAttempts,
 } from "../e2e/editingTaskReport";
-import {
-  editingTaskRegistry,
-  verifyEditingDistribution,
-} from "../e2e/editingTasks";
 import { acquireE2ePortLease } from "../e2e/port";
 import { runE2e } from "../e2e/runE2e";
 
@@ -142,6 +140,9 @@ const harnessFiles = Object.fromEntries(
   [
     "e2e/editingTaskReport.ts",
     "e2e/editingTasks.ts",
+    "e2e/editingTaskCases.ts",
+    "e2e/editingTaskEvidence.ts",
+    "e2e/editingTaskInputs.ts",
     "e2e/editing-tasks.spec.ts",
     "scripts/profile-editing-tasks.ts",
     "e2e/editorProfile.ts",
