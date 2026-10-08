@@ -872,3 +872,102 @@ def test_cli_dry_run_prints_the_turn_summary(mixed_ws: ProjectWorkspace) -> None
     payload = json.loads(result.output)
     assert payload["dry_run"] is True
     assert payload["speakers"] == ["Ana", "Ben"]
+
+
+def _frame_level_audio(levels: np.ndarray, speakers: np.ndarray) -> np.ndarray:
+    t = np.arange(round(FRAME_SEC * RATE)) / RATE
+    carriers = np.sin(2 * np.pi * np.array([200.0, 600.0])[:, None] * t)
+    return (
+        (carriers[speakers] * (np.sqrt(2) * 10 ** (levels[:, None] / 20)))
+        .reshape(-1)
+        .astype(np.float32)
+    )
+
+
+@pytest.mark.parametrize("available", [False, True])
+def test_attribution_preserves_quiet_continuous_ownership_beside_unrelated_contrast(
+    monkeypatch: pytest.MonkeyPatch, available: bool
+) -> None:
+    levels = np.r_[np.full(10, -32.0), np.full(50, -20.0), np.full(240, -45.0)]
+    provisional = np.r_[np.zeros(60, dtype=np.int32), np.ones(240, dtype=np.int32)]
+    audio = _frame_level_audio(levels, provisional)
+    detector = FrameDetector(np.ones(300)) if available else None
+    monkeypatch.setattr("podcast_mcp.engines.vad_silero.get_shared_vad", lambda: detector)
+    monkeypatch.setattr("podcast_mcp.engines.speaker_split._viterbi", lambda *args: provisional)
+    attribution = attribute_speakers(
+        audio,
+        speaker_count=2,
+        backend=SpectralBackend(),
+        enrollment={0: [(0.0, 1.2)], 1: [(1.2, 6.0)]},
+    )
+    labels, crosstalk = _frame_labels(attribution, 300)
+    assert labels.tolist() == [0] * 60 + [1] * 240
+    expected = [False] * 48 + [True] * 24 + [False] * 228 if available else [False] * 300
+    assert crosstalk.tolist() == expected
+
+
+class WindowDetector(FrameDetector):
+    WINDOW_SAMPLES = 512
+
+
+def test_actual_detector_projection_cannot_expand_disconnected_background_blips(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    levels = np.full(300, -80.0)
+    levels[20:120] = levels[190:290] = -20.0
+    levels[130:180] = -60.0
+    provisional = np.zeros(300, dtype=np.int32)
+    provisional[130:180] = 1
+    audio = _frame_level_audio(levels, np.zeros(300, dtype=np.int32))
+    probabilities = np.zeros(188)
+    probabilities[[84, 89, 94]] = 1.0
+    detector = WindowDetector(probabilities)
+    monkeypatch.setattr("podcast_mcp.engines.vad_silero.get_shared_vad", lambda: detector)
+    detected = voiced_frames(audio)
+    assert detected is not None
+    assert np.flatnonzero(detected).tolist() == [135, 143, 151]
+    window_frame = np.arange(188) * 512 / 320
+    probabilities[
+        ((window_frame >= 20) & (window_frame < 120))
+        | ((window_frame >= 190) & (window_frame < 290))
+    ] = 1.0
+    monkeypatch.setattr("podcast_mcp.engines.speaker_split._viterbi", lambda *args: provisional)
+    attribution = attribute_speakers(audio, speaker_count=2, backend=SpectralBackend())
+    labels, _ = _frame_labels(attribution, 300)
+    assert labels.tolist() == [0] * 300
+
+
+def test_saved_and_rendered_lane_keeps_the_unresolved_continuous_quiet_speaker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    levels = np.r_[np.full(10, -32.0), np.full(50, -20.0), np.full(240, -45.0)]
+    provisional = np.r_[np.zeros(60, dtype=np.int32), np.ones(240, dtype=np.int32)]
+    ws = _room_workspace(tmp_path, _frame_level_audio(levels, provisional), [])
+    monkeypatch.setattr("podcast_mcp.engines.vad_silero.get_shared_vad", lambda: None)
+    monkeypatch.setattr("podcast_mcp.engines.speaker_split._viterbi", lambda *args: provisional)
+    monkeypatch.setattr(
+        "podcast_mcp.services.media.speaker.resolve_speaker_backend",
+        lambda name=None: SpectralBackend(),
+    )
+    entries = len(ws.project.history.entries)
+    SpeakerService(ws).split_speakers(
+        "room",
+        speaker_count=2,
+        names=["Ana", "Ben"],
+        enrollment={"Ana": [(0.0, 1.2)], "Ben": [(1.2, 6.0)]},
+        dry_run=False,
+    )
+    project = ProjectWorkspace.open(ws.path).project
+    assert len(project.history.entries) == entries + 2
+    assert owned_spans(project.editorial.speaker_splits[0]) == {
+        "room": [(0.0, 1.2)],
+        "room_ben": [(1.2, 6.0)],
+    }
+    original = load_mono_full(project.workspace_path() / "raw" / "room.wav", sample_rate=RATE)
+    lanes = {}
+    for track in project.tracks:
+        out = render_track_from_timeline(project, track, tmp_path / f"{track.id}.wav", {})
+        lanes[track.id] = load_mono_full(out, sample_rate=RATE)
+    interior = slice(round(1.22 * RATE), round(5.98 * RATE))
+    assert np.max(np.abs(lanes["room"][interior])) == 0.0
+    assert lanes["room_ben"][interior] == pytest.approx(original[interior], abs=1e-5)

@@ -443,20 +443,30 @@ its own voice, and the reply played on the neighbour's lane. After the Viterbi p
   The floor is the 10th percentile of non-digital sound. Speech is the median of
   detector-positive sound, or all sound when the detector is unavailable. When no
   detector-positive sound exists, the global speech estimate uses the 90th percentile
-  of sound. A cluster needs at least three speech samples, matching the 60 ms minimum
-  run. Its midpoint uses the lower of its own floor and the global floor, so
-  speech-only labels can borrow measured background and quieter local background
+  of sound. Cluster calibration first bridges eligible dips up to 40 ms and removes
+  eligible runs under 60 ms within that cluster. Its median uses only the original
+  eligible samples in surviving runs and needs at least three samples. Detector
+  blips without a duration-qualified bridged run cannot seed cluster calibration.
+  Its midpoint uses the lower of its own floor and the global floor, so speech-only
+  labels can borrow measured background and quieter local background
   remains usable.
 - With at least 6 dB between speech and a measured floor, actual detector-positive
   non-digital sound also joins the union, including quiet replies mislabeled or parked
   in an adjacent pause. Dips up to 40 ms bridge and runs under 60 ms disappear.
   Detector false positives that survive this duration filter remain protected voice.
-  Digital silence cannot supply a floor or detector voice.
+  Duration-qualified false positives can also seed the local median and expand voice
+  across louder background within their cluster. Digital silence cannot supply a
+  floor or detector voice.
 - Without a detector, embedding windows and switching use all frames as eligible,
   while run construction receives no detector evidence. At least one cluster must
   show 6 dB contrast within its own sound distribution before settlement can run.
-  Different flat speaker levels alone cannot establish a pause. With no measurable
-  contrast, including gated constant-level speech, labels stay unchanged and this
+  Every cluster with enough duration-qualified sound for calibration must also
+  separate its median from the lower local or global floor by at least 6 dB.
+  Otherwise the entire pass abstains, preserving provisional ownership. Contrast
+  in another cluster cannot establish whether unresolved constant-level sound is
+  quiet speech or background. Different flat speaker levels alone cannot establish
+  a pause. With no measurable contrast, including gated constant-level speech,
+  labels stay unchanged and this
   pass adds no crosstalk flags. Real all-true detector output remains distinct from
   an unavailable detector.
 - *Evidence* for a stretch of voice is the mean of its own embedding (that voice alone:
