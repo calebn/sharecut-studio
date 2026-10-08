@@ -173,7 +173,7 @@ On a long raw session, cut content before tightening:
 
 ## Edit reasons
 
-- `filler:` / `pause:` — auto-tighten (`apply_edits` / pipeline `tighten_from_transcript`). Applies via **cross-track ripple delete** when peers are quiet: the same session timeline window is removed on all dialogue tracks and clips shift together. If `speech_energy_guard` finds peer speech, apply uses a **track-local punch** instead. **Transcript word times do not change** — they stay in source-media seconds; only the clips (the source↔timeline bridge) move, and words whose source span is fully cut are dropped. Decisions are removed from `edit_decisions` after apply (the timeline carries the edit).
+- `filler:` — auto-tighten (`apply_edits` / pipeline `tighten_from_transcript`); `pause:` trims are review-only, shrunk to the air inside the pause (`:air_edges` when that differs from the span pacing proposed) and applied one at a time with `approve_edits` after listening. Both apply via **cross-track ripple delete** when peers are quiet: the same session timeline window is removed on all dialogue tracks and clips shift together. If `speech_energy_guard` finds peer speech, apply uses a **track-local punch** instead. **Transcript word times do not change** — they stay in source-media seconds; only the clips (the source↔timeline bridge) move, and words whose source span is fully cut are dropped. Decisions are removed from `edit_decisions` after apply (the timeline carries the edit).
 - `nl:` — natural language / manual cuts (approve before render; same ripple / track-local rules)
 - `agent:` — bulk plan from agent
 

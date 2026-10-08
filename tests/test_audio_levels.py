@@ -104,3 +104,30 @@ def test_band_levels_end_where_the_audio_ends_and_are_none_past_it_or_where_unre
         BandLevels(lambda start, duration: np.empty(0, dtype=np.float32), RATE).levels(0.0, 1.0)
         is None
     )
+
+
+def test_band_speech_level_is_one_number_for_the_whole_track_read_once() -> None:
+    x = _signal(75.0)
+    calls: list[float] = []
+
+    def read(start: float, duration: float) -> np.ndarray:
+        calls.append(start)
+        i = round(start * RATE)
+        return x[i : i + round(duration * RATE)]
+
+    bands = BandLevels(read, RATE, 75.0)
+    whole = frame_speech_band_db(x, RATE, 160, floor_db=DIGITAL_SILENCE_DB)
+
+    assert bands.speech_db() == pytest.approx(speech_level_db(whole.astype(np.float32)), abs=0.01)
+    assert len(calls) == 3
+    bands.speech_db()
+    bands.levels(10.0, 20.0)
+    assert len(calls) == 3
+
+
+def test_band_speech_level_is_none_where_the_track_cannot_be_read_or_has_no_length() -> None:
+    def broken(start: float, duration: float) -> np.ndarray:
+        raise OSError("no such file")
+
+    assert BandLevels(broken, RATE, 60.0).speech_db() is None
+    assert BandLevels(lambda start, duration: np.zeros(1), RATE).speech_db() is None
