@@ -1303,12 +1303,12 @@ def test_a_word_tail_next_to_a_louder_stretch_is_not_cut_partway() -> None:
     # surrounding 10 s that fade's last 60 ms read as air; against the pause's own
     # quiet the trim starts after the fade down to 3 dB over the room, plus a guard frame.
     # The fade is a 140 Hz voice, which the speech band reads 1.7 dB low (its fundamental
-    # 2.5 dB down), so that is 4.84 and not the 4.86 its full-band level would give.
+    # 2.5 dB down), against the room within half a second of it, a steady -70 dBFS.
     tail = _frames_at([-15.5 - k for k in range(55)], voiced=True)
     louder = _shaped_noise(round(3.0 * 16000), _dbfs(-58.0))
 
     assert _air((4.5, 5.3), placed=((louder, 0.0), (louder, 6.5), (tail, 4.3))) == pytest.approx(
-        (4.84, 5.3)
+        (4.85, 5.3)
     )
 
 
@@ -1325,7 +1325,7 @@ def test_a_breath_into_the_next_word_stays_whole_before_a_pause_trim() -> None:
     breath = _shaped_noise(3200, 0.026)
 
     assert _protect((4.4, 5.3), placed=((breath, 5.25),)) is None
-    assert _air((4.4, 5.3), placed=((breath, 5.25),)) == pytest.approx((4.4, 5.22))
+    assert _air((4.4, 5.3), placed=((breath, 5.25),)) == pytest.approx((4.4, 5.21))
 
 
 def test_a_complete_breath_at_a_pause_trim_end_stays_whole() -> None:
@@ -1404,7 +1404,7 @@ def test_a_pause_trim_keeps_an_untranscribed_voiced_sound_whole() -> None:
     # A hum at the speech level in the middle of the pause that no transcript word covers.
     hum = _harmonic_tone(1600, _SPEECH_RMS)
 
-    assert _air((4.4, 5.3), placed=((hum, 4.7),)) == pytest.approx((4.83, 5.3))
+    assert _air((4.4, 5.3), placed=((hum, 4.7),)) == pytest.approx((4.84, 5.3))
 
 
 def test_a_pause_trim_with_no_air_left_is_dropped() -> None:
@@ -1513,7 +1513,7 @@ def test_a_peer_breath_that_ends_inside_the_pause_moves_the_end_edge_out_of_it()
     breath = _frames_at([-57.0] * 60 + [-60.0, -63.0, -66.0, -68.0, -69.0, -70.0])
     guest = _fake_windows(placed=((breath, 4.36),))
 
-    assert _air_with_words((4.45, 5.3), guest=guest) == pytest.approx((5.02, 5.3))
+    assert _air_with_words((4.45, 5.3), guest=guest) == pytest.approx((5.03, 5.3))
 
 
 def test_a_track_that_sounds_all_through_the_window_has_no_room_to_read() -> None:
@@ -1588,6 +1588,41 @@ def test_a_rumble_reaching_110_hz_does_not_hide_a_breath_from_a_pause_trim() -> 
     )
 
     assert _air_with_words((4.4, 5.3), placed=track) == pytest.approx((4.4, 5.11))
+
+
+def _wandering_room(room_db: float, seed: int, trough_at: float, periods=(0.9, 2.1)) -> np.ndarray:
+    """A natural room whose level wanders 6 dB either side of ``room_db`` (two slow
+    swings, of 3.6 and 2.4 dB, over ``periods``), both at their lowest at ``trough_at``:
+    pumping, an HVAC cycle, a compressor's release."""
+    n = round(10.2 * 16000)
+    since = np.arange(n) / 16000 - trough_at
+    swing_db = -3.6 * np.cos(2 * np.pi * since / periods[0]) - 2.4 * np.cos(
+        2 * np.pi * since / periods[1]
+    )
+    return (_natural_room(room_db, seed) * 10 ** (swing_db / 20)).astype(np.float32)
+
+
+@pytest.mark.parametrize(
+    ("seed", "breath_at", "trough_at", "cut", "expected"),
+    [(8, 5.275, 5.35, (4.4, 5.38), (4.4, 5.32)), (7, 5.15, 5.3, (4.4, 5.3), (4.4, 5.21))],
+    ids=["rising-into-the-word", "peaking-before-the-word"],
+)
+def test_a_breath_over_a_dip_in_a_wandering_room_stays_whole(
+    seed: int, breath_at: float, trough_at: float, cut, expected
+) -> None:
+    # The room wanders 6 dB either side of -70 dBFS and is at its lowest, -76, under a
+    # breath 9 dB over that low room (350 ms from ``breath_at``) that crosses the trim's
+    # end. Read over the whole window the room's line and reach sit over the breath: the
+    # trim ended 5 dB up a breath that rises into the next word, and 8 dB up one that
+    # peaks and falls back before it. Read within half a second of each frame, the room
+    # under the breath is its own, and the trim ends before the breath.
+    room = _mixed_onto(
+        _wandering_room(-70.0, seed, trough_at), (_breath_over(-76.0, 9.0), breath_at)
+    )
+    tone = _harmonic_tone(4800, _SPEECH_RMS)
+    words = [(tone, at) for at in [*np.arange(0.0, 4.3, 0.5), *np.arange(5.45, 9.9, 0.5)]]
+
+    assert _air_with_words(cut, placed=((room, 0.0), *words)) == pytest.approx(expected)
 
 
 def test_a_decay_within_four_db_of_the_room_is_still_its_sound() -> None:
