@@ -6,10 +6,13 @@
  * (`trimDraft`). A gap trim moves nothing else.
  *
  * This mirrors `edits/ripple.py` (`ripple_track_ids`, `plan_trim`,
- * `apply_trim_geometry`); `contracts/ripple-scope.json` pins both sides.
+ * `apply_trim_geometry`); `contracts/ripple-scope.json` pins both sides. The
+ * limits a peer's edge moves within come from `trimEdgeLimits`
+ * (`contracts/trim-edge-limits.json`).
  */
 import type { ClipRow, ProjectView, TrackView } from "../types/project";
 import type { EditMode, TrimEdge } from "./clipEdgePreview";
+import { trimEdgeLimits } from "./trimLimits";
 
 export type Span = { start: number; end: number };
 
@@ -32,10 +35,11 @@ export interface LaneRipple {
   fromSec: number;
   deltaSec: number;
   /**
-   * Another speaker's clip whose edge sits where the trimmed one did: it
-   * lengthens by the same amount at that edge instead of riding along.
+   * Another speaker's clip whose edge sits where the trimmed one did (to a
+   * millisecond): its edge moves by the same amount, growing or shrinking,
+   * instead of the clip riding along or the lane splitting around it.
    */
-  grows: { clipId: string; edge: TrimEdge } | null;
+  peer: { clipId: string; edge: TrimEdge } | null;
   /** The time this lane loses when the trim shortens a clip on another lane. */
   cut: Span | null;
 }
@@ -50,8 +54,6 @@ export interface RippleMove {
 /** `edits/ripple.py` `_EDGE_EPS_SEC`: an edge this close to the trimmed one moves with it. */
 const EDGE_EPS_SEC = 1e-3;
 const EPS = 1e-9;
-/** `edits/clips_ops.py` `_MIN_CLIP_SPAN_SEC`. */
-const MIN_CLIP_SPAN_SEC = 0.05;
 
 /** Tracks a ripple moves: every dialogue track, then any edited track that is not one. */
 export function rippleTrackIds(
@@ -88,12 +90,12 @@ export function rippleTrimOf(
 
 /**
  * The clip on another lane whose `edge` sits at `instant` and can move as far
- * as the trimmed one (`plan_trim`'s peer). The media end is the track's, as
- * the trim handles clamp it.
+ * as the trimmed one (`plan_trim`'s peer): it moves its own edge by `deltaSec`
+ * instead of the lane splitting around it. Its limits are the ones the server
+ * applies to it (`trimEdgeLimits`).
  */
-function growingPeer(
+function movingPeer(
   lane: readonly ClipRow[],
-  track: Pick<TrackView, "duration_sec">,
   edge: TrimEdge,
   instant: number,
   deltaSec: number,
@@ -105,50 +107,35 @@ function growingPeer(
   );
   const peer = lane[i];
   if (!peer) return null;
-  const sameSource = (other: ClipRow | undefined) =>
-    other != null && other.source_id === peer.source_id;
-  if (edge === "in") {
-    const prev = lane[i - 1];
-    const lo = sameSource(prev) ? Math.max(0, prev.source_end) : 0;
-    return peer.source_start - deltaSec >= lo - EPS ? peer.id : null;
-  }
-  const next = lane[i + 1];
-  let hi = track.duration_sec ?? peer.source_end;
-  if (sameSource(next)) hi = Math.min(hi, next.source_start);
-  const target = peer.source_end + deltaSec;
-  return target >= peer.source_start + MIN_CLIP_SPAN_SEC - EPS &&
-    target <= hi + EPS
-    ? peer.id
-    : null;
+  const target =
+    edge === "in" ? peer.source_start - deltaSec : peer.source_end + deltaSec;
+  const { lo, hi } = trimEdgeLimits(lane, i, edge, "ripple");
+  return target >= lo - EPS && target <= hi + EPS ? peer.id : null;
 }
 
 /** What `trim` does to the lane of `track` (its clips `lane`), or null when it is outside `scope`. */
 export function laneRipple(
   trim: RippleTrim,
-  track: Pick<TrackView, "id" | "duration_sec">,
+  track: Pick<TrackView, "id">,
   lane: readonly ClipRow[],
   scope: readonly string[],
 ): LaneRipple | null {
   if (!scope.includes(track.id)) return null;
   const { deltaSec, edge } = trim;
   if (track.id === trim.trackId) {
-    return { fromSec: trim.endSec, deltaSec, grows: null, cut: null };
+    return { fromSec: trim.endSec, deltaSec, peer: null, cut: null };
   }
   const instant = edge === "in" ? trim.startSec : trim.endSec;
+  const found = movingPeer(lane, edge, instant, deltaSec);
+  const peer = found ? { clipId: found, edge } : null;
   if (deltaSec < 0) {
     const cut =
       edge === "out"
         ? { start: instant + deltaSec, end: instant }
         : { start: instant, end: instant - deltaSec };
-    return { fromSec: cut.end, deltaSec, grows: null, cut };
+    return { fromSec: cut.end, deltaSec, peer, cut };
   }
-  const peer = growingPeer(lane, track, edge, instant, deltaSec);
-  return {
-    fromSec: instant,
-    deltaSec,
-    grows: peer ? { clipId: peer, edge } : null,
-    cut: null,
-  };
+  return { fromSec: instant, deltaSec, peer, cut: null };
 }
 
 /** The downstream moves `ripple` draws on `lane`: each later clip, and the tail of a clip it splits. */
@@ -160,7 +147,7 @@ export function rippleMoves(
   const { fromSec, deltaSec } = ripple;
   const moves: RippleMove[] = [];
   for (const c of lane) {
-    if (c.id === ripple.grows?.clipId) continue;
+    if (c.id === ripple.peer?.clipId) continue;
     if (c.timeline_start >= fromSec - EPS) {
       moves.push({
         key: c.id,
@@ -198,14 +185,14 @@ function piece(
 
 /** `lane` as `ripple` leaves it (`remove_timeline_range_from_clips`, `ripple_insert_clips`). */
 function rippledLane(lane: readonly ClipRow[], ripple: LaneRipple): ClipRow[] {
-  const { fromSec, deltaSec, cut, grows } = ripple;
+  const { fromSec, deltaSec, cut, peer } = ripple;
   const out: ClipRow[] = [];
   for (const c of lane) {
     const start = c.timeline_start;
     const end = c.timeline_end;
-    if (c.id === grows?.clipId) {
+    if (c.id === peer?.clipId) {
       out.push(
-        grows.edge === "in"
+        peer.edge === "in"
           ? {
               ...c,
               source_start: c.source_start - deltaSec,

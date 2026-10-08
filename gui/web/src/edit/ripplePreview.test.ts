@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  type ContractClip,
+  type ContractSource,
+  type ContractTrack,
+  contractClipRow,
+  contractTrack,
+} from "../test/contractProject";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { SRC_ROOT } from "../test/sourceFiles";
 import type { ClipRow, ProjectView } from "../types/project";
@@ -13,7 +20,6 @@ import {
   trimDraft,
 } from "./ripplePreview";
 
-type Row = [string, number, number, number];
 type Contract = {
   scope_cases: {
     name: string;
@@ -21,10 +27,11 @@ type Contract = {
     edited: string[];
     scope: string[];
   }[];
-  trim_tracks: { id: string; role: string; duration_sec: number }[];
+  trim_tracks: ContractTrack[];
+  trim_sources: ContractSource[];
   trim_cases: {
     name: string;
-    clips: Record<string, Row[]>;
+    clips: Record<string, ContractClip[]>;
     trim: {
       clip_id: string;
       edge: TrimEdge;
@@ -44,19 +51,13 @@ const CONTRACT = JSON.parse(
 function caseProject(c: Contract["trim_cases"][number]): ProjectView {
   const lanes: Record<string, ClipRow[]> = {};
   for (const [trackId, rows] of Object.entries(c.clips)) {
-    lanes[trackId] = rows.map(([id, ts, ss, se]) =>
-      clipRow({
-        id,
-        track_id: trackId,
-        timeline_start: ts,
-        timeline_end: ts + (se - ss),
-        source_start: ss,
-        source_end: se,
-      }),
+    const track = CONTRACT.trim_tracks.find((t) => t.id === trackId)!;
+    lanes[trackId] = rows.map((row) =>
+      contractClipRow(track, CONTRACT.trim_sources, row),
     );
   }
   return minimalProject({
-    tracks: CONTRACT.trim_tracks.map((t) => sampleTrack(t)),
+    tracks: CONTRACT.trim_tracks.map(contractTrack),
     clips: {
       tracks: lanes,
       clip_count: Object.values(lanes).flat().length,
@@ -200,7 +201,7 @@ describe("ripple preview on a multi-track project (#1135)", () => {
     expect(ripple).toEqual({
       fromSec: 25,
       deltaSec: 3,
-      grows: null,
+      peer: null,
       cut: null,
     });
     expect(rippleMoves(lanes.guest, ripple)).toEqual([
