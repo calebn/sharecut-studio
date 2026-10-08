@@ -92,7 +92,7 @@ def test_a_twin_is_dropped_when_the_sounds_it_left_whole_lie_outside_the_longer_
 
 def test_trims_on_one_track_and_claims_that_are_not_session_pauses_are_left_alone() -> None:
     project = _project(host=0.0, guest=0.0)
-    claims = [_claim("host", 2.0, 2.6), None, _claim("host", 2.4, 3.0)]
+    claims = [_claim("host", 2.0, 3.0), None, _claim("host", 2.2, 2.6)]
 
     assert shared_pause_twins(project, claims) == set()
 
