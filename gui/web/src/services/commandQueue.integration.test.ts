@@ -20,6 +20,7 @@ describe("queued command identity and landed history", () => {
   const path = "/tmp/episode.project.json";
 
   beforeEach(() => {
+    sessionStorage.clear();
     vi.resetModules();
     vi.clearAllMocks();
     loadHostCommandQueue.mockResolvedValue([]);
@@ -238,5 +239,127 @@ describe("queued command identity and landed history", () => {
         client_id: expect.stringMatching(/^viewer-/),
       }),
     );
+  });
+});
+
+describe("live identity admission before side effects", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.resetModules();
+    vi.clearAllMocks();
+    loadHostCommandQueue.mockResolvedValue([]);
+    enqueueHostCommand.mockResolvedValue({
+      persisted: true,
+      hadPredecessor: false,
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it.each(["/identity-host", "share:identity-guest"])(
+    "rejects a malformed generated counter for %s without draft, persistence or transport",
+    async (path) => {
+      sessionStorage.setItem("daw_document_client_seq", "NaN");
+      const fetchSpy = vi.fn(
+        async (_input: RequestInfo | URL, _init?: RequestInit) =>
+          new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      );
+      vi.stubGlobal("fetch", fetchSpy);
+      const drafts = await import("../document/pendingDrafts");
+      const draft = vi.spyOn(drafts, "beginDocumentDraft");
+      const { useDawStore } = await import("../state/dawStore");
+      useDawStore.setState({ projectPath: path });
+      const { savesLandedMark } = await import("../state/hostSendOrder");
+      const mark = savesLandedMark(path);
+      const { submitQueuedDocumentCommand } = await import("./commandQueue");
+      await expect(
+        submitQueuedDocumentCommand(path, "SetTrackMeta", {}),
+      ).rejects.toThrow();
+      expect(sessionStorage.getItem("daw_document_client_seq")).toBe("NaN");
+      expect(draft).not.toHaveBeenCalled();
+      expect(enqueueHostCommand).not.toHaveBeenCalled();
+      expect(enqueueCommand).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(savesLandedMark(path)).toBe(mark);
+    },
+  );
+
+  it.each(["/identity-host", "share:identity-guest"])(
+    "rejects supplied invalid identity in %s before allocating defaults",
+    async (path) => {
+      const fetchSpy = vi.fn(
+        async (_input: RequestInfo | URL, _init?: RequestInit) =>
+          new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      );
+      vi.stubGlobal("fetch", fetchSpy);
+      const identity = await import("../utils/documentClient");
+      const commandId = vi.spyOn(identity, "newCommandId");
+      const sequence = vi.spyOn(identity, "nextDocumentClientSeq");
+      const clientId = vi.spyOn(identity, "documentClientId");
+      const { submitQueuedDocumentCommand } = await import("./commandQueue");
+      const invalid = [
+        { client_id: "" },
+        { client_id: null },
+        { client_id: 7 },
+        { command_id: "" },
+        { command_id: null },
+        { command_id: 7 },
+        ...[
+          0,
+          -1,
+          1.5,
+          Number.NaN,
+          Infinity,
+          Number.MAX_SAFE_INTEGER + 1,
+          null,
+        ].map((client_seq) => ({ client_seq })),
+      ];
+      for (const patch of invalid) {
+        await expect(
+          submitQueuedDocumentCommand(
+            path,
+            "SetTrackMeta",
+            {},
+            patch as unknown as import("./commandQueue").DocumentCommandOptions,
+          ),
+        ).rejects.toThrow();
+        expect(commandId).not.toHaveBeenCalled();
+        expect(sequence).not.toHaveBeenCalled();
+        expect(clientId).not.toHaveBeenCalled();
+        expect(enqueueHostCommand).not.toHaveBeenCalled();
+        expect(enqueueCommand).not.toHaveBeenCalled();
+        expect(fetchSpy).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it("retains direct send for valid identity when persistence fails and queue is readable and empty", async () => {
+    const cause = new Error("storage unavailable");
+    enqueueHostCommand.mockRejectedValue(cause);
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const { submitQueuedDocumentCommand } = await import("./commandQueue");
+    await expect(
+      submitQueuedDocumentCommand(
+        "/fallback",
+        "SetTrackMeta",
+        {},
+        { client_id: "tab", command_id: "edit", client_seq: 7 },
+      ),
+    ).resolves.toEqual({ ok: true });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string)).toEqual({
+      client_id: "tab",
+      command_id: "edit",
+      client_seq: 7,
+      type: "SetTrackMeta",
+      payload: {},
+      role: "viewer",
+    });
   });
 });

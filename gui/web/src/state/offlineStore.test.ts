@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  addConflict,
   addHostConflict,
   clearConflicts,
   clearHostConflicts,
+  enqueueCommand,
   enqueueHostCommand,
   loadCommandQueue,
   loadConflicts,
@@ -12,6 +14,9 @@ import {
   type QueuedCommand,
   removeHostConflictsWhere,
   removeHostQueuedCommands,
+  saveCommandQueue,
+  saveConflicts,
+  saveHostConflicts,
 } from "./offlineStore";
 
 const command: QueuedCommand = {
@@ -386,4 +391,89 @@ describe("conflict clearing admission", () => {
       expect(closed).toBe(0);
     },
   );
+});
+
+describe("canonical new write admission", () => {
+  it.each([
+    {
+      key: "queue:bucket",
+      save: (value: QueuedCommand) => saveCommandQueue("bucket", [value]),
+    },
+    {
+      key: "queue:bucket",
+      save: (value: QueuedCommand) => enqueueCommand("bucket", value),
+    },
+    {
+      key: "host-queue:bucket",
+      save: (value: QueuedCommand) => enqueueHostCommand("bucket", value),
+    },
+    {
+      key: "conflicts:bucket",
+      save: (value: QueuedCommand) =>
+        saveConflicts("bucket", [{ command: value, reason: "" }]),
+    },
+    {
+      key: "conflicts:bucket",
+      save: (value: QueuedCommand) =>
+        addConflict("bucket", { command: value, reason: "" }),
+    },
+    {
+      key: "host-conflicts:bucket",
+      save: (value: QueuedCommand) =>
+        saveHostConflicts("bucket", [{ command: value, reason: "" }]),
+    },
+    {
+      key: "host-conflicts:bucket",
+      save: (value: QueuedCommand) =>
+        addHostConflict("bucket", { command: value, reason: "" }),
+    },
+  ])(
+    "rejects invalid new records in $key without replacing old raw data",
+    async ({ key, save }) => {
+      const old = key.includes("conflicts") ? [conflict] : [command];
+      for (const patch of [
+        { client_id: "" },
+        { command_id: "" },
+        { client_seq: Number.NaN },
+        { client_seq: Number.MAX_SAFE_INTEGER + 1 },
+        { payload: [] },
+        { created_at: Infinity },
+        { structural_mode: "wrong" },
+        { source_anchor: { source_sec: Infinity } },
+      ]) {
+        rows.set(key, structuredClone(old));
+        await expect(
+          save({ ...command, ...patch } as unknown as QueuedCommand),
+        ).rejects.toThrow(/Invalid saved/);
+        expect(rows.get(key)).toEqual(old);
+      }
+    },
+  );
+
+  it("validates transformed host output before put and releases the transaction and lock", async () => {
+    const baseline = await import("./queuedEnvelopeBaseline");
+    const chain = vi
+      .spyOn(baseline, "chainQueuedEnvelopeBaseline")
+      .mockReturnValueOnce({
+        ...command,
+        command_id: "new",
+        client_seq: Number.NaN,
+      });
+    try {
+      rows.set("host-queue:bucket", [command]);
+      await expect(
+        enqueueHostCommand("bucket", { ...command, command_id: "new" }),
+      ).rejects.toThrow(/Invalid saved/);
+      expect(rows.get("host-queue:bucket")).toEqual([command]);
+      expect(abortedTransactions).toBe(1);
+      expect(closed).toBe(1);
+      await enqueueHostCommand("bucket", { ...command, command_id: "new" });
+      expect(rows.get("host-queue:bucket")).toEqual([
+        command,
+        { ...command, command_id: "new" },
+      ]);
+    } finally {
+      chain.mockRestore();
+    }
+  });
 });
