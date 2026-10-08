@@ -20,7 +20,7 @@ import { useDawStore } from "../state/dawStore";
 import { useMenuKeyboard } from "../ui/useMenuKeyboard";
 import { bladeCutNote } from "../utils/bladeTracks";
 import { formatTime } from "../utils/time";
-import { type ChooserBounds, layoutMenu } from "./chooserLayout";
+import { type ChooserBounds, layoutMenu, naturalSize } from "./chooserLayout";
 import {
   CREATE_ITEM_ATTR,
   type CreateView,
@@ -102,7 +102,7 @@ export function CreateMenu({
 
   useLayoutEffect(() => {
     const box = boxRef.current;
-    if (box) setSize({ width: box.offsetWidth, height: box.offsetHeight });
+    if (box) setSize(naturalSize(box));
   }, []);
   useMenuKeyboard({ open: true, panelRef, close: router.close });
   useEffect(() => {
