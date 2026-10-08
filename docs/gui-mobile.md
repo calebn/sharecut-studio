@@ -187,7 +187,10 @@ track's envelope form) stays in that sheet until it closes, so the form keeps
 its layout and focus; a tap on the timeline, even with that sheet open, opens
 the drawer as usual. At large text on a phone held sideways, half never takes
 less than 9rem of the slot, so the header, Collapse and Close stay on screen
-(half and full then share a height). The strip leaves the timeline undimmed;
+(half and full then share a height). The header's actions (Collapse, Expand,
+Close) wrap beneath the title when they cannot sit beside it, as at 32 px text
+on a 390 px phone, so the title keeps a line of its own (at least 8rem wide)
+instead of being squeezed to nothing. The strip leaves the timeline undimmed;
 half and full dim it. The drawer's scroll keeps a focused control clear of its
 pinned header in Chromium and WebKit. The
 timeline scrolls the selection above the strip or sheet, and any timeline drag
