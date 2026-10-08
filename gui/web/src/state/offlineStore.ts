@@ -216,13 +216,16 @@ async function updateStoredList<Item, Result>(
   key: string,
   parse: (value: unknown) => Item[],
   update: (items: Item[]) => { items: Item[]; result: Result },
+  onPersistenceFailure?: () => void,
 ): Promise<Result> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     let settled = false;
-    const fail = (error: unknown) => {
+    let admitted = false;
+    const fail = (error: unknown, persistence = false) => {
       if (settled) return;
       settled = true;
+      if (admitted && persistence) onPersistenceFailure?.();
       db.close();
       reject(error);
     };
@@ -238,17 +241,22 @@ async function updateStoredList<Item, Result>(
         resolve(result);
       };
       transaction.onabort = () =>
-        fail(transaction.error ?? new Error("IndexedDB transaction aborted"));
-      transaction.onerror = () => fail(transaction.error);
+        fail(
+          transaction.error ?? new Error("IndexedDB transaction aborted"),
+          true,
+        );
+      transaction.onerror = () => fail(transaction.error, true);
       const store = transaction.objectStore(STORE);
       const req = store.get(key);
       req.onsuccess = () => {
         try {
           const next = update(parse(req.result));
+          const items = parse(next.items);
           result = next.result;
-          store.put(next.items, key);
+          admitted = true;
+          store.put(items, key);
         } catch (error) {
-          fail(error);
+          fail(error, admitted);
           try {
             transaction.abort();
           } catch {}
@@ -269,6 +277,7 @@ function updateHostQueue<Result>(
     queue: QueuedCommand[];
     result: Result;
   },
+  onPersistenceFailure?: () => void,
 ): Promise<Result> {
   return updateStoredList<QueuedCommand, Result>(
     hostQueueKey(projectPath),
@@ -277,6 +286,7 @@ function updateHostQueue<Result>(
       const next = update(queue);
       return { items: next.queue, result: next.result };
     },
+    onPersistenceFailure,
   );
 }
 
@@ -335,13 +345,14 @@ export async function saveCommandQueue(
   token: string,
   queue: QueuedCommand[],
 ): Promise<void> {
-  await idbSet(queueKey(token), queue);
+  await idbSet(queueKey(token), parseCommandList(queue));
 }
 
 export async function enqueueCommand(
   token: string,
   cmd: QueuedCommand,
 ): Promise<void> {
+  cmd = parseQueuedCommand(cmd);
   const queue = (await loadCommandQueue(token)).filter(
     (existing) => existing.command_id !== cmd.command_id,
   );
@@ -364,25 +375,31 @@ export async function loadHostCommandCount(
 export async function enqueueHostCommand(
   projectPath: string,
   cmd: QueuedCommand,
+  onPersistenceFailure?: () => void,
 ): Promise<{ persisted: boolean; hadPredecessor: boolean }> {
+  cmd = parseQueuedCommand(cmd);
   if (typeof indexedDB === "undefined") {
     return { persisted: false, hadPredecessor: false };
   }
   return withHostQueueLock(projectPath, async () => {
-    return updateHostQueue(projectPath, (existing) => {
-      const existingIndex = existing.findIndex(
-        (item) => item.command_id === cmd.command_id,
-      );
-      if (existingIndex >= 0) {
-        return {
-          queue: existing,
-          result: { persisted: true, hadPredecessor: existingIndex > 0 },
-        };
-      }
-      const queue = [...existing, chainQueuedEnvelopeBaseline(existing, cmd)];
-      const hadPredecessor = existing.length > 0;
-      return { queue, result: { persisted: true, hadPredecessor } };
-    });
+    return updateHostQueue(
+      projectPath,
+      (existing) => {
+        const existingIndex = existing.findIndex(
+          (item) => item.command_id === cmd.command_id,
+        );
+        if (existingIndex >= 0) {
+          return {
+            queue: existing,
+            result: { persisted: true, hadPredecessor: existingIndex > 0 },
+          };
+        }
+        const queue = [...existing, chainQueuedEnvelopeBaseline(existing, cmd)];
+        const hadPredecessor = existing.length > 0;
+        return { queue, result: { persisted: true, hadPredecessor } };
+      },
+      onPersistenceFailure,
+    );
   });
 }
 
@@ -426,15 +443,16 @@ export async function saveConflicts(
   token: string,
   conflicts: OfflineConflict[],
 ): Promise<void> {
-  await idbSet(conflictKey(token), conflicts);
+  await idbSet(conflictKey(token), parseConflictList(conflicts));
 }
 
 export async function addConflict(
   token: string,
   conflict: OfflineConflict,
 ): Promise<void> {
+  const admitted = parseConflictList([conflict]);
   const list = await loadConflicts(token);
-  list.push(conflict);
+  list.push(...admitted);
   await saveConflicts(token, list);
 }
 
@@ -448,7 +466,7 @@ export async function saveHostConflicts(
   projectPath: string,
   conflicts: OfflineConflict[],
 ): Promise<void> {
-  await idbSet(hostConflictKey(projectPath), conflicts);
+  await idbSet(hostConflictKey(projectPath), parseConflictList(conflicts));
 }
 
 export async function clearHostConflicts(projectPath: string): Promise<void> {
@@ -464,6 +482,7 @@ export async function addHostConflict(
   projectPath: string,
   conflict: OfflineConflict,
 ): Promise<void> {
+  const admitted = parseConflictList([conflict]);
   await updateStoredList<OfflineConflict, void>(
     hostConflictKey(projectPath),
     parseConflictList,
@@ -473,7 +492,7 @@ export async function addHostConflict(
           (existing) =>
             existing.command.command_id !== conflict.command.command_id,
         ),
-        conflict,
+        ...admitted,
       ],
       result: undefined,
     }),

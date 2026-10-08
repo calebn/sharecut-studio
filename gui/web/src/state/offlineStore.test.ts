@@ -461,12 +461,18 @@ describe("canonical new write admission", () => {
       });
     try {
       rows.set("host-queue:bucket", [command]);
+      const persistenceFailure = vi.fn();
       await expect(
-        enqueueHostCommand("bucket", { ...command, command_id: "new" }),
+        enqueueHostCommand(
+          "bucket",
+          { ...command, command_id: "new" },
+          persistenceFailure,
+        ),
       ).rejects.toThrow(/Invalid saved/);
       expect(rows.get("host-queue:bucket")).toEqual([command]);
       expect(abortedTransactions).toBe(1);
       expect(closed).toBe(1);
+      expect(persistenceFailure).not.toHaveBeenCalled();
       await enqueueHostCommand("bucket", { ...command, command_id: "new" });
       expect(rows.get("host-queue:bucket")).toEqual([
         command,
@@ -475,5 +481,62 @@ describe("canonical new write admission", () => {
     } finally {
       chain.mockRestore();
     }
+  });
+});
+
+describe("host persistence failure signal", () => {
+  it("signals only admitted put failures and preserves exact causes", async () => {
+    for (const cause of [undefined, null, new Error("put failed")]) {
+      rows.set("host-queue:bucket", []);
+      const signal = vi.fn();
+      putFailure = { value: cause };
+      await expect(enqueueHostCommand("bucket", command, signal)).rejects.toBe(
+        cause,
+      );
+      expect(signal).toHaveBeenCalledTimes(1);
+      expect(rows.get("host-queue:bucket")).toEqual([]);
+      putFailure = undefined;
+      await enqueueHostCommand("bucket", command);
+      expect(rows.get("host-queue:bucket")).toEqual([command]);
+    }
+  });
+  it("never signals invalid input, unreadable rows or construction failures", async () => {
+    const signal = vi.fn();
+    await expect(
+      enqueueHostCommand(
+        "bucket",
+        { ...command, client_seq: Number.NaN },
+        signal,
+      ),
+    ).rejects.toThrow(/Invalid saved/);
+    rows.set("host-queue:bucket", [null]);
+    await expect(enqueueHostCommand("bucket", command, signal)).rejects.toThrow(
+      /Invalid saved/,
+    );
+    expect(rows.get("host-queue:bucket")).toEqual([null]);
+    rows.set("host-queue:bucket", []);
+    for (const failure of ["transaction", "get"] as const) {
+      constructionFailure = failure;
+      await expect(
+        enqueueHostCommand("bucket", command, signal),
+      ).rejects.toThrow(`${failure} failed`);
+    }
+    constructionFailure = undefined;
+    expect(signal).not.toHaveBeenCalled();
+  });
+  it("never signals an open failure before admission", async () => {
+    const cause = new Error("open failed");
+    vi.stubGlobal("indexedDB", {
+      open() {
+        const req = { error: cause, onerror: () => {} };
+        queueMicrotask(() => req.onerror());
+        return req;
+      },
+    });
+    const signal = vi.fn();
+    await expect(enqueueHostCommand("bucket", command, signal)).rejects.toBe(
+      cause,
+    );
+    expect(signal).not.toHaveBeenCalled();
   });
 });

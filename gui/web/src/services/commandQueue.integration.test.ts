@@ -115,15 +115,19 @@ describe("queued command identity and landed history", () => {
         payload: { label: "Live" },
         role: "viewer",
       });
-      expect(enqueueHostCommand).toHaveBeenCalledWith(path, {
-        client_id: "live-client",
-        command_id: "live-command",
-        client_seq: 41,
-        type: "SetTrackMeta",
-        payload: { label: "Live" },
-        structural_mode: undefined,
-        created_at: expect.any(Number),
-      });
+      expect(enqueueHostCommand).toHaveBeenCalledWith(
+        path,
+        {
+          client_id: "live-client",
+          command_id: "live-command",
+          client_seq: 41,
+          type: "SetTrackMeta",
+          payload: { label: "Live" },
+          structural_mode: undefined,
+          created_at: expect.any(Number),
+        },
+        expect.any(Function),
+      );
       expect(result).toEqual({ ok: true, history_head_id: "h-live-41" });
       const queued = enqueueHostCommand.mock.calls[0]?.[1];
       await submitDocumentCommand(path, queued.type, queued.payload, {
@@ -337,7 +341,16 @@ describe("live identity admission before side effects", () => {
 
   it("retains direct send for valid identity when persistence fails and queue is readable and empty", async () => {
     const cause = new Error("storage unavailable");
-    enqueueHostCommand.mockRejectedValue(cause);
+    enqueueHostCommand.mockImplementation(
+      async (
+        _path: string,
+        _command: unknown,
+        onPersistenceFailure: () => void,
+      ) => {
+        onPersistenceFailure();
+        throw cause;
+      },
+    );
     const fetchSpy = vi.fn(
       async (_input: RequestInfo | URL, _init?: RequestInit) =>
         new Response(JSON.stringify({ ok: true }), { status: 200 }),
@@ -361,5 +374,65 @@ describe("live identity admission before side effects", () => {
       payload: {},
       role: "viewer",
     });
+  });
+  it("does not send after an enqueue rejection without a persistence signal", async () => {
+    const cause = new Error("rejected row");
+    enqueueHostCommand.mockRejectedValue(cause);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const { submitQueuedDocumentCommand } = await import("./commandQueue");
+    await expect(
+      submitQueuedDocumentCommand(
+        "/rejected",
+        "SetTrackMeta",
+        {},
+        {
+          client_id: "tab",
+          command_id: "edit",
+          client_seq: 7,
+        },
+      ),
+    ).rejects.toBe(cause);
+    expect(loadHostCommandQueue).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+  it("rejects invalid allocator output and incomplete replay before side effects", async () => {
+    const identity = await import("../utils/documentClient");
+    const sequence = vi
+      .spyOn(identity, "nextDocumentClientSeq")
+      .mockReturnValue(Number.NaN);
+    const clientId = vi.spyOn(identity, "documentClientId");
+    const commandId = vi.spyOn(identity, "newCommandId");
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const drafts = await import("../document/pendingDrafts");
+    const draft = vi.spyOn(drafts, "beginDocumentDraft");
+    const { submitQueuedDocumentCommand } = await import("./commandQueue");
+    await expect(
+      submitQueuedDocumentCommand(
+        "/resolved",
+        "SetTrackMeta",
+        {},
+        {
+          client_id: "tab",
+          command_id: "edit",
+        },
+      ),
+    ).rejects.toThrow("Invalid document command identity");
+    expect(sequence).toHaveBeenCalledTimes(1);
+    sequence.mockClear();
+    await expect(
+      submitQueuedDocumentCommand("/resolved", "SetTrackMeta", {}, {
+        replaying: true,
+        command_id: "edit",
+        client_seq: 7,
+      } as unknown as import("./commandQueue").DocumentCommandOptions),
+    ).rejects.toThrow("Invalid document command identity");
+    expect(sequence).not.toHaveBeenCalled();
+    expect(clientId).not.toHaveBeenCalled();
+    expect(commandId).not.toHaveBeenCalled();
+    expect(draft).not.toHaveBeenCalled();
+    expect(enqueueHostCommand).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
