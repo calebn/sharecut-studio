@@ -111,6 +111,7 @@ export function useDrawerSwipe(
   const hasDrawer = drawer != null;
   useEffect(() => {
     if (!hasDrawer) return;
+    const panel = panelRef.current;
     live.current = true;
     return () => {
       live.current = false;
@@ -118,8 +119,8 @@ export function useDrawerSwipe(
       swipe.current = null;
       if (s) cancelAnimationFrame(s.frame);
       stopSettle.current();
-      const panel = s?.panel ?? panelRef.current;
-      if (panel) rest(panel);
+      const dragged = s?.panel ?? panel;
+      if (dragged) rest(dragged);
     };
   }, [hasDrawer, panelRef]);
 

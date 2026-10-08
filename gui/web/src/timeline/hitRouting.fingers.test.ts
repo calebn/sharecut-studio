@@ -13,7 +13,7 @@ let root: HTMLDivElement;
 let router: HitRouter;
 let log: string[];
 let restored: number;
-let chooserViews: (unknown | null)[];
+let chooserViews: unknown[];
 
 function record(name: string, el: Element): void {
   for (const type of [
