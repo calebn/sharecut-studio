@@ -12,7 +12,7 @@ from podcast_mcp.edits.audio_cache import (
     room_floor_db,
     speech_level_db,
 )
-from podcast_mcp.util.dsp import frame_speech_band_db
+from podcast_mcp.util.dsp import LOW_BAND, SPEECH_BAND, frame_band_filtered_db
 
 RATE = 16_000
 
@@ -65,69 +65,73 @@ def _signal(seconds: float) -> np.ndarray:
     return x
 
 
-def test_band_levels_across_a_block_edge_match_the_levels_of_the_whole_signal() -> None:
-    x = _signal(75.0)
-    calls: list[tuple[float, float]] = []
-
+def _reader(x: np.ndarray, calls: list[float] | None = None):
     def read(start: float, duration: float) -> np.ndarray:
-        calls.append((start, duration))
+        if calls is not None:
+            calls.append(start)
         i = round(start * RATE)
         return x[i : i + round(duration * RATE)]
 
-    bands = BandLevels(read, RATE)
-    got = bands.levels(29.0, 31.5)
-    whole = frame_speech_band_db(x, RATE, 160, floor_db=DIGITAL_SILENCE_DB)
-
-    assert got is not None and got.size == 250
-    assert got == pytest.approx(whole[2900:3150], abs=0.01)
-    # Each 30 s block is read once, with a second either side, however often it is asked for.
-    assert len(calls) == 2
-    bands.levels(29.0, 31.5)
-    bands.levels(10.0, 20.0)
-    assert len(calls) == 2
+    return read
 
 
-def test_band_levels_end_where_the_audio_ends_and_are_none_past_it_or_where_unreadable() -> None:
-    x = _signal(42.0)
-
-    def read(start: float, duration: float) -> np.ndarray:
-        i = round(start * RATE)
-        return x[i : i + round(duration * RATE)]
-
-    def broken(start: float, duration: float) -> np.ndarray:
-        raise OSError("no such file")
-
-    assert BandLevels(read, RATE).levels(40.0, 50.0).size == 200
-    assert BandLevels(read, RATE).levels(60.0, 61.0) is None
-    assert BandLevels(broken, RATE).levels(0.0, 1.0) is None
-    assert (
-        BandLevels(lambda start, duration: np.empty(0, dtype=np.float32), RATE).levels(0.0, 1.0)
-        is None
-    )
-
-
-def test_band_speech_level_is_one_number_for_the_whole_track_read_once() -> None:
+@pytest.mark.parametrize("band", [SPEECH_BAND, LOW_BAND])
+def test_band_levels_across_a_block_edge_match_the_levels_of_the_whole_signal(band) -> None:
     x = _signal(75.0)
     calls: list[float] = []
 
-    def read(start: float, duration: float) -> np.ndarray:
-        calls.append(start)
-        i = round(start * RATE)
-        return x[i : i + round(duration * RATE)]
+    levels = BandLevels(_reader(x, calls), RATE, band).all_levels()
+    whole = frame_band_filtered_db(x, RATE, 160, band, floor_db=DIGITAL_SILENCE_DB)
 
-    bands = BandLevels(read, RATE, 75.0)
-    whole = frame_speech_band_db(x, RATE, 160, floor_db=DIGITAL_SILENCE_DB)
-
-    assert bands.speech_db() == pytest.approx(speech_level_db(whole.astype(np.float32)), abs=0.01)
-    assert len(calls) == 3
-    bands.speech_db()
-    bands.levels(10.0, 20.0)
+    assert levels is not None and levels.size == 7500
+    # The burst straddles the 30 s block edge; the margin read either side of each block
+    # keeps the filter's ringing at the edge out of the levels. The first and last few
+    # frames of a file are the filter's own end effects, whichever way they are cut.
+    assert levels[20:-20] == pytest.approx(whole[20:-20], abs=0.01)
     assert len(calls) == 3
 
 
-def test_band_speech_level_is_none_where_the_track_cannot_be_read_or_has_no_length() -> None:
+def test_each_block_of_levels_is_read_once_however_often_it_is_asked_for() -> None:
+    x = _signal(75.0)
+    calls: list[float] = []
+    bands = BandLevels(_reader(x, calls), RATE)
+
+    first = bands.all_levels()
+    second = bands.all_levels()
+
+    assert first is not None and second is not None and len(calls) == 3
+    assert second == pytest.approx(first)
+
+
+def test_band_levels_end_where_the_audio_ends_whatever_the_media_says() -> None:
+    # No duration is given or needed: the recording is as long as its audio. One whose
+    # length is a whole number of blocks ends at the first empty read.
+    assert BandLevels(_reader(_signal(42.0)), RATE).all_levels().size == 4200
+    assert BandLevels(_reader(_signal(60.0)), RATE).all_levels().size == 6000
+
+
+def test_band_levels_are_none_where_the_audio_is_unreadable_or_empty() -> None:
     def broken(start: float, duration: float) -> np.ndarray:
         raise OSError("no such file")
 
-    assert BandLevels(broken, RATE, 60.0).speech_db() is None
-    assert BandLevels(lambda start, duration: np.zeros(1), RATE).speech_db() is None
+    def not_finite(start: float, duration: float) -> np.ndarray:
+        return np.full(round(duration * RATE), np.nan, dtype=np.float32)
+
+    def nothing(start: float, duration: float) -> np.ndarray:
+        return np.empty(0, dtype=np.float32)
+
+    assert BandLevels(_reader(_signal(35.0)), RATE).all_levels() is not None
+    assert BandLevels(broken, RATE).all_levels() is None
+    assert BandLevels(not_finite, RATE).all_levels() is None
+    assert BandLevels(nothing, RATE).all_levels() is None
+
+
+def test_a_block_that_cannot_be_read_late_in_a_recording_makes_it_unreadable() -> None:
+    x = _signal(75.0)
+
+    def fails_late(start: float, duration: float) -> np.ndarray:
+        if start > 40.0:
+            raise OSError("disk error")
+        return _reader(x)(start, duration)
+
+    assert BandLevels(fails_late, RATE).all_levels() is None

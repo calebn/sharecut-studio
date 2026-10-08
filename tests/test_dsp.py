@@ -6,21 +6,24 @@ import numpy as np
 import pytest
 
 from podcast_mcp.util.dsp import (
+    LOW_BAND,
+    SPEECH_BAND,
+    GaussianBand,
     autocorr_peak,
+    band_filter,
     bool_runs,
     bridge_short_dips,
     db_to_amplitude,
     frame_band_db,
+    frame_band_filtered_db,
     frame_db_stream,
     frame_level_noise_db,
     frame_peak_db,
     frame_rms_db,
     frame_rms_db_stream,
-    frame_speech_band_db,
     high_band_energy_fraction,
     next_fast_len,
     rms_db,
-    speech_band,
     voicing_probes,
 )
 
@@ -156,11 +159,11 @@ def test_speech_band_drops_rumble_keeps_voice_and_a_gates_silence() -> None:
     rumble = 0.1 * np.sin(2 * np.pi * 30.0 * t)
     voice = 0.1 * np.sin(2 * np.pi * 400.0 * t)
 
-    assert rms_db(speech_band(rumble, rate)) < rms_db(rumble) - 40.0
-    assert rms_db(speech_band(voice, rate)) == pytest.approx(rms_db(voice), abs=0.5)
+    assert rms_db(band_filter(rumble, rate, SPEECH_BAND)) < rms_db(rumble) - 40.0
+    assert rms_db(band_filter(voice, rate, SPEECH_BAND)) == pytest.approx(rms_db(voice), abs=0.5)
     gated = np.concatenate([np.zeros(4000), voice, np.zeros(4000)])
-    assert not speech_band(gated, rate)[:4000].any()
-    assert speech_band(np.zeros(8), rate).tolist() == [0.0] * 8
+    assert not band_filter(gated, rate, SPEECH_BAND)[:4000].any()
+    assert band_filter(np.zeros(8), rate, SPEECH_BAND).tolist() == [0.0] * 8
 
 
 def test_speech_band_of_an_awkward_length_matches_the_same_signal_padded_by_hand() -> None:
@@ -169,9 +172,9 @@ def test_speech_band_of_an_awkward_length_matches_the_same_signal_padded_by_hand
     rate = 16_000
     x = (0.1 * np.sin(2 * np.pi * 400.0 * np.arange(176_003) / rate)).astype(np.float32)
 
-    padded = speech_band(np.concatenate([x, np.zeros(5)]).astype(np.float32), rate)[: x.size]
+    padded = band_filter(np.concatenate([x, np.zeros(5)]).astype(np.float32), rate, SPEECH_BAND)
 
-    assert speech_band(x, rate) == pytest.approx(padded, abs=1e-3)
+    assert band_filter(x, rate, SPEECH_BAND) == pytest.approx(padded[: x.size], abs=1e-3)
 
 
 @pytest.mark.parametrize(
@@ -195,7 +198,7 @@ def test_the_band_fades_in_from_100_to_160_hz(hz: float, loss_db: float | None) 
     # 150 Hz is all but passed: a raised cosine from 100 Hz (stopped) to 160 Hz.
     tone = _tone(hz)
 
-    got = rms_db(speech_band(tone, 16_000), floor_db=-300.0) - rms_db(tone)
+    got = rms_db(band_filter(tone, 16_000, SPEECH_BAND), floor_db=-300.0) - rms_db(tone)
 
     if loss_db is None:
         assert got < -100.0
@@ -203,18 +206,65 @@ def test_the_band_fades_in_from_100_to_160_hz(hz: float, loss_db: float | None) 
         assert got == pytest.approx(-loss_db, abs=0.1)
 
 
-def test_a_rumble_up_to_110_hz_is_38_db_down_and_frame_levels_never_read_louder_than_raw():
-    # Room rumble from 25 to 110 Hz is 38 dB down: only its 100 to 110 Hz sliver passes, and
-    # that 23 dB down or more. A band from 50 Hz let it through 7 dB down.
+def test_a_flat_rumble_up_to_110_hz_is_38_db_down_and_frame_levels_never_read_louder_than_raw():
+    # Room rumble with a flat spectrum from 25 to 110 Hz is 38 dB down: only its 100 to
+    # 110 Hz sliver passes, and that 23 dB down or more. A band from 50 Hz let it through
+    # 7 dB down. A rumble that is not flat is not: its energy near 100 Hz passes (the low
+    # band reads it, below).
     rate = 16_000
     spectrum = np.fft.rfft(np.random.default_rng(9).standard_normal(rate * 4))
     freqs = np.fft.rfftfreq(rate * 4, d=1.0 / rate)
     spectrum[(freqs < 25.0) | (freqs > 110.0)] = 0.0
     rumble = np.fft.irfft(spectrum, rate * 4).astype(np.float32)
 
-    assert rms_db(speech_band(rumble, rate)) - rms_db(rumble) == pytest.approx(-38.5, abs=0.5)
+    got = rms_db(band_filter(rumble, rate, SPEECH_BAND)) - rms_db(rumble)
+
+    assert got == pytest.approx(-38.5, abs=0.5)
     for x in (rumble, _tone(150.0)):
-        assert np.all(frame_speech_band_db(x, rate, 160) <= frame_rms_db(x, 160, 160) + 1e-9)
+        assert np.all(
+            frame_band_filtered_db(x, rate, 160, SPEECH_BAND) <= frame_rms_db(x, 160, 160) + 1e-9
+        )
+
+
+@pytest.mark.parametrize(
+    ("hz", "loss_db"),
+    [
+        (120.0, 0.0),
+        (100.0, 1.9),
+        (110.0, 0.5),
+        (140.0, 1.9),
+        (80.0, 7.7),
+        (160.0, 7.7),
+        (60.0, 17.4),
+    ],
+)
+def test_the_low_band_passes_a_tonal_tail_at_100_to_140_hz_the_speech_band_stops(
+    hz: float, loss_db: float
+) -> None:
+    # A room mode ringing after a word, or two hums beating, sit at 100 to 140 Hz, where
+    # the speech band is stopped or half stopped. The low band is a Gaussian around 120 Hz.
+    tone = _tone(hz)
+
+    got = rms_db(band_filter(tone, 16_000, LOW_BAND), floor_db=-300.0) - rms_db(tone)
+
+    assert got == pytest.approx(-loss_db, abs=0.2)
+
+
+def test_a_gaussian_band_is_a_bell_around_its_centre() -> None:
+    band = GaussianBand(center=120.0, sigma=30.0)
+
+    gain = band.gain(np.array([120.0, 150.0, 60.0]))
+
+    assert gain == pytest.approx([1.0, np.exp(-0.5), np.exp(-2.0)])
+
+
+def test_a_bands_noise_bandwidth_is_the_width_of_a_flat_band_that_passes_as_much_noise() -> None:
+    rate = 16_000
+    white = np.random.default_rng(5).standard_normal(rate * 20).astype(np.float64)
+    for band in (SPEECH_BAND, LOW_BAND, GaussianBand(120.0, 30.0)):
+        filtered = band_filter(white, rate, band)
+        measured = float(np.mean(filtered**2)) / float(np.mean(white**2)) * rate / 2.0
+        assert measured == pytest.approx(band.noise_bandwidth(rate), rel=0.05)
 
 
 def test_frame_level_noise_is_what_stationary_noise_reads() -> None:
@@ -223,9 +273,13 @@ def test_frame_level_noise_is_what_stationary_noise_reads() -> None:
     # variance.
     rate = 16_000
     noise = np.random.default_rng(3).standard_normal(rate * 60).astype(np.float32) * 0.01
-    levels = frame_speech_band_db(noise, rate, 160)
+    levels = frame_band_filtered_db(noise, rate, 160, SPEECH_BAND)
     power = 10.0 ** (levels / 10.0)
     averaged = 10.0 * np.log10(np.convolve(power, np.ones(5) / 5.0, mode="valid"))
 
-    assert float(levels.std()) == pytest.approx(frame_level_noise_db(rate, 0.01), rel=0.08)
-    assert float(averaged.std()) == pytest.approx(frame_level_noise_db(rate, 0.05), rel=0.08)
+    assert float(levels.std()) == pytest.approx(
+        frame_level_noise_db(SPEECH_BAND, rate, 0.01), rel=0.08
+    )
+    assert float(averaged.std()) == pytest.approx(
+        frame_level_noise_db(SPEECH_BAND, rate, 0.05), rel=0.08
+    )

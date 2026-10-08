@@ -8,8 +8,18 @@ from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.edits.filler_pacing import FillerPacingResult
 from podcast_mcp.edits.fillers import _analyze_candidate, _CutCandidate, _CutRejected
 from podcast_mcp.engines.audio_audit import TrackRmsCache
-from test_breath_detect import _fake_windows, _host_project, _shaped_noise
+from test_breath_detect import (
+    _EDGE_TOL,
+    _fake_windows,
+    _fixture_words,
+    _host_project,
+    _shaped_noise,
+)
 from test_fillers import _passthrough_opt, _safe_risk
+
+# A pause trim ends well before the floor of air its next word keeps in a real proposal; these
+# tests pace theirs to the word itself, so they take the floor away and the trim is measured alone.
+_NO_FLOOR = {"min_retained_pause_sec": 0.0, "min_retained_solo_pause_sec": 0.0}
 
 
 def _cache() -> TrackAudioCache:
@@ -77,9 +87,9 @@ def _proposal(cache: TrackAudioCache, cut_end: float, backend: str):
         ),
     ):
         return _analyze_candidate(
-            _host_project(),
+            _host_project(_fixture_words()),
             candidate,
-            {"tighten": {"breath_handling": {"vad_backend": backend}}},
+            {"tighten": {**_NO_FLOOR, "breath_handling": {"vad_backend": backend}}},
             audio_cache=cache,
         )
 
@@ -112,7 +122,7 @@ def _splice_proposal(cache: TrackAudioCache, cut_end: float, backend: str):
         ),
     ):
         return _analyze_candidate(
-            _host_project(),
+            _host_project(_fixture_words()),
             candidate,
             {"tighten": {"breath_handling": {"vad_backend": backend}}},
             audio_cache=cache,
@@ -195,7 +205,7 @@ def test_final_cut_end_retreats_to_retained_breath_onset(adjustment: str, kind: 
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
     ):
         result = _analyze_candidate(
-            _host_project(), candidate, {"tighten": {}}, audio_cache=_cache()
+            _host_project(_fixture_words()), candidate, {"tighten": _NO_FLOOR}, audio_cache=_cache()
         )
 
     if kind == "filler":
@@ -203,8 +213,8 @@ def test_final_cut_end_retreats_to_retained_breath_onset(adjustment: str, kind: 
         return
     assert result is not None
     # The breath at 5.1 stays whole: the trim ends 30 ms before it.
-    assert (result.start, result.end) == pytest.approx((5.0, 5.07))
-    assert measured == [(5.0, pytest.approx(5.07))]
+    assert (result.start, result.end) == pytest.approx((5.0, 5.07), abs=_EDGE_TOL)
+    assert measured == [(5.0, pytest.approx(5.07, abs=_EDGE_TOL))]
     assert result.crossfade_ms == 20
 
 
@@ -228,14 +238,14 @@ def test_retreat_that_removes_entire_cut_skips_proposal(start: float) -> None:
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
     ):
         result = _analyze_candidate(
-            _host_project(), candidate, {"tighten": {}}, audio_cache=_cache()
+            _host_project(_fixture_words()), candidate, {"tighten": _NO_FLOOR}, audio_cache=_cache()
         )
 
     if start > 5.1:
         assert result == _CutRejected("no_air")
     else:
         assert result is not None
-        assert (result.start, result.end) == pytest.approx((5.0, 5.07))
+        assert (result.start, result.end) == pytest.approx((5.0, 5.07), abs=_EDGE_TOL)
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -250,7 +260,7 @@ def test_final_cut_end_inside_quiet_breath_onset_retreats_to_onset(
     )
 
     assert result is not None
-    assert (result.start, result.end) == pytest.approx((4.9, 4.97))
+    assert (result.start, result.end) == pytest.approx((4.9, 4.97), abs=_EDGE_TOL)
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -266,7 +276,7 @@ def test_final_crossing_search_continues_after_earlier_non_crossing_run(backend:
     assert result is not None
     # Both breaths stay whole, 30 ms clear of each: 4.75-4.9 before the trim and the quiet
     # onset from 5.0 after it.
-    assert (result.start, result.end) == pytest.approx((4.93, 4.97))
+    assert (result.start, result.end) == pytest.approx((4.93, 4.97), abs=_EDGE_TOL)
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -288,7 +298,7 @@ def test_a_pause_trim_ends_before_a_quiet_onset_that_cannot_be_refined(
     result = _proposal(cache, 5.15, backend)
 
     assert not isinstance(result, _CutRejected)
-    assert (result.start, result.end) == pytest.approx((4.9, 4.97))
+    assert (result.start, result.end) == pytest.approx((4.9, 4.97), abs=_EDGE_TOL)
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -299,7 +309,7 @@ def test_final_start_retains_complete_quiet_tail(backend: str, edge: float) -> N
     cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
     with patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=_BreathFixtureVad()):
         result = breath_detect.protect_cut_breaths(
-            _host_project(),
+            _host_project(_fixture_words()),
             "host",
             edge,
             5.40,
@@ -323,7 +333,7 @@ def test_a_pause_trim_ends_before_connected_protected_activity(peak: float) -> N
         result = _proposal(cache, 5.15, "heuristic")
 
     assert not isinstance(result, _CutRejected)
-    assert (result.start, result.end) == pytest.approx((4.9, 4.97))
+    assert (result.start, result.end) == pytest.approx((4.9, 4.97), abs=_EDGE_TOL)
 
 
 def test_a_peers_onset_at_a_ripple_edge_shrinks_the_pause_trim_for_review() -> None:
@@ -360,9 +370,9 @@ def test_a_peers_onset_at_a_ripple_edge_shrinks_the_pause_trim_for_review() -> N
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
     ):
         result = _analyze_candidate(
-            _with_guest(_host_project()),
+            _with_guest(_host_project(_fixture_words())),
             candidate,
-            {"tighten": {}},
+            {"tighten": _NO_FLOOR},
             audio_cache=host,
             audio_caches={"host": host, "guest": guest},
         )
@@ -417,7 +427,10 @@ def test_every_pause_trim_is_review_only_and_only_one_that_moved_says_air_edges(
             patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
         ):
             result = _analyze_candidate(
-                _host_project(), candidate, {"tighten": {}}, audio_cache=cache
+                _host_project(_fixture_words()),
+                candidate,
+                {"tighten": _NO_FLOOR},
+                audio_cache=cache,
             )
         assert not isinstance(result, _CutRejected)
         return result
@@ -472,7 +485,9 @@ def test_a_pause_trim_a_mover_started_in_a_quiet_tail_has_too_little_air_left(
         patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
         patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
     ):
-        result = _analyze_candidate(_host_project(), candidate, {"tighten": {}}, audio_cache=cache)
+        result = _analyze_candidate(
+            _host_project(_fixture_words()), candidate, {"tighten": _NO_FLOOR}, audio_cache=cache
+        )
     # The breath and its quiet tail stay whole, and the 10 ms of air left after them is
     # under the shortest cut: a pause trim is not made of what a splice would have kept.
     assert result == _CutRejected("too_short")
@@ -496,7 +511,7 @@ def test_complete_breath_geometry_and_idempotence(backend, bounds, expected) -> 
     defaults = {"tighten": {"breath_handling": {"vad_backend": backend}}}
     with patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=_BreathFixtureVad()):
         actual = protect_cut_breaths(
-            _host_project(), "host", *bounds, defaults=defaults, audio_cache=cache
+            _host_project(_fixture_words()), "host", *bounds, defaults=defaults, audio_cache=cache
         )
         if expected is None:
             assert actual is None
@@ -504,7 +519,11 @@ def test_complete_breath_geometry_and_idempotence(backend, bounds, expected) -> 
             assert actual == pytest.approx(expected)
             assert (
                 protect_cut_breaths(
-                    _host_project(), "host", *actual, defaults=defaults, audio_cache=cache
+                    _host_project(_fixture_words()),
+                    "host",
+                    *actual,
+                    defaults=defaults,
+                    audio_cache=cache,
                 )
                 == actual
             )
@@ -517,7 +536,7 @@ def test_distinct_breaths_shrink_both_original_edges(backend) -> None:
     cache = _cache_with_breaths((4.90, 5.08, 0.026), (5.20, 5.38, 0.026))
     with patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=_BreathFixtureVad()):
         actual = protect_cut_breaths(
-            _host_project(),
+            _host_project(_fixture_words()),
             "host",
             5.00,
             5.30,
@@ -544,7 +563,7 @@ def test_enabled_protection_suppresses_unavailable_or_incomplete_evidence(failur
     with patch("podcast_mcp.edits.breath_detect.load_mono_window", side_effect=OSError("missing")):
         assert (
             protect_cut_breaths(
-                _host_project(),
+                _host_project(_fixture_words()),
                 "host",
                 *bounds,
                 audio_cache=None if failure == "missing" else cache,
@@ -559,14 +578,16 @@ def test_floor_only_and_unrelated_protected_activity_are_clear() -> None:
 
     cache = _cache_with_breaths()
     cache.waveform.samples[round(4.8 * 16000) : round(4.9 * 16000)] = _harmonic_tone(1600, 0.026)
-    assert protect_cut_breaths(_host_project(), "host", 5.0, 5.4, audio_cache=cache) == (5.0, 5.4)
+    assert protect_cut_breaths(
+        _host_project(_fixture_words()), "host", 5.0, 5.4, audio_cache=cache
+    ) == (5.0, 5.4)
 
 
 def test_shrink_recomputes_kept_word_eligibility() -> None:
     from podcast_mcp.edits.breath_detect import protect_cut_breaths
     from podcast_mcp.models import Transcript, TranscriptWord
 
-    project = _host_project()
+    project = _host_project(_fixture_words())
     project.transcripts = [
         Transcript(track_id="host", words=[TranscriptWord(text="kept", start=5.00, end=5.36)])
     ]
@@ -581,7 +602,7 @@ def test_completed_quiet_tail_cannot_hide_protected_activity(backend, tail) -> N
     from test_breath_detect import _harmonic_tone, _sibilant_noise
 
     cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
-    project = _host_project()
+    project = _host_project(_fixture_words())
     if tail == "kept":
         project = _host_project((("keep", 5.24, 5.36),))
     else:
@@ -608,7 +629,7 @@ def test_proposal_to_exact_approval_preserves_complete_breath_source() -> None:
     cache = _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026))
     result = _proposal(cache, 5.15, "heuristic")
     assert result is not None
-    project = _host_project()
+    project = _host_project(_fixture_words())
     decision = _apply_analyzed_cut(project, result)
     with patch(
         "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope", return_value=("session", None)
@@ -641,7 +662,7 @@ def test_default_apply_preserves_proposed_complete_breath(tmp_path) -> None:
 def _project_with_wav(tmp_path, cache):
     import wave
 
-    project = _host_project()
+    project = _host_project(_fixture_words())
     path = tmp_path / "host.wav"
     with wave.open(str(path), "wb") as handle:
         handle.setnchannels(1)
@@ -738,7 +759,7 @@ def test_a_pause_trim_with_no_air_left_after_a_breath_and_its_tail_is_no_air() -
         ),
     ):
         assert _analyze_candidate(
-            _host_project(), candidate, {"tighten": {}}, audio_cache=cache
+            _host_project(_fixture_words()), candidate, {"tighten": {}}, audio_cache=cache
         ) == _CutRejected("no_air")
 
 
@@ -758,7 +779,7 @@ def test_a_faded_edge_keeps_breaths_whole_and_never_removes_one(backend, bounds,
     cache = _cache_with_breaths((5.00, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
     with patch("podcast_mcp.engines.vad_silero.get_shared_vad", return_value=_BreathFixtureVad()):
         actual = protect_cut_breaths(
-            _host_project(),
+            _host_project(_fixture_words()),
             "host",
             *bounds,
             defaults={"tighten": {"breath_handling": {"vad_backend": backend}}},
@@ -775,11 +796,13 @@ def test_a_faded_edge_never_removes_a_breath_run_whose_onset_runs_on() -> None:
     # in-band run alone still fills most of the cut.
     cache = _cache_with_breaths((4.40, 5.10, 0.0008), (5.10, 5.24, 0.026))
     assert (
-        protect_cut_breaths(_host_project(), "host", 5.08, 5.26, audio_cache=cache, strict=False)
+        protect_cut_breaths(
+            _host_project(_fixture_words()), "host", 5.08, 5.26, audio_cache=cache, strict=False
+        )
         is None
     )
     assert protect_cut_breaths(
-        _host_project(), "host", 4.90, 5.26, audio_cache=cache, strict=False
+        _host_project(_fixture_words()), "host", 4.90, 5.26, audio_cache=cache, strict=False
     ) == (4.90, 5.26)
 
 
@@ -792,7 +815,7 @@ def test_a_faded_edge_may_sit_where_no_breath_is_found(evidence) -> None:
         cache.waveform.samples[:] = 0.0
     with patch("podcast_mcp.edits.breath_detect.load_mono_window", side_effect=OSError("missing")):
         actual = protect_cut_breaths(
-            _host_project(),
+            _host_project(_fixture_words()),
             "host",
             5.12,
             5.40,
@@ -817,7 +840,10 @@ def _mute(cache: TrackAudioCache, candidate: _CutCandidate, paced: tuple[float, 
         patch("podcast_mcp.edits.fillers.next_onset", return_value=None),
     ):
         return _analyze_candidate(
-            _host_project(), candidate, {"tighten": {"edit_mode": "mute"}}, audio_cache=cache
+            _host_project(_fixture_words()),
+            candidate,
+            {"tighten": {"edit_mode": "mute"}},
+            audio_cache=cache,
         )
 
 
