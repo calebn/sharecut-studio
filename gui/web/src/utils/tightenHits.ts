@@ -22,6 +22,7 @@ export type TightenFilters = {
 export type TightenHit = PendingEditView & {
   tightenClass: TightenClass;
   harsh: boolean;
+  listenOneByOne: boolean;
   snippet: string;
   riskBadge: "risky" | "review" | "ok";
 };
@@ -49,6 +50,15 @@ export function tightenClassOf(edit: PendingEditView): TightenClass | null {
  */
 export function isHarshTightenHit(edit: PendingEditView): boolean {
   return edit.harsh !== false;
+}
+
+/**
+ * The server's listen-one-by-one flag (`edits/tighten_hits.py`): Apply eligible never batches
+ * the hit, whatever Avoid harsh cuts says. Fails closed like `harsh`: only an explicit
+ * `false` lets it into a batch.
+ */
+export function isListenOneByOneHit(edit: PendingEditView): boolean {
+  return edit.listen_one_by_one !== false;
 }
 
 export function riskBadgeFor(edit: PendingEditView): TightenHit["riskBadge"] {
@@ -125,6 +135,7 @@ export function toTightenHit(
     ...edit,
     tightenClass,
     harsh: isHarshTightenHit(edit),
+    listenOneByOne: isListenOneByOneHit(edit),
     snippet: tightenSnippet(edit, transcript, wordsOnTrack),
     riskBadge: riskBadgeFor(edit),
   };
@@ -201,18 +212,12 @@ export function tightenHitCanPreview(
   return hit.timeline_start != null && hit.timeline_end != null;
 }
 
-/** Hits the editor must listen to one at a time: Apply eligible never batches them. */
-const LISTEN_ONE_BY_ONE: ReadonlySet<TightenClass> = new Set(["pause"]);
-
 export function eligibleApplyAllIds(
   hits: TightenHit[],
   avoidHarsh: boolean,
 ): string[] {
   return hits
-    .filter(
-      (hit) =>
-        !LISTEN_ONE_BY_ONE.has(hit.tightenClass) && (!avoidHarsh || !hit.harsh),
-    )
+    .filter((hit) => !hit.listenOneByOne && (!avoidHarsh || !hit.harsh))
     .map((hit) => hit.id);
 }
 

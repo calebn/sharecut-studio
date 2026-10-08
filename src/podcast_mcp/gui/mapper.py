@@ -6,7 +6,11 @@ from typing import Any
 
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.pending_preview import preview_window_for_edit
-from podcast_mcp.edits.tighten_hits import is_harsh_tighten_hit, join_risk_from_decision
+from podcast_mcp.edits.tighten_hits import (
+    is_harsh_tighten_hit,
+    is_listen_one_by_one_hit,
+    join_risk_from_decision,
+)
 from podcast_mcp.edits.timeline_span import map_source_span_fields
 from podcast_mcp.engines.session_timeline import SessionTimeline, word_source_span
 from podcast_mcp.engines.utterance_runs import utterance_runs, utterance_speaker, utterance_text
@@ -94,6 +98,7 @@ def map_pending_edits_to_timeline(
                 "scope": decision.scope,
                 "join_risk": join_risk_from_decision(decision),
                 "harsh": is_harsh_tighten_hit(decision),
+                "listen_one_by_one": is_listen_one_by_one_hit(decision),
             }
         )
     return rows

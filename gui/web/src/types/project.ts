@@ -153,6 +153,8 @@ export interface PendingEditView {
   join_risk?: PendingJoinRisk | null;
   /** Server-computed (`edits/tighten_hits.is_harsh_tighten_hit`): Avoid harsh cuts skips it. */
   harsh: boolean;
+  /** Server-computed (`edits/tighten_hits.is_listen_one_by_one_hit`): Apply eligible never batches it. */
+  listen_one_by_one?: boolean;
 }
 
 export interface AppliedEditRecord {
