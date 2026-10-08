@@ -10,6 +10,7 @@ guest, who never sees a track's ``media_path``, learns no file name from a clip 
 from __future__ import annotations
 
 import json
+import re
 
 from podcast_mcp.edits.timeline_ops import list_clips
 from podcast_mcp.models import (
@@ -75,30 +76,37 @@ def _rows() -> dict[str, dict]:
     return {row["id"]: row for lane in lanes.values() for row in lane}
 
 
-HOST_T1_KEY = "rec_b9935362a00ace29"
-HOST_T2_KEY = "rec_bca09517d0d9c96e"
-UNMEASURED_KEY = "rec_97ea32f45d708e13"
+def _key(name: str) -> str:
+    return _rows()[name]["recording_key"]
+
+
+def test_a_key_is_an_opaque_digest_that_depends_on_the_workspace() -> None:
+    key = _key("own")
+    assert re.fullmatch(r"rec_[0-9a-f]{16}", key)
+    other = _project()
+    other.meta.workspace_dir = "/tmp/elsewhere"
+    assert list_clips(other)["tracks"]["host"][0]["recording_key"] != key
 
 
 def test_a_clip_without_a_source_plays_its_track_media() -> None:
     row = _rows()["own"]
-    assert (row["source_duration_sec"], row["recording_key"]) == (600.0, HOST_T1_KEY)
+    assert (row["source_duration_sec"], row["recording_key"]) == (600.0, _key("own"))
 
 
 def test_a_clip_names_its_source_recording() -> None:
     row = _rows()["take2"]
-    assert (row["source_duration_sec"], row["recording_key"]) == (60.0, HOST_T2_KEY)
+    assert (row["source_duration_sec"], row["recording_key"]) == (60.0, _key("take2"))
 
 
 def test_a_source_over_the_track_media_file_shares_its_recording_key() -> None:
     rows = _rows()
-    assert rows["same_file"]["recording_key"] == rows["own"]["recording_key"] == HOST_T1_KEY
+    assert rows["same_file"]["recording_key"] == rows["own"]["recording_key"]
     assert rows["take2"]["recording_key"] != rows["own"]["recording_key"]
 
 
 def test_an_unmeasured_source_has_no_length() -> None:
     row = _rows()["no_length"]
-    assert (row["source_duration_sec"], row["recording_key"]) == (None, UNMEASURED_KEY)
+    assert (row["source_duration_sec"], row["recording_key"]) == (None, _key("no_length"))
 
 
 def test_a_track_with_no_media_has_neither() -> None:
@@ -122,10 +130,10 @@ def test_a_guest_view_of_the_rows_shows_identity_but_no_file_name() -> None:
     assert out["tracks"][0]["media_path"] is None
     rows = {r["id"]: r for lane in out["clips"]["tracks"].values() for r in lane}
     assert {i: r["recording_key"] for i, r in rows.items()} == {
-        "own": HOST_T1_KEY,
-        "same_file": HOST_T1_KEY,
-        "take2": HOST_T2_KEY,
-        "no_length": UNMEASURED_KEY,
+        "own": _key("own"),
+        "same_file": _key("own"),
+        "take2": _key("take2"),
+        "no_length": _key("no_length"),
         "no_media": None,
     }
     text = json.dumps(out["clips"])
