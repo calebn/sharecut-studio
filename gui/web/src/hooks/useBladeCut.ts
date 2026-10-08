@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { splitAtTime } from "../api";
 import { canSuggestStructuralOnProject } from "../shareMode";
 import { useDaw } from "../state/useDaw";
-import { bladeTrackIds } from "../utils/bladeTracks";
+import { bladeTrackIds, dialogueTrackIds } from "../utils/bladeTracks";
 import { useProjectMutation } from "./useProjectMutation";
 
 /** Shared blade cut apply/propose + optional mobile confirm. */
@@ -36,10 +36,7 @@ export function useBladeCut() {
   );
 
   const dialogueIds = useCallback(
-    () =>
-      (project?.tracks ?? [])
-        .filter((t) => t.role === "dialogue")
-        .map((t) => t.id),
+    () => dialogueTrackIds(project?.tracks ?? []),
     [project],
   );
 

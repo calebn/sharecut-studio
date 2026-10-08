@@ -440,7 +440,11 @@ test("a long-press on empty space opens the create menu; Add envelope point adds
   });
   expect(axe.violations).toEqual([]);
   expect(items[0]).toMatch(/^Add envelope point/);
-  expect(items.slice(1)).toEqual(["Blade cut", "Add chapter", "Add comment"]);
+  expect(items.slice(1)).toEqual([
+    "Blade cutCuts all dialogue tracks",
+    "Add chapter",
+    "Add comment",
+  ]);
   const added = commands.find((c) => c.type === "SetEnvelope")?.payload as
     | { track_id: string; points: unknown[] }
     | undefined;

@@ -84,7 +84,8 @@ to UX partners; for UI copy, this table wins.
 | Suggest cut | Propose a cut from the transcript | — |
 | Blade cut | Split at the playhead on the timeline, or at a held time from the touch create menu | "slice" |
 | Armed | A timeline target a long press picked up on touch: only it drags, along its own axes, until the finger lifts | "grabbed", "drag mode" |
-| Create menu | The touch menu a long press on empty timeline space opens: Add envelope point, Blade cut, Add chapter, Add comment, at the held time | "context menu", "add menu" |
+| Create menu | The touch menu a long press on empty timeline space opens: Add envelope point on the held lane, then Blade cut (with a line naming the tracks it cuts: the selected tracks, else every dialogue track), Add chapter and Add comment, at the held time | "context menu", "add menu" |
+| Add comment | The one name, in the create menu and the command catalog (`comment.draftAt`), for starting a comment draft at a held time, as "Add chapter" and "Add envelope point" name their siblings | "Comment here" |
 | Ripple | The edit mode that closes or opens time on every dialogue track, so speakers stay in sync. Its icon mark is a wave, drawn beside the word on a trim drag's readout and the touch peek strip | "ripple trim mode", "shift", "shuffle", "magnetic" |
 | Leave a gap | The edit mode that leaves silence (or pastes over) and moves nothing else. Its icon mark is a broken flatline | "Leave gap", "gap mode", "lift", "non-ripple" |
 | Cut anyway | The confirm action when a ripple would also cut another speaker's speech. The dialog, titled "Cut Avery's speech too?", lists each speaker, the time and the words, then offers Leave a gap (safe, left) or Cut anyway (danger, right); approving a suggestion has no gap form, so it offers Cancel instead. Agents and the CLI get the same facts in one line: "This also cuts Avery's speech at 0:12.4 ("so the plan is"). Cut anyway, or leave a gap to keep it." | "Proceed", "Force", "Ignore warning" |
@@ -465,6 +466,11 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   time, and drew the Ripple wave beside the word on a trim drag (#1051 round
   4b, #1135): the touch grammar's long press, its create menu, and the ripple
   mark a trim drag shows.
+- 2026-10-07 — Create menu copy (#1181 round 8): "Add comment" is the one name
+  for `comment.draftAt` (the menu said "Add comment", the catalog "Comment
+  here"), and Blade cut sits apart from the held lane's entry with a line
+  naming the tracks it cuts, since it cuts the selected tracks and not the lane
+  it was held on.
 - 2026-10-07 — Share dialog (#1027): Stop sharing and End room confirm in
   place with `ui/InlineConfirm` (Keep first, danger last), the MCP opt-in
   shows its consequence note, and the example confirm lists Keep first. Six

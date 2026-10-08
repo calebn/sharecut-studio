@@ -438,7 +438,7 @@ export const CAPABILITY_COPY: Record<string, CapabilityCopy> = {
       "Add a volume envelope point at the held time, at the level already there",
   },
   "daw.comment.draftAt": {
-    label: "Comment here",
+    label: "Add comment",
     tooltip: "Start a comment at the held time",
   },
   "daw.edit.rollClipJoin": {

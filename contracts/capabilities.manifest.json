@@ -2882,7 +2882,7 @@
     },
     {
       "id": "daw.comment.draftAt",
-      "label": "Comment here",
+      "label": "Add comment",
       "effect": "view",
       "tooltip": "Start a comment at the held time",
       "service": "CommentService",
