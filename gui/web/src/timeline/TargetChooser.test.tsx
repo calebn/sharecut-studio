@@ -56,6 +56,7 @@ beforeEach(() => {
     choose: vi.fn(),
     nextPage: vi.fn(),
     close: vi.fn(),
+    adopt: vi.fn(() => vi.fn()),
   };
   announce = vi.fn<(message: string) => void>();
   // jsdom does no layout: nothing is under any point.

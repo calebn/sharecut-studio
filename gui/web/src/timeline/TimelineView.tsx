@@ -70,6 +70,7 @@ import { clippingFlags } from "./clippingFlags";
 import { DetentMark } from "./DetentMark";
 import { attachDragWatch } from "./dragWatch";
 import { selectFollowColorIndex } from "./followTarget";
+import { HitRouterProvider } from "./hitRouterContext";
 import {
   attachHitRouting,
   type ChooserView,
@@ -846,303 +847,309 @@ export function TimelineViewView({ fixedPlayhead = false, headerSlot }: Props) {
   return (
     <TimelineMetricsProvider value={metrics}>
       <TimelineGestureProvider value={holdLayout}>
-        <div
-          ref={areaRef}
-          className={`timeline-area${fixedPlayhead ? " timeline-area--fixed-playhead" : ""}`}
-          data-following={followingClientId ? "" : undefined}
-          data-playing={isPlaying}
-          data-pointer-kind={pointerKind}
-          data-waveform-backend={waveformBackend}
-          data-lane-density={
-            laneHeight < COMPACT_LANE_HEIGHT ? "compact" : undefined
-          }
-          style={
-            {
-              // Timeline px geometry from utils/layout.ts; timeline.css reads it.
-              "--ruler-height": `${RULER_HEIGHT}px`,
-              "--marker-row-height": `${MARKER_ROW_HEIGHT}px`,
-              "--lane-height": `${laneHeight}px`,
-              "--marker-lane-height": `${markerLaneHeightPx}px`,
-              // The stage edges start past the header column (this changes
-              // only when the header resizes). measure() writes the scrollbar
-              // insets directly.
-              "--timeline-header-offset": `${headerOffsetPx}px`,
-              // Only fixed-playhead CSS reads these; keep them off other
-              // views so a resize there restyles nothing.
-              ...(fixedPlayhead
-                ? {
-                    "--timeline-lead": `${leadPx}px`,
-                    "--timeline-fixed-line": `${fixedPlayheadLinePx(headerOffsetPx, timeViewportPx)}px`,
-                  }
-                : {}),
-              ...(followingClientId
-                ? {
-                    "--presence-color": presenceColorVar(followColorIndex),
-                  }
-                : {}),
-            } as CSSProperties
-          }
-        >
-          {scrollLeaves}
-          <WaveformStatusSync />
-          {layers.showProsody ? (
-            <ProsodyStatusAnnouncer overlay={prosodyLatest} />
-          ) : null}
-          {fixedPlayhead ? (
-            <div className="playhead playhead--fixed" aria-hidden>
-              <FollowPlayheadChip />
-            </div>
-          ) : null}
+        <HitRouterProvider value={hitRouter}>
           <div
-            className="timeline-scroll"
-            ref={scrollRef}
-            onScroll={scroll.onScroll}
-            onPointerMove={onTimelinePointerMove}
-          >
-            <div className={lockClass}>
-              {headerSlot}
-              <div
-                className={
-                  toolMode === "blade" && !commentMode
-                    ? "timeline-time timeline-blade-mode"
-                    : commentMode
-                      ? "timeline-time timeline-comment-mode"
-                      : "timeline-time"
-                }
-                style={{ width }}
-              >
-                <RecordingOverlay
-                  zoomPxPerSec={zoomPxPerSec}
-                  trailingPadPx={leadPx}
-                />
-                <TimeRuler
-                  durationSec={canvasSec}
-                  sessionDurationSec={sessionSec}
-                  zoomPxPerSec={zoomPxPerSec}
-                  hidePlayhead={fixedPlayhead}
-                  onSeek={(sec) => {
-                    void seekTransport(sec);
-                    setSelection(null);
-                    if (toolMode === "blade" && !commentMode) {
-                      runPointerCommand("edit.bladeCut", { atTime: sec });
+            ref={areaRef}
+            className={`timeline-area${fixedPlayhead ? " timeline-area--fixed-playhead" : ""}`}
+            data-following={followingClientId ? "" : undefined}
+            data-playing={isPlaying}
+            data-pointer-kind={pointerKind}
+            data-waveform-backend={waveformBackend}
+            data-lane-density={
+              laneHeight < COMPACT_LANE_HEIGHT ? "compact" : undefined
+            }
+            style={
+              {
+                // Timeline px geometry from utils/layout.ts; timeline.css reads it.
+                "--ruler-height": `${RULER_HEIGHT}px`,
+                "--marker-row-height": `${MARKER_ROW_HEIGHT}px`,
+                "--lane-height": `${laneHeight}px`,
+                "--marker-lane-height": `${markerLaneHeightPx}px`,
+                // The stage edges start past the header column (this changes
+                // only when the header resizes). measure() writes the scrollbar
+                // insets directly.
+                "--timeline-header-offset": `${headerOffsetPx}px`,
+                // Only fixed-playhead CSS reads these; keep them off other
+                // views so a resize there restyles nothing.
+                ...(fixedPlayhead
+                  ? {
+                      "--timeline-lead": `${leadPx}px`,
+                      "--timeline-fixed-line": `${fixedPlayheadLinePx(headerOffsetPx, timeViewportPx)}px`,
                     }
-                  }}
-                  onFit={() => {
-                    // fitToWindow sets the scroll; the sync effect writes it.
-                    runPointerCommand("view.fit");
-                  }}
-                />
+                  : {}),
+                ...(followingClientId
+                  ? {
+                      "--presence-color": presenceColorVar(followColorIndex),
+                    }
+                  : {}),
+              } as CSSProperties
+            }
+          >
+            {scrollLeaves}
+            <WaveformStatusSync />
+            {layers.showProsody ? (
+              <ProsodyStatusAnnouncer overlay={prosodyLatest} />
+            ) : null}
+            {fixedPlayhead ? (
+              <div className="playhead playhead--fixed" aria-hidden>
+                <FollowPlayheadChip />
+              </div>
+            ) : null}
+            <div
+              className="timeline-scroll"
+              ref={scrollRef}
+              onScroll={scroll.onScroll}
+              onPointerMove={onTimelinePointerMove}
+            >
+              <div className={lockClass}>
+                {headerSlot}
                 <div
-                  ref={hitRootRef}
-                  className="timeline-hit-root"
-                  data-touch-press=""
-                  style={{ position: "relative", width }}
-                  {...touchPress}
+                  className={
+                    toolMode === "blade" && !commentMode
+                      ? "timeline-time timeline-blade-mode"
+                      : commentMode
+                        ? "timeline-time timeline-comment-mode"
+                        : "timeline-time"
+                  }
+                  style={{ width }}
                 >
-                  <MarkerLane
-                    chapters={chapters}
-                    socialClips={socialClips}
-                    comments={comments}
-                    rows={rows}
-                    selectedCommentId={selectedCommentId}
+                  <RecordingOverlay
                     zoomPxPerSec={zoomPxPerSec}
-                    width={width}
-                    onSelectChapter={(ch) => {
-                      setSelection({
-                        kind: "chapter",
-                        id: ch.title,
-                        time: ch.time,
-                      });
-                      setPlayheadSec(ch.time);
+                    trailingPadPx={leadPx}
+                  />
+                  <TimeRuler
+                    durationSec={canvasSec}
+                    sessionDurationSec={sessionSec}
+                    zoomPxPerSec={zoomPxPerSec}
+                    hidePlayhead={fixedPlayhead}
+                    onSeek={(sec) => {
+                      void seekTransport(sec);
+                      setSelection(null);
+                      if (toolMode === "blade" && !commentMode) {
+                        runPointerCommand("edit.bladeCut", { atTime: sec });
+                      }
                     }}
-                    onSelectSocial={(clip) => {
-                      setSelection({ kind: "social", id: clip.id });
-                      setPlayheadSec(clip.start);
-                    }}
-                    onSelectComment={(c) => {
-                      setSelection({ kind: "comment", id: c.id });
-                      setPlayheadSec(c.timeline_start);
-                      setActiveTab("comments");
-                    }}
-                    clippingFlags={clipFlags}
-                    onSelectClipping={(flag) => {
-                      setSelection({ kind: "track", trackId: flag.trackId });
-                      setPlayheadSec(flag.start);
+                    onFit={() => {
+                      // fitToWindow sets the scroll; the sync effect writes it.
+                      runPointerCommand("view.fit");
                     }}
                   />
                   <div
-                    ref={lanesRef}
-                    onPointerDownCapture={rangeGesture.captureDown}
-                    onPointerMoveCapture={rangeGesture.captureMove}
-                    onPointerUpCapture={rangeGesture.captureUp}
-                    onPointerCancelCapture={rangeGesture.captureCancel}
-                    onClickCapture={rangeGesture.captureClick}
-                    data-range-armed={rangeArmed || undefined}
-                    className={
-                      movePlacements ? "timeline-clip-moving" : undefined
-                    }
-                    style={{ position: "relative" }}
-                    onPointerMove={bladeMode ? onBladePointerMove : undefined}
-                    onPointerLeave={bladeMode ? onBladePointerLeave : undefined}
+                    ref={hitRootRef}
+                    className="timeline-hit-root"
+                    data-touch-press=""
+                    style={{ position: "relative", width }}
+                    {...touchPress}
                   >
-                    {sessionRegion && (
-                      <AuditionOverlay
-                        className="range-overlay"
-                        startSec={sessionRegion.start_sec}
-                        endSec={sessionRegion.end_sec}
-                        zoomPxPerSec={zoomPxPerSec}
-                        height={laneStackHeight - markerLaneHeightPx}
-                        label={
-                          lastAgentQuery
-                            ? `Agent range · ${lastAgentQuery}`
-                            : "Agent range"
-                        }
-                      />
-                    )}
-                    {selection?.kind === "comment" &&
-                      (() => {
-                        const selectedComment = comments.find(
-                          (c) => c.id === selection.id,
-                        );
-                        return selectedComment ? (
-                          <CommentSelectionOverlay
-                            comment={selectedComment}
-                            zoomPxPerSec={zoomPxPerSec}
-                            height={laneStackHeight - markerLaneHeightPx}
-                          />
-                        ) : null;
-                      })()}
-                    {!fixedPlayhead ? (
-                      <Playhead height={laneStackHeight - markerLaneHeightPx} />
-                    ) : null}
-                    <PresenceOverlay
-                      zoomPxPerSec={zoomPxPerSec}
-                      height={laneStackHeight - markerLaneHeightPx}
-                      tracks={project.tracks}
-                      clipsByTrack={project.clips.tracks}
-                      hidePlayheadForClientId={followingClientId}
-                    />
-                    <CommentPlaybackBubble
+                    <MarkerLane
+                      chapters={chapters}
+                      socialClips={socialClips}
                       comments={comments}
-                      zoomPxPerSec={zoomPxPerSec}
+                      rows={rows}
                       selectedCommentId={selectedCommentId}
-                      visible={layers.showComments && isPlaying}
-                      onSelect={(c) => {
+                      zoomPxPerSec={zoomPxPerSec}
+                      width={width}
+                      onSelectChapter={(ch) => {
+                        setSelection({
+                          kind: "chapter",
+                          id: ch.title,
+                          time: ch.time,
+                        });
+                        setPlayheadSec(ch.time);
+                      }}
+                      onSelectSocial={(clip) => {
+                        setSelection({ kind: "social", id: clip.id });
+                        setPlayheadSec(clip.start);
+                      }}
+                      onSelectComment={(c) => {
                         setSelection({ kind: "comment", id: c.id });
                         setPlayheadSec(c.timeline_start);
                         setActiveTab("comments");
                       }}
+                      clippingFlags={clipFlags}
+                      onSelectClipping={(flag) => {
+                        setSelection({ kind: "track", trackId: flag.trackId });
+                        setPlayheadSec(flag.start);
+                      }}
                     />
-                    {bladeMode ? (
-                      <BladeGuide
-                        tracks={project.tracks}
-                        selectedTrackIds={selectedTrackIds}
-                        zoomPxPerSec={zoomPxPerSec}
-                      />
-                    ) : null}
-                    {project.tracks.map((track, idx) => {
-                      const laneClips =
-                        project.clips.tracks[track.id] ?? EMPTY_CLIPS;
-                      const lanePreview = laneMovePreview({
-                        trackId: track.id,
-                        laneClips,
-                        allClips,
-                        tracks: project.tracks,
-                        placements: movePlacements,
-                      });
-                      return (
-                        <TrackLane
-                          key={track.id}
-                          track={track}
-                          trackIndex={idx}
-                          clips={laneClips}
-                          width={width}
+                    <div
+                      ref={lanesRef}
+                      onPointerDownCapture={rangeGesture.captureDown}
+                      onPointerMoveCapture={rangeGesture.captureMove}
+                      onPointerUpCapture={rangeGesture.captureUp}
+                      onPointerCancelCapture={rangeGesture.captureCancel}
+                      onClickCapture={rangeGesture.captureClick}
+                      data-range-armed={rangeArmed || undefined}
+                      className={
+                        movePlacements ? "timeline-clip-moving" : undefined
+                      }
+                      style={{ position: "relative" }}
+                      onPointerMove={bladeMode ? onBladePointerMove : undefined}
+                      onPointerLeave={
+                        bladeMode ? onBladePointerLeave : undefined
+                      }
+                    >
+                      {sessionRegion && (
+                        <AuditionOverlay
+                          className="range-overlay"
+                          startSec={sessionRegion.start_sec}
+                          endSec={sessionRegion.end_sec}
                           zoomPxPerSec={zoomPxPerSec}
-                          projectPath={projectPath}
-                          selection={selection}
-                          showLevels={layers.showLevels}
-                          showEdits={layers.showEdits}
-                          envelopes={envelopeSlices[track.id] ?? EMPTY_ARR}
-                          appliedRecords={
-                            appliedRecordSlices[track.id] ?? EMPTY_ARR
+                          height={laneStackHeight - markerLaneHeightPx}
+                          label={
+                            lastAgentQuery
+                              ? `Agent range · ${lastAgentQuery}`
+                              : "Agent range"
                           }
-                          pendingEdits={
-                            pendingEditSlices[track.id] ?? EMPTY_ARR
-                          }
-                          onRangeGesture={rangeGesture.gesture}
-                          onSeek={onSeek}
-                          bladeMode={bladeMode}
-                          canMoveClips={canMoveClips}
-                          selectedClipIds={selectedClipIds}
-                          previewStartById={lanePreview.previewStartById}
-                          hideClipIds={lanePreview.hideIds}
-                          moveGhosts={lanePreview.ghosts}
-                          onClipMovePreview={onClipMovePreview}
-                          onClipMoveCommit={onClipMoveCommit}
-                          onClipMoveCancel={onClipMoveCancel}
-                          onClipBodyStart={onClipBodyStart}
-                          onClipBodyEnd={onClipBodyEnd}
-                          onSelectClip={onSelectClip}
-                          onSelectTrack={onSelectTrack}
-                          bladeHighlight={
-                            bladeMode &&
-                            (selectedTrackIds.length === 0 ||
-                              selectedTrackIds.includes(track.id))
-                          }
-                          staleWholeTrack={Boolean(
-                            showStaleInv && fallbackWhole.has(track.id),
-                          )}
-                          showStaleInvalidations={showStaleInv}
-                          staleInvalidations={staleInvalidations}
-                          onSelectPending={onSelectPending}
-                          prosody={prosodyByTrack.get(track.id) ?? null}
                         />
-                      );
-                    })}
+                      )}
+                      {selection?.kind === "comment" &&
+                        (() => {
+                          const selectedComment = comments.find(
+                            (c) => c.id === selection.id,
+                          );
+                          return selectedComment ? (
+                            <CommentSelectionOverlay
+                              comment={selectedComment}
+                              zoomPxPerSec={zoomPxPerSec}
+                              height={laneStackHeight - markerLaneHeightPx}
+                            />
+                          ) : null;
+                        })()}
+                      {!fixedPlayhead ? (
+                        <Playhead
+                          height={laneStackHeight - markerLaneHeightPx}
+                        />
+                      ) : null}
+                      <PresenceOverlay
+                        zoomPxPerSec={zoomPxPerSec}
+                        height={laneStackHeight - markerLaneHeightPx}
+                        tracks={project.tracks}
+                        clipsByTrack={project.clips.tracks}
+                        hidePlayheadForClientId={followingClientId}
+                      />
+                      <CommentPlaybackBubble
+                        comments={comments}
+                        zoomPxPerSec={zoomPxPerSec}
+                        selectedCommentId={selectedCommentId}
+                        visible={layers.showComments && isPlaying}
+                        onSelect={(c) => {
+                          setSelection({ kind: "comment", id: c.id });
+                          setPlayheadSec(c.timeline_start);
+                          setActiveTab("comments");
+                        }}
+                      />
+                      {bladeMode ? (
+                        <BladeGuide
+                          tracks={project.tracks}
+                          selectedTrackIds={selectedTrackIds}
+                          zoomPxPerSec={zoomPxPerSec}
+                        />
+                      ) : null}
+                      {project.tracks.map((track, idx) => {
+                        const laneClips =
+                          project.clips.tracks[track.id] ?? EMPTY_CLIPS;
+                        const lanePreview = laneMovePreview({
+                          trackId: track.id,
+                          laneClips,
+                          allClips,
+                          tracks: project.tracks,
+                          placements: movePlacements,
+                        });
+                        return (
+                          <TrackLane
+                            key={track.id}
+                            track={track}
+                            trackIndex={idx}
+                            clips={laneClips}
+                            width={width}
+                            zoomPxPerSec={zoomPxPerSec}
+                            projectPath={projectPath}
+                            selection={selection}
+                            showLevels={layers.showLevels}
+                            showEdits={layers.showEdits}
+                            envelopes={envelopeSlices[track.id] ?? EMPTY_ARR}
+                            appliedRecords={
+                              appliedRecordSlices[track.id] ?? EMPTY_ARR
+                            }
+                            pendingEdits={
+                              pendingEditSlices[track.id] ?? EMPTY_ARR
+                            }
+                            onRangeGesture={rangeGesture.gesture}
+                            onSeek={onSeek}
+                            bladeMode={bladeMode}
+                            canMoveClips={canMoveClips}
+                            selectedClipIds={selectedClipIds}
+                            previewStartById={lanePreview.previewStartById}
+                            hideClipIds={lanePreview.hideIds}
+                            moveGhosts={lanePreview.ghosts}
+                            onClipMovePreview={onClipMovePreview}
+                            onClipMoveCommit={onClipMoveCommit}
+                            onClipMoveCancel={onClipMoveCancel}
+                            onClipBodyStart={onClipBodyStart}
+                            onClipBodyEnd={onClipBodyEnd}
+                            onSelectClip={onSelectClip}
+                            onSelectTrack={onSelectTrack}
+                            bladeHighlight={
+                              bladeMode &&
+                              (selectedTrackIds.length === 0 ||
+                                selectedTrackIds.includes(track.id))
+                            }
+                            staleWholeTrack={Boolean(
+                              showStaleInv && fallbackWhole.has(track.id),
+                            )}
+                            showStaleInvalidations={showStaleInv}
+                            staleInvalidations={staleInvalidations}
+                            onSelectPending={onSelectPending}
+                            prosody={prosodyByTrack.get(track.id) ?? null}
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
+                <RecordingScrollExtent
+                  zoomPxPerSec={zoomPxPerSec}
+                  timelineWidthPx={width}
+                />
               </div>
-              <RecordingScrollExtent
-                zoomPxPerSec={zoomPxPerSec}
-                timelineWidthPx={width}
-              />
             </div>
-          </div>
-          {/* After the scroller on purpose: at the lane floor's z, tree order
+            {/* After the scroller on purpose: at the lane floor's z, tree order
               paints the edges over it, and clips and markers stay above. */}
-          {chooser && hitRouter ? (
-            <TargetChooser
-              view={chooser.view}
-              closing={chooser.closing}
-              router={hitRouter}
-              bounds={visibleBox(scrollRef.current)}
-              onClosed={clearChooser}
-            />
-          ) : null}
-          {create && hitRouter ? (
-            <CreateMenu
-              view={create.view}
-              place={create.place}
-              router={hitRouter}
-              bounds={visibleBox(scrollRef.current)}
-              avoidX={
-                fixedPlayhead
-                  ? (scrollRef.current?.getBoundingClientRect().left ?? 0) +
-                    headerOffsetPx +
-                    timeViewportPx / 2
-                  : null
-              }
-            />
-          ) : null}
-          {detent ? (
-            <DetentMark
-              detent={detent}
-              bounds={visibleBox(lanesRef.current ?? scrollRef.current)}
-            />
-          ) : null}
-          <div className="timeline-edge timeline-edge--start" aria-hidden />
-          <div className="timeline-edge timeline-edge--end" aria-hidden />
-        </div>
+            {chooser && hitRouter ? (
+              <TargetChooser
+                view={chooser.view}
+                closing={chooser.closing}
+                router={hitRouter}
+                bounds={visibleBox(scrollRef.current)}
+                onClosed={clearChooser}
+              />
+            ) : null}
+            {create && hitRouter ? (
+              <CreateMenu
+                view={create.view}
+                place={create.place}
+                router={hitRouter}
+                bounds={visibleBox(scrollRef.current)}
+                avoidX={
+                  fixedPlayhead
+                    ? (scrollRef.current?.getBoundingClientRect().left ?? 0) +
+                      headerOffsetPx +
+                      timeViewportPx / 2
+                    : null
+                }
+              />
+            ) : null}
+            {detent ? (
+              <DetentMark
+                detent={detent}
+                bounds={visibleBox(lanesRef.current ?? scrollRef.current)}
+              />
+            ) : null}
+            <div className="timeline-edge timeline-edge--start" aria-hidden />
+            <div className="timeline-edge timeline-edge--end" aria-hidden />
+          </div>
+        </HitRouterProvider>
       </TimelineGestureProvider>
     </TimelineMetricsProvider>
   );

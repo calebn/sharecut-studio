@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { type ReactNode, useCallback, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setClipJoin } from "../api";
 import { LONG_PRESS_MS } from "../hooks/gestureConstants";
@@ -7,7 +8,10 @@ import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import { place } from "../test/hitDom";
+import { HitRouterProvider } from "./hitRouterContext";
+import { attachHitRouting, type HitRouter } from "./hitRouting";
 import { JoinEditor } from "./JoinEditor";
+import { useTouchPress } from "./useTouchPress";
 
 vi.mock("../api", () => ({ setClipJoin: vi.fn(async () => undefined) }));
 const left = clipRow({
@@ -37,6 +41,29 @@ const base = {
   zoomPxPerSec: 50,
   trackFadeMaxMs: null as number | null,
 };
+/** The timeline's lanes with their one hit router, as `TimelineView` mounts it. */
+function RoutedLanes({ children }: { children: ReactNode }) {
+  const [router, setRouter] = useState<HitRouter | null>(null);
+  const press = useTouchPress(router);
+  const lanes = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    const attached = attachHitRouting(el);
+    setRouter(attached);
+    return () => {
+      attached.dispose();
+      setRouter(null);
+    };
+  }, []);
+  return (
+    <HitRouterProvider value={router}>
+      <main className="timeline-area">
+        <div ref={lanes} className="lane-row" {...press}>
+          {children}
+        </div>
+      </main>
+    </HitRouterProvider>
+  );
+}
 function mount(overrides: Partial<typeof base> = {}) {
   const props = { ...base, ...overrides };
   useDawStore.getState().setProject(
@@ -46,11 +73,9 @@ function mount(overrides: Partial<typeof base> = {}) {
     }),
   );
   const view = render(
-    <main className="timeline-area">
-      <div className="lane-row">
-        <JoinEditor {...props} />
-      </div>
-    </main>,
+    <RoutedLanes>
+      <JoinEditor {...props} />
+    </RoutedLanes>,
   );
   fireEvent.click(screen.getByRole("button", { name: /join at/ }));
   return { ...view, props };
@@ -488,5 +513,28 @@ describe("JoinEditor crossfade grip on touch", () => {
       "crossfade",
       420,
     );
+  });
+
+  it("rolls the armed drag back, saving nothing, when a second finger lands on the lanes", () => {
+    const el = placedGrip();
+    fireEvent.pointerDown(el, { ...touch, clientX: 1000 });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    fireEvent.pointerMove(el, { ...touch, clientX: 1010 });
+    expect(screen.getByText(/Draft overlap 420/)).toBeInTheDocument();
+
+    const badge = screen.getByRole("button", { name: /join at/ });
+    const second = { ...touch, pointerId: 5, isPrimary: false };
+    fireEvent.pointerDown(badge, second);
+    fireEvent.pointerUp(el, { ...touch, clientX: 1010 });
+    fireEvent.pointerUp(badge, second);
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(screen.queryByText(/Draft overlap/)).toBeNull();
+    expect(setClipJoin).not.toHaveBeenCalled();
+    expect(badge).toHaveAttribute("aria-expanded", "true");
   });
 });

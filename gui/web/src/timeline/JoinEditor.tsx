@@ -15,12 +15,11 @@ import { useDaw } from "../state/useDaw";
 import type { ClipRow } from "../types/project";
 import { useResizeObserver } from "../ui";
 import { useStableCallback } from "../utils/useStableCallback";
-import { attachHitRouting, type HitRouter } from "./hitRouting";
+import { useHitRouter } from "./hitRouterContext";
 import { hitTargetProps } from "./hitTargets";
 import { JoinBadgeView } from "./JoinBadge";
 import { JoinBlend } from "./JoinBlend";
 import { JoinPopover } from "./JoinPopover";
-import { announceArmed } from "./touchGrammar";
 import { useJoinEdit } from "./useJoinEdit";
 import { useTouchPress } from "./useTouchPress";
 
@@ -119,23 +118,23 @@ function JoinEditorLive(props: JoinEditorProps) {
     spanWidth,
   ]);
   useResizeObserver(railRef, place);
-  // The rail sits outside the lanes' router, so it routes its own presses
-  // through the same grammar: a finger arms the grip before it drags.
-  const [railRouter, setRailRouter] = useState<HitRouter | null>(null);
-  const railRootRef = useCallback((rail: HTMLDivElement | null) => {
-    railRef.current = rail;
-    if (!rail) return;
-    const router = attachHitRouting(rail, {
-      onArm: announceArmed,
-    });
-    setRailRouter(router);
-    return () => {
-      railRef.current = null;
-      router.dispose();
-      setRailRouter(null);
-    };
-  }, []);
-  const railPress = useTouchPress(railRouter);
+  // The rail sits outside the lanes' root, so the timeline's router adopts
+  // it: a finger arms the grip before it drags, and a second finger anywhere
+  // rolls the drag back.
+  const router = useHitRouter();
+  const railRootRef = useCallback(
+    (rail: HTMLDivElement | null) => {
+      railRef.current = rail;
+      if (!rail || !router) return;
+      const release = router.adopt(rail);
+      return () => {
+        railRef.current = null;
+        release();
+      };
+    },
+    [router],
+  );
+  const railPress = useTouchPress(router);
   const reducedOut = clampClipFades(
     edit.value,
     right.fade_out_ms,

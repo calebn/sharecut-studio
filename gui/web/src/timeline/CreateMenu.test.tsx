@@ -47,6 +47,7 @@ beforeEach(() => {
     choose: vi.fn(),
     nextPage: vi.fn(),
     close: vi.fn(),
+    adopt: vi.fn(() => vi.fn()),
   };
   view = {
     origin: { x: 120, y: 150 },

@@ -27,7 +27,9 @@
  * it by resting there, or by sliding along the target's drag axis once the
  * chip is armed (`chipGesture.ts`).
  *
- * Pinch never edits: the moment a second finger lands on the timeline, every
+ * Pinch never edits: the moment a second finger lands after one that began on
+ * the timeline, on a chooser chip, on a create item or on an adopted part (the
+ * crossfade rail), anywhere on the page, every
  * pointer's uncommitted action (an armed drag, trim, fade, chip grab, range,
  * create menu or a press still deciding) gets a `pointercancel`, which each
  * owner already treats as "drop the draft, save nothing", and the selection
@@ -240,6 +242,12 @@ export interface HitRouter {
   nextPage: () => void;
   /** Closes the chooser or the create menu with no change. */
   close: () => void;
+  /**
+   * Routes the presses inside `part` too: a part of the timeline mounted
+   * outside the root (a portaled rail). Its fingers count with the rest for
+   * a pinch. Returns the release.
+   */
+  adopt: (part: Element) => () => void;
 }
 
 type Phase =
@@ -313,6 +321,17 @@ export function attachHitRouting(
   const doc = root.ownerDocument;
   // The whole timeline, ruler and headers included: a pinch can start there.
   const scope = root.closest(".timeline-scroll") ?? root;
+  const parts = new Set<Element>([root]);
+  const partOf = (target: Node): Element | null => {
+    for (const part of parts) if (part.contains(target)) return part;
+    return null;
+  };
+  /** A finger here is the router's own: on the timeline, a chip or a menu item. */
+  const ownsTouch = (target: Node) =>
+    scope.contains(target) ||
+    partOf(target) != null ||
+    (target instanceof Element &&
+      target.closest(`[${CHOOSER_ITEM_ATTR}],[${CREATE_ITEM_ATTR}]`) != null);
   let phase: Phase = IDLE;
   const gesture: MultiTouch = {
     pointers: new Map(),
@@ -333,9 +352,12 @@ export function attachHitRouting(
       (phase.kind === "routed" && phase.touch);
     if (owned && event.cancelable) event.preventDefault();
   };
-  root.addEventListener("touchmove", onTouchMove as EventListener, {
-    passive: false,
-  });
+  const touchOptions = { passive: false };
+  root.addEventListener(
+    "touchmove",
+    onTouchMove as EventListener,
+    touchOptions,
+  );
 
   const emit = (view: ChooserView | null) => options.onChooser?.(view);
   const emitCreate = (view: CreateView | null) => options.onCreate?.(view);
@@ -545,17 +567,15 @@ export function attachHitRouting(
       emit(phase.view);
       return;
     }
-    if (
-      phase.kind !== "idle" ||
-      !(event.target instanceof Element) ||
-      !root.contains(event.target)
-    ) {
+    if (phase.kind !== "idle" || !(event.target instanceof Element)) {
       return;
     }
+    const part = partOf(event.target);
+    if (!part) return;
     const hit = closestHitTarget(event.target);
     if (!hit && !closestHitSurface(event.target)) return;
     const origin = pointOf(event);
-    const hits = resolveHits(root, origin, event.pointerType, hit);
+    const hits = resolveHits(part, origin, event.pointerType, hit);
     // A tap on a body is its own, though a target in reach takes a long-press.
     // A target with no box yet is ranked nowhere, so the press stays its own.
     const winner =
@@ -818,7 +838,7 @@ export function attachHitRouting(
         type === "down" &&
         event.pointerType === "touch" &&
         event.target instanceof Node &&
-        scope.contains(event.target)
+        ownsTouch(event.target)
       ) {
         if (pointers.size === 0) gesture.restore = options.snapshot?.() ?? null;
         else if (!gesture.multi) yieldToMultiTouch();
@@ -875,10 +895,24 @@ export function attachHitRouting(
   const router: HitRouter = {
     dispose() {
       setPhase(IDLE);
-      root.removeEventListener("touchmove", onTouchMove as EventListener);
+      for (const part of parts) {
+        part.removeEventListener("touchmove", onTouchMove as EventListener);
+      }
       for (const [type, listener] of listeners) {
         doc.removeEventListener(type, listener as EventListener, true);
       }
+    },
+    adopt(part) {
+      parts.add(part);
+      part.addEventListener(
+        "touchmove",
+        onTouchMove as EventListener,
+        touchOptions,
+      );
+      return () => {
+        parts.delete(part);
+        part.removeEventListener("touchmove", onTouchMove as EventListener);
+      };
     },
     defers(down) {
       return phase.kind === "pressing" && phase.down === down;
