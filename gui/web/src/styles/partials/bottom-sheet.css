@@ -208,10 +208,14 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   border-bottom: 1px solid var(--border);
 }
 
+/* The title keeps a readable row of its own: when it and the actions (Collapse,
+   Expand, Close) do not fit side by side, as at large text on a phone, the
+   actions wrap beneath it instead of squeezing it to nothing. */
 .bottom-sheet-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-1) var(--space-3);
   padding: var(--space-3) var(--space-4);
   min-height: 2.75rem;
 }
@@ -225,7 +229,7 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   margin: 0;
   font-size: var(--font-size-ui);
   font-weight: 600;
-  flex: 1;
+  flex: 1 1 8rem;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -239,6 +243,7 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   align-items: center;
   gap: var(--space-3);
   flex: 0 0 auto;
+  margin-inline-start: auto;
 }
 
 .bottom-sheet-body {

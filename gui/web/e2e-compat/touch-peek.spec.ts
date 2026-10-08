@@ -935,7 +935,15 @@ async function drawerChrome(page: Page) {
     const named = (prefix: string) =>
       buttons.find((b) => b.getAttribute("aria-label")?.startsWith(prefix));
     const chrome = panel?.querySelector(".bottom-sheet-chrome");
+    const title = panel?.querySelector(".bottom-sheet-title");
+    // line-height is `normal` (about 1.2 em), so a line is read off the font size.
+    const fontPx = title
+      ? Number.parseFloat(getComputedStyle(title).fontSize)
+      : 0;
     return {
+      titleLines: title
+        ? Math.round(title.getBoundingClientRect().height / (fontPx * 1.3))
+        : 0,
       rootPx: rem,
       sheetPx: panel ? Math.round(panel.getBoundingClientRect().height) : 0,
       chromePx: chrome ? Math.round(chrome.getBoundingClientRect().height) : 0,
@@ -1009,6 +1017,55 @@ test("Expand keeps the header, Collapse and Close usable at 844x390 with a 32 px
   context,
   browserName,
 }, info) => expandAtRootFont(32, { page, context, browserName }, info));
+
+/**
+ * The half drawer on a 390 px phone: with Collapse, Expand and Close at large
+ * text the actions cannot sit beside the title, so they wrap beneath it and
+ * the title keeps a readable line of its own.
+ */
+async function halfTitleAtRootFont(
+  rootPx: number,
+  { page, context, browserName }: CaseFixtures,
+  info: TestInfo,
+): Promise<void> {
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await buildFixture(page, projectPath, CLIENT_ID);
+  const finger = await newFinger(context, page, browserName);
+  await open(page, "portrait-390");
+  await tapTarget(page, finger, envC);
+  await expect(sheet(page)).toHaveClass(/bottom-sheet--peek/);
+  await page.evaluate((px) => {
+    document.documentElement.style.fontSize = `${px}px`;
+  }, rootPx);
+  await page.waitForTimeout(300);
+  await tapBox(
+    page,
+    finger,
+    page.getByRole("button", { name: "Expand to half height" }),
+  );
+  await expect(sheet(page)).toHaveClass(/bottom-sheet--half/);
+  const row = await drawerChrome(page);
+  await frame(page, info, `half-title-${rootPx}px-${browserName}`);
+  json(info, `half-title-${rootPx}px-${browserName}`, row);
+  expect(row.header?.w ?? 0, JSON.stringify(row)).toBeGreaterThanOrEqual(
+    8 * rootPx,
+  );
+  expect(row.titleLines).toBe(1);
+  expect(row).toMatchObject({
+    header: SHEET_REACHABLE,
+    collapse: SHEET_REACHABLE,
+    close: SHEET_REACHABLE,
+  });
+}
+
+for (const rootPx of [16, 32]) {
+  test(`the half drawer keeps a readable title at 390x844 with a ${rootPx} px root font`, ({
+    page,
+    context,
+    browserName,
+  }, info) =>
+    halfTitleAtRootFont(rootPx, { page, context, browserName }, info));
+}
 
 async function openTrackSheet(page: Page, finger: Finger): Promise<void> {
   await tapBox(page, finger, page.locator(".track-header-open").first());
