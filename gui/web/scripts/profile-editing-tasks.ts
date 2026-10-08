@@ -276,7 +276,7 @@ const schedule = tasks.flatMap((task) => {
       (!selectedRoutes || selectedRoutes.includes(route.id)),
   );
   return Array.from({ length: Number(values.trials) }, (_, index) =>
-    (index % 2 ? [...routes].reverse() : routes).map((route) => ({
+    routes.map((route) => ({
       task: task.id,
       route: route.id,
       trial: index + 1,
