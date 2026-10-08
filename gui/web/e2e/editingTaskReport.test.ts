@@ -3,6 +3,7 @@ import {
   assessEditingTrial,
   type DurableState,
   type EditingTrial,
+  summarizeEditingAttempts,
   type TaskDefinition,
 } from "./editingTaskReport";
 
@@ -193,5 +194,95 @@ describe("literal editing task admission", () => {
     expect(assessEditingTrial(definition, t).reasons).toEqual([
       "request 1 has unknown outcome",
     ]);
+  });
+});
+
+it("rejects a non-finite stopped seek position", () => {
+  const seek: TaskDefinition = {
+    ...definition,
+    id: "seek",
+    seek: 5,
+    expected: start,
+    routes: [
+      {
+        id: "ruler",
+        input: "keyboard",
+        command: null,
+        mutations: 0,
+        cancel: false,
+        undo: "none",
+      },
+    ],
+  };
+  const attempted: EditingTrial = {
+    ...trial(),
+    task: "seek",
+    route: "ruler",
+    journal: [
+      {
+        seq: 1,
+        phase: "action",
+        kind: "activation",
+        label: "seek",
+        verb: "key",
+        outcome: "completed",
+      },
+    ],
+    after: start,
+    transport: { seconds: Number.NaN, playing: false },
+  };
+  expect(assessEditingTrial(seek, attempted).reasons).toEqual([
+    "seek position is not finite",
+  ]);
+});
+
+it("excludes diagnostic and non-finite durations from five-trial statistics", () => {
+  const rows = [
+    {
+      task: "trim",
+      route: "keyboard",
+      valid: true,
+      mode: "baseline" as const,
+      durationMs: NaN,
+    },
+    ...[1, 2, 3, 4].map((durationMs) => ({
+      task: "trim",
+      route: "keyboard",
+      valid: true,
+      mode: "baseline" as const,
+      durationMs,
+    })),
+    {
+      task: "trim",
+      route: "keyboard",
+      valid: true,
+      mode: "diagnostic" as const,
+      durationMs: 99,
+    },
+  ];
+  expect(summarizeEditingAttempts([definition], rows)).toEqual([
+    {
+      task: "trim",
+      route: "keyboard",
+      status: "pass",
+      reason: "Fewer than five valid baseline trials",
+      attempted: 6,
+      valid: 6,
+      failed: 0,
+      baselineValid: 4,
+      duration: null,
+    },
+  ]);
+  rows.push({
+    task: "trim",
+    route: "keyboard",
+    valid: true,
+    mode: "baseline",
+    durationMs: 5,
+  });
+  expect(summarizeEditingAttempts([definition], rows)[0].duration).toEqual({
+    medianMs: 3,
+    minMs: 1,
+    maxMs: 5,
   });
 });

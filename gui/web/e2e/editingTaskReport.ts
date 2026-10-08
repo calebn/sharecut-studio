@@ -227,7 +227,9 @@ export function assessEditingTrial(
     if (!trial.transport) reasons.push("transport not observed");
     else {
       if (trial.transport.playing) reasons.push("seek started playback");
-      if (Math.abs(trial.transport.seconds - definition.seek) > 0.03)
+      if (!Number.isFinite(trial.transport.seconds))
+        reasons.push("seek position is not finite");
+      else if (Math.abs(trial.transport.seconds - definition.seek) > 0.03)
         reasons.push(
           `seek expected ${definition.seek}, observed ${trial.transport.seconds}`,
         );
@@ -276,4 +278,78 @@ export function assessEditingTrial(
     accidentalCommands,
     completedWork: reasons.length ? 0 : 1,
   };
+}
+
+export function summarizeEditingAttempts(
+  definitions: TaskDefinition[],
+  attempts: {
+    task: string;
+    route: string;
+    valid: boolean;
+    mode: EditingTrial["mode"];
+    durationMs?: number;
+  }[],
+) {
+  return definitions.flatMap((task) =>
+    task.routes.map((route) => {
+      if ("pending" in route)
+        return {
+          task: task.id,
+          route: route.id,
+          status: "pending",
+          reason: route.pending,
+          attempted: 0,
+          valid: 0,
+          failed: 0,
+          baselineValid: 0,
+          duration: null,
+        };
+      const rows = attempts.filter(
+        (attempt) => attempt.task === task.id && attempt.route === route.id,
+      );
+      const times = rows
+        .filter(
+          (row) =>
+            row.valid &&
+            row.mode === "baseline" &&
+            row.durationMs !== undefined &&
+            Number.isFinite(row.durationMs),
+        )
+        .map((row) => row.durationMs!)
+        .sort((a, b) => a - b);
+      const middle = Math.floor(times.length / 2);
+      const duration =
+        times.length >= 5
+          ? {
+              medianMs:
+                times.length % 2
+                  ? times[middle]
+                  : (times[middle - 1] + times[middle]) / 2,
+              minMs: times[0],
+              maxMs: times[times.length - 1],
+            }
+          : null;
+      return {
+        task: task.id,
+        route: route.id,
+        status:
+          rows.length === 0
+            ? "not-run"
+            : rows.every((row) => row.valid)
+              ? "pass"
+              : "fail",
+        reason:
+          rows.length === 0
+            ? "No attempt retained"
+            : times.length < 5
+              ? "Fewer than five valid baseline trials"
+              : "Timing inconclusive until limiter and noise evidence are admitted",
+        attempted: rows.length,
+        valid: rows.filter((row) => row.valid).length,
+        failed: rows.filter((row) => !row.valid).length,
+        baselineValid: times.length,
+        duration,
+      };
+    }),
+  );
 }
