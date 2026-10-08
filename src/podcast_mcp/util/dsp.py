@@ -72,9 +72,14 @@ def frame_rms_db(
     return out
 
 
-# The speech band: a raised-cosine high-pass, stopped at 50 Hz and passed from 120 Hz.
-_BAND_STOP_HZ = 50.0
-_BAND_PASS_HZ = 120.0
+# The speech band: a raised-cosine high-pass, stopped at 100 Hz and passed from 160 Hz.
+# Room rumble reaches past 100 Hz, and what a band passes of it is room the levels read
+# (a 25-110 Hz rumble put the room 7 dB high through a band from 120 Hz, swinging, and a
+# breath 12 dB over the true room stayed under the line). A breath sits at 300 Hz to
+# 3.5 kHz; a voice keeps its harmonics; only a sound carried by content under 160 Hz alone
+# reads lower (130 Hz by 6 dB, 120 Hz by 12).
+_BAND_STOP_HZ = 100.0
+_BAND_PASS_HZ = 160.0
 
 
 def next_fast_len(n: int) -> int:
@@ -100,7 +105,7 @@ def next_fast_len(n: int) -> int:
 def speech_band(samples: np.ndarray, sample_rate: int) -> np.ndarray:
     """``samples`` with the rumble below the speech band removed.
 
-    A raised-cosine high-pass from 50 Hz (stopped) to 120 Hz (passed), applied zero-phase
+    A raised-cosine high-pass from 100 Hz (stopped) to 160 Hz (passed), applied zero-phase
     over the whole array. A noise gate's digital silence stays digital silence: the
     filter's ringing is not let into the gate's zeros.
     """
@@ -122,10 +127,11 @@ def frame_speech_band_db(
 
     Room rumble, desk thumps and the mains fundamental sit below the band and can be
     10 dB over a room tone's broadband air, hiding every breath and fade that rides on
-    them. Mains hum's harmonics at 100, 120 and 150 Hz pass the band (100 Hz 2 dB down,
-    the rest untouched), so a hum shows in the levels and is the room's own spread to
-    read, not removed here. A frame reads no louder than it does unfiltered: the filter spreads a loud neighbour's energy a few frames each way, and
-    that ringing is no sound of the frame's own.
+    them. Of mains hum's harmonics, 100 Hz is removed, 120 Hz is 12 dB down and 150 Hz
+    passes (0.6 dB down), so what is left of a hum shows in the levels as the room's own.
+    A frame reads no louder than it does unfiltered: the filter spreads a loud
+    neighbour's energy a few frames each way, and that ringing is no sound of the frame's
+    own.
     """
     full = frame_rms_db(samples, frame, frame, floor_db=floor_db)
     heard = frame_rms_db(speech_band(samples, sample_rate), frame, frame, floor_db=floor_db)

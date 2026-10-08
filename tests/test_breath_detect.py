@@ -1302,11 +1302,13 @@ def test_a_word_tail_next_to_a_louder_stretch_is_not_cut_partway() -> None:
     # room is 12 dB louder for 3 s on each side of the pause. Measured against the
     # surrounding 10 s that fade's last 60 ms read as air; against the pause's own
     # quiet the trim starts after the fade down to 3 dB over the room, plus a guard frame.
+    # The fade is a 140 Hz voice, which the speech band reads 1.7 dB low (its fundamental
+    # 2.5 dB down), so that is 4.84 and not the 4.86 its full-band level would give.
     tail = _frames_at([-15.5 - k for k in range(55)], voiced=True)
     louder = _shaped_noise(round(3.0 * 16000), _dbfs(-58.0))
 
     assert _air((4.5, 5.3), placed=((louder, 0.0), (louder, 6.5), (tail, 4.3))) == pytest.approx(
-        (4.86, 5.3)
+        (4.84, 5.3)
     )
 
 
@@ -1563,6 +1565,29 @@ def test_a_room_rumble_does_not_hide_a_breath_from_a_pause_trim() -> None:
     )
     # With no breath in the pause the rumble is no sound, and the trim stands.
     assert _air_with_words((4.5, 5.3), placed=_rumbling_room()) == pytest.approx((4.5, 5.3))
+
+
+def _rumble_up_to(hi_hz: float, rms_db: float, seconds: float = 10.2) -> np.ndarray:
+    """Noise from 25 Hz to ``hi_hz`` at ``rms_db`` rms: a room's rumble, reaching ``hi_hz``."""
+    n = round(seconds * 16000)
+    spectrum = np.fft.rfft(np.random.default_rng(55).standard_normal(n))
+    freqs = np.fft.rfftfreq(n, d=1 / 16000)
+    spectrum[(freqs < 25.0) | (freqs > hi_hz)] = 0.0
+    rumble = np.fft.irfft(spectrum, n)
+    return (rumble * _dbfs(rms_db) / np.sqrt(np.mean(rumble**2))).astype(np.float32)
+
+
+def test_a_rumble_reaching_110_hz_does_not_hide_a_breath_from_a_pause_trim() -> None:
+    # A 25 to 110 Hz rumble at -60 dBFS over a -74 dBFS room, and a breath 12 dB over that
+    # room from 5.10 to 5.45 across the trim's end. A band that passes from 120 Hz lets the
+    # rumble's top through, reads the room 7 dB high and ends the trim at 5.18, 7 dB up the
+    # breath; the band from 160 Hz leaves the rumble out, and the trim ends where the breath
+    # starts.
+    track = _natural_track(
+        -74.0, 7, (_rumble_up_to(110.0, -60.0), 0.0), (_breath_over(-74.0, 12.0), 5.1)
+    )
+
+    assert _air_with_words((4.4, 5.3), placed=track) == pytest.approx((4.4, 5.11))
 
 
 def test_a_decay_within_four_db_of_the_room_is_still_its_sound() -> None:
