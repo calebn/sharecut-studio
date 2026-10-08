@@ -13,7 +13,9 @@ from podcast_mcp.edits.clips_ops import (
     new_clip_id,
     place_clips_at,
     punch_timeline_range_from_clips,
+    recording_path,
     set_track_clips,
+    source_duration_sec,
     split_clip_at,
     update_timeline_duration,
 )
@@ -1030,8 +1032,16 @@ def list_clips(project: EpisodeProject, track_id: str | None = None) -> dict:
     by_track: dict[str, list[dict]] = {}
     sources = {s.id: s for s in project.sources}
     prev_by_track: dict[str, Clip] = {}
+    recordings: dict[tuple[str, str | None], tuple[float | None, str | None]] = {}
     for c in sorted(clips, key=lambda x: (x.track_id, x.timeline_start)):
         src = sources.get(c.source_id) if c.source_id else None
+        if (c.track_id, c.source_id) not in recordings:
+            known = c.source_id is None or src is not None
+            recordings[c.track_id, c.source_id] = (
+                source_duration_sec(project, c) if known else None,
+                recording_path(project, c),
+            )
+        duration, path = recordings[c.track_id, c.source_id]
         prev = prev_by_track.get(c.track_id)
         prev_by_track[c.track_id] = c
         by_track.setdefault(c.track_id, []).append(
@@ -1047,6 +1057,8 @@ def list_clips(project: EpisodeProject, track_id: str | None = None) -> dict:
                 "join_in_mode": c.join_in_mode.value,
                 **join_render_fields(prev, c),
                 "source_id": c.source_id,
+                "source_duration_sec": duration,
+                "recording_path": path,
                 "origin_track_id": origin_track_id_for_clip(project, c),
                 "mute_regions": mute_regions_payload(c.mute_regions),
                 "clipping_regions": clip_clipping_payload(src, c.source_start, c.source_end),
