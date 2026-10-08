@@ -63,9 +63,8 @@ _LEVEL_CONTEXT_SEC = 5.0
 _BREATH_ABOVE_FLOOR_DB = 9.5
 _BREATH_BELOW_SPEECH_DB = (7.0, 40.0)
 # A pause trim removes only air (#1055), and air is a track's room tone: its levels where
-# it is not sounding, read in the speech band (``speech_band``: the render clears the
-# rumble below 80 Hz, and a 40 Hz rumble can sit 10 dB over a room's broadband air, hiding
-# every breath and fade that rides on it). The room of a track is read from its 10 ms
+# it is not sounding, read in the speech band (``frame_speech_band_db``: a 40 Hz rumble can sit 10 dB over a
+# room's broadband air, hiding every breath and fade that rides on it). The room of a track is read from its 10 ms
 # frames between its own words (``room_floor_db``, the measure the voice walks share), over
 # the 5 s each side of the pause and never over the pause itself, which sound may fill. The
 # pause's quiet is the 20th percentile of its frames, digital silence included, held to that

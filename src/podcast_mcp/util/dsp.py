@@ -73,7 +73,7 @@ def frame_rms_db(
 
 
 def speech_band(samples: np.ndarray, sample_rate: int) -> np.ndarray:
-    """``samples`` as heard once the render's 80 Hz high-pass has cleared the rumble.
+    """``samples`` with the rumble below the speech band removed.
 
     A raised-cosine high-pass from 50 Hz (stopped) to 120 Hz (passed), applied zero-phase
     over the whole array. A noise gate's digital silence stays digital silence: the

@@ -99,9 +99,9 @@ date: 2026-10-07
 decided-by: calebn
 evidence:
 - #1055 lab census: 286 of 314 ripple pause trims rejected as breath; 8 of their 572 edges sat in a breath, 147 first edges in air under the breath band, 125 in the previous word's audible tail
-- #1179 review rounds 1 to 3 measured a track's quiet from the pause or its surroundings (the 5 s context floor, the context 90th percentile, the pause's own 20th percentile) and failed the same gate: where sound fills the pause, its quiet sits inside that sound. Round 3: an independent detector found 57 edges on 39 of 147 trims inside a sound, own and peer, and synthetic pauses that were 77% breath were cut through
+- #1179 review rounds 1 to 3 measured a track's quiet from the pause or its surroundings (the 5 s context floor, the context 90th percentile, the pause's own 20th percentile) and failed the same gate: where sound fills the pause, its quiet sits inside that sound. Round 3: the verifier's census found 57 edges on 39 of 147 trims inside a sound, own and peer, and synthetic pauses that were 77% breath were cut through
 - Owner rule (#1179): a breath, a voiced decay or any other own sound may be removed whole, but no edge may land inside one, on any track the ripple cuts; thresholds come from each episode's own measurements, never fixed levels; newly allowed pause trims stay review-only
-- #1055 lab after round 4, against main at e71fd396f: 99 pause decisions (main 8, round 3 147), all review-only; the verifier's detector (high-passed envelope, local quiet, own and peer tracks, three tiers from a faded tail to a clear sound) finds 0 of 198 edges inside a sound (round 3: 58); all five named failures are skipped as `no_air` or `other_speaking`; 22 synthetic scenes with known sounds put 0 edges inside one; mute mode and acoustic hits identical to main
+- #1055 lab after round 4, against main at e71fd396f: 99 pause decisions (main 8, round 3 147), all review-only; the verifier's detector (high-passed envelope, local quiet, own and peer tracks, three tiers from a faded tail to a clear sound) finds 0 of 198 edges inside a sound (round 3: 58 of 294 by the same detector); all five named failures are skipped as `no_air` or `other_speaking`; 22 synthetic scenes with known sounds put 0 edges inside one; mute mode and acoustic hits identical to main
 enforced-by:
 - tests/test_breath_detect.py::test_a_breath_whose_fade_crosses_an_edge_stays_whole
 - tests/test_breath_detect.py::test_a_quiet_breath_goes_whole_or_stays_whole_never_cut_through
@@ -140,11 +140,12 @@ not sounding, and judges the pause against it. It applies to every track the rip
 cuts, the trim's own and each peer's:
 
 - **The band.** Levels are read in the speech band (`frame_speech_band_db` in
-  `util/dsp.py`): a 50 to 120 Hz high-pass, as the render's own 80 Hz one
-  (`clean_audio`), and a frame never reads louder than it does unfiltered, so the
-  filter's ringing is no sound. A 40 Hz rumble or desk thump can sit 10 dB over a room's
-  broadband air, and read raw it hides every breath and fade that rides on it. On the lab
-  tape the room tone reads about 10 dB lower in the band than raw where checked.
+  `util/dsp.py`): a raised-cosine high-pass from 50 to 120 Hz, and a frame never reads
+  louder than it does unfiltered, so the filter's ringing is no sound. A 40 Hz rumble or
+  desk thump can sit 10 dB over a room's broadband air, and read raw it hides every breath
+  and fade that rides on it. On the lab tape the room tone reads about 10 dB lower in the
+  band than raw where checked. The pipeline's `clean_audio` step also high-passes
+  dialogue at 80 Hz, more gently, so the band is a stricter view of the same rumble.
 - **The room** is the 5th percentile of the track's 10 ms frames outside its own words
   (padded 50 ms) and outside the pause, over the 5 s on each side
   (`audio_cache.room_floor_db`, the measure the voice walks share). A gate's digital
@@ -191,12 +192,15 @@ What this means for listening:
   candidates are proposed (99 decisions after coalescing) and 177 are `no_air`.
 
 Limits. The sound line is not a wide plateau on the lab tape. With the line at 2, 4, 5
-or 6 dB the verifier's detector still finds one to three edges in a fade or a peer's
-sound, and only 3 dB finds none, so a different tape may leave a fade or two. The 22
-synthetic scenes (known sounds, gated and ungated rooms, no rumble) pass at the 3 dB
-line. A detector that reads raw full-band levels still flags 2 of the 99 trims (an
-edge in a peer's rumble, not in its voice or breath): the render's high-pass removes
-what it sees. Newly allowed pause trims stay review-only for that reason too.
+or 6 dB the verifier's detector still finds one to three edges, on one or two trims (a
+fade or a peer's sound), and only 3 dB finds none, so a different tape may leave a fade or
+two. The detector shares the rule's front end (the same 50 to 120 Hz filter) and its own
+sound line is 4 dB, so its 0 is partly by construction; the independent checks are the
+22 synthetic scenes (known sounds, gated and ungated rooms, no rumble), which pass at
+the 3 dB line, and a detector that reads raw full-band levels, which still flags 2 of the
+99 trims (an own edge and a peer edge, in low-frequency content the speech band reads as
+air). Whether that content is audible after the render's 80 Hz high-pass is not
+measured. Newly allowed pause trims stay review-only for that reason too.
 
 Pending: the owner's listening check of the #1055 round-4 clips.
 
