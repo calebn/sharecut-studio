@@ -124,9 +124,15 @@ describe("GuestAttentionBannerView", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "2 pending, 1 conflict",
     );
+    expect(screen.getByRole("button", { name: "Dismiss all" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(
-      screen.queryByRole("button", { name: "Dismiss all" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Dismiss all" }),
+    ).toHaveAccessibleDescription(
+      "Saved edits could not be read. Dismissal is unavailable.",
+    );
     await expectNoA11yViolations(container);
   });
 
@@ -142,9 +148,10 @@ describe("GuestAttentionBannerView", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "2 pending, 1 conflict",
     );
-    expect(
-      screen.queryByRole("button", { name: "Dismiss all" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dismiss all" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     await expectNoA11yViolations(container);
     rerender(
       <GuestAttentionBannerView

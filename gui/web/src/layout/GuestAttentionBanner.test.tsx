@@ -165,9 +165,10 @@ describe("GuestAttentionBanner", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Your saved edits have been kept.",
     );
-    expect(
-      screen.queryByRole("button", { name: "Dismiss all" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dismiss all" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
     offlineStore.loadHostConflicts.mockResolvedValue([]);
     await act(() => vi.advanceTimersByTimeAsync(2000));
@@ -219,8 +220,8 @@ describe("GuestAttentionBanner", () => {
       if (host)
         expect(screen.getByRole("alert")).toHaveTextContent("2 pending");
       expect(
-        screen.queryByRole("button", { name: "Dismiss all" }),
-      ).not.toBeInTheDocument();
+        screen.getByRole("button", { name: "Dismiss all" }),
+      ).toHaveAttribute("aria-disabled", "true");
     });
 
     it("keeps a newer admission after an older failure", async () => {
@@ -261,8 +262,8 @@ describe("GuestAttentionBanner", () => {
         if (host)
           expect(screen.getByRole("alert")).toHaveTextContent("2 pending");
         expect(
-          screen.queryByRole("button", { name: "Dismiss all" }),
-        ).not.toBeInTheDocument();
+          screen.getByRole("button", { name: "Dismiss all" }),
+        ).toHaveAttribute("aria-disabled", "true");
         expect(clear()).not.toHaveBeenCalled();
         await act(async () => {
           current.resolve([newer]);
@@ -302,6 +303,9 @@ describe("GuestAttentionBanner", () => {
           (button as HTMLButtonElement).disabled ||
             button.getAttribute("aria-disabled") === "true",
         ).toBe(true);
+        expect(button).toHaveAccessibleDescription(
+          "Checking saved edits. Dismissal is unavailable.",
+        );
 
         await act(async () => {
           conflicts.resolve([newer]);
@@ -422,8 +426,8 @@ describe("GuestAttentionBanner", () => {
         "Your saved edits have been kept.",
       );
       expect(
-        screen.queryByRole("button", { name: "Dismiss all" }),
-      ).not.toBeInTheDocument();
+        screen.getByRole("button", { name: "Dismiss all" }),
+      ).toHaveAttribute("aria-disabled", "true");
       await act(() => vi.advanceTimersByTimeAsync(2000));
       const dismiss = deferred<void>();
       clear().mockReturnValueOnce(dismiss.promise);
@@ -434,12 +438,12 @@ describe("GuestAttentionBanner", () => {
         "Verified retained conflict",
       );
       expect(
-        screen.queryByRole("button", { name: "Dismiss all" }),
-      ).not.toBeInTheDocument();
+        screen.getByRole("button", { name: "Dismiss all" }),
+      ).toHaveAttribute("aria-disabled", "true");
       await act(() => vi.advanceTimersByTimeAsync(2000));
       expect(
-        screen.queryByRole("button", { name: "Dismiss all" }),
-      ).not.toBeInTheDocument();
+        screen.getByRole("button", { name: "Dismiss all" }),
+      ).toHaveAttribute("aria-disabled", "true");
       await act(async () => dismiss.resolve());
       expect(
         screen.queryByText("Verified retained conflict"),
