@@ -125,6 +125,41 @@ def test_approving_session_cuts_one_at_a_time_removes_what_approving_them_togeth
     assert _lane_ends(one_by_one) == _lane_ends(together)
 
 
+def _rendered(project: EpisodeProject) -> EpisodeProject:
+    """The stems on disk are a fresh render of the project as it stands."""
+    from podcast_mcp.engines.play_audit import write_stem_hash
+
+    for track in project.tracks:
+        write_stem_hash(project, track.id)
+    return project
+
+
+@pytest.mark.parametrize("forward", [True, False])
+def test_a_long_trim_is_approved_alone_whatever_a_stale_stem_holds(
+    tmp_path: Path, forward: bool
+) -> None:
+    # Trim "b" is 4.5 s of air, 9 windows of the 0.5 s the speech guard reads, so it decodes
+    # each track once (the cache path) instead of reading windows. The guest's burst is at
+    # 19.2 to 19.8 s of its recording, outside "b" (20.0 to 24.5 s) on the lanes. Once "a"
+    # is approved the rendered stems are one second out of date, and read at "b"'s new
+    # seconds (19.0 to 23.5) the stale guest stem holds the burst: a stem is read only while
+    # it is fresh.
+    def project_at(name: str) -> EpisodeProject:
+        project = _rendered(_project(tmp_path / name, burst=(19.2, 19.8)))
+        project.edit_decisions = [_trim("a", 5.0, 6.0), _trim("b", 20.0, 24.5)]
+        return project
+
+    together = project_at("together")
+    assert approve_edits(together, ["a", "b"]) == 2
+
+    one_by_one = project_at("one")
+    for edit_id in ("a", "b") if forward else ("b", "a"):
+        assert approve_edits(one_by_one, [edit_id]) == 1
+
+    assert _lane_ends(together) == {"host": 24.5, "guest": 24.5}
+    assert _lane_ends(one_by_one) == _lane_ends(together)
+
+
 def test_a_cut_a_peer_now_speaks_through_is_held_not_punched(tmp_path: Path) -> None:
     # The guest really speaks at 25.2 to 25.8 of the recording, inside the second cut. A
     # session cut that would silence only the host is not what was reviewed.

@@ -26,6 +26,7 @@ from podcast_mcp.engines.audio_audit import (
 )
 from podcast_mcp.engines.bleed_echo import EchoPairProfile
 from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.engines.transcribe import TranscriptionEngine
 from podcast_mcp.models import (
     Clip,
@@ -720,6 +721,7 @@ def test_build_track_rms_caches_uses_processed_stem(sample_wav: Path, tmp_path: 
     stem = project.artifacts_dir() / "tracks" / "host.wav"
     stem.parent.mkdir(parents=True, exist_ok=True)
     stem.write_bytes(sample_wav.read_bytes())
+    write_stem_hash(project, "host")
     caches = build_track_rms_caches(project)
     assert caches.get("host") is not None
 
@@ -1004,6 +1006,7 @@ def test_list_low_audibility_uses_proc_cache(sample_wav: Path, tmp_path: Path):
             ],
         )
     ]
+    write_stem_hash(project, "host")
     with patch(
         "podcast_mcp.engines.audio_audit.TrackRmsCache.rms_db",
         return_value=-55.0,

@@ -17,6 +17,12 @@ When `--start` / `--end` (or MCP `start_sec` / `end_sec`) are set, `astats` and
 `hum` are measured on **that extracted window**, not the whole stem. Do not treat
 full-file diagnostics as evidence about a line in the middle of the episode.
 
+A rendered stem is the timeline as it was rendered, so after an edit moves the timeline it
+holds other audio at the same seconds. The audit reads a stem's audio only while
+`stem_is_fresh` says it is fresh (`_fresh_stem_path`), including when it decodes each track
+once for a long cut's speech guard (`build_track_rms_caches`); otherwise it reads the
+recordings through each track's clips (`edits/session_air.lane_window`).
+
 ## Reading a spectrogram
 
 `render_spectrogram` (`showspectrumpic`, log-scaled) plots frequency

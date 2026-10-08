@@ -16,6 +16,7 @@ from podcast_mcp.engines.audio_audit import (
     compute_word_audibility_map,
     measure_window_rms_db,
 )
+from podcast_mcp.engines.play_audit import write_stem_hash
 from podcast_mcp.models import (
     Clip,
     EpisodeProject,
@@ -71,6 +72,7 @@ def _stem_project(tmp_path: Path) -> tuple[EpisodeProject, Path]:
         for i in range(20)
     ]
     project.transcripts = [Transcript(track_id="host", words=words)]
+    write_stem_hash(project, "host")
     return project, stem
 
 
