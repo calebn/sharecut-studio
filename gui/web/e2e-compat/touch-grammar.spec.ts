@@ -511,7 +511,16 @@ test("in a short viewport the create menu stays in view off the finger, and lift
   const finger = await newFinger(context, page, browserName);
   const commands = watchCommands(page);
   const gap = await showGap(page, guest);
-  const at = { x: gap.start - 5 * gap.pps, y: gap.y };
+  // The timeline box is short here: bring the guest's lane into it first.
+  const y = await page.evaluate((trackId) => {
+    const row = document.querySelector(`.lane-row[data-track-id="${trackId}"]`);
+    row?.scrollIntoView({ block: "center" });
+    const box = row?.getBoundingClientRect();
+    return box ? box.top + box.height / 2 : null;
+  }, guest.trackId);
+  if (y === null) throw new Error("guest lane not found");
+  await page.waitForTimeout(300);
+  const at = { x: gap.start - 5 * gap.pps, y };
   await hold(page, finger, at);
   const menu = page.getByRole("menu", { name: /^Create at / });
   await expect(menu).toBeVisible();
