@@ -369,9 +369,9 @@ cuts, the trim's own and each peer's:
   pause it shortens (`PAUSE_JND_FRACTION`, `pause_trim_is_imperceptible`), and never less
   than `MIN_PACED_CUT_SEC`; otherwise it is skipped as `imperceptible`. The tenth is a design
   threshold, not a measured one. Laboratory Weber fractions for an empty auditory interval
-  run from a few percent to about 10% and vary with the interval and its markers (Grondin
-  2010, a review in *Attention, Perception & Psychophysics* 72(3), 561-582), measured between
-  brief tones in forced-choice tasks, not on speech pauses. Friberg and Sundberg 1995 (*JASA*
+  run from a few percent to about 10% and vary with the interval and its markers (Grondin's
+  studies, reviewed in Grondin 2010, *Attention, Perception & Psychophysics* 72(3),
+  561-582), measured between brief tones in forced-choice tasks, not on speech pauses. Friberg and Sundberg 1995 (*JASA*
   98(5), 2524-2531) found a displaced tone in a steady tone sequence detectable at about 6 ms
   for short tones and 2.5% above 250 ms, a best case for a different task. A tenth sits above
   both, so a trim is proposed only when a listener would plausibly notice the pacing. The
