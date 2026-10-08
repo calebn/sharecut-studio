@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   addHostConflict,
+  clearConflicts,
+  clearHostConflicts,
   enqueueHostCommand,
   loadCommandQueue,
   loadConflicts,
@@ -23,6 +25,7 @@ const command: QueuedCommand = {
 const conflict = { command, reason: "" };
 const rows = new Map<string, unknown>();
 let closed = 0;
+let abortedTransactions = 0;
 let putFailure: { value: unknown } | undefined;
 let constructionFailure: "transaction" | "get" | undefined;
 
@@ -35,6 +38,7 @@ function database() {
       if (constructionFailure === "transaction")
         throw new Error("transaction failed");
       let aborted = false;
+      let reading = false;
       const writes = new Map<string, unknown>();
       const tx = {
         error: null,
@@ -43,11 +47,13 @@ function database() {
         onerror: () => {},
         abort() {
           aborted = true;
+          abortedTransactions++;
           queueMicrotask(() => tx.onabort());
         },
         objectStore() {
           return {
             get(key: string) {
+              reading = true;
               if (constructionFailure === "get") throw new Error("get failed");
               const req = {
                 result: structuredClone(rows.get(key)),
@@ -66,6 +72,12 @@ function database() {
             put(value: unknown, key: string) {
               if (putFailure) throw putFailure.value;
               writes.set(key, structuredClone(value));
+              if (!reading)
+                queueMicrotask(() => {
+                  if (aborted) return;
+                  for (const [key, value] of writes) rows.set(key, value);
+                  tx.oncomplete();
+                });
             },
           };
         },
@@ -78,6 +90,7 @@ function database() {
 beforeEach(() => {
   rows.clear();
   closed = 0;
+  abortedTransactions = 0;
   putFailure = undefined;
   constructionFailure = undefined;
   vi.stubGlobal("indexedDB", {
@@ -277,6 +290,100 @@ describe("transaction admission and settlement", () => {
       constructionFailure = undefined;
       await enqueueHostCommand("bucket", command);
       expect(await loadHostCommandQueue("bucket")).toEqual([command]);
+    },
+  );
+});
+
+const clears = [
+  {
+    key: "conflicts:bucket",
+    clear: () => clearConflicts("bucket"),
+    load: () => loadConflicts("bucket"),
+  },
+  {
+    key: "host-conflicts:bucket",
+    clear: () => clearHostConflicts("bucket"),
+    load: () => loadHostConflicts("bucket"),
+  },
+];
+
+describe("conflict clearing admission", () => {
+  it.each(clears)(
+    "retains malformed roots and mixed nested records in $key",
+    async ({ key, clear, load }) => {
+      const { client_id: _identity, ...retired } = command;
+      const sparse = [conflict];
+      sparse.length = 3;
+      sparse[2] = conflict;
+      for (const raw of [
+        null,
+        {},
+        "conflicts",
+        [conflict, null],
+        [conflict, { command: retired, reason: "unseen" }],
+        sparse,
+      ]) {
+        const beforeClose = closed;
+        const beforeAbort = abortedTransactions;
+        rows.set(key, raw);
+        await expect(clear()).rejects.toThrow(/Invalid saved/);
+        expect(rows.get(key)).toEqual(raw);
+        expect(closed).toBe(beforeClose + 1);
+        expect(abortedTransactions).toBe(beforeAbort + 1);
+        rows.set(key, [conflict]);
+        await clear();
+        await expect(load()).resolves.toEqual([]);
+        rows.set(key, [conflict]);
+        await expect(load()).resolves.toEqual([conflict]);
+      }
+      rows.delete(key);
+      await clear();
+      await expect(load()).resolves.toEqual([]);
+    },
+  );
+
+  it.each(clears)(
+    "preserves exact put failures in $key and permits subsequent clear",
+    async ({ key, clear, load }) => {
+      for (const cause of [undefined, null, new Error("clear put failed")]) {
+        rows.set(key, [conflict]);
+        putFailure = { value: cause };
+        await expect(clear()).rejects.toBe(cause);
+        expect(rows.get(key)).toEqual([conflict]);
+        putFailure = undefined;
+        await clear();
+        await expect(load()).resolves.toEqual([]);
+        rows.set(key, [conflict]);
+        await expect(load()).resolves.toEqual([conflict]);
+      }
+    },
+  );
+  it.each(clears)(
+    "closes and releases failed transaction construction in $key",
+    async ({ key, clear, load }) => {
+      for (const failure of ["transaction", "get"] as const) {
+        rows.set(key, [conflict]);
+        const beforeClose = closed;
+        constructionFailure = failure;
+        await expect(clear()).rejects.toThrow(`${failure} failed`);
+        expect(rows.get(key)).toEqual([conflict]);
+        expect(closed).toBe(beforeClose + 1);
+        constructionFailure = undefined;
+        await clear();
+        await expect(load()).resolves.toEqual([]);
+        rows.set(key, [conflict]);
+        await expect(load()).resolves.toEqual([conflict]);
+      }
+    },
+  );
+
+  it.each(clears)(
+    "keeps its existing no-storage behavior for $key",
+    async ({ clear, load }) => {
+      vi.stubGlobal("indexedDB", undefined);
+      await expect(clear()).resolves.toBeUndefined();
+      await expect(load()).resolves.toEqual([]);
+      expect(closed).toBe(0);
     },
   );
 });

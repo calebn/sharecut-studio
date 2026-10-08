@@ -22,6 +22,7 @@ const offlineStore = vi.hoisted(() => ({
   clearConflicts: vi.fn(),
   clearHostConflicts: vi.fn(),
   loadConflicts: vi.fn(),
+  loadCommandQueue: vi.fn(),
   loadHostCommandCount: vi.fn(),
   loadHostConflicts: vi.fn(),
 }));
@@ -39,6 +40,7 @@ vi.mock("../waveform/statusStore", async (importOriginal) => ({
 describe("MobileShell", () => {
   beforeEach(() => {
     offlineStore.loadConflicts.mockResolvedValue([]);
+    offlineStore.loadCommandQueue.mockResolvedValue([]);
     offlineStore.loadHostConflicts.mockResolvedValue([]);
     offlineStore.loadHostCommandCount.mockResolvedValue(0);
     clearRegisteredCommands();
