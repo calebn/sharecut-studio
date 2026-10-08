@@ -5,7 +5,9 @@
  * session cannot run stays in the menu, disabled, with the reason beside it.
  *
  * `hitRouting` owns the gesture: the finger that opened the menu can slide
- * onto an item and lift to pick it, or lift anywhere and tap an item. The
+ * onto an item and lift to pick it (a lift that never moved past the slop
+ * picks nothing, whatever the menu lies under), or lift anywhere and tap an
+ * item. The
  * scrim, Escape and a second finger close it with no change. A dashed line
  * marks the held time on its lane, so the menu reads as "here".
  */
@@ -99,12 +101,24 @@ export function CreateMenu({
     const where = place.trackLabel ? ` on ${place.trackLabel}` : "";
     useDawStore
       .getState()
-      .announceStatus(`Create at ${time}${where}, ${list.length} actions`);
+      .announceStatus(`Create at ${time}${where}, ${list.length} actions`, {
+        toast: false,
+      });
   }, [list.length, place.trackLabel, time]);
 
   const layout = size
-    ? layoutMenu(view.origin, bounds, size, avoidX)
-    : { placement: "above" as const, left: view.origin.x, top: view.origin.y };
+    ? layoutMenu(view.origin, bounds, size, avoidX, {
+        left: 0,
+        top: 0,
+        right: window.innerWidth,
+        bottom: window.innerHeight,
+      })
+    : {
+        placement: "above" as const,
+        left: view.origin.x,
+        top: view.origin.y,
+        maxHeight: null,
+      };
   const pick = (item: Item) => {
     if (item.reason || !item.args) return;
     router.close();
@@ -175,9 +189,11 @@ export function CreateMenu({
       <div
         ref={boxRef}
         className="ui-menu-panel create-menu"
+        data-scrolls={layout.maxHeight != null ? "" : undefined}
         style={{
           left: layout.left,
           top: layout.top,
+          maxBlockSize: layout.maxHeight ?? undefined,
           visibility: size ? "visible" : "hidden",
         }}
       >

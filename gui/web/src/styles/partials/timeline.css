@@ -1716,8 +1716,9 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 
 /* The create menu (#1051 round 4b): what to make at a held spot on the
    timeline. A dashed accent mark (never the solid playhead) shows the held
-   time on its lane; the menu sits above the finger, beside the fixed
-   playhead when there is room. */
+   time on its lane; the menu sits above the finger (below it near the top,
+   beside it on a short screen) and never over it, beside the fixed playhead
+   when there is room. */
 .create-menu-layer {
   position: fixed;
   inset: 0;
@@ -1765,6 +1766,14 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   background: var(--color-bg-overlay);
   box-shadow: var(--shadow-floating);
   touch-action: none;
+}
+
+/* Taller than the screen has room for (a phone held sideways at large text):
+   the layout caps its height, and it scrolls. */
+.create-menu[data-scrolls] {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .create-menu-title {
