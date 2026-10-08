@@ -16,6 +16,7 @@ const offlineStore = vi.hoisted(() => ({
   clearConflicts: vi.fn(),
   clearHostConflicts: vi.fn(),
   loadConflicts: vi.fn(),
+  loadCommandQueue: vi.fn(),
   loadHostCommandCount: vi.fn(),
   loadHostConflicts: vi.fn(),
 }));
@@ -53,6 +54,7 @@ const dialogFlags = [
 describe("MobileShell Mix", () => {
   beforeEach(() => {
     offlineStore.loadConflicts.mockResolvedValue([]);
+    offlineStore.loadCommandQueue.mockResolvedValue([]);
     offlineStore.loadHostConflicts.mockResolvedValue([]);
     offlineStore.loadHostCommandCount.mockResolvedValue(0);
     clearRegisteredCommands();

@@ -130,6 +130,34 @@ describe("GuestAttentionBannerView", () => {
     await expectNoA11yViolations(container);
   });
 
+  it("retains visible values while checking and admits dismissal afterward", async () => {
+    const { container, rerender } = render(
+      <GuestAttentionBannerView
+        pending={2}
+        conflicts={[offlineConflict()]}
+        checking
+        onDismissAll={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "2 pending, 1 conflict",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Dismiss all" }),
+    ).not.toBeInTheDocument();
+    await expectNoA11yViolations(container);
+    rerender(
+      <GuestAttentionBannerView
+        pending={2}
+        conflicts={[offlineConflict()]}
+        onDismissAll={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Dismiss all" }),
+    ).toBeInTheDocument();
+  });
+
   it("uses the singular form for a single conflict", () => {
     render(
       <GuestAttentionBannerView

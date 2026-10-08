@@ -9,6 +9,7 @@ export interface GuestAttentionBannerViewProps {
   pending: number;
   conflicts: readonly OfflineConflict[];
   unreadable?: boolean;
+  checking?: boolean;
   onDismissAll: () => void;
 }
 
@@ -18,6 +19,7 @@ export function GuestAttentionBannerView({
   conflicts,
   onDismissAll,
   unreadable = false,
+  checking = false,
 }: GuestAttentionBannerViewProps) {
   if (!unreadable && conflicts.length === 0 && pending === 0) {
     return null;
@@ -39,7 +41,7 @@ export function GuestAttentionBannerView({
             ? `${conflicts.length} ${plural(conflicts.length, "conflict")}`
             : ""}
         </span>
-        {conflicts.length > 0 && !unreadable && (
+        {conflicts.length > 0 && !unreadable && !checking && (
           <button
             type="button"
             className="guest-attention-dismiss"

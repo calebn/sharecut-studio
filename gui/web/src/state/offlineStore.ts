@@ -307,7 +307,12 @@ export async function mergeOfflineSnapshot(
 }
 
 export async function clearConflicts(token: string): Promise<void> {
-  await saveConflicts(token, []);
+  if (typeof indexedDB === "undefined") return;
+  await updateStoredList<OfflineConflict, void>(
+    conflictKey(token),
+    parseConflictList,
+    () => ({ items: [], result: undefined }),
+  );
 }
 
 export async function removeConflict(
@@ -447,7 +452,12 @@ export async function saveHostConflicts(
 }
 
 export async function clearHostConflicts(projectPath: string): Promise<void> {
-  await saveHostConflicts(projectPath, []);
+  if (typeof indexedDB === "undefined") return;
+  await updateStoredList<OfflineConflict, void>(
+    hostConflictKey(projectPath),
+    parseConflictList,
+    () => ({ items: [], result: undefined }),
+  );
 }
 
 export async function addHostConflict(
