@@ -45,6 +45,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.coded_error import CodedError, CodedKeyError
 from podcast_mcp.util.review import reject_by_id
+from podcast_mcp.util.timebase import SourceSec
 from podcast_mcp.util.tracks import dialogue_track_ids
 
 # How close a clip edge must sit to a pad point to receive the pad fades. This
@@ -192,6 +193,31 @@ def _join_time_after_ripple(project: EpisodeProject, near_sec: float) -> float:
     return best if best is not None and best_dist < 0.1 else near_sec
 
 
+def _source_still_cut_pending(
+    project: EpisodeProject, besides: EditDecision
+) -> dict[str, list[tuple[float, float]]]:
+    """Per track, the source seconds of the other pending cuts that still play.
+
+    A cut maps to the session time its source seconds are played at. A pad that replays
+    those seconds elsewhere would make it play in two places and remove all between.
+    """
+    timeline = SessionTimeline(project)
+    spans: dict[str, list[tuple[float, float]]] = {}
+    for other in project.edit_decisions:
+        if (
+            other.id == besides.id
+            or other.applied
+            or other.exact_range is not None
+            or other.type not in (EditDecisionType.REMOVE, EditDecisionType.MUTE)
+            or not timeline.map_source_span(
+                other.track_id, SourceSec(other.start), SourceSec(other.end)
+            )
+        ):
+            continue
+        spans.setdefault(other.track_id, []).append((other.start, other.end))
+    return spans
+
+
 def _apply_replace_gap_pad(project: EpisodeProject, edit: EditDecision, tl_start: float) -> None:
     gap = edit.replace_gap_sec
     if gap is None or gap <= 0:
@@ -201,7 +227,7 @@ def _apply_replace_gap_pad(project: EpisodeProject, edit: EditDecision, tl_start
         return
     at = _join_time_after_ripple(project, tl_start)
     if filler_pad_mode() == "room_tone":
-        insert_room_tone_pad(project, at, gap)
+        insert_room_tone_pad(project, at, gap, avoid=_source_still_cut_pending(project, edit))
     else:
         # filler_pad_mode: silence - a hard silence beat (dry rooms).
         insert_gap(project, at, gap)
