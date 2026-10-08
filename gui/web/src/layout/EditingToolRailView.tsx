@@ -1,7 +1,8 @@
-import { type ReactNode, useEffect, useId, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import type { ToolMode } from "../state/types";
 import { BottomSheet, Button, Icon, InlineError } from "../ui";
 import { formatTime } from "../utils/time";
+import { useToolRailBlockSize } from "./useToolRailBlockSize";
 
 export interface EditingToolRailViewProps {
   bladeAllowed: boolean;
@@ -47,6 +48,8 @@ export function EditingToolRailView({
   const [blocked, setBlocked] = useState<{ action: HistoryAction } | null>(
     null,
   );
+  const railRef = useRef<HTMLDivElement>(null);
+  useToolRailBlockSize(railRef);
   useEffect(() => {
     if (!blocked) {
       return;
@@ -66,6 +69,7 @@ export function EditingToolRailView({
   return (
     <>
       <div
+        ref={railRef}
         className="editing-tool-rail"
         role="group"
         aria-label="Editing tools"
@@ -128,6 +132,7 @@ export function EditingToolRailView({
           open={bladeConfirmSec != null}
           onClose={onCancelCut}
           title="Confirm blade cut"
+          size="fit"
         >
           {bladeConfirmSec != null ? (
             <div className="blade-confirm-sheet">

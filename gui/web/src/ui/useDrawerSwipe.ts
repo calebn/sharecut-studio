@@ -18,7 +18,7 @@ import {
   useEffect,
   useRef,
 } from "react";
-import type { BottomSheetSize, SheetDrawer } from "./BottomSheet";
+import type { DrawerDetent, SheetDrawer } from "./BottomSheet";
 import { type DragSample, releaseVelocity, settleDetent } from "./drawerMotion";
 
 /** On the sheet while it moves with a finger or settles. */
@@ -35,7 +35,7 @@ interface Swipe {
   /** The drawn height the finger holds now, px. */
   height: number;
   samples: DragSample[];
-  heights: (readonly [BottomSheetSize, number])[];
+  heights: (readonly [DrawerDetent, number])[];
   frame: number;
 }
 
@@ -75,7 +75,7 @@ function detentHeights(
   panel: HTMLElement,
   drawer: SheetDrawer,
   stripPx: number | null,
-): (readonly [BottomSheetSize, number])[] {
+): (readonly [DrawerDetent, number])[] {
   const current = `bottom-sheet--${drawer.detent}`;
   return drawer.detents.map((detent) => {
     if (detent === drawer.detent) return [detent, restingHeight(panel)];
@@ -125,11 +125,7 @@ export function useDrawerSwipe(
   }, [hasDrawer, panelRef]);
 
   /** Slides the sheet to `detent`'s height, once drawn there, then lets it rest. */
-  const settle = (
-    panel: HTMLElement,
-    slot: number,
-    detent: BottomSheetSize,
-  ) => {
+  const settle = (panel: HTMLElement, slot: number, detent: DrawerDetent) => {
     if (!live.current || swipe.current || !panel.isConnected) return;
     const target = restingHeight(panel);
     if (detent === "peek") strip.current = target;
@@ -161,7 +157,7 @@ export function useDrawerSwipe(
    * Ends the drag where the finger left it, bound for `detent`; the settle
    * waits a frame for React to draw that detent.
    */
-  const release = (s: Swipe, detent: BottomSheetSize) => {
+  const release = (s: Swipe, detent: DrawerDetent) => {
     cancelAnimationFrame(s.frame);
     swipe.current = null;
     s.panel.style.transform = translate(s.slot - s.height);

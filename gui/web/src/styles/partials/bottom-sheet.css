@@ -26,7 +26,14 @@ html[data-shell="tablet"][data-layout="timeline"] .bottom-sheet-root {
 /* A phone held sideways gets the tablet shell; its compact inspector takes
    the bottom tabs' place (responsive.css hides them), not the timeline's. */
 html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
-  bottom: var(--status-height);
+  bottom: calc(var(--status-height) + var(--tool-rail-block-size, 0rem));
+}
+
+/* The compact strip stacks above the tool rail, not over it, so Undo and Redo
+   stay visible and tappable beside an edit's nudges (EditingToolRailView
+   publishes the rail's height). */
+html[data-shell="phone"] .bottom-sheet-root:has(.bottom-sheet--compact) {
+  bottom: calc(var(--mobile-nav-height) + var(--tool-rail-block-size, 0rem));
 }
 
 /* The compact strip stacks above the shell's rows, so the status or nav row
@@ -95,6 +102,13 @@ html[data-shell="tablet"] .bottom-sheet-root:has(.bottom-sheet--compact) {
 
 /* A strip as tall as its content: the selection's name, value and nudges. */
 .bottom-sheet--peek {
+  height: auto;
+}
+
+/* A confirmation: as tall as its question and its actions (capped at the slot
+   by max-height), so a short slot (a phone held sideways, above the bottom
+   tabs) never leaves Cancel or the action below the sheet's own edge. */
+.bottom-sheet--fit {
   height: auto;
 }
 

@@ -8,11 +8,13 @@ import { useDrawerSwipe } from "./useDrawerSwipe";
 import { useResizeObserver } from "./useResizeObserver";
 
 /** `peek`: a content-height strip; `half` and `full`: fixed shares of the slot. */
-export type BottomSheetSize = "peek" | "half" | "full";
+export type DrawerDetent = "peek" | "half" | "full";
+/** A drawer detent, or `fit`: content height too, for a confirmation whose actions must all show. */
+export type BottomSheetSize = DrawerDetent | "fit";
 export type BottomSheetBackgroundPolicy = "interactive" | "dismiss";
 
 /** How each detent reads to a screen reader and on the buttons' names. */
-const DETENT_TEXT: Record<BottomSheetSize, string> = {
+const DETENT_TEXT: Record<DrawerDetent, string> = {
   peek: "Strip",
   half: "Half height",
   full: "Full height",
@@ -25,9 +27,9 @@ const DETENT_TEXT: Record<BottomSheetSize, string> = {
  * hidden, named `label`) gives keyboards and screen readers the same detents.
  */
 export interface SheetDrawer {
-  detents: readonly BottomSheetSize[];
-  detent: BottomSheetSize;
-  onDetentChange: (detent: BottomSheetSize) => void;
+  detents: readonly DrawerDetent[];
+  detent: DrawerDetent;
+  onDetentChange: (detent: DrawerDetent) => void;
   label: string;
 }
 
