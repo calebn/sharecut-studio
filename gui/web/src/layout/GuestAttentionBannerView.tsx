@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { OfflineConflict } from "../state/offlineStore";
 import { overflowLabel, plural } from "../utils/format";
 
@@ -21,6 +22,12 @@ export function GuestAttentionBannerView({
   unreadable = false,
   checking = false,
 }: GuestAttentionBannerViewProps) {
+  const dismissReasonId = useId();
+  const dismissUnavailable = unreadable || checking;
+  const dismissReason = unreadable
+    ? "Saved edits could not be read. Dismissal is unavailable."
+    : "Checking saved edits. Dismissal is unavailable.";
+
   if (!unreadable && conflicts.length === 0 && pending === 0) {
     return null;
   }
@@ -41,14 +48,22 @@ export function GuestAttentionBannerView({
             ? `${conflicts.length} ${plural(conflicts.length, "conflict")}`
             : ""}
         </span>
-        {conflicts.length > 0 && !unreadable && !checking && (
+        {conflicts.length > 0 && (
           <button
             type="button"
             className="guest-attention-dismiss"
+            aria-disabled={dismissUnavailable || undefined}
+            aria-describedby={dismissUnavailable ? dismissReasonId : undefined}
+            title={dismissUnavailable ? dismissReason : undefined}
             onClick={onDismissAll}
           >
             Dismiss all
           </button>
+        )}
+        {conflicts.length > 0 && dismissUnavailable && (
+          <span id={dismissReasonId} className="sr-only">
+            {dismissReason}
+          </span>
         )}
       </div>
       <ul className="guest-attention-list">
