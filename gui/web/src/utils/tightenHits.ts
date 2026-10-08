@@ -201,11 +201,19 @@ export function tightenHitCanPreview(
   return hit.timeline_start != null && hit.timeline_end != null;
 }
 
+/** Hits the editor must listen to one at a time: Apply eligible never batches them. */
+const LISTEN_ONE_BY_ONE: ReadonlySet<TightenClass> = new Set(["pause"]);
+
 export function eligibleApplyAllIds(
   hits: TightenHit[],
   avoidHarsh: boolean,
 ): string[] {
-  return hits.filter((hit) => !avoidHarsh || !hit.harsh).map((hit) => hit.id);
+  return hits
+    .filter(
+      (hit) =>
+        !LISTEN_ONE_BY_ONE.has(hit.tightenClass) && (!avoidHarsh || !hit.harsh),
+    )
+    .map((hit) => hit.id);
 }
 
 function hitCount(n: number): string {
