@@ -199,3 +199,50 @@ describe("a router that adopts a part of the timeline outside its root", () => {
     rail.remove();
   });
 });
+
+describe("a finger resting on the drawer", () => {
+  function drawer(): { sheet: HTMLDivElement; header: Element } {
+    const sheet = document.createElement("div");
+    sheet.className = "bottom-sheet bottom-sheet--compact";
+    const header = document.createElement("div");
+    sheet.append(header);
+    document.body.append(sheet);
+    return { sheet, header };
+  }
+
+  it("counts as a first finger: a second finger's long press arms nothing and its lift saves nothing", () => {
+    const { sheet, header } = drawer();
+    const lone = button(hitTargetProps("chapter", "ch-1", 9), {
+      left: 600,
+      top: 10,
+      right: 610,
+      bottom: 30,
+    });
+    root.append(lone);
+    record("lone", lone);
+    press(header, "pointerdown", 100, 700, 20);
+    press(lone, "pointerdown", 605, 20, 21);
+    router.longPress();
+    press(lone, "pointermove", 650, 20, 21);
+    press(lone, "pointerup", 650, 20, 21);
+    press(header, "pointerup", 100, 700, 20);
+    vi.runAllTimers();
+    sheet.remove();
+    expect(log).toEqual([]);
+    expect(restored).toBe(1);
+  });
+
+  it("leaves its own lone finger to the drawer", () => {
+    const { sheet, header } = drawer();
+    const own: string[] = [];
+    for (const type of ["pointerdown", "pointermove", "pointerup"]) {
+      sheet.addEventListener(type, () => own.push(type));
+    }
+    press(header, "pointerdown", 100, 700, 20);
+    press(header, "pointermove", 100, 650, 20);
+    press(header, "pointerup", 100, 650, 20);
+    sheet.remove();
+    expect(own).toEqual(["pointerdown", "pointermove", "pointerup"]);
+    expect(restored).toBe(0);
+  });
+});
