@@ -30,6 +30,7 @@ evidence:
 - #1051 owner phone test (2026-10-07): the crossfade grip "still drags at once, without a long press"
 - #1181 round 8 live proof (2026-10-07): at 844x390 a long press in empty space opened the create menu under the finger, and lifting without moving saved Add chapter; a first finger on a chooser chip or the crossfade rail did not count toward a pinch
 - #1181 round 9 live proof (2026-10-08): the create menu clipped its last item with no scroll at large text and a short screen, and could sit over the finger; the peek strip covered the rail's Undo, and a tap meant for it nudged a pending edit; the blade confirmation's Cut sat under the tab bar at 844x390; a finger on the drawer did not count toward the two-finger rule
+- #1181 round 10 audit (2026-10-08): a held strip nudge saved when a second finger landed, and a long press near an unselected clip's ends opened the create menu instead of arming the clip
 - #1051 owner phone test (2026-10-07, round 5): a long press past the last clip still started iOS text selection; the drawer "follows the finger but feels laggy", and the owner asked for a flick to open or close it
 - 2026-10-07 owner, relayed by the coordinator: the grammar is the rule, so it is on by default and the touch chooser lab is retired
 enforced-by:
@@ -54,6 +55,10 @@ enforced-by:
 - gui/web/src/timeline/CreateMenu.test.tsx::measures the menu's natural height, not the height its own cap leaves, so a menu the cap clips scrolls
 - gui/web/src/timeline/hitRouting.fingers.test.ts::counts as a first finger: a second finger's long press arms nothing and its lift saves nothing
 - gui/web/e2e-compat/touch-grammar.spec.ts::the create menu reaches every item and stays off the finger at every text size and screen height
+- gui/web/e2e-compat/touch-grammar.spec.ts::a create menu taller than 90% of the screen, with room beside the finger, is not cut to 90%
+- gui/web/src/inspector/InspectorPeek.test.tsx::rolls a held run back, saving nothing, when the router cancels it for a second finger
+- gui/web/src/timeline/hitRouting.grammar.test.ts::arms from its body near an end whose trim and fade targets are click-through, as on an unselected clip
+- gui/web/src/timeline/hitCandidates.test.ts::is still the one candidate when every target in reach is out of reach
 - gui/web/e2e-compat/touch-chrome-reach.spec.ts::Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open: landscape
 - gui/web/e2e-compat/touch-chrome-reach.spec.ts::the Cut button of the blade confirmation can be tapped at 32px text: landscape
 - gui/web/e2e-compat/touch-grammar.spec.ts::in a short viewport the create menu stays in view off the finger, and lifting without moving saves nothing
@@ -594,6 +599,12 @@ and the pinch (touch events, `timelineZoomGestures.ts`) owns the gesture. No
 click comes of it either: a finger that lifts before the other is not a tap.
 An open chooser closes. Mouse and pen pointers are not affected.
 
+A target that cannot take the press (click-through, hidden or under other
+chrome) is dropped before the router decides whether a clip body stands
+alone (`rankHitTargets`' `reachable` test), so the unselected clip's
+invisible trim and fade targets never hide its body from a long press near
+its ends.
+
 `e2e-compat/touch-pinch.spec.ts` puts one finger on a fade corner, a trim
 handle or a clip body, drags it, lands a second finger and spreads both:
 Chromium with two real CDP touch points, WebKit (no touch input in
@@ -673,9 +684,13 @@ consistent visual language", and for press-and-hold to repeat them.
 - **Hold to repeat.** A held finger, pen or mouse steps again after the
   long-press hold (500 ms), then every 100 ms, and every 50 ms after four
   repeats (`nudgeRepeatDelayMs` in `hooks/gestureConstants.ts`, after
-  Android's key-repeat timing). Release, cancel, sliding off the button or
-  blur stop it. A held Enter or Space follows the system's own key repeat,
-  and an assistive-technology click steps once.
+  Android's key-repeat timing). Release, a cancel the system sends, sliding
+  off the button or blur stop it and save the run. A second finger landing
+  elsewhere stops it too, but the router's cancel for it rolls the preview
+  back and saves nothing, as for every other uncommitted action ([Pinch
+  never edits](#pinch-never-edits-1051-round-4)). A held Enter or Space
+  follows the system's own key repeat, and an assistive-technology click
+  steps once.
 - **One edit per run.** Each step previews in the project, so the timeline
   draws it, and the run saves once when it ends: one document command and
   one Undo (`inspector/useNudgeRun.ts`). A failed save puts the saved value
