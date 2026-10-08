@@ -125,6 +125,30 @@ def test_a_breath_over_a_steady_room_is_one_sound_with_a_guard_frame_each_side()
     assert 340 <= sounds[0].lo <= 352 and 378 <= sounds[0].hi <= 392
 
 
+def test_a_sound_is_traced_out_against_the_room_under_it_not_the_whole_windows() -> None:
+    # The room read over the window says -70 with a 1.5 dB spread (reach -67), but where
+    # this sound is the room sits at a steady -76: a breath rises from it over frames
+    # 400-430 into a word at -20 (430-460). Against the window's reach, frames 400-415 of
+    # the breath, up to 8 dB over the room under them, would be air. Read within half a
+    # second, the room's reach is 0.8 dB over -76: the sound starts where the breath's
+    # average first clears it (402), less a guard frame, and ends a guard frame after the
+    # word's average is back at the room (462).
+    levels = np.full(800, -76.0)
+    levels[400:430] = np.linspace(-76.0, -60.0, 30)
+    levels[430:460] = -20.0
+
+    sounds = find_sounds(
+        levels,
+        Room(-70.0, 1.5),
+        -15.0,
+        (0, 0),
+        RATE,
+        breath_below_speech_db=BREATHS_BELOW_SPEECH_DB,
+    )
+
+    assert sounds == [Sound(401, 463, False)]
+
+
 def test_a_steady_room_alone_holds_no_sound() -> None:
     assert _sounds(_track()) == []
 
