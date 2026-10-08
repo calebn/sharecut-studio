@@ -147,6 +147,23 @@ export interface MenuLayout {
 
 type MenuSize = { width: number; height: number };
 
+/**
+ * The menu's size with nothing capping it: its width, and its content's height
+ * plus its border. A box a style rule already caps (`.ui-menu-panel`) reports
+ * the capped `offsetHeight`, which hides that its items overflow.
+ */
+export function naturalSize(
+  box: Pick<
+    HTMLElement,
+    "offsetWidth" | "offsetHeight" | "clientHeight" | "scrollHeight"
+  >,
+): MenuSize {
+  return {
+    width: box.offsetWidth,
+    height: box.scrollHeight + (box.offsetHeight - box.clientHeight),
+  };
+}
+
 const rangeIn = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
 
@@ -154,8 +171,8 @@ const rangeIn = (value: number, min: number, max: number) =>
  * Where the create menu of `size` sits for `finger`, never over the finger:
  * above it, else below it, else beside it, inside `bounds` (the timeline's
  * visible box) or, when the menu is taller than that box (a phone held
- * sideways), inside `viewport`. When even the viewport has no room it is
- * placed beside the finger with its height capped, so it scrolls. It keeps
+ * sideways), inside `viewport`. When even the viewport has no room its height
+ * is capped so it scrolls (`menuCapped`), still clear of the finger. It keeps
  * clear of the fixed playhead at `avoidX` where there is room, so the line
  * stays in view.
  */
@@ -170,7 +187,7 @@ export function layoutMenu(
     const fit = menuFitIn(finger, box, size, avoidX);
     if (fit) return { ...fit, maxHeight: null };
   }
-  return menuBesideCapped(finger, viewport, size);
+  return menuCapped(finger, viewport, size);
 }
 
 function menuFitIn(
@@ -228,28 +245,52 @@ function menuFitIn(
 const crossesPlayhead = (left: number, width: number, avoidX: number | null) =>
   avoidX != null && left < avoidX && left + width > avoidX;
 
-function menuBesideCapped(
+/**
+ * The menu is taller than `box` has room for, so it scrolls. Beside the finger
+ * at the box's full height where a side has room for its width; where neither
+ * does (a wide menu at large text), above or below the finger, whichever has
+ * more room, capped to that room. Either way a gap of
+ * `CREATE_MENU_GAP_PX` stays between the menu and the finger, so it never
+ * covers the touch point. Only a box with no room beyond the gap on either
+ * vertical side (a viewport shorter than the gap and edges together) leaves
+ * nothing to do but cap the menu to nothing.
+ */
+function menuCapped(
   finger: HitPoint,
   box: ChooserBounds,
   size: MenuSize,
 ): MenuLayout {
-  const maxHeight = Math.max(0, box.bottom - box.top - 2 * CHOOSER_EDGE_PX);
+  const minLeft = box.left + CHOOSER_EDGE_PX;
+  const maxLeft = Math.max(minLeft, box.right - CHOOSER_EDGE_PX - size.width);
   const right = finger.x + CREATE_MENU_GAP_PX;
   const left = finger.x - CREATE_MENU_GAP_PX - size.width;
   const roomRight = box.right - CHOOSER_EDGE_PX - (right + size.width);
-  const roomLeft = left - (box.left + CHOOSER_EDGE_PX);
-  const beside = roomRight >= roomLeft;
+  const roomLeft = left - minLeft;
+  if (roomRight >= 0 || roomLeft >= 0) {
+    const beside = roomRight >= roomLeft;
+    return {
+      placement: beside ? "right" : "left",
+      left: rangeIn(beside ? right : left, minLeft, maxLeft),
+      top: box.top + CHOOSER_EDGE_PX,
+      maxHeight: Math.max(0, box.bottom - box.top - 2 * CHOOSER_EDGE_PX),
+    };
+  }
+  const roomAbove = Math.max(
+    0,
+    finger.y - box.top - CHOOSER_EDGE_PX - CREATE_MENU_GAP_PX,
+  );
+  const roomBelow = Math.max(
+    0,
+    box.bottom - CHOOSER_EDGE_PX - finger.y - CREATE_MENU_GAP_PX,
+  );
+  const above = roomAbove > roomBelow;
+  const maxHeight = above ? roomAbove : roomBelow;
   return {
-    placement: beside ? "right" : "left",
-    left: rangeIn(
-      beside ? right : left,
-      box.left + CHOOSER_EDGE_PX,
-      Math.max(
-        box.left + CHOOSER_EDGE_PX,
-        box.right - CHOOSER_EDGE_PX - size.width,
-      ),
-    ),
-    top: box.top + CHOOSER_EDGE_PX,
+    placement: above ? "above" : "below",
+    left: rangeIn(finger.x - size.width / 2, minLeft, maxLeft),
+    top: above
+      ? finger.y - CREATE_MENU_GAP_PX - maxHeight
+      : finger.y + CREATE_MENU_GAP_PX,
     maxHeight,
   };
 }

@@ -187,6 +187,40 @@ describe("layoutMenu", () => {
     });
   });
 
+  it("goes above or below the finger, capped, when it is taller than the screen and too wide to sit beside it", () => {
+    const wide = { width: 480, height: 700 };
+    expect(layoutMenu({ x: 420, y: 150 }, viewport, wide, null)).toEqual({
+      placement: "below",
+      left: 180,
+      top: 174,
+      maxHeight: 200,
+    });
+    expect(layoutMenu({ x: 420, y: 250 }, viewport, wide, null)).toEqual({
+      placement: "above",
+      left: 180,
+      top: 16,
+      maxHeight: 210,
+    });
+  });
+
+  it("never covers the finger, in any geometry that has a free side", () => {
+    const covers: string[] = [];
+    for (const width of [240, 360, 480, 640, 780]) {
+      for (const height of [218, 340, 700]) {
+        for (let x = 10; x <= 834; x += 37) {
+          for (let y = 10; y <= 380; y += 31) {
+            const out = layoutMenu({ x, y }, viewport, { width, height }, null);
+            const h = out.maxHeight ?? height;
+            const hitsX = x > out.left && x < out.left + width;
+            const hitsY = y > out.top && y < out.top + h;
+            if (hitsX && hitsY) covers.push(`${width}x${height}@${x},${y}`);
+          }
+        }
+      }
+    }
+    expect(covers).toEqual([]);
+  });
+
   it("keeps the finger at least a gap away from the menu wherever it presses", () => {
     const presses: [number, number][] = [
       [566, 116],

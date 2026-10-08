@@ -1759,13 +1759,19 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   flex-direction: column;
   min-inline-size: 15rem;
   max-inline-size: min(20rem, 100vw - 2rem);
-  max-block-size: none;
   padding: var(--space-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--color-bg-overlay);
   box-shadow: var(--shadow-floating);
   touch-action: none;
+}
+
+/* `.ui-menu-panel` caps a drop-down at 90dvh from the trigger. This menu's cap
+   is the layout's own (an inline max-block-size, set only when the menu is
+   taller than the room), so the shared cap must not clip it first. */
+.ui-menu-panel.create-menu {
+  max-block-size: none;
 }
 
 /* Taller than the screen has room for (a phone held sideways at large text):

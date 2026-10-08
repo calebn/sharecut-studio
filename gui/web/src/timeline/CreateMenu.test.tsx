@@ -201,6 +201,50 @@ describe("CreateMenu", () => {
     }
   });
 
+  it("measures the menu's natural height, not the height its own cap leaves, so a menu the cap clips scrolls", () => {
+    const spies = [
+      vi
+        .spyOn(HTMLElement.prototype, "offsetWidth", "get")
+        .mockReturnValue(480),
+      vi
+        .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+        .mockReturnValue(351),
+      vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(349),
+      vi.spyOn(Element.prototype, "scrollHeight", "get").mockReturnValue(420),
+    ];
+    const viewport = { w: window.innerWidth, h: window.innerHeight };
+    window.innerWidth = 844;
+    window.innerHeight = 500;
+    try {
+      view = { ...view, origin: { x: 420, y: 400 } };
+      useDawStore.setState({
+        projectPath: "/tmp/ep.project.json",
+        shareCapabilities: null,
+        guestMode: null,
+        project: minimalProject({ tracks: [sampleTrack({ id: "host" })] }),
+      });
+      render(
+        <CreateMenu
+          view={view}
+          place={place}
+          router={router}
+          bounds={{ left: 0, top: 53, right: 844, bottom: 500 }}
+          avoidX={null}
+        />,
+      );
+      const menu = document.querySelector(".create-menu") as HTMLElement;
+      expect({
+        scrolls: menu.hasAttribute("data-scrolls"),
+        maxBlock: menu.style.maxBlockSize,
+        top: menu.style.top,
+      }).toEqual({ scrolls: true, maxBlock: "360px", top: "16px" });
+    } finally {
+      window.innerWidth = viewport.w;
+      window.innerHeight = viewport.h;
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+
   it("has no axe violations", async () => {
     open("share:tok", ["view", "play", "comment", "reply"]);
     await expectNoA11yViolations(

@@ -552,6 +552,107 @@ test("in a short viewport the create menu stays in view off the finger, and lift
   expect(commands.map((c) => c.type)).toEqual([]);
 });
 
+/** (root font px, viewport height) pairs where the menu is taller than the room beside a short screen. */
+const MENU_SWEEP: [number, number][] = [
+  [16, 390],
+  [24, 390],
+  [28, 390],
+  [32, 390],
+  [24, 340],
+  [28, 340],
+  [24, 320],
+  [20, 300],
+  [28, 360],
+  [32, 420],
+  [36, 480],
+];
+
+test("the create menu reaches every item and stays off the finger at every text size and screen height", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  const guest = await openWith(page, () => splitGuestLane(page), {
+    width: 844,
+    height: 390,
+  });
+  const finger = await newFinger(context, page, browserName);
+  const rows: Record<string, unknown>[] = [];
+  const bad: Record<string, unknown>[] = [];
+  for (const [rootPx, height] of MENU_SWEEP) {
+    await page.setViewportSize({ width: 844, height });
+    await page.evaluate((px) => {
+      document.documentElement.style.fontSize = `${px}px`;
+    }, rootPx);
+    await page.waitForTimeout(400);
+    const gap = await showGap(page, guest);
+    const y = await page.evaluate((trackId) => {
+      const row = document.querySelector(
+        `.lane-row[data-track-id="${trackId}"]`,
+      );
+      row?.scrollIntoView({ block: "nearest" });
+      const scroller = document.querySelector(".timeline-scroll");
+      const box = row?.getBoundingClientRect();
+      const view = scroller?.getBoundingClientRect();
+      if (!box || !view) return null;
+      const top = Math.max(box.top, view.top);
+      const bottom = Math.min(box.bottom, view.bottom);
+      return bottom - top < 8 ? null : (top + bottom) / 2;
+    }, guest.trackId);
+    if (y === null) continue;
+    const at = { x: gap.start - 5 * gap.pps, y };
+    await hold(page, finger, at);
+    const measured = await page.evaluate(({ x, y: fy }) => {
+      const menu = document.querySelector<HTMLElement>(".create-menu");
+      if (!menu) return null;
+      const items = [...menu.querySelectorAll<HTMLElement>("[role=menuitem]")];
+      const box = menu.getBoundingClientRect();
+      const overflow = menu.scrollHeight - menu.clientHeight;
+      const scrolls = menu.hasAttribute("data-scrolls");
+      menu.scrollTop = menu.scrollHeight;
+      const last = items[items.length - 1]?.getBoundingClientRect();
+      const lastShown = last
+        ? Math.min(last.bottom, box.bottom) - Math.max(last.top, box.top)
+        : 0;
+      return {
+        overflow,
+        scrolls,
+        touchAction: getComputedStyle(menu).touchAction,
+        lastShown: Math.round(lastShown),
+        lastHeight: last ? Math.round(last.height) : 0,
+        inViewport:
+          box.left >= 0 &&
+          box.top >= 0 &&
+          box.right <= innerWidth &&
+          box.bottom <= innerHeight,
+        overFinger:
+          x > box.left && x < box.right && fy > box.top && fy < box.bottom,
+      };
+    }, at);
+    await finger.up();
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(250);
+    if (!measured) continue;
+    const row = { rootPx, height, ...measured };
+    rows.push(row);
+    const clipped = measured.overflow > 1 && !measured.scrolls;
+    const touchBlocked =
+      measured.scrolls && measured.touchAction.split(" ").includes("none");
+    if (
+      clipped ||
+      touchBlocked ||
+      measured.lastShown < measured.lastHeight - 1 ||
+      !measured.inViewport ||
+      measured.overFinger
+    ) {
+      bad.push(row);
+    }
+  }
+  json(info, `grammar-create-sweep-${browserName}`, { rows, bad });
+  expect(rows.length).toBeGreaterThanOrEqual(6);
+  expect(bad).toEqual([]);
+});
+
 test("the strip follows the finger; a flick opens or closes it fully, a slow drag lands at the nearest detent", async ({
   page,
   context,
