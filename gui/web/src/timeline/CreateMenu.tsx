@@ -198,7 +198,11 @@ export function CreateMenu({
       <div
         ref={boxRef}
         className="ui-menu-panel create-menu"
-        data-scrolls={layout.maxHeight != null ? "" : undefined}
+        data-scrolls={
+          layout.maxHeight != null && size && size.height > layout.maxHeight
+            ? ""
+            : undefined
+        }
         style={{
           left: layout.left,
           top: layout.top,
