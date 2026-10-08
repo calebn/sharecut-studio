@@ -426,7 +426,6 @@ def build_track_rms_caches(
     before_transcript_gate: bool = False,
     track_ids: Collection[str] | None = None,
 ) -> TrackRmsCacheSet:
-    from podcast_mcp.engines.play_audit import stem_is_fresh
     from podcast_mcp.engines.timeline_render import resolve_clip_audio_path
 
     caches: dict[str, TrackRmsCache] = {}
@@ -436,13 +435,13 @@ def build_track_rms_caches(
     for tid in dict.fromkeys(dialogue_track_ids(project) if track_ids is None else track_ids):
         track = project.track_by_id(tid)
         if before_transcript_gate and track is not None:
-            proc = _processed_track_path(project, tid)
-            if not track.transcript_gate and proc is not None and stem_is_fresh(project, tid):
+            proc = _fresh_stem_path(project, tid)
+            if not track.transcript_gate and proc is not None:
                 caches[tid] = TrackRmsCache.from_timeline_stem(proc)
             else:
                 caches[tid] = _pre_transcript_gate_cache(project, tid)
             continue
-        proc = _processed_track_path(project, tid)
+        proc = _fresh_stem_path(project, tid)
         if proc is not None:
             caches[tid] = TrackRmsCache.from_timeline_stem(proc)
             continue
@@ -520,6 +519,18 @@ def _processed_track_path(project: EpisodeProject, track_id: str) -> Path | None
     return existing_stem_path(project, track_id)
 
 
+def _fresh_stem_path(project: EpisodeProject, track_id: str) -> Path | None:
+    """The rendered stem when audio may be read from it: it exists and is fresh.
+
+    A stem is the timeline as it was rendered. After an edit moves the timeline it holds
+    other audio at the same seconds, so every read of a stem's audio asks here.
+    """
+    from podcast_mcp.engines.play_audit import stem_is_fresh
+
+    stem = _processed_track_path(project, track_id)
+    return stem if stem is not None and stem_is_fresh(project, track_id) else None
+
+
 def _effective_rms_db(rms: float | None, gain_db: float) -> float | None:
     if rms is None:
         return None
@@ -566,10 +577,9 @@ def _played_window(
     air is read through, ``edits/session_air.lane_window``).
     """
     from podcast_mcp.edits.session_air import lane_window
-    from podcast_mcp.engines.play_audit import stem_is_fresh
 
-    stem = _processed_track_path(project, track_id)
-    if stem is not None and stem_is_fresh(project, track_id):
+    stem = _fresh_stem_path(project, track_id)
+    if stem is not None:
         return load_mono_window(
             stem,
             start_sec=t_start,
