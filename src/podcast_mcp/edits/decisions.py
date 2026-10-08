@@ -52,6 +52,46 @@ from podcast_mcp.util.tracks import dialogue_track_ids
 _PAD_EDGE_MATCH_SEC = 0.05
 
 
+class ScopeChangedAtApproval(CodedError, ValueError):
+    """An approval that would not cut what was reviewed; raised to roll it back.
+
+    A session cut whose peers are now speaking over it would silence only its own track
+    and shorten nothing. ``ids`` are the decisions it held, ``message`` names the
+    speakers and the way on.
+    """
+
+    code = "cut_scope_changed"
+
+    def __init__(self, held: Sequence[tuple[str, tuple[str, ...]]], speakers: dict[str, str]):
+        self.ids = tuple(edit_id for edit_id, _peers in held)
+        heard = sorted({speakers.get(peer, peer) for _id, peers in held for peer in peers})
+        noun = "This cut was" if len(self.ids) == 1 else f"{len(self.ids)} cuts were"
+        why = (
+            f"{' and '.join(heard)} is speaking where it would be cut from every track, so it "
+            "would silence only one track and shorten nothing"
+            if heard
+            else "it could not be checked against the other tracks, so it would silence only "
+            "one track and shorten nothing"
+        )
+        super().__init__(
+            f"{noun} not applied: {why}. Nothing changed. "
+            "Reject it, or cut that part of the track on its own."
+        )
+
+
+@dataclass(frozen=True)
+class CutScopeHold:
+    """A session cut the scope guard would turn into a track-local punch: not applied."""
+
+    edit_id: str
+    peers: tuple[str, ...]
+
+
+def _speaker_name(project: EpisodeProject, track_id: str) -> str:
+    track = project.track_by_id(track_id)
+    return track_id if track is None else track.speaker or track.label or track_id
+
+
 def _tighten_cfg() -> dict:
     return dict(load_defaults().get("tighten", {}) or {})
 
@@ -202,14 +242,16 @@ def _apply_remove_edit(
     batch: Sequence[SourceExtent],
     use_inaudible_opt: bool | None = False,
     record_log: bool = False,
-) -> tuple[float, float, list[str], dict] | CutSpeechConfirmation:
+) -> tuple[float, float, list[str], dict] | CutSpeechConfirmation | CutScopeHold:
     """Apply one REMOVE via session ripple or track-local punch.
 
     A suggestion that recorded ``cut_speech`` ripples as suggested. Any other session
-    remove keeps the speech-energy scope guard, which turns a cut over speaking peers
-    into a track-local punch. A ripple then clears the speech guard against the
-    current transcript, counting the words the rest of ``batch`` cuts as chosen;
-    unconfirmed speech returns the confirmation and changes nothing.
+    remove keeps the speech-energy scope guard, read from what the lanes play now. A
+    session cut over speaking peers is not the cut that was reviewed, and a punch would
+    shorten nothing: it returns a :class:`CutScopeHold` and changes nothing. A ripple
+    then clears the speech guard against the current transcript, counting the words the
+    rest of ``batch`` cuts as chosen; unconfirmed speech returns the confirmation and
+    changes nothing.
     """
     from podcast_mcp.edits.speech_energy_guard import resolve_cut_scope
 
@@ -219,8 +261,9 @@ def _apply_remove_edit(
         return edit.start, edit.end, [], {"scope": scope, "per_track_source": {}}
     tl_start, tl_end = mapped_range
     if scope != "track" and edit.cut_speech is None:
+        peers: tuple[str, ...] = ()
         try:
-            scope, _guard = resolve_cut_scope(
+            scope, guard = resolve_cut_scope(
                 project,
                 edit.track_id,
                 edit.start,
@@ -228,12 +271,12 @@ def _apply_remove_edit(
                 requested_scope=scope,
                 defaults=load_defaults(),
             )
-        except ValueError:
-            # Explicit approve/apply: fall back to track-local rather than no-op.
+            peers = guard.blocking_track_ids if guard is not None else ()
+        except ValueError as blocked:
             scope = "track"
+            peers = tuple(getattr(blocked, "peers", ()))
         if scope == "track":
-            edit.scope = "track"
-            edit.replace_gap_sec = None
+            return CutScopeHold(edit.id, peers)
 
     if scope == "track":
         report = punch_delete(
@@ -357,7 +400,8 @@ def approve_edits(
     Each session remove clears the speech guard now, against the current transcript.
     Unless ``confirm_cut_speech``, a batch whose ripples would cut speech outside their
     suggested spans raises :class:`UnconfirmedCutSpeech` with every such remove's
-    speech; the caller's mutation rolls back, so nothing applies.
+    speech; the caller's mutation rolls back, so nothing applies. A session remove a peer
+    is now speaking over raises :class:`ScopeChangedAtApproval` the same way.
     """
     from podcast_mcp.edits.range_edits import apply_ranges
 
@@ -390,6 +434,7 @@ def approve_edits(
         applied_ids.add(edit.id)
     batch = _source_extents(removes)
     asked: list[CutSpeechConfirmation] = []
+    held: list[CutScopeHold] = []
     for edit in sorted(removes, key=lambda e: e.start, reverse=True):
         applied = _apply_remove_edit(
             project,
@@ -401,6 +446,9 @@ def approve_edits(
         )
         if isinstance(applied, CutSpeechConfirmation):
             asked.append(applied)
+            continue
+        if isinstance(applied, CutScopeHold):
+            held.append(applied)
             continue
         tl_start, tl_end, track_ids, params = applied
         if not track_ids:
@@ -417,6 +465,11 @@ def approve_edits(
         applied_ids.add(edit.id)
     if asked:
         raise UnconfirmedCutSpeech(confirmation_for(merge_cut_speech([a.speech for a in asked])))
+    if held:
+        raise ScopeChangedAtApproval(
+            [(h.edit_id, h.peers) for h in held],
+            {tid: _speaker_name(project, tid) for h in held for tid in h.peers},
+        )
     for edit in sorted(splits, key=lambda e: e.start, reverse=True):
         at_time = float(edit.start)
         tids = list(edit.track_ids) if edit.track_ids else [edit.track_id]
@@ -581,7 +634,7 @@ def _apply_auto_removes(
             use_inaudible_opt=inaudible_opt and edit.boundary_mode is None,
             record_log=False,
         )
-        if isinstance(applied, CutSpeechConfirmation):
+        if isinstance(applied, CutSpeechConfirmation | CutScopeHold):
             held.add(edit.id)
             continue
         tl_start, tl_end, track_ids, params = applied
@@ -697,11 +750,8 @@ def apply_prefix_edits(
 
 
 def apply_auto_edits(project: EpisodeProject) -> int:
-    """Apply the filler edits that need no review (ripple REMOVE or mute-in-place MUTE).
-
-    Pause trims all wait for review (#1055), so they are never auto-applied.
-    """
-    return apply_prefix_edits(project, "filler:", config_key="tighten")
+    """Apply filler/pause edits (ripple REMOVE or mute-in-place MUTE)."""
+    return apply_prefix_edits(project, ("filler:", "pause:"), config_key="tighten")
 
 
 def _impact_segment(

@@ -308,6 +308,17 @@ def assess_cross_track_speech(
     )
 
 
+class PeerSpeechBlocked(ValueError):
+    """``on_conflict: skip`` and peers are speaking over the cut."""
+
+    def __init__(self, peers: tuple[str, ...]) -> None:
+        super().__init__(
+            f"cut blocked: other track(s) speaking in window ({', '.join(peers)}); "
+            "leave in or use a track-local punch"
+        )
+        self.peers = peers
+
+
 def resolve_cut_scope(
     project: EpisodeProject,
     cut_track_id: str,
@@ -357,10 +368,6 @@ def resolve_cut_scope(
     if not guard.blocked:
         return "session", guard
     if guard.action == "skip":
-        peers = ", ".join(guard.blocking_track_ids)
-        raise ValueError(
-            f"cut blocked: other track(s) speaking in window ({peers}); "
-            "leave in or use a track-local punch"
-        )
+        raise PeerSpeechBlocked(guard.blocking_track_ids)
     # track_local and review: never session-ripple over live peer speech.
     return "track", guard

@@ -549,19 +549,37 @@ def _timeline_window_samples(
     cache = caches.get(track_id) if caches else None
     if cache is not None:
         return cache.window(t_start, t_end), cache.sample_rate
-    proc = _processed_track_path(project, track_id)
     try:
-        if proc is not None:
-            path, start, end = proc, t_start, t_end
-        else:
-            path, start = timeline_to_source(project, track_id, t_start)
-            _, end = timeline_to_source(project, track_id, t_end)
-        samples = load_mono_window(
-            path, start_sec=start, duration_sec=end - start, sample_rate=_RMS_SAMPLE_RATE
-        )
+        return _played_window(project, track_id, t_start, t_end), _RMS_SAMPLE_RATE
     except Exception:
         return None
-    return samples, _RMS_SAMPLE_RATE
+
+
+def _played_window(
+    project: EpisodeProject, track_id: str, t_start: float, t_end: float
+) -> np.ndarray:
+    """What plays on ``track_id`` over timeline ``[t_start, t_end)`` now.
+
+    A rendered stem is the timeline as it was when it was rendered, so it is read only while
+    it is fresh. After an edit moves the timeline it holds other audio at these seconds, and
+    the lane's own recordings are read through its clips instead (the mapping a pause trim's
+    air is read through, ``edits/session_air.lane_window``).
+    """
+    from podcast_mcp.edits.session_air import lane_window
+    from podcast_mcp.engines.play_audit import stem_is_fresh
+
+    stem = _processed_track_path(project, track_id)
+    if stem is not None and stem_is_fresh(project, track_id):
+        return load_mono_window(
+            stem,
+            start_sec=t_start,
+            duration_sec=t_end - t_start,
+            sample_rate=_RMS_SAMPLE_RATE,
+        )
+    track = project.track_by_id(track_id)
+    if track is None:
+        raise KeyError(track_id)
+    return lane_window(project, track, t_start, t_end, _RMS_SAMPLE_RATE)
 
 
 def _recorded_gain_db(project: EpisodeProject, track_id: str) -> float:
