@@ -76,3 +76,4 @@ scripts/find_*.sh
 
 # Local lab runs (sharecut-podcast-lab make-run.sh --runs-dir; see docs/testing.md)
 .lab-runs/
+gui/node_modules/
