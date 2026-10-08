@@ -866,10 +866,21 @@ html[data-shell] body {
   gap: var(--space-4);
 }
 
+/* Pinned to the bottom of the sheet's scroll area: at large text the question
+   may outgrow a short slot, but Cancel and Cut stay in reach. */
 .blade-confirm-actions {
   display: flex;
   gap: var(--space-3);
   justify-content: flex-end;
+  position: sticky;
+  inset-block-end: 0;
+  background: var(--color-bg-overlay);
+}
+
+@media (pointer: coarse) {
+  .blade-confirm-actions .ui-control {
+    min-block-size: var(--touch-min);
+  }
 }
 
 .overlay-legend {
