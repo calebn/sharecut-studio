@@ -431,23 +431,19 @@ def _is_pause(edit: EditDecision) -> bool:
 def _keeps_independent_review(left: EditDecision, right: EditDecision) -> bool:
     """Keep generated review-only proposals and approval state separate.
 
-    Repeat/restart and ``filler:acoustic`` reasons and ids identify one specific
-    proposal a human must approve.  A neighboring filler or pause can be safely
+    Repeat/restart, ``filler:acoustic`` and pause reasons and ids identify one
+    specific proposal a human must approve.  A neighboring filler can be safely
     coalesced with ordinary cuts, but merging it into one of these proposals
     loses that review context (or auto-applies an acoustic span nobody heard).
     Decisions whose ``applied`` flags differ are never merged either: the merged
     edit would silently apply the pending span or un-apply the approved one.
     Nor are decisions with different authors: the merged edit keeps one author,
     which would grant a share guest another author's span or drop its own. A pause
-    trim waiting for review (every one does until the owner has listened, #1055) is
-    kept apart from a cut that applies on its own, so the filler beside it stays
-    auto-applicable instead of waiting on the trim.
+    trim is one of these proposals (#1055): merged into a filler, a track-local cut or
+    an NL cut it would lose its label, its air-edge flag and its scope, or hold the
+    filler beside it back from applying on its own.
     """
     if left.applied != right.applied or left.author != right.author:
-        return True
-    if left.review_required != right.review_required and any(
-        decision.review_required and _is_pause(decision) for decision in (left, right)
-    ):
         return True
     return any(
         decision.review_required and is_review_only_reason(decision.reason)
