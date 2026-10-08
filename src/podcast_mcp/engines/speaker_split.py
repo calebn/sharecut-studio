@@ -14,15 +14,6 @@ voice embeddings, not diarization that has to guess how many people there are:
 4. Each frame scores every speaker by the mean cosine of the windows covering it.
 5. A Viterbi pass over the frame scores picks one speaker per frame. Changing speaker
    costs ``VOICED_SWITCH`` inside voiced frames and ``PAUSE_SWITCH`` in a pause.
-6. Hand-overs settle into pauses (``engines/speaker_hand_overs.py``): a window-mean
-   score smears a short turn over the pauses beside it, so the Viterbi pass alone can
-   cut a voiced run or park a short turn in the silence next to its voice. Voiced runs
-   come from this recording's own levels; a hand-over next to a turn with less than a
-   window of voice, or inside a run, moves to a pause nearby where the voice it hands
-   over gains evidence (the voice's own embedding averaged with its window scores).
-   A hand-over inside a run that no move improves is two voices without a pause
-   between them: it stays and is flagged as crosstalk.
-
 Turns are runs of one speaker and cover the recording with no gaps: a pause belongs to
 the turn the passes put it in, so splitting along turns sums back to the input.
 
@@ -33,7 +24,7 @@ recording) are reported in ``SpeakerAttribution.same_voice`` as likely one perso
 two speakers there is no other pair to compare against, so nothing is reported.
 
 Crosstalk is a turn where the runner-up sounds present as well (``_presence``) for at
-least ``window_sec``, or a hand-over step 6 had to leave inside a voiced run. A turn's confidence is how far its winner stands above the
+least ``window_sec``, or a hand-over settlement left inside a voiced run. A turn's confidence is how far its winner stands above the
 runner-up on that same scale. On the lab tape this evidence was weak (see
 docs/multitrack-ingest.md § Split one recording by speaker): two voices at once look
 like neither speaker to a voice embedding, and most overlap there is shorter than any
@@ -117,14 +108,16 @@ def _unit(x: np.ndarray) -> np.ndarray:
     return x / (np.linalg.norm(x, axis=-1, keepdims=True) + 1e-9)
 
 
-def voiced_frames(samples: np.ndarray) -> np.ndarray:
-    """Per 20 ms frame, whether the bundled voice detector hears speech (all, without one)."""
+def voiced_frames(samples: np.ndarray) -> np.ndarray | None:
+    """Actual detector decisions per 20 ms frame, or ``None`` when unavailable."""
     from podcast_mcp.engines.vad_silero import get_shared_vad
 
     count = samples.size // round(FRAME_SEC * RATE)
     vad = get_shared_vad()
-    if vad is None or count == 0:
-        return np.ones(count, dtype=bool)
+    if vad is None:
+        return None
+    if count == 0:
+        return np.zeros(0, dtype=bool)
     probs = vad.speech_probs(samples.astype(np.float32))
     step = vad.WINDOW_SAMPLES / RATE
     index = np.minimum((np.arange(count) * FRAME_SEC / step).astype(int), probs.size - 1)
@@ -369,7 +362,8 @@ def attribute_speakers(
     with resolve_progress_task(
         "speaker-split", "Speaker split", total=3, prefer_parent=True, progress=progress
     ) as task:
-        voiced = voiced_frames(samples)
+        detected = voiced_frames(samples)
+        voiced = np.ones(frames, dtype=bool) if detected is None else detected
         centers = _window_centers(voiced, duration, window_sec)
         if centers.size < speaker_count:
             raise ValueError("too little speech to tell the speakers apart")
@@ -393,7 +387,7 @@ def attribute_speakers(
             labels,
             scores,
             levels,
-            voice_runs(levels, voiced),
+            voice_runs(levels, labels, detected),
             own,
             reach=round(window_sec / FRAME_SEC),
         )

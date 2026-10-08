@@ -6,24 +6,6 @@ hand-over costs less in a pause than in speech, so the Viterbi pass can park a s
 turn in the silence next to its own voice, or end it inside its voiced run. Both put
 part of one person's words on another person's lane.
 
-This pass works on voiced runs measured from the recording's own levels:
-
-- A frame is quiet below halfway, in dB, from the recording's noise floor to its speech
-  level (:func:`voice_runs`). Runs are the louder stretches; clicks and the stops
-  inside a word (both shorter than ``MIN_RUN_SEC``) do not count.
-- Evidence for a span is the mean of its own embedding (that voice alone, unbiased by
-  a long neighbour but noisy when short) and its window scores (that voice in
-  context). A span shorter than ``MIN_EMBED_SEC`` keeps its window scores only.
-- A hand-over next to a turn with less than a window of voice may move to any pause
-  within a window of it (and between its neighbouring hand-overs); it moves where the
-  runs it hands over gain evidence, so a short reply takes its whole run.
-- A hand-over inside a run moves to the pause just before or after that run when the
-  piece it hands over sounds more like the other side. When neither piece does, or no
-  pause is within a window, the run holds both voices with no pause between them: the
-  cut stays and a quarter window either side is flagged as crosstalk. A run too short
-  to embed is too short for two people and always moves.
-- Every other hand-over lands on the quietest cut of its own pause, and a turn left with
-  no voice joins its neighbours at its quietest cut.
 """
 
 from __future__ import annotations
@@ -57,24 +39,48 @@ def frame_levels(samples: np.ndarray, hop: int) -> np.ndarray:
     return frame_rms_db(samples[: samples.size // hop * hop], hop, hop, floor_db=SILENCE_DB)
 
 
-def voice_runs(levels: np.ndarray, voiced: np.ndarray) -> list[Run]:
-    """Frame spans louder than this recording's pauses, from its own floor and speech level.
+def voice_runs(levels: np.ndarray, labels: np.ndarray, detected: np.ndarray | None) -> list[Run]:
+    """Fixed voiced spans from global levels, provisional clusters, and actual VAD.
 
-    ``levels`` is the dB level per frame (:func:`frame_levels`); ``voiced`` the voice
-    detector's frames, whose median level is the speech level. Digital silence is left
-    out of the floor, so a gated recording measures the floor of its open stretches.
+    All arrays share the frame shape. ``None`` means the detector is unavailable.
+    Global and cluster midpoints use non-digital floor samples and median speech
+    levels. Actual detector-positive sound joins their union when contrast is
+    measurable. Without a detector, a cluster must supply its own level contrast.
+    Dips under ``MIN_RUN_SEC`` bridge and shorter runs disappear.
     """
     sound = levels > SILENCE_DB
     if not sound.any():
         return []
-    floor = float(np.percentile(levels[sound], FLOOR_PERCENTILE))
-    talk = levels[sound & voiced]
-    speech = float(np.median(talk)) if talk.size else float(np.percentile(levels[sound], 90))
-    if speech - floor < MIN_RANGE_DB:
-        return []
     least = max(1, round(MIN_RUN_SEC / FRAME_SEC))
-    loud = bridge_short_dips(levels >= floor + QUIET_SHARE * (speech - floor), least - 1)
-    return [(lo, hi) for lo, hi in bool_runs(loud) if hi - lo >= least]
+    floor = float(np.percentile(levels[sound], FLOOR_PERCENTILE))
+    eligible = sound if detected is None else sound & detected
+    talk = levels[eligible]
+    speech = float(np.median(talk)) if talk.size else float(np.percentile(levels[sound], 90))
+    measurable = speech - floor >= MIN_RANGE_DB
+    voice = (
+        sound & (levels >= floor + QUIET_SHARE * (speech - floor))
+        if measurable
+        else np.zeros(levels.size, dtype=bool)
+    )
+    within_cluster_contrast = False
+    for speaker in np.unique(labels):
+        member = sound & (labels == speaker)
+        local_talk = levels[member & eligible]
+        if local_talk.size < least:
+            continue
+        local_floor = float(np.percentile(levels[member], FLOOR_PERCENTILE))
+        local_speech = float(np.median(local_talk))
+        within_cluster_contrast |= local_speech - local_floor >= MIN_RANGE_DB
+        shared_floor = min(floor, local_floor)
+        if local_speech - shared_floor >= MIN_RANGE_DB:
+            measurable = True
+            voice |= member & (levels >= shared_floor + QUIET_SHARE * (local_speech - shared_floor))
+    if not measurable or (detected is None and not within_cluster_contrast):
+        return []
+    if detected is not None:
+        voice |= sound & detected
+    voice = bridge_short_dips(voice, least - 1)
+    return [(lo, hi) for lo, hi in bool_runs(voice) if hi - lo >= least]
 
 
 def _next_change(labels: np.ndarray, start: int) -> int:

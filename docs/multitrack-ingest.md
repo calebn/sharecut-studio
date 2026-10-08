@@ -438,11 +438,27 @@ pause, the Viterbi pass alone can park a short turn in the silence next to its o
 or end it inside its voiced run. On the lab it did both: one reply's turn held none of
 its own voice, and the reply played on the neighbour's lane. After the Viterbi pass:
 
-- *Voiced runs* come from the recording's own levels: a 20 ms frame is quiet below
-  halfway, in dB, from the noise floor (10th percentile, digital silence left out) to
-  the speech level (median voiced frame). Quiet dips and loud blips under 60 ms are a
-  stop inside a word and a click. With under 6 dB between floor and speech nothing
-  moves.
+- *Voiced runs* form one fixed union before settlement. Global and provisional-cluster
+  measurements select 20 ms frames at or above their floor-to-speech midpoint in dB.
+  The floor is the 10th percentile of non-digital sound. Speech is the median of
+  detector-positive sound, or all sound when the detector is unavailable. When no
+  detector-positive sound exists, the global speech estimate uses the 90th percentile
+  of sound. A cluster needs at least three speech samples, matching the 60 ms minimum
+  run. Its midpoint uses the lower of its own floor and the global floor, so
+  speech-only labels can borrow measured background and quieter local background
+  remains usable.
+- With at least 6 dB between speech and a measured floor, actual detector-positive
+  non-digital sound also joins the union, including quiet replies mislabeled or parked
+  in an adjacent pause. Dips up to 40 ms bridge and runs under 60 ms disappear.
+  Detector false positives that survive this duration filter remain protected voice.
+  Digital silence cannot supply a floor or detector voice.
+- Without a detector, embedding windows and switching use all frames as eligible,
+  while run construction receives no detector evidence. At least one cluster must
+  show 6 dB contrast within its own sound distribution before settlement can run.
+  Different flat speaker levels alone cannot establish a pause. With no measurable
+  contrast, including gated constant-level speech, labels stay unchanged and this
+  pass adds no crosstalk flags. Real all-true detector output remains distinct from
+  an unavailable detector.
 - *Evidence* for a stretch of voice is the mean of its own embedding (that voice alone:
   not pulled towards a long neighbour, but noisy when short) and its window scores (that
   voice in context). Under 0.3 s, too short to embed, it keeps its window scores.
