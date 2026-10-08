@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import subprocess
 import threading
 from collections.abc import Callable, Iterable
@@ -12,7 +11,14 @@ import numpy as np
 
 from podcast_mcp.engines.audio_audit import TrackRmsCache
 from podcast_mcp.models import EpisodeProject
-from podcast_mcp.util.dsp import db_to_amplitude, frame_rms_db_stream, frame_speech_band_db
+from podcast_mcp.util.dsp import (
+    LOW_BAND,
+    SPEECH_BAND,
+    BandShape,
+    db_to_amplitude,
+    frame_band_filtered_db,
+    frame_rms_db_stream,
+)
 from podcast_mcp.util.tracks import track_audio_path
 
 log = logging.getLogger(__name__)
@@ -89,15 +95,14 @@ def level_profile(
 
 
 class BandLevels:
-    """A track's 10 ms speech-band levels (:func:`frame_speech_band_db`), filtered once.
+    """A recording's 10 ms levels through one :class:`~podcast_mcp.util.dsp.BandShape`, filtered once.
 
-    Pause trims read the levels around each pause on every dialogue track, and the filter
-    is an FFT over the window, so reading each window afresh costs more than the decision
-    it feeds. The levels are made a block of ``_BLOCK_SEC`` at a time, from audio read with
+    Pause trims read the levels of every dialogue recording, and the filter is an FFT over
+    the audio, so reading each window afresh costs more than the decision it feeds. The
+    levels are made a block of ``_BLOCK_SEC`` at a time, from audio read with
     ``_MARGIN_SEC`` either side so the filter's ringing at a block's edge is trimmed away,
-    and kept. ``read(start, duration)`` returns the track's mono samples at
-    ``sample_rate``, and ``duration_sec`` is how long the track is (what :meth:`speech_db` reads
-    to). Blocks are made under a lock, so concurrent candidates share them.
+    and kept. ``read(start, duration)`` returns the recording's mono samples at
+    ``sample_rate``. Blocks are made under a lock, so concurrent candidates share them.
     """
 
     _BLOCK_SEC = 30.0
@@ -107,18 +112,16 @@ class BandLevels:
         self,
         read: Callable[[float, float], np.ndarray],
         sample_rate: int,
-        duration_sec: float = 0.0,
+        band: BandShape = SPEECH_BAND,
     ) -> None:
         self._read = read
-        self._duration_sec = duration_sec
         self._rate = sample_rate
+        self.band = band
         self._frame = max(1, round(sample_rate * LEVEL_FRAME_SEC))
         self._block = round(self._BLOCK_SEC / LEVEL_FRAME_SEC)
         self._margin = round(self._MARGIN_SEC / LEVEL_FRAME_SEC)
         self._blocks: dict[int, np.ndarray | None] = {}
         self._lock = threading.Lock()
-        self._speech: float | None = None
-        self._speech_read = False
 
     def _make(self, index: int) -> np.ndarray | None:
         first = index * self._block
@@ -129,9 +132,13 @@ class BandLevels:
             samples = self._read(start, duration)
         except (OSError, ValueError, subprocess.CalledProcessError):
             return None
-        if not samples.size or not np.all(np.isfinite(samples)):
+        if not np.all(np.isfinite(samples)):
             return None
-        levels = frame_speech_band_db(samples, self._rate, self._frame, floor_db=DIGITAL_SILENCE_DB)
+        if not samples.size:
+            return np.empty(0, dtype=np.float32)
+        levels = frame_band_filtered_db(
+            samples, self._rate, self._frame, self.band, floor_db=DIGITAL_SILENCE_DB
+        )
         return levels[lead : lead + self._block].astype(np.float32)
 
     def _get(self, index: int) -> np.ndarray | None:
@@ -141,53 +148,25 @@ class BandLevels:
                     self._blocks[index] = self._make(index)
         return self._blocks[index]
 
-    def speech_db(self) -> float | None:
-        """The track's speech level: :func:`speech_level_db` over every frame of the track.
+    def all_levels(self) -> np.ndarray | None:
+        """The levels of every frame of the recording, to where its audio ends.
 
-        One number per track, read once, so every pause trim classifies the same sound the
-        same way whichever pause it asks about (a window's own frames would give a long
-        pause and a short one two ceilings). ``None`` when the track has under half a
-        second of live frames or cannot be read.
+        The length comes from the audio itself, never from a duration the media record
+        may lack or get wrong. ``None`` when a block cannot be read or the recording is
+        empty.
         """
-        with self._lock:
-            if not self._speech_read:
-                self._speech_read = True
-                self._speech = self._read_speech_db()
-        return self._speech
-
-    def _read_speech_db(self) -> float | None:
-        # The lock is held, so the blocks are made here rather than through ``_get``.
         parts: list[np.ndarray] = []
-        blocks = math.ceil(self._duration_sec / LEVEL_FRAME_SEC / self._block - 1e-9)
-        for index in range(blocks):
-            if index not in self._blocks:
-                self._blocks[index] = self._make(index)
-            block = self._blocks[index]
-            if block is None:
-                break
-            parts.append(block)
-            if block.size < self._block:
-                break
-        if not parts:
-            return None
-        return speech_level_db(np.concatenate(parts).astype(np.float64))
-
-    def levels(self, start: float, end: float) -> np.ndarray | None:
-        """The levels of frames ``[start, end)`` (the grid from ``floor(start / 10 ms)``).
-
-        Shorter than asked where the audio ends, ``None`` when it cannot be read.
-        """
-        first = max(0, math.floor(start / LEVEL_FRAME_SEC + 1e-9))
-        last = max(first, math.ceil(end / LEVEL_FRAME_SEC - 1e-9))
-        parts: list[np.ndarray] = []
-        for index in range(first // self._block, (last - 1) // self._block + 1):
+        index = 0
+        while True:
             block = self._get(index)
             if block is None:
                 return None
-            parts.append(block[max(first - index * self._block, 0) : last - index * self._block])
+            parts.append(block)
             if block.size < self._block:
                 break
-        return np.concatenate(parts).astype(np.float64) if parts else np.empty(0)
+            index += 1
+        levels = np.concatenate(parts).astype(np.float64)
+        return levels if levels.size else None
 
 
 @dataclass(frozen=True)
@@ -208,14 +187,22 @@ class TrackAudioCache:
         """Raw samples at WAVEFORM_SAMPLE_RATE for [t_start, t_end)."""
         return self.waveform.window(t_start, t_end)
 
-    @cached_property
-    def band_levels(self) -> BandLevels:
-        """The track's speech-band levels, filtered once and shared by every candidate."""
+    def _band_levels(self, band: BandShape) -> BandLevels:
         return BandLevels(
             lambda start, duration: self.window(start, start + duration),
             int(self.waveform.sample_rate),
-            self.waveform.samples.size / self.waveform.sample_rate,
+            band,
         )
+
+    @cached_property
+    def band_levels(self) -> BandLevels:
+        """The track's speech-band levels, filtered once and shared by every candidate."""
+        return self._band_levels(SPEECH_BAND)
+
+    @cached_property
+    def low_band_levels(self) -> BandLevels:
+        """The track's low-band levels (80 to 160 Hz), filtered once and shared likewise."""
+        return self._band_levels(LOW_BAND)
 
     @cached_property
     def track_profile(self) -> tuple[float, float] | None:

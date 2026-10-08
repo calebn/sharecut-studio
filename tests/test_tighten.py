@@ -93,102 +93,51 @@ def test_apply_tighten_decisions_never_applies_a_pause_trim():
     assert [e.id for e in proj.edit_decisions] == ["trim"]
 
 
-def _prepared(candidate, start: float, end: float, kept=(), scope: str = "session"):
-    from podcast_mcp.edits.fillers import _CutPlan, _Join, _PreparedCut
-
-    return _PreparedCut(
-        candidate=candidate,
-        opt=None,
-        jump_cache={},
-        plan=_CutPlan(start, end, _Join.SPLICE),
-        scope=scope,
-        reason=candidate.reason,
-        review_required=True,
-        replace_gap=None,
-        kept_sounds=tuple(kept),
-    )
-
-
-def _analyzed_batch(project, rows):
-    """``analyze_candidates`` over pause candidates whose prepared spans are ``rows``
-    (``(track_id, start, end, kept)``); returns the outcomes and the candidates the join
-    gate and fade sizing were paid for."""
-    from unittest.mock import patch
-
+def _resolved(project, rows, *, existing=(), rejected=()):
+    """``_resolve_analyzed_cuts`` over pause candidates analyzed to ``rows``
+    (``(track_id, start, end)``); ``rejected`` indexes were lost in analysis (the join gate).
+    Returns the tracks and spans that stand and the skip counts."""
     from podcast_mcp.edits.fillers import (
         _AnalyzedCut,
         _CutCandidate,
         _CutRejected,
-        analyze_candidates,
+        _resolve_analyzed_cuts,
     )
 
     candidates = [
         _CutCandidate(track_id, start, end, f"pause:{end - start:.2f}s", "pause")
-        for track_id, start, end, _kept in rows
+        for track_id, start, end in rows
     ]
-    prepared = {
-        id(c): _prepared(c, c.start, c.end, kept)
-        for c, (_t, _s, _e, kept) in zip(candidates, rows, strict=True)
-    }
-    finished: list[str] = []
-
-    def finish(_project, job, _defaults, **_kw):
-        finished.append(f"{job.candidate.track_id}:{job.plan.start}")
-        return _AnalyzedCut(
-            hit_id=job.candidate.hit_id,
-            track_id=job.candidate.track_id,
-            start=job.plan.start,
-            end=job.plan.end,
-            reason=job.reason,
+    results = [
+        _CutRejected("join_continuity")
+        if index in rejected
+        else _AnalyzedCut(
+            hit_id=c.hit_id,
+            track_id=c.track_id,
+            start=c.start,
+            end=c.end,
+            reason=c.reason,
             review_required=True,
             crossfade_ms=10,
             cut_confidence=1.0,
             boundary_mode="transcript",
         )
-
-    with (
-        patch(
-            "podcast_mcp.edits.fillers._prepare_candidate",
-            side_effect=lambda _p, c, _d, **_kw: prepared[id(c)],
-        ),
-        patch("podcast_mcp.edits.fillers._finish_candidate", side_effect=finish),
-    ):
-        out = analyze_candidates(
-            project,
-            candidates,
-            {},
-            audio_caches={},
-            speaker_context=None,
-            peer_indexes=None,
-            word_indexes={},
-            max_workers=1,
-        )
-    assert all(isinstance(o, (_AnalyzedCut, _CutRejected)) for o in out)
-    return [o.skip if isinstance(o, _CutRejected) else "kept" for o in out], finished
+        for index, c in enumerate(candidates)
+    ]
+    skips: dict[str, int] = {}
+    kept = _resolve_analyzed_cuts(
+        candidates, results, existing=existing, skip_counts=skips, project=project
+    )
+    return [(r.track_id, r.start, r.end) for r in kept], skips
 
 
-def test_two_tracks_quiet_over_the_same_stretch_propose_it_once_and_score_one_join() -> None:
+def test_two_tracks_quiet_over_the_same_stretch_propose_it_once() -> None:
     project = _two_track_project()
 
-    outcomes, scored = _analyzed_batch(
-        project,
-        [("host", 2.0, 2.6, ()), ("guest", 1.8, 2.9, ())],
-    )
+    kept, skips = _resolved(project, [("host", 2.0, 2.6), ("guest", 1.8, 2.9)])
 
-    assert outcomes == ["shared_pause", "kept"]
-    assert scored == ["guest:1.8"]
-
-
-def test_a_pause_trim_a_longer_twin_holds_a_sound_of_is_scored_and_proposed_too() -> None:
-    project = _two_track_project()
-
-    outcomes, scored = _analyzed_batch(
-        project,
-        [("host", 1.0, 5.0, ()), ("guest", 1.5, 3.0, [(3.0, 3.4)])],
-    )
-
-    assert outcomes == ["kept", "kept"]
-    assert scored == ["host:1.0", "guest:1.5"]
+    assert kept == [("guest", 1.8, 2.9)]
+    assert skips == {"shared_pause": 1}
 
 
 def test_pause_trims_that_do_not_overlap_in_the_session_each_stay() -> None:
@@ -197,40 +146,87 @@ def test_pause_trims_that_do_not_overlap_in_the_session_each_stay() -> None:
     # session's 7.0-7.6, nowhere near the host's 2.0-2.6.
     project.timeline.clips[1].timeline_start = 5.0
 
-    outcomes, _scored = _analyzed_batch(project, [("host", 2.0, 2.6, ()), ("guest", 2.0, 2.6, ())])
+    kept, skips = _resolved(project, [("host", 2.0, 2.6), ("guest", 2.0, 2.6)])
 
-    assert outcomes == ["kept", "kept"]
+    assert kept == [("host", 2.0, 2.6), ("guest", 2.0, 2.6)]
+    assert skips == {}
+
+
+def test_a_twin_stands_when_the_trim_it_was_dropped_for_fails_the_join_gate() -> None:
+    # The guest's longer trim is the one the host's would be dropped for; the join gate
+    # loses it, and the host's trim of the same stretch is not lost with it.
+    project = _two_track_project()
+
+    kept, skips = _resolved(project, [("host", 2.0, 2.6), ("guest", 1.8, 2.9)], rejected=(1,))
+
+    assert kept == [("host", 2.0, 2.6)]
+    assert skips == {"join_continuity": 1}
+
+
+def test_a_twin_stands_when_the_trim_it_was_dropped_for_overlaps_an_applied_cut() -> None:
+    from podcast_mcp.models import EditDecision, EditDecisionType
+
+    project = _two_track_project()
+    applied = EditDecision(
+        id="done",
+        track_id="guest",
+        type=EditDecisionType.REMOVE,
+        start=2.8,
+        end=3.2,
+        reason="filler:um",
+        applied=True,
+    )
+
+    kept, skips = _resolved(project, [("host", 2.0, 2.6), ("guest", 1.8, 2.9)], existing=[applied])
+
+    assert kept == [("host", 2.0, 2.6)]
+    assert skips == {"applied_overlap": 1}
 
 
 def test_a_track_local_pause_trim_is_never_a_twin() -> None:
-    from unittest.mock import patch
-
-    from podcast_mcp.edits.fillers import _CutCandidate, analyze_candidates
+    from podcast_mcp.edits.fillers import _AnalyzedCut, _CutCandidate, _resolve_analyzed_cuts
 
     project = _two_track_project()
     candidates = [
         _CutCandidate("host", 2.0, 2.6, "pause:0.60s", "pause"),
         _CutCandidate("guest", 1.8, 2.9, "pause:1.10s", "pause"),
     ]
-    prepared = [
-        _prepared(candidates[0], 2.0, 2.6, scope="track"),
-        _prepared(candidates[1], 1.8, 2.9),
-    ]
-    with (
-        patch("podcast_mcp.edits.fillers._prepare_candidate", side_effect=prepared),
-        patch(
-            "podcast_mcp.edits.fillers._finish_candidate", side_effect=lambda _p, job, _d, **_k: job
-        ),
-    ):
-        out = analyze_candidates(
-            project,
-            candidates,
-            {},
-            audio_caches={},
-            speaker_context=None,
-            peer_indexes=None,
-            word_indexes={},
-            max_workers=1,
+    results = [
+        _AnalyzedCut(
+            hit_id=c.hit_id,
+            track_id=c.track_id,
+            start=c.start,
+            end=c.end,
+            reason=c.reason,
+            review_required=True,
+            crossfade_ms=10,
+            cut_confidence=1.0,
+            boundary_mode="transcript",
+            scope=scope,
         )
+        for c, scope in zip(candidates, ("track", "session"), strict=True)
+    ]
 
-    assert out == prepared
+    kept = _resolve_analyzed_cuts(candidates, results, project=project)
+
+    assert kept == results
+
+
+def test_every_dialogue_track_is_decoded_for_a_pause_trim_a_transcript_or_not() -> None:
+    # A session ripple removes the same window from every dialogue track, and a pause trim
+    # reads each one. A track with no transcript (a silent second mic) is decoded once with
+    # the run's caches, not afresh on every call.
+    from unittest.mock import patch
+
+    from podcast_mcp.edits.tighten import propose_tighten_edits
+    from podcast_mcp.models import Transcript, TranscriptWord
+
+    project = _two_track_project()
+    project.transcripts = [
+        Transcript(track_id="host", words=[TranscriptWord(text="hi", start=0.0, end=0.3)])
+    ]
+
+    with patch("podcast_mcp.edits.tighten.build_track_audio_caches", return_value={}) as build:
+        propose_tighten_edits(project, {"tighten": {}})
+
+    assert set(build.call_args.args[1]) == {"host", "guest"}

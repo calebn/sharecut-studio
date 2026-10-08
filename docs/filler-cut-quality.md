@@ -99,72 +99,87 @@ date: 2026-10-07
 decided-by: calebn
 evidence:
 - #1055 lab census: 286 of 314 ripple pause trims rejected as breath; 8 of their 572 edges sat in a breath, 147 first edges in air under the breath band, 125 in the previous word's audible tail
-- #1179 rounds 1 to 4 each read a track's quiet off one percentile of its frames and drew the line a fixed number of dB over it (3 dB, and a run had to peak 10 dB over). Rounds 1 to 3 read it off the pause or its surroundings, so where sound fills the pause its quiet sits inside that sound. Round 4 read the room between the track's words and failed the same gate on 22 synthetic scenes with known sounds, because a fixed margin is right in one room and wrong in every other: a breath 5 to 9 dB over a steady room was cut through, a silent mic with a 40 Hz rumble blocked every trim, and a hum or a swinging room lost its air
-- Owner rule (#1179): a breath, a voiced decay or any other own sound may be removed whole, but no edge may land inside one, on any track the ripple cuts; thresholds come from each episode's own measurements, never fixed levels, and the lab tape is evidence, never a tuning target; newly allowed pause trims stay review-only
-- #1179 round 5, synthetic scenes with known sounds (20 trials each, 40 edges): edges inside a sound by broadband level 0 of 40 in every breath, beat and decay scene except two rooms the doc below names (a steady bed under everything the window shows, a rumble that leaks past the band); round 4 had 1 to 2 of 40 in the quiet breath scenes
-- #1179 round 5 audit (independent lanes): a recording offset by 50 ms, 100 ms or 2 s put an edge 20 ms inside a peer's sound because the peer was read at the trim track's own source seconds; the longest of two shared-pause twins could remove a sound the other track's analysis kept (one track's trim split around it, its twin covered it); a room wandering +/-6 dB over a 1.26 s pause left 3 of 40 edges inside a breath (round 4: 0), because the reach was measured from the window's median; a 25 to 110 Hz rumble at -60 dBFS left 13 of 40 edges with breath content above hearing threshold after the render's 80 Hz high-pass; a review filler, a review pause and an auto filler coalesced into one `filler:um:risky` cut
-- #1179 round 6, synthetic scenes with known sounds (20 trials each): wander scenes `wander_breath:6,9`, `5,9,3.0` and `6,9,0.6` 3, 1 and 1 edges inside by broadband level (fine 5 ms sides: 3, 1, 4) before, 0, 0 and 0 (fine 0, 0, 0) after; `rumble:-60` 12 of 38 edges inside and 13 audible after the high-pass before, 0 of 40 and 0 after; the other rows of the round 5 table unchanged in broadband edges inside (0 of 40 everywhere but the steady bed the limits name)
-- #1055 lab after round 6, against main at b785b17d6: 120 pause decisions at medium (main 8, round 5 93), none auto (light 100, aggressive 145); every non-pause decision identical to main at light, medium, aggressive and mute; 38 candidates dropped as `shared_pause`, each nested in the trim that stays within 20 ms (round 5: 26 pairs), and 8 pairs of staying trims overlap, 7 of them by a sound's guard frame (10 to 20 ms) and one (1010.32 to 1011.07 against 1010.60 to 1011.07) by 280 ms of a tail the other track's room reads 2.6 dB lower; 29 trims are new since round 5, 27 of them gaps a peer talks across that now get the air around the talk; the independent detector (raw stems, a 200 Hz to 4 kHz level over each track's local room at 3, 6 and 10 dB) finds 0 edges inside a sound of 10 dB or more and 3 of 6 dB or more at medium (light 3 and 0, aggressive 5 and 1; round 5: 0 at medium), all on the host's denoised floor and on trims round 5 did not propose
-- #1055 lab after round 5, against main at b785b17d6: 93 pause decisions (main 8, round 4 99), none auto; an independent detector (raw stems, a 200 Hz to 4 kHz level over each track's local room at 3, 6 and 10 dB) finds 0 edges inside a sound of 6 dB or more on any of the 186 edges, on its own and its peers' tracks (round 4: 0); every non-pause decision identical to main
+- #1179 rounds 1 to 4 each read a track's quiet off one percentile of its frames and drew the line a fixed number of dB over it (3 dB, and a run had to peak 10 dB over). Where sound fills the pause its quiet sits inside that sound, and a fixed margin is right in one room and wrong in every other: a breath 5 to 9 dB over a steady room was cut through, a silent mic with a 40 Hz rumble blocked every trim, a hum or a swinging room lost its air
+- Owner rule (#1179): a breath, a voiced decay or any other own sound may be removed whole, but no edge may land inside one, on any track the ripple cuts; thresholds come from each episode's own measurements, never fixed levels, and the lab tape and the test harness are evidence, never tuning targets; losing air is the safe direction; newly allowed pause trims stay review-only
+- #1179 round 5 audit (independent lanes): a recording offset by 50 ms, 100 ms or 2 s put an edge 20 ms inside a peer's sound because the peer was read at the trim track's own source seconds; the longest of two shared-pause twins could remove a sound the other track's analysis kept; a room wandering +/-6 dB left 3 of 40 edges inside a breath; a 25 to 110 Hz rumble at -60 dBFS left 13 of 40 edges with breath content above hearing threshold after the render's 80 Hz high-pass; a review filler, a review pause and an auto filler coalesced into one `filler:um:risky` cut
+- #1179 round 6 audit: the room was read from the track's own gaps between its words, which in a conversation are mostly its peers' speech bleeding into its mic, and from a 30 s window around each pause, so one stretch read differently under different pauses; the trim track's own lane was read through the trim's source seconds, so a hole, a join, a replayed stretch or a clip from an extra source recording put the edge in a sound it never read; extra-source clips were read from the track's primary file, not the file the render plays; a pad longer than its span lengthened the timeline; nested twins were dropped before the join gate scored the trim that stays, so a trim the gate then rejected took its twin with it; tonal tails at 100 to 130 Hz and beats under the band passed a room read at 160 Hz and up
+- #1179 round 7, synthetic scenes with known sounds, 34 scenes with a band or tail or beat sound, 20 trials each (1252 edges; the steady-bed scene `pad:-50` is the named limit, 40 of 40 before and after): edges inside a sound by broadband level 64 before, 0 after; edges audible after the render's 80 Hz high-pass (speech at 80 dB SPL, ISO 226 threshold) 171 before, 13 after, the worst 30.7 dB over threshold before (`tonal_tail:100,1`) and 2.6 dB after (`tonal_tail:130,0.5`); the 38-scene round 5 table: third-octave edges inside excluding the steady bed 37 before, 8 after, and 7 before, 1 after at 6 dB; mean share of the pause kept 0.599 before, 0.548 after (0.663 and 0.638 on the 38-scene table), so round 7 gives up 2.5 to 5 points of air for it
+- #1179 round 7, local floor window over the 29 wander, swell and steady scenes (20 trials each): third-octave edges inside a sound 21 at 0.5 s, 11 at 0.35 s, 5 at 0.25 s, 6 at 0.2 s and 5 at 0.15 s, edges audible after the high-pass 15, 7, 3, 4 and 4, at 0.014 less of the air kept from 0.5 s to 0.25 s; with the low band and the sustained-excess rule added, the 0.25 s scenes leave 2 third-octave edges and 1 audible after the high-pass
+- #1179 round 7, session fuzz (own-lane holes, joins, replays, offsets, extra sources; 10 classes, 660 cases): 0 edges 30 ms or more inside a placed sound, 0 loud sounds removed, 0 ripple mismatches, 0 asks that landed off the lane. The two classes that replay a stretch of the trim's own lane or play an extra source (180 cases) were the failures in round 6: 21 no-ops, 8 of 159 trims with an edge inside a placed sound, 1 loud sound removed; round 7: 0 of 170, 0 and 0. An extra-source breath at 10.70 s, read from the track's primary file in round 6, now stops the trim at 10.69 s
+- #1055 lab after round 7, against main at b785b17d6 and round 6: 138 pause decisions at medium (main 8, round 6 120), none auto (light 104, aggressive 160); every non-pause decision identical to main at light, medium, aggressive and mute, and no pause trim is applied by `apply_edits` or Apply eligible on either path; 46 candidates dropped as `shared_pause`, each nested exactly in the trim that stays, and no two staying trims overlap (round 6: 8 pairs); R02, the 8.1 dB over threshold peer edge of round 6, is gone, R46 (1010.60 to 1011.07) is 1010.97 to 1011.01, aggressive 83.39 is gone and 87.60 is 87.65 to 87.67; the independent detector (raw stems, a 200 Hz to 4 kHz level over each track's local room) finds 1 edge in a sound of 6 dB or more at medium (round 6: 3), 4.7 dB under the threshold of hearing in every third octave after the high-pass; of the 70 edges any tier flags, 12 stay above threshold after the high-pass, the worst 3.5 dB at 5 kHz (round 6: 8.1 dB)
+- #1055 lab turn-taking gaps (the 20 round 5 `other_speaking` candidates that are decisions, 27 in round 6): 0 transcript words inside or straddling a trim, 0 peer onsets inside an edge (round 6: 1); at the 10 turn changes among them the gap the trim leaves between the sounds that bound it is 65 to 520 ms, median 125 ms, 7 under 150 ms (round 6, 12 turn changes: 35 to 1280 ms, median 195, 6 under 150 ms), and between transcript words 340 ms or more, never under 150 ms
 enforced-by:
 - tests/test_room_model.py::test_a_normal_room_reads_its_median_and_spread
 - tests/test_room_model.py::test_a_sample_that_is_mostly_sound_reads_the_room_the_tracks_mode_gives_it
 - tests/test_room_model.py::test_a_window_of_bleed_with_no_room_in_it_is_one_sound_to_keep_however_tall_it_reads
-- tests/test_room_model.py::test_a_pause_quieter_than_the_room_between_words_lowers_the_line
+- tests/test_room_model.py::test_a_room_read_between_the_tracks_own_words_is_bleed_a_room_read_in_the_quiet_is_not
+- tests/test_room_model.py::test_a_recording_with_too_little_quiet_falls_back_to_the_low_end_of_its_own_gaps
+- tests/test_room_model.py::test_the_conservative_room_stands_at_the_low_percentile_not_the_normals_median
+- tests/test_room_model.py::test_runs_of_digital_silence_in_a_live_room_are_not_a_gate_and_do_not_move_the_room
+- tests/test_room_model.py::test_a_stretch_gets_the_same_sounds_whatever_surrounds_it
+- tests/test_room_model.py::test_a_frame_must_clear_a_line_four_spreads_over_the_rooms_median
+- tests/test_room_model.py::test_a_breath_a_few_db_over_a_floor_that_jitters_is_a_sound_the_line_cannot_see
+- tests/test_room_model.py::test_a_sustained_sound_with_one_frame_at_the_ceiling_is_kept_whole_though_its_average_is_not
+- tests/test_room_model.py::test_a_click_whose_own_frame_reaches_the_ceiling_stays_whole_though_its_average_does_not
+- tests/test_room_model.py::test_a_sound_is_traced_out_against_the_room_under_it_not_the_recordings
 - tests/test_room_model.py::test_a_mic_that_never_speaks_has_no_speech_to_protect
+- tests/test_room_model.py::test_a_narrow_band_reads_a_wider_spread_from_the_steadiest_room
+- tests/test_session_air.py::test_a_lane_plays_its_clips_in_timeline_order_and_abutting_clips_are_one
+- tests/test_session_air.py::test_a_sound_a_placement_edge_cuts_reaches_a_frame_past_the_edge
+- tests/test_session_air.py::test_the_same_stretch_asked_for_in_two_windows_holds_the_same_sounds
+- tests/test_session_air.py::test_a_quiet_sound_far_from_the_tracks_speech_is_still_removed_whole
+- tests/test_session_air.py::test_a_recording_with_no_duration_in_its_media_is_read_to_where_its_audio_ends
+- tests/test_session_air.py::test_a_track_is_read_through_the_decode_the_run_already_holds
+- tests/test_pause_air_session.py::test_a_peer_is_read_where_the_ripple_removes_it_when_the_tracks_are_offset
+- tests/test_pause_air_session.py::test_material_cut_from_a_peers_lane_contributes_no_sound
+- tests/test_pause_air_session.py::test_a_hole_in_the_trim_tracks_own_lane_hides_no_peer_sound
+- tests/test_pause_air_session.py::test_a_replayed_stretch_of_the_trim_tracks_own_lane_is_read_where_it_plays
+- tests/test_pause_air_session.py::test_a_clip_from_an_extra_source_recording_is_read_from_that_recording
+- tests/test_pause_air_session.py::test_an_extra_source_that_cannot_be_found_is_no_room
+- tests/test_pause_air_session.py::test_both_tracks_judge_a_shared_pause_the_same
+- tests/test_pause_air_session.py::test_a_quiet_sound_is_removed_whole_whichever_pause_asks_about_it
+- tests/test_pause_air_session.py::test_the_same_decay_gets_the_same_air_whichever_pause_asks_about_it
+- tests/test_pause_air_session.py::test_a_track_whose_gaps_are_its_peers_bleed_still_hears_a_murmur_in_the_quiet
+- tests/test_pause_air_session.py::test_a_track_that_speaks_seven_percent_of_the_time_has_a_speech_level_from_its_words
 - tests/test_breath_detect.py::test_a_quiet_breath_over_a_steady_room_is_sound_not_air
 - tests/test_breath_detect.py::test_a_peers_quiet_breath_over_its_steady_room_is_sound_not_air
 - tests/test_breath_detect.py::test_a_slow_decay_into_a_steady_room_is_sound_until_it_reaches_the_room
-- tests/test_breath_detect.py::test_percussion_in_the_pause_splits_the_air
 - tests/test_breath_detect.py::test_room_tone_jittering_over_its_median_is_air_not_sound
 - tests/test_breath_detect.py::test_a_breath_whose_fade_crosses_an_edge_stays_whole
 - tests/test_breath_detect.py::test_a_quiet_breath_goes_whole_or_stays_whole_never_cut_through
-- tests/test_breath_detect.py::test_a_sound_under_the_ceiling_goes_whole_with_the_air_around_it
 - tests/test_breath_detect.py::test_a_word_tail_next_to_a_louder_stretch_is_not_cut_partway
 - tests/test_breath_detect.py::test_a_dip_of_up_to_30_ms_does_not_end_a_sound
 - tests/test_breath_detect.py::test_a_gated_track_keeps_its_word_tails_and_breaths_from_a_pause_trim
 - tests/test_breath_detect.py::test_a_pause_trim_keeps_an_untranscribed_voiced_sound_whole
-- tests/test_breath_detect.py::test_a_peers_onset_at_a_ripple_edge_shrinks_the_trim
 - tests/test_breath_detect.py::test_a_peers_word_inside_the_trim_splits_the_air_as_the_trims_own_would
-- tests/test_breath_detect.py::test_audio_that_cannot_be_read_is_no_room_on_any_track_the_ripple_cuts
-- tests/test_pause_air_session.py::test_material_cut_from_a_peers_lane_contributes_no_sound
-- tests/test_pause_air_session.py::test_a_peer_sound_a_clip_boundary_cuts_reaches_a_frame_past_the_join
-- tests/test_shared_pause.py::test_a_ten_millisecond_overlap_does_not_cost_a_trim_its_two_seconds
-- tests/test_transcript_cuts.py::test_coalesce_never_absorbs_a_session_pause_into_a_cut_that_is_not_its_own
-- tests/test_breath_detect.py::test_a_pause_mostly_its_own_sound_is_not_its_own_air
+- tests/test_breath_detect.py::test_a_pause_a_peer_talks_through_is_skipped
 - tests/test_breath_detect.py::test_a_peer_breathing_through_the_pause_leaves_no_air_on_its_track
-- tests/test_breath_detect.py::test_a_peer_breath_that_ends_inside_the_pause_moves_the_end_edge_out_of_it
-- tests/test_breath_detect.py::test_a_silent_peer_mic_with_only_room_tone_never_blocks_a_pause_trim
 - tests/test_breath_detect.py::test_a_silent_peer_mic_carrying_rumble_never_blocks_a_pause_trim
-- tests/test_breath_detect.py::test_a_fluent_window_widens_to_the_track_before_its_room_is_given_up
-- tests/test_breath_detect.py::test_a_track_fluent_throughout_has_no_room_to_read_and_is_not_no_air
 - tests/test_breath_detect.py::test_a_room_rumble_does_not_hide_a_breath_from_a_pause_trim
+- tests/test_breath_detect.py::test_a_rumble_reaching_110_hz_does_not_hide_a_breath_from_a_pause_trim
+- tests/test_breath_detect.py::test_a_tail_in_the_low_band_the_speech_band_stops_is_still_a_sound_to_a_pause_trim
+- tests/test_breath_detect.py::test_a_breath_over_a_dip_in_a_wandering_room_stays_whole
 - tests/test_breath_detect.py::test_a_decay_within_four_db_of_the_room_is_still_its_sound
-- tests/test_dsp.py::test_speech_band_drops_rumble_keeps_voice_and_a_gates_silence
 - tests/test_dsp.py::test_the_band_fades_in_from_100_to_160_hz
-- tests/test_dsp.py::test_a_rumble_up_to_110_hz_is_38_db_down_and_frame_levels_never_read_louder_than_raw
+- tests/test_dsp.py::test_a_flat_rumble_up_to_110_hz_is_38_db_down_and_frame_levels_never_read_louder_than_raw
+- tests/test_dsp.py::test_the_low_band_passes_a_tonal_tail_at_100_to_140_hz_the_speech_band_stops
 - tests/test_dsp.py::test_frame_level_noise_is_what_stationary_noise_reads
 - tests/test_audio_levels.py::test_band_levels_across_a_block_edge_match_the_levels_of_the_whole_signal
-- tests/test_audio_levels.py::test_band_speech_level_is_one_number_for_the_whole_track_read_once
-- tests/test_pause_air_session.py::test_a_quiet_sound_is_removed_whole_whichever_pause_asks_about_it
-- tests/test_pause_air_session.py::test_a_peer_sound_where_the_span_runs_a_little_past_the_pause_still_moves_the_edge
-- tests/test_room_model.py::test_a_sound_is_traced_out_against_the_room_under_it_not_the_whole_windows
-- tests/test_room_model.py::test_the_line_sits_four_spreads_over_the_rooms_median
-- tests/test_room_model.py::test_a_click_whose_own_frame_reaches_the_ceiling_stays_whole_though_its_average_does_not
-- tests/test_breath_detect.py::test_a_rumble_reaching_110_hz_does_not_hide_a_breath_from_a_pause_trim
-- tests/test_breath_detect.py::test_a_breath_over_a_dip_in_a_wandering_room_stays_whole
-- tests/test_tighten.py::test_two_tracks_quiet_over_the_same_stretch_propose_it_once_and_score_one_join
-- tests/test_shared_pause.py::test_a_twin_is_kept_when_the_longer_trim_holds_a_sound_it_left_whole
-- tests/test_pause_air_session.py::test_a_peer_is_read_where_the_ripple_removes_it_when_the_tracks_are_offset
-- tests/test_pause_air_session.py::test_both_tracks_judge_a_shared_pause_the_same
-- tests/test_transcript_cuts.py::test_coalesce_keeps_a_pause_trim_waiting_for_review_apart_from_the_filler_beside_it
+- tests/test_audio_levels.py::test_each_block_of_levels_is_read_once_however_often_it_is_asked_for
+- tests/test_shared_pause.py::test_a_trim_nested_in_a_longer_one_on_another_track_is_dropped
+- tests/test_shared_pause.py::test_a_ten_millisecond_overlap_does_not_cost_a_trim_its_two_seconds
+- tests/test_shared_pause.py::test_a_chain_of_partial_overlaps_keeps_every_trim
+- tests/test_shared_pause.py::test_twins_are_compared_on_the_session_clock_not_in_source_seconds
+- tests/test_tighten.py::test_two_tracks_quiet_over_the_same_stretch_propose_it_once
+- tests/test_tighten.py::test_a_twin_stands_when_the_trim_it_was_dropped_for_fails_the_join_gate
+- tests/test_tighten.py::test_a_twin_stands_when_the_trim_it_was_dropped_for_overlaps_an_applied_cut
+- tests/test_transcript_cuts.py::test_coalesce_never_absorbs_a_session_pause_into_a_cut_that_is_not_its_own
 - tests/test_transcript_cuts.py::test_coalesce_never_chains_a_review_filler_a_pause_and_an_auto_filler_into_one_cut
-- tests/test_fillers.py::test_only_a_pause_trim_is_cut_down_to_its_air
-- tests/test_fillers.py::test_a_pause_trim_with_nothing_to_cut_is_skipped_under_the_reason_it_has
 - tests/test_fillers.py::test_every_pause_trim_is_review_only_and_one_that_moved_says_so
-- tests/test_fillers_voicing.py::test_clean_dead_air_is_proposed_for_review_and_applies_on_approval
-- tests/test_retained_breath_ends.py::test_a_peers_onset_at_a_ripple_edge_shrinks_the_pause_trim_for_review
-- tests/test_retained_breath_ends.py::test_a_splice_cut_through_a_quiet_voiced_onset_is_rejected_as_breath
+- tests/test_fillers.py::test_only_a_pause_trim_is_cut_down_to_its_air
+- tests/test_tighten_apply_eligible.py::test_a_pause_trim_is_listened_to_one_by_one_and_never_eligible
+- tests/test_tighten_apply_eligible.py::test_studio_view_carries_the_same_harsh_and_listen_one_by_one_flags
+- gui/web/src/utils/tightenHits.test.ts::never batches a pause trim, whether or not harsh cuts are avoided
 - tests/test_benchmark_tighten_smoke.py::test_each_kind_of_decision_stays_within_the_rebuild_bound_alone
 -->
 
@@ -176,105 +191,105 @@ peer's onset all stay whole: a sound is either removed whole or left whole. Othe
 splices and mutes keep the rules in **Breath co-removal**; a pause trim does not take
 that path.
 
-Air is a track's room tone, and the line between room and sound is the room's own, never
-a level chosen in advance. Rounds 1 to 4 of #1179 each fixed a margin (3 dB over a
-percentile, a peak 10 dB over it) and each failed the same gate, because the right margin
-is a property of the room: a dB or two over a steady one, several dB over one that
-swings. The rule reads it from the track (`edits/room_model.py`) and applies
-to every track the ripple cuts, the trim's own and each peer's:
+Air is a recording's room tone, and the line between room and sound is the room's own,
+never a level chosen in advance. Rounds 1 to 4 of #1179 each fixed a margin and each failed
+the same gate, because the right margin is a property of the room: a dB or two over a
+steady one, several dB over one that swings. The rule reads it from the recording
+(`edits/session_air.py`, `edits/room_model.py`) and applies it to every track the ripple
+cuts, the trim's own and each peer's:
 
-- **The band.** Levels are read in the speech band (`frame_speech_band_db` in
-  `util/dsp.py`): a raised-cosine high-pass from 100 Hz (stopped) to 160 Hz (passed), and a
-  frame never reads louder than it does unfiltered, so the filter's ringing is no sound. A
-  rumble or desk thump can sit 10 dB over a room's broadband air, and read raw it hides
-  every breath and fade that rides on it. Rounds 1 to 5 started the band at 50 Hz and
-  passed it from 120 Hz, which let 90 to 110 Hz of a rumble through: a 25 to 110 Hz rumble
-  at -60 dBFS put the room 7 dB high, swinging, and left the line 15 dB over the true room.
-  A rumble up to 110 Hz is now 38 dB down. A breath sits at about 300 Hz to 3.5 kHz and a
-  voice keeps its harmonics, so what the band costs is a sound carried by content under
-  160 Hz alone (the limits below). Of mains hum's harmonics, 100 Hz is removed, 120 Hz is
-  12 dB down and 150 Hz passes (0.6 dB down), so what is left of a hum shows in the levels
-  as the room's own spread. Every comparison in the rule, the room, the pause, the speech
-  level and the ceiling, reads this one band: a silent mic carrying only rumble has the
-  same level in its speech as in its room.
+- **One reading per recording.** A recording's room, speech level and sounds are read once
+  over the whole recording, under a lock, and a window only selects among them
+  (`SessionAir.sounds_in`). A stretch therefore has the same sounds whichever pause, track
+  or thread asks about it, which a window read around each pause could not give.
+- **The room** is the recording's levels where nobody in the session is speaking: the
+  frames outside every dialogue track's live words (each padded 50 ms), laid on the session
+  clock through each track's lane. There a mic holds its room tone and nothing else,
+  whatever its peers did a moment before. In a conversation a track's own gaps between its
+  words are mostly its peers' speech bleeding into its mic, so a room read from them sits
+  tens of dB too high. A recording with under half a second of such frames falls back to its
+  own gaps, read conservatively at their 5th percentile itself rather than as a normal's
+  median (`read_conservative_room`), so it can only read too low (more sound, less air);
+  one with neither is `no_room`. A recording a gate holds at digital silence for at least
+  half of those frames has digital silence for a room, so any live frame over it is sound;
+  a few runs of digital zero in a live floor (a denoiser's mute, a gap in the file; 16% of
+  one lab mic's quiet) are not a gate. The room sits at the 5th percentile of the sample's
+  smoothed levels read as a normal's median, and its **spread** is the lesser of two
+  readings: the 5th and 25th percentiles with what lies over three spreads clipped away,
+  and the recording's densest low mode (sound can only thin a mode, so a sample that is
+  mostly sound or bleed still gives one). Neither is less than stationary noise averaged
+  over 50 ms reads in that band (`least_spread`).
+- **The speech level** is the 90th percentile of the levels of the frames inside the track's
+  own live words, read once (`speech_level_db`), not of all live frames: a track that sits
+  in a noisy room, or carries a peer's bleed between its words, would otherwise read its
+  floor as speech. A track with under half a second of words has none.
+- **The bands.** Levels are read in two bands at once (`util/dsp.py`). The speech band is
+  a raised-cosine high-pass from 100 Hz (stopped) to 160 Hz (passed): a rumble or desk
+  thump can sit 10 dB over a room's broadband air and hide every breath riding on it. It
+  loses 23.5 dB at 110 Hz, 12 dB at 120 Hz, 6 dB at 130 Hz, 2.5 dB at 140 Hz and 0.6 dB at
+  150 Hz; a flat 25 to 110 Hz rumble is 38.5 dB down, and one that is not flat passes the
+  part of it near 100 Hz. The low band is a Gaussian around 120 Hz (sigma 30 Hz) with the
+  least ringing of the shapes tried (a raised-cosine band of the same reach smeared a sound
+  by 140 ms where this one smears 50): it reads 120 Hz at 0 dB, 110 and 100 Hz at 0.5 and
+  1.9 dB down, 140 Hz at 1.9 down, 80 and 160 Hz at 7.7 down and 60 Hz at 17.4 down. It sees
+  the tonal tails (a room mode ringing after a word) and beats (two hums) that the speech
+  band is half deaf to, and its own room and speech level are read in it. A sound in either
+  band is a sound; the low band does not give up a whole window to "cannot tell air from
+  sound", because its speech level is not the speech band's. A frame never reads louder than
+  it does unfiltered, so a filter's ringing is no sound.
 - **The levels** are the 10 ms frames averaged in power over 50 ms (`smoothed`). A frame
   of noise wanders by a dB or more and a decay moves by tenths of a dB a frame, so the
-  average is what lets the line sit close enough to the room to catch the decay's tail. It
-  spreads a loud sound two frames either way, which is the sound's own margin.
-- **The room** is the frames outside the track's own words (padded 50 ms) and outside the
-  pause itself, which sound may fill, over the 5 s each side. It sits at the sample's 5th
-  percentile, read as a normal's median, and its **spread** is the lesser of two readings.
-  The first reads the sample's 5th and 25th percentiles as a normal's and clips what is
-  more than three spreads over its median (the tail of the word before, the breath
-  after), until the same frames are left. The second reads the track's densest low mode
-  over the 30 s each side, whose half-height width is its spread; sound can only thin a
-  mode, so a window that is mostly speech or bleed still gives it. Neither is ever less
-  than stationary noise averaged over 50 ms reads (`frame_level_noise_db`, 0.22 dB). A
-  gate's digital silence counts as a level, so a gated track's room is its silence and
-  any live frame over it is sound.
+  average is what lets the line sit close enough to the room to catch the decay's tail.
 - **The line** is four spreads over the room's median: a room whose high side mirrors its
   low side crosses it in one frame of 30,000. A sound is the run around a crossing that
-  stays over two spreads (its reach), with dips of up to 50 ms of the raw levels bridged
-  (a breath's or a decay's level flutters for a frame or two, and creaky voice pulses
-  about 20 times a second), and carries a guard frame either side so no edge touches it. A
-  steady room has a tight line and shows a breath 5 dB over it; a room that swings by 3 dB
-  frame to frame has a line 5 dB up and calls none of its air a sound.
-- **A room that wanders.** A room that drifts by several dB over a second or two (pumping,
-  HVAC, a compressor's release) reads wide over the whole window, so where it dips its line
-  and reach sit several dB over the room under a breath, and the breath's first or last
-  100 ms is read as air. Each frame's line and reach are therefore lowered further where
-  the room within half a second of it is quieter: the levels' 5th percentile there, read as
-  a normal's median, with the spread the levels show over that running floor (the wander
-  taken out), every 0.1 s and drawn straight between. The lower line of the two stands, so
-  sound never raises it and a stretch that is all sound keeps the window's. A window of a
-  second either side did not follow a swing of a second or two; tracing each sound down to
-  its feet gave the same edges but cost 2 to 4 points of air in every steady scene.
-- **The pause's own quiet** lowers the line when it is below the room: the pause is read
-  the same way, with the same spread, and the lower line of the two stands. A gate or an
-  expander closes further in a long pause than in the short gaps the room is read from.
-  Sound in either sample only raises its line, so a pause that is mostly sound cannot
-  raise the other's.
-- **A window too crowded to read.** Under half a second of room frames in the 5 s each side
-  (a fluent speaker, words 100 ms apart) widens the window to 30 s each side, still between
-  the track's own words. A track with under half a second of room frames even then, or
-  whose audio cannot be read, is skipped, as `no_room`, which says nothing about whether
-  the pause holds air. That holds for every track the ripple cuts, a peer's included: an
-  edge on a track that cannot be read cannot be checked.
-- **The ceiling.** The track's speech level is one number, the 90th percentile of the live
-  frames of the whole track in the same band, read once (`BandLevels.speech_db`), not of
-  the frames around each pause: a 49 s pause and a 1 s pause around the same blip would
-  otherwise give two ceilings, and one track's trim would remove whole a sound the other's
-  analysis kept. A sound that reaches 40 dB under it
-  is kept whole and splits the air; a quieter sound is removed whole when the trim holds
-  all of it and kept whole when it crosses an edge. A track speaks when its speech level
-  stands at least 7 dB (the nearest a breath sits under speech) out of its quietest live
-  frames. A track that speaks and whose line reaches within 40 dB of its speech cannot
-  tell air from sound, because breaths sit down to there: its whole window is one sound.
-  That is a room within 40 dB of the speech, or a peer talking through the pause, and it
-  holds no air. A mic that never speaks nearby and carries only its room tone has no
-  speech to protect, and its room tone is air. A track with under half a second of live
-  frames has no speech level: the trim's own track is skipped as `no_room`, and every
-  sound on a peer's is kept whole (it splits the air).
-- **Peers.** A session ripple removes the same stretch of session time from every
-  dialogue track, so one rule judges every track, the trim's own included: a sound that
-  reaches 40 dB under its track's speech level splits the air whichever track it is on,
-  and a quieter one is removed whole or kept whole. A peer's word wholly inside the span
-  splits the air as the trim's own would (the speech guard and the interior checks still
-  judge what is left). A recording sits on the timeline wherever ingest or alignment put
-  it, so a peer is read where the ripple removes it: through its own clips, at the source
-  seconds that back the trim's session window, not at the trim track's seconds (with a
-  recording 50 ms off, the old read put an edge 20 ms inside a peer's sound). Where a
-  peer's lane holds no clip it has no audio and no sound, a sound a clip boundary cuts
-  reaches one frame past the join, and a peer that cannot be read is `no_room`.
+  stays over two spreads (its reach), with dips of up to 50 ms bridged (a breath's or a
+  decay's level flutters for a frame or two, and creaky voice pulses about 20 times a
+  second), and carries a guard frame either side so no edge touches it. A breath that
+  sits only a few dB over a floor that jitters (a denoiser's, 1.7 dB frame to frame) never
+  crosses a line seven dB up; it stays up, though: **a stretch of at least 80 ms of
+  frames all over the room by a spread, whose mean excess is four spreads of a mean of
+  that many correlated frames, is a sound however low it runs.** A noise floor's mean
+  over thirty frames does not wander that far, a breath's does.
+- **A room that wanders.** A room that drifts by several dB over a second or two reads wide
+  over the whole recording, so where it dips its line and reach sit several dB over the
+  room under a breath. Each frame's line and reach are therefore lowered further where the
+  room within a quarter second of it is quieter: the levels' 5th percentile there, read as
+  a normal's median, with the spread the levels show over that running floor, every 0.1 s
+  and drawn straight between. The lower line stands, so sound never raises it. A quarter
+  second, not half: over 29 wander, swell and steady scenes 0.5 s left 21 edges inside a
+  sound in some third octave (15 audible after the render's high-pass) and 0.25 s left 5
+  (3 audible), for 0.014 of the air; 0.15 and 0.2 s left 5 and 6 (4 audible) and no more
+  air, 0.35 s left 11 (7).
+- **The ceiling.** A sound that reaches 40 dB under the track's speech level is kept whole
+  and splits the air; a quieter sound is removed whole when the trim holds all of it and
+  kept whole when it crosses an edge. A track speaks when its speech level stands at least
+  7 dB (the nearest a breath sits under speech) out of its quietest live frames. A speech
+  band that speaks and whose line reaches within 40 dB of its speech cannot tell air from
+  sound, because breaths sit down to there: the whole recording is one sound to keep. That
+  is a room within 40 dB of the speech, and it holds no air. A mic that never speaks nearby
+  and carries only its room tone has no speech to protect, and its room tone is air.
+- **Peers, lanes and sources.** A session ripple removes the same stretch of session time
+  from every dialogue track, so one rule judges every track, the trim's own included, each
+  through its own lane and never another's (`lane_placements`): the clips of a lane laid on
+  the session clock, with holes, joins, offsets and replayed stretches as the render plays
+  them. The trim's own track is read that way too, so a hole in its lane hides no peer's
+  sound, and a stretch it replays is read where it plays. A clip that plays an extra
+  source recording is read from the file the render resolves (`resolve_clip_audio_path`),
+  not from the track's primary file; one that cannot be found is `no_room`. Where a peer's
+  lane holds no clip it has no audio and no sound, a sound a clip boundary cuts reaches one
+  frame past the join, and a peer that cannot be read is `no_room`. A peer's word wholly
+  inside the span splits the air as the trim's own would.
 - **One decision per stretch of shared air.** The same rule on every track makes two
   tracks that are both quiet over a stretch propose the same trim, each at its own source
   seconds. `shared_pause_twins` (`edits/shared_pause.py`) drops a session pause trim as
   `shared_pause` only when another track's longer trim covers all of it, within one 10 ms
-  frame (two tracks' frame grids sit at arbitrary offsets), and holds none of the sounds
-  that had to stay whole in the dropped one's analysis. Anything else (two trims that
-  overlap by 10 ms, a chain of partial overlaps, a longer trim that runs over a sound its
-  twin kept) is a different cut and both stay: losing air is safe, removing a sound a twin kept is not.
-  The check runs before the join gate scores anyone, so a copy is never scored.
+  frame (two tracks' frame grids sit at arbitrary offsets), on the session clock. Because
+  every track reads the same sounds, a covered twin holds no sound the longer trim left
+  whole. Anything else (two trims that overlap by 10 ms, a chain of partial overlaps) is a
+  different cut and both stay: losing air is safe, removing a sound a twin kept is not.
+  The drop happens after each trim is resolved, so the join gate scores the trim that
+  stays; a twin whose kept trim the gate, the applied-overlap check or an acoustic
+  replacement then rejects gets its own chance rather than being lost with it.
 - **Review.** Every pause trim is review-only until the owner's listening check (#1055),
   whether its edges moved or not. `:air_edges` marks the ones whose span differs from the
   one pacing proposed, whether the air rule moved it or a kept-voice walk did before the
@@ -282,53 +297,75 @@ to every track the ripple cuts, the trim's own and each peer's:
   reason prefixes (`REVIEW_ONLY_REASON_PREFIXES`, beside repetition, restart and acoustic
   fillers), so coalescing never merges a pause trim into a filler, a track-local cut or an
   NL cut, and never strips its label, its scope or its `:air_edges`; the filler beside a
-  trim stays auto-applicable. `apply_edits` applies `filler:` only, and Studio's Apply
-  eligible never batches a pause trim, whatever Avoid harsh cuts says: the editor listens
-  to each one and applies it alone. A trim with nothing left is skipped as `no_air`.
+  trim stays auto-applicable. `apply_edits` applies `filler:` only. The server marks each
+  pause trim `listen_one_by_one` (`tighten_hits.py`), and Studio's Apply eligible takes
+  that flag, not a reason prefix it parses itself: it never batches a pause trim, whatever
+  Avoid harsh cuts says, and a hit the server never classified is not batched either. The
+  editor listens to each trim and applies it alone. A trim with nothing left is skipped as
+  `no_air`.
+- **A pad longer than the span.** When earlier ripples left the next word less retained
+  air than pacing's floor, the trim pads the shortfall with silence. What the trim removes
+  less that pad must still clear the minimum a cut may remove (`too_short` otherwise), and
+  the check runs on the span the air rule leaves, so a trim never lengthens the timeline.
 
 What this means for listening:
 
-- An edge sits inside no sound that rises out of its track's room in the speech band, on
+- An edge sits inside no sound that rises out of its recording's room in either band, on
   the trim's track or a peer's, and a guard frame clear of the stretch that stays over two
-  spreads. What is under that is not seen: a decay's last stretch within two spreads of
-  the median (a dB or two in a steady room) is the last thing the rule cannot see, and a
-  tonal decay can still be audible in a narrow band under it.
+  spreads. What is under that is not seen: the last stretch of a decay within two spreads
+  of the room's median (a dB or two in a steady room) is the last thing the rule cannot
+  see, and a tonal decay can still be audible in a narrow band under it. In the synthetic
+  scenes that is a 160 Hz tonal tail (6 of 20 trims audible after the high-pass, at most 2.1
+  dB over threshold) and a slow tail at 120 or 130 Hz decaying half a dB per 10 ms (5 and 2
+  of 20, at most 2.6 dB).
 - A sound quieter than 40 dB under the speech level may be gone whole (a breath 45 dB
   down between two stretches of air). A sound that reaches that level stays, even
   mid-pause.
-- A track whose room tone sits within 40 dB of its speech (a noisy room, a quiet
+- A recording whose room tone sits within 40 dB of its speech (a noisy room, a quiet
   speaker, a busy bleed-filled stretch) gets few or no pause trims. A turn-taking gap
   that a peer talks across gets only the air before and after the talk, never the
   talk: a peer's sound that reaches the ceiling splits the air as the trim's own would.
+- Round 7 keeps less air than round 6 for this: 138 pause decisions at medium against 120
+  on the lab tape, but the synthetic scenes keep 2.5 to 5 points less of each pause, and
+  some trims are shorter or gone (R02).
 
 Limits. The rule reads levels, so it can only see what a level shows:
 
-- A bed that is steady under everything the window shows is the room. The synthetic
+- A bed that is steady under everything the recording shows is the room. The synthetic
   chord 50 dB under the speech (8 dB over the true room, continuous) is air by this
-  rule; one within 40 dB of the speech is not (the ceiling). Nothing in a window's levels
-  tells a steady bed from a steady hum.
-- Rumble inside the band is room. A 100 to 160 Hz rumble at -60 dBFS over a -74 dBFS room
-  leaves 17 of 20 pauses with no air, and none had an edge inside a breath; rumble below
-  110 Hz is 38 dB down and does not reach the levels.
-- A room that wanders gives up air. Its swing over its half-second floor is sound, so a
-  +/-6 dB wander keeps 0.42 to 0.78 of a pause (round 5: 0.55 to 0.84) and a short pause in
-  one keeps 0.45 of it.
+  rule; one within 40 dB of the speech is not (the ceiling). Nothing in a recording's
+  levels tells a steady bed from a steady hum.
+- Rumble inside the speech band is room. A 100 to 160 Hz rumble at -60 dBFS over a -74 dBFS
+  room leaves all 20 of 20 trials with no air (round 6: 17 of 20), none with an edge inside
+  a breath; a flat rumble up to 110 Hz is 38.5 dB down and does not reach the speech-band
+  levels, though the low band reads what is near 100 Hz.
+- A room that wanders gives up air. Its swing over its quarter-second floor is sound, so a
+  +/-6 dB wander keeps 0.36 of a pause (round 6: 0.42) and a short pause in one keeps 0.24.
 - A room that swings flat through a range, with no peak to read, reads narrow: the upper
   part of the swing is called sound and the air there is given up, which errs toward
   keeping sound.
-- A sound carried only by content under 160 Hz reads low: 120 Hz by 12 dB, 130 Hz by 6,
-  140 Hz by 2.5 (a voice keeps its harmonics, and a 140 Hz voice reads 1.7 dB low). A pure
-  120 Hz tonal tail decaying 1 dB per 10 ms into a -70 dBFS room had the trim start inside
-  it on 8 of 20 trials, up to 4.4 dB over the room (at 0.5 dB per 10 ms, 18 of 20; at
-  130 Hz, 0 and 4 of 20; from 140 Hz, none); round 5's band, from 50 Hz, had none. A deep
-  voice's speech level also reads 1 to 8 dB lower in this band, so it keeps more sounds
-  whole and reaches the "cannot tell air from sound" rule sooner. Measured in real renders of the 48 edges the full-band detector flags at medium, the content under 200 Hz is 10.2 to 32.3 dB below the ISO 226 threshold of hearing after the render's 80 Hz high-pass (9.4 to 30.0 dB below without it), with the mix's speech at 80 dB SPL (round 5: 15.6 to 32.3).
-- Lab detectors disagree about quiet air on the host's denoised floor, which wanders by
-  10 dB: the verifier's gap-local detector (its quiet is the mode of the own word gap)
-  puts one trim start 20 ms inside a word's tail and takes a peer's 180 ms of silence
-  between two phrases for a sound, where the independent detector finds neither.
+- Content under 100 Hz that is not tonal, and a tonal sound the low band weights less (80 or
+  160 Hz: 7.7 dB down; 60 Hz: 17.4 dB down), reads low. A 100 to 130 Hz tonal tail
+  decaying 1 dB per 10 ms left 14 to 20 of 20 trims audible after the high-pass in round 6
+  and 0 in round 7; at 160 Hz 11 of 20 became 6. A deep voice's speech level reads 1 to 8
+  dB lower in the speech band, so it keeps more sounds whole and reaches the "cannot tell
+  air from sound" rule sooner.
+- Sounds on a denoised floor. The lab host's floor is denoised: it jitters by 1.7 dB or
+  more frame to frame and dips to digital zero. A word's last tail or a breath that stays
+  within about four spreads of it and under 80 ms is the floor to any level rule. Six edges
+  on five of the 138 trims at medium sit there by the verifier's own-track detector (two
+  inside a word's tail, four in a fade), each with the detector's wide-band reading at most
+  0.2 dB over the room; measured in real renders (speech at 80 dB SPL, ISO 226 threshold,
+  after the render's 80 Hz high-pass) all six are below threshold in every third octave
+  (-1.5 to -9.2 dB at the worst band). Over all 70 edges any detector tier flags at medium,
+  12 sit above threshold, the worst 3.5 dB at 5 kHz (the end edge of the trim at 12.92 to
+  13.00 s, 800 ms after a word and 1.26 s before the next, flagged by the full-band 3 dB
+  tier alone) and 1.5, 1.1, 1.0 and 1.0 dB at the next four. Lab detectors also disagree
+  about quiet air on that floor, which wanders by 10 dB.
+- A track with its audio unreadable or its extra source missing is skipped as `no_room`,
+  not guessed.
 
-Pending: the owner's listening check of the #1055 round-6 clips.
+Pending: the owner's listening check of the #1055 round-7 clips.
 
 ## Mute vs cut
 

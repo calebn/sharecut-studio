@@ -1,4 +1,9 @@
-"""A pause trim two tracks both propose is decided once, and never by dropping air a twin kept."""
+"""A pause trim two tracks both propose is decided once, by the longer one (#1055).
+
+Both tracks judge a stretch of shared air against the same sounds (``edits/session_air.py``),
+so the longer trim holds nothing the shorter one left whole. The shorter is dropped only
+when the longer lies over all of it; anything else is a different cut and both stay.
+"""
 
 from __future__ import annotations
 
@@ -32,15 +37,15 @@ def _project(**placed_at: float) -> EpisodeProject:
     return project
 
 
-def _claim(track_id: str, start: float, end: float, kept=()) -> PauseClaim:
-    return PauseClaim(track_id, start, end, tuple(kept))
+def _claim(track_id: str, start: float, end: float) -> PauseClaim:
+    return PauseClaim(track_id, start, end)
 
 
 def test_a_trim_nested_in_a_longer_one_on_another_track_is_dropped() -> None:
     project = _project(host=0.0, guest=0.0)
-    claims = [_claim("host", 2.0, 2.6), _claim("guest", 1.8, 2.9)]
 
-    assert shared_pause_twins(project, claims) == {0}
+    assert shared_pause_twins(project, [_claim("host", 2.0, 2.6), _claim("guest", 1.8, 2.9)]) == {0}
+    assert shared_pause_twins(project, [_claim("guest", 1.8, 2.9), _claim("host", 2.0, 2.6)]) == {1}
 
 
 def test_equal_twins_keep_the_first_proposed() -> None:
@@ -52,16 +57,27 @@ def test_equal_twins_keep_the_first_proposed() -> None:
 
 def test_a_ten_millisecond_overlap_does_not_cost_a_trim_its_two_seconds() -> None:
     project = _project(host=0.0, guest=0.0)
-    claims = [_claim("host", 1.0, 3.0), _claim("guest", 2.99, 4.99)]
 
-    assert shared_pause_twins(project, claims) == set()
+    overlapping = [_claim("host", 1.0, 3.0), _claim("guest", 2.99, 4.99)]
+    same_stretch = [_claim("host", 1.0, 3.0), _claim("guest", 1.0, 3.0)]
+
+    assert (
+        shared_pause_twins(project, overlapping),
+        shared_pause_twins(project, same_stretch),
+    ) == (
+        set(),
+        {1},
+    )
 
 
 def test_a_chain_of_partial_overlaps_keeps_every_trim() -> None:
     project = _project(host=0.0, guest=0.0, third=0.0)
-    claims = [_claim("host", 1.0, 2.0), _claim("guest", 1.9, 4.0), _claim("third", 3.9, 5.0)]
 
-    assert shared_pause_twins(project, claims) == set()
+    chain = [_claim("host", 1.0, 2.0), _claim("guest", 1.9, 4.0), _claim("third", 3.9, 5.0)]
+    nested = [_claim("host", 1.0, 5.0), _claim("guest", 1.9, 4.0), _claim("third", 3.9, 4.5)]
+
+    assert shared_pause_twins(project, chain) == set()
+    assert shared_pause_twins(project, nested) == {1, 2}
 
 
 @pytest.mark.parametrize(("protrusion", "dropped"), [(0.0, {1}), (0.009, {1}), (0.02, set())])
@@ -74,27 +90,13 @@ def test_a_twin_that_leaves_its_cover_by_more_than_a_frame_is_another_cut(
     assert shared_pause_twins(project, claims) == dropped
 
 
-def test_a_twin_is_kept_when_the_longer_trim_holds_a_sound_it_left_whole() -> None:
-    # The guest's trim ends at 3.0 because a sound starts there; the host's longer trim
-    # runs on over it. The host's trim does not protect what the guest's did.
-    project = _project(host=0.0, guest=0.0)
-    claims = [_claim("host", 1.0, 5.0), _claim("guest", 1.5, 3.0, kept=[(3.0, 3.4)])]
-
-    assert shared_pause_twins(project, claims) == set()
-
-
-def test_a_twin_is_dropped_when_the_sounds_it_left_whole_lie_outside_the_longer_trim() -> None:
-    project = _project(host=0.0, guest=0.0)
-    claims = [_claim("host", 1.0, 5.0), _claim("guest", 1.5, 3.0, kept=[(0.5, 0.9), (5.2, 5.6)])]
-
-    assert shared_pause_twins(project, claims) == {1}
-
-
 def test_trims_on_one_track_and_claims_that_are_not_session_pauses_are_left_alone() -> None:
     project = _project(host=0.0, guest=0.0)
-    claims = [_claim("host", 2.0, 3.0), None, _claim("host", 2.2, 2.6)]
+    one_track = [_claim("host", 2.0, 3.0), None, _claim("host", 2.2, 2.6)]
+    two_tracks = [_claim("host", 2.0, 3.0), None, _claim("guest", 2.2, 2.6)]
 
-    assert shared_pause_twins(project, claims) == set()
+    assert shared_pause_twins(project, one_track) == set()
+    assert shared_pause_twins(project, two_tracks) == {2}
 
 
 def test_twins_are_compared_on_the_session_clock_not_in_source_seconds() -> None:

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable, Iterable, Sequence
+from dataclasses import dataclass
+from typing import Protocol
 
 import numpy as np
 
@@ -72,14 +74,71 @@ def frame_rms_db(
     return out
 
 
+class BandShape(Protocol):
+    """The gain a zero-phase band applies, and how much white noise it passes."""
+
+    def gain(self, freqs: np.ndarray) -> np.ndarray:
+        """Amplitude gain at ``freqs`` (Hz)."""
+        ...
+
+    def noise_bandwidth(self, sample_rate: int) -> float:
+        """The width (Hz) of a flat band that passes as much white noise."""
+        ...
+
+
+@dataclass(frozen=True)
+class HighPassBand:
+    """A raised-cosine high-pass: stopped at ``low_stop`` Hz, passed from ``low_pass``.
+
+    The edge is a half cosine, so a tone on the ramp reads ``(1 - cos(pi * x)) / 2`` of its
+    amplitude, ``x`` the share of the ramp it is across.
+    """
+
+    low_stop: float
+    low_pass: float
+
+    def gain(self, freqs: np.ndarray) -> np.ndarray:
+        rise = np.clip((freqs - self.low_stop) / (self.low_pass - self.low_stop), 0.0, 1.0)
+        return (1.0 - np.cos(np.pi * rise)) / 2.0
+
+    def noise_bandwidth(self, sample_rate: int) -> float:
+        # A half-cosine ramp passes 3/8 of its width.
+        return (self.low_pass - self.low_stop) * 3.0 / 8.0 + (sample_rate / 2.0 - self.low_pass)
+
+
+@dataclass(frozen=True)
+class GaussianBand:
+    """A band whose gain is a Gaussian of frequency: ``exp(-(f - center)^2 / (2 sigma^2))``.
+
+    A narrow band rings for as long as its edges are sharp: a raised-cosine one from 80 to
+    160 Hz read as sound for 140 ms past a loud word that had stopped. A Gaussian has no
+    sidelobes, its impulse response a Gaussian envelope a few ``1 / (2 pi sigma)`` seconds
+    long, and the same band read 50 ms.
+    """
+
+    center: float
+    sigma: float
+
+    def gain(self, freqs: np.ndarray) -> np.ndarray:
+        return np.exp(-((freqs - self.center) ** 2) / (2.0 * self.sigma**2))
+
+    def noise_bandwidth(self, sample_rate: int) -> float:
+        return self.sigma * math.sqrt(math.pi)
+
+
 # The speech band: a raised-cosine high-pass, stopped at 100 Hz and passed from 160 Hz.
 # Room rumble reaches past 100 Hz, and what a band passes of it is room the levels read
 # (a 25-110 Hz rumble put the room 7 dB high through a band from 120 Hz, swinging, and a
 # breath 12 dB over the true room stayed under the line). A breath sits at 300 Hz to
 # 3.5 kHz; a voice keeps its harmonics; only a sound carried by content under 160 Hz alone
 # reads lower (130 Hz by 6 dB, 120 Hz by 12).
-_BAND_STOP_HZ = 100.0
-_BAND_PASS_HZ = 160.0
+SPEECH_BAND = HighPassBand(low_stop=100.0, low_pass=160.0)
+# The low band reads what the speech band cannot: a tonal tail or a beat at 100 to 160 Hz
+# (a room mode ringing after a word, two hums beating) that is audible after the render's
+# 80 Hz high-pass at conversation level. A Gaussian around 120 Hz, 30 Hz wide: 2 dB down at
+# 100 and 140 Hz, 8 dB at 80 and 160, 17 at 60. It only adds sounds; its room, line and
+# ceiling are its own (``edits/room_model.py``).
+LOW_BAND = GaussianBand(center=120.0, sigma=30.0)
 
 
 def next_fast_len(n: int) -> int:
@@ -102,30 +161,32 @@ def next_fast_len(n: int) -> int:
     return best
 
 
-def speech_band(samples: np.ndarray, sample_rate: int) -> np.ndarray:
-    """``samples`` with the rumble below the speech band removed.
+def band_filter(samples: np.ndarray, sample_rate: int, band: BandShape) -> np.ndarray:
+    """``samples`` through ``band``: zero-phase, applied over the whole array.
 
-    A raised-cosine high-pass from 100 Hz (stopped) to 160 Hz (passed), applied zero-phase
-    over the whole array. A noise gate's digital silence stays digital silence: the
-    filter's ringing is not let into the gate's zeros.
+    A noise gate's digital silence stays digital silence: the filter's ringing is not let
+    into the gate's zeros.
     """
     if samples.size < 64:
         return samples
     size = next_fast_len(samples.size)
     spectrum = np.fft.rfft(samples, n=size)
-    freqs = np.fft.rfftfreq(size, d=1.0 / sample_rate)
-    ramp = np.clip((freqs - _BAND_STOP_HZ) / (_BAND_PASS_HZ - _BAND_STOP_HZ), 0.0, 1.0)
-    spectrum *= (1.0 - np.cos(np.pi * ramp)) / 2.0
+    spectrum *= band.gain(np.fft.rfftfreq(size, d=1.0 / sample_rate))
     filtered = np.fft.irfft(spectrum, n=size)[: samples.size]
     return np.where(samples != 0.0, filtered, 0.0).astype(samples.dtype, copy=False)
 
 
-def frame_speech_band_db(
-    samples: np.ndarray, sample_rate: int, frame: int, *, floor_db: float = -200.0
+def frame_band_filtered_db(
+    samples: np.ndarray,
+    sample_rate: int,
+    frame: int,
+    band: BandShape,
+    *,
+    floor_db: float = -200.0,
 ) -> np.ndarray:
-    """Per-frame dB level of ``samples`` in the speech band, on :func:`frame_rms_db`'s grid.
+    """Per-frame dB level of ``samples`` through ``band``, on :func:`frame_rms_db`'s grid.
 
-    Room rumble, desk thumps and the mains fundamental sit below the band and can be
+    Room rumble, desk thumps and the mains fundamental sit below the speech band and can be
     10 dB over a room tone's broadband air, hiding every breath and fade that rides on
     them. Of mains hum's harmonics, 100 Hz is removed, 120 Hz is 12 dB down and 150 Hz
     passes (0.6 dB down), so what is left of a hum shows in the levels as the room's own.
@@ -134,20 +195,19 @@ def frame_speech_band_db(
     own.
     """
     full = frame_rms_db(samples, frame, frame, floor_db=floor_db)
-    heard = frame_rms_db(speech_band(samples, sample_rate), frame, frame, floor_db=floor_db)
+    heard = frame_rms_db(band_filter(samples, sample_rate, band), frame, frame, floor_db=floor_db)
     return np.minimum(full, heard)
 
 
-def frame_level_noise_db(sample_rate: int, frame_sec: float) -> float:
-    """The std, in dB, of one frame's level over stationary Gaussian noise in the speech band.
+def frame_level_noise_db(band: BandShape, sample_rate: int, frame_sec: float) -> float:
+    """The std, in dB, of one frame's level over stationary Gaussian noise in ``band``.
 
     A frame of band-limited noise estimates its power from ``2 * bandwidth * frame_sec``
     independent samples, so even a perfectly steady room reads a few tenths of a dB
-    apart from frame to frame. No room is steadier than this, which makes it the least
-    spread a measured room can have.
+    apart from frame to frame (about 2 dB in the narrow low band). No room is steadier
+    than this, which makes it the least spread a measured room can have.
     """
-    bandwidth = sample_rate / 2.0 - _BAND_PASS_HZ
-    return (10.0 / math.log(10.0)) / math.sqrt(bandwidth * frame_sec)
+    return (10.0 / math.log(10.0)) / math.sqrt(band.noise_bandwidth(sample_rate) * frame_sec)
 
 
 def frame_band_db(

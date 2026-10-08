@@ -2632,13 +2632,13 @@ _PAUSE_DEFAULTS = {"tighten": {"filler_words": ["um"], "max_pause_sec": 1.2}}
 
 
 def test_only_a_pause_trim_is_cut_down_to_its_air():
-    # A pause trim removes only air, so it shrinks to the air inside it, measured on
-    # the pause's own word gap; a filler's edges must stay on the filler (#1055).
+    # A pause trim removes only air, so it shrinks to the air inside it on every track the
+    # ripple cuts; a filler's edges must stay on the filler (#1055).
     project = _project_with_transcript(_PAUSE_WORDS)
     seen: dict[str, object] = {}
 
     def air(project, track_id, start, end, **kw):
-        seen["pause"] = kw["pause"]
+        seen["pause"] = (start, end)
         return PauseAir(start, end)
 
     def breaths(project, track_id, start, end, **kw):
@@ -2651,28 +2651,49 @@ def test_only_a_pause_trim_is_cut_down_to_its_air():
     ):
         analyze_fillers_and_pauses(project, project.transcripts[0], _PAUSE_DEFAULTS)
 
-    # The pause is the span the trim may take: the word gap less the retained air.
+    # The trim is asked about the word gap less the retained air.
     assert seen == {"pause": (1.5, 2.95), "filler": (1.0, 1.2)}
 
 
-def test_a_pause_trim_carries_the_sounds_it_left_whole_to_the_shared_pause_check():
-    from podcast_mcp.edits.fillers import _collect_candidates, _prepare_candidate, _PreparedCut
+@pytest.mark.parametrize(
+    ("air", "proposed"),
+    [
+        # 0.18 s of air against a 0.45 s pad: approving would add 0.27 s to the timeline.
+        ((1.0, 1.18), False),
+        # The pad eats all but 10 ms of 0.46 s: less than the shortest cut.
+        ((1.0, 1.46), False),
+        # 0.9 s of air against the same pad: the timeline shortens by 0.45 s.
+        ((1.0, 1.9), True),
+    ],
+)
+def test_a_pause_trim_must_shorten_the_timeline_after_the_pad_it_needs(air, proposed):
+    from podcast_mcp.edits.fillers import _analyze_candidate, _AnalyzedCut, _CutCandidate
 
-    project = _project_with_transcript(_PAUSE_WORDS)
-    candidate = next(
-        c
-        for c in _collect_candidates(project.transcripts[0], _PAUSE_DEFAULTS, project=project)
-        if c.cut_kind == "pause"
+    # Prior ripples left only 0.1 s of continuous audio before the next word (its clip starts
+    # at 2.9 s), so a session cut pads the shortfall to the 0.55 s a solo pause keeps. A trim
+    # the pad outweighs lengthens the timeline, and one it nearly cancels is under the
+    # shortest cut (#1055).
+    words = [
+        TranscriptWord(text="one", start=0.0, end=0.4),
+        TranscriptWord(text="two", start=3.0, end=3.4),
+    ]
+    project = _project_with_transcript(words)
+    project.clips = [
+        Clip(id="late", track_id="host", source_start=2.9, source_end=5.0, timeline_start=0.0)
+    ]
+    defaults = {"tighten": {"min_retained_pause_sec": 0.55, "min_retained_solo_pause_sec": 0.55}}
+    candidate = _CutCandidate(
+        track_id="host", start=0.4, end=2.45, reason="pause:2.60s", cut_kind="pause", max_end=2.45
     )
 
-    def air(project, track_id, start, end, **kw):
-        return PauseAir(start, end, kept=((2.0, 2.1),))
+    with patch("podcast_mcp.edits.fillers.pause_air_span", return_value=PauseAir(*air)):
+        got = _analyze_candidate(project, candidate, defaults)
 
-    with patch("podcast_mcp.edits.fillers.pause_air_span", side_effect=air):
-        prepared = _prepare_candidate(project, candidate, _PAUSE_DEFAULTS)
-
-    assert isinstance(prepared, _PreparedCut)
-    assert prepared.kept_sounds == ((2.0, 2.1),)
+    if proposed:
+        assert isinstance(got, _AnalyzedCut)
+        assert (got.start, got.end, round(got.replace_gap_sec or 0.0, 2)) == (*air, 0.45)
+    else:
+        assert got == _CutRejected("too_short")
 
 
 @pytest.mark.parametrize("skip", [PauseAirSkip.NO_AIR, PauseAirSkip.NO_ROOM])
