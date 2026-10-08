@@ -291,6 +291,21 @@ describe("keeper metadata", () => {
     );
   });
 
+  it("keeps pending metadata uncompleted until the writer finalizes it", async () => {
+    const sink = new MemorySink();
+    await writeKeeperMeta(sink, wavPath, { ...meta, complete: false });
+    const pending = await sink.read(keeperMetaPath(wavPath));
+    expect(parseKeeperMeta(pending)).toEqual({ ...meta, complete: false });
+    expect(keeperMetaComplete(pending)).toBe(false);
+    expect(await missingKeeperWavState(sink, wavPath)).toBe("missing");
+
+    await writeKeeperMeta(sink, wavPath, meta);
+    const finalized = await sink.read(keeperMetaPath(wavPath));
+    expect(parseKeeperMeta(finalized)).toEqual(meta);
+    expect(keeperMetaComplete(finalized)).toBe(true);
+    expect(await missingKeeperWavState(sink, wavPath)).toBe("reclaimed");
+  });
+
   it("round-trips valid clip regions and rejects malformed ones", () => {
     const withRegions = {
       ...meta,
