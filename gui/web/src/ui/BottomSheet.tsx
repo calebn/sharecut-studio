@@ -9,7 +9,12 @@ import { useResizeObserver } from "./useResizeObserver";
 
 /** `peek`: a content-height strip; `half` and `full`: fixed shares of the slot. */
 export type DrawerDetent = "peek" | "half" | "full";
-/** A drawer detent, or `fit`: content height too, for a confirmation whose actions must all show. */
+/**
+ * A drawer detent, or `fit`: a confirmation as tall as its question and its
+ * actions, for a short slot (a phone held sideways) where Cancel and the action
+ * must both show. It has no height rule of its own: a sheet with none is
+ * content-height, capped at the slot by `.bottom-sheet`'s max-height.
+ */
 export type BottomSheetSize = DrawerDetent | "fit";
 export type BottomSheetBackgroundPolicy = "interactive" | "dismiss";
 
