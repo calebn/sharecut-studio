@@ -357,7 +357,11 @@ export interface CreatePlace {
 export interface CreateEntry {
   id: "envelope-point" | "split" | "chapter" | "comment";
   label: string;
-  /** `track` entries act on the held lane; `episode` entries on the whole episode. */
+  /**
+   * `track` entries act on the held lane. `episode` entries act at the held
+   * time on the episode, not on the held lane (Blade cut cuts the selected
+   * tracks), so the menu sets them apart from the lane's.
+   */
   scope: "track" | "episode";
   command:
     | "envelope.addPoint"
@@ -380,7 +384,7 @@ export const CREATE_ENTRIES: readonly CreateEntry[] = [
   {
     id: "split",
     label: "Blade cut",
-    scope: "track",
+    scope: "episode",
     command: "edit.bladeCut",
     args: ({ atTime }) => ({ atTime }),
   },

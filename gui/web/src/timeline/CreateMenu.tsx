@@ -18,6 +18,7 @@ import { buildCommandContext, evaluateWhen } from "../commands/context";
 import { runPointerCommand } from "../commands/pointer";
 import { useDawStore } from "../state/dawStore";
 import { useMenuKeyboard } from "../ui/useMenuKeyboard";
+import { bladeCutNote } from "../utils/bladeTracks";
 import { formatTime } from "../utils/time";
 import { type ChooserBounds, layoutMenu } from "./chooserLayout";
 import {
@@ -46,10 +47,13 @@ interface Item {
   args: Record<string, unknown> | null;
   /** Why it cannot run here, or null. */
   reason: string | null;
+  /** What it will act on when that is not the held lane, or null. */
+  note: string | null;
 }
 
 function items(place: CreatePlace): Item[] {
   const ctx = buildCommandContext();
+  const { project, selectedTrackIds } = useDawStore.getState();
   return CREATE_ENTRIES.map((entry) => {
     const args = entry.args(place);
     const gate = evaluateWhen(COMMANDS[entry.command].when, ctx);
@@ -61,6 +65,10 @@ function items(place: CreatePlace): Item[] {
         : args
           ? null
           : "Hold on a track to add a point",
+      note:
+        entry.id === "split"
+          ? bladeCutNote(project?.tracks ?? [], selectedTrackIds)
+          : null,
     };
   });
 }
@@ -126,6 +134,7 @@ export function CreateMenu({
   };
   const render = (item: Item, index: number) => {
     const reasonId = `${titleId}-${item.entry.id}`;
+    const caption = item.reason ?? item.note;
     const detail =
       item.entry.id === "envelope-point" && place.level != null
         ? `${place.level.toFixed(2)}×`
@@ -138,7 +147,7 @@ export function CreateMenu({
         tabIndex={-1}
         className={`ui-control ui-control--quiet create-menu-item${view.over === index ? " is-over" : ""}`}
         aria-disabled={item.reason ? true : undefined}
-        aria-describedby={item.reason ? reasonId : undefined}
+        aria-describedby={caption ? reasonId : undefined}
         {...{ [CREATE_ITEM_ATTR]: String(index) }}
         onPointerDown={(e) => {
           // No compatibility mousedown: it would pull focus to the timeline
@@ -149,9 +158,9 @@ export function CreateMenu({
       >
         <span className="create-menu-item-text">
           <span className="ui-menu-item-label">{item.entry.label}</span>
-          {item.reason ? (
+          {caption ? (
             <span id={reasonId} className="create-menu-reason">
-              {item.reason}
+              {caption}
             </span>
           ) : null}
         </span>

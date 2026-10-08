@@ -19,7 +19,7 @@ import {
 } from "../tracks/trackMuteCopy";
 import { errorMessage } from "../utils/apiError";
 import { anySolo } from "../utils/audio";
-import { bladeTrackIds } from "../utils/bladeTracks";
+import { bladeTrackIds, dialogueTrackIds } from "../utils/bladeTracks";
 import type { CommandContext } from "./context";
 import { registerCommand } from "./execute";
 import { runFocusedClipHandle } from "./focusedClipHandle";
@@ -58,10 +58,10 @@ async function runSplitAt(
   if (!s.project || !canSuggestStructuralFor(s)) {
     return { status: "disabled", reason: "Structural edits not allowed" };
   }
-  const dialogueIds = (s.project.tracks ?? [])
-    .filter((t) => t.role === "dialogue")
-    .map((t) => t.id);
-  const tids = bladeTrackIds(s.selectedTrackIds, dialogueIds);
+  const tids = bladeTrackIds(
+    s.selectedTrackIds,
+    dialogueTrackIds(s.project.tracks ?? []),
+  );
   await splitAtTime(s.projectPath, atTime, tids);
   s.setBladeConfirmSec(null);
   return { status: "ok" };

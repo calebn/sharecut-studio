@@ -726,7 +726,7 @@ export const COMMANDS: Record<string, CommandDef> = {
   "comment.draftAt": {
     id: "comment.draftAt",
     category: "review",
-    label: "Comment here",
+    label: "Add comment",
     when: "canComment",
     paletteRunnable: false,
     notes:

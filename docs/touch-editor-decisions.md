@@ -47,6 +47,7 @@ enforced-by:
 - gui/web/src/timeline/hitRouting.grammar.test.ts::picks nothing when the finger lifts without moving onto an item, whatever is under it
 - gui/web/src/timeline/hitRouting.fingers.test.ts::cancels the armed target and puts the selection back, so the chip's lift saves nothing
 - gui/web/src/timeline/hitRouting.fingers.test.ts::rolls an armed grip back when a second finger lands on the lanes
+- gui/web/src/timeline/CreateMenu.test.tsx::says Blade cut cuts the selected tracks, not the held lane, and sets it apart from the lane's entry
 - gui/web/src/timeline/chooserLayout.test.ts::falls back to the viewport when the timeline box is shorter than the menu, below the finger rather than over it
 - gui/web/e2e-compat/touch-grammar.spec.ts::in a short viewport the create menu stays in view off the finger, and lifting without moving saves nothing
 - gui/web/src/timeline/ClipBlock.test.tsx::stops a held arrow at a soft boundary with a bump and a note (#1115)
@@ -703,9 +704,13 @@ chooser lab until the owner made it the default (2026-10-07).
   sideways, where the timeline's box is shorter than the menu, so it uses the
   screen), never over it, beside the fixed playhead when there is room, with a
   dashed mark at the held time on its lane. A menu taller than the screen
-  caps its height and scrolls. Its title is the time and lane ("00:30.000 · Avery"). Entries:
-  **Add envelope point** (with the level it adds at), **Blade cut**, then
-  **Add chapter** and **Add comment**. Each runs a catalog command at the held
+  caps its height and scrolls. Its title is the time and lane
+  ("00:30.000 · Avery"). Entries: **Add envelope point** (with the level it
+  adds at, on the held lane), then, below a divider, **Blade cut**, **Add
+  chapter** and **Add comment**. Blade cut cuts the selected tracks, else
+  every dialogue track, so it carries a line saying which ("Cuts all dialogue
+  tracks", "Cuts Avery, Blair") and does not sit with the held lane's entry.
+  Each runs a catalog command at the held
   time (`envelope.addPoint`, `edit.bladeCut`, `edit.addChapter` with
   `atTime`, `comment.draftAt`); an entry the link cannot run stays, disabled,
   with the command's reason beside it. Slide onto an item and lift to pick

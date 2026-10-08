@@ -20,12 +20,16 @@ const place: CreateMenuPlace = {
 };
 const bounds = { left: 0, top: 0, right: 430, bottom: 700 };
 
-function open(projectPath: string, shareCapabilities: string[] | null = null) {
+function open(
+  projectPath: string,
+  shareCapabilities: string[] | null = null,
+  tracks = [sampleTrack({ id: "host" })],
+) {
   useDawStore.setState({
     projectPath,
     shareCapabilities,
     guestMode: shareCapabilities ? "edit" : null,
-    project: minimalProject({ tracks: [sampleTrack({ id: "host" })] }),
+    project: minimalProject({ tracks }),
   });
   return render(
     <CreateMenu
@@ -39,6 +43,7 @@ function open(projectPath: string, shareCapabilities: string[] | null = null) {
 }
 
 beforeEach(() => {
+  useDawStore.setState({ selectedTrackIds: [] });
   runPointerCommand.mockClear();
   router = {
     dispose: vi.fn(),
@@ -69,7 +74,7 @@ describe("CreateMenu", () => {
       ),
     ).toEqual([
       "Add envelope point0.80×",
-      "Blade cut",
+      "Blade cutCuts all dialogue tracks",
       "Add chapter",
       "Add comment",
     ]);
@@ -78,6 +83,27 @@ describe("CreateMenu", () => {
     );
     // The menu is the visible control: a toast would sit over its last items.
     expect(useDawStore.getState().feedbackToast).toBeNull();
+  });
+
+  it("says Blade cut cuts the selected tracks, not the held lane, and sets it apart from the lane's entry", () => {
+    useDawStore.setState({ selectedTrackIds: ["guest", "host"] });
+    const { container } = open("/tmp/ep.project.json", null, [
+      sampleTrack({ id: "host" }),
+      sampleTrack({ id: "guest", label: "Blair" }),
+    ]);
+    expect(
+      screen.getByRole("menuitem", { name: /Blade cut/ }),
+    ).toHaveAccessibleDescription("Cuts Blair, host");
+    const groups = [
+      ...container.ownerDocument.querySelectorAll('[role="menu"] > *'),
+    ].map((el) => el.textContent?.trim() || "separator");
+    expect(groups).toEqual([
+      "Add envelope point0.80×",
+      "separator",
+      "Blade cutCuts Blair, host",
+      "Add chapter",
+      "Add comment",
+    ]);
   });
 
   it("runs the entry's command at the held time and lane, and closes", () => {
@@ -122,7 +148,7 @@ describe("CreateMenu", () => {
   it("marks the item under a sliding finger, and closes from its scrim", () => {
     view = { ...view, fingerDown: true, over: 1 };
     const { container } = open("/tmp/ep.project.json");
-    expect(screen.getByRole("menuitem", { name: "Blade cut" })).toHaveClass(
+    expect(screen.getByRole("menuitem", { name: /^Blade cut/ })).toHaveClass(
       "is-over",
     );
     fireEvent.pointerDown(
