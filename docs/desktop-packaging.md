@@ -428,10 +428,15 @@ accepts `bundle.macOS.infoPlist` /
 
 The WebView permission **handler** allows microphone only for the discovered
 engine origin `http://127.0.0.1:{port}` (`sharecut::decide_webview_media`,
-unit-tested, no Tauri imports). Tauri **2.11.5** has no
-`Builder::on_permission_request` (that is the unreleased 2.12 / wry
-`with_permission_handler` API — [tauri#14865](https://github.com/tauri-apps/tauri/pull/14865)).
-The supported 2.11 hook is [`Webview::with_webview`](https://docs.rs/tauri/2.11.5/tauri/webview/struct.Webview.html#method.with_webview):
+unit-tested, no Tauri imports). The lockfile resolves Tauri and
+`tauri-runtime-wry` **2.12.1**, `wry` **0.57.0**, `webview2-com` **0.39.1**,
+`windows` **0.62.2**, and `windows-result` **0.4.1**.
+Stable Tauri 2.12.1 provides
+[`Builder::on_permission_request`](https://github.com/tauri-apps/tauri/blob/tauri-v2.12.1/crates/tauri/src/app.rs#L1890)
+and `WebviewBuilder::on_permission_request`. Both callbacks receive a
+`Webview` and `PermissionKind`, but no request origin. The adapters retain
+[`Webview::with_webview`](https://docs.rs/tauri/2.12.1/tauri/webview/struct.Webview.html#method.with_webview)
+to check each request's origin against the engine origin:
 
 - macOS WKWebView: `WKUIDelegate` `requestMediaCapturePermissionForOrigin`
   (forwards other selectors to wry’s delegate via `respondsToSelector:` /

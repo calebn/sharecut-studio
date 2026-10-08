@@ -89,6 +89,9 @@ jobs:
           path: gui/web/dist
       - name: Stage Windows desktop sidecar stub
         run: python scripts/tauri_sidecar_hook.py --dev-stub
+      - name: Report duplicate Windows desktop dependencies
+        working-directory: gui/desktop/src-tauri
+        run: cargo tree --locked -d --target x86_64-pc-windows-msvc --features app
       - name: Check Windows desktop binary
         working-directory: gui/desktop/src-tauri
         run: cargo check --bin sharecut --features app

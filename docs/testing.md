@@ -1472,7 +1472,10 @@ The path-filtered `.github/workflows/deploy-config.yml` validates `deploy/` with
 
 The path-filtered `.github/workflows/desktop.yml` also builds the web distribution,
 runs the portable desktop scaffold checks on Linux, and runs `cargo check` for the
-Windows desktop binary. The Windows job compiles WebView2-only adapters that macOS
+Windows desktop binary. The Windows job logs
+`cargo tree --locked -d --target x86_64-pc-windows-msvc --features app`
+so reviewers can check for duplicate `windows` and `windows-result` versions.
+The Windows job compiles WebView2-only adapters that macOS
 and Linux cannot typecheck; installer creation remains in the reusable release
 workflow. A `pinned-media-windows` job runs `tests/test_pinned_media.py` on `windows-latest` with Python 3.11 and 3.12 so the Windows fallback of pinned media reads is tested on NTFS at the `requires-python` floor and the sidecar's version, not only simulated. A `project-commit-lock-windows` job runs `tests/test_project_commit_lock.py`, `tests/test_history.py`, and `tests/test_review_versions.py` on `windows-latest` with Python 3.12 (installing a pinned FFmpeg 9.0.2 via Chocolatey first, since `tests/conftest.py::sample_wav` skips without it) so the cross-process commit lock and every review-publication test that does not stage media runs on real Windows; `requires_safe_cleanup` / `requires_safe_failed_cleanup` (`tests/review_platform.py`) skip the staging/quarantine paths that publication does not support there (see `docs/persistence.md`'s Inventory row for review publication).
 
