@@ -32,8 +32,13 @@ from podcast_mcp.edits.cut_quality import (
 from podcast_mcp.edits.filler_pacing import MIN_PACED_CUT_SEC, PacedPad, apply_filler_pacing
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.mute_regions import muted_source_spans, source_span_is_muted
+from podcast_mcp.edits.shared_pause import PauseClaim, shared_pause_twins
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
-from podcast_mcp.edits.tighten_reasons import ACOUSTIC_FILLER_REASON
+from podcast_mcp.edits.tighten_reasons import (
+    ACOUSTIC_FILLER_REASON,
+    PAUSE_REASON_PREFIX,
+    is_review_only_reason,
+)
 from podcast_mcp.edits.transcript_cuts import append_remove_decision
 from podcast_mcp.edits.voiced_runs import (
     FRAME_SEC,
@@ -1037,7 +1042,7 @@ def _collect_candidates(
                     solo = False
                     trim_end = words[i + 1].start - retain
                 if trim_end is not None and trim_end > word.end + 0.02:
-                    tag = f"pause:{gap:.2f}s"
+                    tag = f"{PAUSE_REASON_PREFIX}{gap:.2f}s"
                     if solo:
                         tag = f"{tag}:solo"
                     candidates.append(
@@ -1382,8 +1387,6 @@ _EDGE_NUDGE_MAX_SEC = 0.5
 # existing clip edges. On the lab tape the 45 ms join-gate window then sits below the
 # inaudible-splice floor instead of on the word's decay.
 _VOICE_EDGE_PAD_SEC = 0.06
-# Cuts proposed for review only, however safe their analysis finds them.
-_REVIEW_ONLY_KINDS = frozenset({"repeat", "restart", "pause"})
 _INTERIOR_SPEECH_MIN_SEC = 0.1
 _MIN_NUDGED_CUT_SEC = 0.1
 
@@ -2138,7 +2141,7 @@ def _analyze_candidate(
     # mistaken for the reparandum, and voiced energy in an ASR gap may be a
     # breath, laugh, or missed word rather than a filler. A pause trim is review-only
     # too, whether or not its edges moved, until the owner has listened (#1055).
-    review_required = candidate.review_only or candidate.cut_kind in _REVIEW_ONLY_KINDS
+    review_required = candidate.review_only or is_review_only_reason(candidate.reason)
     for flag in flags:
         review_required = True
         reason = f"{reason}:{flag}"

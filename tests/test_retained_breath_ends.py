@@ -683,7 +683,7 @@ def test_coalescing_mixed_modes_preserves_protected_breath_on_default_apply(
         project,
         "host",
         *protected,
-        reason="pause:protected",
+        reason="filler:protected",
         review_required=False,
         boundary_mode="vocal_transcript_guided",
     )
