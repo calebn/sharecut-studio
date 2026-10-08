@@ -58,7 +58,7 @@ export interface ClipBlockProps {
   selected: boolean;
   /** Media the clip draws (`waveform/mediaRef.clipMediaRef`). */
   mediaRef: MediaRef;
-  /** Previous clip on this track (for roll join); null if first. */
+  /** Previous clip on this track when it abuts this one (a join, which a roll moves); null if first or past a gap. */
   prevClip: ClipRow | null;
   /** Next clip on this track (roll clamp); null if last. */
   nextClip: ClipRow | null;

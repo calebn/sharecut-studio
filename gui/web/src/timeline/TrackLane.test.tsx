@@ -348,6 +348,17 @@ describe("TrackLane join badges", () => {
     expect(container.querySelector(".join-badge")).toBeNull();
   });
 
+  it("offers no roll across a gap: the seam is drawn only where clips abut", () => {
+    const gapped = {
+      clips: [left, { ...right, timeline_start: 10, timeline_end: 15 }],
+    };
+    const { container } = lane(gapped);
+    expect({
+      seams: container.querySelectorAll(".join-seam").length,
+      rolls: container.querySelectorAll('[data-hit-kind="roll"]').length,
+    }).toEqual({ seams: 0, rolls: 0 });
+  });
+
   it("draws no badge when the clips are too narrow on screen", () => {
     const { container } = lane({ zoomPxPerSec: 4 });
     expect(container.querySelector(".join-badge")).toBeNull();

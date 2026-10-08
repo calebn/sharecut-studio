@@ -95,6 +95,30 @@ def test_roll_clip_join_clamps_to_min_span(minimal_project):
     assert c2.timeline_start == pytest.approx(c1.timeline_end)
 
 
+def test_roll_refuses_clips_with_a_gap_between_them(minimal_project):
+    """A roll keeps the pair flush, so across a gap it would pull the right clip left; refuse it."""
+    ws = ProjectWorkspace.open(minimal_project)
+    ws.project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=80.0),
+        )
+    ]
+    ws.project.timeline.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0),
+        Clip(id="c2", track_id="host", source_start=5.0, source_end=15.0, timeline_start=10.0),
+    ]
+    project = ws.project
+    with pytest.raises(ValueError, match="abut"):
+        roll_clip_join(project, "c1", "c2", 1.0)
+    assert [(c.source_start, c.source_end, c.timeline_start) for c in project.clips] == [
+        (0.0, 5.0, 0.0),
+        (5.0, 15.0, 10.0),
+    ]
+
+
 def test_roll_cannot_eat_past_short_right_clip(minimal_project):
     """Join later is limited by right clip duration (e.g. only 2s of content)."""
     ws = ProjectWorkspace.open(minimal_project)

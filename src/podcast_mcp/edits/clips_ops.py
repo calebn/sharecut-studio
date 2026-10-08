@@ -509,6 +509,8 @@ def roll_join_limits(
 ) -> tuple[float, float]:
     """Legal source-clock delta for a roll, shared by UI context and mutation."""
     left, right, track_clips, left_idx = neighbour_clips(project, left_clip_id, right_clip_id)
+    if not clips_abut(left, right):
+        raise ValueError("a roll needs clips that abut; there is a gap between them")
     prev = track_clips[left_idx - 1] if left_idx > 0 else None
     nxt = track_clips[left_idx + 2] if left_idx + 2 < len(track_clips) else None
     left_duration = source_duration_sec(project, left)
