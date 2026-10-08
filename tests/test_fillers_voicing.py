@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache
+from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.edits.fillers import (
     _check_voiced_speech,
     _CutCandidate,
@@ -221,7 +222,7 @@ def test_pause_end_inside_the_next_word_onset_moves_before_the_voice(tmp_path: P
     assert decision.end == pytest.approx(2.23, abs=0.011)
 
 
-def test_clean_dead_air_stays_auto_applicable(tmp_path: Path) -> None:
+def test_clean_dead_air_is_proposed_for_review_and_applies_on_approval(tmp_path: Path) -> None:
     samples = np.zeros(4 * RATE, dtype=np.float32)
     _voice(samples, 0.2, 0.58)
     _voice(samples, 3.0, 3.4)
@@ -233,11 +234,14 @@ def test_clean_dead_air_stays_auto_applicable(tmp_path: Path) -> None:
 
     (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], DEFAULTS)
 
+    # Even dead air waits for the owner's listen (#1055): apply-all leaves it, approving
+    # it applies it.
     assert decision.reason == "pause:2.40s:solo"
-    assert decision.review_required is False
+    assert decision.review_required is True
     assert 0.58 <= decision.start <= 0.62
     assert decision.end == pytest.approx(2.45)
-    assert apply_tighten_decisions(project) == 1
+    assert apply_tighten_decisions(project) == 0
+    assert approve_edits(project, [decision.id]) == 1
 
 
 CONTINUOUS_VOICE_DEFAULTS: dict[str, object] = {
@@ -415,8 +419,10 @@ def test_a_pause_hit_keeps_its_id_when_intensity_moves_its_end(tmp_path: Path) -
 
 
 def test_distinct_hits_never_share_an_id(tmp_path: Path) -> None:
-    """Two tracks with the same words and audio: the same kind of hit at the same
-    source span on each track is still two hits."""
+    """Two tracks with the same words and audio: the same filler at the same source span
+    on each track is still two hits. A session pause trim is one hit, though: both tracks
+    are quiet over the same stretch and a ripple removes it from both, so it is proposed
+    once (the host's) and the guest's copy is dropped as ``shared_pause``."""
     project = _filler_and_pause_project(tmp_path, peer=True)
 
     proposal = propose_tighten_edits(project, FILLER_AND_PAUSE_DEFAULTS)
@@ -426,9 +432,9 @@ def test_distinct_hits_never_share_an_id(tmp_path: Path) -> None:
         ("host", 0.64, 1.52, "filler"),
         ("host", 2.0, 3.45, "pause"),
         ("guest", 0.64, 1.52, "filler"),
-        ("guest", 2.0, 3.45, "pause"),
     ]
-    assert len({d.id for d in project.edit_decisions}) == 4
+    assert proposal.skip_counts["shared_pause"] == 1
+    assert len({d.id for d in project.edit_decisions}) == 3
 
 
 def test_proposing_without_replacing_never_adds_a_hit_twice(tmp_path: Path) -> None:

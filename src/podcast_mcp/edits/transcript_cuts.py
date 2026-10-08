@@ -438,9 +438,16 @@ def _keeps_independent_review(left: EditDecision, right: EditDecision) -> bool:
     Decisions whose ``applied`` flags differ are never merged either: the merged
     edit would silently apply the pending span or un-apply the approved one.
     Nor are decisions with different authors: the merged edit keeps one author,
-    which would grant a share guest another author's span or drop its own.
+    which would grant a share guest another author's span or drop its own. A pause
+    trim waiting for review (every one does until the owner has listened, #1055) is
+    kept apart from a cut that applies on its own, so the filler beside it stays
+    auto-applicable instead of waiting on the trim.
     """
     if left.applied != right.applied or left.author != right.author:
+        return True
+    if left.review_required != right.review_required and any(
+        decision.review_required and _is_pause(decision) for decision in (left, right)
+    ):
         return True
     return any(
         decision.review_required and is_review_only_reason(decision.reason)
