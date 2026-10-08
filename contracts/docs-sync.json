@@ -648,6 +648,8 @@
       "advisory": {
         "include": [
           "gui/web/src/edit/",
+          "contracts/ripple-scope.json",
+          "contracts/trim-edge-limits.json",
           "gui/web/src/document/",
           "gui/web/src/transcript/",
           "gui/web/src/hooks/useBladeCut.ts",

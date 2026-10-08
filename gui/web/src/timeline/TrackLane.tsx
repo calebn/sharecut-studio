@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { clipRowDuringRoll, type RollPreview } from "../edit/clipEdgePreview";
+import { TRIM_MODE } from "../edit/clipEdgeSave";
 import type {
   ClipMovePointerInfo,
   ClipSelectMods,
@@ -7,6 +8,7 @@ import type {
 } from "../edit/clipMove";
 import { isDrawnJoin } from "../edit/joinRender";
 import { laneRipple, rippleMoves, rippleTrackIds } from "../edit/ripplePreview";
+import { trimNeighborBounds } from "../edit/trimLimits";
 import {
   audioFilesFromDrop,
   fileCountFromDataTransfer,
@@ -330,6 +332,7 @@ export function TrackLaneView({
           const next = clips[i + 1];
           const grandPrev = clips[i - 2];
           const mediaDur = track.duration_sec ?? Number.POSITIVE_INFINITY;
+          const trimBounds = trimNeighborBounds(clips, i, TRIM_MODE);
           const originId = originTrackId(clip);
           const identityTrack = clipIdentityTrack({ clip, tracks }) ?? track;
           return (
@@ -354,8 +357,8 @@ export function TrackLaneView({
               mediaRef={mediaRefs[i]!}
               prevClip={prev ?? null}
               nextClip={next ?? null}
-              neighborSourceLo={prev?.source_end ?? 0}
-              neighborSourceHi={next?.source_start ?? mediaDur}
+              neighborSourceLo={trimBounds.neighborLo}
+              neighborSourceHi={trimBounds.neighborHi}
               leftNeighborSourceEnd={grandPrev?.source_end ?? 0}
               mediaDurationSec={mediaDur}
               rollPreview={

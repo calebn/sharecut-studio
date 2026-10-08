@@ -56,6 +56,7 @@ const clip = clipRow({
   timeline_end: 40,
   fade_in_ms: 300,
   fade_out_ms: 300,
+  source_duration_sec: 60,
 });
 const project = minimalProject({
   tracks: [sampleTrack({ id: "host", duration_sec: 60 })],

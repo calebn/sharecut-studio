@@ -1,0 +1,117 @@
+{
+  "$comment": "Where a clip's trim edge may go: [lo, hi] in source seconds. gui/web/src/edit/trimLimits.ts trimEdgeLimits mirrors edits/clips_ops.trim_edge_limits, and every client clamp (a held strip nudge, a handle drag, a ripple peer) reads it. gui/web/src/edit/trimLimits.test.ts and tests/test_trim_edge_limits_contract.py both read these cases. Clips are [id, timeline_start, source_start, source_end, source_id] on the case's track (default host), source_id null = the track's own media. A clip with no source_id plays the track media; a clip with one plays that source. Two clips play the same recording when their source_id matches or their files do (the host_t1 source is the host track's media file).",
+  "tracks": [
+    { "id": "host", "role": "dialogue", "media_path": "raw/host_t1.wav", "duration_sec": 600 },
+    { "id": "bare", "role": "dialogue", "media_path": "raw/bare.wav", "duration_sec": null }
+  ],
+  "sources": [
+    { "id": "host_t1", "path": "raw/host_t1.wav", "duration_sec": 600 },
+    { "id": "host_t2", "path": "raw/host_t2.wav", "duration_sec": 60 },
+    { "id": "unmeasured", "path": "raw/unmeasured.wav", "duration_sec": null }
+  ],
+  "cases": [
+    {
+      "name": "a lone clip's end may reach the end of its media",
+      "clips": [["a", 0, 0, 10, null]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [0.05, 600]
+    },
+    {
+      "name": "a lone clip's start may reach the start of its media",
+      "clips": [["a", 0, 4, 10, null]],
+      "clip_id": "a", "edge": "in", "mode": "ripple",
+      "limits": [0, 9.95]
+    },
+    {
+      "name": "an end stops at the next clip's start in the same recording",
+      "clips": [["a", 0, 0, 10, null], ["b", 12, 30, 40, null]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [0.05, 30]
+    },
+    {
+      "name": "an end does not stop at the next clip's start in another recording",
+      "clips": [["a", 0, 0, 10, "host_t1"], ["b", 12, 5, 15, "host_t2"]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [0.05, 600]
+    },
+    {
+      "name": "an end stops at the end of its own source, not the track's media",
+      "clips": [["a", 0, 40, 50, "host_t2"]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [40.05, 60]
+    },
+    {
+      "name": "a start stops at the previous clip's end in the same recording",
+      "clips": [["a", 0, 0, 10, null], ["b", 12, 30, 40, null]],
+      "clip_id": "b", "edge": "in", "mode": "ripple",
+      "limits": [10, 39.95]
+    },
+    {
+      "name": "a start does not stop at the previous clip's end in another recording",
+      "clips": [["a", 0, 20, 50, "host_t2"], ["b", 52, 30, 40, "host_t1"]],
+      "clip_id": "b", "edge": "in", "mode": "ripple",
+      "limits": [0, 39.95]
+    },
+    {
+      "name": "a source over the track's own media file is the same recording as that media",
+      "clips": [["a", 0, 0, 10, null], ["b", 12, 30, 40, "host_t1"]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [0.05, 30]
+    },
+    {
+      "name": "two clips of one source share its recording",
+      "clips": [["a", 0, 0, 20, "host_t2"], ["b", 25, 40, 55, "host_t2"]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [0.05, 40]
+    },
+    {
+      "name": "an unmeasured source may not grow past the clip's current end",
+      "clips": [["a", 0, 0, 10, "unmeasured"]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [0.05, 10]
+    },
+    {
+      "name": "unmeasured track media may not grow past the clip's current end",
+      "track": "bare",
+      "clips": [["a", 0, 0, 10, null]],
+      "clip_id": "a", "edge": "out", "mode": "ripple",
+      "limits": [0.05, 10]
+    },
+    {
+      "name": "a gap end also stops at the next clip on the timeline",
+      "clips": [["a", 0, 0, 10, "host_t1"], ["b", 13, 0, 5, "host_t2"]],
+      "clip_id": "a", "edge": "out", "mode": "gap",
+      "limits": [0.05, 13]
+    },
+    {
+      "name": "a gap end with nothing after it reaches the end of its media",
+      "clips": [["a", 0, 0, 10, "host_t1"]],
+      "clip_id": "a", "edge": "out", "mode": "gap",
+      "limits": [0.05, 600]
+    },
+    {
+      "name": "a gap end that touches the next clip cannot grow",
+      "clips": [["a", 0, 0, 10, "host_t1"], ["b", 10, 0, 5, "host_t2"]],
+      "clip_id": "a", "edge": "out", "mode": "gap",
+      "limits": [0.05, 10]
+    },
+    {
+      "name": "a gap start also stops at the previous clip on the timeline",
+      "clips": [["a", 0, 0, 4, "host_t2"], ["b", 7, 20, 30, "host_t1"]],
+      "clip_id": "b", "edge": "in", "mode": "gap",
+      "limits": [17, 29.95]
+    },
+    {
+      "name": "a gap start keeps the previous clip's source end when that is later",
+      "clips": [["a", 0, 30, 55, null], ["b", 30, 56, 70, null]],
+      "clip_id": "b", "edge": "in", "mode": "gap",
+      "limits": [55, 69.95]
+    },
+    {
+      "name": "a gap start with nothing before it stops at the timeline's start",
+      "clips": [["a", 2, 5, 9, "host_t1"]],
+      "clip_id": "a", "edge": "in", "mode": "gap",
+      "limits": [3, 8.95]
+    }
+  ]
+}
