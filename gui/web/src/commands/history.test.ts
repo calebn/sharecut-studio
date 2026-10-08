@@ -300,22 +300,59 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       ]);
     });
 
-    it("gives up on a stalled save after the host send wait and lets the server judge the head", async () => {
-      vi.useFakeTimers();
-      try {
-        const stalled = beginHostSend("/tmp/ep", "stalled");
-        const undo = execute("history.undo");
-        await vi.advanceTimersByTimeAsync(HOST_SEND_WAIT_MS - 1);
-        expect(undoHistory).not.toHaveBeenCalled();
-        await vi.advanceTimersByTimeAsync(1);
-        await undo;
-        stalled.finish();
-        expect(vi.mocked(undoHistory).mock.calls).toEqual([
-          ["/tmp/ep", { expectedHeadId: "seen-by-tab" }],
-        ]);
-      } finally {
-        vi.useRealTimers();
-      }
-    });
+    const SAVING = {
+      undo: "Your last edit is still saving. Nothing was undone.",
+      redo: "Your last edit is still saving. Nothing was redone.",
+    } as const;
+
+    for (const action of ["undo", "redo"] as const) {
+      const move = action === "undo" ? undoHistory : redoHistory;
+
+      it(`runs no ${action} while a live send is still out after the host send wait, and says so`, async () => {
+        vi.useFakeTimers();
+        try {
+          const stalled = beginHostSend("/tmp/ep", "stalled");
+          const press = execute(`history.${action}`);
+          await vi.advanceTimersByTimeAsync(HOST_SEND_WAIT_MS - 1);
+          expect(move).not.toHaveBeenCalled();
+          await vi.advanceTimersByTimeAsync(1);
+          expect(await press).toEqual({
+            status: "disabled",
+            reason: SAVING[action],
+            announced: true,
+          });
+          stalled.finish();
+          expect(move).not.toHaveBeenCalled();
+          expect(useDawStore.getState().statusAnnouncement).toBe(
+            SAVING[action],
+          );
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      it(`runs no ${action} while a save is still loading its boundary token after the host send wait`, async () => {
+        vi.useFakeTimers();
+        try {
+          const slowToken = new Promise<void>((resolve) => {
+            setTimeout(resolve, HOST_SEND_WAIT_MS + 1_000);
+          });
+          void trackEditSave(
+            "/tmp/ep",
+            slowToken.then(() => noteSaveLanded("/tmp/ep", head("after-trim"))),
+          );
+          const press = execute(`history.${action}`);
+          await vi.advanceTimersByTimeAsync(HOST_SEND_WAIT_MS + 1_000);
+          expect(await press).toEqual({
+            status: "disabled",
+            reason: SAVING[action],
+            announced: true,
+          });
+          expect(move).not.toHaveBeenCalled();
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+    }
   });
 });
