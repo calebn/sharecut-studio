@@ -1157,15 +1157,16 @@ def test_crossing_breath_refines_only_a_safe_quiet_onset(backend: str, protectio
         assert refined is None
 
 
-# Pause trims (#1055). A pause trim removes only the air inside it, measured from the
-# pause itself: its quiet is the 20th percentile of its own 10 ms frames (digital silence
-# included), and a sound is a run more than 6 dB over that quiet, dips of up to 30 ms
-# bridged, that peaks at least 10 dB over it. No edge may sit inside a sound. A sound
-# that reaches 40 dB under the track's speech level stays whole and the trim is the
-# longest run between such sounds; a quieter sound is removed whole or left whole. The
-# same rule runs on every dialogue track a session ripple removes. The fixture track's
-# room tone is -70 dBFS and its speech -15 dBFS, so that ceiling is -55 dBFS; its words
-# sit at 4.0-4.3 and 5.45-5.75 around the pause.
+# Pause trims (#1055). A pause trim removes only the air inside it. A track's air is its
+# room tone, read between its own words; the pause's quiet is the 20th percentile of the
+# pause's own 10 ms frames (digital silence included) held to that room, and a sound is a
+# run more than 6 dB over that quiet, dips of up to 50 ms bridged, that peaks at least
+# 10 dB over it. No edge may sit inside a sound. A sound that reaches 40 dB under the
+# track's speech level stays whole and the trim is the longest run between such sounds; a
+# quieter sound is removed whole or left whole. The same rule runs on every dialogue
+# track a session ripple removes. The fixture track's room tone is -70 dBFS and its speech
+# -15 dBFS, so that ceiling is -55 dBFS; its words sit at 4.0-4.3 and 5.45-5.75 around
+# the pause.
 
 
 def _protect(cut: tuple[float, float], *, placed=(), gap_floor=_FLOOR_RMS, **kw):
@@ -1288,12 +1289,12 @@ def test_a_word_tail_next_to_a_louder_stretch_is_not_cut_partway() -> None:
     # The word at 4.0-4.3 decays 1 dB per frame to the room tone over 4.3-4.85, and the
     # room is 12 dB louder for 3 s on each side of the pause. Measured against the
     # surrounding 10 s that fade's last 60 ms read as air; against the pause's own
-    # quiet the trim starts after the whole fade.
+    # quiet the trim starts after the fade down to 3 dB over the room, plus a guard frame.
     tail = _frames_at([-15.5 - k for k in range(55)], voiced=True)
     louder = _shaped_noise(round(3.0 * 16000), _dbfs(-58.0))
 
     assert _air((4.5, 5.3), placed=((louder, 0.0), (louder, 6.5), (tail, 4.3))) == pytest.approx(
-        (4.8, 5.3)
+        (4.83, 5.3)
     )
 
 
@@ -1323,7 +1324,11 @@ def test_a_complete_breath_at_a_pause_trim_end_stays_whole() -> None:
 def test_a_breath_in_wandering_room_tone_stays_whole_after_a_pause_trim() -> None:
     breath = _shaped_noise(2400, 0.026)
 
-    assert _air((4.4, 5.3), placed=_wandering_track((breath, 5.2))) == pytest.approx((4.4, 5.19))
+    start, end = _air((4.4, 5.3), placed=_wandering_track((breath, 5.2)))
+    # The wander swings 10 dB, so the stretch of it that touches the breath reads as part
+    # of the sound (a frame is air only within 3 dB of the room): the end stays well
+    # clear of the breath's 5.2 start rather than 10 ms before it.
+    assert (start, end) == pytest.approx((4.4, 5.03))
 
 
 def test_bleed_at_a_pause_trim_end_is_sound_not_a_breath() -> None:
@@ -1486,7 +1491,7 @@ def test_a_peer_breath_that_ends_inside_the_pause_moves_the_end_edge_out_of_it()
     breath = _frames_at([-57.0] * 60 + [-60.0, -63.0, -66.0, -68.0, -69.0, -70.0])
     guest = _fake_windows(placed=((breath, 4.36),))
 
-    assert _air_with_words((4.45, 5.3), guest=guest) == pytest.approx((4.99, 5.3))
+    assert _air_with_words((4.45, 5.3), guest=guest) == pytest.approx((5.0, 5.3))
 
 
 def test_a_silent_peer_mic_with_only_room_tone_never_blocks_a_pause_trim() -> None:
