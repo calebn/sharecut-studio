@@ -7,6 +7,7 @@ import pytest
 from podcast_mcp.edits.clips_ops import clips_for_track
 from podcast_mcp.edits.cut_speech import SpeechClearance
 from podcast_mcp.edits.decisions import (
+    ScopeChangedAtApproval,
     apply_auto_edits,
     apply_prefix_edits,
     approve_edits,
@@ -141,7 +142,7 @@ def test_approve_skips_unmapped_remove_without_archiving_it():
     assert proj.editorial.edit_log == []
 
 
-def test_approve_remove_falls_back_to_track_scope_when_guard_cannot_resolve():
+def test_approve_remove_is_held_when_guard_cannot_resolve():
     proj = _project_with_clip()
     decision = EditDecision(
         id="fallback",
@@ -154,15 +155,18 @@ def test_approve_remove_falls_back_to_track_scope_when_guard_cannot_resolve():
     )
     proj.edit_decisions = [decision]
 
-    with patch(
-        "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
-        side_effect=ValueError("guard unavailable"),
+    with (
+        patch(
+            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            side_effect=ValueError("guard unavailable"),
+        ),
+        pytest.raises(ScopeChangedAtApproval, match="could not be checked"),
     ):
-        assert approve_edits(proj, ["fallback"]) == 1
+        approve_edits(proj, ["fallback"])
 
-    assert decision.scope == "track"
-    assert proj.edit_decisions == []
-    assert [record.decision_ids for record in proj.editorial.edit_log] == [["fallback"]]
+    assert decision.scope == "session"
+    assert proj.edit_decisions == [decision]
+    assert proj.editorial.edit_log == []
 
 
 def test_update_pending_edit_without_snap():

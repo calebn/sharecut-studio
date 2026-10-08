@@ -172,12 +172,20 @@ def least_spread(sample_rate: int, band: BandShape = SPEECH_BAND) -> float:
     return frame_level_noise_db(band, sample_rate, SMOOTH_SEC)
 
 
-def mode_spread(smooth: np.ndarray, ceiling_db: float, least: float) -> float | None:
-    """The spread of the densest low mode of ``smooth``, or ``None`` when none stands clear.
+class Mode(NamedTuple):
+    """Where a recording's levels pile up: the median and spread of its room."""
+
+    level_db: float
+    spread_db: float
+
+
+def read_mode(smooth: np.ndarray, ceiling_db: float, least: float) -> Mode | None:
+    """The densest low mode of ``smooth``, or ``None`` when none stands clear.
 
     The room is the one place a recording's levels pile up. Its mode is the tallest bin
-    among the live frames under ``ceiling_db``. Sound adds counts above the mode only as a
-    thin continuum, so the room's own half-height is where the count falls to half.
+    among the live frames under ``ceiling_db``; its level is the median of the frames within
+    a spread of it. Sound adds counts above the mode only as a thin continuum, so the room's
+    own half-height is where the count falls to half.
     """
     live = smooth[(smooth > DIGITAL_SILENCE_DB) & (smooth <= ceiling_db)]
     if live.size < _MIN_ROOM_FRAMES:
@@ -193,7 +201,16 @@ def mode_spread(smooth: np.ndarray, ceiling_db: float, least: float) -> float | 
     halved = np.flatnonzero(counts[peak:] <= counts[peak] / 2.0)
     if halved.size == 0:
         return None
-    return max(float(halved[0]) * width / _HALF_HEIGHT_SIGMAS, least)
+    spread = max(float(halved[0]) * width / _HALF_HEIGHT_SIGMAS, least)
+    centre = float(edges[peak]) + width / 2.0
+    near = live[np.abs(live - centre) <= spread]
+    return Mode(float(np.median(near)) if near.size else centre, spread)
+
+
+def mode_spread(smooth: np.ndarray, ceiling_db: float, least: float) -> float | None:
+    """The spread of the densest low mode of ``smooth`` (:func:`read_mode`), if one stands clear."""
+    mode = read_mode(smooth, ceiling_db, least)
+    return None if mode is None else mode.spread_db
 
 
 def _clipped_spread(smooth: np.ndarray, least: float) -> float:
@@ -264,6 +281,7 @@ class RoomBasis(Enum):
 
     SESSION_SILENCE = "session_silence"
     OWN_GAPS = "own_gaps"
+    OWN_LEVELS = "own_levels"
 
 
 def read_recording_room(
@@ -288,6 +306,44 @@ def read_recording_room(
     if np.count_nonzero(own_gaps) >= _MIN_ROOM_FRAMES:
         return read_conservative_room(smooth[own_gaps], least, prior), RoomBasis.OWN_GAPS
     return None
+
+
+def speaks(live: np.ndarray, speech_db: float | None) -> bool:
+    """Whether a recording's ``speech_db`` stands out of its quietest live frames by at least
+    the nearest a breath sits under speech: it has speech to tell its air from."""
+    return (
+        speech_db is not None
+        and live.size > 0
+        and speech_db - float(np.percentile(live, ANCHOR_PERCENTILE)) >= BREATH_BELOW_SPEECH_DB[0]
+    )
+
+
+def read_unwatched_room(
+    smooth: np.ndarray, least: float, speech_db: float | None
+) -> tuple[Room, RoomBasis] | None:
+    """The room of a recording with no words to say when it speaks; ``None`` when none reads.
+
+    The frames the session calls quiet hold this recording's own speech, so they say nothing
+    about its room: it is read from the recording's own levels. One that never speaks (its
+    ``speech_db``, the 90th percentile of all its live frames, does not stand out of its
+    quietest) is room throughout and reads like any room. One that speaks has its room where
+    its levels pile up under 40 dB below that speech (:func:`read_mode`), else the low end
+    of all its frames. A gate's digital silence is its room, as ever: digital silence
+    fills ``GATED_SHARE`` of the quieter half of the frames.
+    """
+    live = smooth[smooth > DIGITAL_SILENCE_DB]
+    quietest = np.sort(smooth)[: max(1, smooth.size // 2)]
+    if live.size == 0 or float(np.mean(quietest <= DIGITAL_SILENCE_DB)) >= GATED_SHARE:
+        return Room(DIGITAL_SILENCE_DB, least), RoomBasis.OWN_LEVELS
+    if not speaks(live, speech_db):
+        return read_room(smooth, least), RoomBasis.OWN_LEVELS
+    assert speech_db is not None
+    mode = read_mode(smooth, speech_db - BREATH_BELOW_SPEECH_DB[1], least)
+    if mode is not None:
+        return Room(mode.level_db, mode.spread_db), RoomBasis.OWN_LEVELS
+    if live.size < _MIN_ROOM_FRAMES:
+        return None
+    return read_conservative_room(smooth, least), RoomBasis.OWN_LEVELS
 
 
 class _Lines(NamedTuple):
@@ -397,15 +453,13 @@ def find_sounds(
     whole; digital silence is never a sound.
     """
     smooth = smoothed(levels)
-    nearest, deepest = breath_below_speech_db
-    ceiling = -math.inf if speech_db is None else speech_db - deepest
-    live = smooth[smooth > DIGITAL_SILENCE_DB]
-    speaks = (
-        speech_db is not None
-        and live.size > 0
-        and speech_db - float(np.percentile(live, ANCHOR_PERCENTILE)) >= nearest
-    )
-    if gate_on_speech and room.level_db > DIGITAL_SILENCE_DB and speaks and room.line_db >= ceiling:
+    ceiling = -math.inf if speech_db is None else speech_db - breath_below_speech_db[1]
+    if (
+        gate_on_speech
+        and room.level_db > DIGITAL_SILENCE_DB
+        and speaks(smooth[smooth > DIGITAL_SILENCE_DB], speech_db)
+        and room.line_db >= ceiling
+    ):
         return [Sound(0, levels.size, False)]
     lines = _local_lines(smooth, room, least)
     reach = bridge_short_dips(smooth > lines.reach, _DIP_FRAMES)

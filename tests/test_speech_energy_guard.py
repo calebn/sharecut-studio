@@ -633,6 +633,7 @@ def test_resolve_cut_scope_ripples_over_suppressed_peer_word_without_stems() -> 
 
 def test_resolve_cut_scope_with_stems_lets_sound_decide_over_peer_word(tmp_path: Path) -> None:
     p = _peer_word_in_cut()
+    p.meta.workspace_dir = str(tmp_path)
     t = np.arange(int(10.0 * _SR)) / _SR
     signals = {
         "host": 0.1 * np.sin(2 * np.pi * 220 * t),

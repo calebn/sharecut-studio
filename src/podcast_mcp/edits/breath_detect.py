@@ -4,7 +4,7 @@ import logging
 import math
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
@@ -880,10 +880,16 @@ def protect_cut_breaths(
 
 @dataclass(frozen=True)
 class PauseAir:
-    """The stretch of a pause a trim may take, in the trim track's source seconds."""
+    """The stretch of a pause a trim may take, in the trim track's source seconds.
+
+    ``silence_sec`` is how long nobody speaks around it on the session clock, every
+    dialogue track's words heard: the pause a listener hears the trim shorten. ``None``
+    when the words do not bound it.
+    """
 
     start: float
     end: float
+    silence_sec: float | None = field(default=None, compare=False)
 
     @property
     def span(self) -> tuple[float, float]:
@@ -991,7 +997,8 @@ def pause_air_span(
     nothing left gives :attr:`PauseAirSkip.NO_AIR`. ``session_air`` is the run's, built once
     for every candidate; without one the call reads what it needs from ``audio_caches``
     and ``word_indexes``. Disabled handling returns the input without reading audio.
-    Source seconds.
+    The result also says how long nobody speaks around the stretch (``PauseAir.silence_sec``),
+    which never changes the stretch. Source seconds.
     """
     if not (math.isfinite(start) and math.isfinite(end) and start < end):
         return PauseAirSkip.NO_AIR
@@ -1021,6 +1028,7 @@ def pause_air_span(
             return PauseAir(
                 start if abs(span[0] - start) < _CLOCK_EPS_SEC else span[0],
                 end if abs(span[1] - end) < _CLOCK_EPS_SEC else span[1],
+                air.silence_around(run[0], run[1]),
             )
     return PauseAirSkip.NO_AIR
 

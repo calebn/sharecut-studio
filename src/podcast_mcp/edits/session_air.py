@@ -42,6 +42,7 @@ from podcast_mcp.edits.room_model import (
     least_spread,
     merge_sounds,
     read_recording_room,
+    read_unwatched_room,
     smoothed,
 )
 from podcast_mcp.engines.align import load_mono_window
@@ -160,6 +161,33 @@ def _clip_placement(project: EpisodeProject, track: Track, clip: Clip) -> Placem
     )
 
 
+def lane_window(
+    project: EpisodeProject, track: Track, lo: float, hi: float, sample_rate: int
+) -> np.ndarray:
+    """What ``track``'s lane plays over session ``[lo, hi)``, as mono samples at ``sample_rate``.
+
+    Each placement's recording is read at the seconds that back it and laid where it plays;
+    where the lane plays nothing the window is silence. Raises when a recording under the
+    window cannot be named or read.
+    """
+    out = np.zeros(max(0, round((hi - lo) * sample_rate)), dtype=np.float32)
+    for placement in lane_placements(project, track):
+        start, end = max(lo, placement.tl_start), min(hi, placement.tl_end)
+        if end <= start:
+            continue
+        if placement.media is None:
+            raise FileNotFoundError(f"track {track.id!r} plays a recording that cannot be named")
+        chunk = load_mono_window(
+            placement.media,
+            start_sec=placement.src_start + (start - placement.tl_start),
+            duration_sec=end - start,
+            sample_rate=sample_rate,
+        )
+        at = round((start - lo) * sample_rate)
+        out[at : at + chunk.size] += chunk[: out.size - at]
+    return out
+
+
 def _frames_in(spans: list[tuple[float, float]], frames: int) -> np.ndarray:
     """The frames of a ``frames``-long grid whose centre lies inside any of ``spans``."""
     inside = np.zeros(frames + 1, dtype=np.int32)
@@ -185,6 +213,16 @@ class _Speaking:
                 merged.append([lo, hi])
         self._starts = np.array([m[0] for m in merged])
         self._ends = np.array([m[1] for m in merged])
+
+    def gap_around(self, lo: float, hi: float) -> float | None:
+        """The length of the stretch around ``[lo, hi)`` in which nobody speaks, from the end of
+        the last span before it to the start of the first after; ``None`` when a span overlaps
+        it or none follows."""
+        before = int(np.searchsorted(self._ends, lo + _CLOCK_EPS_SEC, side="right"))
+        after = int(np.searchsorted(self._starts, hi - _CLOCK_EPS_SEC, side="left"))
+        if before != after or after >= self._starts.size:
+            return None
+        return float(self._starts[after] - (self._ends[before - 1] if before else 0.0))
 
     def covers(self, times: np.ndarray) -> np.ndarray:
         if self._starts.size == 0:
@@ -263,17 +301,26 @@ class _Recording:
             )
             level_speech = speech_level_db(levels[in_words])
             smooth = smoothed(levels)
-            ceiling = math.inf if level_speech is None else level_speech - BREATH_BELOW_SPEECH_DB[1]
             least = least_spread(self._air.sample_rate, band)
-            silent = self._air.session_silent_frames(self, levels.size)
-            read = read_recording_room(smooth, silent, ~padded, least, ceiling)
+            sound_speech: float | None
+            if level_speech is not None:
+                ceiling = level_speech - BREATH_BELOW_SPEECH_DB[1]
+                silent = self._air.session_silent_frames(self, levels.size)
+                read = read_recording_room(smooth, silent, ~padded, least, ceiling)
+                sound_speech = level_speech
+            else:
+                # No words to say when this recording speaks: its own speech is in every
+                # frame the session calls quiet, so its room is read from its own levels,
+                # and its speech level from all of them.
+                sound_speech = speech_level_db(levels)
+                read = read_unwatched_room(smooth, least, sound_speech)
             if read is None:
                 return PauseAirSkip.NO_ROOM
             room, _basis = read
             sounds += find_sounds(
                 levels,
                 room,
-                level_speech,
+                sound_speech,
                 least,
                 breath_below_speech_db=BREATH_BELOW_SPEECH_DB,
                 gate_on_speech=band is SPEECH_BAND,
@@ -307,7 +354,7 @@ class SessionAir:
         self._lock = threading.RLock()
         self._levels: dict[tuple[str, Path | None, str], BandLevels | None] = {}
         self._words: dict[tuple[str, str | None, Path | None], CutWordIndex] = {}
-        self._speaking: _Speaking | None = None
+        self._speaking: dict[float, _Speaking] = {}
         self._lanes: dict[str, list[tuple[Placement, _Recording]]] = {}
         recordings: dict[tuple[str, Path | None], _Recording] = {}
         for track in project.tracks:
@@ -374,13 +421,13 @@ class SessionAir:
             return None
         return BandLevels(_file_reader(media, self.sample_rate), self.sample_rate, band)
 
-    def _speaking_union(self) -> _Speaking:
+    def _speaking_union(self, pad: float = WORD_PAD_SEC) -> _Speaking:
         with self._lock:
-            if self._speaking is None:
-                self._speaking = self._build_speaking()
-            return self._speaking
+            if pad not in self._speaking:
+                self._speaking[pad] = self._build_speaking(pad)
+            return self._speaking[pad]
 
-    def _build_speaking(self) -> _Speaking:
+    def _build_speaking(self, pad: float) -> _Speaking:
         spans: list[tuple[float, float]] = []
         for recording in self._recordings.values():
             words = np.array(recording.live_word_spans(), dtype=np.float64).reshape(-1, 2)
@@ -388,12 +435,19 @@ class SessionAir:
                 heard = words[(words[:, 1] > p.src_start) & (words[:, 0] < p.src_end)]
                 spans += [
                     (
-                        p.to_session(max(a, p.src_start)) - WORD_PAD_SEC,
-                        p.to_session(min(b, p.src_end)) + WORD_PAD_SEC,
+                        p.to_session(max(a, p.src_start)) - pad,
+                        p.to_session(min(b, p.src_end)) + pad,
                     )
                     for a, b in heard
                 ]
         return _Speaking(spans)
+
+    def silence_around(self, lo: float, hi: float) -> float | None:
+        """How long nobody speaks around session ``[lo, hi)``: from the end of the last live
+        word of any dialogue recording before it to the start of the first after it. The
+        pause a listener hears a trim in it shorten. ``None`` when a word overlaps it or
+        none follows."""
+        return self._speaking_union(0.0).gap_around(lo, hi)
 
     def session_silent_frames(self, recording: _Recording, frames: int) -> np.ndarray:
         """Which of the first ``frames`` frames of ``recording`` are played while nobody speaks.

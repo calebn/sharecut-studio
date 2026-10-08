@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache
@@ -12,21 +13,30 @@ from podcast_mcp.edits.session_air import (
     Placement,
     SessionAir,
     lane_placements,
+    lane_window,
     primary_media,
 )
 from podcast_mcp.engines.audio_audit import TrackRmsCache
-from podcast_mcp.models import Clip, EpisodeProject, MediaAsset, Track, TrackRole
+from podcast_mcp.models import (
+    Clip,
+    EpisodeProject,
+    MediaAsset,
+    Track,
+    TrackRole,
+    TranscriptWord,
+)
 from test_breath_detect import (
     _FLOOR_RMS,
     _SPEECH_RMS,
     _dbfs,
+    _fake_windows,
     _fixture_words,
     _harmonic_tone,
     _host_project,
     _shaped_noise,
     _with_guest,
 )
-from test_pause_air_session import _gated, _long_track, _reader
+from test_pause_air_session import _gated, _long_track, _project, _reader
 
 RATE = 16_000
 
@@ -204,3 +214,93 @@ def test_a_track_is_read_through_the_decode_the_run_already_holds() -> None:
         got = pause_air_span(project, "host", 3.0, 8.0, audio_caches={"host": cache})
 
     assert got == PauseAir(3.0, 8.0)
+
+
+def _recording(air: SessionAir, track_id: str):
+    return next(r for (tid, _media), r in air._recordings.items() if tid == track_id)
+
+
+def test_the_sessions_speech_is_laid_on_the_session_clock_not_the_recordings_seconds() -> None:
+    # The host sits 3 s into the session: its words at source 1.0 to 1.3 and 0.5 to 0.8 are
+    # the session's 4.0 and 3.5. At session 1.1 nobody speaks; at 3.6 the host does.
+    project = _project(host_at=3.0)
+    air = SessionAir(project)
+
+    silent = air.session_silent_frames(_recording(air, "guest"), 2000)
+
+    assert silent[110]
+    assert not silent[360]
+
+
+def test_a_frame_played_twice_is_silent_only_if_nobody_speaks_at_either_playing() -> None:
+    # The guest's source 2.0 to 4.0 plays at session 2.0 and again at 6.0. The host's one
+    # word, at 6.5 to 7.0, is in the second playing only: the frame at source 2.7 is quiet
+    # where it first plays and spoken over where it plays again.
+    project = _project(guest_clips=((0.0, 6.0, 0.0), (2.0, 4.0, 6.0)))
+    project.transcripts[0].words = [TranscriptWord(text="w", start=6.5, end=7.0)]
+    air = SessionAir(project)
+
+    silent = air.session_silent_frames(_recording(air, "guest"), 600)
+
+    assert silent[100]
+    assert not silent[270]
+
+
+def test_the_silence_around_a_stretch_runs_from_the_last_word_before_it_to_the_first_after() -> (
+    None
+):
+    # The fixture host says a word at 0.0 to 0.3 and every 0.5 s to 4.3, then 5.45 on.
+    air = SessionAir(_project(host_at=1.0))
+
+    assert air.silence_around(5.4, 5.8) == pytest.approx(1.15)
+    # A word overlapping it, no word after it, and the start of the session as the bound
+    # before the first word.
+    assert air.silence_around(5.0, 5.5) is None
+    assert air.silence_around(17.0, 17.5) is None
+    assert air.silence_around(0.2, 0.8) == pytest.approx(1.0)
+
+
+def test_a_lane_window_lays_each_placement_where_it_plays_and_is_silent_in_a_hole() -> None:
+    # Timeline 0 to 2 plays source 0 to 2, 2 to 3 holds nothing, 3 to 4 plays source 5 to 6.
+    project = _project_with_lanes(host=[(0.0, 2.0, 0.0), (5.0, 6.0, 3.0)])
+    host = project.track_by_id("host")
+
+    def constant_by_source(path, start_sec, duration_sec, sample_rate=16000):
+        return np.full(round(duration_sec * sample_rate), start_sec, dtype=np.float32)
+
+    with patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=constant_by_source):
+        got = lane_window(project, host, 1.5, 3.5, 100)
+
+    assert got.tolist() == [1.5] * 50 + [0.0] * 100 + [5.0] * 50
+
+
+def test_a_lane_window_cannot_name_a_recording_outside_the_workspace() -> None:
+    project = _project_with_lanes(host=[(0.0, 2.0, 0.0)])
+    host = project.track_by_id("host")
+    host.media.path = "/elsewhere/host.wav"
+
+    with pytest.raises(FileNotFoundError):
+        lane_window(project, host, 0.0, 1.0, 100)
+
+
+def test_a_recording_with_no_words_is_not_read_through_the_sessions_silence() -> None:
+    # The guest has no transcript, so its own speech is in every frame the session calls
+    # quiet. Its room comes from its own levels; the session's silence is never asked about it.
+    project = _with_guest(_host_project(_fixture_words()))
+    word = _harmonic_tone(4800, _SPEECH_RMS)
+    reader = _reader(host=_fake_windows(), guest=_gated((word, 6.0)))
+    asked: list[str] = []
+    real = SessionAir.session_silent_frames
+
+    def watched(self, recording, frames):
+        asked.append(recording.track_id)
+        return real(self, recording, frames)
+
+    with (
+        patch("podcast_mcp.edits.session_air.load_mono_window", side_effect=reader),
+        patch.object(SessionAir, "session_silent_frames", watched),
+    ):
+        sounds = SessionAir(project).sounds_in(5.8, 6.4)
+
+    assert set(asked) == {"host"}
+    assert any(s.lo < 6.0 < s.hi for s in sounds)

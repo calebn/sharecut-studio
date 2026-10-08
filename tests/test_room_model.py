@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.audio_cache import DIGITAL_SILENCE_DB
+from podcast_mcp.edits.audio_cache import DIGITAL_SILENCE_DB, speech_level_db
 from podcast_mcp.edits.room_model import (
     Room,
     RoomBasis,
@@ -15,9 +15,12 @@ from podcast_mcp.edits.room_model import (
     merge_sounds,
     mode_spread,
     read_conservative_room,
+    read_mode,
     read_recording_room,
     read_room,
+    read_unwatched_room,
     smoothed,
+    speaks,
 )
 from podcast_mcp.util.dsp import LOW_BAND, SPEECH_BAND
 
@@ -482,3 +485,90 @@ def test_a_stretch_gets_the_same_sounds_whatever_surrounds_it() -> None:
     (there,) = [s for s in _sounds(long, room=room) if s.lo > 2000]
 
     assert (there.lo - 2000, there.hi - 2000, there.removable) == (here.lo, here.hi, here.removable)
+
+
+def _talker(seed: int = 5):
+    """A recording that talks through the frames a session calls quiet: 3000 frames of room
+    at -91 +- 1.7 dB (while its peers talk), and 3000 of speech between -60 and -12 dBFS.
+
+    Returns the smoothed levels and the mask of the frames the session calls quiet (only
+    the recording's own speech and 1% of its room)."""
+    rng = np.random.default_rng(seed)
+    room = _room_levels(3000, -91.0, 1.7, seed=seed)
+    speech = rng.uniform(-60.0, -12.0, 3000)
+    smooth = smoothed(np.concatenate([room, speech]))
+    quiet = np.zeros(smooth.size, dtype=bool)
+    quiet[2970:] = True
+    return smooth, quiet
+
+
+def test_a_recording_with_no_words_reads_its_room_where_its_own_levels_pile_up() -> None:
+    smooth, quiet = _talker()
+    speech = speech_level_db(smooth)
+
+    # Read through the session's silence it takes its own speech for its room.
+    through_silence = read_recording_room(smooth, quiet, ~quiet, LEAST, ceiling_db=-52.0)
+    assert through_silence is not None
+    assert through_silence[0].line_db > -50.0
+
+    read = read_unwatched_room(smooth, LEAST, speech)
+
+    assert read is not None
+    room, basis = read
+    assert basis is RoomBasis.OWN_LEVELS
+    assert room.level_db == pytest.approx(-91.0, abs=0.8)
+    assert 0.5 < room.spread_db < 2.5  # the room's, not the speech's tens of dB
+
+
+def test_a_recording_that_never_speaks_is_a_room_throughout() -> None:
+    levels = smoothed(_room_levels(1200, -74.0, 0.8, seed=4))
+    speech = speech_level_db(levels)
+
+    assert not speaks(levels, speech)
+    assert read_unwatched_room(levels, LEAST, speech) == (
+        read_room(levels, LEAST),
+        RoomBasis.OWN_LEVELS,
+    )
+
+
+def test_a_recording_with_no_speech_level_at_all_is_a_room_throughout() -> None:
+    levels = smoothed(_room_levels(30, -74.0, 0.8, seed=4))
+
+    assert speech_level_db(levels) is None
+    assert read_unwatched_room(levels, LEAST, None) == (
+        read_room(levels, LEAST),
+        RoomBasis.OWN_LEVELS,
+    )
+
+
+def test_a_gate_that_holds_a_talker_at_digital_silence_between_its_words_is_its_room() -> None:
+    # Words at -15 dBFS over 40% of the frames and digital silence between them: the live
+    # frames are all speech, the gate's silence is the room.
+    levels = np.concatenate([np.full(600, DIGITAL_SILENCE_DB), np.full(400, -15.0)] * 3)
+
+    read = read_unwatched_room(levels, LEAST, speech_level_db(levels))
+
+    assert read == (Room(DIGITAL_SILENCE_DB, LEAST), RoomBasis.OWN_LEVELS)
+
+
+def test_a_talker_with_no_room_mode_falls_back_to_the_low_end_of_all_its_frames() -> None:
+    # Levels spread evenly from -60 to -12 pile up nowhere: the room is the 5th percentile.
+    smooth = smoothed(np.random.default_rng(2).uniform(-60.0, -12.0, 3000))
+    speech = speech_level_db(smooth)
+
+    room, basis = read_unwatched_room(smooth, LEAST, speech)
+
+    assert basis is RoomBasis.OWN_LEVELS
+    assert room.level_db == pytest.approx(float(np.percentile(smooth, 5.0)), abs=0.01)
+    assert room == read_conservative_room(smooth, LEAST)
+
+
+def test_the_mode_of_a_track_reports_the_level_it_piles_up_at() -> None:
+    rng = np.random.default_rng(8)
+    levels = np.concatenate([_room_levels(500, -92.0, 1.5, seed=9), rng.uniform(-90.0, -20.0, 500)])
+
+    mode = read_mode(levels, -50.0, LEAST)
+
+    assert mode is not None
+    assert mode.level_db == pytest.approx(-92.0, abs=0.8)
+    assert mode.spread_db == pytest.approx(1.5, abs=0.6)

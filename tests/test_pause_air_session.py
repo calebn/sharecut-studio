@@ -602,3 +602,28 @@ def test_a_track_that_speaks_seven_percent_of_the_time_has_a_speech_level_from_i
         ]
 
     assert _air(project, "host", _CUT, host=_fake_windows(), guest=guest) == pytest.approx(_CUT)
+
+
+def test_a_trim_says_how_long_nobody_speaks_around_it_and_that_moves_nothing() -> None:
+    # The host is silent from 4.3 to 5.45. The guest says a word from 4.9, so a listener
+    # hears 0.6 s of pause (4.3 to 4.9) where the host's own gap is 1.15 s. The stretch the
+    # trim takes is the same with or without that word's transcript.
+    guest = _gated((_harmonic_tone(3200, _SPEECH_RMS), 4.9))
+    said = _project()
+    said.transcripts.append(
+        Transcript(track_id="guest", words=[TranscriptWord(text="well", start=4.9, end=5.1)])
+    )
+    unsaid = _project()
+
+    with patch(
+        "podcast_mcp.edits.session_air.load_mono_window",
+        side_effect=_reader(host=_fake_windows(), guest=guest),
+    ):
+        heard = pause_air_span(said, "host", 4.4, 4.8)
+        alone = pause_air_span(unsaid, "host", 4.4, 4.8)
+
+    assert isinstance(heard, PauseAir) and isinstance(alone, PauseAir)
+    assert heard.span == alone.span == pytest.approx((4.4, 4.8))
+    assert heard.silence_sec == pytest.approx(0.6, abs=0.01)
+    # Without the guest's words only the host's bound the pause: its own gap.
+    assert alone.silence_sec == pytest.approx(1.15, abs=0.01)
