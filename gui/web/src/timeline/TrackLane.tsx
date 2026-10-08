@@ -6,7 +6,7 @@ import type {
   ClipSelectMods,
   MoveGhost,
 } from "../edit/clipMove";
-import { isDrawnJoin } from "../edit/joinRender";
+import { clipsAbut, isDrawnJoin } from "../edit/joinRender";
 import { laneRipple, rippleMoves, rippleTrackIds } from "../edit/ripplePreview";
 import { trimNeighborBounds } from "../edit/trimLimits";
 import {
@@ -355,7 +355,7 @@ export function TrackLaneView({
                 (selection?.kind === "clip" && selection.id === clip.id)
               }
               mediaRef={mediaRefs[i]!}
-              prevClip={prev ?? null}
+              prevClip={prev && clipsAbut(prev, clip) ? prev : null}
               nextClip={next ?? null}
               neighborSourceLo={trimBounds.neighborLo}
               neighborSourceHi={trimBounds.neighborHi}
