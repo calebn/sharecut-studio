@@ -43,10 +43,6 @@ def voice_runs(levels: np.ndarray, labels: np.ndarray, detected: np.ndarray | No
     """Fixed voiced spans from global levels, provisional clusters, and actual VAD.
 
     All arrays share the frame shape. ``None`` means the detector is unavailable.
-    Global and cluster midpoints use non-digital floor samples and median speech
-    levels. Actual detector-positive sound joins their union when contrast is
-    measurable. Without a detector, a cluster must supply its own level contrast.
-    Dips under ``MIN_RUN_SEC`` bridge and shorter runs disappear.
     """
     sound = levels > SILENCE_DB
     if not sound.any():
@@ -65,13 +61,19 @@ def voice_runs(levels: np.ndarray, labels: np.ndarray, detected: np.ndarray | No
     within_cluster_contrast = False
     for speaker in np.unique(labels):
         member = sound & (labels == speaker)
-        local_talk = levels[member & eligible]
+        local_eligible = bridge_short_dips(member & eligible, least - 1)
+        for lo, hi in bool_runs(local_eligible):
+            if hi - lo < least:
+                local_eligible[lo:hi] = False
+        local_talk = levels[member & eligible & local_eligible]
         if local_talk.size < least:
             continue
         local_floor = float(np.percentile(levels[member], FLOOR_PERCENTILE))
         local_speech = float(np.median(local_talk))
         within_cluster_contrast |= local_speech - local_floor >= MIN_RANGE_DB
         shared_floor = min(floor, local_floor)
+        if detected is None and local_speech - shared_floor < MIN_RANGE_DB:
+            return []
         if local_speech - shared_floor >= MIN_RANGE_DB:
             measurable = True
             voice |= member & (levels >= shared_floor + QUIET_SHARE * (local_speech - shared_floor))

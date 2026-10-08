@@ -346,3 +346,81 @@ def test_a_speech_only_cluster_uses_the_recordings_measured_floor(available: boo
     labels = _labels(FRAMES, [(0, A), (140, B), (170, A)])
     detected = levels > -60.0 if available else None
     assert voice_runs(levels, labels, detected) == [(20, 120), (140, 170), (190, 290)]
+
+
+@pytest.mark.parametrize("gain", [0.0, -25.0])
+@pytest.mark.parametrize("a_frames", [60, 150])
+@pytest.mark.parametrize("dip", [False, True])
+@pytest.mark.parametrize("available", [False, True])
+def test_unrelated_contrast_cannot_erase_a_continuous_quiet_cluster(
+    gain: float, a_frames: int, dip: bool, available: bool
+) -> None:
+    levels = np.full(FRAMES, -45.0 + gain)
+    levels[:a_frames] = -20.0 + gain
+    if dip:
+        levels[: a_frames // 6] = -32.0 + gain
+    labels = _labels(FRAMES, [(0, A), (a_frames, B)])
+    detected = np.ones(FRAMES, dtype=bool) if available else None
+    runs = voice_runs(levels, labels, detected)
+    assert runs == ([(0, 300)] if available else [])
+    scores = _scores(FRAMES, {(a_frames, FRAMES): (0.1, 0.9)})
+    settled, overlap = settle_hand_overs(
+        labels, scores, levels, runs, _own({(0, a_frames): A, (a_frames, FRAMES): B}), REACH
+    )
+    assert settled.tolist() == [A] * a_frames + [B] * (FRAMES - a_frames)
+    expected = (
+        [-1] * (a_frames - 12) + [B] * 12 + [A] * 12 + [-1] * (FRAMES - a_frames - 12)
+        if available
+        else [-1] * 300
+    )
+    assert overlap.tolist() == expected
+
+
+@pytest.mark.parametrize("gain", [0.0, -25.0])
+@pytest.mark.parametrize("noise", [[], [135, 143], [135, 143, 151], [135, 143, 151, 159, 167]])
+def test_disconnected_detector_blips_cannot_expand_a_background_cluster(gain, noise) -> None:
+    levels = np.full(FRAMES, -80.0 + gain)
+    levels[20:120] = levels[190:290] = -20.0 + gain
+    levels[130:180] = -60.0 + gain
+    labels = _labels(FRAMES, [(0, A), (130, B), (180, A)])
+    detected = levels == -20.0 + gain
+    detected[noise] = True
+    runs = voice_runs(levels, labels, detected)
+    assert runs == [(20, 120), (190, 290)]
+    settled, overlap = settle_hand_overs(
+        labels,
+        _scores(FRAMES, {(130, 180): (0.1, 0.9)}),
+        levels,
+        runs,
+        _own({(20, 120): A, (190, 290): A}),
+        REACH,
+    )
+    assert settled.tolist() == [A] * 300
+    assert overlap.tolist() == [-1] * 300
+
+
+@pytest.mark.parametrize(
+    ("noise_frames", "expected"),
+    [(2, [(20, 120), (190, 290)]), (3, [(20, 120), (130, 180), (190, 290)])],
+)
+def test_raised_background_calibration_requires_contiguous_duration(noise_frames, expected) -> None:
+    levels = np.full(FRAMES, -80.0)
+    levels[20:120] = levels[190:290] = -20.0
+    levels[130:180] = -60.0
+    labels = _labels(FRAMES, [(0, A), (130, B), (180, A)])
+    detected = levels == -20.0
+    detected[135 : 135 + noise_frames] = True
+    assert voice_runs(levels, labels, detected) == expected
+
+
+def test_unavailable_detector_still_dissolves_a_digital_silent_turn() -> None:
+    levels = _quiet_reply_levels()
+    levels[130:180] = -200.0
+    labels = _labels(FRAMES, [(0, A), (130, B), (180, A)])
+    runs = voice_runs(levels, labels, None)
+    assert runs == [(20, 120), (190, 290)]
+    settled, overlap = settle_hand_overs(
+        labels, _scores(FRAMES, {(130, 180): (0.1, 0.9)}), levels, runs, _own(VOICES), REACH
+    )
+    assert settled.tolist() == [A] * 300
+    assert overlap.tolist() == [-1] * 300
