@@ -9,7 +9,6 @@ import typer
 
 from podcast_mcp.cli.cancel import CANCELLED_EXIT_CODE, sigint_cancel
 from podcast_mcp.cli.context import get_progress
-from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.pipeline import PipelineRunResult, PipelineService
 from podcast_mcp.util.progress import CancelledProgress
@@ -231,7 +230,6 @@ def render_preview_cmd(
 
 
 @pipeline_app.command("export-audio")
-@timed_command("export-audio")
 def export_audio_cmd(
     project: Path = typer.Option(..., "--project"),
     formats: str | None = typer.Option(
@@ -261,7 +259,6 @@ def export_audio_cmd(
 
 
 @pipeline_app.command("bounce")
-@timed_command("bounce")
 def bounce_cmd(
     project: Path = typer.Option(..., "--project"),
     tracks: str | None = typer.Option(

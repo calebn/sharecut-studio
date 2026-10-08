@@ -5,7 +5,6 @@ from pathlib import Path
 
 import typer
 
-from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.history import HistoryManager
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import HISTORY_RERENDER_ERRORS, HistoryService
@@ -84,7 +83,6 @@ _EXPECTED_HEAD_HELP = (
 )
 
 
-@timed_command("undo")
 def undo_cmd(
     project: Path = typer.Option(..., "--project"),
     rerender: bool = typer.Option(False, "--rerender", help="Rebuild premix after undo"),
@@ -103,7 +101,6 @@ def undo_cmd(
     )
 
 
-@timed_command("redo")
 def redo_cmd(
     project: Path = typer.Option(..., "--project"),
     rerender: bool = typer.Option(False, "--rerender", help="Rebuild premix after redo"),

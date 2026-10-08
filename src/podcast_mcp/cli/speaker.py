@@ -6,7 +6,6 @@ from pathlib import Path
 import typer
 
 from podcast_mcp.cli.context import get_progress
-from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.edits.speaker_split import CROSSTALK_MODES
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.media import SpeakerService
@@ -15,7 +14,6 @@ speaker_app = typer.Typer(help="Speaker enrollment and attribution.")
 
 
 @speaker_app.command("doctor")
-@timed_command("speaker doctor")
 def speaker_doctor_cmd() -> None:
     typer.echo(json.dumps(SpeakerService.doctor_static(), indent=2))
 
@@ -42,7 +40,6 @@ def speaker_enroll_cmd(
 
 
 @speaker_app.command("profiles")
-@timed_command("speaker profiles")
 def speaker_profiles_cmd(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
@@ -63,7 +60,6 @@ def speaker_score_cmd(
 
 
 @speaker_app.command("compare")
-@timed_command("speaker compare")
 def speaker_compare_cmd(
     project: Path = typer.Option(..., "--project"),
     start: float = typer.Option(..., "--start"),

@@ -5,7 +5,6 @@ from pathlib import Path
 
 import typer
 
-from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration import ReviewService, ShareService
@@ -17,7 +16,6 @@ review_app = typer.Typer(
 
 
 @review_app.command("publish-version")
-@timed_command("review publish-version")
 def review_publish_version_cmd(
     project: Path = typer.Option(..., "--project"),
     label: str = typer.Option(..., "--label"),
@@ -78,7 +76,6 @@ def review_set_active_cmd(
     typer.echo(json.dumps(result, indent=2))
 
 
-@timed_command("review share")
 def _cli_create_record_share(
     *,
     project: Path,
