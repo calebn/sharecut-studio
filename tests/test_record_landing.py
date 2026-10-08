@@ -246,12 +246,14 @@ def test_pad_math_late_join_and_later_segments() -> None:
 def test_take_offsets_include_gap_and_skip_tombstones() -> None:
     takes = [
         TakeState(
+            consented_participant_ids=[],
             take_index=0,
             session_start_wall_ms=0,
             session_start_iso="t0",
             stopped_wall_ms=5_000,
         ),
         TakeState(
+            consented_participant_ids=[],
             take_index=1,
             session_start_wall_ms=8_000,
             session_start_iso="t1",
@@ -261,7 +263,12 @@ def test_take_offsets_include_gap_and_skip_tombstones() -> None:
     assert take_recording_duration_ms(takes[0]) == 5_000
     assert (
         take_recording_duration_ms(
-            TakeState(take_index=2, session_start_wall_ms=0, session_start_iso="open")
+            TakeState(
+                consented_participant_ids=[],
+                take_index=2,
+                session_start_wall_ms=0,
+                session_start_iso="open",
+            )
         )
         == 0
     )
@@ -275,6 +282,7 @@ def test_take_offsets_include_gap_and_skip_tombstones() -> None:
 def test_paused_span_does_not_consume_take_offset() -> None:
     takes = [
         TakeState(
+            consented_participant_ids=[],
             take_index=0,
             session_start_wall_ms=0,
             session_start_iso="t0",
@@ -282,6 +290,7 @@ def test_paused_span_does_not_consume_take_offset() -> None:
             pauses=[PauseEntry(seq=1, pause_wall_ms=4_000, resume_wall_ms=9_000)],
         ),
         TakeState(
+            consented_participant_ids=[],
             take_index=1,
             session_start_wall_ms=12_000,
             session_start_iso="t1",
@@ -311,11 +320,19 @@ def test_wav_pcm_info_rejects_junk(tmp_path: Path) -> None:
 
 def test_align_fallback_missing_session_start_or_drift() -> None:
     missing = [
-        TakeState(take_index=0, session_start_wall_ms=0, session_start_iso=""),
+        TakeState(
+            consented_participant_ids=[],
+            take_index=0,
+            session_start_wall_ms=0,
+            session_start_iso="",
+        ),
     ]
     present = [
         TakeState(
-            take_index=0, session_start_wall_ms=1, session_start_iso="2026-01-01T00:00:00+00:00"
+            consented_participant_ids=[],
+            take_index=0,
+            session_start_wall_ms=1,
+            session_start_iso="2026-01-01T00:00:00+00:00",
         ),
     ]
     assert needs_align_fallback(missing) is True
@@ -2158,6 +2175,7 @@ def test_measure_keeper_drifts_skips_pcm_windows(
     monkeypatch.setattr("podcast_mcp.engines.align.read_wav_mono_window", wrapped)
     takes = [
         TakeState(
+            consented_participant_ids=[],
             take_index=0,
             session_start_wall_ms=0,
             session_start_iso="t0",
@@ -2210,6 +2228,7 @@ def test_measure_keeper_drifts_skips_producer(tmp_path: Path) -> None:
             wf.writeframes(payload)
     takes = [
         TakeState(
+            consented_participant_ids=[],
             take_index=0,
             session_start_wall_ms=0,
             session_start_iso="t0",
@@ -2262,6 +2281,7 @@ def test_measure_keeper_drifts_edges(tmp_path: Path) -> None:
     _silence_wav(b)
     takes = [
         TakeState(
+            consented_participant_ids=[],
             take_index=0,
             session_start_wall_ms=0,
             session_start_iso="t0",
@@ -2391,6 +2411,7 @@ def test_measure_keeper_drifts_uses_first_overlapping_segments(tmp_path: Path) -
     _pcm_wav(guest, seconds=1.0)
     takes = [
         TakeState(
+            consented_participant_ids=[],
             take_index=0,
             session_start_wall_ms=0,
             session_start_iso="t0",
@@ -2517,6 +2538,7 @@ def test_measure_keeper_drifts_handles_raise_and_open_take(tmp_path: Path) -> No
     _pcm_wav(guest, seconds=1.0)
     takes = [
         TakeState(
+            consented_participant_ids=[],
             take_index=0,
             session_start_wall_ms=0,
             session_start_iso="t0",
@@ -2559,6 +2581,7 @@ def test_measure_keeper_drifts_handles_raise_and_open_take(tmp_path: Path) -> No
         session_id="sess",
         takes=[
             TakeState(
+                consented_participant_ids=[],
                 take_index=0,
                 session_start_wall_ms=0,
                 session_start_iso="t0",
@@ -2583,6 +2606,7 @@ def test_measure_keeper_drifts_handles_raise_and_open_take(tmp_path: Path) -> No
         session_id="sess",
         takes=[
             TakeState(
+                consented_participant_ids=[],
                 take_index=0,
                 session_start_wall_ms=0,
                 session_start_iso="t0",

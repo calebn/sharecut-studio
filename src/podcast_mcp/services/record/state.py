@@ -36,8 +36,7 @@ class TakeState(BaseModel):
     session_start_iso: str
     stopped_wall_ms: int | None = None
     pauses: list[PauseEntry] = Field(default_factory=list)
-    # None means a legacy take stored before per-take consent tracking existed.
-    consented_participant_ids: list[str] | None = None
+    consented_participant_ids: list[str]
 
 
 class ParticipantState(BaseModel):
@@ -206,8 +205,7 @@ def guest_upload_consented(
 
     Room tone uses the participant's current consent. A keeper chunk is checked
     against the take's consent roster captured at Start and updated by mid-take
-    Accept/Decline; a legacy take (``consented_participant_ids is None``) falls
-    back to "participant exists and has not declined".
+    Accept/Decline. Every take supplies an explicit roster.
 
     A participant the host removed is refused for every take and for room tone.
     """
@@ -219,6 +217,4 @@ def guest_upload_consented(
     take = next((t for t in snap.takes if t.take_index == take_index), None)
     if take is None:
         return False
-    if take.consented_participant_ids is None:
-        return person.consented is not False
     return participant_id in take.consented_participant_ids

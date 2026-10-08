@@ -31,6 +31,7 @@ describe("hostReconnectPauseCopy", () => {
           take_index: 0,
           session_start_wall_ms: 0,
           session_start_iso: "t0",
+          consented_participant_ids: [],
           pauses: [
             {
               seq: 0,
@@ -56,6 +57,7 @@ describe("hostReconnectPauseCopy", () => {
             take_index: 0,
             session_start_wall_ms: 0,
             session_start_iso: "t0",
+            consented_participant_ids: [],
             pauses: [{ seq: 0, pause_wall_ms: 10_000, resume_wall_ms: null }],
           },
         ],
@@ -68,6 +70,7 @@ describe("hostReconnectPauseCopy", () => {
       take_index: 0,
       session_start_wall_ms: 0,
       session_start_iso: "t0",
+      consented_participant_ids: [],
       pauses: [
         {
           seq: 0,
@@ -122,6 +125,7 @@ describe("hostKeeperResetKey", () => {
             take_index: 0,
             session_start_wall_ms: 0,
             session_start_iso: "t0",
+            consented_participant_ids: [],
             pauses: [
               {
                 seq: 4,

@@ -15,6 +15,8 @@ splitter preview restores its prior explicit value or absence; resize and reset
 create no project History entry. Finite out-of-bounds saved heights are clamped
 and normalized when the editor initializes.
 
+CLI undo and redo use the shared command progress scope. Progress stays on stderr, and their results stay on stdout.
+
 ## Storage layout
 
 Local retained-bleed alignment decisions are part of `editorial`, so undo/redo

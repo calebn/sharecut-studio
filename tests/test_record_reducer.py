@@ -449,7 +449,14 @@ def test_recording_ms_handles_inconsistent_take() -> None:
         session_id="s",
         state="recording",
         take_index=3,
-        takes=[TakeState(take_index=0, session_start_wall_ms=0, session_start_iso="x")],
+        takes=[
+            TakeState(
+                consented_participant_ids=[],
+                take_index=0,
+                session_start_wall_ms=0,
+                session_start_iso="x",
+            )
+        ],
     )
     assert rms(snap, now_wall_ms=10) == 10
 
@@ -730,7 +737,7 @@ def test_rejoin_between_takes_keeps_prior_take_consent() -> None:
     assert guest_upload_consented(snap, "p_g", take_index=1) is False
 
 
-def test_guest_upload_consented_legacy_take_and_unknown_participant() -> None:
+def test_guest_upload_requires_explicit_take_membership() -> None:
     snap = empty_record_snapshot("sess")
     snap = _join(snap, pid="p_host", role="host", name="Host", now=0)
     snap = _join(snap, pid="p_g", role="guest", name="Ava", now=1, seq=2)
@@ -738,14 +745,26 @@ def test_guest_upload_consented_legacy_take_and_unknown_participant() -> None:
         snap, _cmd("Consent", pid="p_g", payload={"accepted": True}, seq=3), now_wall_ms=2
     )
     snap = apply_record_command(snap, _cmd("Start", role="host", pid="p_host"), now_wall_ms=10)
-    snap.takes[0].consented_participant_ids = None
-    assert guest_upload_consented(snap, "p_g", take_index=0) is True
-    snap = apply_record_command(
-        snap, _cmd("Consent", pid="p_g", payload={"accepted": False}, seq=3), now_wall_ms=11
-    )
-    snap.takes[0].consented_participant_ids = None
+    snap.takes[0].consented_participant_ids = []
     assert guest_upload_consented(snap, "p_g", take_index=0) is False
+    snap.takes[0].consented_participant_ids = ["p_g"]
+    assert guest_upload_consented(snap, "p_g", take_index=0) is True
     assert guest_upload_consented(snap, "p_missing", take_index=0) is False
+
+
+@pytest.mark.parametrize("roster", [None, "missing"])
+def test_snapshot_rejects_null_or_missing_take_roster(roster) -> None:
+    from pydantic import ValidationError
+
+    from podcast_mcp.services.record.state import RecordSnapshot
+
+    take = {"take_index": 0, "session_start_wall_ms": 10, "session_start_iso": "t0"}
+    if roster != "missing":
+        take["consented_participant_ids"] = roster
+    with pytest.raises(ValidationError) as raised:
+        RecordSnapshot.model_validate({"session_id": "sess", "takes": [take]})
+    assert raised.value.errors()[0]["loc"] == ("takes", 0, "consented_participant_ids")
+    assert raised.value.errors()[0]["type"] == ("missing" if roster == "missing" else "list_type")
 
 
 def test_find_participant_handles_falsy_and_unknown_ids() -> None:
@@ -773,8 +792,6 @@ def test_remove_participant_mid_take_revokes_upload_consent() -> None:
     assert snap.takes[0].consented_participant_ids == ["p_host"]
     assert guest_upload_consented(snap, "p_g", take_index=0) is False
     assert guest_upload_consented(snap, "p_g", take_index=None) is False
-    snap.takes[0].consented_participant_ids = None
-    assert guest_upload_consented(snap, "p_g", take_index=0) is False
 
 
 def test_remove_participant_revokes_stopped_and_current_take_upload_consent() -> None:

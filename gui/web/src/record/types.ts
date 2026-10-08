@@ -51,8 +51,8 @@ export type TakeState = {
   session_start_iso: string;
   stopped_wall_ms?: number | null;
   pauses: PauseEntry[];
-  /** Server-owned per-take consent roster (gates keeper uploads); null = legacy take. Read this, do not re-derive from live `consented`. */
-  consented_participant_ids?: string[] | null;
+  /** Server-owned roster for keeper uploads, independent of live consent. */
+  consented_participant_ids: string[];
 };
 
 /** Why host Start is refused (server `start_blockers`); the panel words each one. */

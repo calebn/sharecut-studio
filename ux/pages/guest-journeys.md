@@ -333,7 +333,9 @@ flowchart TD
    closes that invite link to new people ("Invite link closed"); guests who
    already joined keep their saved lease, and new people need a fresh link.
    Removal also blocks saving earlier stopped takes that are still in progress,
-   even when the guest consented to those takes. The host should wait for
+   even when the guest consented to those takes. Each take has an explicit
+   consent roster. A guest can save a full-quality recording only for a take
+   whose roster includes them. The host should wait for
    "Saved to project" before removal when those parts matter.
    Removal during REC stops microphone capture and saving, then offers recovery
    or download of the full-quality recording kept on this device. A naturally expired lease can start a fresh
