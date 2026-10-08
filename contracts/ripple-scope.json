@@ -220,6 +220,38 @@
       "cuts": { "guest": [8, 10] }
     },
     {
+      "name": "a peer end a hair before a shortened end carries the clip that abuts it",
+      "clips": {
+        "host": [["h1", 0, 0, 10], ["h2", 12, 12, 20]],
+        "guest": [["g1", 0, 0, 9.9995], ["g2", 9.9995, 9.9995, 20]],
+        "music": []
+      },
+      "trim": { "clip_id": "h1", "edge": "out", "source_sec": 8, "mode": "ripple" },
+      "lanes": {
+        "host": [[0, 8, 0, 8], [10, 18, 12, 20]],
+        "guest": [[0, 7.9995, 0, 7.9995], [7.9995, 18, 9.9995, 20]],
+        "music": []
+      },
+      "arrows": { "host": [[12, 10]], "guest": [[9.9995, 7.9995]] },
+      "cuts": { "guest": [8, 10] }
+    },
+    {
+      "name": "a peer end a hair past a shortened end carries the clip that abuts it",
+      "clips": {
+        "host": [["h1", 0, 0, 10.0005], ["h2", 12, 12, 20]],
+        "guest": [["g1", 0, 0, 10], ["g2", 10, 10, 20]],
+        "music": []
+      },
+      "trim": { "clip_id": "h1", "edge": "out", "source_sec": 8.0005, "mode": "ripple" },
+      "lanes": {
+        "host": [[0, 8.0005, 0, 8.0005], [10, 18, 12, 20]],
+        "guest": [[0, 8, 0, 8], [8, 18, 10, 20]],
+        "music": []
+      },
+      "arrows": { "host": [[12, 10]], "guest": [[10, 8]] },
+      "cuts": { "guest": [8.0005, 10.0005] }
+    },
+    {
       "name": "a tail longer than a millisecond past a shortened end stays a piece",
       "clips": {
         "host": [["h1", 0, 0, 10], ["h2", 12, 12, 20]],

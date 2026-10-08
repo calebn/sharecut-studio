@@ -229,4 +229,45 @@ describe("ripple preview on a multi-track project (#1135)", () => {
       ),
     ).toBeNull();
   });
+
+  it("draws no zero-length clip where another lane's clip starts a float rounding before the removed span", () => {
+    const noisy = 8 - 8.9e-16;
+    const project = minimalProject({
+      tracks: [host, guest],
+      clips: {
+        tracks: {
+          host: [row("a", "host", 0, 10)],
+          guest: [
+            clipRow({
+              id: "g",
+              track_id: "guest",
+              timeline_start: noisy,
+              timeline_end: 20,
+              source_start: noisy,
+              source_end: 20,
+            }),
+          ],
+        },
+        clip_count: 2,
+      },
+    });
+    const drafted = trimDraft(project, "host", "a", "out", 8, "ripple");
+    expect(
+      drafted.clips.tracks.guest.map((c) => [
+        c.id,
+        c.timeline_start,
+        c.timeline_end,
+        c.source_start,
+        c.source_end,
+      ]),
+    ).toEqual([
+      [
+        "g",
+        expect.closeTo(8, 9),
+        expect.closeTo(18, 9),
+        expect.closeTo(10, 9),
+        expect.closeTo(20, 9),
+      ],
+    ]);
+  });
 });

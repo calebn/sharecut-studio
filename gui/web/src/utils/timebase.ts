@@ -1,6 +1,12 @@
 import type { ClipRow } from "../types/project";
 
-const EPS = 1e-9;
+/**
+ * How close two timeline or source seconds must be to count as the same
+ * instant: float noise, not an edit. Mirrors `_EPS` in `edits/ripple.py` and
+ * `edits/clips_ops.py`.
+ */
+export const TIME_EPS_SEC = 1e-9;
+const EPS = TIME_EPS_SEC;
 
 /**
  * Map a timeline second to source media time via clip dual clocks.
