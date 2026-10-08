@@ -291,6 +291,7 @@ async function submitHostDocumentCommand(
   const hostQueue = await import("../state/offlineStore");
   let enqueueResult = { persisted: false, hadPredecessor: false };
   let persistenceFailed = false;
+  let persistenceFallbackAllowed = false;
   if (opts.replaying) {
     // A replay already owns its persisted queue record.
     enqueueResult.persisted = true;
@@ -325,7 +326,15 @@ async function submitHostDocumentCommand(
           "Cannot send this edit while older offline edits are pending",
         );
       }
+      persistenceFallbackAllowed = true;
     }
+  }
+  if (
+    !opts.replaying &&
+    !enqueueResult.persisted &&
+    !persistenceFallbackAllowed
+  ) {
+    throw new Error("Cannot send this edit without local persistence");
   }
   if (enqueueResult.hadPredecessor && !opts.replaying) {
     // A predecessor that is this tab's own live send is not an offline edit:
