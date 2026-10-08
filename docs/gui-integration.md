@@ -43,7 +43,7 @@ Committed cuts are archived in `editorial.edit_log` (not deleted with `edit_deci
 
 | API | Purpose |
 |-----|---------|
-| `list_clips_tool` | Full clip rows incl. `join_in_mode`, `source_id`, `origin_track_id` and the effective join render (`join_left_clip_id`, `join_render_mode`, `join_crossfade_ms`, `join_crossfade_blocked`; computed by the same functions render uses) |
+| `list_clips_tool` | Full clip rows incl. `join_in_mode`, `source_id`, `source_duration_sec` / `recording_path` (the clip's own recording, which the DAW's `trim_edge_limits` mirror stops at), `origin_track_id` and the effective join render (`join_left_clip_id`, `join_render_mode`, `join_crossfade_ms`, `join_crossfade_blocked`; computed by the same functions render uses) |
 | `list_edit_decisions_tool` | Pending cuts |
 | `list_applied_edits_tool` | Committed cut provenance |
 | `edit_impact_report_tool` | Seconds cut (once per cut, per track in `by_track_sec`) and applied-edit count, from approved edits in `editorial.edit_log` plus any applied decisions still in `edit_decisions`; mutes count as applied but remove no time |
@@ -326,8 +326,8 @@ does not step the draft values; the existing numeric validation reports errors.
 **Save point**, **Delete point**, and removing the last point
 use `SetEnvelope` with the exact ordered saved baseline and one undoable change.
 Cancel, form Escape, and unchanged saves write nothing. A conflict preserves the
-draft and offers **Discard draft and reload points**. Shared projects expose
-**View volume envelope** without mutation controls. Timeline point drags retain
+draft and offers **Discard draft and reload points**. Editor links edit volume envelopes as the host does; Commenter and Viewer
+links expose **View volume envelope** without mutation controls. Timeline point drags retain
 their local pointer ownership and cancellation behavior.
 
 When the timeline / transport / track headers **or the Transcript tab** are focused (including after selecting transcript text):

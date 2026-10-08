@@ -163,8 +163,8 @@ Selection opens a non-modal **half → full** [`BottomSheet`](../gui/web/src/ui/
 A timeline selection in Timeline mode opens the **compact inspector**
 instead: a peek strip with the target's name, its key
 value and rows of 44 px nudges at the keyboard's steps: a clip's fade or
-trim, a pending edit's start and end, and (for the host) an envelope point's
-time and level (for the host and Editor links). Holding a nudge repeats it,
+trim, a pending edit's start and end, and an envelope point's time and level
+(for the host and Editor links; Commenter and Viewer links see them view-only). Holding a nudge repeats it,
 faster after a few steps, and the run saves as one edit; a held run stops at a
 soft boundary (the playhead, a chapter, a clip or pending edge) and a fresh
 press goes past it. A trim's strip wears the **Ripple** mark: later clips on
