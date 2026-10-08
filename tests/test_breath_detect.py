@@ -1496,3 +1496,39 @@ def test_a_silent_peer_mic_with_only_room_tone_never_blocks_a_pause_trim() -> No
         return _shaped_noise(round(duration_sec * sample_rate), _FLOOR_RMS, sample_rate)
 
     assert _air_with_words((4.4, 5.3), guest=room_only) == pytest.approx((4.4, 5.3))
+
+
+def _rumbling_room(*breaths: tuple[np.ndarray, float]) -> tuple[tuple[np.ndarray, float], ...]:
+    """``placed`` blobs for :func:`_fake_windows`: a 40 Hz rumble at -58 dBFS over -78 dBFS
+    room tone throughout, ``breaths`` mixed onto it, under the fixture's words."""
+    n = round(10.2 * 16000)
+    rumble = np.sin(2 * np.pi * 40.0 * np.arange(n) / 16000) * _dbfs(-58.0) * np.sqrt(2.0)
+    room = (rumble + _shaped_noise(n, _dbfs(-78.0))).astype(np.float32)
+    for breath, at in breaths:
+        i = round(at * 16000)
+        room[i : i + breath.size] += breath
+    tone = _harmonic_tone(4800, _SPEECH_RMS)
+    words = [(tone, at) for at in [*np.arange(0.0, 4.3, 0.5), *np.arange(5.45, 9.9, 0.5)]]
+    return ((room, 0.0), *words)
+
+
+def test_a_room_rumble_does_not_hide_a_breath_from_a_pause_trim() -> None:
+    # The room is 40 Hz rumble at -58 dBFS over -78 dBFS of tone. A broadband breath at
+    # -60 dBFS adds only 4 dB to the rumble but is 18 dB over the room as heard (the
+    # render high-passes at 80 Hz), so a trim whose start sits in it moves to its end.
+    breath = _frames_at([-60.0] * 60)
+
+    assert _air_with_words((4.5, 5.3), placed=_rumbling_room((breath, 4.4))) == pytest.approx(
+        (5.01, 5.3)
+    )
+    # With no breath in the pause the rumble is no sound, and the trim stands.
+    assert _air_with_words((4.5, 5.3), placed=_rumbling_room()) == pytest.approx((4.5, 5.3))
+
+
+def test_a_decay_within_four_db_of_the_room_is_still_its_sound() -> None:
+    # A word's tail steps down into a -70 dBFS room and rests 4 dB over it for 60 ms
+    # (4.39-4.45): still twice the room's power, so a trim starting at 4.42 moves to the
+    # end of the sound. A line 6 dB over the room would have called it air.
+    tail = _frames_at([-50.0, -56.0, -62.0] + [-66.0] * 6)
+
+    assert _air_with_words((4.42, 5.44), placed=((tail, 4.36),)) == pytest.approx((4.46, 5.44))
