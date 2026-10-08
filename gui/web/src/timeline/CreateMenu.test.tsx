@@ -245,6 +245,47 @@ describe("CreateMenu", () => {
     }
   });
 
+  it("keeps touch panning off a menu that is too wide for the screen but short enough for its room", () => {
+    const spies = [
+      vi
+        .spyOn(HTMLElement.prototype, "offsetWidth", "get")
+        .mockReturnValue(400),
+      vi
+        .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+        .mockReturnValue(218),
+    ];
+    const viewport = { w: window.innerWidth, h: window.innerHeight };
+    window.innerWidth = 390;
+    window.innerHeight = 844;
+    try {
+      view = { ...view, origin: { x: 200, y: 400 } };
+      useDawStore.setState({
+        projectPath: "/tmp/ep.project.json",
+        shareCapabilities: null,
+        guestMode: null,
+        project: minimalProject({ tracks: [sampleTrack({ id: "host" })] }),
+      });
+      render(
+        <CreateMenu
+          view={view}
+          place={place}
+          router={router}
+          bounds={{ left: 0, top: 53, right: 390, bottom: 844 }}
+          avoidX={null}
+        />,
+      );
+      const menu = document.querySelector(".create-menu") as HTMLElement;
+      expect({
+        scrolls: menu.hasAttribute("data-scrolls"),
+        top: menu.style.top,
+      }).toEqual({ scrolls: false, top: "424px" });
+    } finally {
+      window.innerWidth = viewport.w;
+      window.innerHeight = viewport.h;
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+
   it("has no axe violations", async () => {
     open("share:tok", ["view", "play", "comment", "reply"]);
     await expectNoA11yViolations(
