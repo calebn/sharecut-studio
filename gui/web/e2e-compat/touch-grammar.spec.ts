@@ -29,6 +29,7 @@ import {
   visiblePoint,
   watchCommands,
 } from "../e2e/touchTimeline";
+import { CHOOSER_EDGE_PX } from "../src/timeline/chooserLayout";
 
 /*
  * #1051 round 4b, the touch grammar on a 430x932 iPhone viewport: a
@@ -567,6 +568,99 @@ const MENU_SWEEP: [number, number][] = [
   [36, 480],
 ];
 
+type MenuRow = {
+  rootPx: number;
+  height: number;
+  /** The menu's painted height, and the height its items need. */
+  boxHeight: number;
+  naturalHeight: number;
+  overflow: number;
+  scrolls: boolean;
+  touchAction: string;
+  lastShown: number;
+  lastHeight: number;
+  inViewport: boolean;
+  overFinger: boolean;
+};
+
+/** Holds a finger on the guest lane at `rootPx` text and a `height` px screen, and measures the create menu. */
+async function measureCreateMenu(
+  page: Page,
+  finger: Finger,
+  guest: GuestLane,
+  rootPx: number,
+  height: number,
+): Promise<MenuRow | null> {
+  await page.setViewportSize({ width: 844, height });
+  await page.evaluate((px) => {
+    document.documentElement.style.fontSize = `${px}px`;
+  }, rootPx);
+  await page.waitForTimeout(400);
+  const gap = await showGap(page, guest);
+  const y = await page.evaluate((trackId) => {
+    const row = document.querySelector(`.lane-row[data-track-id="${trackId}"]`);
+    row?.scrollIntoView({ block: "nearest" });
+    const scroller = document.querySelector(".timeline-scroll");
+    const box = row?.getBoundingClientRect();
+    const view = scroller?.getBoundingClientRect();
+    if (!box || !view) return null;
+    const top = Math.max(box.top, view.top);
+    const bottom = Math.min(box.bottom, view.bottom);
+    return bottom - top < 8 ? null : (top + bottom) / 2;
+  }, guest.trackId);
+  if (y === null) return null;
+  const at = { x: gap.start - 5 * gap.pps, y };
+  await hold(page, finger, at);
+  const measured = await page.evaluate(({ x, y: fy }) => {
+    const menu = document.querySelector<HTMLElement>(".create-menu");
+    if (!menu) return null;
+    const items = [...menu.querySelectorAll<HTMLElement>("[role=menuitem]")];
+    const box = menu.getBoundingClientRect();
+    const overflow = menu.scrollHeight - menu.clientHeight;
+    const scrolls = menu.hasAttribute("data-scrolls");
+    menu.scrollTop = menu.scrollHeight;
+    const last = items[items.length - 1]?.getBoundingClientRect();
+    const lastShown = last
+      ? Math.min(last.bottom, box.bottom) - Math.max(last.top, box.top)
+      : 0;
+    return {
+      boxHeight: Math.round(box.height),
+      naturalHeight:
+        menu.scrollHeight + (menu.offsetHeight - menu.clientHeight),
+      overflow,
+      scrolls,
+      touchAction: getComputedStyle(menu).touchAction,
+      lastShown: Math.round(lastShown),
+      lastHeight: last ? Math.round(last.height) : 0,
+      inViewport:
+        box.left >= 0 &&
+        box.top >= 0 &&
+        box.right <= innerWidth &&
+        box.bottom <= innerHeight,
+      overFinger:
+        x > box.left && x < box.right && fy > box.top && fy < box.bottom,
+    };
+  }, at);
+  await finger.up();
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(250);
+  return measured ? { rootPx, height, ...measured } : null;
+}
+
+/** The menu clips an item, blocks its own scrolling, leaves the screen or covers the finger. */
+function menuIsBad(row: MenuRow): boolean {
+  const clipped = row.overflow > 1 && !row.scrolls;
+  const touchBlocked =
+    row.scrolls && row.touchAction.split(" ").includes("none");
+  return (
+    clipped ||
+    touchBlocked ||
+    row.lastShown < row.lastHeight - 1 ||
+    !row.inViewport ||
+    row.overFinger
+  );
+}
+
 test("the create menu reaches every item and stays off the finger at every text size and screen height", async ({
   page,
   context,
@@ -577,80 +671,48 @@ test("the create menu reaches every item and stays off the finger at every text 
     height: 390,
   });
   const finger = await newFinger(context, page, browserName);
-  const rows: Record<string, unknown>[] = [];
-  const bad: Record<string, unknown>[] = [];
+  const rows: MenuRow[] = [];
   for (const [rootPx, height] of MENU_SWEEP) {
-    await page.setViewportSize({ width: 844, height });
-    await page.evaluate((px) => {
-      document.documentElement.style.fontSize = `${px}px`;
-    }, rootPx);
-    await page.waitForTimeout(400);
-    const gap = await showGap(page, guest);
-    const y = await page.evaluate((trackId) => {
-      const row = document.querySelector(
-        `.lane-row[data-track-id="${trackId}"]`,
-      );
-      row?.scrollIntoView({ block: "nearest" });
-      const scroller = document.querySelector(".timeline-scroll");
-      const box = row?.getBoundingClientRect();
-      const view = scroller?.getBoundingClientRect();
-      if (!box || !view) return null;
-      const top = Math.max(box.top, view.top);
-      const bottom = Math.min(box.bottom, view.bottom);
-      return bottom - top < 8 ? null : (top + bottom) / 2;
-    }, guest.trackId);
-    if (y === null) continue;
-    const at = { x: gap.start - 5 * gap.pps, y };
-    await hold(page, finger, at);
-    const measured = await page.evaluate(({ x, y: fy }) => {
-      const menu = document.querySelector<HTMLElement>(".create-menu");
-      if (!menu) return null;
-      const items = [...menu.querySelectorAll<HTMLElement>("[role=menuitem]")];
-      const box = menu.getBoundingClientRect();
-      const overflow = menu.scrollHeight - menu.clientHeight;
-      const scrolls = menu.hasAttribute("data-scrolls");
-      menu.scrollTop = menu.scrollHeight;
-      const last = items[items.length - 1]?.getBoundingClientRect();
-      const lastShown = last
-        ? Math.min(last.bottom, box.bottom) - Math.max(last.top, box.top)
-        : 0;
-      return {
-        overflow,
-        scrolls,
-        touchAction: getComputedStyle(menu).touchAction,
-        lastShown: Math.round(lastShown),
-        lastHeight: last ? Math.round(last.height) : 0,
-        inViewport:
-          box.left >= 0 &&
-          box.top >= 0 &&
-          box.right <= innerWidth &&
-          box.bottom <= innerHeight,
-        overFinger:
-          x > box.left && x < box.right && fy > box.top && fy < box.bottom,
-      };
-    }, at);
-    await finger.up();
-    await page.keyboard.press("Escape");
-    await page.waitForTimeout(250);
-    if (!measured) continue;
-    const row = { rootPx, height, ...measured };
-    rows.push(row);
-    const clipped = measured.overflow > 1 && !measured.scrolls;
-    const touchBlocked =
-      measured.scrolls && measured.touchAction.split(" ").includes("none");
-    if (
-      clipped ||
-      touchBlocked ||
-      measured.lastShown < measured.lastHeight - 1 ||
-      !measured.inViewport ||
-      measured.overFinger
-    ) {
-      bad.push(row);
-    }
+    const row = await measureCreateMenu(page, finger, guest, rootPx, height);
+    if (row) rows.push(row);
   }
+  const bad = rows.filter(menuIsBad);
   json(info, `grammar-create-sweep-${browserName}`, { rows, bad });
   expect(rows.length).toBeGreaterThanOrEqual(6);
   expect(bad).toEqual([]);
+});
+
+test("a create menu taller than 90% of the screen, with room beside the finger, is not cut to 90%", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  const guest = await openWith(page, () => splitGuestLane(page), {
+    width: 844,
+    height: 390,
+  });
+  const finger = await newFinger(context, page, browserName);
+  const rows: MenuRow[] = [];
+  for (const rootPx of [24, 26, 28, 30, 32]) {
+    const tall = await measureCreateMenu(page, finger, guest, rootPx, 900);
+    if (!tall) throw new Error(`no create menu at ${rootPx}px text`);
+    // A screen just tall enough for the whole menu and its edges. Where the
+    // menu is then more than 90dvh, nothing needs to cap or scroll it, so the
+    // shared drop-down cap must not.
+    const height = Math.ceil(tall.naturalHeight) + 2 * CHOOSER_EDGE_PX + 4;
+    if (tall.naturalHeight <= 0.9 * height) continue;
+    const row = await measureCreateMenu(page, finger, guest, rootPx, height);
+    if (!row) throw new Error(`no create menu at ${rootPx}px on ${height}px`);
+    rows.push(row);
+  }
+  json(info, `grammar-create-over-90dvh-${browserName}`, { rows });
+  expect(rows.filter(menuIsBad)).toEqual([]);
+  // Where the layout found room it left the menu uncapped, and it shows whole.
+  const uncapped = rows.filter((row) => !row.scrolls);
+  expect(uncapped.length).toBeGreaterThanOrEqual(2);
+  for (const row of uncapped) {
+    expect(row.boxHeight).toBeGreaterThanOrEqual(row.naturalHeight - 1);
+  }
 });
 
 test("the strip follows the finger; a flick opens or closes it fully, a slow drag lands at the nearest detent", async ({

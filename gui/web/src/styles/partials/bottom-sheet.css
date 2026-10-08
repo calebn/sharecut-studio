@@ -105,13 +105,6 @@ html[data-shell="phone"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   height: auto;
 }
 
-/* A confirmation: as tall as its question and its actions (capped at the slot
-   by max-height), so a short slot (a phone held sideways, above the bottom
-   tabs) never leaves Cancel or the action below the sheet's own edge. */
-.bottom-sheet--fit {
-  height: auto;
-}
-
 .bottom-sheet--peek .bottom-sheet-header {
   padding-block: var(--space-1);
 }

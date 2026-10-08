@@ -270,4 +270,34 @@ describe("ripple preview on a multi-track project (#1135)", () => {
       ],
     ]);
   });
+  it("leaves a clip that abuts a moving peer alone: the server removes and opens time only on lanes without a peer", () => {
+    // The peer starts 0.9 ms after the trimmed edge, so the clip before it ends
+    // a hair past where the cut would begin.
+    const project = minimalProject({
+      tracks: [host, guest],
+      clips: {
+        tracks: {
+          host: [row("a", "host", 10, 20)],
+          guest: [
+            row("g0", "guest", 4, 10.0009),
+            row("g1", "guest", 10.0009, 20),
+          ],
+        },
+        clip_count: 3,
+      },
+    });
+    const drafted = trimDraft(project, "host", "a", "in", 12, "ripple");
+    expect(
+      drafted.clips.tracks.guest.map((c) => [
+        c.id,
+        c.timeline_start,
+        c.timeline_end,
+        c.source_start,
+        c.source_end,
+      ]),
+    ).toEqual([
+      ["g0", 4, 10.0009, 4, 10.0009],
+      ["g1", 10.0009, 18, 12.0009, 20],
+    ]);
+  });
 });
