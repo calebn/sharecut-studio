@@ -1,7 +1,11 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { rollClipJoin, setClipFade, trimClipEdge } from "../api";
+import { rollClipJoin, setClipFade, trimClipEdge, undoHistory } from "../api";
 import { clearRegisteredCommands } from "../commands/execute";
+import {
+  _resetHistoryMovesForTests,
+  runHistoryAction,
+} from "../commands/history";
 import { registerDawCommands } from "../commands/register";
 import { useDawKeymapListener } from "../keymap/listener";
 import { useDawStore } from "../state/dawStore";
@@ -33,6 +37,7 @@ vi.mock("../api", async (importOriginal) => ({
   rollClipJoin: vi.fn(async () => undefined),
   trimClipEdge: vi.fn(async () => ({ queued: false, asked: false })),
   setClipFade: vi.fn(async () => undefined),
+  undoHistory: vi.fn(async () => null),
   loadWaveformSnap: vi.fn(async () => ({ ticks: [0.5] })),
 }));
 
@@ -1854,6 +1859,32 @@ describe("ClipBlock waveform", () => {
       await waitFor(() => expect(rollClipJoin).toHaveBeenCalledTimes(1));
       const delta = vi.mocked(rollClipJoin).mock.calls[0]?.[3];
       expect(delta).toBeCloseTo(3 / 48000, 12);
+    });
+
+    it("holds an Undo pressed while the roll loads its boundary token until the roll is sent", async () => {
+      clearRegisteredCommands();
+      registerDawCommands();
+      _resetHistoryMovesForTests();
+      useDawStore
+        .getState()
+        .hydrate("/tmp/roll.project.json", projectWithClip(right));
+      vi.mocked(undoHistory).mockClear();
+      let release!: () => void;
+      loadBoundaryContext.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            release = () => resolve({ token: "boundary-token" });
+          }),
+      );
+      rollBy(48000, 3);
+      runHistoryAction("undo");
+      await new Promise((r) => setTimeout(r, 20));
+      expect(undoHistory).not.toHaveBeenCalled();
+      release();
+      await waitFor(() => expect(undoHistory).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(rollClipJoin).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(undoHistory).mock.invocationCallOrder[0] ?? 0,
+      );
     });
 
     it("skips a roll under the drag threshold", async () => {

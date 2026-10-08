@@ -389,9 +389,9 @@ describe("BottomSheet", () => {
     });
 
     describe("when the sheet stops being a drawer", () => {
-      const sheet = (drawer: boolean) => (
+      const sheet = (drawer: boolean, open = true) => (
         <BottomSheet
-          open
+          open={open}
           onClose={() => undefined}
           backgroundPolicy="interactive"
           title="Trim start"
@@ -432,6 +432,29 @@ describe("BottomSheet", () => {
           view.rerender(sheet(false));
           raf.fire(1100);
           expect(dragStyles()).toEqual(atRest);
+        } finally {
+          restore();
+          vi.unstubAllGlobals();
+        }
+      });
+
+      it("clears the drag styles when the sheet closes mid-drag, though it still has a drawer", () => {
+        const raf = stubRaf();
+        const restore = layOut();
+        try {
+          const view = render(sheet(true));
+          const panel = dialog();
+          press(500, 1000);
+          move(420, 1020);
+          raf.fire(1021);
+          expect(panel.getAttribute("data-drawer-motion")).toBe("drag");
+          view.rerender(sheet(true, false));
+          raf.fire(1100);
+          expect({
+            motion: panel.getAttribute("data-drawer-motion"),
+            height: panel.style.height,
+            transform: panel.style.transform,
+          }).toEqual(atRest);
         } finally {
           restore();
           vi.unstubAllGlobals();
