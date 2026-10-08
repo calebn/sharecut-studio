@@ -60,6 +60,26 @@ const git = (...args: string[]) =>
   execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
 const hash = (data: string | Uint8Array) =>
   createHash("sha256").update(data).digest("hex");
+const mediaDir = path.join(output, "replay-media");
+fs.mkdirSync(mediaDir);
+const replayMedia = Object.fromEntries(
+  ["reference", "guest"].map((id) => {
+    const relativePath = `raw/${id}.wav`;
+    const sourcePath = path.join(
+      repo,
+      "tests/fixtures/aligned_dialogue",
+      relativePath,
+    );
+    const retainedPath = path.join(mediaDir, `${id}.wav`);
+    const sha256 = hash(fs.readFileSync(sourcePath));
+    fs.copyFileSync(sourcePath, retainedPath);
+    if (hash(fs.readFileSync(retainedPath)) !== sha256)
+      throw new Error(`Retained replay media differs for ${id}`);
+    return [id, { relativePath, sourcePath, retainedPath, sha256 }];
+  }),
+);
+const replayReceipt = path.join(output, "replay-media.json");
+fs.writeFileSync(replayReceipt, JSON.stringify(replayMedia, null, 2));
 const appBase = git("rev-parse", `${values["app-base"]}^{commit}`);
 const driverSha = git("rev-parse", "HEAD");
 const isProductPath = (file: string) =>
@@ -248,7 +268,8 @@ const schedule = tasks.flatMap((task) => {
   ).flat();
 });
 const protocol = {
-  version: 2,
+  version: 3,
+  replayMedia,
   source,
   backend: { ...backend, sourceHash: backendSourceHash },
   build,
@@ -296,7 +317,9 @@ for (const scheduled of schedule) {
     JSON.stringify({ status: "not-run", ...scheduled }),
   );
   Object.assign(process.env, {
+    EDITING_REPLAY_MEDIA: replayReceipt,
     EDITING_TASK: scheduled.task,
+    PLAYWRIGHT_JSON_OUTPUT_FILE: path.join(attempt, "playwright-report.json"),
     EDITING_ROUTE: scheduled.route,
     EDITING_TASK_OUT: attempt,
     EDITING_MODE: mode,
@@ -313,6 +336,7 @@ for (const scheduled of schedule) {
       "editing-tasks.spec.ts",
       "--retries=0",
       "--trace=off",
+      "--reporter=list,json",
       `--output=${path.join(attempt, "playwright")}`,
     ],
     undefined,

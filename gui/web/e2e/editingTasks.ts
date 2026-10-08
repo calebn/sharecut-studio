@@ -116,8 +116,20 @@ export const editingTaskRegistry: TaskDefinition[] = [
       ...base,
       clips: [
         { ...clip, id: "first-copy" },
-        { ...clip, id: "cut-left", source_end: 1, timeline_start: 10 },
-        { ...clip, id: "cut-right", source_start: 2, timeline_start: 12 },
+        {
+          ...clip,
+          id: "cut-left",
+          source_end: 1,
+          timeline_start: 10,
+          fade_out_ms: 10,
+        },
+        {
+          ...clip,
+          id: "cut-right",
+          source_start: 2,
+          timeline_start: 12,
+          fade_in_ms: 10,
+        },
         base.clips[2],
       ],
     },
@@ -142,9 +154,9 @@ export const editingTaskRegistry: TaskDefinition[] = [
       ],
     },
     tolerances: {
-      "after.clips.0.source_start": 0.03,
-      "after.clips.1.timeline_start": 0.03,
-      "after.clips.2.source_start": 0.03,
+      "after.clips.first-copy.source_start": 0.03,
+      "after.clips.second-copy.timeline_start": 0.03,
+      "after.clips.peer.source_start": 0.03,
     },
     routes: [
       route("handle-pointer", "pointer", "TrimClipEdge", true),
@@ -168,7 +180,7 @@ export const editingTaskRegistry: TaskDefinition[] = [
         base.clips[2],
       ],
     },
-    tolerances: { "after.clips.0.fade_in_ms": 20 },
+    tolerances: { "after.clips.first-copy.fade_in_ms": 20 },
     routes: [
       route("corner-pointer", "pointer", "SetClipFade", true),
       route("inspector-slider", "keyboard", "SetClipFade", true),
@@ -336,10 +348,65 @@ export function readEditingState(
     ),
   });
 }
-export function createEditingFixture(task: TaskDefinition) {
-  const fixture = createRelocatedE2eProject(
-    "sharecut-e2e-editing-task-",
-    () => false,
+export function createEditingFixture(
+  task: TaskDefinition,
+  evidenceDir: string,
+) {
+  const fixture = createRelocatedE2eProject("sharecut-e2e-editing-task-");
+  fs.copyFileSync(
+    fixture.projectPath,
+    path.join(
+      evidenceDir,
+      `fixture-${path.basename(fixture.workspaceDir)}-initial-project.json`,
+    ),
+  );
+  const replay = JSON.parse(
+    fs.readFileSync(process.env.EDITING_REPLAY_MEDIA!, "utf8"),
+  ) as Record<
+    string,
+    { relativePath: string; retainedPath: string; sha256: string }
+  >;
+  const media = Object.fromEntries(
+    Object.entries(replay).map(([id, receipt]) => {
+      const copiedPath = path.join(fixture.workspaceDir, receipt.relativePath);
+      const sha256 = createHash("sha256")
+        .update(fs.readFileSync(copiedPath))
+        .digest("hex");
+      if (
+        sha256 !== receipt.sha256 ||
+        createHash("sha256")
+          .update(fs.readFileSync(receipt.retainedPath))
+          .digest("hex") !== sha256
+      ) {
+        const retainedUnique = path.join(
+          evidenceDir,
+          `unique-media-${path.basename(fixture.workspaceDir)}-${id}.wav`,
+        );
+        fs.copyFileSync(copiedPath, retainedUnique);
+        fs.writeFileSync(
+          `${retainedUnique}.json`,
+          JSON.stringify(
+            {
+              copiedPath,
+              retainedPath: retainedUnique,
+              sha256,
+              expected: receipt,
+            },
+            null,
+            2,
+          ),
+        );
+        throw new Error(`Replay media differs for ${id}`);
+      }
+      return [id, { copiedPath, retainedPath: receipt.retainedPath, sha256 }];
+    }),
+  );
+  fs.writeFileSync(
+    path.join(
+      evidenceDir,
+      `media-map-${path.basename(fixture.workspaceDir)}.json`,
+    ),
+    JSON.stringify({ projectPath: fixture.projectPath, media }, null, 2),
   );
   const saved = object(
     JSON.parse(fs.readFileSync(fixture.projectPath, "utf8")),
@@ -403,8 +470,13 @@ export async function runEditingTask(
       .locator(
         '[data-clip-id], [role="slider"], input[type="range"], .comment-card, svg circle',
       )
-      .evaluateAll((elements) =>
-        elements.map((element) => {
+      .evaluateAll((elements) => ({
+        focused: {
+          tag: document.activeElement?.tagName ?? null,
+          label: document.activeElement?.getAttribute("aria-label") ?? null,
+          className: document.activeElement?.getAttribute("class") ?? null,
+        },
+        elements: elements.map((element) => {
           const box = element.getBoundingClientRect();
           return {
             tag: element.tagName,
@@ -420,7 +492,7 @@ export async function runEditingTask(
             transform: element.getAttribute("style"),
           };
         }),
-      );
+      }));
     const evidence: NonNullable<EditingTrial["uiEvidence"]>[number] = {
       stage,
       phase,
@@ -454,7 +526,16 @@ export async function runEditingTask(
     retain();
   };
   const responses: Promise<void>[] = [];
+  const pending = new Map<Page, Set<Request>>();
+  const flush = async (active: Page) => {
+    await active.waitForLoadState("networkidle");
+    await expect.poll(() => pending.get(active)?.size ?? 0).toBe(0);
+    await Promise.all(responses);
+  };
   const observe = (observedPage: Page) => {
+    const inflight = new Set<Request>();
+    pending.set(observedPage, inflight);
+    observedPage.on("requestfinished", (request) => inflight.delete(request));
     const requests = new Map<
       Request,
       { id: number; phase: Phase; kind: "command" | "read" }
@@ -471,6 +552,7 @@ export async function runEditingTask(
       ) {
         const id = sequence + 1;
         requests.set(request, { id, phase, kind: "read" });
+        inflight.add(request);
         append({
           kind: "read-request",
           requestId: id,
@@ -492,6 +574,7 @@ export async function runEditingTask(
       } catch {}
       const id = sequence + 1;
       requests.set(request, { id, phase, kind: "command" });
+      inflight.add(request);
       append({ kind: "request", requestId: id, type, body });
     });
     observedPage.on("response", (response) => {
@@ -546,6 +629,7 @@ export async function runEditingTask(
       );
     });
     observedPage.on("requestfailed", (request) => {
+      inflight.delete(request);
       const read = requests.get(request);
       if (read?.kind === "read") {
         trial.journal.push({
@@ -717,8 +801,9 @@ export async function runEditingTask(
           active.getByRole("menuitem", { name: "Select a range", exact: true }),
           "arm range",
         );
-        const body = active.locator('[data-clip-id="second-copy"] .clip-hit');
-        const box = await body.boundingBox();
+        const box = await active
+          .locator('[data-clip-id="second-copy"]')
+          .boundingBox();
         if (!box) throw new Error("Range body has no geometry");
         await act("drag", "range 11 through 12", async () => {
           await active.mouse.move(box.x + scale, box.y + box.height / 2);
@@ -750,9 +835,23 @@ export async function runEditingTask(
       const handle = first.locator(
         fade ? ".fade-corner.in" : ".trim-handle.in",
       );
-      if (routeId === "handle-pointer" || routeId === "corner-pointer")
+      if (routeId === "handle-pointer" || routeId === "corner-pointer") {
+        if (cancel) {
+          for (
+            let index = 0;
+            index < 40 &&
+            !(await handle.evaluate(
+              (element) => document.activeElement === element,
+            ));
+            index++
+          )
+            await key(active, "Tab");
+          await expect(handle).toBeFocused();
+          await expect(handle).toBeVisible();
+          await captureUi(active, "cancel-handle-tab-focus");
+        }
         await drag(active, handle, scale * (fade ? 0.1 : 0.3), 0, cancel);
-      else if (routeId === "handle-keyboard") {
+      } else if (routeId === "handle-keyboard") {
         await focus(handle, "trim In handle");
         await act("key-burst", "30 ArrowRight trim nudges", async () => {
           for (let index = 0; index < 30; index++)
@@ -1004,7 +1103,7 @@ export async function runEditingTask(
       }
     }
   };
-  const fixture = createEditingFixture(task);
+  const fixture = createEditingFixture(task, output);
   trial.fixture = {
     projectPath: fixture.projectPath,
     savedHash: createHash("sha256")
@@ -1063,7 +1162,7 @@ export async function runEditingTask(
   observe(page);
   try {
     if (chosen.cancel) {
-      const canceledFixture = createEditingFixture(task);
+      const canceledFixture = createEditingFixture(task, output);
       let activeCancelFixture = canceledFixture;
       const context = await page
         .context()
@@ -1082,13 +1181,17 @@ export async function runEditingTask(
             : ["cancel"];
         for (const [index, probe] of probes.entries()) {
           const clone =
-            index === 0 ? canceledFixture : createEditingFixture(task);
+            index === 0 ? canceledFixture : createEditingFixture(task, output);
           activeCancelFixture = clone;
+          fs.copyFileSync(
+            clone.projectPath,
+            path.join(output, `canceled-${probe}-initial-project.json`),
+          );
           await prepare(cancelPage, clone.projectPath);
           phase = "cancel";
           await captureUi(cancelPage, `cancel-${probe}-initiation`);
           await perform(cancelPage, cancelCdp, true, probe);
-          await Promise.all(responses);
+          await flush(cancelPage);
           await captureUi(cancelPage, `cancel-${probe}-recovery`);
           trial.canceled = readEditingState(clone.projectPath);
           (trial.cancellations ??= []).push({ probe, state: trial.canceled });
@@ -1108,6 +1211,9 @@ export async function runEditingTask(
         await captureUi(cancelPage, "failed-cancel-recovery");
         retain();
       } finally {
+        await flush(cancelPage).catch((error) =>
+          trial.errors!.push(`cancel response drain: ${String(error)}`),
+        );
         await context.close();
       }
     }
@@ -1233,6 +1339,10 @@ export async function runEditingTask(
     trial.durationMs = profiler.report.samples[0]?.driverWallMs;
     await Promise.all(responses);
     trial.history!.after = history();
+    fs.copyFileSync(
+      fixture.projectPath,
+      path.join(output, "committed-project.json"),
+    );
     await page.screenshot({
       path: path.join(output, "saved.png"),
       fullPage: true,
@@ -1277,6 +1387,10 @@ export async function runEditingTask(
         .toEqual(task.start);
       trial.undone = readEditingState(fixture.projectPath);
       trial.history!.undone = history();
+      fs.copyFileSync(
+        fixture.projectPath,
+        path.join(output, "undone-project.json"),
+      );
       await page.screenshot({
         path: path.join(output, "undone.png"),
         fullPage: true,

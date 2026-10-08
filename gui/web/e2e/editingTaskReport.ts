@@ -244,7 +244,22 @@ export function savedStateDifferences(
   prefix = "after",
   tolerances: Record<string, number> = {},
 ): string[] {
-  return differences(expected, actual, prefix, tolerances);
+  for (const [label, state] of [
+    ["expected", expected],
+    ["observed", actual],
+  ] as const)
+    if (new Set(state.clips.map((clip) => clip.id)).size !== state.clips.length)
+      return [`${prefix} ${label} clip IDs are not unique`];
+  const identityState = (state: DurableState) => ({
+    ...state,
+    clips: Object.fromEntries(state.clips.map((clip) => [clip.id, clip])),
+  });
+  return differences(
+    identityState(expected),
+    identityState(actual),
+    prefix,
+    tolerances,
+  );
 }
 export function assessEditingTrial(
   definition: TaskDefinition,
@@ -304,7 +319,7 @@ export function assessEditingTrial(
             if (
               candidate.kind !== "read-request" ||
               candidate.phase !== "setup" ||
-              candidate.seq <= event.seq ||
+              candidate.seq <= read.seq ||
               candidate.requestId === read.requestId ||
               candidate.url !== read.url ||
               candidate.method !== "GET"
@@ -323,6 +338,7 @@ export function assessEditingTrial(
                   response.phase !== "setup" ||
                   response.requestId !== candidate.requestId ||
                   response.seq <= candidate.seq ||
+                  response.seq <= event.seq ||
                   response.status < 200 ||
                   response.status >= 300
                 )

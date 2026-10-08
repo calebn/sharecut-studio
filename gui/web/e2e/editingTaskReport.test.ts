@@ -3,6 +3,7 @@ import {
   assessEditingTrial,
   type DurableState,
   type EditingTrial,
+  savedStateDifferences,
   summarizeEditingAttempts,
   type TaskDefinition,
 } from "./editingTaskReport";
@@ -134,8 +135,8 @@ describe("literal editing task admission", () => {
     expect(
       assessEditingTrial(definition, { ...trial(), after: start }).reasons,
     ).toEqual([
-      "after.clips.0.source_start expected 0.3, observed 0",
-      "after.clips.0.timeline_start expected 0.3, observed 0",
+      "after.clips.a.source_start expected 0.3, observed 0",
+      "after.clips.a.timeline_start expected 0.3, observed 0",
       "task made no saved change",
     ]);
   });
@@ -160,8 +161,8 @@ describe("literal editing task admission", () => {
         ],
       }).reasons,
     ).toEqual([
-      "canceled-short.clips.0.source_start expected 0, observed 0.3",
-      "canceled-short.clips.0.timeline_start expected 0, observed 0.3",
+      "canceled-short.clips.a.source_start expected 0, observed 0.3",
+      "canceled-short.clips.a.timeline_start expected 0, observed 0.3",
     ]);
   });
   it("rejects ancillary app HTTP errors despite completed saved work", () => {
@@ -393,7 +394,7 @@ it.each(["action", "other-project", "HTTP500", "unknown-body"])(
   },
 );
 
-it("rejects a replacement started before the observed cancellation", () => {
+it("admits replacement before abort callback with valid source request order", () => {
   const t = canceledReadTrial(true);
   const failed = t.journal.find((row) => row.kind === "read-failed")!;
   const replacement = t.journal.find(
@@ -402,9 +403,8 @@ it("rejects a replacement started before the observed cancellation", () => {
   replacement.seq = 9;
   failed.seq = 10;
   t.journal.sort((a, b) => a.seq - b.seq);
-  expect(assessEditingTrial(definition, t).reasons).toEqual([
-    "read 3 failed net::ERR_ABORTED without admitted replacement",
-  ]);
+  expect(assessEditingTrial(definition, t).status).toBe("pass");
+  expect(assessEditingTrial(definition, t).canceledReads).toBe(1);
 });
 
 it.each(["same-request", "duplicate-response"])(
@@ -432,3 +432,68 @@ it.each(["same-request", "duplicate-response"])(
     expect(assessEditingTrial(definition, t).canceledReads).toBe(0);
   },
 );
+
+it("compares clip identity independently of backend array order", () => {
+  const expected = {
+    ...start,
+    clips: [
+      { ...start.clips[0], id: "left", fade_out_ms: 10 },
+      { ...start.clips[0], id: "peer", track_id: "guest" },
+    ],
+  };
+  const observed = {
+    ...expected,
+    clips: [expected.clips[1], expected.clips[0]],
+  };
+  expect(savedStateDifferences(expected, observed)).toEqual([]);
+});
+it("requires literal automatic cut-edge fades", () => {
+  const expected = {
+    ...start,
+    clips: [
+      { ...start.clips[0], id: "cut-left", fade_out_ms: 10 },
+      {
+        ...start.clips[0],
+        id: "cut-right",
+        source_start: 2,
+        timeline_start: 12,
+        fade_in_ms: 10,
+      },
+    ],
+  };
+  const observed = {
+    ...expected,
+    clips: [
+      { ...expected.clips[0], fade_out_ms: 0 },
+      { ...expected.clips[1], fade_in_ms: 0 },
+    ],
+  };
+  expect(savedStateDifferences(expected, observed)).toEqual([
+    "after.clips.cut-left.fade_out_ms expected 10, observed 0",
+    "after.clips.cut-right.fade_in_ms expected 10, observed 0",
+  ]);
+});
+
+it("rejects replacement before original read", () => {
+  const t = canceledReadTrial(true);
+  for (const row of t.journal) {
+    if (row.seq <= 7) row.seq++;
+    else if (row.kind === "read-request") row.seq = row.requestId === 3 ? 9 : 1;
+    else if (row.kind === "read-failed") row.seq = 10;
+  }
+  t.journal.sort((a, b) => a.seq - b.seq);
+  expect(assessEditingTrial(definition, t).reasons).toEqual([
+    "read 3 failed net::ERR_ABORTED without admitted replacement",
+  ]);
+});
+it("rejects replacement response before failed callback", () => {
+  const t = canceledReadTrial(true);
+  for (const row of t.journal) {
+    if (row.kind === "read-failed") row.seq = 11;
+    else if (row.kind === "read-response") row.seq = 9;
+  }
+  t.journal.sort((a, b) => a.seq - b.seq);
+  expect(assessEditingTrial(definition, t).reasons).toEqual([
+    "read 3 failed net::ERR_ABORTED without admitted replacement",
+  ]);
+});
