@@ -17,6 +17,11 @@ from podcast_mcp.edits.breath_detect import (
 )
 
 
+def _span(air):
+    """The span of a :class:`PauseAir`, or the skip that stands for it."""
+    return getattr(air, "span", air)
+
+
 def test_find_breath_trailing_active_cluster():
     samples = np.concatenate(
         [
@@ -1213,7 +1218,7 @@ def _air(cut, *, placed=(), gap_floor=_FLOOR_RMS, pause=(4.3, 5.45), guest=None)
         return reader(path, start_sec, duration_sec, sample_rate)
 
     with patch("podcast_mcp.edits.breath_detect.load_mono_window", side_effect=windows):
-        return pause_air_span(project, "host", *cut, pause=pause)
+        return _span(pause_air_span(project, "host", *cut, pause=pause))
 
 
 def _frames_at(levels_db, *, voiced: bool = False) -> np.ndarray:
@@ -1414,14 +1419,15 @@ def test_a_peers_onset_at_a_ripple_edge_shrinks_the_trim() -> None:
     assert _air((4.4, 5.3), guest=guest) == pytest.approx((4.4, 5.17))
 
 
-def test_a_peers_sound_inside_the_trim_is_left_to_the_speech_guard() -> None:
-    # Only the edges are the air rule's: a peer's word wholly inside the span does not
-    # split the air (the speech guard and the interior checks judge it), and a quiet
-    # peer sound inside goes whole with the air.
+def test_a_peers_word_inside_the_trim_splits_the_air_as_the_trims_own_would() -> None:
+    # A session ripple removes the span from the peer too, and one rule judges every
+    # track: the peer's word at 4.6-4.7 splits the air as a word of the trim's own does,
+    # and the longer stretch after it (4.73 to 5.3) is the trim. A quiet peer sound
+    # inside, 43 dB under the peer's speech, goes whole with the air.
     word = _fake_windows(gap_floor=0.0, placed=((_harmonic_tone(1600, _SPEECH_RMS), 4.6),))
     quiet = _fake_windows(gap_floor=0.0, placed=((_shaped_noise(1600, _dbfs(-58.0)), 4.6),))
 
-    assert _air((4.4, 5.3), guest=word) == pytest.approx((4.4, 5.3))
+    assert _air((4.4, 5.3), guest=word) == pytest.approx((4.73, 5.3))
     assert _air((4.4, 5.3), guest=quiet) == pytest.approx((4.4, 5.3))
 
 
@@ -1466,7 +1472,7 @@ def _air_with_words(cut, *, placed=(), pause=(4.3, 5.45), guest=None):
         return reader(path, start_sec, duration_sec, sample_rate)
 
     with patch("podcast_mcp.edits.breath_detect.load_mono_window", side_effect=windows):
-        return pause_air_span(project, "host", *cut, pause=pause)
+        return _span(pause_air_span(project, "host", *cut, pause=pause))
 
 
 def test_a_pause_mostly_its_own_sound_is_not_its_own_air() -> None:
@@ -1517,7 +1523,10 @@ def test_a_track_that_sounds_all_through_the_window_has_no_room_to_read() -> Non
     project = _host_project(words)
 
     with patch("podcast_mcp.edits.breath_detect.load_mono_window", side_effect=host):
-        assert pause_air_span(project, "host", 4.4, 5.3, pause=(4.3, 5.45)) == PauseAirSkip.NO_ROOM
+        assert (
+            _span(pause_air_span(project, "host", 4.4, 5.3, pause=(4.3, 5.45)))
+            == PauseAirSkip.NO_ROOM
+        )
 
 
 def test_a_silent_peer_mic_with_only_room_tone_never_blocks_a_pause_trim() -> None:
@@ -1708,7 +1717,7 @@ def _sparse_after(fluent_until: float, seconds: float, seed: int = 21):
 def _air_over(words, signal, cut, pause):
     project = _host_project(words)
     with patch("podcast_mcp.edits.breath_detect.load_mono_window", side_effect=_reader_of(signal)):
-        return pause_air_span(project, "host", *cut, pause=pause)
+        return _span(pause_air_span(project, "host", *cut, pause=pause))
 
 
 def test_a_fluent_window_widens_to_the_track_before_its_room_is_given_up() -> None:
@@ -1777,12 +1786,15 @@ def test_disabled_breath_handling_returns_the_trim_without_reading_audio() -> No
     with patch("podcast_mcp.edits.breath_detect.load_mono_window", side_effect=unreadable):
         got = pause_air_span(_host_project(), "host", 4.4, 5.3, pause=(4.3, 5.45), defaults=off)
 
-    assert got == (4.4, 5.3)
+    assert _span(got) == (4.4, 5.3)
 
 
 @pytest.mark.parametrize("cut", [(5.3, 5.3), (5.3, 4.4), (4.4, float("nan")), (float("inf"), 5.3)])
 def test_an_empty_or_non_finite_span_has_no_air(cut) -> None:
-    assert pause_air_span(_host_project(), "host", *cut, pause=(4.3, 5.45)) == PauseAirSkip.NO_AIR
+    assert (
+        _span(pause_air_span(_host_project(), "host", *cut, pause=(4.3, 5.45)))
+        == PauseAirSkip.NO_AIR
+    )
 
 
 def _failing_for(name: str):
@@ -1798,18 +1810,14 @@ def _failing_for(name: str):
     return read
 
 
-def test_audio_that_cannot_be_read_is_no_room_on_the_trims_own_track_and_unchecked_on_a_peer() -> (
-    None
-):
+@pytest.mark.parametrize("unreadable", ["host", "guest"])
+def test_audio_that_cannot_be_read_is_no_room_on_any_track_the_ripple_cuts(unreadable) -> None:
+    # An edge on a track that cannot be read cannot be checked, the trim's own or a peer's.
     project = _with_guest(_host_project(_fixture_words()))
 
     with patch(
-        "podcast_mcp.edits.breath_detect.load_mono_window", side_effect=_failing_for("host")
+        "podcast_mcp.edits.breath_detect.load_mono_window", side_effect=_failing_for(unreadable)
     ):
-        own = pause_air_span(project, "host", 4.4, 5.3, pause=(4.3, 5.45))
-    with patch(
-        "podcast_mcp.edits.breath_detect.load_mono_window", side_effect=_failing_for("guest")
-    ):
-        peer = pause_air_span(project, "host", 4.4, 5.3, pause=(4.3, 5.45))
+        got = pause_air_span(project, "host", 4.4, 5.3, pause=(4.3, 5.45))
 
-    assert (own, peer) == (PauseAirSkip.NO_ROOM, pytest.approx((4.4, 5.3)))
+    assert got == PauseAirSkip.NO_ROOM

@@ -23,12 +23,14 @@ from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.room_model import (
     MIN_ROOM_SEC,
     Room,
+    Sound,
     find_sounds,
     mode_spread,
     read_room,
     smoothed,
 )
 from podcast_mcp.engines.align import load_mono_window
+from podcast_mcp.engines.session_timeline import SessionTimeline, TimelineSourceSpan
 from podcast_mcp.util.dsp import (
     bool_runs,
     db_to_amplitude,
@@ -36,6 +38,8 @@ from podcast_mcp.util.dsp import (
     high_band_energy_fraction,
     voicing_probes,
 )
+from podcast_mcp.util.source_spans import source_span_timeline_bounds
+from podcast_mcp.util.timebase import SourceSec, TimelineSec
 from podcast_mcp.util.tracks import dialogue_track_ids, track_audio_path
 
 if TYPE_CHECKING:
@@ -77,6 +81,8 @@ _BREATH_BELOW_SPEECH_DB = (7.0, 40.0)
 # under half a second of such frames.
 _ROOM_WORD_PAD_SEC = 0.05
 _ROOM_REACH_SEC = 30.0
+# Two clocks that agree to a microsecond are the same instant (clip placements are floats).
+_CLOCK_EPS_SEC = 1e-6
 
 
 @dataclass(frozen=True)
@@ -898,6 +904,25 @@ class PauseAirSkip(Enum):
 
 
 @dataclass(frozen=True)
+class PauseAir:
+    """The stretch of a pause a trim may take.
+
+    ``start`` and ``end`` are the trim track's source seconds. ``kept`` are the sounds
+    on any track the ripple cuts that must stay whole (they reach within 40 dB of their
+    track's speech level), in session seconds: a shared-pause twin that holds one of
+    them does not protect what this trim does.
+    """
+
+    start: float
+    end: float
+    kept: tuple[tuple[float, float], ...] = ()
+
+    @property
+    def span(self) -> tuple[float, float]:
+        return self.start, self.end
+
+
+@dataclass(frozen=True)
 class _TrackView:
     """One track's speech-band levels around a pause (from the grid point ``origin``)."""
 
@@ -974,6 +999,148 @@ def _off_sounds(lo: int, hi: int, sounds: Sequence[tuple[int, int]]) -> tuple[in
     return lo, hi
 
 
+@dataclass(frozen=True)
+class _TrackSounds:
+    """The sounds on one track around a pause, as frame ranges counted from ``origin`` (a
+    source second), and how many frames of the track's audio the read covers."""
+
+    origin: float
+    frames: int
+    sounds: list[Sound]
+
+
+def _track_sounds(
+    project: EpisodeProject,
+    track_id: str,
+    pause: tuple[float, float],
+    *,
+    sample_rate: int,
+    audio_cache: TrackAudioCache | None,
+    words: CutWordIndex,
+    require_speech: bool = False,
+) -> _TrackSounds | PauseAirSkip | None:
+    """The sounds of ``track_id`` around ``pause`` (its source seconds).
+
+    ``None`` when the track has no audio there (its recording ends before the pause).
+    :attr:`PauseAirSkip.NO_ROOM` when the audio cannot be read or its room cannot be
+    measured: a track that cannot be read cannot be checked, and an edge on it would go
+    unchecked. ``require_speech`` also asks for a speech level, and for audio at the pause.
+    """
+    dt = LEVEL_FRAME_SEC
+    bands = _band_source(project, track_id, sample_rate, audio_cache)
+    origin = _frame_origin(pause[0] - _LEVEL_CONTEXT_SEC)
+    view = None if bands is None else _track_view(bands, words, pause, origin, sample_rate)
+    if view is None:
+        return PauseAirSkip.NO_ROOM
+    gap_lo = math.floor((pause[0] - origin) / dt + 1e-9)
+    if view.levels.size <= gap_lo:
+        return PauseAirSkip.NO_ROOM if require_speech else None
+    if view.room is None or (require_speech and view.speech_db is None):
+        return PauseAirSkip.NO_ROOM
+    gap = (gap_lo, min(view.levels.size, math.ceil((pause[1] - origin) / dt - 1e-9)))
+    sounds = find_sounds(
+        view.levels,
+        view.room,
+        view.speech_db,
+        gap,
+        sample_rate,
+        breath_below_speech_db=_BREATH_BELOW_SPEECH_DB,
+    )
+    return _TrackSounds(origin, view.levels.size, sounds)
+
+
+def _contiguous_pieces(
+    timeline: SessionTimeline, track_id: str, window: tuple[float, float]
+) -> list[TimelineSourceSpan]:
+    """The stretches of ``track_id``'s lane under the session ``window``, each unbroken in
+    both clocks (clips that abut in the lane and in the source are one), gaps left out."""
+    pieces: list[TimelineSourceSpan] = []
+    for span in timeline.map_timeline_spans(
+        track_id, TimelineSec(window[0]), TimelineSec(window[1])
+    ):
+        last = pieces[-1] if pieces else None
+        if (
+            last is not None
+            and abs(float(last.timeline_end) - float(span.timeline_start)) < _CLOCK_EPS_SEC
+            and abs(float(last.source_end) - float(span.source_start)) < _CLOCK_EPS_SEC
+        ):
+            pieces[-1] = TimelineSourceSpan(
+                timeline_start=last.timeline_start,
+                timeline_end=span.timeline_end,
+                source_start=last.source_start,
+                source_end=span.source_end,
+            )
+        else:
+            pieces.append(span)
+    return pieces
+
+
+def _peer_sounds_on_session_clock(
+    project: EpisodeProject,
+    timeline: SessionTimeline,
+    track_id: str,
+    window: tuple[float, float],
+    *,
+    sample_rate: int,
+    audio_cache: TrackAudioCache | None,
+    words: CutWordIndex,
+) -> list[tuple[float, float, bool]] | PauseAirSkip:
+    """A peer's sounds under the session ``window``, as ``(start, end, removable)`` in
+    session seconds.
+
+    A session ripple removes session time, which is a different stretch of each track's
+    source wherever its recording sits on the timeline, so the peer is read through its
+    own clips: every stretch of its lane under the window, at the source seconds that
+    back it. A stretch of the window where the peer's lane holds no clip has no audio, so
+    it contributes no sound. A sound the lane's clip boundary cuts reaches one frame past
+    the boundary, so an edge at the join is inside it, not beside it.
+    """
+    dt = LEVEL_FRAME_SEC
+    out: list[tuple[float, float, bool]] = []
+    for piece in _contiguous_pieces(timeline, track_id, window):
+        src_lo, src_hi = float(piece.source_start), float(piece.source_end)
+        got = _track_sounds(
+            project,
+            track_id,
+            (src_lo, src_hi),
+            sample_rate=sample_rate,
+            audio_cache=audio_cache,
+            words=words,
+        )
+        if isinstance(got, PauseAirSkip):
+            return got
+        if got is None:
+            continue
+        shift = float(piece.timeline_start) - src_lo
+        lane = (float(piece.timeline_start), float(piece.timeline_end))
+        for sound in got.sounds:
+            lo = got.origin + sound.lo * dt + shift
+            hi = got.origin + sound.hi * dt + shift
+            if min(hi, lane[1]) <= max(lo, lane[0]):
+                continue
+            cut_lo, cut_hi = lo < lane[0] - _CLOCK_EPS_SEC, hi > lane[1] + _CLOCK_EPS_SEC
+            out.append(
+                (
+                    lane[0] - dt if cut_lo else lo,
+                    lane[1] + dt if cut_hi else hi,
+                    sound.removable,
+                )
+            )
+    return out
+
+
+def _session_spans(
+    timeline: SessionTimeline, track_id: str, origin: float, lo: int, hi: int
+) -> list[tuple[float, float]]:
+    """Frames ``[lo, hi)`` counted from ``origin`` on ``track_id``'s source clock, on the
+    session's."""
+    dt = LEVEL_FRAME_SEC
+    mapped = timeline.map_source_span(
+        track_id, SourceSec(origin + lo * dt), SourceSec(origin + hi * dt)
+    )
+    return [(float(a), float(b)) for a, b in mapped]
+
+
 def pause_air_span(
     project: EpisodeProject,
     track_id: str,
@@ -986,73 +1153,98 @@ def pause_air_span(
     audio_cache: TrackAudioCache | None = None,
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
     word_indexes: Mapping[str, CutWordIndex] | None = None,
-) -> tuple[float, float] | PauseAirSkip:
+) -> PauseAir | PauseAirSkip:
     """The longest stretch of air in ``[start, end)``, or why there is none.
 
-    ``pause`` is the span the trim may take (the word gap less the retained air). Each
-    track's levels are read in the speech band over the 5 s each side of the pause, and
-    its room, the line between room and sound, and its speech level (the ceiling below)
-    all come from the track's own levels (:mod:`podcast_mcp.edits.room_model`). No edge
-    sits inside a sound. On the trim's own track a sound that reaches 40 dB under the
-    speech level is kept whole and splits the air, and a quieter one is removed whole
-    when the span holds all of it or kept whole when it crosses an edge. A session
-    ripple removes the same window from every dialogue track, so a peer's sound that
-    crosses an edge moves that edge off it too, and a peer's sound that covers what is
-    left leaves no air; a peer's sound inside the span is the speech guard's and the
-    interior checks' to judge. A track whose room cannot be measured (audio that cannot
-    be read, or too few frames between its words even after the window widens) gives
-    :attr:`PauseAirSkip.NO_ROOM`, the trim's own or a peer's; a trim with nothing left
-    gives :attr:`PauseAirSkip.NO_AIR`. ``word_indexes`` are the tracks' word indexes,
-    built once per proposal run. Disabled handling returns the input without reading
-    audio. Source seconds.
+    ``pause`` is the span the trim may take (the word gap less the retained air). A
+    session ripple removes the same window of session time from every dialogue track, so
+    the trim is judged by one rule on all of them, the trim's own included: each track's
+    levels are read in the speech band around the pause, and its room, the line between
+    room and sound, and its speech level all come from the track's own levels
+    (:mod:`podcast_mcp.edits.room_model`). No edge sits inside a sound. A sound that
+    reaches 40 dB under its track's speech level stays whole and splits the air, and a
+    quieter one is removed whole when the span holds all of it or kept whole when it
+    crosses an edge. The same stretch asked for on another track gets the same answer.
+
+    Peers are read where the ripple removes them: through their own clips, at the source
+    seconds each backs under the trim's session window, not at the trim track's seconds.
+    A peer with no clip under part of the window has no audio there. A track whose room
+    cannot be measured (audio that cannot be read, or under half a second of frames
+    between its words even after the window widens) gives :attr:`PauseAirSkip.NO_ROOM`,
+    the trim's own or a peer's, because an edge on it could not be checked; so does the
+    trim's own track when it has no speech level. A trim with nothing left gives
+    :attr:`PauseAirSkip.NO_AIR`. ``word_indexes`` are the tracks' word indexes, built once
+    per proposal run. Disabled handling returns the input without reading audio. Source
+    seconds.
     """
     if not (math.isfinite(start) and math.isfinite(end) and start < end):
         return PauseAirSkip.NO_AIR
     if not _breath_cfg(defaults)["enabled"]:
-        return start, end
+        return PauseAir(start, end)
     dt = LEVEL_FRAME_SEC
-    frame = max(1, round(sample_rate * dt))
-    origin = _frame_origin(pause[0] - _LEVEL_CONTEXT_SEC)
+    timeline = SessionTimeline(project)
+    window = source_span_timeline_bounds(timeline, track_id, pause[0], pause[1])
+    if window[0] is None or window[1] is None:
+        return PauseAirSkip.NO_AIR
     caches = audio_caches or {}
     indexes = word_indexes or {}
-    # Sounds no edge may sit in, that may still lie whole inside the span: the own
-    # track's quiet ones and every peer sound. Frame indices count from ``origin``.
-    kept_sounds: list[tuple[int, int]] = []
+
+    def words(tid: str) -> CutWordIndex:
+        return indexes.get(tid) or CutWordIndex.build(project, tid)
+
+    own = _track_sounds(
+        project,
+        track_id,
+        pause,
+        sample_rate=sample_rate,
+        audio_cache=audio_cache,
+        words=words(track_id),
+        require_speech=True,
+    )
+    if own is None or isinstance(own, PauseAirSkip):
+        return PauseAirSkip.NO_ROOM
+    # Sounds no edge may sit in that may still lie whole inside the span (the removable
+    # ones), and those that split the air. Frame ranges count from the trim track's
+    # ``origin``; ``kept`` is the splitting sounds on the session clock.
+    splits: list[tuple[int, int]] = []
     whole: list[tuple[int, int]] = []
-    own_frames = 0
-    peers = [tid for tid in dialogue_track_ids(project) if tid != track_id]
-    for tid in (track_id, *peers):
-        own = tid == track_id
-        bands = _band_source(project, tid, sample_rate, audio_cache if own else caches.get(tid))
-        words = indexes.get(tid) or CutWordIndex.build(project, tid)
-        view = None if bands is None else _track_view(bands, words, pause, origin, sample_rate)
-        gap_lo = math.floor((pause[0] - origin) / dt + 1e-9)
-        if view is None or view.levels.size <= gap_lo:
-            if own:
-                return PauseAirSkip.NO_ROOM
+    kept: list[tuple[float, float]] = []
+    for sound in own.sounds:
+        if sound.removable:
+            whole.append((sound.lo, sound.hi))
+        else:
+            splits.append((sound.lo, sound.hi))
+            kept.extend(_session_spans(timeline, track_id, own.origin, sound.lo, sound.hi))
+    for tid in dialogue_track_ids(project):
+        if tid == track_id:
             continue
-        if view.room is None or (own and view.speech_db is None):
-            return PauseAirSkip.NO_ROOM
-        if own:
-            own_frames = view.levels.size
-        gap = (gap_lo, min(view.levels.size, math.ceil((pause[1] - origin) / dt - 1e-9)))
-        for sound in find_sounds(
-            view.levels,
-            view.room,
-            view.speech_db,
-            gap,
-            sample_rate,
-            breath_below_speech_db=_BREATH_BELOW_SPEECH_DB,
-        ):
-            if own and not sound.removable:
-                kept_sounds.append((sound.lo, sound.hi))
-            else:
-                whole.append((sound.lo, sound.hi))
-    first = max(0, math.floor((start - origin) / dt + 1e-9))
-    last = min(own_frames, math.ceil((end - origin) / dt - 1e-9))
-    keep = np.zeros(last, dtype=bool)
-    for lo, hi in kept_sounds:
-        keep[lo : min(hi, last)] = True
+        peer = _peer_sounds_on_session_clock(
+            project,
+            timeline,
+            tid,
+            (float(window[0]), float(window[1])),
+            sample_rate=sample_rate,
+            audio_cache=caches.get(tid),
+            words=words(tid),
+        )
+        if isinstance(peer, PauseAirSkip):
+            return peer
+        for lo_tl, hi_tl, removable in peer:
+            if not removable:
+                kept.append((lo_tl, hi_tl))
+            for lo_src, hi_src in timeline.map_timeline_span(
+                track_id, TimelineSec(lo_tl), TimelineSec(hi_tl)
+            ):
+                frames = (
+                    math.floor((float(lo_src) - own.origin) / dt + 1e-9),
+                    math.ceil((float(hi_src) - own.origin) / dt - 1e-9),
+                )
+                (whole if removable else splits).append(frames)
+    first = max(0, math.floor((start - own.origin) / dt + 1e-9))
+    last = min(own.frames, math.ceil((end - own.origin) / dt - 1e-9))
+    keep = np.zeros(max(last, 0), dtype=bool)
+    for lo, hi in splits:
+        keep[max(lo, 0) : max(min(hi, last), 0)] = True
     best: tuple[int, int] | None = None
     for lo, hi in bool_runs(~keep[first:last]):
         lo, hi = _off_sounds(first + lo, first + hi, whole)
@@ -1060,13 +1252,15 @@ def pause_air_span(
             best = (lo, hi)
     if best is None:
         return PauseAirSkip.NO_AIR
-    at = round(origin * sample_rate)
+    frame = max(1, round(sample_rate * dt))
+    at = round(own.origin * sample_rate)
     lo_sec = (at + best[0] * frame) / sample_rate
     hi_sec = (at + best[1] * frame) / sample_rate
     # An ASR word end sits on the frame grid; its own frame boundary is the same edge.
-    return (
+    return PauseAir(
         start if abs(lo_sec - start) < 1e-6 else max(start, lo_sec),
         end if abs(hi_sec - end) < 1e-6 else min(end, hi_sec),
+        tuple(kept),
     )
 
 

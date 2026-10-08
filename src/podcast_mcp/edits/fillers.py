@@ -66,6 +66,7 @@ from podcast_mcp.models import (
 )
 from podcast_mcp.util.dsp import db_to_amplitude, rms_db
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
+from podcast_mcp.util.parallel import run_parallel
 from podcast_mcp.util.text import lexicon_form, normalize_text
 from podcast_mcp.util.tracks import dialogue_track_ids
 
@@ -1815,6 +1816,8 @@ class _GatedCut:
     guard: SpeechEnergyGuardResult | None
     # Review flags the edge checks raised, in the order they go on the reason.
     flags: tuple[str, ...]
+    # A pause trim's sounds that must stay whole, on the session clock (see PauseAir).
+    kept_sounds: tuple[tuple[float, float], ...] = ()
 
 
 def _peer_audio_caches(
@@ -1908,6 +1911,7 @@ def _gate_cut_edges(
         cut_start, cut_end, voiced_flag = voiced.start, voiced.end, voiced.flag
     before_protection = cut_start, cut_end
     off_proposal = False
+    kept_sounds: tuple[tuple[float, float], ...] = ()
     if candidate.cut_kind == "pause":
         # A pause trim removes only air: it shrinks to the longest stretch of air
         # inside it on every track the ripple cuts, so no edge sits in a sound. Every
@@ -1926,8 +1930,9 @@ def _gate_cut_edges(
         )
         if isinstance(air, PauseAirSkip):
             return _CutRejected(air.value)
-        off_proposal = air != paced
-        cut_start, cut_end = air
+        off_proposal = air.span != paced
+        cut_start, cut_end = air.span
+        kept_sounds = air.kept
     elif checks.breaths is not _BreathEdges.IGNORE:
         breath_safe = protect_cut_breaths(
             project,
@@ -1970,7 +1975,7 @@ def _gate_cut_edges(
 
     def gated(final: str) -> _GatedCut:
         raised = (voiced_flag, "air_edges" if off_proposal else None)
-        return _GatedCut(plan, final, guard, tuple(flag for flag in raised if flag))
+        return _GatedCut(plan, final, guard, tuple(flag for flag in raised if flag), kept_sounds)
 
     if final_scope != scope:
         return gated(final_scope)
@@ -1992,7 +1997,27 @@ def _gate_cut_edges(
     return gated(scope)
 
 
-def _analyze_candidate(
+@dataclass(frozen=True)
+class _PreparedCut:
+    """A candidate through every check that moves or refuses its span.
+
+    Only the join-continuity gate and the fade sizing are left (:func:`_finish_candidate`),
+    so a duplicate pause trim can be dropped before they are paid for.
+    """
+
+    candidate: _CutCandidate
+    opt: Any
+    jump_cache: dict[tuple[str, float], float | None]
+    plan: _CutPlan
+    scope: str
+    reason: str
+    review_required: bool
+    replace_gap: float | None
+    # A pause trim's sounds that must stay whole, on the session clock (see PauseAir).
+    kept_sounds: tuple[tuple[float, float], ...]
+
+
+def _prepare_candidate(
     project: EpisodeProject,
     candidate: _CutCandidate,
     defaults: dict[str, Any],
@@ -2003,8 +2028,8 @@ def _analyze_candidate(
     peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
     word_indexes: Mapping[str, CutWordIndex] | None = None,
-) -> _AnalyzedCut | _CutRejected:
-    """Waveform-optimize, risk-assess, and fade-size one candidate. Read-only w.r.t.
+) -> _PreparedCut | _CutRejected:
+    """Waveform-optimize, risk-assess and edge-check one candidate. Read-only w.r.t.
     project (no mutation) -- safe to call from multiple threads concurrently, as
     long as each call gets its own jump-measurement cache (below); audio_cache
     (one per track, decoded once) is read-only and safe to share across threads.
@@ -2186,6 +2211,34 @@ def _analyze_candidate(
         review_required = True
         reason = f"{reason}:risky"
 
+    return _PreparedCut(
+        candidate=candidate,
+        opt=opt,
+        jump_cache=jump_cache,
+        plan=plan,
+        scope=scope,
+        reason=reason,
+        review_required=review_required,
+        replace_gap=replace_gap,
+        kept_sounds=gated.kept_sounds,
+    )
+
+
+def _finish_candidate(
+    project: EpisodeProject,
+    prepared: _PreparedCut,
+    defaults: dict[str, Any],
+    *,
+    audio_cache: TrackAudioCache | None = None,
+) -> _AnalyzedCut | _CutRejected:
+    """Score the join of a prepared cut and size its fade: the costly half of its analysis."""
+    tighten = defaults.get("tighten", {})
+    candidate, plan, opt = prepared.candidate, prepared.plan, prepared.opt
+    track_id = candidate.track_id
+    checks = plan.checks
+    cut_start, cut_end = plan.start, plan.end
+    reason, review_required = prepared.reason, prepared.review_required
+    replace_gap = prepared.replace_gap
     if checks.score_joins and bool(tighten.get("join_continuity_gate", False)):
         try:
             from podcast_mcp.edits.join_continuity import (
@@ -2230,7 +2283,7 @@ def _analyze_candidate(
             cut_end,
             cut_kind=candidate.cut_kind,
             defaults=defaults,
-            cache=jump_cache,
+            cache=prepared.jump_cache,
             audio_cache=audio_cache,
         )
     return _AnalyzedCut(
@@ -2245,8 +2298,98 @@ def _analyze_candidate(
         boundary_mode=opt.mode,
         replace_gap_sec=replace_gap,
         next_burst_sec=plan.next_burst,
-        scope=scope,
+        scope=prepared.scope,
         decision_type="mute" if mute else "remove",
+    )
+
+
+def _analyze_candidate(
+    project: EpisodeProject,
+    candidate: _CutCandidate,
+    defaults: dict[str, Any],
+    *,
+    audio_cache: TrackAudioCache | None = None,
+    speaker_context: _SpeakerCutContext | None = None,
+    word_index: CutWordIndex | None = None,
+    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
+    audio_caches: Mapping[str, TrackAudioCache] | None = None,
+    word_indexes: Mapping[str, CutWordIndex] | None = None,
+) -> _AnalyzedCut | _CutRejected:
+    """Analyze one candidate end to end: :func:`_prepare_candidate`, then
+    :func:`_finish_candidate`. A batch goes through :func:`analyze_candidates`, which
+    drops duplicate pause trims between the two."""
+    prepared = _prepare_candidate(
+        project,
+        candidate,
+        defaults,
+        audio_cache=audio_cache,
+        speaker_context=speaker_context,
+        word_index=word_index,
+        peer_indexes=peer_indexes,
+        audio_caches=audio_caches,
+        word_indexes=word_indexes,
+    )
+    if isinstance(prepared, _CutRejected):
+        return prepared
+    return _finish_candidate(project, prepared, defaults, audio_cache=audio_cache)
+
+
+def analyze_candidates(
+    project: EpisodeProject,
+    candidates: list[_CutCandidate],
+    defaults: dict[str, Any],
+    *,
+    audio_caches: Mapping[str, TrackAudioCache],
+    speaker_context: _SpeakerCutContext | None,
+    peer_indexes: dict[str, _PeerTrackSpeechIndex] | None,
+    word_indexes: Mapping[str, CutWordIndex],
+    max_workers: int | None = None,
+) -> list[_AnalyzedCut | _CutRejected]:
+    """Analyze ``candidates`` in parallel, results in candidate order.
+
+    Every candidate is prepared first. A session pause trim that another track's longer
+    trim stands for (the same stretch of shared air, :func:`shared_pause_twins`) is
+    dropped as ``shared_pause`` before the join gate scores anyone: the reviewer decides
+    that cut once, and nobody pays to score the copy.
+    """
+    prepared = run_parallel(
+        candidates,
+        lambda c: _prepare_candidate(
+            project,
+            c,
+            defaults,
+            audio_cache=audio_caches.get(c.track_id),
+            speaker_context=speaker_context,
+            word_index=word_indexes.get(c.track_id),
+            peer_indexes=peer_indexes,
+            audio_caches=audio_caches,
+            word_indexes=word_indexes,
+        ),
+        max_workers=max_workers,
+    )
+    twins = shared_pause_twins(
+        project,
+        [
+            PauseClaim(c.track_id, p.plan.start, p.plan.end, p.kept_sounds)
+            if isinstance(p, _PreparedCut) and c.cut_kind == "pause" and p.scope == "session"
+            else None
+            for c, p in zip(candidates, prepared, strict=True)
+        ],
+    )
+    jobs = [
+        _CutRejected("shared_pause") if index in twins else outcome
+        for index, outcome in enumerate(prepared)
+    ]
+    return run_parallel(
+        jobs,
+        lambda job: (
+            job
+            if isinstance(job, _CutRejected)
+            else _finish_candidate(
+                project, job, defaults, audio_cache=audio_caches.get(job.candidate.track_id)
+            )
+        ),
+        max_workers=max_workers,
     )
 
 
@@ -2322,20 +2465,16 @@ def analyze_fillers_and_pauses(
     )
     speaker_context = _speaker_cut_context(project) if candidates else None
     word_indexes = _word_indexes(project, candidates)
-    results = [
-        _analyze_candidate(
-            project,
-            candidate,
-            defaults,
-            audio_cache=audio_cache,
-            speaker_context=speaker_context,
-            word_index=word_indexes.get(transcript.track_id),
-            peer_indexes=peer_indexes,
-            audio_caches=audio_caches,
-            word_indexes=word_indexes,
-        )
-        for candidate in candidates
-    ]
+    results = analyze_candidates(
+        project,
+        candidates,
+        defaults,
+        audio_caches=audio_caches,
+        speaker_context=speaker_context,
+        peer_indexes=peer_indexes,
+        word_indexes=word_indexes,
+        max_workers=1,
+    )
     resolved = _resolve_analyzed_cuts(
         candidates,
         results,
