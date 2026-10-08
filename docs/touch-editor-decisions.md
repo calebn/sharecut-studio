@@ -29,6 +29,7 @@ evidence:
 - #1051 round 4b fix (2026-10-07): the first 4b cut made the clip body a create-menu surface, so touch clip moves were lost; the coordinator restored them under the approved grammar, since a clip body drags in time
 - #1051 owner phone test (2026-10-07): the crossfade grip "still drags at once, without a long press"
 - #1181 round 8 live proof (2026-10-07): at 844x390 a long press in empty space opened the create menu under the finger, and lifting without moving saved Add chapter; a first finger on a chooser chip or the crossfade rail did not count toward a pinch
+- #1181 round 9 live proof (2026-10-08): the create menu clipped its last item with no scroll at large text and a short screen, and could sit over the finger; the peek strip covered the rail's Undo, and a tap meant for it nudged a pending edit; the blade confirmation's Cut sat under the tab bar at 844x390; a finger on the drawer did not count toward the two-finger rule
 - #1051 owner phone test (2026-10-07, round 5): a long press past the last clip still started iOS text selection; the drawer "follows the finger but feels laggy", and the owner asked for a flick to open or close it
 - 2026-10-07 owner, relayed by the coordinator: the grammar is the rule, so it is on by default and the touch chooser lab is retired
 enforced-by:
@@ -49,6 +50,12 @@ enforced-by:
 - gui/web/src/timeline/hitRouting.fingers.test.ts::rolls an armed grip back when a second finger lands on the lanes
 - gui/web/src/timeline/CreateMenu.test.tsx::says Blade cut cuts the selected tracks, not the held lane, and sets it apart from the lane's entry
 - gui/web/src/timeline/chooserLayout.test.ts::falls back to the viewport when the timeline box is shorter than the menu, below the finger rather than over it
+- gui/web/src/timeline/chooserLayout.test.ts::never covers the finger, in any geometry that has a free side
+- gui/web/src/timeline/CreateMenu.test.tsx::measures the menu's natural height, not the height its own cap leaves, so a menu the cap clips scrolls
+- gui/web/src/timeline/hitRouting.fingers.test.ts::counts as a first finger: a second finger's long press arms nothing and its lift saves nothing
+- gui/web/e2e-compat/touch-grammar.spec.ts::the create menu reaches every item and stays off the finger at every text size and screen height
+- gui/web/e2e-compat/touch-chrome-reach.spec.ts::Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open: landscape
+- gui/web/e2e-compat/touch-chrome-reach.spec.ts::the Cut button of the blade confirmation can be tapped at 32px text: landscape
 - gui/web/e2e-compat/touch-grammar.spec.ts::in a short viewport the create menu stays in view off the finger, and lifting without moving saves nothing
 - gui/web/src/timeline/ClipBlock.test.tsx::stops a held arrow at a soft boundary with a bump and a note (#1115)
 - gui/web/src/ui/BottomSheet.test.tsx::opens fully on a quick flick and lands a slow drag at the nearest detent
@@ -596,6 +603,26 @@ or `RollClipJoin`; now they send no document command, the saved clip is
 unchanged, the selection is what it was, and the zoom grows by about 2.3×
 (portrait and sideways).
 
+### Undo stays in reach beside the strip (#1181 round 9)
+
+The strip is a fixed sheet over the timeline, and the tool rail's Undo and
+Redo sit at the timeline's bottom edge, so an open strip covered them on a
+phone held either way: round 9's live proof tapped Undo's centre and nudged a
+pending edit instead. The strip's slot now stops above the rail
+(`bottom-sheet.css`, with `--tool-rail-block-size`, which
+`layout/useToolRailBlockSize.ts` publishes from the rail's own height), so
+Undo and Redo stay visible and tappable at every detent. It costs a sideways
+phone about one lane of the room above an open strip (the rail's 46 px).
+Where the slot above the rail would be under 10rem (a 390 px screen at a
+32 px root font) the strip covers the rail as before, because starving the
+strip's header and body is worse; `toolRailInsetRem` decides. The crossfade
+rail stacks the same way for the phone toast, which now docks above it.
+
+The blade confirmation is a `fit` sheet, as tall as its question and its
+actions and no taller, with Cancel and Cut pinned to the bottom of its scroll
+area. On a phone held sideways its slot lies above the bottom tabs, and the
+half height it had left Cut scrolled out of a 49 px body, under the tab bar.
+
 ### Collapse stays in reach (#1051 round 4)
 
 With the inspector expanded on a phone held sideways, picking another target
@@ -704,7 +731,12 @@ chooser lab until the owner made it the default (2026-10-07).
   sideways, where the timeline's box is shorter than the menu, so it uses the
   screen), never over it, beside the fixed playhead when there is room, with a
   dashed mark at the held time on its lane. A menu taller than the screen
-  caps its height and scrolls. Its title is the time and lane
+  caps its height and scrolls: it measures its natural height (the shared
+  menu cap hid the overflow, so round 8 clipped the last item), then sits
+  beside the finger at the screen's height or, where neither side has room
+  for its width (large text), above or below the finger, whichever has more
+  room, capped to that room. Either way a 24 px gap stays between the menu
+  and the finger. Its title is the time and lane
   ("00:30.000 · Avery"). Entries: **Add envelope point** (with the level it
   adds at, on the held lane), then, below a divider, **Blade cut**, **Add
   chapter** and **Add comment**. Blade cut cuts the selected tracks, else
@@ -743,8 +775,10 @@ chooser lab until the owner made it the default (2026-10-07).
   move and the create menu, as it does any one-finger action. A first finger
   on a chooser chip (which sits outside the timeline's scroller) or on the
   crossfade rail counts like one on the lanes: the router treats fingers on
-  chips, create items and adopted parts as its own. Round 8 found that a
-  second finger landing after one on a chip armed a target and saved.
+  chips, create items, the drawer and adopted parts as its own. Round 8
+  found that a second finger landing after one on a chip armed a target and
+  saved; round 9 found the same for a finger resting on the drawer, and the
+  owner's rule is that two fingers never edit.
 - **Touch paths.** The first 4b cut made the clip body a plain surface, so a
   long press there opened the create menu and touch clip moves were lost
   without a failing test. The conformance test now fails when a kind with an
@@ -758,3 +792,11 @@ chooser lab until the owner made it the default (2026-10-07).
   drags it as before. The rail first ran a second router, whose finger count
   could not see the lanes'. The conformance test also fails when any kind with an axis drags
   on touch before a long press arms it, selected or not.
+- **The crossfade rail on a phone held sideways.** Opening a crossfade join
+  opens its popover, which in a 390 px tall screen covers the rail's grip
+  (round 8's live proof hit the popover's icon at the grip's centre). The
+  popover's Length slider is the visible, full-size equivalent of the grip, so
+  there the popover owns the edit and the pinch-from-the-grip case cannot
+  arise; in portrait the grip is reachable and its pinch rule is pinned live.
+  A toast no longer covers the grip there either: the phone toast docks above
+  an open crossfade rail as it does above the tool rail.
