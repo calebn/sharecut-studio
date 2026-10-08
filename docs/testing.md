@@ -1339,6 +1339,13 @@ test; other rows are whole tests.
 | no shell row draws over the strip, nor the strip over it: portrait-360 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | no shell row draws over the strip, nor the strip over it: landscape-844 | `gui/web/e2e-compat/touch-strip-stacking.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a pending edit's Approve and Reject sit above the strip, upright and sideways | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| Expand keeps the header, Collapse and Close usable at 844x390 with a 16 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| Expand keeps the header, Collapse and Close usable at 844x390 with a 24 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| Expand keeps the header, Collapse and Close usable at 844x390 with a 32 px root font | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| a timeline tap while a track's sheet is open goes to the strip: portrait-390 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| a point saved from a track's envelope form stays in that sheet: portrait-390 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| Tab focus never lands a field under the drawer header at 32 px text: a pending cut | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
+| the strip leaves the timeline undimmed and the half sheet dims it: portrait-390 | `gui/web/e2e-compat/touch-peek.spec.ts` | Core flow | Pass | Pass | Not run |
 
 A dated snapshot, not a threshold (measured locally on macOS as of #739 and
 #747; no test re-checks these figures): the core-flow landed track peaked at

@@ -166,6 +166,34 @@ async function clearOfScrollbars(page: Page, p: Point): Promise<Point> {
   );
 }
 
+async function tapTarget(
+  page: Page,
+  finger: Finger,
+  locate: string,
+): Promise<void> {
+  const at = await page.evaluate((locate) => {
+    const el = document.querySelector(locate);
+    el?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const r = el?.getBoundingClientRect();
+    const lanes = document
+      .querySelector(".timeline-scroll .clip-block")
+      ?.closest(".lane-row")
+      ?.getBoundingClientRect();
+    if (!r || !lanes) return null;
+    const left = Math.max(r.left, lanes.left);
+    const right = Math.min(r.right, innerWidth);
+    return {
+      x: (left + right) / 2,
+      y: r.top + r.height * (r.height > 40 ? 0.85 : 0.5),
+    };
+  }, locate);
+  if (!at) throw new Error(`${locate} has no box`);
+  await finger.down(await clearOfScrollbars(page, at));
+  await page.waitForTimeout(60);
+  await finger.up();
+  await page.waitForTimeout(700);
+}
+
 /**
  * Holds on the edge cluster until the chooser opens; the finger stays down.
  * The clip after the edge is selected first, so its trim handle is there to
@@ -521,30 +549,6 @@ test("the strip and the expanded inspector leave the selection in view", async (
     "lane 1 point": `${lane} [data-hit-kind="envelope-point"][data-hit-id="env-c"]`,
     "lane 2 clip": `.clip-block[data-clip-id="${guestClip}"]`,
   };
-  const tap = async (locate: string) => {
-    // The middle of the target's part inside the lanes' visible box.
-    const at = await page.evaluate((locate) => {
-      const el = document.querySelector(locate);
-      el?.scrollIntoView({ block: "nearest", inline: "nearest" });
-      const r = el?.getBoundingClientRect();
-      const lanes = document
-        .querySelector(".timeline-scroll .clip-block")
-        ?.closest(".lane-row")
-        ?.getBoundingClientRect();
-      if (!r || !lanes) return null;
-      const left = Math.max(r.left, lanes.left);
-      const right = Math.min(r.right, innerWidth);
-      return {
-        x: (left + right) / 2,
-        y: r.top + r.height * (r.height > 40 ? 0.85 : 0.5),
-      };
-    }, locate);
-    if (!at) throw new Error(`${locate} has no box`);
-    await finger.down(await clearOfScrollbars(page, at));
-    await page.waitForTimeout(60);
-    await finger.up();
-    await page.waitForTimeout(700);
-  };
   const rows: Record<string, unknown>[] = [];
   for (const size of Object.keys(SIZES) as SizeName[]) {
     for (const [target, locate] of Object.entries(targets)) {
@@ -567,7 +571,7 @@ test("the strip and the expanded inspector leave the selection in view", async (
         }
       };
       await open(page, size);
-      await tap(locate);
+      await tapTarget(page, finger, locate);
       await record("strip");
       await page
         .getByRole("button", { name: "Expand to half height" })
@@ -888,4 +892,338 @@ test("axe, both themes and reduced motion with the strip open", async ({
     }
     if (row.motion === "reduce") expect(row.transition).toBe("0s");
   }
+});
+
+const envC = `${lane} [data-hit-kind="envelope-point"][data-hit-id="env-c"]`;
+
+async function tapBox(
+  page: Page,
+  finger: Finger,
+  locator: Locator,
+): Promise<void> {
+  await finger.down(await centerOfBox(locator));
+  await page.waitForTimeout(60);
+  await finger.up();
+  await page.waitForTimeout(700);
+}
+
+async function drawerChrome(page: Page) {
+  return page.evaluate(() => {
+    const panel = document.querySelector<HTMLElement>(".bottom-sheet");
+    const rem = Number.parseFloat(
+      getComputedStyle(document.documentElement).fontSize,
+    );
+    const reach = (el: Element | null | undefined) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        r.left + r.width / 2,
+        r.top + r.height / 2,
+      );
+      return {
+        inView:
+          r.top >= 0 &&
+          r.left >= 0 &&
+          r.bottom <= innerHeight &&
+          r.right <= innerWidth,
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        onTop: hit != null && (el.contains(hit) || hit.contains(el)),
+      };
+    };
+    const buttons = [...(panel?.querySelectorAll("button") ?? [])];
+    const named = (prefix: string) =>
+      buttons.find((b) => b.getAttribute("aria-label")?.startsWith(prefix));
+    const chrome = panel?.querySelector(".bottom-sheet-chrome");
+    return {
+      rootPx: rem,
+      sheetPx: panel ? Math.round(panel.getBoundingClientRect().height) : 0,
+      chromePx: chrome ? Math.round(chrome.getBoundingClientRect().height) : 0,
+      header: reach(panel?.querySelector(".bottom-sheet-title")),
+      collapse: reach(named("Collapse")),
+      close: reach(named("Close")),
+    };
+  });
+}
+
+const SHEET_REACHABLE = { inView: true, onTop: true };
+
+async function expandAtRootFont(
+  rootPx: number,
+  { page, context, browserName }: CaseFixtures,
+  info: TestInfo,
+): Promise<void> {
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await buildFixture(page, projectPath, CLIENT_ID);
+  const finger = await newFinger(context, page, browserName);
+  await open(page, "landscape-844");
+  await tapTarget(page, finger, envC);
+  await expect(sheet(page)).toHaveClass(/bottom-sheet--peek/);
+  await page.evaluate((px) => {
+    document.documentElement.style.fontSize = `${px}px`;
+  }, rootPx);
+  await page.waitForTimeout(300);
+  const rows: Record<string, unknown>[] = [];
+  for (const [detent, button] of [
+    ["half", "Expand to half height"],
+    ["full", "Expand to full height"],
+  ] as const) {
+    await tapBox(page, finger, page.getByRole("button", { name: button }));
+    await expect(sheet(page)).toHaveClass(
+      new RegExp(`bottom-sheet--${detent}`),
+    );
+    const row = { detent, ...(await drawerChrome(page)) };
+    rows.push(row);
+    await frame(page, info, `expand-${rootPx}px-${detent}-${browserName}`);
+    expect(row, JSON.stringify(row)).toMatchObject({
+      header: SHEET_REACHABLE,
+      collapse: SHEET_REACHABLE,
+      close: SHEET_REACHABLE,
+    });
+    for (const control of [row.collapse, row.close]) {
+      expect(Math.min(control?.w ?? 0, control?.h ?? 0)).toBeGreaterThanOrEqual(
+        44,
+      );
+    }
+    expect(row.sheetPx - row.chromePx).toBeGreaterThanOrEqual(3 * rootPx);
+  }
+  json(info, `expand-${rootPx}px-${browserName}`, rows);
+  await tapBox(page, finger, page.getByRole("button", { name: /^Collapse/ }));
+  await expect(sheet(page)).toHaveClass(/bottom-sheet--peek/);
+}
+
+test("Expand keeps the header, Collapse and Close usable at 844x390 with a 16 px root font", ({
+  page,
+  context,
+  browserName,
+}, info) => expandAtRootFont(16, { page, context, browserName }, info));
+
+test("Expand keeps the header, Collapse and Close usable at 844x390 with a 24 px root font", ({
+  page,
+  context,
+  browserName,
+}, info) => expandAtRootFont(24, { page, context, browserName }, info));
+
+test("Expand keeps the header, Collapse and Close usable at 844x390 with a 32 px root font", ({
+  page,
+  context,
+  browserName,
+}, info) => expandAtRootFont(32, { page, context, browserName }, info));
+
+async function openTrackSheet(page: Page, finger: Finger): Promise<void> {
+  await tapBox(page, finger, page.locator(".track-header-open").first());
+  await expect(sheet(page)).toBeVisible();
+  expect((await sheetState(page)).compact).toBe(false);
+}
+
+test("a timeline tap while a track's sheet is open goes to the strip: portrait-390", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await buildFixture(page, projectPath, CLIENT_ID);
+  const finger = await newFinger(context, page, browserName);
+  await open(page, "portrait-390");
+  await openTrackSheet(page, finger);
+  const track = await sheetState(page);
+  await frame(page, info, `tap-while-track-sheet-1-track-${browserName}`);
+  await tapClipBody(page, finger);
+  const clip = await sheetState(page);
+  await frame(page, info, `tap-while-track-sheet-2-clip-${browserName}`);
+  json(info, `tap-while-track-sheet-${browserName}`, { track, clip });
+  expect(clip).toMatchObject({ compact: true, size: "peek", stowed: false });
+  expect(await page.locator(".bottom-sheet .inspector").count()).toBe(0);
+  await tapTarget(page, finger, envC);
+  expect(await sheetState(page)).toMatchObject({
+    compact: true,
+    size: "peek",
+    title: "Envelope point",
+  });
+});
+
+test("a point saved from a track's envelope form stays in that sheet: portrait-390", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await buildFixture(page, projectPath, CLIENT_ID);
+  const finger = await newFinger(context, page, browserName);
+  await open(page, "portrait-390");
+  await openTrackSheet(page, finger);
+  await page.getByRole("button", { name: "Edit volume envelope" }).click();
+  await page.getByRole("button", { name: "Add point", exact: true }).click();
+  await page
+    .getByLabel("Time (seconds on timeline)", { exact: true })
+    .fill("30");
+  await page.getByLabel("Level (×)", { exact: true }).fill("0.5");
+  await page.getByRole("button", { name: "Save point", exact: true }).click();
+  const select = page.getByRole("combobox", {
+    name: "Envelope point",
+    exact: true,
+  });
+  await expect(select).toBeVisible();
+  await page.waitForTimeout(700);
+  const kept = {
+    ...(await sheetState(page)),
+    pointFieldInSheet: await select.evaluate(
+      (el) => el.closest(".bottom-sheet") != null,
+    ),
+  };
+  await frame(page, info, `saved-point-in-sheet-${browserName}`);
+  json(info, `saved-point-in-sheet-${browserName}`, kept);
+  expect(kept).toMatchObject({
+    open: true,
+    compact: false,
+    pointFieldInSheet: true,
+  });
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(sheet(page)).toHaveCount(0);
+  await tapTarget(page, finger, envC);
+  expect(await sheetState(page)).toMatchObject({ compact: true, size: "peek" });
+});
+
+async function focusedField(page: Page) {
+  return page.evaluate(() => {
+    const chrome = document.querySelector(".bottom-sheet-chrome");
+    const body = document.querySelector(".bottom-sheet-body");
+    const el = document.activeElement;
+    if (!chrome || !body || !el || !body.contains(el)) return null;
+    const r = el.getBoundingClientRect();
+    return {
+      field: el.getAttribute("aria-label") ?? el.id ?? el.tagName,
+      top: Math.round(r.top),
+      headerBottom: Math.round(chrome.getBoundingClientRect().bottom),
+    };
+  });
+}
+
+test("Tab focus never lands a field under the drawer header at 32 px text: a pending cut", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await buildFixture(page, projectPath, CLIENT_ID);
+  const finger = await newFinger(context, page, browserName);
+  await open(page, "portrait-390", { inspector: "full" });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "32px";
+  });
+  await page.waitForTimeout(300);
+  await tapTarget(page, finger, `${lane} [data-pending-id]`);
+  await expect(sheet(page)).toHaveClass(/bottom-sheet--full/);
+  const fields = page.locator(
+    ".bottom-sheet-body input:not([type=hidden]), .bottom-sheet-body select, .bottom-sheet-body textarea",
+  );
+  expect(await fields.count()).toBeGreaterThan(1);
+  await fields.last().focus();
+  const seen: NonNullable<Awaited<ReturnType<typeof focusedField>>>[] = [];
+  for (let i = 0; i < 40; i += 1) {
+    await page.keyboard.press("Shift+Tab");
+    await page.waitForTimeout(80);
+    const at = await focusedField(page);
+    if (!at) break;
+    seen.push(at);
+  }
+  await frame(page, info, `tab-up-pending-32px-${browserName}`);
+  json(info, `tab-up-pending-32px-${browserName}`, seen);
+  expect(seen.length).toBeGreaterThan(0);
+  for (const at of seen) {
+    expect(at.top, JSON.stringify(at)).toBeGreaterThanOrEqual(at.headerBottom);
+  }
+
+  const partly: Record<string, unknown>[] = [];
+  const count = await fields.count();
+  for (let i = 0; i < count; i += 1) {
+    for (const under of [4, 7, 20, 40]) {
+      partly.push(
+        await fields.nth(i).evaluate((el, under) => {
+          const input = el as HTMLElement;
+          const chrome = document.querySelector(".bottom-sheet-chrome");
+          let scroller = input.parentElement;
+          while (
+            scroller &&
+            !(
+              /(auto|scroll)/.test(getComputedStyle(scroller).overflowY) &&
+              scroller.scrollHeight > scroller.clientHeight
+            )
+          ) {
+            scroller = scroller.parentElement;
+          }
+          if (!chrome || !scroller) return { skipped: "no scroller" };
+          const bottom = chrome.getBoundingClientRect().bottom;
+          scroller.scrollTop +=
+            input.getBoundingClientRect().top - (bottom - under);
+          const placed = Math.round(input.getBoundingClientRect().top);
+          if (Math.abs(placed - (bottom - under)) > 1) {
+            return { skipped: "cannot place", under };
+          }
+          input.blur();
+          input.focus();
+          return {
+            under,
+            field: input.getAttribute("aria-label") ?? input.id,
+            top: Math.round(input.getBoundingClientRect().top),
+            headerBottom: Math.round(bottom),
+          };
+        }, under),
+      );
+    }
+  }
+  json(info, `partly-under-pending-32px-${browserName}`, partly);
+  const placed = partly.filter((row) => !("skipped" in row)) as {
+    top: number;
+    headerBottom: number;
+  }[];
+  expect(placed.length).toBeGreaterThan(0);
+  for (const at of placed) {
+    expect(at.top, JSON.stringify(at)).toBeGreaterThanOrEqual(at.headerBottom);
+  }
+});
+
+test("the strip leaves the timeline undimmed and the half sheet dims it: portrait-390", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
+  await buildFixture(page, projectPath, CLIENT_ID);
+  const finger = await newFinger(context, page, browserName);
+  await open(page, "portrait-390");
+  await tapTarget(page, finger, envC);
+  const scrim = () =>
+    page.evaluate(() => {
+      const scrim = document.querySelector(".bottom-sheet-scrim");
+      const area = document
+        .querySelector(".timeline-scroll")
+        ?.getBoundingClientRect();
+      const hit = area
+        ? document.elementFromPoint(area.left + area.width / 2, area.top + 6)
+        : null;
+      return {
+        background: scrim ? getComputedStyle(scrim).backgroundColor : null,
+        timelineHitsScrim:
+          hit?.classList.contains("bottom-sheet-scrim") ?? null,
+        hit: hit?.className?.toString() ?? null,
+      };
+    });
+  const strip = await scrim();
+  await frame(page, info, `scrim-1-strip-${browserName}`);
+  await tapBox(
+    page,
+    finger,
+    page.getByRole("button", { name: "Expand to half height" }),
+  );
+  await expect(sheet(page)).toHaveClass(/bottom-sheet--half/);
+  const half = await scrim();
+  await frame(page, info, `scrim-2-half-${browserName}`);
+  json(info, `scrim-${browserName}`, { strip, half });
+  expect(strip).toMatchObject({
+    background: "rgba(0, 0, 0, 0)",
+    timelineHitsScrim: false,
+  });
+  expect(half.background).not.toBe("rgba(0, 0, 0, 0)");
+  expect(half.timelineHitsScrim).toBe(false);
 });
