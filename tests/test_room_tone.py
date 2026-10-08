@@ -249,6 +249,17 @@ def test_sampled_tiles_fade_only_at_the_pad_edges(tmp_path: Path) -> None:
     assert [(c.fade_in_ms, c.fade_out_ms) for c in pads] == [(10, 0), (0, 0), (0, 10)]
 
 
+def test_room_tone_is_not_taken_from_source_a_pending_cut_still_plays(tmp_path: Path) -> None:
+    project = _project(tmp_path, host=_host_audio())
+
+    nearest = room_tone_span(project, "host", near_sec=4.25, duration_sec=0.3)
+    kept = room_tone_span(project, "host", near_sec=4.25, duration_sec=0.3, avoid=[(5.0, 7.0)])
+
+    assert nearest is not None
+    assert nearest[0] == pytest.approx(5.15)
+    assert kept == (pytest.approx(2.15), pytest.approx(2.45), None)
+
+
 def test_no_room_tone_without_audio_or_length(tmp_path: Path) -> None:
     project = _project(tmp_path, host=_host_audio())
     assert room_tone_span(project, "host", near_sec=4.25, duration_sec=0.0) is None

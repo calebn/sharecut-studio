@@ -33,7 +33,7 @@ separates them; the floor band does.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -43,6 +43,7 @@ import numpy as np
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.models import EpisodeProject
 from podcast_mcp.util.dsp import bool_runs, frame_rms_db_stream, rms_db
+from podcast_mcp.util.intervals import subtract_intervals
 from podcast_mcp.util.project_state import FileRevision, file_revision
 from podcast_mcp.util.tracks import track_audio_path
 
@@ -124,11 +125,19 @@ def room_tone_source_id(track_id: str) -> str:
 
 
 def room_tone_span(
-    project: EpisodeProject, track_id: str, *, near_sec: float, duration_sec: float
+    project: EpisodeProject,
+    track_id: str,
+    *,
+    near_sec: float,
+    duration_sec: float,
+    avoid: Sequence[Span] = (),
 ) -> tuple[float, float, str | None] | None:
     """``(start, end, source_id)`` of room tone to fill ``duration_sec`` near ``near_sec``.
 
-    ``near_sec`` is the cut's position in the track's source seconds. The track's
+    ``near_sec`` is the cut's position in the track's source seconds. ``avoid`` is source
+    time a sample of the track's own audio may not come from: a pad that replays the
+    source of a cut that has not been applied yet makes that cut play in two places, and
+    approving it then removes everything between them. The track's
     recorded bed wins (its ``source_id``); otherwise a sample of the track's own audio
     (``source_id`` None) that may be shorter than ``duration_sec``, for the caller to
     tile. None when the track has neither, e.g. a track gated to digital silence.
@@ -144,14 +153,21 @@ def room_tone_span(
     floor = track_floor(track_audio_path(project, track_id))
     if floor is None:
         return None
-    sample = _pick_sample(floor, near_sec=near_sec, duration_sec=duration_sec)
+    sample = _pick_sample(floor, near_sec=near_sec, duration_sec=duration_sec, avoid=avoid)
     return None if sample is None else (sample.start, sample.end, None)
 
 
-def _pick_sample(track: TrackFloor, *, near_sec: float, duration_sec: float) -> Sample | None:
+def _pick_sample(
+    track: TrackFloor, *, near_sec: float, duration_sec: float, avoid: Sequence[Span] = ()
+) -> Sample | None:
     """The room-tone sample nearest ``near_sec``: quiet runs nearest first, first to pass."""
     need = min(duration_sec, MIN_SAMPLE_SEC)
-    runs = [r for r in track.runs if r[1] - r[0] >= need - 1e-9]
+    runs = [
+        r
+        for run in track.runs
+        for r in subtract_intervals([run], avoid)
+        if r[1] - r[0] >= need - 1e-9
+    ]
     runs.sort(key=lambda r: max(r[0] - near_sec, near_sec - r[1], 0.0))
     for run in runs[:MAX_CANDIDATES]:
         sample = _measure(track, _window_nearest(run, near_sec, duration_sec))

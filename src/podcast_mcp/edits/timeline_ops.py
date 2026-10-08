@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 
 from pydantic import ValidationError
 
@@ -1151,11 +1152,13 @@ def insert_room_tone_pad(
     duration_sec: float,
     *,
     sample_duration_sec: float | None = None,
+    avoid: Mapping[str, Sequence[tuple[float, float]]] | None = None,
 ) -> dict:
     """Open a timeline hole at ``at_time`` and fill it with room-tone clips.
 
     Used after filler/NL ripple deletes when ``replace_gap_sec`` is set so the
-    flanking words keep a natural beat of air instead of butting together.
+    flanking words keep a natural beat of air instead of butting together. ``avoid``
+    is, per track, the source seconds its room tone may not be taken from.
     """
     if duration_sec <= 0:
         raise ValueError("duration_sec must be positive")
@@ -1183,7 +1186,11 @@ def insert_room_tone_pad(
         if near is None:
             continue
         span = room_tone_span(
-            project, tid, near_sec=near, duration_sec=min(sample_dur, duration_sec)
+            project,
+            tid,
+            near_sec=near,
+            duration_sec=min(sample_dur, duration_sec),
+            avoid=(avoid or {}).get(tid, ()),
         )
         if span is None:
             continue
