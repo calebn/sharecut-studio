@@ -13,11 +13,14 @@ interface Send {
   done: Promise<void>;
 }
 
+import type { HistoryEntryId } from "../types/project";
 import { raceTimeout } from "../utils/raceTimeout";
 
 const sends = new Map<string, Send[]>();
 const finishedCount = new Map<string, number>();
 const drains = new Map<string, Promise<void>>();
+const preparing = new Map<string, Set<Promise<void>>>();
+const landed = new Map<string, { count: number; head: HistoryEntryId }>();
 
 /**
  * Publish the host drain run in progress (`requestHostDrain`). Its replays are
@@ -98,4 +101,65 @@ export function hostSendDone(
     (sends.get(projectPath) ?? []).find((s) => s.commandId === commandId)
       ?.done ?? null
   );
+}
+
+/**
+ * Marks an edit save that does work before its send (loading a boundary
+ * token) as in flight for the project until `save` settles. Returns `save`.
+ * A history move waits behind it (`editSavesInFlight`), so Undo reverts the
+ * edit the person just made, not the one before it.
+ */
+export function trackEditSave<T>(
+  projectPath: string,
+  save: Promise<T>,
+): Promise<T> {
+  const open = preparing.get(projectPath) ?? new Set<Promise<void>>();
+  preparing.set(projectPath, open);
+  const settled = save.then(
+    () => undefined,
+    () => undefined,
+  );
+  open.add(settled);
+  void settled.then(() => {
+    open.delete(settled);
+    if (open.size === 0 && preparing.get(projectPath) === open) {
+      preparing.delete(projectPath);
+    }
+  });
+  return save;
+}
+
+/**
+ * Settles once every edit save this tab has in flight for the project, as of
+ * now, has finished: the ones preparing their send (`trackEditSave`) and the
+ * live sends begun. Saves that begin later are not waited for.
+ */
+export function editSavesInFlight(projectPath: string): Promise<void> {
+  const open = [
+    ...(preparing.get(projectPath) ?? []),
+    ...(sends.get(projectPath) ?? []).map((s) => s.done),
+  ];
+  return Promise.all(open).then(() => undefined);
+}
+
+/** Records the history head one of this tab's own commands left, read from its reply. */
+export function noteSaveLanded(projectPath: string, head: HistoryEntryId) {
+  landed.set(projectPath, {
+    count: (landed.get(projectPath)?.count ?? 0) + 1,
+    head,
+  });
+}
+
+/** A mark for `headLandedSince`: how many own commands have landed so far. */
+export function savesLandedMark(projectPath: string): number {
+  return landed.get(projectPath)?.count ?? 0;
+}
+
+/** The head the latest own command left since `mark`; null if none landed. */
+export function headLandedSince(
+  projectPath: string,
+  mark: number,
+): HistoryEntryId | null {
+  const latest = landed.get(projectPath);
+  return latest && latest.count > mark ? latest.head : null;
 }

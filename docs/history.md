@@ -217,9 +217,15 @@ mix saves: the head it shows, or, when the tab still shows where its own last mo
 started because the reply beat the update, where that move landed. A press made while
 an earlier move is in flight waits for that reply and expects the head the reply
 returned (`history_head_id`), so pressing Mod+Z twice quickly undoes two changes: the
-tab's own undo moved the head, and that is not someone else's change. A peer edit that
-arrives while a press waits its turn is never adopted; the server refuses that press
-instead. If the move ahead was refused or failed, the waiting press keeps the head the
+tab's own undo moved the head, and that is not someone else's change. A press also
+waits (up to `HOST_SEND_WAIT_MS`, 5 s) behind the edit saves this tab had in flight
+when it was made: the live sends already out, and the saves still preparing their
+send, such as a trim or roll loading its boundary token (`trackEditSave` in
+`state/hostSendOrder.ts`). It then expects the head the latest of this tab's own
+commands left (`noteSaveLanded`), so Undo reverts the edit the person just made and is
+not refused as stale by it. Saves that begin after the press are not waited for. A
+peer edit that arrives while a press waits its turn is never adopted; the server
+refuses that press instead. If the move ahead was refused or failed, the waiting press keeps the head the
 tab knew when it was pressed, so it is refused too rather than guessing. The toast's
 Undo keeps its own entry even when it waits behind a Mod+Z. A refusal is announced once
 (the command returns `announced: true`, so the two-finger tap does not repeat it). An

@@ -25,6 +25,7 @@ import {
   ghostWordsForExpandPreview,
 } from "../edit/ghostPreview";
 import { useDawStore } from "../state/dawStore";
+import { trackEditSave } from "../state/hostSendOrder";
 import type { ClipRow, EditBoundaryView } from "../types/project";
 import { GhostWordChips } from "./GhostWordChips";
 import { PrecisionBoundaryDialog } from "./PrecisionBoundaryDialog";
@@ -395,7 +396,7 @@ export function EditBoundaryMarkView({
       }
       pendingRef.current = true;
       setLifecycle({ kind: "pending", gesture });
-      void (async () => {
+      const save = (async () => {
         try {
           const beforeRequest = useDawStore.getState();
           if (
@@ -442,6 +443,7 @@ export function EditBoundaryMarkView({
           pendingRef.current = false;
         }
       })();
+      void trackEditSave(gesture.projectPath, save);
     };
     const cleanup = () => {
       if (activeRef.current !== gesture) return;

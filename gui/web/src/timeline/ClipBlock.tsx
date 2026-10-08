@@ -25,6 +25,7 @@ import { MOVE_THRESHOLD_PX } from "../hooks/gestureConstants";
 import { useSnapTicks } from "../hooks/useSnapTicks";
 import { hasShareCapability, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { trackEditSave } from "../state/hostSendOrder";
 import type { ClipRow } from "../types/project";
 import { EMPTY_ARR } from "../utils/empty";
 import { clipMediaStartSec } from "../waveform/mediaRef";
@@ -355,19 +356,24 @@ export function ClipBlockLive({
           left_clip_id: state.leftClipId,
           right_clip_id: state.rightClipId,
         };
-        const token = await boundaryToken(
+        await trackEditSave(
           path,
-          target,
-          state.expectedGeometry,
-          state.projectEpoch,
-        );
-        if (useDawStore.getState().joinMutationInFlight) return;
-        await rollClipJoin(
-          path,
-          state.leftClipId,
-          state.rightClipId,
-          delta,
-          token,
+          (async () => {
+            const token = await boundaryToken(
+              path,
+              target,
+              state.expectedGeometry,
+              state.projectEpoch,
+            );
+            if (useDawStore.getState().joinMutationInFlight) return;
+            await rollClipJoin(
+              path,
+              state.leftClipId,
+              state.rightClipId,
+              delta,
+              token,
+            );
+          })(),
         );
       }
     } finally {

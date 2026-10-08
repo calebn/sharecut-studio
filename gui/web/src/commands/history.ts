@@ -1,7 +1,14 @@
 import { HISTORY_STALE_CODE, redoHistory, undoHistory } from "../api";
 import { useDawStore } from "../state/dawStore";
+import {
+  editSavesInFlight,
+  HOST_SEND_WAIT_MS,
+  headLandedSince,
+  savesLandedMark,
+} from "../state/hostSendOrder";
 import { type HistoryEntryId, parseHistoryEntryId } from "../types/project";
 import { ApiError, errorMessage } from "../utils/apiError";
+import { raceTimeout } from "../utils/raceTimeout";
 import { execute, registerCommand } from "./execute";
 import { flushPendingMix } from "./trackMix";
 import type { ExecuteResult } from "./types";
@@ -50,9 +57,12 @@ function knownHead(projectPath: string): HistoryEntryId | null {
  * Undo or redo, guarded by the history head the person saw. A toast passes its
  * own change (`expectedHeadId`); other callers send the head this tab knows,
  * read after flushing its pending mix edits, or, behind an earlier move of
- * this tab, the head that move landed on. A peer edit that arrives while a
- * press waits its turn is never adopted: the server refuses (`history_stale`)
- * instead of reverting an edit the person had not seen.
+ * this tab, the head that move landed on. A press also waits behind the edit
+ * saves this tab had in flight when it was made, and expects the head the
+ * latest of this tab's own commands left, so Undo reverts the edit the person
+ * just made. A peer edit that arrives while a press waits its turn is never
+ * adopted: the server refuses (`history_stale`) instead of reverting an edit
+ * the person had not seen.
  */
 function moveHistory(
   action: "undo" | "redo",
@@ -63,6 +73,8 @@ function moveHistory(
   const ahead =
     moves.tail?.projectPath === projectPath ? moves.tail.landed : null;
   const knownAtPress = knownHead(projectPath);
+  const landedAtPress = savesLandedMark(projectPath);
+  const savesAhead = editSavesInFlight(projectPath);
   let settle: (landed: HistoryEntryId | null) => void = () => {};
   const tail = {
     projectPath,
@@ -76,9 +88,11 @@ function moveHistory(
     let landed: HistoryEntryId | null = null;
     try {
       const aheadLanded = ahead ? await ahead : null;
+      await raceTimeout(savesAhead, HOST_SEND_WAIT_MS, () => undefined);
       await flushPendingMix();
       const expectedHeadId =
         explicit ??
+        headLandedSince(projectPath, landedAtPress) ??
         (ahead ? (aheadLanded ?? knownAtPress) : knownHead(projectPath));
       if (expectedHeadId === null) {
         return { status: "disabled", reason: NO_HEAD };

@@ -5,6 +5,7 @@
  */
 import { setClipFade, trimClipEdge } from "../api";
 import { loadBoundaryContext } from "../api/boundary";
+import { trackEditSave } from "../state/hostSendOrder";
 import type { ClipRow } from "../types/project";
 import type { EditMode, TrimEdge } from "./clipEdgePreview";
 
@@ -24,12 +25,23 @@ export type ClipEdgeChange =
  * when nothing was saved: `fresh` turned false once the trim's boundary token
  * arrived (the trim is dropped unsent), or the ripple would cut another
  * speaker's speech and the host asked first (`CutSpeechDialog` resubmits it).
+ * The save counts as in flight from the call, boundary token included, so an
+ * Undo pressed meanwhile waits behind it (`trackEditSave`).
  */
-export async function saveClipEdge(
+export function saveClipEdge(
   projectPath: string,
   clip: ClipRow,
   change: ClipEdgeChange,
   fresh: () => boolean = () => true,
+): Promise<boolean> {
+  return trackEditSave(projectPath, send(projectPath, clip, change, fresh));
+}
+
+async function send(
+  projectPath: string,
+  clip: ClipRow,
+  change: ClipEdgeChange,
+  fresh: () => boolean,
 ): Promise<boolean> {
   if (change.kind === "fade") {
     await setClipFade(projectPath, clip.id, change.inMs, change.outMs);
