@@ -13,8 +13,9 @@ from podcast_mcp.engines.session_timeline import (
     clip_timeline_point_to_source,
 )
 from podcast_mcp.models import Clip, ClipJoinMode, EditMode, EpisodeProject, SourceRecording
-from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.coded_error import CodedError, CodedValueError
 from podcast_mcp.util.tracks import recording_audio_path, unknown_track
+from podcast_mcp.util.workspace_paths import workspace_relpath
 
 JOIN_GAP_TOLERANCE_SEC = 0.05
 """Largest timeline gap (seconds) between neighbouring clips still treated as a join."""
@@ -296,7 +297,8 @@ def update_timeline_duration(project: EpisodeProject) -> None:
 _MIN_CLIP_SPAN_SEC = 0.05
 
 
-def _source_duration(project: EpisodeProject, clip: Clip) -> float | None:
+def source_duration_sec(project: EpisodeProject, clip: Clip) -> float | None:
+    """Length of the recording ``clip`` plays: its source's, else its track media's; ``None`` if unmeasured."""
     if clip.source_id is not None:
         source = project.source_by_id(clip.source_id)
         if source is None:
@@ -308,6 +310,20 @@ def _source_duration(project: EpisodeProject, clip: Clip) -> float | None:
     if track is None or track.media is None or track.media.duration_sec is None:
         return None
     return float(track.media.duration_sec)
+
+
+def recording_path(project: EpisodeProject, clip: Clip) -> str | None:
+    """Workspace-relative path of the recording ``clip`` plays; ``None`` when it has none.
+
+    Two clips play the same recording when this agrees (:func:`_same_recording`), so
+    the DAW's mirror of :func:`trim_edge_limits` reads it from each ``list_clips`` row.
+    """
+    try:
+        return workspace_relpath(
+            project, recording_audio_path(project, clip.track_id, clip.source_id)
+        )
+    except (CodedError, ValueError):
+        return None
 
 
 def _same_recording(project: EpisodeProject, first: Clip, second: Clip) -> bool:
@@ -336,7 +352,7 @@ def trim_edge_limits(
     nxt = track_clips[idx + 1] if idx + 1 < len(track_clips) else None
     others = [c for c in track_clips if c.id != clip.id]
     if edge == "out":
-        duration = _source_duration(project, clip)
+        duration = source_duration_sec(project, clip)
         hi = duration if duration is not None else clip.source_end
         if nxt is not None and _same_recording(project, clip, nxt):
             hi = min(hi, float(nxt.source_start))
@@ -495,7 +511,7 @@ def roll_join_limits(
     left, right, track_clips, left_idx = neighbour_clips(project, left_clip_id, right_clip_id)
     prev = track_clips[left_idx - 1] if left_idx > 0 else None
     nxt = track_clips[left_idx + 2] if left_idx + 2 < len(track_clips) else None
-    left_duration = _source_duration(project, left)
+    left_duration = source_duration_sec(project, left)
     left_room = (left_duration - left.source_end) if left_duration is not None else 0.0
     max_pos = min(left_room, right.source_end - right.source_start - _MIN_CLIP_SPAN_SEC)
     if nxt is not None and _same_recording(project, right, nxt):
