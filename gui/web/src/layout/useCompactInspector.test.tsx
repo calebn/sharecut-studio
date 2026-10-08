@@ -79,7 +79,7 @@ describe("useCompactInspector", () => {
     );
   });
 
-  it("leaves a selection made in the open plain sheet in that sheet until it closes", () => {
+  it("leaves a selection the open plain sheet's own form made in that sheet until it closes", () => {
     act(() =>
       useDawStore.setState({
         selection: { kind: "track", trackId: "host" },
@@ -89,9 +89,9 @@ describe("useCompactInspector", () => {
     const { result } = renderHook(() => useCompactInspector("phone"));
     expect(result.current).toBeNull();
     act(() =>
-      useDawStore.setState({
-        selection: { kind: "clip", id: "c2", trackId: "host" },
-      }),
+      useDawStore
+        .getState()
+        .selectFromInspector({ kind: "clip", id: "c2", trackId: "host" }),
     );
     expect(result.current).toBeNull();
 
@@ -103,6 +103,32 @@ describe("useCompactInspector", () => {
     );
     expect(result.current?.peek.title).toBe("host clip");
     expect(result.current?.view).toBe("peek");
+  });
+
+  it("opens the strip for a timeline tap while a plain sheet is open, and ends a form's hold", () => {
+    act(() =>
+      useDawStore.setState({
+        selection: { kind: "track", trackId: "host" },
+        selectionHit: null,
+      }),
+    );
+    const { result } = renderHook(() => useCompactInspector("phone"));
+    expect(result.current).toBeNull();
+    act(() => useDawStore.getState().selectClip("c2", "host"));
+    expect(result.current?.peek.title).toBe("host clip");
+
+    act(() => useDawStore.setState({ selection: null }));
+    act(() =>
+      useDawStore.setState({ selection: { kind: "track", trackId: "host" } }),
+    );
+    act(() =>
+      useDawStore
+        .getState()
+        .selectFromInspector({ kind: "clip", id: "c2", trackId: "host" }),
+    );
+    expect(result.current).toBeNull();
+    act(() => useDawStore.getState().selectClip("c2", "host"));
+    expect(result.current?.peek.title).toBe("host clip");
   });
 
   it("remembers the drawer's detent for the next selection, and stows during a drag", () => {

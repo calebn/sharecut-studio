@@ -154,6 +154,30 @@ describe("BottomSheet", () => {
     );
   });
 
+  it("leaves the timeline undimmed at the strip and dims it at half and full", () => {
+    const scrimClear = () =>
+      document
+        .querySelector(".bottom-sheet-scrim--interactive")
+        ?.classList.contains("bottom-sheet-scrim--clear");
+    const sheet = (size: "peek" | "half" | "full") => (
+      <BottomSheet
+        open
+        onClose={() => undefined}
+        backgroundPolicy="interactive"
+        title="Inspector"
+        size={size}
+      >
+        <p>Inspector body</p>
+      </BottomSheet>
+    );
+    const { rerender } = render(sheet("peek"));
+    expect(scrimClear()).toBe(true);
+    rerender(sheet("half"));
+    expect(scrimClear()).toBe(false);
+    rerender(sheet("full"));
+    expect(scrimClear()).toBe(false);
+  });
+
   it("keeps the dismiss scrim interactive for confirmations", async () => {
     const onClose = vi.fn();
     render(
