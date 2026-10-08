@@ -73,7 +73,7 @@ export type KeeperReclaimResult =
 
 /**
  * Delete a landed keeper WAV, keeping its completion `.json` as the segment
- * identity marker. Requires a completion marker (`complete !== false`), is
+ * identity marker. Requires an explicit completion marker (`complete === true`), is
  * idempotent via `tracker`, respects {@link holdKeeperReclaim}, and counts
  * consecutive failures so a stuck delete can be surfaced.
  */
