@@ -367,16 +367,17 @@ cuts, the trim's own and each peer's:
 - **Only pauses a listener would hear.** A trim is proposed only when the time it takes
   out of the timeline (its span less the pad a ripple puts back) is at least a tenth of the
   pause it shortens (`PAUSE_JND_FRACTION`, `pause_trim_is_imperceptible`), and never less
-  than `MIN_PACED_CUT_SEC`; otherwise it is skipped as `imperceptible`. The tenth is the
-  just-noticeable difference for the duration of an empty interval: a Weber fraction of
-  roughly 5 to 10% for intervals of a quarter second and longer (Grondin 2010, "Timing and
-  time perception: a review of recent behavioral and neuroscience findings", *Attention,
-  Perception & Psychophysics* 72; Friberg and Sundberg 1995, *JASA* 98, for the few
-  milliseconds that bound it below), taken at its upper end so that only a change a
-  listener would notice is proposed. The pause is how long nobody speaks around the trim
-  on the session clock (`SessionAir.silence_around`: from the end of the last live word of
-  any dialogue track before it to the start of the first after it), so a track's long gap
-  that a peer talks across is judged by the pause actually heard, and the track's own word
+  than `MIN_PACED_CUT_SEC`; otherwise it is skipped as `imperceptible`. The tenth is a design
+  threshold, not a measured one. Laboratory Weber fractions for an empty auditory interval
+  run from a few percent to about 10% and vary with the interval and its markers (Grondin
+  2010, a review in *Attention, Perception & Psychophysics* 72(3), 561-582), measured between
+  brief tones in forced-choice tasks, not on speech pauses. Friberg and Sundberg 1995 (*JASA*
+  98(5), 2524-2531) found a displaced tone in a steady tone sequence detectable at about 6 ms
+  for short tones and 2.5% above 250 ms, a best case for a different task. A tenth sits above
+  both, so a trim is proposed only when a listener would plausibly notice the pacing. The
+  pause is how long nobody speaks around the trim on the session clock
+  (`SessionAir.silence_around`: from the end of the last live word of any dialogue track
+  before it to the start of the first after it), so a track's long gap that a peer talks across is judged by the pause actually heard, and the track's own word
   gap when no other word bounds it. The rule is relative to each pause, not to the lab
   tape, and it only drops trims: every kept trim has the span, pad and scope it had
   without it, and the twins are resolved before it so a dropped trim never frees one.
@@ -541,8 +542,8 @@ Lab (`aligned-ready`, refine waived; ripple proposal byte-identical throughout).
 | `above_floor` | Window RMS at most 6 dB over the floor | The fill sits at the floor |
 | `near_speech` | Window RMS at least 30 dB under the speech level | The owner heard bleed turned down 20 dB as an echo of the voice (#945); 10 dB more clears it |
 | `voiced` | Silero speech probability under 0.5 | No voice, even at the floor |
-
 | Pending cuts | A ripple pad skips source seconds that another pending cut on the track still plays (`avoid`) | A cut maps to the session time its source seconds play at. A pad that replays them elsewhere makes the cut play in two places, and approving it removes all between, other tracks' words included. Approving a batch then asked to confirm, or the pipeline held the cut |
+
 The first window that passes every check is the fill; the caller tiles it when it is shorter than the gap, fading only the pad's outer edges (10 ms in on the first tile, 10 ms out on the last) so the seams carry no dip. A window that cannot be measured (an unreadable file, or a Silero error) fails like any other check. A track with no passing window, such as a Zoom-gated track whose gaps are digital silence, keeps a silent pad or mute. Spectral flatness is not a check: on the lab tape the room floor's flatness (median 0.019, 10th percentile 0.005) overlaps voice and bleed (median 0.005), so no threshold separates them.
 
 Lab tape (`aligned-ready`, every ripple and mute proposal approved with `room_tone`): main picked 69 samples and none sat within 6 dB of its track's floor. 39 were within 30 dB of speech, and one was 0.8 dB louder than Caleb's speech level. Audra's speech at −23.7 dBFS filled a pad at 615.93. With the sampler, all 51 picks on Caleb's track sit −3.0 to +6.5 dB from his −75.3 dBFS floor and at least 53.6 dB under his speech; Audra's and Lana's gated tracks stay silent. Without the 0.15 s edge guard, 36 of the 42 distinct mute fills started or ended within 50 ms of louder audio, and 8 rose more than 3 dB in the 80–400 Hz voice band over their first or last 60 ms (a word's tail or onset); with it, none and 2. Caleb's tails take 130 ms to settle to the quiet run's median level at the 90th percentile, and onsets 70 ms. The guard leaves fewer runs, so his fills come from a median 24.7 s from the cut instead of 1.0 s, all at his floor. Reading the three 28-minute tracks costs about 1.2 s each, once per process.

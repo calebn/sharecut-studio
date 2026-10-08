@@ -16,12 +16,15 @@ from podcast_mcp.models import EpisodeProject, TranscriptWord
 FillerPadMode = Literal["silence", "room_tone"]
 FILLER_PAD_MODES: tuple[FillerPadMode, ...] = ("silence", "room_tone")
 MIN_PACED_CUT_SEC = 0.02
-# A silent interval is heard as shorter only once it has lost about a tenth of itself: the
-# Weber fraction for the duration of an empty interval of a quarter second or more is
-# roughly 5 to 10% (Grondin, 2010, "Timing and time perception: a review of recent
-# behavioral and neuroscience findings", Attention, Perception & Psychophysics 72;
-# Friberg and Sundberg, 1995, JASA 98, for the 6 ms floor below a quarter second). The
-# upper end is used, so a trim is proposed only when a listener would notice the pacing.
+# A silent interval is heard as shorter only once it has lost a share of itself. In the
+# lab the Weber fraction for an empty auditory interval runs from a few percent to about
+# 10% and falls and rises with the interval and its markers (Grondin, 2010, review in
+# Attention, Perception & Psychophysics 72(3), 561-582), measured between brief tones in
+# forced-choice tasks, not on speech pauses. Friberg and Sundberg (1995, JASA 98(5),
+# 2524-2531) found a displaced tone in a steady tone sequence detectable at about 6 ms for
+# short tones and 2.5% above 250 ms: a best case for a different task. A tenth is a
+# conservative choice for conversation, so a trim is proposed only when a listener would
+# plausibly notice the pacing; it is a design threshold, not a measured one.
 PAUSE_JND_FRACTION = 0.10
 
 
