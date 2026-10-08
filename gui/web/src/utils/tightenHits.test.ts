@@ -230,6 +230,29 @@ describe("tightenHits", () => {
     );
   });
 
+  it("never batches a pause trim, whether or not harsh cuts are avoided", () => {
+    const hits = listTightenHits(
+      [
+        edit({ id: "um" }),
+        edit({
+          id: "trim",
+          reason: "pause:1.10s:solo",
+          review_required: true,
+          harsh: true,
+        }),
+        edit({
+          id: "risky",
+          reason: "filler:uh:risky",
+          review_required: true,
+          harsh: true,
+        }),
+      ],
+      null,
+    );
+    expect(eligibleApplyAllIds(hits, true)).toEqual(["um"]);
+    expect(eligibleApplyAllIds(hits, false)).toEqual(["um", "risky"]);
+  });
+
   it("treats missing timeline bounds as not seekable or previewable", () => {
     const hit = listTightenHits(
       [
