@@ -275,6 +275,48 @@ describe("GuestAttentionBanner", () => {
       },
     );
 
+    it.each(["queue", "conflicts"])(
+      "preserves focused dismissal throughout a pending %s read",
+      async (kind) => {
+        await showVerified();
+        const button = screen.getByRole("button", { name: "Dismiss all" });
+        button.focus();
+        expect(button).toHaveFocus();
+        const conflicts = deferred<ReturnType<typeof offlineConflict>[]>();
+        const count = deferred<number>();
+        const queue = deferred<[]>();
+        if (kind === "conflicts") read().mockReturnValueOnce(conflicts.promise);
+        else if (host)
+          offlineStore.loadHostCommandCount.mockReturnValueOnce(count.promise);
+        else offlineStore.loadCommandQueue.mockReturnValueOnce(queue.promise);
+
+        await act(() => vi.advanceTimersByTimeAsync(2000));
+        await act(async () => fireEvent.click(button));
+        expect(clear()).not.toHaveBeenCalled();
+        expect(button).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Dismiss all" })).toBe(
+          button,
+        );
+        expect(button).toHaveFocus();
+        expect(
+          (button as HTMLButtonElement).disabled ||
+            button.getAttribute("aria-disabled") === "true",
+        ).toBe(true);
+
+        await act(async () => {
+          conflicts.resolve([newer]);
+          count.resolve(3);
+          queue.resolve([]);
+        });
+        expect(screen.getByRole("button", { name: "Dismiss all" })).toBe(
+          button,
+        );
+        expect(button).toHaveFocus();
+        expect((button as HTMLButtonElement).disabled).toBe(false);
+        expect(button).not.toHaveAttribute("aria-disabled", "true");
+      },
+    );
+
     it("rejects a stale button click before the pending read renders", async () => {
       await showVerified();
       const button = screen.getByRole("button", { name: "Dismiss all" });
