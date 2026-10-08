@@ -45,6 +45,7 @@ class TightenBenchmarkResult:
     propose_sec: float = 0.0
     apply_sec: float = 0.0
     decisions_proposed: int = 0
+    decisions_applied: int = 0
     merged_ranges: int = 0
     ffmpeg_window_calls: int = 0
     rebuild_combined_calls: int = 0
@@ -56,6 +57,7 @@ class TightenBenchmarkResult:
             "apply_sec": round(self.apply_sec, 3),
             "total_sec": round(self.propose_sec + self.apply_sec, 3),
             "decisions_proposed": self.decisions_proposed,
+            "decisions_applied": self.decisions_applied,
             "merged_ranges": self.merged_ranges,
             "ffmpeg_window_calls": self.ffmpeg_window_calls,
             "rebuild_combined_calls": self.rebuild_combined_calls,
@@ -166,7 +168,19 @@ def _count_rebuild_combined(result: TightenBenchmarkResult) -> Iterator[None]:
         yield
 
 
-def run_tighten_benchmark(project: EpisodeProject) -> TightenBenchmarkResult:
+def _owner_approves(project: EpisodeProject, *, fillers: bool, pauses: bool) -> None:
+    """Pause trims are review-only (#1055), so apply-all leaves them: approve them (or hold
+    the fillers back) so the apply this benchmark times is the one a reviewer triggers."""
+    for e in project.edit_decisions:
+        if (e.reason or "").startswith("pause:"):
+            e.review_required = not pauses
+        elif not fillers:
+            e.review_required = True
+
+
+def run_tighten_benchmark(
+    project: EpisodeProject, *, fillers: bool = True, pauses: bool = True
+) -> TightenBenchmarkResult:
     result = TightenBenchmarkResult()
     defaults = load_defaults()
 
@@ -175,6 +189,12 @@ def run_tighten_benchmark(project: EpisodeProject) -> TightenBenchmarkResult:
         proposed = propose_tighten_edits(project, defaults, replace_existing=True)
         result.propose_sec = time.perf_counter() - t0
         result.decisions_proposed = len(proposed.decisions)
+        _owner_approves(project, fillers=fillers, pauses=pauses)
+        result.decisions_applied = sum(
+            1
+            for e in project.edit_decisions
+            if (e.reason or "").startswith(("filler:", "pause:")) and not e.review_required
+        )
 
         ranges: list[tuple[float, float]] = []
         for e in project.edit_decisions:
@@ -192,11 +212,15 @@ def run_tighten_benchmark(project: EpisodeProject) -> TightenBenchmarkResult:
     return result
 
 
-# One ripple per decision, plus the pad's fill: ``insert_room_tone_pad`` (the default
-# ``filler_pad_mode``) rebuilds once to open the hole and once to lay the fill. Fillers
-# that coincide on both tracks coalesce into one range, but pause trims are per track and
-# their spans differ by a frame or two, so the bound is per decision: measured 1.7 to 2.3
-# at 40 to 320 words, linear in the decisions and never in the words (#1129).
+# Approving a decision ripples it once, and applying a batch first runs the whole batch on
+# copies of the project (``_held_back_removes``: a remove that would cut other speech stays
+# pending, and each round that holds one back runs the rest again). Every pass ripples
+# every decision and each ripple rebuilds the combined transcript once, so a decision costs
+# one rebuild per pass: two when nothing is held back (the copy and the real run), three
+# with one held-back round. Measured at 40 to 320 words: pause trims alone 1.9 to 2.1 (one
+# per track pair, since the shared stretch is proposed once), fillers alone 0.5 (the two
+# tracks' fillers coincide and merge into one ripple), the mix 1.1 to 1.7. Linear in the
+# decisions and never in the words (#1129), so the bound is per decision.
 MAX_REBUILDS_PER_DECISION = 3
 
 
@@ -204,9 +228,8 @@ def _assert_ripple_apply_shape(result: TightenBenchmarkResult) -> None:
     """Structural invariants of a propose + apply run, independent of wall-clock speed."""
     assert result.ffmpeg_window_calls == 0
     assert result.decisions_proposed > 0
-    assert (
-        0 < result.rebuild_combined_calls <= MAX_REBUILDS_PER_DECISION * result.decisions_proposed
-    )
+    assert result.decisions_applied > 0
+    assert 0 < result.rebuild_combined_calls <= MAX_REBUILDS_PER_DECISION * result.decisions_applied
     assert len(set(result.clip_counts.values())) == 1
 
 

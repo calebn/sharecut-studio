@@ -239,9 +239,9 @@ tighten:
   breath_handling:
     # Co-remove adjacent breaths and keep splice edges out of breaths and other sound.
     # A pause trim shrinks to the longest stretch of air inside it, measured against
-    # each track's room tone (its speech-band levels between its own words), so no
-    # edge sits inside a sound on any track the ripple cuts; a trim that shrank is
-    # proposed for review (#1055).
+    # each track's room tone (its speech-band levels between its own words, and how far
+    # they spread), so no edge sits inside a sound on any track the ripple cuts. Every
+    # pause trim is proposed for review (#1055).
     enabled: true
     search_before_ms: 400
     search_after_ms: 250

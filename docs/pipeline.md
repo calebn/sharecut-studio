@@ -268,7 +268,7 @@ Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-
 | `tighten.isolated_filler_candidates` | `true` | Propose a lone hard filler (not a discourse marker) without a cluster; `light` turns this off |
 | `tighten.min_filler_cluster` | `2` | Min lexicon hits in a gap cluster before a discourse marker (or, with isolated candidates off, a hard filler) is a candidate |
 | `tighten.max_pause_sec` | `1.2` | Inter-word gap before pause trim |
-| `tighten.breath_handling.enabled` | `true` | Co-remove adjacent breaths and keep both final edges of a splice out of breaths and other sound. A pause trim shrinks to the longest stretch of air inside it, measured against each track's room tone (its speech-band levels between its own words), so no edge sits inside a sound on any track the ripple cuts; a trim that moved off the span pacing proposed is `:air_edges` review ([filler-cut-quality.md](filler-cut-quality.md) § Decision: Pause trims cut only air, #1055) |
+| `tighten.breath_handling.enabled` | `true` | Co-remove adjacent breaths and keep both final edges of a splice out of breaths and other sound. A pause trim shrinks to the longest stretch of air inside it, measured against each track's room tone (its speech-band levels between its own words, and how far they spread), so no edge sits inside a sound on any track the ripple cuts. Every pause trim is review-only, and one that moved off the span pacing proposed says `:air_edges` ([filler-cut-quality.md](filler-cut-quality.md) § Decision: Pause trims cut only air, #1055) |
 | `tighten.filler_pad_mode` | `room_tone` | Fill for ripple pads and approved mutes: `room_tone` (the recorded bed, else a steady stretch at the track's noise floor chosen from its audio, 0.15 s clear of speech and of digital silence, and none on a track gated to digital silence; [filler-cut-quality.md](filler-cut-quality.md) § Where room tone comes from), or hard `silence`; any other value is rejected |
 | `tighten.acoustic_gap_filler.enabled` | `true` | Review-only `filler:acoustic` proposals for voiced audio inside ASR gaps (never auto-applied) |
 | `tighten.acoustic_gap_filler.min_gap_sec` | `0.35` | Shortest gap scanned (floor `0.35`) |
@@ -459,6 +459,13 @@ track's raw source audio once for each required sample rate up front
 analysis. Each later cached window read is an in-memory NumPy slice. The
 `engines/audio_audit.py::TrackRmsCache` applies the same pattern to processed
 stems; `analyze_gate_overreach` also caches raw-audio reads.
+A pause trim reads the speech-band level of every dialogue track around the pause. The
+band filter is an FFT, so `TrackAudioCache.band_levels` (`BandLevels`) makes the levels
+a 30 s block at a time, once per track and run, under a lock the parallel candidates
+share, and the word indexes it reads the room between words with are built once per
+run (`_word_indexes`). On a 1-hour, 4-track episode with 300 pauses the levels cost
+7 s in all (every block once) and 4 ms a call after that, where filtering each pause's
+own window took 52 s (172 ms a call).
 The full cleanup report passes one processed-stem cache set through its
 subanalyses, and the project join sweep shares source decode and calibration
 per track while checking each join with a bounded high-rate window.
