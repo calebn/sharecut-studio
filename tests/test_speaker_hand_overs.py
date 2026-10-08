@@ -168,6 +168,26 @@ def test_voice_runs_follow_the_recordings_own_floor_and_speech_level() -> None:
     assert voice_runs(levels - 25.0, voiced) == RUNS
 
 
+def test_a_speaker_25_db_quieter_keeps_their_detected_reply() -> None:
+    levels = np.full(FRAMES, -60.0)
+    levels[20:120] = levels[190:290] = -20.0
+    levels[140:170] = -45.0
+    voiced = np.zeros(FRAMES, dtype=bool)
+    for lo, hi in RUNS:
+        voiced[lo:hi] = True
+    labels = _labels(FRAMES, [(0, A), (130, B), (180, A)])
+    scores = _scores(FRAMES, {(130, 180): (0.1, 0.9)})
+
+    settled, overlap = settle_hand_overs(
+        labels, scores, levels, voice_runs(levels, voiced), _own(VOICES), reach=REACH
+    )
+
+    assert settled[140:170].tolist() == [B] * 30
+    assert settled[20:120].tolist() == [A] * 100
+    assert settled[190:290].tolist() == [A] * 100
+    assert overlap.tolist() == [-1] * FRAMES
+
+
 def test_voice_runs_ignore_clicks_and_bridge_stops_inside_a_word() -> None:
     levels = _levels(FRAMES, RUNS)
     levels[60:62] = QUIET  # a 40 ms stop inside A's word
