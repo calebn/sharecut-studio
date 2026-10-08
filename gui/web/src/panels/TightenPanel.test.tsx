@@ -118,6 +118,7 @@ function pending(overrides: Partial<PendingEditView> = {}): PendingEditView {
     cut_confidence: 0.9,
     review_required: false,
     harsh: false,
+    listen_one_by_one: false,
     applied: false,
     suggest_reason: null,
     ...overrides,
@@ -400,6 +401,21 @@ describe("TightenPanel", () => {
       { id: "e1" },
       { skipWhen: true },
     );
+  });
+
+  it("does not offer Apply eligible for a hit the server never classified", () => {
+    const project = projectWithHits();
+    const unclassified = pending({ id: "unclassified" });
+    delete (unclassified as { listen_one_by_one?: boolean }).listen_one_by_one;
+    project.pending_edits = [unclassified];
+    render(
+      <DawProvider projectPath="/tmp/p.json" initialProject={project}>
+        <TightenPanel />
+      </DawProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: /Apply eligible/ }),
+    ).toBeDisabled();
   });
 
   it("disables seek and preview when a hit has no timeline bounds", () => {
