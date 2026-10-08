@@ -388,6 +388,57 @@ describe("BottomSheet", () => {
       }
     });
 
+    describe("when the sheet stops being a drawer", () => {
+      const sheet = (drawer: boolean) => (
+        <BottomSheet
+          open
+          onClose={() => undefined}
+          backgroundPolicy="interactive"
+          title="Trim start"
+          drawer={
+            drawer
+              ? {
+                  detents: ["peek", "half", "full"],
+                  detent: "peek",
+                  onDetentChange: () => undefined,
+                  label: "Inspector height",
+                }
+              : undefined
+          }
+        >
+          <p>Fields</p>
+        </BottomSheet>
+      );
+      const dragStyles = () => ({
+        motion: dialog().getAttribute("data-drawer-motion"),
+        height: dialog().style.height,
+        transform: dialog().style.transform,
+      });
+      const atRest = { motion: null, height: "", transform: "" };
+
+      it("clears the drag styles a finger left on it", () => {
+        const raf = stubRaf();
+        const restore = layOut();
+        try {
+          const view = render(sheet(true));
+          press(500, 1000);
+          move(420, 1020);
+          raf.fire(1021);
+          expect(dragStyles()).toEqual({
+            motion: "drag",
+            height: "100%",
+            transform: "translateY(420px)",
+          });
+          view.rerender(sheet(false));
+          raf.fire(1100);
+          expect(dragStyles()).toEqual(atRest);
+        } finally {
+          restore();
+          vi.unstubAllGlobals();
+        }
+      });
+    });
+
     it("keeps Expand and Collapse, and a named range for keys and screen readers", async () => {
       render(<Drawer start="half" />);
       expect(

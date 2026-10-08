@@ -15,6 +15,7 @@
 import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
+  useEffect,
   useRef,
 } from "react";
 import type { BottomSheetSize, SheetDrawer } from "./BottomSheet";
@@ -102,6 +103,25 @@ export function useDrawerSwipe(
   const swipe = useRef<Swipe | null>(null);
   const strip = useRef<number | null>(null);
   const stopSettle = useRef<() => void>(() => undefined);
+  const live = useRef(false);
+
+  // The sheet losing its drawer (a selection cleared, a track chosen, the
+  // sheet closing) drops the drag or settle it was in, so its drag styles
+  // cannot stay on a sheet that no longer handles the finger.
+  const hasDrawer = drawer != null;
+  useEffect(() => {
+    if (!hasDrawer) return;
+    live.current = true;
+    return () => {
+      live.current = false;
+      const s = swipe.current;
+      swipe.current = null;
+      if (s) cancelAnimationFrame(s.frame);
+      stopSettle.current();
+      const panel = s?.panel ?? panelRef.current;
+      if (panel) rest(panel);
+    };
+  }, [hasDrawer, panelRef]);
 
   /** Slides the sheet to `detent`'s height, once drawn there, then lets it rest. */
   const settle = (
@@ -109,7 +129,7 @@ export function useDrawerSwipe(
     slot: number,
     detent: BottomSheetSize,
   ) => {
-    if (swipe.current || !panel.isConnected) return;
+    if (!live.current || swipe.current || !panel.isConnected) return;
     const target = restingHeight(panel);
     if (detent === "peek") strip.current = target;
     panel.setAttribute(DRAWER_MOTION_ATTR, "settle");
