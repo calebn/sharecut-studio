@@ -106,10 +106,13 @@ evidence:
 - #1179 round 7, synthetic scenes with known sounds, 34 scenes with a band or tail or beat sound, 20 trials each (1252 edges; the steady-bed scene `pad:-50` is the named limit, 40 of 40 before and after): edges inside a sound by broadband level 64 before, 0 after; edges audible after the render's 80 Hz high-pass (speech at 80 dB SPL, ISO 226 threshold) 171 before, 13 after, the worst 30.7 dB over threshold before (`tonal_tail:100,1`) and 2.6 dB after (`tonal_tail:130,0.5`); the 38-scene round 5 table: third-octave edges inside excluding the steady bed 37 before, 8 after, and 7 before, 1 after at 6 dB; mean share of the pause kept 0.599 before, 0.548 after (0.663 and 0.638 on the 38-scene table), so round 7 gives up 2.5 to 5 points of air for it
 - #1179 round 7, local floor window over the 29 wander, swell and steady scenes (20 trials each): third-octave edges inside a sound 21 at 0.5 s, 11 at 0.35 s, 5 at 0.25 s, 6 at 0.2 s and 5 at 0.15 s, edges audible after the high-pass 15, 7, 3, 4 and 4, at 0.014 less of the air kept from 0.5 s to 0.25 s; with the low band and the sustained-excess rule added, the 0.25 s scenes leave 2 third-octave edges and 1 audible after the high-pass
 - #1179 round 7, session fuzz (own-lane holes, joins, replays, offsets, extra sources; 10 classes, 660 cases): 0 edges 30 ms or more inside a placed sound, 0 loud sounds removed, 0 ripple mismatches, 0 asks that landed off the lane. The two classes that replay a stretch of the trim's own lane or play an extra source (180 cases) were the failures in round 6: 21 no-ops, 8 of 159 trims with an edge inside a placed sound, 1 loud sound removed; round 7: 0 of 170, 0 and 0. An extra-source breath at 10.70 s, read from the track's primary file in round 6, now stops the trim at 10.69 s
+- #1179 round 7 mutation check (70 single-edit mutants of the room, bands, lane, source, twin, pad and review logic, run against the decision block's test files): the first run left 7 alive; the tests added for them kill 6 (the 7th snaps an edge to the span asked for when the two agree to a microsecond, which changes nothing), and writing the one for the trim track's missing speech level found a crash when nobody in the session has a word
 - #1055 lab after round 7, against main at b785b17d6 and round 6: 138 pause decisions at medium (main 8, round 6 120), none auto (light 104, aggressive 160); every non-pause decision identical to main at light, medium, aggressive and mute, and no pause trim is applied by `apply_edits` or Apply eligible on either path; 46 candidates dropped as `shared_pause`, each nested exactly in the trim that stays, and no two staying trims overlap (round 6: 8 pairs); R02, the 8.1 dB over threshold peer edge of round 6, is gone, R46 (1010.60 to 1011.07) is 1010.97 to 1011.01, aggressive 83.39 is gone and 87.60 is 87.65 to 87.67; the independent detector (raw stems, a 200 Hz to 4 kHz level over each track's local room) finds 1 edge in a sound of 6 dB or more at medium (round 6: 3), 4.7 dB under the threshold of hearing in every third octave after the high-pass; of the 70 edges any tier flags, 12 stay above threshold after the high-pass, the worst 3.5 dB at 5 kHz (round 6: 8.1 dB)
 - #1055 lab turn-taking gaps (the 20 round 5 `other_speaking` candidates that are decisions, 27 in round 6): 0 transcript words inside or straddling a trim, 0 peer onsets inside an edge (round 6: 1); at the 10 turn changes among them the gap the trim leaves between the sounds that bound it is 65 to 520 ms, median 125 ms, 7 under 150 ms (round 6, 12 turn changes: 35 to 1280 ms, median 195, 6 under 150 ms), and between transcript words 340 ms or more, never under 150 ms
 enforced-by:
 - tests/test_room_model.py::test_a_normal_room_reads_its_median_and_spread
+- tests/test_room_model.py::test_what_stands_far_over_the_rooms_median_is_clipped_out_of_the_room_it_is_read_from
+- tests/test_room_model.py::test_a_recording_reads_a_spread_no_wider_than_its_own_mode_whatever_its_quiet_holds
 - tests/test_room_model.py::test_a_sample_that_is_mostly_sound_reads_the_room_the_tracks_mode_gives_it
 - tests/test_room_model.py::test_a_window_of_bleed_with_no_room_in_it_is_one_sound_to_keep_however_tall_it_reads
 - tests/test_room_model.py::test_a_room_read_between_the_tracks_own_words_is_bleed_a_room_read_in_the_quiet_is_not
@@ -136,6 +139,9 @@ enforced-by:
 - tests/test_pause_air_session.py::test_a_replayed_stretch_of_the_trim_tracks_own_lane_is_read_where_it_plays
 - tests/test_pause_air_session.py::test_a_clip_from_an_extra_source_recording_is_read_from_that_recording
 - tests/test_pause_air_session.py::test_an_extra_source_that_cannot_be_found_is_no_room
+- tests/test_pause_air_session.py::test_an_extra_source_is_read_from_its_own_file_not_the_decode_the_run_holds_for_the_track
+- tests/test_pause_air_session.py::test_an_extra_source_has_the_speech_level_of_its_own_transcript
+- tests/test_pause_air_session.py::test_the_trim_track_needs_a_speech_level_a_peer_without_one_does_not
 - tests/test_pause_air_session.py::test_both_tracks_judge_a_shared_pause_the_same
 - tests/test_pause_air_session.py::test_a_quiet_sound_is_removed_whole_whichever_pause_asks_about_it
 - tests/test_pause_air_session.py::test_the_same_decay_gets_the_same_air_whichever_pause_asks_about_it
@@ -147,6 +153,7 @@ enforced-by:
 - tests/test_breath_detect.py::test_room_tone_jittering_over_its_median_is_air_not_sound
 - tests/test_breath_detect.py::test_a_breath_whose_fade_crosses_an_edge_stays_whole
 - tests/test_breath_detect.py::test_a_quiet_breath_goes_whole_or_stays_whole_never_cut_through
+- tests/test_breath_detect.py::test_a_quiet_breath_apart_from_the_words_that_the_trim_starts_in_stays_whole
 - tests/test_breath_detect.py::test_a_word_tail_next_to_a_louder_stretch_is_not_cut_partway
 - tests/test_breath_detect.py::test_a_dip_of_up_to_30_ms_does_not_end_a_sound
 - tests/test_breath_detect.py::test_a_gated_track_keeps_its_word_tails_and_breaths_from_a_pause_trim
@@ -176,6 +183,7 @@ enforced-by:
 - tests/test_transcript_cuts.py::test_coalesce_never_absorbs_a_session_pause_into_a_cut_that_is_not_its_own
 - tests/test_transcript_cuts.py::test_coalesce_never_chains_a_review_filler_a_pause_and_an_auto_filler_into_one_cut
 - tests/test_fillers.py::test_every_pause_trim_is_review_only_and_one_that_moved_says_so
+- tests/test_fillers.py::test_a_pause_trim_must_shorten_the_timeline_after_the_pad_it_needs
 - tests/test_fillers.py::test_only_a_pause_trim_is_cut_down_to_its_air
 - tests/test_tighten_apply_eligible.py::test_a_pause_trim_is_listened_to_one_by_one_and_never_eligible
 - tests/test_tighten_apply_eligible.py::test_studio_view_carries_the_same_harsh_and_listen_one_by_one_flags
