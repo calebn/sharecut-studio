@@ -43,6 +43,7 @@ function pending(overrides: Partial<PendingEditView> = {}): PendingEditView {
     cut_confidence: 0.9,
     review_required: false,
     harsh: false,
+    listen_one_by_one: false,
     applied: false,
     suggest_reason: null,
     ...overrides,
@@ -231,6 +232,23 @@ describe("tighten commands", () => {
     const result = await execute("tighten.applyAllSafe", {});
     expect(result).toEqual({ status: "ok" });
     expect(approveEdits).toHaveBeenCalledWith("/tmp/p.json", ["e1"]);
+  });
+
+  it("apply-all never batches a row the server did not classify", async () => {
+    const unclassified = pending({ id: "unclassified" });
+    delete (unclassified as { listen_one_by_one?: boolean }).listen_one_by_one;
+    useDawStore.setState({
+      project: minimalProject({ pending_edits: [unclassified] }),
+    });
+    const result = await execute("tighten.applyAllSafe", {
+      avoidHarsh: true,
+      ids: ["unclassified"],
+    });
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "Nothing is eligible to apply",
+    });
+    expect(approveEdits).not.toHaveBeenCalled();
   });
 
   it("previewHit disables when timeline position is missing", async () => {
