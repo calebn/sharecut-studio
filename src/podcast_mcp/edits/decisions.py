@@ -697,8 +697,11 @@ def apply_prefix_edits(
 
 
 def apply_auto_edits(project: EpisodeProject) -> int:
-    """Apply filler/pause edits (ripple REMOVE or mute-in-place MUTE)."""
-    return apply_prefix_edits(project, ("filler:", "pause:"), config_key="tighten")
+    """Apply the filler edits that need no review (ripple REMOVE or mute-in-place MUTE).
+
+    Pause trims all wait for review (#1055), so they are never auto-applied.
+    """
+    return apply_prefix_edits(project, "filler:", config_key="tighten")
 
 
 def _impact_segment(

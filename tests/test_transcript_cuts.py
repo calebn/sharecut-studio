@@ -213,12 +213,12 @@ def test_coalesce_leaves_unpadded_cuts_unpadded():
 def test_coalesce_keeps_pending_edits_of_different_authors_apart():
     proj = EpisodeProject.create("t", "/tmp/ws")
     for start, end, reason, author in (
-        (1.0, 1.5, "pause:0.80s", None),
+        (1.0, 1.5, "filler:um", None),
         (1.5, 2.0, "guest:suggest", "share:ann"),
         (2.0, 2.5, "guest:suggest", "share:bob"),
         (2.5, 3.0, "guest:suggest", "share:bob"),
-        (3.0, 3.5, "pause:0.80s", None),
-        (3.5, 4.0, "pause:0.90s", None),
+        (3.0, 3.5, "filler:um", None),
+        (3.5, 4.0, "filler:uh", None),
     ):
         append_remove_decision(proj, "host", start, end, reason=reason, author=author)
 
@@ -649,20 +649,56 @@ def test_coalesce_keeps_a_pause_trim_waiting_for_review_apart_from_the_filler_be
     assert _spans(proj) == [("filler", 1.0, 1.3, False), ("pause", 1.3, 2.4, True)]
 
 
-def test_coalesce_still_merges_pause_trims_with_each_other_and_with_cuts_waiting_for_review():
+def test_coalesce_keeps_pause_trims_apart_from_each_other_and_from_cuts_waiting_for_review():
     proj = EpisodeProject.create("t", "/tmp/ws")
     append_remove_decision(proj, "host", 1.0, 1.3, reason="pause:0.3s", review_required=True)
     append_remove_decision(proj, "host", 1.3, 1.6, reason="pause:0.3s", review_required=True)
     append_remove_decision(proj, "host", 1.6, 1.9, reason="filler:um", review_required=True)
 
-    assert coalesce_edits(proj, track_id="host") == 2
-    assert _spans(proj) == [("pause", 1.0, 1.9, True)]
+    assert coalesce_edits(proj, track_id="host") == 0
+    assert _spans(proj) == [
+        ("filler", 1.6, 1.9, True),
+        ("pause", 1.0, 1.3, True),
+        ("pause", 1.3, 1.6, True),
+    ]
 
 
-def test_coalesce_still_merges_a_pause_trim_that_applies_on_its_own_with_the_filler_beside_it():
+def _labelled(proj: EpisodeProject) -> list[tuple[float, float, str, bool, str]]:
+    return sorted(
+        (e.start, e.end, e.reason, e.review_required, e.scope) for e in proj.edit_decisions
+    )
+
+
+def test_coalesce_never_chains_a_review_filler_a_pause_and_an_auto_filler_into_one_cut():
+    # The pause is the review item between them: the filler after it stays one that
+    # applies on its own, and the pause keeps its label and its air_edges flag.
     proj = EpisodeProject.create("t", "/tmp/ws")
-    append_remove_decision(proj, "host", 1.0, 1.3, reason="filler:um", review_required=False)
-    append_remove_decision(proj, "host", 1.3, 2.4, reason="pause:1.10s", review_required=False)
+    append_remove_decision(proj, "host", 1.0, 1.3, reason="filler:um:risky", review_required=True)
+    append_remove_decision(
+        proj, "host", 1.3, 2.4, reason="pause:1.10s:air_edges", review_required=True
+    )
+    append_remove_decision(proj, "host", 2.4, 2.6, reason="filler:uh", review_required=False)
 
-    assert coalesce_edits(proj, track_id="host") == 1
-    assert _spans(proj) == [("filler", 1.0, 2.4, False)]
+    assert coalesce_edits(proj, track_id="host") == 0
+    assert _labelled(proj) == [
+        (1.0, 1.3, "filler:um:risky", True, "session"),
+        (1.3, 2.4, "pause:1.10s:air_edges", True, "session"),
+        (2.4, 2.6, "filler:uh", False, "session"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("reason", "scope"),
+    [("filler:um:other_speaking:guest", "track"), ("nl:range", "session")],
+)
+def test_coalesce_never_absorbs_a_session_pause_into_a_cut_that_is_not_its_own(reason, scope):
+    proj = EpisodeProject.create("t", "/tmp/ws")
+    first = append_remove_decision(proj, "host", 1.0, 1.3, reason=reason, review_required=True)
+    first.scope = scope
+    append_remove_decision(proj, "host", 1.3, 2.4, reason="pause:1.10s", review_required=True)
+
+    assert coalesce_edits(proj, track_id="host") == 0
+    assert _labelled(proj) == [
+        (1.0, 1.3, reason, True, scope),
+        (1.3, 2.4, "pause:1.10s", True, "session"),
+    ]
