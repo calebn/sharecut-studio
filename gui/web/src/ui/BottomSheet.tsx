@@ -81,7 +81,7 @@ export function BottomSheet({
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const swipe = useDrawerSwipe(panelRef, drawer);
+  const swipe = useDrawerSwipe(panelRef, open ? drawer : undefined);
   const chromeRef = useRef<HTMLDivElement>(null);
   // The drawer's chrome stays pinned while its body scrolls; the panel's
   // scroll padding keeps a focused or revealed control clear of it.
