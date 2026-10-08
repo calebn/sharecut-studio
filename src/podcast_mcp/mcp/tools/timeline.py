@@ -286,7 +286,9 @@ def roll_clip_join_tool(
 
     Positive moves the join later: the left clip gains material and the right clip
     starts later in its source, so the pair keeps its length and later clips stay put.
-    Same operation as the Studio roll seam (``RollClipJoin``); undoable. Use
+    Same operation as the Studio roll seam (``RollClipJoin``); undoable. The clips must
+    abut (touch within the join tolerance, see ``clips_abut``); across a gap the call is
+    refused with ``error_code`` ``roll_needs_abutting_clips`` and nothing changes. Use
     ``trim_clip_edge_tool`` to move one edge and ripple instead.
     """
     ws = ProjectWorkspace.open(project_path)

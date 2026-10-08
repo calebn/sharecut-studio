@@ -14,6 +14,7 @@ from podcast_mcp.services.session_sync import (
     authorize_client,
     authorize_host,
 )
+from podcast_mcp.util.coded_error import CodedError
 from podcast_mcp.util.project_state import PROJECT_BUSY_CODE, PROJECT_BUSY_MESSAGE, busy_message
 from podcast_mcp.util.proxy_paths import is_relayed_request
 from podcast_mcp.util.sqlite_tx import is_sqlite_busy
@@ -39,6 +40,13 @@ def document_conflict_error(exc: DocumentConflictError) -> HTTPException:
         detail={"detail": str(exc), "conflict": True},
         headers={"X-Sharecut-Error-Code": exc.code},
     )
+
+
+def bad_request_error(exc: ValueError) -> HTTPException:
+    """HTTP 400 with the refusal's message; a ``CodedError`` also sends its code as
+    ``X-Sharecut-Error-Code``."""
+    headers = {"X-Sharecut-Error-Code": exc.code} if isinstance(exc, CodedError) else None
+    return HTTPException(status_code=400, detail=str(exc), headers=headers)
 
 
 def project_busy_from_timeout(exc: Timeout) -> HTTPException:

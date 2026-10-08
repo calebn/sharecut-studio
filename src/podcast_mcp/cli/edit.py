@@ -676,7 +676,10 @@ def edit_roll_join_cmd(
         ..., "--delta-sec", help="Source seconds to move the join (positive is later)"
     ),
 ) -> None:
-    """Roll a join: both edges move together, the pair keeps its length."""
+    """Roll a join: both edges move together, the pair keeps its length.
+
+    The clips must touch; with a gap between them it exits 1 with code roll_needs_abutting_clips.
+    """
     from podcast_mcp.services.document import RollBoundaryTarget
     from podcast_mcp.services.document_sync import (
         host_command_result,

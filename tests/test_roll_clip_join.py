@@ -3,16 +3,21 @@
 from __future__ import annotations
 
 import pytest
+from fastapi.testclient import TestClient
+from mcp.client import Client
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
 from podcast_mcp.edits.clips_ops import roll_clip_join
+from podcast_mcp.gui.server import create_app
+from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.mcp.tools.timeline import roll_clip_join_tool
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 from podcast_mcp.services.app.workspace import ProjectWorkspace
 from podcast_mcp.services.document.boundary import RollBoundaryTarget, boundary_context
 from podcast_mcp.services.document_sync.commands import DocumentCommand
 from podcast_mcp.services.document_sync.service import DocumentSyncService
+from podcast_mcp.util.coded_error import CodedValueError
 
 
 def _three_clips(ws: ProjectWorkspace) -> None:
@@ -111,8 +116,9 @@ def test_roll_refuses_clips_with_a_gap_between_them(minimal_project):
         Clip(id="c2", track_id="host", source_start=5.0, source_end=15.0, timeline_start=10.0),
     ]
     project = ws.project
-    with pytest.raises(ValueError, match="abut"):
+    with pytest.raises(CodedValueError) as refused:
         roll_clip_join(project, "c1", "c2", 1.0)
+    assert refused.value.code == "roll_needs_abutting_clips"
     assert [(c.source_start, c.source_end, c.timeline_start) for c in project.clips] == [
         (0.0, 5.0, 0.0),
         (5.0, 15.0, 10.0),
@@ -252,3 +258,141 @@ def test_cli_roll_join_is_undoable(minimal_project):
     assert _rolled_edges(minimal_project) == pytest.approx((4.0, 14.0, 15.0))
     assert runner.invoke(app, ["undo", *args]).exit_code == 0
     assert _rolled_edges(minimal_project) == pytest.approx((5.0, 15.0, 15.0))
+
+
+ROLL_GAP_MESSAGE = (
+    "These clips have a gap between them, so there is no join to roll. "
+    "Move one clip to touch the other, or trim an edge instead."
+)
+
+
+def _gapped_pair(ws: ProjectWorkspace) -> None:
+    ws.project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=80.0),
+        )
+    ]
+    ws.project.timeline.clips = [
+        Clip(id="c1", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0),
+        Clip(id="c2", track_id="host", source_start=5.0, source_end=15.0, timeline_start=10.0),
+    ]
+    ws.save()
+
+
+def _gap_roll_target() -> RollBoundaryTarget:
+    return RollBoundaryTarget(left_clip_id="c1", right_clip_id="c2")
+
+
+def _gap_roll_command_body() -> dict:
+    return {
+        "type": "RollClipJoin",
+        "payload": {
+            "left_clip_id": "c1",
+            "right_clip_id": "c2",
+            "delta_sec": 1.0,
+            "expected_token": "any",
+        },
+        "client_id": "c1",
+        "role": "viewer",
+        "client_seq": 1,
+    }
+
+
+def test_roll_across_a_gap_raises_the_coded_refusal(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    _gapped_pair(ws)
+    with pytest.raises(CodedValueError) as refused:
+        roll_clip_join(ws.project, "c1", "c2", 1.0)
+    assert refused.value.code == "roll_needs_abutting_clips"
+    assert str(refused.value) == ROLL_GAP_MESSAGE
+
+
+def test_boundary_context_across_a_gap_raises_the_coded_refusal(minimal_project):
+    ws = ProjectWorkspace.open(minimal_project)
+    _gapped_pair(ws)
+    with pytest.raises(CodedValueError) as refused:
+        boundary_context(ws.project, _gap_roll_target())
+    assert refused.value.code == "roll_needs_abutting_clips"
+    assert str(refused.value) == ROLL_GAP_MESSAGE
+
+
+def test_document_command_across_a_gap_raises_the_coded_refusal(minimal_project):
+    _gapped_pair(ProjectWorkspace.open(minimal_project))
+    command = DocumentCommand(**_gap_roll_command_body())
+    with pytest.raises(CodedValueError) as refused:
+        DocumentSyncService.open(minimal_project).submit(command)
+    assert refused.value.code == "roll_needs_abutting_clips"
+    assert str(refused.value) == ROLL_GAP_MESSAGE
+
+
+def test_cli_roll_join_across_a_gap_prints_the_message_and_code(minimal_project):
+    _gapped_pair(ProjectWorkspace.open(minimal_project))
+    result = CliRunner().invoke(
+        app,
+        [
+            "edit",
+            "roll-join",
+            "--project",
+            str(minimal_project),
+            "--left",
+            "c1",
+            "--right",
+            "c2",
+            "--delta-sec",
+            "1",
+        ],
+    )
+    assert result.exit_code == 1
+    assert f"Error: {ROLL_GAP_MESSAGE} (code roll_needs_abutting_clips)" in result.output
+
+
+@pytest.mark.asyncio
+async def test_mcp_roll_across_a_gap_reaches_the_agent_with_its_code(minimal_project):
+    _gapped_pair(ProjectWorkspace.open(minimal_project))
+    async with Client(mcp_server.mcp) as client:
+        result = await client.call_tool(
+            "roll_clip_join_tool",
+            {
+                "project_path": str(minimal_project),
+                "left_clip_id": "c1",
+                "right_clip_id": "c2",
+                "delta_sec": 1.0,
+            },
+        )
+    assert result.is_error
+    assert result.content[0].text == ROLL_GAP_MESSAGE
+    assert result.structured_content == {
+        "ok": False,
+        "error": ROLL_GAP_MESSAGE,
+        "error_code": "roll_needs_abutting_clips",
+    }
+
+
+def test_boundary_context_route_sends_the_code_and_message(minimal_project):
+    _gapped_pair(ProjectWorkspace.open(minimal_project))
+    body = {
+        "path": str(minimal_project),
+        "target": _gap_roll_target().model_dump(),
+        "expected_geometry": [],
+    }
+    with TestClient(create_app(served_project=minimal_project)) as client:
+        response = client.post("/api/boundary/context", json=body)
+    assert response.status_code == 400
+    assert response.json() == {"detail": ROLL_GAP_MESSAGE}
+    assert response.headers["x-sharecut-error-code"] == "roll_needs_abutting_clips"
+
+
+def test_document_command_route_sends_the_code_and_message(minimal_project):
+    _gapped_pair(ProjectWorkspace.open(minimal_project))
+    with TestClient(create_app(served_project=minimal_project)) as client:
+        response = client.post(
+            "/api/document/command",
+            params={"path": str(minimal_project)},
+            json=_gap_roll_command_body(),
+        )
+    assert response.status_code == 400
+    assert response.json() == {"detail": ROLL_GAP_MESSAGE}
+    assert response.headers["x-sharecut-error-code"] == "roll_needs_abutting_clips"

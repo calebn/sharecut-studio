@@ -507,10 +507,18 @@ def roll_clip_join(
 def roll_join_limits(
     project: EpisodeProject, left_clip_id: str, right_clip_id: str
 ) -> tuple[float, float]:
-    """Legal source-clock delta for a roll, shared by UI context and mutation."""
+    """Legal source-clock delta for a roll, shared by UI context and mutation.
+
+    Refuses clips with a gap between them (``roll_needs_abutting_clips``): a roll keeps
+    the pair flush, so it would pull the right clip across the gap.
+    """
     left, right, track_clips, left_idx = neighbour_clips(project, left_clip_id, right_clip_id)
     if not clips_abut(left, right):
-        raise ValueError("a roll needs clips that abut; there is a gap between them")
+        raise CodedValueError(
+            "These clips have a gap between them, so there is no join to roll. "
+            "Move one clip to touch the other, or trim an edge instead.",
+            code="roll_needs_abutting_clips",
+        )
     prev = track_clips[left_idx - 1] if left_idx > 0 else None
     nxt = track_clips[left_idx + 2] if left_idx + 2 < len(track_clips) else None
     left_duration = source_duration_sec(project, left)

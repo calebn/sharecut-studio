@@ -391,3 +391,17 @@ def test_edit_share_gets_guarded_context(
     assert allowed.status_code == 200
     assert allowed.json()["token"]
     assert stale.status_code == 409
+
+    gapped = ProjectWorkspace.open(minimal_project)
+    gapped.project.clips[1].timeline_start = 5
+    gapped.save()
+    with TestClient(create_app()) as client:
+        across_gap = client.post(f"/api/review/{edit['token']}/daw/boundary/context", json=body)
+    assert across_gap.status_code == 400
+    assert across_gap.headers["x-sharecut-error-code"] == "roll_needs_abutting_clips"
+    assert across_gap.json() == {
+        "detail": (
+            "These clips have a gap between them, so there is no join to roll. "
+            "Move one clip to touch the other, or trim an edge instead."
+        )
+    }

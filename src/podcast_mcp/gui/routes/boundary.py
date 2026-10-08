@@ -4,7 +4,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from podcast_mcp.gui.audio import audio_file_response
-from podcast_mcp.gui.routes.deps import require_host, resolve_project
+from podcast_mcp.gui.routes.deps import bad_request_error, require_host, resolve_project
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import (
     BoundaryEdit,
@@ -53,7 +53,7 @@ def post_boundary_context(
     except DocumentConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc
 
 
 @router.post("/api/boundary/audition")

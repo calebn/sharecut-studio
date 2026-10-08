@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from podcast_mcp.edits.range_edits import RangeChangedError
 from podcast_mcp.edits.transcript_refine_status import TranscriptRefineRequiredError
 from podcast_mcp.gui.routes.deps import (
+    bad_request_error,
     document_conflict_error,
     peer_host,
     project_busy_http_error,
@@ -106,7 +107,7 @@ def post_document_command(
             raise
         raise busy from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise bad_request_error(exc) from exc
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 

@@ -356,7 +356,7 @@ Do **not** expose Swagger on the public relay (`docs_url=None`). Host OpenAPI de
 | `RestoreAppliedEdit` | `EditService.revert_applied` | `id` (applied log id) |
 | `SetClipFade` | `EditService.set_clip_fade` | `clip_id`, `fade_in_ms`, `fade_out_ms` |
 | `TrimClipEdge` | `EditService.trim_clip_edge` | `clip_id`, `edge`, `source_sec`, `mode` (`ripple` \| `gap`), required `expected_token` from a boundary context minted for that mode, `confirm_cut_speech?` |
-| `RollClipJoin` | `EditService.roll_clip_join` | `left_clip_id`, `right_clip_id`, `delta_sec`, required `expected_token` from boundary context |
+| `RollClipJoin` | `EditService.roll_clip_join` | `left_clip_id`, `right_clip_id`, `delta_sec`, required `expected_token` from boundary context. The clips must abut (`clips_abut`); across a gap the command is refused, HTTP 400 with `X-Sharecut-Error-Code: roll_needs_abutting_clips`, before the token is checked |
 | `SetJoinMode` | `EditService.set_join_mode` | `clip_id`, `join_in_mode` (`fade` \| `crossfade` \| `cut`) — mode only (fades untouched); the result adds the `join_*` render fields (`join_crossfade_blocked`) |
 | `SetClipJoin` | `EditService.set_clip_join` | `left_clip_id`, `right_clip_id`, `mode` (`fade` \| `crossfade` \| `cut`), `length_ms?` (sets mode and both fades in one undo step; the GUI uses this) |
 | `ApplyFadeRecommendations` | `EditService.apply_fade_recommendations_for_track` | `track_id?` (null = all tracks) |
