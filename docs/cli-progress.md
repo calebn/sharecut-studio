@@ -2,7 +2,7 @@
 
 CLI adapter for the shared progress framework. Spec: [progress.md](progress.md).
 
-Long-running CLI operations report progress on **stderr** so stdout stays clean for JSON and piping. The Typer app wraps every command in `progress_task` after registration (`install_cli_progress`).
+Long-running CLI operations report progress on **stderr** so stdout stays clean for JSON and piping. The Typer app wraps registered commands after registration (`install_cli_progress`). Registered commands and default `podcast play` use `cli_progress_task` to bind CLI and live adapter sinks for one canonical task. Selected play subcommands open only their own command task.
 
 ## Flags
 
@@ -86,5 +86,5 @@ Common ids in the table are **child** ids when nested. They collapse onto the wr
 
 1. Use `progress_task` / `set_phase` / `advance`, or `resolve_progress_task(..., prefer_parent=True)` for wrap/leaf entrypoints so work updates the choke-point / pipeline child — **do not** `reporter.start("transcribe")` (orphan ids). Nested multi-phase work (audibility under render, enroll then attribute) uses `prefer_parent=False` so a named child owns that unit scale.
 2. Do **not** hardcode `NullProgress()` at MCP/CLI edges.
-3. Do **not** add a parallel `@timed_command`-style path — the CLI wrap already opens a task.
+3. Use `cli_progress_task` for executable group callbacks after their subcommand guard. Registered commands inherit the same scope from the installer.
 4. Exemptions require user approval in `contracts/progress-exemptions.json` — see [progress.md](progress.md).

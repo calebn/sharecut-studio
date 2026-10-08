@@ -5,7 +5,6 @@ from pathlib import Path
 
 import typer
 
-from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import ClipService
 
@@ -13,7 +12,6 @@ clips_app = typer.Typer(help="Social clip candidates and export.")
 
 
 @clips_app.command("propose")
-@timed_command("clips propose")
 def clips_propose_cmd(
     project: Path = typer.Option(..., "--project"),
     platform: str | None = typer.Option(None, "--platform"),
@@ -43,7 +41,6 @@ def clips_approve_cmd(
 
 
 @clips_app.command("export")
-@timed_command("clips export")
 def clips_export_cmd(
     project: Path = typer.Option(..., "--project"),
     ids: str | None = typer.Option(None, "--ids"),

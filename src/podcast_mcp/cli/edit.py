@@ -8,7 +8,6 @@ import typer
 
 from podcast_mcp.cli.context import get_progress
 from podcast_mcp.cli.cut_speech import YES_HELP, with_cut_speech_confirmation
-from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.edits.edit_reasons import NL_RANGE_REASON
 from podcast_mcp.edits.tighten_intensity import normalize_tighten_intensity
 from podcast_mcp.models import EditMode
@@ -18,7 +17,6 @@ from podcast_mcp.services.document import EditService, TrimBoundaryTarget
 edit_app = typer.Typer(help="Transcript-driven cuts for natural language editing.")
 
 
-@timed_command("propose-edits")
 def propose_edits_cmd(
     project: Path = typer.Option(..., "--project"),
     edit_mode: str | None = typer.Option(
@@ -46,7 +44,6 @@ def propose_edits_cmd(
     typer.echo(proposal.summary())
 
 
-@timed_command("apply-edits")
 def apply_edits_cmd(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
@@ -55,7 +52,6 @@ def apply_edits_cmd(
     typer.echo(f"Applied {n} auto edit decisions.")
 
 
-@timed_command("edit-context")
 def edit_context_cmd(
     project: Path = typer.Option(..., "--project"),
 ) -> None:

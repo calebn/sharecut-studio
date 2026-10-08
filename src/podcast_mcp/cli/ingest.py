@@ -5,7 +5,6 @@ from pathlib import Path
 
 import typer
 
-from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.ingest.consolidate import alignment_report
 from podcast_mcp.ingest.manifest import IngestManifest
 from podcast_mcp.services.app import ProjectWorkspace
@@ -44,7 +43,6 @@ def _parse_speaker_overrides(items: list[str] | None) -> dict[str, str]:
 
 
 @ingest_app.command("import")
-@timed_command("ingest import")
 def ingest_import_cmd(
     audio_dir: Path = typer.Argument(..., help="Folder of recorder export audio"),
     out: Path | None = typer.Option(None, "--out", help="Write ingest.yaml here"),
@@ -128,7 +126,6 @@ def ingest_report_cmd(
 
 
 @ingest_app.command("suggest")
-@timed_command("ingest suggest")
 def ingest_suggest_cmd(
     audio_dir: Path = typer.Option(..., "--audio-dir"),
     manifest: Path = typer.Option(..., "--manifest"),
@@ -166,7 +163,6 @@ def ingest_suggest_cmd(
 
 
 @ingest_app.command("verify")
-@timed_command("ingest verify")
 def ingest_verify_cmd(
     project: Path = typer.Option(..., "--project"),
     window: str = typer.Option("0:90", "--window", help="Timeline window START:END (sec)"),
@@ -195,7 +191,6 @@ def ingest_verify_cmd(
 
 
 @ingest_app.command("consolidate")
-@timed_command("ingest consolidate")
 def ingest_consolidate_cmd(
     audio_dir: Path = typer.Option(..., "--audio-dir", help="Folder of raw recordings"),
     manifest: Path = typer.Option(..., "--manifest", help="ingest.yaml speaker/source map"),

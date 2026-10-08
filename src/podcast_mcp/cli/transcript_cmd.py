@@ -8,7 +8,6 @@ import typer
 import yaml
 
 from podcast_mcp.cli.context import get_progress
-from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits.transcript_correct import TranscriptTextChangedError
 from podcast_mcp.export.transcript import CaptionLimits, resolve_caption_limits
@@ -64,7 +63,6 @@ def _caption_limits(
 
 
 @transcript_app.command("correct")
-@timed_command("transcript correct")
 def transcript_correct_cmd(
     project: Path = typer.Option(..., "--project"),
     track: str = typer.Option(..., "--track"),
@@ -86,7 +84,6 @@ def transcript_correct_cmd(
 
 
 @transcript_app.command("correct-phrase")
-@timed_command("transcript correct-phrase")
 def transcript_correct_phrase_cmd(
     project: Path = typer.Option(..., "--project"),
     track: str = typer.Option(..., "--track"),
@@ -116,7 +113,6 @@ def transcript_correct_phrase_cmd(
 
 
 @transcript_app.command("set-word-timing")
-@timed_command("transcript set-word-timing")
 def transcript_set_word_timing_cmd(
     project: Path = typer.Option(..., "--project"),
     track: str = typer.Option(..., "--track"),
@@ -156,7 +152,6 @@ def transcript_set_word_timing_cmd(
 
 
 @transcript_app.command("find-replace")
-@timed_command("transcript find-replace")
 def transcript_find_replace_cmd(
     project: Path = typer.Option(..., "--project"),
     search: str = typer.Option(..., "--search", help="Word or phrase to find"),
@@ -191,7 +186,6 @@ def transcript_find_replace_cmd(
 
 
 @transcript_app.command("suppress-word")
-@timed_command("transcript suppress-word")
 def transcript_suppress_word_cmd(
     project: Path = typer.Option(..., "--project"),
     track: str = typer.Option(..., "--track"),
@@ -235,7 +229,6 @@ def transcript_suppress_word_cmd(
 
 
 @transcript_app.command("cleanup-batch")
-@timed_command("transcript cleanup-batch")
 def transcript_cleanup_batch_cmd(
     project: Path = typer.Option(..., "--project"),
     track: str = typer.Option(..., "--track"),
@@ -263,7 +256,6 @@ def transcript_cleanup_batch_cmd(
 
 
 @transcript_app.command("review")
-@timed_command("transcript review")
 def transcript_review_cmd(
     project: Path = typer.Option(..., "--project"),
     threshold: float = typer.Option(0.7, "--threshold"),
@@ -369,7 +361,6 @@ def transcript_refine_waive_cmd(
 
 
 @context_app.command("show")
-@timed_command("transcript context show")
 def transcript_context_show_cmd(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
@@ -378,7 +369,6 @@ def transcript_context_show_cmd(
 
 
 @context_app.command("set")
-@timed_command("transcript context set")
 def transcript_context_set_cmd(
     project: Path = typer.Option(..., "--project"),
     context_file: Path | None = typer.Option(

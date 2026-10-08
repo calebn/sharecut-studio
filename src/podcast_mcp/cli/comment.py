@@ -5,7 +5,6 @@ from pathlib import Path
 
 import typer
 
-from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import CommentService
 
@@ -13,7 +12,6 @@ comment_app = typer.Typer(help="Timeline review comments and action items.")
 
 
 @comment_app.command("add")
-@timed_command("comment add")
 def comment_add_cmd(
     project: Path = typer.Option(..., "--project"),
     body: str = typer.Option(..., "--body"),
@@ -117,7 +115,6 @@ def comment_add_action_cmd(
 
 
 @comment_app.command("reply")
-@timed_command("comment reply")
 def comment_reply_cmd(
     project: Path = typer.Option(..., "--project"),
     comment_id: str = typer.Option(..., "--id"),

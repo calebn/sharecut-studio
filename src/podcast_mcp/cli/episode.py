@@ -5,7 +5,6 @@ from pathlib import Path
 
 import typer
 
-from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import EpisodeService
 from podcast_mcp.services.media import TranscriptService
@@ -70,7 +69,6 @@ def track_set_mute(
     typer.echo(json.dumps(EpisodeService(ws).set_track_mute(id, muted)))
 
 
-@timed_command("transcribe")
 def transcribe_cmd(
     project: Path = typer.Option(..., "--project"),
     track: str | None = typer.Option(None, "--track", help="Single track id"),

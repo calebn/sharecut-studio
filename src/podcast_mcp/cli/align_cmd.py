@@ -7,7 +7,6 @@ from pathlib import Path
 
 import typer
 
-from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import AlignAcceptService
 
@@ -15,7 +14,6 @@ align_app = typer.Typer(help="Conversation alignment accept gate.")
 
 
 @align_app.command("status")
-@timed_command("align status")
 def align_status_cmd(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
@@ -24,7 +22,6 @@ def align_status_cmd(
 
 
 @align_app.command("brief")
-@timed_command("align brief")
 def align_brief_cmd(
     project: Path = typer.Option(..., "--project"),
 ) -> None:
@@ -33,7 +30,6 @@ def align_brief_cmd(
 
 
 @align_app.command("done")
-@timed_command("align done")
 def align_done_cmd(
     project: Path = typer.Option(..., "--project"),
     notes: str | None = typer.Option(None, "--notes"),
@@ -44,7 +40,6 @@ def align_done_cmd(
 
 
 @align_app.command("waive")
-@timed_command("align waive")
 def align_waive_cmd(
     project: Path = typer.Option(..., "--project"),
     reason: str = typer.Option(..., "--reason"),

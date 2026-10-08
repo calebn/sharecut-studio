@@ -1412,6 +1412,19 @@ def cli_operation_label(op_id: str) -> str:
     return "podcast " + op_id.replace(".", " ")
 
 
+@contextmanager
+def cli_progress_task(op_id: str) -> Iterator[ProgressTask]:
+    """Bind CLI and live adapter sinks for one canonical command task."""
+    from podcast_mcp.cli.context import get_progress
+
+    reporter = compose_progress(get_progress(), *adapter_progress_sinks())
+    with (
+        bind_progress(reporter),
+        progress_task(op_id, cli_operation_label(op_id), reporter=reporter, mark_id=op_id) as task,
+    ):
+        yield task
+
+
 def install_cli_progress(app: Any) -> None:
     """Wrap Typer command callbacks so every CLI command opens progress_task."""
 
@@ -1421,13 +1434,7 @@ def install_cli_progress(app: Any) -> None:
 
         @functools.wraps(callback)
         def wrapped(*args: Any, **kwargs: Any) -> Any:
-            from podcast_mcp.cli.context import get_progress
-
-            reporter = compose_progress(get_progress(), *adapter_progress_sinks())
-            with (
-                bind_progress(reporter),
-                progress_task(op_id, cli_operation_label(op_id), reporter=reporter, mark_id=op_id),
-            ):
+            with cli_progress_task(op_id):
                 return callback(*args, **kwargs)
 
         wrapped._podcast_progress_wrapped = True  # type: ignore[attr-defined]

@@ -5,9 +5,9 @@ from pathlib import Path
 
 import typer
 
-from podcast_mcp.cli.timed import timed_command
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.document import PlayRequest, PlayService
+from podcast_mcp.util.progress import cli_progress_task
 from podcast_mcp.util.time_parse import parse_time_sec
 
 play_app = typer.Typer(help="Play audio segments from a project.")
@@ -20,7 +20,6 @@ def _parse_optional_time(value: str | None) -> float | None:
 
 
 @play_app.callback(invoke_without_command=True)
-@timed_command("play")
 def play_cmd(
     ctx: typer.Context,
     project: Path | None = typer.Option(None, "--project"),
@@ -58,50 +57,50 @@ def play_cmd(
 ) -> None:
     if ctx.invoked_subcommand is not None:
         return
-    if project is None:
-        raise typer.BadParameter("--project is required")
-    ws = ProjectWorkspace.open(project)
-    start_sec = _parse_optional_time(start)
-    end_sec = _parse_optional_time(end)
-    if query is None and (start_sec is None or end_sec is None):
-        raise typer.BadParameter("--start and --end are required without --query")
-    if start_sec is None:
-        start_sec = 0.0
-    if end_sec is None:
-        end_sec = start_sec + 10.0
+    with cli_progress_task("play"):
+        if project is None:
+            raise typer.BadParameter("--project is required")
+        ws = ProjectWorkspace.open(project)
+        start_sec = _parse_optional_time(start)
+        end_sec = _parse_optional_time(end)
+        if query is None and (start_sec is None or end_sec is None):
+            raise typer.BadParameter("--start and --end are required without --query")
+        if start_sec is None:
+            start_sec = 0.0
+        if end_sec is None:
+            end_sec = start_sec + 10.0
 
-    result = PlayService(ws).play(
-        PlayRequest(
-            source=source,
-            start_sec=start_sec,
-            end_sec=end_sec,
-            query=query,
-            match_index=match,
-            padding_sec=padding,
-            raw=raw,
-            rerender=rerender,
-            compare=compare,
-            follow_transcript=follow_transcript,
-        ),
-        dry_run=dry_run,
-        player=player,
-    )
-    payload = {
-        "wav": str(result.wav_path),
-        "source": result.source_label,
-        "tier": result.tier,
-        "render_busy": result.render_busy,
-        "start_sec": result.start_sec,
-        "end_sec": result.end_sec,
-        "player": result.player_cmd,
-    }
-    if result.compare_segments:
-        payload["compare_segments"] = result.compare_segments
-    typer.echo(json.dumps(payload, indent=2))
+        result = PlayService(ws).play(
+            PlayRequest(
+                source=source,
+                start_sec=start_sec,
+                end_sec=end_sec,
+                query=query,
+                match_index=match,
+                padding_sec=padding,
+                raw=raw,
+                rerender=rerender,
+                compare=compare,
+                follow_transcript=follow_transcript,
+            ),
+            dry_run=dry_run,
+            player=player,
+        )
+        payload = {
+            "wav": str(result.wav_path),
+            "source": result.source_label,
+            "tier": result.tier,
+            "render_busy": result.render_busy,
+            "start_sec": result.start_sec,
+            "end_sec": result.end_sec,
+            "player": result.player_cmd,
+        }
+        if result.compare_segments:
+            payload["compare_segments"] = result.compare_segments
+        typer.echo(json.dumps(payload, indent=2))
 
 
 @play_app.command("context")
-@timed_command("play context")
 def play_context_cmd(
     project: Path = typer.Option(..., "--project"),
     start: str = typer.Option(..., "--start", help="Timeline start (sec or HH:MM:SS)"),
@@ -135,7 +134,6 @@ def play_context_cmd(
 
 
 @play_app.command("ab")
-@timed_command("play ab")
 def play_ab_cmd(
     project: Path = typer.Option(..., "--project"),
     before_index: int = typer.Option(..., "--before-index", help="History index for A"),
@@ -192,7 +190,6 @@ def play_ab_cmd(
 
 
 @play_app.command("pending-preview")
-@timed_command("play pending-preview")
 def play_pending_preview_cmd(
     project: Path = typer.Option(..., "--project"),
     edit_id: str = typer.Option(..., "--edit-id", help="Pending EditDecision id"),
@@ -234,7 +231,6 @@ def play_pending_preview_cmd(
 
 
 @play_app.command("compose")
-@timed_command("play compose")
 def play_compose_cmd(
     project: Path = typer.Option(..., "--project"),
     track_ids: str = typer.Option(

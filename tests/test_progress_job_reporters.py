@@ -273,22 +273,6 @@ def test_pipeline_run_job_cancel_and_error(tmp_path, monkeypatch) -> None:
     assert job3.status == "cancelled"
 
 
-def test_timed_command_emits_on_active_task(monkeypatch, capsys) -> None:
-    from podcast_mcp.cli.timed import timed_command
-
-    monkeypatch.setattr(sys.stderr, "isatty", lambda: True)
-
-    @timed_command("unit")
-    def work():
-        return 7
-
-    rec = RecordingProgress()
-    with bind_progress(rec), progress_task("op", "Op", reporter=rec):
-        assert work() == 7
-    assert any(e.message and "Running unit" in e.message for e in rec.events)
-    assert "Finished unit" in capsys.readouterr().err
-
-
 def test_progress_task_fail_then_cancelled_progress() -> None:
     rec = RecordingProgress()
     with pytest.raises(CancelledProgress):
