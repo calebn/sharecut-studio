@@ -102,7 +102,7 @@ evidence:
 - #1179 rounds 1 to 4 each read a track's quiet off one percentile of its frames and drew the line a fixed number of dB over it (3 dB, and a run had to peak 10 dB over). Rounds 1 to 3 read it off the pause or its surroundings, so where sound fills the pause its quiet sits inside that sound. Round 4 read the room between the track's words and failed the same gate on 22 synthetic scenes with known sounds, because a fixed margin is right in one room and wrong in every other: a breath 5 to 9 dB over a steady room was cut through, a silent mic with a 40 Hz rumble blocked every trim, and a hum or a swinging room lost its air
 - Owner rule (#1179): a breath, a voiced decay or any other own sound may be removed whole, but no edge may land inside one, on any track the ripple cuts; thresholds come from each episode's own measurements, never fixed levels, and the lab tape is evidence, never a tuning target; newly allowed pause trims stay review-only
 - #1179 round 5, synthetic scenes with known sounds (20 trials each, 40 edges): edges inside a sound by broadband level 0 of 40 in every breath, beat and decay scene except two rooms the doc below names (a steady bed under everything the window shows, a rumble that leaks past the band); round 4 had 1 to 2 of 40 in the quiet breath scenes
-- #1055 lab after round 5, against main at b785b17d6: 93 pause decisions (main 8, round 4 99), none auto; the independent detector (`edgedet.py`) finds 0 edges inside a speech-band sound of 6 dB or more on any of the 186 edges, on its own and its peers' tracks (round 4: 0); every non-pause decision identical to main
+- #1055 lab after round 5, against main at b785b17d6: 93 pause decisions (main 8, round 4 99), none auto; an independent detector (raw stems, a 200 Hz to 4 kHz level over each track's local room at 3, 6 and 10 dB) finds 0 edges inside a sound of 6 dB or more on any of the 186 edges, on its own and its peers' tracks (round 4: 0); every non-pause decision identical to main
 enforced-by:
 - tests/test_room_model.py::test_a_normal_room_reads_its_median_and_spread
 - tests/test_room_model.py::test_a_sample_that_is_mostly_sound_reads_the_room_the_tracks_mode_gives_it
@@ -198,8 +198,8 @@ to every track the ripple cuts, the trim's own and each peer's:
   raise the other's.
 - **A window too crowded to read.** Under half a second of room frames in the 5 s each side
   (a fluent speaker, words 100 ms apart) widens the window to 30 s each side, still between
-  the track's own words. Only a track with no room frames even then is skipped, as
-  `no_room`, which says nothing about whether the pause holds air.
+  the track's own words. Only a track with no room frames even then, or whose audio cannot
+  be read, is skipped, as `no_room`, which says nothing about whether the pause holds air.
 - **The ceiling.** The 5 s on each side also supply the track's speech level (90th
   percentile of its live frames, in the same band). A sound that reaches 40 dB under it
   is kept whole and splits the air; a quieter sound is removed whole when the trim holds
@@ -209,7 +209,9 @@ to every track the ripple cuts, the trim's own and each peer's:
   tell air from sound, because breaths sit down to there: its whole window is one sound.
   That is a room within 40 dB of the speech, or a peer talking through the pause, and it
   holds no air. A mic that never speaks nearby and carries only its room tone has no
-  speech to protect, and its room tone is air.
+  speech to protect, and its room tone is air. A track with under half a second of live
+  frames there has no speech level: the trim's own track is skipped as `no_room`, and every
+  sound on a peer's is kept whole.
 - **Peers.** A session ripple removes the same window from every dialogue track, so
   each peer's sounds move the trim's edges off them in the same way (a gate opening on
   a word's attack at the ripple's end shrinks the trim), and a peer's sound that covers
@@ -253,17 +255,18 @@ Limits. The rule reads levels, so it can only see what a level shows:
   is under the line. Weaker or lower rumble, and any rumble that stays under 80 Hz, is
   removed by the band.
 - A room that swings flat through a range, with no peak to read, reads narrow: the upper
-  part of the swing is called sound and the air there is given up, never a sound
-  called air.
+  part of the swing is called sound and the air there is given up, which errs toward
+  keeping sound.
 - The band cuts below 50 Hz and fades in to 120 Hz, so a thump or a decay carried only by
-  content under 100 Hz does not show. On the lab tape the independent detector's
-  full-band reading finds more edges in such content than the speech-band one finds
-  sounds. Whether that content is audible after the render's 80 Hz high-pass is not
-  measured.
+  content under 100 Hz does not show. On the lab tape the independent detector reads
+  200 Hz to 4 kHz and finds 0 edges inside a sound of 6 dB or more; read full-band it
+  finds 20 distinct edges on 13 trims, 10 of them 10 dB or more over its room, each with
+  under 9 dB in the speech band (round 4: 8 and 3). Whether that content is audible after
+  the render's 80 Hz high-pass is not measured.
 - Lab detectors disagree about quiet air on the host's denoised floor, which wanders by
-  10 dB: the verifier's gap-local detector (`mydet`) puts one trim start 20 ms inside a
-  word's tail and takes a peer's 180 ms of silence between two phrases for a sound, where
-  the independent detector finds neither.
+  10 dB: the verifier's gap-local detector (its quiet is the mode of the own word gap)
+  puts one trim start 20 ms inside a word's tail and takes a peer's 180 ms of silence
+  between two phrases for a sound, where the independent detector finds neither.
 
 Pending: the owner's listening check of the #1055 round-5 clips.
 
