@@ -2,6 +2,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearRegisteredCommands } from "../commands/execute";
+import {
+  _resetHistoryMovesForTests,
+  registerHistoryCommands,
+  runHistoryAction,
+} from "../commands/history";
 import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
@@ -12,6 +18,9 @@ import { EditBoundaryMarkView } from "./EditBoundaryMarkView";
 vi.mock("../api", () => ({
   trimClipEdge: vi.fn(async () => undefined),
   rollClipJoin: vi.fn(async () => undefined),
+  undoHistory: vi.fn(async () => null),
+  redoHistory: vi.fn(async () => null),
+  HISTORY_STALE_CODE: "history_stale",
 }));
 
 const { loadBoundaryContext } = vi.hoisted(() => ({
@@ -227,6 +236,47 @@ describe("EditBoundaryMark", () => {
       clip_id: "left",
       edge: "out",
     });
+  });
+
+  it("holds an Undo pressed while a transcript drag loads its boundary token until the roll is sent", async () => {
+    clearRegisteredCommands();
+    registerHistoryCommands();
+    _resetHistoryMovesForTests();
+    vi.mocked(api.undoHistory).mockClear();
+    let release!: () => void;
+    loadBoundaryContext.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ token: "boundary-token" });
+        }),
+    );
+    const left = clip({ id: "left", source_end: 20 });
+    const right = clip({
+      id: "right",
+      source_start: 25,
+      source_end: 40,
+      timeline_start: 10,
+      timeline_end: 25,
+    });
+    const { getByRole } = render(
+      <EditBoundaryMark
+        boundary={boundary}
+        leftClip={left}
+        rightClip={right}
+      />,
+    );
+    const mark = getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+    runHistoryAction("undo");
+    await new Promise((r) => setTimeout(r, 20));
+    expect(api.undoHistory).not.toHaveBeenCalled();
+    release();
+    await waitFor(() => expect(api.undoHistory).toHaveBeenCalledTimes(1));
+    expect(
+      vi.mocked(api.rollClipJoin).mock.invocationCallOrder[0],
+    ).toBeLessThan(vi.mocked(api.undoHistory).mock.invocationCallOrder[0] ?? 0);
   });
 
   it("no-ops when clips are missing", () => {
