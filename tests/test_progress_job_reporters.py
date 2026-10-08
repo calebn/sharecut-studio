@@ -16,7 +16,6 @@ from podcast_mcp.gui.jobs import (
 from podcast_mcp.util.progress import (
     CancelledProgress,
     RecordingProgress,
-    bind_progress,
     progress_task,
 )
 
