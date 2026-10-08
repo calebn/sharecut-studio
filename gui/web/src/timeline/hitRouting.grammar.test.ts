@@ -300,6 +300,50 @@ describe("create menu", () => {
     expect(creates.at(-1)).toBeNull();
   });
 
+  it("picks nothing when the finger lifts without moving onto an item, whatever is under it", () => {
+    const el = lane();
+    const item = document.createElement("button");
+    item.setAttribute(CREATE_ITEM_ATTR, "2");
+    document.body.append(item);
+    const picked: string[] = [];
+    item.addEventListener("click", () => picked.push("item"));
+    document.elementFromPoint = () => item;
+
+    press(el, "pointerdown", 400, 150);
+    router.longPress();
+    press(el, "pointermove", 404, 152);
+    const overWhileWithinSlop = creates.at(-1)?.over;
+    press(el, "pointerup", 404, 152);
+    vi.runAllTimers();
+    const afterLift = creates.at(-1);
+    item.remove();
+
+    expect(overWhileWithinSlop).toBeNull();
+    expect(picked).toEqual([]);
+    expect(afterLift).toMatchObject({ fingerDown: false, over: null });
+  });
+
+  it("picks the item once the finger has moved past the slop onto it", () => {
+    const el = lane();
+    const item = document.createElement("button");
+    item.setAttribute(CREATE_ITEM_ATTR, "2");
+    document.body.append(item);
+    const picked: string[] = [];
+    item.addEventListener("click", () => picked.push("item"));
+    document.elementFromPoint = () => item;
+
+    press(el, "pointerdown", 400, 150);
+    router.longPress();
+    press(el, "pointermove", 400, 160);
+    const over = creates.at(-1)?.over;
+    press(el, "pointerup", 400, 160);
+    vi.runAllTimers();
+    item.remove();
+
+    expect(over).toBe(2);
+    expect(picked).toEqual(["item"]);
+  });
+
   it("keeps the page from scrolling while the finger that opened it is down", () => {
     const el = lane();
     const scroll = () => {

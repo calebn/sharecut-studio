@@ -414,9 +414,16 @@ export function attachHitRouting(
     if (item == null) return null;
     return item === "more" ? "more" : Number(item);
   };
-  const createItemAt = (at: HitPoint): Element | null =>
-    doc.elementFromPoint?.(at.x, at.y)?.closest(`[${CREATE_ITEM_ATTR}]`) ??
-    null;
+  /**
+   * The create item the finger is on, once it has moved past the slop from
+   * where it pressed: an item under the finger as the menu opens is not a
+   * choice, so lifting without moving picks nothing.
+   */
+  const createItemAt = (at: HitPoint, origin: HitPoint): Element | null =>
+    travel(at, origin) < TOUCH_SLOP_PX
+      ? null
+      : (doc.elementFromPoint?.(at.x, at.y)?.closest(`[${CREATE_ITEM_ATTR}]`) ??
+        null);
   /**
    * Where an armed target goes for a finger at `at`: along its own axes
    * only, and held at a soft boundary until pushed past it.
@@ -647,7 +654,7 @@ export function attachHitRouting(
         if (event.pointerId !== phase.pointerId || !phase.view.fingerDown)
           return;
         stop(event);
-        const item = createItemAt(at);
+        const item = createItemAt(at, phase.view.origin);
         const over = item ? Number(item.getAttribute(CREATE_ITEM_ATTR)) : null;
         if (over !== phase.view.over) {
           phase.view = { ...phase.view, over };
@@ -726,7 +733,7 @@ export function attachHitRouting(
           return;
         stop(event);
         suppressClickUntil = Date.now() + GHOST_CLICK_MS;
-        const item = createItemAt(at);
+        const item = createItemAt(at, phase.view.origin);
         if (item) {
           // Picked by lifting on it: the item's own click runs its command.
           setPhase(IDLE);

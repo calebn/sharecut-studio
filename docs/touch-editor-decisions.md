@@ -28,6 +28,7 @@ evidence:
 - #1051 round 4a phone test (2026-10-06): pinch never edits, collapse is remembered, hold-to-repeat and soft stops work
 - #1051 round 4b fix (2026-10-07): the first 4b cut made the clip body a create-menu surface, so touch clip moves were lost; the coordinator restored them under the approved grammar, since a clip body drags in time
 - #1051 owner phone test (2026-10-07): the crossfade grip "still drags at once, without a long press"
+- #1181 round 8 live proof (2026-10-07): at 844x390 a long press in empty space opened the create menu under the finger, and lifting without moving saved Add chapter; a first finger on a chooser chip or the crossfade rail did not count toward a pinch
 - #1051 owner phone test (2026-10-07, round 5): a long press past the last clip still started iOS text selection; the drawer "follows the finger but feels laggy", and the owner asked for a flick to open or close it
 - 2026-10-07 owner, relayed by the coordinator: the grammar is the rule, so it is on by default and the touch chooser lab is retired
 enforced-by:
@@ -43,6 +44,11 @@ enforced-by:
 - gui/web/src/timeline/inputContract.manifest.test.ts::lists, for each command, exactly the touch gestures the grammar derives
 - gui/web/src/timeline/hitRouting.grammar.test.ts::holds an armed drag at a soft boundary, then follows a push past it
 - gui/web/src/timeline/hitRouting.grammar.test.ts::closes, with the selection put back, when a second finger lands
+- gui/web/src/timeline/hitRouting.grammar.test.ts::picks nothing when the finger lifts without moving onto an item, whatever is under it
+- gui/web/src/timeline/hitRouting.fingers.test.ts::cancels the armed target and puts the selection back, so the chip's lift saves nothing
+- gui/web/src/timeline/hitRouting.fingers.test.ts::rolls an armed grip back when a second finger lands on the lanes
+- gui/web/src/timeline/chooserLayout.test.ts::falls back to the viewport when the timeline box is shorter than the menu, below the finger rather than over it
+- gui/web/e2e-compat/touch-grammar.spec.ts::in a short viewport the create menu stays in view off the finger, and lifting without moving saves nothing
 - gui/web/src/timeline/ClipBlock.test.tsx::stops a held arrow at a soft boundary with a bump and a note (#1115)
 - gui/web/src/ui/BottomSheet.test.tsx::opens fully on a quick flick and lands a slow drag at the nearest detent
 - gui/web/src/ui/BottomSheet.test.tsx::follows the finger by transform, a frame at a time, with no render
@@ -692,16 +698,21 @@ chooser lab until the owner made it the default (2026-10-07).
   the clip, but a target in reach takes the long press.
 - **Create menu.** A long press with no target in reach (an empty lane, the
   envelope layer, the body of a clip that cannot move, as in blade mode or
-  on a view-only link) opens a menu above the finger, beside the fixed
-  playhead when there is room, with a dashed mark at the held time on its
-  lane. Its title is the time and lane ("00:30.000 · Avery"). Entries:
+  on a view-only link) opens a menu above the finger (below it near the top
+  of the timeline, beside it in a short viewport such as a phone held
+  sideways, where the timeline's box is shorter than the menu, so it uses the
+  screen), never over it, beside the fixed playhead when there is room, with a
+  dashed mark at the held time on its lane. A menu taller than the screen
+  caps its height and scrolls. Its title is the time and lane ("00:30.000 · Avery"). Entries:
   **Add envelope point** (with the level it adds at), **Blade cut**, then
   **Add chapter** and **Add comment**. Each runs a catalog command at the held
   time (`envelope.addPoint`, `edit.bladeCut`, `edit.addChapter` with
   `atTime`, `comment.draftAt`); an entry the link cannot run stays, disabled,
   with the command's reason beside it. Slide onto an item and lift to pick
-  it, or lift anywhere and tap one. The scrim, Escape and a second finger
-  close it.
+  it, or lift anywhere and tap one. A lift that never moved past
+  `TOUCH_SLOP_PX` picks nothing, whatever lies under the finger: round 8's
+  live proof found that at 844x390 the menu opened under the finger and a
+  lift saved Add chapter. The scrim, Escape and a second finger close it.
 - **Detents.** An armed drag that reaches a soft boundary holds there until
   the finger pushes `DRAG_DETENT_PX` (16 px) past it, with a line and an
   "At the playhead" caption. The boundaries come from `softBoundaries`, the
@@ -724,7 +735,11 @@ chooser lab until the owner made it the default (2026-10-07).
   motion the sheet lands at once, while the drag itself still tracks the
   finger, since it is the user's own motion.
 - **Second finger.** It cancels and rolls back arming, a detent drag, a clip
-  move and the create menu, as it does any one-finger action.
+  move and the create menu, as it does any one-finger action. A first finger
+  on a chooser chip (which sits outside the timeline's scroller) or on the
+  crossfade rail counts like one on the lanes: the router treats fingers on
+  chips, create items and adopted parts as its own. Round 8 found that a
+  second finger landing after one on a chip armed a target and saved.
 - **Touch paths.** The first 4b cut made the clip body a plain surface, so a
   long press there opened the create menu and touch clip moves were lost
   without a failing test. The conformance test now fails when a kind with an
@@ -732,7 +747,9 @@ chooser lab until the owner made it the default (2026-10-07).
   surface. The scan reads `onPointerDown` props and spread handler bags. It
   found no other kind without a touch path. The crossfade endpoint grip, in
   its own rail below the lanes, dragged at once without a long press. It is
-  now the `crossfade-end` kind, and its rail routes its own presses through
-  the same router, so a finger arms it before it drags; a mouse drags it as
-  before. The conformance test also fails when any kind with an axis drags
+  now the `crossfade-end` kind, and the timeline's one router adopts its rail
+  (`HitRouter.adopt`, reached through `useHitRouter`), so a finger arms it
+  before it drags and a second finger on the lanes rolls it back; a mouse
+  drags it as before. The rail first ran a second router, whose finger count
+  could not see the lanes'. The conformance test also fails when any kind with an axis drags
   on touch before a long press arms it, selected or not.

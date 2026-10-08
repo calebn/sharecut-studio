@@ -76,6 +76,8 @@ describe("CreateMenu", () => {
     expect(useDawStore.getState().statusAnnouncement).toMatch(
       /^Create at .+ on Avery, 4 actions$/,
     );
+    // The menu is the visible control: a toast would sit over its last items.
+    expect(useDawStore.getState().feedbackToast).toBeNull();
   });
 
   it("runs the entry's command at the held time and lane, and closes", () => {
@@ -128,6 +130,49 @@ describe("CreateMenu", () => {
     );
     expect(router.close).toHaveBeenCalledOnce();
     expect(container).toBeTruthy();
+  });
+
+  it("moves below the finger, off it, when the timeline box is too short for the menu (a phone held sideways)", () => {
+    const width = vi
+      .spyOn(HTMLElement.prototype, "offsetWidth", "get")
+      .mockReturnValue(240);
+    const height = vi
+      .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+      .mockReturnValue(218);
+    const viewport = { w: window.innerWidth, h: window.innerHeight };
+    window.innerWidth = 844;
+    window.innerHeight = 390;
+    try {
+      view = { ...view, origin: { x: 566, y: 116 } };
+      useDawStore.setState({
+        projectPath: "/tmp/ep.project.json",
+        shareCapabilities: null,
+        guestMode: null,
+        project: minimalProject({ tracks: [sampleTrack({ id: "host" })] }),
+      });
+      render(
+        <CreateMenu
+          view={view}
+          place={place}
+          router={router}
+          bounds={{ left: 0, top: 53, right: 844, bottom: 190 }}
+          avoidX={null}
+        />,
+      );
+      const menu = document.querySelector(".create-menu") as HTMLElement;
+      expect({
+        left: menu.style.left,
+        top: menu.style.top,
+        placement: document
+          .querySelector(".create-menu-layer")
+          ?.getAttribute("data-placement"),
+      }).toEqual({ left: "446px", top: "140px", placement: "below" });
+    } finally {
+      window.innerWidth = viewport.w;
+      window.innerHeight = viewport.h;
+      width.mockRestore();
+      height.mockRestore();
+    }
   });
 
   it("has no axe violations", async () => {

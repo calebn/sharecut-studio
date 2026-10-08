@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chooserItems, layoutChips } from "./chooserLayout";
+import { chooserItems, layoutChips, layoutMenu } from "./chooserLayout";
 import type { HitCandidate } from "./hitCandidates";
 
 const phone = { left: 0, top: 0, right: 360, bottom: 800 };
@@ -117,5 +117,93 @@ describe("chooserItems", () => {
       { kind: "more" },
     ]);
     expect(chooserItems(seven, 2)).toEqual(chooserItems(seven, 0));
+  });
+});
+
+describe("layoutMenu", () => {
+  const size = { width: 240, height: 218 };
+  const viewport = { left: 0, top: 0, right: 844, bottom: 390 };
+
+  it("sits above the finger when there is room", () => {
+    const bounds = { left: 0, top: 100, right: 390, bottom: 800 };
+    expect(layoutMenu({ x: 247, y: 500 }, bounds, size, null)).toEqual({
+      placement: "above",
+      left: 127,
+      top: 258,
+      maxHeight: null,
+    });
+  });
+
+  it("sits below the finger near the top of the timeline", () => {
+    const bounds = { left: 0, top: 100, right: 390, bottom: 800 };
+    expect(layoutMenu({ x: 247, y: 260 }, bounds, size, null)).toEqual({
+      placement: "below",
+      left: 127,
+      top: 284,
+      maxHeight: null,
+    });
+  });
+
+  it("falls back to the viewport when the timeline box is shorter than the menu, below the finger rather than over it", () => {
+    const bounds = { left: 0, top: 53, right: 844, bottom: 190 };
+    expect(
+      layoutMenu({ x: 566, y: 116 }, bounds, size, null, viewport),
+    ).toEqual({ placement: "below", left: 446, top: 140, maxHeight: null });
+  });
+
+  it("goes beside the finger when neither above nor below has room", () => {
+    const short = { left: 0, top: 0, right: 844, bottom: 260 };
+    expect(layoutMenu({ x: 566, y: 130 }, short, size, null)).toEqual({
+      placement: "left",
+      left: 302,
+      top: 21,
+      maxHeight: null,
+    });
+  });
+
+  it("keeps clear of the fixed playhead above the finger", () => {
+    const bounds = { left: 0, top: 0, right: 844, bottom: 800 };
+    expect(layoutMenu({ x: 260, y: 500 }, bounds, size, 250).left).toBe(258);
+    expect(layoutMenu({ x: 240, y: 500 }, bounds, size, 250).left).toBe(2 + 14);
+  });
+
+  it("prefers the side that does not cross the fixed playhead", () => {
+    const short = { left: 0, top: 0, right: 844, bottom: 260 };
+    expect(layoutMenu({ x: 400, y: 130 }, short, size, 500)).toMatchObject({
+      placement: "left",
+      left: 136,
+    });
+  });
+
+  it("caps the menu's height and lets it scroll when even the viewport is too short", () => {
+    const tiny = { left: 0, top: 0, right: 844, bottom: 200 };
+    expect(
+      layoutMenu({ x: 400, y: 100 }, tiny, { width: 240, height: 300 }, null),
+    ).toEqual({
+      placement: "right",
+      left: 424,
+      top: 16,
+      maxHeight: 168,
+    });
+  });
+
+  it("keeps the finger at least a gap away from the menu wherever it presses", () => {
+    const presses: [number, number][] = [
+      [566, 116],
+      [30, 30],
+      [820, 370],
+      [420, 195],
+    ];
+    const gaps = presses.map(([x, y]) => {
+      const out = layoutMenu({ x, y }, viewport, size, null);
+      const height = out.maxHeight ?? size.height;
+      return Math.max(
+        out.left - x,
+        x - (out.left + size.width),
+        out.top - y,
+        y - (out.top + height),
+      );
+    });
+    expect(gaps).toEqual([24, 24, 24, 24]);
   });
 });

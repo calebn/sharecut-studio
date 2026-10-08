@@ -135,47 +135,121 @@ export function layoutChips(
 /** Gap between the finger and the create menu's near edge (px). */
 export const CREATE_MENU_GAP_PX = 24;
 
+export type MenuPlacement = "above" | "below" | "right" | "left";
+
 export interface MenuLayout {
-  placement: "above" | "below";
+  placement: MenuPlacement;
   left: number;
   top: number;
+  /** The menu is taller than any room there is: cap its height to this and let it scroll. */
+  maxHeight: number | null;
 }
 
+type MenuSize = { width: number; height: number };
+
+const rangeIn = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
+
 /**
- * Where the create menu of `size` sits for `finger`: above it (below near
- * the top), inside `bounds`, and beside the fixed playhead at `avoidX`
- * rather than over it when there is room, so the line stays in view.
+ * Where the create menu of `size` sits for `finger`, never over the finger:
+ * above it, else below it, else beside it, inside `bounds` (the timeline's
+ * visible box) or, when the menu is taller than that box (a phone held
+ * sideways), inside `viewport`. When even the viewport has no room it is
+ * placed beside the finger with its height capped, so it scrolls. It keeps
+ * clear of the fixed playhead at `avoidX` where there is room, so the line
+ * stays in view.
  */
 export function layoutMenu(
   finger: HitPoint,
   bounds: ChooserBounds,
-  size: { width: number; height: number },
+  size: MenuSize,
   avoidX: number | null,
+  viewport: ChooserBounds = bounds,
 ): MenuLayout {
-  const roomAbove = finger.y - bounds.top - CHOOSER_EDGE_PX;
-  const roomBelow = bounds.bottom - CHOOSER_EDGE_PX - finger.y;
-  const need = size.height + CREATE_MENU_GAP_PX;
-  const placement =
-    roomAbove >= need || roomAbove >= roomBelow ? "above" : "below";
-  const top =
-    placement === "above"
-      ? Math.max(bounds.top + CHOOSER_EDGE_PX, finger.y - need)
-      : Math.min(
-          bounds.bottom - CHOOSER_EDGE_PX - size.height,
-          finger.y + CREATE_MENU_GAP_PX,
-        );
-  let left = finger.x - size.width / 2;
-  if (avoidX != null && left < avoidX && left + size.width > avoidX) {
-    left =
-      finger.x <= avoidX
-        ? avoidX - CHOOSER_GAP_PX - size.width
-        : avoidX + CHOOSER_GAP_PX;
+  for (const box of [bounds, viewport]) {
+    const fit = menuFitIn(finger, box, size, avoidX);
+    if (fit) return { ...fit, maxHeight: null };
   }
-  const minLeft = bounds.left + CHOOSER_EDGE_PX;
-  const maxLeft = bounds.right - CHOOSER_EDGE_PX - size.width;
+  return menuBesideCapped(finger, viewport, size);
+}
+
+function menuFitIn(
+  finger: HitPoint,
+  box: ChooserBounds,
+  size: MenuSize,
+  avoidX: number | null,
+): Omit<MenuLayout, "maxHeight"> | null {
+  const need = size.height + CREATE_MENU_GAP_PX;
+  const minLeft = box.left + CHOOSER_EDGE_PX;
+  const maxLeft = box.right - CHOOSER_EDGE_PX - size.width;
+  const minTop = box.top + CHOOSER_EDGE_PX;
+  const maxTop = box.bottom - CHOOSER_EDGE_PX - size.height;
+  if (maxLeft < minLeft || maxTop < minTop) return null;
+  const roomAbove = finger.y - box.top - CHOOSER_EDGE_PX;
+  const roomBelow = box.bottom - CHOOSER_EDGE_PX - finger.y;
+  if (roomAbove >= need || roomBelow >= need) {
+    let left = finger.x - size.width / 2;
+    if (avoidX != null && left < avoidX && left + size.width > avoidX) {
+      left =
+        finger.x <= avoidX
+          ? avoidX - CHOOSER_GAP_PX - size.width
+          : avoidX + CHOOSER_GAP_PX;
+    }
+    const above = roomAbove >= need;
+    return {
+      placement: above ? "above" : "below",
+      left: rangeIn(left, minLeft, maxLeft),
+      top: above ? finger.y - need : finger.y + CREATE_MENU_GAP_PX,
+    };
+  }
+  const right = finger.x + CREATE_MENU_GAP_PX;
+  const left = finger.x - CREATE_MENU_GAP_PX - size.width;
+  const sides = [
+    { placement: "right" as const, left: right, room: maxLeft - right },
+    { placement: "left" as const, left, room: left - minLeft },
+  ]
+    .filter((side) => side.room >= 0)
+    .sort(
+      (a, b) =>
+        Number(crossesPlayhead(a.left, size.width, avoidX)) -
+          Number(crossesPlayhead(b.left, size.width, avoidX)) ||
+        b.room - a.room,
+    );
+  const side = sides[0];
+  return side
+    ? {
+        placement: side.placement,
+        left: side.left,
+        top: rangeIn(finger.y - size.height / 2, minTop, maxTop),
+      }
+    : null;
+}
+
+const crossesPlayhead = (left: number, width: number, avoidX: number | null) =>
+  avoidX != null && left < avoidX && left + width > avoidX;
+
+function menuBesideCapped(
+  finger: HitPoint,
+  box: ChooserBounds,
+  size: MenuSize,
+): MenuLayout {
+  const maxHeight = Math.max(0, box.bottom - box.top - 2 * CHOOSER_EDGE_PX);
+  const right = finger.x + CREATE_MENU_GAP_PX;
+  const left = finger.x - CREATE_MENU_GAP_PX - size.width;
+  const roomRight = box.right - CHOOSER_EDGE_PX - (right + size.width);
+  const roomLeft = left - (box.left + CHOOSER_EDGE_PX);
+  const beside = roomRight >= roomLeft;
   return {
-    placement,
-    left: Math.max(minLeft, Math.min(maxLeft, left)),
-    top,
+    placement: beside ? "right" : "left",
+    left: rangeIn(
+      beside ? right : left,
+      box.left + CHOOSER_EDGE_PX,
+      Math.max(
+        box.left + CHOOSER_EDGE_PX,
+        box.right - CHOOSER_EDGE_PX - size.width,
+      ),
+    ),
+    top: box.top + CHOOSER_EDGE_PX,
+    maxHeight,
   };
 }

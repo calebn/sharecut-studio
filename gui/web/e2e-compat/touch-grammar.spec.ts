@@ -102,14 +102,18 @@ async function splitGuestLane(page: Page): Promise<GuestLane> {
 }
 
 /** Opens the fixture on the phone timeline, after `setup` edits the project. */
-async function openWith<T>(page: Page, setup: () => Promise<T>): Promise<T> {
-  await page.setViewportSize(IPHONE);
+async function openWith<T>(
+  page: Page,
+  setup: () => Promise<T>,
+  size: { width: number; height: number } = IPHONE,
+): Promise<T> {
+  await page.setViewportSize(size);
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await buildFixture(page, projectPath, CLIENT_ID);
   const made = await setup();
   await page.goto(`/?project=${encodeURIComponent(projectPath)}`);
   await expect(page.locator(".daw-shell")).toBeVisible();
-  await openPhoneTimeline(page);
+  if (size.width < 768) await openPhoneTimeline(page);
   await setTheme(page, "dark");
   await setZoom(page, 3);
   return made;
@@ -491,6 +495,48 @@ test("a long-press past the last clip opens the create menu and selects no text"
     selected,
   });
   expect(selected).toBe("");
+});
+
+test("in a short viewport the create menu stays in view off the finger, and lifting without moving saves nothing", async ({
+  page,
+  context,
+  browserName,
+}, info) => {
+  const landscape = { width: 844, height: 390 };
+  const guest = await openWith(page, () => splitGuestLane(page), landscape);
+  const finger = await newFinger(context, page, browserName);
+  const commands = watchCommands(page);
+  const gap = await showGap(page, guest);
+  const at = { x: gap.start - 5 * gap.pps, y: gap.y };
+  await hold(page, finger, at);
+  const menu = page.getByRole("menu", { name: /^Create at / });
+  await expect(menu).toBeVisible();
+  const box = await menu.boundingBox();
+  if (!box) throw new Error("the create menu has no box");
+  const underFinger = await page.evaluate(
+    ({ x, y }) =>
+      document.elementFromPoint(x, y)?.closest(".create-menu") != null,
+    at,
+  );
+  await frame(page, info, `grammar-create-short-held-${browserName}`);
+  await finger.up();
+  await page.waitForTimeout(700);
+  const stillOpen = await menu.isVisible();
+  await frame(page, info, `grammar-create-short-lifted-${browserName}`);
+  json(info, `grammar-create-short-${browserName}`, {
+    at,
+    box,
+    underFinger,
+    stillOpen,
+    commands: commands.map((c) => c.type),
+  });
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(landscape.width);
+  expect(box.y + box.height).toBeLessThanOrEqual(landscape.height);
+  expect(underFinger).toBe(false);
+  expect(stillOpen).toBe(true);
+  expect(commands.map((c) => c.type)).toEqual([]);
 });
 
 test("the strip follows the finger; a flick opens or closes it fully, a slow drag lands at the nearest detent", async ({
