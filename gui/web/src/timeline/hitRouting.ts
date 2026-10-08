@@ -28,8 +28,8 @@
  * chip is armed (`chipGesture.ts`).
  *
  * Pinch never edits: the moment a second finger lands after one that began on
- * the timeline, on a chooser chip, on a create item or on an adopted part (the
- * crossfade rail), anywhere on the page, every
+ * the timeline, on a chooser chip, on a create item, on the drawer or on an
+ * adopted part (the crossfade rail), anywhere on the page, every
  * pointer's uncommitted action (an armed drag, trim, fade, chip grab, range,
  * create menu or a press still deciding) gets a `pointercancel`, which each
  * owner already treats as "drop the draft, save nothing", and the selection
@@ -45,6 +45,7 @@ import {
   LONG_PRESS_MS,
   TOUCH_SLOP_PX,
 } from "../hooks/gestureConstants";
+import { COMPACT_SHEET_CLASS } from "../ui/compactSheet";
 import {
   AWAY,
   type ChipFinger,
@@ -326,12 +327,18 @@ export function attachHitRouting(
     for (const part of parts) if (part.contains(target)) return part;
     return null;
   };
-  /** A finger here is the router's own: on the timeline, a chip or a menu item. */
+  /**
+   * A finger here counts toward a pinch: on the timeline, a chip, a menu item
+   * or the drawer. Two fingers never edit, so a finger resting on the drawer
+   * is a first finger for a second one landing on a target.
+   */
   const ownsTouch = (target: Node) =>
     scope.contains(target) ||
     partOf(target) != null ||
     (target instanceof Element &&
-      target.closest(`[${CHOOSER_ITEM_ATTR}],[${CREATE_ITEM_ATTR}]`) != null);
+      target.closest(
+        `[${CHOOSER_ITEM_ATTR}],[${CREATE_ITEM_ATTR}],.${COMPACT_SHEET_CLASS}`,
+      ) != null);
   let phase: Phase = IDLE;
   const gesture: MultiTouch = {
     pointers: new Map(),
