@@ -11,7 +11,15 @@ from fastapi.testclient import TestClient
 from podcast_mcp.edits.share_capabilities import capabilities_for_role
 from podcast_mcp.gui.server import create_app
 from podcast_mcp.mcp.tools import guest as guest_tools_pkg
-from podcast_mcp.models import load_project, save_project
+from podcast_mcp.models import (
+    Clip,
+    MediaAsset,
+    SourceRecording,
+    Track,
+    TrackRole,
+    load_project,
+    save_project,
+)
 from podcast_mcp.services.app import ProjectWorkspace
 from podcast_mcp.services.collaboration.review import ReviewService
 from podcast_mcp.services.collaboration.share import ShareService
@@ -153,6 +161,43 @@ def test_handle_mcp_jsonrpc_filters_tools(minimal_project, sample_wav, tmp_works
     assert "error" in denied_empty
     assert "share capabilities do not allow tool" in denied_empty["error"]["message"]
     assert "missing" not in denied_empty["error"]["message"].lower()
+
+
+def test_guest_list_clips_names_no_recording_file(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    ws = _seed_premix(minimal_project, sample_wav)
+    ws.project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=60.0),
+        )
+    ]
+    ws.project.sources = [SourceRecording(id="take2", path="raw/take2.wav", duration_sec=30.0)]
+    ws.project.timeline.clips = [
+        Clip(id="a", track_id="host", source_start=0.0, source_end=5.0, timeline_start=0.0),
+        Clip(id="b", track_id="host", source_start=5.0, source_end=9.0, timeline_start=5.0),
+        Clip(
+            id="c",
+            track_id="host",
+            source_id="take2",
+            source_start=0.0,
+            source_end=4.0,
+            timeline_start=9.0,
+        ),
+    ]
+    ws.save()
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
+
+    text = _call(share["token"], "guest_list_clips")["result"]["content"][0]["text"]
+
+    rows = {row["id"]: row for row in json.loads(text)["tracks"]["host"]}
+    assert rows["a"]["recording_key"] == rows["b"]["recording_key"] == "rec_98304e27cdb8703c"
+    assert rows["c"]["recording_key"] == "rec_0d92026341a60c29"
+    assert ".wav" not in text
+    assert "raw/" not in text
 
 
 def test_guest_tool_surface_and_protocol_edges(

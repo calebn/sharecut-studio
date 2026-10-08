@@ -532,6 +532,8 @@ const hostClip: ClipRow = {
   fade_out_ms: 0,
   join_in_mode: "fade",
   source_id: null,
+  source_duration_sec: null,
+  recording_key: null,
 };
 
 function twoTrackProject(overrides: Partial<ProjectView> = {}) {

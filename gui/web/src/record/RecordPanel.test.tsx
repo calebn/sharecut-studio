@@ -307,6 +307,8 @@ describe("RecordPanel", () => {
               fade_out_ms: 0,
               join_in_mode: "fade",
               source_id: "rec-room1-0-p_host-0",
+              source_duration_sec: null,
+              recording_key: null,
             },
           ],
         },

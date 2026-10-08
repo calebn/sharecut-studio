@@ -1307,6 +1307,8 @@ describe("TranscriptPanel", () => {
                 fade_out_ms: 0,
                 join_in_mode: "fade",
                 source_id: null,
+                source_duration_sec: null,
+                recording_key: null,
               },
               {
                 id: "c2",
@@ -1319,6 +1321,8 @@ describe("TranscriptPanel", () => {
                 fade_out_ms: 0,
                 join_in_mode: "fade",
                 source_id: null,
+                source_duration_sec: null,
+                recording_key: null,
               },
               {
                 id: "c3",
@@ -1331,6 +1335,8 @@ describe("TranscriptPanel", () => {
                 fade_out_ms: 0,
                 join_in_mode: "fade",
                 source_id: null,
+                source_duration_sec: null,
+                recording_key: null,
               },
             ],
           },

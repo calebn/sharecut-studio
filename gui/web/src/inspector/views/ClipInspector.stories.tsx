@@ -13,6 +13,8 @@ const clip: ClipRow = {
   id: "clip-story",
   track_id: "host",
   source_id: null,
+  source_duration_sec: null,
+  recording_key: null,
   source_start: 0,
   source_end: 10,
   timeline_start: 0,
