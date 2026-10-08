@@ -305,6 +305,7 @@
           "src/podcast_mcp/edits/acoustic_gap.py",
           "src/podcast_mcp/edits/breath_detect.py",
           "src/podcast_mcp/edits/room_model.py",
+          "src/podcast_mcp/edits/shared_pause.py",
           "src/podcast_mcp/edits/speech_energy_guard.py"
         ]
       }

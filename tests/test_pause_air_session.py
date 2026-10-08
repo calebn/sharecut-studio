@@ -171,3 +171,51 @@ def test_the_sounds_a_trim_must_leave_whole_are_reported_on_the_session_clock() 
     assert isinstance(got, PauseAir)
     (hum_span,) = [(lo, hi) for lo, hi in got.kept if 4.8 < lo < 5.1]
     assert hum_span == pytest.approx((4.87, 5.03), abs=1e-6)
+
+
+def _long_track(blip_at: float):
+    """40 s: words from 0 to 12 s over -70 dBFS room tone, then room tone alone with one
+    130 ms blip 43 dB under the speech (removable) at ``blip_at``."""
+    from test_breath_detect import _dbfs, _shaped_noise
+
+    rate = 16000
+    signal = _shaped_noise(40 * rate, _FLOOR_RMS, rate)
+    tone = _harmonic_tone(4800, _SPEECH_RMS)
+    words = [(f"w{i}", i * 0.6, i * 0.6 + 0.3) for i in range(20)]
+    for _, at, _end in words:
+        signal[round(at * rate) : round(at * rate) + tone.size] = tone
+    blip = _shaped_noise(round(0.13 * rate), _dbfs(-58.0), rate)
+    signal[round(blip_at * rate) : round(blip_at * rate) + blip.size] = blip
+
+    def window(path, start_sec, duration_sec, sample_rate=16000):
+        i = round(start_sec * sample_rate)
+        return signal[i : i + round(duration_sec * sample_rate)]
+
+    return words, window
+
+
+@pytest.mark.parametrize(
+    ("pause", "cut"), [((12.3, 39.0), (13.0, 38.0)), ((25.0, 31.0), (25.2, 30.8))]
+)
+def test_a_quiet_sound_is_removed_whole_whichever_pause_asks_about_it(pause, cut) -> None:
+    # The blip at 26 s is 43 dB under the track's speech. A short pause of silence around
+    # it holds almost none of the track's speech in its own frames; the track's speech level
+    # is the track's, so the blip is quiet for both and goes whole with the air.
+    words, window = _long_track(26.0)
+    project = _host_project(words)
+
+    with patch("podcast_mcp.edits.breath_detect.load_mono_window", side_effect=window):
+        got = pause_air_span(project, "host", *cut, pause=pause)
+
+    assert isinstance(got, PauseAir) and got.span == pytest.approx(cut)
+
+
+def test_a_peer_sound_where_the_span_runs_a_little_past_the_pause_still_moves_the_edge() -> None:
+    # The edge checks can leave the span outside the pause it was cut from. The guest's
+    # word at 4.20 to 4.28 is before the pause (4.3) and inside the span.
+    word = _harmonic_tone(1280, _SPEECH_RMS)
+    guest = _gated((word, 4.2))
+
+    got = _air(_project(), "host", (4.1, 5.3), host=_fake_windows(), guest=guest)
+
+    assert got == pytest.approx((4.33, 5.3))
