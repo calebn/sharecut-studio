@@ -129,10 +129,11 @@ export function resolveHits(
     }
   }
   const hitTarget = targets.find((t) => t.element === hit) ?? null;
-  return rankHitTargets(targets, pointer, hitRadiusPx(pointerType), hitTarget)
-    .filter(
-      ({ candidate, target }) =>
-        target === hitTarget || reachable(root, target, candidate),
-    )
-    .map(({ candidate, target }) => ({ candidate, element: target.element }));
+  return rankHitTargets(
+    targets,
+    pointer,
+    hitRadiusPx(pointerType),
+    hitTarget,
+    (target, at) => reachable(root, target, at),
+  ).map(({ candidate, target }) => ({ candidate, element: target.element }));
 }
