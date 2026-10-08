@@ -1160,7 +1160,7 @@ def test_crossing_breath_refines_only_a_safe_quiet_onset(backend: str, protectio
 # Pause trims (#1055). A pause trim removes only the air inside it. A track's air is its
 # room tone, read between its own words; the pause's quiet is the 20th percentile of the
 # pause's own 10 ms frames (digital silence included) held to that room, and a sound is a
-# run more than 6 dB over that quiet, dips of up to 50 ms bridged, that peaks at least
+# run more than 3 dB over that quiet, dips of up to 50 ms bridged, that peaks at least
 # 10 dB over it. No edge may sit inside a sound. A sound that reaches 40 dB under the
 # track's speech level stays whole and the trim is the longest run between such sounds; a
 # quieter sound is removed whole or left whole. The same rule runs on every dialogue
@@ -1487,11 +1487,25 @@ def test_a_peer_breathing_through_the_pause_leaves_no_air_on_its_track() -> None
 
 def test_a_peer_breath_that_ends_inside_the_pause_moves_the_end_edge_out_of_it() -> None:
     # The same breath ends at 5.0 with a 60 ms fade, and the trim's start sits inside it:
-    # the start moves to the end of the breath's sound, a guard frame past its fade.
+    # the start moves to the end of the breath's sound (the fade down to 3 dB over the room),
+    # a guard frame past it.
     breath = _frames_at([-57.0] * 60 + [-60.0, -63.0, -66.0, -68.0, -69.0, -70.0])
     guest = _fake_windows(placed=((breath, 4.36),))
 
     assert _air_with_words((4.45, 5.3), guest=guest) == pytest.approx((5.0, 5.3))
+
+
+def test_a_track_that_sounds_all_through_the_window_has_no_room_and_no_air() -> None:
+    # Words back to back from 0 to 9.9 s leave under half a second between them outside the
+    # pause: the track has no room to judge air by, so the window is one sound to keep.
+    words = [(f"w{i}", i * 0.5, i * 0.5 + 0.5) for i in range(20)]
+    host = _fake_windows()
+    project = _host_project(words)
+
+    with patch("podcast_mcp.edits.breath_detect.load_mono_window", side_effect=host):
+        from podcast_mcp.edits.breath_detect import pause_air_span
+
+        assert pause_air_span(project, "host", 4.4, 5.3, pause=(4.3, 5.45)) is None
 
 
 def test_a_silent_peer_mic_with_only_room_tone_never_blocks_a_pause_trim() -> None:
@@ -1519,8 +1533,8 @@ def _rumbling_room(*breaths: tuple[np.ndarray, float]) -> tuple[tuple[np.ndarray
 
 def test_a_room_rumble_does_not_hide_a_breath_from_a_pause_trim() -> None:
     # The room is 40 Hz rumble at -58 dBFS over -78 dBFS of tone. A broadband breath at
-    # -60 dBFS adds only 4 dB to the rumble but is 18 dB over the room as heard (the
-    # render high-passes at 80 Hz), so a trim whose start sits in it moves to its end.
+    # -60 dBFS adds only 4 dB to the rumble but is 18 dB over the room in the speech band, so
+    # a trim whose start sits in it moves to its end.
     breath = _frames_at([-60.0] * 60)
 
     assert _air_with_words((4.5, 5.3), placed=_rumbling_room((breath, 4.4))) == pytest.approx(
