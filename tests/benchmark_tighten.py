@@ -21,7 +21,7 @@ import pytest
 
 from podcast_mcp.config import load_defaults
 from podcast_mcp.edits import apply_tighten_decisions, propose_tighten_edits
-from podcast_mcp.edits.decisions import _edit_to_timeline_range
+from podcast_mcp.edits.decisions import _edit_to_timeline_range, approve_edits
 from podcast_mcp.edits.ranges import merge_timeline_ranges
 from podcast_mcp.edits.transcript_sync import rebuild_combined
 from podcast_mcp.models import (
@@ -168,14 +168,18 @@ def _count_rebuild_combined(result: TightenBenchmarkResult) -> Iterator[None]:
         yield
 
 
-def _owner_approves(project: EpisodeProject, *, fillers: bool, pauses: bool) -> None:
-    """Pause trims are review-only (#1055), so apply-all leaves them: approve them (or hold
-    the fillers back) so the apply this benchmark times is the one a reviewer triggers."""
-    for e in project.edit_decisions:
-        if (e.reason or "").startswith("pause:"):
-            e.review_required = not pauses
-        elif not fillers:
-            e.review_required = True
+def _pause_ids(project: EpisodeProject, *, pauses: bool) -> list[str]:
+    """The pause trims the benchmark's reviewer approves (none when ``pauses`` is off)."""
+    return [
+        e.id for e in project.edit_decisions if pauses and (e.reason or "").startswith("pause:")
+    ]
+
+
+def _hold_back_fillers(project: EpisodeProject, *, fillers: bool) -> None:
+    if not fillers:
+        for e in project.edit_decisions:
+            if (e.reason or "").startswith("filler:"):
+                e.review_required = True
 
 
 def run_tighten_benchmark(
@@ -189,11 +193,14 @@ def run_tighten_benchmark(
         proposed = propose_tighten_edits(project, defaults, replace_existing=True)
         result.propose_sec = time.perf_counter() - t0
         result.decisions_proposed = len(proposed.decisions)
-        _owner_approves(project, fillers=fillers, pauses=pauses)
-        result.decisions_applied = sum(
+        # Pause trims are review-only (#1055): a reviewer approves them, and apply-all
+        # takes the fillers.
+        _hold_back_fillers(project, fillers=fillers)
+        approved = _pause_ids(project, pauses=pauses)
+        result.decisions_applied = len(approved) + sum(
             1
             for e in project.edit_decisions
-            if (e.reason or "").startswith(("filler:", "pause:")) and not e.review_required
+            if (e.reason or "").startswith("filler:") and not e.review_required
         )
 
         ranges: list[tuple[float, float]] = []
@@ -203,6 +210,8 @@ def run_tighten_benchmark(
         result.merged_ranges = len(merge_timeline_ranges(ranges))
 
         t1 = time.perf_counter()
+        if approved:
+            approve_edits(project, approved, confirm_cut_speech=True)
         apply_tighten_decisions(project)
         result.apply_sec = time.perf_counter() - t1
 
