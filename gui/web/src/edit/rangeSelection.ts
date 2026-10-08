@@ -42,6 +42,8 @@ export function rangeClips(project: ProjectView): ClipRow[] {
         id: `clip_${track.id}_full`,
         track_id: track.id,
         source_id: null,
+        source_duration_sec: null,
+        recording_key: null,
         source_start: 0,
         source_end: track.duration_sec,
         timeline_start: 0,

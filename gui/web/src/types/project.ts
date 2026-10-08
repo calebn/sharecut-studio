@@ -51,15 +51,16 @@ export interface ClipRow {
   join_crossfade_blocked?: CrossfadeBlocked | null;
   source_id: string | null;
   /**
-   * Length (s) of the recording this clip plays; null or absent when unmeasured. A trim
+   * Length (s) of the recording this clip plays; null when unmeasured. A trim
    * stops the out edge there (`edits/clips_ops.trim_edge_limits`).
    */
-  source_duration_sec?: number | null;
+  source_duration_sec: number | null;
   /**
-   * Workspace-relative path of that recording; null or absent when it has none. Clips
-   * with the same path play the same file, whatever their `source_id`.
+   * Opaque identity of that recording; null when it has none. Clips with the same key
+   * play the same file, whatever their `source_id`. It names no file, so a share guest
+   * learns no file name.
    */
-  recording_path?: string | null;
+  recording_key: string | null;
   origin_track_id?: string | null;
   mute_regions?: ClipMuteRegion[];
   /** Source spans where the recording clipped, inside this clip window. */

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import math
 import uuid
 from collections.abc import Mapping, Sequence
@@ -312,18 +313,22 @@ def source_duration_sec(project: EpisodeProject, clip: Clip) -> float | None:
     return float(track.media.duration_sec)
 
 
-def recording_path(project: EpisodeProject, clip: Clip) -> str | None:
-    """Workspace-relative path of the recording ``clip`` plays; ``None`` when it has none.
+def recording_key(project: EpisodeProject, clip: Clip) -> str | None:
+    """Opaque identity of the recording ``clip`` plays; ``None`` when it has none.
 
-    Two clips play the same recording when this agrees (:func:`_same_recording`), so
-    the DAW's mirror of :func:`trim_edge_limits` reads it from each ``list_clips`` row.
+    ``rec_`` plus the first 16 hex digits of the SHA-256 of the recording's
+    workspace-relative path. Two clips share a key when they play the same file
+    (:func:`_same_recording`), which is what the DAW's mirror of
+    :func:`trim_edge_limits` reads from each ``list_clips`` row. It names no file, so a
+    share guest learns no file name from a row.
     """
     try:
-        return workspace_relpath(
+        path = workspace_relpath(
             project, recording_audio_path(project, clip.track_id, clip.source_id)
         )
     except (CodedError, ValueError):
         return None
+    return f"rec_{hashlib.sha256(path.encode()).hexdigest()[:16]}"
 
 
 def _same_recording(project: EpisodeProject, first: Clip, second: Clip) -> bool:

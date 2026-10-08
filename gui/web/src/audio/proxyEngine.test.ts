@@ -172,6 +172,8 @@ describe("ProxyEngine", () => {
         fade_out_ms: 0,
         join_in_mode: "fade",
         source_id: null,
+        source_duration_sec: null,
+        recording_key: null,
       },
     ];
     engine.setProject({ host: clips }, [
@@ -234,6 +236,8 @@ describe("ProxyEngine", () => {
           fade_out_ms: 0,
           join_in_mode: "fade" as const,
           source_id: null,
+          source_duration_sec: null,
+          recording_key: null,
         },
       ],
     };
@@ -285,6 +289,8 @@ describe("ProxyEngine", () => {
             fade_out_ms: 2000,
             join_in_mode: "fade",
             source_id: null,
+            source_duration_sec: null,
+            recording_key: null,
           },
         ],
       },
@@ -351,6 +357,8 @@ describe("ProxyEngine", () => {
             fade_out_ms: 0,
             join_in_mode: "fade",
             source_id: null,
+            source_duration_sec: null,
+            recording_key: null,
           },
         ],
       },

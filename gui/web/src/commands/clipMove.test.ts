@@ -39,6 +39,8 @@ function clip(id: string, trackId: string, start: number): ClipRow {
     fade_out_ms: 0,
     join_in_mode: "fade",
     source_id: null,
+    source_duration_sec: null,
+    recording_key: null,
   };
 }
 

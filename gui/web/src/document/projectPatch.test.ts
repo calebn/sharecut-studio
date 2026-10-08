@@ -45,6 +45,8 @@ describe("mergeProjectPatch", () => {
                 fade_out_ms: 8,
                 join_in_mode: "fade",
                 source_id: null,
+                source_duration_sec: null,
+                recording_key: null,
               },
             ],
           },

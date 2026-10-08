@@ -43,7 +43,7 @@ Committed cuts are archived in `editorial.edit_log` (not deleted with `edit_deci
 
 | API | Purpose |
 |-----|---------|
-| `list_clips_tool` | Full clip rows incl. `join_in_mode`, `source_id`, `source_duration_sec` / `recording_path` (the clip's own recording, which the DAW's `trim_edge_limits` mirror stops at), `origin_track_id` and the effective join render (`join_left_clip_id`, `join_render_mode`, `join_crossfade_ms`, `join_crossfade_blocked`; computed by the same functions render uses) |
+| `list_clips_tool` | Full clip rows incl. `join_in_mode`, `source_id`, required `source_duration_sec` (`number | null`) and `recording_key` (`string | null`) for the clip's own recording, which the DAW's `trim_edge_limits` mirror stops at (`recording_key` is an opaque identity, `rec_` plus a hash, shared by clips that play the same file; it names no file, so a share guest learns no file name), `origin_track_id` and the effective join render (`join_left_clip_id`, `join_render_mode`, `join_crossfade_ms`, `join_crossfade_blocked`; computed by the same functions render uses) |
 | `list_edit_decisions_tool` | Pending cuts |
 | `list_applied_edits_tool` | Committed cut provenance |
 | `edit_impact_report_tool` | Seconds cut (once per cut, per track in `by_track_sec`) and applied-edit count, from approved edits in `editorial.edit_log` plus any applied decisions still in `edit_decisions`; mutes count as applied but remove no time |

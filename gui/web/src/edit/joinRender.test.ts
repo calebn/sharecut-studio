@@ -36,6 +36,8 @@ const clip: ClipRow = {
   join_crossfade_ms: 0,
   join_crossfade_blocked: null,
   source_id: null,
+  source_duration_sec: null,
+  recording_key: null,
 };
 
 describe("joinRender", () => {

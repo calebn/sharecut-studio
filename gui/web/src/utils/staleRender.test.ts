@@ -202,6 +202,8 @@ describe("staleRenderBreakdown", () => {
                 fade_out_ms: 0,
                 join_in_mode: "fade",
                 source_id: "original-source",
+                source_duration_sec: null,
+                recording_key: null,
               },
             ],
           },
