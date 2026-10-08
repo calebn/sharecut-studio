@@ -54,6 +54,17 @@ export type DurableState = {
     timeline_end: number | null;
     track_ids: string[];
     resolved: boolean;
+    resolved_by: string | null;
+    review_version_id: string | null;
+    edit_decision_id: string | null;
+    timeline_spans: { start: number; end: number }[];
+    action_items: {
+      id: string;
+      text: string;
+      done: boolean;
+      completed_by: string | null;
+    }[];
+    replies: { id: string; body: string; author: string }[];
   }[];
 };
 export function parseDurableState(input: unknown): DurableState {
@@ -133,7 +144,7 @@ export function parseDurableState(input: unknown): DurableState {
       )
         throw new Error("Invalid durable envelope point");
   }
-  for (const comment of rows(state.comments))
+  for (const comment of rows(state.comments)) {
     if (
       !["id", "body", "author"].every(
         (key) => typeof comment[key] === "string",
@@ -142,9 +153,34 @@ export function parseDurableState(input: unknown): DurableState {
       !(comment.timeline_end === null || finite(comment.timeline_end)) ||
       typeof comment.resolved !== "boolean" ||
       !Array.isArray(comment.track_ids) ||
-      !comment.track_ids.every((id) => typeof id === "string")
+      !comment.track_ids.every((id) => typeof id === "string") ||
+      !["resolved_by", "review_version_id", "edit_decision_id"].every(
+        (key) => comment[key] === null || typeof comment[key] === "string",
+      )
     )
       throw new Error("Invalid durable comment");
+    for (const span of rows(comment.timeline_spans))
+      if (
+        !finite(span.start) ||
+        !finite(span.end) ||
+        (span.start as number) < 0 ||
+        (span.end as number) <= (span.start as number)
+      )
+        throw new Error("Invalid durable comment span");
+    for (const item of rows(comment.action_items))
+      if (
+        typeof item.id !== "string" ||
+        typeof item.text !== "string" ||
+        typeof item.done !== "boolean" ||
+        !(item.completed_by === null || typeof item.completed_by === "string")
+      )
+        throw new Error("Invalid durable comment action item");
+    for (const reply of rows(comment.replies))
+      if (
+        !["id", "body", "author"].every((key) => typeof reply[key] === "string")
+      )
+        throw new Error("Invalid durable comment reply");
+  }
   return input as DurableState;
 }
 export type Phase = "setup" | "action" | "cancel" | "undo";
@@ -393,6 +429,12 @@ export function assessEditingTrial(
   trial: EditingTrial,
 ): TrialAssessment {
   const reasons: string[] = [...(trial.errors ?? [])];
+  if (
+    typeof trial.durationMs !== "number" ||
+    !Number.isFinite(trial.durationMs) ||
+    trial.durationMs < 0
+  )
+    reasons.push("elapsed duration is missing, non-finite or negative");
   const activations = { setup: 0, action: 0, cancel: 0, undo: 0 };
   const route = definition.routes.find((item) => item.id === trial.route);
   if (!route || "pending" in route)
@@ -675,7 +717,8 @@ export function assessEditingTrial(
   if (definition.seek !== undefined) {
     if (!trial.transport) reasons.push("transport not observed");
     else {
-      if (trial.transport.playing) reasons.push("seek started playback");
+      if (trial.transport.playing !== false)
+        reasons.push("seek stopped playback state not observed");
       if (!Number.isFinite(trial.transport.seconds))
         reasons.push("seek position is not finite");
       else if (Math.abs(trial.transport.seconds - definition.seek) > 0.03)
@@ -882,10 +925,15 @@ export function summarizeEditingAttempts(
       const rows = attempts.filter(
         (attempt) => attempt.task === task.id && attempt.route === route.id,
       );
+      const validElapsed = (row: (typeof rows)[number]) =>
+        row.valid &&
+        typeof row.durationMs === "number" &&
+        Number.isFinite(row.durationMs) &&
+        row.durationMs >= 0;
       const times = rows
         .filter(
           (row) =>
-            row.valid &&
+            validElapsed(row) &&
             row.mode === "baseline" &&
             row.durationMs !== undefined &&
             Number.isFinite(row.durationMs),
@@ -910,7 +958,7 @@ export function summarizeEditingAttempts(
         status:
           rows.length === 0
             ? "not-run"
-            : rows.every((row) => row.valid)
+            : rows.every(validElapsed)
               ? "pass"
               : "fail",
         reason:
@@ -920,8 +968,8 @@ export function summarizeEditingAttempts(
               ? "Fewer than five valid baseline trials"
               : "Timing inconclusive until limiter and noise evidence are admitted",
         attempted: rows.length,
-        valid: rows.filter((row) => row.valid).length,
-        failed: rows.filter((row) => !row.valid).length,
+        valid: rows.filter(validElapsed).length,
+        failed: rows.filter((row) => !validElapsed(row)).length,
         baselineValid: times.length,
         duration,
       };

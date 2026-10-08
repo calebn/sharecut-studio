@@ -24,6 +24,7 @@ import {
   type TaskRoute,
 } from "./editingTaskReport";
 import { createEditorProfiler } from "./editorProfile";
+import { committedE2eProjectPath } from "./env";
 import { createRelocatedE2eProject } from "./liveProject";
 import { switchE2eProject } from "./shareableProject";
 
@@ -54,7 +55,7 @@ const base: DurableState = {
   sources: [
     {
       id: "reference_src0",
-      path: "reference.wav",
+      path: "raw/reference.wav",
       speaker: "reference",
       label: "reference.wav",
       offset_sec: 0,
@@ -66,7 +67,7 @@ const base: DurableState = {
     },
     {
       id: "guest_src0",
-      path: "guest.wav",
+      path: "raw/guest.wav",
       speaker: "guest",
       label: "guest.wav",
       offset_sec: 0,
@@ -160,6 +161,12 @@ const commentStart: DurableState = {
       timeline_end: null,
       track_ids: [],
       resolved: false,
+      resolved_by: null,
+      review_version_id: null,
+      edit_decision_id: null,
+      timeline_spans: [],
+      action_items: [],
+      replies: [],
     },
   ],
 };
@@ -366,7 +373,9 @@ export const editingTaskRegistry: TaskDefinition[] = [
     start: commentStart,
     expected: {
       ...commentStart,
-      comments: [{ ...commentStart.comments[0], resolved: true }],
+      comments: [
+        { ...commentStart.comments[0], resolved: true, resolved_by: "Host" },
+      ],
     },
     tolerances: {},
     routes: [
@@ -526,26 +535,53 @@ export function readEditingState(
       ),
     })),
     envelopes: array(object(saved.mix).automation_envelopes).map(json),
-    comments: array(object(saved.review).comments).map((row) =>
-      fields(row, [
-        "id",
-        "body",
-        "author",
-        "timeline_start",
-        "timeline_end",
-        "track_ids",
-        "resolved",
-      ]),
-    ),
+    comments: array(object(saved.review).comments).map((input) => {
+      const row = object(input);
+      return {
+        ...fields(row, [
+          "id",
+          "body",
+          "author",
+          "timeline_start",
+          "timeline_end",
+          "track_ids",
+          "resolved",
+        ]),
+        resolved_by: json(
+          row.resolved_by === undefined ? null : row.resolved_by,
+        ),
+        review_version_id: json(
+          row.review_version_id === undefined ? null : row.review_version_id,
+        ),
+        edit_decision_id: json(
+          row.edit_decision_id === undefined ? null : row.edit_decision_id,
+        ),
+        timeline_spans: array(
+          row.timeline_spans === undefined ? [] : row.timeline_spans,
+        ).map((span) => fields(span, ["start", "end"])),
+        action_items: array(
+          row.action_items === undefined ? [] : row.action_items,
+        ).map((input) => {
+          const item = object(input);
+          return {
+            ...fields(item, ["id", "text"]),
+            done: json(item.done === undefined ? false : item.done),
+            completed_by: json(
+              item.completed_by === undefined ? null : item.completed_by,
+            ),
+          };
+        }),
+        replies: array(row.replies === undefined ? [] : row.replies).map(
+          (reply) => fields(reply, ["id", "body", "author"]),
+        ),
+      };
+    }),
   });
 }
-export async function editingResponseOutcome(
-  response: Response,
-  request: { id: number; phase: Phase; kind: "command" | "read" },
-) {
+export async function editingResponseBody(response: Response): Promise<string> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const body = await Promise.race([
+    return await Promise.race([
       response.text(),
       new Promise<string>((_, reject) => {
         timer = setTimeout(
@@ -554,6 +590,16 @@ export async function editingResponseOutcome(
         );
       }),
     ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+export async function editingResponseOutcome(
+  response: Response,
+  request: { id: number; phase: Phase; kind: "command" | "read" },
+) {
+  try {
+    const body = await editingResponseBody(response);
     return {
       phase: request.phase,
       kind:
@@ -578,8 +624,6 @@ export async function editingResponseOutcome(
           kind: "error" as const,
           message: `response ${request.id}: ${String(error)}`,
         };
-  } finally {
-    if (timer) clearTimeout(timer);
   }
 }
 export async function navigateEditingTimeline(
@@ -622,14 +666,71 @@ export function retainEditingMedia(
   >,
 ) {
   const saved = object(JSON.parse(fs.readFileSync(projectPath, "utf8")));
-  const declared = new Set(
-    array(object(saved.timeline).tracks).map((row) =>
-      String(object(object(row).media).path),
-    ),
-  );
+  const failures: string[] = [];
+  const declared = new Set<string>();
+  const addPath = (input: unknown, label: string) => {
+    if (typeof input !== "string" || !input.trim()) {
+      failures.push(`Invalid declared media path ${label}`);
+      return;
+    }
+    const relativePath = path.relative(
+      workspaceDir,
+      path.resolve(workspaceDir, input),
+    );
+    if (
+      relativePath === ".." ||
+      relativePath.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativePath)
+    ) {
+      failures.push(`Declared media escapes workspace ${label}: ${input}`);
+      return;
+    }
+    declared.add(relativePath.split(path.sep).join("/"));
+  };
+  try {
+    for (const [index, input] of array(
+      object(saved.timeline).tracks,
+    ).entries()) {
+      try {
+        const row = object(input);
+        addPath(object(row.media).path, `track ${index} ${String(row.id)}`);
+      } catch (error) {
+        failures.push(`Invalid declared track ${index}: ${String(error)}`);
+      }
+    }
+  } catch (error) {
+    failures.push(`Invalid declared track inventory: ${String(error)}`);
+  }
+  if (!Array.isArray(saved.sources))
+    failures.push("Invalid declared source inventory");
+  else
+    for (const [index, source] of saved.sources.entries()) {
+      try {
+        addPath(object(source).path, `source ${index}`);
+      } catch (error) {
+        failures.push(`Invalid declared source ${index}: ${String(error)}`);
+      }
+    }
   const rawDir = path.join(workspaceDir, "raw");
   const census = (dir: string) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    let entries: fs.Dirent[];
+    try {
+      const relative = path.relative(
+        fs.realpathSync(workspaceDir),
+        fs.realpathSync(dir),
+      );
+      if (
+        relative === ".." ||
+        relative.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relative)
+      )
+        throw new Error("Raw media directory escapes workspace");
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (error) {
+      failures.push(`Raw media census ${dir}: ${String(error)}`);
+      return;
+    }
+    for (const entry of entries) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) census(full);
       else if (/\.(wav|mp3|flac|m4a|ogg|aac)$/i.test(entry.name))
@@ -640,7 +741,6 @@ export function retainEditingMedia(
   };
   if (fs.existsSync(rawDir)) census(rawDir);
   const files = new Set(Object.values(replay).map((row) => row.relativePath));
-  const failures: string[] = [];
   const media: Record<
     string,
     { copiedPath: string; retainedPath: string; sha256: string }
@@ -657,7 +757,18 @@ export function retainEditingMedia(
   for (const [id, receipt] of entries) {
     const copiedPath = path.resolve(workspaceDir, receipt.relativePath);
     try {
-      const bytes = fs.readFileSync(copiedPath);
+      const resolvedPath = fs.realpathSync(copiedPath);
+      const relative = path.relative(
+        fs.realpathSync(workspaceDir),
+        resolvedPath,
+      );
+      if (
+        relative === ".." ||
+        relative.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relative)
+      )
+        throw new Error("Media path escapes workspace");
+      const bytes = fs.readFileSync(resolvedPath);
       const sha256 = createHash("sha256").update(bytes).digest("hex");
       let retainedPath = receipt.retainedPath;
       if (
@@ -727,7 +838,18 @@ export function createEditingFixture(
   task: TaskDefinition,
   evidenceDir: string,
 ) {
+  const inputProjectBytes = fs.readFileSync(committedE2eProjectPath);
+  const inputProjectHash = createHash("sha256")
+    .update(inputProjectBytes)
+    .digest("hex");
   const fixture = createRelocatedE2eProject("sharecut-e2e-editing-task-");
+  fs.writeFileSync(
+    path.join(
+      evidenceDir,
+      `fixture-${path.basename(fixture.workspaceDir)}-input-project.json`,
+    ),
+    inputProjectBytes,
+  );
   fs.copyFileSync(
     fixture.projectPath,
     path.join(
@@ -741,14 +863,118 @@ export function createEditingFixture(
     string,
     { relativePath: string; retainedPath: string; sha256: string }
   >;
+  const saved = object(
+    JSON.parse(fs.readFileSync(fixture.projectPath, "utf8")),
+  );
+  const originalSources = array(saved.sources);
+  const originalHash = createHash("sha256")
+    .update(fs.readFileSync(fixture.projectPath))
+    .digest("hex");
+  const originalSourceJson = `${JSON.stringify(originalSources, null, 2)}\n`;
+  const originalSourcesHash = createHash("sha256")
+    .update(originalSourceJson)
+    .digest("hex");
+  fs.writeFileSync(
+    path.join(
+      evidenceDir,
+      `fixture-${path.basename(fixture.workspaceDir)}-original-sources.json`,
+    ),
+    originalSourceJson,
+  );
+  try {
+    retainEditingMedia(
+      fixture.workspaceDir,
+      fixture.projectPath,
+      evidenceDir,
+      replay,
+    );
+  } catch (error) {
+    fs.renameSync(
+      path.join(
+        evidenceDir,
+        `media-map-${path.basename(fixture.workspaceDir)}.json`,
+      ),
+      path.join(
+        evidenceDir,
+        `original-media-map-${path.basename(fixture.workspaceDir)}.json`,
+      ),
+    );
+    fs.writeFileSync(
+      path.join(
+        evidenceDir,
+        `original-media-diagnostic-${path.basename(fixture.workspaceDir)}.json`,
+      ),
+      JSON.stringify(
+        {
+          originalHash,
+          originalSourcesHash,
+          sources: originalSources,
+          error: String(error),
+        },
+        null,
+        2,
+      ),
+    );
+  }
+  const sourcePaths = originalSources.map((input) => {
+    const source = object(input);
+    const fixtureSource =
+      source.id === "reference_src0"
+        ? "reference"
+        : source.id === "guest_src0"
+          ? "guest"
+          : null;
+    if (!fixtureSource || source.path !== `${fixtureSource}.wav`)
+      throw new Error("Unexpected original fixture source path or identity");
+    const target = task.start.sources.find((row) => row.id === source.id);
+    const receipt = replay[fixtureSource];
+    if (
+      !target ||
+      target.path !== `raw/${fixtureSource}.wav` ||
+      receipt?.relativePath !== target.path
+    )
+      throw new Error("Declared task source has no retained replay input");
+    const resolvedPath = fs.realpathSync(
+      path.resolve(fixture.workspaceDir, target.path),
+    );
+    const sha256 = createHash("sha256")
+      .update(fs.readFileSync(resolvedPath))
+      .digest("hex");
+    if (sha256 !== receipt.sha256)
+      throw new Error("Declared task source differs from replay input");
+    return {
+      id: source.id,
+      originalPath: source.path,
+      path: target.path,
+      resolvedPath,
+      sha256,
+      retainedPath: receipt.retainedPath,
+    };
+  });
+  saved.sources = originalSources.map((input) => {
+    const source = object(input);
+    return {
+      ...source,
+      path: sourcePaths.find((row) => row.id === source.id)!.path,
+    };
+  });
+  fs.writeFileSync(fixture.projectPath, `${JSON.stringify(saved, null, 2)}\n`);
   retainEditingMedia(
     fixture.workspaceDir,
     fixture.projectPath,
     evidenceDir,
     replay,
   );
-  const saved = object(
-    JSON.parse(fs.readFileSync(fixture.projectPath, "utf8")),
+  fs.writeFileSync(
+    path.join(
+      evidenceDir,
+      `fixture-source-paths-${path.basename(fixture.workspaceDir)}.json`,
+    ),
+    JSON.stringify(
+      { inputProjectHash, originalHash, originalSourcesHash, sourcePaths },
+      null,
+      2,
+    ),
   );
   const timeline = object(saved.timeline);
   if (array(timeline.tracks).some((row) => object(row).role !== "dialogue"))
@@ -870,14 +1096,17 @@ export async function runEditingTask(
   const responses: Promise<void>[] = [];
   const pending = new Map<Page, Set<Request>>();
   const flush = async (active: Page) => {
-    await active.waitForLoadState("networkidle", { timeout: 5000 });
-    await expect
-      .poll(() => pending.get(active)?.size ?? 0, {
-        timeout: 5000,
-        message: "Pending editing requests did not reach terminal outcomes",
-      })
-      .toBe(0);
-    await Promise.all(responses);
+    try {
+      await active.waitForLoadState("networkidle", { timeout: 5000 });
+      await expect
+        .poll(() => pending.get(active)?.size ?? 0, {
+          timeout: 5000,
+          message: "Pending editing requests did not reach terminal outcomes",
+        })
+        .toBe(0);
+    } finally {
+      await Promise.all(responses);
+    }
   };
   const observe = (observedPage: Page) => {
     const inflight = new Set<Request>();
@@ -935,8 +1164,7 @@ export async function runEditingTask(
           message: `HTTP ${response.status()} ${response.request().method()} ${response.url()}`,
         });
         responses.push(
-          response
-            .text()
+          editingResponseBody(response)
             .then((body) =>
               append({
                 kind: "error",
@@ -1277,8 +1505,14 @@ export async function runEditingTask(
       if (routeId === "move-up" || routeId === "move-up-tab-header") {
         await openTrack(active, "guest");
         await click(
-          active.getByRole("button", { name: "Move track up", exact: true }),
-          "Move track up",
+          active.getByRole("button", { name: "Menu", exact: true }),
+          "transport Menu for track reorder",
+        );
+        await click(
+          active
+            .getByRole("menu", { name: "Transport menu", exact: true })
+            .getByRole("menuitem", { name: "Move track up", exact: true }),
+          "Move track up menu item",
         );
       } else {
         const source = active.getByRole("button", {

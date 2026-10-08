@@ -6,6 +6,10 @@ import path from "node:path";
 import type { Locator, Page, Response } from "@playwright/test";
 import { describe, expect, it } from "vitest";
 import {
+  cleanupE2eManifest,
+  createE2eCleanupManifest,
+} from "./cleanupManifest";
+import {
   assessEditingTrial,
   type DurableState,
   type EditingTrial,
@@ -14,6 +18,7 @@ import {
   type TaskDefinition,
 } from "./editingTaskReport";
 import {
+  createEditingFixture,
   editingResponseOutcome,
   editingTaskRegistry,
   navigateEditingTimeline,
@@ -368,11 +373,11 @@ it("excludes diagnostic and non-finite durations from five-trial statistics", ()
     {
       task: "trim",
       route: "keyboard",
-      status: "pass",
+      status: "fail",
       reason: "Fewer than five valid baseline trials",
       attempted: 6,
-      valid: 6,
-      failed: 0,
+      valid: 5,
+      failed: 1,
       baselineValid: 4,
       duration: null,
     },
@@ -738,7 +743,7 @@ function smallProject(dir: string) {
     sources: [
       {
         id: "reference_src0",
-        path: "reference.wav",
+        path: "raw/reference.wav",
         speaker: "reference",
         label: "reference.wav",
         offset_sec: 0,
@@ -750,7 +755,7 @@ function smallProject(dir: string) {
       },
       {
         id: "guest_src0",
-        path: "guest.wav",
+        path: "raw/guest.wav",
         speaker: "guest",
         label: "guest.wav",
         offset_sec: 0,
@@ -1202,7 +1207,7 @@ it("reads nullable current source descriptors and rejects fractional recording c
     fs.writeFileSync(file, JSON.stringify(project));
     expect(readEditingState(file).sources[0]).toEqual({
       id: "reference_src0",
-      path: "reference.wav",
+      path: "raw/reference.wav",
       speaker: null,
       label: null,
       offset_sec: 0,
@@ -1281,3 +1286,361 @@ it.each([
     }
   },
 );
+
+it("rejects missing stopped observation and invalid elapsed durations at admission", () => {
+  const task = editingTaskRegistry[0];
+  const t: EditingTrial = {
+    task: "seek",
+    route: "ruler-keyboard",
+    mode: "validity-only",
+    before: task.start,
+    after: task.expected,
+    durationMs: 0,
+    journal: [
+      {
+        seq: 1,
+        phase: "action",
+        kind: "activation",
+        label: "seek",
+        verb: "key",
+        outcome: "completed",
+      },
+    ],
+    transport: { seconds: 5, playing: false },
+    history: {
+      before: { cursor: -1, headId: null, entries: [] },
+      after: { cursor: -1, headId: null, entries: [] },
+      undone: null,
+    },
+  };
+  expect(assessEditingTrial(task, t).status).toBe("pass");
+  for (const playing of [undefined, null, 0, "false", true]) {
+    Object.assign(t.transport!, { playing });
+    expect(assessEditingTrial(task, t).status).toBe("fail");
+  }
+  t.transport!.playing = false;
+  for (const durationMs of [undefined, -10, NaN, Infinity, "10", null]) {
+    Object.assign(t, { durationMs });
+    expect(assessEditingTrial(task, t).status).toBe("fail");
+  }
+});
+it("excludes negative and missing elapsed durations from baseline admission", () => {
+  const rows = [-10, undefined, NaN, Infinity, 0, 1, 2, 3, 4].map(
+    (durationMs) => ({
+      task: "trim",
+      route: "keyboard",
+      valid: true,
+      mode: "baseline" as const,
+      durationMs,
+    }),
+  );
+  expect(summarizeEditingAttempts([definition], rows)[0]).toMatchObject({
+    status: "fail",
+    valid: 5,
+    failed: 4,
+    baselineValid: 5,
+    duration: { medianMs: 2, minMs: 0, maxMs: 4 },
+  });
+});
+it("preserves meaningful nested saved comment content and actor associations", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "editing-comment-test-"));
+  try {
+    const { project, file } = smallProject(dir);
+    const comment = {
+      id: "task-comment",
+      body: "Editing task comment",
+      author: "Host",
+      timeline_start: 2,
+      timeline_end: 4,
+      track_ids: [],
+      resolved: true,
+      resolved_by: "Host",
+      review_version_id: "version",
+      edit_decision_id: "decision",
+      timeline_spans: [{ start: 2, end: 4 }],
+      action_items: [
+        {
+          id: "action",
+          text: "Review this",
+          done: true,
+          completed_by: "Editor",
+          completed_at: "volatile",
+        },
+      ],
+      replies: [
+        {
+          id: "reply",
+          body: "Keep this",
+          author: "Editor",
+          created_at: "volatile",
+        },
+      ],
+    };
+    Object.assign(project.review, { comments: [comment] });
+    fs.writeFileSync(file, JSON.stringify(project));
+    expect(readEditingState(file).comments).toEqual([
+      {
+        ...comment,
+        action_items: [
+          {
+            id: "action",
+            text: "Review this",
+            done: true,
+            completed_by: "Editor",
+          },
+        ],
+        replies: [{ id: "reply", body: "Keep this", author: "Editor" }],
+      },
+    ]);
+    const before = readEditingState(file);
+    for (const [key, value] of Object.entries({
+      replies: [],
+      action_items: [],
+      timeline_spans: [],
+      review_version_id: null,
+      edit_decision_id: null,
+      resolved_by: "Wrong actor",
+    })) {
+      Object.assign(project.review, {
+        comments: [{ ...comment, [key]: value }],
+      });
+      fs.writeFileSync(file, JSON.stringify(project));
+      expect(
+        savedStateDifferences(before, readEditingState(file)).some((row) =>
+          row.includes(key),
+        ),
+      ).toBe(true);
+    }
+    for (const malformed of [
+      { replies: null },
+      { replies: [{ id: "x", body: 9, author: "Host" }] },
+      {
+        action_items: [
+          { id: "x", text: "x", done: "false", completed_by: null },
+        ],
+      },
+      { timeline_spans: [{ start: 4, end: 2 }] },
+      { resolved_by: 5 },
+    ]) {
+      Object.assign(project.review, {
+        comments: [{ ...comment, ...malformed }],
+      });
+      fs.writeFileSync(file, JSON.stringify(project));
+      expect(() => readEditingState(file)).toThrow();
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+it("retains declared selected and unused recordings outside raw before aggregate failure", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "editing-source-media-"));
+  try {
+    const { project, file } = smallProject(dir);
+    fs.mkdirSync(path.join(dir, "raw"));
+    const evidence = path.join(dir, "evidence");
+    fs.mkdirSync(evidence);
+    const replay: Record<
+      string,
+      { relativePath: string; retainedPath: string; sha256: string }
+    > = {};
+    for (const id of ["reference", "guest"]) {
+      fs.writeFileSync(path.join(dir, "raw", `${id}.wav`), id);
+      const retainedPath = path.join(evidence, `${id}.wav`);
+      fs.writeFileSync(retainedPath, id);
+      replay[id] = {
+        relativePath: `raw/${id}.wav`,
+        retainedPath,
+        sha256: digest(id),
+      };
+    }
+    fs.writeFileSync(file, JSON.stringify(project));
+    expect(
+      Object.keys(retainEditingMedia(dir, file, evidence, replay)),
+    ).toEqual(["reference", "guest"]);
+    for (const name of ["selected-extra.wav", "unused-extra.wav"]) {
+      fs.writeFileSync(path.join(dir, name), name);
+      project.sources.push({ ...project.sources[0], id: name, path: name });
+    }
+    project.timeline.clips[0].source_id = "selected-extra.wav";
+    fs.writeFileSync(file, JSON.stringify(project));
+    expect(() => retainEditingMedia(dir, file, evidence, replay)).toThrow();
+    const map = JSON.parse(
+      fs.readFileSync(
+        path.join(evidence, `media-map-${path.basename(dir)}.json`),
+        "utf8",
+      ),
+    );
+    for (const name of ["selected-extra.wav", "unused-extra.wav"])
+      expect(fs.readFileSync(map.media[name].retainedPath, "utf8")).toBe(name);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+it.each([undefined, -10, NaN, Infinity, "10", null])(
+  "rejects elapsed duration %s independently",
+  (durationMs) => {
+    const t = trial();
+    Object.assign(t, { durationMs });
+    expect(assessEditingTrial(definition, t).status).toBe("fail");
+  },
+);
+it("retains other inputs and diagnostics for malformed tracks and escaped sources", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "editing-invalid-media-"));
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "editing-outside-"));
+  try {
+    const { project, file } = smallProject(dir);
+    fs.mkdirSync(path.join(dir, "raw"));
+    const evidence = path.join(dir, "evidence");
+    fs.mkdirSync(evidence);
+    fs.writeFileSync(
+      path.join(dir, "raw", "kept.wav"),
+      "literal retained bytes",
+    );
+    fs.writeFileSync(path.join(outside, "secret.wav"), "literal outside bytes");
+    fs.symlinkSync(
+      path.join(outside, "secret.wav"),
+      path.join(dir, "escaped.wav"),
+    );
+    Object.assign(project.timeline, {
+      tracks: [{ id: "malformed", media: null }],
+    });
+    Object.assign(project, {
+      sources: [
+        { id: "escaped", path: "escaped.wav" },
+        { id: "malformed", path: null },
+        { id: "missing", path: "missing.wav" },
+      ],
+    });
+    fs.writeFileSync(file, JSON.stringify(project));
+    expect(() => retainEditingMedia(dir, file, evidence, {})).toThrow();
+    const map = JSON.parse(
+      fs.readFileSync(
+        path.join(evidence, `media-map-${path.basename(dir)}.json`),
+        "utf8",
+      ),
+    );
+    expect(
+      fs.readFileSync(map.media["raw/kept.wav"].retainedPath, "utf8"),
+    ).toBe("literal retained bytes");
+    expect(map.failures.join(" ")).toContain("track");
+    expect(map.failures.join(" ")).toContain("source 1");
+    expect(map.failures.join(" ")).toContain("escapes workspace");
+    expect(map.failures.join(" ")).toContain("missing.wav");
+    expect(fs.readFileSync(path.join(outside, "secret.wav"), "utf8")).toBe(
+      "literal outside bytes",
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+it("constructs owned fixtures with exact source paths and original provenance", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "editing-owned-fixture-"));
+  const manifest = createE2eCleanupManifest();
+  const previousReplay = process.env.EDITING_REPLAY_MEDIA;
+  const previousManifest = process.env.DAW_E2E_CLEANUP_MANIFEST;
+  try {
+    const replay = Object.fromEntries(
+      ["reference", "guest"].map((id) => {
+        const bytes = fs.readFileSync(
+          path.resolve(
+            "../../tests/fixtures/aligned_dialogue/raw",
+            `${id}.wav`,
+          ),
+        );
+        const retainedPath = path.join(dir, `${id}.wav`);
+        fs.writeFileSync(retainedPath, bytes);
+        return [
+          id,
+          {
+            relativePath: `raw/${id}.wav`,
+            retainedPath,
+            sha256: digest(bytes),
+          },
+        ];
+      }),
+    );
+    const receipt = path.join(dir, "replay.json");
+    fs.writeFileSync(receipt, JSON.stringify(replay));
+    process.env.EDITING_REPLAY_MEDIA = receipt;
+    process.env.DAW_E2E_CLEANUP_MANIFEST = manifest.manifestPath;
+    for (const task of [editingTaskRegistry[0], editingTaskRegistry[7]]) {
+      const fixture = createEditingFixture(task, dir);
+      const name = path.basename(fixture.workspaceDir);
+      const originalPath = path.join(
+        dir,
+        `fixture-${name}-initial-project.json`,
+      );
+      const originalBytes = fs.readFileSync(originalPath);
+      const original = JSON.parse(originalBytes.toString());
+      const sourcesBytes = fs.readFileSync(
+        path.join(dir, `fixture-${name}-original-sources.json`),
+      );
+      const corrected = JSON.parse(
+        fs.readFileSync(fixture.projectPath, "utf8"),
+      );
+      const proof = JSON.parse(
+        fs.readFileSync(
+          path.join(dir, `fixture-source-paths-${name}.json`),
+          "utf8",
+        ),
+      );
+      expect(proof.inputProjectHash).toBe(
+        digest(
+          fs.readFileSync(path.join(dir, `fixture-${name}-input-project.json`)),
+        ),
+      );
+      expect(proof.originalHash).toBe(digest(originalBytes));
+      expect(proof.originalSourcesHash).toBe(digest(sourcesBytes));
+      expect(JSON.parse(sourcesBytes.toString())).toEqual(original.sources);
+      expect(corrected.sources).toEqual(
+        original.sources.map((source: Record<string, unknown>) => ({
+          ...source,
+          path:
+            source.id === "reference_src0"
+              ? "raw/reference.wav"
+              : "raw/guest.wav",
+        })),
+      );
+      expect(readEditingState(fixture.projectPath)).toEqual(task.start);
+      const diagnostic = JSON.parse(
+        fs.readFileSync(
+          path.join(dir, `original-media-map-${name}.json`),
+          "utf8",
+        ),
+      );
+      expect(diagnostic.failures.join(" ")).toContain("reference.wav");
+      expect(diagnostic.failures.join(" ")).toContain("guest.wav");
+      for (const [index, id] of ["reference", "guest"].entries()) {
+        expect(proof.sourcePaths[index]).toEqual({
+          id: `${id}_src0`,
+          originalPath: `${id}.wav`,
+          path: `raw/${id}.wav`,
+          resolvedPath: fs.realpathSync(
+            path.join(fixture.workspaceDir, "raw", `${id}.wav`),
+          ),
+          sha256: replay[id].sha256,
+          retainedPath: replay[id].retainedPath,
+        });
+        expect(
+          fs.existsSync(path.join(fixture.workspaceDir, `${id}.wav`)),
+        ).toBe(false);
+      }
+    }
+    const invalid = structuredClone(editingTaskRegistry[0]);
+    invalid.start.sources[0].path = "missing.wav";
+    expect(() => createEditingFixture(invalid, dir)).toThrow(
+      "Declared task source has no retained replay input",
+    );
+  } finally {
+    if (previousReplay === undefined) delete process.env.EDITING_REPLAY_MEDIA;
+    else process.env.EDITING_REPLAY_MEDIA = previousReplay;
+    if (previousManifest === undefined)
+      delete process.env.DAW_E2E_CLEANUP_MANIFEST;
+    else process.env.DAW_E2E_CLEANUP_MANIFEST = previousManifest;
+    await cleanupE2eManifest(manifest);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

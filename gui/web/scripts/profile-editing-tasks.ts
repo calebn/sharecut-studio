@@ -283,7 +283,7 @@ const schedule = tasks.flatMap((task) => {
   ).flat();
 });
 const protocol = {
-  version: 5,
+  version: 6,
   retainedPriorFailures: [
     {
       task: "envelope",
