@@ -22,7 +22,7 @@ const start: DurableState = {
       mute_regions: [],
     },
   ],
-  tracks: [{ id: "reference", fader_db: 0, muted: false }],
+  tracks: [{ id: "reference", fader_db: 0, gain_db: 0, muted: false }],
   envelopes: [],
   comments: [],
 };
@@ -126,6 +126,7 @@ describe("literal editing task admission", () => {
       mutations: 1,
       accidentalCommands: 0,
       completedWork: 1,
+      observations: { save: "pass", cancel: "pass", undo: "pass" },
     });
   });
   it("rejects unchanged state despite correct outgoing target", () => {
@@ -143,10 +144,37 @@ describe("literal editing task admission", () => {
         ...trial(),
         after: {
           ...definition.expected,
-          tracks: [{ id: "reference", fader_db: -6, muted: false }],
+          tracks: [{ id: "reference", fader_db: -6, gain_db: 0, muted: false }],
         },
       }).reasons,
     ).toEqual(["after.tracks.0.fader_db expected 0, observed -6"]);
+  });
+  it("rejects an earlier failed cancellation even when the last clone is restored", () => {
+    expect(
+      assessEditingTrial(definition, {
+        ...trial(),
+        cancellations: [
+          { probe: "short", state: definition.expected },
+          { probe: "touch-cancel", state: start },
+        ],
+      }).reasons,
+    ).toEqual([
+      "canceled-short.clips.0.source_start expected 0, observed 0.3",
+      "canceled-short.clips.0.timeline_start expected 0, observed 0.3",
+    ]);
+  });
+  it("rejects ancillary app HTTP errors despite completed saved work", () => {
+    const t = trial();
+    t.journal.push({
+      seq: 8,
+      phase: "setup",
+      kind: "error",
+      message: "HTTP 500 GET /record/share-registry",
+    });
+    expect(assessEditingTrial(definition, t).status).toBe("fail");
+    expect(assessEditingTrial(definition, t).reasons).toEqual([
+      "HTTP 500 GET /record/share-registry",
+    ]);
   });
   it("requires recovery snapshots", () => {
     expect(

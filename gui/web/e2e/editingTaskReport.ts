@@ -6,11 +6,100 @@ export type Json =
   | Json[]
   | { [key: string]: Json };
 export type DurableState = {
-  clips: { [key: string]: Json }[];
-  tracks: { [key: string]: Json }[];
-  envelopes: Json[];
-  comments: { [key: string]: Json }[];
+  clips: {
+    id: string;
+    track_id: string;
+    source_start: number;
+    source_end: number;
+    timeline_start: number;
+    source_id: string | null;
+    fade_in_ms: number;
+    fade_out_ms: number;
+    join_in_mode: string;
+    mute_regions: Json[];
+  }[];
+  tracks: { id: string; fader_db: number; gain_db: number; muted: boolean }[];
+  envelopes: {
+    track_id: string;
+    parameter: string;
+    points: { id: string; time: number; value: number }[];
+  }[];
+  comments: {
+    id: string;
+    body: string;
+    author: string;
+    timeline_start: number;
+    timeline_end: number | null;
+    track_ids: string[];
+    resolved: boolean;
+  }[];
 };
+export function parseDurableState(input: unknown): DurableState {
+  const object = (value: unknown): Record<string, unknown> => {
+    if (value === null || typeof value !== "object" || Array.isArray(value))
+      throw new Error("Expected durable object");
+    return value as Record<string, unknown>;
+  };
+  const rows = (value: unknown): Record<string, unknown>[] => {
+    if (!Array.isArray(value)) throw new Error("Expected durable collection");
+    return value.map(object);
+  };
+  const finite = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value);
+  const state = object(input);
+  for (const clip of rows(state.clips)) {
+    if (
+      !["id", "track_id", "join_in_mode"].every(
+        (key) => typeof clip[key] === "string",
+      ) ||
+      ![
+        "source_start",
+        "source_end",
+        "timeline_start",
+        "fade_in_ms",
+        "fade_out_ms",
+      ].every((key) => finite(clip[key])) ||
+      !(clip.source_id === null || typeof clip.source_id === "string") ||
+      !Array.isArray(clip.mute_regions)
+    )
+      throw new Error("Invalid durable clip geometry");
+  }
+  for (const track of rows(state.tracks))
+    if (
+      typeof track.id !== "string" ||
+      !finite(track.fader_db) ||
+      !finite(track.gain_db) ||
+      typeof track.muted !== "boolean"
+    )
+      throw new Error("Invalid durable track mix");
+  for (const envelope of rows(state.envelopes)) {
+    if (
+      typeof envelope.track_id !== "string" ||
+      typeof envelope.parameter !== "string"
+    )
+      throw new Error("Invalid durable envelope");
+    for (const point of rows(envelope.points))
+      if (
+        typeof point.id !== "string" ||
+        !finite(point.time) ||
+        !finite(point.value)
+      )
+        throw new Error("Invalid durable envelope point");
+  }
+  for (const comment of rows(state.comments))
+    if (
+      !["id", "body", "author"].every(
+        (key) => typeof comment[key] === "string",
+      ) ||
+      !finite(comment.timeline_start) ||
+      !(comment.timeline_end === null || finite(comment.timeline_end)) ||
+      typeof comment.resolved !== "boolean" ||
+      !Array.isArray(comment.track_ids) ||
+      !comment.track_ids.every((id) => typeof id === "string")
+    )
+      throw new Error("Invalid durable comment");
+  return input as DurableState;
+}
 export type Phase = "setup" | "action" | "cancel" | "undo";
 export type JournalEvent = { seq: number; phase: Phase } & (
   | {
@@ -58,13 +147,40 @@ export type EditingTrial = {
   durationMs?: number;
   errors?: string[];
   profiler?: string;
+  protocolHash?: string;
+  definitionHash?: string;
+  role?: "host";
+  fixture?: {
+    projectPath: string;
+    savedHash: string;
+    media: Record<string, string>;
+  };
+  artifacts?: string[];
+  uiEvidence?: {
+    stage: string;
+    phase: Phase;
+    geometry: Json;
+    screenshot?: string;
+  }[];
+  cancellations?: { probe: string; state: DurableState }[];
   history?: {
     before: string | null;
     after: string | null;
     undone: string | null;
   };
 };
+export type ObservationStatus =
+  | "pass"
+  | "fail"
+  | "not-run"
+  | "pending"
+  | "not-applicable";
 export type TrialAssessment = {
+  observations: {
+    save: ObservationStatus;
+    cancel: ObservationStatus;
+    undo: ObservationStatus;
+  };
   status: "pass" | "fail" | "pending";
   reasons: string[];
   activations: Record<Phase, number>;
@@ -130,12 +246,17 @@ export function assessEditingTrial(
   const route = definition.routes.find((item) => item.id === trial.route);
   if (!route || "pending" in route)
     return {
-      status: "pending",
+      status: route && "pending" in route ? "pending" : "fail",
       reasons: [route && "pending" in route ? route.pending : "unknown route"],
       activations,
       mutations: 0,
       accidentalCommands: 0,
       completedWork: 0,
+      observations: {
+        save: route && "pending" in route ? "pending" : "not-run",
+        cancel: route && "pending" in route ? "pending" : "not-run",
+        undo: route && "pending" in route ? "pending" : "not-run",
+      },
     };
   let previous = 0;
   let mutations = 0;
@@ -214,7 +335,9 @@ export function assessEditingTrial(
         "after",
         route.input === "pointer" || route.input === "cdp-touch"
           ? definition.tolerances
-          : {},
+          : Object.fromEntries(
+              Object.keys(definition.tolerances).map((key) => [key, 1e-6]),
+            ),
       ),
     );
     if (
@@ -257,6 +380,14 @@ export function assessEditingTrial(
       );
   }
   if (route.cancel) {
+    for (const cancellation of trial.cancellations ?? [])
+      reasons.push(
+        ...savedStateDifferences(
+          definition.start,
+          cancellation.state,
+          `canceled-${cancellation.probe}`,
+        ),
+      );
     if (!trial.canceled) reasons.push("cancellation not run");
     else
       reasons.push(
@@ -277,6 +408,33 @@ export function assessEditingTrial(
     mutations,
     accidentalCommands,
     completedWork: reasons.length ? 0 : 1,
+    observations: {
+      save: !trial.after ? "not-run" : reasons.length ? "fail" : "pass",
+      cancel: !route.cancel
+        ? "not-applicable"
+        : !trial.canceled
+          ? "not-run"
+          : activations.cancel === 0 ||
+              accidentalCommands > 0 ||
+              savedStateDifferences(definition.start, trial.canceled).length >
+                0 ||
+              (trial.cancellations ?? []).some(
+                (row) =>
+                  savedStateDifferences(definition.start, row.state).length > 0,
+              )
+            ? "fail"
+            : "pass",
+      undo:
+        route.undo === "none"
+          ? "not-applicable"
+          : !trial.undone
+            ? "not-run"
+            : activations.undo === 0 ||
+                undoRequests.length !== route.mutations ||
+                savedStateDifferences(definition.start, trial.undone).length > 0
+              ? "fail"
+              : "pass",
+    },
   };
 }
 
