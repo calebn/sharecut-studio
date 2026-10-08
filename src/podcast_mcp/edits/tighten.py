@@ -26,6 +26,7 @@ from podcast_mcp.edits.tighten_reasons import (
 )
 from podcast_mcp.models import EditDecision, EpisodeProject, Transcript
 from podcast_mcp.util.parallel import run_parallel
+from podcast_mcp.util.tracks import dialogue_track_ids
 
 
 def format_tighten_propose_summary(
@@ -124,7 +125,11 @@ def propose_tighten_edits(
     # of spawning an ffmpeg subprocess per tiny window read inside every candidate's
     # analysis -- this is the dominant cost at scale, well beyond what thread-pool
     # parallelism alone can buy back. Read-only; safe to share across the pools below.
-    audio_caches = build_track_audio_caches(project, {t.track_id for t in project.transcripts})
+    # Every dialogue track is decoded, a transcript or not: a session ripple removes the
+    # same window from all of them, and a pause trim reads each (``SessionAir``).
+    audio_caches = build_track_audio_caches(
+        project, {*dialogue_track_ids(project), *(t.track_id for t in project.transcripts)}
+    )
     peer_indexes = _peer_speech_indexes(project)
     max_workers = cfg.get("performance", {}).get("max_workers")
 
@@ -177,6 +182,7 @@ def propose_tighten_edits(
         existing=retained if retained is not None else list(project.edit_decisions),
         muted=muted_source_spans(project),
         skip_counts=skip_counts,
+        project=project,
     )
 
     if retained is not None:

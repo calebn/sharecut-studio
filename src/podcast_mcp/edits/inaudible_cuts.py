@@ -13,7 +13,7 @@ from podcast_mcp.config import DEFAULT_MICRO_FADE_MS, join_micro_fade_ms, load_d
 from podcast_mcp.edits.audio_cache import TrackAudioCache
 from podcast_mcp.engines.align import load_mono_window
 from podcast_mcp.engines.session_timeline import SessionTimeline
-from podcast_mcp.models import EpisodeProject, Track
+from podcast_mcp.models import EpisodeProject, Track, Transcript
 from podcast_mcp.util.dsp import clamp
 from podcast_mcp.util.intervals import HalfOpenIntervalIndex
 from podcast_mcp.util.timebase import SourceSec, TimelineSec
@@ -109,7 +109,11 @@ class CutWordIndex:
 
     @classmethod
     def build(cls, project: EpisodeProject, track_id: str) -> CutWordIndex:
-        tr = project.transcript_for_track(track_id)
+        return cls.from_transcript(project.transcript_for_track(track_id), track_id)
+
+    @classmethod
+    def from_transcript(cls, tr: Transcript | None, track_id: str) -> CutWordIndex:
+        """The index of one transcript's words (none when it is ``None``)."""
         words = tr.words if tr is not None else []
         live_spans = tuple(
             (float(w.start), float(w.end)) for w in words if not w.suppressed and w.end > w.start

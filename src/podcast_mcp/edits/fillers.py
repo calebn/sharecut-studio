@@ -32,6 +32,7 @@ from podcast_mcp.edits.cut_quality import (
 from podcast_mcp.edits.filler_pacing import MIN_PACED_CUT_SEC, PacedPad, apply_filler_pacing
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.mute_regions import muted_source_spans, source_span_is_muted
+from podcast_mcp.edits.session_air import SessionAir
 from podcast_mcp.edits.shared_pause import PauseClaim, shared_pause_twins
 from podcast_mcp.edits.tighten_intensity import with_tighten_intensity
 from podcast_mcp.edits.tighten_reasons import (
@@ -1290,6 +1291,7 @@ def _resolve_analyzed_cuts(
     existing: Iterable[EditDecision] = (),
     muted: Mapping[str, Sequence[ClipMuteRegion]] | None = None,
     skip_counts: dict[str, int] | None = None,
+    project: EpisodeProject | None = None,
 ) -> list[_AnalyzedCut]:
     """Resolve overlaps between analyzed cuts, preserving candidate order.
 
@@ -1307,6 +1309,11 @@ def _resolve_analyzed_cuts(
       the gap.
     * A pause trim is replaced only by an acoustic cut that *survived* analysis;
       when the acoustic candidate is rejected the pause trim still stands.
+    * Last, with a ``project``, a session pause trim that another track's longer trim
+      stands for (the same stretch of shared air, :func:`shared_pause_twins`) is dropped
+      as ``shared_pause``: the reviewer decides that cut once. Only trims that survived
+      everything above count, so a trim lost to the join gate or an overlap leaves its
+      twin standing.
 
     A :class:`_CutRejected` result counts its skip (``acoustic:{skip}`` for a strictly
     bounded candidate) and is otherwise a rejection.
@@ -1373,6 +1380,22 @@ def _resolve_analyzed_cuts(
         if index is not None and index.overlaps(result.start, result.end):
             _count_skip(skip_counts, "acoustic:replaced_pause")
             dropped.add(idx)
+    if project is not None:
+        twins = shared_pause_twins(
+            project,
+            [
+                PauseClaim(result.track_id, result.start, result.end)
+                if result is not None
+                and idx not in dropped
+                and candidate.cut_kind == "pause"
+                and result.scope == "session"
+                else None
+                for idx, (candidate, result) in enumerate(pairs)
+            ],
+        )
+        for _ in twins:
+            _count_skip(skip_counts, "shared_pause")
+        dropped |= twins
     return [
         result
         for idx, (_candidate, result) in enumerate(pairs)
@@ -1816,8 +1839,6 @@ class _GatedCut:
     guard: SpeechEnergyGuardResult | None
     # Review flags the edge checks raised, in the order they go on the reason.
     flags: tuple[str, ...]
-    # A pause trim's sounds that must stay whole, on the session clock (see PauseAir).
-    kept_sounds: tuple[tuple[float, float], ...] = ()
 
 
 def _peer_audio_caches(
@@ -1863,7 +1884,7 @@ def _gate_cut_edges(
     audio_cache: TrackAudioCache | None,
     audio_caches: Mapping[str, TrackAudioCache] | None,
     word_index: CutWordIndex | None,
-    word_indexes: Mapping[str, CutWordIndex] | None,
+    session_air: SessionAir | None,
 ) -> _GatedCut | _CutRejected:
     """Run the edge checks ``plan.checks`` selects, then resolve the span's final scope.
 
@@ -1911,28 +1932,27 @@ def _gate_cut_edges(
         cut_start, cut_end, voiced_flag = voiced.start, voiced.end, voiced.flag
     before_protection = cut_start, cut_end
     off_proposal = False
-    kept_sounds: tuple[tuple[float, float], ...] = ()
     if candidate.cut_kind == "pause":
         # A pause trim removes only air: it shrinks to the longest stretch of air
         # inside it on every track the ripple cuts, so no edge sits in a sound. Every
-        # pause trim is proposed for review (``_REVIEW_ONLY_KINDS``, #1055);
+        # pause trim is proposed for review (``REVIEW_ONLY_REASON_PREFIXES``, #1055);
         # ``:air_edges`` tells the reviewer this one moved off the span pacing proposed.
         air = pause_air_span(
             project,
             track_id,
             cut_start,
             cut_end,
-            pause=(candidate.start, candidate.end),
             defaults=defaults,
-            audio_cache=audio_cache,
-            audio_caches=audio_caches,
-            word_indexes=word_indexes,
+            audio_caches={
+                **(audio_caches or {}),
+                **({track_id: audio_cache} if audio_cache else {}),
+            },
+            session_air=session_air,
         )
         if isinstance(air, PauseAirSkip):
             return _CutRejected(air.value)
         off_proposal = air.span != paced
         cut_start, cut_end = air.span
-        kept_sounds = air.kept
     elif checks.breaths is not _BreathEdges.IGNORE:
         breath_safe = protect_cut_breaths(
             project,
@@ -1975,7 +1995,7 @@ def _gate_cut_edges(
 
     def gated(final: str) -> _GatedCut:
         raised = (voiced_flag, "air_edges" if off_proposal else None)
-        return _GatedCut(plan, final, guard, tuple(flag for flag in raised if flag), kept_sounds)
+        return _GatedCut(plan, final, guard, tuple(flag for flag in raised if flag))
 
     if final_scope != scope:
         return gated(final_scope)
@@ -2013,8 +2033,6 @@ class _PreparedCut:
     reason: str
     review_required: bool
     replace_gap: float | None
-    # A pause trim's sounds that must stay whole, on the session clock (see PauseAir).
-    kept_sounds: tuple[tuple[float, float], ...]
 
 
 def _prepare_candidate(
@@ -2027,16 +2045,16 @@ def _prepare_candidate(
     word_index: CutWordIndex | None = None,
     peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
-    word_indexes: Mapping[str, CutWordIndex] | None = None,
+    session_air: SessionAir | None = None,
 ) -> _PreparedCut | _CutRejected:
     """Waveform-optimize, risk-assess and edge-check one candidate. Read-only w.r.t.
     project (no mutation) -- safe to call from multiple threads concurrently, as
     long as each call gets its own jump-measurement cache (below); audio_cache
     (one per track, decoded once) is read-only and safe to share across threads.
     ``audio_caches`` holds the other dialogue tracks' decodes for the voiced-speech
-    check of a session ripple; a track absent from it is not checked. ``word_indexes``
-    holds every dialogue track's word index, built once per proposal run, for the room
-    a pause trim reads on each track.
+    check of a session ripple; a track absent from it is not checked. ``session_air``
+    is the run's rooms and sounds, read once, for the air a pause trim reads on each
+    track.
     """
     tighten = defaults.get("tighten", {})
     leave_in = bool(tighten.get("leave_in_if_risky", True))
@@ -2131,7 +2149,7 @@ def _prepare_candidate(
             audio_cache=audio_cache,
             audio_caches=audio_caches,
             word_index=word_index,
-            word_indexes=word_indexes,
+            session_air=session_air,
         )
         if not isinstance(gated, _GatedCut):
             return gated
@@ -2197,6 +2215,10 @@ def _prepare_candidate(
             shortfall = floor - contiguous
             if shortfall > 0.05:
                 replace_gap = shortfall
+                # A trim exists to shorten the timeline: what is left after the pad it
+                # needs must still be a cut.
+                if cut_end - cut_start - shortfall + 1e-9 < _cut_minimum_sec(candidate):
+                    return _CutRejected("too_short")
     if guard is not None and guard.blocked:
         peers = ",".join(guard.blocking_track_ids)
         if guard.action == "review":
@@ -2220,7 +2242,6 @@ def _prepare_candidate(
         reason=reason,
         review_required=review_required,
         replace_gap=replace_gap,
-        kept_sounds=gated.kept_sounds,
     )
 
 
@@ -2313,7 +2334,7 @@ def _analyze_candidate(
     word_index: CutWordIndex | None = None,
     peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
-    word_indexes: Mapping[str, CutWordIndex] | None = None,
+    session_air: SessionAir | None = None,
 ) -> _AnalyzedCut | _CutRejected:
     """Analyze one candidate end to end: :func:`_prepare_candidate`, then
     :func:`_finish_candidate`. A batch goes through :func:`analyze_candidates`, which
@@ -2327,7 +2348,7 @@ def _analyze_candidate(
         word_index=word_index,
         peer_indexes=peer_indexes,
         audio_caches=audio_caches,
-        word_indexes=word_indexes,
+        session_air=session_air,
     )
     if isinstance(prepared, _CutRejected):
         return prepared
@@ -2347,50 +2368,31 @@ def analyze_candidates(
 ) -> list[_AnalyzedCut | _CutRejected]:
     """Analyze ``candidates`` in parallel, results in candidate order.
 
-    Every candidate is prepared first. A session pause trim that another track's longer
-    trim stands for (the same stretch of shared air, :func:`shared_pause_twins`) is
-    dropped as ``shared_pause`` before the join gate scores anyone: the reviewer decides
-    that cut once, and nobody pays to score the copy.
+    Duplicate pause trims are dropped after the proposals have been resolved against each
+    other (:func:`_resolve_analyzed_cuts`), so a trim whose twin does not survive is not
+    lost with it.
     """
-    prepared = run_parallel(
-        candidates,
-        lambda c: _prepare_candidate(
+    session_air = SessionAir(project, audio_caches=audio_caches, word_indexes=word_indexes)
+
+    def analyze(candidate: _CutCandidate) -> _AnalyzedCut | _CutRejected:
+        prepared = _prepare_candidate(
             project,
-            c,
+            candidate,
             defaults,
-            audio_cache=audio_caches.get(c.track_id),
+            audio_cache=audio_caches.get(candidate.track_id),
             speaker_context=speaker_context,
-            word_index=word_indexes.get(c.track_id),
+            word_index=word_indexes.get(candidate.track_id),
             peer_indexes=peer_indexes,
             audio_caches=audio_caches,
-            word_indexes=word_indexes,
-        ),
-        max_workers=max_workers,
-    )
-    twins = shared_pause_twins(
-        project,
-        [
-            PauseClaim(c.track_id, p.plan.start, p.plan.end, p.kept_sounds)
-            if isinstance(p, _PreparedCut) and c.cut_kind == "pause" and p.scope == "session"
-            else None
-            for c, p in zip(candidates, prepared, strict=True)
-        ],
-    )
-    jobs = [
-        _CutRejected("shared_pause") if index in twins else outcome
-        for index, outcome in enumerate(prepared)
-    ]
-    return run_parallel(
-        jobs,
-        lambda job: (
-            job
-            if isinstance(job, _CutRejected)
-            else _finish_candidate(
-                project, job, defaults, audio_cache=audio_caches.get(job.candidate.track_id)
-            )
-        ),
-        max_workers=max_workers,
-    )
+            session_air=session_air,
+        )
+        if isinstance(prepared, _CutRejected):
+            return prepared
+        return _finish_candidate(
+            project, prepared, defaults, audio_cache=audio_caches.get(candidate.track_id)
+        )
+
+    return run_parallel(candidates, analyze, max_workers=max_workers)
 
 
 def _apply_analyzed_cut(project: EpisodeProject, result: _AnalyzedCut) -> EditDecision:
@@ -2481,5 +2483,6 @@ def analyze_fillers_and_pauses(
         existing=list(project.edit_decisions),
         muted=muted_source_spans(project),
         skip_counts=skip_counts,
+        project=project,
     )
     return [_apply_analyzed_cut(project, result) for result in resolved]

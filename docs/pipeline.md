@@ -268,7 +268,7 @@ Pipeline auto-tighten stays **off** (`tighten.enabled: false`) until the golden-
 | `tighten.isolated_filler_candidates` | `true` | Propose a lone hard filler (not a discourse marker) without a cluster; `light` turns this off |
 | `tighten.min_filler_cluster` | `2` | Min lexicon hits in a gap cluster before a discourse marker (or, with isolated candidates off, a hard filler) is a candidate |
 | `tighten.max_pause_sec` | `1.2` | Inter-word gap before pause trim |
-| `tighten.breath_handling.enabled` | `true` | Co-remove adjacent breaths and keep both final edges of a splice out of breaths and other sound. A pause trim shrinks to the longest stretch of air inside it, measured against each track's room tone (its speech-band levels between its own words, and how far they spread), so no edge sits inside a sound on any track the ripple cuts. Every pause trim is review-only, and one that moved off the span pacing proposed says `:air_edges` ([filler-cut-quality.md](filler-cut-quality.md) § Decision: Pause trims cut only air, #1055) |
+| `tighten.breath_handling.enabled` | `true` | Co-remove adjacent breaths and keep both final edges of a splice out of breaths and other sound. A pause trim shrinks to the longest stretch of air inside it, measured against each recording's room tone (read once, where nobody in the session is speaking, and how far it spreads), so no edge sits inside a sound on any track the ripple cuts. Every pause trim is review-only, and one that moved off the span pacing proposed says `:air_edges` ([filler-cut-quality.md](filler-cut-quality.md) § Decision: Pause trims cut only air, #1055) |
 | `tighten.filler_pad_mode` | `room_tone` | Fill for ripple pads and approved mutes: `room_tone` (the recorded bed, else a steady stretch at the track's noise floor chosen from its audio, 0.15 s clear of speech and of digital silence, and none on a track gated to digital silence; [filler-cut-quality.md](filler-cut-quality.md) § Where room tone comes from), or hard `silence`; any other value is rejected |
 | `tighten.acoustic_gap_filler.enabled` | `true` | Review-only `filler:acoustic` proposals for voiced audio inside ASR gaps (never auto-applied) |
 | `tighten.acoustic_gap_filler.min_gap_sec` | `0.35` | Shortest gap scanned (floor `0.35`) |
@@ -491,6 +491,18 @@ thread-pool overhead and the cache's one-time decode cost roughly cancel out
 further concurrency gains for this step. Parallelism still matters more for
 `assemble_timeline` (real per-track rendering work, not just tiny reads) and for
 episodes with more dialogue tracks.
+
+**Pause-trim air (#1055).** Telling air from sound reads every dialogue recording once
+per proposal run, in two bands, over its whole length (`edits/session_air.py`), where the
+first version read a window around each pause. On `tests/benchmark_tighten.py`'s
+1000-word synthetic project (two tracks), `propose_tighten_edits` takes a median of 11.3 s
+serial and 9.9 s threaded (`performance.max_workers` 1 and 0) against 9.1 s and 7.2 s on
+`main`, over four alternating runs per side (11.0 to 11.5 s, 9.8 to 10.0 s; 9.0 to 9.3 s,
+7.1 to 7.3 s). The branch proposes more decisions (160 against 116, the extra pause trims
+that now get their air), so the cost per decision is 70 ms serial and 62 ms threaded
+against 79 ms and 62 ms. Approving the pause trims the reviewer would (44) and applying
+takes 7.5 to 9.3 s against 5.1 to 7.2 s. The reading is cached on the run, so its cost is
+per recording, not per pause.
 
 
 ### Room-tone levels

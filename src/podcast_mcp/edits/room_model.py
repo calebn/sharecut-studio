@@ -1,11 +1,16 @@
-"""A track's room tone and the sounds that rise out of it, read from its own levels (#1055).
+"""A recording's room tone and the sounds that rise out of it, read from its own levels (#1055).
 
-Air is a track's room tone: its levels where it is not sounding. Sound is whatever rises
-out of the room, so the line between them is the room's own, never a level chosen in
-advance: where the room's 10 ms frame levels sit and how far they spread, read in the
-speech band (``frame_speech_band_db``) on both sides of every comparison. A steady room
-has a tight line, a room that swings frame to frame a wide one, and a room that wanders
-slowly (pumping, HVAC, a compressor's release) a line that follows it down where it dips.
+Air is a recording's room tone: its levels where nobody is sounding. Sound is whatever
+rises out of the room, so the line between them is the room's own, never a level chosen
+in advance: where the room's 10 ms frame levels sit and how far they spread, read through
+one band (``frame_band_filtered_db``) on both sides of every comparison. A steady room has
+a tight line, a room that swings frame to frame a wide one, and a room that wanders slowly
+(pumping, HVAC, a compressor's release) a line that follows it down where it dips.
+
+The room is read once for the whole recording, from the frames where nobody in the session
+is speaking (:func:`read_recording_room`), so a stretch gets the same sounds whichever
+track or pause asks about it. In a conversation a track's own gaps are mostly its peers'
+speech bleeding into its mic; read as its room they put the line tens of dB too high.
 
 The levels are averaged in power over ``SMOOTH_SEC`` before they are compared. A frame of
 noise wanders by a dB or more, a decay into the room moves by tenths of a dB a frame, and
@@ -17,15 +22,28 @@ Pure functions of level arrays: no audio, no project.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass
+from enum import Enum
 from statistics import NormalDist
+from typing import NamedTuple
 
 import numpy as np
 
 from podcast_mcp.edits.audio_cache import DIGITAL_SILENCE_DB, LEVEL_FRAME_SEC
-from podcast_mcp.util.dsp import bool_runs, bridge_short_dips, frame_level_noise_db
+from podcast_mcp.util.dsp import (
+    SPEECH_BAND,
+    BandShape,
+    bool_runs,
+    bridge_short_dips,
+    frame_level_noise_db,
+)
 
 SMOOTH_SEC = 0.05
+# A breath sits this far under its speaker's speech level: from the nearest to the deepest
+# (breaths on the lab tape sit 6 to 39 dB under it, #814). A sound that reaches the deepest
+# is kept whole; a track whose room reaches it cannot tell air from sound.
+BREATH_BELOW_SPEECH_DB = (7.0, 40.0)
 # A sound is a run of averaged frames over the line, dips of up to 50 ms bridged (a
 # breath's or a decay's level flutters for a frame or two, and creaky voice pulses about
 # 20 times a second). No trim edge may sit inside one, so each carries a guard frame.
@@ -38,12 +56,15 @@ LINE_SPREADS = 4.0
 REACH_SPREADS = 2.0
 CLIP_SPREADS = 3.0
 # A room that wanders (pumping, HVAC, a compressor's release) reads wide over the whole
-# window, and where it dips its line and reach sit several dB over the room under a breath.
-# So the room is read again within half a second of each frame: short enough to follow a
-# swing of a second or two (a window of a second either side did not), long enough that a
-# breath of half a second leaves half of it to the room. The floor is read every 0.1 s and
-# drawn straight between.
-LOCAL_ROOM_SEC = 0.5
+# recording, and where it dips its line and reach sit several dB over the room under a
+# breath. So the room is read again within 0.25 s either side of each frame: short enough
+# to follow a swing of a second or two, long enough that a breath leaves part of the window
+# to the room. On the 29 wander, swell and steady scenes (20 trials each), 0.5 s left 21
+# edges inside a sound in some third octave and 15 audible after the render's high-pass;
+# 0.35 s left 11 and 7; 0.25 s left 5 and 3, at 0.014 less of the air kept than 0.5 s;
+# 0.2 s and 0.15 s left 6 and 5 third-octave edges, 4 audible, and no more air. The floor
+# is read every 0.1 s and drawn straight between.
+LOCAL_ROOM_SEC = 0.25
 LOCAL_HOP_SEC = 0.1
 # Sound only adds energy, so a sample read between a track's words can only be too high.
 # The room is read from its low side: it sits at the sample's 5th percentile (read as the
@@ -57,6 +78,21 @@ CLIP_ROUNDS = 10
 # where its count halves, as the half-height of a normal is 1.18 sigma.
 MODE_PROMINENCE = 2.0
 MIN_ROOM_SEC = 0.5
+# A breath that sits only a few dB over a floor that jitters (a denoiser's) never crosses the
+# line a frame must clear, which is four spreads up. But it stays up: a stretch of frames all
+# over the room by a spread, and over it on average by what its length makes a few spreads
+# (the average of ``n`` frames wanders ``SUSTAIN_CORRELATED_FRAMES / n`` as far as one, the
+# 50 ms average being five frames deep) is a sound however low it runs.
+SUSTAIN_FLOOR_SPREADS = 1.0
+SUSTAIN_SPREADS = 4.0
+SUSTAIN_CORRELATED_FRAMES = 5
+SUSTAIN_MIN_SEC = 0.08
+# A gate that holds a track at digital silence for most of the frames where nobody speaks has
+# digital silence for a room: whatever the track does between those frames is sound. A few
+# runs of it (a denoiser's mute, a gap in the file) are not a gate: on the lab tape a mic
+# with 16% of its quiet at digital zero and a live floor between them was read as gated at
+# one frame in twenty, and every live frame of it was a sound.
+GATED_SHARE = 0.5
 
 _NORMAL = NormalDist()
 _ANCHOR_Z = -_NORMAL.inv_cdf(ANCHOR_PERCENTILE / 100.0)
@@ -72,7 +108,7 @@ _DIP_FRAMES = max(
 
 @dataclass(frozen=True)
 class Room:
-    """Where a track's room-tone levels sit (their median) and how far they spread."""
+    """Where a recording's room-tone levels sit (their median) and how far they spread."""
 
     level_db: float
     spread_db: float
@@ -90,15 +126,30 @@ class Room:
 
 @dataclass(frozen=True)
 class Sound:
-    """A sound on one track's 10 ms frame grid, guard frames included.
+    """A sound on one recording's 10 ms frame grid, guard frames included.
 
-    ``removable``: it peaks under the ceiling (40 dB below the track's speech level), so a
-    pause trim may remove it whole. Any sound may only be removed whole or kept whole.
+    ``removable``: it peaks under the ceiling (40 dB below the recording's speech level),
+    so a pause trim may remove it whole. Any sound may only be removed whole or kept whole.
     """
 
     lo: int
     hi: int
     removable: bool
+
+
+def merge_sounds(sounds: Iterable[Sound]) -> list[Sound]:
+    """``sounds`` in order, those that overlap or touch made one.
+
+    A merged sound is removable only when every part of it is.
+    """
+    merged: list[Sound] = []
+    for sound in sorted(sounds, key=lambda s: (s.lo, s.hi)):
+        if merged and sound.lo <= merged[-1].hi:
+            last = merged[-1]
+            merged[-1] = Sound(last.lo, max(last.hi, sound.hi), last.removable and sound.removable)
+        else:
+            merged.append(sound)
+    return merged
 
 
 def smoothed(levels: np.ndarray) -> np.ndarray:
@@ -115,19 +166,19 @@ def smoothed(levels: np.ndarray) -> np.ndarray:
     return out
 
 
-def least_spread(sample_rate: int) -> float:
-    """The least spread a room can have: that of stationary noise averaged over ``SMOOTH_SEC``."""
-    return frame_level_noise_db(sample_rate, SMOOTH_SEC)
+def least_spread(sample_rate: int, band: BandShape = SPEECH_BAND) -> float:
+    """The least spread a room can have: that of stationary noise in ``band`` averaged
+    over ``SMOOTH_SEC``."""
+    return frame_level_noise_db(band, sample_rate, SMOOTH_SEC)
 
 
-def mode_spread(smooth: np.ndarray, ceiling_db: float, sample_rate: int) -> float | None:
+def mode_spread(smooth: np.ndarray, ceiling_db: float, least: float) -> float | None:
     """The spread of the densest low mode of ``smooth``, or ``None`` when none stands clear.
 
-    The room is the one place a track's levels pile up. Its mode is the tallest bin among
-    the live frames under ``ceiling_db``. Sound adds counts above the mode only as a thin
-    continuum, so the room's own half-height is where the count falls to half.
+    The room is the one place a recording's levels pile up. Its mode is the tallest bin
+    among the live frames under ``ceiling_db``. Sound adds counts above the mode only as a
+    thin continuum, so the room's own half-height is where the count falls to half.
     """
-    least = least_spread(sample_rate)
     live = smooth[(smooth > DIGITAL_SILENCE_DB) & (smooth <= ceiling_db)]
     if live.size < _MIN_ROOM_FRAMES:
         return None
@@ -166,86 +217,186 @@ def _clipped_spread(smooth: np.ndarray, least: float) -> float:
     return spread
 
 
-def read_room(smooth: np.ndarray, sample_rate: int, prior: float | None = None) -> Room:
-    """The room of the averaged levels ``smooth`` of a track's frames between its words.
+def _sample_spread(live: np.ndarray, least: float, prior: float | None) -> float:
+    """The lesser of the spread ``live`` says and ``prior``, never under ``least``."""
+    return min(s for s in (_clipped_spread(live, least), prior) if s is not None)
 
-    A gate's digital silence is a room with no spread at all. Otherwise the room sits at
-    the sample's 5th percentile, read as a normal's median, and its spread is the lesser
-    of what the sample says and ``prior``, the spread of the track's room mode over a
-    wider window. It is never less than ``least_spread``.
+
+def _live_frames(smooth: np.ndarray) -> np.ndarray | None:
+    """The live frames of ``smooth``, or ``None`` when a gate holds the track at digital
+    silence for ``GATED_SHARE`` of them or more: that silence is its room."""
+    live = smooth[smooth > DIGITAL_SILENCE_DB]
+    return None if live.size == 0 or live.size <= (1.0 - GATED_SHARE) * smooth.size else live
+
+
+def read_room(smooth: np.ndarray, least: float, prior: float | None = None) -> Room:
+    """The room of the averaged levels ``smooth`` of frames where nobody is speaking.
+
+    A gate's digital silence is a room with no spread at all (``GATED_SHARE``). Otherwise
+    the room sits at the 5th percentile of the live frames, read as a normal's median, and
+    its spread is the lesser of what the sample says and ``prior``, the spread of the
+    recording's room mode. It is never less than ``least``. The odd frame of digital silence
+    in a live room is not a level the room's median or spread should count.
     """
-    least = least_spread(sample_rate)
-    low = float(np.percentile(smooth, ANCHOR_PERCENTILE))
-    if low <= DIGITAL_SILENCE_DB:
-        return Room(low, least)
-    spread = min(s for s in (_clipped_spread(smooth, least), prior) if s is not None)
-    return Room(low + _ANCHOR_Z * spread, spread)
+    live = _live_frames(smooth)
+    if live is None:
+        return Room(DIGITAL_SILENCE_DB, least)
+    spread = _sample_spread(live, least, prior)
+    return Room(float(np.percentile(live, ANCHOR_PERCENTILE)) + _ANCHOR_Z * spread, spread)
 
 
-def _local_lines(smooth: np.ndarray, room: Room, sample_rate: int) -> tuple[np.ndarray, np.ndarray]:
+def read_conservative_room(smooth: np.ndarray, least: float, prior: float | None = None) -> Room:
+    """The room of ``smooth`` when no frame of the session is quiet to read it from.
+
+    The frames are a track's own gaps, where its peers talk and bleed into it, so their
+    median is bleed, not room. The room is the sample's 5th percentile itself, not read up
+    to a normal's median, with the spread :func:`read_room` would give: the lowest the
+    sample can say, so the line sits as low as it can and more of the track is sound.
+    """
+    live = _live_frames(smooth)
+    if live is None:
+        return Room(DIGITAL_SILENCE_DB, least)
+    return Room(float(np.percentile(live, ANCHOR_PERCENTILE)), _sample_spread(live, least, prior))
+
+
+class RoomBasis(Enum):
+    """Where a recording's room was read from."""
+
+    SESSION_SILENCE = "session_silence"
+    OWN_GAPS = "own_gaps"
+
+
+def read_recording_room(
+    smooth: np.ndarray,
+    session_silent: np.ndarray,
+    own_gaps: np.ndarray,
+    least: float,
+    ceiling_db: float,
+) -> tuple[Room, RoomBasis] | None:
+    """A recording's room, read once, and where it was read from; ``None`` when no frame can be.
+
+    The room is read from the frames where nobody in the session is speaking
+    (``session_silent``): there a track holds its room tone and nothing else, whatever its
+    peers did a moment before. A recording with under ``MIN_ROOM_SEC`` of such frames falls
+    back to its own gaps between its words (``own_gaps``), read conservatively
+    (:func:`read_conservative_room`). ``ceiling_db`` bounds the recording's room mode,
+    which gives the spread a sample that is mostly sound cannot.
+    """
+    prior = mode_spread(smooth, ceiling_db, least)
+    if np.count_nonzero(session_silent) >= _MIN_ROOM_FRAMES:
+        return read_room(smooth[session_silent], least, prior), RoomBasis.SESSION_SILENCE
+    if np.count_nonzero(own_gaps) >= _MIN_ROOM_FRAMES:
+        return read_conservative_room(smooth[own_gaps], least, prior), RoomBasis.OWN_GAPS
+    return None
+
+
+class _Lines(NamedTuple):
+    """The room as each frame of a recording sees it: the line and the reach, the level they
+    stand over and the spread they are drawn at."""
+
+    line: np.ndarray
+    reach: np.ndarray
+    level: np.ndarray
+    spread: np.ndarray
+
+
+def _local_lines(smooth: np.ndarray, room: Room, least: float) -> _Lines:
     """The line and the reach at each frame of ``smooth``: ``room``'s, or lower where the
     room near the frame is quieter.
 
     Within ``LOCAL_ROOM_SEC`` of each frame the room sits at the levels' 5th percentile,
-    read as a normal's median as ``read_room`` reads it. The spread is how far all the
+    read as a normal's median as :func:`read_room` reads it. The spread is how far all the
     levels stand over that running floor: the wander is taken out, so it is the
     frame-to-frame spread of a room that swings slowly. Sound only raises a local read
     (more of it near the frame lifts the floor), so the lower of the two lines stands, and
-    a stretch that is all sound keeps ``room``'s. A gate's digital silence has no
-    local read: its line is its own.
+    a stretch that is all sound keeps ``room``'s. A gate's digital silence has no local
+    read: its line is its own.
     """
     width = 2 * round(LOCAL_ROOM_SEC / LEVEL_FRAME_SEC) + 1
     if room.level_db <= DIGITAL_SILENCE_DB or smooth.size < width:
-        return np.full(smooth.size, room.line_db), np.full(smooth.size, room.reach_db)
+        return _Lines(
+            np.full(smooth.size, room.line_db),
+            np.full(smooth.size, room.reach_db),
+            np.full(smooth.size, room.level_db),
+            np.full(smooth.size, room.spread_db),
+        )
     frames = np.arange(smooth.size)
     centres = frames[:: round(LOCAL_HOP_SEC / LEVEL_FRAME_SEC)]
     starts = np.clip(centres - width // 2, 0, smooth.size - width)
     windows = np.lib.stride_tricks.sliding_window_view(smooth, width)[starts]
     floor = np.interp(frames, centres, np.percentile(windows, ANCHOR_PERCENTILE, axis=1))
-    spread = _clipped_spread(smooth - floor, least_spread(sample_rate))
+    spread = _clipped_spread(smooth - floor, least)
     level = floor + _ANCHOR_Z * spread
-    return (
-        np.minimum(room.line_db, level + LINE_SPREADS * spread),
+    line = level + LINE_SPREADS * spread
+    lower = line < room.line_db
+    return _Lines(
+        np.minimum(room.line_db, line),
         np.minimum(room.reach_db, level + REACH_SPREADS * spread),
+        np.where(lower, level, room.level_db),
+        np.where(lower, spread, room.spread_db),
     )
+
+
+def _sustained(
+    smooth: np.ndarray, lines: _Lines, ceiling: float, levels: np.ndarray
+) -> list[Sound]:
+    """Sounds that never cross the line but stay over the room: a run of frames all over it by
+    ``SUSTAIN_FLOOR_SPREADS``, dips bridged, at least ``SUSTAIN_MIN_SEC`` long, whose mean
+    stands ``SUSTAIN_SPREADS`` spreads of a mean of that many frames over the room."""
+    elevated = bridge_short_dips(
+        smooth > lines.level + SUSTAIN_FLOOR_SPREADS * lines.spread, _DIP_FRAMES
+    )
+    found: list[Sound] = []
+    for lo, hi in bool_runs(elevated):
+        n = hi - lo
+        if n < round(SUSTAIN_MIN_SEC / LEVEL_FRAME_SEC):
+            continue
+        excess = float(np.mean(smooth[lo:hi] - lines.level[lo:hi]))
+        need = (
+            SUSTAIN_SPREADS
+            * float(np.mean(lines.spread[lo:hi]))
+            * math.sqrt(SUSTAIN_CORRELATED_FRAMES / n)
+        )
+        if excess >= need:
+            found.append(
+                Sound(
+                    max(0, lo - SOUND_GUARD_FRAMES),
+                    min(levels.size, hi + SOUND_GUARD_FRAMES),
+                    bool(levels[lo:hi].max() < ceiling),
+                )
+            )
+    return found
 
 
 def find_sounds(
     levels: np.ndarray,
     room: Room,
     speech_db: float | None,
-    pause: tuple[int, int],
-    sample_rate: int,
+    least: float,
     *,
     breath_below_speech_db: tuple[float, float],
+    gate_on_speech: bool = True,
 ) -> list[Sound]:
     """The sounds in ``levels``: where the room's line is crossed, traced out to its reach.
 
-    The room is read between the track's words, where a transcript that misses speech (a
-    mic that carries a loud room, a stretch the ASR dropped) leaves the sample mostly
-    sound, and where a gate or expander closes less than it does in a long pause. The
-    pause's own frames are read the same way, with the same spread, and the lower line of
-    the two is the room's: sound in either only raises its line, so the quieter is the
-    nearer to the room, and one that is mostly sound can never raise the other's. Each
-    frame's line is lowered further where the room near it is quieter (``_local_lines``).
+    Each frame's line is lowered where the room near it is quieter (:func:`_local_lines`),
+    so a gate or expander that closes further in a long pause, or a room that wanders,
+    still gives the quiet its own line.
 
-    With no speech level (a peer with under 0.5 s of live audio nearby) every sound is
-    kept whole. A track speaks when its speech level stands out of its quietest live
-    frames by at least the nearest a breath sits under speech (``breath_below_speech_db``
-    low end), whatever its room reads as: a window whose frames are mostly bleed or
-    speech can misread its room tall. A track that speaks and whose line reaches within
-    the far end of that range of its speech cannot tell air from sound, because breaths
-    sit down to there: its whole window is one sound to keep. A track that never speaks
-    nearby (a second mic that carries only its room tone) has no speech to protect. A
-    sound quieter than that ceiling may be removed whole; digital silence is never a
-    sound.
+    With no speech level (a recording with no words, or under half a second of them) every
+    sound is kept whole. A track speaks when its speech level stands out of its quietest
+    live frames by at least the nearest a breath sits under speech
+    (``breath_below_speech_db`` low end). A track that speaks and whose line reaches within
+    the far end of that range of its speech cannot tell air from sound, because breaths sit
+    down to there: all of it is one sound to keep (``gate_on_speech``; the speech band only,
+    since a band of a few tens of Hz has no speech to measure that against). That line is the
+    recording's own, not a local one: a room that swings by several dB a second reads a line
+    that high, and the local floors that follow its dips are not to be trusted to find every
+    breath on a room like that. A track that never speaks (a second mic that carries only its
+    room tone) has no speech to protect. A sound quieter than that ceiling may be removed
+    whole; digital silence is never a sound.
     """
     smooth = smoothed(levels)
-    frames = smooth[pause[0] : pause[1]]
-    if frames.size >= _MIN_ROOM_FRAMES:
-        here = read_room(frames, sample_rate, room.spread_db)
-        if here.line_db < room.line_db:
-            room = here
     nearest, deepest = breath_below_speech_db
     ceiling = -math.inf if speech_db is None else speech_db - deepest
     live = smooth[smooth > DIGITAL_SILENCE_DB]
@@ -254,19 +405,19 @@ def find_sounds(
         and live.size > 0
         and speech_db - float(np.percentile(live, ANCHOR_PERCENTILE)) >= nearest
     )
-    if room.level_db > DIGITAL_SILENCE_DB and speaks and room.line_db >= ceiling:
+    if gate_on_speech and room.level_db > DIGITAL_SILENCE_DB and speaks and room.line_db >= ceiling:
         return [Sound(0, levels.size, False)]
-    line, reach_db = _local_lines(smooth, room, sample_rate)
-    reach = bridge_short_dips(smooth > reach_db, _DIP_FRAMES)
-    crossed = smooth > line
-    sounds: list[Sound] = []
-    for lo, hi in bool_runs(reach):
-        if not crossed[lo:hi].any():
-            continue
-        removable = float(levels[lo:hi].max()) < ceiling
-        lo, hi = max(0, lo - SOUND_GUARD_FRAMES), min(levels.size, hi + SOUND_GUARD_FRAMES)
-        if sounds and lo <= sounds[-1].hi:
-            sounds[-1] = Sound(sounds[-1].lo, hi, sounds[-1].removable and removable)
-        else:
-            sounds.append(Sound(lo, hi, removable))
-    return sounds
+    lines = _local_lines(smooth, room, least)
+    reach = bridge_short_dips(smooth > lines.reach, _DIP_FRAMES)
+    crossed = smooth > lines.line
+    sounds = [
+        Sound(
+            max(0, lo - SOUND_GUARD_FRAMES),
+            min(levels.size, hi + SOUND_GUARD_FRAMES),
+            bool(levels[lo:hi].max() < ceiling),
+        )
+        for lo, hi in bool_runs(reach)
+        if crossed[lo:hi].any()
+    ]
+    sounds += _sustained(smooth, lines, ceiling, levels)
+    return merge_sounds(sounds)
