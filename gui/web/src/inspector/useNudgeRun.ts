@@ -6,7 +6,10 @@
  * button or blur end the run.
  *
  * Each step previews in the project (the timeline draws it); the run saves
- * once when it ends, so a held run is one undoable edit. Hard limits stop a
+ * once when it ends, so a held run is one undoable edit. A cancel the timeline
+ * router sends because a second finger landed (a pinch never edits) rolls the
+ * preview back and saves nothing; a cancel the system sends still ends the
+ * run and saves it. Hard limits stop a
  * run. A held step that would reach or cross a soft boundary stops exactly
  * there with a bump cue and a "Stopped at …" announcement; a fresh press
  * goes on past it.
@@ -38,6 +41,7 @@ import {
   withinGhostClick,
 } from "../hooks/gestureConstants";
 import { useDawStore } from "../state/dawStore";
+import { isReplayed } from "../timeline/hitRouting";
 import type { ProjectView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
 
@@ -154,7 +158,7 @@ export function useNudgeRun() {
     return r;
   };
 
-  const end = async () => {
+  const end = async (save = true) => {
     const r = run.current;
     if (!r) return;
     run.current = null;
@@ -166,6 +170,10 @@ export function useNudgeRun() {
         revertOptimisticIfUnchanged(r.origin, r.seq, r.projectPath, r.preview);
       }
     };
+    if (!save) {
+      revert();
+      return;
+    }
     setSaving(true);
     try {
       if (!(await saveNudge(r.projectPath, r.origin, r.field, r.value))) {
@@ -208,7 +216,8 @@ export function useNudgeRun() {
       if (r && !r.stopped) repeatLater(r);
     },
     onPointerUp: () => void end(),
-    onPointerCancel: () => void end(),
+    onPointerCancel: (event: PointerEvent<HTMLButtonElement>) =>
+      void end(!isReplayed(event.nativeEvent)),
     onPointerLeave: () => {
       if (run.current?.input === "pointer") void end();
     },

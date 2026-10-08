@@ -10,6 +10,7 @@ import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import { expectNoA11yViolations } from "../test/a11y";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import { replayPointer } from "../timeline/hitRouting";
 import type { ProjectView, Selection } from "../types/project";
 import { InspectorPeek } from "./InspectorPeek";
 import { peekTarget } from "./peekTarget";
@@ -191,6 +192,28 @@ describe("InspectorPeek nudges", () => {
       303,
       0,
     ]);
+  });
+
+  it("rolls a held run back, saving nothing, when the router cancels it for a second finger", async () => {
+    open(FADE);
+    const plus = button("Fade in 1 ms longer");
+    const down = new PointerEvent("pointerdown", {
+      pointerId: 9,
+      pointerType: "touch",
+    });
+    fireEvent.pointerDown(plus, { button: 0 });
+    advance(1300);
+    expect(fadeIn()).toBe(315);
+    replayPointer("pointercancel", plus, down);
+    advance(1000);
+    await flush();
+    expect(fadeIn()).toBe(300);
+    expect(api.setClipFade).not.toHaveBeenCalled();
+    expect(announce).not.toHaveBeenCalled();
+    fireEvent.pointerUp(plus);
+    advance(1000);
+    await flush();
+    expect(api.setClipFade).not.toHaveBeenCalled();
   });
 
   it("follows the keyboard's own repeat, saving once on key up", async () => {
