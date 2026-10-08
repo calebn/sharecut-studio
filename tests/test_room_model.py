@@ -46,8 +46,6 @@ def test_a_normal_room_reads_its_median_and_spread() -> None:
 
     assert room.level_db == pytest.approx(-70.0, abs=0.15)
     assert room.spread_db == pytest.approx(1.0, abs=0.15)
-    assert room.line_db == pytest.approx(room.level_db + 4.0 * room.spread_db)
-    assert room.reach_db == pytest.approx(room.level_db + 2.0 * room.spread_db)
 
 
 def test_a_room_is_never_steadier_than_stationary_noise_can_read() -> None:
@@ -119,10 +117,9 @@ def test_a_breath_over_a_steady_room_is_one_sound_with_a_guard_frame_each_side()
     levels = _track()
     levels[350:380] += 12.0 * np.sin(np.linspace(0.0, np.pi, 30))
 
-    sounds = _sounds(levels)
-
-    assert sounds == [Sound(lo=sounds[0].lo, hi=sounds[0].hi, removable=True)]
-    assert 340 <= sounds[0].lo <= 352 and 378 <= sounds[0].hi <= 392
+    # The breath's frames 350-379 rise 12 dB out of a room steady to 0.45 dB; its 50 ms
+    # average clears the room's reach from frame 350 to 379, and a guard frame is added.
+    assert _sounds(levels) == [Sound(349, 381, True)]
 
 
 def test_a_sound_is_traced_out_against_the_room_under_it_not_the_whole_windows() -> None:
@@ -147,6 +144,28 @@ def test_a_sound_is_traced_out_against_the_room_under_it_not_the_whole_windows()
     )
 
     assert sounds == [Sound(401, 463, False)]
+
+
+@pytest.mark.parametrize(("bump_db", "expected"), [(-68.87, []), (-68.65, [Sound(399, 421, True)])])
+def test_the_line_sits_four_spreads_over_the_rooms_median(bump_db: float, expected) -> None:
+    # A room as steady as a room reads: frames at -70 read a median of -69.64 dBFS and the
+    # least spread, 0.219 dB, so the line is at -68.76. A 200 ms stretch 3.5 spreads over
+    # the median (-68.87) is the room; one 4.5 spreads over it (-68.65) is a sound, traced
+    # out to two spreads and given a guard frame each side.
+    levels = np.full(800, -70.0)
+    levels[400:420] = bump_db
+
+    assert _sounds(levels) == expected
+
+
+def test_a_click_whose_own_frame_reaches_the_ceiling_stays_whole_though_its_average_does_not():
+    # One 10 ms click at -52 dBFS, 37 dB under the -15 dBFS speech: over the ceiling (40 dB
+    # under). Its 50 ms average spreads it over five frames at -58.7, under the ceiling, but
+    # the click itself reaches it, so it is kept whole and splits the air.
+    levels = np.full(800, -70.0)
+    levels[400] = -52.0
+
+    assert _sounds(levels) == [Sound(397, 404, False)]
 
 
 def test_a_steady_room_alone_holds_no_sound() -> None:
@@ -210,30 +229,24 @@ def test_a_mic_that_never_speaks_has_no_speech_to_protect() -> None:
 
 
 def test_a_pause_quieter_than_the_room_between_words_lowers_the_line() -> None:
-    # A gate or expander closes further in a long pause than in the short gaps the room
-    # is read from: the room is -60, the pause -80, and a breath 12 dB over the pause is
-    # a sound there that the room's own line would have missed.
+    # A gate or expander closes further in a long pause than in the short gaps the room is
+    # read from. Between the words it reads -57 dBFS, a line within 40 dB of the -15 dBFS
+    # speech: on that room alone the track cannot tell air from sound, and its whole window
+    # is one sound to keep. Its pause sits at -80, and a breath 12 dB over it is a sound
+    # like any other, removable whole.
     levels = _track(room_db=-80.0)
     levels[350:380] += 12.0 * np.sin(np.linspace(0.0, np.pi, 30))
-    room_between_words = Room(-60.0, 0.5)
+    room_between_words = Room(-57.0, 0.5)
 
-    assert _sounds(levels, room=room_between_words) != []
-    assert _sounds(levels, room=Room(-80.0, 0.5)) != []
-    assert find_sounds(
-        levels,
-        Room(-60.0, 0.5),
-        -15.0,
-        (300, 500),
-        RATE,
-        breath_below_speech_db=BREATHS_BELOW_SPEECH_DB,
-    ) == _sounds(levels, room=Room(-80.0, 0.5))
+    assert _sounds(levels, room=room_between_words, pause=(0, 0)) == [Sound(0, 800, False)]
+    assert _sounds(levels, room=room_between_words) == [Sound(349, 381, True)]
 
 
 def test_a_pause_that_is_mostly_sound_cannot_raise_the_line() -> None:
+    # The pause's 200 frames are a sound at -45 dBFS: read on its own its room is the sound,
+    # but the lower line of the two stands, so the whole stretch is one sound (30 dB under
+    # the speech, over the ceiling) out to a guard frame past the room's reach each side.
     levels = _track()
     levels[300:500] = -45.0 + np.random.default_rng(1).standard_normal(200)
 
-    sounds = _sounds(levels, speech_db=-15.0, room=Room(-70.0, 0.5))
-
-    assert sounds != []
-    assert all(sound.hi - sound.lo >= 190 for sound in sounds[:1])
+    assert _sounds(levels, room=Room(-70.0, 0.5)) == [Sound(297, 503, False)]
