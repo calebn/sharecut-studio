@@ -610,7 +610,17 @@ describe("host document command queue", () => {
   );
 
   it("does not post a newer edit when storage failure hides an older one", async () => {
-    enqueueHostCommand.mockRejectedValue(new Error("quota exceeded"));
+    const cause = new Error("quota exceeded");
+    enqueueHostCommand.mockImplementation(
+      async (
+        _path: string,
+        _command: unknown,
+        onPersistenceFailure: () => void,
+      ) => {
+        onPersistenceFailure();
+        throw cause;
+      },
+    );
     loadHostCommandQueue.mockResolvedValue([{ command_id: "older" }]);
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
@@ -858,7 +868,17 @@ describe("host document command queue", () => {
   });
 
   it("still posts online when IndexedDB persistence fails", async () => {
-    enqueueHostCommand.mockRejectedValue(new Error("storage unavailable"));
+    const cause = new Error("storage unavailable");
+    enqueueHostCommand.mockImplementation(
+      async (
+        _path: string,
+        _command: unknown,
+        onPersistenceFailure: () => void,
+      ) => {
+        onPersistenceFailure();
+        throw cause;
+      },
+    );
     vi.stubGlobal(
       "fetch",
       vi.fn(

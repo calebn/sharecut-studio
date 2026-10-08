@@ -17,7 +17,18 @@ export function documentClientId(): string {
 
 export function nextDocumentClientSeq(): number {
   const raw = sessionStorage.getItem(CLIENT_SEQ_KEY);
-  const next = (raw ? Number.parseInt(raw, 10) : 0) + 1;
+  const previous = raw === null ? 0 : Number(raw);
+  if (
+    (raw !== null && !/^\d+$/.test(raw)) ||
+    !Number.isSafeInteger(previous) ||
+    previous < 0 ||
+    previous >= Number.MAX_SAFE_INTEGER
+  ) {
+    throw new Error(
+      "Cannot create this edit because its saved sequence is invalid.",
+    );
+  }
+  const next = previous + 1;
   sessionStorage.setItem(CLIENT_SEQ_KEY, String(next));
   return next;
 }

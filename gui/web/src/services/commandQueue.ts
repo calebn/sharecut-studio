@@ -76,21 +76,58 @@ function queuedResult(
   return { ok: true, queued: true, command_id, client_seq };
 }
 
+function isCommandIdentity(
+  value: Partial<CommandIdentity>,
+): value is CommandIdentity {
+  return (
+    typeof value.client_id === "string" &&
+    value.client_id.length > 0 &&
+    typeof value.command_id === "string" &&
+    value.command_id.length > 0 &&
+    typeof value.client_seq === "number" &&
+    Number.isSafeInteger(value.client_seq) &&
+    value.client_seq > 0
+  );
+}
+
+function resolveCommandOptions(
+  opts?: DocumentCommandOptions,
+): ResolvedCommandOptions {
+  if (opts?.replaying) {
+    if (!isCommandIdentity(opts))
+      throw new Error("Invalid document command identity");
+    return opts;
+  }
+  if (
+    (opts?.client_id !== undefined &&
+      (typeof opts.client_id !== "string" || opts.client_id.length === 0)) ||
+    (opts?.command_id !== undefined &&
+      (typeof opts.command_id !== "string" || opts.command_id.length === 0)) ||
+    (opts?.client_seq !== undefined &&
+      (typeof opts.client_seq !== "number" ||
+        !Number.isSafeInteger(opts.client_seq) ||
+        opts.client_seq <= 0))
+  )
+    throw new Error("Invalid document command identity");
+  const resolved = {
+    ...opts,
+    command_id: opts?.command_id ?? newCommandId(),
+    client_seq: opts?.client_seq ?? nextDocumentClientSeq(),
+    client_id: opts?.client_id ?? documentClientId(),
+    replaying: false,
+  };
+  if (!isCommandIdentity(resolved))
+    throw new Error("Invalid document command identity");
+  return resolved;
+}
+
 export async function submitQueuedDocumentCommand(
   projectPath: string,
   type: string,
   payload: Record<string, unknown> = {},
   opts?: DocumentCommandOptions,
 ): Promise<Record<string, unknown>> {
-  const resolved: ResolvedCommandOptions = opts?.replaying
-    ? opts
-    : {
-        ...opts,
-        command_id: opts?.command_id ?? newCommandId(),
-        client_seq: opts?.client_seq ?? nextDocumentClientSeq(),
-        client_id: opts?.client_id ?? documentClientId(),
-        replaying: false,
-      };
+  const resolved = resolveCommandOptions(opts);
   const commandId = resolved.command_id;
   const active = useDawStore.getState().projectPath === projectPath;
   const scope = active ? activateDocumentScope(projectPath) : documentScope();
@@ -253,21 +290,29 @@ async function submitHostDocumentCommand(
   let bodyBase = body.bodyBase;
   const hostQueue = await import("../state/offlineStore");
   let enqueueResult = { persisted: false, hadPredecessor: false };
+  let persistenceFailed = false;
   if (opts.replaying) {
     // A replay already owns its persisted queue record.
     enqueueResult.persisted = true;
   } else {
     try {
-      enqueueResult = await hostQueue.enqueueHostCommand(projectPath, {
-        command_id,
-        client_id: bodyBase.client_id,
-        client_seq,
-        type,
-        payload,
-        structural_mode: opts.structural_mode,
-        created_at: Date.now(),
-      });
+      enqueueResult = await hostQueue.enqueueHostCommand(
+        projectPath,
+        {
+          command_id,
+          client_id: bodyBase.client_id,
+          client_seq,
+          type,
+          payload,
+          structural_mode: opts.structural_mode,
+          created_at: Date.now(),
+        },
+        () => {
+          persistenceFailed = true;
+        },
+      );
     } catch (error) {
+      if (!persistenceFailed) throw error;
       // Direct send is safe only when a readable queue proves there is no older edit.
       let pending;
       try {
