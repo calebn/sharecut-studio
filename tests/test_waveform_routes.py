@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import wave
 
 import numpy as np
 import pytest
@@ -65,6 +66,40 @@ def test_tiles_route_serves_immutable_bins(tmp_path):
     assert "etag" not in res.headers
     path = pyramid_path(project_path.parent / "artifacts" / "peaks", "track-host", key)
     assert res.content == read_bins(path, read_meta(path), 0, 0, 4096)
+
+
+def test_waveform_routes_publish_literal_pcm_bins(tmp_path):
+    project_path = waveform_project(tmp_path, frames=64)
+    with wave.open(str(project_path.parent / "raw" / "host.wav"), "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(8000)
+        audio.writeframes(b"\x00\x40" * 64)
+    client = TestClient(create_app())
+    key = _ready_key(client, project_path)
+    status = client.get("/api/waveform/status", params={"path": str(project_path)})
+    entry = status.json()["media"]["track:host"]
+    assert entry == {
+        "status": "ready",
+        "key": key,
+        "sample_rate": 8000,
+        "channels": 1,
+        "total_frames": 64,
+        "base_spp": 64,
+        "level_factor": 4,
+        "bins_per_tile": 4096,
+        "levels": [{"spp": 64, "bins": 1}],
+    }
+    params = {"path": str(project_path), "ref": "track:host"}
+    tiles = client.get(f"/api/waveform/tiles/{key}", params={**params, "level": 0, "start": 0})
+    pcm = client.get(f"/api/waveform/pcm/{key}", params={**params, "block": 0})
+    assert tiles.status_code == pcm.status_code == 200
+    assert tiles.content == b"\xff\x3f\x00\x40\x00\x40"
+    assert pcm.content == b"\xff\x3f\x00\x40" * 64
+    assert (
+        tiles.headers["content-type"] == pcm.headers["content-type"] == "application/octet-stream"
+    )
+    assert tiles.headers["cache-control"] == pcm.headers["cache-control"] == IMMUTABLE
 
 
 @pytest.mark.parametrize(

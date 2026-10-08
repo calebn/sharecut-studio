@@ -321,6 +321,64 @@ async def test_proxy_roundtrip_paths(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_proxy_stream_keeps_first_headers_and_all_chunks(monkeypatch):
+    from podcast_relay.app import _ingest_http_response
+
+    monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", "secret")
+    monkeypatch.setenv("PODCAST_RELAY_RATE_LIMIT", "0")
+    app = create_relay_app()
+
+    class ChunkedHost:
+        async def send_json(self, data):
+            pending = session.pending[data["id"]]
+            await _ingest_http_response(
+                pending,
+                {
+                    "status": 206,
+                    "headers": {
+                        "Content-Type": "audio/wav",
+                        "Content-Range": "bytes 0-5/6",
+                        "Content-Length": "999",
+                        "Set-Cookie": "secret",
+                        "Connection": "keep-alive",
+                    },
+                    "body_b64": "YWJj",
+                    "eof": False,
+                },
+            )
+            await _ingest_http_response(
+                pending,
+                {
+                    "status": 500,
+                    "headers": {"Content-Type": "text/plain"},
+                    "body_b64": "ZGVm",
+                    "eof": False,
+                },
+            )
+            await _ingest_http_response(pending, {"eof": True})
+
+    session = TunnelSession(host_id="h1", websocket=ChunkedHost(), host_token="secret")
+    await app.state.relay.register_tunnel(session)
+    await app.state.relay.update_shares(
+        "h1",
+        attach_share_claims(
+            [{"token": "full", "capabilities": ["play"]}],
+            host_id="h1",
+            secret="secret",
+        ),
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as http:
+        response = await http.get("/api/review/full/audio")
+    assert response.status_code == 206
+    assert response.content == b"abcdef"
+    assert dict(response.headers) == {
+        "content-type": "audio/wav",
+        "content-range": "bytes 0-5/6",
+    }
+    assert session.pending == {}
+
+
+@pytest.mark.asyncio
 async def test_proxy_timeout(monkeypatch):
     monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", "secret")
     app = create_relay_app()
