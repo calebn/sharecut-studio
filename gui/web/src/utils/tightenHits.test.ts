@@ -30,6 +30,7 @@ function edit(overrides: Partial<PendingEditView> = {}): PendingEditView {
     cut_confidence: 0.8,
     review_required: false,
     harsh: false,
+    listen_one_by_one: false,
     applied: false,
     suggest_reason: null,
     ...overrides,
@@ -239,6 +240,7 @@ describe("tightenHits", () => {
           reason: "pause:1.10s:solo",
           review_required: true,
           harsh: true,
+          listen_one_by_one: true,
         }),
         edit({
           id: "risky",
@@ -251,6 +253,16 @@ describe("tightenHits", () => {
     );
     expect(eligibleApplyAllIds(hits, true)).toEqual(["um"]);
     expect(eligibleApplyAllIds(hits, false)).toEqual(["um", "risky"]);
+  });
+
+  it("takes the listen-one-by-one rule from the server and fails closed without it", () => {
+    const flagged = edit({ id: "trim", listen_one_by_one: true });
+    const unclassified = edit({ id: "unknown" });
+    delete (unclassified as { listen_one_by_one?: boolean }).listen_one_by_one;
+    // A pause the server did not flag is batched; a hit it never classified is not.
+    const unflaggedPause = edit({ id: "pause", reason: "pause:1.10s:solo" });
+    const hits = listTightenHits([flagged, unclassified, unflaggedPause], null);
+    expect(eligibleApplyAllIds(hits, false)).toEqual(["pause"]);
   });
 
   it("treats missing timeline bounds as not seekable or previewable", () => {

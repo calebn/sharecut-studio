@@ -1,4 +1,4 @@
-"""Apply eligible: one harsh rule for Studio (``pending_edits[].harsh``) and agents."""
+"""Apply eligible: one harsh rule and one listen-one-by-one rule for Studio and agents."""
 
 from __future__ import annotations
 
@@ -9,7 +9,11 @@ import pytest
 from typer.testing import CliRunner
 
 from podcast_mcp.cli.main import app
-from podcast_mcp.edits.tighten_hits import eligible_tighten_ids, is_harsh_tighten_hit
+from podcast_mcp.edits.tighten_hits import (
+    eligible_tighten_ids,
+    is_harsh_tighten_hit,
+    is_listen_one_by_one_hit,
+)
 from podcast_mcp.gui.mapper import map_pending_edits_to_timeline
 from podcast_mcp.mcp import server as mcp_server
 from podcast_mcp.models import (
@@ -57,6 +61,16 @@ def test_harsh_is_review_or_join_risk_on_tighten_hits_only() -> None:
     assert is_harsh_tighten_hit(_decision("nl-review", "nl:topic", review=True)) is False
 
 
+def test_a_pause_trim_is_listened_to_one_by_one_and_never_eligible() -> None:
+    # Even one no check flagged for review (nothing on its reason, nothing on its row).
+    trim = _decision("trim", "pause:1.10s:solo", review=False)
+
+    assert not is_harsh_tighten_hit(trim)
+    assert is_listen_one_by_one_hit(trim)
+    assert [d.id for d in HITS if is_listen_one_by_one_hit(d)] == ["join"]
+    assert eligible_tighten_ids([trim, HITS[0]]) == ["safe"]
+
+
 def test_eligible_ids_skip_harsh_applied_and_non_tighten() -> None:
     applied = _decision("done", "filler:um")
     applied.applied = True
@@ -85,7 +99,9 @@ def _pending(path: str) -> list[str]:
     return sorted(d.id for d in load_project(Path(path)).edit_decisions if not d.applied)
 
 
-def test_studio_view_carries_the_same_harsh_flag(tmp_path, sample_wav) -> None:
+def test_studio_view_carries_the_same_harsh_and_listen_one_by_one_flags(
+    tmp_path, sample_wav
+) -> None:
     path = mcp_server.episode_create(str(tmp_path / "ws"))
     _seed(path, sample_wav)
     proj = load_project(Path(path))
@@ -95,6 +111,13 @@ def test_studio_view_carries_the_same_harsh_flag(tmp_path, sample_wav) -> None:
         "risky": True,
         "join": True,
         "review": True,
+        "nl": False,
+    }
+    assert {r["id"]: r["listen_one_by_one"] for r in rows} == {
+        "safe": False,
+        "risky": False,
+        "join": True,
+        "review": False,
         "nl": False,
     }
 
