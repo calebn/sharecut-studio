@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { toastDockBottomPx } from "./toastDock";
+import { renderHook } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
+import { toastDockBottomPx, usePhoneToastDock } from "./toastDock";
 
 /** 390×844 phone: transport 0–52, mode nav 792–844, toast 62 tall, 12px gap. */
 const phone = {
@@ -85,5 +86,56 @@ describe("toastDockBottomPx (phone)", () => {
         pressedPx: { top: 60, bottom: 780 },
       }),
     ).toBe(844 - 792 + 12);
+  });
+});
+
+describe("usePhoneToastDock", () => {
+  const boxes: Element[] = [];
+  afterEach(() => {
+    for (const el of boxes.splice(0)) el.remove();
+    delete document.documentElement.dataset.shell;
+  });
+
+  function box(className: string, top: number, bottom: number): HTMLElement {
+    const el = document.createElement("div");
+    el.className = className;
+    el.getBoundingClientRect = () =>
+      ({
+        top,
+        bottom,
+        left: 0,
+        right: 390,
+        width: 390,
+        height: bottom - top,
+      }) as DOMRect;
+    document.body.append(el);
+    boxes.push(el);
+    return el;
+  }
+
+  it("docks above the crossfade rail, which a join's popover leaves over the lanes", () => {
+    document.documentElement.dataset.shell = "phone";
+    const shell = box("daw-shell--phone", 0, 844);
+    const region = document.createElement("div");
+    const card = document.createElement("div");
+    card.getBoundingClientRect = () =>
+      ({ top: 0, bottom: 62, height: 62 }) as DOMRect;
+    region.append(card);
+    document.body.append(region);
+    boxes.push(region);
+    box("mobile-nav", 792, 844);
+    const toolRail = box("editing-tool-rail", 732, 792);
+    shell.append(toolRail);
+    box("join-edit-rail", 655, 725);
+    box("daw-shell-transport", 0, 52);
+    shell.append(...document.querySelectorAll(".daw-shell-transport"));
+    const { unmount } = renderHook(() =>
+      usePhoneToastDock({ current: region }, true),
+    );
+    const bottom = Number.parseFloat(
+      region.style.getPropertyValue("--toast-dock-bottom"),
+    );
+    unmount();
+    expect(bottom * 16).toBe(window.innerHeight - 655 + 8);
   });
 });

@@ -3,11 +3,13 @@ import { lastPressedRect } from "../ui/pressedControl";
 
 /**
  * Phone chrome docked to the bottom edge. The toast sits above the highest of
- * these that is shown: the mode nav, the Timeline tool rail, or an open sheet.
+ * these that is shown: the mode nav, the Timeline tool rail, an open join's
+ * crossfade rail, or an open sheet.
  */
 const FLOOR_SELECTORS = [
   ".mobile-nav",
   ".daw-shell--phone .editing-tool-rail",
+  ".join-edit-rail",
   ".bottom-sheet",
 ] as const;
 
