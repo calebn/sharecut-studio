@@ -35,6 +35,19 @@ _SPEECH_PERCENTILE = 90.0
 _PROFILE_CHUNK_SEC = 60.0
 
 
+def room_floor_db(
+    levels: np.ndarray, *, among: np.ndarray | None = None, percentile: float = _ROOM_PERCENTILE
+) -> float:
+    """The room: a low percentile of ``levels`` (the 10th) over the frames ``among`` selects.
+
+    Every frame by default. Digital silence counts as a level, so a track a noise gate
+    holds at zero between its words has digital silence for a room, and an ungated
+    track has its room tone. ``among`` lets a caller read the room where the track is
+    not sounding (between its own words) instead of over everything it did.
+    """
+    return float(np.percentile(levels if among is None else levels[among], percentile))
+
+
 def level_profile(
     samples: np.ndarray, sample_rate: int, *, whole_track: bool = False
 ) -> tuple[float, float] | None:
@@ -56,7 +69,7 @@ def level_profile(
     live = levels[levels > DIGITAL_SILENCE_DB]
     if live.size == 0 or (not whole_track and live.size < _MIN_LIVE_SEC / LEVEL_FRAME_SEC):
         return None
-    floor_db = np.percentile(levels if whole_track else live, _ROOM_PERCENTILE)
+    floor_db = room_floor_db(levels) if whole_track else np.percentile(live, _ROOM_PERCENTILE)
     speech_db = np.percentile(live, _SPEECH_PERCENTILE)
     return db_to_amplitude(float(floor_db)), db_to_amplitude(float(speech_db))
 
