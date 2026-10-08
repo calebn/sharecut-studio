@@ -313,6 +313,7 @@ describe("useHostKeeperCapture", () => {
           take_index: 0,
           session_start_wall_ms: 0,
           session_start_iso: "t0",
+          consented_participant_ids: [],
           pauses: [
             {
               seq: 2,

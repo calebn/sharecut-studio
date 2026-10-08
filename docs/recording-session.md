@@ -815,9 +815,9 @@ participant's *current* `consented is True`. Either case that fails returns
 `403 consent required`. This is why a guest who rejoins between takes (whose
 `consented` resets to `None`, above) can still finish uploading the take they
 already consented to: the check is scoped to that take's roster, not the
-participant's live consent flag. Takes stored before this change have
-`consented_participant_ids = None`; for those legacy takes the check falls
-back to "participant exists and has not declined" (`consented is not False`).
+participant's live consent flag. Every take requires an explicit
+`consented_participant_ids` list. Snapshot parsing rejects missing or null
+rosters. An empty roster authorizes no keeper uploads.
 
 A host **RemoveParticipant** drops the target from the current take's roster,
 expires that participant's record lease, and refuses the removed participant's

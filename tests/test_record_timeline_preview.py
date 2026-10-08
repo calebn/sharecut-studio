@@ -14,6 +14,7 @@ def test_snapshot_origin_and_one_wall_sample(minimal_project, monkeypatch):
         take_index=2,
         takes=[
             TakeState(
+                consented_participant_ids=[],
                 take_index=0,
                 session_start_wall_ms=0,
                 session_start_iso="first",
@@ -21,12 +22,18 @@ def test_snapshot_origin_and_one_wall_sample(minimal_project, monkeypatch):
                 pauses=[PauseEntry(seq=1, pause_wall_ms=2_000, resume_wall_ms=5_000)],
             ),
             TakeState(
+                consented_participant_ids=[],
                 take_index=1,
                 session_start_wall_ms=10_000,
                 session_start_iso="second",
                 stopped_wall_ms=12_000,
             ),
-            TakeState(take_index=2, session_start_wall_ms=15_000, session_start_iso="current"),
+            TakeState(
+                consented_participant_ids=[],
+                take_index=2,
+                session_start_wall_ms=15_000,
+                session_start_iso="current",
+            ),
         ],
     )
     monkeypatch.setattr(svc, "_model", lambda: snap)

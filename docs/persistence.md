@@ -107,7 +107,7 @@ Removed transcript words live in `transcripts.per_track[].archived_words` in the
 | Append-only DAW / document commands, session authority | `services/session_sync/` sqlite (`artifacts/session/sync.db`) |
 | Public ID that must be unique + cooldown / reuse policy | Share registry pattern (`edits/share_registry.py`) |
 | Per-episode share caps / version binding / general access | `artifacts/review/shares.json` via ShareService |
-| Record-session roster / consent / takes | `services/record/` on prefixed `SyncStore` tables in `artifacts/session/sync.db` ([session-sync.md § Recording session](session-sync.md#recording-session)) |
+| Record-session roster / consent / takes | `services/record/` on prefixed `SyncStore` tables in `artifacts/session/sync.db` ([session-sync.md § Recording session](session-sync.md#recording-session)). Every take requires an explicit `consented_participant_ids` list. Missing or null rosters fail snapshot validation |
 | Record-session chunk / ACK manifests | `services/session_sync/` sqlite — dedicated tables ([recording-session.md](recording-session.md#where-state-lives)) |
 | Record-session live comments | `record_live_comments` in `artifacts/session/sync.db` ([recording-session.md](recording-session.md#live-comments)) |
 | Restricted ACL, sessions, magic links, passkeys, agent credentials | `services/share_auth/` → `share_identity.sqlite` |

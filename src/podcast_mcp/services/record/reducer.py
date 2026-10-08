@@ -57,8 +57,6 @@ def _current_take(snap: RecordSnapshot) -> TakeState:
 def _note_take_consent(take: TakeState, participant_id: str, *, accepted: bool) -> None:
     """Update the current take's consent roster for a mid-take Accept/Decline."""
     ids = take.consented_participant_ids
-    if ids is None:
-        return
     if accepted and participant_id not in ids:
         ids.append(participant_id)
     elif not accepted and participant_id in ids:
