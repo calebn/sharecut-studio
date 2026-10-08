@@ -4,7 +4,7 @@ Run from `gui/web` on the workload branch. Choose a new evidence directory. The 
 
 ```sh
 node node_modules/vite-node/dist/cli.mjs scripts/profile-editing-tasks.ts \
-  --app-base 7bcaf209034e3b9c110fd4558a2963dc895cd534 \
+  --app-base 5fe29322e20cfec2207e69b662c36d183593a5b8 \
   --trials 5 --out /tmp/editing-task-baseline
 ```
 
@@ -32,7 +32,7 @@ Run the focused oracle checks.
 npx --no-install vitest run e2e/editingTaskReport.test.ts e2e/editingTaskEvidence.test.ts e2e/editingTasks.test.ts
 ```
 
-The registry has eighteen supported routes. All eighteen need fresh browser proof against the declared current application base `7bcaf209034e3b9c110fd4558a2963dc895cd534`. The original `envelope/point-form` and `reorder/move-up` routes and their Tab-header equivalents remain supported. On historical application base `6033d77a2884697ae659f2b2b917cacae4b2e737`, Run 2 retained `track-meta` intercepting the original routes' default center clicks. That observation does not establish that current-main routes are blocked. The equivalents use counted Tab and Enter to open the header before the declared numeric or pointer target action. Their success cannot mark another route passing.
+The registry has eighteen supported routes. All eighteen need fresh browser proof against the declared current application base `5fe29322e20cfec2207e69b662c36d183593a5b8`. The original `envelope/point-form` and `reorder/move-up` routes and their Tab-header equivalents remain supported. On historical application base `6033d77a2884697ae659f2b2b917cacae4b2e737`, Run 2 retained `track-meta` intercepting the original routes' default center clicks. That observation does not establish that current-main routes are blocked. The equivalents use counted Tab and Enter to open the header before the declared numeric or pointer target action. Their success cannot mark another route passing.
 
 `retainedPriorFailures` in `protocol.json` and `summary.json` records only that historical 6033 lineage. Its absolute evidence paths are session-local retained locations. These rows do not describe an attempt in the current invocation. Run 2 completed fifteen attempts with six passes and nine failures on the historical base. Its sixteenth attempt was aborted at the declared 900-second limit. All failed outcomes remain immutable and excluded from baseline.
 
