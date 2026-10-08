@@ -13,7 +13,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from podcast_mcp.edits.breath_detect import PauseAir, PauseAirSkip, pause_air_span
+from podcast_mcp.edits.breath_detect import PauseAir, PauseAirSkip, _track_sounds, pause_air_span
 from podcast_mcp.models import Clip, MediaAsset, Track, TrackRole
 from test_breath_detect import (
     _FLOOR_RMS,
@@ -56,7 +56,7 @@ def _gated(*placed: tuple[np.ndarray, float]):
     """A gated second mic: digital silence with only ``placed`` blobs (``(samples, at)``)."""
 
     def window(path, start_sec, duration_sec, sample_rate=16000):
-        signal = np.zeros(round(10.2 * sample_rate), dtype=np.float32)
+        signal = np.zeros(round(40.0 * sample_rate), dtype=np.float32)
         for blob, at in placed:
             i = round(at * sample_rate)
             signal[i : i + blob.size] = blob
@@ -211,11 +211,39 @@ def test_a_quiet_sound_is_removed_whole_whichever_pause_asks_about_it(pause, cut
 
 
 def test_a_peer_sound_where_the_span_runs_a_little_past_the_pause_still_moves_the_edge() -> None:
-    # The edge checks can leave the span outside the pause it was cut from. The guest's
-    # word at 4.20 to 4.28 is before the pause (4.3) and inside the span.
-    word = _harmonic_tone(1280, _SPEECH_RMS)
-    guest = _gated((word, 4.2))
+    # The edge checks can leave the span outside the pause it was cut from. The guest's word
+    # at 19.85 to 19.93 is before the pause (20 to 25) and inside the span (19.9 to 24).
+    from test_breath_detect import _with_guest
 
-    got = _air(_project(), "host", (4.1, 5.3), host=_fake_windows(), guest=guest)
+    words, host = _long_track(35.0)
+    project = _with_guest(_host_project(words))
+    guest = _gated((_harmonic_tone(1280, _SPEECH_RMS), 19.85))
 
-    assert got == pytest.approx((4.33, 5.3))
+    def windows(path, start_sec, duration_sec, sample_rate=16000):
+        reader = guest if "guest" in str(path) else host
+        return reader(path, start_sec, duration_sec, sample_rate)
+
+    with patch("podcast_mcp.edits.breath_detect.load_mono_window", side_effect=windows):
+        got = pause_air_span(project, "host", 19.9, 24.0, pause=(20.0, 25.0))
+
+    assert isinstance(got, PauseAir) and got.span == pytest.approx((19.96, 24.0))
+
+
+def test_a_peer_lane_split_into_abutting_clips_is_read_once_not_once_per_clip() -> None:
+    # Clips that abut in the lane and in the source are one stretch of audio: the peer's
+    # room and levels are read once for them, and a sound across the split is one sound.
+    word = _harmonic_tone(4800, _SPEECH_RMS)
+    guest = _gated((word, 4.7))
+    project = _project(guest_clips=((0.0, 4.9, 0.0), (4.9, 30.0, 4.9)))
+    real = _track_sounds
+    calls: list[str] = []
+
+    def counting(project, track_id, *args, **kwargs):
+        calls.append(track_id)
+        return real(project, track_id, *args, **kwargs)
+
+    with patch("podcast_mcp.edits.breath_detect._track_sounds", side_effect=counting):
+        got = _air(project, "host", (4.9, 5.3), host=_fake_windows(), guest=guest)
+
+    assert calls.count("guest") == 1
+    assert got == pytest.approx((5.03, 5.3))
