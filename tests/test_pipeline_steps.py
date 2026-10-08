@@ -198,13 +198,7 @@ def test_analyze_and_tighten_steps(minimal_project):
     before = len(proj.edit_decisions)
     steps.tighten_from_transcript(proj, defaults)
     assert len(proj.edit_decisions) < before
-    # The filler applied on its own. The pause trim is review-only until the owner has
-    # listened (#1055), so it stays pending beside it instead of being merged into the
-    # filler and holding it back.
-    assert not any((e.reason or "").startswith("filler:") for e in proj.edit_decisions)
-    assert [(e.reason.split(":")[0], e.review_required) for e in proj.edit_decisions] == [
-        ("pause", True)
-    ]
+    assert not any((e.reason or "").startswith(("filler:", "pause:")) for e in proj.edit_decisions)
 
 
 def test_tighten_steps_skip_when_disabled(minimal_project):

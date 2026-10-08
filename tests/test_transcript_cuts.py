@@ -169,7 +169,7 @@ def test_coalesce_paces_the_merged_pad_when_only_one_cut_was_padded():
     assert merged.replace_gap_sec == pytest.approx(0.765)
 
 
-def test_coalesce_keeps_a_pause_shortfall_pad_beside_the_filler_pad():
+def test_coalesce_keeps_a_pause_shortfall_pad_apart_from_the_filler_pad():
     proj = _hesitation_project()
     append_remove_decision(
         proj, "host", 1.0, 1.3, reason="pause:0.30s", review_required=False, replace_gap_sec=0.90
@@ -178,12 +178,14 @@ def test_coalesce_keeps_a_pause_shortfall_pad_beside_the_filler_pad():
         proj, "host", 1.35, 1.7, reason="filler:uh", review_required=False, replace_gap_sec=0.50
     )
 
-    coalesce_edits(proj, track_id="host")
+    assert coalesce_edits(proj, track_id="host") == 0
 
-    (merged,) = proj.edit_decisions
-    # The pause's 0.90 s makes up for a retained stretch that prior ripples shortened;
-    # it is not a paced pad, so the filler's re-paced 0.765 s does not replace it.
-    assert merged.replace_gap_sec == pytest.approx(0.90)
+    # The pause's 0.90 s makes up for a retained stretch that prior ripples shortened. A
+    # pause trim is its own proposal, applied or reviewed, so the filler's pad stays its own.
+    assert sorted((e.reason, e.replace_gap_sec) for e in proj.edit_decisions) == [
+        ("filler:uh", 0.5),
+        ("pause:0.30s", 0.9),
+    ]
 
 
 def test_adjacent_nl_cuts_merge_into_one_paced_cut():

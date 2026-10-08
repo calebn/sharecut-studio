@@ -44,7 +44,7 @@ def _decision(did: str, reason: str, *, review: bool = False, start: float = 1.0
 HITS = [
     _decision("safe", "filler:um", start=1.0),
     _decision("risky", "filler:uh:risky", start=2.0),
-    _decision("join", "pause:0.8s:join_review", start=3.0),
+    _decision("join", "pause:0.8s:join_review", review=True, start=3.0),
     _decision("review", "repetition:word:the", review=True, start=4.0),
     _decision("nl", "nl:topic", start=5.0),
 ]
@@ -61,14 +61,17 @@ def test_harsh_is_review_or_join_risk_on_tighten_hits_only() -> None:
     assert is_harsh_tighten_hit(_decision("nl-review", "nl:topic", review=True)) is False
 
 
-def test_a_pause_trim_is_listened_to_one_by_one_and_never_eligible() -> None:
-    # Even one no check flagged for review (nothing on its reason, nothing on its row).
-    trim = _decision("trim", "pause:1.10s:solo", review=False)
+def test_a_pause_trim_that_stays_for_review_is_listened_to_one_by_one_and_never_eligible() -> None:
+    # One that passed the checks that keep a filler from review is applied like a filler.
+    auto = _decision("auto", "pause:1.10s:solo", review=False)
+    held = _decision("held", "pause:1.10s:solo:voiced_edge", review=True)
 
-    assert not is_harsh_tighten_hit(trim)
-    assert is_listen_one_by_one_hit(trim)
+    assert not is_harsh_tighten_hit(auto)
+    assert not is_listen_one_by_one_hit(auto)
+    assert is_harsh_tighten_hit(held)
+    assert is_listen_one_by_one_hit(held)
     assert [d.id for d in HITS if is_listen_one_by_one_hit(d)] == ["join"]
-    assert eligible_tighten_ids([trim, HITS[0]]) == ["safe"]
+    assert eligible_tighten_ids([auto, held, HITS[0]]) == ["auto", "safe"]
 
 
 def test_eligible_ids_skip_harsh_applied_and_non_tighten() -> None:

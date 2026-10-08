@@ -74,7 +74,7 @@ def test_apply_tighten_decisions_counts_applied():
     assert host_end == guest_end == 9.5
 
 
-def test_apply_tighten_decisions_never_applies_a_pause_trim():
+def test_apply_tighten_decisions_applies_a_pause_trim_that_needs_no_review():
     proj = _two_track_project()
     proj.edit_decisions = [
         EditDecision(
@@ -87,10 +87,21 @@ def test_apply_tighten_decisions_never_applies_a_pause_trim():
             applied=False,
             review_required=False,
         ),
+        EditDecision(
+            id="risky-trim",
+            track_id="host",
+            type=EditDecisionType.REMOVE,
+            start=8.0,
+            end=8.5,
+            reason="pause:1.5s:risky",
+            applied=False,
+            review_required=True,
+        ),
     ]
 
-    assert apply_tighten_decisions(proj) == 0
-    assert [e.id for e in proj.edit_decisions] == ["trim"]
+    assert apply_tighten_decisions(proj) == 1
+    assert [e.id for e in proj.edit_decisions] == ["risky-trim"]
+    assert max(c.timeline_end for c in clips_for_track(proj, "guest")) == 9.0
 
 
 def _resolved(project, rows, *, existing=(), rejected=()):
@@ -181,6 +192,45 @@ def test_a_twin_stands_when_the_trim_it_was_dropped_for_overlaps_an_applied_cut(
 
     assert kept == [("host", 2.0, 2.6)]
     assert skips == {"applied_overlap": 1}
+
+
+def test_a_twin_stands_when_the_trim_it_was_dropped_for_went_to_an_acoustic_cut() -> None:
+    # The guest's longer pause trim is replaced by the acoustic cut that overlaps it. The
+    # host's trim of the same stretch is not dropped for a trim that is no longer proposed.
+    from podcast_mcp.edits.fillers import _AnalyzedCut, _CutCandidate, _resolve_analyzed_cuts
+    from podcast_mcp.edits.tighten_reasons import ACOUSTIC_FILLER_REASON
+
+    project = _two_track_project()
+    candidates = [
+        _CutCandidate("host", 2.0, 2.6, "pause:0.60s", "pause"),
+        _CutCandidate("guest", 1.8, 2.9, "pause:1.10s", "pause"),
+        _CutCandidate(
+            "guest", 2.5, 2.8, ACOUSTIC_FILLER_REASON, "filler", min_start=2.5, review_only=True
+        ),
+    ]
+    results = [
+        _AnalyzedCut(
+            hit_id=c.hit_id,
+            track_id=c.track_id,
+            start=c.start,
+            end=c.end,
+            reason=c.reason,
+            review_required=True,
+            crossfade_ms=10,
+            cut_confidence=1.0,
+            boundary_mode="transcript",
+        )
+        for c in candidates
+    ]
+    skips: dict[str, int] = {}
+
+    kept = _resolve_analyzed_cuts(candidates, results, project=project, skip_counts=skips)
+
+    assert [(r.track_id, r.start, r.end) for r in kept] == [
+        ("host", 2.0, 2.6),
+        ("guest", 2.5, 2.8),
+    ]
+    assert skips == {"acoustic:replaced_pause": 1}
 
 
 def test_a_track_local_pause_trim_is_never_a_twin() -> None:

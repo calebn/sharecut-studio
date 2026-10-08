@@ -355,6 +355,8 @@ def approve_edits_tool(
 
     A ripple that cuts another speaker's speech returns ``needs_confirmation`` and
     applies nothing; ask the person, then call again with ``confirm_cut_speech=true``.
+    A session cut that a peer is now speaking over is not applied (``cut_scope_changed``):
+    it would silence one track and shorten nothing, so it stays pending.
     """
     ws = ProjectWorkspace.open(project_path)
     service = EditService(ws)
@@ -420,9 +422,10 @@ def propose_edits(
     and ``backchannel:{phrase}`` to kept acknowledgments (``uh huh``).
     ``edit_mode`` is ``ripple`` (default, from ``tighten.edit_mode``) or ``mute``.
     Mute proposes ``EditDecisionType.MUTE`` filler hits and skips pause
-    candidates (muting a pause is a no-op). Every ``pause:`` trim is review-only:
-    shrunk to the air inside the pause, never applied by apply_edits, and flagged
-    ``:air_edges`` when it differs from the span pacing proposed. ``intensity`` is ``light`` /
+    candidates (muting a pause is a no-op). A ``pause:`` trim is shrunk to the air inside
+    the pause, labelled ``:air_edges`` when it differs from the span pacing proposed, and
+    proposed only when it removes at least a tenth of its pause (``imperceptible`` skips
+    the rest). It is reviewed or applied by the checks a filler gets. ``intensity`` is ``light`` /
     ``medium`` / ``aggressive`` (default from ``tighten.intensity``, else medium):
     a deterministic preset over existing tighten keys (light = clustered um/uh
     only and >=0.5 s pause air; medium also proposes a lone um/uh; aggressive =
@@ -440,11 +443,7 @@ def propose_edits(
 
 
 def apply_edits(project_path: str) -> str:
-    """Auto-apply non-review REMOVE/MUTE decisions whose reason starts filler:.
-
-    Pause trims all wait for review, so this never applies one: approve them with
-    approve_edits after listening.
-    """
+    """Auto-apply non-review REMOVE/MUTE decisions whose reason starts filler: or pause:."""
     ws = ProjectWorkspace.open(project_path)
     n = EditService(ws).apply_auto()
     agent_mutated(ws)

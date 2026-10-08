@@ -15,14 +15,11 @@ PAUSE_REASON_PREFIX = "pause:"
 
 # Generated proposals that must never auto-apply and must stay individually
 # reviewable (never coalesced into a neighbouring cut, kept across re-proposal
-# once a human applied them). A pause trim is one of them until the owner has listened
-# to what it cuts (#1055): it waits for review whether or not its edges moved, and it
-# never merges into a filler, a track-local cut or an NL cut beside it.
+# once a human applied them).
 REVIEW_ONLY_REASON_PREFIXES: tuple[str, ...] = (
     ACOUSTIC_FILLER_REASON,
     REPETITION_REASON_PREFIX,
     RESTART_REASON_PREFIX,
-    PAUSE_REASON_PREFIX,
 )
 
 
