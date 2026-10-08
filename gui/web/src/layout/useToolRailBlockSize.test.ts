@@ -1,10 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  TOOL_RAIL_BLOCK_SIZE_VAR,
-  toolRailInsetRem,
-  useToolRailBlockSize,
-} from "./useToolRailBlockSize";
+import { toolRailInsetRem, useToolRailBlockSize } from "./useToolRailBlockSize";
 
 describe("toolRailInsetRem", () => {
   it("stands the strip clear of the rail on a phone held upright", () => {
@@ -51,7 +47,7 @@ describe("toolRailInsetRem", () => {
 
 describe("useToolRailBlockSize", () => {
   afterEach(() => {
-    document.documentElement.style.removeProperty(TOOL_RAIL_BLOCK_SIZE_VAR);
+    document.documentElement.style.removeProperty("--tool-rail-block-size");
     document.documentElement.style.removeProperty("--status-height");
     delete document.documentElement.dataset.shell;
     vi.restoreAllMocks();
@@ -69,11 +65,11 @@ describe("useToolRailBlockSize", () => {
       useToolRailBlockSize({ current: rail }),
     );
     window.dispatchEvent(new Event("resize"));
-    expect(root.style.getPropertyValue(TOOL_RAIL_BLOCK_SIZE_VAR)).toBe(
+    expect(root.style.getPropertyValue("--tool-rail-block-size")).toBe(
       "2.875rem",
     );
     unmount();
-    expect(root.style.getPropertyValue(TOOL_RAIL_BLOCK_SIZE_VAR)).toBe("");
+    expect(root.style.getPropertyValue("--tool-rail-block-size")).toBe("");
     root.style.removeProperty("font-size");
   });
 });

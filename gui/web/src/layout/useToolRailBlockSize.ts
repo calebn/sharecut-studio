@@ -1,9 +1,6 @@
 import { type RefObject, useEffect } from "react";
 import { useResizeObserver } from "../ui/useResizeObserver";
 
-/** The tool rail's height (rem) on the root, for the compact inspector's slot (`bottom-sheet.css`). */
-export const TOOL_RAIL_BLOCK_SIZE_VAR = "--tool-rail-block-size";
-
 /**
  * The room (rem) the compact strip needs above the rail: its header and nudge
  * row, and a lane's height beside them. Less than this and the strip covers
@@ -38,7 +35,7 @@ function tokenPx(name: string, rootPx: number): number {
 function publishToolRailInset(rail: HTMLElement | null): void {
   const root = document.documentElement;
   if (!rail) {
-    root.style.removeProperty(TOOL_RAIL_BLOCK_SIZE_VAR);
+    root.style.removeProperty("--tool-rail-block-size");
     return;
   }
   const rootPx = Number.parseFloat(getComputedStyle(root).fontSize) || 16;
@@ -52,7 +49,7 @@ function publishToolRailInset(rail: HTMLElement | null): void {
     ),
     rootPx,
   });
-  root.style.setProperty(TOOL_RAIL_BLOCK_SIZE_VAR, `${inset}rem`);
+  root.style.setProperty("--tool-rail-block-size", `${inset}rem`);
 }
 
 /**
@@ -70,7 +67,7 @@ export function useToolRailBlockSize(
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("resize", onResize);
-      document.documentElement.style.removeProperty(TOOL_RAIL_BLOCK_SIZE_VAR);
+      document.documentElement.style.removeProperty("--tool-rail-block-size");
     };
   }, [railRef]);
 }
