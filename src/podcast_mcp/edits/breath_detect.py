@@ -1001,10 +1001,11 @@ def pause_air_span(
 ) -> tuple[float, float] | None:
     """The longest stretch of air in ``[start, end)``, or ``None`` when none is left.
 
-    ``pause`` is the span the trim may take (the word gap less the retained air); the
-    quiet of each track is measured on it, and the 5 s on each side supply only the
-    track's speech level. No edge
-    sits inside a sound. On the trim's own track a sound that reaches 40 dB under the
+    ``pause`` is the span the trim may take (the word gap less the retained air). Each
+    track's levels are read in the speech band: its room is read between its own words
+    over the 5 s each side of the pause, its quiet is the pause's own 20th percentile
+    held to that room, and the same 5 s supply its speech level. No edge sits inside a
+    sound. On the trim's own track a sound that reaches 40 dB under the
     speech level is kept whole and splits the air, and a quieter one is removed whole
     when the span holds all of it or kept whole when it crosses an edge. A session
     ripple removes the same window from every dialogue track, so a peer's sound that
