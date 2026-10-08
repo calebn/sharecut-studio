@@ -508,15 +508,10 @@ def pcm_block(project_path: Path, ref: str, key: str, block: int) -> bytes:
 
 
 def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
-    """Once per process per project: drop week-old orphan pyramids and legacy peaks JSON.
+    """Drop week-old orphan pyramids once per process per project.
 
-    Per-ref pruning never reaches refs that were deleted, so orphans are swept
-    here. ``artifacts/peaks/*.json`` is the pre-pyramid overview format; nothing
-    here reads it, but an older app build may still write it. Both sweeps keep
-    the ``GC_MIN_AGE_SEC`` guard because a guest status poll can trigger this
-    pass, except legacy peaks JSON: at once when that track has a live
-    ``.wfpk``, otherwise once week-old. The project counts as done only after
-    a pass succeeds.
+    Per-ref pruning never reaches deleted refs. The age guard protects recent
+    files when a guest status poll triggers this pass. Failed passes retry.
     """
     marker = str(project_path.resolve())
     with _GC_LOCK:
@@ -529,7 +524,6 @@ def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
         peaks = (
             index.artifacts_dir if index is not None else _artifacts_dir(project_path)
         ) / "peaks"
-        live_pyramids: set[str] = set()
         with hold_shared_file_lock(peaks / ".waveform.lock", timeout=PYRAMID_LOCK_TIMEOUT_SEC):
             index = media_index(project_path)
             live = {ref_slug(*parse_ref(ref)) for ref in (*index.refs, *index.unavailable)}
@@ -538,19 +532,10 @@ def gc_pyramids(project_path: Path, index: MediaIndex | None = None) -> int:
                 if match is None:
                     continue
                 if match.group(1) in live:
-                    live_pyramids.add(match.group(1))
                     continue
                 with contextlib.suppress(OSError):
                     if path.stat().st_mtime < cutoff:
                         path.unlink()
-                        removed += 1
-            for legacy in peaks.glob("*.json"):
-                # ``peaks/{track}.json`` is superseded once that track has a pyramid (#530);
-                # ``ref_slug`` hashes ids an older build wrote unsanitized.
-                superseded = ref_slug("track", legacy.stem) in live_pyramids
-                with contextlib.suppress(OSError):
-                    if superseded or legacy.stat().st_mtime < cutoff:
-                        legacy.unlink()
                         removed += 1
     except BaseException:
         with _GC_LOCK:

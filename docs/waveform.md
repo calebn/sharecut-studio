@@ -10,10 +10,8 @@ and its knobs live in the `waveform` block of
 > **Status:** the engine (format, build, decode, I/O and job pool), the
 > HTTP API (status, tiles, PCM windows; host and guest), the client data
 > layer, the raster worker and the timeline renderer (§ Client) are in place.
-> Pyramids are the only waveform format: the uint8 overview JSON
-> (`artifacts/peaks/{track}.json` and its HTTP route) is gone, and `gc_pyramids`
-> deletes leftover `artifacts/peaks/*.json` at once when that track has a live
-> pyramid, otherwise once it is 7 days old.
+> Pyramids are the only waveform format. `gc_pyramids` deletes week-old
+> orphan `.wfpk` files.
 > Zoom clamps to `effectiveMaxZoomPxPerSec(sessionSec)` (§ Deep zoom).
 
 ## Contract knobs
@@ -301,11 +299,9 @@ file through `source_id` gets its own `source:` ref, whose key matches the
   `ensure_project_waveforms` (its summary reports "N waveforms").
 - **`gc_pyramids(project_path)`:** once per process per project, deletes
   pyramids whose ref slug is no longer listed and that are older than 7 days
-  (per-ref pruning never reaches deleted refs), plus legacy
-  `artifacts/peaks/{track}.json` overview files: at once when that track has a
-  live pyramid, otherwise once they are 7 days old (an older app build may
-  still write them, and a guest status poll can trigger the pass). A failed
-  pass is retried on a later status call and never fails the status request.
+  (per-ref pruning never reaches deleted refs). A guest status poll can
+  trigger the pass. A failed pass is retried on a later status call and never
+  fails the status request.
   GC refreshes the saved media index after acquiring the directory lock before
   deciding which ref slugs are orphaned. It uses a caller's earlier index only
   for the artifact directory. The fresh lookup preserves refs saved while GC
