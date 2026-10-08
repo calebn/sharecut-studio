@@ -18,7 +18,9 @@ let releaseBoundary: () => void = () => undefined;
 vi.mock("../services/commandQueue", () => ({
   submitQueuedDocumentCommand: vi.fn(
     async (_path: string, type: string, payload: Record<string, unknown>) => {
-      sent.push(type === "TrimClipEdge" ? `trim ${payload.mode}` : type);
+      sent.push(
+        type === "TrimClipEdge" ? `trim ${String(payload.mode)}` : type,
+      );
       return type === "TrimClipEdge" && payload.mode === "ripple"
         ? {
             needs_confirmation: {

@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useEffectEvent } from "react";
+import { type RefObject, useEffect } from "react";
 import { useResizeObserver } from "../ui/useResizeObserver";
 
 /** The tool rail's height (rem) on the root, for the compact inspector's slot (`bottom-sheet.css`). */
@@ -35,6 +35,26 @@ function tokenPx(name: string, rootPx: number): number {
   return (Number.isFinite(rem) ? rem : 0) * rootPx;
 }
 
+function publishToolRailInset(rail: HTMLElement | null): void {
+  const root = document.documentElement;
+  if (!rail) {
+    root.style.removeProperty(TOOL_RAIL_BLOCK_SIZE_VAR);
+    return;
+  }
+  const rootPx = Number.parseFloat(getComputedStyle(root).fontSize) || 16;
+  const phone = root.dataset.shell === "phone";
+  const inset = toolRailInsetRem({
+    viewportPx: window.innerHeight,
+    railPx: rail.offsetHeight,
+    bottomRowPx: tokenPx(
+      phone ? "--mobile-nav-height" : "--status-height",
+      rootPx,
+    ),
+    rootPx,
+  });
+  root.style.setProperty(TOOL_RAIL_BLOCK_SIZE_VAR, `${inset}rem`);
+}
+
 /**
  * Publishes the tool rail's height while it is shown and the screen has room.
  * The compact inspector is a fixed strip over the timeline; it leaves the
@@ -44,33 +64,13 @@ function tokenPx(name: string, rootPx: number): number {
 export function useToolRailBlockSize(
   railRef: RefObject<HTMLElement | null>,
 ): void {
-  const publish = useEffectEvent(() => {
-    const rail = railRef.current;
-    const root = document.documentElement;
-    if (!rail) {
-      root.style.removeProperty(TOOL_RAIL_BLOCK_SIZE_VAR);
-      return;
-    }
-    const rootPx = Number.parseFloat(getComputedStyle(root).fontSize) || 16;
-    const phone = root.dataset.shell === "phone";
-    const inset = toolRailInsetRem({
-      viewportPx: window.innerHeight,
-      railPx: rail.offsetHeight,
-      bottomRowPx: tokenPx(
-        phone ? "--mobile-nav-height" : "--status-height",
-        rootPx,
-      ),
-      rootPx,
-    });
-    root.style.setProperty(TOOL_RAIL_BLOCK_SIZE_VAR, `${inset}rem`);
-  });
-  useResizeObserver(railRef, () => publish());
+  useResizeObserver(railRef, () => publishToolRailInset(railRef.current));
   useEffect(() => {
-    const onResize = () => publish();
+    const onResize = () => publishToolRailInset(railRef.current);
     window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("resize", onResize);
       document.documentElement.style.removeProperty(TOOL_RAIL_BLOCK_SIZE_VAR);
     };
-  }, []);
+  }, [railRef]);
 }
