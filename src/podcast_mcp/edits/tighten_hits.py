@@ -55,12 +55,12 @@ def is_harsh_tighten_hit(decision: EditDecision) -> bool:
 
 
 def is_listen_one_by_one_hit(decision: EditDecision) -> bool:
-    """A pause trim: the editor listens to each and applies it alone (#1055).
+    """A pause trim that stays for review: the editor listens to each and applies it alone.
 
-    Apply eligible never batches one, whatever Avoid harsh cuts says, until the owner's
-    listening check has cleared the trims.
+    One that passed the risk checks is applied like a safe filler. Apply eligible never
+    batches one that did not, whatever Avoid harsh cuts says.
     """
-    return (decision.reason or "").startswith(PAUSE_REASON_PREFIX)
+    return (decision.reason or "").startswith(PAUSE_REASON_PREFIX) and decision.review_required
 
 
 def eligible_tighten_ids(decisions: Iterable[EditDecision]) -> list[str]:

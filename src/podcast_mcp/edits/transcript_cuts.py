@@ -439,14 +439,14 @@ def _keeps_independent_review(left: EditDecision, right: EditDecision) -> bool:
     edit would silently apply the pending span or un-apply the approved one.
     Nor are decisions with different authors: the merged edit keeps one author,
     which would grant a share guest another author's span or drop its own. A pause
-    trim is one of these proposals (#1055): merged into a filler, a track-local cut or
-    an NL cut it would lose its label, its air-edge flag and its scope, or hold the
-    filler beside it back from applying on its own.
+    trim is one of these proposals (#1055), reviewed or applied: merged into a filler, a
+    track-local cut or an NL cut it would lose its label, its air-edge flag and its scope,
+    or hold the filler beside it back from applying on its own.
     """
     if left.applied != right.applied or left.author != right.author:
         return True
     return any(
-        decision.review_required and is_review_only_reason(decision.reason)
+        _is_pause(decision) or (decision.review_required and is_review_only_reason(decision.reason))
         for decision in (left, right)
     )
 

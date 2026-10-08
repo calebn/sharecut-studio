@@ -15,7 +15,6 @@ import numpy as np
 import pytest
 
 from podcast_mcp.edits.audio_cache import TrackAudioCache
-from podcast_mcp.edits.decisions import approve_edits
 from podcast_mcp.edits.fillers import (
     _check_voiced_speech,
     _CutCandidate,
@@ -196,7 +195,7 @@ def test_pause_start_inside_a_word_tail_moves_past_the_voice(tmp_path: Path) -> 
     (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], EDGE_DEFAULTS)
 
     assert decision.reason == "pause:2.00s:solo:air_edges"
-    assert decision.review_required is True
+    assert decision.review_required is False
     # Voice edge on the frame grid (1.26) plus 60 ms of air.
     assert decision.start == pytest.approx(1.32, abs=0.011)
     assert decision.end == pytest.approx(2.45)
@@ -216,13 +215,13 @@ def test_pause_end_inside_the_next_word_onset_moves_before_the_voice(tmp_path: P
     (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], EDGE_DEFAULTS)
 
     assert decision.reason == "pause:2.60s:solo:air_edges"
-    assert decision.review_required is True
+    assert decision.review_required is False
     assert decision.start == pytest.approx(0.4, abs=0.05)
     # Voice edge on the frame grid (2.29) minus 60 ms of air.
     assert decision.end == pytest.approx(2.23, abs=0.011)
 
 
-def test_clean_dead_air_is_proposed_for_review_and_applies_on_approval(tmp_path: Path) -> None:
+def test_clean_dead_air_is_proposed_to_apply_and_applies_with_the_fillers(tmp_path: Path) -> None:
     samples = np.zeros(4 * RATE, dtype=np.float32)
     _voice(samples, 0.2, 0.58)
     _voice(samples, 3.0, 3.4)
@@ -234,14 +233,14 @@ def test_clean_dead_air_is_proposed_for_review_and_applies_on_approval(tmp_path:
 
     (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], DEFAULTS)
 
-    # Even dead air waits for the owner's listen (#1055): apply-all leaves it, approving
-    # it applies it.
+    # Dead air passes the checks a filler passes (#1055): it needs no review and applies
+    # with the auto-tighten edits.
     assert decision.reason == "pause:2.40s:solo"
-    assert decision.review_required is True
+    assert decision.review_required is False
     assert 0.58 <= decision.start <= 0.62
     assert decision.end == pytest.approx(2.45)
-    assert apply_tighten_decisions(project) == 0
-    assert approve_edits(project, [decision.id]) == 1
+    assert apply_tighten_decisions(project) == 1
+    assert project.edit_decisions == []
 
 
 CONTINUOUS_VOICE_DEFAULTS: dict[str, object] = {
@@ -517,7 +516,7 @@ def test_peer_onset_at_the_pause_end_moves_the_edge_before_it(tmp_path: Path) ->
     (decision,) = analyze_fillers_and_pauses(project, project.transcripts[0], EDGE_DEFAULTS)
 
     assert decision.reason == "pause:2.60s:solo:air_edges"
-    assert decision.review_required is True
+    assert decision.review_required is False
     # Guest voice edge on the frame grid (2.41) minus 60 ms of air.
     assert decision.end == pytest.approx(2.35, abs=0.011)
 

@@ -42,7 +42,7 @@ Implementation: `edits/fillers.py`, `edits/cut_quality.py`, `edits/join_continui
 - **Voice floor** (#1064) — The voice walks (`voice_end`, `voice_onset`) read quiet against the track's own levels, never a fixed dBFS level: Tighten reads raw, unnormalized tracks, and a fixed -42 dBFS floor moved the boundary with recording level (the host track scaled by -12 dB ended 487 of 739 kept words' voices more than 20 ms early, back inside the words; at +6 dB the dip before the approved `uh` at 706.02 never reached it and the cut was dropped). `voice_floor_db` in `edits/word_onset.py` is `max(S − 27 dB, R + 6 dB)`, from the whole track's `level_profile` (`edits/audio_cache.py`, the room/speech profile breath detection reads over 5 s): S is the 90th percentile of its live 10 ms frames, R the 10th percentile of all its frames, so a track a noise gate holds at digital zero between words has digital silence as its room, not its words' soft edges. 27 dB is where the owner-approved audibility floor (-42 dBFS) sits under the lab tape's speech (26.7 dB on the host track, 25.3–28.6 dB on all three), so at the lab's level the floors are -42.3, -40.4 and -43.7 dBFS and the walks keep their edges (`So` still voices until 230.99; the `ss` dip still ends `digress.` at 706.02). 6 dB keeps the floor over a noisy room's frame-to-frame flicker, where the speech term alone finds no quiet, and under the 9.5 dB over the room where the breath detector starts, so a kept word's own breath never reads as quiet. A dip that misses the floor still ends a voice when it is the bottom of a dip 15 dB deep on both sides and within 3 dB of the floor (the `ss` of `digress.` clears the floor by about 1 dB and sits 19 and 28 dB under the sounds either side); a ripple on the slope into a deeper dip is not one. Each dB of allowance over the floor stops more walks at dips inside words: walks started 150 ms inside 362 host-track words stop inside the word 61 times on the floor alone, 73 times with 3 dB, 88 with 6 dB and 105 at any level. Measured on the lab tape with only the gain changed (+12 to -24 dB, all 1146 kept-word gaps of 0.15 s or more on the three tracks), every voice end and onset stays within one 10 ms frame of its lab-level edge. Lab (rev 3b414c4c, against the previous head of this fix): aligned mute 55 → 55 (two acoustic mutes end 10 ms earlier, 520.79 and 1050.93); Whisper mute 37 → 36 (the repeat at 752.72); medium ripple unchanged; aggressive ripple aligned 42 → 42 (pause 643.79 starts 10 ms later and loses its join review) and Whisper 23 → 22 (`kind of` at 423.13, whose start sat on the tail of `it`, is dropped as `filler_onset`). Every owner-approved cut is unchanged. Other rules still compare against `analysis.heuristics.audibility_rms_db` directly, among them the next-onset scan, the inaudible-run check and the voiced runs.
 - **Padded left edge and breaths** (#1064) — A padded cut's left edge fades out over `filler_pre_pad_fade_out_ms` (5 ms) with no breath check, so the lab tape was measured before adding one. The sample was every padded ripple proposal at medium and aggressive intensity, with Whisper and with aligned word times: 27 left edges (rev 3b414c4c). None sits inside a complete breath, as `protect_cut_breaths` reads an edge. 20 sit in activity that runs on into a word, either the previous word's decay or the filler's own voice, and 3 are in clear air. The breath-run classifier (`classify_breath_samples` over the fade) calls the tail at 2 cuts breath-shaped (4 edges across the two word timings): `hair.` before `you know` (1440.88) and `the.` before `like` (948.84, aggressive only). Both are the previous word's breathy release, which `recommend_prev_word_lead_out_ms` keeps until 20 ms after it falls under the audibility floor. The edge sits at -49 to -51 dBFS, 10 ms before the run ends and about 40 ms before room tone. The owner approved the 1440.88 cut as rendered (#978). No breath-safe left edge was added.
 - **Join continuity gate** — When `tighten.join_continuity_gate: true` (default), `assess_proposed_cut` runs on every cut without a pad after boundary optimization; verdict `fail` skips the candidate (fail-closed). Verdict `review` marks `review_required`. The verdict is the worst over every edge placement within `join_continuity.edge_tolerance_ms` (3 ms), which roughly halves the verdict flips a few-millisecond nudge or re-timed word causes; a splice inaudible at the proposed edges passes regardless. See [inaudible-cuts.md](inaudible-cuts.md) § Join continuity.
-- **GUI review loop** — Sharecut Studio **Tighten** tab lists pending `filler:` (including review-only `filler:acoustic`), `pause:`, `repetition:`, and `restart:` hits (search, class/track filters, harsh-only). Preview / skip / apply one, or apply-all with **Avoid harsh cuts** (default on; skips `review_required` and `:risky` / `:join_review`; unticked it sends the other review hits too, but never a pause trim, which the editor applies one at a time after listening). Same `ApproveEdits` / `RejectEdits` path as the pending inspector. See [daw-editing.md](daw-editing.md) § Tighten review.
+- **GUI review loop** — Sharecut Studio **Tighten** tab lists pending `filler:` (including review-only `filler:acoustic`), `pause:`, `repetition:`, and `restart:` hits (search, class/track filters, harsh-only). Preview / skip / apply one, or apply-all with **Avoid harsh cuts** (default on; skips `review_required` and `:risky` / `:join_review`; unticked it sends the other review hits too, but never a pause trim that stays for review, which the editor applies one at a time after listening). Same `ApproveEdits` / `RejectEdits` path as the pending inspector. See [daw-editing.md](daw-editing.md) § Tighten review.
 - **Waveform boundaries** — Proposals call `optimize_source_cut_range` when `tighten.inaudible_opt: true` (default). Short cuts also **extend the end to the quietest point before the next word** (within `trailing_energy_extend_ms`) when ASR ends a filler early (see [inaudible-cuts.md](inaudible-cuts.md) `trailing_energy_*`).
 - **Adaptive fades** — Each decision gets `crossfade_ms` from `recommend_cut_fade_ms` (roughly 15–50 ms for fillers, up to ~150 ms for long pauses, scaled by join level jump).
 - **Breath co-removal** — Adjacent breath-shaped energy before/after a cut is included in the remove range when detected (`tighten.breath_handling.enabled`). A breath must be **unvoiced noise all the way to the cut, between the track's own room tone and speech level, and outside every kept word**. The detector (`edits/breath_detect.py`) reads 5 s of the kept audio on each side of the cut and takes the 10th and 90th percentiles of its live (not digitally silent) 10 ms frame levels as the room-tone floor and the speech level; a breath frame sits at least 9.5 dB above that floor and 7–40 dB below that speech level (`breath_level_band`). Flanks with no such contrast (a gated track with nothing live nearby, or under 0.5 s of live audio) yield no breath. On the lab tape breaths sit 6–39 dB below the local speech level and 12–45 dB above the floor; the previous band, derived from the fixed `analysis.heuristics.audibility_rms_db`, was −32.4 to −31 dBFS and found 1 of 26 labelled breaths (#814). The scan forms complete in-band runs before selecting those overlapping the 400 ms search before or the 250 ms search after the cut. It takes the first complete run of breath length (80–450 ms) that passes five checks. Frames inside a kept transcript word are never breath and the stretch between the run and the cut may not touch one (a word the cut itself removes at least half of is not kept), so a quiet phrase-final word tail such as lana's `she?` cannot be called breath. A run that continues a kept word on its far side, with no frame at or below the band floor between them, is that word's decay (before the cut) or onset (after it), whatever its own shape: the aligned `uh` at 1441.21–1441.27 decays through the band to 1441.41 and the `sh` of `she` at 1456.65–1456.76 is a 2–3.5 kHz burst under the sibilant split; the scan covers the whole 5 s of flanking audio so the word can lie outside the search window. No frame between the run and the cut may exceed the band ceiling: vocal fry scores 0.1–0.4 on the pitch probe but its pulses sit at speech level (an untranscribed creaky `check` at 1122.98–1123.15, −17 dBFS frames against a −18.8 dBFS ceiling). Neither the run's energy nor that of the gap between it and the cut edge may sit mostly above 4 kHz (a sibilant `s` carries 54–100% of its 100 Hz–8 kHz energy there, a breath 1–24%; the gap is checked on its own so a word-final `s` next to a loud breath cannot average out below the split). And 40 ms speech-pitch (70–350 Hz) autocorrelation probes every 10 ms over the run **and everything between it and the cut edge** must all stay below 0.55, because the cut is extended out to the run and removes what lies between; only probes whose frame reaches the band floor count, since room tone 40 dB under the speech level also scores 0.6–0.8 on this tape and is not speech to protect. A run that fails is skipped for the next quieter one. The band alone cannot tell breath from speech — in a loud window a window-relative band selected the quieter frames of ordinary speech, and on the lab tape 82% of its hits were voiced, including the kept second copy of a repeated word; a breath sitting 270 ms before a cut also pulled the voiced word between them into the cut (#798). Some breaths on the lab tape peak at 0.60–0.65 on the same probe and stay undetected; the gate is kept because quiet voiced speech reaches down to 0.57. Detection cannot widen a cut beyond its candidate bounds. After pacing, candidate-bound clamps, and voiced-edge nudges, `protect_cut_breaths` checks both final edges of a cut without a pad (a padded cut fades each edge against silence instead; see **Padded cuts** above). The shared detector completes the quiet onset and tail to measured room-tone separators on the 10 ms level grid and rechecks pitch, sibilance, kept words and the level ceiling over the full envelope. A start inside a confirmed complete breath advances to its offset; an end inside it retreats to its onset. Exact onset/offset boundaries stay unchanged. Both adjustments use the original bounds and only shrink the cut. Empty cuts and non-pause cuts that no longer cover at least half their target span are dropped. Connected above-floor activity that crosses an edge but fails classification suppresses the proposal, as do missing evidence and incomplete bounded envelopes. A **pause trim** is different (see **Decision: Pause trims cut only air**): it shrinks to the longest stretch of air inside it, measured against each track's room tone, rather than being suppressed, so this paragraph's edge rules do not apply to it. Rejected activity elsewhere and floor-level silence do not suppress a cut. Shrink recomputes kept-word eligibility, scope and voiced safety; risk, pad, join and fade use the settled bounds. Enabled handling requires a usable room-tone/speech profile; disabled handling preserves the existing geometry. This conservative bounded check does not guarantee universal breath recall or replace listening. Automatic application consumes stored optimized proposal bounds without a second snap; unsnapped pending edits retain the configured apply-time optimization.
@@ -90,11 +90,11 @@ the span the cut finally removes (**Filler pacing floor**, #1074; owner listenin
 check pending). Open listening note: the review-only `like` cut at 16.45 s
 sounds rough (#1079).
 
-### Proposed decision: Pause trims cut only air
+### Superseded decision: Pause trims cut only air
 
 <!-- decision
 id: D-pause-trims-cut-only-air
-status: proposed
+status: superseded
 date: 2026-10-07
 decided-by: calebn
 evidence:
@@ -109,6 +109,31 @@ evidence:
 - #1179 round 7 mutation check (70 single-edit mutants of the room, bands, lane, source, twin, pad and review logic, run against the decision block's test files): the first run left 7 alive; the tests added for them kill 6 (the 7th snaps an edge to the span asked for when the two agree to a microsecond, which changes nothing), and writing the one for the trim track's missing speech level found a crash when nobody in the session has a word
 - #1055 lab after round 7, against main at b785b17d6 and round 6: 138 pause decisions at medium (main 8, round 6 120), none auto (light 104, aggressive 160); every non-pause decision identical to main at light, medium, aggressive and mute, and no pause trim is applied by `apply_edits` or Apply eligible on either path; 46 candidates dropped as `shared_pause`, each nested exactly in the trim that stays, and no two staying trims overlap (round 6: 8 pairs); R02, the 8.1 dB over threshold peer edge of round 6, is gone, R46 (1010.60 to 1011.07) is 1010.97 to 1011.01, aggressive 83.39 is gone and 87.60 is 87.65 to 87.67; the independent detector (raw stems, a 200 Hz to 4 kHz level over each track's local room) finds 1 edge in a sound of 6 dB or more at medium (round 6: 3), 4.7 dB under the threshold of hearing in every third octave after the high-pass; of the 70 edges any tier flags, 12 stay above threshold after the high-pass, the worst 3.5 dB at 5 kHz (round 6: 8.1 dB)
 - #1055 lab turn-taking gaps (the 20 round 5 `other_speaking` candidates that are decisions, 27 in round 6): 0 transcript words inside or straddling a trim, 0 peer onsets inside an edge (round 6: 1); at the 10 turn changes among them the gap the trim leaves between the sounds that bound it is 65 to 520 ms, median 125 ms, 7 under 150 ms (round 6, 12 turn changes: 35 to 1280 ms, median 195, 6 under 150 ms), and between transcript words 340 ms or more, never under 150 ms
+superseded-by: D-pause-trims-cut-air-and-apply-when-safe
+-->
+
+Superseded on 2026-10-08. This decision held every pause trim for review until the
+owner had listened to what it cuts. The owner listened to every round 4 to 7 clip set
+and approved them all, and the edges were checked inaudible after the render's 80 Hz
+high-pass, so the hold has done its job. What stays: a trim removes only air and no edge
+sits inside a sound. What changed: a trim that passes the checks a filler passes now
+applies; a trim too small to hear is not proposed; a recording with no words is read from
+its own levels; and approving reads what the lanes play now.
+
+### Decision: Pause trims cut only air and apply when they pass the filler checks
+
+<!-- decision
+id: D-pause-trims-cut-air-and-apply-when-safe
+status: accepted
+date: 2026-10-08
+decided-by: calebn
+supersedes: D-pause-trims-cut-only-air
+evidence:
+- Owner listening, rounds 4 to 7 of #1179: every clip set was listened to and approved (round 7: 107 clips), and the edges were checked inaudible after the render's 80 Hz high-pass. The review-only rule of D-pause-trims-cut-only-air held pause trims until then; the owner decided they apply by the rules a filler does
+- Owner direction, round 8 of #1179: round 7 proposed 138 trims at medium that removed 62.6 s over about 28 minutes, the median 130 ms, 84 under 200 ms and 102 under a tenth of their pause; "far too many cuts for the time saved", and sound that cannot be told from room tone does not matter. A trim is proposed only when a listener would hear the pause shorten, and audibility after the high-pass (ISO 226, speech at 80 dB SPL), not a detector's flag, is what blocks
+- #1179 round 8 audit: a recording that speaks but has no live transcript words took its room from session silence, which holds its own speech. Lab host with his transcript removed in memory: speech-band room -90.7 dBFS and line -83.9 dBFS with the transcript, -84.0 and -67.0 without it in round 7 (low-band line -73.9, then -44.0), -89.8 and -83.0 now (low band -72.6); the mode prior read 4.25 dB of spread for want of a speech level where 1.70 was right. Synthetic conversation scenes with an untranscribed guest, 30 trials, edges audible by the smear-free judge (`gated.py`), round 6, round 7, now: natural speech `guest` 1, 3, 3; `guest:-15` 2, 3, 3; `mid` 1, 8, 1; `nosil` 3, 10, 4; compressed speech 0 in every scene in rounds 6 and 8 and 0 to 9 in round 7. The same scenes with the guest transcribed read 3, 3, 1 and 2 in round 7, so most of what is left is the scene (a third octave at 200 Hz in a word's last 150 ms), not the missing words; `nosil` keeps two more
+- #1179 round 8 audit: approving trims one at a time turned many into track-local punches. `approve_edits` re-ran the scope guard, which read the rendered stem (the timeline as it was rendered) at post-ripple seconds, found a peer speaking in what the lanes had made silence, and punched; 50 of 138 flipped in order and each approval still reported one applied. Round 7's 138 trims at medium removed 61.85 s per track together and 30.39, 44.03, 37.93 and 44.46 s one at a time (forward, reverse, two shuffles); read from the lanes, the same 138 remove 61.85 s in all four orders
+- #1179 round 8 lab, against round 7: pause trims at light, medium and aggressive 104, 138 and 160 before, 55, 66 and 74 now (49, 72 and 86 dropped as `imperceptible`, a median 70, 60 and 50 ms net of any pad), carrying 90.3%, 88.8% and 88.7% of round 7's seconds (49.97, 54.90 and 58.66 s of 55.36, 61.85 and 66.13); every kept trim has the same id, track, span, pad, scope, fade and boundary mode as in round 7; 55, 65 and 73 apply automatically (49.97, 54.67 and 58.43 s) and 0, 1 and 1 wait for review; every non-pause decision and candidate outcome is identical to main and round 7; the 34-scene synthetic table is identical to round 7 and the 660-case session fuzz has 0 edges inside a placed sound, 0 loud sounds removed and 0 ripple mismatches
 enforced-by:
 - tests/test_room_model.py::test_a_normal_room_reads_its_median_and_spread
 - tests/test_room_model.py::test_what_stands_far_over_the_rooms_median_is_clipped_out_of_the_room_it_is_read_from
@@ -182,13 +207,35 @@ enforced-by:
 - tests/test_tighten.py::test_a_twin_stands_when_the_trim_it_was_dropped_for_overlaps_an_applied_cut
 - tests/test_transcript_cuts.py::test_coalesce_never_absorbs_a_session_pause_into_a_cut_that_is_not_its_own
 - tests/test_transcript_cuts.py::test_coalesce_never_chains_a_review_filler_a_pause_and_an_auto_filler_into_one_cut
-- tests/test_fillers.py::test_every_pause_trim_is_review_only_and_one_that_moved_says_so
+- tests/test_fillers.py::test_a_pause_trim_that_moved_onto_air_is_labelled_not_held_for_review
 - tests/test_fillers.py::test_a_pause_trim_must_shorten_the_timeline_after_the_pad_it_needs
 - tests/test_fillers.py::test_only_a_pause_trim_is_cut_down_to_its_air
-- tests/test_tighten_apply_eligible.py::test_a_pause_trim_is_listened_to_one_by_one_and_never_eligible
+- tests/test_tighten_apply_eligible.py::test_a_pause_trim_that_stays_for_review_is_listened_to_one_by_one_and_never_eligible
 - tests/test_tighten_apply_eligible.py::test_studio_view_carries_the_same_harsh_and_listen_one_by_one_flags
 - gui/web/src/utils/tightenHits.test.ts::never batches a pause trim, whether or not harsh cuts are avoided
 - tests/test_benchmark_tighten_smoke.py::test_each_kind_of_decision_stays_within_the_rebuild_bound_alone
+- tests/test_fillers.py::test_a_pause_trim_that_fails_a_filler_check_stays_for_review
+- tests/test_fillers.py::test_a_pause_trim_is_proposed_only_when_a_listener_would_hear_the_pause_shorten
+- tests/test_fillers.py::test_a_pause_trim_is_judged_against_the_silence_a_listener_hears_not_the_tracks_own_gap
+- tests/test_fillers.py::test_the_pad_a_pause_trim_needs_is_not_time_it_removes
+- tests/test_tighten.py::test_apply_tighten_decisions_applies_a_pause_trim_that_needs_no_review
+- tests/test_tighten.py::test_a_twin_stands_when_the_trim_it_was_dropped_for_went_to_an_acoustic_cut
+- tests/test_transcript_cuts.py::test_coalesce_keeps_a_pause_shortfall_pad_apart_from_the_filler_pad
+- tests/test_approval_order.py::test_approving_session_cuts_one_at_a_time_removes_what_approving_them_together_does
+- tests/test_approval_order.py::test_a_cut_a_peer_now_speaks_through_is_held_not_punched
+- tests/test_approval_order.py::test_applying_auto_edits_leaves_a_cut_a_peer_speaks_through_pending
+- tests/test_approval_order.py::test_the_approve_tool_refuses_a_held_cut_and_leaves_the_project_as_it_was
+- tests/test_decisions.py::test_approve_remove_is_held_when_guard_cannot_resolve
+- tests/test_room_model.py::test_a_recording_with_no_words_reads_its_room_where_its_own_levels_pile_up
+- tests/test_room_model.py::test_a_recording_that_never_speaks_is_a_room_throughout
+- tests/test_room_model.py::test_a_gate_that_holds_a_talker_at_digital_silence_between_its_words_is_its_room
+- tests/test_room_model.py::test_a_talker_with_no_room_mode_falls_back_to_the_low_end_of_all_its_frames
+- tests/test_session_air.py::test_a_recording_with_no_words_is_not_read_through_the_sessions_silence
+- tests/test_session_air.py::test_the_sessions_speech_is_laid_on_the_session_clock_not_the_recordings_seconds
+- tests/test_session_air.py::test_a_frame_played_twice_is_silent_only_if_nobody_speaks_at_either_playing
+- tests/test_session_air.py::test_a_lane_window_lays_each_placement_where_it_plays_and_is_silent_in_a_hole
+- tests/test_session_air.py::test_the_silence_around_a_stretch_runs_from_the_last_word_before_it_to_the_first_after
+- tests/test_pause_air_session.py::test_a_trim_says_how_long_nobody_speaks_around_it_and_that_moves_nothing
 -->
 
 A pause trim exists to shorten air, so it removes only air, and no edge of it sits
@@ -230,7 +277,22 @@ cuts, the trim's own and each peer's:
 - **The speech level** is the 90th percentile of the levels of the frames inside the track's
   own live words, read once (`speech_level_db`), not of all live frames: a track that sits
   in a noisy room, or carries a peer's bleed between its words, would otherwise read its
-  floor as speech. A track with under half a second of words has none.
+  floor as speech. A track with under half a second of words has none, and a trim cut from
+  such a track is `no_room`: it has nothing to protect.
+- **A recording with no words.** A recording that speaks but has no live transcript words
+  (a take that was never transcribed, an extra source) has its own speech in every frame the
+  session calls quiet, so session silence says nothing about its room. Its room is read from
+  its own levels instead (`read_unwatched_room`): a gate's digital silence if that fills
+  half of its quieter frames; the whole recording as room if its speech level (the 90th
+  percentile of all its live frames, in place of the words') does not stand 7 dB out of its
+  quietest; otherwise the one place its levels pile up under 40 dB below that speech (the
+  densest low mode, with the median of the frames near it as the room's level), else the low
+  end of all its frames. That speech level also sets the ceiling and the mode prior for the
+  recording, where round 7 had none (a ceiling of infinity, a spread of 4.25 dB for the lab
+  host where 1.70 is right), and its sounds are kept whole or removed whole by the same
+  rule. The limit is a recording that speaks under a tenth of the time: its 90th
+  percentile lands in its room, so nothing in it is quiet enough to remove whole (more
+  sound, less air).
 - **The bands.** Levels are read in two bands at once (`util/dsp.py`). The speech band is
   a raised-cosine high-pass from 100 Hz (stopped) to 160 Hz (passed): a rumble or desk
   thump can sit 10 dB over a room's broadband air and hide every breath riding on it. It
@@ -298,19 +360,47 @@ cuts, the trim's own and each peer's:
   The drop happens after each trim is resolved, so the join gate scores the trim that
   stays; a twin whose kept trim the gate, the applied-overlap check or an acoustic
   replacement then rejects gets its own chance rather than being lost with it.
-- **Review.** Every pause trim is review-only until the owner's listening check (#1055),
-  whether its edges moved or not. `:air_edges` marks the ones whose span differs from the
-  one pacing proposed, whether the air rule moved it or a kept-voice walk did before the
-  rule ran. On the lab tape none applies on its own. `pause:` is one of the review-only
-  reason prefixes (`REVIEW_ONLY_REASON_PREFIXES`, beside repetition, restart and acoustic
-  fillers), so coalescing never merges a pause trim into a filler, a track-local cut or an
-  NL cut, and never strips its label, its scope or its `:air_edges`; the filler beside a
-  trim stays auto-applicable. `apply_edits` applies `filler:` only. The server marks each
-  pause trim `listen_one_by_one` (`tighten_hits.py`), and Studio's Apply eligible takes
-  that flag, not a reason prefix it parses itself: it never batches a pause trim, whatever
-  Avoid harsh cuts says, and a hit the server never classified is not batched either. The
-  editor listens to each trim and applies it alone. A trim with nothing left is skipped as
-  `no_air`.
+- **Only pauses a listener would hear.** A trim is proposed only when the time it takes
+  out of the timeline (its span less the pad a ripple puts back) is at least a tenth of the
+  pause it shortens (`PAUSE_JND_FRACTION`, `pause_trim_is_imperceptible`), and never less
+  than `MIN_PACED_CUT_SEC`; otherwise it is skipped as `imperceptible`. The tenth is the
+  just-noticeable difference for the duration of an empty interval: a Weber fraction of
+  roughly 5 to 10% for intervals of a quarter second and longer (Grondin 2010, "Timing and
+  time perception: a review of recent behavioral and neuroscience findings", *Attention,
+  Perception & Psychophysics* 72; Friberg and Sundberg 1995, *JASA* 98, for the few
+  milliseconds that bound it below), taken at its upper end so that only a change a
+  listener would notice is proposed. The pause is how long nobody speaks around the trim
+  on the session clock (`SessionAir.silence_around`: from the end of the last live word of
+  any dialogue track before it to the start of the first after it), so a track's long gap
+  that a peer talks across is judged by the pause actually heard, and the track's own word
+  gap when no other word bounds it. The rule is relative to each pause, not to the lab
+  tape, and it only drops trims: every kept trim has the span, pad and scope it had
+  without it, and the twins are resolved before it so a dropped trim never frees one.
+- **Review or apply.** A pause trim is reviewed or applied by the same checks a filler gets
+  (join continuity, scope and the speech guard, risky and voiced edges, `:interior_speech`,
+  `:interior_audio`): one that passes them has `review_required` false, applies with
+  `apply_edits` and the pipeline's `tighten_from_transcript`, and joins Studio's Apply
+  eligible; one that does not stays for review. `:air_edges` labels a span that differs from
+  the one pacing proposed, whether the air rule moved it or a kept-voice walk did before
+  the rule ran, and raises no review: both of its edges are in air by construction. A pause
+  trim is never merged into a filler, a track-local cut or an NL cut beside it
+  (`_keeps_independent_review`), so its label, its scope and its pad stay its own. The
+  server marks each pause trim that stays for review `listen_one_by_one`
+  (`tighten_hits.py`), and Studio's Apply eligible takes that flag, not a reason prefix it
+  parses itself: it never batches one, whatever Avoid harsh cuts says, and a hit the server
+  never classified is not batched either. A trim with nothing left is skipped as `no_air`.
+- **Approval reads what the lanes play now.** Approving a session cut re-runs the speech
+  guard against the project as it stands. The guard reads a rendered stem only while it is
+  fresh, and otherwise the recordings through each track's lane (`lane_window`, the mapping
+  the air is read through), because after an earlier ripple a stem still holds the old
+  timeline: round 7 read it at the later cut's new seconds, found a peer speaking in what
+  the lanes had made silence, and punched a hole that shortened nothing, in 50 of 138
+  approvals one at a time. A session cut a peer is now truly speaking over, or that the guard
+  cannot check, is not applied: `approve_edits` raises `ScopeChangedAtApproval`
+  (`cut_scope_changed`, "This cut was not applied: Avery is speaking where it would be cut
+  from every track ... Nothing changed. Reject it, or cut that part of the track on its
+  own"), and the auto path leaves the decision pending. One at a time and together now
+  remove the same time, in any order.
 - **A pad longer than the span.** When earlier ripples left the next word less retained
   air than pacing's floor, the trim pads the shortfall with silence. What the trim removes
   less that pad must still clear the minimum a cut may remove (`too_short` otherwise), and
@@ -335,7 +425,8 @@ What this means for listening:
   talk: a peer's sound that reaches the ceiling splits the air as the trim's own would.
 - Round 7 keeps less air than round 6 for this: 138 pause decisions at medium against 120
   on the lab tape, but the synthetic scenes keep 2.5 to 5 points less of each pause, and
-  some trims are shorter or gone (R02).
+  some trims are shorter or gone (R02). Round 8 proposes fewer still, by dropping the trims
+  nobody would hear: 66 at medium, carrying 88.8% of round 7's seconds.
 
 Limits. The rule reads levels, so it can only see what a level shows:
 
@@ -369,11 +460,27 @@ Limits. The rule reads levels, so it can only see what a level shows:
   12 sit above threshold, the worst 3.5 dB at 5 kHz (the end edge of the trim at 12.92 to
   13.00 s, 800 ms after a word and 1.26 s before the next, flagged by the full-band 3 dB
   tier alone) and 1.5, 1.1, 1.0 and 1.0 dB at the next four. Lab detectors also disagree
-  about quiet air on that floor, which wanders by 10 dB.
+  about quiet air on that floor, which wanders by 10 dB. A detector flag on an edge that is
+  inaudible after the high-pass is not a defect. The round 7 aggressive flag at 1183.60 to
+  1183.71 (+5.4 dB at 635 Hz, the host's end edge) sits 170 ms after a decayed word in room tone
+  (speech-band levels of -89 to -91 dBFS against a room of -91), with a 20 ms bump 9 dB over
+  the room on the removed side: both
+  32 ms sides read under the ISO 226 threshold at 635 Hz (about 0 and -10 dB SPL against
+  3.0), and that 110 ms trim of a 1.10 s pause removes a tenth of it, so round 8 does not
+  propose it.
 - A track with its audio unreadable or its extra source missing is skipped as `no_room`,
   not guessed.
+- A recording with no words reads its own speech level from all its frames, so a talker
+  who speaks under a tenth of the time keeps every sound whole, and one whose room is
+  within 40 dB of its speech gives up its air as a transcribed one does. Untranscribed
+  speech also bleeds into the other mics' session silence, which a transcribed peer's room
+  reads through its 5th percentile; the lab host's peers are gated and read digital zero.
+- The pause a trim is judged against is bounded by words. Untranscribed speech does not
+  shorten it, so a trim beside an untranscribed talker is judged against a longer pause
+  than a listener hears and may be dropped as `imperceptible`; it never makes a trim that
+  would be proposed otherwise.
 
-Pending: the owner's listening check of the #1055 round-7 clips.
+Listened: the owner listened to every #1055 round 4 to 7 clip set and approved them all (round 7: 107 clips); every kept round 8 trim has the span of a round 7 trim.
 
 ## Mute vs cut
 
@@ -534,7 +641,7 @@ Per-episode overrides: copy relevant keys from `tighten:` / `inaudible_cuts:` / 
 | Mid-word chop when ASR missed a word on another mic | `speech_energy_guard` | Keep **`enabled`**; default `on_conflict: track_local` |
 | A proposal carries `:interior_speech` | the transcript, not a knob | A track the ripple removes has voice there Whisper dropped; re-transcribe or add the words, then re-propose |
 | A `pause:` proposal carries `:interior_audio` | `analysis.heuristics.audibility_rms_db` | Audible but unvoiced material (a fricative, a laugh) on a rippled track; listen before approving |
-| A `pause:` proposal carries `:air_edges` | none | The trim moved off the span pacing proposed (the air rule, or a kept-voice walk before it), onto the air inside the pause, off a word tail, a breath or a peer's onset at an edge; listen to both joins before approving. Every pause trim is review-only until the owner's #1055 listening check, moved or not |
+| A `pause:` proposal carries `:air_edges` | none | The trim moved off the span pacing proposed (the air rule, or a kept-voice walk before it), onto the air inside the pause, off a word tail, a breath or a peer's onset at an edge; a label only: it raises no review |
 | Cuts carry `:voiced_edge` | `analysis.heuristics.audibility_rms_db` | Voice runs through both sides of the edge with no silence inside the candidate's bounds; listen, or leave the cut in |
 | Long dead air remains | `max_pause_sec` | **Down** (e.g. `0.9`) |
 | Dangling breaths after filler cuts | `breath_handling.enabled` | **On**; widen `search_before_ms` / `search_after_ms` |

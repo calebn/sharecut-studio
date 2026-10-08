@@ -336,7 +336,7 @@ def test_a_pause_trim_ends_before_connected_protected_activity(peak: float) -> N
     assert (result.start, result.end) == pytest.approx((4.9, 4.97), abs=_EDGE_TOL)
 
 
-def test_a_peers_onset_at_a_ripple_edge_shrinks_the_pause_trim_for_review() -> None:
+def test_a_peers_onset_at_a_ripple_edge_shrinks_the_pause_trim_and_labels_it() -> None:
     # A session ripple cuts the guest too. The gated guest's 50 ms burst at 5.25 (a
     # gate opening on a word's attack, too short for the voiced-run check) starts
     # inside the trim's end, so the trim ends before it and is flagged for review.
@@ -382,18 +382,19 @@ def test_a_peers_onset_at_a_ripple_edge_shrinks_the_pause_trim_for_review() -> N
         pytest.approx(4.9),
         pytest.approx(5.22),
         "pause:1.15s:air_edges",
-        True,
+        False,
     )
 
 
 @pytest.mark.parametrize("walk", ["between_kept_voices", "voiced"])
-def test_every_pause_trim_is_review_only_and_only_one_that_moved_says_air_edges(
+def test_only_a_pause_trim_that_moved_says_air_edges_and_none_is_held_for_it(
     walk: str,
 ) -> None:
-    # The edges already sit in air, so the air rule has nothing to move. No pause trim
-    # applies on its own until the owner has listened (#1055), moved or not; the
+    # The edges already sit in air, so the air rule has nothing to move. A pause trim is
+    # reviewed or applied by the checks a filler gets (#1055), moved or not; the
     # ``:air_edges`` flag is the reviewer's note that the span differs from the one
-    # pacing proposed, whether a kept-voice walk or the air rule moved it.
+    # pacing proposed, whether a kept-voice walk or the air rule moved it, and it raises
+    # no review.
     from dataclasses import replace
 
     from podcast_mcp.edits.fillers import _VoicedSpeechCheck
@@ -438,9 +439,9 @@ def test_every_pause_trim_is_review_only_and_only_one_that_moved_says_air_edges(
     unmoved, walked = propose(4.90), propose(5.00)
 
     assert (unmoved.start, unmoved.end) == pytest.approx((4.90, 5.40))
-    assert (unmoved.reason, unmoved.review_required) == ("pause:candidate", True)
+    assert (unmoved.reason, unmoved.review_required) == ("pause:candidate", False)
     assert (walked.start, walked.end) == pytest.approx((5.00, 5.40))
-    assert (walked.reason, walked.review_required) == ("pause:candidate:air_edges", True)
+    assert (walked.reason, walked.review_required) == ("pause:candidate:air_edges", False)
 
 
 @pytest.mark.parametrize("adjustment", ["min_start", "pacing", "voiced"])
@@ -639,23 +640,21 @@ def test_proposal_to_exact_approval_preserves_complete_breath_source() -> None:
 
 
 def test_default_apply_preserves_proposed_complete_breath(tmp_path) -> None:
-    from podcast_mcp.edits.decisions import approve_edits
     from podcast_mcp.edits.fillers import _apply_analyzed_cut
     from podcast_mcp.edits.tighten import apply_tighten_decisions
 
     cache = _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026))
     result = _proposal(cache, 5.05, "heuristic")
     assert result is not None
-    # The trim shrank off the breath, so it waits for review: apply-all skips it, and
-    # approving it consumes the stored bounds, breath whole.
-    assert (result.reason, result.review_required) == ("pause:candidate:air_edges", True)
+    # The trim shrank off the breath and needs no review: applying consumes the stored
+    # bounds, breath whole.
+    assert (result.reason, result.review_required) == ("pause:candidate:air_edges", False)
     project = _project_with_wav(tmp_path, cache)
-    decision = _apply_analyzed_cut(project, result)
+    _apply_analyzed_cut(project, result)
     with patch(
         "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope", return_value=("session", None)
     ):
-        assert apply_tighten_decisions(project) == 0
-        assert approve_edits(project, [decision.id]) == 1
+        assert apply_tighten_decisions(project) == 1
     assert any(clip.source_start <= 5.0 and clip.source_end >= 5.26 for clip in project.clips)
 
 

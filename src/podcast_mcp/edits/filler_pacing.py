@@ -16,6 +16,22 @@ from podcast_mcp.models import EpisodeProject, TranscriptWord
 FillerPadMode = Literal["silence", "room_tone"]
 FILLER_PAD_MODES: tuple[FillerPadMode, ...] = ("silence", "room_tone")
 MIN_PACED_CUT_SEC = 0.02
+# A silent interval is heard as shorter only once it has lost about a tenth of itself: the
+# Weber fraction for the duration of an empty interval of a quarter second or more is
+# roughly 5 to 10% (Grondin, 2010, "Timing and time perception: a review of recent
+# behavioral and neuroscience findings", Attention, Perception & Psychophysics 72;
+# Friberg and Sundberg, 1995, JASA 98, for the 6 ms floor below a quarter second). The
+# upper end is used, so a trim is proposed only when a listener would notice the pacing.
+PAUSE_JND_FRACTION = 0.10
+
+
+def pause_trim_is_imperceptible(removed_sec: float, pause_sec: float) -> bool:
+    """Whether taking ``removed_sec`` out of a ``pause_sec`` pause is too little to hear.
+
+    ``removed_sec`` is the time the timeline actually loses (the span less the pad a
+    ripple inserts back); ``MIN_PACED_CUT_SEC`` stays the floor for a very short pause.
+    """
+    return removed_sec < max(MIN_PACED_CUT_SEC, PAUSE_JND_FRACTION * pause_sec)
 
 
 @dataclass(frozen=True)

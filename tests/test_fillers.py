@@ -2713,10 +2713,9 @@ def test_a_pause_trim_with_nothing_to_cut_is_skipped_under_the_reason_it_has(ski
     assert skips == {"acoustic:no_audio": 1, skip.value: 1}
 
 
-def test_every_pause_trim_is_review_only_and_one_that_moved_says_so():
-    # No pause trim applies on its own until the owner has listened (#1055), moved or
-    # not. The ``:air_edges`` flag is the reviewer's note that this one is not the span
-    # pacing proposed.
+def test_a_pause_trim_that_moved_onto_air_is_labelled_not_held_for_review():
+    # A trim is reviewed or applied by the same checks as a filler. ``:air_edges`` only
+    # tells the reviewer this one is not the span pacing proposed; it raises no review.
     def shrink(project, track_id, start, end, **kw):
         return PauseAir(start + 0.1, end)
 
@@ -2730,8 +2729,26 @@ def test_every_pause_trim_is_review_only_and_one_that_moved_says_so():
     project = _project_with_transcript(_PAUSE_WORDS)
     kept = analyze_fillers_and_pauses(project, project.transcripts[0], _PAUSE_DEFAULTS)
 
-    assert pause_of(moved) == ("pause:2.00s:solo:air_edges", True)
-    assert pause_of(kept) == ("pause:2.00s:solo", True)
+    assert pause_of(moved) == ("pause:2.00s:solo:air_edges", False)
+    assert pause_of(kept) == ("pause:2.00s:solo", False)
+
+
+def test_a_pause_trim_that_fails_a_filler_check_stays_for_review():
+    from types import SimpleNamespace
+
+    project = _project_with_transcript(_PAUSE_WORDS)
+    defaults = {
+        **_PAUSE_DEFAULTS,
+        "tighten": {**_PAUSE_DEFAULTS["tighten"], "join_continuity_gate": True},
+    }
+    with patch(
+        "podcast_mcp.edits.join_continuity.assess_proposed_cut",
+        return_value=SimpleNamespace(verdict="review"),
+    ):
+        decisions = analyze_fillers_and_pauses(project, project.transcripts[0], defaults)
+
+    hit = next(d for d in decisions if d.reason.startswith("pause:"))
+    assert (hit.reason, hit.review_required) == ("pause:2.00s:solo:join_review", True)
 
 
 def test_a_mute_fades_each_edge_against_fill_so_the_join_gate_skips_it():
@@ -3760,3 +3777,99 @@ def test_a_scope_that_never_settles_is_not_proposed():
             skip_counts=skips,
         )
     assert skips == {"unstable_scope": 1}
+
+
+@pytest.mark.parametrize(
+    ("removed", "proposed"),
+    [
+        # A 2.00 s pause is heard as shorter once it loses a tenth of itself (0.20 s).
+        (0.15, False),
+        (0.19, False),
+        (0.21, True),
+        (0.60, True),
+    ],
+)
+def test_a_pause_trim_is_proposed_only_when_a_listener_would_hear_the_pause_shorten(
+    removed, proposed
+):
+    project = _project_with_transcript(_PAUSE_WORDS)
+    skips: dict[str, int] = {}
+
+    def air(project, track_id, start, end, **kw):
+        return PauseAir(start, start + removed)
+
+    with patch("podcast_mcp.edits.fillers.pause_air_span", side_effect=air):
+        decisions = analyze_fillers_and_pauses(
+            project, project.transcripts[0], _PAUSE_DEFAULTS, skip_counts=skips
+        )
+
+    pauses = [(d.start, d.end) for d in decisions if d.reason.startswith("pause:")]
+    if proposed:
+        assert pauses == [(pytest.approx(1.5), pytest.approx(1.5 + removed))]
+        assert "imperceptible" not in skips
+    else:
+        assert pauses == []
+        assert skips["imperceptible"] == 1
+
+
+@pytest.mark.parametrize(
+    ("silence", "proposed"),
+    [
+        # The track is silent 2.00 s, but a peer speaks across all but 0.40 s of it: the
+        # trim takes 0.15 s of the 0.40 s a listener hears as the pause.
+        (0.40, True),
+        # Nobody speaks for the track's whole gap: 0.15 s of 2.00 s.
+        (2.00, False),
+        # Not read: the track's gap is the pause.
+        (None, False),
+    ],
+)
+def test_a_pause_trim_is_judged_against_the_silence_a_listener_hears_not_the_tracks_own_gap(
+    silence, proposed
+):
+    project = _project_with_transcript(_PAUSE_WORDS)
+    skips: dict[str, int] = {}
+
+    def air(project, track_id, start, end, **kw):
+        return PauseAir(start, start + 0.15, silence)
+
+    with patch("podcast_mcp.edits.fillers.pause_air_span", side_effect=air):
+        decisions = analyze_fillers_and_pauses(
+            project, project.transcripts[0], _PAUSE_DEFAULTS, skip_counts=skips
+        )
+
+    assert any(d.reason.startswith("pause:") for d in decisions) == proposed
+    assert skips.get("imperceptible", 0) == (not proposed)
+
+
+@pytest.mark.parametrize(("span_end", "proposed"), [(1.6, False), (1.9, True)])
+def test_the_pad_a_pause_trim_needs_is_not_time_it_removes(span_end, proposed):
+    # An earlier ripple left only 0.1 s of continuous audio before the next word, so the
+    # cut pads 0.45 s back in. Of the 1.7 s pause a 0.6 s span shortens the timeline by
+    # 0.15 s (8.8%), which nobody hears; a 0.9 s span shortens it by 0.45 s.
+    words = [
+        TranscriptWord(text="one", start=0.0, end=0.4),
+        TranscriptWord(text="two", start=3.0, end=3.4),
+    ]
+    project = _project_with_transcript(words)
+    project.clips = [
+        Clip(id="early", track_id="host", source_start=0.0, source_end=2.0, timeline_start=0.0),
+        Clip(id="late", track_id="host", source_start=2.9, source_end=5.0, timeline_start=2.0),
+    ]
+    defaults = {
+        "tighten": {
+            "min_retained_pause_sec": 0.55,
+            "min_retained_solo_pause_sec": 0.55,
+            "max_pause_sec": 1.2,
+        }
+    }
+    skips: dict[str, int] = {}
+
+    with patch("podcast_mcp.edits.fillers.pause_air_span", return_value=PauseAir(1.0, span_end)):
+        decisions = analyze_fillers_and_pauses(
+            project, project.transcripts[0], defaults, skip_counts=skips
+        )
+
+    pauses = [d for d in decisions if d.reason.startswith("pause:")]
+    assert len(pauses) == proposed
+    assert skips.get("imperceptible", 0) == (not proposed)

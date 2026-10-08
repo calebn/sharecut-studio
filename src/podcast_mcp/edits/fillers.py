@@ -29,7 +29,12 @@ from podcast_mcp.edits.cut_quality import (
     post_pad_fade_in_bounds_ms,
     recommend_cut_fade_ms,
 )
-from podcast_mcp.edits.filler_pacing import MIN_PACED_CUT_SEC, PacedPad, apply_filler_pacing
+from podcast_mcp.edits.filler_pacing import (
+    MIN_PACED_CUT_SEC,
+    PacedPad,
+    apply_filler_pacing,
+    pause_trim_is_imperceptible,
+)
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.mute_regions import muted_source_spans, source_span_is_muted
 from podcast_mcp.edits.session_air import SessionAir
@@ -419,6 +424,8 @@ class _CutCandidate:
     # Pause candidates: the next word's onset. The pause is the whole word gap;
     # ``end`` is only where the retain floor trims it.
     gap_end: float | None = None
+    # Pause candidates: how long the pause plays on the timeline.
+    pause_sec: float | None = None
 
     @property
     def strictly_bounded(self) -> bool:
@@ -740,6 +747,8 @@ class _AnalyzedCut:
     next_burst_sec: float | None = None
     scope: str = "session"
     decision_type: str = "remove"
+    # A pause trim: how long nobody speaks around it, the pause a listener hears shorten.
+    pause_sec: float | None = None
 
 
 def _peer_speaking_in_gap(
@@ -1056,6 +1065,7 @@ def _collect_candidates(
                             cut_kind="pause",
                             max_end=trim_end,
                             gap_end=gap_end,
+                            pause_sec=gap,
                         )
                     )
     return sorted(candidates, key=_candidate_order)
@@ -1309,11 +1319,15 @@ def _resolve_analyzed_cuts(
       the gap.
     * A pause trim is replaced only by an acoustic cut that *survived* analysis;
       when the acoustic candidate is rejected the pause trim still stands.
-    * Last, with a ``project``, a session pause trim that another track's longer trim
+    * With a ``project``, a session pause trim that another track's longer trim
       stands for (the same stretch of shared air, :func:`shared_pause_twins`) is dropped
       as ``shared_pause``: the reviewer decides that cut once. Only trims that survived
       everything above count, so a trim lost to the join gate or an overlap leaves its
       twin standing.
+    * Last, a pause trim whose net removal (its span less the pad a ripple puts back) is
+      too little to hear against its pause (:func:`pause_trim_is_imperceptible`) is
+      dropped as ``imperceptible``. This only drops: no kept trim's edges move, and the
+      twins above were resolved first, so a dropped trim never frees one.
 
     A :class:`_CutRejected` result counts its skip (``acoustic:{skip}`` for a strictly
     bounded candidate) and is otherwise a rejection.
@@ -1396,6 +1410,17 @@ def _resolve_analyzed_cuts(
         for _ in twins:
             _count_skip(skip_counts, "shared_pause")
         dropped |= twins
+    for idx, (candidate, result) in enumerate(pairs):
+        if (
+            result is not None
+            and idx not in dropped
+            and (heard := result.pause_sec or candidate.pause_sec) is not None
+            and pause_trim_is_imperceptible(
+                result.end - result.start - (result.replace_gap_sec or 0.0), heard
+            )
+        ):
+            _count_skip(skip_counts, "imperceptible")
+            dropped.add(idx)
     return [
         result
         for idx, (_candidate, result) in enumerate(pairs)
@@ -1830,6 +1855,11 @@ def _check_voiced_speech(
     return _VoicedSpeechCheck(cut_start, cut_end, "voiced_edge" if needs_review else None)
 
 
+# Labels a pause trim that moved off the span pacing proposed (onto the air inside the
+# pause); unlike the other edge flags it raises no review.
+_AIR_EDGES_FLAG = "air_edges"
+
+
 @dataclass(frozen=True)
 class _GatedCut:
     """A cut that passed its edge checks: the plan with its final span, and its scope."""
@@ -1839,6 +1869,8 @@ class _GatedCut:
     guard: SpeechEnergyGuardResult | None
     # Review flags the edge checks raised, in the order they go on the reason.
     flags: tuple[str, ...]
+    # A pause trim: how long nobody speaks around it (``PauseAir.silence_sec``).
+    heard_pause: float | None = None
 
 
 def _peer_audio_caches(
@@ -1932,11 +1964,12 @@ def _gate_cut_edges(
         cut_start, cut_end, voiced_flag = voiced.start, voiced.end, voiced.flag
     before_protection = cut_start, cut_end
     off_proposal = False
+    heard_pause: float | None = None
     if candidate.cut_kind == "pause":
         # A pause trim removes only air: it shrinks to the longest stretch of air
-        # inside it on every track the ripple cuts, so no edge sits in a sound. Every
-        # pause trim is proposed for review (``REVIEW_ONLY_REASON_PREFIXES``, #1055);
-        # ``:air_edges`` tells the reviewer this one moved off the span pacing proposed.
+        # inside it on every track the ripple cuts, so no edge sits in a sound. It is
+        # reviewed or applied by the same risk checks as a filler (#1055); ``:air_edges``
+        # only labels one that moved off the span pacing proposed.
         air = pause_air_span(
             project,
             track_id,
@@ -1953,6 +1986,7 @@ def _gate_cut_edges(
             return _CutRejected(air.value)
         off_proposal = air.span != paced
         cut_start, cut_end = air.span
+        heard_pause = air.silence_sec
     elif checks.breaths is not _BreathEdges.IGNORE:
         breath_safe = protect_cut_breaths(
             project,
@@ -1994,8 +2028,8 @@ def _gate_cut_edges(
     plan = replace(plan, start=cut_start, end=cut_end)
 
     def gated(final: str) -> _GatedCut:
-        raised = (voiced_flag, "air_edges" if off_proposal else None)
-        return _GatedCut(plan, final, guard, tuple(flag for flag in raised if flag))
+        raised = (voiced_flag, _AIR_EDGES_FLAG if off_proposal else None)
+        return _GatedCut(plan, final, guard, tuple(flag for flag in raised if flag), heard_pause)
 
     if final_scope != scope:
         return gated(final_scope)
@@ -2033,6 +2067,7 @@ class _PreparedCut:
     reason: str
     review_required: bool
     replace_gap: float | None
+    heard_pause: float | None = None
 
 
 def _prepare_candidate(
@@ -2182,11 +2217,10 @@ def _prepare_candidate(
     # intentionally proposal-only.  Even an exact token repeat can be emphasis
     # ("very very"), a phrase restart can change meaning if the repair is
     # mistaken for the reparandum, and voiced energy in an ASR gap may be a
-    # breath, laugh, or missed word rather than a filler. A pause trim is review-only
-    # too, whether or not its edges moved, until the owner has listened (#1055).
+    # breath, laugh, or missed word rather than a filler.
     review_required = candidate.review_only or is_review_only_reason(candidate.reason)
     for flag in flags:
-        review_required = True
+        review_required = review_required or flag != _AIR_EDGES_FLAG
         reason = f"{reason}:{flag}"
     replace_gap = plan.replace_gap_sec
     # Contiguous retain before the next word can be shorter than the floor when
@@ -2242,6 +2276,7 @@ def _prepare_candidate(
         reason=reason,
         review_required=review_required,
         replace_gap=replace_gap,
+        heard_pause=gated.heard_pause,
     )
 
 
@@ -2321,6 +2356,7 @@ def _finish_candidate(
         next_burst_sec=plan.next_burst,
         scope=prepared.scope,
         decision_type="mute" if mute else "remove",
+        pause_sec=prepared.heard_pause,
     )
 
 

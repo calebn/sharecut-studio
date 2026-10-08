@@ -56,7 +56,11 @@ Tighten preserves confirmed complete breaths at both final edges and suppresses 
      listen-first review / `approve_edits`; optional `intensity=light|medium|aggressive` (the GUI working-set tier is not read here; pass it explicitly), optional `edit_mode=mute` to silence
      in place; do not bulk `apply_edits` on a production episode). Tighten may
      also propose `filler:acoustic` hits (voiced audio the ASR missed inside a
-     word gap); they are always review-only — play each before approving.
+     word gap); they are always review-only — play each before approving. A `pause:`
+     trim is proposed only when a listener would hear the pause shorten (`imperceptible`
+     otherwise) and waits for review only when it fails a check a filler fails; an
+     approval that finds a peer speaking over a session cut applies nothing
+     (`cut_scope_changed`).
 6. `edit_impact_report_tool` (markdown=true) — show seconds removed and pending review.
 7. `play_pending_preview_tool` (Suggested) so the user hears the approved result before deciding; then `approve_edits_tool` with `ids` (a list of edit ids) — applies cuts to the clip timeline (not just flags).
 8. `render_preview` — then `audition_context_tool` on each applied join (step 7 of the harness list; no `speech_crosses_cut` / `echo_risk` left unaddressed), then `play_transcript_query_tool` or `play_audio_tool` on the span so the user can hear it (not only the premix path).
