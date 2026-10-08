@@ -72,6 +72,31 @@ def frame_rms_db(
     return out
 
 
+# The speech band: a raised-cosine high-pass, stopped at 50 Hz and passed from 120 Hz.
+_BAND_STOP_HZ = 50.0
+_BAND_PASS_HZ = 120.0
+
+
+def next_fast_len(n: int) -> int:
+    """The smallest length ``>= n`` whose only prime factors are 2, 3 and 5.
+
+    The FFT is fast at such a length and slow at a prime one (a pause plus 10 s is any
+    sample count at all), so callers pad to it.
+    """
+    best = 1 << max(0, n - 1).bit_length()
+    five = 1
+    while five < best:
+        smooth = five
+        while smooth < best:
+            length = smooth
+            while length < n:
+                length *= 2
+            best = min(best, length)
+            smooth *= 3
+        five *= 5
+    return best
+
+
 def speech_band(samples: np.ndarray, sample_rate: int) -> np.ndarray:
     """``samples`` with the rumble below the speech band removed.
 
@@ -81,11 +106,12 @@ def speech_band(samples: np.ndarray, sample_rate: int) -> np.ndarray:
     """
     if samples.size < 64:
         return samples
-    spectrum = np.fft.rfft(samples)
-    freqs = np.fft.rfftfreq(samples.size, d=1.0 / sample_rate)
-    ramp = np.clip((freqs - 50.0) / 70.0, 0.0, 1.0)
+    size = next_fast_len(samples.size)
+    spectrum = np.fft.rfft(samples, n=size)
+    freqs = np.fft.rfftfreq(size, d=1.0 / sample_rate)
+    ramp = np.clip((freqs - _BAND_STOP_HZ) / (_BAND_PASS_HZ - _BAND_STOP_HZ), 0.0, 1.0)
     spectrum *= (1.0 - np.cos(np.pi * ramp)) / 2.0
-    filtered = np.fft.irfft(spectrum, n=samples.size)
+    filtered = np.fft.irfft(spectrum, n=size)[: samples.size]
     return np.where(samples != 0.0, filtered, 0.0).astype(samples.dtype, copy=False)
 
 
@@ -94,14 +120,28 @@ def frame_speech_band_db(
 ) -> np.ndarray:
     """Per-frame dB level of ``samples`` in the speech band, on :func:`frame_rms_db`'s grid.
 
-    Room rumble, desk thumps and mains hum sit below the band and can be 10 dB over a
-    room tone's broadband air, hiding every breath and fade that rides on them. A frame
-    reads no louder than it does unfiltered: the filter spreads a loud neighbour's
-    energy a few frames each way, and that ringing is no sound of the frame's own.
+    Room rumble, desk thumps and the mains fundamental sit below the band and can be
+    10 dB over a room tone's broadband air, hiding every breath and fade that rides on
+    them. Mains hum's harmonics at 100, 120 and 150 Hz pass the band (100 Hz 2 dB down,
+    the rest untouched), so a hum shows in the levels and is the room's own spread to
+    read, not removed here. A frame reads no louder than it does unfiltered: the filter spreads a loud neighbour's energy a few frames each way, and
+    that ringing is no sound of the frame's own.
     """
     full = frame_rms_db(samples, frame, frame, floor_db=floor_db)
     heard = frame_rms_db(speech_band(samples, sample_rate), frame, frame, floor_db=floor_db)
     return np.minimum(full, heard)
+
+
+def frame_level_noise_db(sample_rate: int, frame_sec: float) -> float:
+    """The std, in dB, of one frame's level over stationary Gaussian noise in the speech band.
+
+    A frame of band-limited noise estimates its power from ``2 * bandwidth * frame_sec``
+    independent samples, so even a perfectly steady room reads a few tenths of a dB
+    apart from frame to frame. No room is steadier than this, which makes it the least
+    spread a measured room can have.
+    """
+    bandwidth = sample_rate / 2.0 - _BAND_PASS_HZ
+    return (10.0 / math.log(10.0)) / math.sqrt(bandwidth * frame_sec)
 
 
 def frame_band_db(

@@ -12,10 +12,13 @@ from podcast_mcp.util.dsp import (
     db_to_amplitude,
     frame_band_db,
     frame_db_stream,
+    frame_level_noise_db,
     frame_peak_db,
     frame_rms_db,
     frame_rms_db_stream,
+    frame_speech_band_db,
     high_band_energy_fraction,
+    next_fast_len,
     rms_db,
     speech_band,
     voicing_probes,
@@ -158,3 +161,54 @@ def test_speech_band_drops_rumble_keeps_voice_and_a_gates_silence() -> None:
     gated = np.concatenate([np.zeros(4000), voice, np.zeros(4000)])
     assert not speech_band(gated, rate)[:4000].any()
     assert speech_band(np.zeros(8), rate).tolist() == [0.0] * 8
+
+
+def test_speech_band_of_an_awkward_length_matches_the_same_signal_padded_by_hand() -> None:
+    # 176003 samples is prime-ish for the FFT: the band pads to a fast length, and the
+    # answer for the samples that exist is the same either way.
+    rate = 16_000
+    x = (0.1 * np.sin(2 * np.pi * 400.0 * np.arange(176_003) / rate)).astype(np.float32)
+
+    padded = speech_band(np.concatenate([x, np.zeros(5)]).astype(np.float32), rate)[: x.size]
+
+    assert speech_band(x, rate) == pytest.approx(padded, abs=1e-3)
+
+
+@pytest.mark.parametrize(
+    ("n", "fast"),
+    [(1, 1), (7, 8), (100, 100), (176_001, 177_147), (131_073, 131_220), (2**17, 2**17)],
+)
+def test_next_fast_len_is_the_next_length_of_2_3_and_5(n: int, fast: int) -> None:
+    assert next_fast_len(n) == fast
+
+
+def test_speech_band_passes_mains_harmonics_and_frame_levels_never_read_louder_than_raw() -> None:
+    rate = 16_000
+    t = np.arange(rate) / rate
+    fundamental = np.float32(0.05) * np.sin(2 * np.pi * 60.0 * t)
+    harmonics = np.float32(0.05) * (
+        np.sin(2 * np.pi * 100.0 * t)
+        + np.sin(2 * np.pi * 120.0 * t)
+        + np.sin(2 * np.pi * 150.0 * t)
+    )
+
+    # The 60 Hz fundamental is more than 20 dB down; 100 Hz is passed 2 dB down, and 120
+    # and 150 Hz untouched.
+    assert rms_db(speech_band(fundamental, rate)) < rms_db(fundamental) - 20.0
+    assert rms_db(speech_band(harmonics, rate)) == pytest.approx(rms_db(harmonics), abs=0.7)
+    for x in (fundamental, harmonics):
+        assert np.all(frame_speech_band_db(x, rate, 160) <= frame_rms_db(x, 160, 160) + 1e-9)
+
+
+def test_frame_level_noise_is_what_stationary_noise_reads() -> None:
+    # The std of white noise's 10 ms frame levels is what frame_level_noise_db says it
+    # is for that frame length; a 50 ms average of five such frames reads a fifth of the
+    # variance.
+    rate = 16_000
+    noise = np.random.default_rng(3).standard_normal(rate * 60).astype(np.float32) * 0.01
+    levels = frame_speech_band_db(noise, rate, 160)
+    power = 10.0 ** (levels / 10.0)
+    averaged = 10.0 * np.log10(np.convolve(power, np.ones(5) / 5.0, mode="valid"))
+
+    assert float(levels.std()) == pytest.approx(frame_level_noise_db(rate, 0.01), rel=0.08)
+    assert float(averaged.std()) == pytest.approx(frame_level_noise_db(rate, 0.05), rel=0.08)
