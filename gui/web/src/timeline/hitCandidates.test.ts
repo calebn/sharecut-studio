@@ -195,6 +195,36 @@ describe("a body", () => {
     ]);
   });
 
+  it("is still the one candidate when every target in reach is out of reach", () => {
+    expect(
+      rankHitTargets([body, trimIn], { x: 204, y: 150 }, 22, body, () => false),
+    ).toEqual([
+      {
+        target: body,
+        candidate: {
+          kind: "clip",
+          id: "clip-b",
+          x: 204,
+          y: 150,
+          distance: 0,
+          priority: 1,
+          selected: true,
+        },
+      },
+    ]);
+  });
+
+  it("keeps the target the browser hit though the reach test refuses it", () => {
+    expect(ranked([body, trimIn], 22, trimIn).map((c) => c.kind)).toEqual([
+      "trim-in",
+    ]);
+    expect(
+      rankHitTargets([trimIn], { x: 204, y: 150 }, 22, trimIn, () => false).map(
+        (r) => r.candidate.kind,
+      ),
+    ).toEqual(["trim-in"]);
+  });
+
   it("counts only as the element the browser hit, never by reach", () => {
     expect(ranked([body], 22)).toEqual([]);
   });

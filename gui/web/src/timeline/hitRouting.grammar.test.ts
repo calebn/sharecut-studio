@@ -209,6 +209,25 @@ describe("clip body", () => {
     ]);
   });
 
+  it("arms from its body near an end whose trim and fade targets are click-through, as on an unselected clip", () => {
+    const el = clipBody();
+    for (const [kind, rect] of [
+      ["trim-out", { left: 488, top: 106, right: 500, bottom: 206 }],
+      ["fade-out", { left: 476, top: 106, right: 500, bottom: 130 }],
+    ] as const) {
+      const target = button(hitTargetProps(kind, "clip-b", 5), rect);
+      target.style.pointerEvents = "none";
+      root.append(target);
+    }
+    press(el, "pointerdown", 490, 150);
+    router.longPress();
+    press(el, "pointermove", 450, 150);
+    press(el, "pointerup", 450, 150);
+
+    expect(creates).toEqual([]);
+    expect(armed).toEqual([{ kind: "clip", id: "clip-b", axis: "x" }, null]);
+  });
+
   it("holds when its far end meets a boundary, and marks the boundary", () => {
     attach([{ sec: 5.5, label: "a clip edge" }]);
     const el = clipBody();

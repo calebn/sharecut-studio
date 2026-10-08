@@ -78,12 +78,17 @@ export function corePoint(rect: HitRect, p: HitPoint): HitPoint {
  * then kind priority. Each candidate keeps the target it came from. A body
  * (`HIT_KINDS[kind].body`) counts only when it is `hit` and nothing else is
  * in reach, and then it is held where the pointer is.
+ *
+ * `reachable` refuses a target the pointer cannot actually take (click-through,
+ * hidden, or under chrome). It runs before the body fallback is decided, so a
+ * body whose only neighbours are out of reach still stands alone.
  */
 export function rankHitTargets<T extends HitTarget>(
   targets: readonly T[],
   pointer: HitPoint,
   radiusPx: number,
   hit: T | null = null,
+  reachable: (target: T, at: HitPoint) => boolean = () => true,
 ): { candidate: HitCandidate; target: T }[] {
   const ranked: { candidate: HitCandidate; target: T }[] = [];
   let body: { candidate: HitCandidate; target: T } | null = null;
@@ -108,6 +113,9 @@ export function rankHitTargets<T extends HitTarget>(
       continue;
     }
     const core = corePoint(target.rect, pointer);
+    if (target !== hit && !reachable(target, core)) {
+      continue;
+    }
     ranked.push({
       target,
       candidate: {
