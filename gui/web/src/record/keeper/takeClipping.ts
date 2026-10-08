@@ -14,8 +14,8 @@ import {
 
 /**
  * Rebuild one take's clipping report from OPFS keeper metadata, so it
- * survives a reload. `known` is false when any segment is pending, legacy or
- * unreadable (crash recovery and older clients carry no clip regions).
+ * survives a reload. `known` is false when any segment is pending, unreadable or
+ * missing clip regions after interrupted-capture repair.
  * `truncated` is set when any segment hit the clip-region cap.
  */
 export async function readTakeClipping(

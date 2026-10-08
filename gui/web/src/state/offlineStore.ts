@@ -7,7 +7,7 @@ const DB_VERSION = 1;
 const STORE = "kv";
 
 export interface QueuedCommand {
-  client_id?: string;
+  client_id: string;
   command_id: string;
   client_seq: number;
   type: string;
@@ -101,10 +101,6 @@ function hostQueueKey(projectPath: string): string {
   return `host-queue:${projectPath}`;
 }
 
-function hostQueueCountKey(projectPath: string): string {
-  return `host-queue-count:${projectPath}`;
-}
-
 function snapKey(token: string): string {
   return `snap:${token}`;
 }
@@ -141,35 +137,129 @@ async function withHostQueueLock<T>(
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseQueuedCommand(value: unknown): QueuedCommand {
+  if (
+    !isRecord(value) ||
+    typeof value.client_id !== "string" ||
+    value.client_id.length === 0 ||
+    typeof value.command_id !== "string" ||
+    value.command_id.length === 0 ||
+    typeof value.type !== "string" ||
+    value.type.length === 0 ||
+    typeof value.client_seq !== "number" ||
+    !Number.isSafeInteger(value.client_seq) ||
+    value.client_seq <= 0 ||
+    !isRecord(value.payload) ||
+    typeof value.created_at !== "number" ||
+    !Number.isFinite(value.created_at) ||
+    (value.structural_mode !== undefined &&
+      value.structural_mode !== "propose" &&
+      value.structural_mode !== "apply")
+  )
+    throw new Error("Invalid saved command");
+  let source_anchor: QueuedCommand["source_anchor"];
+  if (value.source_anchor !== undefined) {
+    const anchor = value.source_anchor;
+    if (
+      !isRecord(anchor) ||
+      typeof anchor.source_sec !== "number" ||
+      !Number.isFinite(anchor.source_sec) ||
+      (anchor.clip_id !== undefined && typeof anchor.clip_id !== "string") ||
+      (anchor.track_id !== undefined && typeof anchor.track_id !== "string")
+    )
+      throw new Error("Invalid saved command anchor");
+    source_anchor = {
+      source_sec: anchor.source_sec,
+      ...(anchor.clip_id === undefined ? {} : { clip_id: anchor.clip_id }),
+      ...(anchor.track_id === undefined ? {} : { track_id: anchor.track_id }),
+    };
+  }
+  return {
+    client_id: value.client_id,
+    command_id: value.command_id,
+    client_seq: value.client_seq,
+    type: value.type,
+    payload: value.payload,
+    created_at: value.created_at,
+    ...(value.structural_mode === undefined
+      ? {}
+      : { structural_mode: value.structural_mode }),
+    ...(source_anchor === undefined ? {} : { source_anchor }),
+  };
+}
+
+function parseCommandList(value: unknown): QueuedCommand[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error("Invalid saved command list");
+  return Array.from(value, parseQueuedCommand);
+}
+
+function parseConflictList(value: unknown): OfflineConflict[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error("Invalid saved conflict list");
+  return Array.from(value, (conflict: unknown) => {
+    if (!isRecord(conflict) || typeof conflict.reason !== "string") {
+      throw new Error("Invalid saved conflict");
+    }
+    return {
+      command: parseQueuedCommand(conflict.command),
+      reason: conflict.reason,
+    };
+  });
+}
+
 async function updateStoredList<Item, Result>(
   key: string,
+  parse: (value: unknown) => Item[],
   update: (items: Item[]) => { items: Item[]; result: Result },
-  countKey?: string,
 ): Promise<Result> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, "readwrite");
-    const store = tx.objectStore(STORE);
-    const req = store.get(key);
-    let result: Result;
-    req.onsuccess = () => {
-      const next = update((req.result as Item[] | undefined) ?? []);
-      result = next.result;
-      store.put(next.items, key);
-      if (countKey) store.put(next.items.length, countKey);
-    };
-    tx.oncomplete = () => {
+    let settled = false;
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
       db.close();
-      resolve(result);
+      reject(error);
     };
-    tx.onabort = () => {
-      db.close();
-      reject(tx.error ?? new Error("IndexedDB transaction aborted"));
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
+    let tx: IDBTransaction | undefined;
+    try {
+      const transaction = db.transaction(STORE, "readwrite");
+      tx = transaction;
+      let result: Result;
+      transaction.oncomplete = () => {
+        if (settled) return;
+        settled = true;
+        db.close();
+        resolve(result);
+      };
+      transaction.onabort = () =>
+        fail(transaction.error ?? new Error("IndexedDB transaction aborted"));
+      transaction.onerror = () => fail(transaction.error);
+      const store = transaction.objectStore(STORE);
+      const req = store.get(key);
+      req.onsuccess = () => {
+        try {
+          const next = update(parse(req.result));
+          result = next.result;
+          store.put(next.items, key);
+        } catch (error) {
+          fail(error);
+          try {
+            transaction.abort();
+          } catch {}
+        }
+      };
+    } catch (error) {
+      fail(error);
+      try {
+        tx?.abort();
+      } catch {}
+    }
   });
 }
 
@@ -182,11 +272,11 @@ function updateHostQueue<Result>(
 ): Promise<Result> {
   return updateStoredList<QueuedCommand, Result>(
     hostQueueKey(projectPath),
+    parseCommandList,
     (queue) => {
       const next = update(queue);
       return { items: next.queue, result: next.result };
     },
-    hostQueueCountKey(projectPath),
   );
 }
 
@@ -233,7 +323,7 @@ export async function removeConflict(
 export async function loadCommandQueue(
   token: string,
 ): Promise<QueuedCommand[]> {
-  return (await idbGet<QueuedCommand[]>(queueKey(token))) ?? [];
+  return parseCommandList(await idbGet<unknown>(queueKey(token)));
 }
 
 export async function saveCommandQueue(
@@ -257,14 +347,13 @@ export async function enqueueCommand(
 export async function loadHostCommandQueue(
   projectPath: string,
 ): Promise<QueuedCommand[]> {
-  return (await idbGet<QueuedCommand[]>(hostQueueKey(projectPath))) ?? [];
+  return parseCommandList(await idbGet<unknown>(hostQueueKey(projectPath)));
 }
 
 export async function loadHostCommandCount(
   projectPath: string,
 ): Promise<number> {
-  const count = await idbGet<number>(hostQueueCountKey(projectPath));
-  return count ?? (await loadHostCommandQueue(projectPath)).length;
+  return (await loadHostCommandQueue(projectPath)).length;
 }
 
 export async function enqueueHostCommand(
@@ -325,7 +414,7 @@ export async function removeQueuedCommand(
 }
 
 export async function loadConflicts(token: string): Promise<OfflineConflict[]> {
-  return (await idbGet<OfflineConflict[]>(conflictKey(token))) ?? [];
+  return parseConflictList(await idbGet<unknown>(conflictKey(token)));
 }
 
 export async function saveConflicts(
@@ -347,7 +436,7 @@ export async function addConflict(
 export async function loadHostConflicts(
   projectPath: string,
 ): Promise<OfflineConflict[]> {
-  return (await idbGet<OfflineConflict[]>(hostConflictKey(projectPath))) ?? [];
+  return parseConflictList(await idbGet<unknown>(hostConflictKey(projectPath)));
 }
 
 export async function saveHostConflicts(
@@ -367,6 +456,7 @@ export async function addHostConflict(
 ): Promise<void> {
   await updateStoredList<OfflineConflict, void>(
     hostConflictKey(projectPath),
+    parseConflictList,
     (list) => ({
       items: [
         ...list.filter(
@@ -388,6 +478,7 @@ export async function removeHostConflictsWhere(
   if (typeof indexedDB === "undefined") return;
   await updateStoredList<OfflineConflict, void>(
     hostConflictKey(projectPath),
+    parseConflictList,
     (list) => ({
       items: list.filter((conflict) => !superseded(conflict)),
       result: undefined,

@@ -45,6 +45,7 @@ const edit = pendingEditView({
 });
 const command = {
   command_id: "queued-timing",
+  client_id: "fixture-client",
   client_seq: 1,
   created_at: 0,
   type: "UpdatePendingEdit",

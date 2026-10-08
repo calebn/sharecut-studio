@@ -8,6 +8,7 @@ export interface GuestAttentionBannerViewProps {
   /** Count of host edits queued but not yet applied. */
   pending: number;
   conflicts: readonly OfflineConflict[];
+  unreadable?: boolean;
   onDismissAll: () => void;
 }
 
@@ -16,8 +17,9 @@ export function GuestAttentionBannerView({
   pending,
   conflicts,
   onDismissAll,
+  unreadable = false,
 }: GuestAttentionBannerViewProps) {
-  if (conflicts.length === 0 && pending === 0) {
+  if (!unreadable && conflicts.length === 0 && pending === 0) {
     return null;
   }
 
@@ -37,7 +39,7 @@ export function GuestAttentionBannerView({
             ? `${conflicts.length} ${plural(conflicts.length, "conflict")}`
             : ""}
         </span>
-        {conflicts.length > 0 && (
+        {conflicts.length > 0 && !unreadable && (
           <button
             type="button"
             className="guest-attention-dismiss"
@@ -48,6 +50,12 @@ export function GuestAttentionBannerView({
         )}
       </div>
       <ul className="guest-attention-list">
+        {unreadable && (
+          <li>
+            Could not read saved edits on this device. Your saved edits have
+            been kept.
+          </li>
+        )}
         {conflicts.slice(0, ATTENTION_LISTED_CONFLICTS).map((c) => (
           <li key={c.command.command_id}>
             <code>{c.command.type}</code>: {c.reason}

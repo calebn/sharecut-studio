@@ -10,7 +10,10 @@ import {
   cutSpeechOf,
   type RippleOutcome,
 } from "../edit/cutSpeech";
-import { submitQueuedDocumentCommand } from "../services/commandQueue";
+import {
+  type DocumentCommandOptions,
+  submitQueuedDocumentCommand,
+} from "../services/commandQueue";
 import {
   isShareProjectKey,
   reviewApiBase,
@@ -45,14 +48,7 @@ export async function submitDocumentCommand(
   projectPath: string,
   type: string,
   payload: Record<string, unknown> = {},
-  opts?: {
-    command_id?: string;
-    client_seq?: number;
-    structural_mode?: "propose" | "apply";
-    offline?: boolean;
-    replaying?: boolean;
-    client_id?: string;
-  },
+  opts?: DocumentCommandOptions,
 ): Promise<Record<string, unknown>> {
   return submitQueuedDocumentCommand(projectPath, type, payload, opts);
 }

@@ -63,7 +63,7 @@ describe("readTakeClipping", () => {
   });
 
   it.each([
-    ["legacy (no regions)", {}],
+    ["repaired (no regions)", {}],
     ["pending", { complete: false, clippingRegions: [] }],
     ["malformed regions", { clippingRegions: "x" }],
   ])("marks %s as unknown", async (_label, meta) => {

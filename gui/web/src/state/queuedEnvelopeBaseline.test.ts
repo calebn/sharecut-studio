@@ -10,6 +10,7 @@ function envelopeCommand(
 ): QueuedCommand {
   return {
     command_id: id,
+    client_id: "fixture-client",
     client_seq: 1,
     type: "SetEnvelope",
     payload: { track_id: trackId, points, expected_points: expected },

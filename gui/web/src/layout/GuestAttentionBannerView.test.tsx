@@ -100,6 +100,36 @@ describe("GuestAttentionBannerView", () => {
     expect(screen.queryByText(/more$/)).not.toBeInTheDocument();
   });
 
+  it("renders unreadable saved work accessibly and withholds dismissal", async () => {
+    const { container, rerender } = render(
+      <GuestAttentionBannerView
+        pending={0}
+        conflicts={[]}
+        unreadable
+        onDismissAll={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Could not read saved edits on this device. Your saved edits have been kept.",
+    );
+    await expectNoA11yViolations(container);
+    rerender(
+      <GuestAttentionBannerView
+        pending={2}
+        conflicts={[offlineConflict()]}
+        unreadable
+        onDismissAll={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "2 pending, 1 conflict",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Dismiss all" }),
+    ).not.toBeInTheDocument();
+    await expectNoA11yViolations(container);
+  });
+
   it("uses the singular form for a single conflict", () => {
     render(
       <GuestAttentionBannerView

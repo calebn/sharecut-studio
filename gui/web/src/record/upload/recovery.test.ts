@@ -493,34 +493,20 @@ describe("keeper recovery", () => {
     expect(read.mock.calls.map(([p]) => p)).toEqual([keeperMetaPath(path)]);
   });
 
-  it("treats closed keepers from older clients (no complete flag) as complete", async () => {
+  it("retains closed WAV bytes with absent completion without automatic recovery", async () => {
     const sink = new MemorySink();
-    await sink.write(path, wavBytes(4, [1, 0, 2, 0]));
-    const { complete: _omit, ...legacy } = { ...META, samplesWritten: 2 };
-    await writeRawMeta(sink, path, legacy);
+    const wav = wavBytes(4, [1, 0, 2, 0]);
+    await sink.write(path, wav);
+    const { complete: _omit, ...retired } = { ...META, samplesWritten: 2 };
+    await writeRawMeta(sink, path, retired);
     expect(await inspectKeeperRecovery(sink, path)).toEqual({
-      kind: "complete",
-      joinOffsetMs: 1250,
-    });
-    // A legacy record whose header disagrees is not trusted as complete.
-    await sink.write(path, wavBytes(0, [1, 0, 2, 0]));
-    expect((await inspectKeeperRecovery(sink, path)).kind).toBe("recoverable");
-    expect(
-      await inspectKeeperRecovery(sink, path, { inspectPending: false }),
-    ).toEqual({ kind: "pending" });
-  });
-
-  it("treats an older-client keeper whose WAV was reclaimed as complete, not lost", async () => {
-    const sink = new MemorySink();
-    const { complete: _omit, ...legacy } = { ...META, samplesWritten: 2 };
-    await writeRawMeta(sink, path, legacy);
-    expect(await inspectKeeperRecovery(sink, path)).toEqual({
-      kind: "complete",
-      joinOffsetMs: 1250,
+      kind: "unrecoverable",
+      reason: "This device's copy has no readable recovery information.",
     });
     await expect(
       recoverLocalKeepers(sink, META.sessionId, META.participantId, 0),
     ).resolves.toEqual({ recovered: 0, trimmed: 0 });
+    expect(await sink.read(path)).toEqual(wav);
   });
 
   it("does not claim recovery for an OPFS-crash zero-byte file", async () => {

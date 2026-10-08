@@ -332,11 +332,14 @@ describe("keeper metadata", () => {
     ).toBeNull();
   });
 
-  it("keeps legacy metadata without a complete flag distinguishable", () => {
+  it("rejects metadata without explicit completion and retains modern completion", () => {
     const { complete: _omit, ...legacy } = meta;
     const bytes = new TextEncoder().encode(JSON.stringify(legacy));
-    expect(parseKeeperMeta(bytes)).toEqual(legacy);
-    expect(parseKeeperMeta(bytes)?.complete).toBeUndefined();
+    expect(parseKeeperMeta(bytes)).toBeNull();
+    expect(keeperMetaComplete(bytes)).toBe(false);
+    expect(
+      parseKeeperMeta(new TextEncoder().encode(JSON.stringify(meta))),
+    ).toEqual(meta);
   });
 
   it.each([
@@ -780,10 +783,9 @@ describe("keeper completion markers", () => {
   const enc = (value: unknown) =>
     new TextEncoder().encode(JSON.stringify(value));
 
-  it("treats legacy and complete:true metadata as complete, pending as not", () => {
+  it("requires explicit complete:true metadata for completion markers", () => {
     const ids = { sessionId: "r", takeIndex: 0, participantId: "p" };
     expect(keeperMetaComplete(null)).toBe(false);
-    expect(keeperMetaComplete(keeperMetaBytes(ids, undefined))).toBe(true);
     expect(keeperMetaComplete(keeperMetaBytes(ids, true))).toBe(true);
     expect(keeperMetaComplete(keeperMetaBytes(ids, false))).toBe(false);
     // A pending record is written at segment open, so a torn or malformed

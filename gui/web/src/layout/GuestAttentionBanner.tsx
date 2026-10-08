@@ -3,6 +3,7 @@ import { isShareProjectKey, shareTokenFromKey } from "../shareMode";
 import {
   clearConflicts,
   clearHostConflicts,
+  loadCommandQueue,
   loadConflicts,
   loadHostCommandCount,
   loadHostConflicts,
@@ -16,6 +17,7 @@ export function GuestAttentionBanner() {
   const { projectPath } = useDaw((s) => ({ projectPath: s.projectPath }));
   const [conflicts, setConflicts] = useState<OfflineConflict[]>([]);
   const [pending, setPending] = useState(0);
+  const [unreadable, setUnreadable] = useState(false);
   const token = isShareProjectKey(projectPath)
     ? shareTokenFromKey(projectPath)
     : null;
@@ -23,25 +25,24 @@ export function GuestAttentionBanner() {
   useEffect(() => {
     setConflicts([]);
     setPending(0);
+    setUnreadable(false);
     let cancelled = false;
     const refresh = () => {
       const load = token
         ? loadConflicts(token)
         : loadHostConflicts(projectPath);
       const queue = token
-        ? Promise.resolve(0)
+        ? loadCommandQueue(token).then(() => 0)
         : loadHostCommandCount(projectPath);
-      void queue
-        .catch(() => 0)
-        .then((count) => {
-          if (!cancelled) setPending(count);
-        });
-      void load
-        .catch(() => [])
-        .then((list) => {
-          if (!cancelled) {
-            setConflicts(list);
-          }
+      void Promise.all([queue, load])
+        .then(([count, list]) => {
+          if (cancelled) return;
+          setPending(count);
+          setConflicts(list);
+          setUnreadable(false);
+        })
+        .catch(() => {
+          if (!cancelled) setUnreadable(true);
         });
     };
     refresh();
@@ -56,6 +57,7 @@ export function GuestAttentionBanner() {
     <GuestAttentionBannerView
       pending={pending}
       conflicts={conflicts}
+      unreadable={unreadable}
       onDismissAll={() => {
         void (
           token ? clearConflicts(token) : clearHostConflicts(projectPath)
