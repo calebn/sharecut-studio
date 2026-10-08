@@ -1,3 +1,4 @@
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -1190,5 +1191,93 @@ it.each([undefined, "3", NaN, Infinity, 0, 1.5])(
     const t = trial();
     Object.assign(t.journal[5], { requestId });
     expect(assessEditingTrial(definition, t).status).toBe("fail");
+  },
+);
+
+it("reads nullable current source descriptors and rejects fractional recording counts", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "editing-null-source-"));
+  try {
+    const { project, file } = smallProject(dir);
+    Object.assign(project.sources[0], { speaker: null, label: null });
+    fs.writeFileSync(file, JSON.stringify(project));
+    expect(readEditingState(file).sources[0]).toEqual({
+      id: "reference_src0",
+      path: "reference.wav",
+      speaker: null,
+      label: null,
+      offset_sec: 0,
+      duration_sec: null,
+      sample_rate: null,
+      channels: null,
+      clipping_regions: [],
+      clipping_truncated: false,
+    });
+    for (const key of ["sample_rate", "channels"]) {
+      Object.assign(project.sources[0], { [key]: 1.5 });
+      fs.writeFileSync(file, JSON.stringify(project));
+      expect(() => readEditingState(file)).toThrow(
+        "Invalid or duplicate durable source identity",
+      );
+      Object.assign(project.sources[0], { [key]: null });
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+it.each([
+  "gui/web/index.html",
+  ".agents/defaults/pipeline.yaml",
+  "contracts/timeline-zoom.json",
+])(
+  "rejects changed production input %s through the actual CLI before launch",
+  (inputPath) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "editing-cli-source-"));
+    try {
+      const web = path.join(dir, "gui/web");
+      fs.mkdirSync(web, { recursive: true });
+      const raw = path.join(dir, "tests/fixtures/aligned_dialogue/raw");
+      fs.mkdirSync(raw, { recursive: true });
+      for (const id of ["reference", "guest"])
+        fs.writeFileSync(path.join(raw, `${id}.wav`), id);
+      const index = path.join(dir, inputPath);
+      fs.mkdirSync(path.dirname(index), { recursive: true });
+      fs.writeFileSync(index, "original HTML");
+      const git = (...args: string[]) =>
+        execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
+      git("init", "-q");
+      git("add", ".");
+      git(
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.invalid",
+        "commit",
+        "-qm",
+        "fixture",
+      );
+      const base = git("rev-parse", "HEAD");
+      fs.writeFileSync(index, "changed HTML");
+      const result = spawnSync(
+        process.execPath,
+        [
+          path.resolve("node_modules/vite-node/dist/cli.mjs"),
+          path.resolve("scripts/profile-editing-tasks.ts"),
+          "--app-base",
+          base,
+          "--validity-only",
+          "--trials",
+          "1",
+          "--out",
+          path.join(dir, "evidence"),
+        ],
+        { cwd: web, encoding: "utf8" },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stdout + result.stderr).toContain(
+        `Product source differs from app-base ${inputPath}`,
+      );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   },
 );

@@ -91,6 +91,18 @@ const isProductPath = (file: string) =>
   file.startsWith("gui/web/src/") ||
   file.startsWith("gui/web/public/") ||
   [
+    ".agents/defaults/pipeline.yaml",
+    ".agents/defaults/transcript_glossary.yaml",
+    "contracts/timeline-zoom.json",
+    "contracts/bootstrap-assets.json",
+    "gui/web/index.html",
+    "gui/web/tsconfig.json",
+    "gui/web/tsconfig.app.json",
+    "gui/web/tsconfig.node.json",
+    "gui/web/tsconfig.e2e.json",
+    "gui/web/scripts/build-app.ts",
+    "gui/web/scripts/check-bundle-no-e2e.ts",
+    "gui/web/scripts/check-bundle-no-stories.ts",
     "gui/web/package.json",
     "gui/web/package-lock.json",
     "gui/web/vite.config.ts",
@@ -271,13 +283,14 @@ const schedule = tasks.flatMap((task) => {
   ).flat();
 });
 const protocol = {
-  version: 4,
+  version: 5,
   retainedPriorFailures: [
     {
       task: "envelope",
       route: "point-form",
-      status: "fail",
-      cause:
+      historicalAppBase: "6033d77a2884697ae659f2b2b917cacae4b2e737",
+      historicalStatus: "fail",
+      historicalCause:
         "Pointer track-header center intercepted by track-meta before numeric input",
       evidence:
         "/workspace/poteto-workloads1035-evidence/all-routes-validity-2/envelope-point-form-1",
@@ -285,8 +298,9 @@ const protocol = {
     {
       task: "reorder",
       route: "move-up",
-      status: "fail",
-      cause:
+      historicalAppBase: "6033d77a2884697ae659f2b2b917cacae4b2e737",
+      historicalStatus: "fail",
+      historicalCause:
         "Pointer track-header center intercepted by track-meta before Move track up",
       evidence:
         "/workspace/poteto-workloads1035-evidence/all-routes-validity-2/reorder-move-up-1",

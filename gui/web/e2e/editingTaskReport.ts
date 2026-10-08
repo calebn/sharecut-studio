@@ -11,8 +11,8 @@ export type DurableState = {
   sources: {
     id: string;
     path: string;
-    speaker: string;
-    label: string;
+    speaker: string | null;
+    label: string | null;
     offset_sec: number;
     duration_sec: number | null;
     sample_rate: number | null;
@@ -74,13 +74,14 @@ export function parseDurableState(input: unknown): DurableState {
   const sourceIds = new Set<string>();
   for (const source of rows(state.sources)) {
     if (
-      !["id", "path", "speaker", "label"].every(
-        (key) => typeof source[key] === "string",
+      !["id", "path"].every((key) => typeof source[key] === "string") ||
+      !["speaker", "label"].every(
+        (key) => source[key] === null || typeof source[key] === "string",
       ) ||
       !finite(source.offset_sec) ||
       !(source.duration_sec === null || finite(source.duration_sec)) ||
-      !(source.sample_rate === null || finite(source.sample_rate)) ||
-      !(source.channels === null || finite(source.channels)) ||
+      !(source.sample_rate === null || Number.isInteger(source.sample_rate)) ||
+      !(source.channels === null || Number.isInteger(source.channels)) ||
       !Array.isArray(source.clipping_regions) ||
       typeof source.clipping_truncated !== "boolean" ||
       sourceIds.has(source.id as string)
