@@ -827,21 +827,27 @@ describe("host document command queue", () => {
   });
 
   it("rejects transport failure when storage could not persist", async () => {
-    enqueueHostCommand.mockResolvedValue({
-      persisted: false,
-      hadPredecessor: false,
-    });
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        throw new Error("offline");
-      }),
+    const cause = new Error("offline");
+    enqueueHostCommand.mockImplementation(
+      async (
+        _path: string,
+        _command: unknown,
+        onPersistenceFailure: () => void,
+      ) => {
+        onPersistenceFailure();
+        throw cause;
+      },
     );
+    const fetchSpy = vi.fn(async () => {
+      throw cause;
+    });
+    vi.stubGlobal("fetch", fetchSpy);
     const { submitDocumentCommand } = await import("./api");
 
     await expect(
       submitDocumentCommand("/tmp/episode.project.json", "SetTrackMeta"),
     ).rejects.toThrow("offline");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it("replays with the original client identity", async () => {
