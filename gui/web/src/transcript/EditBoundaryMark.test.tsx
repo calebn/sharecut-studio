@@ -177,6 +177,56 @@ describe("EditBoundaryMark", () => {
     expect(api.rollClipJoin).not.toHaveBeenCalled();
   });
 
+  it("offers no roll across a gap: a drag trims the left clip's end and the precision dialog targets that trim", async () => {
+    const left = clip({ id: "left", source_end: 20, timeline_end: 10 });
+    const right = clip({
+      id: "right",
+      source_start: 25,
+      source_end: 40,
+      timeline_start: 12,
+      timeline_end: 27,
+    });
+    const first = render(
+      <EditBoundaryMark
+        boundary={boundary}
+        leftClip={left}
+        rightClip={right}
+      />,
+    );
+    const mark = first.getByRole("button");
+    fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+    await waitFor(() => expect(api.trimClipEdge).toHaveBeenCalled());
+    expect(api.rollClipJoin).not.toHaveBeenCalled();
+    expect(loadBoundaryContext.mock.calls[0]?.[1]).toEqual({
+      kind: "trim",
+      clip_id: "left",
+      edge: "out",
+    });
+    first.unmount();
+
+    loadBoundaryContext.mockClear();
+    const second = render(
+      <EditBoundaryMark
+        boundary={boundary}
+        leftClip={left}
+        rightClip={right}
+      />,
+    );
+    const tapped = second.getByRole("button");
+    fireEvent.pointerDown(tapped, { pointerId: 2, clientX: 100 });
+    fireEvent.pointerUp(window, { pointerId: 2, clientX: 100 });
+    fireEvent.click(tapped);
+    await screen.findByRole("dialog", { name: "Adjust boundary" });
+    await waitFor(() => expect(loadBoundaryContext).toHaveBeenCalled());
+    expect(loadBoundaryContext.mock.calls[0]?.[1]).toEqual({
+      kind: "trim",
+      clip_id: "left",
+      edge: "out",
+    });
+  });
+
   it("no-ops when clips are missing", () => {
     const { getByRole } = render(
       <EditBoundaryMark boundary={boundary} leftClip={null} rightClip={null} />,
