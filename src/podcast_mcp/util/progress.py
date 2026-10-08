@@ -1414,7 +1414,6 @@ def cli_operation_label(op_id: str) -> str:
 
 @contextmanager
 def cli_progress_task(op_id: str) -> Iterator[ProgressTask]:
-    """Bind CLI and live adapter sinks for one canonical command task."""
     from podcast_mcp.cli.context import get_progress
 
     reporter = compose_progress(get_progress(), *adapter_progress_sinks())
