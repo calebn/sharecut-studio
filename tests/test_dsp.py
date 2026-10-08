@@ -182,21 +182,38 @@ def test_next_fast_len_is_the_next_length_of_2_3_and_5(n: int, fast: int) -> Non
     assert next_fast_len(n) == fast
 
 
-def test_speech_band_passes_mains_harmonics_and_frame_levels_never_read_louder_than_raw() -> None:
-    rate = 16_000
-    t = np.arange(rate) / rate
-    fundamental = np.float32(0.05) * np.sin(2 * np.pi * 60.0 * t)
-    harmonics = np.float32(0.05) * (
-        np.sin(2 * np.pi * 100.0 * t)
-        + np.sin(2 * np.pi * 120.0 * t)
-        + np.sin(2 * np.pi * 150.0 * t)
-    )
+def _tone(hz: float, rate: int = 16_000) -> np.ndarray:
+    return (0.05 * np.sin(2 * np.pi * hz * np.arange(rate) / rate)).astype(np.float32)
 
-    # The 60 Hz fundamental is more than 20 dB down; 100 Hz is passed 2 dB down, and 120
-    # and 150 Hz untouched.
-    assert rms_db(speech_band(fundamental, rate)) < rms_db(fundamental) - 20.0
-    assert rms_db(speech_band(harmonics, rate)) == pytest.approx(rms_db(harmonics), abs=0.7)
-    for x in (fundamental, harmonics):
+
+@pytest.mark.parametrize(
+    ("hz", "loss_db"),
+    [(100.0, None), (110.0, 23.5), (120.0, 12.0), (130.0, 6.0), (140.0, 2.5), (150.0, 0.6)],
+)
+def test_the_band_fades_in_from_100_to_160_hz(hz: float, loss_db: float | None) -> None:
+    # Mains hum's 100 Hz harmonic is gone, 60 Hz mains' 120 Hz one is 12 dB down, and
+    # 150 Hz is all but passed: a raised cosine from 100 Hz (stopped) to 160 Hz.
+    tone = _tone(hz)
+
+    got = rms_db(speech_band(tone, 16_000), floor_db=-300.0) - rms_db(tone)
+
+    if loss_db is None:
+        assert got < -100.0
+    else:
+        assert got == pytest.approx(-loss_db, abs=0.1)
+
+
+def test_a_rumble_up_to_110_hz_is_38_db_down_and_frame_levels_never_read_louder_than_raw():
+    # Room rumble from 25 to 110 Hz is 38 dB down: only its 100 to 110 Hz sliver passes, and
+    # that 23 dB down or more. A band from 50 Hz let it through 7 dB down.
+    rate = 16_000
+    spectrum = np.fft.rfft(np.random.default_rng(9).standard_normal(rate * 4))
+    freqs = np.fft.rfftfreq(rate * 4, d=1.0 / rate)
+    spectrum[(freqs < 25.0) | (freqs > 110.0)] = 0.0
+    rumble = np.fft.irfft(spectrum, rate * 4).astype(np.float32)
+
+    assert rms_db(speech_band(rumble, rate)) - rms_db(rumble) == pytest.approx(-38.5, abs=0.5)
+    for x in (rumble, _tone(150.0)):
         assert np.all(frame_speech_band_db(x, rate, 160) <= frame_rms_db(x, 160, 160) + 1e-9)
 
 
