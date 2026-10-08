@@ -630,3 +630,39 @@ def test_format_transcript_timestamps():
     assert "[0]" in text
     assert "Host" in text
     assert "coffee" in text
+
+
+def _spans(proj: EpisodeProject) -> list[tuple[str, float, float, bool]]:
+    return sorted(
+        (e.reason.split(":")[0], e.start, e.end, e.review_required) for e in proj.edit_decisions
+    )
+
+
+def test_coalesce_keeps_a_pause_trim_waiting_for_review_apart_from_the_filler_beside_it():
+    # Every pause trim waits for the owner's listen (#1055). Merged into the filler next
+    # to it, the trim would hold the filler back from applying on its own.
+    proj = EpisodeProject.create("t", "/tmp/ws")
+    append_remove_decision(proj, "host", 1.0, 1.3, reason="filler:um", review_required=False)
+    append_remove_decision(proj, "host", 1.3, 2.4, reason="pause:1.10s", review_required=True)
+
+    assert coalesce_edits(proj, track_id="host") == 0
+    assert _spans(proj) == [("filler", 1.0, 1.3, False), ("pause", 1.3, 2.4, True)]
+
+
+def test_coalesce_still_merges_pause_trims_with_each_other_and_with_cuts_waiting_for_review():
+    proj = EpisodeProject.create("t", "/tmp/ws")
+    append_remove_decision(proj, "host", 1.0, 1.3, reason="pause:0.3s", review_required=True)
+    append_remove_decision(proj, "host", 1.3, 1.6, reason="pause:0.3s", review_required=True)
+    append_remove_decision(proj, "host", 1.6, 1.9, reason="filler:um", review_required=True)
+
+    assert coalesce_edits(proj, track_id="host") == 2
+    assert _spans(proj) == [("pause", 1.0, 1.9, True)]
+
+
+def test_coalesce_still_merges_a_pause_trim_that_applies_on_its_own_with_the_filler_beside_it():
+    proj = EpisodeProject.create("t", "/tmp/ws")
+    append_remove_decision(proj, "host", 1.0, 1.3, reason="filler:um", review_required=False)
+    append_remove_decision(proj, "host", 1.3, 2.4, reason="pause:1.10s", review_required=False)
+
+    assert coalesce_edits(proj, track_id="host") == 1
+    assert _spans(proj) == [("filler", 1.0, 2.4, False)]

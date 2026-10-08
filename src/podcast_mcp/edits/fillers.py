@@ -17,6 +17,7 @@ from podcast_mcp.config import bounded_float, join_micro_fade_ms
 from podcast_mcp.edits.acoustic_gap import AcousticGapConfig, find_voiced_gap_runs
 from podcast_mcp.edits.audio_cache import TrackAudioCache, build_track_audio_caches
 from podcast_mcp.edits.breath_detect import (
+    PauseAirSkip,
     detect_adjacent_breath,
     extend_cut_for_breaths,
     pause_air_span,
@@ -127,6 +128,20 @@ def _speaker_cut_context(project: EpisodeProject) -> _SpeakerCutContext | None:
     except Exception as exc:
         log.debug("speaker bleed cut guard skipped: %s", exc, exc_info=True)
         return _SpeakerCutContext(None, {})
+
+
+def _word_indexes(
+    project: EpisodeProject, candidates: Sequence[_CutCandidate]
+) -> dict[str, CutWordIndex]:
+    """One word index per track the candidates are on or a session ripple cuts, built once.
+
+    A pause trim reads the room of every dialogue track, so each is indexed once per
+    proposal run and shared, never rebuilt per decision. No candidates, no indexes.
+    """
+    if not candidates:
+        return {}
+    track_ids = dict.fromkeys([*(c.track_id for c in candidates), *dialogue_track_ids(project)])
+    return {track_id: CutWordIndex.build(project, track_id) for track_id in track_ids}
 
 
 def _word_not_owner(word: TranscriptWord, track_id: str) -> bool:
@@ -1367,6 +1382,8 @@ _EDGE_NUDGE_MAX_SEC = 0.5
 # existing clip edges. On the lab tape the 45 ms join-gate window then sits below the
 # inaudible-splice floor instead of on the word's decay.
 _VOICE_EDGE_PAD_SEC = 0.06
+# Cuts proposed for review only, however safe their analysis finds them.
+_REVIEW_ONLY_KINDS = frozenset({"repeat", "restart", "pause"})
 _INTERIOR_SPEECH_MIN_SEC = 0.1
 _MIN_NUDGED_CUT_SEC = 0.1
 
@@ -1840,6 +1857,7 @@ def _gate_cut_edges(
     audio_cache: TrackAudioCache | None,
     audio_caches: Mapping[str, TrackAudioCache] | None,
     word_index: CutWordIndex | None,
+    word_indexes: Mapping[str, CutWordIndex] | None,
 ) -> _GatedCut | _CutRejected:
     """Run the edge checks ``plan.checks`` selects, then resolve the span's final scope.
 
@@ -1889,9 +1907,9 @@ def _gate_cut_edges(
     off_proposal = False
     if candidate.cut_kind == "pause":
         # A pause trim removes only air: it shrinks to the longest stretch of air
-        # inside it on every track the ripple cuts, so no edge sits in a sound. Until
-        # the owner has listened, only a trim that stays as paced applies on its own:
-        # one the kept-voice walks or the air rule moved is proposed for review (#1055).
+        # inside it on every track the ripple cuts, so no edge sits in a sound. Every
+        # pause trim is proposed for review (``_REVIEW_ONLY_KINDS``, #1055);
+        # ``:air_edges`` tells the reviewer this one moved off the span pacing proposed.
         air = pause_air_span(
             project,
             track_id,
@@ -1901,9 +1919,10 @@ def _gate_cut_edges(
             defaults=defaults,
             audio_cache=audio_cache,
             audio_caches=audio_caches,
+            word_indexes=word_indexes,
         )
-        if air is None:
-            return _CutRejected("no_air")
+        if isinstance(air, PauseAirSkip):
+            return _CutRejected(air.value)
         off_proposal = air != paced
         cut_start, cut_end = air
     elif checks.breaths is not _BreathEdges.IGNORE:
@@ -1980,13 +1999,16 @@ def _analyze_candidate(
     word_index: CutWordIndex | None = None,
     peer_indexes: dict[str, _PeerTrackSpeechIndex] | None = None,
     audio_caches: Mapping[str, TrackAudioCache] | None = None,
+    word_indexes: Mapping[str, CutWordIndex] | None = None,
 ) -> _AnalyzedCut | _CutRejected:
     """Waveform-optimize, risk-assess, and fade-size one candidate. Read-only w.r.t.
     project (no mutation) -- safe to call from multiple threads concurrently, as
     long as each call gets its own jump-measurement cache (below); audio_cache
     (one per track, decoded once) is read-only and safe to share across threads.
     ``audio_caches`` holds the other dialogue tracks' decodes for the voiced-speech
-    check of a session ripple; a track absent from it is not checked.
+    check of a session ripple; a track absent from it is not checked. ``word_indexes``
+    holds every dialogue track's word index, built once per proposal run, for the room
+    a pause trim reads on each track.
     """
     tighten = defaults.get("tighten", {})
     leave_in = bool(tighten.get("leave_in_if_risky", True))
@@ -2081,6 +2103,7 @@ def _analyze_candidate(
             audio_cache=audio_cache,
             audio_caches=audio_caches,
             word_index=word_index,
+            word_indexes=word_indexes,
         )
         if not isinstance(gated, _GatedCut):
             return gated
@@ -2113,8 +2136,9 @@ def _analyze_candidate(
     # intentionally proposal-only.  Even an exact token repeat can be emphasis
     # ("very very"), a phrase restart can change meaning if the repair is
     # mistaken for the reparandum, and voiced energy in an ASR gap may be a
-    # breath, laugh, or missed word rather than a filler.
-    review_required = candidate.review_only or candidate.cut_kind in {"repeat", "restart"}
+    # breath, laugh, or missed word rather than a filler. A pause trim is review-only
+    # too, whether or not its edges moved, until the owner has listened (#1055).
+    review_required = candidate.review_only or candidate.cut_kind in _REVIEW_ONLY_KINDS
     for flag in flags:
         review_required = True
         reason = f"{reason}:{flag}"
@@ -2294,7 +2318,7 @@ def analyze_fillers_and_pauses(
         skip_counts=skip_counts,
     )
     speaker_context = _speaker_cut_context(project) if candidates else None
-    word_index = CutWordIndex.build(project, transcript.track_id) if candidates else None
+    word_indexes = _word_indexes(project, candidates)
     results = [
         _analyze_candidate(
             project,
@@ -2302,9 +2326,10 @@ def analyze_fillers_and_pauses(
             defaults,
             audio_cache=audio_cache,
             speaker_context=speaker_context,
-            word_index=word_index,
+            word_index=word_indexes.get(transcript.track_id),
             peer_indexes=peer_indexes,
             audio_caches=audio_caches,
+            word_indexes=word_indexes,
         )
         for candidate in candidates
     ]

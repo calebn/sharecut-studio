@@ -84,6 +84,83 @@ def _proposal(cache: TrackAudioCache, cut_end: float, backend: str):
         )
 
 
+def _splice_proposal(cache: TrackAudioCache, cut_end: float, backend: str):
+    """A filler cut ``_analyze_candidate`` splices with no pad, whose pacing runs to
+    ``cut_end``: the edge checks of a splice, breath protection among them, read the real
+    audio of ``cache``."""
+    candidate = _CutCandidate(
+        track_id="host", start=4.9, end=5.05, reason="filler:candidate", cut_kind="filler"
+    )
+    with (
+        patch(
+            "podcast_mcp.edits.fillers.optimize_and_assess",
+            return_value=(_passthrough_opt(4.9, cut_end), _safe_risk()),
+        ),
+        patch(
+            "podcast_mcp.edits.fillers.apply_filler_pacing",
+            return_value=FillerPacingResult(4.9, cut_end),
+        ),
+        patch(
+            "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
+            return_value=("session", None),
+        ),
+        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
+        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
+        patch(
+            "podcast_mcp.engines.vad_silero.get_shared_vad",
+            return_value=_BreathFixtureVad(),
+        ),
+    ):
+        return _analyze_candidate(
+            _host_project(),
+            candidate,
+            {"tighten": {"breath_handling": {"vad_backend": backend}}},
+            audio_cache=cache,
+        )
+
+
+@pytest.mark.parametrize("backend", ["heuristic", "silero"])
+@pytest.mark.parametrize("cut_end", [5.05, 5.12])
+def test_a_splice_cut_end_inside_a_quiet_breath_onset_retreats_to_the_onset(
+    backend: str, cut_end: float
+) -> None:
+    result = _splice_proposal(
+        _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026)), cut_end, backend
+    )
+
+    assert not isinstance(result, _CutRejected)
+    assert (result.start, result.end) == pytest.approx((4.9, 5.0))
+
+
+@pytest.mark.parametrize("backend", ["heuristic", "silero"])
+def test_a_splice_cut_through_a_quiet_voiced_onset_is_rejected_as_breath(backend: str) -> None:
+    from test_breath_detect import _harmonic_tone
+
+    cache = _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026))
+    # The quiet onset is voiced speech and must fail the shared refinement gate: a splice
+    # cannot move off it, so the cut is dropped. A pause trim ends before it instead.
+    samples = cache.waveform.samples
+    samples[round(5.0 * 16000) : round(5.12 * 16000)] = _harmonic_tone(1920, 0.0008)
+
+    assert _splice_proposal(cache, 5.15, backend) == _CutRejected("breath")
+
+
+@pytest.mark.parametrize("peak", [0.55, 0.60])
+def test_a_splice_cut_through_connected_protected_activity_is_rejected_as_breath(
+    peak: float,
+) -> None:
+    import numpy as np
+
+    cache = _cache_with_breaths((5.0, 5.12, 0.0008), (5.12, 5.26, 0.026))
+    with patch(
+        "podcast_mcp.edits.breath_detect.voicing_probes",
+        side_effect=lambda samples, rate, **kw: np.full(
+            max(1, (samples.size - min(samples.size, 640)) // 160 + 1), peak
+        ),
+    ):
+        assert _splice_proposal(cache, 5.15, "heuristic") == _CutRejected("breath")
+
+
 @pytest.mark.parametrize("adjustment", ["max_end", "pacing"])
 @pytest.mark.parametrize("kind", ["pause", "filler"])
 def test_final_cut_end_retreats_to_retained_breath_onset(adjustment: str, kind: str) -> None:
@@ -125,9 +202,9 @@ def test_final_cut_end_retreats_to_retained_breath_onset(adjustment: str, kind: 
         assert result == _CutRejected("reparandum")
         return
     assert result is not None
-    # The breath at 5.1 stays whole, with a 10 ms guard frame before it.
-    assert (result.start, result.end) == pytest.approx((5.0, 5.09))
-    assert measured == [(5.0, pytest.approx(5.09))]
+    # The breath at 5.1 stays whole: the trim ends 30 ms before it.
+    assert (result.start, result.end) == pytest.approx((5.0, 5.07))
+    assert measured == [(5.0, pytest.approx(5.07))]
     assert result.crossfade_ms == 20
 
 
@@ -158,7 +235,7 @@ def test_retreat_that_removes_entire_cut_skips_proposal(start: float) -> None:
         assert result == _CutRejected("no_air")
     else:
         assert result is not None
-        assert (result.start, result.end) == pytest.approx((5.0, 5.09))
+        assert (result.start, result.end) == pytest.approx((5.0, 5.07))
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -173,7 +250,7 @@ def test_final_cut_end_inside_quiet_breath_onset_retreats_to_onset(
     )
 
     assert result is not None
-    assert (result.start, result.end) == pytest.approx((4.9, 4.99))
+    assert (result.start, result.end) == pytest.approx((4.9, 4.97))
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -187,9 +264,9 @@ def test_final_crossing_search_continues_after_earlier_non_crossing_run(backend:
     result = _proposal(cache, 5.15, backend)
 
     assert result is not None
-    # Both breaths stay whole, each with its guard frame: 4.75-4.9 before the trim and
-    # the quiet onset from 5.0 after it.
-    assert (result.start, result.end) == pytest.approx((4.91, 4.99))
+    # Both breaths stay whole, 30 ms clear of each: 4.75-4.9 before the trim and the quiet
+    # onset from 5.0 after it.
+    assert (result.start, result.end) == pytest.approx((4.93, 4.97))
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -211,7 +288,7 @@ def test_a_pause_trim_ends_before_a_quiet_onset_that_cannot_be_refined(
     result = _proposal(cache, 5.15, backend)
 
     assert not isinstance(result, _CutRejected)
-    assert (result.start, result.end) == pytest.approx((4.9, 4.99))
+    assert (result.start, result.end) == pytest.approx((4.9, 4.97))
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -246,7 +323,7 @@ def test_a_pause_trim_ends_before_connected_protected_activity(peak: float) -> N
         result = _proposal(cache, 5.15, "heuristic")
 
     assert not isinstance(result, _CutRejected)
-    assert (result.start, result.end) == pytest.approx((4.9, 4.99))
+    assert (result.start, result.end) == pytest.approx((4.9, 4.97))
 
 
 def test_a_peers_onset_at_a_ripple_edge_shrinks_the_pause_trim_for_review() -> None:
@@ -293,19 +370,20 @@ def test_a_peers_onset_at_a_ripple_edge_shrinks_the_pause_trim_for_review() -> N
     assert not isinstance(result, _CutRejected)
     assert (result.start, result.end, result.reason, result.review_required) == (
         pytest.approx(4.9),
-        pytest.approx(5.24),
+        pytest.approx(5.22),
         "pause:1.15s:air_edges",
         True,
     )
 
 
 @pytest.mark.parametrize("walk", ["between_kept_voices", "voiced"])
-def test_a_pause_trim_a_voice_walk_moved_is_review_only_though_the_air_rule_moved_nothing(
+def test_every_pause_trim_is_review_only_and_only_one_that_moved_says_air_edges(
     walk: str,
 ) -> None:
-    # The edges already sit in air, so the air rule has nothing to move. Only a trim
-    # that stays as paced may apply on its own (#1055): one a walk shifted off a kept
-    # word's voice waits for the owner's listen too.
+    # The edges already sit in air, so the air rule has nothing to move. No pause trim
+    # applies on its own until the owner has listened (#1055), moved or not; the
+    # ``:air_edges`` flag is the reviewer's note that the span differs from the one
+    # pacing proposed, whether a kept-voice walk or the air rule moved it.
     from dataclasses import replace
 
     from podcast_mcp.edits.fillers import _VoicedSpeechCheck
@@ -347,13 +425,15 @@ def test_a_pause_trim_a_voice_walk_moved_is_review_only_though_the_air_rule_move
     unmoved, walked = propose(4.90), propose(5.00)
 
     assert (unmoved.start, unmoved.end) == pytest.approx((4.90, 5.40))
-    assert (unmoved.reason, unmoved.review_required) == ("pause:candidate", False)
+    assert (unmoved.reason, unmoved.review_required) == ("pause:candidate", True)
     assert (walked.start, walked.end) == pytest.approx((5.00, 5.40))
     assert (walked.reason, walked.review_required) == ("pause:candidate:air_edges", True)
 
 
 @pytest.mark.parametrize("adjustment", ["min_start", "pacing", "voiced"])
-def test_final_start_boundary_movers_retain_quiet_tail(adjustment: str) -> None:
+def test_a_pause_trim_a_mover_started_in_a_quiet_tail_has_too_little_air_left(
+    adjustment: str,
+) -> None:
     from podcast_mcp.edits.fillers import _VoicedSpeechCheck
 
     cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
@@ -388,17 +468,14 @@ def test_final_start_boundary_movers_retain_quiet_tail(adjustment: str) -> None:
         patch(
             "podcast_mcp.edits.speech_energy_guard.resolve_cut_scope",
             return_value=("session", None),
-        ) as scope,
-        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()) as risk,
-        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20) as fade,
+        ),
+        patch("podcast_mcp.edits.fillers.assess_cut_risk", return_value=_safe_risk()),
+        patch("podcast_mcp.edits.fillers.recommend_cut_fade_ms", return_value=20),
     ):
         result = _analyze_candidate(_host_project(), candidate, {"tighten": {}}, audio_cache=cache)
-    assert result is not None
-    # The breath and its quiet tail stay whole, with a guard frame after them.
-    assert (result.start, result.end) == pytest.approx((5.37, 5.40))
-    assert scope.call_args.args[2:4] == pytest.approx((5.37, 5.40))
-    assert risk.call_args.args[2:4] == pytest.approx((5.37, 5.40))
-    assert fade.call_args.args[2:4] == pytest.approx((5.37, 5.40))
+    # The breath and its quiet tail stay whole, and the 10 ms of air left after them is
+    # under the shortest cut: a pause trim is not made of what a splice would have kept.
+    assert result == _CutRejected("too_short")
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])
@@ -634,12 +711,12 @@ def test_coalescing_mixed_modes_preserves_protected_breath_on_default_apply(
     assert (archived.source_start, archived.source_end) == pytest.approx(expected)
 
 
-def test_final_breath_shrink_respects_existing_pacing_minimum() -> None:
+def test_a_pause_trim_with_no_air_left_after_a_breath_and_its_tail_is_no_air() -> None:
     from podcast_mcp.edits.fillers import _VoicedSpeechCheck
 
     cache = _cache_with_breaths((5.0, 5.10, 0.0008), (5.10, 5.24, 0.026), (5.24, 5.36, 0.0008))
-    # Pacing leaves 5.30-5.38 of the gap; the breath's tail and its guard frame reach
-    # 5.37, so 10 ms of air is left, under the 20 ms minimum.
+    # Pacing leaves 5.30-5.38 of the gap; the breath's tail and the 50 ms average that
+    # finds it reach 5.39, so there is no air left.
     candidate = _CutCandidate("host", 4.3, 5.45, "pause:short", "pause")
     with (
         patch(
@@ -662,7 +739,7 @@ def test_final_breath_shrink_respects_existing_pacing_minimum() -> None:
     ):
         assert _analyze_candidate(
             _host_project(), candidate, {"tighten": {}}, audio_cache=cache
-        ) == _CutRejected("too_short")
+        ) == _CutRejected("no_air")
 
 
 @pytest.mark.parametrize("backend", ["heuristic", "silero"])

@@ -1502,7 +1502,12 @@ def test_ripple_mode_ignores_existing_mute_regions():
 
     proposed = _propose_with_stubbed_dsp(project, defaults, "ripple")
 
-    assert [d.type for d in proposed.decisions] == [EditDecisionType.REMOVE]
+    # The filler cut and the pause trim after it are two decisions (a trim waiting for
+    # review is not merged into the cut beside it); both ripple.
+    assert [(d.reason.split(":")[0], d.type) for d in proposed.decisions] == [
+        ("filler", EditDecisionType.REMOVE),
+        ("pause", EditDecisionType.REMOVE),
+    ]
     assert "already_muted" not in proposed.skip_counts
 
 

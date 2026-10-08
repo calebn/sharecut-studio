@@ -25,12 +25,28 @@ def test_ripple_benchmark_runs_on_a_tiny_project(project):
 
     assert result.decisions_proposed > 0
     assert result.ffmpeg_window_calls == 0
+    assert result.decisions_applied > 0
     assert (
         0
         < result.rebuild_combined_calls
-        <= bench.MAX_REBUILDS_PER_DECISION * result.decisions_proposed
+        <= bench.MAX_REBUILDS_PER_DECISION * result.decisions_applied
     )
     assert len(set(result.clip_counts.values())) == 1
+
+
+@pytest.mark.parametrize("kind", ["pauses", "fillers"])
+def test_each_kind_of_decision_stays_within_the_rebuild_bound_alone(project, kind):
+    result = bench.run_tighten_benchmark(
+        project, fillers=kind == "fillers", pauses=kind == "pauses"
+    )
+
+    assert result.ffmpeg_window_calls == 0
+    assert result.decisions_applied > 0
+    assert (
+        0
+        < result.rebuild_combined_calls
+        <= bench.MAX_REBUILDS_PER_DECISION * result.decisions_applied
+    )
 
 
 def test_word_only_apply_benchmark_runs_on_a_tiny_project(project):
