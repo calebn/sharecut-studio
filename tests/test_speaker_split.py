@@ -19,6 +19,7 @@ from podcast_mcp.engines.speaker_split import (
     SpeakerAttribution,
     SpeakerTurn,
     attribute_speakers,
+    voiced_frames,
 )
 from podcast_mcp.engines.timeline_render import render_track_from_timeline
 from podcast_mcp.engines.ungated_audio import load_mono_full
@@ -324,6 +325,88 @@ def test_a_short_reply_keeps_its_whole_voiced_run(monkeypatch: pytest.MonkeyPatc
     labels, _ = _frame_labels(attribution, truth.shape[1])
     assert np.all(labels[lo:hi][truth[1, lo:hi]] == 1), "the whole reply on Ben's lane"
     assert _single_speaker_accuracy(truth, labels) == 1.0
+
+
+class FrameDetector:
+    WINDOW_SAMPLES = round(FRAME_SEC * RATE)
+
+    def __init__(self, probabilities: np.ndarray) -> None:
+        self.probabilities = probabilities
+
+    def speech_probs(self, samples: np.ndarray) -> np.ndarray:
+        return self.probabilities
+
+
+def test_voiced_frames_retains_detector_availability(monkeypatch: pytest.MonkeyPatch) -> None:
+    samples = np.ones(3 * FrameDetector.WINDOW_SAMPLES, dtype=np.float32)
+    monkeypatch.setattr("podcast_mcp.engines.vad_silero.get_shared_vad", lambda: None)
+    assert voiced_frames(samples) is None
+    detector = FrameDetector(np.array([0.0, 0.5, 1.0]))
+    monkeypatch.setattr("podcast_mcp.engines.vad_silero.get_shared_vad", lambda: detector)
+    detected = voiced_frames(samples)
+    assert detected is not None
+    assert detected.tolist() == [False, True, True]
+    empty = voiced_frames(np.array([], dtype=np.float32))
+    assert empty is not None
+    assert empty.tolist() == []
+    detector.probabilities[:] = 1.0
+    continuous = voiced_frames(samples)
+    assert continuous is not None
+    assert continuous.tolist() == [True, True, True]
+
+
+@pytest.mark.parametrize("available", [True, False])
+def test_attribution_keeps_a_reply_25_db_down_at_the_settlement_boundary(
+    monkeypatch: pytest.MonkeyPatch, available: bool
+) -> None:
+    audio, truth = _scripted_mix([(0, 0.4, 2.0), (1, 2.8, 0.6), (0, 3.8, 2.0)], 6.0)
+    hop = round(FRAME_SEC * RATE)
+    waveform = audio.reshape(-1, hop)
+    rms = np.sqrt(np.mean(waveform**2, axis=1))
+    target = np.where(truth[0], 0.1, np.where(truth[1], 10 ** (-45 / 20), 0.001))
+    waveform *= (target / rms)[:, None]
+    detector = FrameDetector(truth.any(axis=0).astype(float)) if available else None
+    monkeypatch.setattr("podcast_mcp.engines.vad_silero.get_shared_vad", lambda: detector)
+    provisional = np.zeros(300, dtype=np.int32)
+    provisional[130:180] = 1
+    monkeypatch.setattr("podcast_mcp.engines.speaker_split._viterbi", lambda *args: provisional)
+    attribution = attribute_speakers(
+        audio,
+        speaker_count=2,
+        backend=SpectralBackend(),
+        enrollment={0: [(0.4, 2.4)], 1: [(2.8, 3.4)]},
+    )
+    labels, crosstalk = _frame_labels(attribution, 300)
+    assert labels[140:170].tolist() == [1] * 30
+    assert labels[20:120].tolist() == [0] * 100
+    assert labels[190:290].tolist() == [0] * 100
+    assert crosstalk.tolist() == [False] * 300
+
+
+@pytest.mark.parametrize("available", [True, False])
+def test_attribution_preserves_continuous_quiet_speaker_without_a_detector_fallback_run(
+    monkeypatch: pytest.MonkeyPatch, available: bool
+) -> None:
+    audio, _ = _scripted_mix([(0, 0.0, 3.0), (1, 3.0, 3.0)], 6.0)
+    hop = round(FRAME_SEC * RATE)
+    waveform = audio.reshape(-1, hop)
+    rms = np.sqrt(np.mean(waveform**2, axis=1))
+    target = np.concatenate([np.full(150, 0.1), np.full(150, 10 ** (-45 / 20))])
+    waveform *= (target / rms)[:, None]
+    detector = FrameDetector(np.ones(300)) if available else None
+    monkeypatch.setattr("podcast_mcp.engines.vad_silero.get_shared_vad", lambda: detector)
+    provisional = np.concatenate([np.zeros(150, dtype=np.int32), np.ones(150, dtype=np.int32)])
+    monkeypatch.setattr("podcast_mcp.engines.speaker_split._viterbi", lambda *args: provisional)
+    attribution = attribute_speakers(
+        audio,
+        speaker_count=2,
+        backend=SpectralBackend(),
+        enrollment={0: [(0.0, 3.0)], 1: [(3.0, 6.0)]},
+    )
+    labels, crosstalk = _frame_labels(attribution, 300)
+    assert labels.tolist() == [0] * 150 + [1] * 150
+    expected = [False] * 138 + [True] * 24 + [False] * 138 if available else [False] * 300
+    assert crosstalk.tolist() == expected
 
 
 # --- lanes -------------------------------------------------------------------------
