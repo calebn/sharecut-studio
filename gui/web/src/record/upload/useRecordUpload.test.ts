@@ -722,7 +722,7 @@ describe("useRecordUpload", () => {
     unmount();
   });
 
-  it("retains a landed WAV and surfaces a mismatch when metadata is legacy", async () => {
+  it("retains a landed WAV and surfaces a mismatch when metadata has no fingerprint", async () => {
     const sink = new MemorySink();
     const wavPath = keeperWavPath({
       sessionId: "room1",
@@ -735,7 +735,7 @@ describe("useRecordUpload", () => {
       keeperMetaPath(wavPath),
       keeperMetaBytes(
         { sessionId: "room1", takeIndex: 0, participantId: "p_a" },
-        undefined,
+        true,
       ),
     );
     const transport: RecordUploadTransport = {
