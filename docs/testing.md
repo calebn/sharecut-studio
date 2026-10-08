@@ -1314,6 +1314,7 @@ test; other rows are whole tests.
 | a long-press past the last clip opens the create menu and selects no text | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | in a short viewport the create menu stays in view off the finger, and lifting without moving saves nothing | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | the create menu reaches every item and stays off the finger at every text size and screen height | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
+| a create menu taller than 90% of the screen, with room beside the finger, is not cut to 90% | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | the strip follows the finger; a flick opens or closes it fully, a slow drag lands at the nearest detent | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a second finger cancels an armed drag and the create menu | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | the crossfade grip drags only once a long press arms it | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
