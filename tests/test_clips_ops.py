@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from math import isclose
 from pathlib import Path
 
 from podcast_mcp.edits.clips_ops import (
@@ -78,8 +79,8 @@ def test_ripple_trim_removal_at_peer_clip_start_does_not_split() -> None:
     peer_clips = [clip for clip in project.clips if clip.track_id == "t1"]
     assert len(peer_clips) == 1
     peer = peer_clips[0]
-    assert peer.timeline_start == pytest.approx(22.1864, abs=1e-9)
-    assert peer.source_start == pytest.approx(2.0856, abs=1e-9)
+    assert isclose(peer.timeline_start, 22.1864, abs_tol=1e-9)
+    assert isclose(peer.source_start, 2.0856, abs_tol=1e-9)
     assert peer.source_end == 13.3539
 
 
