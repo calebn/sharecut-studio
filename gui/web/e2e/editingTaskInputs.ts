@@ -112,7 +112,31 @@ export async function performEditingInput(
     });
     if (routeId.endsWith("-tab-header")) {
       await tabToEditingControl(control, (value) => key(active, value));
-    } else await click(control, `${label} details`);
+    } else {
+      const [button, title] = await Promise.all([
+        control.boundingBox(),
+        control.locator("xpath=..").locator(".track-title-text").boundingBox(),
+      ]);
+      if (
+        !button ||
+        !title ||
+        !Object.values(button).every(Number.isFinite) ||
+        !Object.values(title).every(Number.isFinite) ||
+        button.width <= 0 ||
+        button.height <= 0 ||
+        title.width <= 0 ||
+        title.height <= 0
+      )
+        throw new Error("Track header title has no geometry");
+      await act("click", `${label} details`, () =>
+        control.click({
+          position: {
+            x: title.x + title.width / 2 - button.x,
+            y: title.y + title.height / 2 - button.y,
+          },
+        }),
+      );
+    }
   };
   const first = active.locator('[data-clip-id="first-copy"]');
   const firstBox = await first.boundingBox();
