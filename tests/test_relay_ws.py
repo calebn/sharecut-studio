@@ -379,6 +379,50 @@ async def test_proxy_stream_keeps_first_headers_and_all_chunks(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_response_body_is_available_before_eof():
+    from podcast_relay.app import PendingHttp, _ingest_http_response
+
+    pending = PendingHttp()
+    await _ingest_http_response(
+        pending,
+        {
+            "status": 206,
+            "headers": {"Content-Type": "audio/wav"},
+            "body_b64": "YWJj",
+            "eof": False,
+        },
+    )
+    await asyncio.wait_for(pending.headers_ready.wait(), timeout=1)
+    assert pending.status == 206
+    assert pending.headers == {"Content-Type": "audio/wav"}
+    assert await asyncio.wait_for(pending.queue.get(), timeout=1) == b"abc"
+    await _ingest_http_response(pending, {"body_b64": "ZGVm", "eof": True})
+    assert await pending.queue.get() == b"def"
+    assert await pending.queue.get() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("frame", "status", "body"),
+    [
+        ({"status": 204, "eof": True}, 204, None),
+        ({"status": 200, "body_b64": "b2s="}, 200, b"ok"),
+        ({"body_b64": "b2s="}, 502, b"ok"),
+    ],
+)
+async def test_single_response_defaults_to_eof(frame, status, body):
+    from podcast_relay.app import PendingHttp, _ingest_http_response
+
+    pending = PendingHttp()
+    await _ingest_http_response(pending, frame)
+    await asyncio.wait_for(pending.headers_ready.wait(), timeout=1)
+    assert pending.status == status
+    assert await asyncio.wait_for(pending.queue.get(), timeout=1) == body
+    if body is not None:
+        assert await asyncio.wait_for(pending.queue.get(), timeout=1) is None
+
+
+@pytest.mark.asyncio
 async def test_proxy_timeout(monkeypatch):
     monkeypatch.setenv("PODCAST_RELAY_HOST_TOKENS", "secret")
     app = create_relay_app()

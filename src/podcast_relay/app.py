@@ -105,8 +105,6 @@ async def _ingest_http_response(pending: PendingHttp, data: dict[str, Any]) -> N
 
     if bool(data.get("eof", True)):
         await pending.queue.put(None)
-        pending.response = data
-        pending.event.set()
 
 
 def _response_headers(headers: dict[str, str]) -> dict[str, str]:
@@ -127,9 +125,6 @@ class PendingHttp:
     queue: asyncio.Queue[bytes | None] = field(default_factory=asyncio.Queue)
     status: int = 502
     headers: dict[str, str] = field(default_factory=dict)
-    # Legacy single-shot fields kept for unit-test helpers.
-    event: asyncio.Event = field(default_factory=asyncio.Event)
-    response: dict[str, Any] | None = None
 
 
 @dataclass
