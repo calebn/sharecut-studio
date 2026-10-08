@@ -131,6 +131,7 @@ export function offlineConflict(
   return {
     command: {
       command_id: "sample-command",
+      client_id: "fixture-client",
       client_seq: 1,
       type: "SetEnvelope",
       payload: {},

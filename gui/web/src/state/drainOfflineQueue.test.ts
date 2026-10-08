@@ -24,6 +24,7 @@ vi.mock("./offlineStore", () => ({
 
 const cmd = (id: string): QueuedCommand => ({
   command_id: id,
+  client_id: "fixture-client",
   client_seq: 1,
   type: "SetTrackMeta",
   payload: {},
@@ -160,6 +161,7 @@ describe("drainHostOfflineQueue", () => {
     hostQueue.mockResolvedValue([
       {
         command_id: "first",
+        client_id: "fixture-client",
         client_seq: 2,
         type: "SetTrackMeta",
         payload: { label: "A" },
@@ -167,6 +169,7 @@ describe("drainHostOfflineQueue", () => {
       },
       {
         command_id: "second",
+        client_id: "fixture-client",
         client_seq: 1,
         type: "SetTrackMeta",
         payload: { label: "B" },
@@ -185,6 +188,7 @@ describe("drainHostOfflineQueue", () => {
         { label: "A" },
         expect.objectContaining({
           command_id: "first",
+          client_id: "fixture-client",
           client_seq: 2,
           replaying: true,
         }),
@@ -195,6 +199,7 @@ describe("drainHostOfflineQueue", () => {
         { label: "B" },
         expect.objectContaining({
           command_id: "second",
+          client_id: "fixture-client",
           client_seq: 1,
           replaying: true,
         }),
@@ -210,6 +215,7 @@ describe("drainHostOfflineQueue", () => {
   it("removes a long successful replay in one storage update", async () => {
     const commands = Array.from({ length: 100 }, (_, index) => ({
       command_id: `command-${index}`,
+      client_id: "fixture-client",
       client_seq: index + 1,
       type: "SetTrackMeta",
       payload: {},
@@ -235,6 +241,7 @@ describe("drainHostOfflineQueue", () => {
     const snapshot = [...hostPoints];
     const edit = (id: string, value: number): QueuedCommand => ({
       command_id: id,
+      client_id: "fixture-client",
       client_seq: 1,
       type: "SetEnvelope",
       payload: {
@@ -368,6 +375,7 @@ describe("drainHostOfflineQueue", () => {
 describe("drainOfflineQueue (guest)", () => {
   const queued = (id: string, seq: number): QueuedCommand => ({
     command_id: id,
+    client_id: "fixture-client",
     client_seq: seq,
     type: "SetTrackFader",
     payload: { track_id: "host", fader_db: -seq },
@@ -590,6 +598,7 @@ describe("replayQueuedCommands", () => {
 
   const rec = (id: string): QueuedCommand => ({
     command_id: id,
+    client_id: "fixture-client",
     client_seq: 1,
     type: "SetTrackMeta",
     payload: {},

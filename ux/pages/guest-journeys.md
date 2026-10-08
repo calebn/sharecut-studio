@@ -112,6 +112,10 @@ flowchart TD
 2. Structural ops may demote to **propose** when policy requires.
 3. Conflicts surface as **Needs attention** (dismissible list, capped at 5 items
    with a trailing "+N more" once more are queued) — not a cryptic error toast.
+4. If this device cannot read saved edits, **Needs attention** keeps its last
+   verified values and says "Could not read saved edits on this device. Your
+   saved edits have been kept." Dismiss all is unavailable until the saved
+   queue and conflicts can be read.
 
 A guest whose live connection cannot keep up reconnects through the existing
 sync flow. The relay closes that connection instead of silently dropping its

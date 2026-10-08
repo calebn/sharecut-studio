@@ -90,6 +90,7 @@ describe("useQueuedReviewNotice", () => {
 
 const timingCommand: QueuedCommand = {
   command_id: "timing-1",
+  client_id: "fixture-client",
   client_seq: 1,
   created_at: 0,
   type: "UpdatePendingEdit",

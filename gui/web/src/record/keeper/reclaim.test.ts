@@ -71,14 +71,14 @@ describe("reclaimKeeperWav", () => {
     expect(await sink.read(WAV)).not.toBeNull();
   });
 
-  it("retains a changed WAV and legacy metadata", async () => {
+  it("retains a changed WAV and complete metadata without a fingerprint", async () => {
     const sink = new MemorySink();
     await seed(sink);
     await sink.write(WAV, new Uint8Array([1, 2, 4]));
     expect(
       await reclaimKeeperWav(sink, WAV, createKeeperReclaimTracker(), remote),
     ).toBe("mismatch");
-    await sink.write(keeperMetaPath(WAV), keeperMetaBytes(IDS, undefined));
+    await sink.write(keeperMetaPath(WAV), keeperMetaBytes(IDS, true));
     expect(
       await reclaimKeeperWav(sink, WAV, createKeeperReclaimTracker(), remote),
     ).toBe("mismatch");
@@ -125,9 +125,9 @@ describe("reclaimKeeperWav", () => {
     );
   });
 
-  it("does not reread retained legacy WAV bytes on repeated polls", async () => {
+  it("does not reread complete WAV bytes without a fingerprint on repeated polls", async () => {
     const sink = new MemorySink();
-    await seed(sink, keeperMetaBytes(IDS, undefined));
+    await seed(sink, keeperMetaBytes(IDS, true));
     const read = vi.spyOn(sink, "read");
     const tracker = createKeeperReclaimTracker();
     expect(await reclaimKeeperWav(sink, WAV, tracker, remote)).toBe("mismatch");

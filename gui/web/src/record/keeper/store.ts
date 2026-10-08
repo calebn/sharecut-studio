@@ -16,7 +16,7 @@ import {
 } from "./syncWriterClient";
 import { SyncWriterUnavailableError } from "./syncWriterProtocol";
 
-export type KeeperMeta = {
+type KeeperFields = {
   sessionId: string;
   takeIndex: number;
   participantId: string;
@@ -24,24 +24,17 @@ export type KeeperMeta = {
   sampleRate: number;
   joinOffsetMs: number;
   samplesWritten: number;
-  /** True only after the WAV writable has closed successfully. */
-  complete: boolean;
   /** Fingerprint of the closed WAV, present on newly finalized segments. */
   fileSha256?: string;
   byteLength?: number;
-  /** Segment-relative sample-peak clip regions; absent on older segments. */
   clippingRegions?: KeeperClipRegion[];
   /** The segment hit the clip-region cap; later clipping was dropped. */
   clippingTruncated?: boolean;
 };
 
-/**
- * Metadata as read back from OPFS. `complete` is absent on files finalized by
- * clients that predate explicit completion (they only wrote metadata on close).
- */
-export type StoredKeeperMeta = Omit<KeeperMeta, "complete"> & {
-  complete?: boolean;
-};
+export type PendingKeeperMeta = KeeperFields & { complete: false };
+export type FinalizedKeeperMeta = KeeperFields & { complete: true };
+export type KeeperMeta = PendingKeeperMeta | FinalizedKeeperMeta;
 
 /** Upper bounds for OPFS keeper enumeration; guards stray or hostile names. */
 export const MAX_KEEPER_TAKES = 1000;
@@ -213,9 +206,7 @@ function isIndex(value: unknown): value is number {
 }
 
 /** Parse and type-check keeper metadata; returns null for anything malformed. */
-export function parseKeeperMeta(
-  bytes: Uint8Array | null,
-): StoredKeeperMeta | null {
+export function parseKeeperMeta(bytes: Uint8Array | null): KeeperMeta | null {
   if (!bytes) return null;
   let value: unknown;
   try {
@@ -235,7 +226,7 @@ export function parseKeeperMeta(
     typeof raw.joinOffsetMs !== "number" ||
     !Number.isFinite(raw.joinOffsetMs) ||
     raw.joinOffsetMs < 0 ||
-    (raw.complete !== undefined && typeof raw.complete !== "boolean") ||
+    typeof raw.complete !== "boolean" ||
     (raw.clippingTruncated !== undefined &&
       typeof raw.clippingTruncated !== "boolean") ||
     (raw.fileSha256 !== undefined &&
@@ -258,7 +249,7 @@ export function parseKeeperMeta(
     sampleRate: raw.sampleRate,
     joinOffsetMs: raw.joinOffsetMs,
     samplesWritten: raw.samplesWritten,
-    ...(raw.complete === undefined ? {} : { complete: raw.complete }),
+    complete: raw.complete,
     ...(raw.fileSha256 === undefined
       ? {}
       : { fileSha256: raw.fileSha256 as string }),
@@ -318,16 +309,9 @@ export async function* keeperSegmentPaths(
   }
 }
 
-/**
- * True when metadata marks its WAV as closed: `complete: true`, or a valid
- * older-client record without the field (those were only written after
- * close). Pending (`complete: false`) and unreadable metadata are not complete:
- * a pending record is written at segment open, so a torn or malformed file may
- * describe a WAV that never closed.
- */
 export function keeperMetaComplete(bytes: Uint8Array | null): boolean {
   const meta = parseKeeperMeta(bytes);
-  return meta !== null && meta.complete !== false;
+  return meta?.complete === true;
 }
 
 /**

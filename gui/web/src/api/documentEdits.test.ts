@@ -351,7 +351,14 @@ describe("transcript correction clears superseded Needs attention entries (#746)
     type: string,
     payload: Record<string, unknown>,
   ): OfflineConflict => ({
-    command: { command_id: "c", client_seq: 1, type, payload, created_at: 0 },
+    command: {
+      command_id: "c",
+      client_id: "fixture-client",
+      client_seq: 1,
+      type,
+      payload,
+      created_at: 0,
+    },
     reason: "stale",
   });
 

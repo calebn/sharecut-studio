@@ -158,9 +158,9 @@ that the room is stopped and capture has settled before each segment, keeps
 going past a failing segment, and reports every failure together. Zero-byte,
 malformed, or unplaceable files are retained for deliberate export with an
 explicit loss message; bytes that an interrupted OPFS writable never committed
-cannot be reconstructed. Metadata finalized by clients that predate the
-`complete` flag is treated as complete when its WAV header length matches both
-the file and `samplesWritten`. Keeper enumeration is capped at 1000 takes and
+cannot be reconstructed. Metadata without an explicit boolean `complete` flag
+is unreadable. Its WAV remains available for partial export and does not enter
+automatic repair, upload, or reclaim. Keeper enumeration is capped at 1000 takes and
 1000 segments per take so a stray OPFS name cannot stall the upload poll.
 
 While a local keeper is actively writing, the browser registers a native
@@ -288,7 +288,7 @@ ACK'd. Never mutate an ACK'd prefix. Mute writes zeros (see
 is tagged `session_start`, `join_offset_ms`, `sample_rate`, `samples_written`.
 The complete metadata also carries `clippingRegions` (segment-relative
 milliseconds, sample peak at or above -1 dBFS, merged when under 1 s apart,
-at most 100 per segment; later hits that cannot merge into the last region are dropped and the metadata sets `clippingTruncated: true`, which the post-take report states); recovered crash segments and older clients omit it.
+at most 100 per segment; later hits that cannot merge into the last region are dropped and the metadata sets `clippingTruncated: true`, which the post-take report states); recovered crash segments may omit it.
 
 ## Mute semantics
 
@@ -349,14 +349,14 @@ landing (`landed` without `land_failed`), the client may reclaim that finalized
 segment's local `.wav` (`keeper/reclaim.ts`: `canReclaimKeeperSegment` policy +
 `reclaimKeeperWav`). Its completion `.json` remains as a small segment
 identity marker, so later takes never reuse the segment number. Reclaim
-requires that marker to be complete (`complete: true`, or absent on legacy
-metadata written only after close), and that its SHA-256 and byte length match
+requires that marker to explicitly say `complete: true`, and that its SHA-256
+and byte length match
 both the local WAV and the landed host status. New finalized and recovered
 segments record this fingerprint after their WAV closes, hashing the closed
 file in bounded chunks with a size-aware deadline. Reclaim compares the small
-metadata and host fingerprints before reading WAV content. A mismatch or older
+metadata and host fingerprints before reading WAV content. A mismatch or complete
 marker without a fingerprint retains the WAV and displays a download warning.
-Older markers are reported as unverified rather than corrupt, and their retained
+Complete markers without a fingerprint are reported as unverified rather than corrupt, and their retained
 WAV bytes are not reread at each status poll. The warning remains visible
 alongside active upload and landing errors. An unchanged file version that
 failed local SHA verification is not rehashed on each poll. After three failed
@@ -364,8 +364,7 @@ deletes, cleanup waits 30 seconds before rehashing and retrying the delete.
 A changed file version or host status is checked again immediately, and a
 cached hash match never authorizes deletion. OPFS read errors propagate, so a
 temporary storage failure cannot mark a local WAV as already reclaimed. The
-older marker still identifies
-a WAV that was already reclaimed. A pending `complete: false` marker, or
+explicitly complete marker still identifies a WAV that was already reclaimed. A pending `complete: false` marker, or
 metadata that does not parse as a keeper record (it may be a torn pending
 write), never allows a delete and never marks a missing WAV as reclaimed. Unlanded, failed, incomplete, or actively captured segments
 remain available for recovery.
@@ -374,8 +373,7 @@ This local completion check still wins if a host status row unexpectedly says
 deleting the local WAV or hide its recovery action from the stopped panel.
 
 A WAV that is absent but has a complete marker is **reclaimed**, not lost
-(`missingKeeperWavState` in `keeper/store.ts`; recovery treats absent WAVs
-with legacy metadata the same way): upload treats it as done even
+(`missingKeeperWavState` in `keeper/store.ts`): upload treats it as done even
 if the host row later disappears (e.g. Discard take), and **Download
 full-quality recording** skips it instead of counting it as a missing segment. While a
 recovery download runs, and for a grace window after it is handed to the
@@ -1398,7 +1396,7 @@ the written WAV within 1 ms), `keeper/takeClipping.test.ts`,
 | Removed guest | The host stops consented take 0, starts take 1, then removes the guest. Take 0 retains its historical consent roster, but both take indices and room tone deny upload consent. The guest lease is revoked, so retrying take 0 returns `403 invalid lease`. Reducer coverage is `tests/test_record_reducer.py::test_remove_participant_revokes_stopped_and_current_take_upload_consent`; HTTP coverage is `tests/test_record_upload.py::test_removed_guest_cannot_upload_stopped_take_after_next_take_starts`. Current-take removal is covered by `::test_guest_keeper_upload_rejected_after_host_removal`. |
 | Room tone | After mic granted, optional 3 s keeper-constraint PCM→WAV (skip allowed); RMS > −35 dBFS warns "Too loud: is something playing?" and does not upload; guest PUT `kind=room_tone` only after Accept (403 before consent), 403 for producer, reject > 10 s 48 kHz mono; Retry replaces the prior ACK; landing sets `track.room_tone` under the land lock; `filler_pad_mode: room_tone` prefers the bed then stem-steal; undo restores and re-lands. Producers omit the step. |
 | Late-join pad | Joiner at T+10 s → clip at `join_offset_ms` = 10 s ± 1 frame (default, no in-file pad). Optional origin encoding of **segment 0 only**: leading zeros 10 s ± 1 frame at 48 kHz. Later segments never padded in-file. |
-| Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants and segments, and the host list reads "Saving to project… N of M chunks" while saving and "Saved to project" after the file ACK; only `complete: true` (or verified legacy) segments upload, pending WAVs are never read during REC, Leave is held while Stop finalizes a lone segment, and **Recover partial take** (host + guest) patches the header once, re-polls upload, and reports failures outside the storage error channel. `useRecordUpload` publishes each segment as saving when its upload starts and again per chunk, not once per pass (gated-transport test); the live region announces starts and finishes only, and no chunk count sits inside any live region (`expectOutsideLiveRegions` in `Room.test.tsx`, `RecordPanel.test.tsx`, `UploadStatus.test.tsx`). |
+| Progressive upload | Fake transport + HTTP resume; keys `(session_id, take, participant, segment, part_seq)`; chunk hashes; current clients declare `expected_parts` and older open tabs infer it at finalization; kill mid-session; resume on same token completes; incomplete/stalled and zero-sample keepers expose a ZIP of retained local segments and upload retry; host GET lists all participants and segments, and the host list reads "Saving to project… N of M chunks" while saving and "Saved to project" after the file ACK; only explicit `complete: true` segments upload, pending WAVs are never read during REC, Leave is held while Stop finalizes a lone segment, and **Recover partial take** (host + guest) patches the header once, re-polls upload, and reports failures outside the storage error channel. `useRecordUpload` publishes each segment as saving when its upload starts and again per chunk, not once per pass (gated-transport test); the live region announces starts and finishes only, and no chunk count sits inside any live region (`expectOutsideLiveRegions` in `Room.test.tsx`, `RecordPanel.test.tsx`, `UploadStatus.test.tsx`). |
 | Host offline | Monitor tracks end; if the segment is still open, local WAV length **keeps growing**; copy string asserted. Intentional leave / lost mic finalizes the segment; browser end-to-end in the Playwright US-2 scenario (`e2e/record-host-reconnect.spec.ts`). |
 | Hard tab kill | `keeper/syncWriterProtocol.test.ts`, `syncWriterClient.test.ts`, `syncWriter.worker.test.ts`, `opfsPath.test.ts` (in-place write, 2 s flush, fallback); `keeper/session.test.ts` recoverable-after-kill case; Playwright closed-tab test in `e2e/record-lobby.spec.ts` offers **Recover partial take**. |
 | Silent PCM | `keeper/silenceWatchdog.test.ts`, `keeper/useKeeperCapture.test.ts`: ~5 s of zero or missing PCM while recording locally raises the no-audio alert (host and guest); quiet input, pause, and mute do not; real PCM or a successful Check mic clears it, a failed check does not; arms only once the tap is attached and re-arms when the tap reopens; a late tick restarts the window; a re-alarm after a healthy check keeps the Still no audio guidance; a suspended tap context is reported, not thrown (`keeper/graph.test.ts`). |

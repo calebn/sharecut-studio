@@ -23,9 +23,9 @@ import {
   keeperMetaPath,
   keeperSegmentPaths,
   missingKeeperWavState,
+  type PendingKeeperMeta,
   parseKeeperMeta,
   prunedKeeperMarker,
-  type StoredKeeperMeta,
   writeKeeperMeta,
 } from "../keeper/store";
 import { KEEPER_ALL_RECLAIMED_COPY } from "../types";
@@ -37,7 +37,7 @@ const knownPrunedAbsent = new WeakMap<ByteSink, Set<string>>();
 
 /** Everything a recovery rewrite needs, gathered by one header-only probe. */
 export type KeeperRecoveryPlan = {
-  meta: StoredKeeperMeta;
+  meta: PendingKeeperMeta;
   /** Whole PCM frames that will be kept. */
   pcmBytes: number;
   /** Trailing bytes of an incomplete final frame that will be dropped. */
@@ -82,21 +82,6 @@ async function probeKeeperWav(
   } catch {
     return { size, header: null };
   }
-}
-
-/** Legacy metadata (no `complete`) was only written after a successful close. */
-function legacyFinalized(
-  probe: HeaderProbe | null,
-  meta: StoredKeeperMeta,
-): boolean {
-  const header = probe?.header;
-  return (
-    !!probe &&
-    !!header &&
-    isKeeperPcmFormat(header) &&
-    header.dataSize === probe.size - header.dataOffset &&
-    header.dataSize === meta.samplesWritten * KEEPER_FRAME_BYTES
-  );
 }
 
 const NO_PCM_REASON =
@@ -152,24 +137,10 @@ export async function inspectKeeperRecovery(
       clippingTruncated: meta.clippingTruncated,
     };
   }
-  let probe: HeaderProbe | null | undefined;
-  if (meta.complete === undefined) {
-    probe = await probeKeeperWav(sink, wavPath);
-    // Legacy metadata was only written after a successful close, so a missing
-    // WAV was reclaimed after landing (see missingKeeperWavState), not lost.
-    if (!probe || legacyFinalized(probe, meta)) {
-      return {
-        kind: "complete",
-        joinOffsetMs: meta.joinOffsetMs,
-        clippingRegions: meta.clippingRegions,
-        clippingTruncated: meta.clippingTruncated,
-      };
-    }
-  }
   if (options.inspectPending === false) {
     return { kind: "pending" };
   }
-  probe ??= await probeKeeperWav(sink, wavPath);
+  const probe = await probeKeeperWav(sink, wavPath);
   if (!probe || probe.size <= PCM_WAV_HEADER_BYTES) {
     return { kind: "unrecoverable", reason: NO_PCM_REASON };
   }

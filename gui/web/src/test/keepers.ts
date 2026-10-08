@@ -32,10 +32,6 @@ export async function seedPendingKeeper(
   return wavPath;
 }
 
-/**
- * Encoded keeper metadata for `ids`. `complete` defaults to true; pass
- * `undefined` for an older-client record that predates the field.
- */
 export function keeperMetaBytes(
   ids: {
     sessionId: string;
@@ -43,7 +39,7 @@ export function keeperMetaBytes(
     participantId: string;
     segmentIndex?: number;
   },
-  complete: boolean | undefined = true,
+  complete: boolean = true,
   fingerprint?: { fileSha256: string; byteLength: number },
 ): Uint8Array {
   const meta = {
@@ -52,7 +48,7 @@ export function keeperMetaBytes(
     sampleRate: 48_000,
     joinOffsetMs: 0,
     samplesWritten: 4,
-    ...(complete === undefined ? {} : { complete }),
+    complete,
     ...fingerprint,
   };
   return new TextEncoder().encode(JSON.stringify(meta));

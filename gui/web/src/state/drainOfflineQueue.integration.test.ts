@@ -7,8 +7,9 @@ import type { OfflineConflict, QueuedCommand } from "./offlineStore";
 
 const hostQueues = new Map<string, QueuedCommand[]>();
 const guestQueues = new Map<string, QueuedCommand[]>();
-const hostConflicts: string[] = [];
-const guestConflicts: string[] = [];
+const hostConflicts: OfflineConflict[] = [];
+const guestConflicts: OfflineConflict[] = [];
+let conflictReadFailure = false;
 
 const without = (queue: QueuedCommand[] | undefined, ids: string[]) =>
   (queue ?? []).filter((c) => !ids.includes(c.command_id));
@@ -34,7 +35,8 @@ vi.mock("./offlineStore", () => ({
     hostQueues.set(path, without(hostQueues.get(path), ids));
   },
   addHostConflict: async (_path: string, conflict: OfflineConflict) => {
-    hostConflicts.push(conflict.command.command_id);
+    if (conflictReadFailure) throw new Error("Invalid saved conflict");
+    hostConflicts.push(conflict);
   },
   loadCommandQueue: async (token: string) => [
     ...(guestQueues.get(token) ?? []),
@@ -50,7 +52,8 @@ vi.mock("./offlineStore", () => ({
     guestQueues.set(token, without(guestQueues.get(token), [id]));
   },
   addConflict: async (_token: string, conflict: OfflineConflict) => {
-    guestConflicts.push(conflict.command.command_id);
+    if (conflictReadFailure) throw new Error("Invalid saved conflict");
+    guestConflicts.push(conflict);
   },
 }));
 
@@ -63,6 +66,7 @@ const rec = (id: string, seq: number): QueuedCommand => ({
   client_seq: seq,
   type: "SetTrackMeta",
   payload: { label: id },
+  structural_mode: "apply",
   created_at: seq,
 });
 
@@ -94,6 +98,7 @@ const ids = (queue: QueuedCommand[] | undefined) =>
     .map((c) => c.command_id);
 
 beforeEach(() => {
+  conflictReadFailure = false;
   hostQueues.clear();
   guestQueues.clear();
   hostConflicts.length = 0;
@@ -115,7 +120,32 @@ describe("host drain against the real submit layer", () => {
     await drain();
 
     expect(posted).toEqual(["a", "bad", "c"]);
-    expect(hostConflicts).toEqual(["bad"]);
+    expect(hostConflicts).toEqual([
+      {
+        command: { ...rec("bad", 2), created_at: expect.any(Number) },
+        reason: "refused",
+      },
+    ]);
+    expect(ids(hostQueues.get(PATH))).toEqual([]);
+  });
+
+  it("keeps a refusal queued and stops when conflict admission fails", async () => {
+    hostQueues.set(PATH, [rec("bad", 1), rec("next", 2)]);
+    const posted = stubServer({ bad: 403 });
+    conflictReadFailure = true;
+    await drain();
+    expect(posted).toEqual(["bad"]);
+    expect(ids(hostQueues.get(PATH))).toEqual(["bad", "next"]);
+    expect(hostConflicts).toEqual([]);
+    conflictReadFailure = false;
+    await drain();
+    expect(posted).toEqual(["bad", "bad", "next"]);
+    expect(hostConflicts[0].command).toMatchObject({
+      client_id: "tab-1",
+      command_id: "bad",
+      client_seq: 1,
+      structural_mode: "apply",
+    });
     expect(ids(hostQueues.get(PATH))).toEqual([]);
   });
 
@@ -145,7 +175,32 @@ describe("guest drain against the real submit layer", () => {
     await drain();
 
     expect(posted).toEqual(["a", "bad", "c"]);
-    expect(guestConflicts).toEqual(["bad"]);
+    expect(guestConflicts).toEqual([
+      {
+        command: { ...rec("bad", 2), created_at: expect.any(Number) },
+        reason: "refused",
+      },
+    ]);
+    expect(ids(guestQueues.get(TOKEN))).toEqual([]);
+  });
+
+  it("keeps a refusal queued and stops when conflict admission fails", async () => {
+    guestQueues.set(TOKEN, [rec("bad", 1), rec("next", 2)]);
+    const posted = stubServer({ bad: 403 });
+    conflictReadFailure = true;
+    await drain();
+    expect(posted).toEqual(["bad"]);
+    expect(ids(guestQueues.get(TOKEN))).toEqual(["bad", "next"]);
+    expect(guestConflicts).toEqual([]);
+    conflictReadFailure = false;
+    await drain();
+    expect(posted).toEqual(["bad", "bad", "next"]);
+    expect(guestConflicts[0].command).toMatchObject({
+      client_id: "tab-1",
+      command_id: "bad",
+      client_seq: 1,
+      structural_mode: "apply",
+    });
     expect(ids(guestQueues.get(TOKEN))).toEqual([]);
   });
 

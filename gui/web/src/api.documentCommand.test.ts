@@ -335,7 +335,12 @@ describe("host document command queue", () => {
           path,
           "SetEnvelope",
           { chained: false },
-          { command_id: "mine" },
+          {
+            command_id: "mine",
+            client_id: "original-client",
+            client_seq: 7,
+            structural_mode: "apply",
+          },
         ),
       ).rejects.toBeTruthy();
       expect(addHostConflict).toHaveBeenCalledWith(
@@ -343,6 +348,9 @@ describe("host document command queue", () => {
         expect.objectContaining({
           command: expect.objectContaining({
             command_id: "mine",
+            client_id: "original-client",
+            client_seq: 7,
+            structural_mode: "apply",
             payload: { chained: true },
           }),
         }),
@@ -407,19 +415,22 @@ describe("host document command queue", () => {
       );
     });
 
-    it("drops a live command the server refused, so it never replays", async () => {
-      vi.stubGlobal(
-        "fetch",
-        vi.fn(async () => new Response("slow down", { status: 429 })),
-      );
-      const { submitDocumentCommand } = await import("./api");
+    it.each([429, 503])(
+      "drops a live guest command refused with %i, so it never replays",
+      async (status) => {
+        vi.stubGlobal(
+          "fetch",
+          vi.fn(async () => new Response("slow down", { status })),
+        );
+        const { submitDocumentCommand } = await import("./api");
 
-      await expect(
-        submitDocumentCommand("share:tok", "SetTrackFader", fader),
-      ).rejects.toThrow();
-      expect(removeQueuedCommand).toHaveBeenCalledWith("tok", queuedId());
-      expect(addConflict).not.toHaveBeenCalled();
-    });
+        await expect(
+          submitDocumentCommand("share:tok", "SetTrackFader", fader),
+        ).rejects.toThrow();
+        expect(removeQueuedCommand).toHaveBeenCalledWith("tok", queuedId());
+        expect(addConflict).not.toHaveBeenCalled();
+      },
+    );
 
     it("keeps a rate-limited replay queued for the next drain", async () => {
       vi.stubGlobal(
@@ -431,6 +442,9 @@ describe("host document command queue", () => {
       await expect(
         submitDocumentCommand("share:tok", "SetTrackFader", fader, {
           replaying: true,
+          client_id: "replay-client",
+          command_id: "replay-command",
+          client_seq: 9,
         }),
       ).rejects.toThrow();
       expect(removeQueuedCommand).not.toHaveBeenCalled();
@@ -447,6 +461,9 @@ describe("host document command queue", () => {
       await expect(
         submitDocumentCommand("share:tok", "SetTrackFader", fader, {
           replaying: true,
+          client_id: "replay-client",
+          command_id: "replay-command",
+          client_seq: 9,
         }),
       ).rejects.toThrow();
       expect(addConflict).toHaveBeenCalledWith(
@@ -483,6 +500,9 @@ describe("host document command queue", () => {
       await expect(
         submitDocumentCommand("share:tok", "SetTrackFader", fader, {
           replaying: true,
+          client_id: "replay-client",
+          command_id: "replay-command",
+          client_seq: 9,
         }),
       ).rejects.toThrow("network down");
       expect(removeQueuedCommand).not.toHaveBeenCalled();
@@ -553,6 +573,7 @@ describe("host document command queue", () => {
         {
           command_id: "replay-command",
           client_seq: 9,
+          client_id: "replay-client",
           replaying: true,
         },
       ),
@@ -575,42 +596,18 @@ describe("host document command queue", () => {
           "/tmp/episode.project.json",
           "SetTrackMeta",
           {},
-          { command_id: "limited", client_seq: 3, replaying: true },
+          {
+            command_id: "limited",
+            client_id: "replay-client",
+            client_seq: 3,
+            replaying: true,
+          },
         ),
       ).rejects.toMatchObject({ status });
       expect(addHostConflict).not.toHaveBeenCalled();
       expect(removeHostQueuedCommand).not.toHaveBeenCalled();
     },
   );
-
-  it("binds a legacy guest queue record to the current tab identity on replay", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
-      ),
-    );
-    const { submitDocumentCommand } = await import("./api");
-
-    await submitDocumentCommand(
-      "share:legacy",
-      "SetTrackMeta",
-      {},
-      {
-        command_id: "legacy-command",
-        client_seq: 7,
-      },
-    );
-
-    expect(enqueueCommand).toHaveBeenCalledWith(
-      "legacy",
-      expect.objectContaining({
-        command_id: "legacy-command",
-        client_seq: 7,
-        client_id: expect.stringMatching(/^viewer-/),
-      }),
-    );
-  });
 
   it("does not post a newer edit when storage failure hides an older one", async () => {
     enqueueHostCommand.mockRejectedValue(new Error("quota exceeded"));
@@ -903,7 +900,12 @@ describe("host document command queue", () => {
         "/tmp/episode.project.json",
         "SetEnvelope",
         {},
-        { command_id: "legacy", client_seq: 1, replaying: true },
+        {
+          command_id: "rejected-replay",
+          client_id: "replay-client",
+          client_seq: 1,
+          replaying: true,
+        },
       ),
     ).rejects.toMatchObject({ status: 422 });
     expect(addHostConflict).toHaveBeenCalledWith(
@@ -912,7 +914,7 @@ describe("host document command queue", () => {
     );
     expect(removeHostQueuedCommand).toHaveBeenCalledWith(
       "/tmp/episode.project.json",
-      "legacy",
+      "rejected-replay",
     );
   });
 

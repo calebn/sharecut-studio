@@ -90,7 +90,7 @@ export async function reclaimKeeperWav(
     return "held";
   }
   const meta = parseKeeperMeta(await sink.read(keeperMetaPath(wavPath)));
-  if (!meta || meta.complete === false) {
+  if (!meta || meta.complete !== true) {
     return "skipped";
   }
   const expectedHash = remoteSeg.file_sha256;

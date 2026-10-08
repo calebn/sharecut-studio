@@ -8,6 +8,7 @@ const offlineStore = vi.hoisted(() => ({
   clearConflicts: vi.fn(),
   clearHostConflicts: vi.fn(),
   loadConflicts: vi.fn(),
+  loadCommandQueue: vi.fn(),
   loadHostCommandCount: vi.fn(),
   loadHostConflicts: vi.fn(),
 }));
@@ -23,6 +24,7 @@ describe("GuestAttentionBanner", () => {
     offlineStore.clearConflicts.mockResolvedValue(undefined);
     offlineStore.clearHostConflicts.mockResolvedValue(undefined);
     offlineStore.loadConflicts.mockResolvedValue([]);
+    offlineStore.loadCommandQueue.mockResolvedValue([]);
     offlineStore.loadHostCommandCount.mockResolvedValue(0);
     offlineStore.loadHostConflicts.mockResolvedValue([]);
   });
@@ -87,7 +89,7 @@ describe("GuestAttentionBanner", () => {
     expect(screen.getByText("3 pending")).toBeInTheDocument();
   });
 
-  it("leaves no alert when the loads reject", async () => {
+  it("shows retained-work status when the initial loads reject", async () => {
     offlineStore.loadHostConflicts.mockRejectedValue(new Error("boom"));
     offlineStore.loadHostCommandCount.mockRejectedValue(new Error("boom"));
     useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
@@ -95,6 +97,70 @@ describe("GuestAttentionBanner", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Could not read saved edits on this device. Your saved edits have been kept.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Dismiss all" }),
+    ).not.toBeInTheDocument();
+    offlineStore.loadHostConflicts.mockResolvedValue([offlineConflict()]);
+    offlineStore.loadHostCommandCount.mockResolvedValue(2);
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "2 pending, 1 conflict",
+    );
+    expect(
+      screen.queryByText(/Could not read saved edits/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Dismiss all" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows unreadable guest queued edits without changing the guest pending count", async () => {
+    offlineStore.loadCommandQueue.mockRejectedValue(
+      new Error("Invalid saved command"),
+    );
+    useDawStore.getState().hydrate("share:tok-sample", minimalProject());
+    render(<GuestAttentionBanner />);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Your saved edits have been kept.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Dismiss all" }),
+    ).not.toBeInTheDocument();
+    offlineStore.loadCommandQueue.mockResolvedValue([]);
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("retains the last verified count and conflicts until both reads succeed", async () => {
+    offlineStore.loadHostConflicts.mockResolvedValue([offlineConflict()]);
+    offlineStore.loadHostCommandCount.mockResolvedValue(2);
+    useDawStore.getState().hydrate("/tmp/p.json", minimalProject());
+    render(<GuestAttentionBanner />);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "2 pending, 1 conflict",
+    );
+    offlineStore.loadHostConflicts.mockRejectedValue(
+      new Error("Invalid saved conflict"),
+    );
+    offlineStore.loadHostCommandCount.mockResolvedValue(0);
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "2 pending, 1 conflict",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Your saved edits have been kept.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Dismiss all" }),
+    ).not.toBeInTheDocument();
+    useDawStore.getState().hydrate("/tmp/other.json", minimalProject());
+    offlineStore.loadHostConflicts.mockResolvedValue([]);
+    await act(() => vi.advanceTimersByTimeAsync(2000));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
