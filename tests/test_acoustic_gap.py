@@ -279,12 +279,15 @@ def test_audibility_override_reaches_public_proposal(tmp_path: Path) -> None:
             "podcast_mcp.edits.tighten.build_track_audio_caches",
             return_value={"host": _cache(samples)},
         ),
-        patch("podcast_mcp.edits.tighten._analyze_candidate", return_value=None) as analyze,
+        patch(
+            "podcast_mcp.edits.tighten.analyze_candidates",
+            side_effect=lambda project, candidates, *args, **kwargs: [None] * len(candidates),
+        ) as analyze,
         patch("podcast_mcp.edits.breath_detect.load_defaults", side_effect=AssertionError),
     ):
         result = propose_tighten_edits(project, defaults)
 
-    assert sum(call.args[1].reason == "filler:acoustic" for call in analyze.call_args_list) == 2
+    assert sum(c.reason == "filler:acoustic" for c in analyze.call_args.args[1]) == 2
     assert result.skip_counts.get("acoustic:breath", 0) == 0
 
 
@@ -836,7 +839,7 @@ def test_propose_does_not_mutate_decisions_when_analysis_raises(
     def boom(*_a: object, **_k: object) -> None:
         raise RuntimeError("dsp failed")
 
-    monkeypatch.setattr("podcast_mcp.edits.tighten._analyze_candidate", boom)
+    monkeypatch.setattr("podcast_mcp.edits.tighten.analyze_candidates", boom)
     with pytest.raises(RuntimeError):
         propose_tighten_edits(project, _e2e_defaults())
 

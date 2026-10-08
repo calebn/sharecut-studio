@@ -6,6 +6,7 @@ import pytest
 
 from podcast_mcp.edits.breath_detect import (
     BreathSpan,
+    PauseAir,
     PauseAirSkip,
     detect_adjacent_breath,
     extend_cut_for_breaths,
@@ -287,7 +288,7 @@ def _mock_cut_pipeline(request):
         ),
         patch(
             "podcast_mcp.edits.fillers.pause_air_span",
-            side_effect=lambda project, track_id, start, end, **kw: (start, end),
+            side_effect=lambda project, track_id, start, end, **kw: PauseAir(start, end),
         ),
         patch(
             "podcast_mcp.edits.fillers.recommend_cut_fade_ms",
@@ -1083,7 +1084,13 @@ def test_periodic_phrase_restart_stays_bounded_after_proposal_coalescing(monkeyp
             boundary_mode="vocal_transcript_guided",
         )
 
-    monkeypatch.setattr(tighten_module, "_analyze_candidate", analyze)
+    monkeypatch.setattr(
+        tighten_module,
+        "analyze_candidates",
+        lambda project, candidates, defaults, **context: [
+            analyze(project, candidate, defaults) for candidate in candidates
+        ],
+    )
     proposal = tighten_module.propose_tighten_edits(project, {"tighten": {"filler_words": []}})
 
     assert [(edit.start, edit.end, edit.reason) for edit in proposal.decisions] == [
@@ -2632,7 +2639,7 @@ def test_only_a_pause_trim_is_cut_down_to_its_air():
 
     def air(project, track_id, start, end, **kw):
         seen["pause"] = kw["pause"]
-        return (start, end)
+        return PauseAir(start, end)
 
     def breaths(project, track_id, start, end, **kw):
         seen["filler"] = (start, end)
@@ -2646,6 +2653,26 @@ def test_only_a_pause_trim_is_cut_down_to_its_air():
 
     # The pause is the span the trim may take: the word gap less the retained air.
     assert seen == {"pause": (1.5, 2.95), "filler": (1.0, 1.2)}
+
+
+def test_a_pause_trim_carries_the_sounds_it_left_whole_to_the_shared_pause_check():
+    from podcast_mcp.edits.fillers import _collect_candidates, _prepare_candidate, _PreparedCut
+
+    project = _project_with_transcript(_PAUSE_WORDS)
+    candidate = next(
+        c
+        for c in _collect_candidates(project.transcripts[0], _PAUSE_DEFAULTS, project=project)
+        if c.cut_kind == "pause"
+    )
+
+    def air(project, track_id, start, end, **kw):
+        return PauseAir(start, end, kept=((2.0, 2.1),))
+
+    with patch("podcast_mcp.edits.fillers.pause_air_span", side_effect=air):
+        prepared = _prepare_candidate(project, candidate, _PAUSE_DEFAULTS)
+
+    assert isinstance(prepared, _PreparedCut)
+    assert prepared.kept_sounds == ((2.0, 2.1),)
 
 
 @pytest.mark.parametrize("skip", [PauseAirSkip.NO_AIR, PauseAirSkip.NO_ROOM])
@@ -2670,7 +2697,7 @@ def test_every_pause_trim_is_review_only_and_one_that_moved_says_so():
     # not. The ``:air_edges`` flag is the reviewer's note that this one is not the span
     # pacing proposed.
     def shrink(project, track_id, start, end, **kw):
-        return (start + 0.1, end)
+        return PauseAir(start + 0.1, end)
 
     def pause_of(decisions):
         hit = next(d for d in decisions if d.reason.startswith("pause:"))
