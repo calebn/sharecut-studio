@@ -1313,12 +1313,19 @@ test; other rows are whole tests.
 | a long-press on empty space opens the create menu; Add envelope point adds one there | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a long-press past the last clip opens the create menu and selects no text | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | in a short viewport the create menu stays in view off the finger, and lifting without moving saves nothing | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
+| the create menu reaches every item and stays off the finger at every text size and screen height | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | the strip follows the finger; a flick opens or closes it fully, a slow drag lands at the nearest detent | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | a second finger cancels an armed drag and the create menu | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | the crossfade grip drags only once a long press arms it | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1135: a long-press at a join offers the ripple trim, which shows where later clips go | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1154: a touch ripple trim over the guest's speech asks first, and Leave a gap keeps it | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
 | #1135: a plain mouse grab at a join rolls it, as on main | `gui/web/e2e-compat/touch-grammar.spec.ts` | Core flow | Pass | Pass | Not run |
+| Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| Undo and Redo stay on top, and a tap on Undo undoes the edit, with the strip open: landscape | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the Cut button of the blade confirmation can be tapped at 16px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the Cut button of the blade confirmation can be tapped at 32px text: portrait | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the Cut button of the blade confirmation can be tapped at 16px text: landscape | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
+| the Cut button of the blade confirmation can be tapped at 32px text: landscape | `gui/web/e2e-compat/touch-chrome-reach.spec.ts` | CSS / layout | Pass | Pass | Not run |
 | a held nudge repeats, saves once, and one Undo restores it | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | a held nudge stops at a soft boundary with a cue; a fresh press goes past | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |
 | pending and envelope strips: nudge rows, targets and axe (portrait-360) | `gui/web/e2e-compat/touch-nudge.spec.ts` | Core flow | Pass | Pass | Not run |

@@ -236,7 +236,10 @@ the empty state, not a separate discovery task.
   the latest, and goes away once anything else moves history. The server
   refuses an undo whose entry is no longer the latest, and the toast then
   says "Can't undo: the project changed since. Nothing was undone.", so
-  it never reverses someone else's edit. Tighten apply, skip and Apply
+  it never reverses someone else's edit. An Undo or Redo pressed while this
+  tab's own edit is still saving, five seconds past the press, runs nothing
+  and says "Your last edit is still saving. Nothing was undone." ("…Nothing
+  was redone."), so it never reverses the edit before the slow one. Tighten apply, skip and Apply
   eligible, track reorder and track removal offer it; blade, trim and the other timeline edits
   still need to adopt it.
 - **Form errors are wired, not just shown.** `Field` sets
@@ -471,6 +474,11 @@ shipped at the port; #1031 shipped it. The adjacent MCP note shipped in #1027.
   here"), and Blade cut sits apart from the held lane's entry with a line
   naming the tracks it cuts, since it cuts the selected tracks and not the lane
   it was held on.
+- 2026-10-08 — Undo while an edit is still saving (#1181 round 9): once the
+  wait for the tab's own saves runs out, Undo and Redo run nothing and say so,
+  in the same plain form as the stale-head refusal. The roll across a gap that
+  the server refuses reads "These clips have a gap between them, so there is
+  no join to roll. Move one clip to touch the other, or trim an edge instead."
 - 2026-10-07 — Share dialog (#1027): Stop sharing and End room confirm in
   place with `ui/InlineConfirm` (Keep first, danger last), the MCP opt-in
   shows its consequence note, and the example confirm lists Keep first. Six
