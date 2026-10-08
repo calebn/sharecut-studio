@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { focusAndReveal } from "./focusAndReveal";
+import { focusAndReveal, revealBelowChrome } from "./focusAndReveal";
 
 function bounds(top: number, height: number, width = 200): DOMRect {
   return {
@@ -108,5 +108,41 @@ describe("focusAndReveal", () => {
     focusAndReveal(input);
     focusAndReveal(null);
     expect(sheet.scrollTop).toBe(0);
+  });
+});
+
+describe("revealBelowChrome", () => {
+  function pinned(chromeBottom: number, fieldTop: number) {
+    const sheet = document.createElement("div");
+    const chrome = document.createElement("div");
+    const field = document.createElement("input");
+    sheet.append(chrome, field);
+    document.body.append(sheet);
+    Object.defineProperties(sheet, {
+      clientHeight: { value: 200 },
+      scrollHeight: { value: 1000 },
+    });
+    sheet.scrollTop = 300;
+    chrome.getBoundingClientRect = () => bounds(0, chromeBottom);
+    field.getBoundingClientRect = () => bounds(fieldTop, 40);
+    return { sheet, chrome, field };
+  }
+
+  it("scrolls a field that sits partly under the pinned header to just below it", () => {
+    const { sheet, chrome, field } = pinned(100, 93);
+    revealBelowChrome(sheet, chrome, field);
+    expect(sheet.scrollTop).toBe(293);
+  });
+
+  it("leaves a field already clear of the header, and the header's own controls, alone", () => {
+    const clear = pinned(100, 100);
+    revealBelowChrome(clear.sheet, clear.chrome, clear.field);
+    expect(clear.sheet.scrollTop).toBe(300);
+
+    const covered = pinned(100, 20);
+    const close = document.createElement("button");
+    covered.chrome.append(close);
+    revealBelowChrome(covered.sheet, covered.chrome, close);
+    expect(covered.sheet.scrollTop).toBe(300);
   });
 });

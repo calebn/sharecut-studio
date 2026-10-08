@@ -90,23 +90,27 @@ export function useCompactInspector(
   shell: "phone" | "tablet" | null,
 ): CompactInspector | null {
   const short = useMediaQueryStore(subscribeShort, readShort, () => false);
-  const { project, selection, hit, view, stowed, mobileMode, setView } = useDaw(
-    (s) => ({
-      project: s.project,
-      selection: s.selection,
-      hit: s.selectionHit,
-      view: s.compactInspectorView,
-      stowed: s.timelineDragging,
-      mobileMode: s.mobileMode,
-      setView: s.setCompactInspectorView,
-    }),
-  );
+  const {
+    project,
+    selection,
+    hit,
+    view,
+    stowed,
+    mobileMode,
+    setView,
+    inspectorSelection,
+  } = useDaw((s) => ({
+    project: s.project,
+    selection: s.selection,
+    hit: s.selectionHit,
+    view: s.compactInspectorView,
+    stowed: s.timelineDragging,
+    mobileMode: s.mobileMode,
+    setView: s.setCompactInspectorView,
+    inspectorSelection: s.inspectorSelection,
+  }));
   const applies =
     shell === "phone" ? mobileMode === "timeline" : shell === "tablet" && short;
-  // A selection made inside the open plain sheet (a point saved from a
-  // track's envelope form) stays in that sheet until it closes, so the form
-  // the user is working in keeps its layout and focus. Derived while
-  // rendering, so the sheet never flashes the strip.
   const candidate =
     applies && project ? peekTarget(project, selection, hit) : null;
   const [seen, setSeen] = useState<{
@@ -117,7 +121,9 @@ export function useCompactInspector(
   let held = seen.held;
   if (seen.selection !== selection) {
     held =
-      selection != null && (seen.held || (candidate != null && seen.plain));
+      selection != null &&
+      selection === inspectorSelection &&
+      (seen.held || (candidate != null && seen.plain));
     setSeen({
       selection,
       held,

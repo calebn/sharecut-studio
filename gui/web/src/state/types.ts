@@ -236,6 +236,7 @@ export interface DawState {
   compactInspectorView: CompactInspectorView;
   /** The timeline target the last press went to (touch input grammar). */
   selectionHit: RoutedTarget | null;
+  inspectorSelection: Selection;
   /** A timeline drag is under way; the compact inspector stows itself. */
   timelineDragging: boolean;
   laneHeightMode: LaneHeightMode;
@@ -346,6 +347,7 @@ export interface DawState {
   setZoomPxPerSec: (z: number) => void;
   setScrollLeft: (x: number) => void;
   setSelection: (sel: Selection) => void;
+  selectFromInspector: (sel: Selection) => void;
   selectClip: (
     clipId: string,
     trackId: string,

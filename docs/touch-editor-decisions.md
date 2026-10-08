@@ -212,7 +212,7 @@ or named test owns that behavior; it does not certify unrun combinations.
 | Mix: `MixSheet`, native controls, `useCommitRange` | Native volume range and M/S controls; More → Mix | Volume follows the existing preview/commit lifecycle and permission reason; M/S and local/shared listening distinctions remain. Accepted host/editor volume writes use the existing document command. Sheet layout supports row scrolling and text wrapping. | **Keep.** Do not add swipe-to-mix. Existing `phone-mix.spec.ts` covers its current path; failure/cancel combinations not asserted there remain unverified. |
 | Transcript words: transcript views and correction flow | Tap seeks; double tap or long press opens correction; visible Correct/Select modes | First tap seeks immediately. Correction opens only for a host with hydrated words; current sheet lifecycle restores mode on close. Submission uses `submitWordCorrection`; failure/permission behavior stays there. Phone uses the sheet for keyboard room; desktop has its current inline path. | **Keep.** `transcript-wordbar.spec.ts` and `edit-boundary-touch.spec.ts` are retained evidence. No delayed tap-to-seek recognizer. |
 | Comment rows: comment list/controller | Swipe left resolves; visible Resolve/Reopen and Undo toast | Only enabled for eligible open host comments in the list. Preview reveals a cue; threshold release uses `comment.resolve`; vertical movement, cancel, or hold restores the row. Existing command failures and latest-only Undo toast remain. Embedded threads do not opt in. | **Keep.** Existing comment recovery browser coverage includes Chromium/WebKit phone; physical device verification remains pending. |
-| BottomSheet: `ui/BottomSheet.tsx` | **No drag gesture.** Expand/Collapse and Close are visible single-pointer actions | Controlled `expanded` updates half/full view state only (peek/half for the #1051 compact inspector, which also stows during a timeline drag). There is no preview/cancel/command/failure/History path for resize. Close and Escape dismiss; interactive inspector scrim stays transparent; confirmation scrim dismisses. Shell CSS keeps phone nav and tablet chrome clear. | **Remove inert grip; retain and enlarge the resize button.** `BottomSheet.test.tsx` and new touch E2E exercise the existing callback and layout. No global button changes. |
+| BottomSheet: `ui/BottomSheet.tsx` | **Only the compact inspector's drawer drags and flicks** (its header, round 4b); every other sheet has no drag gesture. Expand/Collapse and Close are visible single-pointer actions on all of them | Controlled `expanded` updates half/full view state only (peek/half/full for the #1051 compact inspector, which also stows during a timeline drag). There is no command/failure/History path for resize. Close and Escape dismiss; the interactive inspector scrim never takes a touch, and it is clear at the strip and dims the timeline at half and full; confirmation scrim dismisses. Shell CSS keeps phone nav and tablet chrome clear. | **Remove inert grip; retain and enlarge the resize button.** `BottomSheet.test.tsx` and new touch E2E exercise the existing callback and layout. No global button changes. |
 | Transport, Gestures help and History: `MobileShell` More hub, command catalog | Two-finger tap is an optional Sharecut Undo shortcut; visible command routes remain | Existing recognizer dispatches `history.undo` and reports failure through the shared status path. It runs only when enabled by current project/command availability. It does not make a platform convention or modal-body guarantee. Phone More lists History and Gestures. | **Modify attribution only.** `useTwoFingerTap.test.tsx` stays unchanged; `GesturesSheet.test.tsx` asserts the rendered optional Sharecut copy. |
 
 ## Explicit disposition
@@ -522,10 +522,25 @@ held sideways). Taller tablets and desktop keep their inspector.
   (`compactInspectorView`, persisted per browser at
   `sharecut.compactInspector`). Expanded, the sheet is at most half its slot
   and leaves room for the transport, ruler, marker lane and one coarse lane.
-  A selection made inside the open plain sheet, such as a point saved from a
-  track's envelope form, stays in that sheet until it closes, so the form
-  keeps its layout and focus instead of turning into the strip. The drawer's
-  scroll padding equals its pinned header, so Tab focus never lands under it.
+  A selection the open plain sheet's own form makes, such as a point saved
+  from a track's envelope form, stays in that sheet until it closes, so the
+  form keeps its layout and focus instead of turning into the strip. Only the
+  inspector's own forms count (`selectFromInspector`, compared by identity in
+  `inspectorSelection`): a tap on the timeline while a track's sheet is open
+  opens the strip, as always, and ends the hold. At large text, on a phone
+  held sideways, the leave-room share of the slot can shrink to nothing (1 px
+  at a 32 px root font), so half never takes less than 9rem of its slot (the
+  header's 4.3rem plus a few lines of the inspector) or all of a slot that
+  small; half and full then share a height and Expand, Collapse and Close stay
+  on screen. The drawer's scroll padding equals its pinned header, so Tab
+  focus lands below it; WebKit does not scroll a partly covered field into
+  view, so the sheet also scrolls it clear on focus (`revealBelowChrome`).
+- **No dim at the strip.** The strip leaves the timeline undimmed (a clear,
+  touch-transparent scrim, `bottom-sheet-scrim--clear`), since its job is to
+  show the selection instead of covering the timeline. Half and full dim it
+  with the sheet scrim, still without taking a touch. This is a default; the
+  owner may choose the dim back at the strip (drop the class in
+  `BottomSheet.tsx`).
 - **Keep the selection in view.** The timeline scroller gets bottom padding as
   deep as the strip or sheet covers it, and scrolls the selected target above
   it. Sideways, the sheet takes the bottom tabs' place while it is open, so

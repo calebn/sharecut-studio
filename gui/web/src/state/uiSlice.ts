@@ -183,6 +183,7 @@ type UiSlice = Pick<
   | "sheetExpanded"
   | "compactInspectorView"
   | "selectionHit"
+  | "inspectorSelection"
   | "timelineDragging"
   | "laneHeightMode"
   | "laneHeightPx"
@@ -194,6 +195,7 @@ type UiSlice = Pick<
   | "setWaveformPostFader"
   | "setScrollLeft"
   | "setSelection"
+  | "selectFromInspector"
   | "selectClip"
   | "setActiveTab"
   | "setTranscriptFollowPlayhead"
@@ -411,6 +413,7 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
     sheetExpanded: false,
     compactInspectorView: readCompactInspectorView(),
     selectionHit: null,
+    inspectorSelection: null,
     timelineDragging: false,
     setZoomPxPerSec: (zoomPxPerSec) =>
       set({
@@ -452,6 +455,10 @@ export const createUiSlice: StateCreator<DawStore, [], [], UiSlice> = (
         }
         return { selection, selectedClipIds: [selection.id] };
       }),
+    selectFromInspector: (selection) => {
+      set({ inspectorSelection: selection });
+      get().setSelection(selection);
+    },
     selectClip: (clipId, trackId, mods) =>
       set((s) => {
         const shift = Boolean(mods?.shift);

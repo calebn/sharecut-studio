@@ -13,6 +13,18 @@ function stickyInset(scroller: HTMLElement): number {
   return inset;
 }
 
+export function revealBelowChrome(
+  scroller: HTMLElement,
+  chrome: HTMLElement,
+  target: HTMLElement,
+): void {
+  if (chrome.contains(target) || scroller.scrollHeight <= scroller.clientHeight)
+    return;
+  const covered =
+    chrome.getBoundingClientRect().bottom - target.getBoundingClientRect().top;
+  if (covered > 0) scroller.scrollTop -= covered;
+}
+
 /** Focus and minimally reveal a control inside its inspector, never the page
  * or timeline. Callers retain ownership of selection and lifecycle timing. */
 export function focusAndReveal(target: HTMLElement | null): void {

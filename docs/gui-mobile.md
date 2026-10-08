@@ -182,10 +182,14 @@ one detent and **Collapse** returns to the strip; both stay, named for where
 they go ("Expand to full height"). A visually hidden range, "Inspector
 height", changes the detent from the keyboard or a screen reader. The title
 keeps the target's name at every detent, and the last detent opens the next
-selection. A selection made inside the open plain sheet (a point saved from a
+selection. A selection the open plain sheet's own form makes (a point saved from a
 track's envelope form) stays in that sheet until it closes, so the form keeps
-its layout and focus; the next timeline selection opens the drawer as usual. The drawer's scroll keeps a focused control
-clear of its pinned header. The
+its layout and focus; a tap on the timeline, even with that sheet open, opens
+the drawer as usual. At large text on a phone held sideways, half never takes
+less than 9rem of the slot, so the header, Collapse and Close stay on screen
+(half and full then share a height). The strip leaves the timeline undimmed;
+half and full dim it. The drawer's scroll keeps a focused control clear of its
+pinned header in Chromium and WebKit. The
 timeline scrolls the selection above the strip or sheet, and any timeline drag
 stows it until release. A phone held sideways (tablet shell, at most 40rem
 tall) gets the same compact inspector in place of the bottom tabs. Its name,
