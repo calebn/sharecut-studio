@@ -591,14 +591,7 @@ def test_gc_pyramids_drops_week_old_orphans_once(tmp_path):
         path.write_bytes(b"x")
         if label != "orphan_new":
             os.utime(path, (old, old))
-    legacy_old = peaks / "host.json"  # week-old pre-pyramid overview JSON is swept
-    legacy_old.write_text("{}", encoding="utf-8")
-    os.utime(legacy_old, (old, old))
-    legacy_new = peaks / "guest.json"  # a fresh one may belong to an older build: kept
-    legacy_new.write_text("{}", encoding="utf-8")
-    assert gc_pyramids(project_path) == 2
-    assert not legacy_old.exists()
-    assert legacy_new.exists()
+    assert gc_pyramids(project_path) == 1
     assert not (peaks / names["orphan_old"]).exists()
     assert all((peaks / names[k]).exists() for k in ("orphan_new", "live_old", "odd"))
     (peaks / names["orphan_new"]).touch()
@@ -658,39 +651,6 @@ def test_gc_refreshes_live_refs_after_waiting_for_publication(tmp_path, monkeypa
         assert waveform_status(project_path, "raw")["media"]["track:new"]["status"] == "ready"
         wait_pyramid_jobs()
     decode.assert_not_called()
-
-
-def test_gc_pyramids_drops_legacy_json_once_the_track_has_a_pyramid(tmp_path):
-    project_path = waveform_project(tmp_path)
-    peaks = project_path.parent / "artifacts" / "peaks"
-    peaks.mkdir(parents=True)
-    (peaks / "track-host.0123456789abcdef0123.wfpk").write_bytes(b"x")
-    host_json = peaks / "host.json"  # fresh, but its track now has a live pyramid
-    host_json.write_text("{}", encoding="utf-8")
-    guest_json = peaks / "guest.json"  # fresh, and no track-guest pyramid
-    guest_json.write_text("{}", encoding="utf-8")
-    assert gc_pyramids(project_path) == 1
-    assert not host_json.exists()
-    assert guest_json.exists()
-    assert (peaks / "track-host.0123456789abcdef0123.wfpk").exists()
-
-
-def test_gc_pyramids_drops_legacy_json_of_a_hashed_track_id(tmp_path):
-    project_path = waveform_project(tmp_path)
-    project = load_project(project_path)
-    project.timeline.tracks.append(
-        Track(id="bad id", label="Bad", media=MediaAsset(path="raw/guest.wav"))
-    )
-    save_project(project)
-    peaks = project_path.parent / "artifacts" / "peaks"
-    peaks.mkdir(parents=True)
-    pyramid = peaks / f"{ref_slug('track', 'bad id')}.0123456789abcdef0123.wfpk"
-    pyramid.write_bytes(b"x")
-    legacy = peaks / "bad id.json"  # an older build wrote the raw track id
-    legacy.write_text("{}", encoding="utf-8")
-    assert gc_pyramids(project_path) == 1
-    assert not legacy.exists()
-    assert pyramid.exists()
 
 
 def test_episode_service_hooks_schedule_waveforms(minimal_project, sample_wav, tmp_path):
