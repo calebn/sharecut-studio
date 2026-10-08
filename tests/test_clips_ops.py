@@ -11,7 +11,8 @@ from podcast_mcp.edits.clips_ops import (
     remove_timeline_range_from_clips,
     split_clip_at,
 )
-from podcast_mcp.models import Clip, EpisodeProject
+from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim
+from podcast_mcp.models import Clip, EditMode, EpisodeProject, MediaAsset, Track, TrackRole
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -41,6 +42,45 @@ def test_remove_timeline_range() -> None:
     assert out[0].source_end == 2.0
     assert out[1].timeline_start == 2.0
     assert out[1].source_start == 7.0
+
+
+def test_ripple_trim_removal_at_peer_clip_start_does_not_split() -> None:
+    project = EpisodeProject.create("ripple", "/tmp/ripple")
+    project.tracks = [
+        Track(
+            id=track_id,
+            label=track_id,
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path=f"raw/{track_id}.wav", duration_sec=600),
+        )
+        for track_id in ("t0", "t1")
+    ]
+    project.clips = [
+        Clip(
+            id="t0_c0",
+            track_id="t0",
+            timeline_start=14.739,
+            source_start=23.8572,
+            source_end=31.3051,
+        ),
+        Clip(
+            id="t1_c0",
+            track_id="t1",
+            timeline_start=22.1864,
+            source_start=2.0851,
+            source_end=13.3539,
+        ),
+    ]
+
+    plan = plan_trim(project, "t0_c0", "out", 31.3046, EditMode.RIPPLE)
+    apply_trim_geometry(project, plan)
+
+    peer_clips = [clip for clip in project.clips if clip.track_id == "t1"]
+    assert len(peer_clips) == 1
+    peer = peer_clips[0]
+    assert peer.timeline_start == pytest.approx(22.1864, abs=1e-9)
+    assert peer.source_start == pytest.approx(2.0856, abs=1e-9)
+    assert peer.source_end == 13.3539
 
 
 def test_clips_for_track_is_canonically_sorted() -> None:
