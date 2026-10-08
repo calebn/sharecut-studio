@@ -25,9 +25,11 @@ import {
   beginHostSend,
   HOST_SEND_WAIT_MS,
   type HostSend,
+  noteSaveLanded,
 } from "../state/hostSendOrder";
 import type { QueuedCommand } from "../state/offlineStore";
 import { requestHostDrainLazy } from "../state/requestDrainLazy";
+import { parseHistoryEntryId } from "../types/project";
 import { isRetryLater } from "../utils/apiError";
 import {
   documentClientId,
@@ -82,6 +84,8 @@ export async function submitQueuedDocumentCommand(
       ...opts,
       command_id: commandId,
     });
+    const head = parseHistoryEntryId(result.history_head_id);
+    if (head) noteSaveLanded(projectPath, head);
     if (active && isCurrentDocumentScope(scope) && result.queued !== true) {
       finishDocumentDraft(commandId);
       refreshDocumentDisplay();

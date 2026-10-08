@@ -17,6 +17,7 @@ import {
   shareTokenFromKey,
 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
+import { trackEditSave } from "../state/hostSendOrder";
 import {
   type OfflineConflict,
   removeConflictsWhere,
@@ -404,7 +405,19 @@ export async function trimClipEdge(
 }
 
 /** A gap trim has its own limits, so it needs a token minted for gap mode. */
-async function trimClipEdgeLeavingGap(
+function trimClipEdgeLeavingGap(
+  projectPath: string,
+  clipId: string,
+  edge: TrimEdge,
+  sourceSec: number,
+): Promise<RippleOutcome> {
+  return trackEditSave(
+    projectPath,
+    sendTrimClipEdgeLeavingGap(projectPath, clipId, edge, sourceSec),
+  );
+}
+
+async function sendTrimClipEdgeLeavingGap(
   projectPath: string,
   clipId: string,
   edge: TrimEdge,

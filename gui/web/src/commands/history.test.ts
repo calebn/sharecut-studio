@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { redoHistory, undoHistory } from "../api";
 import { useDawStore } from "../state/dawStore";
+import {
+  beginHostSend,
+  HOST_SEND_WAIT_MS,
+  noteSaveLanded,
+  trackEditSave,
+} from "../state/hostSendOrder";
 import { minimalProject } from "../test/fixtures";
 import type { HistoryEntryId } from "../types/project";
 import { ApiError } from "../utils/apiError";
@@ -228,6 +234,88 @@ describe("history.undo / history.redo (Mod+Z, Mod+Shift+Z)", () => {
       expect(vi.mocked(undoHistory).mock.calls[1]?.[1]).toEqual({
         expectedHeadId: "toast-entry",
       });
+    });
+  });
+
+  describe("behind this tab's edit saves", () => {
+    const head = (id: string) => id as HistoryEntryId;
+    const flushTurns = async () => {
+      for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    };
+
+    it("waits for a save still loading its boundary token, then expects the head it left", async () => {
+      let finishSave!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        finishSave = resolve;
+      });
+      void trackEditSave(
+        "/tmp/ep",
+        gate.then(() => noteSaveLanded("/tmp/ep", head("after-trim"))),
+      );
+      vi.mocked(undoHistory).mockResolvedValueOnce(head("before-trim"));
+
+      const undo = execute("history.undo");
+      await flushTurns();
+      expect(undoHistory).not.toHaveBeenCalled();
+
+      finishSave();
+      expect(await undo).toEqual({ status: "ok" });
+      expect(vi.mocked(undoHistory).mock.calls).toEqual([
+        ["/tmp/ep", { expectedHeadId: "after-trim" }],
+      ]);
+    });
+
+    it("waits for a live send that has gone out and expects the head its reply left", async () => {
+      const send = beginHostSend("/tmp/ep", "trim-1");
+      const undo = execute("history.redo");
+      await flushTurns();
+      expect(redoHistory).not.toHaveBeenCalled();
+
+      noteSaveLanded("/tmp/ep", head("after-send"));
+      send.finish();
+      await undo;
+      expect(vi.mocked(redoHistory).mock.calls).toEqual([
+        ["/tmp/ep", { expectedHeadId: "after-send" }],
+      ]);
+    });
+
+    it("does not wait for a save that begins after the press", async () => {
+      const undo = execute("history.undo");
+      const later = beginHostSend("/tmp/ep", "nudge-2");
+      await undo;
+      later.finish();
+      expect(vi.mocked(undoHistory).mock.calls).toEqual([
+        ["/tmp/ep", { expectedHeadId: "seen-by-tab" }],
+      ]);
+    });
+
+    it("keeps a toast's own entry over the head a save left", async () => {
+      void trackEditSave(
+        "/tmp/ep",
+        Promise.resolve().then(() => noteSaveLanded("/tmp/ep", head("saved"))),
+      );
+      await execute("history.undo", { expectedHeadId: "toast-entry" });
+      expect(vi.mocked(undoHistory).mock.calls).toEqual([
+        ["/tmp/ep", { expectedHeadId: "toast-entry" }],
+      ]);
+    });
+
+    it("gives up on a stalled save after the host send wait and lets the server judge the head", async () => {
+      vi.useFakeTimers();
+      try {
+        const stalled = beginHostSend("/tmp/ep", "stalled");
+        const undo = execute("history.undo");
+        await vi.advanceTimersByTimeAsync(HOST_SEND_WAIT_MS - 1);
+        expect(undoHistory).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+        await undo;
+        stalled.finish();
+        expect(vi.mocked(undoHistory).mock.calls).toEqual([
+          ["/tmp/ep", { expectedHeadId: "seen-by-tab" }],
+        ]);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

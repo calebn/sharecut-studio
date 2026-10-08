@@ -78,6 +78,50 @@ describe("host document command queue", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  describe("the history head a command's reply left", () => {
+    const path = "/tmp/episode.project.json";
+
+    it("is recorded for a landed command, so an Undo behind it expects it", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response(JSON.stringify({ ok: true, history_head_id: "h-7" }), {
+              status: 200,
+            }),
+        ),
+      );
+      const { submitDocumentCommand } = await import("./api");
+      const { headLandedSince, savesLandedMark } = await import(
+        "./state/hostSendOrder"
+      );
+      const mark = savesLandedMark(path);
+      await submitDocumentCommand(path, "TrimClipEdge", {});
+      expect(headLandedSince(path, mark)).toBe("h-7");
+    });
+
+    it("is not recorded for a command that only queued", async () => {
+      enqueueHostCommand.mockResolvedValue({
+        persisted: true,
+        hadPredecessor: false,
+      });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          throw new TypeError("offline");
+        }),
+      );
+      const { submitDocumentCommand } = await import("./api");
+      const { headLandedSince, savesLandedMark } = await import(
+        "./state/hostSendOrder"
+      );
+      const mark = savesLandedMark(path);
+      const result = await submitDocumentCommand(path, "TrimClipEdge", {});
+      expect(result).toMatchObject({ queued: true });
+      expect(headLandedSince(path, mark)).toBeNull();
+    });
+  });
+
   describe("live sends behind this tab's in-flight send", () => {
     const path = "/tmp/episode.project.json";
     const refine409 = () =>
