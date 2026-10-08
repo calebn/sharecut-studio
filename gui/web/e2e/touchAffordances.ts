@@ -166,7 +166,13 @@ export async function exerciseTouchSheetAffordances(
   if (viewport.textScale) {
     const titleBox = before.titleBox;
     if (titleBox === null) throw new Error("The scaled sheet title is missing");
-    expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(resizeBox.x + 1);
+    // Beside the resize action, or wrapped above it when they cannot share a row.
+    const clearOfResize =
+      titleBox.x + titleBox.width <= resizeBox.x + 1 ||
+      titleBox.y + titleBox.height <= resizeBox.y + 1;
+    expect({ clearOfResize, titleBox, resizeBox }).toMatchObject({
+      clearOfResize: true,
+    });
     const titleOverflow = await sheet
       .locator(".bottom-sheet-title")
       .evaluate((element) => ({
