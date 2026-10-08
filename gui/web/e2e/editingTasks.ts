@@ -7,6 +7,7 @@ import {
   type Locator,
   type Page,
   type Request,
+  type Response,
   type TestInfo,
 } from "@playwright/test";
 import { niceTimeStep } from "../src/utils/time";
@@ -37,15 +38,62 @@ const clip = {
   join_in_mode: "fade",
   mute_regions: [],
 };
+const trackInvariants = {
+  label: "reference",
+  speaker: "reference",
+  room_tone: null,
+  gate_fill: null,
+  balance_basis: null,
+  transcript_gate: false,
+  transcript_gate_scope: null,
+  proxy: null,
+  timeline_empty: false,
+};
 const base: DurableState = {
+  duration_sec: 20,
+  stable: {
+    chapters: [],
+    speaker_splits: [],
+    retained_bleed_alignments: [],
+    processing_chains: [],
+    social: { clip_candidates: [] },
+    review_versions: [],
+    active_version_id: null,
+  },
   clips: [
     { ...clip, id: "first-copy" },
     { ...clip, id: "second-copy", timeline_start: 10 },
     { ...clip, id: "peer", track_id: "guest", source_end: 20 },
   ],
   tracks: [
-    { id: "reference", fader_db: 0, gain_db: 0, muted: false },
-    { id: "guest", fader_db: 0, gain_db: 0, muted: false },
+    {
+      id: "reference",
+      fader_db: 0,
+      gain_db: 0,
+      muted: false,
+      role: "dialogue",
+      media: {
+        path: "raw/reference.wav",
+        duration_sec: 60,
+        sample_rate: 48000,
+        channels: 1,
+      },
+      invariants: trackInvariants,
+    },
+    {
+      id: "guest",
+      fader_db: 0,
+      gain_db: 0,
+      muted: false,
+      role: "dialogue",
+      media: {
+        path: "raw/guest.wav",
+        duration_sec: 60,
+        sample_rate: 48000,
+        channels: 1,
+      },
+      invariants: { ...trackInvariants, label: "guest", speaker: "guest" },
+    },
   ],
   envelopes: [],
   comments: [],
@@ -109,6 +157,11 @@ export const editingTaskRegistry: TaskDefinition[] = [
   },
   {
     id: "range-cut",
+    historyLabels: {
+      before: "before selected range",
+      after: "after selected range",
+    },
+    historyOperation: "edit_selected_range",
     family: "range-cut",
     viewport: desktop,
     start: base,
@@ -141,12 +194,18 @@ export const editingTaskRegistry: TaskDefinition[] = [
   },
   {
     id: "trim",
+    historyLabels: {
+      before: "before trim clip edge",
+      after: "after trim clip edge",
+    },
+    historyOperation: "trim_clip_edge",
     family: "trim-fade",
     editMode: "ripple",
     viewport: desktop,
     start: base,
     expected: {
       ...base,
+      duration_sec: 19.7,
       clips: [
         { ...base.clips[0], source_start: 0.3 },
         { ...base.clips[1], timeline_start: 9.7 },
@@ -154,6 +213,7 @@ export const editingTaskRegistry: TaskDefinition[] = [
       ],
     },
     tolerances: {
+      "after.duration_sec": 0.03,
       "after.clips.first-copy.source_start": 0.03,
       "after.clips.second-copy.timeline_start": 0.03,
       "after.clips.peer.source_start": 0.03,
@@ -169,18 +229,23 @@ export const editingTaskRegistry: TaskDefinition[] = [
   },
   {
     id: "fade",
+    historyLabels: {
+      before: "before set clip fade",
+      after: "after set clip fade",
+    },
+    historyOperation: "set_clip_fade",
     family: "trim-fade",
     viewport: desktop,
     start: base,
     expected: {
       ...base,
       clips: [
-        { ...base.clips[0], fade_in_ms: 100 },
+        { ...base.clips[0], fade_in_ms: 40 },
         base.clips[1],
         base.clips[2],
       ],
     },
-    tolerances: { "after.clips.first-copy.fade_in_ms": 20 },
+    tolerances: { "after.clips.first-copy.fade_in_ms": 1 },
     routes: [
       route("corner-pointer", "pointer", "SetClipFade", true),
       route("inspector-slider", "keyboard", "SetClipFade", true),
@@ -188,6 +253,11 @@ export const editingTaskRegistry: TaskDefinition[] = [
   },
   {
     id: "envelope",
+    historyLabels: {
+      before: "before set envelope",
+      after: "after set envelope reference",
+    },
+    historyOperation: null,
     family: "envelope",
     viewport: desktop,
     start: envelopeStart,
@@ -211,10 +281,16 @@ export const editingTaskRegistry: TaskDefinition[] = [
     routes: [
       route("point-pointer", "pointer", "SetEnvelope", true),
       route("point-form", "numeric", "SetEnvelope", true),
+      route("point-form-tab-header", "numeric", "SetEnvelope", true),
     ],
   },
   {
     id: "reorder",
+    historyLabels: {
+      before: "before reorder track guest",
+      after: "after reorder track guest",
+    },
+    historyOperation: "reorder_track",
     family: "reorder",
     viewport: desktop,
     start: base,
@@ -223,10 +299,16 @@ export const editingTaskRegistry: TaskDefinition[] = [
     routes: [
       route("html-drag", "pointer", "ReorderTrack", true),
       route("move-up", "pointer", "ReorderTrack"),
+      route("move-up-tab-header", "pointer", "ReorderTrack"),
     ],
   },
   {
     id: "mix",
+    historyLabels: {
+      before: "before set track volume reference",
+      after: "after set track volume reference",
+    },
+    historyOperation: "set_track_volume",
     family: "mix",
     viewport: phone,
     start: base,
@@ -308,6 +390,7 @@ function fields(input: unknown, keys: string[]): Record<string, Json> {
 export function readEditingState(
   projectPath: string,
   normalizeCut = false,
+  identities: Record<string, string> = {},
 ): DurableState {
   const saved = object(JSON.parse(fs.readFileSync(projectPath, "utf8")));
   const timeline = object(saved.timeline);
@@ -325,15 +408,72 @@ export function readEditingState(
       "mute_regions",
     ]),
   );
-  if (normalizeCut)
-    for (const row of clips)
-      if (row.track_id === "reference" && row.id !== "first-copy")
-        row.id = row.source_start === 0 ? "cut-left" : "cut-right";
+  if (new Set(clips.map((row) => row.id)).size !== clips.length)
+    throw new Error("Raw saved clip IDs are not unique");
+  for (const row of clips) {
+    if (typeof row.id !== "string") throw new Error("Invalid raw clip ID");
+    const raw = row.id;
+    if (
+      normalizeCut &&
+      row.track_id === "reference" &&
+      row.id !== "first-copy" &&
+      row.id !== "second-copy"
+    ) {
+      if (
+        row.source_start === 0 &&
+        row.source_end === 1 &&
+        row.timeline_start === 10
+      )
+        row.id = "cut-left";
+      else if (
+        row.source_start === 2 &&
+        row.source_end === 5 &&
+        row.timeline_start === 12
+      )
+        row.id = "cut-right";
+    }
+    identities[raw] = row.id;
+  }
   return parseDurableState({
+    duration_sec: json(timeline.duration_sec),
+    stable: {
+      ...fields(saved.editorial, [
+        "chapters",
+        "speaker_splits",
+        "retained_bleed_alignments",
+      ]),
+      ...fields(saved.mix, ["processing_chains"]),
+      social: json(saved.social),
+      review_versions: json(object(saved.review).versions),
+      active_version_id: json(object(saved.review).active_version_id),
+    },
     clips,
-    tracks: array(timeline.tracks).map((row) =>
-      fields(row, ["id", "fader_db", "gain_db", "muted"]),
-    ),
+    tracks: array(timeline.tracks).map((row) => ({
+      ...fields(row, ["id", "fader_db", "gain_db", "muted", "role"]),
+      media: json({
+        ...object(object(row).media),
+        path: path
+          .relative(
+            path.dirname(projectPath),
+            path.resolve(
+              path.dirname(projectPath),
+              String(object(object(row).media).path),
+            ),
+          )
+          .split(path.sep)
+          .join("/"),
+      }),
+      invariants: json(
+        Object.fromEntries(
+          Object.entries(object(row)).filter(
+            ([key]) =>
+              !["id", "fader_db", "gain_db", "muted", "role", "media"].includes(
+                key,
+              ),
+          ),
+        ),
+      ),
+    })),
     envelopes: array(object(saved.mix).automation_envelopes).map(json),
     comments: array(object(saved.review).comments).map((row) =>
       fields(row, [
@@ -347,6 +487,190 @@ export function readEditingState(
       ]),
     ),
   });
+}
+export async function editingResponseOutcome(
+  response: Response,
+  request: { id: number; phase: Phase; kind: "command" | "read" },
+) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const body = await Promise.race([
+      response.text(),
+      new Promise<string>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Editing response body drain timed out")),
+          5000,
+        );
+      }),
+    ]);
+    return {
+      phase: request.phase,
+      kind:
+        request.kind === "read"
+          ? ("read-response" as const)
+          : ("response" as const),
+      requestId: request.id,
+      status: response.status(),
+      body,
+    };
+  } catch (error) {
+    return request.kind === "read"
+      ? {
+          phase: request.phase,
+          kind: "read-body-failed" as const,
+          requestId: request.id,
+          status: response.status(),
+          error: String(error),
+        }
+      : {
+          phase: request.phase,
+          kind: "error" as const,
+          message: `response ${request.id}: ${String(error)}`,
+        };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+export async function navigateEditingTimeline(
+  active: Page,
+  activate: (control: Locator, label: string) => Promise<unknown>,
+) {
+  if (!(await active.locator(".timeline-scroll").isVisible()))
+    await activate(
+      active
+        .getByRole("navigation", { name: "Primary" })
+        .getByRole("button", { name: "Timeline", exact: true }),
+      "Primary Timeline",
+    );
+  await active.locator(".timeline-scroll").waitFor({ state: "visible" });
+}
+export async function tabToEditingControl(
+  control: Locator,
+  press: (key: string) => Promise<unknown>,
+) {
+  for (
+    let index = 0;
+    index < 80 &&
+    !(await control.evaluate((element) => document.activeElement === element));
+    index++
+  )
+    await press("Tab");
+  if (
+    !(await control.evaluate((element) => document.activeElement === element))
+  )
+    throw new Error("Track header not reached by Tab");
+  await press("Enter");
+}
+export function retainEditingMedia(
+  workspaceDir: string,
+  projectPath: string,
+  evidenceDir: string,
+  replay: Record<
+    string,
+    { relativePath: string; retainedPath: string; sha256: string }
+  >,
+) {
+  const saved = object(JSON.parse(fs.readFileSync(projectPath, "utf8")));
+  const declared = new Set(
+    array(object(saved.timeline).tracks).map((row) =>
+      String(object(object(row).media).path),
+    ),
+  );
+  const rawDir = path.join(workspaceDir, "raw");
+  const census = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) census(full);
+      else if (/\.(wav|mp3|flac|m4a|ogg|aac)$/i.test(entry.name))
+        declared.add(
+          path.relative(workspaceDir, full).split(path.sep).join("/"),
+        );
+    }
+  };
+  if (fs.existsSync(rawDir)) census(rawDir);
+  const files = new Set(Object.values(replay).map((row) => row.relativePath));
+  const failures: string[] = [];
+  const media: Record<
+    string,
+    { copiedPath: string; retainedPath: string; sha256: string }
+  > = {};
+  const entries = [
+    ...Object.entries(replay),
+    ...Array.from(declared)
+      .filter((file) => !files.has(file))
+      .map(
+        (file) =>
+          [file, { relativePath: file, retainedPath: "", sha256: "" }] as const,
+      ),
+  ];
+  for (const [id, receipt] of entries) {
+    const copiedPath = path.resolve(workspaceDir, receipt.relativePath);
+    try {
+      const bytes = fs.readFileSync(copiedPath);
+      const sha256 = createHash("sha256").update(bytes).digest("hex");
+      let retainedPath = receipt.retainedPath;
+      if (
+        !declared.has(receipt.relativePath) ||
+        sha256 !== receipt.sha256 ||
+        !retainedPath ||
+        !fs.existsSync(retainedPath) ||
+        createHash("sha256")
+          .update(fs.readFileSync(retainedPath))
+          .digest("hex") !== sha256
+      ) {
+        retainedPath = path.join(
+          evidenceDir,
+          `unique-media-${path.basename(workspaceDir)}-${sha256}.wav`,
+        );
+        fs.writeFileSync(retainedPath, bytes);
+        fs.writeFileSync(
+          `${retainedPath}.json`,
+          JSON.stringify(
+            { copiedPath, retainedPath, sha256, expected: receipt },
+            null,
+            2,
+          ),
+        );
+        failures.push(`Replay media differs for ${id}`);
+      }
+      media[id] = { copiedPath, retainedPath, sha256 };
+    } catch (error) {
+      failures.push(`Media ${id}: ${String(error)}`);
+    }
+  }
+  fs.writeFileSync(
+    path.join(evidenceDir, `media-map-${path.basename(workspaceDir)}.json`),
+    JSON.stringify({ projectPath, media, failures }, null, 2),
+  );
+  if (failures.length) throw new Error(failures.join("; "));
+  return media;
+}
+export function verifyEditingDistribution(
+  dist: string,
+  assets: Record<string, string>,
+) {
+  const actual: Record<string, string> = {};
+  const visit = (directory: string) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) visit(file);
+      else
+        actual[path.relative(dist, file).split(path.sep).join("/")] =
+          createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+    }
+  };
+  visit(dist);
+  if (
+    !assets ||
+    !Object.keys(assets).length ||
+    !assets["index.html"] ||
+    JSON.stringify(Object.keys(actual).sort()) !==
+      JSON.stringify(Object.keys(assets).sort())
+  )
+    throw new Error("Dist asset inventory differs");
+  for (const [file, sha256] of Object.entries(actual))
+    if (assets[file] !== sha256) throw new Error(`Dist asset mismatch ${file}`);
+  return actual;
 }
 export function createEditingFixture(
   task: TaskDefinition,
@@ -366,47 +690,11 @@ export function createEditingFixture(
     string,
     { relativePath: string; retainedPath: string; sha256: string }
   >;
-  const media = Object.fromEntries(
-    Object.entries(replay).map(([id, receipt]) => {
-      const copiedPath = path.join(fixture.workspaceDir, receipt.relativePath);
-      const sha256 = createHash("sha256")
-        .update(fs.readFileSync(copiedPath))
-        .digest("hex");
-      if (
-        sha256 !== receipt.sha256 ||
-        createHash("sha256")
-          .update(fs.readFileSync(receipt.retainedPath))
-          .digest("hex") !== sha256
-      ) {
-        const retainedUnique = path.join(
-          evidenceDir,
-          `unique-media-${path.basename(fixture.workspaceDir)}-${id}.wav`,
-        );
-        fs.copyFileSync(copiedPath, retainedUnique);
-        fs.writeFileSync(
-          `${retainedUnique}.json`,
-          JSON.stringify(
-            {
-              copiedPath,
-              retainedPath: retainedUnique,
-              sha256,
-              expected: receipt,
-            },
-            null,
-            2,
-          ),
-        );
-        throw new Error(`Replay media differs for ${id}`);
-      }
-      return [id, { copiedPath, retainedPath: receipt.retainedPath, sha256 }];
-    }),
-  );
-  fs.writeFileSync(
-    path.join(
-      evidenceDir,
-      `media-map-${path.basename(fixture.workspaceDir)}.json`,
-    ),
-    JSON.stringify({ projectPath: fixture.projectPath, media }, null, 2),
+  retainEditingMedia(
+    fixture.workspaceDir,
+    fixture.projectPath,
+    evidenceDir,
+    replay,
   );
   const saved = object(
     JSON.parse(fs.readFileSync(fixture.projectPath, "utf8")),
@@ -419,7 +707,10 @@ export function createEditingFixture(
   for (const track of array(timeline.tracks))
     Object.assign(
       object(track),
-      task.start.tracks.find((row) => row.id === object(track).id),
+      fields(
+        task.start.tracks.find((row) => row.id === object(track).id),
+        ["id", "fader_db", "gain_db", "muted"],
+      ),
     );
   object(saved.mix).automation_envelopes = task.start.envelopes;
   object(saved.review).comments = task.start.comments.map((row) => ({
@@ -528,8 +819,13 @@ export async function runEditingTask(
   const responses: Promise<void>[] = [];
   const pending = new Map<Page, Set<Request>>();
   const flush = async (active: Page) => {
-    await active.waitForLoadState("networkidle");
-    await expect.poll(() => pending.get(active)?.size ?? 0).toBe(0);
+    await active.waitForLoadState("networkidle", { timeout: 5000 });
+    await expect
+      .poll(() => pending.get(active)?.size ?? 0, {
+        timeout: 5000,
+        message: "Pending editing requests did not reach terminal outcomes",
+      })
+      .toBe(0);
     await Promise.all(responses);
   };
   const observe = (observedPage: Page) => {
@@ -607,25 +903,10 @@ export async function runEditingTask(
       const request = requests.get(response.request());
       if (!request) return;
       responses.push(
-        response
-          .text()
-          .then((body) => {
-            trial.journal.push({
-              seq: ++sequence,
-              phase: request.phase,
-              kind: request.kind === "read" ? "read-response" : "response",
-              requestId: request.id,
-              status: response.status(),
-              body,
-            });
-            retain();
-          })
-          .catch((error) =>
-            append({
-              kind: "error",
-              message: `response ${request.id}: ${String(error)}`,
-            }),
-          ),
+        editingResponseOutcome(response, request).then((outcome) => {
+          trial.journal.push({ ...outcome, seq: ++sequence });
+          retain();
+        }),
       );
     });
     observedPage.on("requestfailed", (request) => {
@@ -725,12 +1006,23 @@ export async function runEditingTask(
     await active.evaluate(() => {
       document.documentElement.dataset.theme = "light";
     });
+    await navigateEditingTimeline(active, click);
+    await captureUi(active, "timeline-ready");
     await act("click", "prepare timeline focus", () =>
       active.locator(".timeline-scroll").click({ position: { x: 2, y: 2 } }),
     );
     await act("key", "prepare fixed zoom one step", () =>
       active.keyboard.press("="),
     );
+  };
+  const openTrack = async (active: Page, label: string) => {
+    const control = active.getByRole("button", {
+      name: `Open track details, ${label}`,
+      exact: true,
+    });
+    if (routeId.endsWith("-tab-header")) {
+      await tabToEditingControl(control, (value) => key(active, value));
+    } else await click(control, `${label} details`);
   };
   const perform = async (
     active: Page,
@@ -850,7 +1142,7 @@ export async function runEditingTask(
           await expect(handle).toBeVisible();
           await captureUi(active, "cancel-handle-tab-focus");
         }
-        await drag(active, handle, scale * (fade ? 0.1 : 0.3), 0, cancel);
+        await drag(active, handle, scale * (fade ? 0.04 : 0.3), 0, cancel);
       } else if (routeId === "handle-keyboard") {
         await focus(handle, "trim In handle");
         await act("key-burst", "30 ArrowRight trim nudges", async () => {
@@ -865,8 +1157,8 @@ export async function runEditingTask(
           exact: true,
         });
         await focus(slider, "Fade in ms");
-        await act("key-burst", "100ms native fade preview", async () => {
-          for (let index = 0; index < 100; index++)
+        await act("key-burst", "40ms native fade preview", async () => {
+          for (let index = 0; index < 40; index++)
             await active.keyboard.down("ArrowRight");
           if (cancel) await active.keyboard.press("Escape");
           await active.keyboard.up("ArrowRight");
@@ -890,13 +1182,7 @@ export async function runEditingTask(
           cancel,
         );
       } else {
-        await click(
-          active.getByRole("button", {
-            name: "Open track details, reference",
-            exact: true,
-          }),
-          "reference details",
-        );
+        await openTrack(active, "reference");
         await click(
           active.getByRole("button", {
             name: "Edit volume envelope",
@@ -937,14 +1223,8 @@ export async function runEditingTask(
       return;
     }
     if (task.id === "reorder") {
-      if (routeId === "move-up") {
-        await click(
-          active.getByRole("button", {
-            name: "Open track details, guest",
-            exact: true,
-          }),
-          "guest details",
-        );
+      if (routeId === "move-up" || routeId === "move-up-tab-header") {
+        await openTrack(active, "guest");
         await click(
           active.getByRole("button", { name: "Move track up", exact: true }),
           "Move track up",
@@ -1103,7 +1383,14 @@ export async function runEditingTask(
       }
     }
   };
-  const fixture = createEditingFixture(task, output);
+  let fixture: ReturnType<typeof createEditingFixture>;
+  try {
+    fixture = createEditingFixture(task, output);
+  } catch (error) {
+    trial.errors!.push(`fixture: ${String(error)}`);
+    retain();
+    throw error;
+  }
   trial.fixture = {
     projectPath: fixture.projectPath,
     savedHash: createHash("sha256")
@@ -1337,7 +1624,7 @@ export async function runEditingTask(
       });
     else await measureAction();
     trial.durationMs = profiler.report.samples[0]?.driverWallMs;
-    await Promise.all(responses);
+    await flush(page);
     trial.history!.after = history();
     fs.copyFileSync(
       fixture.projectPath,
@@ -1385,6 +1672,7 @@ export async function runEditingTask(
       await expect
         .poll(() => readEditingState(fixture.projectPath))
         .toEqual(task.start);
+      await flush(page);
       trial.undone = readEditingState(fixture.projectPath);
       trial.history!.undone = history();
       fs.copyFileSync(
@@ -1404,16 +1692,36 @@ export async function runEditingTask(
       .screenshot({ path: path.join(output, "failed.png"), fullPage: true })
       .catch(() => {});
     trial.artifacts!.push("failed.png");
-    trial.after ??= readEditingState(
-      fixture.projectPath,
-      task.id === "range-cut",
-    );
+    try {
+      trial.after ??= readEditingState(
+        fixture.projectPath,
+        task.id === "range-cut",
+      );
+    } catch (error) {
+      trial.errors!.push(`saved state: ${String(error)}`);
+    }
   } finally {
-    await Promise.all(responses);
+    await flush(page).catch((error) =>
+      trial.errors!.push(`main response drain: ${String(error)}`),
+    );
     await profiler.finish();
     trial.profiler = process.env.DAW_PROFILE_OUT
       ? path.join(process.env.DAW_PROFILE_OUT, "report.json")
       : info.outputPath("editor-profile", "report.json");
+    const identities: Record<string, string> = {};
+    try {
+      readEditingState(
+        fixture.projectPath,
+        task.id === "range-cut",
+        identities,
+      );
+    } catch (error) {
+      trial.errors!.push(`identity map: ${String(error)}`);
+    }
+    fs.writeFileSync(
+      path.join(output, "clip-identities.json"),
+      JSON.stringify(identities, null, 2),
+    );
     fs.copyFileSync(
       fixture.projectPath,
       path.join(output, "saved-project.json"),

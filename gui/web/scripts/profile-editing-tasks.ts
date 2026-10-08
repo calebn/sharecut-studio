@@ -9,7 +9,10 @@ import {
   type EditingTrial,
   summarizeEditingAttempts,
 } from "../e2e/editingTaskReport";
-import { editingTaskRegistry } from "../e2e/editingTasks";
+import {
+  editingTaskRegistry,
+  verifyEditingDistribution,
+} from "../e2e/editingTasks";
 import { acquireE2ePortLease } from "../e2e/port";
 import { runE2e } from "../e2e/runE2e";
 
@@ -42,11 +45,12 @@ if (values.task && !editingTaskRegistry.some((task) => task.id === values.task))
 const tasks = editingTaskRegistry.filter(
   (task) => !values.task || task.id === values.task,
 );
+const selectedRoutes = values.route?.split(",");
 if (
-  values.route &&
-  !tasks.some((task) =>
-    task.routes.some(
-      (route) => route.id === values.route && !("pending" in route),
+  selectedRoutes &&
+  !selectedRoutes.every((id) =>
+    tasks.some((task) =>
+      task.routes.some((route) => route.id === id && !("pending" in route)),
     ),
   )
 )
@@ -209,9 +213,7 @@ if (values["production-dist"]) {
     if (!sourceReceipt.productFiles[file])
       throw new Error(`Build source receipt omitted ${file}`);
   dist = path.resolve(values["production-dist"]);
-  for (const [file, expected] of Object.entries(receipt.assets))
-    if (hash(fs.readFileSync(path.join(dist, file))) !== expected)
-      throw new Error(`Dist asset mismatch ${file}`);
+  verifyEditingDistribution(dist, receipt.assets);
   build = receipt;
 } else {
   const env = { ...process.env };
@@ -257,7 +259,8 @@ const mode = values.diagnostic
 const schedule = tasks.flatMap((task) => {
   const routes = task.routes.filter(
     (route) =>
-      !("pending" in route) && (!values.route || route.id === values.route),
+      !("pending" in route) &&
+      (!selectedRoutes || selectedRoutes.includes(route.id)),
   );
   return Array.from({ length: Number(values.trials) }, (_, index) =>
     (index % 2 ? [...routes].reverse() : routes).map((route) => ({
@@ -268,7 +271,27 @@ const schedule = tasks.flatMap((task) => {
   ).flat();
 });
 const protocol = {
-  version: 3,
+  version: 4,
+  retainedPriorFailures: [
+    {
+      task: "envelope",
+      route: "point-form",
+      status: "fail",
+      cause:
+        "Pointer track-header center intercepted by track-meta before numeric input",
+      evidence:
+        "/workspace/poteto-workloads1035-evidence/all-routes-validity-2/envelope-point-form-1",
+    },
+    {
+      task: "reorder",
+      route: "move-up",
+      status: "fail",
+      cause:
+        "Pointer track-header center intercepted by track-meta before Move track up",
+      evidence:
+        "/workspace/poteto-workloads1035-evidence/all-routes-validity-2/reorder-move-up-1",
+    },
+  ],
   replayMedia,
   source,
   backend: { ...backend, sourceHash: backendSourceHash },
@@ -402,6 +425,7 @@ const routes = summarizeEditingAttempts(
   })),
 );
 const summary = {
+  retainedPriorFailures: protocol.retainedPriorFailures,
   selected: {
     tasks: tasks.map((task) => task.id),
     routes: [...new Set(schedule.map((row) => `${row.task}/${row.route}`))],

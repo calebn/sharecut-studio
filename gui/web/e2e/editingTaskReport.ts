@@ -6,6 +6,8 @@ export type Json =
   | Json[]
   | { [key: string]: Json };
 export type DurableState = {
+  duration_sec: number;
+  stable: Json;
   clips: {
     id: string;
     track_id: string;
@@ -18,7 +20,15 @@ export type DurableState = {
     join_in_mode: string;
     mute_regions: Json[];
   }[];
-  tracks: { id: string; fader_db: number; gain_db: number; muted: boolean }[];
+  tracks: {
+    id: string;
+    fader_db: number;
+    gain_db: number;
+    muted: boolean;
+    role: string;
+    media: Json;
+    invariants: Json;
+  }[];
   envelopes: {
     track_id: string;
     parameter: string;
@@ -47,6 +57,8 @@ export function parseDurableState(input: unknown): DurableState {
   const finite = (value: unknown) =>
     typeof value === "number" && Number.isFinite(value);
   const state = object(input);
+  if (!finite(state.duration_sec) || state.stable === undefined)
+    throw new Error("Invalid durable extent or stable remainder");
   for (const clip of rows(state.clips)) {
     if (
       !["id", "track_id", "join_in_mode"].every(
@@ -69,7 +81,10 @@ export function parseDurableState(input: unknown): DurableState {
       typeof track.id !== "string" ||
       !finite(track.fader_db) ||
       !finite(track.gain_db) ||
-      typeof track.muted !== "boolean"
+      typeof track.muted !== "boolean" ||
+      typeof track.role !== "string" ||
+      track.media === undefined ||
+      track.invariants === undefined
     )
       throw new Error("Invalid durable track mix");
   for (const envelope of rows(state.envelopes)) {
@@ -114,6 +129,12 @@ export type JournalEvent = { seq: number; phase: Phase } & (
   | { kind: "read-request"; requestId: number; url: string; method: string }
   | { kind: "read-response"; requestId: number; status: number; body: string }
   | { kind: "read-failed"; requestId: number; error: string }
+  | {
+      kind: "read-body-failed";
+      requestId: number;
+      status: number;
+      error: string;
+    }
   | { kind: "error"; message: string }
 );
 export type TaskRoute =
@@ -136,6 +157,8 @@ export type TaskDefinition = {
   tolerances: Record<string, number>;
   editMode?: "ripple";
   seek?: number;
+  historyOperation?: string | null;
+  historyLabels?: { before: string; after: string };
 };
 export type EditingTrial = {
   task: string;
@@ -261,6 +284,78 @@ export function savedStateDifferences(
     tolerances,
   );
 }
+export function parseEditingJournal(input: unknown): JournalEvent[] {
+  if (!Array.isArray(input)) throw new Error("Invalid retained journal");
+  const phases = ["setup", "action", "cancel", "undo"];
+  const kinds = [
+    "activation",
+    "request",
+    "response",
+    "read-request",
+    "read-response",
+    "read-failed",
+    "read-body-failed",
+    "error",
+  ];
+  for (const row of input) {
+    if (
+      !row ||
+      typeof row !== "object" ||
+      !Number.isSafeInteger(row.seq) ||
+      row.seq < 1 ||
+      !phases.includes(row.phase) ||
+      !kinds.includes(row.kind)
+    )
+      throw new Error("Invalid retained journal event");
+    if (
+      row.kind !== "activation" &&
+      row.kind !== "error" &&
+      (!Number.isSafeInteger(row.requestId) || row.requestId < 1)
+    )
+      throw new Error("Invalid retained request ID");
+    if (
+      ["response", "read-response", "read-body-failed"].includes(row.kind) &&
+      (!Number.isInteger(row.status) || row.status < 100 || row.status > 599)
+    )
+      throw new Error("Invalid retained HTTP status");
+    const strings =
+      row.kind === "activation"
+        ? ["label", "verb"]
+        : row.kind === "request"
+          ? ["type", "body"]
+          : row.kind === "read-request"
+            ? ["url", "method"]
+            : row.kind === "error"
+              ? ["message"]
+              : row.kind.endsWith("failed")
+                ? ["error"]
+                : ["body"];
+    if (
+      !strings.every((key) => typeof row[key] === "string") ||
+      (row.kind === "activation" &&
+        !["started", "completed", "failed"].includes(row.outcome))
+    )
+      throw new Error("Invalid retained journal payload");
+    if (row.kind === "read-request") new URL(row.url);
+  }
+  return input as JournalEvent[];
+}
+function documentStateBody(body: string): boolean {
+  try {
+    const value = JSON.parse(body);
+    return (
+      value !== null &&
+      typeof value === "object" &&
+      Number.isSafeInteger(value.server_seq) &&
+      value.server_seq >= 0 &&
+      (value.resync === true ||
+        (typeof value.state_token === "string" &&
+          /^[a-f0-9]{64}$/.test(value.state_token)))
+    );
+  } catch {
+    return false;
+  }
+}
 export function assessEditingTrial(
   definition: TaskDefinition,
   trial: EditingTrial,
@@ -283,6 +378,79 @@ export function assessEditingTrial(
         undo: route && "pending" in route ? "pending" : "not-run",
       },
     };
+  try {
+    parseEditingJournal(trial.journal);
+  } catch (error) {
+    return {
+      status: "fail",
+      reasons: [...reasons, String(error)],
+      activations,
+      mutations: 0,
+      accidentalCommands: 0,
+      completedWork: 0,
+      canceledReads: 0,
+      observations: {
+        save: "fail",
+        cancel: route.cancel ? "fail" : "not-applicable",
+        undo: route.undo === "none" ? "not-applicable" : "fail",
+      },
+    };
+  }
+  const requests = trial.journal.filter(
+    (row) => row.kind === "request" || row.kind === "read-request",
+  );
+  const admittedAborts = new Set<number>();
+  for (const request of requests) {
+    if (request.kind !== "request" && request.kind !== "read-request") continue;
+    if (
+      requests.filter(
+        (row) => "requestId" in row && row.requestId === request.requestId,
+      ).length !== 1
+    )
+      reasons.push(`duplicate request ${request.requestId}`);
+    if (request.kind === "read-request") {
+      const terminal = trial.journal.filter(
+        (row) =>
+          (row.kind === "read-response" || row.kind === "read-failed") &&
+          row.requestId === request.requestId,
+      );
+      if (terminal.length !== 1)
+        reasons.push(
+          `read ${request.requestId} has ${terminal.length} terminal outcomes`,
+        );
+    }
+  }
+  for (const outcome of trial.journal) {
+    if (
+      ![
+        "response",
+        "read-response",
+        "read-failed",
+        "read-body-failed",
+      ].includes(outcome.kind) ||
+      !("requestId" in outcome)
+    )
+      continue;
+    const request = requests.find(
+      (row) => "requestId" in row && row.requestId === outcome.requestId,
+    );
+    if (
+      !request ||
+      (outcome.kind === "response") !== (request.kind === "request")
+    )
+      reasons.push(`orphan outcome ${outcome.requestId}`);
+    else if (outcome.seq <= request.seq || outcome.phase !== request.phase)
+      reasons.push(`outcome ${outcome.requestId} order or phase differs`);
+    if (
+      outcome.kind === "read-response" &&
+      request?.kind === "read-request" &&
+      new URL(request.url).pathname === "/api/document/state" &&
+      outcome.status >= 200 &&
+      outcome.status < 300 &&
+      !documentStateBody(outcome.body)
+    )
+      reasons.push(`read ${outcome.requestId} has invalid document state`);
+  }
   let previous = 0;
   let mutations = 0;
   let accidentalCommands = 0;
@@ -343,31 +511,26 @@ export function assessEditingTrial(
                   response.status >= 300
                 )
                   return false;
-                try {
-                  const body = JSON.parse(response.body) as Record<
-                    string,
-                    unknown
-                  >;
-                  return (
-                    Number.isSafeInteger(body.server_seq) &&
-                    Number(body.server_seq) >= 0 &&
-                    typeof body.state_token === "string" &&
-                    /^[a-f0-9]{64}$/.test(body.state_token)
-                  );
-                } catch {
-                  return false;
-                }
+                return (
+                  documentStateBody(response.body) &&
+                  JSON.parse(response.body).resync !== true
+                );
               })
             );
           });
       }
-      if (replaced) canceledReads++;
-      else
+      if (replaced) {
+        canceledReads++;
+        admittedAborts.add(event.requestId);
+      } else
         reasons.push(
           `read ${event.requestId} failed ${event.error} without admitted replacement`,
         );
     }
-    if (event.kind === "read-response" && event.status >= 400)
+    if (
+      event.kind === "read-response" &&
+      (event.status < 200 || event.status >= 300)
+    )
       reasons.push(`read ${event.requestId} failed HTTP ${event.status}`);
     if (event.kind !== "request") continue;
     const responses = trial.journal.filter(
@@ -396,6 +559,10 @@ export function assessEditingTrial(
       (response.status < 200 || response.status >= 300)
     )
       reasons.push(`request ${event.requestId} failed ${response.status}`);
+    if (event.phase === "setup") {
+      accidentalCommands++;
+      reasons.push(`unexpected setup command ${event.type}`);
+    }
     if (event.phase === "cancel") {
       accidentalCommands++;
       reasons.push(`cancellation command ${event.type}`);
@@ -413,6 +580,35 @@ export function assessEditingTrial(
         mutations++;
     }
   }
+  for (const event of trial.journal)
+    if (event.kind === "read-body-failed") {
+      if (
+        !admittedAborts.has(event.requestId) ||
+        event.status < 200 ||
+        event.status >= 300 ||
+        !event.error.includes("Network.getResponseBody") ||
+        !event.error.includes(
+          "No data found for resource with given identifier",
+        ) ||
+        trial.journal.filter(
+          (row) =>
+            row.kind === "read-body-failed" &&
+            row.requestId === event.requestId,
+        ).length !== 1
+      )
+        reasons.push(`read body ${event.requestId} failed ${event.error}`);
+    }
+  for (const event of trial.journal)
+    if (
+      event.kind === "request" &&
+      event.phase === "undo" &&
+      (route.undo === "none" ||
+        event.type !==
+          (route.undo === "comment-toast" ? "ResolveComment" : "UndoHistory"))
+    ) {
+      accidentalCommands++;
+      reasons.push(`unexpected Undo command ${event.type}`);
+    }
   if (mutations !== route.mutations)
     reasons.push(
       `action expected ${route.mutations} mutations, observed ${mutations}`,
@@ -476,6 +672,96 @@ export function assessEditingTrial(
       reasons.push(
         `Undo expected ${route.mutations} ${expectedUndo} commands, observed ${undoRequests.length}`,
       );
+  }
+  const identities = trial.history;
+  const validHistory = (
+    value: HistoryIdentity | null | undefined,
+  ): value is HistoryIdentity =>
+    Boolean(
+      value &&
+        Array.isArray(value.entries) &&
+        value.entries.every(
+          (row) =>
+            row &&
+            typeof row.id === "string" &&
+            row.id.length > 0 &&
+            typeof row.label === "string" &&
+            (row.operation === null || typeof row.operation === "string"),
+        ) &&
+        Number.isSafeInteger(value.cursor) &&
+        value.cursor >= -1 &&
+        value.cursor < value.entries.length &&
+        new Set(value.entries.map((row) => row.id)).size ===
+          value.entries.length &&
+        value.headId ===
+          (value.cursor < 0 ? null : value.entries[value.cursor].id) &&
+        (value.cursor !== -1 || value.entries.length === 0),
+    );
+  if (
+    !identities ||
+    !validHistory(identities.before) ||
+    !validHistory(identities.after) ||
+    (route.undo !== "none" && !validHistory(identities.undone))
+  )
+    reasons.push("History evidence missing or invalid");
+  else {
+    const before = identities.before,
+      after = identities.after;
+    const baseline = before.cursor < 0 ? 0 : before.cursor;
+    if (route.undo === "history") {
+      const preserved = before.entries.slice(0, before.cursor + 1);
+      if (
+        after.cursor !== baseline + route.mutations ||
+        after.entries.length !== baseline + route.mutations + 1 ||
+        after.headId === before.headId ||
+        JSON.stringify(after.entries.slice(0, preserved.length)) !==
+          JSON.stringify(preserved) ||
+        after.entries
+          .slice(baseline + 1)
+          .some(
+            (row) =>
+              row.operation !== definition.historyOperation ||
+              (definition.historyLabels &&
+                row.label !== definition.historyLabels.after),
+          ) ||
+        (before.cursor < 0 &&
+          (after.entries[0]?.operation !== null ||
+            (definition.historyLabels &&
+              after.entries[0]?.label !== definition.historyLabels.before)))
+      )
+        reasons.push("History action transition differs");
+      const undone = identities.undone!;
+      if (
+        undone.cursor !== baseline ||
+        undone.headId !== after.entries[baseline]?.id ||
+        JSON.stringify(undone.entries) !== JSON.stringify(after.entries)
+      )
+        reasons.push("History Undo transition differs");
+    } else if (route.undo === "comment-toast") {
+      const undone = identities.undone!;
+      if (
+        after.cursor !== baseline + 1 ||
+        after.entries.length !== baseline + 2 ||
+        after.entries[baseline + 1]?.label !== "after resolve comment" ||
+        after.entries[baseline + 1]?.operation !== null ||
+        (before.cursor < 0 &&
+          after.entries[0]?.label !== "before resolve comment") ||
+        JSON.stringify(after.entries.slice(0, before.cursor + 1)) !==
+          JSON.stringify(before.entries.slice(0, before.cursor + 1))
+      )
+        reasons.push("Comment resolve History transition differs");
+      if (
+        undone.cursor !== baseline + 2 ||
+        undone.entries.length !== baseline + 3 ||
+        undone.headId === after.headId ||
+        undone.entries[baseline + 2]?.label !== "after unresolve comment" ||
+        undone.entries[baseline + 2]?.operation !== null ||
+        JSON.stringify(undone.entries.slice(0, after.entries.length)) !==
+          JSON.stringify(after.entries)
+      )
+        reasons.push("Comment toast History transition differs");
+    } else if (JSON.stringify(after) !== JSON.stringify(before))
+      reasons.push("Seek changed History");
   }
   if (route.cancel) {
     for (const cancellation of trial.cancellations ?? [])

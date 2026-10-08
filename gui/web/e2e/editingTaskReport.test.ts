@@ -1,3 +1,8 @@
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import type { Locator, Page, Response } from "@playwright/test";
 import { describe, expect, it } from "vitest";
 import {
   assessEditingTrial,
@@ -7,8 +12,19 @@ import {
   summarizeEditingAttempts,
   type TaskDefinition,
 } from "./editingTaskReport";
+import {
+  editingResponseOutcome,
+  editingTaskRegistry,
+  navigateEditingTimeline,
+  readEditingState,
+  retainEditingMedia,
+  tabToEditingControl,
+  verifyEditingDistribution,
+} from "./editingTasks";
 
 const start: DurableState = {
+  duration_sec: 20,
+  stable: {},
   clips: [
     {
       id: "a",
@@ -23,12 +39,23 @@ const start: DurableState = {
       mute_regions: [],
     },
   ],
-  tracks: [{ id: "reference", fader_db: 0, gain_db: 0, muted: false }],
+  tracks: [
+    {
+      id: "reference",
+      fader_db: 0,
+      gain_db: 0,
+      muted: false,
+      role: "dialogue",
+      media: { path: "raw/reference.wav" },
+      invariants: {},
+    },
+  ],
   envelopes: [],
   comments: [],
 };
 const definition: TaskDefinition = {
   id: "trim",
+  historyOperation: "trim_clip_edge",
   family: "trim-fade",
   viewport: { width: 1440, height: 900 },
   start,
@@ -116,6 +143,33 @@ function trial(): EditingTrial {
     canceled: start,
     undone: start,
     durationMs: 10,
+    history: {
+      before: { cursor: -1, headId: null, entries: [] },
+      after: {
+        cursor: 1,
+        headId: "changed",
+        entries: [
+          { id: "baseline", label: "before trim clip edge", operation: null },
+          {
+            id: "changed",
+            label: "after trim clip edge",
+            operation: "trim_clip_edge",
+          },
+        ],
+      },
+      undone: {
+        cursor: 0,
+        headId: "baseline",
+        entries: [
+          { id: "baseline", label: "before trim clip edge", operation: null },
+          {
+            id: "changed",
+            label: "after trim clip edge",
+            operation: "trim_clip_edge",
+          },
+        ],
+      },
+    },
   };
 }
 describe("literal editing task admission", () => {
@@ -146,7 +200,7 @@ describe("literal editing task admission", () => {
         ...trial(),
         after: {
           ...definition.expected,
-          tracks: [{ id: "reference", fader_db: -6, gain_db: 0, muted: false }],
+          tracks: [{ ...start.tracks[0], fader_db: -6 }],
         },
       }).reasons,
     ).toEqual(["after.tracks.0.fader_db expected 0, observed -6"]);
@@ -259,6 +313,11 @@ it("rejects a non-finite stopped seek position", () => {
       },
     ],
     after: start,
+    history: {
+      before: { cursor: -1, headId: null, entries: [] },
+      after: { cursor: -1, headId: null, entries: [] },
+      undone: null,
+    },
     transport: { seconds: Number.NaN, playing: false },
   };
   expect(assessEditingTrial(seek, attempted).reasons).toEqual([
@@ -494,6 +553,540 @@ it("rejects replacement response before failed callback", () => {
   }
   t.journal.sort((a, b) => a.seq - b.seq);
   expect(assessEditingTrial(definition, t).reasons).toEqual([
+    "outcome 4 order or phase differs",
     "read 3 failed net::ERR_ABORTED without admitted replacement",
   ]);
 });
+
+describe("fix-forward retained admission regressions", () => {
+  it("rejects a successful setup Surprise command", () => {
+    const t = trial();
+    t.journal.push(
+      {
+        seq: 8,
+        phase: "setup",
+        kind: "request",
+        requestId: 3,
+        type: "Surprise",
+        body: "{}",
+      },
+      {
+        seq: 9,
+        phase: "setup",
+        kind: "response",
+        requestId: 3,
+        status: 200,
+        body: '{"ok":true,"type":"Applied"}',
+      },
+    );
+    expect(assessEditingTrial(definition, t)).toMatchObject({
+      status: "fail",
+      accidentalCommands: 1,
+    });
+  });
+  it.each([undefined, "broken", NaN, Infinity, 99, 600, 200.5])(
+    "rejects malformed Undo status %s",
+    (status) => {
+      const t = trial();
+      Object.assign(t.journal[6], { status });
+      expect(assessEditingTrial(definition, t).status).toBe("fail");
+    },
+  );
+  it.each([undefined, "1", NaN, Infinity, 0, 1.5])(
+    "rejects malformed journal sequence %s",
+    (seq) => {
+      const t = trial();
+      Object.assign(t.journal[0], { seq });
+      expect(assessEditingTrial(definition, t).status).toBe("fail");
+    },
+  );
+  it("rejects an orphan failed command response", () => {
+    const t = trial();
+    t.journal.push({
+      seq: 8,
+      phase: "undo",
+      kind: "response",
+      requestId: 999,
+      status: 500,
+      body: "{}",
+    });
+    expect(assessEditingTrial(definition, t).status).toBe("fail");
+  });
+  it("rejects a pending document read", () => {
+    const t = trial();
+    t.journal.push({
+      seq: 8,
+      phase: "action",
+      kind: "read-request",
+      requestId: 8,
+      url: "http://localhost/api/document/state?path=x&phase=detail",
+      method: "GET",
+    });
+    expect(assessEditingTrial(definition, t).status).toBe("fail");
+  });
+  it("rejects a successful unknown document snapshot", () => {
+    const t = trial();
+    t.journal.push(
+      {
+        seq: 8,
+        phase: "action",
+        kind: "read-request",
+        requestId: 8,
+        url: "http://localhost/api/document/state?path=x&phase=detail",
+        method: "GET",
+      },
+      {
+        seq: 9,
+        phase: "action",
+        kind: "read-response",
+        requestId: 8,
+        status: 200,
+        body: "{}",
+      },
+    );
+    expect(assessEditingTrial(definition, t).status).toBe("fail");
+  });
+  it("rejects missing or unchanged History", () => {
+    const t = trial();
+    delete t.history;
+    expect(assessEditingTrial(definition, t).status).toBe("fail");
+    const empty = { cursor: -1, headId: null, entries: [] };
+    t.history = { before: empty, after: empty, undone: empty };
+    expect(assessEditingTrial(definition, t).status).toBe("fail");
+  });
+});
+
+it("admits materialized baseline and preserved Redo, and initialized History", () => {
+  const t = trial();
+  expect(assessEditingTrial(definition, t).status).toBe("pass");
+  t.history!.before = t.history!.undone;
+  expect(assessEditingTrial(definition, t).status).toBe("pass");
+  t.history!.undone = {
+    ...t.history!.undone!,
+    entries: t.history!.undone!.entries.slice(0, 1),
+  };
+  expect(assessEditingTrial(definition, t).reasons).toContain(
+    "History Undo transition differs",
+  );
+});
+it.each(["setup", "action", "cancel", "undo"] as const)(
+  "rejects orphan and malformed read outcomes in %s",
+  (phase) => {
+    const t = trial();
+    t.journal.push({
+      seq: 8,
+      phase,
+      kind: "read-response",
+      requestId: 999,
+      status: 200,
+      body: "{}",
+    });
+    expect(assessEditingTrial(definition, t).reasons).toContain(
+      "orphan outcome 999",
+    );
+    Object.assign(t.journal[7], { status: undefined });
+    expect(assessEditingTrial(definition, t).status).toBe("fail");
+  },
+);
+it.each([
+  "matching",
+  "missing-abort",
+  "wrong-id",
+  "action",
+  "ordinary-error",
+  "HTTP500",
+])("admits only matching canceled body error %s", (fault) => {
+  const t = canceledReadTrial(true);
+  t.journal.push({
+    seq: 12,
+    phase: fault === "action" ? "action" : "setup",
+    kind: "read-body-failed",
+    requestId: fault === "wrong-id" ? 4 : 3,
+    status: fault === "HTTP500" ? 500 : 200,
+    error:
+      fault === "ordinary-error"
+        ? "ordinary failure"
+        : "Error: response.text: Protocol error (Network.getResponseBody): No data found for resource with given identifier",
+  });
+  if (fault === "missing-abort")
+    t.journal = t.journal.filter((row) => row.kind !== "read-failed");
+  expect(assessEditingTrial(definition, t).status).toBe(
+    fault === "matching" ? "pass" : "fail",
+  );
+});
+
+const digest = (value: string | Uint8Array) =>
+  createHash("sha256").update(value).digest("hex");
+function smallProject(dir: string) {
+  const baseline = editingTaskRegistry[0].start;
+  const project = {
+    timeline: {
+      duration_sec: 20,
+      clips: structuredClone(baseline.clips),
+      tracks: baseline.tracks.map(({ invariants, ...row }) => ({
+        ...row,
+        ...(invariants as object),
+      })),
+    },
+    editorial: {
+      chapters: [],
+      speaker_splits: [],
+      retained_bleed_alignments: [],
+    },
+    mix: { automation_envelopes: [], processing_chains: [] },
+    social: { clip_candidates: [] },
+    review: { comments: [], versions: [], active_version_id: null },
+  };
+  const file = path.join(dir, "episode.project.json");
+  fs.writeFileSync(file, JSON.stringify(project));
+  return { project, file };
+}
+it("rejects identical raw split IDs before aliases and preserves unaffected identity", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "editing-identity-test-"));
+  try {
+    const { project, file } = smallProject(dir);
+    project.timeline.clips = structuredClone(
+      editingTaskRegistry[1].expected.clips,
+    );
+    project.timeline.clips[1].id = "same-duplicate-id";
+    project.timeline.clips[2].id = "same-duplicate-id";
+    fs.writeFileSync(file, JSON.stringify(project));
+    expect(() => readEditingState(file, true)).toThrow(
+      "Raw saved clip IDs are not unique",
+    );
+    project.timeline.clips[2].id = "generated-right";
+    fs.writeFileSync(file, JSON.stringify(project));
+    const mapping: Record<string, string> = {};
+    expect(readEditingState(file, true, mapping)).toEqual(
+      editingTaskRegistry[1].expected,
+    );
+    expect(mapping).toEqual({
+      "first-copy": "first-copy",
+      "same-duplicate-id": "cut-left",
+      "generated-right": "cut-right",
+      peer: "peer",
+    });
+    project.timeline.clips[1].id = "second-copy";
+    fs.writeFileSync(file, JSON.stringify(project));
+    expect(
+      savedStateDifferences(
+        editingTaskRegistry[1].expected,
+        readEditingState(file, true),
+      ).length,
+    ).toBeGreaterThan(0);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+it.each([
+  "duration",
+  "role",
+  "media",
+  "chapters",
+  "extra-clip",
+  "wrong-occurrence",
+  "no-op",
+])("rejects saved %s through actual reader", (fault) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "editing-state-test-"));
+  try {
+    const { project, file } = smallProject(dir);
+    const task = editingTaskRegistry[2];
+    project.timeline.clips = structuredClone(task.expected.clips);
+    project.timeline.duration_sec = 19.7;
+    if (fault === "duration") project.timeline.duration_sec = 999;
+    if (fault === "role") project.timeline.tracks[0].role = "music";
+    if (fault === "media")
+      project.timeline.tracks[0].media = {
+        path: "raw/guest.wav",
+        duration_sec: 60,
+        sample_rate: 48000,
+        channels: 1,
+      };
+    if (fault === "chapters")
+      Object.assign(project.editorial, { chapters: [{ id: "unexpected" }] });
+    if (fault === "extra-clip")
+      project.timeline.clips.push({
+        ...project.timeline.clips[0],
+        id: "extra",
+      });
+    if (fault === "wrong-occurrence") {
+      project.timeline.clips[0].source_start = 0;
+      project.timeline.clips[1].source_start = 0.3;
+    }
+    if (fault === "no-op") {
+      project.timeline.clips = structuredClone(task.start.clips);
+      project.timeline.duration_sec = 20;
+    }
+    fs.writeFileSync(file, JSON.stringify(project));
+    expect(
+      savedStateDifferences(task.expected, readEditingState(file)).length,
+    ).toBeGreaterThan(0);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+it("requires complete index and public asset inventory and exact hashes", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "editing-dist-test-"));
+  try {
+    fs.writeFileSync(path.join(dir, "index.html"), "app");
+    fs.writeFileSync(path.join(dir, "favicon.svg"), "icon");
+    const assets = {
+      "index.html": digest("app"),
+      "favicon.svg": digest("icon"),
+    };
+    expect(verifyEditingDistribution(dir, assets)).toEqual(assets);
+    expect(() => verifyEditingDistribution(dir, {})).toThrow("inventory");
+    expect(() =>
+      verifyEditingDistribution(dir, { "index.html": digest("app") }),
+    ).toThrow("inventory");
+    expect(() =>
+      verifyEditingDistribution(dir, { ...assets, "extra.js": digest("x") }),
+    ).toThrow("inventory");
+    expect(() =>
+      verifyEditingDistribution(dir, {
+        ...assets,
+        "index.html": digest("wrong"),
+      }),
+    ).toThrow("mismatch");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+it("retains every distinct mismatching and unexpected media input before aggregate failure", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "editing-media-test-"));
+  try {
+    const { file } = smallProject(dir);
+    fs.mkdirSync(path.join(dir, "raw"));
+    const evidence = path.join(dir, "evidence");
+    fs.mkdirSync(evidence);
+    const replay: Record<
+      string,
+      { relativePath: string; retainedPath: string; sha256: string }
+    > = {};
+    for (const id of ["reference", "guest"]) {
+      const retainedPath = path.join(dir, `expected-${id}`);
+      fs.writeFileSync(retainedPath, "expected");
+      fs.writeFileSync(path.join(dir, "raw", `${id}.wav`), `unique-${id}`);
+      replay[id] = {
+        relativePath: `raw/${id}.wav`,
+        retainedPath,
+        sha256: digest("expected"),
+      };
+    }
+    fs.writeFileSync(
+      path.join(dir, "raw", "unexpected.wav"),
+      "unique-unexpected",
+    );
+    expect(() => retainEditingMedia(dir, file, evidence, replay)).toThrow(
+      /reference.*guest.*unexpected/,
+    );
+    const map = JSON.parse(
+      fs.readFileSync(
+        path.join(evidence, `media-map-${path.basename(dir)}.json`),
+        "utf8",
+      ),
+    );
+    for (const [id, bytes] of [
+      ["reference", "unique-reference"],
+      ["guest", "unique-guest"],
+      ["raw/unexpected.wav", "unique-unexpected"],
+    ]) {
+      expect(fs.readFileSync(map.media[id].retainedPath, "utf8")).toBe(bytes);
+      expect(map.media[id].sha256).toBe(digest(bytes));
+    }
+    fs.unlinkSync(path.join(dir, "raw", "unexpected.wav"));
+    for (const id of ["reference", "guest"])
+      fs.writeFileSync(path.join(dir, "raw", `${id}.wav`), "expected");
+    expect(
+      Object.keys(retainEditingMedia(dir, file, evidence, replay)),
+    ).toEqual(["reference", "guest"]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+it("records response-body failure at its originating request phase and status", async () => {
+  const response = {
+    status: () => 200,
+    text: async () => {
+      throw new Error(
+        "Network.getResponseBody: No data found for resource with given identifier",
+      );
+    },
+  } as unknown as Response;
+  expect(
+    await editingResponseOutcome(response, {
+      id: 63,
+      phase: "setup",
+      kind: "read",
+    }),
+  ).toEqual({
+    phase: "setup",
+    kind: "read-body-failed",
+    requestId: 63,
+    status: 200,
+    error:
+      "Error: Network.getResponseBody: No data found for resource with given identifier",
+  });
+  expect(
+    await editingResponseOutcome(response, {
+      id: 63,
+      phase: "action",
+      kind: "command",
+    }),
+  ).toEqual({
+    phase: "action",
+    kind: "error",
+    message:
+      "response 63: Error: Network.getResponseBody: No data found for resource with given identifier",
+  });
+});
+it("navigates from Listen through counted Timeline input", async () => {
+  let visible = false;
+  const labels: string[] = [];
+  const timeline = {
+    isVisible: async () => visible,
+    waitFor: async () => {
+      if (!visible) throw new Error("Timeline unavailable");
+    },
+  };
+  const button = {
+    click: async () => {
+      visible = true;
+    },
+  };
+  const page = {
+    locator: () => timeline,
+    getByRole: () => ({ getByRole: () => button }),
+  } as unknown as Page;
+  await navigateEditingTimeline(page, async (control, label) => {
+    labels.push(label);
+    await control.click();
+  });
+  expect({ visible, labels }).toEqual({
+    visible: true,
+    labels: ["Primary Timeline"],
+  });
+  await navigateEditingTimeline(page, async (control, label) => {
+    labels.push(label);
+    await control.click();
+  });
+  expect(labels).toEqual(["Primary Timeline"]);
+});
+it("counts every Tab and Enter to open the shipped header", async () => {
+  let tabs = 0,
+    opened = false;
+  const inputs: string[] = [];
+  const control = {
+    evaluate: async () => tabs === 3,
+    _expect: async () => ({ matches: tabs === 3 }),
+  } as unknown as Locator;
+  await tabToEditingControl(control, async (value) => {
+    inputs.push(value);
+    if (value === "Tab") tabs++;
+    else opened = true;
+  });
+  expect({ opened, inputs }).toEqual({
+    opened: true,
+    inputs: ["Tab", "Tab", "Tab", "Enter"],
+  });
+});
+it("admits reachable 40ms fade and rejects unchanged zero", () => {
+  const task = editingTaskRegistry.find((row) => row.id === "fade")!;
+  const t = trial();
+  Object.assign(t, {
+    task: "fade",
+    route: "corner-pointer",
+    before: task.start,
+    after: {
+      ...task.expected,
+      clips: [
+        { ...task.start.clips[0], fade_in_ms: 40 },
+        task.start.clips[1],
+        task.start.clips[2],
+      ],
+    },
+    canceled: task.start,
+    undone: task.start,
+  });
+  const command = t.journal.find(
+    (row) => row.kind === "request" && row.phase === "action",
+  )!;
+  Object.assign(command, { type: "SetClipFade" });
+  for (const stage of [t.history!.after!, t.history!.undone!])
+    stage.entries[1] = {
+      id: "changed",
+      label: "after set clip fade",
+      operation: "set_clip_fade",
+    };
+  for (const stage of [t.history!.after!, t.history!.undone!])
+    stage.entries[0].label = "before set clip fade";
+  expect(assessEditingTrial(task, t).status).toBe("pass");
+  t.after = task.start;
+  expect(assessEditingTrial(task, t).status).toBe("fail");
+});
+
+it("requires separate resolve and unresolve comment History mutations", () => {
+  const task = editingTaskRegistry.find((row) => row.id === "comment")!;
+  const t = trial();
+  Object.assign(t, {
+    task: "comment",
+    route: "resolve-button",
+    before: task.start,
+    after: task.expected,
+    undone: task.start,
+  });
+  for (const row of t.journal)
+    if (row.kind === "request") row.type = "ResolveComment";
+  const baseline = {
+    id: "baseline",
+    label: "before resolve comment",
+    operation: null,
+  };
+  const resolved = {
+    id: "resolved",
+    label: "after resolve comment",
+    operation: null,
+  };
+  const restored = {
+    id: "restored",
+    label: "after unresolve comment",
+    operation: null,
+  };
+  t.history = {
+    before: { cursor: -1, headId: null, entries: [] },
+    after: { cursor: 1, headId: "resolved", entries: [baseline, resolved] },
+    undone: {
+      cursor: 2,
+      headId: "restored",
+      entries: [baseline, resolved, restored],
+    },
+  };
+  expect(assessEditingTrial(task, t).status).toBe("pass");
+  t.history.undone = {
+    cursor: 0,
+    headId: "baseline",
+    entries: [baseline, resolved],
+  };
+  expect(assessEditingTrial(task, t).reasons).toContain(
+    "Comment toast History transition differs",
+  );
+});
+it.each(["duplicate", "wrong-phase", "wrong-order", "wrong-Undo"])(
+  "rejects command ownership %s",
+  (fault) => {
+    const t = trial();
+    if (fault === "duplicate") t.journal.push({ ...t.journal[6], seq: 8 });
+    else if (fault === "wrong-phase") t.journal[6].phase = "action";
+    else if (fault === "wrong-order") t.journal[6].seq = 1;
+    else Object.assign(t.journal[5], { type: "Surprise" });
+    expect(assessEditingTrial(definition, t).status).toBe("fail");
+  },
+);
+it.each([undefined, "3", NaN, Infinity, 0, 1.5])(
+  "rejects retained request ID %s",
+  (requestId) => {
+    const t = trial();
+    Object.assign(t.journal[5], { requestId });
+    expect(assessEditingTrial(definition, t).status).toBe("fail");
+  },
+);
