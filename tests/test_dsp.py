@@ -17,6 +17,7 @@ from podcast_mcp.util.dsp import (
     frame_rms_db_stream,
     high_band_energy_fraction,
     rms_db,
+    speech_band,
     voicing_probes,
 )
 
@@ -144,3 +145,16 @@ def test_high_band_energy_fraction_splits_low_and_high_tones() -> None:
     assert high_band_energy_fraction(mixed, sr, **kwargs) == pytest.approx(0.5, abs=0.02)
     assert high_band_energy_fraction(np.zeros(1600), sr, **kwargs) == 0.0
     assert high_band_energy_fraction(np.zeros(1), sr, **kwargs) == 0.0
+
+
+def test_speech_band_drops_rumble_keeps_voice_and_a_gates_silence() -> None:
+    rate = 16_000
+    t = np.arange(rate) / rate
+    rumble = 0.1 * np.sin(2 * np.pi * 30.0 * t)
+    voice = 0.1 * np.sin(2 * np.pi * 400.0 * t)
+
+    assert rms_db(speech_band(rumble, rate)) < rms_db(rumble) - 40.0
+    assert rms_db(speech_band(voice, rate)) == pytest.approx(rms_db(voice), abs=0.5)
+    gated = np.concatenate([np.zeros(4000), voice, np.zeros(4000)])
+    assert not speech_band(gated, rate)[:4000].any()
+    assert speech_band(np.zeros(8), rate).tolist() == [0.0] * 8
