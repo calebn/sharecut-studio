@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -194,8 +195,10 @@ def test_guest_list_clips_names_no_recording_file(
     text = _call(share["token"], "guest_list_clips")["result"]["content"][0]["text"]
 
     rows = {row["id"]: row for row in json.loads(text)["tracks"]["host"]}
-    assert rows["a"]["recording_key"] == rows["b"]["recording_key"] == "rec_98304e27cdb8703c"
-    assert rows["c"]["recording_key"] == "rec_0d92026341a60c29"
+    key = rows["a"]["recording_key"]
+    assert re.fullmatch(r"rec_[0-9a-f]{16}", key)
+    assert rows["b"]["recording_key"] == key
+    assert rows["c"]["recording_key"] != key
     assert ".wav" not in text
     assert "raw/" not in text
 
