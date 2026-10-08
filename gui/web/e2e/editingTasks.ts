@@ -51,6 +51,32 @@ const trackInvariants = {
 };
 const base: DurableState = {
   duration_sec: 20,
+  sources: [
+    {
+      id: "reference_src0",
+      path: "reference.wav",
+      speaker: "reference",
+      label: "reference.wav",
+      offset_sec: 0,
+      duration_sec: null,
+      sample_rate: null,
+      channels: null,
+      clipping_regions: [],
+      clipping_truncated: false,
+    },
+    {
+      id: "guest_src0",
+      path: "guest.wav",
+      speaker: "guest",
+      label: "guest.wav",
+      offset_sec: 0,
+      duration_sec: null,
+      sample_rate: null,
+      channels: null,
+      clipping_regions: [],
+      clipping_truncated: false,
+    },
+  ],
   stable: {
     chapters: [],
     speaker_splits: [],
@@ -436,6 +462,31 @@ export function readEditingState(
   }
   return parseDurableState({
     duration_sec: json(timeline.duration_sec),
+    sources: array(saved.sources).map((source) => {
+      const row = object(source);
+      if (typeof row.path !== "string")
+        throw new Error("Invalid durable source identity");
+      return {
+        ...fields(row, [
+          "id",
+          "speaker",
+          "label",
+          "offset_sec",
+          "duration_sec",
+          "sample_rate",
+          "channels",
+          "clipping_regions",
+          "clipping_truncated",
+        ]),
+        path: path
+          .relative(
+            path.dirname(projectPath),
+            path.resolve(path.dirname(projectPath), row.path),
+          )
+          .split(path.sep)
+          .join("/"),
+      };
+    }),
     stable: {
       ...fields(saved.editorial, [
         "chapters",

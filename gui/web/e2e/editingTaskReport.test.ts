@@ -25,6 +25,20 @@ import {
 const start: DurableState = {
   duration_sec: 20,
   stable: {},
+  sources: [
+    {
+      id: "reference_src0",
+      path: "reference.wav",
+      speaker: "reference",
+      label: "reference.wav",
+      offset_sec: 0,
+      duration_sec: null,
+      sample_rate: null,
+      channels: null,
+      clipping_regions: [],
+      clipping_truncated: false,
+    },
+  ],
   clips: [
     {
       id: "a",
@@ -720,6 +734,32 @@ const digest = (value: string | Uint8Array) =>
 function smallProject(dir: string) {
   const baseline = editingTaskRegistry[0].start;
   const project = {
+    sources: [
+      {
+        id: "reference_src0",
+        path: "reference.wav",
+        speaker: "reference",
+        label: "reference.wav",
+        offset_sec: 0,
+        duration_sec: null,
+        sample_rate: null,
+        channels: null,
+        clipping_regions: [],
+        clipping_truncated: false,
+      },
+      {
+        id: "guest_src0",
+        path: "guest.wav",
+        speaker: "guest",
+        label: "guest.wav",
+        offset_sec: 0,
+        duration_sec: null,
+        sample_rate: null,
+        channels: null,
+        clipping_regions: [],
+        clipping_truncated: false,
+      },
+    ],
     timeline: {
       duration_sec: 20,
       clips: structuredClone(baseline.clips),
@@ -741,6 +781,68 @@ function smallProject(dir: string) {
   fs.writeFileSync(file, JSON.stringify(project));
   return { project, file };
 }
+it("binds saved source identity and recording path through the real reader", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "editing-source-test-"));
+  try {
+    const { project, file } = smallProject(dir);
+    project.timeline.clips[0].source_id = "reference_src0";
+    fs.writeFileSync(file, JSON.stringify(project));
+    const before = readEditingState(file);
+    expect(savedStateDifferences(before, readEditingState(file))).toEqual([]);
+
+    project.sources[0].path = "guest.wav";
+    fs.writeFileSync(file, JSON.stringify(project));
+    expect(
+      savedStateDifferences(before, readEditingState(file)).some((path) =>
+        path.includes("sources.0.path"),
+      ),
+    ).toBe(true);
+
+    project.sources[0].path = "reference.wav";
+    project.timeline.clips[0].source_id = "guest_src0";
+    fs.writeFileSync(file, JSON.stringify(project));
+    expect(
+      savedStateDifferences(before, readEditingState(file)).some((path) =>
+        path.includes("source_id"),
+      ),
+    ).toBe(true);
+
+    project.timeline.clips[0].source_id = "reference_src0";
+    project.sources = project.sources.slice(1);
+    fs.writeFileSync(file, JSON.stringify(project));
+    expect(() => readEditingState(file)).toThrow(
+      "Durable clip references a missing source",
+    );
+
+    project.sources = [
+      {
+        id: "reference_src0",
+        path: "reference.wav",
+        speaker: "reference",
+        label: "reference.wav",
+        offset_sec: 0,
+        duration_sec: null,
+        sample_rate: null,
+        channels: null,
+        clipping_regions: [],
+        clipping_truncated: false,
+      },
+      ...project.sources,
+    ];
+    project.sources[1].id = "reference_src0";
+    fs.writeFileSync(file, JSON.stringify(project));
+    expect(() => readEditingState(file)).toThrow(
+      "Invalid or duplicate durable source identity",
+    );
+
+    project.sources = [];
+    project.timeline.clips[0].source_id = null;
+    fs.writeFileSync(file, JSON.stringify(project));
+    expect(readEditingState(file).sources).toEqual([]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 it("rejects identical raw split IDs before aliases and preserves unaffected identity", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "editing-identity-test-"));
   try {

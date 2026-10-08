@@ -8,6 +8,18 @@ export type Json =
 export type DurableState = {
   duration_sec: number;
   stable: Json;
+  sources: {
+    id: string;
+    path: string;
+    speaker: string;
+    label: string;
+    offset_sec: number;
+    duration_sec: number | null;
+    sample_rate: number | null;
+    channels: number | null;
+    clipping_regions: Json[];
+    clipping_truncated: boolean;
+  }[];
   clips: {
     id: string;
     track_id: string;
@@ -59,6 +71,23 @@ export function parseDurableState(input: unknown): DurableState {
   const state = object(input);
   if (!finite(state.duration_sec) || state.stable === undefined)
     throw new Error("Invalid durable extent or stable remainder");
+  const sourceIds = new Set<string>();
+  for (const source of rows(state.sources)) {
+    if (
+      !["id", "path", "speaker", "label"].every(
+        (key) => typeof source[key] === "string",
+      ) ||
+      !finite(source.offset_sec) ||
+      !(source.duration_sec === null || finite(source.duration_sec)) ||
+      !(source.sample_rate === null || finite(source.sample_rate)) ||
+      !(source.channels === null || finite(source.channels)) ||
+      !Array.isArray(source.clipping_regions) ||
+      typeof source.clipping_truncated !== "boolean" ||
+      sourceIds.has(source.id as string)
+    )
+      throw new Error("Invalid or duplicate durable source identity");
+    sourceIds.add(source.id as string);
+  }
   for (const clip of rows(state.clips)) {
     if (
       !["id", "track_id", "join_in_mode"].every(
@@ -75,6 +104,8 @@ export function parseDurableState(input: unknown): DurableState {
       !Array.isArray(clip.mute_regions)
     )
       throw new Error("Invalid durable clip geometry");
+    if (clip.source_id !== null && !sourceIds.has(clip.source_id as string))
+      throw new Error("Durable clip references a missing source");
   }
   for (const track of rows(state.tracks))
     if (
