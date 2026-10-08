@@ -1058,14 +1058,17 @@ async function halfTitleAtRootFont(
   });
 }
 
-for (const rootPx of [16, 32]) {
-  test(`the half drawer keeps a readable title at 390x844 with a ${rootPx} px root font`, ({
-    page,
-    context,
-    browserName,
-  }, info) =>
-    halfTitleAtRootFont(rootPx, { page, context, browserName }, info));
-}
+test("the half drawer keeps a readable title at 390x844 with a 16 px root font", ({
+  page,
+  context,
+  browserName,
+}, info) => halfTitleAtRootFont(16, { page, context, browserName }, info));
+
+test("the half drawer keeps a readable title at 390x844 with a 32 px root font", ({
+  page,
+  context,
+  browserName,
+}, info) => halfTitleAtRootFont(32, { page, context, browserName }, info));
 
 async function openTrackSheet(page: Page, finger: Finger): Promise<void> {
   await tapBox(page, finger, page.locator(".track-header-open").first());
