@@ -1,0 +1,1314 @@
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import {
+  type CDPSession,
+  expect,
+  type Locator,
+  type Page,
+  type Request,
+  type TestInfo,
+} from "@playwright/test";
+import { niceTimeStep } from "../src/utils/time";
+import {
+  assessEditingTrial,
+  type DurableState,
+  type EditingTrial,
+  type JournalEvent,
+  type Json,
+  type Phase,
+  parseDurableState,
+  savedStateDifferences,
+  type TaskDefinition,
+  type TaskRoute,
+} from "./editingTaskReport";
+import { createEditorProfiler } from "./editorProfile";
+import { createRelocatedE2eProject } from "./liveProject";
+import { switchE2eProject } from "./shareableProject";
+
+const clip = {
+  track_id: "reference",
+  source_start: 0,
+  source_end: 5,
+  timeline_start: 0,
+  source_id: null,
+  fade_in_ms: 0,
+  fade_out_ms: 0,
+  join_in_mode: "fade",
+  mute_regions: [],
+};
+const base: DurableState = {
+  clips: [
+    { ...clip, id: "first-copy" },
+    { ...clip, id: "second-copy", timeline_start: 10 },
+    { ...clip, id: "peer", track_id: "guest", source_end: 20 },
+  ],
+  tracks: [
+    { id: "reference", fader_db: 0, gain_db: 0, muted: false },
+    { id: "guest", fader_db: 0, gain_db: 0, muted: false },
+  ],
+  envelopes: [],
+  comments: [],
+};
+function route(
+  id: string,
+  input: "pointer" | "keyboard" | "numeric" | "cdp-touch",
+  command: string | null,
+  cancel = false,
+  undo: "history" | "comment-toast" | "none" = "history",
+  mutations = 1,
+): TaskRoute {
+  return { id, input, command, cancel, undo, mutations };
+}
+const desktop = { width: 1440, height: 900 };
+const phone = { width: 390, height: 844 };
+const envelopeStart: DurableState = {
+  ...base,
+  envelopes: [
+    {
+      track_id: "reference",
+      parameter: "volume",
+      points: [
+        { id: "p1", time: 2, value: 0.6 },
+        { id: "p2", time: 10, value: 1.4 },
+      ],
+    },
+  ],
+};
+const commentStart: DurableState = {
+  ...base,
+  comments: [
+    {
+      id: "task-comment",
+      body: "Editing task comment",
+      author: "Host",
+      timeline_start: 2,
+      timeline_end: null,
+      track_ids: [],
+      resolved: false,
+    },
+  ],
+};
+export const editingTaskRegistry: TaskDefinition[] = [
+  {
+    id: "seek",
+    family: "seek",
+    viewport: desktop,
+    start: base,
+    expected: base,
+    seek: 5,
+    tolerances: {},
+    routes: [
+      route("ruler-pointer", "pointer", null, false, "none", 0),
+      route("ruler-keyboard", "keyboard", null, false, "none", 0),
+      {
+        id: "timestamp",
+        pending: "TimeRulerView has no exact timestamp entry",
+      },
+    ],
+  },
+  {
+    id: "range-cut",
+    family: "range-cut",
+    viewport: desktop,
+    start: base,
+    expected: {
+      ...base,
+      clips: [
+        { ...clip, id: "first-copy" },
+        { ...clip, id: "cut-left", source_end: 1, timeline_start: 10 },
+        { ...clip, id: "cut-right", source_start: 2, timeline_start: 12 },
+        base.clips[2],
+      ],
+    },
+    tolerances: {},
+    routes: [
+      route("armed-pointer", "pointer", "EditSelectedRange", true),
+      route("range-form", "numeric", "EditSelectedRange", true),
+    ],
+  },
+  {
+    id: "trim",
+    family: "trim-fade",
+    editMode: "ripple",
+    viewport: desktop,
+    start: base,
+    expected: {
+      ...base,
+      clips: [
+        { ...base.clips[0], source_start: 0.3 },
+        { ...base.clips[1], timeline_start: 9.7 },
+        { ...base.clips[2], source_start: 0.3 },
+      ],
+    },
+    tolerances: {
+      "after.clips.0.source_start": 0.03,
+      "after.clips.1.timeline_start": 0.03,
+      "after.clips.2.source_start": 0.03,
+    },
+    routes: [
+      route("handle-pointer", "pointer", "TrimClipEdge", true),
+      route("handle-keyboard", "keyboard", "TrimClipEdge", true),
+      {
+        id: "numeric-trim",
+        pending: "ClipInspector Source is text; no numeric trim input",
+      },
+    ],
+  },
+  {
+    id: "fade",
+    family: "trim-fade",
+    viewport: desktop,
+    start: base,
+    expected: {
+      ...base,
+      clips: [
+        { ...base.clips[0], fade_in_ms: 100 },
+        base.clips[1],
+        base.clips[2],
+      ],
+    },
+    tolerances: { "after.clips.0.fade_in_ms": 20 },
+    routes: [
+      route("corner-pointer", "pointer", "SetClipFade", true),
+      route("inspector-slider", "keyboard", "SetClipFade", true),
+    ],
+  },
+  {
+    id: "envelope",
+    family: "envelope",
+    viewport: desktop,
+    start: envelopeStart,
+    expected: {
+      ...base,
+      envelopes: [
+        {
+          track_id: "reference",
+          parameter: "volume",
+          points: [
+            { id: "p1", time: 6, value: 0.8 },
+            { id: "p2", time: 10, value: 1.4 },
+          ],
+        },
+      ],
+    },
+    tolerances: {
+      "after.envelopes.0.points.0.time": 0.03,
+      "after.envelopes.0.points.0.value": 0.02,
+    },
+    routes: [
+      route("point-pointer", "pointer", "SetEnvelope", true),
+      route("point-form", "numeric", "SetEnvelope", true),
+    ],
+  },
+  {
+    id: "reorder",
+    family: "reorder",
+    viewport: desktop,
+    start: base,
+    expected: { ...base, tracks: [base.tracks[1], base.tracks[0]] },
+    tolerances: {},
+    routes: [
+      route("html-drag", "pointer", "ReorderTrack", true),
+      route("move-up", "pointer", "ReorderTrack"),
+    ],
+  },
+  {
+    id: "mix",
+    family: "mix",
+    viewport: phone,
+    start: base,
+    expected: {
+      ...base,
+      tracks: [{ ...base.tracks[0], fader_db: -6 }, base.tracks[1]],
+    },
+    tolerances: { "after.tracks.0.fader_db": 0.25 },
+    routes: [
+      route("native-pointer", "pointer", "SetTrackFader", true),
+      route(
+        "native-keyboard",
+        "keyboard",
+        "SetTrackFader",
+        false,
+        "history",
+        12,
+      ),
+      {
+        id: "precise-field",
+        pending: "TrackMixView has no precise numeric field or stepper",
+      },
+    ],
+  },
+  {
+    id: "comment",
+    family: "comment",
+    viewport: phone,
+    start: commentStart,
+    expected: {
+      ...commentStart,
+      comments: [{ ...commentStart.comments[0], resolved: true }],
+    },
+    tolerances: {},
+    routes: [
+      route(
+        "resolve-button",
+        "pointer",
+        "ResolveComment",
+        false,
+        "comment-toast",
+      ),
+      route(
+        "trusted-touch-swipe",
+        "cdp-touch",
+        "ResolveComment",
+        true,
+        "comment-toast",
+      ),
+    ],
+  },
+];
+function object(input: unknown): Record<string, unknown> {
+  if (input === null || typeof input !== "object" || Array.isArray(input))
+    throw new Error("Expected saved object");
+  return input as Record<string, unknown>;
+}
+function array(input: unknown): unknown[] {
+  if (!Array.isArray(input)) throw new Error("Expected saved array");
+  return input;
+}
+function json(input: unknown): Json {
+  if (
+    input === null ||
+    typeof input === "string" ||
+    typeof input === "boolean" ||
+    (typeof input === "number" && Number.isFinite(input))
+  )
+    return input;
+  if (Array.isArray(input)) return input.map(json);
+  return Object.fromEntries(
+    Object.entries(object(input)).map(([key, value]) => [key, json(value)]),
+  );
+}
+function fields(input: unknown, keys: string[]): Record<string, Json> {
+  const row = object(input);
+  return Object.fromEntries(keys.map((key) => [key, json(row[key])]));
+}
+export function readEditingState(
+  projectPath: string,
+  normalizeCut = false,
+): DurableState {
+  const saved = object(JSON.parse(fs.readFileSync(projectPath, "utf8")));
+  const timeline = object(saved.timeline);
+  const clips = array(timeline.clips).map((row) =>
+    fields(row, [
+      "id",
+      "track_id",
+      "source_start",
+      "source_end",
+      "timeline_start",
+      "source_id",
+      "fade_in_ms",
+      "fade_out_ms",
+      "join_in_mode",
+      "mute_regions",
+    ]),
+  );
+  if (normalizeCut)
+    for (const row of clips)
+      if (row.track_id === "reference" && row.id !== "first-copy")
+        row.id = row.source_start === 0 ? "cut-left" : "cut-right";
+  return parseDurableState({
+    clips,
+    tracks: array(timeline.tracks).map((row) =>
+      fields(row, ["id", "fader_db", "gain_db", "muted"]),
+    ),
+    envelopes: array(object(saved.mix).automation_envelopes).map(json),
+    comments: array(object(saved.review).comments).map((row) =>
+      fields(row, [
+        "id",
+        "body",
+        "author",
+        "timeline_start",
+        "timeline_end",
+        "track_ids",
+        "resolved",
+      ]),
+    ),
+  });
+}
+export function createEditingFixture(task: TaskDefinition) {
+  const fixture = createRelocatedE2eProject(
+    "sharecut-e2e-editing-task-",
+    () => false,
+  );
+  const saved = object(
+    JSON.parse(fs.readFileSync(fixture.projectPath, "utf8")),
+  );
+  const timeline = object(saved.timeline);
+  if (array(timeline.tracks).some((row) => object(row).role !== "dialogue"))
+    throw new Error("Ripple task requires both dialogue tracks");
+  timeline.clips = task.start.clips;
+  timeline.duration_sec = 20;
+  for (const track of array(timeline.tracks))
+    Object.assign(
+      object(track),
+      task.start.tracks.find((row) => row.id === object(track).id),
+    );
+  object(saved.mix).automation_envelopes = task.start.envelopes;
+  object(saved.review).comments = task.start.comments.map((row) => ({
+    ...row,
+    created_at: "2026-01-01T00:00:00Z",
+  }));
+  object(saved.editorial).edit_decisions = [];
+  object(saved.editorial).edit_log = [];
+  fs.writeFileSync(fixture.projectPath, `${JSON.stringify(saved, null, 2)}\n`);
+  return fixture;
+}
+
+export async function runEditingTask(
+  page: Page,
+  cdp: CDPSession,
+  info: TestInfo,
+  task: TaskDefinition,
+  routeId: string,
+  output: string,
+  mode: EditingTrial["mode"],
+): Promise<EditingTrial> {
+  const chosen = task.routes.find((row) => row.id === routeId);
+  if (!chosen || "pending" in chosen)
+    throw new Error("Only current supported routes can execute");
+  fs.mkdirSync(output, { recursive: true });
+  const trial: EditingTrial = {
+    task: task.id,
+    route: routeId,
+    mode,
+    journal: [],
+    errors: [],
+    protocolHash: process.env.EDITING_PROTOCOL_HASH,
+    definitionHash: createHash("sha256")
+      .update(JSON.stringify(task))
+      .digest("hex"),
+    role: "host",
+    artifacts: [],
+  };
+  let phase: Phase = "setup";
+  let sequence = 0;
+  const retain = () =>
+    fs.writeFileSync(
+      path.join(output, "trial.json"),
+      `${JSON.stringify(trial, null, 2)}\n`,
+    );
+  const captureUi = async (active: Page, stage: string, screenshot = true) => {
+    const geometry = await active
+      .locator(
+        '[data-clip-id], [role="slider"], input[type="range"], .comment-card, svg circle',
+      )
+      .evaluateAll((elements) =>
+        elements.map((element) => {
+          const box = element.getBoundingClientRect();
+          return {
+            tag: element.tagName,
+            id: element.getAttribute("data-clip-id"),
+            label: element.getAttribute("aria-label"),
+            value:
+              element.getAttribute("aria-valuenow") ??
+              (element instanceof HTMLInputElement ? element.value : null),
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+            transform: element.getAttribute("style"),
+          };
+        }),
+      );
+    const evidence: NonNullable<EditingTrial["uiEvidence"]>[number] = {
+      stage,
+      phase,
+      geometry,
+    };
+    if (mode !== "baseline" && screenshot) {
+      evidence.screenshot = `ui-${trial.uiEvidence?.length ?? 0}-${stage}.png`;
+      await active.screenshot({
+        path: path.join(output, evidence.screenshot),
+        fullPage: true,
+      });
+      trial.artifacts!.push(evidence.screenshot);
+    }
+    (trial.uiEvidence ??= []).push(evidence);
+    retain();
+  };
+  const append = (
+    event:
+      | { kind: "error"; message: string }
+      | { kind: "request"; requestId: number; type: string; body: string }
+      | { kind: "read-request"; requestId: number; url: string; method: string }
+      | {
+          kind: "read-response";
+          requestId: number;
+          status: number;
+          body: string;
+        }
+      | { kind: "read-failed"; requestId: number; error: string },
+  ) => {
+    trial.journal.push({ ...event, seq: ++sequence, phase } as JournalEvent);
+    retain();
+  };
+  const responses: Promise<void>[] = [];
+  const observe = (observedPage: Page) => {
+    const requests = new Map<
+      Request,
+      { id: number; phase: Phase; kind: "command" | "read" }
+    >();
+    observedPage.on("pageerror", (error) =>
+      append({ kind: "error", message: error.message }),
+    );
+    observedPage.on("request", (request) => {
+      const url = new URL(request.url());
+      if (
+        request.method() === "GET" &&
+        ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) &&
+        url.pathname.startsWith("/api/")
+      ) {
+        const id = sequence + 1;
+        requests.set(request, { id, phase, kind: "read" });
+        append({
+          kind: "read-request",
+          requestId: id,
+          url: request.url(),
+          method: request.method(),
+        });
+        return;
+      }
+      if (
+        request.method() !== "POST" ||
+        !new URL(request.url()).pathname.includes("/document/command")
+      )
+        return;
+      const body = request.postData() ?? "";
+      let type = "unknown";
+      try {
+        const parsed = object(JSON.parse(body));
+        type = typeof parsed.type === "string" ? parsed.type : "unknown";
+      } catch {}
+      const id = sequence + 1;
+      requests.set(request, { id, phase, kind: "command" });
+      append({ kind: "request", requestId: id, type, body });
+    });
+    observedPage.on("response", (response) => {
+      const url = new URL(response.url());
+      if (
+        ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) &&
+        response.status() >= 400
+      ) {
+        append({
+          kind: "error",
+          message: `HTTP ${response.status()} ${response.request().method()} ${response.url()}`,
+        });
+        responses.push(
+          response
+            .text()
+            .then((body) =>
+              append({
+                kind: "error",
+                message: `HTTP error body ${response.url()} ${body}`,
+              }),
+            )
+            .catch((error) =>
+              append({
+                kind: "error",
+                message: `HTTP error body unavailable ${response.url()} ${String(error)}`,
+              }),
+            ),
+        );
+      }
+      const request = requests.get(response.request());
+      if (!request) return;
+      responses.push(
+        response
+          .text()
+          .then((body) => {
+            trial.journal.push({
+              seq: ++sequence,
+              phase: request.phase,
+              kind: request.kind === "read" ? "read-response" : "response",
+              requestId: request.id,
+              status: response.status(),
+              body,
+            });
+            retain();
+          })
+          .catch((error) =>
+            append({
+              kind: "error",
+              message: `response ${request.id}: ${String(error)}`,
+            }),
+          ),
+      );
+    });
+    observedPage.on("requestfailed", (request) => {
+      const read = requests.get(request);
+      if (read?.kind === "read") {
+        trial.journal.push({
+          seq: ++sequence,
+          phase: read.phase,
+          kind: "read-failed",
+          requestId: read.id,
+          error: request.failure()?.errorText ?? "unknown",
+        });
+        retain();
+        return;
+      }
+      if (
+        ["127.0.0.1", "localhost", "[::1]"].includes(
+          new URL(request.url()).hostname,
+        )
+      )
+        append({
+          kind: "error",
+          message: `request failed ${request.method()} ${request.url()} ${request.failure()?.errorText}`,
+        });
+    });
+  };
+  const act = async (
+    verb: string,
+    label: string,
+    action: () => Promise<unknown>,
+  ) => {
+    const event: JournalEvent = {
+      seq: ++sequence,
+      phase,
+      kind: "activation",
+      verb,
+      label,
+      outcome: "started",
+    };
+    trial.journal.push(event);
+    retain();
+    try {
+      await action();
+      event.outcome = "completed";
+    } catch (error) {
+      event.outcome = "failed";
+      event.error = String(error);
+      throw error;
+    } finally {
+      retain();
+    }
+  };
+  const click = (control: Locator, label: string) =>
+    act("click", label, () => control.click());
+  const fill = (control: Locator, value: string, label: string) =>
+    act("fill", label, () => control.fill(value));
+  const key = (active: Page, value: string) =>
+    act("key", value, () => active.keyboard.press(value));
+  const focus = (control: Locator, label: string) =>
+    act("focus", label, () => control.focus());
+  const drag = async (
+    active: Page,
+    control: Locator,
+    dx: number,
+    dy: number,
+    cancel: boolean,
+  ) => {
+    const box = await control.boundingBox();
+    if (!box) throw new Error("Drag control has no geometry");
+    await act(
+      "drag",
+      `${task.id} ${cancel ? "cancel" : "commit"}`,
+      async () => {
+        const x = box.x + box.width / 2,
+          y = box.y + box.height / 2;
+        await active.mouse.move(x, y);
+        await active.mouse.down();
+        await active.mouse.move(x + dx, y + dy, { steps: 10 });
+        await captureUi(active, "intermediate-drag");
+        if (cancel) await active.keyboard.press("Escape");
+        await active.mouse.up();
+      },
+    );
+  };
+  const prepare = async (active: Page, projectPath: string) => {
+    phase = "setup";
+    await active.setViewportSize(task.viewport);
+    await active.emulateMedia({
+      reducedMotion: "reduce",
+      colorScheme: "light",
+    });
+    await switchE2eProject(projectPath);
+    await active.goto(`/?project=${encodeURIComponent(projectPath)}`);
+    await expect(active.locator(".daw-shell")).toBeVisible();
+    await active.waitForLoadState("networkidle");
+    await active.evaluate(() => {
+      document.documentElement.dataset.theme = "light";
+    });
+    await act("click", "prepare timeline focus", () =>
+      active.locator(".timeline-scroll").click({ position: { x: 2, y: 2 } }),
+    );
+    await act("key", "prepare fixed zoom one step", () =>
+      active.keyboard.press("="),
+    );
+  };
+  const perform = async (
+    active: Page,
+    session: CDPSession,
+    cancel: boolean,
+    cancelProbe = "short",
+  ) => {
+    const first = active.locator('[data-clip-id="first-copy"]');
+    const firstBox = await first.boundingBox();
+    const scale = firstBox ? firstBox.width / 5 : 0;
+    if (task.id === "seek") {
+      const ruler = active.getByRole("slider", {
+        name: "Timeline position",
+        exact: true,
+      });
+      if (routeId === "ruler-pointer")
+        await act("click", "ruler at 5 seconds", () =>
+          ruler.click({ position: { x: 5 * scale, y: 10 } }),
+        );
+      else {
+        await focus(ruler, "ruler");
+        await key(active, "Home");
+        const step = niceTimeStep(scale);
+        if (Math.abs(5 / step - Math.round(5 / step)) > 1e-9)
+          throw new Error(`Frozen ruler step ${step} cannot reach literal5`);
+        for (let index = 0; index < Math.round(5 / step); index++)
+          await key(active, "ArrowRight");
+      }
+      return;
+    }
+    if (task.id === "range-cut") {
+      if (routeId === "range-form") {
+        await click(
+          active.getByRole("button", { name: "Menu", exact: true }),
+          "transport Menu",
+        );
+        await click(
+          active.getByRole("menuitem", { name: "Select a range", exact: true }),
+          "Select a range",
+        );
+        const range = active.getByRole("region", { name: "Range actions" });
+        await fill(
+          range.getByRole("spinbutton", { name: "In", exact: true }),
+          "11",
+          "range In",
+        );
+        await fill(
+          range.getByRole("spinbutton", { name: "Out", exact: true }),
+          "12",
+          "range Out",
+        );
+        const lane = range.getByRole("checkbox", {
+          name: "reference",
+          exact: true,
+        });
+        if (!(await lane.isChecked()))
+          await act("check", "reference range lane", () => lane.check());
+        await click(
+          range.getByRole("button", { name: "Select range", exact: true }),
+          "Select range",
+        );
+      } else {
+        await click(
+          active.getByRole("button", { name: "Menu", exact: true }),
+          "transport Menu",
+        );
+        await click(
+          active.getByRole("menuitem", { name: "Select a range", exact: true }),
+          "arm range",
+        );
+        const body = active.locator('[data-clip-id="second-copy"] .clip-hit');
+        const box = await body.boundingBox();
+        if (!box) throw new Error("Range body has no geometry");
+        await act("drag", "range 11 through 12", async () => {
+          await active.mouse.move(box.x + scale, box.y + box.height / 2);
+          await active.mouse.down();
+          await active.mouse.move(box.x + 2 * scale, box.y + box.height / 2, {
+            steps: 10,
+          });
+          if (cancel) await active.keyboard.press("Escape");
+          await active.mouse.up();
+        });
+      }
+      const range = active.getByRole("region", { name: "Range actions" });
+      if (cancel) {
+        if (routeId === "range-form")
+          await click(
+            range.getByRole("button", { name: "Clear range", exact: true }),
+            "Clear range",
+          );
+      } else
+        await click(
+          range.getByRole("button", { name: "Cut", exact: true }),
+          "Cut selected range",
+        );
+      return;
+    }
+    if (task.id === "trim" || task.id === "fade") {
+      const fade = task.id === "fade";
+      await click(first.locator(".clip-hit"), "select first-copy");
+      const handle = first.locator(
+        fade ? ".fade-corner.in" : ".trim-handle.in",
+      );
+      if (routeId === "handle-pointer" || routeId === "corner-pointer")
+        await drag(active, handle, scale * (fade ? 0.1 : 0.3), 0, cancel);
+      else if (routeId === "handle-keyboard") {
+        await focus(handle, "trim In handle");
+        await act("key-burst", "30 ArrowRight trim nudges", async () => {
+          for (let index = 0; index < 30; index++)
+            await active.keyboard.down("ArrowRight");
+          if (cancel) await active.keyboard.press("Escape");
+          await active.keyboard.up("ArrowRight");
+        });
+      } else {
+        const slider = active.getByRole("slider", {
+          name: "Fade in ms",
+          exact: true,
+        });
+        await focus(slider, "Fade in ms");
+        await act("key-burst", "100ms native fade preview", async () => {
+          for (let index = 0; index < 100; index++)
+            await active.keyboard.down("ArrowRight");
+          if (cancel) await active.keyboard.press("Escape");
+          await active.keyboard.up("ArrowRight");
+          if (!cancel) await slider.blur();
+        });
+      }
+      return;
+    }
+    if (task.id === "envelope") {
+      if (routeId === "point-pointer") {
+        const point = active.locator(
+          'circle[aria-label^="Envelope point 1 at"]',
+        );
+        const svg = await point.locator("xpath=..").boundingBox();
+        if (!svg) throw new Error("Envelope has no geometry");
+        await drag(
+          active,
+          point,
+          scale * 4,
+          (-0.2 / 1.5) * (svg.height - 8),
+          cancel,
+        );
+      } else {
+        await click(
+          active.getByRole("button", {
+            name: "Open track details, reference",
+            exact: true,
+          }),
+          "reference details",
+        );
+        await click(
+          active.getByRole("button", {
+            name: "Edit volume envelope",
+            exact: true,
+          }),
+          "Edit volume envelope",
+        );
+        await act("select", "Envelope point p1", () =>
+          active
+            .getByRole("combobox", { name: "Envelope point", exact: true })
+            .selectOption("p1"),
+        );
+        await click(
+          active.getByRole("button", { name: "Edit point", exact: true }),
+          "Edit point",
+        );
+        await fill(
+          active.getByRole("textbox", {
+            name: "Time (seconds on timeline)",
+            exact: true,
+          }),
+          "6",
+          "point time",
+        );
+        await fill(
+          active.getByRole("textbox", { name: "Level (×)", exact: true }),
+          "0.8",
+          "point level",
+        );
+        await click(
+          active.getByRole("button", {
+            name: cancel ? "Cancel" : "Save point",
+            exact: true,
+          }),
+          cancel ? "Cancel point" : "Save point",
+        );
+      }
+      return;
+    }
+    if (task.id === "reorder") {
+      if (routeId === "move-up") {
+        await click(
+          active.getByRole("button", {
+            name: "Open track details, guest",
+            exact: true,
+          }),
+          "guest details",
+        );
+        await click(
+          active.getByRole("button", { name: "Move track up", exact: true }),
+          "Move track up",
+        );
+      } else {
+        const source = active.getByRole("button", {
+          name: "Reorder track guest",
+          exact: true,
+        });
+        const target = active
+          .getByRole("button", {
+            name: "Open track details, reference",
+            exact: true,
+          })
+          .locator("xpath=..");
+        if (cancel) {
+          const box = await source.boundingBox();
+          if (!box) throw new Error("Reorder handle unavailable");
+          await act("drag", "cancel HTML drag", async () => {
+            await active.mouse.move(
+              box.x + box.width / 2,
+              box.y + box.height / 2,
+            );
+            await active.mouse.down();
+            await active.mouse.move(box.x + 5, box.y - 25, { steps: 8 });
+            await active.keyboard.press("Escape");
+            await active.mouse.up();
+          });
+        } else
+          await act("drag", "guest before reference HTML drag", () =>
+            source.dragTo(target, { targetPosition: { x: 10, y: 2 } }),
+          );
+      }
+      return;
+    }
+    if (task.id === "mix" || task.id === "comment") {
+      await click(
+        active
+          .getByRole("navigation", { name: "Primary" })
+          .getByRole("button", { name: "More", exact: true }),
+        "Primary More",
+      );
+      await click(
+        active.getByRole("button", {
+          name: task.id === "mix" ? "Mix" : "Comments",
+          exact: true,
+        }),
+        task.id === "mix" ? "Mix" : "Comments",
+      );
+    }
+    if (task.id === "mix") {
+      const slider = active.getByRole("slider", {
+        name: "Volume reference",
+        exact: true,
+      });
+      if (routeId === "native-keyboard") {
+        await focus(slider, "Volume reference");
+        for (let index = 0; index < 12; index++) {
+          await key(active, "ArrowLeft");
+          await expect
+            .poll(
+              () =>
+                trial.journal.filter(
+                  (row) => row.kind === "response" && row.phase === "action",
+                ).length,
+            )
+            .toBe(index + 1);
+        }
+      } else {
+        const box = await slider.boundingBox();
+        if (!box) throw new Error("Mix slider unavailable");
+        const min = Number(await slider.getAttribute("min")),
+          max = Number(await slider.getAttribute("max"));
+        const x = box.x + 8 + ((box.width - 16) * (-6 - min)) / (max - min),
+          y = box.y + box.height / 2;
+        if (cancel) {
+          await act(
+            "touch-cancel",
+            "native Mix trusted touchCancel",
+            async () => {
+              await session.send("Input.dispatchTouchEvent", {
+                type: "touchStart",
+                touchPoints: [
+                  { x: box.x + (box.width * (0 - min)) / (max - min), y },
+                ],
+              });
+              await session.send("Input.dispatchTouchEvent", {
+                type: "touchMove",
+                touchPoints: [{ x, y }],
+              });
+              await captureUi(active, "intermediate-mix", false);
+              await session.send("Input.dispatchTouchEvent", {
+                type: "touchCancel",
+                touchPoints: [],
+              });
+              await expect(slider).toHaveValue("0");
+            },
+          );
+          return;
+        }
+        await act("drag", "Volume reference to -6dB", async () => {
+          await active.mouse.move(
+            box.x + (box.width * (0 - min)) / (max - min),
+            y,
+          );
+          await active.mouse.down();
+          await active.mouse.move(x, y, { steps: 10 });
+          await active.mouse.up();
+        });
+      }
+      return;
+    }
+    if (task.id === "comment") {
+      const card = active
+        .locator(".comment-card")
+        .filter({ hasText: "Editing task comment" });
+      if (routeId === "resolve-button")
+        await click(
+          card.getByRole("button", { name: "Resolve", exact: true }),
+          "Resolve comment",
+        );
+      else {
+        const box = await card.locator(".comment-card-main").boundingBox();
+        if (!box) throw new Error("Comment unavailable");
+        const x = box.x + box.width * 0.7,
+          y = box.y + box.height / 2;
+        await act(
+          "touch-swipe",
+          cancel
+            ? `${cancelProbe} comment cancellation`
+            : "trusted64px comment swipe",
+          async () => {
+            await session.send("Input.dispatchTouchEvent", {
+              type: "touchStart",
+              touchPoints: [{ x, y }],
+            });
+            await session.send("Input.dispatchTouchEvent", {
+              type: "touchMove",
+              touchPoints: [
+                {
+                  x: x - (cancel ? (cancelProbe === "short" ? 20 : 64) : 64),
+                  y: y + (cancel && cancelProbe === "vertical" ? 30 : 0),
+                },
+              ],
+            });
+            await captureUi(active, "intermediate-swipe", false);
+            await session.send("Input.dispatchTouchEvent", {
+              type:
+                cancel && cancelProbe === "touch-cancel"
+                  ? "touchCancel"
+                  : "touchEnd",
+              touchPoints: [],
+            });
+          },
+        );
+      }
+    }
+  };
+  const fixture = createEditingFixture(task);
+  trial.fixture = {
+    projectPath: fixture.projectPath,
+    savedHash: createHash("sha256")
+      .update(JSON.stringify(readEditingState(fixture.projectPath)))
+      .digest("hex"),
+    media: Object.fromEntries(
+      ["reference", "guest"].map((id) => [
+        id,
+        createHash("sha256")
+          .update(
+            fs.readFileSync(
+              path.join(fixture.workspaceDir, "raw", `${id}.wav`),
+            ),
+          )
+          .digest("hex"),
+      ]),
+    ),
+  };
+  const history = () => {
+    const project = object(
+      JSON.parse(fs.readFileSync(fixture.projectPath, "utf8")),
+    );
+    const saved = object(project.history);
+    const cursor = Number(saved.cursor);
+    const entries = array(saved.entries).map((entry) => {
+      const row = object(entry);
+      if (
+        typeof row.id !== "string" ||
+        typeof row.label !== "string" ||
+        !(row.operation === null || typeof row.operation === "string")
+      )
+        throw new Error("Malformed saved history entry");
+      return { id: row.id, label: row.label, operation: row.operation };
+    });
+    if (
+      !Number.isSafeInteger(cursor) ||
+      cursor < -1 ||
+      cursor >= entries.length
+    )
+      throw new Error("Malformed saved history cursor");
+    return { cursor, headId: cursor >= 0 ? entries[cursor].id : null, entries };
+  };
+  trial.history = { before: history(), after: null, undone: null };
+  fs.copyFileSync(
+    fixture.projectPath,
+    path.join(output, "initial-project.json"),
+  );
+  const profiler = await createEditorProfiler(
+    page,
+    cdp,
+    info,
+    fixture.projectPath,
+    0,
+    true,
+  );
+  observe(page);
+  try {
+    if (chosen.cancel) {
+      const canceledFixture = createEditingFixture(task);
+      let activeCancelFixture = canceledFixture;
+      const context = await page
+        .context()
+        .browser()!
+        .newContext({
+          viewport: task.viewport,
+          hasTouch: chosen.input === "cdp-touch" || task.id === "mix",
+        });
+      const cancelPage = await context.newPage();
+      const cancelCdp = await context.newCDPSession(cancelPage);
+      observe(cancelPage);
+      try {
+        const probes =
+          task.id === "comment"
+            ? ["short", "vertical", "touch-cancel"]
+            : ["cancel"];
+        for (const [index, probe] of probes.entries()) {
+          const clone =
+            index === 0 ? canceledFixture : createEditingFixture(task);
+          activeCancelFixture = clone;
+          await prepare(cancelPage, clone.projectPath);
+          phase = "cancel";
+          await captureUi(cancelPage, `cancel-${probe}-initiation`);
+          await perform(cancelPage, cancelCdp, true, probe);
+          await Promise.all(responses);
+          await captureUi(cancelPage, `cancel-${probe}-recovery`);
+          trial.canceled = readEditingState(clone.projectPath);
+          (trial.cancellations ??= []).push({ probe, state: trial.canceled });
+          fs.copyFileSync(
+            clone.projectPath,
+            path.join(output, `canceled-${probe}-project.json`),
+          );
+          retain();
+        }
+      } catch (error) {
+        trial.errors!.push(`cancel: ${String(error)}`);
+        trial.canceled = readEditingState(activeCancelFixture.projectPath);
+        fs.copyFileSync(
+          activeCancelFixture.projectPath,
+          path.join(output, "failed-cancel-project.json"),
+        );
+        await captureUi(cancelPage, "failed-cancel-recovery");
+        retain();
+      } finally {
+        await context.close();
+      }
+    }
+    await prepare(page, fixture.projectPath);
+    if (process.platform === "linux") {
+      const port = process.env.DAW_E2E_PORT;
+      const processes = fs
+        .readdirSync("/proc")
+        .filter((pid) => /^\d+$/.test(pid))
+        .flatMap((pid) => {
+          try {
+            const command = fs
+              .readFileSync(`/proc/${pid}/cmdline`, "utf8")
+              .split("\0")
+              .filter(Boolean);
+            const portIndex = command.indexOf("--port");
+            if (
+              portIndex < 0 ||
+              command[portIndex + 1] !== port ||
+              !command.includes("gui")
+            )
+              return [];
+            const executable = fs.readlinkSync(`/proc/${pid}/exe`);
+            if (!path.basename(executable).startsWith("python")) return [];
+            const environment = Object.fromEntries(
+              fs
+                .readFileSync(`/proc/${pid}/environ`, "utf8")
+                .split("\0")
+                .filter(Boolean)
+                .map((entry) => {
+                  const at = entry.indexOf("=");
+                  return [entry.slice(0, at), entry.slice(at + 1)];
+                }),
+            );
+            return [
+              {
+                pid: Number(pid),
+                command,
+                executable,
+                cwd: fs.readlinkSync(`/proc/${pid}/cwd`),
+                productionDist: environment.PODCAST_GUI_DIST,
+                shareRegistry: environment.PODCAST_SHARE_REGISTRY,
+              },
+            ];
+          } catch {
+            return [];
+          }
+        });
+      fs.writeFileSync(
+        path.join(output, "live-backend.json"),
+        JSON.stringify(processes, null, 2),
+      );
+      if (
+        processes.length !== 1 ||
+        processes[0].cwd !== path.resolve("../..") ||
+        processes[0].productionDist !== process.env.PODCAST_GUI_DIST ||
+        processes[0].shareRegistry !== process.env.PODCAST_SHARE_REGISTRY
+      )
+        throw new Error(
+          "Live backend process provenance differs from admitted source/build/isolation",
+        );
+    }
+    await page.screenshot({
+      path: path.join(output, "before.png"),
+      fullPage: true,
+    });
+    trial.artifacts!.push("before.png");
+    trial.before = readEditingState(fixture.projectPath);
+    retain();
+    phase = "action";
+    await captureUi(page, "initiation");
+    const measureAction = () =>
+      profiler.measure(
+        {
+          id: `editing-${task.id}-${routeId}`,
+          phase: "warm",
+          input: `${chosen.input} current-main editing task`,
+        },
+        async () => {
+          await perform(page, cdp, false);
+          await captureUi(page, "input-complete");
+          await expect
+            .poll(() =>
+              savedStateDifferences(
+                task.expected,
+                readEditingState(fixture.projectPath, task.id === "range-cut"),
+                "after",
+                chosen.input === "pointer" || chosen.input === "cdp-touch"
+                  ? task.tolerances
+                  : Object.fromEntries(
+                      Object.keys(task.tolerances).map((key) => [key, 1e-6]),
+                    ),
+              ),
+            )
+            .toEqual([]);
+          trial.after = readEditingState(
+            fixture.projectPath,
+            task.id === "range-cut",
+          );
+          if (task.seek !== undefined)
+            trial.transport = {
+              seconds: Number(
+                await page
+                  .getByRole("slider", { name: "Timeline position" })
+                  .getAttribute("aria-valuenow"),
+              ),
+              playing: await page
+                .getByRole("button", { name: "Pause", exact: true })
+                .isVisible(),
+            };
+          retain();
+          return {
+            kind: "existing",
+            contract: path.join(output, "trial.json"),
+          };
+        },
+      );
+    if (mode === "diagnostic")
+      await profiler.trace(async () => {
+        await measureAction();
+      });
+    else await measureAction();
+    trial.durationMs = profiler.report.samples[0]?.driverWallMs;
+    await Promise.all(responses);
+    trial.history!.after = history();
+    await page.screenshot({
+      path: path.join(output, "saved.png"),
+      fullPage: true,
+    });
+    trial.artifacts!.push("saved.png");
+    await captureUi(page, "saved");
+    phase = "undo";
+    if (chosen.undo === "comment-toast")
+      await click(
+        page
+          .locator(".comments-panel .ui-toast")
+          .getByRole("button", { name: "Undo", exact: true }),
+        "comment toast Undo",
+      );
+    if (chosen.undo === "history") {
+      if (task.viewport.width < 720)
+        await click(
+          page
+            .getByRole("dialog", { name: "Mix", exact: true })
+            .getByRole("button", { name: "Close", exact: true }),
+          "Close Mix",
+        );
+      await focus(
+        page.getByRole("button", { name: "Menu", exact: true }),
+        "non-typing Menu",
+      );
+      for (let index = 0; index < chosen.mutations; index++) {
+        await key(page, "ControlOrMeta+z");
+        await expect
+          .poll(
+            () =>
+              trial.journal.filter(
+                (row) => row.kind === "response" && row.phase === "undo",
+              ).length,
+          )
+          .toBe(index + 1);
+      }
+    }
+    if (chosen.undo !== "none") {
+      await expect
+        .poll(() => readEditingState(fixture.projectPath))
+        .toEqual(task.start);
+      trial.undone = readEditingState(fixture.projectPath);
+      trial.history!.undone = history();
+      await page.screenshot({
+        path: path.join(output, "undone.png"),
+        fullPage: true,
+      });
+      trial.artifacts!.push("undone.png");
+      await captureUi(page, "undo-recovery");
+    }
+  } catch (error) {
+    trial.errors!.push(String(error));
+    await page
+      .screenshot({ path: path.join(output, "failed.png"), fullPage: true })
+      .catch(() => {});
+    trial.artifacts!.push("failed.png");
+    trial.after ??= readEditingState(
+      fixture.projectPath,
+      task.id === "range-cut",
+    );
+  } finally {
+    await Promise.all(responses);
+    await profiler.finish();
+    trial.profiler = process.env.DAW_PROFILE_OUT
+      ? path.join(process.env.DAW_PROFILE_OUT, "report.json")
+      : info.outputPath("editor-profile", "report.json");
+    fs.copyFileSync(
+      fixture.projectPath,
+      path.join(output, "saved-project.json"),
+    );
+    retain();
+    fs.writeFileSync(
+      path.join(output, "assessment.json"),
+      JSON.stringify(assessEditingTrial(task, trial), null, 2),
+    );
+  }
+  return trial;
+}

@@ -126,6 +126,7 @@ describe("literal editing task admission", () => {
       mutations: 1,
       accidentalCommands: 0,
       completedWork: 1,
+      canceledReads: 0,
       observations: { save: "pass", cancel: "pass", undo: "pass" },
     });
   });
@@ -314,3 +315,120 @@ it("excludes diagnostic and non-finite durations from five-trial statistics", ()
     maxMs: 5,
   });
 });
+
+function canceledReadTrial(replaced: boolean): EditingTrial {
+  const t = trial();
+  const url =
+    "http://127.0.0.1:1234/api/document/state?path=%2Ftmp%2Ftask.json&phase=detail";
+  t.journal.push({
+    seq: 8,
+    phase: "setup",
+    kind: "read-request",
+    requestId: 3,
+    url,
+    method: "GET",
+  });
+  t.journal.push({
+    seq: 9,
+    phase: "setup",
+    kind: "read-failed",
+    requestId: 3,
+    error: "net::ERR_ABORTED",
+  });
+  if (replaced) {
+    t.journal.push({
+      seq: 10,
+      phase: "setup",
+      kind: "read-request",
+      requestId: 4,
+      url,
+      method: "GET",
+    });
+    t.journal.push({
+      seq: 11,
+      phase: "setup",
+      kind: "read-response",
+      requestId: 4,
+      status: 200,
+      body: '{"server_seq":0,"state_token":"0000000000000000000000000000000000000000000000000000000000000000"}',
+    });
+  }
+  return t;
+}
+it("rejects a canceled detail read without a successful replacement", () => {
+  expect(
+    assessEditingTrial(definition, canceledReadTrial(false)).reasons,
+  ).toEqual(["read 3 failed net::ERR_ABORTED without admitted replacement"]);
+});
+it("retains and classifies the replaced setup detail read", () => {
+  const result = assessEditingTrial(definition, canceledReadTrial(true));
+  expect(result.status).toBe("pass");
+  expect(result.canceledReads).toBe(1);
+});
+
+it.each(["action", "other-project", "HTTP500", "unknown-body"])(
+  "rejects detail cancellation with %s replacement evidence",
+  (fault) => {
+    const t = canceledReadTrial(true);
+    for (const row of t.journal) {
+      if (
+        (row.kind === "read-request" || row.kind === "read-failed") &&
+        fault === "action"
+      )
+        row.phase = "action";
+      if (
+        row.kind === "read-request" &&
+        row.requestId === 4 &&
+        fault === "other-project"
+      )
+        row.url =
+          "http://127.0.0.1:1234/api/document/state?path=%2Ftmp%2Fother.json&phase=detail";
+      if (row.kind === "read-response" && fault === "HTTP500") row.status = 500;
+      if (row.kind === "read-response" && fault === "unknown-body")
+        row.body = "{}";
+    }
+    const result = assessEditingTrial(definition, t);
+    expect(result.status).toBe("fail");
+    expect(result.canceledReads).toBe(0);
+  },
+);
+
+it("rejects a replacement started before the observed cancellation", () => {
+  const t = canceledReadTrial(true);
+  const failed = t.journal.find((row) => row.kind === "read-failed")!;
+  const replacement = t.journal.find(
+    (row) => row.kind === "read-request" && row.requestId === 4,
+  )!;
+  replacement.seq = 9;
+  failed.seq = 10;
+  t.journal.sort((a, b) => a.seq - b.seq);
+  expect(assessEditingTrial(definition, t).reasons).toEqual([
+    "read 3 failed net::ERR_ABORTED without admitted replacement",
+  ]);
+});
+
+it.each(["same-request", "duplicate-response"])(
+  "rejects %s as replacement read evidence",
+  (fault) => {
+    const t = canceledReadTrial(true);
+    if (fault === "same-request") {
+      for (const row of t.journal)
+        if (
+          (row.kind === "read-request" || row.kind === "read-response") &&
+          row.requestId === 4
+        )
+          row.requestId = 3;
+    } else {
+      t.journal.push({
+        seq: 12,
+        phase: "setup",
+        kind: "read-response",
+        requestId: 4,
+        status: 200,
+        body: '{"server_seq":0,"state_token":"0000000000000000000000000000000000000000000000000000000000000000"}',
+      });
+    }
+    expect(assessEditingTrial(definition, t).status).toBe("fail");
+    expect(assessEditingTrial(definition, t).canceledReads).toBe(0);
+  },
+);

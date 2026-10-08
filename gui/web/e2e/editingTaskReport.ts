@@ -111,6 +111,9 @@ export type JournalEvent = { seq: number; phase: Phase } & (
     }
   | { kind: "request"; requestId: number; type: string; body: string }
   | { kind: "response"; requestId: number; status: number; body: string }
+  | { kind: "read-request"; requestId: number; url: string; method: string }
+  | { kind: "read-response"; requestId: number; status: number; body: string }
+  | { kind: "read-failed"; requestId: number; error: string }
   | { kind: "error"; message: string }
 );
 export type TaskRoute =
@@ -164,10 +167,15 @@ export type EditingTrial = {
   }[];
   cancellations?: { probe: string; state: DurableState }[];
   history?: {
-    before: string | null;
-    after: string | null;
-    undone: string | null;
+    before: HistoryIdentity | null;
+    after: HistoryIdentity | null;
+    undone: HistoryIdentity | null;
   };
+};
+export type HistoryIdentity = {
+  cursor: number;
+  headId: string | null;
+  entries: { id: string; label: string; operation: string | null }[];
 };
 export type ObservationStatus =
   | "pass"
@@ -187,6 +195,7 @@ export type TrialAssessment = {
   mutations: number;
   accidentalCommands: number;
   completedWork: number;
+  canceledReads: number;
 };
 
 function differences(
@@ -252,6 +261,7 @@ export function assessEditingTrial(
       mutations: 0,
       accidentalCommands: 0,
       completedWork: 0,
+      canceledReads: 0,
       observations: {
         save: route && "pending" in route ? "pending" : "not-run",
         cancel: route && "pending" in route ? "pending" : "not-run",
@@ -261,6 +271,7 @@ export function assessEditingTrial(
   let previous = 0;
   let mutations = 0;
   let accidentalCommands = 0;
+  let canceledReads = 0;
   for (const event of trial.journal) {
     if (event.seq <= previous)
       reasons.push("journal sequence is not increasing");
@@ -271,6 +282,77 @@ export function assessEditingTrial(
         reasons.push(`activation ${event.label} ${event.outcome}`);
     }
     if (event.kind === "error") reasons.push(event.message);
+    if (event.kind === "read-failed") {
+      const read = trial.journal.find(
+        (row) =>
+          row.kind === "read-request" && row.requestId === event.requestId,
+      );
+      let replaced = false;
+      if (read?.kind === "read-request") {
+        const url = new URL(read.url);
+        const eligible =
+          read.phase === "setup" &&
+          event.phase === "setup" &&
+          read.method === "GET" &&
+          url.pathname === "/api/document/state" &&
+          url.searchParams.get("phase") === "detail" &&
+          Boolean(url.searchParams.get("path")) &&
+          event.error === "net::ERR_ABORTED";
+        replaced =
+          eligible &&
+          trial.journal.some((candidate) => {
+            if (
+              candidate.kind !== "read-request" ||
+              candidate.phase !== "setup" ||
+              candidate.seq <= event.seq ||
+              candidate.requestId === read.requestId ||
+              candidate.url !== read.url ||
+              candidate.method !== "GET"
+            )
+              return false;
+            const outcomes = trial.journal.filter(
+              (response) =>
+                response.kind === "read-response" &&
+                response.requestId === candidate.requestId,
+            );
+            return (
+              outcomes.length === 1 &&
+              outcomes.some((response) => {
+                if (
+                  response.kind !== "read-response" ||
+                  response.phase !== "setup" ||
+                  response.requestId !== candidate.requestId ||
+                  response.seq <= candidate.seq ||
+                  response.status < 200 ||
+                  response.status >= 300
+                )
+                  return false;
+                try {
+                  const body = JSON.parse(response.body) as Record<
+                    string,
+                    unknown
+                  >;
+                  return (
+                    Number.isSafeInteger(body.server_seq) &&
+                    Number(body.server_seq) >= 0 &&
+                    typeof body.state_token === "string" &&
+                    /^[a-f0-9]{64}$/.test(body.state_token)
+                  );
+                } catch {
+                  return false;
+                }
+              })
+            );
+          });
+      }
+      if (replaced) canceledReads++;
+      else
+        reasons.push(
+          `read ${event.requestId} failed ${event.error} without admitted replacement`,
+        );
+    }
+    if (event.kind === "read-response" && event.status >= 400)
+      reasons.push(`read ${event.requestId} failed HTTP ${event.status}`);
     if (event.kind !== "request") continue;
     const responses = trial.journal.filter(
       (item) => item.kind === "response" && item.requestId === event.requestId,
@@ -408,6 +490,7 @@ export function assessEditingTrial(
     mutations,
     accidentalCommands,
     completedWork: reasons.length ? 0 : 1,
+    canceledReads,
     observations: {
       save: !trial.after ? "not-run" : reasons.length ? "fail" : "pass",
       cancel: !route.cancel
