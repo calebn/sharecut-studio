@@ -17,7 +17,6 @@ from podcast_mcp.edits.audio_cache import (
     BandLevels,
     TrackAudioCache,
     level_profile,
-    speech_level_db,
 )
 from podcast_mcp.edits.inaudible_cuts import CutWordIndex
 from podcast_mcp.edits.room_model import (
@@ -938,7 +937,11 @@ def _band_source(
     if audio_cache is not None and int(audio_cache.waveform.sample_rate) == sample_rate:
         return audio_cache.band_levels
     read = _audio_reader(project, track_id, sample_rate, None)
-    return None if read is None else BandLevels(read, sample_rate)
+    if read is None:
+        return None
+    track = project.track_by_id(track_id)
+    duration = track.media.duration_sec if track is not None and track.media is not None else None
+    return BandLevels(read, sample_rate, duration or 0.0)
 
 
 def _frame_origin(t: float) -> float:
@@ -969,7 +972,7 @@ def _track_view(
         return None
     first = round((origin - wide_origin) / dt)
     levels = wide[first : first + math.ceil((pause[1] + _LEVEL_CONTEXT_SEC - origin) / dt - 1e-9)]
-    speech_db = speech_level_db(levels)
+    speech_db = bands.speech_db()
     spans = words.live_word_spans(wide_origin, wide_origin + wide.size * dt)
     padded = [(a - _ROOM_WORD_PAD_SEC, b + _ROOM_WORD_PAD_SEC) for a, b in spans]
     between = ~_blocked_frames([*padded, pause], wide_origin, dt, wide.size)
@@ -1183,7 +1186,10 @@ def pause_air_span(
         return PauseAir(start, end)
     dt = LEVEL_FRAME_SEC
     timeline = SessionTimeline(project)
-    window = source_span_timeline_bounds(timeline, track_id, pause[0], pause[1])
+    # The edit checks can leave the span a little outside the pause; the peers are read under both.
+    window = source_span_timeline_bounds(
+        timeline, track_id, min(pause[0], start), max(pause[1], end)
+    )
     if window[0] is None or window[1] is None:
         return PauseAirSkip.NO_AIR
     caches = audio_caches or {}
