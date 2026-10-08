@@ -24,6 +24,7 @@ from podcast_mcp.util.dsp import (
     bridge_short_dips,
     db_to_amplitude,
     frame_rms_db,
+    frame_speech_band_db,
     high_band_energy_fraction,
     voicing_probes,
 )
@@ -62,21 +63,24 @@ _LEVEL_CONTEXT_SEC = 5.0
 _BREATH_ABOVE_FLOOR_DB = 9.5
 _BREATH_BELOW_SPEECH_DB = (7.0, 40.0)
 # A pause trim removes only air (#1055), and air is a track's room tone: its levels where
-# it is not sounding. The room of a track is read from its 10 ms frames between its own
-# words (``room_floor_db``, the measure the voice walks share), over the 5 s each side of
-# the pause and never over the pause itself, which sound may fill. The pause's quiet is the
-# 20th percentile of its frames, digital silence included, held to that room:
-# a pause that is mostly the track's own breath, or a peer's, has a 20th percentile inside
-# that sound, which would read as the quiet and hide it. A sound is a run more than 6 dB
-# over the quiet, dips of up to 50 ms bridged (a breath's or a voiced decay's level
-# flutters for a frame or two, and creaky voice pulses as slowly as about 20 times a
-# second), that peaks at least 10 dB over it. No trim edge may sit inside a sound, so each
+# it is not sounding, read in the speech band (``speech_band``: the render clears the
+# rumble below 80 Hz, and a 40 Hz rumble can sit 10 dB over a room's broadband air, hiding
+# every breath and fade that rides on it). The room of a track is read from its 10 ms
+# frames between its own words (``room_floor_db``, the measure the voice walks share), over
+# the 5 s each side of the pause and never over the pause itself, which sound may fill. The
+# pause's quiet is the 20th percentile of its frames, digital silence included, held to that
+# room: a pause that is mostly the track's own breath, or a peer's, has a 20th percentile
+# inside that sound, which would read as the quiet and hide it. A sound is a run more than
+# 3 dB over the quiet, which is twice the room's power: past that a frame is no longer the
+# room. Dips of up to 50 ms are bridged (a breath's or a voiced decay's level flutters for
+# a frame or two, and creaky voice pulses as slowly as about 20 times a second), and the
+# run peaks at least 10 dB over the quiet. No trim edge may sit inside a sound, so each
 # sound carries one guard frame on either side.
 _PAUSE_QUIET_PERCENTILE = 20.0
 _PAUSE_ROOM_PERCENTILE = 5.0
 _ROOM_WORD_PAD_SEC = 0.05
 _MIN_ROOM_SEC = 0.5
-_SOUND_OVER_QUIET_DB = 6.0
+_SOUND_OVER_QUIET_DB = 3.0
 _SOUND_PEAK_OVER_QUIET_DB = 10.0
 _SOUND_DIP_SEC = 0.05
 _SOUND_GUARD_FRAMES = 1
@@ -950,24 +954,21 @@ def _track_room_db(
     *,
     origin: float,
     gap: tuple[int, int],
-    cache: TrackAudioCache | None,
 ) -> float | None:
     """The room of track ``tid`` around a pause: its levels between its own words.
 
     Frames within a word's span (padded) and the pause's own frames are left out, so
     sound that fills the pause cannot set the room it is judged against. A window with
-    under half a second of such frames falls back on the track's whole-track room when
-    the track is cached, and has no room otherwise.
+    under half a second of such frames has no room: the track sounds all through it.
     """
     dt = LEVEL_FRAME_SEC
     words = CutWordIndex.build(project, tid).live_word_spans(origin, origin + levels.size * dt)
     padded = [(a - _ROOM_WORD_PAD_SEC, b + _ROOM_WORD_PAD_SEC) for a, b in words]
     between = ~_blocked_frames(padded, origin, dt, levels.size)
     between[gap[0] : gap[1]] = False
-    if np.count_nonzero(between) * dt >= _MIN_ROOM_SEC:
-        return room_floor_db(levels, among=between, percentile=_PAUSE_ROOM_PERCENTILE)
-    profile = None if cache is None else cache.track_profile
-    return None if profile is None else 20.0 * math.log10(profile[0])
+    if np.count_nonzero(between) * dt < _MIN_ROOM_SEC:
+        return None
+    return room_floor_db(levels, among=between, percentile=_PAUSE_ROOM_PERCENTILE)
 
 
 def _off_sounds(lo: int, hi: int, sounds: Sequence[tuple[int, int]]) -> tuple[int, int]:
@@ -1037,7 +1038,7 @@ def pause_air_span(
         own = tid == track_id
         read = _audio_reader(project, tid, sample_rate, audio_cache if own else caches.get(tid))
         samples = _read_evidence(read, origin, duration) if read is not None else np.empty(0)
-        levels = frame_rms_db(samples, frame, frame, floor_db=DIGITAL_SILENCE_DB)
+        levels = frame_speech_band_db(samples, sample_rate, frame, floor_db=DIGITAL_SILENCE_DB)
         if not samples.size or not np.all(np.isfinite(samples)) or levels.size <= gap[0]:
             if own:
                 return None
@@ -1049,14 +1050,7 @@ def pause_air_span(
             last = min(last, levels.size)
         speech_db = None if profile is None else 20.0 * math.log10(profile[1])
         gap_frames = (gap[0], min(gap[1], levels.size))
-        room_db = _track_room_db(
-            project,
-            tid,
-            levels,
-            origin=origin,
-            gap=gap_frames,
-            cache=audio_cache if own else caches.get(tid),
-        )
+        room_db = _track_room_db(project, tid, levels, origin=origin, gap=gap_frames)
         for sound in _sounds(levels, gap_frames, speech_db, room_db):
             if own and not sound.removable:
                 keep[sound.lo : min(sound.hi, last)] = True

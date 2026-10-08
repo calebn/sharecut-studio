@@ -72,6 +72,38 @@ def frame_rms_db(
     return out
 
 
+def speech_band(samples: np.ndarray, sample_rate: int) -> np.ndarray:
+    """``samples`` as heard once the render's 80 Hz high-pass has cleared the rumble.
+
+    A raised-cosine high-pass from 50 Hz (stopped) to 120 Hz (passed), applied zero-phase
+    over the whole array. A noise gate's digital silence stays digital silence: the
+    filter's ringing is not let into the gate's zeros.
+    """
+    if samples.size < 64:
+        return samples
+    spectrum = np.fft.rfft(samples)
+    freqs = np.fft.rfftfreq(samples.size, d=1.0 / sample_rate)
+    ramp = np.clip((freqs - 50.0) / 70.0, 0.0, 1.0)
+    spectrum *= (1.0 - np.cos(np.pi * ramp)) / 2.0
+    filtered = np.fft.irfft(spectrum, n=samples.size)
+    return np.where(samples != 0.0, filtered, 0.0).astype(samples.dtype, copy=False)
+
+
+def frame_speech_band_db(
+    samples: np.ndarray, sample_rate: int, frame: int, *, floor_db: float = -200.0
+) -> np.ndarray:
+    """Per-frame dB level of ``samples`` in the speech band, on :func:`frame_rms_db`'s grid.
+
+    Room rumble, desk thumps and mains hum sit below the band and can be 10 dB over a
+    room tone's broadband air, hiding every breath and fade that rides on them. A frame
+    reads no louder than it does unfiltered: the filter spreads a loud neighbour's
+    energy a few frames each way, and that ringing is no sound of the frame's own.
+    """
+    full = frame_rms_db(samples, frame, frame, floor_db=floor_db)
+    heard = frame_rms_db(speech_band(samples, sample_rate), frame, frame, floor_db=floor_db)
+    return np.minimum(full, heard)
+
+
 def frame_band_db(
     samples: np.ndarray,
     sample_rate: int,
