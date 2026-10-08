@@ -223,7 +223,10 @@ when it was made: the live sends already out, and the saves still preparing thei
 send, such as a trim or roll loading its boundary token (`trackEditSave` in
 `state/hostSendOrder.ts`). It then expects the head the latest of this tab's own
 commands left (`noteSaveLanded`), so Undo reverts the edit the person just made and is
-not refused as stale by it. Saves that begin after the press are not waited for. A
+not refused as stale by it. A boundary token load that the server never answers gives up
+after `DOCUMENT_COMMAND_TIMEOUT_MS` (`loadBoundaryContext`), and the save is dropped with
+"The server didn't answer. Nothing was saved.", so Undo is not refused for good. Saves
+that begin after the press are not waited for. A
 peer edit that arrives while a press waits its turn is never adopted; the server
 refuses that press instead. If the move ahead was refused or failed, the waiting press keeps the head the
 tab knew when it was pressed, so it is refused too rather than guessing. The toast's

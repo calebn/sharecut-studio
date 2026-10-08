@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadBoundaryContext } from "./boundary";
+import { DOCUMENT_COMMAND_TIMEOUT_MS } from "./documentTransport";
 
 describe("boundary API", () => {
   beforeEach(() => {
@@ -103,5 +104,53 @@ describe("boundary API", () => {
     expect(url.pathname).toBe("/api/boundary/audio/opaque");
     expect(url.searchParams.get("expected_token")).toBe("preview-state");
     expect(url.searchParams.get("token")).toBe("host-auth");
+  });
+  describe("when the server never answers", () => {
+    const target = { kind: "trim", clip_id: "c1", edge: "out" } as const;
+    const hang = () =>
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          (_url: string, init?: RequestInit) =>
+            new Promise<Response>((_resolve, reject) => {
+              init?.signal?.addEventListener("abort", () =>
+                reject(init.signal?.reason),
+              );
+            }),
+        ),
+      );
+
+    it("gives up after the document command timeout with a plain message", async () => {
+      vi.useFakeTimers();
+      hang();
+      const pending = loadBoundaryContext("/tmp/episode.json", target, []);
+      const failure = expect(pending).rejects.toThrow(
+        "The server didn't answer. Nothing was saved.",
+      );
+      await vi.advanceTimersByTimeAsync(DOCUMENT_COMMAND_TIMEOUT_MS - 1);
+      expect(vi.getTimerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await failure;
+      expect(vi.getTimerCount()).toBe(0);
+      vi.useRealTimers();
+    });
+
+    it("still stops at once when the caller aborts", async () => {
+      vi.useFakeTimers();
+      hang();
+      const caller = new AbortController();
+      const pending = loadBoundaryContext(
+        "/tmp/episode.json",
+        target,
+        [],
+        caller.signal,
+      );
+      const failure = expect(pending).rejects.toMatchObject({
+        name: "AbortError",
+      });
+      caller.abort(new DOMException("Cancelled", "AbortError"));
+      await failure;
+      vi.useRealTimers();
+    });
   });
 });

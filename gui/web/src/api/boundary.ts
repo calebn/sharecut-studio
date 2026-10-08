@@ -5,8 +5,9 @@ import {
   reviewApiBase,
   shareTokenFromKey,
 } from "../shareMode";
+import { withAbortTimeout } from "../utils/abortTimeout";
 import { readApiError } from "../utils/apiError";
-import { hostFetch } from "./documentTransport";
+import { DOCUMENT_COMMAND_TIMEOUT_MS, hostFetch } from "./documentTransport";
 
 export type BoundaryTarget =
   | { kind: "roll"; left_clip_id: string; right_clip_id: string }
@@ -218,6 +219,12 @@ function parseAudition(value: unknown): BoundaryAudition {
   };
 }
 
+/**
+ * The edit-boundary token every trim, roll and transcript drag waits for. A
+ * server that never answers must not hold the edit's save open for good: Undo
+ * refuses while a save is in flight (`trackEditSave`), so the load gives up
+ * after a document command's time and the save drops with a plain message.
+ */
 export async function loadBoundaryContext(
   path: string,
   target: BoundaryTarget,
@@ -230,24 +237,32 @@ export async function loadBoundaryContext(
     : "/api/boundary/context";
   if (isShareProjectKey(path) && !guestToken)
     throw new Error("Invalid guest boundary project key");
-  const response = await (guestToken ? fetch : hostFetch)(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ...(guestToken ? {} : { path }),
-      target,
-      expected_geometry: expectedGeometry,
-    }),
-    signal,
-  });
-  if (!response.ok) {
-    const message = await readApiError(response);
-    throw new Error(`${response.status} ${message}`);
-  }
-  const context = parseContext((await response.json()) as unknown);
-  if (!sameTarget(context.target, target))
-    throw new Error("Invalid boundary response: target mismatch");
-  return context;
+  return withAbortTimeout(
+    DOCUMENT_COMMAND_TIMEOUT_MS,
+    "The server didn't answer. Nothing was saved.",
+    async (timeoutSignal) => {
+      const response = await (guestToken ? fetch : hostFetch)(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(guestToken ? {} : { path }),
+          target,
+          expected_geometry: expectedGeometry,
+        }),
+        signal: signal
+          ? AbortSignal.any([signal, timeoutSignal])
+          : timeoutSignal,
+      });
+      if (!response.ok) {
+        const message = await readApiError(response);
+        throw new Error(`${response.status} ${message}`);
+      }
+      const context = parseContext((await response.json()) as unknown);
+      if (!sameTarget(context.target, target))
+        throw new Error("Invalid boundary response: target mismatch");
+      return context;
+    },
+  );
 }
 
 export async function auditionBoundary(
