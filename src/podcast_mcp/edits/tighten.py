@@ -6,7 +6,6 @@ from typing import Any
 from podcast_mcp.edits.audio_cache import build_track_audio_caches
 from podcast_mcp.edits.fillers import (
     _add_acoustic_candidates,
-    _analyze_candidate,
     _apply_analyzed_cut,
     _collect_candidates,
     _CutCandidate,
@@ -14,6 +13,7 @@ from podcast_mcp.edits.fillers import (
     _resolve_analyzed_cuts,
     _speaker_cut_context,
     _word_indexes,
+    analyze_candidates,
     normalize_edit_mode,
 )
 from podcast_mcp.edits.mute_regions import muted_source_spans
@@ -24,8 +24,6 @@ from podcast_mcp.edits.tighten_reasons import (
     is_acoustic_filler_reason,
     is_review_only_reason,
 )
-from podcast_mcp.edits.timeline_span import source_span_timeline_bounds
-from podcast_mcp.engines.session_timeline import SessionTimeline
 from podcast_mcp.models import EditDecision, EpisodeProject, Transcript
 from podcast_mcp.util.parallel import run_parallel
 
@@ -98,50 +96,6 @@ class TightenProposal:
         }
 
 
-def _collapse_shared_pauses(
-    project: EpisodeProject, proposed: list[EditDecision], skip_counts: dict[str, int]
-) -> list[EditDecision]:
-    """One pause trim per stretch of shared air.
-
-    A session ripple removes the same window from every dialogue track, and each track's
-    pause candidate already accounts for the others (its edges sit off their sounds), so
-    two tracks that are both quiet over a stretch propose nearly the same trim. Of the
-    session pause trims whose timeline spans overlap across tracks, the longest stays
-    (the first proposed on a tie) and the rest are dropped as ``shared_pause``: the
-    reviewer decides that cut once, not once a track. Returns ``proposed`` without them.
-    """
-    timeline = SessionTimeline(project)
-    spans: dict[str, tuple[float, float]] = {}
-    for decision in proposed:
-        if not (decision.reason or "").startswith("pause:") or decision.scope != "session":
-            continue
-        lo, hi = source_span_timeline_bounds(
-            timeline, decision.track_id, decision.start, decision.end
-        )
-        if lo is not None and hi is not None:
-            spans[decision.id] = (lo, hi)
-    kept: list[EditDecision] = []
-    dropped: set[str] = set()
-    longest_first = sorted(
-        (d for d in proposed if d.id in spans), key=lambda d: spans[d.id][0] - spans[d.id][1]
-    )
-    for decision in longest_first:
-        lo, hi = spans[decision.id]
-        if any(
-            other.track_id != decision.track_id
-            and lo < spans[other.id][1]
-            and spans[other.id][0] < hi
-            for other in kept
-        ):
-            dropped.add(decision.id)
-        else:
-            kept.append(decision)
-    if dropped:
-        skip_counts["shared_pause"] = skip_counts.get("shared_pause", 0) + len(dropped)
-        project.edit_decisions = [e for e in project.edit_decisions if e.id not in dropped]
-    return [d for d in proposed if d.id not in dropped]
-
-
 def propose_tighten_edits(
     project: EpisodeProject,
     defaults: dict[str, Any],
@@ -207,19 +161,14 @@ def propose_tighten_edits(
 
     speaker_context = _speaker_cut_context(project) if candidates else None
     word_indexes = _word_indexes(project, candidates)
-    results = run_parallel(
+    results = analyze_candidates(
+        project,
         candidates,
-        lambda c: _analyze_candidate(
-            project,
-            c,
-            cfg,
-            audio_cache=audio_caches.get(c.track_id),
-            speaker_context=speaker_context,
-            word_index=word_indexes[c.track_id],
-            peer_indexes=peer_indexes,
-            audio_caches=audio_caches,
-            word_indexes=word_indexes,
-        ),
+        cfg,
+        audio_caches=audio_caches,
+        speaker_context=speaker_context,
+        peer_indexes=peer_indexes,
+        word_indexes=word_indexes,
         max_workers=max_workers,
     )
     resolved = _resolve_analyzed_cuts(
@@ -241,7 +190,6 @@ def propose_tighten_edits(
     for track_id in dict.fromkeys(t.track_id for t in project.transcripts):
         coalesce_edits(project, track_id=track_id, defaults=cfg)
     this_run = [e for e in project.edit_decisions if e.id in proposed_ids]
-    this_run = _collapse_shared_pauses(project, this_run, skip_counts)
     return TightenProposal(decisions=this_run, skip_counts=dict(skip_counts))
 
 
