@@ -6,6 +6,7 @@ import { registerDawCommands } from "../commands/register";
 import { useDawKeymapListener } from "../keymap/listener";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import type { ClipRow } from "../types/project";
 import { TrackLane } from "./TrackLane";
 
 vi.mock("../api", async (importOriginal) => ({
@@ -32,6 +33,7 @@ const first = clipRow({
   source_end: 5,
   timeline_start: 0,
   timeline_end: 5,
+  source_duration_sec: 20,
 });
 const later = clipRow({
   id: "c2",
@@ -40,6 +42,7 @@ const later = clipRow({
   source_end: 9,
   timeline_start: 6,
   timeline_end: 9,
+  source_duration_sec: 20,
 });
 
 const guest = sampleTrack({ id: "guest", duration_sec: 20 });
@@ -61,10 +64,10 @@ const bed = clipRow({
   timeline_end: 9,
 });
 
-function renderLane() {
+function renderLane(hostClips: ClipRow[] = [first, later]) {
   clearRegisteredCommands();
   registerDawCommands();
-  const lanes = { host: [first, later], guest: [guestLong], music: [bed] };
+  const lanes = { host: hostClips, guest: [guestLong], music: [bed] };
   const tracks = [track, guest, music];
   useDawStore
     .getState()
@@ -169,5 +172,43 @@ describe("ripple trims on the lane (#1135)", () => {
     );
     fireEvent.pointerMove(handle, { pointerId: 3, clientX: 540 });
     expect(handle).not.toHaveAttribute("data-bump");
+  });
+
+  it("lets a drag run past the next clip when that clip is another recording", () => {
+    const take1 = clipRow({
+      id: "c1",
+      track_id: "host",
+      source_id: "host_t1",
+      recording_path: "raw/host_t1.wav",
+      source_duration_sec: 600,
+      source_start: 0,
+      source_end: 5,
+      timeline_start: 0,
+      timeline_end: 5,
+    });
+    const take2 = clipRow({
+      id: "c2",
+      track_id: "host",
+      source_id: "host_t2",
+      recording_path: "raw/host_t2.wav",
+      source_duration_sec: 60,
+      source_start: 6,
+      source_end: 9,
+      timeline_start: 6,
+      timeline_end: 9,
+    });
+    const { container } = renderLane([take1, take2]);
+    const handle = container.querySelector(
+      '[data-clip-id="c1"] button.trim-handle.out',
+    ) as HTMLElement;
+    HTMLElement.prototype.setPointerCapture = vi.fn();
+    fireEvent.pointerDown(handle, { pointerId: 3, clientX: 500, button: 0 });
+    // 4 s further: past take 2's source start (6 s) in take 1's own media.
+    fireEvent.pointerMove(handle, { pointerId: 3, clientX: 900 });
+
+    expect(handle).not.toHaveAttribute("data-bump");
+    expect(
+      container.querySelector('[data-clip-id="c1"] .trim-readout'),
+    ).toHaveTextContent("Ripplelater +4.0 s");
   });
 });

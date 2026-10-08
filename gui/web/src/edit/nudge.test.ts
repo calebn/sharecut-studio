@@ -191,6 +191,58 @@ describe("nudgeStep", () => {
   });
 });
 
+describe("a trim clamps to its own recording (trim_edge_limits)", () => {
+  const take1 = clipRow({
+    id: "t1",
+    track_id: "host",
+    source_id: "host_t1",
+    recording_path: "raw/host_t1.wav",
+    source_duration_sec: 600,
+    source_start: 0,
+    source_end: 10,
+    timeline_start: 0,
+    timeline_end: 10,
+  });
+  const take2 = clipRow({
+    id: "t2",
+    track_id: "host",
+    source_id: "host_t2",
+    recording_path: "raw/host_t2.wav",
+    source_duration_sec: 60,
+    source_start: 3,
+    source_end: 9,
+    timeline_start: 12,
+    timeline_end: 18,
+  });
+  const takes = minimalProject({
+    tracks: [sampleTrack({ id: "host", duration_sec: 600 })],
+    clips: { tracks: { host: [take1, take2] }, clip_count: 2 },
+  });
+  const clampOf = (clipId: string, edge: "in" | "out") => {
+    const axis = nudgeAxis(takes, {
+      kind: "trim",
+      trackId: "host",
+      clipId,
+      edge,
+    });
+    if (!axis) throw new Error("no axis");
+    return axis.clamp;
+  };
+
+  it("lets an end run past the next take's source start, up to its own recording's end", () => {
+    expect(clampOf("t1", "out")(100)).toBe(100);
+    expect(clampOf("t1", "out")(900)).toBe(600);
+  });
+
+  it("stops the last take's end at that take's length, not the track's", () => {
+    expect(clampOf("t2", "out")(100)).toBe(60);
+  });
+
+  it("lets a start run below the previous take's source end", () => {
+    expect(clampOf("t2", "in")(0)).toBe(0);
+  });
+});
+
 describe("withNudge", () => {
   it("previews a trim as a ripple: later clips on the track move with its end", () => {
     const trimOut: NudgeField = { ...trimIn, edge: "out" };

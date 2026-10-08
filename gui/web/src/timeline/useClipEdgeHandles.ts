@@ -18,6 +18,7 @@ import { isHandleDrag } from "../edit/dragThreshold";
 import { clampFadeMs, edgeFadeMaxMs } from "../edit/fadeLimits";
 import { nudgeAxis, nudgeStep } from "../edit/nudge";
 import { softBoundaries } from "../edit/nudgeBoundaries";
+import { trimNeighborBounds } from "../edit/trimLimits";
 import { canApplyPass12 } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import type { ClipRow } from "../types/project";
@@ -67,6 +68,19 @@ function sameGeometry(a: ClipRow, b: ClipRow): boolean {
     a.fade_in_ms === b.fade_in_ms &&
     a.fade_out_ms === b.fade_out_ms &&
     a.join_in_mode === b.join_in_mode
+  );
+}
+
+/** The lane still gives the clip the bounds the gesture captured. */
+function sameTrimBounds(
+  lane: readonly ClipRow[],
+  index: number,
+  capture: Capture,
+): boolean {
+  const { neighborLo, neighborHi } = trimNeighborBounds(lane, index, TRIM_MODE);
+  return (
+    neighborLo === capture.neighborSourceLo &&
+    neighborHi === capture.neighborSourceHi
   );
 }
 
@@ -171,10 +185,7 @@ export function useClipEdgeHandles(context: Context) {
         sameGeometry(savedClip, capture.clip) &&
         savedTrack != null &&
         (savedTrack.fade_max_ms ?? null) === capture.fadeMaxMs &&
-        (lane[index - 1]?.source_end ?? 0) === capture.neighborSourceLo &&
-        (lane[index + 1]?.source_start ??
-          savedTrack.duration_sec ??
-          Infinity) === capture.neighborSourceHi);
+        sameTrimBounds(lane, index, capture));
     return (
       mounted.current &&
       !s.joinMutationInFlight &&

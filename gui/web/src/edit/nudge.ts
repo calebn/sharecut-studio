@@ -28,7 +28,7 @@ import {
 } from "../utils/envelopes";
 import { formatTimeMs } from "../utils/time";
 import { clipsForOriginTrack } from "../utils/timebase";
-import { clampTrimSourceSec, type TrimEdge } from "./clipEdgePreview";
+import type { TrimEdge } from "./clipEdgePreview";
 import { saveClipEdge, TRIM_MODE } from "./clipEdgeSave";
 import { CLIP_HANDLE_STEPS } from "./clipHandleSteps";
 import { clampFadeMs, edgeFadeMaxMs } from "./fadeLimits";
@@ -38,6 +38,7 @@ import {
   type SoftBoundary,
 } from "./nudgeBoundaries";
 import { trimDraft } from "./ripplePreview";
+import { clampToTrimLimits, trimEdgeLimits } from "./trimLimits";
 
 /** One value of one target that nudges can step. */
 export type NudgeField =
@@ -215,19 +216,11 @@ export function nudgeAxis(
       const found = laneClip(project, field.trackId, field.clipId);
       if (!found) return null;
       const { lane, index, clip } = found;
-      const track = project.tracks.find((t) => t.id === field.trackId);
       const out = field.edge === "out";
+      const limits = trimEdgeLimits(lane, index, field.edge, TRIM_MODE);
       return {
         value: out ? clip.source_end : clip.source_start,
-        clamp: (v) =>
-          clampTrimSourceSec(
-            field.edge,
-            v,
-            clip.source_start,
-            clip.source_end,
-            lane[index - 1]?.source_end ?? 0,
-            lane[index + 1]?.source_start ?? track?.duration_sec ?? Infinity,
-          ),
+        clamp: (v) => clampToTrimLimits(v, limits),
         // A ripple trim keeps the clip's start in place: only the end moves.
         at: (v) => (out ? clip.timeline_start + (v - clip.source_start) : null),
         mover: out
