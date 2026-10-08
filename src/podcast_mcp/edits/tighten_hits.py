@@ -1,8 +1,10 @@
-"""Tighten hits: which pending decisions are tighten proposals, and which are harsh.
+"""Tighten hits: which pending decisions are tighten proposals, which are harsh, and which
+are listened to one at a time.
 
-The one eligibility rule for Studio **Apply eligible** (via ``pending_edits[].harsh``)
-and the agent ``approve_edits_tool(apply_all_safe=True)`` / ``podcast edit approve
---all-safe`` twins.
+The rules behind Studio **Apply eligible** (via ``pending_edits[].harsh`` and
+``pending_edits[].listen_one_by_one``) and the agent ``approve_edits_tool(apply_all_safe=True)``
+/ ``podcast edit approve --all-safe`` twins. Studio reads both flags from the server and
+holds no rule of its own.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+from podcast_mcp.edits.tighten_reasons import PAUSE_REASON_PREFIX
 from podcast_mcp.models import EditDecision
 
 TIGHTEN_REASON_PREFIXES = ("filler:", "pause:", "repetition:", "restart:")
@@ -51,10 +54,22 @@ def is_harsh_tighten_hit(decision: EditDecision) -> bool:
     )
 
 
+def is_listen_one_by_one_hit(decision: EditDecision) -> bool:
+    """A pause trim: the editor listens to each and applies it alone (#1055).
+
+    Apply eligible never batches one, whatever Avoid harsh cuts says, until the owner's
+    listening check has cleared the trims.
+    """
+    return (decision.reason or "").startswith(PAUSE_REASON_PREFIX)
+
+
 def eligible_tighten_ids(decisions: Iterable[EditDecision]) -> list[str]:
     """Pending tighten hits that Apply eligible applies with Avoid harsh cuts on."""
     return [
         d.id
         for d in decisions
-        if not d.applied and is_tighten_reason(d.reason) and not is_harsh_tighten_hit(d)
+        if not d.applied
+        and is_tighten_reason(d.reason)
+        and not is_harsh_tighten_hit(d)
+        and not is_listen_one_by_one_hit(d)
     ]
