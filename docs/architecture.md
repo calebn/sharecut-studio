@@ -292,6 +292,9 @@ Share token algorithm (coolname, active + cooldown pools): [share-tokens.md](sha
 **Extend an existing store** instead of inventing a parallel JSON index or DB.
 Recording sessions reuse the share registry (`kind`) and prefixed session-sync
 sqlite tables (`record_*`) rather than a new plane — see [recording-session.md](recording-session.md).
+`EditService.list_clips` acquires the host-local recording-key secret from the
+share registry once per call; `edits.timeline_ops.list_clips` passes it to pure
+HMAC derivation in `edits.clips_ops.recording_key`.
 
 ### Service contexts
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import secrets
 import sqlite3
 import threading
 from datetime import UTC, datetime, timedelta
@@ -23,6 +24,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from coolname import generate_slug
 
+from podcast_mcp.util.coded_error import CodedValueError
 from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_PRAGMA, immediate_transaction
 
 # Invariant for agents / scale: public /r/{token} and /rec/{token} IDs must not
@@ -60,6 +62,11 @@ CREATE TABLE IF NOT EXISTS cooldown_shares (
   reserved_until TEXT NOT NULL,
   reason TEXT NOT NULL,
   project_workspace TEXT
+);
+
+CREATE TABLE IF NOT EXISTS recording_key_secret (
+  singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+  secret BLOB NOT NULL
 );
 """
 
@@ -103,6 +110,16 @@ def _resolve_registry_path(path: str | Path) -> Path:
     return Path(path).expanduser().resolve()
 
 
+def _recording_secret(row: sqlite3.Row) -> bytes:
+    secret = row["secret"]
+    if not isinstance(secret, bytes) or len(secret) != 32:
+        raise CodedValueError(
+            "stored recording key secret is invalid",
+            code="recording_key_secret_invalid",
+        )
+    return secret
+
+
 def default_share_registry_db_path() -> Path:
     """Path to the host share registry sqlite DB.
 
@@ -123,6 +140,8 @@ class ShareRegistryProtocol(Protocol):
     def db_path(self) -> Path: ...
 
     def close(self) -> None: ...
+
+    def recording_key_secret(self) -> bytes: ...
 
     def purge_expired_cooldown(self, *, now: datetime | None = None) -> int: ...
 
@@ -185,6 +204,28 @@ class SqliteShareRegistry:
     def close(self) -> None:
         with self._lock:
             self._conn.close()
+
+    def recording_key_secret(self) -> bytes:
+        """Return the host-local key secret, initializing the singleton atomically."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT secret FROM recording_key_secret WHERE singleton = 1"
+            ).fetchone()
+            if row is not None:
+                return _recording_secret(row)
+            with immediate_transaction(self._conn):
+                row = self._conn.execute(
+                    "SELECT secret FROM recording_key_secret WHERE singleton = 1"
+                ).fetchone()
+                if row is None:
+                    secret = secrets.token_bytes(32)
+                    self._conn.execute(
+                        "INSERT INTO recording_key_secret (singleton, secret) VALUES (1, ?)",
+                        (secret,),
+                    )
+                else:
+                    secret = _recording_secret(row)
+            return secret
 
     def _purge_expired_cooldown_unlocked(self, now: datetime) -> int:
         ts = _iso(now)

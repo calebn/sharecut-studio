@@ -95,6 +95,7 @@ from podcast_mcp.edits.retained_bleed_alignment import (
     set_retained_bleed_alignment_mode,
 )
 from podcast_mcp.edits.ripple import RippleRemoval, TrimEdge, plan_trim
+from podcast_mcp.edits.share_registry import get_share_registry
 from podcast_mcp.edits.silence_islands import (
     SilenceIsland,
     silence_islands_from_hops,
@@ -1365,7 +1366,8 @@ class EditService:
         )
 
     def list_clips(self, track_id: str | None = None) -> dict:
-        return list_clips(self.ws.project, track_id)
+        secret = get_share_registry().recording_key_secret()
+        return list_clips(self.ws.project, track_id, secret=secret)
 
     def list_applied_edits(
         self,

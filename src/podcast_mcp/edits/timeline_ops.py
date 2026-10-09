@@ -1026,7 +1026,7 @@ def plan_shorten_word_gaps(
     return RippleRemoval.of(spans) if spans else None
 
 
-def list_clips(project: EpisodeProject, track_id: str | None = None) -> dict:
+def list_clips(project: EpisodeProject, track_id: str | None = None, *, secret: bytes) -> dict:
     clips = project.clips
     if track_id:
         clips = [c for c in clips if c.track_id == track_id]
@@ -1040,7 +1040,7 @@ def list_clips(project: EpisodeProject, track_id: str | None = None) -> dict:
             known = c.source_id is None or src is not None
             recordings[c.track_id, c.source_id] = (
                 source_duration_sec(project, c) if known else None,
-                recording_key(project, c),
+                recording_key(project, c, secret=secret),
             )
         duration, key = recordings[c.track_id, c.source_id]
         prev = prev_by_track.get(c.track_id)

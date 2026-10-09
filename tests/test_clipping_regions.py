@@ -67,9 +67,9 @@ def test_clip_clipping_truncated_only_past_the_last_region() -> None:
 
 def test_list_clips_reports_clipping_truncated() -> None:
     project = _project([_clip("a", 0.0, 10.0, 0.0, "rec-a-0-p_host-0")])
-    assert list_clips(project)["tracks"]["t1"][0]["clipping_truncated"] is False
+    assert list_clips(project, secret=bytes(32))["tracks"]["t1"][0]["clipping_truncated"] is False
     project.sources[0].clipping_truncated = True
-    assert list_clips(project)["tracks"]["t1"][0]["clipping_truncated"] is True
+    assert list_clips(project, secret=bytes(32))["tracks"]["t1"][0]["clipping_truncated"] is True
 
 
 def test_clip_payload_intersects_and_sorts() -> None:
@@ -102,16 +102,18 @@ def _clip(cid: str, start: float, end: float, at: float, source_id: str | None) 
 
 def test_list_clips_reports_regions_following_trims_and_splits() -> None:
     whole = _clip("a", 0.0, 10.0, 0.0, "rec-a-0-p_host-0")
-    rows = list_clips(_project([whole]))["tracks"]["t1"]
+    rows = list_clips(_project([whole]), secret=bytes(32))["tracks"]["t1"]
     assert len(rows[0]["clipping_regions"]) == 2
     # After a split each half sees only its own span, wherever it moves.
     left = _clip("l", 0.0, 3.0, 0.0, "rec-a-0-p_host-0")
     right = _clip("r", 3.0, 10.0, 40.0, "rec-a-0-p_host-0")
-    rows = {r["id"]: r for r in list_clips(_project([left, right]))["tracks"]["t1"]}
+    rows = {
+        r["id"]: r for r in list_clips(_project([left, right]), secret=bytes(32))["tracks"]["t1"]
+    }
     assert rows["l"]["clipping_regions"] == [{"start_s": 1.0, "end_s": 2.0}]
     assert rows["r"]["clipping_regions"] == [{"start_s": 5.0, "end_s": 6.0}]
     trimmed = _clip("t", 1.5, 5.5, 0.0, "rec-a-0-p_host-0")
-    row = list_clips(_project([trimmed]))["tracks"]["t1"][0]
+    row = list_clips(_project([trimmed]), secret=bytes(32))["tracks"]["t1"][0]
     assert row["clipping_regions"] == [
         {"start_s": 1.5, "end_s": 2.0},
         {"start_s": 5.0, "end_s": 5.5},
@@ -121,7 +123,7 @@ def test_list_clips_reports_regions_following_trims_and_splits() -> None:
 def test_list_clips_has_no_regions_for_other_or_missing_sources() -> None:
     other = _clip("o", 0.0, 10.0, 0.0, "elsewhere")
     none = _clip("n", 0.0, 10.0, 20.0, None)
-    rows = list_clips(_project([other, none]))["tracks"]["t1"]
+    rows = list_clips(_project([other, none]), secret=bytes(32))["tracks"]["t1"]
     assert all(r["clipping_regions"] == [] for r in rows)
 
 

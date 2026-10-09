@@ -336,7 +336,7 @@ def test_fade_joins_music_track_not_capped() -> None:
 
 def test_list_clips() -> None:
     p = _two_track_project()
-    data = list_clips(p)
+    data = list_clips(p, secret=bytes(32))
     assert data["clip_count"] == 2
     assert "host" in data["tracks"]
 
@@ -919,7 +919,7 @@ def test_split_clip_applies_micro_fades() -> None:
 
 def test_list_clips_filtered_by_track() -> None:
     p = _two_track_project()
-    data = list_clips(p, track_id="host")
+    data = list_clips(p, track_id="host", secret=bytes(32))
     assert data["clip_count"] == 1
     assert "host" in data["tracks"]
     assert "guest" not in data["tracks"]
