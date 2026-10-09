@@ -59,6 +59,10 @@ export async function buildFixture(
     clip_id: right.id,
     fade_in_ms: 300,
     fade_out_ms: 0,
+    expected: {
+      fade_in_ms: right.fade_in_ms,
+      fade_out_ms: right.fade_out_ms,
+    },
   });
   await run("SetEnvelope", {
     track_id: TRACK,
@@ -75,7 +79,18 @@ export async function buildFixture(
 }
 
 export type ProjectJson = {
-  clips: { tracks: Record<string, { id: string; timeline_start: number }[]> };
+  clips: {
+    tracks: Record<
+      string,
+      {
+        id: string;
+        timeline_start: number;
+        source_end: number;
+        fade_in_ms: number;
+        fade_out_ms: number;
+      }[]
+    >;
+  };
   pending_edits: { id: string; source_start: number }[];
 };
 
