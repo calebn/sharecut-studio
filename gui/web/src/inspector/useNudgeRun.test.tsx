@@ -1,6 +1,7 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setEnvelope } from "../api/documentEdits";
 import {
   applyDocumentSnapshot,
   mergeGuestActionDone,
@@ -11,7 +12,9 @@ import {
   currentDocumentSeq,
   resetDocumentSeqForTests,
 } from "../document/cursor";
+import { beginDocumentDraft } from "../document/pendingDrafts";
 import { type NudgeField, saveNudge } from "../edit/nudge";
+import { submitQueuedDocumentCommand } from "../services/commandQueue";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
 import type { TimelineComment } from "../types/project";
@@ -20,6 +23,9 @@ import { useNudgeRun } from "./useNudgeRun";
 vi.mock("../edit/nudge", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../edit/nudge")>()),
   saveNudge: vi.fn(async () => true),
+}));
+vi.mock("../services/commandQueue", () => ({
+  submitQueuedDocumentCommand: vi.fn(async () => ({})),
 }));
 const field: NudgeField = {
   kind: "trim",
@@ -156,9 +162,15 @@ describe("trim nudge document lifetime", () => {
       clips: {
         tracks: {
           host: [
-            clipRow({ id: "anchor", source_end: 10, timeline_end: 10 }),
+            clipRow({
+              id: "anchor",
+              track_id: "host",
+              source_end: 10,
+              timeline_end: 10,
+            }),
             clipRow({
               id: "follower",
+              track_id: "host",
               source_start: 10,
               source_end: 20,
               timeline_start: 9.9996,
@@ -202,6 +214,130 @@ describe("trim nudge document lifetime", () => {
     applyDocumentSnapshot({ server_seq: 4, project: origin });
     return { origin, comment };
   }
+
+  const actors = [
+    "none",
+    "music move",
+    "anchor move",
+    "mix",
+    "meta",
+    "envelope",
+  ] as const;
+  it.each(
+    actors.flatMap((actor) =>
+      ["repeat", "release", "unmount"].map((ending) => ({ actor, ending })),
+    ),
+  )(
+    "removes held trim through $actor and $ending while retaining the comment and pending edit",
+    async ({ actor, ending }) => {
+      const { origin, comment } = initializeCommentProject();
+      origin.tracks.push(sampleTrack({ id: "music", role: "music" }));
+      origin.clips.tracks.music = [
+        clipRow({
+          id: "music-clip",
+          track_id: "music",
+          timeline_start: 1,
+          timeline_end: 11,
+          source_end: 10,
+        }),
+      ];
+      origin.clips.clip_count = 3;
+      const { getByRole, unmount } = render(<Harness />);
+      const button = getByRole("button");
+      fireEvent.keyDown(button, { key: "Enter" });
+      expect(
+        useDawStore.getState().project?.clips.tracks.host[0]?.source_end,
+      ).toBe(9.99);
+      if (actor === "music move" || actor === "anchor move") {
+        beginDocumentDraft("actor", "MoveClips", {
+          clips: [
+            {
+              clip_id: actor === "music move" ? "music-clip" : "anchor",
+              track_id: actor === "music move" ? "music" : "host",
+              timeline_start: actor === "music move" ? 2 : 0,
+            },
+          ],
+        });
+      } else if (actor === "mix")
+        beginDocumentDraft("actor", "SetTrackFader", {
+          track_id: "host",
+          fader_db: -3,
+        });
+      else if (actor === "meta")
+        beginDocumentDraft("actor", "SetTrackMeta", {
+          track_id: "host",
+          label: "Renamed",
+        });
+      else if (actor === "envelope")
+        beginDocumentDraft("actor", "SetEnvelope", {
+          track_id: "host",
+          points: [{ id: "p", time: 1, value: 0.5 }],
+        });
+      mergeReturnedComment({ ...comment, body: "New returned comment" });
+      // Publication removes the held trim before any subsequent input ending.
+      expect(
+        useDawStore.getState().project?.clips.tracks.host[0]?.source_end,
+      ).toBe(10);
+      if (ending === "repeat")
+        fireEvent.keyDown(button, { key: "Enter", repeat: true });
+      await act(async () => {
+        if (ending === "unmount") unmount();
+        else fireEvent.keyUp(button, { key: "Enter" });
+      });
+      const shown = useDawStore.getState().project!;
+      expect(shown.clips.tracks.host).toMatchObject([
+        { id: "anchor", source_end: 10, timeline_start: 0, timeline_end: 10 },
+        {
+          id: "follower",
+          source_start: 10,
+          source_end: 20,
+          timeline_start: 9.9996,
+          timeline_end: 19.9996,
+        },
+      ]);
+      expect(shown.comments[0]?.body).toBe("New returned comment");
+      expect(shown.clips.tracks.music[0]).toMatchObject({
+        source_end: 10,
+        timeline_start: actor === "music move" ? 2 : 1,
+        timeline_end: actor === "music move" ? 12 : 11,
+      });
+      if (actor === "mix") expect(shown.tracks[0]?.fader_db).toBe(-3);
+      if (actor === "meta") expect(shown.tracks[0]?.label).toBe("Renamed");
+      if (actor === "envelope")
+        expect(shown.envelopes[0]?.points).toEqual([
+          { id: "p", time: 1, value: 0.5 },
+        ]);
+      expect(saveNudge).not.toHaveBeenCalled();
+    },
+  );
+
+  it("queued envelope response publishes clean geometry and cancels the hold before WS", async () => {
+    const { comment } = initializeCommentProject();
+    mergeReturnedComment({ ...comment, body: "Already returned" });
+    const button = render(<Harness />).getByRole("button");
+    fireEvent.keyDown(button, { key: "Enter" });
+    vi.mocked(submitQueuedDocumentCommand).mockResolvedValueOnce({
+      queued: true,
+    });
+    await setEnvelope(
+      "/tmp/one.json",
+      "host",
+      [{ id: "p", time: 1, value: 0.5 }],
+      [],
+    );
+    expect(
+      useDawStore.getState().project?.clips.tracks.host[0]?.source_end,
+    ).toBe(10);
+    expect(useDawStore.getState().project?.comments[0]?.body).toBe(
+      "Already returned",
+    );
+    expect(useDawStore.getState().project?.envelopes[0]?.points).toEqual([
+      { id: "p", time: 1, value: 0.5 },
+    ]);
+    fireEvent.keyDown(button, { key: "Enter", repeat: true });
+    await act(async () => fireEvent.keyUp(button, { key: "Enter" }));
+    expect(saveNudge).not.toHaveBeenCalled();
+  });
 
   const localMerges = ["action", "returned comment", "metadata"] as const;
   function mergeLocal(
