@@ -1,5 +1,4 @@
 {
-  "$comment": "Clips are [id, timeline_start, source_start, source_end, optional source_id]. Lanes are [timeline_start, timeline_end, source_start, source_end]. Arrows are [from, to]. Cuts are dimmed spans. error names an atomic refusal; optional clip_ids and source_ids assert retained identity.",
   "scope_cases": [
     {
       "name": "every dialogue track in project order",
