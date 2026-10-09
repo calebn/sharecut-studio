@@ -1,5 +1,3 @@
-"""Bounded SQLite WAL transition shared by registry and session owners."""
-
 from __future__ import annotations
 
 import sqlite3

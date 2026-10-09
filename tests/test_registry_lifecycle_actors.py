@@ -1,5 +1,3 @@
-"""File-backed token authority, legacy migration, and interrupted SQLite owners."""
-
 from __future__ import annotations
 
 import multiprocessing
@@ -73,25 +71,25 @@ def test_failed_token_commit_and_rollback_quarantines_pending_state_and_recovers
 def _migration_actor(path: str, barrier: Any, queue: Any) -> None:
     connect = sqlite3.connect
 
-    class CapturedRows:
+    class UncommittedSchemaProbeRows:
         def __init__(self, rows: list[sqlite3.Row]) -> None:
             self.rows = rows
 
         def __iter__(self) -> Iterator[sqlite3.Row]:
             return iter(self.rows)
 
-    class MigrationConnection(sqlite3.Connection):
+    class UncommittedSchemaProbeConnection(sqlite3.Connection):
         def execute(self, sql: str, *args: Any, **kwargs: Any) -> Any:
             result = super().execute(sql, *args, **kwargs)
-            if sql == "PRAGMA table_info(active_shares)" and not self.in_transaction:
+            is_schema_probe = sql == "PRAGMA table_info(active_shares)"
+            if is_schema_probe and not self.in_transaction:
                 rows = result.fetchall()
-                # Synchronize only unprotected schema snapshots; a serialized writer cannot meet its peer here.
                 barrier.wait(timeout=15)
-                return CapturedRows(rows)
+                return UncommittedSchemaProbeRows(rows)
             return result
 
     def open_connection(*args: Any, **kwargs: Any) -> sqlite3.Connection:
-        return connect(*args, **kwargs, factory=MigrationConnection)
+        return connect(*args, **kwargs, factory=UncommittedSchemaProbeConnection)
 
     registry = None
     try:
@@ -229,5 +227,32 @@ def test_secret_rollback_interrupt_propagates_with_original_commit_context_and_c
             assert (
                 observer.execute("SELECT secret FROM recording_key_secret").fetchone()[0] == secret
             )
+    finally:
+        registry.close()
+
+
+def test_registry_rollback_cancellation_closes_owner_and_retains_commit_context(tmp_path):
+    registry = SqliteShareRegistry(tmp_path / "registry.db")
+    try:
+        secret = registry.recording_key_secret()
+        registry.claim_active(_share_template(token="durable-token"))
+        registry._conn.close()
+        poisoned = ProbeConnection(str(registry.db_path), isolation_level=None)
+        poisoned.row_factory = sqlite3.Row
+        registry._conn = poisoned
+        original = sqlite3.OperationalError("commit failed")
+        cancellation = KeyboardInterrupt()
+        poisoned.failures["COMMIT"] = original
+        poisoned.failures["ROLLBACK"] = cancellation
+        with pytest.raises(KeyboardInterrupt) as caught:
+            registry.release_claim("durable-token")
+        assert caught.value is cancellation
+        assert caught.value.__context__ is original
+        assert poisoned.closed
+        assert registry.get_active("durable-token") is not None
+        assert registry.recording_key_secret() == secret
+        assert registry.release_claim("durable-token")
+        with closing(sqlite3.connect(registry.db_path)) as observer:
+            assert observer.execute("SELECT token FROM active_shares").fetchall() == []
     finally:
         registry.close()

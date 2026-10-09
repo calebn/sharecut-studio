@@ -1,0 +1,34 @@
+name: registry-backup-windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  native-registry-backup:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install focused test dependencies
+        run: python -m pip install -e ".[dev,gui,relay]"
+      - name: Native handles, private DACLs, second-account denial, and lifecycle
+        env:
+          PODCAST_MCP_CACHE: ${{ runner.temp }}/registry-backup-test-cache
+        run: >-
+          python -m pytest -q --no-cov
+          tests/test_registry_backup_windows.py
+          tests/test_registry_backup_windows_names.py
+          tests/test_registry_backup_cli.py
+          tests/test_registry_backup_publisher.py
+          tests/test_share_registry_backup_actors.py
+          tests/test_share_registry_recovery.py
+          tests/test_registry_lifecycle_actors.py
+          tests/test_sqlite_tx.py
+          tests/test_session_sqlite_initialization.py
+          tests/test_share_registry.py
+          tests/test_list_clips_recording.py

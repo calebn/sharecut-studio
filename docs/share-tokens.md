@@ -120,9 +120,9 @@ Tables (portable schema contract for a future relay backend):
 
 Access layer: `ShareRegistryProtocol` in `edits/share_registry.py` (`get_active`,
 `list_active_for_workspace`, `is_reserved`, `claim_active`, `release_claim`, `upsert_active_metadata`,
-`touch_last_used`, `demote_to_cooldown`, `purge_expired_cooldown`, `backup_to`,
+`touch_last_used`, `demote_to_cooldown`, `purge_expired_cooldown`, `backup_to_new`,
 `recording_key_secret`, `close`). Host backend: `SqliteShareRegistry` (WAL, `busy_timeout=5000`,
-`BEGIN IMMEDIATE` on claim/demote/release and singleton secret initialization). Wired through `edits/review_shares.py`
+`BEGIN IMMEDIATE` on registry writes and singleton secret initialization). Wired through `edits/review_shares.py`
 and `services/collaboration/share.py`. Do **not** hand-edit the DB or invent a third index.
 
 Clip listing uses the secret once per service call to derive `rec_` identities
@@ -136,7 +136,7 @@ then restart them. Open connections retain the old database after replacement. T
 registry's `synchronous=NORMAL` setting. `recording_key_secret` is host-local;
 a future relay backend must not expose it as a relay retrieval API.
 
-A failed secret initialization closes its connection before propagating the original
+A failed registry write closes its connection before propagating the original
 error. The next registry operation opens a new connection from durable state before token
 lookup or mutation. The process-wide getter also recovers the cached owner before
 returning it; directly injected registry owners use the same recovery boundary.
@@ -157,16 +157,41 @@ podcast review backup-registry
 podcast review backup-registry --dest ~/Backups/share_registry.sqlite
 ```
 
-Uses sqlite online `Connection.backup()` (safe with WAL) into a unique private
-`0600` temporary file in the destination directory. Only a successful copy
-atomically replaces the destination; failure or cancellation removes the temporary
-file and preserves the previous backup. An already-open destination descriptor
-keeps the previous file, so it cannot read the newly copied secret.
+Creates a new single SQLite file; existing destination names (including dangling
+aliases and SQLite sidecar names) are refused without modification. `--dest`
+requires an existing trusted private directory. It never changes that directory's
+permissions. The default name includes a timestamp and random suffix; atomic
+no-replace publication decides collisions.
 
-To restore, stop all registry-owning processes, including GUI, tunnel, CLI, and
-MCP servers. Replace the file at `PODCAST_SHARE_REGISTRY` (or the default path),
-then restart all owners. Open connections retain the old database after replacement. Prefer Time Machine / restic of
-`~/.podcast_mcp/` in addition to explicit backups before OS upgrades.
+SQLite's WAL-safe online `Connection.backup()` writes only inside a unique private
+disk workspace beside the host registry. The snapshot is normalized to DELETE
+journal mode, closed, and checked for leftover sidecars. A fixed-size buffer streams
+its bytes through an owned private destination descriptor before no-replace atomic
+publication. Source and destination can reside on different filesystems. Temporary
+entries are cleaned up by identity on failure or cancellation. A directory durability
+error after publication reports an error but retains the completed backup.
+
+The publisher pins and validates directory ancestry. POSIX requires an owned `0700`
+parent, `0600` files, no extended ACL grants, and no untrusted nonsticky writable
+ancestors or symlinks. Windows requires trusted local NTFS ancestry without reparse
+points or ambiguous names (alternate streams, reserved devices, and trailing
+dot/space aliases), restrictive DACLs, and pinned native handles; private DACLs are installed
+before secret writes and publication uses native no-replace rename. The focused
+Windows CI job exercises these operations and second-account read denial. Native
+macOS ACL tests do not establish Windows guarantees. Unsupported path or filesystem
+security semantics fail closed. These controls exclude another ordinary account;
+they do not defend against the host account or an administrator deliberately
+changing its own trusted storage.
+
+To restore, stop every registry-owning process, including GUI, tunnel, CLI, and MCP
+servers. Preserve the old database together with its `-wal`, `-shm`, and `-journal`
+files as one stopped set if recovery is needed. Ensure none of those old sidecars
+remain at the restored database name, then install the standalone backup at
+`PODCAST_SHARE_REGISTRY` (or the default path) in the private host directory. Restart
+all owners. Open connections retain the old database after replacement; replacing
+an inode does not revoke their database authority. Apply the same stop/restart rule
+before deletion. Prefer Time Machine / restic of `~/.podcast_mcp/` in addition to
+explicit backups before OS upgrades.
 
 ## Project sidecar
 

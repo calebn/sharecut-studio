@@ -53,6 +53,28 @@ def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
 
 
 @pytest.fixture(autouse=True)
+def _private_windows_test_directory(tmp_path: Path) -> None:
+    if os.name != "nt":
+        return
+    from podcast_mcp.util.registry_backup_windows import _WindowsAPI
+
+    api = _WindowsAPI()
+    subprocess.run(
+        [
+            str(Path(os.environ["SYSTEMROOT"]) / "System32" / "icacls.exe"),
+            str(tmp_path),
+            "/inheritance:r",
+            "/grant:r",
+            f"*{api.user_sid}:(OI)(CI)F",
+            "*S-1-5-18:(OI)(CI)F",
+            "*S-1-5-32-544:(OI)(CI)F",
+        ],
+        check=True,
+        capture_output=True,
+    )
+
+
+@pytest.fixture(autouse=True)
 def _isolate_host_limiters() -> None:
     """Prevent singleton rate-limit settings and leases from leaking between tests."""
     reset_host_limiters_for_tests()

@@ -671,6 +671,7 @@ def test_backup_share_registry(registry: SqliteShareRegistry, tmp_path: Path):
         }
     )
     dest = tmp_path / "copies" / "reg.bak.sqlite"
+    dest.parent.mkdir(mode=0o700)
     out = backup_share_registry(dest, registry=registry)
     assert out == dest.resolve()
     assert dest.is_file()
@@ -1006,12 +1007,10 @@ def test_failed_commit_rolls_back_release_claim(registry: SqliteShareRegistry):
     )
     real = registry._conn
     registry._conn = FailingConnection(real, "COMMIT")  # type: ignore[assignment]
-    try:
-        with pytest.raises(sqlite3.OperationalError):
-            registry.release_claim("commit-fail-token")
-    finally:
-        registry._conn = real
-    assert not real.in_transaction
+    with pytest.raises(sqlite3.OperationalError):
+        registry.release_claim("commit-fail-token")
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        real.execute("SELECT 1")
     assert registry.get_active("commit-fail-token") is not None
     assert registry.release_claim("commit-fail-token") is True
 

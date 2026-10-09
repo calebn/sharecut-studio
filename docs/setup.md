@@ -674,6 +674,10 @@ podcast review share --project episode.project.json --version <id> \
 ```
 
 The global share index / registry is written mode `0600` (see [share-tokens.md](share-tokens.md)).
+`podcast review backup-registry` creates a standalone backup with a new generated
+name. `--dest` requires an unused filename in an existing trusted private directory;
+existing files and SQLite sidecar names are refused. See [backup and offline
+restore](share-tokens.md#backup--restore) before moving registry data.
 
 `PODCAST_REVIEW_CORS_ORIGINS` is a comma-separated list of **exact origins** (`https://host[:port]`, or `http://` on loopback only) added to the loopback defaults (`127.0.0.1` / `localhost` on ports `5173` and `8765`). The GUI allows credentialed cross-origin requests from these origins, so `*`, wildcards, paths, query strings, fragments, user info, and non-loopback `http://` entries are refused and `podcast gui` fails to start with an error naming the variable. A trailing slash and letter case are normalized (`https://A.example/` becomes `https://a.example`). Unset or blank keeps the defaults. Same-origin pages (the GUI's own host) need no entry.
 

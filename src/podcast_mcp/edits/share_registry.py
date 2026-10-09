@@ -17,7 +17,6 @@ import json
 import os
 import secrets
 import sqlite3
-import tempfile
 import threading
 import time
 from collections.abc import Iterator
@@ -28,6 +27,7 @@ from typing import Any, Protocol, runtime_checkable
 from coolname import generate_slug
 
 from podcast_mcp.util.coded_error import CodedValueError
+from podcast_mcp.util.registry_backup import publish_registry_backup
 from podcast_mcp.util.sqlite_tx import DEFAULT_BUSY_TIMEOUT_PRAGMA, immediate_transaction
 from podcast_mcp.util.sqlite_wal import ensure_wal
 
@@ -178,7 +178,7 @@ class ShareRegistryProtocol(Protocol):
         cooldown_days: int = SHARE_COOLDOWN_DAYS,
     ) -> bool: ...
 
-    def backup_to(self, dest: Path) -> Path: ...
+    def backup_to_new(self, dest: Path) -> Path: ...
 
 
 class SqliteShareRegistry:
@@ -191,7 +191,7 @@ class SqliteShareRegistry:
         with contextlib.suppress(OSError):
             os.chmod(self.db_path.parent, 0o700)
         self._conn = self._open_connection()
-        self._secret_connection_failed = False
+        self._connection_failed = False
 
     def _open_connection(self) -> sqlite3.Connection:
         connection = sqlite3.connect(
@@ -208,7 +208,8 @@ class SqliteShareRegistry:
             connection.execute("PRAGMA synchronous=NORMAL")
             connection.execute(DEFAULT_BUSY_TIMEOUT_PRAGMA)
             connection.executescript(_SCHEMA)
-            _ensure_columns(connection, "active_shares", _ACTIVE_SHARE_COLUMN_MIGRATIONS)
+            with immediate_transaction(connection):
+                _ensure_columns(connection, "active_shares", _ACTIVE_SHARE_COLUMN_MIGRATIONS)
         except BaseException:
             with contextlib.suppress(BaseException):
                 connection.close()
@@ -222,10 +223,21 @@ class SqliteShareRegistry:
     @contextlib.contextmanager
     def _ready_connection(self) -> Iterator[None]:
         with self._lock:
-            if self._secret_connection_failed:
+            if self._connection_failed:
                 self._conn = self._open_connection()
-                self._secret_connection_failed = False
+                self._connection_failed = False
             yield
+
+    @contextlib.contextmanager
+    def _write_transaction(self) -> Iterator[None]:
+        try:
+            with immediate_transaction(self._conn):
+                yield
+        except BaseException:
+            self._connection_failed = True
+            with contextlib.suppress(BaseException):
+                self._conn.close()
+            raise
 
     def recording_key_secret(self) -> bytes:
         """Return the host-local key secret, initializing the singleton atomically."""
@@ -235,25 +247,18 @@ class SqliteShareRegistry:
             ).fetchone()
             if row is not None:
                 return _recording_secret(row)
-            try:
-                with immediate_transaction(self._conn):
-                    row = self._conn.execute(
-                        "SELECT secret FROM recording_key_secret WHERE singleton = 1"
-                    ).fetchone()
-                    if row is None:
-                        secret = secrets.token_bytes(32)
-                        self._conn.execute(
-                            "INSERT INTO recording_key_secret (singleton, secret) VALUES (1, ?)",
-                            (secret,),
-                        )
-                    else:
-                        secret = _recording_secret(row)
-            except BaseException:
-                # A failed rollback can leave an uncommitted secret on this connection.
-                self._secret_connection_failed = True
-                with contextlib.suppress(BaseException):
-                    self._conn.close()
-                raise
+            with self._write_transaction():
+                row = self._conn.execute(
+                    "SELECT secret FROM recording_key_secret WHERE singleton = 1"
+                ).fetchone()
+                if row is None:
+                    secret = secrets.token_bytes(32)
+                    self._conn.execute(
+                        "INSERT INTO recording_key_secret (singleton, secret) VALUES (1, ?)",
+                        (secret,),
+                    )
+                else:
+                    secret = _recording_secret(row)
             return secret
 
     def _purge_expired_cooldown_unlocked(self, now: datetime) -> int:
@@ -279,13 +284,13 @@ class SqliteShareRegistry:
     def purge_expired_cooldown(self, *, now: datetime | None = None) -> int:
         """Drop cooldown rows whose reserved_until has passed. Returns count."""
         moment = now or _now()
-        with self._ready_connection(), immediate_transaction(self._conn):
+        with self._ready_connection(), self._write_transaction():
             return self._purge_expired_cooldown_unlocked(moment)
 
     def is_reserved(self, token: str, *, now: datetime | None = None) -> bool:
         """True if token is active or still in cooldown."""
         moment = now or _now()
-        with self._ready_connection(), immediate_transaction(self._conn):
+        with self._ready_connection(), self._write_transaction():
             self._purge_expired_cooldown_unlocked(moment)
             return self._is_reserved_unlocked(token, moment)
 
@@ -319,7 +324,7 @@ class SqliteShareRegistry:
             raise ValueError(f"unknown share kind {kind!r}")
         role = share.get("role")
         session_id = share.get("session_id")
-        with self._ready_connection(), immediate_transaction(self._conn):
+        with self._ready_connection(), self._write_transaction():
             self._purge_expired_cooldown_unlocked(now)
             if self._is_reserved_unlocked(token, now):
                 raise ValueError(f"share token already reserved: {token}")
@@ -351,7 +356,7 @@ class SqliteShareRegistry:
 
     def release_claim(self, token: str) -> bool:
         """Drop an active claim without cooldown (create rollback)."""
-        with self._ready_connection(), immediate_transaction(self._conn):
+        with self._ready_connection(), self._write_transaction():
             cur = self._conn.execute("DELETE FROM active_shares WHERE token = ?", (token,))
             return int(cur.rowcount or 0) > 0
 
@@ -366,7 +371,7 @@ class SqliteShareRegistry:
             raise ValueError(f"unknown share kind {kind!r}")
         role = row.get("role")
         session_id = row.get("session_id")
-        with self._ready_connection():
+        with self._ready_connection(), self._write_transaction():
             self._conn.execute(
                 """
                 UPDATE active_shares SET
@@ -402,7 +407,7 @@ class SqliteShareRegistry:
     ) -> str | None:
         """Update last_used_at if older than *min_interval*. Returns new ISO or None."""
         moment = now or _now()
-        with self._ready_connection():
+        with self._ready_connection(), self._write_transaction():
             row = self._conn.execute(
                 "SELECT last_used_at FROM active_shares WHERE token = ?",
                 (token,),
@@ -429,7 +434,7 @@ class SqliteShareRegistry:
     ) -> bool:
         """Move active → cooldown. Returns False if token was not active."""
         moment = now or _now()
-        with self._ready_connection(), immediate_transaction(self._conn):
+        with self._ready_connection(), self._write_transaction():
             row = self._conn.execute(
                 "SELECT * FROM active_shares WHERE token = ?", (token,)
             ).fetchone()
@@ -459,24 +464,20 @@ class SqliteShareRegistry:
             )
             return True
 
-    def backup_to(self, dest: Path) -> Path:
-        """Copy the registry via sqlite online backup (WAL-safe). Returns dest."""
-        dest = Path(dest)
-        dest.parent.mkdir(parents=True, exist_ok=True)
+    def backup_to_new(self, dest: Path) -> Path:
+        """Publish a standalone SQLite backup at a new name in a trusted private directory."""
         with self._ready_connection():
-            fd, temporary_name = tempfile.mkstemp(prefix=f".{dest.name}.", dir=dest.parent)
-            temporary = Path(temporary_name)
-            try:
-                os.close(fd)
-                dest_conn = sqlite3.connect(str(temporary))
-                try:
-                    self._conn.backup(dest_conn)
-                finally:
-                    dest_conn.close()
-                os.replace(temporary, dest)
-            finally:
-                temporary.unlink(missing_ok=True)
-        return dest.resolve()
+            return publish_registry_backup(self.db_path, Path(dest), self._snapshot)
+
+    def _snapshot(self, path: Path) -> None:
+        connection = sqlite3.connect(str(path), isolation_level=None)
+        try:
+            self._conn.backup(connection)
+            mode = connection.execute("PRAGMA journal_mode=DELETE").fetchone()[0]
+            if str(mode).lower() != "delete":
+                raise OSError("registry snapshot cannot be made standalone")
+        finally:
+            connection.close()
 
     @staticmethod
     def _active_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
@@ -562,12 +563,14 @@ def backup_share_registry(
     *,
     registry: ShareRegistryProtocol | None = None,
 ) -> Path:
-    """Backup the host registry to *dest* (default: sibling ``.bak`` timestamp)."""
+    """Backup the host registry to *dest* (default: sibling timestamp and random suffix)."""
     reg = registry or get_share_registry()
     if dest is None:
         stamp = _now().strftime("%Y%m%dT%H%M%SZ")
-        dest = reg.db_path.with_name(f"{reg.db_path.stem}.{stamp}.bak.sqlite")
-    return reg.backup_to(Path(dest))
+        dest = reg.db_path.with_name(
+            f"{reg.db_path.stem}.{stamp}.{secrets.token_hex(8)}.bak.sqlite"
+        )
+    return reg.backup_to_new(Path(dest))
 
 
 def share_hard_expired(row: dict[str, Any], *, now: datetime | None = None) -> bool:

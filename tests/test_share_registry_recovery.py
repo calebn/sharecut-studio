@@ -1,5 +1,3 @@
-"""Disposable registry proofs for private backups and failed initialization."""
-
 from __future__ import annotations
 
 import multiprocessing
@@ -14,6 +12,27 @@ from typing import Any
 import pytest
 
 from podcast_mcp.edits import share_registry
+
+
+def _assert_private(path: Path, *, directory: bool = False) -> None:
+    if os.name != "nt":
+        assert stat.S_IMODE(path.stat().st_mode) == (0o700 if directory else 0o600)
+        return
+    from podcast_mcp.util.registry_backup_windows import _WindowsAPI
+
+    api = _WindowsAPI()
+    if directory:
+        handle = api.open_directory(path)
+        try:
+            api.verify_handle(handle, private=True, directory=True)
+        finally:
+            api.kernel.CloseHandle(handle)
+    else:
+        fd = os.open(path, os.O_RDONLY)
+        try:
+            api.verify_handle(api.crt.get_osfhandle(fd), private=True, directory=False)
+        finally:
+            os.close(fd)
 
 
 class ProbeConnection(sqlite3.Connection):
@@ -69,13 +88,13 @@ def connections(monkeypatch: pytest.MonkeyPatch) -> list[ProbeConnection]:
 
 
 @pytest.mark.parametrize("existing", [False, True])
-def test_backup_is_private_during_copy_and_replaces_inode(
+def test_backup_is_private_during_snapshot_and_refuses_existing_inode(
     tmp_path: Path, connections: list[ProbeConnection], existing: bool
 ) -> None:
     registry = share_registry.SqliteShareRegistry(tmp_path / "owner" / "registry.db")
     secret = registry.recording_key_secret()
     destination = tmp_path / "public" / "backup.db"
-    destination.parent.mkdir()
+    destination.parent.mkdir(mode=0o700)
     old = b"previous readable backup"
     if existing:
         destination.write_bytes(old)
@@ -86,16 +105,27 @@ def test_backup_is_private_during_copy_and_replaces_inode(
     def inspect(target: sqlite3.Connection) -> None:
         path = Path(target.execute("PRAGMA database_list").fetchone()[2])
         copied_paths.append(path)
-        assert path.parent == destination.parent
+        assert path.parent.parent == registry.db_path.parent
+        _assert_private(path.parent, directory=True)
         assert path != destination
-        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+        _assert_private(path)
         assert destination.read_bytes() == old if existing else not destination.exists()
 
     connections[0].before_backup = inspect
     previous_umask = os.umask(0o022)
     try:
-        assert registry.backup_to(destination) == destination.resolve()
-        assert stat.S_IMODE(destination.stat().st_mode) == 0o600
+        if existing:
+            before = destination.stat()
+            with pytest.raises(FileExistsError):
+                registry.backup_to_new(destination)
+            assert not copied_paths
+            assert destination.stat().st_ino == before.st_ino
+            assert destination.read_bytes() == old
+            assert held is not None and held.read() == old
+            assert registry.recording_key_secret() == secret
+            return
+        assert registry.backup_to_new(destination) == destination.resolve()
+        _assert_private(destination)
         if held:
             assert held.read() == old
         with closing(sqlite3.connect(destination)) as restored:
@@ -118,8 +148,9 @@ def test_backup_failure_preserves_destination_and_cleans_temporary_file(
     registry = share_registry.SqliteShareRegistry(tmp_path / "owner" / "registry.db")
     registry.recording_key_secret()
     destination = tmp_path / "copies" / "backup.db"
-    destination.parent.mkdir()
-    destination.write_bytes(b"original")
+    destination.parent.mkdir(mode=0o700)
+    previous = destination.with_name("previous.db")
+    previous.write_bytes(b"original")
 
     def fail_after_copy(target: sqlite3.Connection) -> None:
         sqlite3.Connection.backup(connections[0], target)
@@ -127,10 +158,12 @@ def test_backup_failure_preserves_destination_and_cleans_temporary_file(
 
     connections[0].before_backup = fail_after_copy
     with pytest.raises(type(failure)) as caught:
-        registry.backup_to(destination)
+        registry.backup_to_new(destination)
     assert caught.value is failure
-    assert destination.read_bytes() == b"original"
-    assert list(destination.parent.iterdir()) == [destination]
+    assert previous.read_bytes() == b"original"
+    assert not destination.exists()
+    assert list(destination.parent.iterdir()) == [previous]
+    assert not list(registry.db_path.parent.glob(".registry-snapshot-*"))
     assert connections[-1].closed
 
 
@@ -315,14 +348,18 @@ def test_existing_readable_backup_descriptor_never_receives_new_secret(
     registry = share_registry.SqliteShareRegistry(tmp_path / "owner" / "registry.db")
     secret = registry.recording_key_secret()
     destination = tmp_path / "copies" / "backup.db"
-    destination.parent.mkdir()
+    destination.parent.mkdir(mode=0o700)
     destination.write_bytes(b"old readable contents")
     destination.chmod(0o644)
     with destination.open("rb") as held:
-        registry.backup_to(destination)
+        before = destination.stat()
+        with pytest.raises(FileExistsError):
+            registry.backup_to_new(destination)
         assert held.read() == b"old readable contents"
-    with closing(sqlite3.connect(destination)) as observer:
-        assert observer.execute("SELECT secret FROM recording_key_secret").fetchone()[0] == secret
+        assert destination.stat().st_ino == before.st_ino
+    assert destination.read_bytes() == b"old readable contents"
+    assert registry.recording_key_secret() == secret
+    registry.close()
 
 
 def test_secret_reopen_failure_closes_new_connection_and_later_retry_is_durable(
@@ -369,9 +406,11 @@ def test_backups_use_distinct_temporary_paths(
 
     connections[0].before_backup = inspect
     destination = tmp_path / "copies" / "backup.db"
+    destination.parent.mkdir(mode=0o700)
     try:
-        registry.backup_to(destination)
-        registry.backup_to(destination)
+        registry.backup_to_new(destination)
+        second = destination.with_name("second.db")
+        registry.backup_to_new(second)
         assert len(set(paths)) == 2
         assert all(not Path(path).exists() for path in paths)
         with closing(sqlite3.connect(destination)) as observer:

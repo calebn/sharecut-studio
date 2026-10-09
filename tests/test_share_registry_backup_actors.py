@@ -1,5 +1,3 @@
-"""Backup refusal preserves live SQLite authority and excludes local attackers."""
-
 from __future__ import annotations
 
 import os
@@ -52,7 +50,7 @@ def test_backup_refuses_source_namespace_and_aliases_without_splitting_authority
         }
         refusal = None
         try:
-            source.backup_to(destination)
+            source.backup_to_new(destination)
         except (OSError, ValueError, RuntimeError) as exc:
             refusal = exc
         after = {
@@ -103,7 +101,7 @@ def test_backup_refuses_existing_live_wal_destination_with_its_own_secret(tmp_pa
         before = [(p.stat().st_ino, p.read_bytes()) for p in files]
         refusal = None
         try:
-            source.backup_to(destination.db_path)
+            source.backup_to_new(destination.db_path)
         except (OSError, ValueError, RuntimeError) as exc:
             refusal = exc
         after = [(p.stat().st_ino, p.read_bytes()) for p in files]
@@ -151,11 +149,10 @@ def test_backup_refuses_writable_nonsticky_parent_before_attacker_receives_secre
     try:
         secret = source.recording_key_secret()
         source.claim_active(_share_template(token="host-capability", id="host-id"))
-        # The actor takes the entry immediately before SQLite reopens its pathname.
         monkeypatch.setattr(share_registry.sqlite3, "connect", attacker_substitution)
         refusal = None
         try:
-            source.backup_to(destination_parent / "backup.db")
+            source.backup_to_new(destination_parent / "backup.db")
         except (OSError, ValueError, RuntimeError) as exc:
             refusal = exc
         with closing(original_connect(attacker)) as observer:
