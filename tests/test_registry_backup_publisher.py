@@ -7,7 +7,7 @@ import subprocess
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
+from contextlib import closing, suppress
 from pathlib import Path
 
 import pytest
@@ -216,3 +216,157 @@ def test_mac_extended_read_grant_is_refused_before_secret_copy(backup_paths):
         subprocess.run(
             ["/bin/chmod", "-N", str(destination.parent)], check=True, capture_output=True
         )
+
+
+@pytest.mark.parametrize("site", ["private", "host", "output"])
+@pytest.mark.parametrize("body_failure", [OSError, KeyboardInterrupt])
+@pytest.mark.parametrize("close_failure", [OSError, KeyboardInterrupt])
+def test_directory_close_preserves_exact_body_failure_and_drains_later_actions(
+    backup_paths, monkeypatch, site, body_failure, close_failure
+):
+    source, destination = backup_paths
+    source.recording_key_secret()
+    backend = (
+        registry_backup.WindowsDirectory if os.name == "nt" else registry_backup.PosixDirectory
+    )
+    close = backend.close
+    remove_workspace = backend.remove_workspace
+    original = body_failure("original backup body failure")
+    cleanup = close_failure("directory close failure")
+    actions = []
+
+    def role(directory):
+        if directory.path == destination.parent:
+            return "output"
+        if directory.path == source.db_path.parent:
+            return "host"
+        return "private"
+
+    def fail_copy(read_fd, write_fd):
+        os.write(write_fd, b"partial private bytes")
+        raise original
+
+    def fail_close(directory):
+        close(directory)
+        name = role(directory)
+        actions.append(name)
+        if name == site:
+            raise cleanup
+
+    def remove(directory, name, expected):
+        remove_workspace(directory, name, expected)
+        actions.append("workspace removed")
+
+    monkeypatch.setattr(registry_backup, "_copy_snapshot", fail_copy)
+    monkeypatch.setattr(backend, "close", fail_close)
+    monkeypatch.setattr(backend, "remove_workspace", remove)
+    with pytest.raises(BaseException) as caught:
+        source.backup_to_new(destination)
+    assert actions == ["private", "workspace removed", "host", "output"]
+    assert list(destination.parent.iterdir()) == []
+    assert not list(source.db_path.parent.glob(".registry-snapshot-*"))
+    assert caught.value is original
+
+
+@pytest.mark.parametrize("site", ["private", "host", "output"])
+@pytest.mark.parametrize("close_failure", [OSError, KeyboardInterrupt])
+def test_successful_backup_propagates_first_directory_close_failure_and_drains(
+    backup_paths, monkeypatch, site, close_failure
+):
+    source, destination = backup_paths
+    secret = source.recording_key_secret()
+    backend = (
+        registry_backup.WindowsDirectory if os.name == "nt" else registry_backup.PosixDirectory
+    )
+    close = backend.close
+    first = close_failure("first directory close failure")
+    later = OSError("later directory close failure")
+    closed = []
+    order = ["private", "host", "output"]
+
+    def fail_close(directory):
+        close(directory)
+        name = (
+            "output"
+            if directory.path == destination.parent
+            else "host"
+            if directory.path == source.db_path.parent
+            else "private"
+        )
+        closed.append(name)
+        if name == site:
+            raise first
+        if order.index(name) > order.index(site):
+            raise later
+
+    monkeypatch.setattr(backend, "close", fail_close)
+    with pytest.raises(BaseException) as caught:
+        source.backup_to_new(destination)
+    assert closed == order
+    assert_snapshot(destination, secret)
+    assert list(destination.parent.iterdir()) == [destination]
+    assert not list(source.db_path.parent.glob(".registry-snapshot-*"))
+    assert caught.value is first
+
+
+@pytest.mark.skipif(os.name != "posix", reason="native POSIX descriptor draining")
+@pytest.mark.parametrize("site", ["private", "host", "output"])
+def test_native_directory_close_failure_drains_remaining_descriptors(
+    backup_paths, monkeypatch, site
+):
+    source, destination = backup_paths
+    source.recording_key_secret()
+    directory = registry_backup._directory
+    close = os.close
+    acquired = []
+    fault_fd = None
+    injected = False
+    original = OSError("original stream failure")
+
+    def capture(path):
+        nonlocal fault_fd
+        opened = directory(path)
+        acquired.extend(fd for fd, _ in opened._chain)
+        role = (
+            "output"
+            if path == destination.parent
+            else "host"
+            if path == source.db_path.parent
+            else "private"
+        )
+        if role == site:
+            fault_fd = opened.fd
+        return opened
+
+    def fail_copy(read_fd, write_fd):
+        raise original
+
+    def fail_close(fd):
+        nonlocal injected
+        close(fd)
+        if fd == fault_fd and not injected:
+            injected = True
+            raise KeyboardInterrupt("native directory close cancelled")
+
+    monkeypatch.setattr(registry_backup, "_directory", capture)
+    monkeypatch.setattr(registry_backup, "_copy_snapshot", fail_copy)
+    monkeypatch.setattr(os, "close", fail_close)
+    try:
+        with pytest.raises(BaseException) as caught:
+            source.backup_to_new(destination)
+        assert injected
+        leaked = []
+        for fd in acquired:
+            try:
+                os.fstat(fd)
+            except OSError:
+                continue
+            leaked.append(fd)
+        assert leaked == [], "every acquired directory descriptor must close after a close failure"
+        assert caught.value is original
+        assert list(destination.parent.iterdir()) == []
+        assert not list(source.db_path.parent.glob(".registry-snapshot-*"))
+    finally:
+        for fd in acquired:
+            with suppress(OSError):
+                close(fd)
