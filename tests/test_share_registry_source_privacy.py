@@ -556,7 +556,9 @@ def test_default_singleton_reread_rejects_alias_swap_without_switching_authority
     unsafe = tmp_path / "replaceable"
     unsafe.mkdir(mode=0o700)
     unsafe.chmod(0o777)
-    alias = unsafe / "registry.sqlite"
+    private_child = unsafe / "private-child"
+    private_child.mkdir(mode=0o700)
+    alias = private_child / "registry.sqlite"
     alias.symlink_to(first_path)
 
     monkeypatch.setenv("PODCAST_SHARE_REGISTRY", str(first_path))
@@ -588,6 +590,7 @@ def test_default_singleton_reread_rejects_alias_swap_without_switching_authority
         assert singleton.get_active("first-token")["token"] == "first-token"
 
     assert refused == [True, True], "each reread must re-admit the original alias namespace"
+    assert stat.S_IMODE(unsafe.stat().st_mode) == 0o777
     assert share_registry._registry_singleton is singleton
     assert singleton.recording_key_secret() == first_secret
     for path, secret, before, token in (

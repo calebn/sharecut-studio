@@ -292,7 +292,8 @@ class _WindowsAPI:
     def open_directory(self, path: Path) -> Any:
         handle = self.kernel.CreateFileW(str(path), 0x20080, 3, None, 3, 0x02200000, None)
         if handle == ctypes.c_void_p(-1).value:
-            raise _native_ctypes.WinError()
+            error = _native_ctypes.get_last_error()
+            raise _native_ctypes.WinError(error)
         return handle
 
     def verify_handle(
@@ -634,7 +635,8 @@ class BackupDirectory:
             )
             if owned.handle == ctypes.c_void_p(-1).value:
                 owned.handle = None
-                raise _native_ctypes.WinError()
+                error = _native_ctypes.get_last_error()
+                raise _native_ctypes.WinError(error)
             self._api.verify_handle(owned.handle, private=True, directory=False, path=owned.path)
             owned.to_descriptor(os.O_RDONLY)
             if self._api.file_identity(self._api.crt.get_osfhandle(owned.fd)) != expected:

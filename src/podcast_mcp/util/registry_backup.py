@@ -4,15 +4,28 @@ import os
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from podcast_mcp.util.registry_backup_posix import BackupDirectory as PosixDirectory
 from podcast_mcp.util.registry_backup_windows import BackupDirectory as WindowsDirectory
+from podcast_mcp.util.registry_backup_windows import _validate_name as _validate_windows_name
 from podcast_mcp.util.registry_cleanup import cleanup as _cleanup
 from podcast_mcp.util.sqlite_tx import SQLITE_SIDECARS
 
 _COPY_BUFFER_BYTES = 1024 * 1024
 _SQLITE_SIDECARS = SQLITE_SIDECARS
+
+
+def _anchor_path(path: str | os.PathLike[str]) -> Path:
+    raw = os.fspath(path)
+    if os.name == "nt":
+        windows_path = PureWindowsPath(raw)
+        if bool(windows_path.drive) != bool(windows_path.root):
+            raise PermissionError("registry paths must use an unambiguous Windows anchor")
+        for component in windows_path.parts[1:] if windows_path.anchor else windows_path.parts:
+            _validate_windows_name(component)
+    requested = Path(raw)
+    return requested if requested.is_absolute() else Path.cwd() / requested
 
 
 def _directory(path: Path) -> PosixDirectory | WindowsDirectory:
@@ -52,8 +65,8 @@ def publish_registry_backup(
     Publication is no-replace on the destination volume, independent of source volume.
     A post-publication durability error never removes the completed backup.
     """
-    source = Path(os.path.abspath(source))
-    destination = Path(os.path.abspath(destination))
+    source = _anchor_path(source)
+    destination = _anchor_path(destination)
     if any(destination == Path(str(source) + suffix) for suffix in ("", *_SQLITE_SIDECARS)):
         raise FileExistsError("backup destination must be outside the live registry namespace")
     with _closing_directory(destination.parent) as output:

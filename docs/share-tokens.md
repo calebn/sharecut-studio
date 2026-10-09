@@ -160,7 +160,9 @@ permission errors are not treated as absence. A privacy refusal before SQL leave
 otherwise healthy connection open so refusal itself cannot checkpoint or delete an
 unsafe WAL or SHM.
 
-Overrides require stable trusted host ancestry. Windows source storage requires
+Overrides retain their caller-supplied path components through native admission;
+symlink aliases and unsafe parent traversal are refused. Overrides require stable
+trusted host ancestry. Windows source storage requires
 local NTFS, just as backup publication does. These checks exclude an ordinary other
 account. They do not protect against the host account or an administrator deliberately
 changing trusted storage, or revoke previously obtained handles. Treat this database
