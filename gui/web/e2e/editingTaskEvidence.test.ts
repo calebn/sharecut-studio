@@ -15,7 +15,7 @@ import {
   retainEditingMedia,
   verifyEditingDistribution,
 } from "./editingTaskEvidence";
-import { savedStateDifferences } from "./editingTaskReport";
+import { savedStateDifferences } from "./editingTaskState";
 
 const digest = (value: string | Uint8Array) =>
   createHash("sha256").update(value).digest("hex");

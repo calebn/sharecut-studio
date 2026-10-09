@@ -1151,6 +1151,16 @@ workloads and apply frozen local budgets without recalibration. Slow, unstable,
 clipped or unavailable observations remain part of the record; they do not become
 acceptable UX merely because a run completes or fits a local envelope.
 
+### Editing task saved-state proof
+
+The opt-in [editing task protocol](../gui/web/e2e/EDITING_TASK_WORKLOADS.md)
+checks literal Save, independent cancellation clones, and Undo evidence.
+Protocol version 7 requires source-owned journal, UI, and failure records.
+One pure assessment supplies both whole-trial admission and phase observations.
+A failed attempt retains its evidence and completed work stays zero.
+The focused oracle and observer tests do not replace production browser correctness,
+five valid baseline trials per eligible route, or limiter and noise evidence.
+
 ## CI
 
 GitHub Actions workflow `.github/workflows/test.yml` runs Python, frontend and

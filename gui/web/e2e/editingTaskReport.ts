@@ -1,217 +1,61 @@
-export type Json =
-  | null
-  | boolean
-  | number
-  | string
-  | Json[]
-  | { [key: string]: Json };
-export type DurableState = {
-  duration_sec: number;
-  stable: Json;
-  sources: {
-    id: string;
-    path: string;
-    speaker: string | null;
-    label: string | null;
-    offset_sec: number;
-    duration_sec: number | null;
-    sample_rate: number | null;
-    channels: number | null;
-    clipping_regions: Json[];
-    clipping_truncated: boolean;
-  }[];
-  clips: {
-    id: string;
-    track_id: string;
-    source_start: number;
-    source_end: number;
-    timeline_start: number;
-    source_id: string | null;
-    fade_in_ms: number;
-    fade_out_ms: number;
-    join_in_mode: string;
-    mute_regions: Json[];
-  }[];
-  tracks: {
-    id: string;
-    fader_db: number;
-    gain_db: number;
-    muted: boolean;
-    role: string;
-    media: Json;
-    invariants: Json;
-  }[];
-  envelopes: {
-    track_id: string;
-    parameter: string;
-    points: { id: string; time: number; value: number }[];
-  }[];
-  comments: {
-    id: string;
-    body: string;
-    author: string;
-    timeline_start: number;
-    timeline_end: number | null;
-    track_ids: string[];
-    resolved: boolean;
-    resolved_by: string | null;
-    review_version_id: string | null;
-    edit_decision_id: string | null;
-    timeline_spans: { start: number; end: number }[];
-    action_items: {
-      id: string;
-      text: string;
-      done: boolean;
-      completed_by: string | null;
-    }[];
-    replies: { id: string; body: string; author: string }[];
-  }[];
-};
-export function parseDurableState(input: unknown): DurableState {
-  const object = (value: unknown): Record<string, unknown> => {
-    if (value === null || typeof value !== "object" || Array.isArray(value))
-      throw new Error("Expected durable object");
-    return value as Record<string, unknown>;
-  };
-  const rows = (value: unknown): Record<string, unknown>[] => {
-    if (!Array.isArray(value)) throw new Error("Expected durable collection");
-    return value.map(object);
-  };
-  const finite = (value: unknown) =>
-    typeof value === "number" && Number.isFinite(value);
-  const state = object(input);
-  if (!finite(state.duration_sec) || state.stable === undefined)
-    throw new Error("Invalid durable extent or stable remainder");
-  const sourceIds = new Set<string>();
-  for (const source of rows(state.sources)) {
-    if (
-      !["id", "path"].every((key) => typeof source[key] === "string") ||
-      !["speaker", "label"].every(
-        (key) => source[key] === null || typeof source[key] === "string",
-      ) ||
-      !finite(source.offset_sec) ||
-      !(source.duration_sec === null || finite(source.duration_sec)) ||
-      !(source.sample_rate === null || Number.isInteger(source.sample_rate)) ||
-      !(source.channels === null || Number.isInteger(source.channels)) ||
-      !Array.isArray(source.clipping_regions) ||
-      typeof source.clipping_truncated !== "boolean" ||
-      sourceIds.has(source.id as string)
-    )
-      throw new Error("Invalid or duplicate durable source identity");
-    sourceIds.add(source.id as string);
-  }
-  for (const clip of rows(state.clips)) {
-    if (
-      !["id", "track_id", "join_in_mode"].every(
-        (key) => typeof clip[key] === "string",
-      ) ||
-      ![
-        "source_start",
-        "source_end",
-        "timeline_start",
-        "fade_in_ms",
-        "fade_out_ms",
-      ].every((key) => finite(clip[key])) ||
-      !(clip.source_id === null || typeof clip.source_id === "string") ||
-      !Array.isArray(clip.mute_regions)
-    )
-      throw new Error("Invalid durable clip geometry");
-    if (clip.source_id !== null && !sourceIds.has(clip.source_id as string))
-      throw new Error("Durable clip references a missing source");
-  }
-  for (const track of rows(state.tracks))
-    if (
-      typeof track.id !== "string" ||
-      !finite(track.fader_db) ||
-      !finite(track.gain_db) ||
-      typeof track.muted !== "boolean" ||
-      typeof track.role !== "string" ||
-      track.media === undefined ||
-      track.invariants === undefined
-    )
-      throw new Error("Invalid durable track mix");
-  for (const envelope of rows(state.envelopes)) {
-    if (
-      typeof envelope.track_id !== "string" ||
-      typeof envelope.parameter !== "string"
-    )
-      throw new Error("Invalid durable envelope");
-    for (const point of rows(envelope.points))
-      if (
-        typeof point.id !== "string" ||
-        !finite(point.time) ||
-        !finite(point.value)
-      )
-        throw new Error("Invalid durable envelope point");
-  }
-  for (const comment of rows(state.comments)) {
-    if (
-      !["id", "body", "author"].every(
-        (key) => typeof comment[key] === "string",
-      ) ||
-      !finite(comment.timeline_start) ||
-      !(comment.timeline_end === null || finite(comment.timeline_end)) ||
-      typeof comment.resolved !== "boolean" ||
-      !Array.isArray(comment.track_ids) ||
-      !comment.track_ids.every((id) => typeof id === "string") ||
-      !["resolved_by", "review_version_id", "edit_decision_id"].every(
-        (key) => comment[key] === null || typeof comment[key] === "string",
-      )
-    )
-      throw new Error("Invalid durable comment");
-    for (const span of rows(comment.timeline_spans))
-      if (
-        !finite(span.start) ||
-        !finite(span.end) ||
-        (span.start as number) < 0 ||
-        (span.end as number) <= (span.start as number)
-      )
-        throw new Error("Invalid durable comment span");
-    for (const item of rows(comment.action_items))
-      if (
-        typeof item.id !== "string" ||
-        typeof item.text !== "string" ||
-        typeof item.done !== "boolean" ||
-        !(item.completed_by === null || typeof item.completed_by === "string")
-      )
-        throw new Error("Invalid durable comment action item");
-    for (const reply of rows(comment.replies))
-      if (
-        !["id", "body", "author"].every((key) => typeof reply[key] === "string")
-      )
-        throw new Error("Invalid durable comment reply");
-  }
-  return input as DurableState;
-}
+import {
+  type DurableState,
+  type Json,
+  parseDurableState,
+  savedStateDifferences,
+} from "./editingTaskState";
 export type Phase = "setup" | "action" | "cancel" | "undo";
-export type JournalEvent = { seq: number; phase: Phase } & (
+export type EvidenceOrigin =
+  | { owner: "main"; phase: "setup" | "action" | "undo" }
+  | { owner: "cancel"; phase: "setup" | "cancel"; probe: string };
+export type FailureOwner =
+  | EvidenceOrigin
+  | { owner: "cancel"; phase: "cancel"; probe: null }
+  | { owner: "global"; blocks: "admission" | "all-proofs" };
+export type TrialFailure = {
+  origin: FailureOwner;
+  error: string;
+  errorName: string | null;
+};
+export type CancellationInput =
+  | { kind: "route-cancel" }
   | {
-      kind: "activation";
-      label: string;
-      verb: string;
-      outcome: "started" | "completed" | "failed";
-      error?: string;
-    }
-  | { kind: "request"; requestId: number; type: string; body: string }
-  | { kind: "response"; requestId: number; status: number; body: string }
-  | { kind: "read-request"; requestId: number; url: string; method: string }
-  | { kind: "read-response"; requestId: number; status: number; body: string }
-  | { kind: "read-failed"; requestId: number; error: string }
-  | {
-      kind: "read-body-failed";
-      requestId: number;
-      status: number;
-      error: string;
-    }
-  | { kind: "error"; message: string }
-);
+      kind: "comment-swipe";
+      dx: number;
+      dy: number;
+      end: "touchEnd" | "touchCancel";
+    };
+export type CancellationProbe = { id: string; input: CancellationInput };
+export type JournalEvent = { seq: number } & EvidenceOrigin &
+  (
+    | {
+        kind: "activation";
+        label: string;
+        verb: string;
+        outcome: "started" | "completed" | "failed";
+        error?: string;
+      }
+    | { kind: "request"; requestId: number; type: string; body: string }
+    | { kind: "response"; requestId: number; status: number; body: string }
+    | { kind: "read-request"; requestId: number; url: string; method: string }
+    | { kind: "read-response"; requestId: number; status: number; body: string }
+    | { kind: "read-failed"; requestId: number; error: string }
+    | {
+        kind: "read-body-failed" | "command-body-failed";
+        requestId: number;
+        status: number;
+        error: string;
+        errorName: string | null;
+      }
+    | { kind: "error"; message: string }
+  );
 export type TaskRoute =
   | {
       id: string;
       input: "pointer" | "keyboard" | "numeric" | "cdp-touch";
       command: string | null;
       mutations: number;
-      cancel: boolean;
+      cancellation: readonly CancellationProbe[];
       undo: "history" | "comment-toast" | "none";
     }
   | { id: string; pending: string };
@@ -235,11 +79,10 @@ export type EditingTrial = {
   journal: JournalEvent[];
   before?: DurableState;
   after?: DurableState;
-  canceled?: DurableState;
   undone?: DurableState;
   transport?: { seconds: number; playing: boolean };
   durationMs?: number;
-  errors?: string[];
+  failures: TrialFailure[];
   profiler?: string;
   protocolHash?: string;
   definitionHash?: string;
@@ -252,11 +95,14 @@ export type EditingTrial = {
   artifacts?: string[];
   uiEvidence?: {
     stage: string;
-    phase: Phase;
+    origin: EvidenceOrigin;
     geometry: Json;
     screenshot?: string;
   }[];
-  cancellations?: { probe: string; state: DurableState }[];
+  cancellations: (
+    | { probe: string; outcome: "completed"; state: DurableState }
+    | { probe: string; outcome: "failed"; state: DurableState | null }
+  )[];
   history?: {
     before: HistoryIdentity | null;
     after: HistoryIdentity | null;
@@ -289,67 +135,23 @@ export type TrialAssessment = {
   canceledReads: number;
 };
 
-function differences(
-  expected: Json,
-  actual: Json | undefined,
-  path: string,
-  tolerance: Record<string, number>,
-): string[] {
-  if (
-    typeof expected === "number" &&
-    typeof actual === "number" &&
-    Number.isFinite(actual) &&
-    Math.abs(expected - actual) <= (tolerance[path] ?? 0)
-  )
-    return [];
-  if (expected === actual) return [];
-  if (Array.isArray(expected) && Array.isArray(actual)) {
-    if (expected.length !== actual.length)
-      return [
-        `${path} expected ${expected.length} items, observed ${actual.length}`,
-      ];
-    return expected.flatMap((value, index) =>
-      differences(value, actual[index], `${path}.${index}`, tolerance),
-    );
-  }
-  if (
-    expected !== null &&
-    typeof expected === "object" &&
-    !Array.isArray(expected) &&
-    actual !== null &&
-    typeof actual === "object" &&
-    !Array.isArray(actual)
-  ) {
-    const keys = new Set([...Object.keys(expected), ...Object.keys(actual)]);
-    return [...keys].flatMap((key) =>
-      differences(expected[key], actual[key], `${path}.${key}`, tolerance),
-    );
-  }
-  return [
-    `${path} expected ${JSON.stringify(expected)}, observed ${JSON.stringify(actual)}`,
-  ];
+function validOrigin<T>(value: T): value is T & EvidenceOrigin {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  if ("blocks" in row) return false;
+  return row.owner === "main"
+    ? ["setup", "action", "undo"].includes(row.phase as string) &&
+        !("probe" in row)
+    : row.owner === "cancel" &&
+        ["setup", "cancel"].includes(row.phase as string) &&
+        typeof row.probe === "string" &&
+        row.probe.length > 0;
 }
-export function savedStateDifferences(
-  expected: DurableState,
-  actual: DurableState,
-  prefix = "after",
-  tolerances: Record<string, number> = {},
-): string[] {
-  for (const [label, state] of [
-    ["expected", expected],
-    ["observed", actual],
-  ] as const)
-    if (new Set(state.clips.map((clip) => clip.id)).size !== state.clips.length)
-      return [`${prefix} ${label} clip IDs are not unique`];
-  const identityState = (state: DurableState) => ({
-    ...state,
-    clips: Object.fromEntries(state.clips.map((clip) => [clip.id, clip])),
-  });
-  return differences(
-    identityState(expected),
-    identityState(actual),
-    prefix,
-    tolerances,
+function sameOrigin(a: EvidenceOrigin, b: EvidenceOrigin): boolean {
+  return (
+    a.owner === b.owner &&
+    a.phase === b.phase &&
+    (a.owner !== "cancel" || (b.owner === "cancel" && a.probe === b.probe))
   );
 }
 export function parseEditingJournal(input: unknown): JournalEvent[] {
@@ -363,6 +165,7 @@ export function parseEditingJournal(input: unknown): JournalEvent[] {
     "read-response",
     "read-failed",
     "read-body-failed",
+    "command-body-failed",
     "error",
   ];
   for (const row of input) {
@@ -372,6 +175,7 @@ export function parseEditingJournal(input: unknown): JournalEvent[] {
       !Number.isSafeInteger(row.seq) ||
       row.seq < 1 ||
       !phases.includes(row.phase) ||
+      !validOrigin(row) ||
       !kinds.includes(row.kind)
     )
       throw new Error("Invalid retained journal event");
@@ -382,7 +186,12 @@ export function parseEditingJournal(input: unknown): JournalEvent[] {
     )
       throw new Error("Invalid retained request ID");
     if (
-      ["response", "read-response", "read-body-failed"].includes(row.kind) &&
+      [
+        "response",
+        "read-response",
+        "read-body-failed",
+        "command-body-failed",
+      ].includes(row.kind) &&
       (!Number.isInteger(row.status) || row.status < 100 || row.status > 599)
     )
       throw new Error("Invalid retained HTTP status");
@@ -404,6 +213,11 @@ export function parseEditingJournal(input: unknown): JournalEvent[] {
         !["started", "completed", "failed"].includes(row.outcome))
     )
       throw new Error("Invalid retained journal payload");
+    if (
+      (row.kind === "read-body-failed" || row.kind === "command-body-failed") &&
+      !(row.errorName === null || typeof row.errorName === "string")
+    )
+      throw new Error("Invalid retained native error name");
     if (row.kind === "read-request") new URL(row.url);
   }
   return input as JournalEvent[];
@@ -424,17 +238,19 @@ function documentStateBody(body: string): boolean {
     return false;
   }
 }
+type ValidationReasons = {
+  admission: string[];
+  integrity: string[];
+  mainSetup: string[];
+  save: string[];
+  cancel: string[];
+  undo: string[];
+  probes: Map<string, { setup: string[]; cancel: string[] }>;
+};
 export function assessEditingTrial(
   definition: TaskDefinition,
   trial: EditingTrial,
 ): TrialAssessment {
-  const reasons: string[] = [...(trial.errors ?? [])];
-  if (
-    typeof trial.durationMs !== "number" ||
-    !Number.isFinite(trial.durationMs) ||
-    trial.durationMs < 0
-  )
-    reasons.push("elapsed duration is missing, non-finite or negative");
   const activations = { setup: 0, action: 0, cancel: 0, undo: 0 };
   const route = definition.routes.find((item) => item.id === trial.route);
   if (!route || "pending" in route)
@@ -452,12 +268,114 @@ export function assessEditingTrial(
         undo: route && "pending" in route ? "pending" : "not-run",
       },
     };
+  const owned: ValidationReasons = {
+    admission: [],
+    integrity: [],
+    mainSetup: [],
+    save: [],
+    cancel: [],
+    undo: [],
+    probes: new Map(),
+  };
+  const reject = (origin: FailureOwner, ...messages: string[]) => {
+    const target =
+      origin.owner === "global"
+        ? origin.blocks === "admission"
+          ? owned.admission
+          : owned.integrity
+        : origin.owner === "main"
+          ? origin.phase === "setup"
+            ? owned.mainSetup
+            : origin.phase === "action"
+              ? owned.save
+              : owned.undo
+          : origin.probe === null
+            ? owned.cancel
+            : (owned.probes.get(origin.probe)?.[
+                origin.phase === "setup" ? "setup" : "cancel"
+              ] ?? owned.cancel);
+    target.push(...messages);
+  };
+  const trust: FailureOwner = { owner: "global", blocks: "all-proofs" };
+  const mainSetup: EvidenceOrigin = { owner: "main", phase: "setup" };
+  const save: EvidenceOrigin = { owner: "main", phase: "action" };
+  const undo: EvidenceOrigin = { owner: "main", phase: "undo" };
+  if (
+    typeof trial.durationMs !== "number" ||
+    !Number.isFinite(trial.durationMs) ||
+    trial.durationMs < 0
+  )
+    owned.admission.push("elapsed duration is missing, non-finite or negative");
   try {
+    if (!Array.isArray(route.cancellation))
+      throw new Error("Invalid cancellation declaration");
+    for (const probe of route.cancellation) {
+      if (
+        !probe ||
+        typeof probe.id !== "string" ||
+        !probe.id ||
+        owned.probes.has(probe.id) ||
+        !probe.input ||
+        !(
+          probe.input.kind === "route-cancel" ||
+          (probe.input.kind === "comment-swipe" &&
+            Number.isFinite(probe.input.dx) &&
+            Number.isFinite(probe.input.dy) &&
+            ["touchEnd", "touchCancel"].includes(probe.input.end))
+        )
+      )
+        throw new Error("Invalid or duplicate cancellation declaration");
+      owned.probes.set(probe.id, { setup: [], cancel: [] });
+    }
     parseEditingJournal(trial.journal);
+    if (!Array.isArray(trial.failures))
+      throw new Error("Invalid retained failures");
+    for (const failure of trial.failures) {
+      const origin = failure?.origin;
+      if (
+        !failure ||
+        typeof failure.error !== "string" ||
+        !(
+          failure.errorName === null || typeof failure.errorName === "string"
+        ) ||
+        !(
+          validOrigin(origin) ||
+          (origin?.owner === "cancel" &&
+            origin.phase === "cancel" &&
+            origin.probe === null &&
+            !("blocks" in origin)) ||
+          (origin?.owner === "global" &&
+            ["admission", "all-proofs"].includes(origin.blocks) &&
+            !("phase" in origin) &&
+            !("probe" in origin))
+        )
+      )
+        throw new Error("Invalid retained failure ownership or payload");
+    }
+    if (!Array.isArray(trial.cancellations))
+      throw new Error("Invalid retained cancellation results");
+    for (const row of trial.cancellations) {
+      if (
+        !row ||
+        typeof row.probe !== "string" ||
+        !["completed", "failed"].includes(row.outcome) ||
+        (row.state === null && row.outcome !== "failed")
+      )
+        throw new Error("Invalid retained cancellation result");
+      if (row.state !== null) parseDurableState(row.state);
+    }
+    for (const state of [trial.before, trial.after, trial.undone])
+      if (state !== undefined) parseDurableState(state);
+    for (const row of trial.uiEvidence ?? [])
+      if (!validOrigin(row.origin))
+        throw new Error("Invalid retained UI ownership");
   } catch (error) {
+    reject(trust, String(error));
+  }
+  if (owned.integrity.length)
     return {
       status: "fail",
-      reasons: [...reasons, String(error)],
+      reasons: [...owned.admission, ...owned.integrity],
       activations,
       mutations: 0,
       accidentalCommands: 0,
@@ -465,11 +383,25 @@ export function assessEditingTrial(
       canceledReads: 0,
       observations: {
         save: "fail",
-        cancel: route.cancel ? "fail" : "not-applicable",
+        cancel:
+          !Array.isArray(route.cancellation) || route.cancellation.length
+            ? "fail"
+            : "not-applicable",
         undo: route.undo === "none" ? "not-applicable" : "fail",
       },
     };
-  }
+  for (const failure of trial.failures) reject(failure.origin, failure.error);
+  for (const origin of [
+    ...trial.journal,
+    ...trial.failures.map((row) => row.origin),
+    ...(trial.uiEvidence ?? []).map((row) => row.origin),
+  ])
+    if (
+      origin.owner === "cancel" &&
+      origin.probe !== null &&
+      !owned.probes.has(origin.probe)
+    )
+      reject(origin, `unexpected cancellation origin ${origin.probe}`);
   const requests = trial.journal.filter(
     (row) => row.kind === "request" || row.kind === "read-request",
   );
@@ -481,7 +413,7 @@ export function assessEditingTrial(
         (row) => "requestId" in row && row.requestId === request.requestId,
       ).length !== 1
     )
-      reasons.push(`duplicate request ${request.requestId}`);
+      reject(trust, `duplicate request ${request.requestId}`);
     if (request.kind === "read-request") {
       const terminal = trial.journal.filter(
         (row) =>
@@ -489,7 +421,8 @@ export function assessEditingTrial(
           row.requestId === request.requestId,
       );
       if (terminal.length !== 1)
-        reasons.push(
+        reject(
+          request,
           `read ${request.requestId} has ${terminal.length} terminal outcomes`,
         );
     }
@@ -498,6 +431,7 @@ export function assessEditingTrial(
     if (
       ![
         "response",
+        "command-body-failed",
         "read-response",
         "read-failed",
         "read-body-failed",
@@ -510,11 +444,15 @@ export function assessEditingTrial(
     );
     if (
       !request ||
-      (outcome.kind === "response") !== (request.kind === "request")
-    )
-      reasons.push(`orphan outcome ${outcome.requestId}`);
-    else if (outcome.seq <= request.seq || outcome.phase !== request.phase)
-      reasons.push(`outcome ${outcome.requestId} order or phase differs`);
+      ["response", "command-body-failed"].includes(outcome.kind) !==
+        (request.kind === "request")
+    ) {
+      reject(trust, `orphan outcome ${outcome.requestId}`);
+    } else if (outcome.seq <= request.seq || !sameOrigin(outcome, request)) {
+      const message = `outcome ${outcome.requestId} order or phase differs`;
+      reject(request, message);
+      if (!sameOrigin(outcome, request)) reject(outcome, message);
+    }
     if (
       outcome.kind === "read-response" &&
       request?.kind === "read-request" &&
@@ -523,22 +461,22 @@ export function assessEditingTrial(
       outcome.status < 300 &&
       !documentStateBody(outcome.body)
     )
-      reasons.push(`read ${outcome.requestId} has invalid document state`);
+      reject(outcome, `read ${outcome.requestId} has invalid document state`);
   }
-  let previous = 0;
-  let mutations = 0;
-  let accidentalCommands = 0;
-  let canceledReads = 0;
+  let previous = 0,
+    mutations = 0,
+    accidentalCommands = 0,
+    canceledReads = 0;
   for (const event of trial.journal) {
     if (event.seq <= previous)
-      reasons.push("journal sequence is not increasing");
+      reject(trust, "journal sequence is not increasing");
     previous = event.seq;
     if (event.kind === "activation") {
       activations[event.phase]++;
       if (event.outcome !== "completed")
-        reasons.push(`activation ${event.label} ${event.outcome}`);
+        reject(event, `activation ${event.label} ${event.outcome}`);
     }
-    if (event.kind === "error") reasons.push(event.message);
+    if (event.kind === "error") reject(event, event.message);
     if (event.kind === "read-failed") {
       const read = trial.journal.find(
         (row) =>
@@ -549,7 +487,7 @@ export function assessEditingTrial(
         const url = new URL(read.url);
         const eligible =
           read.phase === "setup" &&
-          event.phase === "setup" &&
+          sameOrigin(read, event) &&
           read.method === "GET" &&
           url.pathname === "/api/document/state" &&
           url.searchParams.get("phase") === "detail" &&
@@ -560,7 +498,7 @@ export function assessEditingTrial(
           trial.journal.some((candidate) => {
             if (
               candidate.kind !== "read-request" ||
-              candidate.phase !== "setup" ||
+              !sameOrigin(candidate, read) ||
               candidate.seq <= read.seq ||
               candidate.requestId === read.requestId ||
               candidate.url !== read.url ||
@@ -574,22 +512,17 @@ export function assessEditingTrial(
             );
             return (
               outcomes.length === 1 &&
-              outcomes.some((response) => {
-                if (
-                  response.kind !== "read-response" ||
-                  response.phase !== "setup" ||
-                  response.requestId !== candidate.requestId ||
-                  response.seq <= candidate.seq ||
-                  response.seq <= event.seq ||
-                  response.status < 200 ||
-                  response.status >= 300
-                )
-                  return false;
-                return (
+              outcomes.some(
+                (response) =>
+                  response.kind === "read-response" &&
+                  sameOrigin(response, candidate) &&
+                  response.seq > candidate.seq &&
+                  response.seq > event.seq &&
+                  response.status >= 200 &&
+                  response.status < 300 &&
                   documentStateBody(response.body) &&
-                  JSON.parse(response.body).resync !== true
-                );
-              })
+                  JSON.parse(response.body).resync !== true,
+              )
             );
           });
       }
@@ -597,7 +530,8 @@ export function assessEditingTrial(
         canceledReads++;
         admittedAborts.add(event.requestId);
       } else
-        reasons.push(
+        reject(
+          event,
           `read ${event.requestId} failed ${event.error} without admitted replacement`,
         );
     }
@@ -605,46 +539,45 @@ export function assessEditingTrial(
       event.kind === "read-response" &&
       (event.status < 200 || event.status >= 300)
     )
-      reasons.push(`read ${event.requestId} failed HTTP ${event.status}`);
+      reject(event, `read ${event.requestId} failed HTTP ${event.status}`);
+    if (event.kind === "command-body-failed")
+      reject(event, `command body ${event.requestId} failed ${event.error}`);
     if (event.kind !== "request") continue;
-    const responses = trial.journal.filter(
-      (item) => item.kind === "response" && item.requestId === event.requestId,
+    const terminals = trial.journal.filter(
+      (item) =>
+        (item.kind === "response" || item.kind === "command-body-failed") &&
+        item.requestId === event.requestId,
     );
-    if (responses.length !== 1)
-      reasons.push(
-        `request ${event.requestId} has ${responses.length ? "multiple responses" : "no response"}`,
+    if (terminals.length !== 1)
+      reject(
+        event,
+        `request ${event.requestId} has ${terminals.length ? "multiple responses" : "no response"}`,
       );
-    const response = responses[0];
+    const response = terminals[0];
     if (response?.kind === "response") {
-      if (response.seq <= event.seq || response.phase !== event.phase)
-        reasons.push(
-          `request ${event.requestId} response order or phase differs`,
-        );
       try {
         const body = JSON.parse(response.body) as Record<string, unknown>;
         if (body.ok !== true || body.type !== "Applied")
-          reasons.push(`request ${event.requestId} has unknown outcome`);
+          reject(event, `request ${event.requestId} has unknown outcome`);
       } catch {
-        reasons.push(`request ${event.requestId} has invalid response JSON`);
+        reject(event, `request ${event.requestId} has invalid response JSON`);
       }
+      if (response.status < 200 || response.status >= 300)
+        reject(event, `request ${event.requestId} failed ${response.status}`);
     }
-    if (
-      response?.kind === "response" &&
-      (response.status < 200 || response.status >= 300)
-    )
-      reasons.push(`request ${event.requestId} failed ${response.status}`);
-    if (event.phase === "setup") {
+    if (event.phase === "setup" || event.phase === "cancel") {
       accidentalCommands++;
-      reasons.push(`unexpected setup command ${event.type}`);
-    }
-    if (event.phase === "cancel") {
-      accidentalCommands++;
-      reasons.push(`cancellation command ${event.type}`);
+      reject(
+        event,
+        event.phase === "setup"
+          ? `unexpected setup command ${event.type}`
+          : `cancellation command ${event.type}`,
+      );
     }
     if (event.phase === "action") {
       if (event.type !== route.command) {
         accidentalCommands++;
-        reasons.push(`unexpected action command ${event.type}`);
+        reject(event, `unexpected action command ${event.type}`);
       }
       if (
         response?.kind === "response" &&
@@ -652,6 +585,15 @@ export function assessEditingTrial(
         response.status < 300
       )
         mutations++;
+    }
+    if (
+      event.phase === "undo" &&
+      (route.undo === "none" ||
+        event.type !==
+          (route.undo === "comment-toast" ? "ResolveComment" : "UndoHistory"))
+    ) {
+      accidentalCommands++;
+      reject(event, `unexpected Undo command ${event.type}`);
     }
   }
   for (const event of trial.journal)
@@ -670,33 +612,25 @@ export function assessEditingTrial(
             row.requestId === event.requestId,
         ).length !== 1
       )
-        reasons.push(`read body ${event.requestId} failed ${event.error}`);
-    }
-  for (const event of trial.journal)
-    if (
-      event.kind === "request" &&
-      event.phase === "undo" &&
-      (route.undo === "none" ||
-        event.type !==
-          (route.undo === "comment-toast" ? "ResolveComment" : "UndoHistory"))
-    ) {
-      accidentalCommands++;
-      reasons.push(`unexpected Undo command ${event.type}`);
+        reject(event, `read body ${event.requestId} failed ${event.error}`);
     }
   if (mutations !== route.mutations)
-    reasons.push(
+    reject(
+      save,
       `action expected ${route.mutations} mutations, observed ${mutations}`,
     );
   if (mutations > route.mutations)
     accidentalCommands += mutations - route.mutations;
-  if (!trial.before) reasons.push("starting state not observed");
+  if (!trial.before) reject(mainSetup, "starting state not observed");
   else
-    reasons.push(
+    reject(
+      mainSetup,
       ...savedStateDifferences(definition.start, trial.before, "before"),
     );
-  if (!trial.after) reasons.push("saved result not observed");
+  if (!trial.after) reject(save, "saved result not observed");
   else {
-    reasons.push(
+    reject(
+      save,
       ...savedStateDifferences(
         definition.expected,
         trial.after,
@@ -712,26 +646,27 @@ export function assessEditingTrial(
       definition.seek === undefined &&
       savedStateDifferences(definition.start, trial.after).length === 0
     )
-      reasons.push("task made no saved change");
+      reject(save, "task made no saved change");
   }
   if (definition.seek !== undefined) {
-    if (!trial.transport) reasons.push("transport not observed");
+    if (!trial.transport) reject(save, "transport not observed");
     else {
       if (trial.transport.playing !== false)
-        reasons.push("seek stopped playback state not observed");
+        reject(save, "seek stopped playback state not observed");
       if (!Number.isFinite(trial.transport.seconds))
-        reasons.push("seek position is not finite");
+        reject(save, "seek position is not finite");
       else if (Math.abs(trial.transport.seconds - definition.seek) > 0.03)
-        reasons.push(
+        reject(
+          save,
           `seek expected ${definition.seek}, observed ${trial.transport.seconds}`,
         );
     }
   }
-  if (activations.action === 0) reasons.push("task input not observed");
-  if (route.cancel && activations.cancel === 0)
-    reasons.push("cancel input not observed");
+  if (activations.action === 0) reject(save, "task input not observed");
+  if (route.cancellation.length && activations.cancel === 0)
+    owned.cancel.push("cancel input not observed");
   if (route.undo !== "none" && activations.undo === 0)
-    reasons.push("Undo input not observed");
+    reject(undo, "Undo input not observed");
   const undoRequests = trial.journal.filter(
     (event) => event.kind === "request" && event.phase === "undo",
   );
@@ -744,11 +679,11 @@ export function assessEditingTrial(
         (event) => event.kind === "request" && event.type !== expectedUndo,
       )
     )
-      reasons.push(
+      reject(
+        undo,
         `Undo expected ${route.mutations} ${expectedUndo} commands, observed ${undoRequests.length}`,
       );
   }
-  const identities = trial.history;
   const validHistory = (
     value: HistoryIdentity | null | undefined,
   ): value is HistoryIdentity =>
@@ -772,16 +707,26 @@ export function assessEditingTrial(
           (value.cursor < 0 ? null : value.entries[value.cursor].id) &&
         (value.cursor !== -1 || value.entries.length === 0),
     );
-  if (
-    !identities ||
-    !validHistory(identities.before) ||
-    !validHistory(identities.after) ||
-    (route.undo !== "none" && !validHistory(identities.undone))
-  )
-    reasons.push("History evidence missing or invalid");
-  else {
-    const before = identities.before,
-      after = identities.after;
+  const identities = trial.history;
+  const before = identities?.before,
+    after = identities?.after,
+    undone = identities?.undone;
+  if (!validHistory(before))
+    reject(
+      { owner: "main", phase: "setup" },
+      "History starting evidence missing or invalid",
+    );
+  if (!validHistory(after))
+    reject(
+      { owner: "main", phase: "action" },
+      "History saved evidence missing or invalid",
+    );
+  if (route.undo !== "none" && !validHistory(undone))
+    reject(
+      { owner: "main", phase: "undo" },
+      "History Undo evidence missing or invalid",
+    );
+  if (validHistory(before) && validHistory(after)) {
     const baseline = before.cursor < 0 ? 0 : before.cursor;
     if (route.undo === "history") {
       const preserved = before.entries.slice(0, before.cursor + 1);
@@ -804,16 +749,21 @@ export function assessEditingTrial(
             (definition.historyLabels &&
               after.entries[0]?.label !== definition.historyLabels.before)))
       )
-        reasons.push("History action transition differs");
-      const undone = identities.undone!;
+        reject(
+          { owner: "main", phase: "action" },
+          "History action transition differs",
+        );
       if (
-        undone.cursor !== baseline ||
-        undone.headId !== after.entries[baseline]?.id ||
-        JSON.stringify(undone.entries) !== JSON.stringify(after.entries)
+        validHistory(undone) &&
+        (undone.cursor !== baseline ||
+          undone.headId !== after.entries[baseline]?.id ||
+          JSON.stringify(undone.entries) !== JSON.stringify(after.entries))
       )
-        reasons.push("History Undo transition differs");
+        reject(
+          { owner: "main", phase: "undo" },
+          "History Undo transition differs",
+        );
     } else if (route.undo === "comment-toast") {
-      const undone = identities.undone!;
       if (
         after.cursor !== baseline + 1 ||
         after.entries.length !== baseline + 2 ||
@@ -824,42 +774,112 @@ export function assessEditingTrial(
         JSON.stringify(after.entries.slice(0, before.cursor + 1)) !==
           JSON.stringify(before.entries.slice(0, before.cursor + 1))
       )
-        reasons.push("Comment resolve History transition differs");
+        reject(
+          { owner: "main", phase: "action" },
+          "Comment resolve History transition differs",
+        );
       if (
-        undone.cursor !== baseline + 2 ||
-        undone.entries.length !== baseline + 3 ||
-        undone.headId === after.headId ||
-        undone.entries[baseline + 2]?.label !== "after unresolve comment" ||
-        undone.entries[baseline + 2]?.operation !== null ||
-        JSON.stringify(undone.entries.slice(0, after.entries.length)) !==
-          JSON.stringify(after.entries)
+        validHistory(undone) &&
+        (undone.cursor !== baseline + 2 ||
+          undone.entries.length !== baseline + 3 ||
+          undone.headId === after.headId ||
+          undone.entries[baseline + 2]?.label !== "after unresolve comment" ||
+          undone.entries[baseline + 2]?.operation !== null ||
+          JSON.stringify(undone.entries.slice(0, after.entries.length)) !==
+            JSON.stringify(after.entries))
       )
-        reasons.push("Comment toast History transition differs");
+        reject(
+          { owner: "main", phase: "undo" },
+          "Comment toast History transition differs",
+        );
     } else if (JSON.stringify(after) !== JSON.stringify(before))
-      reasons.push("Seek changed History");
+      reject({ owner: "main", phase: "action" }, "Seek changed History");
   }
-  if (route.cancel) {
-    for (const cancellation of trial.cancellations ?? [])
-      reasons.push(
-        ...savedStateDifferences(
-          definition.start,
-          cancellation.state,
-          `canceled-${cancellation.probe}`,
-        ),
-      );
-    if (!trial.canceled) reasons.push("cancellation not run");
-    else
-      reasons.push(
-        ...savedStateDifferences(definition.start, trial.canceled, "canceled"),
-      );
+
+  for (const result of trial.cancellations)
+    if (!owned.probes.has(result.probe))
+      owned.cancel.push(`unexpected cancellation ${result.probe}`);
+  for (const probe of route.cancellation) {
+    const origin: EvidenceOrigin = {
+      owner: "cancel",
+      phase: "cancel",
+      probe: probe.id,
+    };
+    const results = trial.cancellations.filter((row) => row.probe === probe.id);
+    if (results.length !== 1)
+      reject(origin, `cancellation ${probe.id} has ${results.length} results`);
+    const inputs = trial.journal.filter(
+      (row) =>
+        row.kind === "activation" &&
+        row.owner === "cancel" &&
+        row.phase === "cancel" &&
+        row.probe === probe.id,
+    );
+    if (!inputs.length)
+      reject(origin, `cancellation ${probe.id} input not observed`);
+    for (const result of results) {
+      if (result.outcome !== "completed")
+        reject(origin, `cancellation ${probe.id} failed`);
+      if (result.state)
+        reject(
+          origin,
+          ...savedStateDifferences(
+            definition.start,
+            result.state,
+            `canceled-${probe.id}`,
+          ),
+        );
+    }
   }
   if (route.undo !== "none") {
-    if (!trial.undone) reasons.push("Undo not run");
+    if (!trial.undone) reject(undo, "Undo not run");
     else
-      reasons.push(
+      reject(
+        undo,
         ...savedStateDifferences(definition.start, trial.undone, "undone"),
       );
   }
+  const probeReasons = [...owned.probes.values()].flatMap((row) => [
+    ...row.setup,
+    ...row.cancel,
+  ]);
+  const reasons = [
+    ...owned.admission,
+    ...owned.integrity,
+    ...owned.mainSetup,
+    ...owned.save,
+    ...owned.cancel,
+    ...probeReasons,
+    ...owned.undo,
+  ];
+  const attempted = (owner: "main" | "cancel", phase?: Phase) =>
+    trial.journal.some(
+      (row) => row.owner === owner && (!phase || row.phase === phase),
+    ) ||
+    trial.failures.some(
+      (row) =>
+        row.origin.owner === owner &&
+        (!phase || ("phase" in row.origin && row.origin.phase === phase)),
+    ) ||
+    (trial.uiEvidence ?? []).some(
+      (row) =>
+        row.origin.owner === owner && (!phase || row.origin.phase === phase),
+    );
+  const observation = (
+    applicable: boolean,
+    started: boolean,
+    own: string[],
+    prerequisites: string[],
+  ): ObservationStatus =>
+    !applicable
+      ? "not-applicable"
+      : prerequisites.length
+        ? "fail"
+        : !started
+          ? "not-run"
+          : own.length
+            ? "fail"
+            : "pass";
   return {
     status: reasons.length ? "fail" : "pass",
     reasons,
@@ -869,31 +889,24 @@ export function assessEditingTrial(
     completedWork: reasons.length ? 0 : 1,
     canceledReads,
     observations: {
-      save: !trial.after ? "not-run" : reasons.length ? "fail" : "pass",
-      cancel: !route.cancel
-        ? "not-applicable"
-        : !trial.canceled
-          ? "not-run"
-          : activations.cancel === 0 ||
-              accidentalCommands > 0 ||
-              savedStateDifferences(definition.start, trial.canceled).length >
-                0 ||
-              (trial.cancellations ?? []).some(
-                (row) =>
-                  savedStateDifferences(definition.start, row.state).length > 0,
-              )
-            ? "fail"
-            : "pass",
-      undo:
-        route.undo === "none"
-          ? "not-applicable"
-          : !trial.undone
-            ? "not-run"
-            : activations.undo === 0 ||
-                undoRequests.length !== route.mutations ||
-                savedStateDifferences(definition.start, trial.undone).length > 0
-              ? "fail"
-              : "pass",
+      save: observation(
+        true,
+        Boolean(trial.after) || attempted("main", "action"),
+        owned.save,
+        [...owned.integrity, ...owned.mainSetup],
+      ),
+      cancel: observation(
+        Boolean(route.cancellation.length),
+        Boolean(trial.cancellations.length) || attempted("cancel"),
+        [...owned.cancel, ...probeReasons],
+        owned.integrity,
+      ),
+      undo: observation(
+        route.undo !== "none",
+        Boolean(trial.undone) || attempted("main", "undo"),
+        owned.undo,
+        [...owned.integrity, ...owned.mainSetup, ...owned.save],
+      ),
     },
   };
 }

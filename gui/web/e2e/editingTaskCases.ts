@@ -1,8 +1,9 @@
 import type {
-  DurableState,
+  CancellationProbe,
   TaskDefinition,
   TaskRoute,
 } from "./editingTaskReport";
+import type { DurableState } from "./editingTaskState";
 
 const clip = {
   track_id: "reference",
@@ -105,12 +106,29 @@ function route(
   id: string,
   input: "pointer" | "keyboard" | "numeric" | "cdp-touch",
   command: string | null,
-  cancel = false,
+  cancellation: readonly CancellationProbe[],
   undo: "history" | "comment-toast" | "none" = "history",
   mutations = 1,
 ): TaskRoute {
-  return { id, input, command, cancel, undo, mutations };
+  return { id, input, command, cancellation, undo, mutations };
 }
+const cancel: readonly CancellationProbe[] = [
+  { id: "cancel", input: { kind: "route-cancel" } },
+];
+const commentCancellation: readonly CancellationProbe[] = [
+  {
+    id: "short",
+    input: { kind: "comment-swipe", dx: 20, dy: 0, end: "touchEnd" },
+  },
+  {
+    id: "vertical",
+    input: { kind: "comment-swipe", dx: 64, dy: 30, end: "touchEnd" },
+  },
+  {
+    id: "touch-cancel",
+    input: { kind: "comment-swipe", dx: 64, dy: 0, end: "touchCancel" },
+  },
+];
 const desktop = { width: 1440, height: 900 };
 const phone = { width: 390, height: 844 };
 const envelopeStart: DurableState = {
@@ -156,8 +174,8 @@ export const editingTaskRegistry: TaskDefinition[] = [
     seek: 5,
     tolerances: {},
     routes: [
-      route("ruler-pointer", "pointer", null, false, "none", 0),
-      route("ruler-keyboard", "keyboard", null, false, "none", 0),
+      route("ruler-pointer", "pointer", null, [], "none", 0),
+      route("ruler-keyboard", "keyboard", null, [], "none", 0),
       {
         id: "timestamp",
         pending: "TimeRulerView has no exact timestamp entry",
@@ -197,8 +215,8 @@ export const editingTaskRegistry: TaskDefinition[] = [
     },
     tolerances: {},
     routes: [
-      route("armed-pointer", "pointer", "EditSelectedRange", true),
-      route("range-form", "numeric", "EditSelectedRange", true),
+      route("armed-pointer", "pointer", "EditSelectedRange", cancel),
+      route("range-form", "numeric", "EditSelectedRange", cancel),
     ],
   },
   {
@@ -228,8 +246,8 @@ export const editingTaskRegistry: TaskDefinition[] = [
       "after.clips.peer.source_start": 0.03,
     },
     routes: [
-      route("handle-pointer", "pointer", "TrimClipEdge", true),
-      route("handle-keyboard", "keyboard", "TrimClipEdge", true),
+      route("handle-pointer", "pointer", "TrimClipEdge", cancel),
+      route("handle-keyboard", "keyboard", "TrimClipEdge", cancel),
       {
         id: "numeric-trim",
         pending: "ClipInspector Source is text; no numeric trim input",
@@ -256,8 +274,8 @@ export const editingTaskRegistry: TaskDefinition[] = [
     },
     tolerances: { "after.clips.first-copy.fade_in_ms": 1 },
     routes: [
-      route("corner-pointer", "pointer", "SetClipFade", true),
-      route("inspector-slider", "keyboard", "SetClipFade", true),
+      route("corner-pointer", "pointer", "SetClipFade", cancel),
+      route("inspector-slider", "keyboard", "SetClipFade", cancel),
     ],
   },
   {
@@ -288,9 +306,9 @@ export const editingTaskRegistry: TaskDefinition[] = [
       "after.envelopes.0.points.0.value": 0.02,
     },
     routes: [
-      route("point-pointer", "pointer", "SetEnvelope", true),
-      route("point-form", "numeric", "SetEnvelope", true),
-      route("point-form-tab-header", "numeric", "SetEnvelope", true),
+      route("point-pointer", "pointer", "SetEnvelope", cancel),
+      route("point-form", "numeric", "SetEnvelope", cancel),
+      route("point-form-tab-header", "numeric", "SetEnvelope", cancel),
     ],
   },
   {
@@ -306,9 +324,9 @@ export const editingTaskRegistry: TaskDefinition[] = [
     expected: { ...base, tracks: [base.tracks[1], base.tracks[0]] },
     tolerances: {},
     routes: [
-      route("html-drag", "pointer", "ReorderTrack", true),
-      route("move-up", "pointer", "ReorderTrack"),
-      route("move-up-tab-header", "pointer", "ReorderTrack"),
+      route("html-drag", "pointer", "ReorderTrack", cancel),
+      route("move-up", "pointer", "ReorderTrack", []),
+      route("move-up-tab-header", "pointer", "ReorderTrack", []),
     ],
   },
   {
@@ -327,15 +345,8 @@ export const editingTaskRegistry: TaskDefinition[] = [
     },
     tolerances: { "after.tracks.0.fader_db": 0.25 },
     routes: [
-      route("native-pointer", "pointer", "SetTrackFader", true),
-      route(
-        "native-keyboard",
-        "keyboard",
-        "SetTrackFader",
-        false,
-        "history",
-        12,
-      ),
+      route("native-pointer", "pointer", "SetTrackFader", cancel),
+      route("native-keyboard", "keyboard", "SetTrackFader", [], "history", 12),
       {
         id: "precise-field",
         pending: "TrackMixView has no precise numeric field or stepper",
@@ -355,18 +366,12 @@ export const editingTaskRegistry: TaskDefinition[] = [
     },
     tolerances: {},
     routes: [
-      route(
-        "resolve-button",
-        "pointer",
-        "ResolveComment",
-        false,
-        "comment-toast",
-      ),
+      route("resolve-button", "pointer", "ResolveComment", [], "comment-toast"),
       route(
         "trusted-touch-swipe",
         "cdp-touch",
         "ResolveComment",
-        true,
+        commentCancellation,
         "comment-toast",
       ),
     ],

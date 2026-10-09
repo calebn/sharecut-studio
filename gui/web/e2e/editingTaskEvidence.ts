@@ -1,13 +1,12 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { type HistoryIdentity, type TaskDefinition } from "./editingTaskReport";
 import {
   type DurableState,
-  type HistoryIdentity,
   type Json,
   parseDurableState,
-  type TaskDefinition,
-} from "./editingTaskReport";
+} from "./editingTaskState";
 import { committedE2eProjectPath } from "./env";
 import { createRelocatedE2eProject } from "./liveProject";
 

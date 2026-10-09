@@ -5,7 +5,11 @@ import {
   type Page,
 } from "@playwright/test";
 import { niceTimeStep } from "../src/utils/time";
-import type { TaskDefinition, TaskRoute } from "./editingTaskReport";
+import type {
+  CancellationProbe,
+  TaskDefinition,
+  TaskRoute,
+} from "./editingTaskReport";
 
 type InputContext = Readonly<{
   active: Page;
@@ -15,8 +19,7 @@ type InputContext = Readonly<{
     TaskRoute,
     { input: "pointer" | "keyboard" | "numeric" | "cdp-touch" }
   >;
-  cancel: boolean;
-  cancelProbe?: string;
+  intent: { kind: "action" } | { kind: "cancel"; probe: CancellationProbe };
 }>;
 type InputRecorder = Readonly<{
   act(
@@ -63,14 +66,8 @@ export async function performEditingInput(
   context: InputContext,
   recorder: InputRecorder,
 ): Promise<void> {
-  const {
-    active,
-    session,
-    task,
-    route,
-    cancel,
-    cancelProbe = "short",
-  } = context;
+  const { active, session, task, route, intent } = context;
+  const cancel = intent.kind === "cancel";
   const { act, captureUi, waitForActionResponses } = recorder;
   const routeId = route.id;
   const click = (control: Locator, label: string) =>
@@ -450,14 +447,27 @@ export async function performEditingInput(
         "Resolve comment",
       );
     else {
+      const swipe =
+        intent.kind === "action"
+          ? {
+              kind: "comment-swipe" as const,
+              dx: 64,
+              dy: 0,
+              end: "touchEnd" as const,
+            }
+          : intent.probe.input;
+      if (swipe.kind !== "comment-swipe")
+        throw new Error(
+          "Comment cancellation requires its declared swipe recipe",
+        );
       const box = await card.locator(".comment-card-main").boundingBox();
       if (!box) throw new Error("Comment unavailable");
       const x = box.x + box.width * 0.7,
         y = box.y + box.height / 2;
       await act(
         "touch-swipe",
-        cancel
-          ? `${cancelProbe} comment cancellation`
+        intent.kind === "cancel"
+          ? `${intent.probe.id} comment cancellation`
           : "trusted64px comment swipe",
         async () => {
           await session.send("Input.dispatchTouchEvent", {
@@ -468,17 +478,14 @@ export async function performEditingInput(
             type: "touchMove",
             touchPoints: [
               {
-                x: x - (cancel ? (cancelProbe === "short" ? 20 : 64) : 64),
-                y: y + (cancel && cancelProbe === "vertical" ? 30 : 0),
+                x: x - swipe.dx,
+                y: y + swipe.dy,
               },
             ],
           });
           await captureUi(active, "intermediate-swipe", false);
           await session.send("Input.dispatchTouchEvent", {
-            type:
-              cancel && cancelProbe === "touch-cancel"
-                ? "touchCancel"
-                : "touchEnd",
+            type: swipe.end,
             touchPoints: [],
           });
         },

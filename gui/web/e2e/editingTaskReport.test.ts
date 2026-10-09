@@ -2,12 +2,11 @@ import { describe, expect, it } from "vitest";
 import { editingTaskRegistry } from "./editingTaskCases";
 import {
   assessEditingTrial,
-  type DurableState,
   type EditingTrial,
-  savedStateDifferences,
   summarizeEditingAttempts,
   type TaskDefinition,
 } from "./editingTaskReport";
+import { type DurableState, savedStateDifferences } from "./editingTaskState";
 
 const start: DurableState = {
   duration_sec: 20,
@@ -70,7 +69,7 @@ const definition: TaskDefinition = {
       input: "keyboard",
       command: "TrimClipEdge",
       mutations: 1,
-      cancel: true,
+      cancellation: [{ id: "cancel", input: { kind: "route-cancel" } }],
       undo: "history",
     },
   ],
@@ -84,6 +83,7 @@ function trial(): EditingTrial {
     journal: [
       {
         seq: 1,
+        owner: "main",
         phase: "action",
         kind: "activation",
         label: "trim",
@@ -92,6 +92,7 @@ function trial(): EditingTrial {
       },
       {
         seq: 2,
+        owner: "main",
         phase: "action",
         kind: "request",
         requestId: 1,
@@ -100,6 +101,7 @@ function trial(): EditingTrial {
       },
       {
         seq: 3,
+        owner: "main",
         phase: "action",
         kind: "response",
         requestId: 1,
@@ -108,6 +110,8 @@ function trial(): EditingTrial {
       },
       {
         seq: 4,
+        owner: "cancel",
+        probe: "cancel",
         phase: "cancel",
         kind: "activation",
         label: "cancel preview",
@@ -116,6 +120,7 @@ function trial(): EditingTrial {
       },
       {
         seq: 5,
+        owner: "main",
         phase: "undo",
         kind: "activation",
         label: "Undo",
@@ -124,6 +129,7 @@ function trial(): EditingTrial {
       },
       {
         seq: 6,
+        owner: "main",
         phase: "undo",
         kind: "request",
         requestId: 2,
@@ -132,6 +138,7 @@ function trial(): EditingTrial {
       },
       {
         seq: 7,
+        owner: "main",
         phase: "undo",
         kind: "response",
         requestId: 2,
@@ -141,7 +148,8 @@ function trial(): EditingTrial {
     ],
     before: start,
     after: definition.expected,
-    canceled: start,
+    failures: [],
+    cancellations: [{ probe: "cancel", outcome: "completed", state: start }],
     undone: start,
     durationMs: 10,
     history: {
@@ -211,19 +219,21 @@ describe("literal editing task admission", () => {
       assessEditingTrial(definition, {
         ...trial(),
         cancellations: [
-          { probe: "short", state: definition.expected },
-          { probe: "touch-cancel", state: start },
+          { probe: "cancel", outcome: "completed", state: definition.expected },
+          { probe: "cancel", outcome: "completed", state: start },
         ],
       }).reasons,
     ).toEqual([
-      "canceled-short.clips.a.source_start expected 0, observed 0.3",
-      "canceled-short.clips.a.timeline_start expected 0, observed 0.3",
+      "cancellation cancel has 2 results",
+      "canceled-cancel.clips.a.source_start expected 0, observed 0.3",
+      "canceled-cancel.clips.a.timeline_start expected 0, observed 0.3",
     ]);
   });
   it("rejects ancillary app HTTP errors despite completed saved work", () => {
     const t = trial();
     t.journal.push({
       seq: 8,
+      owner: "main",
       phase: "setup",
       kind: "error",
       message: "HTTP 500 GET /record/share-registry",
@@ -237,15 +247,16 @@ describe("literal editing task admission", () => {
     expect(
       assessEditingTrial(definition, {
         ...trial(),
-        canceled: undefined,
+        cancellations: [],
         undone: undefined,
       }).reasons,
-    ).toEqual(["cancellation not run", "Undo not run"]);
+    ).toEqual(["cancellation cancel has 0 results", "Undo not run"]);
   });
   it("retains unknown responses and duplicate mutations as failures", () => {
     const t = trial();
     t.journal.push({
       seq: 8,
+      owner: "main",
       phase: "action",
       kind: "request",
       requestId: 3,
@@ -262,6 +273,7 @@ describe("literal editing task admission", () => {
     t.journal = t.journal.filter((event) => event.phase === "action");
     expect(assessEditingTrial(definition, t).reasons).toEqual([
       "cancel input not observed",
+      "cancellation cancel input not observed",
       "Undo input not observed",
       "Undo expected 1 UndoHistory commands, observed 0",
     ]);
@@ -270,6 +282,7 @@ describe("literal editing task admission", () => {
     const t = trial();
     t.journal[2] = {
       seq: 3,
+      owner: "main",
       phase: "action",
       kind: "response",
       requestId: 1,
@@ -294,7 +307,7 @@ it("rejects a non-finite stopped seek position", () => {
         input: "keyboard",
         command: null,
         mutations: 0,
-        cancel: false,
+        cancellation: [],
         undo: "none",
       },
     ],
@@ -303,9 +316,11 @@ it("rejects a non-finite stopped seek position", () => {
     ...trial(),
     task: "seek",
     route: "ruler",
+    cancellations: [],
     journal: [
       {
         seq: 1,
+        owner: "main",
         phase: "action",
         kind: "activation",
         label: "seek",
@@ -383,6 +398,7 @@ function canceledReadTrial(replaced: boolean): EditingTrial {
     "http://127.0.0.1:1234/api/document/state?path=%2Ftmp%2Ftask.json&phase=detail";
   t.journal.push({
     seq: 8,
+    owner: "main",
     phase: "setup",
     kind: "read-request",
     requestId: 3,
@@ -391,6 +407,7 @@ function canceledReadTrial(replaced: boolean): EditingTrial {
   });
   t.journal.push({
     seq: 9,
+    owner: "main",
     phase: "setup",
     kind: "read-failed",
     requestId: 3,
@@ -399,6 +416,7 @@ function canceledReadTrial(replaced: boolean): EditingTrial {
   if (replaced) {
     t.journal.push({
       seq: 10,
+      owner: "main",
       phase: "setup",
       kind: "read-request",
       requestId: 4,
@@ -407,6 +425,7 @@ function canceledReadTrial(replaced: boolean): EditingTrial {
     });
     t.journal.push({
       seq: 11,
+      owner: "main",
       phase: "setup",
       kind: "read-response",
       requestId: 4,
@@ -481,6 +500,7 @@ it.each(["same-request", "duplicate-response"])(
     } else {
       t.journal.push({
         seq: 12,
+        owner: "main",
         phase: "setup",
         kind: "read-response",
         requestId: 4,
@@ -565,6 +585,7 @@ describe("fix-forward retained admission regressions", () => {
     t.journal.push(
       {
         seq: 8,
+        owner: "main",
         phase: "setup",
         kind: "request",
         requestId: 3,
@@ -573,6 +594,7 @@ describe("fix-forward retained admission regressions", () => {
       },
       {
         seq: 9,
+        owner: "main",
         phase: "setup",
         kind: "response",
         requestId: 3,
@@ -605,6 +627,7 @@ describe("fix-forward retained admission regressions", () => {
     const t = trial();
     t.journal.push({
       seq: 8,
+      owner: "main",
       phase: "undo",
       kind: "response",
       requestId: 999,
@@ -617,6 +640,7 @@ describe("fix-forward retained admission regressions", () => {
     const t = trial();
     t.journal.push({
       seq: 8,
+      owner: "main",
       phase: "action",
       kind: "read-request",
       requestId: 8,
@@ -630,6 +654,7 @@ describe("fix-forward retained admission regressions", () => {
     t.journal.push(
       {
         seq: 8,
+        owner: "main",
         phase: "action",
         kind: "read-request",
         requestId: 8,
@@ -638,6 +663,7 @@ describe("fix-forward retained admission regressions", () => {
       },
       {
         seq: 9,
+        owner: "main",
         phase: "action",
         kind: "read-response",
         requestId: 8,
@@ -676,7 +702,9 @@ it.each(["setup", "action", "cancel", "undo"] as const)(
     const t = trial();
     t.journal.push({
       seq: 8,
-      phase,
+      ...(phase === "cancel"
+        ? { owner: "cancel" as const, probe: "cancel", phase }
+        : { owner: "main" as const, phase }),
       kind: "read-response",
       requestId: 999,
       status: 200,
@@ -700,7 +728,9 @@ it.each([
   const t = canceledReadTrial(true);
   t.journal.push({
     seq: 12,
+    owner: "main",
     phase: fault === "action" ? "action" : "setup",
+    errorName: "Error",
     kind: "read-body-failed",
     requestId: fault === "wrong-id" ? 4 : 3,
     status: fault === "HTTP500" ? 500 : 200,
@@ -731,7 +761,9 @@ it("admits reachable 40ms fade and rejects unchanged zero", () => {
         task.start.clips[2],
       ],
     },
-    canceled: task.start,
+    cancellations: [
+      { probe: "cancel", outcome: "completed", state: task.start },
+    ],
     undone: task.start,
   });
   const command = t.journal.find(
@@ -757,10 +789,12 @@ it("requires separate resolve and unresolve comment History mutations", () => {
   Object.assign(t, {
     task: "comment",
     route: "resolve-button",
+    cancellations: [],
     before: task.start,
     after: task.expected,
     undone: task.start,
   });
+  t.journal = t.journal.filter((row) => row.owner !== "cancel");
   for (const row of t.journal)
     if (row.kind === "request") row.type = "ResolveComment";
   const baseline = {
@@ -822,6 +856,8 @@ it("rejects missing stopped observation and invalid elapsed durations at admissi
   const t: EditingTrial = {
     task: "seek",
     route: "ruler-keyboard",
+    failures: [],
+    cancellations: [],
     mode: "validity-only",
     before: task.start,
     after: task.expected,
@@ -829,6 +865,7 @@ it("rejects missing stopped observation and invalid elapsed durations at admissi
     journal: [
       {
         seq: 1,
+        owner: "main",
         phase: "action",
         kind: "activation",
         label: "seek",
@@ -924,8 +961,8 @@ describe("owned phase oracle regressions", () => {
         fault === "missing"
           ? []
           : [
-              { probe: "cancel", state: start },
-              { probe: "cancel", state: start },
+              { probe: "cancel", outcome: "completed", state: start },
+              { probe: "cancel", outcome: "completed", state: start },
             ];
       expect(assessEditingTrial(definition, t)).toMatchObject({
         status: "fail",
@@ -934,4 +971,415 @@ describe("owned phase oracle regressions", () => {
       });
     },
   );
+});
+
+function threeProbeTrial() {
+  const t = trial();
+  t.cancellations = ["short", "vertical", "touch-cancel"].map((probe) => ({
+    probe,
+    outcome: "completed",
+    state: start,
+  }));
+  t.journal = t.journal.filter((row) => row.owner !== "cancel");
+  t.journal.push(
+    ...["short", "vertical", "touch-cancel"].map((probe, index) => ({
+      seq: 8 + index,
+      owner: "cancel" as const,
+      phase: "cancel" as const,
+      probe,
+      kind: "activation" as const,
+      label: "literal independent clone",
+      verb: "touch",
+      outcome: "completed" as const,
+    })),
+  );
+  const task: TaskDefinition = {
+    ...definition,
+    routes: [
+      {
+        id: "keyboard",
+        input: "keyboard",
+        command: "TrimClipEdge",
+        mutations: 1,
+        undo: "history",
+        cancellation: [
+          {
+            id: "short",
+            input: { kind: "comment-swipe", dx: 20, dy: 0, end: "touchEnd" },
+          },
+          {
+            id: "vertical",
+            input: { kind: "comment-swipe", dx: 64, dy: 30, end: "touchEnd" },
+          },
+          {
+            id: "touch-cancel",
+            input: { kind: "comment-swipe", dx: 64, dy: 0, end: "touchCancel" },
+          },
+        ],
+      },
+    ],
+  };
+  return { t, task };
+}
+it("admits all three independently completed named clones", () => {
+  const { t, task } = threeProbeTrial();
+  expect(assessEditingTrial(task, t)).toMatchObject({
+    status: "pass",
+    completedWork: 1,
+    observations: { save: "pass", cancel: "pass", undo: "pass" },
+  });
+});
+it.each([
+  "empty",
+  "missing",
+  "duplicate",
+  "unexpected",
+  "unactivated",
+  "started",
+  "failed-result",
+  "clone-setup",
+])("rejects incomplete independent clones with %s evidence", (fault) => {
+  const { t, task } = threeProbeTrial();
+  if (fault === "empty") t.cancellations = [];
+  if (fault === "missing") t.cancellations.pop();
+  if (fault === "duplicate") t.cancellations[2] = t.cancellations[0];
+  if (fault === "unexpected") t.cancellations[2].probe = "invented";
+  if (fault === "unactivated")
+    t.journal = t.journal.filter(
+      (row) => row.owner !== "cancel" || row.probe !== "vertical",
+    );
+  if (fault === "started") Object.assign(t.journal[7], { outcome: "started" });
+  if (fault === "failed-result")
+    t.cancellations[0] = { probe: "short", outcome: "failed", state: start };
+  if (fault === "clone-setup")
+    t.failures.push({
+      origin: { owner: "cancel", phase: "setup", probe: "short" },
+      error: "literal clone setup failure",
+      errorName: "Error",
+    });
+  expect(assessEditingTrial(task, t)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    observations: { save: "pass", cancel: "fail", undo: "pass" },
+  });
+});
+it("rejects earlier changed clone state despite a later restored clone", () => {
+  const { t, task } = threeProbeTrial();
+  t.cancellations[0].state = definition.expected;
+  expect(assessEditingTrial(task, t)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    observations: { save: "pass", cancel: "fail", undo: "pass" },
+  });
+});
+it.each([
+  "duration",
+  "profiler",
+  "trust",
+  "main-setup",
+  "save",
+  "cancel-ui",
+  "undo-ui",
+])("projects %s failure through explicit prerequisites", (fault) => {
+  const t = trial();
+  if (fault === "duration") t.durationMs = NaN;
+  if (fault === "profiler")
+    t.failures.push({
+      origin: { owner: "global", blocks: "admission" },
+      error: "literal profiler failure",
+      errorName: null,
+    });
+  if (fault === "trust")
+    t.failures.push({
+      origin: { owner: "global", blocks: "all-proofs" },
+      error: "literal retention failure",
+      errorName: null,
+    });
+  if (fault === "main-setup")
+    t.failures.push({
+      origin: { owner: "main", phase: "setup" },
+      error: "literal setup failure",
+      errorName: null,
+    });
+  if (fault === "save") t.after = start;
+  if (fault === "cancel-ui")
+    t.failures.push({
+      origin: { owner: "cancel", phase: "cancel", probe: "cancel" },
+      error: "literal UI value expected0 observed5",
+      errorName: "Error",
+    });
+  if (fault === "undo-ui")
+    t.failures.push({
+      origin: { owner: "main", phase: "undo" },
+      error: "literal UI failure",
+      errorName: "Error",
+    });
+  const expected =
+    fault === "trust"
+      ? { save: "fail", cancel: "fail", undo: "fail" }
+      : fault === "main-setup" || fault === "save"
+        ? { save: "fail", cancel: "pass", undo: "fail" }
+        : fault === "cancel-ui"
+          ? { save: "pass", cancel: "fail", undo: "pass" }
+          : fault === "undo-ui"
+            ? { save: "pass", cancel: "pass", undo: "fail" }
+            : { save: "pass", cancel: "pass", undo: "pass" };
+  expect(assessEditingTrial(definition, t)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    observations: expected,
+  });
+});
+it("checks saved History even when Undo identity is invalid", () => {
+  const t = trial();
+  t.history!.undone = null;
+  t.history!.after!.entries[1].operation = "wrong-operation";
+  expect(assessEditingTrial(definition, t)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    observations: { save: "fail", cancel: "pass", undo: "fail" },
+  });
+  t.history!.after!.entries[1].operation = "trim_clip_edge";
+  expect(assessEditingTrial(definition, t).observations).toEqual({
+    save: "pass",
+    cancel: "pass",
+    undo: "fail",
+  });
+});
+it.each([201, 404, 503])(
+  "treats unavailable command body HTTP%s as one fatal terminal without a mutation",
+  (status) => {
+    const t = trial();
+    t.journal[2] = {
+      seq: 3,
+      owner: "main",
+      phase: "action",
+      kind: "command-body-failed",
+      requestId: 1,
+      status,
+      error: "literal unavailable command body",
+      errorName: null,
+    };
+    expect(assessEditingTrial(definition, t)).toMatchObject({
+      status: "fail",
+      completedWork: 0,
+      mutations: 0,
+      canceledReads: 0,
+      observations: { save: "fail", cancel: "pass", undo: "fail" },
+    });
+    expect(assessEditingTrial(definition, t).reasons).toEqual([
+      "command body 1 failed literal unavailable command body",
+      "action expected 1 mutations, observed 0",
+    ]);
+  },
+);
+it.each(["duplicate", "mixed", "orphan", "owner", "order", "malformed"])(
+  "rejects command body terminal %s",
+  (fault) => {
+    const t = trial();
+    const terminal = {
+      seq: 7,
+      owner: "main" as const,
+      phase: "undo" as const,
+      kind: "command-body-failed" as const,
+      requestId: 2,
+      status: 201,
+      error: "literal Undo body unavailable",
+      errorName: "Error",
+    };
+    t.journal[6] = terminal;
+    if (fault === "duplicate") t.journal.push({ ...terminal, seq: 8 });
+    if (fault === "mixed")
+      t.journal.push({
+        seq: 8,
+        owner: "main",
+        phase: "undo",
+        kind: "response",
+        requestId: 2,
+        status: 200,
+        body: '{"ok":true,"type":"Applied"}',
+      });
+    if (fault === "orphan") terminal.requestId = 999;
+    if (fault === "owner")
+      Object.assign(terminal, {
+        owner: "cancel",
+        phase: "cancel",
+        probe: "cancel",
+      });
+    if (fault === "order") terminal.seq = 1;
+    if (fault === "malformed")
+      Object.assign(terminal, { errorName: undefined });
+    expect(assessEditingTrial(definition, t)).toMatchObject({
+      status: "fail",
+      completedWork: 0,
+      observations:
+        fault === "orphan" || fault === "order" || fault === "malformed"
+          ? { save: "fail", cancel: "fail", undo: "fail" }
+          : fault === "owner"
+            ? { save: "pass", cancel: "fail", undo: "fail" }
+            : { save: "pass", cancel: "pass", undo: "fail" },
+    });
+  },
+);
+it.each([
+  "missing-failures",
+  "missing-results",
+  "bad-global-owner",
+  "bad-declaration",
+])("rejects malformed current retained ownership %s", (fault) => {
+  const t = trial(),
+    task = structuredClone(definition);
+  if (fault === "missing-failures") Object.assign(t, { failures: undefined });
+  if (fault === "missing-results")
+    Object.assign(t, { cancellations: undefined });
+  if (fault === "bad-global-owner")
+    t.failures.push({
+      origin: {
+        owner: "global",
+        blocks: "admission",
+        phase: "cancel",
+      } as never,
+      error: "cannot escape trust",
+      errorName: null,
+    });
+  if (fault === "bad-declaration")
+    Object.assign(task.routes[0], {
+      cancellation: [
+        { id: "cancel", input: { kind: "route-cancel" } },
+        { id: "cancel", input: { kind: "route-cancel" } },
+      ],
+    });
+  expect(assessEditingTrial(task, t)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    observations: { save: "fail", cancel: "fail", undo: "fail" },
+  });
+});
+it("keeps missing unattempted proof distinct from an attempted missing snapshot", () => {
+  const t = trial();
+  t.cancellations = [];
+  t.undone = undefined;
+  t.journal = t.journal.filter((row) => row.phase === "action");
+  expect(assessEditingTrial(definition, t)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    observations: { save: "pass", cancel: "not-run", undo: "not-run" },
+  });
+  t.journal.push({
+    seq: 8,
+    owner: "cancel",
+    phase: "cancel",
+    probe: "cancel",
+    kind: "activation",
+    label: "cancel",
+    verb: "key",
+    outcome: "completed",
+  });
+  expect(assessEditingTrial(definition, t).observations).toEqual({
+    save: "pass",
+    cancel: "fail",
+    undo: "not-run",
+  });
+});
+
+it("requires a setup detail replacement from the same cancellation clone", () => {
+  const { t, task } = threeProbeTrial();
+  const url =
+    "http://localhost/api/document/state?path=literal-project&phase=detail";
+  t.journal.push(
+    {
+      seq: 11,
+      owner: "cancel",
+      phase: "setup",
+      probe: "short",
+      kind: "read-request",
+      requestId: 20,
+      method: "GET",
+      url,
+    },
+    {
+      seq: 12,
+      owner: "cancel",
+      phase: "setup",
+      probe: "short",
+      kind: "read-failed",
+      requestId: 20,
+      error: "net::ERR_ABORTED",
+    },
+    {
+      seq: 13,
+      owner: "cancel",
+      phase: "setup",
+      probe: "vertical",
+      kind: "read-request",
+      requestId: 21,
+      method: "GET",
+      url,
+    },
+    {
+      seq: 14,
+      owner: "cancel",
+      phase: "setup",
+      probe: "vertical",
+      kind: "read-response",
+      requestId: 21,
+      status: 200,
+      body: '{"server_seq":0,"state_token":"0000000000000000000000000000000000000000000000000000000000000000"}',
+    },
+  );
+  expect(assessEditingTrial(task, t)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    canceledReads: 0,
+    observations: { save: "pass", cancel: "fail", undo: "pass" },
+  });
+  for (const row of t.journal)
+    if (row.owner === "cancel" && row.seq >= 13) row.probe = "short";
+  expect(assessEditingTrial(task, t)).toMatchObject({
+    status: "pass",
+    completedWork: 1,
+    canceledReads: 1,
+    observations: { save: "pass", cancel: "pass", undo: "pass" },
+  });
+});
+
+it.each(["journal", "failure", "ui"])(
+  "keeps unexpected syntactically valid probe %s evidence owned by Cancel",
+  (source) => {
+    const t = trial();
+    const origin = {
+      owner: "cancel" as const,
+      phase: "cancel" as const,
+      probe: "not-declared",
+    };
+    if (source === "journal") Object.assign(t.journal[3], origin);
+    if (source === "failure")
+      t.failures.push({
+        origin,
+        error: "literal undeclared clone failure",
+        errorName: null,
+      });
+    if (source === "ui")
+      t.uiEvidence = [
+        { origin, stage: "literal unexpected clone", geometry: {} },
+      ];
+    expect(assessEditingTrial(definition, t)).toMatchObject({
+      status: "fail",
+      completedWork: 0,
+      observations: { save: "pass", cancel: "fail", undo: "pass" },
+    });
+  },
+);
+it("keeps cancellation-wide context failures independent of valid main proof", () => {
+  const t = trial();
+  t.failures.push({
+    origin: { owner: "cancel", phase: "cancel", probe: null },
+    error: "literal context failure",
+    errorName: "Error",
+  });
+  expect(assessEditingTrial(definition, t)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    observations: { save: "pass", cancel: "fail", undo: "pass" },
+  });
 });

@@ -139,6 +139,7 @@ for (const file of productPaths) {
 const harnessFiles = Object.fromEntries(
   [
     "e2e/editingTaskReport.ts",
+    "e2e/editingTaskState.ts",
     "e2e/editingTasks.ts",
     "e2e/editingTaskCases.ts",
     "e2e/editingTaskEvidence.ts",
@@ -284,7 +285,7 @@ const schedule = tasks.flatMap((task) => {
   ).flat();
 });
 const protocol = {
-  version: 6,
+  version: 7,
   retainedPriorFailures: [
     {
       task: "envelope",

@@ -6,7 +6,8 @@ import { setImmediate as nextTurn } from "node:timers/promises";
 import type { CDPSession, Page, TestInfo } from "@playwright/test";
 import { afterEach, expect, it, vi } from "vitest";
 import { editingTaskRegistry } from "./editingTaskCases";
-import { assessEditingTrial, type DurableState } from "./editingTaskReport";
+import { assessEditingTrial } from "./editingTaskReport";
+import { type DurableState } from "./editingTaskState";
 import { runEditingTask } from "./editingTasks";
 
 const ownerProbe = vi.hoisted(() => ({
@@ -164,6 +165,7 @@ it("waits for a request admitted while an earlier body is draining", async () =>
         type: "LiteralLateCommand",
         body: '{"type":"LiteralLateCommand"}',
         seq: 3,
+        owner: "main",
         phase: "setup",
       },
       {
@@ -172,11 +174,18 @@ it("waits for a request admitted while an earlier body is draining", async () =>
         status: 200,
         body: "literal late command body",
         seq: 6,
+        owner: "main",
         phase: "setup",
       },
     ],
   });
-  expect(trial.errors).toEqual(["Error: literal workflow stop"]);
+  expect(trial.failures).toEqual([
+    {
+      origin: { owner: "main", phase: "setup" },
+      error: "Error: literal workflow stop",
+      errorName: "Error",
+    },
+  ]);
 });
 it("retains a genuine body failure from the last profiler operation", async () => {
   const page = observedPage(),
@@ -196,14 +205,17 @@ it("retains a genuine body failure from the last profiler operation", async () =
       url: "http://localhost/api/waveform-snap?literal=profiler",
       method: "GET",
       seq: 1,
+      owner: "main",
       phase: "setup",
     },
     {
+      errorName: "Error",
       kind: "read-body-failed",
       requestId: 1,
       status: 200,
       error: "Error: literal final body failure",
       seq: 2,
+      owner: "main",
       phase: "setup",
     },
   ]);
@@ -233,6 +245,7 @@ it("returns an immutable journal after its explicit observation endpoint", async
         url: "http://localhost/api/waveform-snap?literal=before-endpoint",
         method: "GET",
         seq: 1,
+        owner: "main",
         phase: "setup",
       },
       {
@@ -241,6 +254,7 @@ it("returns an immutable journal after its explicit observation endpoint", async
         status: 200,
         body: "literal terminal body",
         seq: 2,
+        owner: "main",
         phase: "setup",
       },
     ],
@@ -291,16 +305,24 @@ it("settles registered bodies before preserving the original failed wait", async
     returnedBeforeBody,
     returnedAfterFirstFailure,
     originalErrorRetained,
-    errors: trial.errors,
+    failures: trial.failures,
     journal: trial.journal,
     unchanged: JSON.stringify(trial) === retained,
   }).toEqual({
     returnedBeforeBody: false,
     returnedAfterFirstFailure: false,
     originalErrorRetained: true,
-    errors: [
-      "Error: literal workflow stop",
-      "main response drain: Error: literal network idle failure",
+    failures: [
+      {
+        origin: { owner: "main", phase: "setup" },
+        error: "Error: literal workflow stop",
+        errorName: "Error",
+      },
+      {
+        origin: { owner: "main", phase: "setup" },
+        error: "main response drain: Error: literal network idle failure",
+        errorName: "Error",
+      },
     ],
     journal: [
       {
@@ -309,6 +331,7 @@ it("settles registered bodies before preserving the original failed wait", async
         url: "http://localhost/api/waveform-snap?literal=failed-wait",
         method: "GET",
         seq: 1,
+        owner: "main",
         phase: "setup",
       },
       {
@@ -317,6 +340,7 @@ it("settles registered bodies before preserving the original failed wait", async
         url: "http://localhost/api/waveform-snap?literal=remaining-job",
         method: "GET",
         seq: 2,
+        owner: "main",
         phase: "setup",
       },
       {
@@ -325,14 +349,17 @@ it("settles registered bodies before preserving the original failed wait", async
         url: "http://localhost/api/waveform-snap?literal=orphan",
         method: "GET",
         seq: 3,
+        owner: "main",
         phase: "setup",
       },
       {
+        errorName: "Error",
         kind: "read-body-failed",
         requestId: 1,
         status: 200,
         error: "Error: literal unavailable body",
         seq: 4,
+        owner: "main",
         phase: "setup",
       },
       {
@@ -341,6 +368,7 @@ it("settles registered bodies before preserving the original failed wait", async
         status: 200,
         body: "literal remaining body",
         seq: 5,
+        owner: "main",
         phase: "setup",
       },
     ],
@@ -382,6 +410,7 @@ it("retains both real failed-request and unavailable-body facts", async () => {
       url: "http://localhost/api/waveform-snap?literal=aborted",
       method: "GET",
       seq: 1,
+      owner: "main",
       phase: "setup",
     },
     {
@@ -389,14 +418,17 @@ it("retains both real failed-request and unavailable-body facts", async () => {
       requestId: 1,
       error: "net::ERR_ABORTED",
       seq: 2,
+      owner: "main",
       phase: "setup",
     },
     {
+      errorName: "Error",
       kind: "read-body-failed",
       requestId: 1,
       status: 200,
       error: "Error: literal missing resource",
       seq: 3,
+      owner: "main",
       phase: "setup",
     },
   ]);
@@ -457,6 +489,7 @@ it("owns an ancillary HTTP body admitted while another body settles", async () =
         kind: "error",
         message: "HTTP 503 GET http://localhost/broken-asset.svg",
         seq: 2,
+        owner: "main",
         phase: "setup",
       },
       {
@@ -464,6 +497,7 @@ it("owns an ancillary HTTP body admitted while another body settles", async () =
         message:
           "HTTP error body http://localhost/broken-asset.svg literal ancillary failure details",
         seq: 4,
+        owner: "main",
         phase: "setup",
       },
     ],
@@ -509,6 +543,8 @@ it("finishes cancellation observation before its owned context closes", async ()
       url: "http://localhost/api/waveform-snap?literal=before-cancel-close",
       method: "GET",
       seq: 1,
+      owner: "cancel",
+      probe: "cancel",
       phase: "setup",
     },
     {
@@ -517,19 +553,29 @@ it("finishes cancellation observation before its owned context closes", async ()
       status: 200,
       body: "literal canceled page body",
       seq: 2,
+      owner: "cancel",
+      probe: "cancel",
       phase: "setup",
     },
   ];
   expect({
     journal: trial.journal,
     closedJournal,
-    errors: trial.errors,
+    failures: trial.failures,
   }).toEqual({
     journal,
     closedJournal: journal,
-    errors: [
-      "cancel: Error: literal cancel workflow stop",
-      "Error: literal workflow stop",
+    failures: [
+      {
+        origin: { owner: "cancel", phase: "setup", probe: "cancel" },
+        error: "cancel: Error: literal cancel workflow stop",
+        errorName: "Error",
+      },
+      {
+        origin: { owner: "main", phase: "setup" },
+        error: "Error: literal workflow stop",
+        errorName: "Error",
+      },
     ],
   });
 });
@@ -552,7 +598,7 @@ it("bounds unavailable bodies without a journal writer after timeout", async () 
   await nextTurn();
   expect({
     journal: trial.journal,
-    errors: trial.errors,
+    failures: trial.failures,
     unchanged: JSON.stringify(trial) === before,
   }).toEqual({
     journal: [
@@ -562,20 +608,31 @@ it("bounds unavailable bodies without a journal writer after timeout", async () 
         url: "http://localhost/api/waveform-snap?literal=bounded-body",
         method: "GET",
         seq: 1,
+        owner: "main",
         phase: "setup",
       },
       {
+        errorName: "Error",
         kind: "read-body-failed",
         requestId: 1,
         status: 200,
         error: "Error: Editing response body drain timed out",
         seq: 2,
+        owner: "main",
         phase: "setup",
       },
     ],
-    errors: [
-      "Error: literal workflow stop",
-      "main response drain: Error: literal failed idle wait",
+    failures: [
+      {
+        origin: { owner: "main", phase: "setup" },
+        error: "Error: literal workflow stop",
+        errorName: "Error",
+      },
+      {
+        origin: { owner: "main", phase: "setup" },
+        error: "main response drain: Error: literal failed idle wait",
+        errorName: "Error",
+      },
     ],
     unchanged: true,
   });
@@ -648,4 +705,34 @@ it("retains an admitted clone command body failure with its full original owner"
       t,
     ),
   ).toMatchObject({ status: "fail", completedWork: 0 });
+});
+
+it("classifies a failed observation wait with no owned pending work as a trust failure", async () => {
+  const page = observedPage(),
+    output = fixture();
+  page.waitForLoadState = async () => {
+    throw new Error("literal unowned wait failure");
+  };
+  const t = await run(page, output);
+  expect(t.failures).toEqual([
+    {
+      origin: { owner: "main", phase: "setup" },
+      error: "Error: literal workflow stop",
+      errorName: "Error",
+    },
+    {
+      origin: { owner: "global", blocks: "all-proofs" },
+      error: "main response drain: Error: literal unowned wait failure",
+      errorName: "Error",
+    },
+  ]);
+  expect(assessEditingTrial(editingTaskRegistry[0], t)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    observations: {
+      save: "fail",
+      cancel: "not-applicable",
+      undo: "not-applicable",
+    },
+  });
 });

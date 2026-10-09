@@ -23,14 +23,23 @@ import {
 import {
   assessEditingTrial,
   type EditingTrial,
+  type EvidenceOrigin,
+  type FailureOwner,
   type JournalEvent,
-  type Phase,
-  savedStateDifferences,
   type TaskDefinition,
 } from "./editingTaskReport";
+import { savedStateDifferences } from "./editingTaskState";
 import { createEditorProfiler } from "./editorProfile";
 import { switchE2eProject } from "./shareableProject";
 
+function nativeErrorName(error: unknown): string | null {
+  return error !== null &&
+    typeof error === "object" &&
+    "name" in error &&
+    typeof error.name === "string"
+    ? error.name
+    : null;
+}
 export async function editingResponseBody(response: Response): Promise<string> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -49,34 +58,33 @@ export async function editingResponseBody(response: Response): Promise<string> {
 }
 export async function editingResponseOutcome(
   response: Response,
-  request: { id: number; phase: Phase; kind: "command" | "read" },
+  request: { id: number; origin: EvidenceOrigin; kind: "command" | "read" },
 ) {
+  const origin = { ...request.origin };
+  const { id, kind } = request;
+  const status = response.status();
   try {
     const body = await editingResponseBody(response);
     return {
-      phase: request.phase,
+      ...origin,
       kind:
-        request.kind === "read"
-          ? ("read-response" as const)
-          : ("response" as const),
-      requestId: request.id,
-      status: response.status(),
+        kind === "read" ? ("read-response" as const) : ("response" as const),
+      requestId: id,
+      status,
       body,
     };
   } catch (error) {
-    return request.kind === "read"
-      ? {
-          phase: request.phase,
-          kind: "read-body-failed" as const,
-          requestId: request.id,
-          status: response.status(),
-          error: String(error),
-        }
-      : {
-          phase: request.phase,
-          kind: "error" as const,
-          message: `response ${request.id}: ${String(error)}`,
-        };
+    return {
+      ...origin,
+      kind:
+        kind === "read"
+          ? ("read-body-failed" as const)
+          : ("command-body-failed" as const),
+      requestId: id,
+      status,
+      error: String(error),
+      errorName: nativeErrorName(error),
+    };
   }
 }
 export async function runEditingTask(
@@ -97,7 +105,8 @@ export async function runEditingTask(
     route: routeId,
     mode,
     journal: [],
-    errors: [],
+    failures: [],
+    cancellations: [],
     protocolHash: process.env.EDITING_PROTOCOL_HASH,
     definitionHash: createHash("sha256")
       .update(JSON.stringify(task))
@@ -105,14 +114,40 @@ export async function runEditingTask(
     role: "host",
     artifacts: [],
   };
-  let phase: Phase = "setup";
+  let mainOrigin: EvidenceOrigin = { owner: "main", phase: "setup" };
+  let cancelOrigin: EvidenceOrigin = mainOrigin;
+  let origin: EvidenceOrigin = mainOrigin;
+  const pageOrigins = new Map<Page, () => EvidenceOrigin>([
+    [page, () => mainOrigin],
+  ]);
+  const handledFailures = new Set<unknown>();
+  const fail = (error: unknown, owner: FailureOwner, prefix = "") => {
+    if (!handledFailures.has(error))
+      trial.failures.push({
+        origin: owner,
+        error: prefix + String(error),
+        errorName: nativeErrorName(error),
+      });
+  };
   let sequence = 0;
-  const retain = () =>
-    fs.writeFileSync(
-      path.join(output, "trial.json"),
-      `${JSON.stringify(trial, null, 2)}\n`,
-    );
+  const retain = () => {
+    try {
+      fs.writeFileSync(
+        path.join(output, "trial.json"),
+        `${JSON.stringify(trial, null, 2)}\n`,
+      );
+    } catch (error) {
+      fail(
+        error,
+        { owner: "global", blocks: "all-proofs" },
+        "trial retention: ",
+      );
+      handledFailures.add(error);
+      throw error;
+    }
+  };
   const captureUi = async (active: Page, stage: string, screenshot = true) => {
+    const capturedOrigin = { ...pageOrigins.get(active)!() };
     const geometry = await active
       .locator(
         '[data-clip-id], [role="slider"], input[type="range"], .comment-card, svg circle',
@@ -142,7 +177,7 @@ export async function runEditingTask(
       }));
     const evidence: NonNullable<EditingTrial["uiEvidence"]>[number] = {
       stage,
-      phase,
+      origin: capturedOrigin,
       geometry,
     };
     if (mode !== "baseline" && screenshot) {
@@ -168,36 +203,44 @@ export async function runEditingTask(
           body: string;
         }
       | { kind: "read-failed"; requestId: number; error: string },
-    eventPhase: Phase = phase,
+    eventOrigin: EvidenceOrigin,
   ) => {
     trial.journal.push({
       ...event,
       seq: ++sequence,
-      phase: eventPhase,
+      ...eventOrigin,
     } as JournalEvent);
     retain();
   };
-  const observe = (observedPage: Page) => {
+  const observe = (observedPage: Page, getOrigin: () => EvidenceOrigin) => {
     const awaitingTerminal = new Set<Request>();
-    const bodies = new Set<Promise<void>>();
+    const bodies = new Map<Promise<void>, EvidenceOrigin>();
     const requests = new Map<
       Request,
-      { id: number; phase: Phase; kind: "command" | "read" }
+      { id: number; origin: EvidenceOrigin; kind: "command" | "read" }
     >();
-    const recordBody = (operation: () => Promise<void>) => {
+    const recordBody = (
+      bodyOrigin: EvidenceOrigin,
+      operation: () => Promise<void>,
+    ) => {
       const body = Promise.resolve()
         .then(operation)
         .catch((error) =>
-          trial.errors!.push(`response journal: ${String(error)}`),
+          fail(
+            error,
+            { owner: "global", blocks: "all-proofs" },
+            "response journal: ",
+          ),
         )
         .then(() => {
           bodies.delete(body);
         });
-      bodies.add(body);
+      bodies.set(body, bodyOrigin);
     };
     const onPageError = (error: Error) =>
-      append({ kind: "error", message: error.message });
+      append({ kind: "error", message: error.message }, getOrigin());
     const onRequest = (request: Request) => {
+      const admittedOrigin = { ...getOrigin() };
       const url = new URL(request.url());
       if (
         request.method() === "GET" &&
@@ -205,14 +248,17 @@ export async function runEditingTask(
         url.pathname.startsWith("/api/")
       ) {
         const id = sequence + 1;
-        requests.set(request, { id, phase, kind: "read" });
+        requests.set(request, { id, origin: admittedOrigin, kind: "read" });
         awaitingTerminal.add(request);
-        append({
-          kind: "read-request",
-          requestId: id,
-          url: request.url(),
-          method: request.method(),
-        });
+        append(
+          {
+            kind: "read-request",
+            requestId: id,
+            url: request.url(),
+            method: request.method(),
+          },
+          admittedOrigin,
+        );
         return;
       }
       if (
@@ -234,13 +280,13 @@ export async function runEditingTask(
         type = typeof command.type === "string" ? command.type : "unknown";
       } catch {}
       const id = sequence + 1;
-      requests.set(request, { id, phase, kind: "command" });
+      requests.set(request, { id, origin: admittedOrigin, kind: "command" });
       awaitingTerminal.add(request);
-      append({ kind: "request", requestId: id, type, body });
+      append({ kind: "request", requestId: id, type, body }, admittedOrigin);
     };
     const onResponse = (response: Response) => {
       const origin = requests.get(response.request());
-      const responsePhase = origin?.phase ?? phase;
+      const responseOrigin = origin?.origin ?? getOrigin();
       const url = new URL(response.url());
       if (
         ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) &&
@@ -251,9 +297,9 @@ export async function runEditingTask(
             kind: "error",
             message: `HTTP ${response.status()} ${response.request().method()} ${response.url()}`,
           },
-          responsePhase,
+          responseOrigin,
         );
-        recordBody(() =>
+        recordBody(responseOrigin, () =>
           editingResponseBody(response)
             .then((body) =>
               append(
@@ -261,7 +307,7 @@ export async function runEditingTask(
                   kind: "error",
                   message: `HTTP error body ${response.url()} ${body}`,
                 },
-                responsePhase,
+                responseOrigin,
               ),
             )
             .catch((error) =>
@@ -270,14 +316,14 @@ export async function runEditingTask(
                   kind: "error",
                   message: `HTTP error body unavailable ${response.url()} ${String(error)}`,
                 },
-                responsePhase,
+                responseOrigin,
               ),
             ),
         );
       }
       const request = requests.get(response.request());
       if (!request) return;
-      recordBody(() =>
+      recordBody(request.origin, () =>
         editingResponseOutcome(response, request).then((outcome) => {
           trial.journal.push({ ...outcome, seq: ++sequence });
           retain();
@@ -290,7 +336,7 @@ export async function runEditingTask(
       if (read?.kind === "read") {
         trial.journal.push({
           seq: ++sequence,
-          phase: read.phase,
+          ...read.origin,
           kind: "read-failed",
           requestId: read.id,
           error: request.failure()?.errorText ?? "unknown",
@@ -309,7 +355,7 @@ export async function runEditingTask(
             kind: "error",
             message: `request failed ${request.method()} ${request.url()} ${request.failure()?.errorText}`,
           },
-          read?.phase ?? phase,
+          read?.origin ?? getOrigin(),
         );
       awaitingTerminal.delete(request);
     };
@@ -320,6 +366,10 @@ export async function runEditingTask(
       observedPage.off("pageerror", onPageError);
     };
     const drain = async (finish: boolean) => {
+      const prefix =
+        getOrigin().owner === "main"
+          ? "main response drain: "
+          : "cancel response drain: ";
       try {
         await observedPage.waitForLoadState("networkidle", { timeout: 5000 });
         await expect
@@ -338,7 +388,22 @@ export async function runEditingTask(
           .toBe(0);
       } catch (error) {
         if (finish) detach();
-        await Promise.allSettled(bodies);
+        const pendingOrigins = [...bodies.values()];
+        const unresolved = [...awaitingTerminal].flatMap((request) => {
+          const retained = requests.get(request);
+          return retained ? [retained.origin] : [];
+        });
+        const knownOrigins = [...unresolved, ...pendingOrigins].filter(
+          (item, index, rows) =>
+            rows.findIndex(
+              (row) => JSON.stringify(row) === JSON.stringify(item),
+            ) === index,
+        );
+        if (knownOrigins.length)
+          for (const retained of knownOrigins) fail(error, retained, prefix);
+        else fail(error, { owner: "global", blocks: "all-proofs" }, prefix);
+        handledFailures.add(error);
+        await Promise.allSettled(bodies.keys());
         throw error;
       }
     };
@@ -355,7 +420,7 @@ export async function runEditingTask(
   ) => {
     const event: JournalEvent = {
       seq: ++sequence,
-      phase,
+      ...origin,
       kind: "activation",
       verb,
       label,
@@ -380,8 +445,14 @@ export async function runEditingTask(
     act("key", value, () => active.keyboard.press(value));
   const focus = (control: Locator, label: string) =>
     act("focus", label, () => control.focus());
-  const prepare = async (active: Page, projectPath: string) => {
-    phase = "setup";
+  const prepare = async (
+    active: Page,
+    projectPath: string,
+    setupOrigin: EvidenceOrigin,
+  ) => {
+    origin = setupOrigin;
+    if (origin.owner === "main") mainOrigin = origin;
+    else cancelOrigin = origin;
     await active.setViewportSize(task.viewport);
     await active.emulateMedia({
       reducedMotion: "reduce",
@@ -421,7 +492,7 @@ export async function runEditingTask(
   try {
     fixture = createEditingFixture(task, output);
   } catch (error) {
-    trial.errors!.push(`fixture: ${String(error)}`);
+    fail(error, mainOrigin, "fixture: ");
     retain();
     throw error;
   }
@@ -457,9 +528,15 @@ export async function runEditingTask(
     0,
     true,
   );
-  const mainObservation = observe(page);
+  const mainObservation = observe(page, () => mainOrigin);
   try {
-    if (chosen.cancel) {
+    if (chosen.cancellation.length) {
+      cancelOrigin = {
+        owner: "cancel",
+        phase: "setup",
+        probe: chosen.cancellation[0].id,
+      };
+      origin = cancelOrigin;
       const canceledFixture = createEditingFixture(task, output);
       let activeCancelFixture = canceledFixture;
       const context = await page
@@ -471,13 +548,13 @@ export async function runEditingTask(
         });
       const cancelPage = await context.newPage();
       const cancelCdp = await context.newCDPSession(cancelPage);
-      const cancelObservation = observe(cancelPage);
+      pageOrigins.set(cancelPage, () => cancelOrigin);
+      const cancelObservation = observe(cancelPage, () => cancelOrigin);
       try {
-        const probes =
-          task.id === "comment"
-            ? ["short", "vertical", "touch-cancel"]
-            : ["cancel"];
-        for (const [index, probe] of probes.entries()) {
+        for (const [index, recipe] of chosen.cancellation.entries()) {
+          const probe = recipe.id;
+          cancelOrigin = { owner: "cancel", phase: "setup", probe };
+          origin = cancelOrigin;
           const clone =
             index === 0 ? canceledFixture : createEditingFixture(task, output);
           activeCancelFixture = clone;
@@ -485,8 +562,9 @@ export async function runEditingTask(
             clone.projectPath,
             path.join(output, `canceled-${probe}-initial-project.json`),
           );
-          await prepare(cancelPage, clone.projectPath);
-          phase = "cancel";
+          await prepare(cancelPage, clone.projectPath, cancelOrigin);
+          cancelOrigin = { owner: "cancel", phase: "cancel", probe };
+          origin = cancelOrigin;
           await captureUi(cancelPage, `cancel-${probe}-initiation`);
           await performEditingInput(
             {
@@ -494,15 +572,17 @@ export async function runEditingTask(
               session: cancelCdp,
               task,
               route: chosen,
-              cancel: true,
-              cancelProbe: probe,
+              intent: { kind: "cancel", probe: recipe },
             },
             inputRecorder,
           );
           await cancelObservation.flush();
           await captureUi(cancelPage, `cancel-${probe}-recovery`);
-          trial.canceled = readEditingState(clone.projectPath);
-          (trial.cancellations ??= []).push({ probe, state: trial.canceled });
+          trial.cancellations.push({
+            probe,
+            outcome: "completed",
+            state: readEditingState(clone.projectPath),
+          });
           fs.copyFileSync(
             clone.projectPath,
             path.join(output, `canceled-${probe}-project.json`),
@@ -510,8 +590,23 @@ export async function runEditingTask(
           retain();
         }
       } catch (error) {
-        trial.errors!.push(`cancel: ${String(error)}`);
-        trial.canceled = readEditingState(activeCancelFixture.projectPath);
+        const failedOrigin = cancelOrigin;
+        fail(error, failedOrigin, "cancel: ");
+        let state: EditingTrial["cancellations"][number]["state"] = null;
+        try {
+          state = readEditingState(activeCancelFixture.projectPath);
+        } catch (error) {
+          fail(error, failedOrigin, "cancel recovery state: ");
+        }
+        if (
+          failedOrigin.owner === "cancel" &&
+          !trial.cancellations.some((row) => row.probe === failedOrigin.probe)
+        )
+          trial.cancellations.push({
+            probe: failedOrigin.probe,
+            outcome: "failed",
+            state,
+          });
         fs.copyFileSync(
           activeCancelFixture.projectPath,
           path.join(output, "failed-cancel-project.json"),
@@ -522,17 +617,32 @@ export async function runEditingTask(
         await cancelObservation
           .finish()
           .catch((error) =>
-            trial.errors!.push(`cancel response drain: ${String(error)}`),
+            fail(error, cancelOrigin, "cancel response drain: "),
           );
-        await context.close();
+        await context
+          .close()
+          .catch((error) =>
+            fail(
+              error,
+              { owner: "cancel", phase: "cancel", probe: null },
+              "cancel context close: ",
+            ),
+          );
       }
     }
-    await prepare(page, fixture.projectPath);
-    verifyEditingBackend(output, process.env.DAW_E2E_PORT, {
-      cwd: path.resolve("../.."),
-      productionDist: process.env.PODCAST_GUI_DIST,
-      shareRegistry: process.env.PODCAST_SHARE_REGISTRY,
-    });
+    origin = mainOrigin;
+    await prepare(page, fixture.projectPath, mainOrigin);
+    try {
+      verifyEditingBackend(output, process.env.DAW_E2E_PORT, {
+        cwd: path.resolve("../.."),
+        productionDist: process.env.PODCAST_GUI_DIST,
+        shareRegistry: process.env.PODCAST_SHARE_REGISTRY,
+      });
+    } catch (error) {
+      fail(error, { owner: "global", blocks: "all-proofs" });
+      handledFailures.add(error);
+      throw error;
+    }
     await page.screenshot({
       path: path.join(output, "before.png"),
       fullPage: true,
@@ -540,7 +650,8 @@ export async function runEditingTask(
     trial.artifacts!.push("before.png");
     trial.before = readEditingState(fixture.projectPath);
     retain();
-    phase = "action";
+    mainOrigin = { owner: "main", phase: "action" };
+    origin = mainOrigin;
     await captureUi(page, "initiation");
     const measureAction = () =>
       profiler.measure(
@@ -551,7 +662,13 @@ export async function runEditingTask(
         },
         async () => {
           await performEditingInput(
-            { active: page, session: cdp, task, route: chosen, cancel: false },
+            {
+              active: page,
+              session: cdp,
+              task,
+              route: chosen,
+              intent: { kind: "action" },
+            },
             inputRecorder,
           );
           await captureUi(page, "input-complete");
@@ -609,7 +726,8 @@ export async function runEditingTask(
     });
     trial.artifacts!.push("saved.png");
     await captureUi(page, "saved");
-    phase = "undo";
+    mainOrigin = { owner: "main", phase: "undo" };
+    origin = mainOrigin;
     if (chosen.undo === "comment-toast")
       await click(
         page
@@ -660,7 +778,8 @@ export async function runEditingTask(
       await captureUi(page, "undo-recovery");
     }
   } catch (error) {
-    trial.errors!.push(String(error));
+    const failedOrigin = origin;
+    fail(error, failedOrigin);
     await page
       .screenshot({ path: path.join(output, "failed.png"), fullPage: true })
       .catch(() => {});
@@ -671,14 +790,18 @@ export async function runEditingTask(
         task.id === "range-cut",
       );
     } catch (error) {
-      trial.errors!.push(`saved state: ${String(error)}`);
+      fail(error, failedOrigin, "saved state: ");
     }
   } finally {
     try {
-      await profiler.finish();
+      await profiler
+        .finish()
+        .catch((error) =>
+          fail(error, { owner: "global", blocks: "admission" }, "profiler: "),
+        );
     } finally {
       await mainObservation.finish().catch((error) => {
-        trial.errors!.push(`main response drain: ${String(error)}`);
+        fail(error, mainOrigin, "main response drain: ");
         retain();
       });
     }
@@ -693,7 +816,7 @@ export async function runEditingTask(
         identities,
       );
     } catch (error) {
-      trial.errors!.push(`identity map: ${String(error)}`);
+      fail(error, { owner: "global", blocks: "all-proofs" }, "identity map: ");
     }
     fs.writeFileSync(
       path.join(output, "clip-identities.json"),

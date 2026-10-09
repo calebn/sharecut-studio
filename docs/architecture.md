@@ -483,6 +483,12 @@ cleanup from cancellation using AnyIO.
 
 Pytest runs with a **95% coverage floor** (`pyproject.toml` → `[tool.pytest.ini_options]` / `[tool.coverage.report]`). See [testing.md](testing.md).
 
+The editing task workload keeps browser observation in `gui/web/e2e/editingTasks.ts`.
+`editingTaskReport.ts` parses retained evidence and derives the shared strict assessment.
+`editingTaskState.ts` owns the durable-state types, parser, and comparison.
+The route registry declares cancellation recipes consumed by input execution and assessment.
+See [the editing task proof protocol](../gui/web/e2e/EDITING_TASK_WORKLOADS.md).
+
 ## Agent bundle
 
 All skills and MCP template live under `.agents/`. See [setup.md](setup.md).
