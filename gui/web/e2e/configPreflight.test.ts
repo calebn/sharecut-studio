@@ -64,8 +64,8 @@ function createCaseRoot(): {
   tmpDir: string;
   projectPath: string;
 } {
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "sharecut-config-preflight-test-"),
+  const root = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), "sharecut-config-preflight-test-")),
   );
   caseRoots.push(root);
   const inputDir = path.join(root, "input");
