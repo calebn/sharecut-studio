@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -197,6 +198,9 @@ def test_guest_list_clips_names_no_recording_file(
     rows = {row["id"]: row for row in json.loads(text)["tracks"]["host"]}
     key = rows["a"]["recording_key"]
     assert re.fullmatch(r"rec_[0-9a-f]{16}", key)
+    guessed_seed = f"{ws.project.workspace_path().resolve()}\0raw/host.wav"
+    guessed_key = f"rec_{hashlib.sha256(guessed_seed.encode()).hexdigest()[:16]}"
+    assert key != guessed_key, "Guest key confirms a guessed recording path without a server secret"
     assert rows["b"]["recording_key"] == key
     assert rows["c"]["recording_key"] != key
     assert ".wav" not in text
