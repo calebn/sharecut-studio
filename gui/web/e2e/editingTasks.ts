@@ -591,6 +591,7 @@ export async function runEditingTask(
                 const probe = recipe.id;
                 cancelOrigin = { owner: "cancel", phase: "setup", probe };
                 origin = cancelOrigin;
+                activeCancelFixture = undefined;
                 const clone =
                   index === 0
                     ? canceledFixture

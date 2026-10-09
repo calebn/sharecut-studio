@@ -60,6 +60,10 @@ fs.mkdirSync(output, { recursive: true });
 const repo = path.resolve("../..");
 const git = (...args: string[]) =>
   execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+const gitPaths = (...args: string[]) =>
+  execFileSync("git", args, { cwd: repo, encoding: "utf8" })
+    .split("\0")
+    .filter(Boolean);
 const hash = (data: string | Uint8Array) =>
   createHash("sha256").update(data).digest("hex");
 const mediaDir = path.join(output, "replay-media");
@@ -108,22 +112,23 @@ const isProductPath = (file: string) =>
   file.startsWith("gui/web/src/") ||
   file.startsWith("gui/web/public/") ||
   exactProductPaths.includes(file);
-const productPaths = git("ls-tree", "-r", "--name-only", appBase)
-  .split("\n")
-  .filter(isProductPath);
+const productPaths = gitPaths("ls-tree", "-rz", "--name-only", appBase).filter(
+  isProductPath,
+);
 const additions = [
-  ...git("ls-files").split("\n"),
-  ...git("ls-files", "--others", "--exclude-standard").split("\n"),
-  ...git(
+  ...gitPaths("ls-files", "-z"),
+  ...gitPaths("ls-files", "--others", "--exclude-standard", "-z"),
+  ...gitPaths(
     "ls-files",
     "--others",
     "--ignored",
     "--exclude-standard",
+    "-z",
     "--",
     "gui/web/src/",
     "gui/web/public/",
     ...exactProductPaths,
-  ).split("\n"),
+  ),
 ].filter((file) => isProductPath(file) && !productPaths.includes(file));
 if (additions.length)
   throw new Error(
