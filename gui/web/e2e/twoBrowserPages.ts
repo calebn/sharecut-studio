@@ -60,7 +60,6 @@ export async function withBrowserPages<T>(
         )
         .map(async (close) => onCloseFailure(close.reason)),
     );
-  // Cleanup must not obscure the scenario failure that triggered it.
   if (primaryFailed) throw primaryError;
   const closeFailure = closed.find(
     (close): close is PromiseRejectedResult => close.status === "rejected",

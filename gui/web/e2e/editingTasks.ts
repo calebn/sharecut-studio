@@ -115,6 +115,7 @@ export async function runEditingTask(
     role: "host",
     artifacts: [],
   };
+  const committedIdentities: Record<string, string> = {};
   let mainOrigin: EvidenceOrigin = { owner: "main", phase: "setup" };
   let cancelOrigin: EvidenceOrigin = mainOrigin;
   let origin: EvidenceOrigin = mainOrigin;
@@ -725,6 +726,7 @@ export async function runEditingTask(
           trial.after = readEditingState(
             fixture.projectPath,
             task.id === "range-cut",
+            committedIdentities,
           );
           if (task.seek !== undefined)
             trial.transport = {
@@ -824,6 +826,7 @@ export async function runEditingTask(
       trial.after ??= readEditingState(
         fixture.projectPath,
         task.id === "range-cut",
+        committedIdentities,
       );
     } catch (error) {
       fail(error, failedOrigin, "saved state: ");
@@ -844,19 +847,9 @@ export async function runEditingTask(
     trial.profiler = process.env.DAW_PROFILE_OUT
       ? path.join(process.env.DAW_PROFILE_OUT, "report.json")
       : info.outputPath("editor-profile", "report.json");
-    const identities: Record<string, string> = {};
-    try {
-      readEditingState(
-        fixture.projectPath,
-        task.id === "range-cut",
-        identities,
-      );
-    } catch (error) {
-      fail(error, { owner: "global", blocks: "all-proofs" }, "identity map: ");
-    }
     fs.writeFileSync(
       path.join(output, "clip-identities.json"),
-      JSON.stringify(identities, null, 2),
+      JSON.stringify(committedIdentities, null, 2),
     );
     fs.copyFileSync(
       fixture.projectPath,
