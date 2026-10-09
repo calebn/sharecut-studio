@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
+import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRegisteredCommands } from "../commands/execute";
 import {
@@ -13,8 +14,28 @@ import { useDawStore } from "../state/dawStore";
 import { expectNoA11yViolations } from "../test/a11y";
 import { minimalProject } from "../test/fixtures";
 import type { ClipRow, EditBoundaryView } from "../types/project";
+import { resolveBoundaryPresentation } from "./boundaryPresentation";
 import { EditBoundaryMark } from "./EditBoundaryMark";
-import { EditBoundaryMarkView } from "./EditBoundaryMarkView";
+import { EditBoundaryMarkView as RawEditBoundaryMarkView } from "./EditBoundaryMarkView";
+import {
+  TRANSCRIPT_EDIT_BOUNDARY_TIP,
+  TRANSCRIPT_GAP_BOUNDARY_DIALOG_NOTE,
+  TRANSCRIPT_GAP_BOUNDARY_TIP,
+} from "./transcriptModeCopy";
+
+function TestEditBoundaryMarkView(
+  props: Omit<ComponentProps<typeof RawEditBoundaryMarkView>, "presentation">,
+) {
+  return (
+    <RawEditBoundaryMarkView
+      {...props}
+      presentation={resolveBoundaryPresentation(
+        props.leftClip,
+        props.rightClip,
+      )}
+    />
+  );
+}
 
 vi.mock("../api", () => ({
   trimClipEdge: vi.fn(async () => undefined),
@@ -79,6 +100,15 @@ const boundary: EditBoundaryView = {
     },
   ],
 };
+
+function seedBoundaryPair(left: ClipRow, right: ClipRow) {
+  useDawStore.setState({
+    project: minimalProject({
+      ...useDawStore.getState().project,
+      clips: { tracks: { host: [left, right] }, clip_count: 2 },
+    }),
+  });
+}
 
 const getRollInterval = () =>
   rollJoinInterval(
@@ -194,6 +224,10 @@ describe("EditBoundaryMark", () => {
     const { getByRole } = render(
       <EditBoundaryMark boundary={boundary} leftClip={left} rightClip={null} />,
     );
+    expect(getByRole("button")).not.toHaveAttribute(
+      "aria-label",
+      TRANSCRIPT_GAP_BOUNDARY_TIP,
+    );
     fireEvent.pointerDown(getByRole("button"), {
       pointerId: 1,
       clientX: 100,
@@ -205,6 +239,20 @@ describe("EditBoundaryMark", () => {
     expect(api.rollClipJoin).not.toHaveBeenCalled();
   });
 
+  it("does not describe a missing left neighbor as a gap", () => {
+    render(
+      <EditBoundaryMark
+        boundary={boundary}
+        leftClip={null}
+        rightClip={clip({ id: "right" })}
+      />,
+    );
+    expect(screen.getByRole("button")).toHaveAttribute(
+      "aria-label",
+      TRANSCRIPT_EDIT_BOUNDARY_TIP,
+    );
+  });
+
   it("offers no roll across a gap: a drag trims the left clip's end and the precision dialog targets that trim", async () => {
     const left = clip({ id: "left", source_end: 20, timeline_end: 10 });
     const right = clip({
@@ -214,6 +262,11 @@ describe("EditBoundaryMark", () => {
       timeline_start: 12,
       timeline_end: 27,
     });
+    seedBoundaryPair(left, right);
+    expect(useDawStore.getState().project?.clips.tracks.host).toEqual([
+      left,
+      right,
+    ]);
     const first = render(
       <EditBoundaryMark
         boundary={boundary}
@@ -222,6 +275,10 @@ describe("EditBoundaryMark", () => {
       />,
     );
     const mark = first.getByRole("button");
+    expect(mark).toHaveAttribute(
+      "aria-label",
+      "Gap between clips. No roll seam here. Drag to trim the left clip's end.",
+    );
     fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
@@ -232,9 +289,21 @@ describe("EditBoundaryMark", () => {
       clip_id: "left",
       edge: "out",
     });
+    expect(loadBoundaryContext.mock.calls[0]?.[2]).toEqual([
+      {
+        id: "left",
+        source_start: 10,
+        source_end: 20,
+        timeline_start: 0,
+        source_id: null,
+      },
+    ]);
     first.unmount();
 
     loadBoundaryContext.mockClear();
+    vi.mocked(api.trimClipEdge).mockClear();
+    vi.mocked(api.rollClipJoin).mockClear();
+    const projectBeforeOpen = useDawStore.getState().project;
     const second = render(
       <EditBoundaryMark
         boundary={boundary}
@@ -252,6 +321,129 @@ describe("EditBoundaryMark", () => {
       kind: "trim",
       clip_id: "left",
       edge: "out",
+    });
+    expect(loadBoundaryContext.mock.calls[0]?.[2]).toEqual([
+      {
+        id: "left",
+        source_start: 10,
+        source_end: 20,
+        timeline_start: 0,
+        source_id: null,
+      },
+    ]);
+    await screen.findByText(TRANSCRIPT_GAP_BOUNDARY_DIALOG_NOTE);
+    expect(useDawStore.getState().project).toBe(projectBeforeOpen);
+    expect(useDawStore.getState().project?.clips.tracks.host).toEqual([
+      left,
+      right,
+    ]);
+    expect(api.trimClipEdge).not.toHaveBeenCalled();
+    expect(api.rollClipJoin).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a sub-tolerance gap", 10, 10.04],
+    ["an overlap", 10, 9.5],
+  ] as const)(
+    "keeps the roll behavior for %s",
+    async (_label, leftEnd, rightStart) => {
+      const left = clip({ id: "left", source_end: 20, timeline_end: leftEnd });
+      const right = clip({
+        id: "right",
+        source_start: 25,
+        source_end: 40,
+        timeline_start: rightStart,
+        timeline_end: rightStart + 15,
+      });
+      seedBoundaryPair(left, right);
+      expect(useDawStore.getState().project?.clips.tracks.host).toEqual([
+        left,
+        right,
+      ]);
+      render(
+        <EditBoundaryMark
+          boundary={boundary}
+          leftClip={left}
+          rightClip={right}
+        />,
+      );
+      const mark = screen.getByRole("button");
+      expect(mark).not.toHaveAttribute(
+        "aria-label",
+        TRANSCRIPT_GAP_BOUNDARY_TIP,
+      );
+      fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: 180 });
+      await waitFor(() =>
+        expect(api.rollClipJoin).toHaveBeenCalledWith(
+          "/tmp/ep",
+          "left",
+          "right",
+          1,
+          "a".repeat(64),
+        ),
+      );
+      expect(loadBoundaryContext.mock.calls[0]?.[1]).toEqual({
+        kind: "roll",
+        left_clip_id: "left",
+        right_clip_id: "right",
+      });
+      expect(loadBoundaryContext.mock.calls[0]?.[2]).toEqual([
+        {
+          id: "left",
+          source_start: 10,
+          source_end: 20,
+          timeline_start: 0,
+          source_id: null,
+        },
+        {
+          id: "right",
+          source_start: 25,
+          source_end: 40,
+          timeline_start: rightStart,
+          source_id: null,
+        },
+      ]);
+      expect(api.trimClipEdge).not.toHaveBeenCalled();
+    },
+  );
+
+  it("explains a gap to an edit-share user without offering host precision controls", () => {
+    const left = clip({ id: "left", source_end: 20, timeline_end: 10 });
+    const right = clip({
+      id: "right",
+      source_start: 25,
+      source_end: 40,
+      timeline_start: 12,
+      timeline_end: 27,
+    });
+    seedBoundaryPair(left, right);
+    expect(useDawStore.getState().project?.clips.tracks.host).toEqual([
+      left,
+      right,
+    ]);
+    useDawStore.setState({
+      projectPath: "share:edit-token",
+      guestMode: "edit",
+      shareCapabilities: ["edit"],
+    });
+    const view = render(
+      <EditBoundaryMark
+        boundary={boundary}
+        leftClip={left}
+        rightClip={right}
+      />,
+    );
+    const mark = view.getByRole("button");
+    expect(mark).toBeEnabled();
+    expect(mark).toHaveAttribute("aria-label", TRANSCRIPT_GAP_BOUNDARY_TIP);
+    expect(mark).toHaveAttribute("title", TRANSCRIPT_GAP_BOUNDARY_TIP);
+    fireEvent.click(mark);
+    expect(view.queryByRole("dialog")).not.toBeInTheDocument();
+    useDawStore.setState({
+      projectPath: "/tmp/ep",
+      guestMode: null,
+      shareCapabilities: null,
     });
   });
 
@@ -600,7 +792,7 @@ describe("EditBoundaryMarkView", () => {
     const onRoll = vi.fn();
     const onTrim = vi.fn();
     const { getByRole } = render(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         boundary={boundary}
         leftClip={left}
         rightClip={right}
@@ -636,7 +828,7 @@ describe("EditBoundaryMarkView", () => {
   it("discards a cancelled gesture without creating an edit", () => {
     const onTrim = vi.fn();
     const { getByRole } = render(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         boundary={boundary}
         leftClip={clip({ id: "left", source_end: 20 })}
         rightClip={null}
@@ -660,7 +852,7 @@ describe("EditBoundaryMarkView", () => {
     const onRoll = vi.fn();
     const onTrim = vi.fn();
     const { getByRole } = render(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         boundary={boundary}
         leftClip={left}
         rightClip={null}
@@ -703,12 +895,12 @@ describe("EditBoundaryMarkView", () => {
       onRoll: vi.fn(),
       onTrim: vi.fn(),
     };
-    const view = render(<EditBoundaryMarkView {...props} />);
+    const view = render(<TestEditBoundaryMarkView {...props} />);
     const mark = view.getByRole("button");
     fireEvent.pointerDown(mark, { pointerId: 1, clientX: 100 });
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 180 });
     view.rerender(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         {...props}
         rightClip={{ ...right, source_start: 26 }}
       />,
@@ -748,7 +940,7 @@ describe("EditBoundaryMarkView", () => {
       timeline_end: 25,
     });
     const { container } = render(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         boundary={boundary}
         leftClip={left}
         rightClip={right}
@@ -770,7 +962,7 @@ describe("EditBoundaryMarkView", () => {
       timeline_end: 25,
     });
     const { container, getByRole } = render(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         boundary={boundary}
         leftClip={left}
         rightClip={right}
@@ -807,7 +999,7 @@ describe("EditBoundaryMarkView", () => {
     });
     const bounds = vi.fn(getRollInterval);
     const { getByRole, rerender } = render(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         boundary={boundary}
         leftClip={left}
         rightClip={right}
@@ -817,7 +1009,7 @@ describe("EditBoundaryMarkView", () => {
       />,
     );
     rerender(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         boundary={boundary}
         leftClip={left}
         rightClip={right}
@@ -836,7 +1028,7 @@ describe("EditBoundaryMarkView", () => {
     const left = clip({ id: "left", source_end: 20 });
     const remove = vi.spyOn(window, "removeEventListener");
     const { getByRole, unmount } = render(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         boundary={boundary}
         leftClip={left}
         rightClip={null}
@@ -881,7 +1073,7 @@ describe("EditBoundaryMarkView", () => {
     const remove = vi.spyOn(window, "removeEventListener");
     const onTrim = vi.fn();
     const { getByRole } = render(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         boundary={boundary}
         leftClip={left}
         rightClip={null}
@@ -908,7 +1100,7 @@ describe("EditBoundaryMarkView", () => {
     const add = vi.spyOn(window, "addEventListener");
     const remove = vi.spyOn(window, "removeEventListener");
     const { getByRole, unmount } = render(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         boundary={boundary}
         leftClip={left}
         rightClip={null}
@@ -931,7 +1123,7 @@ describe("boundary gesture lifecycle", () => {
   function setup(onTrim = vi.fn()) {
     const view = render(
       <div className="transcript-list">
-        <EditBoundaryMarkView
+        <TestEditBoundaryMarkView
           boundary={boundary}
           leftClip={clip({ id: "left", source_end: 20 })}
           rightClip={null}
@@ -1032,7 +1224,7 @@ describe("boundary gesture lifecycle", () => {
   it("trims a right edge inward with frozen source math", async () => {
     const onTrim = vi.fn();
     const view = render(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         boundary={boundary}
         leftClip={null}
         rightClip={clip({ id: "right", source_start: 25, source_end: 40 })}
@@ -1075,7 +1267,7 @@ describe("boundary gesture lifecycle", () => {
         "right",
       );
     const view = render(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         boundary={boundary}
         leftClip={clip({ id: "left", source_end: 20 })}
         rightClip={clip({ id: "right", source_start: 25, source_end: 40 })}
@@ -1108,7 +1300,7 @@ describe("boundary gesture lifecycle", () => {
     useDawStore.setState({ projectPath: "/tmp/fine-drag" });
     const onRoll = vi.fn();
     const view = render(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         projectPath="/tmp/fine-drag"
         boundary={boundary}
         leftClip={clip({ id: "left", source_end: 20 })}
@@ -1148,7 +1340,7 @@ describe("boundary gesture lifecycle", () => {
     useDawStore.setState({ projectPath: "/tmp/fine-bound" });
     const onRoll = vi.fn();
     const view = render(
-      <EditBoundaryMarkView
+      <TestEditBoundaryMarkView
         projectPath="/tmp/fine-bound"
         boundary={boundary}
         leftClip={clip({ id: "left", source_end: 20 })}

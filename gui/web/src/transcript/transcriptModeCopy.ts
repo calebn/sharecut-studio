@@ -56,6 +56,12 @@ export const TRANSCRIPT_UNSUPPRESS_TIP =
 
 /** Title on a transcript edit-boundary glyph with no clip on one side (nothing to roll). */
 export const TRANSCRIPT_EDIT_BOUNDARY_TIP = "Edit boundary glyph (Annotate)";
+export const TRANSCRIPT_GAP_BOUNDARY_READONLY_TIP =
+  "Boundary editing is only available to editors. This gap has no roll seam. Editors can drag this mark to trim the left clip's end.";
+export const TRANSCRIPT_GAP_BOUNDARY_TIP =
+  "Gap between clips. No roll seam here. Drag to trim the left clip's end.";
+export const TRANSCRIPT_GAP_BOUNDARY_DIALOG_NOTE =
+  "These clips have a gap, so this adjusts the left clip's end.";
 
 /** Title on a cut-away word chip (Annotate + Show cut-away). */
 export const TRANSCRIPT_CUT_AWAY_WORD_TIP =

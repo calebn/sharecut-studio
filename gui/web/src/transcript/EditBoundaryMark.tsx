@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import { rollClipJoin, trimClipEdge } from "../api";
-import type { BoundaryGeometryClip, BoundaryTarget } from "../api/boundary";
-import { clipsAbut } from "../edit/joinRender";
+import type { BoundaryGeometryClip } from "../api/boundary";
 import { rollJoinInterval } from "../edit/rollLimits";
 import { canApplyPass12, isShareProjectKey } from "../shareMode";
 import { useDawStore } from "../state/dawStore";
 import { useDaw } from "../state/useDaw";
 import type { ClipRow, EditBoundaryView } from "../types/project";
+import { resolveBoundaryPresentation } from "./boundaryPresentation";
 import { EditBoundaryMarkView } from "./EditBoundaryMarkView";
 
 type Props = {
@@ -26,8 +26,8 @@ export function EditBoundaryMark({
   leftClip,
   rightClip: neighbour,
 }: Props) {
-  const rightClip =
-    leftClip && neighbour && clipsAbut(leftClip, neighbour) ? neighbour : null;
+  const presentation = resolveBoundaryPresentation(leftClip, neighbour);
+  const rightClip = presentation.kind === "roll" ? neighbour : null;
   const { projectPath, guestMode, shareCapabilities } = useDaw((s) => ({
     projectPath: s.projectPath,
     guestMode: s.guestMode,
@@ -39,17 +39,6 @@ export function EditBoundaryMark({
     shareCapabilities,
   );
   const canOpenPrecision = !guestMode && !isShareProjectKey(projectPath);
-  const target = useMemo<BoundaryTarget | null>(() => {
-    if (leftClip && rightClip)
-      return {
-        kind: "roll",
-        left_clip_id: leftClip.id,
-        right_clip_id: rightClip.id,
-      };
-    const clip = leftClip ?? rightClip;
-    if (!clip) return null;
-    return { kind: "trim", clip_id: clip.id, edge: leftClip ? "out" : "in" };
-  }, [leftClip, rightClip]);
   const expectedGeometry = useMemo<BoundaryGeometryClip[]>(
     () =>
       [leftClip, rightClip]
@@ -83,7 +72,8 @@ export function EditBoundaryMark({
       onTrim={(id, edge, sec, mode, token) =>
         trimClipEdge(projectPath, id, edge, sec, mode, token)
       }
-      target={target ?? undefined}
+      presentation={presentation}
+      target={presentation.target ?? undefined}
       expectedGeometry={expectedGeometry}
       canEdit={canQuickEdit}
       canOpenPrecision={canOpenPrecision}

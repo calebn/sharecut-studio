@@ -26,13 +26,20 @@ import { clampToRollInterval, type RollJoinInterval } from "../edit/rollLimits";
 import { useDawStore } from "../state/dawStore";
 import { trackEditSave } from "../state/hostSendOrder";
 import type { ClipRow, EditBoundaryView } from "../types/project";
+import type { BoundaryPresentation } from "./boundaryPresentation";
 import { GhostWordChips } from "./GhostWordChips";
 import { PrecisionBoundaryDialog } from "./PrecisionBoundaryDialog";
-import { TRANSCRIPT_EDIT_BOUNDARY_TIP } from "./transcriptModeCopy";
+import {
+  TRANSCRIPT_EDIT_BOUNDARY_TIP,
+  TRANSCRIPT_GAP_BOUNDARY_DIALOG_NOTE,
+  TRANSCRIPT_GAP_BOUNDARY_READONLY_TIP,
+  TRANSCRIPT_GAP_BOUNDARY_TIP,
+} from "./transcriptModeCopy";
 
 export interface EditBoundaryMarkViewProps {
   projectPath?: string;
   boundary: EditBoundaryView;
+  presentation: BoundaryPresentation;
   leftClip: ClipRow | null;
   rightClip: ClipRow | null;
   getRollInterval: () => RollJoinInterval | null;
@@ -158,6 +165,7 @@ function advanceGesture(
 export function EditBoundaryMarkView({
   projectPath: projectPathProp,
   boundary,
+  presentation,
   leftClip,
   rightClip,
   getRollInterval,
@@ -211,9 +219,15 @@ export function EditBoundaryMarkView({
           );
   const dragging = lifecycle.kind === "dragging";
   const tip =
-    leftClip && rightClip
-      ? capabilityTooltip("daw.edit.rollClipJoin")
-      : TRANSCRIPT_EDIT_BOUNDARY_TIP;
+    presentation.kind === "gap-trim"
+      ? TRANSCRIPT_GAP_BOUNDARY_TIP
+      : leftClip && rightClip
+        ? capabilityTooltip("daw.edit.rollClipJoin")
+        : TRANSCRIPT_EDIT_BOUNDARY_TIP;
+  const permissionTip =
+    presentation.kind === "gap-trim"
+      ? TRANSCRIPT_GAP_BOUNDARY_READONLY_TIP
+      : "Boundary editing is only available to editors";
 
   const applyBoundary = async (
     edit: BoundaryEdit,
@@ -620,17 +634,21 @@ export function EditBoundaryMarkView({
         className={`edit-boundary-mark${dragging ? " dragging" : ""}${boundary.has_cutaway ? " has-cutaway" : ""}`}
         title={
           !canEdit
-            ? "Boundary editing is only available to editors"
-            : canOpenPrecision
+            ? permissionTip
+            : presentation.kind === "gap-trim"
               ? tip
-              : "Drag to adjust this boundary. Precision audition is only available in the host editor."
+              : canOpenPrecision
+                ? tip
+                : "Drag to adjust this boundary. Precision audition is only available in the host editor."
         }
         aria-label={
           !canEdit
-            ? "Boundary editing is only available to editors"
-            : canOpenPrecision
+            ? permissionTip
+            : presentation.kind === "gap-trim"
               ? tip
-              : "Drag to adjust boundary; precision audition is only available in the host editor"
+              : canOpenPrecision
+                ? tip
+                : "Drag to adjust boundary; precision audition is only available in the host editor"
         }
         aria-grabbed={dragging}
         aria-busy={lifecycle.kind === "pending"}
@@ -675,6 +693,11 @@ export function EditBoundaryMarkView({
           target={resolvedTarget}
           expectedGeometry={resolvedGeometry}
           boundary={boundary}
+          contextNote={
+            presentation.kind === "gap-trim"
+              ? TRANSCRIPT_GAP_BOUNDARY_DIALOG_NOTE
+              : undefined
+          }
           onApply={applyBoundary}
         />
       ) : null}

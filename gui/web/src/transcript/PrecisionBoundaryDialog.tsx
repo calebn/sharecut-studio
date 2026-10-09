@@ -44,6 +44,7 @@ type Props = {
   target: BoundaryTarget;
   expectedGeometry: BoundaryGeometryClip[];
   boundary: EditBoundaryView;
+  contextNote?: string;
   onApply: (
     edit: BoundaryEdit,
     expectedToken: string,
@@ -122,6 +123,7 @@ export function PrecisionBoundaryDialog({
   target,
   expectedGeometry,
   boundary,
+  contextNote,
   onApply,
 }: Props) {
   const targetKey = JSON.stringify(target);
@@ -519,6 +521,9 @@ export function PrecisionBoundaryDialog({
         </div>
       ) : context && value != null ? (
         <div className="precision-boundary-content">
+          {contextNote ? (
+            <p className="precision-boundary-context-note">{contextNote}</p>
+          ) : null}
           <p className="precision-boundary-operation">{label}</p>
           <label htmlFor={valueId}>
             {target.kind === "roll"

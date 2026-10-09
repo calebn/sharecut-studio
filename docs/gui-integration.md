@@ -745,6 +745,9 @@ pointer movement. Hold Shift for fine motion of 1 ms per CSS pixel; switching
 Shift during a drag keeps the accumulated source offset continuous. Legal source
 bounds clamp the proposed offset and show limit feedback without pulling the
 glyph away from the pointer.
+A gapped pair's mark explains that this gap has no roll seam and that the mark
+trims the left clip's end. The host precision dialog repeats this reason;
+opening it only reads boundary context and does not change the project.
 A bounded body portal displays roll/trim intent, precise delta, restored-word
 side, legal limits, and cancellation instructions without changing transcript
 flow. Focus departure, ancestor scroll, or resize cancels stale placement.

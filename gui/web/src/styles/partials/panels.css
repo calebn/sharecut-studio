@@ -1642,7 +1642,8 @@ button.history-row {
   gap: var(--space-3);
 }
 
-.precision-boundary-operation {
+.precision-boundary-operation,
+.precision-boundary-context-note {
   margin: 0;
   color: var(--color-text-secondary);
   font-weight: 600;
