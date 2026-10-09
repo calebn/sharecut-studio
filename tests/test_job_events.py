@@ -155,7 +155,7 @@ def test_subscriber_queue_bounded_drop_oldest() -> None:
 
 
 def test_bootstrap_job_publish_goes_through_the_same_hub() -> None:
-    job = BootstrapJob(id="boot-events", components=["ffmpeg"])
+    job = BootstrapJob(id="boot-events", components=["whisper"])
 
     async def scenario() -> list[dict]:
         gen = stream_job_events(job, keepalive_sec=5.0)

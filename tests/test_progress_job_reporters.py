@@ -60,7 +60,7 @@ def test_job_progress_reporter_fail_and_cancel() -> None:
 
 
 def test_bootstrap_progress_reporter_fail_and_cancel() -> None:
-    job = BootstrapJob(id="b1", components=["ffmpeg"])
+    job = BootstrapJob(id="b1", components=["whisper"])
     reporter = _BootstrapProgressReporter(job)
     reporter.start("bootstrap", "Bootstrap", total=3)
     reporter.update("bootstrap", 1, message="downloading", phase="fetch")
@@ -462,7 +462,7 @@ def test_bootstrap_job_manager_cancel_and_error(monkeypatch) -> None:
     assert mgr.cancel() is None
     assert mgr.get_job() is None
 
-    job = BootstrapJob(id="b2", components=["ffmpeg"])
+    job = BootstrapJob(id="b2", components=["whisper"])
     job.status = "running"
     mgr._job = job
     assert mgr.get_job() is job
@@ -471,12 +471,12 @@ def test_bootstrap_job_manager_cancel_and_error(monkeypatch) -> None:
     assert mgr.cancel("b2") is job
     assert job.cancel_requested is True
 
-    done = BootstrapJob(id="b3", components=["ffmpeg"], status="ok")
+    done = BootstrapJob(id="b3", components=["whisper"], status="ok")
     mgr._job = done
     assert mgr.cancel("b3") is done
     assert mgr.get_job("missing") is None
 
-    pre = BootstrapJob(id="b-pre", components=["ffmpeg"], cancel_requested=True)
+    pre = BootstrapJob(id="b-pre", components=["whisper"], cancel_requested=True)
     mgr._run_job(pre)
     assert pre.status == "cancelled"
 
@@ -484,7 +484,7 @@ def test_bootstrap_job_manager_cancel_and_error(monkeypatch) -> None:
         raise RuntimeError("bootstrap exploded")
 
     monkeypatch.setattr("podcast_mcp.gui.bootstrap_jobs.run_bootstrap", boom)
-    err_job = BootstrapJob(id="b4", components=["ffmpeg"])
+    err_job = BootstrapJob(id="b4", components=["whisper"])
     mgr._run_job(err_job)
     assert err_job.status == "error"
     assert "exploded" in (err_job.error or "")
@@ -570,13 +570,13 @@ def test_bootstrap_result_not_ok(monkeypatch) -> None:
         "podcast_mcp.gui.bootstrap_jobs.run_bootstrap",
         lambda *_a, **_k: {
             "ok": False,
-            "results": {"ffmpeg": {"ok": False, "error": "missing bin"}},
+            "results": {"whisper": {"ok": False, "error": "model download failed"}},
         },
     )
-    job = BootstrapJob(id="b-fail", components=["ffmpeg"])
+    job = BootstrapJob(id="b-fail", components=["whisper"])
     BootstrapJobManager()._run_job(job)
     assert job.status == "error"
-    assert "missing bin" in (job.error or "")
+    assert "model download failed" in (job.error or "")
 
 
 def test_pipeline_runner_selection_errors(minimal_project) -> None:

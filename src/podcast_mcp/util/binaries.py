@@ -2,7 +2,7 @@
 
 Explicit commands win, followed by a declared desktop bundle, native Homebrew,
 a complete PATH directory, and the existing source-use cache. Selection runs
-bounded version probes and never downloads or mutates files.
+bounded version probes and never downloads tools.
 """
 
 from __future__ import annotations

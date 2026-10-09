@@ -387,7 +387,6 @@ def build_payload(
 def ensure_payload(
     output: Path, *, source_cache: Path | None = None, target: str | None = None, jobs: int = 2
 ) -> dict[str, Any]:
-    """Verify a local prior build or replace it with one complete native build."""
     try:
         return verify_payload(output, target=target)
     except (OSError, ValueError, KeyError, RuntimeError):

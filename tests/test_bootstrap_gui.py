@@ -37,7 +37,7 @@ def test_component_status_reports_structure(tmp_path: Path, monkeypatch) -> None
     status = boot.component_status()
     assert status["ready"] is False
     assert status["cdn_base"] is False
-    assert status["components"]["whisper"]["required_for_first_run"] is True
+    assert status["components"]["ffmpeg"]["required_for_first_run"] is True
     assert status["components"]["whisper"]["required_for_first_run"] is True
     assert status["components"]["rnnoise"]["required_for_first_run"] is False
     assert status["components"]["whisper"]["ok"] is False
