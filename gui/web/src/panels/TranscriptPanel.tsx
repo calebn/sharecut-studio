@@ -800,7 +800,11 @@ export function TranscriptPanel() {
   ]);
 
   if (!allUtterances.length) {
-    return <p style={{ color: "var(--text-dim)" }}>No combined transcript.</p>;
+    return (
+      <p style={{ color: "var(--color-text-secondary)" }}>
+        No combined transcript.
+      </p>
+    );
   }
 
   // The saving status replaces the visible mode hint while an inline fix is

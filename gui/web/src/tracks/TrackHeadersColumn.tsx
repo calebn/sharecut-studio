@@ -79,7 +79,7 @@ export function TrackHeadersColumn({
           className="track-headers-chrome"
           style={{
             height: RULER_HEIGHT + markerLaneHeight,
-            borderBottom: "1px solid var(--border)",
+            borderBottom: "1px solid var(--color-border)",
           }}
         />
         {[0, 1, 2].map((i) => (
@@ -133,7 +133,7 @@ export function TrackHeadersColumn({
         className="track-headers-chrome"
         style={{
           height: RULER_HEIGHT + markerLaneHeight,
-          borderBottom: "1px solid var(--border)",
+          borderBottom: "1px solid var(--color-border)",
         }}
       >
         {/*

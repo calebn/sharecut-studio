@@ -240,7 +240,7 @@ export function EnvelopeOverlayView({
         <svg width={x1 - x0} height={height} className="envelope-svg">
           <polyline
             fill="none"
-            stroke="var(--envelope-line)"
+            stroke="var(--color-envelope-line)"
             strokeWidth="1.5"
             points={polyline}
             pointerEvents="none"
@@ -262,7 +262,7 @@ export function EnvelopeOverlayView({
                 cx={xOf(p) - x0}
                 cy={valueToY(p.value, height)}
                 r={selected ? 7 : editable ? 5 : 2.5}
-                fill="var(--envelope-line)"
+                fill="var(--color-envelope-line)"
                 className={selected ? "envelope-point-selected" : undefined}
                 {...hitTargetProps("envelope-point", p.id, p.time, {
                   selected,

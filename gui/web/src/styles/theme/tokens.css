@@ -171,7 +171,7 @@
     inset 0 0 4rem var(--color-timeline-vignette),
     0 0 1.5rem var(--color-transport-play-glow);
 
-  /* Legacy aliases → semantic (themes set the semantic names) */
+  /* Composite paint recipes */
   /* Scroll shadows for raised panes: covers scroll with the content (local),
      shadows stay at the edges, so they show only when more content exists. */
   --bg-scroll-shadows-raised:
@@ -195,64 +195,13 @@
     transparent 55%,
     var(--color-overlay-black-22)
   );
-  --border: var(--color-border);
-  --border-strong: var(--color-border-strong);
-  --text: var(--color-text-primary);
-  --text-dim: var(--color-text-secondary);
-  --text-muted: var(--color-text-secondary);
-  --text-unmapped: var(--color-text-unmapped);
-  --accent: var(--color-accent);
-  --accent-fg: var(--color-accent-fg);
-  --accent-solid: var(--color-accent-solid);
-  --accent-on-solid: var(--color-accent-on-solid);
-  --badge-bg: var(--color-badge-bg);
-  --badge-fg: var(--color-badge-fg);
-  --selection: var(--color-selection);
-  --warning: var(--color-warning);
-  --warning-subtle: var(--color-warning-subtle);
-  --warning-muted: var(--color-warning-muted);
-  --warning-strong: var(--color-warning-strong);
-  --danger: var(--color-danger);
-  --danger-muted: var(--color-danger-muted);
-  --danger-subtle: var(--color-danger-subtle);
-  --success: var(--color-success);
-  --success-subtle: var(--color-success-subtle);
-  --success-muted: var(--color-success-muted);
-  --success-strong: var(--color-success-strong);
-  --success-solid: var(--color-success-solid);
-  --clip-dialogue-0: var(--color-clip-dialogue-0);
-  --clip-dialogue-1: var(--color-clip-dialogue-1);
-  --clip-dialogue-2: var(--color-clip-dialogue-2);
-  --clip-music: var(--color-clip-music);
-  --clip-sfx: var(--color-clip-sfx);
-  --presence-0: var(--color-presence-0);
-  --presence-1: var(--color-presence-1);
-  --presence-2: var(--color-presence-2);
-  --presence-3: var(--color-presence-3);
-  --presence-4: var(--color-presence-4);
-  --presence-5: var(--color-presence-5);
-  --presence-6: var(--color-presence-6);
-  --presence-7: var(--color-presence-7);
-  --pending-edit: var(--color-pending-edit);
-  --pending-edit-stripe: var(--color-pending-edit-stripe);
-  --pending-mute: var(--color-pending-mute);
-  --applied-edit: var(--color-applied-edit);
-  --envelope-line: var(--color-envelope-line);
-  --marker: var(--color-marker);
-  --social-marker: var(--color-social-marker);
-  --comment-marker: var(--color-comment-marker);
-  --clipping-marker: var(--color-danger);
-  --clipping-region: var(--color-clipping-region);
   --clipping-hatch: repeating-linear-gradient(
     45deg,
     var(--color-danger) 0 0.125rem,
     transparent 0.125rem 0.5rem
   );
-  --clipping-tint: var(--clipping-hatch), var(--clipping-region);
+  --clipping-tint: var(--clipping-hatch), var(--color-clipping-region);
   --clipping-edges:
-    inset 0 0.1875rem 0 var(--clipping-marker),
-    inset 0 -0.1875rem 0 var(--clipping-marker);
-  --scrim: var(--color-scrim);
-  --shadow: var(--color-shadow);
-  --shadow-soft: var(--color-shadow-soft);
+    inset 0 0.1875rem 0 var(--color-danger),
+    inset 0 -0.1875rem 0 var(--color-danger);
 }

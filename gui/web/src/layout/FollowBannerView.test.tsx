@@ -19,7 +19,7 @@ describe("FollowBannerView", () => {
     const banner = screen.getByRole("status");
     expect(banner.textContent).toContain("Following Mira");
     expect(banner.style.getPropertyValue("--presence-color")).toBe(
-      "var(--presence-2)",
+      "var(--color-presence-2)",
     );
     await userEvent.click(
       screen.getByRole("button", { name: "Stop following" }),

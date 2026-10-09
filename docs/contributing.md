@@ -92,6 +92,10 @@ Sharecut Studio is in beta and has no users. Breaking changes are allowed. Prefe
 
 ### Sharecut Studio frontend quality
 
+Studio components use semantic `--color-*` roles directly. `tokens.css` owns
+Studio scales, layout values, motion values, and composite paint recipes; it
+does not define short color aliases.
+
 Positive z-index values in timeline and mixer partials use the named roles in
 [`docs/design-tokens.md`](design-tokens.md#elevation); the focused Stylelint
 and pytest rules cover those partials.

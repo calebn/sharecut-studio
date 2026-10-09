@@ -171,13 +171,13 @@ button.pill.pill--action {
 }
 
 button.pill.pill--action:focus-visible {
-  outline: var(--focus-ring-width) solid var(--warning);
+  outline: var(--focus-ring-width) solid var(--color-warning);
   outline-offset: 1px;
 }
 
 @media (hover: hover) and (pointer: fine) {
   button.pill.pill--action:hover {
-    outline: var(--focus-ring-width) solid var(--warning);
+    outline: var(--focus-ring-width) solid var(--color-warning);
     outline-offset: 1px;
   }
 }
@@ -292,9 +292,9 @@ button.pill.pill--info {
 /* Comment mode must keep marker fill over generic pressed paint. */
 .ui-control.comment-mode-btn.active,
 .ui-control.comment-mode-btn[aria-pressed="true"] {
-  background: var(--comment-marker);
+  background: var(--color-comment-marker);
   color: var(--color-bg-canvas);
-  border-color: var(--comment-marker);
+  border-color: var(--color-comment-marker);
 }
 
 .ui-control--quiet[aria-pressed="true"],
@@ -529,9 +529,9 @@ button.pill.pill--info {
     :disabled,
     [aria-disabled="true"]
   ) {
-    background: var(--comment-marker);
+    background: var(--color-comment-marker);
     color: var(--color-bg-canvas);
-    border-color: var(--comment-marker);
+    border-color: var(--color-comment-marker);
   }
 }
 
@@ -760,10 +760,10 @@ button.pill.pill--info {
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg-overlay);
-  color: var(--text);
+  color: var(--color-text-primary);
   box-shadow: var(--shadow-floating);
 }
 
@@ -1035,7 +1035,7 @@ html[data-shell="phone"] .ui-ask-actions > .ui-control {
 
 .ui-inline-confirm-prompt {
   margin: 0;
-  color: var(--text);
+  color: var(--color-text-primary);
 }
 
 .ui-inline-confirm-actions {

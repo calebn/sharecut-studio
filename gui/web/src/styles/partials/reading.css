@@ -97,7 +97,7 @@
   position: absolute;
   inset-block: 0;
   left: var(--wordbar-position);
-  border-inline-start: var(--focus-ring-width) solid var(--text);
+  border-inline-start: var(--focus-ring-width) solid var(--color-text-primary);
   pointer-events: none;
 }
 .wordbar-boundary {
@@ -128,7 +128,7 @@
   position: absolute;
   inset-block: 0;
   left: var(--wordbar-position);
-  border-inline-start: var(--focus-ring-width) solid var(--accent);
+  border-inline-start: var(--focus-ring-width) solid var(--color-accent);
   pointer-events: none;
 }
 .wordbar-boundary input[type="range"] {
@@ -137,7 +137,7 @@
 }
 .wordbar-boundary input[type="range"]::-webkit-slider-runnable-track {
   height: var(--space-1);
-  background: var(--border-strong);
+  background: var(--color-border-strong);
   border-radius: var(--radius-sm);
 }
 .wordbar-boundary input[type="range"]::-webkit-slider-thumb {
@@ -145,19 +145,19 @@
   width: var(--wordbar-handle-size);
   height: var(--wordbar-handle-size);
   margin-block-start: calc((var(--space-1) - var(--wordbar-handle-size)) / 2);
-  background: var(--accent-solid);
+  background: var(--color-accent-solid);
   border-radius: 50%;
 }
 .wordbar-boundary input[type="range"]::-moz-range-track {
   height: var(--space-1);
-  background: var(--border-strong);
+  background: var(--color-border-strong);
   border-radius: var(--radius-sm);
 }
 .wordbar-boundary input[type="range"]::-moz-range-thumb {
   width: var(--wordbar-handle-size);
   height: var(--wordbar-handle-size);
   border: 0;
-  background: var(--accent-solid);
+  background: var(--color-accent-solid);
   border-radius: 50%;
 }
 

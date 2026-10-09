@@ -211,7 +211,7 @@ describe("timeline styles", () => {
       readFileSync(join(here, "../styles/theme/tokens.css"), "utf8"),
     ).toMatch(/--clip-inset-top:\s*8px;/);
     expect(rule(css, ".join-badge--blocked")).toMatch(
-      /border-color:\s*var\(--warning\)/,
+      /border-color:\s*var\(--color-warning\)/,
     );
     // Declared after `.lane-inner > *` (pointer-events: auto) so it wins at equal specificity.
     expect(css.indexOf(".join-badge {")).toBeGreaterThan(

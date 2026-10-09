@@ -61,7 +61,7 @@ state**, most significant first.
 
 - Categories: `bg`, `text`, `border`, `accent`, `selection`, `warning`,
   `danger`, `success`, plus domain families (`clip-*`, `presence-*`,
-  `marker`, `waveform-*`, `envelope-*`). Recording clipping uses the danger family: `--clipping-marker` (marker-lane flag and the clip tint's top and bottom edges) aliases `--color-danger`; the clip tint (`--clipping-tint`) is `--clipping-hatch` (opaque danger 45deg stripes, defined in `tokens.css`) over `--clipping-region` (per-theme `--color-clipping-region`, danger at 45% dark / 40% light). An alpha tint alone blends toward grey over the teal dialogue fill, so the opaque hatch and edges carry the red.
+  `marker`, `waveform-*`, `envelope-*`). Recording clipping uses the danger family: the marker-lane flag and clip-edge stripes use `--color-danger`; the clip tint (`--clipping-tint`) layers `--clipping-hatch` (opaque danger 45deg stripes, defined in `tokens.css`) over `--color-clipping-region` (danger at 45% dark / 40% light). An alpha tint alone blends toward grey over the teal dialogue fill, so the opaque hatch and edges carry the red.
 - Prominence modifiers: `-subtle`, `-muted`, `-strong`, `-solid`, `-emphasis`
   (established set — don't invent new ones; pick the nearest).
 - State modifiers as suffixes, at the **semantic** tier, from day one:
@@ -257,7 +257,7 @@ near-zero saturation, and the row's separation from `--color-bg-base`.
 
 **Lit solo.** The active S button paints `--color-warning-surface` (an opaque
 18% amber tint over `--color-bg-surface`) with `--color-warning-on-surface`
-text and a `--warning` border (#1113). It used to set `--warning` text on the
+text and a `--color-warning` border (#1113). It used to set warning text on the
 translucent `--color-warning-strong` wash, so its ratio moved with the row
 beneath (2.76:1 on a hovered light row, 3.77:1 in dark). The opaque pair holds
 5.0:1 in light and 6.5:1 in dark on every row paint.
@@ -271,8 +271,11 @@ glows only while playing (static, never pulsing); selected audition segments
 and tools use `--color-transport-chip` with full-strength text. Transport status
 pills use their own light-on-dark warning and success inks.
 
-Use `--accent-fg` for small accent text, including links and status labels;
-`--accent` remains available for non-text decoration and focus rings. Shared
+Use `--color-accent-fg` for small accent text, including links and status labels;
+`--color-accent` remains available for non-text decoration and focus rings. Studio
+components use semantic `--color-*` roles directly. `tokens.css` keeps Studio
+scale, layout, motion, and composite paint tokens; it does not define short color
+aliases. Shared
 empty-state chrome lives in `.ui-empty-state`. The live playhead position comes
 from the transport animation frame and changes immediately for seeks; CSS
 motion applies to controls and panels, not that time coordinate.

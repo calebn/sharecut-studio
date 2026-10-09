@@ -160,7 +160,7 @@
   margin-left: -1px; /* the clip border, as .clip-waveform */
   z-index: var(--z-clip-overlay);
   pointer-events: none;
-  background: var(--pending-mute);
+  background: var(--color-pending-mute);
 }
 
 .clip-clipping-region {
@@ -196,7 +196,7 @@
 }
 
 .clip-block.selected {
-  outline: var(--focus-ring-width) solid var(--selection);
+  outline: var(--focus-ring-width) solid var(--color-selection);
   z-index: var(--z-overlay);
 }
 
@@ -480,12 +480,12 @@ html[data-shell="phone"] .join-seam {
   inset-block: 0;
   left: 50%;
   width: 1px;
-  background: var(--accent);
+  background: var(--color-accent);
   pointer-events: none;
 }
 
 button.join-seam:focus-visible {
-  outline: var(--focus-ring-width) solid var(--accent);
+  outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
 }
 
@@ -502,7 +502,7 @@ button.join-seam:focus-visible {
   appearance: none;
   font: inherit;
   cursor: pointer;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg-overlay);
   color: var(--color-text-on-overlay);
@@ -511,7 +511,7 @@ button.join-seam:focus-visible {
 }
 
 .join-badge:focus-visible {
-  outline: var(--focus-ring-width) solid var(--accent);
+  outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
 }
 
@@ -530,7 +530,7 @@ button.join-seam:focus-visible {
 
 /* A crossfade render cannot blend (join_crossfade_blocked). */
 .join-badge--blocked {
-  border-color: var(--warning);
+  border-color: var(--color-warning);
 }
 
 .join-badge-glyph {
@@ -558,7 +558,7 @@ button.join-seam:focus-visible {
   padding: var(--space-3);
   background: var(--color-bg-overlay);
   color: var(--color-text-on-overlay);
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-floating);
 }
@@ -617,19 +617,19 @@ button.join-seam:focus-visible {
     var(--pending-region-offset, 0rem)
   );
   width: var(--pending-region-width);
-  border: 1px solid var(--danger);
-  background: var(--pending-edit-stripe);
+  border: 1px solid var(--color-danger);
+  background: var(--color-pending-edit-stripe);
   pointer-events: none;
 }
 
 .pending-overlay.mute::before {
-  border-color: var(--accent);
-  background: var(--pending-mute);
+  border-color: var(--color-accent);
+  background: var(--color-pending-mute);
 }
 
 .pending-overlay.split::before {
-  border-color: var(--warning);
-  background: var(--warning);
+  border-color: var(--color-warning);
+  background: var(--color-warning);
 }
 
 .pending-hit {
@@ -648,11 +648,11 @@ button.join-seam:focus-visible {
 }
 
 .pending-overlay.selected::before {
-  outline: var(--focus-ring-width) solid var(--danger);
+  outline: var(--focus-ring-width) solid var(--color-danger);
 }
 
 .pending-overlay.mute.selected::before {
-  outline-color: var(--accent);
+  outline-color: var(--color-accent);
 }
 
 .pending-handle {
@@ -726,7 +726,7 @@ button.join-seam:focus-visible {
   max-inline-size: 14rem;
   padding: var(--space-1) var(--space-3);
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg-overlay);
   color: var(--color-text-on-overlay);
@@ -759,7 +759,7 @@ button.join-seam:focus-visible {
   max-block-size: var(--pending-actionbar-max-height, calc(100dvh - 1rem));
   overflow-y: auto;
   padding: var(--space-1);
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg-overlay);
   color: var(--color-text-on-overlay);
@@ -844,7 +844,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   margin: 0;
   padding: 0;
   border: 0;
-  background: var(--applied-edit);
+  background: var(--color-applied-edit);
   pointer-events: none;
 }
 
@@ -855,15 +855,15 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   left: 50%;
   translate: -50% 0;
   border-inline: 0.25rem solid transparent;
-  border-block-start: 0.375rem solid var(--warning);
+  border-block-start: 0.375rem solid var(--color-warning);
 }
 
 .applied-tick--edge::before {
-  border-block-start-color: var(--applied-edit);
+  border-block-start-color: var(--color-applied-edit);
 }
 
 .applied-tick.selected {
-  outline: var(--focus-ring-width) solid var(--warning);
+  outline: var(--focus-ring-width) solid var(--color-warning);
 }
 
 .envelope-overlay {
@@ -898,7 +898,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 
 .envelope-overlay .envelope-svg circle.envelope-point-selected {
   fill: var(--color-timeline-lane);
-  stroke: var(--envelope-line);
+  stroke: var(--color-envelope-line);
   stroke-width: var(--focus-ring-width);
 }
 
@@ -948,7 +948,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   right: 0;
   top: 0.4375rem;
   height: 0.625rem;
-  background: var(--comment-marker);
+  background: var(--color-comment-marker);
   border-radius: var(--radius-xs);
   pointer-events: none;
 }
@@ -975,7 +975,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   right: 0;
   top: 0.4375rem;
   height: 0.625rem;
-  background: var(--clipping-marker);
+  background: var(--color-danger);
   border-radius: var(--radius-xs);
   pointer-events: none;
 }
@@ -1000,7 +1000,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 }
 
 .comment-marker.selected {
-  outline: var(--focus-ring-width) solid var(--selection);
+  outline: var(--focus-ring-width) solid var(--color-selection);
   outline-offset: 1px;
   z-index: var(--z-edit-overlay);
 }
@@ -1011,7 +1011,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   z-index: var(--z-edit-overlay);
   pointer-events: none;
   box-sizing: border-box;
-  border: var(--space-0) solid var(--selection);
+  border: var(--space-0) solid var(--color-selection);
   background: var(--color-selection-subtle);
 }
 
@@ -1041,7 +1041,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   top: 50%;
   width: 0.75rem;
   height: 0.75rem;
-  background: var(--marker);
+  background: var(--color-marker);
   transform: translate(-50%, -50%) rotate(45deg);
   pointer-events: none;
 }
@@ -1084,7 +1084,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   right: 0;
   top: 0.4375rem;
   height: 0.625rem;
-  background: var(--social-marker);
+  background: var(--color-social-marker);
   border-radius: var(--radius-xs);
   pointer-events: none;
 }
@@ -1156,12 +1156,12 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 }
 
 .time-ruler.comment-mode {
-  outline: 1px solid var(--comment-marker);
+  outline: 1px solid var(--color-comment-marker);
   outline-offset: -1px;
 }
 
 .comment-mode-btn.active {
-  background: var(--comment-marker);
+  background: var(--color-comment-marker);
   color: var(--color-bg-canvas);
 }
 
@@ -1291,7 +1291,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   pointer-events: none;
   overflow: visible;
   fill: none;
-  stroke: var(--accent);
+  stroke: var(--color-accent);
   stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
 }
@@ -1300,7 +1300,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   position: relative;
   flex: none;
   background: var(--color-bg-base);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--color-border);
   z-index: var(--z-join);
   user-select: none;
   -webkit-touch-callout: none;
@@ -1317,7 +1317,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   width: max(var(--touch-min), calc(2 * var(--join-hit-min)));
   height: max(var(--touch-min), calc(2 * var(--join-hit-min)));
   padding: 0;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--color-accent);
   border-radius: var(--radius-md);
   background: var(--color-bg-overlay);
   color: var(--color-text-on-overlay);
@@ -1326,7 +1326,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 }
 
 .join-length-grip:focus-visible {
-  outline: var(--focus-ring-width) solid var(--accent);
+  outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
 }
 
@@ -1334,7 +1334,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   display: block;
   padding: var(--space-1) var(--space-3);
   font-size: var(--font-size-micro);
-  color: var(--text-muted);
+  color: var(--color-text-secondary);
   pointer-events: none;
 }
 
@@ -1346,14 +1346,14 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   z-index: var(--z-join);
   pointer-events: none;
   fill: none;
-  stroke: var(--accent);
+  stroke: var(--color-accent);
   stroke-width: 1;
 }
 
 .join-draft-warning {
   display: block;
   padding: var(--space-1) var(--space-3);
-  color: var(--warning);
+  color: var(--color-warning);
   font-size: var(--font-size-micro);
 }
 
@@ -1384,7 +1384,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 .target-chooser-scrim {
   position: absolute;
   inset: 0;
-  background: var(--scrim);
+  background: var(--color-scrim);
   touch-action: none;
 }
 
@@ -1398,14 +1398,14 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 }
 
 .target-chooser-leaders line {
-  stroke: var(--text);
+  stroke: var(--color-text-primary);
   stroke-width: 1.5;
   stroke-linecap: round;
 }
 
 .target-chooser-leaders circle {
   fill: none;
-  stroke: var(--accent);
+  stroke: var(--color-accent);
   stroke-width: 2;
 }
 
@@ -1423,11 +1423,11 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   inline-size: var(--touch-min);
   block-size: var(--touch-min);
   padding: 0;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   background: var(--chip-surface, var(--color-timeline-lane));
   color: var(--color-timeline-text);
-  box-shadow: 0 0.25rem 0.75rem var(--shadow);
+  box-shadow: 0 0.25rem 0.75rem var(--color-shadow);
   cursor: pointer;
   pointer-events: auto;
   touch-action: none;
@@ -1437,7 +1437,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 /* Accent marks only the current selection (edge plus a corner notch, so it
    does not rest on colour alone) and focus. */
 .target-chip[aria-checked="true"] {
-  border-color: var(--accent);
+  border-color: var(--color-accent);
 }
 
 .target-chip[aria-checked="true"]::after {
@@ -1448,14 +1448,14 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   inline-size: 0.375rem;
   block-size: 0.375rem;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--color-accent);
 }
 
 /* Under the finger: lifted, not recoloured. */
 .target-chip.is-over {
   scale: 1.12;
-  border-color: var(--text);
-  box-shadow: 0 0.5rem 1.25rem var(--shadow);
+  border-color: var(--color-text-primary);
+  box-shadow: 0 0.5rem 1.25rem var(--color-shadow);
 }
 
 /* About to grab: the finger rests on this chip, and a long press here picks
@@ -1464,7 +1464,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
    shows. Lifting first still picks. */
 /* A tinted halo inside the ring, so it never reads as the focus outline. */
 .target-chip.is-arming {
-  border-color: var(--accent);
+  border-color: var(--color-accent);
   box-shadow: 0 0 0 var(--space-1) var(--color-accent-muted);
 }
 
@@ -1472,7 +1472,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   content: "";
   position: absolute;
   inset: calc(-1 * (var(--space-1) + var(--focus-ring-width)));
-  border: var(--focus-ring-width) solid var(--accent);
+  border: var(--focus-ring-width) solid var(--color-accent);
   border-radius: var(--radius-lg);
   pointer-events: none;
 }
@@ -1485,7 +1485,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   inline-size: 100%;
   block-size: 100%;
   fill: none;
-  stroke: var(--accent);
+  stroke: var(--color-accent);
   stroke-width: 2.5;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -1493,7 +1493,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 }
 
 .target-chip:focus-visible {
-  outline: var(--focus-ring-width) solid var(--accent);
+  outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--focus-ring-offset);
 }
 
@@ -1563,7 +1563,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 }
 
 .target-glyph--envelope-point circle {
-  fill: var(--envelope-line);
+  fill: var(--color-envelope-line);
 }
 
 .target-glyph-line {
@@ -1579,13 +1579,13 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 }
 
 .target-glyph-seam {
-  stroke: var(--accent);
+  stroke: var(--color-accent);
   stroke-width: 2;
 }
 
 .target-glyph-badge {
   fill: var(--color-bg-overlay);
-  stroke: var(--border);
+  stroke: var(--color-border);
 }
 
 .target-glyph-badge-path {
@@ -1597,32 +1597,32 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 }
 
 .target-glyph-region {
-  fill: var(--pending-edit);
+  fill: var(--color-pending-edit);
 }
 
 .target-glyph-edge {
-  stroke: var(--danger);
+  stroke: var(--color-danger);
   stroke-width: 2;
 }
 
 .target-glyph--mute .target-glyph-region {
-  fill: var(--pending-mute);
+  fill: var(--color-pending-mute);
 }
 
 .target-glyph--mute .target-glyph-edge {
-  stroke: var(--accent);
+  stroke: var(--color-accent);
 }
 
 .target-glyph-flag {
-  fill: var(--warning);
+  fill: var(--color-warning);
 }
 
 .target-glyph-diamond {
-  fill: var(--marker);
+  fill: var(--color-marker);
 }
 
 .target-glyph-social {
-  fill: var(--social-marker);
+  fill: var(--color-social-marker);
 }
 
 /* Chips fly out from the finger and the room dims; closing fades. Reduced
@@ -1682,7 +1682,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
    from it (never the focus ring's offset), until the finger lifts. */
 [data-hit-armed]:not(circle) {
   box-shadow: 0 0 0 var(--space-1) var(--color-accent-muted);
-  outline: var(--focus-ring-width) solid var(--accent);
+  outline: var(--focus-ring-width) solid var(--color-accent);
   outline-offset: var(--space-1);
 }
 
@@ -1706,7 +1706,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 }
 
 .envelope-overlay .envelope-svg circle[data-hit-armed] {
-  stroke: var(--accent);
+  stroke: var(--color-accent);
   stroke-width: var(--focus-ring-width);
   filter: drop-shadow(0 0 0.25rem var(--color-accent-muted));
 }
@@ -1717,7 +1717,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   position: fixed;
   z-index: var(--z-menu);
   inline-size: 0;
-  border-inline-start: var(--focus-ring-width) solid var(--accent);
+  border-inline-start: var(--focus-ring-width) solid var(--color-accent);
   box-shadow: 0 0 0 var(--space-1) var(--color-accent-muted);
   translate: -50% 0;
   pointer-events: none;
@@ -1751,7 +1751,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 .create-menu-scrim {
   position: absolute;
   inset: 0;
-  background: var(--scrim);
+  background: var(--color-scrim);
   touch-action: none;
 }
 
@@ -1765,14 +1765,14 @@ html[data-shell="phone"] .pending-actions > .ui-control {
 }
 
 .create-menu-mark line {
-  stroke: var(--accent);
+  stroke: var(--color-accent);
   stroke-width: 2;
   stroke-dasharray: 4 4;
 }
 
 .create-menu-mark circle {
   fill: none;
-  stroke: var(--accent);
+  stroke: var(--color-accent);
   stroke-width: 2;
 }
 
@@ -1783,7 +1783,7 @@ html[data-shell="phone"] .pending-actions > .ui-control {
   min-inline-size: 15rem;
   max-inline-size: min(20rem, 100vw - 2rem);
   padding: var(--space-1);
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-bg-overlay);
   box-shadow: var(--shadow-floating);

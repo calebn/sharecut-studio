@@ -8,9 +8,9 @@ import {
 
 describe("presence colors", () => {
   it("maps index onto CSS vars", () => {
-    expect(presenceColorVar(3)).toBe("var(--presence-3)");
-    expect(presenceColorVar(-1)).toBe("var(--presence-7)");
-    expect(presenceColorVar(undefined)).toBe("var(--presence-0)");
+    expect(presenceColorVar(3)).toBe("var(--color-presence-3)");
+    expect(presenceColorVar(-1)).toBe("var(--color-presence-7)");
+    expect(presenceColorVar(undefined)).toBe("var(--color-presence-0)");
   });
 
   it("builds initials", () => {

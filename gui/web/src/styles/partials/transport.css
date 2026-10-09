@@ -163,7 +163,7 @@
 .transport-menu-note {
   margin: 0;
   font-size: var(--font-size-caption);
-  color: var(--text-dim);
+  color: var(--color-text-secondary);
 }
 
 .transport .pill {
@@ -232,7 +232,7 @@
   align-self: center;
   font-size: var(--font-size-caption);
   font-variant-numeric: tabular-nums;
-  color: var(--text-dim);
+  color: var(--color-text-secondary);
 }
 
 .transport-overflow {
@@ -275,7 +275,7 @@
   padding: var(--space-1);
   background: var(--color-bg-overlay);
   color: var(--color-text-on-overlay);
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
@@ -325,8 +325,8 @@
   .ui-segmented[role="group"]
   > .comment-mode-btn:is([aria-pressed="true"], .active) {
   color: var(--color-bg-canvas);
-  border-color: var(--comment-marker);
-  background: var(--comment-marker);
+  border-color: var(--color-comment-marker);
+  background: var(--color-comment-marker);
 }
 
 .transport .pill.warning {
@@ -631,8 +631,8 @@
       :disabled
     ) {
     color: var(--color-bg-canvas);
-    border-color: var(--comment-marker);
-    background: var(--comment-marker);
+    border-color: var(--color-comment-marker);
+    background: var(--color-comment-marker);
   }
 
   .transport button.pill.pill--action:hover:not(:disabled) {

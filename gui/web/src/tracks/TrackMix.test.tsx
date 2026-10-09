@@ -48,7 +48,7 @@ describe("TrackMix", () => {
       "MV",
     );
     expect(rows[1]).toHaveStyle({
-      "--track-identity-color": "var(--clip-music)",
+      "--track-identity-color": "var(--color-clip-music)",
     });
     expect(
       screen.getByRole("slider", { name: "Volume Mira voice" }),

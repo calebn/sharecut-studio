@@ -64,6 +64,59 @@ _THEME_FIXED_CSS = _THEME_DIR / "theme-fixed.css"
 _THEME_CSS = (_THEME_DIR / "theme-dark.css", _THEME_DIR / "theme-light.css", _THEME_FIXED_CSS)
 _TOKENS_CSS = _THEME_DIR / "tokens.css"
 _PARTIALS_DIR = ROOT / "gui/web/src/styles/partials"
+_STUDIO_COLOR_ALIASES = (
+    "border",
+    "border-strong",
+    "text",
+    "text-dim",
+    "text-muted",
+    "text-unmapped",
+    "accent",
+    "accent-fg",
+    "accent-solid",
+    "accent-on-solid",
+    "badge-bg",
+    "badge-fg",
+    "selection",
+    "warning",
+    "warning-subtle",
+    "warning-muted",
+    "warning-strong",
+    "danger",
+    "danger-muted",
+    "danger-subtle",
+    "success",
+    "success-subtle",
+    "success-muted",
+    "success-strong",
+    "success-solid",
+    "clip-dialogue-0",
+    "clip-dialogue-1",
+    "clip-dialogue-2",
+    "clip-music",
+    "clip-sfx",
+    "presence-0",
+    "presence-1",
+    "presence-2",
+    "presence-3",
+    "presence-4",
+    "presence-5",
+    "presence-6",
+    "presence-7",
+    "pending-edit",
+    "pending-edit-stripe",
+    "pending-mute",
+    "applied-edit",
+    "envelope-line",
+    "marker",
+    "social-marker",
+    "comment-marker",
+    "clipping-marker",
+    "clipping-region",
+    "scrim",
+    "shadow",
+    "shadow-soft",
+)
 _PRIMITIVE_REF = re.compile(r"var\(\s*--primitive-")
 _CSS_VAR_REF = re.compile(r"var\(\s*--")
 _CSS_HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
@@ -408,6 +461,29 @@ def test_studio_references_only_defined_custom_properties() -> None:
                 continue
             missing.append(f"{path.relative_to(ROOT)}: {name}")
     assert not missing, "undefined custom properties:\n" + "\n".join(missing)
+
+
+def test_studio_color_aliases_are_removed_after_consumers_migrate() -> None:
+    tokens = _TOKENS_CSS.read_text()
+    declaration = re.compile(r"^\s*--(?P<name>[\w-]+)\s*:", re.MULTILINE)
+    declared = set(declaration.findall(_blank_comments(tokens)))
+    remaining_definitions = sorted(set(_STUDIO_COLOR_ALIASES) & declared)
+
+    source_roots = (ROOT / "gui/web/src", ROOT / "gui/web/e2e")
+    references: list[str] = []
+    for root in source_roots:
+        for path in sorted(root.rglob("*")):
+            if not path.is_file() or path.suffix not in {".css", ".ts", ".tsx", ".html"}:
+                continue
+            text = path.read_text()
+            for name in _STUDIO_COLOR_ALIASES:
+                if re.search(rf"(?<![\w-])--{re.escape(name)}(?![\w-])", text):
+                    references.append(f"{path.relative_to(ROOT)}: --{name}")
+            if re.search(r"--presence-\$\{", text):
+                references.append(f"{path.relative_to(ROOT)}: dynamic --presence- lookup")
+
+    assert not remaining_definitions, f"legacy alias declarations remain: {remaining_definitions}"
+    assert not references, "legacy Studio alias references remain:\n" + "\n".join(references)
 
 
 class _Declaration(NamedTuple):

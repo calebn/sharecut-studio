@@ -120,7 +120,7 @@ export const WAVEFORM_LAYER_PROPS = {
   clipLeftCss: 0,
   clipWidthCss: 2000,
   zoom: 100,
-  colorVar: "var(--clip-dialogue-0)",
+  colorVar: "var(--color-clip-dialogue-0)",
   role: "music",
   gainDb: 0,
 };

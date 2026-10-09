@@ -18,7 +18,7 @@ const fixtures: Element[] = [];
 function target(attrs: Record<string, string>): Element {
   const clip = document.createElement("div");
   clip.className = "clip-block";
-  clip.style.background = "var(--clip-dialogue-0)";
+  clip.style.background = "var(--color-clip-dialogue-0)";
   const el = document.createElement("button");
   for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
   clip.append(el);
@@ -118,7 +118,7 @@ describe("TargetChooser", () => {
       "false",
     ]);
     expect(chips[1]).toHaveStyle({
-      "--chip-surface": "var(--clip-dialogue-0)",
+      "--chip-surface": "var(--color-clip-dialogue-0)",
     });
     expect(announce).toHaveBeenCalledWith("2 targets here");
     expect(chips[0]).toHaveTextContent("0.80×");

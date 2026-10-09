@@ -50,7 +50,7 @@ html[data-shell="phone"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   border: none;
   padding: 0;
   margin: 0;
-  background: var(--scrim);
+  background: var(--color-scrim);
   cursor: pointer;
   pointer-events: auto;
 }
@@ -72,7 +72,7 @@ html[data-shell="phone"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   /* Root is already inset above shell chrome — never grow past that slot. */
   max-height: 100%;
   background: var(--color-bg-overlay);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--color-border);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   box-shadow: var(--shadow-floating-up);
 }
@@ -148,7 +148,7 @@ html[data-shell="phone"] .bottom-sheet-root:has(.bottom-sheet--compact) {
   block-size: 0.25rem;
   margin: var(--space-1) auto 0;
   border-radius: var(--radius-xs);
-  background: var(--border-strong);
+  background: var(--color-border-strong);
 }
 
 /* The detent control is a visually hidden range; its focus rings the pill. */
@@ -212,7 +212,7 @@ html[data-shell="phone"] .bottom-sheet-root:has(.bottom-sheet--compact) {
 
 .bottom-sheet-chrome {
   flex: 0 0 auto;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border);
 }
 
 /* The title keeps a readable row of its own: when it and the actions (Collapse,

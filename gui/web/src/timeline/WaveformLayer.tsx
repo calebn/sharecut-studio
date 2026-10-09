@@ -86,7 +86,7 @@ type Props = {
   clipLeftCss: number;
   clipWidthCss: number;
   zoom: number;
-  /** Lane colour (e.g. `var(--clip-dialogue-0)`): keys the cached tints. */
+  /** Lane colour (e.g. `var(--color-clip-dialogue-0)`): keys the cached tints. */
   colorVar: string;
   /** Track role: under Auto, `dialogue` draws in dB (`resolveWaveformScale`). */
   role: string;
