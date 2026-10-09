@@ -315,6 +315,7 @@ decided-by: calebn
 evidence:
 - #1135 trim-mode design audit, #1137
 - #1208 built-GUI regression on edited and moving-peer lanes
+- #1208 authoritative document and project changes cancel a held trim nudge
 - #1208 FFmpeg proof showed a newly negative follower rendered 19 seconds against an authored end of 18 seconds
 enforced-by:
 - tests/test_edit_modes.py::test_ripple_trim_shortening_moves_every_dialogue_track_by_the_same_amount
@@ -330,6 +331,11 @@ enforced-by:
 - gui/web/src/edit/ripplePreview.test.ts::keeps the follower source and audio metadata while translating it
 - gui/web/e2e/ripple-overlap-proof.spec.ts::refuses a large overlap trim on the edited lane and saves the last valid draft
 - gui/web/src/inspector/useNudgeRun.test.tsx::keeps and saves the last valid %s lane preview
+- gui/web/src/inspector/useNudgeRun.test.tsx::keeps an authoritative %s update through repeat and release
+- gui/web/src/inspector/useNudgeRun.test.tsx::discards a replacement snapshot at the current document sequence
+- gui/web/src/inspector/useNudgeRun.test.tsx::cancels a pending pointer repeat when a snapshot replaces the project
+- gui/web/src/inspector/useNudgeRun.test.tsx::does not save on release when an update arrives before the next repeat
+- gui/web/src/inspector/useNudgeRun.test.tsx::does not restore its preview when a pending save rejects after an update
 - gui/web/src/timeline/ClipBlock.test.tsx::keeps the last valid %s %s drag through pointer release
 - gui/web/src/layout/CutSpeechDialog.test.tsx::asks before a ripple delete cuts another speaker, naming who, when and what
 -->
@@ -360,6 +366,11 @@ their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment
   strip nudge previews keep their last valid geometry and arrows and show the
   error. Release saves only the last valid value. A lane without a moving edge keeps the
   existing time-splice behavior.
+- A held trim strip nudge belongs to the document snapshot and project
+  generation where it began. A newer authoritative snapshot cancels pending
+  repeats and release without saving or restoring the old preview. The current
+  document remains displayed. A same-document run still saves on release or
+  when its inspector unmounts because selection changed.
 - **Gap** moves nothing else. A gap trim moves only the grabbed edge (the front edge
   moves on the timeline too) and stops at the neighbouring clip. A gap delete or cut
   leaves silence on the edited tracks. A gap paste replaces the pasted span on the

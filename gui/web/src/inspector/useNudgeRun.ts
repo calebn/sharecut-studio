@@ -24,6 +24,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { documentAuthority } from "../document/authorityState";
 import { currentDocumentSeq } from "../document/cursor";
 import { revertOptimisticIfUnchanged } from "../document/optimisticRevert";
 import {
@@ -57,7 +58,10 @@ interface Run {
   /** The project as saved when the run began; the save is checked against it. */
   origin: ProjectView;
   projectPath: string;
+  projectEpoch: number;
   seq: number;
+  authorityProject: ProjectView | null;
+  expectedProject: ProjectView;
   value: number;
   /** Steps that moved the value. */
   moved: number;
@@ -84,6 +88,25 @@ export function useNudgeRun() {
   /** When the last run ended: the browser's click that follows is swallowed. */
   const endedAt = useRef(Number.NEGATIVE_INFINITY);
 
+  const current = (r: Run) => {
+    const s = useDawStore.getState();
+    return (
+      s.projectPath === r.projectPath &&
+      s.projectEpoch === r.projectEpoch &&
+      currentDocumentSeq() === r.seq &&
+      documentAuthority.project === r.authorityProject &&
+      s.project === r.expectedProject
+    );
+  };
+
+  const discardStale = (r: Run) => {
+    if (current(r)) return false;
+    if (r.timer) clearTimeout(r.timer);
+    r.timer = null;
+    if (run.current === r) run.current = null;
+    return true;
+  };
+
   useEffect(() => {
     if (!bump) return;
     const timer = setTimeout(() => setBump(null), BUMP_MS);
@@ -91,6 +114,7 @@ export function useNudgeRun() {
   }, [bump]);
 
   const step = (r: Run, held: boolean) => {
+    if (r.field.kind === "trim" && discardStale(r)) return;
     const store = useDawStore.getState();
     const axis = nudgeAxis(r.origin, r.field);
     if (!axis || !store.project || r.stopped) return;
@@ -108,6 +132,7 @@ export function useNudgeRun() {
         r.value = next.value;
         r.moved += 1;
         r.preview = preview;
+        r.expectedProject = preview;
         store.setProject(preview);
       } catch (error) {
         r.stopped = true;
@@ -137,6 +162,7 @@ export function useNudgeRun() {
     r.timer = setTimeout(() => {
       if (run.current !== r) return;
       step(r, true);
+      if (run.current !== r) return;
       r.repeats += 1;
       if (!r.stopped) repeatLater(r);
     }, nudgeRepeatDelayMs(r.repeats));
@@ -158,7 +184,10 @@ export function useNudgeRun() {
       input,
       origin: s.project,
       projectPath: s.projectPath,
+      projectEpoch: s.projectEpoch,
       seq: currentDocumentSeq(),
+      authorityProject: documentAuthority.project,
+      expectedProject: s.project,
       value: nudgeAxis(s.project, field)?.value ?? Number.NaN,
       moved: 0,
       repeats: 0,
@@ -176,6 +205,7 @@ export function useNudgeRun() {
   const end = async (save = true) => {
     const r = run.current;
     if (!r) return;
+    if (r.field.kind === "trim" && discardStale(r)) return;
     run.current = null;
     endedAt.current = Date.now();
     if (r.timer) clearTimeout(r.timer);
