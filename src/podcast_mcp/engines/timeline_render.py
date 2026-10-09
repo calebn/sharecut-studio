@@ -35,7 +35,6 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 # 8: every segment window uses the same placement assembly, including one-source windows.
 # 9: reset the sample clock after overlap mixing before concatenating later segments.
 # 12: every input seeks through MediaSeek, so .m4a windows start on their sample (#1141).
-# 13: full tracks share accumulated placement, including nested one-source overlaps.
 RENDER_SEMANTICS_REV = 13
 
 
