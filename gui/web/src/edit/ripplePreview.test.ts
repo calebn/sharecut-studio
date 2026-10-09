@@ -41,6 +41,8 @@ type Contract = {
     lanes: Record<string, [number, number, number, number][]>;
     arrows: Record<string, [number, number][]>;
     cuts: Record<string, [number, number]>;
+    clip_ids?: Record<string, string[]>;
+    source_ids?: Record<string, (string | null)[]>;
   }[];
 };
 
@@ -106,6 +108,17 @@ describe("a trim preview matches what the trim saves (contracts/ripple-scope.jso
         ]),
         id,
       ).toEqual(near(rows));
+    }
+    for (const [id, ids] of Object.entries(c.clip_ids ?? {})) {
+      const rows = drafted.clips.tracks[id];
+      expect(
+        rows.map((row) => row.id),
+        id,
+      ).toEqual(ids);
+      expect(
+        rows.map((row) => row.source_id),
+        id,
+      ).toEqual(c.source_ids?.[id]);
     }
 
     const trimmed =
