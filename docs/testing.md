@@ -1588,6 +1588,16 @@ Axe policy: do not silence violations with ignore comments. Prefer native `<butt
 
 Frontend unit and a11y details: [gui/web/README.md](../gui/web/README.md) § Testing.
 
+## Ripple follower render regression
+
+`tests/test_trim_follower_render.py` checks a same-recording follower that moves
+before a muted anchor after a ripple trim. The cheap public-renderer test checks
+the accumulated overlap and later gap. The FFmpeg test trims through
+`EditService`, reloads the saved project, then checks exact WAV frame count and
+distinct PCM markers for the follower, muted anchor interval, gap and later clip.
+Duration and samples are asserted together, so truncating misplaced output
+cannot satisfy the test.
+
 ## Render regression fingerprints
 
 Optional sandbox-only hashes of **rendered** outputs (stems, premix, bounces) — not raw fixture WAVs and not the runtime audio-cache fingerprint (`audio_state_fingerprint()`). Compare against `aligned_dialogue` (or another gold fixture) so a pipeline/render change that alters audible output fails CI. Still unimplemented.

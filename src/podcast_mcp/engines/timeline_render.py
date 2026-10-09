@@ -35,7 +35,7 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 # 8: every segment window uses the same placement assembly, including one-source windows.
 # 9: reset the sample clock after overlap mixing before concatenating later segments.
 # 12: every input seeks through MediaSeek, so .m4a windows start on their sample (#1141).
-# 13: hard-link aliases use primary gate fill and single-source placement.
+# 13: full tracks share accumulated placement, including nested one-source overlaps.
 RENDER_SEMANTICS_REV = 13
 
 
@@ -201,98 +201,17 @@ def render_track_from_timeline(
     timeline_edits = [e for e in project.edit_decisions if e.track_id == track.id]
 
     paths = [resolve_clip_audio_path(project, track, c) for c in track_clips]
-    multi_source = any(not same_recording(paths[0], path) for path in paths[1:])
-
-    if multi_source:
-        return _render_placed_track(
-            project,
-            track,
-            track_clips,
-            paths,
-            output_path,
-            eng=eng,
-            af=af,
-            timeline_edits=timeline_edits,
-            crossfade_curve=crossfade_curve,
-        )
-
-    src = paths[0] if paths else primary
-    fill = gate_fill_paths(project, track, [src])[0]
-    placed: list[PlacedSegment] = []
-    ignored_lookup = IgnoredWordRegions(project)
-    for i, clip in enumerate(track_clips):
-        ignored = ignored_lookup.for_clip(clip)
-        mapped = edits_for_clip_source(timeline_edits, track.id, clip)
-        segments = eng.segments_after_edits(
-            clip.source_end - clip.source_start,
-            mapped,
-            track.id,
-        )
-        prev = track_clips[i - 1] if i > 0 else None
-        nxt = track_clips[i + 1] if i < len(track_clips) - 1 else None
-        crossfade_prev = crossfade_ms_at_join(prev, clip) / 1000.0 if prev is not None else 0.0
-
-        gap_before = 0.0
-        overlap_prev = 0.0
-        if prev is not None and crossfade_prev <= 0:
-            gap = clip.timeline_start - prev.timeline_end
-            if gap > JOIN_GAP_TOLERANCE_SEC:
-                gap_before = gap
-            elif gap < -JOIN_GAP_TOLERANCE_SEC:
-                overlap_prev = -gap
-
-        for si, seg in enumerate(segments):
-            first = si == 0
-            last = si == len(segments) - 1
-            placed.append(
-                PlacedSegment(
-                    src_start=seg.start + clip.source_start,
-                    src_end=seg.end + clip.source_start,
-                    fade_in_sec=_segment_fade_in(prev, clip, first=first),
-                    fade_out_sec=_segment_fade_out(clip, nxt, last=last),
-                    gap_before_sec=gap_before if first else 0.0,
-                    crossfade_prev_sec=crossfade_prev if first else 0.0,
-                    overlap_prev_sec=overlap_prev if first else 0.0,
-                    mute_spans=mute_spans_for_source_window(
-                        clip,
-                        seg.start + clip.source_start,
-                        seg.end + clip.source_start,
-                        extra=ignored,
-                    ),
-                    fill_path=fill,
-                )
-            )
-            placed.extend(
-                _room_tone_under_mutes(
-                    project,
-                    track,
-                    clip,
-                    seg.start + clip.source_start,
-                    seg.end + clip.source_start,
-                )
-            )
-
-    lead_in = track_clips[0].timeline_start if track_clips else 0.0
-    eng.render_timeline(
-        src,
+    return _render_placed_track(
+        project,
+        track,
+        track_clips,
+        paths,
         output_path,
-        placed,
-        af,
+        eng=eng,
+        af=af,
+        timeline_edits=timeline_edits,
         crossfade_curve=crossfade_curve,
-        lead_in_sec=lead_in if lead_in > JOIN_GAP_TOLERANCE_SEC else 0.0,
     )
-    if track.transcript_gate:
-        from podcast_mcp.engines.transcript_gated_play import apply_track_transcript_gate
-
-        dur = timeline_duration_sec(project)
-        apply_track_transcript_gate(
-            project,
-            track.id,
-            output_path,
-            timeline_start=0.0,
-            timeline_end=dur,
-        )
-    return output_path
 
 
 def _render_placed_track(
