@@ -56,7 +56,7 @@ def test_list_clips_includes_join_in_mode_and_source_id() -> None:
 
     p = _project_with_two_clips()
     p.clips[1].source_id = "src1"
-    data = list_clips(p, track_id="host")
+    data = list_clips(p, track_id="host", secret=bytes(32))
     clip = data["tracks"]["host"][1]
     assert clip["join_in_mode"] == "fade"
     assert clip["source_id"] == "src1"

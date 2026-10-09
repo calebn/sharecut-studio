@@ -116,13 +116,23 @@ Tables (portable schema contract for a future relay backend):
 
 - `active_shares(token PRIMARY KEY, id, project_workspace, review_version_id, created_at, last_used_at, expires_at, capabilities, kind, role, session_id)`: `id` is the random per-share id (`EditDecision.author`); `kind` is `review` \| `record` (default `review`)
 - `cooldown_shares(token PRIMARY KEY, last_used_at, reserved_until, reason, project_workspace)`
+- `recording_key_secret(singleton=1, secret BLOB)`: one random 32-byte host installation secret
 
 Access layer: `ShareRegistryProtocol` in `edits/share_registry.py` (`get_active`,
 `list_active_for_workspace`, `is_reserved`, `claim_active`, `release_claim`, `upsert_active_metadata`,
 `touch_last_used`, `demote_to_cooldown`, `purge_expired_cooldown`, `backup_to`,
-`close`). Host backend: `SqliteShareRegistry` (WAL, `busy_timeout=5000`,
-`BEGIN IMMEDIATE` on claim/demote/release). Wired through `edits/review_shares.py`
+`recording_key_secret`, `close`). Host backend: `SqliteShareRegistry` (WAL, `busy_timeout=5000`,
+`BEGIN IMMEDIATE` on claim/demote/release and singleton secret initialization). Wired through `edits/review_shares.py`
 and `services/collaboration/share.py`. Do **not** hand-edit the DB or invent a third index.
+
+Clip listing uses the secret once per service call to derive `rec_` identities
+with versioned HMAC-SHA-256 over the resolved workspace path and normalized
+workspace-relative recording path. The secret stays local to the host and never
+enters project data or guest responses. A malformed stored value or storage
+failure refuses listing. Registry backup preserves the identity namespace;
+deleting or replacing the registry resets it. The feature does not change the
+registry's `synchronous=NORMAL` setting. `recording_key_secret` is host-local;
+a future relay backend must not expose it as a relay retrieval API.
 
 File mode: parent dir `0700`, DB `0600` when the OS allows. Treat the file as
 **capability-adjacent** (tokens are capabilities).

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import math
 import uuid
 from collections.abc import Mapping, Sequence
@@ -314,15 +315,11 @@ def source_duration_sec(project: EpisodeProject, clip: Clip) -> float | None:
     return float(track.media.duration_sec)
 
 
-def recording_key(project: EpisodeProject, clip: Clip) -> str | None:
+def recording_key(project: EpisodeProject, clip: Clip, *, secret: bytes) -> str | None:
     """Opaque identity of the recording ``clip`` plays; ``None`` when it has none.
 
-    ``rec_`` plus the first 16 hex digits of the SHA-256 of the workspace's own path
-    and the recording's workspace-relative path, so a guest cannot confirm a guessed file
-    name against it. Two clips share a key when they play the same file
-    (:func:`_same_recording`), which is what the DAW's mirror of
-    :func:`trim_edge_limits` reads from each ``list_clips`` row. It names no file, so a
-    share guest learns no file name from a row.
+    Keys are workspace-scoped, with ``rec_`` followed by 16 lowercase hex digits.
+    Clips playing the same file share a key. The key names no recording file.
     """
     try:
         path = workspace_relpath(
@@ -331,8 +328,8 @@ def recording_key(project: EpisodeProject, clip: Clip) -> str | None:
     except (CodedError, ValueError):
         return None
     workspace = project.workspace_path().expanduser().resolve()
-    seed = f"{workspace}\0{path}"
-    return f"rec_{hashlib.sha256(seed.encode()).hexdigest()[:16]}"
+    message = f"podcast-mcp:recording-key:v1\0{workspace}\0{path}".encode()
+    return f"rec_{hmac.new(secret, message, hashlib.sha256).hexdigest()[:16]}"
 
 
 def _same_recording(project: EpisodeProject, first: Clip, second: Clip) -> bool:

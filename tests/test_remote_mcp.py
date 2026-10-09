@@ -194,6 +194,7 @@ def test_guest_list_clips_names_no_recording_file(
     share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
 
     text = _call(share["token"], "guest_list_clips")["result"]["content"][0]["text"]
+    repeated_text = _call(share["token"], "guest_list_clips")["result"]["content"][0]["text"]
 
     rows = {row["id"]: row for row in json.loads(text)["tracks"]["host"]}
     key = rows["a"]["recording_key"]
@@ -203,6 +204,8 @@ def test_guest_list_clips_names_no_recording_file(
     assert key != guessed_key, "Guest key confirms a guessed recording path without a server secret"
     assert rows["b"]["recording_key"] == key
     assert rows["c"]["recording_key"] != key
+    repeated_rows = {row["id"]: row for row in json.loads(repeated_text)["tracks"]["host"]}
+    assert repeated_rows["a"]["recording_key"] == key
     assert ".wav" not in text
     assert "raw/" not in text
 

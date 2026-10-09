@@ -3456,7 +3456,9 @@ def test_http_final_part_lands_clipping_regions_on_source_and_list_clips(
         (pytest.approx(0.1), pytest.approx(0.25)),
         (pytest.approx(1.5), pytest.approx(1.6)),
     ]
-    rows = [row for track in list_clips(reloaded)["tracks"].values() for row in track]
+    rows = [
+        row for track in list_clips(reloaded, secret=bytes(32))["tracks"].values() for row in track
+    ]
     landed = next(r for r in rows if r["source_id"] == source.id)
     assert [(c["start_s"], c["end_s"]) for c in landed["clipping_regions"]] == [
         (pytest.approx(0.1), pytest.approx(0.25)),

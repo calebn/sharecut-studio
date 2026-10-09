@@ -9,6 +9,8 @@ guest, who never sees a track's ``media_path``, learns no file name from a clip 
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import re
 
@@ -22,6 +24,8 @@ from podcast_mcp.models import (
     TrackRole,
 )
 from podcast_mcp.services.collaboration.share import sanitize_guest_project_view
+
+SECRET = bytes(range(32))
 
 
 def _project() -> EpisodeProject:
@@ -72,7 +76,7 @@ def _project() -> EpisodeProject:
 
 
 def _rows() -> dict[str, dict]:
-    lanes = list_clips(_project())["tracks"]
+    lanes = list_clips(_project(), secret=SECRET)["tracks"]
     return {row["id"]: row for lane in lanes.values() for row in lane}
 
 
@@ -85,12 +89,20 @@ def test_a_key_is_an_opaque_digest_that_depends_on_the_workspace() -> None:
     assert re.fullmatch(r"rec_[0-9a-f]{16}", key)
     other = _project()
     other.meta.workspace_dir = "/tmp/elsewhere"
-    assert list_clips(other)["tracks"]["host"][0]["recording_key"] != key
+    assert list_clips(other, secret=SECRET)["tracks"]["host"][0]["recording_key"] != key
 
 
 def test_a_clip_without_a_source_plays_its_track_media() -> None:
     row = _rows()["own"]
     assert (row["source_duration_sec"], row["recording_key"]) == (600.0, _key("own"))
+
+
+def test_recording_key_matches_versioned_hmac_vector() -> None:
+    project = _project()
+    workspace = str(project.workspace_path().expanduser().resolve())
+    message = f"podcast-mcp:recording-key:v1\0{workspace}\0raw/host_t1.wav".encode()
+    assert hmac.new(SECRET, message, hashlib.sha256).hexdigest()[:16] == "7d5ee9b58073dd43"
+    assert _key("own") == "rec_7d5ee9b58073dd43"
 
 
 def test_a_clip_names_its_source_recording() -> None:
@@ -124,7 +136,7 @@ def test_a_row_carries_no_file_name() -> None:
 def test_a_guest_view_of_the_rows_shows_identity_but_no_file_name() -> None:
     view = {
         "tracks": [{"id": "host", "media_path": "raw/host_t1.wav"}],
-        "clips": list_clips(_project()),
+        "clips": list_clips(_project(), secret=SECRET),
     }
     out = sanitize_guest_project_view(view)
     assert out["tracks"][0]["media_path"] is None
