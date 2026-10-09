@@ -1,5 +1,3 @@
-"""Pure audio expressions with explicit connected joins and placement."""
-
 from __future__ import annotations
 
 import math
