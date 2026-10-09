@@ -90,9 +90,9 @@ test("phone Mix navigation invalidates the sheet and does not reopen it in More"
     await openPhoneMix(page);
     await expect(page.getByRole("dialog")).toHaveCount(1);
 
-    await page.keyboard.press("Shift+Tab");
-    await page.keyboard.press("Shift+Tab");
-    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Alt+Shift+Tab");
+    await page.keyboard.press("Alt+Shift+Tab");
+    await page.keyboard.press("Alt+Shift+Tab");
     const nav = page.getByRole("navigation", { name: "Primary" });
     const text = nav.getByRole("button", { name: "Text", exact: true });
     await expect(text).toBeFocused();
@@ -100,7 +100,7 @@ test("phone Mix navigation invalidates the sheet and does not reopen it in More"
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(text).toBeFocused();
 
-    await page.keyboard.press("Tab");
+    await page.keyboard.press("Alt+Tab");
     const more = nav.getByRole("button", { name: "More", exact: true });
     await expect(more).toBeFocused();
     await page.keyboard.press("Enter");
