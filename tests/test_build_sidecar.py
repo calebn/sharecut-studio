@@ -566,3 +566,24 @@ def test_payload_is_ensured_before_runtime_completion(monkeypatch, tmp_path, reu
         if reuse
         else ["web", "python", "pair", "launchers", "complete"]
     )
+
+
+@pytest.mark.parametrize("operation", ["ensure", "integrity"])
+def test_ffmpeg_toolchain_path_is_scoped_to_builder_child(monkeypatch, tmp_path, operation):
+    import os
+
+    mod = _load_build_sidecar()
+    original = "/standard/python/bin"
+    toolchain = os.pathsep.join(("/owned/mingw/bin", "/owned/msys/bin"))
+    monkeypatch.setenv("PATH", original)
+    monkeypatch.setenv("PODCAST_FFMPEG_TOOLCHAIN_PATH", toolchain)
+    calls = []
+    monkeypatch.setattr(mod.subprocess, "run", lambda argv, **kwargs: calls.append((argv, kwargs)))
+    if operation == "ensure":
+        mod.ensure_ffmpeg_payload(tmp_path, "x86_64-pc-windows-msvc")
+    else:
+        mod.refresh_ffmpeg_integrity(tmp_path)
+    argv, options = calls[0]
+    assert argv[0] == sys.executable
+    assert options["env"]["PATH"] == toolchain + os.pathsep + original
+    assert os.environ["PATH"] == original

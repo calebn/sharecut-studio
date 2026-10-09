@@ -663,6 +663,13 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
+def _ffmpeg_build_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    if toolchain := environment.get("PODCAST_FFMPEG_TOOLCHAIN_PATH"):
+        environment["PATH"] = toolchain + os.pathsep + environment.get("PATH", "")
+    return environment
+
+
 def refresh_ffmpeg_integrity(runtime: Path) -> None:
     subprocess.run(
         [
@@ -674,6 +681,7 @@ def refresh_ffmpeg_integrity(runtime: Path) -> None:
         ],
         check=True,
         timeout=120,
+        env=_ffmpeg_build_environment(),
     )
 
 
@@ -695,6 +703,7 @@ def ensure_ffmpeg_payload(runtime: Path, triple: str) -> None:
         ],
         check=True,
         timeout=5400,
+        env=_ffmpeg_build_environment(),
     )
 
 

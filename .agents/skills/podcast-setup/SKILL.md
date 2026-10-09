@@ -83,8 +83,8 @@ cd gui/web && npm ci && npm run build && cd ../..
 podcast gui --project /path/to/episode.project.json
 ```
 
-On first open of the host home screen (no project), Sharecut Studio can download FFmpeg +
-Whisper via the GUI bootstrap wizard (`/api/bootstrap/*`) — same as
+On first open of the host home screen (no project), Sharecut Studio checks audio
+tools and can download Whisper via the GUI bootstrap wizard (`/api/bootstrap/*`) — same as
 `podcast bootstrap`, without a terminal. Default speech model is **large-v3-turbo**;
 the wizard (and `./install.sh --whisper-model` / `podcast setup --whisper-model`)
 can pick a smaller size.

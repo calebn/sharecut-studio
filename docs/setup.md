@@ -222,7 +222,7 @@ Pages prerequisite. Storybook is separate from the app and desktop bundles.
 ### Sharecut Studio first-run (GUI)
 
 On the host home screen (no `?project=`), Sharecut Studio checks `GET /api/bootstrap/status`
-and can download FFmpeg + Whisper via `POST /api/bootstrap/run` (progress on
+and reports audio-tool readiness. It can download Whisper via `POST /api/bootstrap/run` (progress on
 `GET /api/bootstrap/events` — same progress plane as pipeline jobs; see [progress.md](progress.md)). The wizard lets you pick a Whisper size; default is
 **large-v3-turbo** (lowest practical WER, ~1.6 GB). Same assets as `podcast bootstrap`;
 torch extras are not offered in the UI. Contributor CLI path is unchanged.
@@ -455,15 +455,16 @@ All bootstrapped/downloaded assets live under `~/.cache/podcast_mcp/`
 |------|----------|
 | `whisper/` | `faster-whisper` model weights |
 | `prefs.yaml` | Machine Whisper model preference (setup / bootstrap / first-run wizard) |
-| `bin/` | Bootstrapped `ffmpeg`/`ffprobe` (only if no system install was found) |
+| `bin/` | Existing source-use location for a locally supplied supported `ffmpeg`/`ffprobe` pair |
 | `models/` | Bootstrapped model assets (RNNoise `.rnnn`; optional NISQA dir) |
 | `word-aligner/` | Opt-in forced-aligner Hugging Face snapshot |
 
-Nothing here is committed to the git repo or bundled in the installed
-package — fetch via `podcast bootstrap` (or the Sharecut Studio wizard / Pipeline
-picker for Whisper). Pipeline Run and transcription do not auto-download
-Whisper weights. Keeping assets out of the package/repo is what keeps both
-small.
+Model weights stay outside the repository and installed package. Fetch models
+with `podcast bootstrap` or the Sharecut Studio wizard / Pipeline picker. Pipeline
+Run and transcription do not auto-download Whisper weights. Desktop releases
+include their pinned audio tools inside `sharecut-runtime/ffmpeg`, separate from
+this user cache. Source installs supply a supported pair through explicit paths,
+a system installation, or the existing `bin/` directory.
 
 ## Play segments
 

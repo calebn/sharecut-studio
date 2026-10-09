@@ -22,6 +22,8 @@ def _source_tree(root: Path, *, web_build: bool) -> Path:
     for name in ("pyproject.toml", "hatch_build.py"):
         shutil.copy(_ROOT / name, root / name)
     (root / "README.md").write_text("readme\n", encoding="utf-8")
+    (root / "contracts").mkdir()
+    shutil.copy(_ROOT / "contracts/ffmpeg-build.json", root / "contracts/ffmpeg-build.json")
     for package in ("podcast_mcp", "podcast_mcp/gui", "podcast_relay"):
         (root / "src" / package).mkdir(parents=True, exist_ok=True)
         (root / "src" / package / "__init__.py").write_text("", encoding="utf-8")
@@ -44,6 +46,7 @@ def _wheel_names(root: Path, out: Path, version: str = "standard") -> set[str]:
 def test_wheel_ships_web_build_where_the_server_looks(tmp_path: Path) -> None:
     root = _source_tree(tmp_path / "src-tree", web_build=True)
     names = _wheel_names(root, tmp_path / "out")
+    assert "podcast_mcp/util/ffmpeg-build.json" in names
     assert "podcast_mcp/gui/web_dist/index.html" in names
     assert "podcast_mcp/gui/web_dist/assets/index-abc123.js" in names
     site_packages = Path(podcast_mcp.__file__).resolve().parents[1]
@@ -64,6 +67,9 @@ def test_wheel_built_from_sdist_keeps_web_build(tmp_path: Path) -> None:
         archive.extractall(tmp_path / "unpacked", filter="data")
     (unpacked,) = (tmp_path / "unpacked").iterdir()
     assert (unpacked / "gui/web/dist/index.html").is_file()
+    assert (unpacked / "contracts/ffmpeg-build.json").read_bytes() == (
+        _ROOT / "contracts/ffmpeg-build.json"
+    ).read_bytes()
     names = _wheel_names(unpacked, tmp_path / "out")
     assert "podcast_mcp/gui/web_dist/index.html" in names
 

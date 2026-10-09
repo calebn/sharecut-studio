@@ -223,7 +223,7 @@ only the ffmpeg path).
   two-worker pool (`waveform` threads). It dedupes pending `(slug, key)` jobs,
   and it refuses a key whose build failed in this process while that key's
   retry window is open, then retries it, because failures can be transient
-  (ffmpeg missing until bootstrap, a full disk, a watchdog kill). The window
+  (a missing or damaged audio-tool pair, a full disk, a watchdog kill). The window
   starts at `FAILED_RETRY_SEC` (300 s) and doubles with each consecutive
   failure of the key, up to `FAILED_RETRY_MAX_SEC` (1 h), so media that never
   decodes stops costing a decode every few minutes. If the previous retry

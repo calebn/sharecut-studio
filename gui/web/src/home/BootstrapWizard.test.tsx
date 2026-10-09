@@ -62,6 +62,13 @@ describe("BootstrapWizard", () => {
     expect(screen.getByRole("button", { name: "Skip for now" })).toBeTruthy();
     expect(screen.getByLabelText("Speech model")).toHaveAccessibleDescription();
     expect(screen.getByText(/lowest practical WER/i)).toBeTruthy();
+    expect(screen.getByText(/Audio tools: unavailable/i)).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "source setup guide" }),
+    ).toHaveAttribute(
+      "href",
+      "https://github.com/calebn/sharecut-studio/blob/main/docs/setup.md#build-ffmpeg-from-source",
+    );
     await expectNoA11yViolations(container);
   });
 

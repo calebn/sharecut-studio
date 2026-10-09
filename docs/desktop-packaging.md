@@ -529,3 +529,7 @@ The launcher supplies `PODCAST_MCP_FFMPEG_BUNDLE` for GUI, packaged `podcast`,
 and packaged `podcast-mcp`. It preserves explicit user executable overrides.
 The resolver selects the complete exact 9.0.2 bundle ahead of ambient tools and
 fails clearly if a declared bundle is damaged. See [setup](setup.md#ffmpeg-version-and-pair-policy).
+
+The Windows action keeps setup-python CPython on the job PATH. MinGW/MSYS2
+build tools are passed only in the builder child environment, including sidecar
+re-verification and repair. They do not select the Python used for wheel installs.
