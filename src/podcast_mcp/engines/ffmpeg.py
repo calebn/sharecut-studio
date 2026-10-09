@@ -917,7 +917,6 @@ class FFmpegEngine:
                         if len(labels) == 1:
                             node_labels.append(labels[0])
                         else:
-                            # Longest mixes can emit long frames after a shorter input ends.
                             node_labels.append(
                                 emit(
                                     "".join(labels),

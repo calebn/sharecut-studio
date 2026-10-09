@@ -34,19 +34,6 @@ from podcast_mcp.util.media_identity import same_recording
 from podcast_mcp.util.process import run
 from podcast_mcp.util.workspace_paths import resolve_under_workspace
 
-# Bump whenever rendered audio changes for the same project state (join rules,
-# fade/crossfade semantics, gap handling). ``track_render_hash`` includes it so
-# cached stems and play segments rendered under older rules go stale.
-# 2: sub-tolerance (<= JOIN_GAP_TOLERANCE_SEC) gaps on CROSSFADE joins now crossfade.
-# 3: a cut is per join; the next clip's cut drops the left clip's fade-out (a clip's
-#    own cut join no longer drops its fade-out).
-# 5: segment renders resolve the selected source media for each clip.
-# 6: multi-source renders preserve per-clip fades and apply the transcript gate once.
-# 7: multi-source placement follows the accumulated render clock and preserves
-#    full-lane join context in segment renders.
-# 8: every segment window uses the same placement assembly, including one-source windows.
-# 9: reset the sample clock after overlap mixing before concatenating later segments.
-# 12: every input seeks through MediaSeek, so .m4a windows start on their sample (#1141).
 RENDER_SEMANTICS_REV = 15
 
 
