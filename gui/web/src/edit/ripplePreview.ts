@@ -30,20 +30,15 @@ export interface RippleTrim {
   deltaSec: number;
 }
 
-/** What a ripple trim does to one lane. */
-export interface LaneRipple {
-  /** Clips from here on, and the part of a clip past it, move by `deltaSec`. */
-  fromSec: number;
-  deltaSec: number;
-  /**
-   * Another speaker's clip whose edge sits where the trimmed one did (to a
-   * millisecond): its edge moves by the same amount, growing or shrinking,
-   * instead of the clip riding along or the lane splitting around it.
-   */
-  peer: { clipId: string; edge: TrimEdge } | null;
-  /** The time this lane loses when the trim shortens a clip on another lane. */
-  cut: Span | null;
-}
+/** The operation a ripple applies to one lane. */
+export type LaneRipple =
+  | {
+      kind: "edge";
+      anchor: { clipId: string; edge: TrimEdge };
+      deltaSec: number;
+      cut: Span | null;
+    }
+  | { kind: "splice"; fromSec: number; deltaSec: number; cut: Span | null };
 
 /** One downstream move a ripple preview draws: a clip, or the part of one, from `fromSec` to `toSec`. */
 export interface RippleMove {
@@ -123,22 +118,39 @@ export function laneRipple(
   if (!scope.includes(track.id)) return null;
   const { deltaSec, edge } = trim;
   if (track.id === trim.trackId) {
-    return { fromSec: trim.endSec, deltaSec, peer: null, cut: null };
+    return {
+      kind: "edge",
+      anchor: { clipId: trim.clipId, edge },
+      deltaSec,
+      cut: null,
+    };
   }
   const instant = edge === "in" ? trim.startSec : trim.endSec;
   const found = movingPeer(lane, edge, instant, deltaSec);
-  const peer = found ? { clipId: found.id, edge } : null;
-  // What follows a moving peer shifts from the peer's own old end, not from
-  // the trimmed clip's edge a millisecond away (`apply_trim_geometry`).
-  const shiftsFrom = (fallback: number) => found?.timeline_end ?? fallback;
-  if (deltaSec < 0) {
-    const cut =
-      edge === "out"
+  const cut =
+    deltaSec < 0
+      ? edge === "out"
         ? { start: instant + deltaSec, end: instant }
-        : { start: instant, end: instant - deltaSec };
-    return { fromSec: shiftsFrom(cut.end), deltaSec, peer, cut };
+        : { start: instant, end: instant - deltaSec }
+      : null;
+  if (found) {
+    return {
+      kind: "edge",
+      anchor: { clipId: found.id, edge },
+      deltaSec,
+      cut,
+    };
   }
-  return { fromSec: shiftsFrom(instant), deltaSec, peer, cut: null };
+  if (cut) return { kind: "splice", fromSec: cut.end, deltaSec, cut };
+  return { kind: "splice", fromSec: instant, deltaSec, cut: null };
+}
+
+function followsEdge(anchor: ClipRow, other: ClipRow): boolean {
+  return (
+    other.timeline_start >= anchor.timeline_end - EPS ||
+    (other.timeline_start > anchor.timeline_start + EPS &&
+      other.timeline_end > anchor.timeline_end + EPS)
+  );
 }
 
 /** The downstream moves `ripple` draws on `lane`: each later clip, and the tail of a clip it splits. */
@@ -147,10 +159,20 @@ export function rippleMoves(
   ripple: LaneRipple | null,
 ): RippleMove[] {
   if (!ripple) return [];
+  if (ripple.kind === "edge") {
+    const anchor = lane.find((clip) => clip.id === ripple.anchor.clipId);
+    if (!anchor) return [];
+    return lane
+      .filter((clip) => clip.id !== anchor.id && followsEdge(anchor, clip))
+      .map((clip) => ({
+        key: clip.id,
+        fromSec: clip.timeline_start,
+        toSec: clip.timeline_start + ripple.deltaSec,
+      }));
+  }
   const { fromSec, deltaSec } = ripple;
   const moves: RippleMove[] = [];
   for (const c of lane) {
-    if (c.id === ripple.peer?.clipId) continue;
     if (c.timeline_start >= fromSec - EPS) {
       moves.push({
         key: c.id,
@@ -188,34 +210,44 @@ function piece(
 
 /** `lane` as `ripple` leaves it (`remove_timeline_range_from_clips`, `ripple_insert_clips`). */
 function rippledLane(lane: readonly ClipRow[], ripple: LaneRipple): ClipRow[] {
-  const { fromSec, deltaSec, cut, peer } = ripple;
+  if (ripple.kind === "edge") {
+    const anchor = lane.find((clip) => clip.id === ripple.anchor.clipId);
+    if (!anchor) return [...lane];
+    return lane
+      .map((clip) => {
+        if (clip.id === anchor.id) {
+          return ripple.anchor.edge === "in"
+            ? {
+                ...clip,
+                source_start: clip.source_start - ripple.deltaSec,
+                timeline_end: clip.timeline_end + ripple.deltaSec,
+              }
+            : {
+                ...clip,
+                source_end: clip.source_end + ripple.deltaSec,
+                timeline_end: clip.timeline_end + ripple.deltaSec,
+              };
+        }
+        if (!followsEdge(anchor, clip)) return clip;
+        return {
+          ...clip,
+          timeline_start: clip.timeline_start + ripple.deltaSec,
+          timeline_end: clip.timeline_end + ripple.deltaSec,
+        };
+      })
+      .sort((a, b) => a.timeline_start - b.timeline_start);
+  }
+  const { fromSec, deltaSec, cut } = ripple;
   const out: ClipRow[] = [];
   for (const c of lane) {
     const start = c.timeline_start;
     const end = c.timeline_end;
-    if (c.id === peer?.clipId) {
-      out.push(
-        peer.edge === "in"
-          ? {
-              ...c,
-              source_start: c.source_start - deltaSec,
-              timeline_end: end + deltaSec,
-            }
-          : {
-              ...c,
-              source_end: c.source_end + deltaSec,
-              timeline_end: end + deltaSec,
-            },
-      );
-    } else if (start >= fromSec - EPS) {
+    if (start >= fromSec - EPS) {
       out.push({
         ...c,
         timeline_start: start + deltaSec,
         timeline_end: end + deltaSec,
       });
-    } else if (peer) {
-      // The server removes and opens time only on lanes without a peer.
-      out.push(c);
     } else if (cut && end > cut.start + EPS) {
       const head = start < cut.start - EPS;
       if (head) out.push(piece(c, c.id, start, cut.start));

@@ -15,8 +15,11 @@ from podcast_mcp.cli.main import app
 from podcast_mcp.mcp.tools import timeline as mcp_timeline
 from podcast_mcp.models import (
     Clip,
+    ClipJoinMode,
+    ClipMuteRegion,
     EditMode,
     MediaAsset,
+    SourceRecording,
     Track,
     TrackRole,
     load_project,
@@ -118,6 +121,62 @@ def test_document_trim_clip_edge(minimal_project):
     c2 = next(c for c in ws2.project.clips if c.id == "c2")
     assert c1.source_end == 10.0
     assert c2.timeline_start == pytest.approx(10.0)
+
+
+def test_document_trim_preserves_a_follower_that_moves_before_zero(minimal_project):
+    project = load_project(minimal_project)
+    project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=30.0),
+        )
+    ]
+    project.sources = [SourceRecording(id="alt", path="raw/alt.wav", duration_sec=30.0)]
+    project.timeline.clips = [
+        Clip(id="anchor", track_id="host", source_start=0.0, source_end=10.0, timeline_start=0.0),
+        Clip(
+            id="follower",
+            track_id="host",
+            source_id="alt",
+            source_start=0.0,
+            source_end=19.0,
+            timeline_start=1.0,
+            fade_in_ms=17,
+            fade_out_ms=23,
+            join_in_mode=ClipJoinMode.CROSSFADE,
+            mute_regions=[ClipMuteRegion(start_s=2.0, end_s=3.0, fade_out_ms=2, fade_in_ms=4)],
+        ),
+    ]
+    save_project(project)
+    ws = ProjectWorkspace.open(minimal_project)
+    token = boundary_context(
+        ws.project,
+        TrimBoundaryTarget(clip_id="anchor", edge="out", mode=EditMode.RIPPLE),
+    ).token
+
+    EditService(ws).trim_clip_edge(
+        "anchor",
+        "out",
+        8.0,
+        mode=EditMode.RIPPLE,
+        expected_token=token,
+        confirm_cut_speech=True,
+    )
+
+    saved = load_project(minimal_project)
+    follower = next(clip for clip in saved.clips if clip.id == "follower")
+    assert follower.timeline_start == -1.0
+    assert (follower.source_start, follower.source_end, follower.source_id) == (0.0, 19.0, "alt")
+    assert (follower.fade_in_ms, follower.fade_out_ms, follower.join_in_mode) == (
+        17,
+        23,
+        ClipJoinMode.CROSSFADE,
+    )
+    assert follower.mute_regions == [
+        ClipMuteRegion(start_s=2.0, end_s=3.0, fade_out_ms=2, fade_in_ms=4)
+    ]
 
 
 runner = CliRunner()

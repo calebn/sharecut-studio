@@ -20,6 +20,16 @@ Guide for building a desktop or web editor on top of Podcast MCP services and MC
 
 `search_transcript_tool` returns both clocks on each match.
 
+### Ripple trim previews
+
+`gui/web/src/edit/ripplePreview.ts` mirrors `edits/ripple.py` for trim drafts
+and drag arrows. An edge-moving lane identifies one anchor and classifies each
+whole follower against that anchor's original bounds. The edited lane and a lane
+with a moving peer use the same rule. A lane without a moving edge uses the
+existing time-splice preview. The shared cases in
+`contracts/ripple-scope.json` check saved geometry, clip and recording identity,
+source ranges, arrows, and cuts in Python and Vitest.
+
 ## Undo / history
 
 - Interactive edits: two snapshots per action (`before …` / `after …`).

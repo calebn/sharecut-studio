@@ -54,9 +54,9 @@ function caseProject(c: Contract["trim_cases"][number]): ProjectView {
   const lanes: Record<string, ClipRow[]> = {};
   for (const [trackId, rows] of Object.entries(c.clips)) {
     const track = CONTRACT.trim_tracks.find((t) => t.id === trackId)!;
-    lanes[trackId] = rows.map((row) =>
-      contractClipRow(track, CONTRACT.trim_sources, row),
-    );
+    lanes[trackId] = rows
+      .map((row) => contractClipRow(track, CONTRACT.trim_sources, row))
+      .sort((a, b) => a.timeline_start - b.timeline_start);
   }
   return minimalProject({
     tracks: CONTRACT.trim_tracks.map(contractTrack),
@@ -212,9 +212,9 @@ describe("ripple preview on a multi-track project (#1135)", () => {
     );
     const ripple = laneRipple(trim!, guest, lanes.guest, scope);
     expect(ripple).toEqual({
+      kind: "splice",
       fromSec: 25,
       deltaSec: 3,
-      peer: null,
       cut: null,
     });
     expect(rippleMoves(lanes.guest, ripple)).toEqual([
@@ -241,6 +241,45 @@ describe("ripple preview on a multi-track project (#1135)", () => {
         "ripple",
       ),
     ).toBeNull();
+  });
+
+  it("keeps the follower source and audio metadata while translating it", () => {
+    const anchor = row("anchor", "host", 0, 10);
+    const follower = clipRow({
+      id: "follower",
+      track_id: "host",
+      timeline_start: 9.9996,
+      timeline_end: 19.9996,
+      source_start: 9.9996,
+      source_end: 19.9996,
+      source_id: "take-2",
+      fade_in_ms: 17,
+      fade_out_ms: 23,
+      join_in_mode: "crossfade",
+      mute_regions: [{ start_s: 11, end_s: 12, fade_out_ms: 2, fade_in_ms: 4 }],
+    });
+    const project = minimalProject({
+      tracks: [host, guest],
+      clips: { tracks: { host: [anchor, follower], guest: [] }, clip_count: 2 },
+    });
+
+    const drafted = trimDraft(project, "host", "anchor", "out", 9.97, "ripple");
+    const moved = drafted.clips.tracks.host.find(
+      (clip) => clip.id === "follower",
+    );
+
+    expect(moved).toMatchObject({
+      id: "follower",
+      timeline_start: 9.9696,
+      timeline_end: 19.9696,
+      source_start: 9.9996,
+      source_end: 19.9996,
+      source_id: "take-2",
+      fade_in_ms: 17,
+      fade_out_ms: 23,
+      join_in_mode: "crossfade",
+      mute_regions: [{ start_s: 11, end_s: 12, fade_out_ms: 2, fade_in_ms: 4 }],
+    });
   });
 
   it("draws no zero-length clip where another lane's clip starts a float rounding before the removed span", () => {
