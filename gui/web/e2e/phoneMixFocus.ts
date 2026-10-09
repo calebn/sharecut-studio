@@ -54,7 +54,11 @@ async function inFreshPhoneProject(
   });
 }
 
-export async function checkPhoneMixFocus(page: Page, info: TestInfo) {
+export async function checkPhoneMixFocus(
+  page: Page,
+  info: TestInfo,
+  tabCommand: "Tab" | "Alt+Tab",
+) {
   await inFreshPhoneProject(page, 740, async () => {
     const mix = await openMixAfterKeyboardFocus(page);
     await mix.getByRole("button", { name: "Close", exact: true }).click();
@@ -82,9 +86,11 @@ export async function checkPhoneMixFocus(page: Page, info: TestInfo) {
     await openPhoneMix(page);
     await expect(page.getByRole("dialog")).toHaveCount(1);
 
-    await page.keyboard.press("Alt+Shift+Tab");
-    await page.keyboard.press("Alt+Shift+Tab");
-    await page.keyboard.press("Alt+Shift+Tab");
+    const reverseTabCommand =
+      tabCommand === "Tab" ? "Shift+Tab" : "Alt+Shift+Tab";
+    await page.keyboard.press(reverseTabCommand);
+    await page.keyboard.press(reverseTabCommand);
+    await page.keyboard.press(reverseTabCommand);
     const nav = page.getByRole("navigation", { name: "Primary" });
     const text = nav.getByRole("button", { name: "Text", exact: true });
     await expect(text).toBeFocused();
@@ -92,7 +98,7 @@ export async function checkPhoneMixFocus(page: Page, info: TestInfo) {
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(text).toBeFocused();
 
-    await page.keyboard.press("Alt+Tab");
+    await page.keyboard.press(tabCommand);
     const more = nav.getByRole("button", { name: "More", exact: true });
     await expect(more).toBeFocused();
     await page.keyboard.press("Enter");

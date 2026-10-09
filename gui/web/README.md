@@ -31,6 +31,7 @@ The `e2e-compat/phone-mix.spec.ts` core flow runs in both engines. Alongside
 native mix edits and touch geometry, it checks pointer opening Mix after Search
 commands has keyboard focus, initial Close focus, focus return after Close,
 Escape, and scrim dismissal, and keyboard navigation that invalidates Mix.
+The navigation check uses Tab in Chromium and Alt/Option-Tab in WebKit.
 
 Storybook uses the real `src/ui/` components and theme tokens. See
 [`docs/design-system.md`](../../docs/design-system.md) for story conventions and
