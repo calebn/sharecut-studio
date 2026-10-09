@@ -1,5 +1,5 @@
 {
-  "$comment": "Which tracks a ripple moves, and what a trim leaves on each. gui/web/src/edit/ripplePreview.ts rippleTrackIds mirrors edits/ripple.ripple_track_ids, and its trim preview mirrors plan_trim + apply_trim_geometry. gui/web/src/edit/ripplePreview.test.ts and tests/test_ripple_scope_contract.py both read these cases. Clips are [id, timeline_start, source_start, source_end] with an optional source_id (the recording the clip plays; absent = the track's own media, and the clip's own recording length caps how far an edge grows); lanes after a trim are [timeline_start, timeline_end, source_start, source_end] in timeline order; arrows are [from, to] seconds, the preview's downstream moves; cuts are spans dimmed by a shortening trim. Optional clip_ids and source_ids pin the identities of intact edge-lane followers.",
+  "$comment": "Clips are [id, timeline_start, source_start, source_end, optional source_id]. Lanes are [timeline_start, timeline_end, source_start, source_end]. Arrows are [from, to]. Cuts are dimmed spans. error names an atomic refusal; optional clip_ids and source_ids assert retained identity.",
   "scope_cases": [
     {
       "name": "every dialogue track in project order",
@@ -358,14 +358,116 @@
       "source_ids": {"host": ["overlay_t","anchor_t","overlay_t","overlay_t","overlay_t","follower_t"]}
     },
     {
-      "name": "a long crossing follower keeps its source when its translated start is negative",
-      "clips": { "host": [["anchor",0,0,10,"anchor_t"],["follower",1,0,19,"follower_t"]], "guest": [], "music": [] },
-      "trim": { "clip_id": "anchor", "edge": "out", "source_sec": 8, "mode": "ripple" },
-      "lanes": { "host": [[-1,18,0,19],[0,8,0,8]], "guest": [], "music": [] },
-      "arrows": { "host": [[1,-1]] },
-      "cuts": { "guest": [8,10] },
-      "clip_ids": { "host": ["follower","anchor"] },
-      "source_ids": { "host": ["follower_t","anchor_t"] }
+      "name": "host in follower at 1 refuses crossing zero",
+      "clips": {"host": [["anchor", 0, 10, 20, "anchor_t"], ["follower", 1, 0, 19, "follower_t"]], "guest": [], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "in", "source_sec": 12, "mode": "ripple"},
+      "error": "ripple_before_zero"
+    },
+    {
+      "name": "host in follower at 1 accepts zero within 1 ns",
+      "clips": {"host": [["anchor", 0, 10, 20, "anchor_t"], ["follower", 1, 0, 19, "follower_t"]], "guest": [], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "in", "source_sec": 11, "mode": "ripple"},
+      "lanes": {"host": [[0, 9, 11, 20], [0, 19, 0, 19]], "guest": [], "music": []},
+      "arrows": {"host": [[1, 0]]},
+      "cuts": {"guest": [0, 1]}
+    },
+    {
+      "name": "host in follower at 0.9999999995 accepts zero within 1 ns",
+      "clips": {"host": [["anchor", 0, 10, 20, "anchor_t"], ["follower", 0.9999999995, 0, 19, "follower_t"]], "guest": [], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "in", "source_sec": 11, "mode": "ripple"},
+      "lanes": {"host": [[-5.000000413701855e-10, 18.999999999499998, 0, 19], [0, 9, 11, 20]], "guest": [], "music": []},
+      "arrows": {"host": [[0.9999999995, -5.000000413701855e-10]]},
+      "cuts": {"guest": [0, 1]}
+    },
+    {
+      "name": "host in follower at 0.999999998 refuses crossing zero",
+      "clips": {"host": [["anchor", 0, 10, 20, "anchor_t"], ["follower", 0.999999998, 0, 19, "follower_t"]], "guest": [], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "in", "source_sec": 11, "mode": "ripple"},
+      "error": "ripple_before_zero"
+    },
+    {
+      "name": "host out follower at 1 refuses crossing zero",
+      "clips": {"host": [["anchor", 0, 0, 10, "anchor_t"], ["follower", 1, 0, 19, "follower_t"]], "guest": [], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "out", "source_sec": 8, "mode": "ripple"},
+      "error": "ripple_before_zero"
+    },
+    {
+      "name": "host out follower at 1 accepts zero within 1 ns",
+      "clips": {"host": [["anchor", 0, 0, 10, "anchor_t"], ["follower", 1, 0, 19, "follower_t"]], "guest": [], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "out", "source_sec": 9, "mode": "ripple"},
+      "lanes": {"host": [[0, 9, 0, 9], [0, 19, 0, 19]], "guest": [], "music": []},
+      "arrows": {"host": [[1, 0]]},
+      "cuts": {"guest": [9, 10]}
+    },
+    {
+      "name": "host out follower at 0.9999999995 accepts zero within 1 ns",
+      "clips": {"host": [["anchor", 0, 0, 10, "anchor_t"], ["follower", 0.9999999995, 0, 19, "follower_t"]], "guest": [], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "out", "source_sec": 9, "mode": "ripple"},
+      "lanes": {"host": [[-5.000000413701855e-10, 18.999999999499998, 0, 19], [0, 9, 0, 9]], "guest": [], "music": []},
+      "arrows": {"host": [[0.9999999995, -5.000000413701855e-10]]},
+      "cuts": {"guest": [9, 10]}
+    },
+    {
+      "name": "host out follower at 0.999999998 refuses crossing zero",
+      "clips": {"host": [["anchor", 0, 0, 10, "anchor_t"], ["follower", 0.999999998, 0, 19, "follower_t"]], "guest": [], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "out", "source_sec": 9, "mode": "ripple"},
+      "error": "ripple_before_zero"
+    },
+    {
+      "name": "guest in follower at 1 refuses crossing zero",
+      "clips": {"host": [["anchor", 0, 10, 20, "anchor_t"]], "guest": [["peer", 0, 10, 20, "peer_t"], ["follower", 1, 0, 19, "follower_t"]], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "in", "source_sec": 12, "mode": "ripple"},
+      "error": "ripple_before_zero"
+    },
+    {
+      "name": "guest in follower at 1 accepts zero within 1 ns",
+      "clips": {"host": [["anchor", 0, 10, 20, "anchor_t"]], "guest": [["peer", 0, 10, 20, "peer_t"], ["follower", 1, 0, 19, "follower_t"]], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "in", "source_sec": 11, "mode": "ripple"},
+      "lanes": {"host": [[0, 9, 11, 20]], "guest": [[0, 9, 11, 20], [0, 19, 0, 19]], "music": []},
+      "arrows": {"guest": [[1, 0]]},
+      "cuts": {"guest": [0, 1]}
+    },
+    {
+      "name": "guest in follower at 0.9999999995 accepts zero within 1 ns",
+      "clips": {"host": [["anchor", 0, 10, 20, "anchor_t"]], "guest": [["peer", 0, 10, 20, "peer_t"], ["follower", 0.9999999995, 0, 19, "follower_t"]], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "in", "source_sec": 11, "mode": "ripple"},
+      "lanes": {"host": [[0, 9, 11, 20]], "guest": [[-5.000000413701855e-10, 18.999999999499998, 0, 19], [0, 9, 11, 20]], "music": []},
+      "arrows": {"guest": [[0.9999999995, -5.000000413701855e-10]]},
+      "cuts": {"guest": [0, 1]}
+    },
+    {
+      "name": "guest in follower at 0.999999998 refuses crossing zero",
+      "clips": {"host": [["anchor", 0, 10, 20, "anchor_t"]], "guest": [["peer", 0, 10, 20, "peer_t"], ["follower", 0.999999998, 0, 19, "follower_t"]], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "in", "source_sec": 11, "mode": "ripple"},
+      "error": "ripple_before_zero"
+    },
+    {
+      "name": "guest out follower at 1 refuses crossing zero",
+      "clips": {"host": [["anchor", 0, 0, 10, "anchor_t"]], "guest": [["peer", 0, 0, 10, "peer_t"], ["follower", 1, 0, 19, "follower_t"]], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "out", "source_sec": 8, "mode": "ripple"},
+      "error": "ripple_before_zero"
+    },
+    {
+      "name": "guest out follower at 1 accepts zero within 1 ns",
+      "clips": {"host": [["anchor", 0, 0, 10, "anchor_t"]], "guest": [["peer", 0, 0, 10, "peer_t"], ["follower", 1, 0, 19, "follower_t"]], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "out", "source_sec": 9, "mode": "ripple"},
+      "lanes": {"host": [[0, 9, 0, 9]], "guest": [[0, 9, 0, 9], [0, 19, 0, 19]], "music": []},
+      "arrows": {"guest": [[1, 0]]},
+      "cuts": {"guest": [9, 10]}
+    },
+    {
+      "name": "guest out follower at 0.9999999995 accepts zero within 1 ns",
+      "clips": {"host": [["anchor", 0, 0, 10, "anchor_t"]], "guest": [["peer", 0, 0, 10, "peer_t"], ["follower", 0.9999999995, 0, 19, "follower_t"]], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "out", "source_sec": 9, "mode": "ripple"},
+      "lanes": {"host": [[0, 9, 0, 9]], "guest": [[-5.000000413701855e-10, 18.999999999499998, 0, 19], [0, 9, 0, 9]], "music": []},
+      "arrows": {"guest": [[0.9999999995, -5.000000413701855e-10]]},
+      "cuts": {"guest": [9, 10]}
+    },
+    {
+      "name": "guest out follower at 0.999999998 refuses crossing zero",
+      "clips": {"host": [["anchor", 0, 0, 10, "anchor_t"]], "guest": [["peer", 0, 0, 10, "peer_t"], ["follower", 0.999999998, 0, 19, "follower_t"]], "music": []},
+      "trim": {"clip_id": "anchor", "edge": "out", "source_sec": 9, "mode": "ripple"},
+      "error": "ripple_before_zero"
     },
     {
       "name": "a music trim ripples the dialogue tracks with it",

@@ -28,7 +28,16 @@ whole follower against that anchor's original bounds. The edited lane and a lane
 with a moving peer use the same rule. A lane without a moving edge uses the
 existing time-splice preview. The shared cases in
 `contracts/ripple-scope.json` check saved geometry, clip and recording identity,
-source ranges, arrows, and cuts in Python and Vitest.
+source ranges, arrows, cuts, and atomic refusal in Python and Vitest.
+A trim that newly moves a whole follower below timeline zero by more than 1 ns
+raises `ripple_before_zero` before any lane changes. This preserves the rendered
+source clock without cutting source audio or clamping one follower. Drag,
+keyboard, and strip nudge candidates validate through the same client draft
+operation before publication. Invalid input shows the existing error feedback
+and keeps the last valid draft and arrows. Release saves only that accepted
+value. `ripple-overlap-proof.spec.ts` checks the built GUI's large-overlap refusal,
+last-valid save, and Undo on edited and moving-peer lanes, alongside the 0.4 ms
+preview/save regression.
 
 ## Undo / history
 

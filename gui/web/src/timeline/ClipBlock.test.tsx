@@ -209,6 +209,194 @@ describe("ClipBlock waveform", () => {
       },
     );
 
+    it.each(["edited", "peer"])(
+      "keeps the last valid keyboard trim when the %s follower would cross zero",
+      async (placement) => {
+        const row = clipRow({ ...clip, source_end: 10, timeline_end: 10 });
+        const follower = clipRow({
+          id: "follower",
+          track_id: placement === "edited" ? "host" : "guest",
+          timeline_start: 0.015,
+          timeline_end: 19.015,
+          source_start: 0,
+          source_end: 19,
+          source_id: "alt",
+          recording_key: "alt",
+        });
+        const project = projectWithClip(row, {
+          tracks: [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
+          clips: {
+            tracks: {
+              host: placement === "edited" ? [row, follower] : [row],
+              guest:
+                placement === "peer"
+                  ? [
+                      clipRow({ ...row, id: "peer", track_id: "guest" }),
+                      follower,
+                    ]
+                  : [],
+            },
+            clip_count: placement === "peer" ? 3 : 2,
+          },
+        });
+        const { container } = renderWithKeymap(row, {}, project);
+        const handle = container.querySelector(
+          "button.trim-handle.out",
+        ) as HTMLElement;
+        handle.focus();
+        fireEvent.keyDown(handle, { key: "ArrowLeft" });
+        const validWidth = (
+          container.querySelector(".clip-block") as HTMLElement
+        ).style.width;
+        fireEvent.keyDown(handle, { key: "ArrowLeft", repeat: true });
+        expect(useDawStore.getState().statusAnnouncement).toContain(
+          "before the timeline starts",
+        );
+        expect(
+          (container.querySelector(".clip-block") as HTMLElement).style.width,
+        ).toBe(validWidth);
+        expect(trimClipEdge).not.toHaveBeenCalled();
+        fireEvent.keyUp(handle, { key: "ArrowLeft" });
+        await waitFor(() => expect(trimClipEdge).toHaveBeenCalledOnce());
+        expect(trimClipEdge).toHaveBeenCalledWith(
+          "/tmp/clip-handle.project.json",
+          "c1",
+          "out",
+          9.99,
+          "ripple",
+          "boundary-token",
+        );
+      },
+    );
+
+    it.each(["in", "out"] as const)(
+      "refuses an invalid first keyboard %s trim without saving",
+      (edge) => {
+        const row = clipRow({
+          ...clip,
+          source_start: 10,
+          source_end: 20,
+          timeline_end: 10,
+          source_duration_sec: 30,
+        });
+        const follower = clipRow({
+          id: "follower",
+          timeline_start: 0.005,
+          timeline_end: 19.005,
+          source_start: 0,
+          source_end: 19,
+          source_id: "alt",
+          recording_key: "alt",
+        });
+        const { container } = renderWithKeymap(
+          row,
+          { neighborSourceHi: 30 },
+          projectWithClip(row, {
+            tracks: [sampleTrack({ id: "host", duration_sec: 30 })],
+            clips: { tracks: { host: [row, follower] }, clip_count: 2 },
+          }),
+        );
+        const handle = container.querySelector(
+          `button.trim-handle.${edge}`,
+        ) as HTMLElement;
+        const key = edge === "in" ? "ArrowRight" : "ArrowLeft";
+        handle.focus();
+        fireEvent.keyDown(handle, { key });
+        expect(useDawStore.getState().statusAnnouncement).toContain(
+          "before the timeline starts",
+        );
+        fireEvent.keyUp(handle, { key });
+        expect(trimClipEdge).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      ["edited", "in"],
+      ["edited", "out"],
+      ["peer", "in"],
+      ["peer", "out"],
+    ] as const)(
+      "keeps the last valid %s %s drag through pointer release",
+      async (placement, edge) => {
+        const row = clipRow({
+          ...clip,
+          source_start: 10,
+          source_end: 20,
+          timeline_end: 10,
+          source_duration_sec: 30,
+        });
+        const follower = clipRow({
+          id: "follower",
+          track_id: placement === "edited" ? "host" : "guest",
+          timeline_start: 1,
+          timeline_end: 20,
+          source_start: 0,
+          source_end: 19,
+          source_id: "alt",
+          recording_key: "alt",
+        });
+        const project = projectWithClip(row, {
+          tracks: [
+            sampleTrack({ id: "host", duration_sec: 30 }),
+            sampleTrack({ id: "guest", duration_sec: 30 }),
+          ],
+          clips: {
+            tracks: {
+              host: placement === "edited" ? [row, follower] : [row],
+              guest:
+                placement === "peer"
+                  ? [
+                      clipRow({ ...row, id: "peer", track_id: "guest" }),
+                      follower,
+                    ]
+                  : [],
+            },
+            clip_count: placement === "peer" ? 3 : 2,
+          },
+        });
+        const { container } = renderWithKeymap(
+          row,
+          { neighborSourceHi: 30 },
+          project,
+        );
+        const handle = container.querySelector(
+          `button.trim-handle.${edge}`,
+        ) as HTMLElement;
+        const direction = edge === "in" ? 1 : -1;
+        fireEvent.pointerDown(handle, { pointerId: 5, clientX: 150 });
+        fireEvent.pointerMove(handle, {
+          pointerId: 5,
+          clientX: 150 + direction * 25,
+        });
+        const validWidth = (
+          container.querySelector(".clip-block") as HTMLElement
+        ).style.width;
+        fireEvent.pointerMove(handle, {
+          pointerId: 5,
+          clientX: 150 + direction * 100,
+        });
+        expect(useDawStore.getState().statusAnnouncement).toContain(
+          "before the timeline starts",
+        );
+        expect(
+          (container.querySelector(".clip-block") as HTMLElement).style.width,
+        ).toBe(validWidth);
+        fireEvent.pointerUp(handle, {
+          pointerId: 5,
+          clientX: 150 + direction * 100,
+        });
+        await waitFor(() => expect(trimClipEdge).toHaveBeenCalledOnce());
+        expect(trimClipEdge).toHaveBeenCalledWith(
+          "/tmp/clip-handle.project.json",
+          "c1",
+          edge,
+          edge === "in" ? 10.5 : 19.5,
+          "ripple",
+          "boundary-token",
+        );
+      },
+    );
+
     it("coalesces repeated fade arrows into one write at key release", async () => {
       const row = { ...clip, fade_in_ms: 20, fade_out_ms: 40 };
       const { container } = renderWithKeymap(row);

@@ -16,6 +16,7 @@ import pytest
 from contract_project_helpers import contract_project
 from podcast_mcp.edits.ripple import apply_trim_geometry, plan_trim, ripple_track_ids
 from podcast_mcp.models import Clip, EditMode
+from podcast_mcp.util.coded_error import CodedValueError
 
 CONTRACT = Path(__file__).resolve().parents[1] / "contracts" / "ripple-scope.json"
 DATA = json.loads(CONTRACT.read_text(encoding="utf-8"))
@@ -48,6 +49,13 @@ def test_trim_lanes(case: dict) -> None:
     )
     trim = case["trim"]
     plan = plan_trim(p, trim["clip_id"], trim["edge"], trim["source_sec"], EditMode(trim["mode"]))
+    if "error" in case:
+        before = p.model_dump()
+        with pytest.raises(CodedValueError) as caught:
+            apply_trim_geometry(p, plan)
+        assert caught.value.code == case["error"]
+        assert p.model_dump() == before
+        return
     apply_trim_geometry(p, plan)
     lanes = {
         tid: [

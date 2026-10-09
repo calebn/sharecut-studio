@@ -186,7 +186,6 @@ def _shifted_edge(clip: Clip, edge: TrimEdge, delta: float) -> float:
 
 
 def _follows_edge(anchor: Clip, other: Clip) -> bool:
-    """Whether ``other`` follows this edge from the lane's original geometry."""
     return other.timeline_start >= anchor.timeline_end - _EPS or (
         other.timeline_start > anchor.timeline_start + _EPS
         and other.timeline_end > anchor.timeline_end + _EPS
@@ -196,7 +195,6 @@ def _follows_edge(anchor: Clip, other: Clip) -> bool:
 def _trim_edge_lane(
     lane: Sequence[Clip], move: EdgeMove, edge: TrimEdge, delta: float, mode: EditMode
 ) -> list[Clip]:
-    """Move one planned edge and translate its original whole-clip followers."""
     anchor = next(clip for clip in lane if clip.id == move.clip_id)
     result: list[Clip] = []
     for clip in lane:
@@ -211,7 +209,14 @@ def _trim_edge_lane(
                         clip.timeline_start + move.source_sec - clip.source_start
                     )
         elif mode is EditMode.RIPPLE and _follows_edge(anchor, clip):
-            changes["timeline_start"] = clip.timeline_start + delta
+            start = clip.timeline_start + delta
+            if clip.timeline_start >= -_EPS and start < -_EPS:
+                raise CodedValueError(
+                    "This trim would move a following clip before the timeline starts. "
+                    "Try a smaller trim.",
+                    code="ripple_before_zero",
+                )
+            changes["timeline_start"] = start
         result.append(clip.model_copy(update=changes) if changes else clip)
     return result
 
@@ -269,11 +274,14 @@ def plan_trim(
 
 def apply_trim_geometry(project: EpisodeProject, plan: TrimPlan) -> dict[str, list[Clip]]:
     """Apply ``plan``'s clip geometry; returns the clips before for tracks that lost a span."""
-    for move in plan.moves:
-        lane = clips_for_track(project, move.track_id)
-        set_track_clips(
-            project, move.track_id, _trim_edge_lane(lane, move, plan.edge, plan.delta, plan.mode)
+    lanes = {
+        move.track_id: _trim_edge_lane(
+            clips_for_track(project, move.track_id), move, plan.edge, plan.delta, plan.mode
         )
+        for move in plan.moves
+    }
+    for track_id, lane in lanes.items():
+        set_track_clips(project, track_id, lane)
     moved_tracks = {move.track_id for move in plan.moves}
     rest = [tid for tid in plan.scope if tid not in moved_tracks]
     before: dict[str, list[Clip]] = {}

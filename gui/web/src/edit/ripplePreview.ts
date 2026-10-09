@@ -229,9 +229,15 @@ function rippledLane(lane: readonly ClipRow[], ripple: LaneRipple): ClipRow[] {
               };
         }
         if (!followsEdge(anchor, clip)) return clip;
+        const start = clip.timeline_start + ripple.deltaSec;
+        if (clip.timeline_start >= -EPS && start < -EPS) {
+          throw new Error(
+            "This trim would move a following clip before the timeline starts. Try a smaller trim.",
+          );
+        }
         return {
           ...clip,
-          timeline_start: clip.timeline_start + ripple.deltaSec,
+          timeline_start: start,
           timeline_end: clip.timeline_end + ripple.deltaSec,
         };
       })
