@@ -388,7 +388,10 @@ their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment
   fade, join or mute fields. An unchanged pending mix does not cancel a hold;
   a genuine mix publication does. Republishing the same project without an
   active hold is a no-op. A current release or selection-change
-  unmount hands off the exact preview and saves once. Stale tokens cannot
+  unmount freezes the exact preview and saves once. The saving layer remains
+  until settlement or publication, so preview-only tails never become edit
+  targets during boundary loading. Submission rechecks ownership after loading
+  the boundary. Settlement removes only its own token. Stale tokens cannot
   remove a newer hold. Invalid document lifetime never restores old geometry.
 - **Gap** moves nothing else. A gap trim moves only the grabbed edge (the front edge
   moves on the timeline too) and stops at the neighbouring clip. A gap delete or cut

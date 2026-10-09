@@ -37,7 +37,11 @@ import { Harness } from "../test/trimNudgeFixture";
 
 vi.mock("../edit/nudge", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../edit/nudge")>()),
-  saveNudge: vi.fn(async () => true),
+  saveNudge: vi.fn(async () => {
+    const state = useDawStore.getState();
+    if (state.project) state.setProject(state.project);
+    return true;
+  }),
 }));
 vi.mock("../services/commandQueue", () => ({
   submitQueuedDocumentCommand: vi.fn(async () => ({})),
@@ -46,7 +50,13 @@ vi.mock("../services/commandQueue", () => ({
 describe("trim nudge document writers", () => {
   beforeEach(() => {
     resetDocumentSeqForTests();
-    vi.mocked(saveNudge).mockReset().mockResolvedValue(true);
+    vi.mocked(saveNudge)
+      .mockReset()
+      .mockImplementation(async () => {
+        const state = useDawStore.getState();
+        if (state.project) state.setProject(state.project);
+        return true;
+      });
     vi.mocked(submitQueuedDocumentCommand).mockReset().mockResolvedValue({});
     clearRegisteredCommands();
     _resetTrackMutateChainForTests();

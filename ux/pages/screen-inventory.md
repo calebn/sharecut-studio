@@ -496,3 +496,6 @@ Reconnect restores each plane from its initial state. Recording roster updates a
 before following connection signals, including when guests join between paints.
 
 Timeline fade corners and trim strips support focused Left/Right nudges, Shift for larger steps, release or blur to save one undo step, and Escape to discard the preview. A held arrow stops at the playhead, a chapter or a neighbouring edge with a bump and a spoken note; a fresh press goes past it. On touch, a second finger on the timeline cancels any one-finger edit in progress without saving it, so a pinch only zooms.
+
+Inspector trim release keeps its preview owned while saving. Other edits use
+the clean geometry, and a returned document change retires the preview atomically.
