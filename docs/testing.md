@@ -1592,11 +1592,19 @@ Frontend unit and a11y details: [gui/web/README.md](../gui/web/README.md) § Tes
 
 `tests/test_trim_follower_render.py` checks a same-recording follower that moves
 before a muted anchor after a ripple trim. The cheap public-renderer test checks
-the accumulated overlap and later gap. The FFmpeg test trims through
+the independently placed actors and later gap. The FFmpeg test trims through
 `EditService`, reloads the saved project, then checks exact WAV frame count and
 distinct PCM markers for the follower, muted anchor interval, gap and later clip.
 Duration and samples are asserted together, so truncating misplaced output
-cannot satisfy the test.
+cannot satisfy the test. The saved crossfade case checks 1,056,000 frames,
+17,500 PCM at 10.95 seconds and 15,000 at 11.5 and 12.5 seconds.
+
+`tests/test_crossfade_components.py` checks literal native TRI and qsin samples,
+independent actor contribution, the connected short-middle chain, and the first
+retained source-piece overlap cap. It also saves and reloads authored windows
+with source cuts and local fades. `tests/test_bleed_review.py` retains the
+half-sample window count and mute-origin checks. Envelope tests reject stems
+from render revisions 10 and 13 under revision 14.
 
 ## Render regression fingerprints
 

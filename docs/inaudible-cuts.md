@@ -51,6 +51,12 @@ Normal dialogue **ripple** cuts from tighten, NL, and focus set `join_in_mode=fa
 | Harsh boundaries from analyze | `recommend_fades_tool` → `apply_fade_recommendations_tool` (fade mode) |
 
 Crossfade curve for overlap mode only: `render.crossfade_curve` (default `tri`).
+The saved predecessor is the partner. Native sequential crossfades extend only
+that connected component, including when a short middle clip lets the next
+transition reach earlier connected audio. An unrelated enclosing clip remains
+an independent actor. The overlap is capped by half the first retained right
+source piece, with the existing 1 ms minimum, rather than the whole right body.
+For an authored playback window, that cap uses the selected first piece.
 
 Clips selecting different recordings use the same fade, cut, crossfade, gap, and
 overlap assembly graph as clips sharing one source. Segment playback preserves

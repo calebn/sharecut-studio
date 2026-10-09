@@ -123,7 +123,10 @@ def test_envelope_filter_rejects_invalid_timeline_origin(origin):
         FFmpegEngine().build_track_filter(None, None, timeline_origin_sec=origin)
 
 
-def test_previous_envelope_render_revision_cannot_reuse_stem(tmp_path: Path, monkeypatch):
+@pytest.mark.parametrize("previous_revision", [10, 13])
+def test_previous_envelope_render_revision_cannot_reuse_stem(
+    tmp_path: Path, monkeypatch, previous_revision
+):
     import podcast_mcp.engines.play_audit as play_audit
     from podcast_mcp.engines.timeline_render import RENDER_SEMANTICS_REV
 
@@ -131,7 +134,7 @@ def test_previous_envelope_render_revision_cannot_reuse_stem(tmp_path: Path, mon
     stem = tmp_path / "artifacts" / "tracks" / "host.wav"
     stem.parent.mkdir(parents=True)
     render_track_from_timeline(project, project.tracks[0], stem, {})
-    monkeypatch.setattr(play_audit, "RENDER_SEMANTICS_REV", 10)
+    monkeypatch.setattr(play_audit, "RENDER_SEMANTICS_REV", previous_revision)
     play_audit.write_stem_hash(project, "host")
     assert play_audit.stem_is_fresh(project, "host")
     monkeypatch.setattr(play_audit, "RENDER_SEMANTICS_REV", RENDER_SEMANTICS_REV)

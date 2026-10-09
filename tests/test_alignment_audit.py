@@ -16,7 +16,8 @@ from podcast_mcp.engines.alignment_audit import (
     sweep_session_starts,
     vad_speech_intervals,
 )
-from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
+from podcast_mcp.engines.audio import At, MixAudio, SourceAudio
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
 
 
 def _tone_with_speech_burst(
@@ -202,9 +203,7 @@ def test_render_comparison_waveforms_pads_late_track(tmp_path: Path) -> None:
     assert eng.extract_segment.call_args.args[0] == ref
     assert eng.extract_segment.call_args.args[2:] == (0.0, 5.0)
     call = eng.render_timeline.call_args
-    assert call.args[0] == late
-    assert call.args[2] == [PlacedSegment(src_start=0.0, src_end=2.0)]
-    assert call.kwargs["lead_in_sec"] == 3.0
+    assert call.args[1] == MixAudio(At(3.0, SourceAudio(late, 0.0, 2.0)), ())
 
 
 def test_render_comparison_waveforms_window_before_track_start(tmp_path: Path) -> None:
@@ -216,7 +215,9 @@ def test_render_comparison_waveforms_window_before_track_start(tmp_path: Path) -
         window_duration_sec=5.0,
         engine=eng,
     )
-    assert eng.render_timeline.call_args.kwargs["lead_in_sec"] == pytest.approx(4.99)
+    assert eng.render_timeline.call_args.args[1] == MixAudio(
+        At(4.99, SourceAudio(tmp_path / "late.wav", 0.0, pytest.approx(0.01))), ()
+    )
     eng.extract_segment.assert_not_called()
 
 

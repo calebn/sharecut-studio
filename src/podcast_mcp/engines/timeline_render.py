@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from podcast_mcp.edits.clips_ops import (
@@ -14,7 +15,18 @@ from podcast_mcp.edits.mute_regions import (
     mute_spans_for_source_window,
     room_tone_fills_for_source_window,
 )
-from podcast_mcp.engines.ffmpeg import FFmpegEngine, PlacedSegment
+from podcast_mcp.engines.audio import (
+    At,
+    Audio,
+    CrossfadeAudio,
+    MixAudio,
+    SequenceAudio,
+    SilenceAudio,
+    SourceAudio,
+    duration,
+)
+from podcast_mcp.engines.ffmpeg import FFmpegEngine
+from podcast_mcp.engines.media_seek import MediaSeek
 from podcast_mcp.engines.session_timeline import clip_timeline_overlap_to_source
 from podcast_mcp.models import Clip, ClipJoinMode, EditDecision, EpisodeProject, Track
 from podcast_mcp.util.coded_error import CodedValueError
@@ -35,7 +47,8 @@ from podcast_mcp.util.workspace_paths import resolve_under_workspace
 # 8: every segment window uses the same placement assembly, including one-source windows.
 # 9: reset the sample clock after overlap mixing before concatenating later segments.
 # 12: every input seeks through MediaSeek, so .m4a windows start on their sample (#1141).
-RENDER_SEMANTICS_REV = 13
+# 14: saved-neighbor crossfades extend connected components before independent mixing.
+RENDER_SEMANTICS_REV = 14
 
 
 def resolve_clip_audio_path(
@@ -68,15 +81,15 @@ def _source_audio_path(
 
 def _room_tone_under_mutes(
     project: EpisodeProject, track: Track, clip: Clip, src_start: float, src_end: float
-) -> list[PlacedSegment]:
+) -> list[At]:
     """Room-tone tiles for ``clip``'s filled mutes in the segment ``[src_start, src_end)``.
 
-    Placed right after that segment, each tile overlaps back into it and is mixed over
+    Each tile is placed inside its owner piece and mixed over
     the hole: the fill fades in while the clip fades out at the region's start and
     fades out while the clip fades back in at its end.
     """
     seg_dur = src_end - src_start
-    tiles: list[PlacedSegment] = []
+    tiles: list[At] = []
     for env, fill in room_tone_fills_for_source_window(clip, src_start, src_end):
         path = _source_audio_path(project, track, fill.source_id, owner=f"clip {clip.id} fill")
         piece = fill.end_s - fill.start_s
@@ -84,13 +97,15 @@ def _room_tone_under_mutes(
         while t < end - 1e-6:
             use = min(piece, end - t)
             tiles.append(
-                PlacedSegment(
-                    src_start=fill.start_s,
-                    src_end=fill.start_s + use,
-                    fade_in_sec=env.fade_out_sec if t == env.start else 0.0,
-                    fade_out_sec=env.fade_in_sec if t + use >= env.end - 1e-6 else 0.0,
-                    overlap_prev_sec=seg_dur - t,
-                    source_path=path,
+                At(
+                    t,
+                    SourceAudio(
+                        path=path,
+                        src_start=fill.start_s,
+                        src_end=fill.start_s + use,
+                        fade_in_sec=env.fade_out_sec if t == env.start else 0.0,
+                        fade_out_sec=env.fade_in_sec if t + use >= env.end - 1e-6 else 0.0,
+                    ),
                 )
             )
             t += use
@@ -199,12 +214,10 @@ def render_track_from_timeline(
 
     timeline_edits = [e for e in project.edit_decisions if e.track_id == track.id]
 
-    paths = [resolve_clip_audio_path(project, track, c) for c in track_clips]
     return _render_placed_track(
         project,
         track,
         track_clips,
-        paths,
         output_path,
         eng=eng,
         af=af,
@@ -213,153 +226,158 @@ def render_track_from_timeline(
     )
 
 
+@dataclass(frozen=True)
+class _ClipContent:
+    timeline_start: float
+    timeline_end: float
+    head: Audio
+    tail: tuple[Audio, ...]
+
+    @property
+    def body(self) -> Audio:
+        return SequenceAudio(self.head, self.tail) if self.tail else self.head
+
+
+@dataclass(frozen=True)
+class _PreparedClip:
+    clip: Clip
+    content: _ClipContent | None
+
+
+def _place_clips(prepared: list[_PreparedClip], *, window_length: float | None = None) -> Audio:
+    components: list[At] = []
+    previous_component: int | None = None
+    authored_frontier = 0.0
+    clock_shift = 0.0
+    for index, item in enumerate(prepared):
+        content = item.content
+        if content is None:
+            previous_component = None
+            continue
+        prev = prepared[index - 1].clip if index else None
+        crossfade = crossfade_ms_at_join(prev, item.clip) / 1000.0 if prev else 0.0
+        if crossfade > 0 and previous_component is not None:
+            left = components[previous_component]
+            overlap = max(0.001, min(crossfade, duration(content.head) * 0.5))
+            components[previous_component] = At(
+                left.start_sec, CrossfadeAudio(left.audio, content.body, overlap)
+            )
+        else:
+            start = max(0.0, content.timeline_start - clock_shift)
+            if components:
+                frontier = max(at.start_sec + duration(at.audio) for at in components)
+                if abs(start - frontier) <= JOIN_GAP_TOLERANCE_SEC:
+                    start = frontier
+            elif start <= JOIN_GAP_TOLERANCE_SEC:
+                start = 0.0
+            components.append(At(start, content.body))
+            previous_component = len(components) - 1
+        authored_frontier = max(authored_frontier, content.timeline_end)
+        frontier = max(at.start_sec + duration(at.audio) for at in components)
+        clock_shift = authored_frontier - frontier
+    if not components:
+        raise ValueError("no clips to render")
+    if window_length is not None:
+        components.append(At(0.0, SilenceAudio(window_length - clock_shift)))
+    return MixAudio(components[0], tuple(components[1:]))
+
+
 def _render_placed_track(
     project: EpisodeProject,
     track: Track,
     sorted_clips: list[Clip],
-    paths: list[Path],
     output_path: Path,
     *,
     eng: FFmpegEngine,
     af: str,
-    timeline_edits: list,
+    timeline_edits: list[EditDecision],
     crossfade_curve: str = "tri",
     window: tuple[float, float] | None = None,
-    context_clips: list[Clip] | None = None,
-    clip_indices: list[int] | None = None,
 ) -> Path:
-    placed: list[PlacedSegment] = []
+    prepared: list[_PreparedClip] = []
     ignored_lookup = IgnoredWordRegions(project)
-    lane_clips = context_clips if context_clips is not None else sorted_clips
-    lane_indices = clip_indices if clip_indices is not None else list(range(len(sorted_clips)))
-    if len(lane_indices) != len(sorted_clips):
-        raise ValueError("clip_indices must align with sorted_clips")
-    running_end: float | None = None
-    authored_frontier = 0.0
-    clock_shift = 0.0
-    clock_origin = window[0] if window is not None else 0.0
-    fills = gate_fill_paths(project, track, paths)
-
-    for clip_i, (clip, src) in enumerate(zip(sorted_clips, paths, strict=True)):
-        timeline_start = clip.timeline_start
-        timeline_end = clip.timeline_end
-        source_start = clip.source_start
-        source_end = clip.source_end
-        if window is not None:
-            timeline_start = max(window[0], clip.timeline_start)
-            timeline_end = min(window[1], clip.timeline_end)
-            if timeline_end <= timeline_start:
-                continue
-            source_bounds = clip_timeline_overlap_to_source(clip, timeline_start, timeline_end)
-            if source_bounds is None:
-                continue
-            source_start, source_end = source_bounds
-
-        ignored = ignored_lookup.for_clip(clip)
+    clock_origin = window[0] if window else 0.0
+    for index, clip in enumerate(sorted_clips):
+        timeline_start = max(window[0], clip.timeline_start) if window else clip.timeline_start
+        timeline_end = min(window[1], clip.timeline_end) if window else clip.timeline_end
+        source_bounds = (
+            clip_timeline_overlap_to_source(clip, timeline_start, timeline_end)
+            if window
+            else (clip.source_start, clip.source_end)
+        )
+        if source_bounds is None:
+            prepared.append(_PreparedClip(clip, None))
+            continue
+        source_start, source_end = source_bounds
         mapped = edits_for_clip_source(timeline_edits, track.id, clip)
-        segments = eng.segments_after_edits(
-            clip.source_end - clip.source_start,
-            mapped,
-            track.id,
-        )
-        lane_i = lane_indices[clip_i]
-        prev = lane_clips[lane_i - 1] if lane_i > 0 else None
-        nxt = lane_clips[lane_i + 1] if lane_i + 1 < len(lane_clips) else None
-        crossfade_prev = crossfade_ms_at_join(prev, clip) / 1000.0 if prev is not None else 0.0
-        effective_start = timeline_start - clock_origin - clock_shift
-        gap_before = 0.0
-        overlap_prev = 0.0
-        if running_end is None:
-            gap_before = max(0.0, effective_start)
-        elif crossfade_prev <= 0:
-            delta = effective_start - running_end
-            if delta > JOIN_GAP_TOLERANCE_SEC:
-                gap_before = delta
-            elif delta < -JOIN_GAP_TOLERANCE_SEC:
-                overlap_prev = -delta
-
-        at_clip_start = timeline_start <= clip.timeline_start + 1e-4
-        at_clip_end = timeline_end >= clip.timeline_end - 1e-4
-        contributing: list[tuple[float, float]] = []
-        for seg in segments:
-            src_start = max(seg.start + clip.source_start, source_start)
-            src_end = min(seg.end + clip.source_start, source_end)
-            if src_end > src_start:
-                contributing.append((src_start, src_end))
-
-        for si, (src_start, src_end) in enumerate(contributing):
-            first = si == 0
-            last = si == len(contributing) - 1
-            placed.append(
-                PlacedSegment(
-                    src_start=src_start,
-                    src_end=src_end,
-                    fade_in_sec=(
-                        _segment_fade_in(prev, clip, first=True) if first and at_clip_start else 0.0
-                    ),
-                    fade_out_sec=(
-                        _segment_fade_out(clip, nxt, last=True) if last and at_clip_end else 0.0
-                    ),
-                    gap_before_sec=gap_before if first else 0.0,
-                    crossfade_prev_sec=crossfade_prev if first else 0.0,
-                    overlap_prev_sec=overlap_prev if first else 0.0,
-                    mute_spans=mute_spans_for_source_window(
-                        clip, src_start, src_end, extra=ignored
-                    ),
-                    source_path=src,
-                    fill_path=fills[clip_i],
-                )
+        segments = eng.segments_after_edits(clip.source_end - clip.source_start, mapped, track.id)
+        contributing = [
+            (
+                max(seg.start + clip.source_start, source_start),
+                min(seg.end + clip.source_start, source_end),
             )
-            placed.extend(_room_tone_under_mutes(project, track, clip, src_start, src_end))
-            duration = src_end - src_start
-            if running_end is None:
-                running_end = gap_before + duration
-            elif first and crossfade_prev > 0:
-                actual_crossfade = max(0.001, min(crossfade_prev, duration * 0.5))
-                running_end += duration - actual_crossfade
-            elif first and overlap_prev > 0:
-                delay = max(0.0, running_end - min(overlap_prev, running_end))
-                running_end = max(running_end, delay + duration)
-            elif first and gap_before > 0:
-                running_end += gap_before + duration
-            else:
-                running_end += duration
-            gap_before = 0.0
-
-        if contributing and running_end is not None:
-            authored_frontier = max(authored_frontier, timeline_end - clock_origin)
-            clock_shift = authored_frontier - running_end
-
-    if not placed:
-        raise ValueError(f"no clips to render for track {track.id}")
-
-    lead_in = placed[0].gap_before_sec
-    if window is None:
-        lead_in = (
-            sorted_clips[0].timeline_start
-            if sorted_clips[0].timeline_start > JOIN_GAP_TOLERANCE_SEC
-            else 0.0
+            for seg in segments
+            if min(seg.end + clip.source_start, source_end)
+            > max(seg.start + clip.source_start, source_start)
+        ]
+        if not contributing:
+            prepared.append(_PreparedClip(clip, None))
+            continue
+        src = resolve_clip_audio_path(project, track, clip)
+        fill = gate_fill_paths(project, track, [src])[0]
+        ignored = ignored_lookup.for_clip(clip)
+        prev = sorted_clips[index - 1] if index else None
+        nxt = sorted_clips[index + 1] if index + 1 < len(sorted_clips) else None
+        pieces: list[Audio] = []
+        for si, (src_start, src_end) in enumerate(contributing):
+            if window is not None and si == len(contributing) - 1 and timeline_end == window[1]:
+                # The old window trim bounded fractional terminal samples to this extent.
+                rate = eng.probe(src).sample_rate
+                seek = MediaSeek.at(min(start for start, _end in contributing))
+                first_sample = seek.first_sample(src_start, rate)
+                selected_samples = int((src_end - src_start) * rate + 1e-6)
+                src_end = min(src_end, (first_sample + selected_samples) / rate)
+            leaf = SourceAudio(
+                path=src,
+                src_start=src_start,
+                src_end=src_end,
+                fade_in_sec=(
+                    _segment_fade_in(prev, clip, first=True)
+                    if si == 0 and timeline_start <= clip.timeline_start + 1e-4
+                    else 0.0
+                ),
+                fade_out_sec=(
+                    _segment_fade_out(clip, nxt, last=True)
+                    if si == len(contributing) - 1 and timeline_end >= clip.timeline_end - 1e-4
+                    else 0.0
+                ),
+                mute_spans=mute_spans_for_source_window(clip, src_start, src_end, extra=ignored),
+                fill_path=fill,
+            )
+            tiles = _room_tone_under_mutes(project, track, clip, src_start, src_end)
+            pieces.append(MixAudio(At(0.0, leaf), tuple(tiles)) if tiles else leaf)
+        prepared.append(
+            _PreparedClip(
+                clip,
+                _ClipContent(
+                    timeline_start - clock_origin,
+                    timeline_end - clock_origin,
+                    pieces[0],
+                    tuple(pieces[1:]),
+                ),
+            )
         )
-    eng.render_timeline(
-        paths[0],
-        output_path,
-        placed,
-        af,
-        crossfade_curve=crossfade_curve,
-        lead_in_sec=lead_in,
-        output_duration_sec=(window[1] - window[0] - clock_shift) if window is not None else None,
-    )
-
+    audio = _place_clips(prepared, window_length=window[1] - window[0] if window else None)
+    eng.render_timeline(output_path, audio, af, crossfade_curve=crossfade_curve)
     if track.transcript_gate and window is None:
         from podcast_mcp.engines.transcript_gated_play import apply_track_transcript_gate
 
-        dur = timeline_duration_sec(project)
         apply_track_transcript_gate(
             project,
             track.id,
             output_path,
-            timeline_start=0.0 if window is None else window[0],
-            timeline_end=dur if window is None else window[1],
+            timeline_start=0.0,
+            timeline_end=timeline_duration_sec(project),
         )
     return output_path
 
@@ -467,32 +485,23 @@ def render_track_segment(
     af = eng.build_track_filter(chain, env, timeline_origin_sec=timeline_start)
     timeline_edits = [e for e in project.edit_decisions if e.track_id == track.id]
 
-    overlapping: list[tuple[int, Clip, float, float]] = []
-    for clip_i, clip in enumerate(track_clips):
-        ov_tl_start = max(timeline_start, clip.timeline_start)
-        ov_tl_end = min(timeline_end, clip.timeline_end)
-        if ov_tl_end > ov_tl_start:
-            overlapping.append((clip_i, clip, ov_tl_start, ov_tl_end))
-
-    if not overlapping:
+    if not any(
+        clip.timeline_end > timeline_start and clip.timeline_start < timeline_end
+        for clip in track_clips
+    ):
         return eng.silence(output_path, timeline_end - timeline_start)
 
-    overlapping_clips = [clip for _, clip, _, _ in overlapping]
-    source_paths = [resolve_clip_audio_path(project, track, clip) for clip in overlapping_clips]
     tmp = output_path.with_suffix(".render_tmp.wav") if track.gain_db else output_path
     _render_placed_track(
         project,
         track,
-        overlapping_clips,
-        source_paths,
+        track_clips,
         tmp,
         eng=eng,
         af=af,
         timeline_edits=timeline_edits,
         crossfade_curve=crossfade_curve,
         window=(timeline_start, timeline_end),
-        context_clips=track_clips,
-        clip_indices=[clip_i for clip_i, _, _, _ in overlapping],
     )
     if track.gain_db:
         eng.apply_gain(tmp, output_path, track.gain_db)
