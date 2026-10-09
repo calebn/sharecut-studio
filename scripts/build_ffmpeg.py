@@ -41,7 +41,18 @@ def safe_extract(archive: Path, destination: Path) -> None:
             path = (root / member.name).resolve()
             if not path.is_relative_to(root) or not (member.isfile() or member.isdir()):
                 raise ValueError(f"unsafe source archive member {member.name!r}")
-        handle.extractall(root, members=members, filter="data")
+        for member in members:
+            path = root / member.name
+            if member.isdir():
+                path.mkdir(parents=True, exist_ok=True)
+            else:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                source = handle.extractfile(member)
+                if source is None:
+                    raise ValueError(f"unreadable source archive member {member.name!r}")
+                with source, path.open("wb") as output:
+                    shutil.copyfileobj(source, output, length=1024 * 1024)
+                path.chmod(member.mode & 0o755)
 
 
 def _run(

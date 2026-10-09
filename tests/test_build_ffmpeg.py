@@ -101,3 +101,42 @@ def test_macos_recipe_matches_advertised_app_minimum():
     recipe = json.loads((root / "contracts/ffmpeg-build.json").read_text())
     app = json.loads((root / "gui/desktop/src-tauri/tauri.conf.json").read_text())
     assert recipe["macos_deployment_target"] == app["bundle"]["macOS"]["minimumSystemVersion"]
+
+
+def test_safe_extract_supports_original_python_311_api(tmp_path, monkeypatch):
+    builder = load_script("build_ffmpeg")
+    archive = tmp_path / "source.tar"
+    with tarfile.open(archive, "w") as handle:
+        entry = tarfile.TarInfo("source/configure")
+        entry.mode = 0o4755
+        entry.size = 4
+        handle.addfile(entry, io.BytesIO(b"test"))
+    original = tarfile.TarFile.extractall
+
+    def extractall(self, path=".", members=None, *, numeric_owner=False):
+        original(self, path, members, numeric_owner=numeric_owner)
+
+    monkeypatch.setattr(tarfile.TarFile, "extractall", extractall)
+    builder.safe_extract(archive, tmp_path / "unpacked")
+    extracted = tmp_path / "unpacked/source/configure"
+    assert extracted.read_bytes() == b"test"
+    assert extracted.stat().st_mode & 0o7000 == 0
+
+
+@pytest.mark.parametrize("kind", [tarfile.SYMTYPE, tarfile.LNKTYPE, tarfile.CHRTYPE])
+def test_safe_extract_rejects_nonregular_members(tmp_path, kind):
+    builder = load_script("build_ffmpeg")
+    archive = tmp_path / "source.tar"
+    with tarfile.open(archive, "w") as handle:
+        entry = tarfile.TarInfo("source/unsafe")
+        entry.type = kind
+        entry.linkname = "../../outside"
+        handle.addfile(entry)
+    with pytest.raises(ValueError, match="unsafe"):
+        builder.safe_extract(archive, tmp_path / "unpacked")
+    assert not (tmp_path / "unpacked/source/unsafe").exists()
+
+
+def test_static_recipe_requests_private_pkg_config_dependencies():
+    builder = load_script("build_ffmpeg")
+    assert "--pkg-config-flags=--static" in builder.ffmpeg_policy()["ffmpeg_configure"]
