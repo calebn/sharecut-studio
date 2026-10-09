@@ -244,3 +244,8 @@ def test_cli_fails_when_pytest_reports_deselected_cases(runner, tmp_path, monkey
     report = json.loads((tmp_path / "ffmpeg-baseline.json").read_text())
     assert report["deselected"] == 7
     assert report["ok"] is False
+
+
+def test_acceptance_includes_lossy_multichannel_bleed_behavior():
+    verifier = load_script("verify_ffmpeg_baseline")
+    assert "tests/test_bleed_gate_channels.py" in verifier.ACCEPTANCE_TESTS

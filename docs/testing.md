@@ -188,7 +188,9 @@ The `pytest` and browser matrix jobs build the pinned native FFmpeg source
 recipe through `.github/actions/setup-ffmpeg`. Source archives are the only
 FFmpeg cache entries. The builder verifies expected SHA256 before safe extraction
 on every use, checks system-only linkage, and executes codec, resampling,
-loudness and PNG probes before exporting the absolute pair paths. A damaged
+loudness and PNG probes before exporting the absolute pair paths. Codec probes
+include actual libopus encode/decode. The acceptance verifier also runs
+multichannel bleed behavior across PCM and lossy AAC/Opus. A damaged
 archive fails closed. No downloaded binary cache is trusted through its manifest.
 Native desktop jobs execute the same recipe on Ubuntu 22.04 x64, Intel macOS,
 and Windows x64 with MinGW/MSYS2. A separate Ubuntu 24 job executes the Linux
@@ -225,13 +227,12 @@ test, skipped or deselected test, empty/missing/malformed JUnit evidence, or
 guarded release mismatch fails the run. Omit
 `--expected-version` to record another installed pair without a release guard.
 Pass `--ffmpeg` and `--ffprobe` only when you need explicit command overrides.
-The selected native macOS Homebrew pair is the full media acceptance lane.
-Cross-platform behavioral resolver tests mock OS selection and executable
-lookup policy while keeping the test host's real path semantics. Focused
-resolver and readiness tests also run on real Windows in the desktop workflow;
-that job does not claim Windows media acceptance. Ubuntu uses authenticated
-distro packages in full CI. The Windows media lane pins 9.0.2 for a narrower
-suite. The release and security policy is in
+Required Python and browser jobs use the shared pinned source pair. Native
+payload jobs build and execute it on Ubuntu 22.04 x64, Intel macOS and Windows
+x64; Ubuntu 24.04 executes the Linux artifact. Cross-platform resolver tests
+control executable version evidence while keeping native path semantics.
+Resolver tests alone do not establish media capability or installer acceptance.
+The release and security policy is in
 [setup.md](setup.md#ffmpeg-version-and-pair-policy).
 
 ## Fast inner loop
