@@ -117,8 +117,7 @@ export async function runEditingTask(
   };
   const committedIdentities: Record<string, string> = {};
   let mainOrigin: EvidenceOrigin = { owner: "main", phase: "setup" };
-  let cancelOrigin: EvidenceOrigin = mainOrigin;
-  let origin: EvidenceOrigin = mainOrigin;
+  let cancelOrigin: Extract<EvidenceOrigin, { owner: "cancel" }>;
   const pageOrigins = new Map<Page, () => EvidenceOrigin>([
     [page, () => mainOrigin],
   ]);
@@ -130,6 +129,14 @@ export async function runEditingTask(
         error: prefix + String(error),
         errorName: nativeErrorName(error),
       });
+  };
+  const currentOrigin = (active: Page): EvidenceOrigin => {
+    const getOrigin = pageOrigins.get(active);
+    if (getOrigin) return { ...getOrigin() };
+    const error = new Error("Editing evidence page has no registered origin");
+    fail(error, { owner: "global", blocks: "all-proofs" });
+    handledFailures.add(error);
+    throw error;
   };
   let sequence = 0;
   const retain = () => {
@@ -149,7 +156,7 @@ export async function runEditingTask(
     }
   };
   const captureUi = async (active: Page, stage: string, screenshot = true) => {
-    const capturedOrigin = { ...pageOrigins.get(active)!() };
+    const capturedOrigin = currentOrigin(active);
     const geometry = await active
       .locator(
         '[data-clip-id], [role="slider"], input[type="range"], .comment-card, svg circle',
@@ -416,13 +423,14 @@ export async function runEditingTask(
     return { flush: () => drain(false), finish: () => drain(true) };
   };
   const act = async (
+    active: Page,
     verb: string,
     label: string,
     action: () => Promise<unknown>,
   ) => {
     const event: JournalEvent = {
       seq: ++sequence,
-      ...origin,
+      ...currentOrigin(active),
       kind: "activation",
       verb,
       label,
@@ -441,20 +449,19 @@ export async function runEditingTask(
       retain();
     }
   };
-  const click = (control: Locator, label: string) =>
-    act("click", label, () => control.click());
+  const click = (active: Page, control: Locator, label: string) =>
+    act(active, "click", label, () => control.click());
   const key = (active: Page, value: string) =>
-    act("key", value, () => active.keyboard.press(value));
-  const focus = (control: Locator, label: string) =>
-    act("focus", label, () => control.focus());
+    act(active, "key", value, () => active.keyboard.press(value));
+  const focus = (active: Page, control: Locator, label: string) =>
+    act(active, "focus", label, () => control.focus());
   const prepare = async (
     active: Page,
     projectPath: string,
     setupOrigin: EvidenceOrigin,
   ) => {
-    origin = setupOrigin;
-    if (origin.owner === "main") mainOrigin = origin;
-    else cancelOrigin = origin;
+    if (setupOrigin.owner === "main") mainOrigin = setupOrigin;
+    else cancelOrigin = setupOrigin;
     await active.setViewportSize(task.viewport);
     await active.emulateMedia({
       reducedMotion: "reduce",
@@ -467,17 +474,21 @@ export async function runEditingTask(
     await active.evaluate(() => {
       document.documentElement.dataset.theme = "light";
     });
-    await navigateEditingTimeline(active, click);
+    await navigateEditingTimeline(active, (control, label) =>
+      click(active, control, label),
+    );
     await captureUi(active, "timeline-ready");
-    await act("click", "prepare timeline focus", () =>
+    await act(active, "click", "prepare timeline focus", () =>
       active.locator(".timeline-scroll").click({ position: { x: 2, y: 2 } }),
     );
-    await act("key", "prepare fixed zoom one step", () =>
+    await act(active, "key", "prepare fixed zoom one step", () =>
       active.keyboard.press("="),
     );
   };
-  const inputRecorder = {
-    act,
+  const inputRecorderFor = (
+    active: Page,
+  ): Parameters<typeof performEditingInput>[1] => ({
+    act: (verb, label, action) => act(active, verb, label, action),
     captureUi,
     waitForActionResponses: async (count: number) => {
       await expect
@@ -489,7 +500,7 @@ export async function runEditingTask(
         )
         .toBe(count);
     },
-  };
+  });
   let fixture: ReturnType<typeof createEditingFixture>;
   try {
     fixture = createEditingFixture(task, output);
@@ -538,38 +549,44 @@ export async function runEditingTask(
         phase: "setup",
         probe: chosen.cancellation[0].id,
       };
-      origin = cancelOrigin;
       let activeCancelFixture:
         | ReturnType<typeof createEditingFixture>
         | undefined;
       let cancellationOutcome: "completed" | "failed" | undefined;
       const retainCancellationFailure = (error: unknown) => {
-        const failedOrigin = cancelOrigin;
+        const failedOrigin = { ...cancelOrigin };
         fail(error, failedOrigin, "cancel: ");
-        let state: EditingTrial["cancellations"][number]["state"] = null;
-        if (activeCancelFixture) {
-          try {
-            state = readEditingState(activeCancelFixture.projectPath);
-          } catch (stateError) {
-            fail(stateError, failedOrigin, "cancel recovery state: ");
-          }
+        let result = trial.cancellations.find(
+          (row) => row.probe === failedOrigin.probe,
+        );
+        if (!result) {
+          result = {
+            probe: failedOrigin.probe,
+            outcome: "failed",
+            state: null,
+          };
+          trial.cancellations.push(result);
+        }
+        retain();
+        if (result.outcome === "completed" || !activeCancelFixture) return;
+        try {
+          result.state = readEditingState(activeCancelFixture.projectPath);
+        } catch (stateError) {
+          fail(stateError, failedOrigin, "cancel recovery state: ");
+        }
+        retain();
+        try {
           fs.copyFileSync(
             activeCancelFixture.projectPath,
             path.join(output, "failed-cancel-project.json"),
           );
+        } catch (copyError) {
+          fail(copyError, failedOrigin, "cancel recovery copy: ");
         }
-        if (
-          failedOrigin.owner === "cancel" &&
-          !trial.cancellations.some((row) => row.probe === failedOrigin.probe)
-        )
-          trial.cancellations.push({
-            probe: failedOrigin.probe,
-            outcome: "failed",
-            state,
-          });
         retain();
       };
       try {
+        activeCancelFixture = undefined;
         const canceledFixture = createEditingFixture(task, output);
         activeCancelFixture = canceledFixture;
         await withBrowserPages(
@@ -591,7 +608,6 @@ export async function runEditingTask(
               for (const [index, recipe] of chosen.cancellation.entries()) {
                 const probe = recipe.id;
                 cancelOrigin = { owner: "cancel", phase: "setup", probe };
-                origin = cancelOrigin;
                 activeCancelFixture = undefined;
                 const clone =
                   index === 0
@@ -604,7 +620,6 @@ export async function runEditingTask(
                 );
                 await prepare(cancelPage, clone.projectPath, cancelOrigin);
                 cancelOrigin = { owner: "cancel", phase: "cancel", probe };
-                origin = cancelOrigin;
                 await captureUi(cancelPage, `cancel-${probe}-initiation`);
                 await performEditingInput(
                   {
@@ -614,7 +629,7 @@ export async function runEditingTask(
                     route: chosen,
                     intent: { kind: "cancel", probe: recipe },
                   },
-                  inputRecorder,
+                  inputRecorderFor(cancelPage),
                 );
                 await cancelObservation.flush();
                 await captureUi(cancelPage, `cancel-${probe}-recovery`);
@@ -623,25 +638,23 @@ export async function runEditingTask(
                   outcome: "completed",
                   state: readEditingState(clone.projectPath),
                 });
+                retain();
                 fs.copyFileSync(
                   clone.projectPath,
                   path.join(output, `canceled-${probe}-project.json`),
                 );
-                retain();
               }
               cancellationOutcome = "completed";
             } catch (error) {
               cancellationOutcome = "failed";
-              try {
-                retainCancellationFailure(error);
-                if (cancelObservation)
+              retainCancellationFailure(error);
+              if (cancelObservation) {
+                try {
                   await captureUi(cancelPage, "failed-cancel-recovery");
-              } catch (recoveryError) {
-                fail(
-                  recoveryError,
-                  { owner: "global", blocks: "all-proofs" },
-                  "cancel recovery retention: ",
-                );
+                } catch (uiError) {
+                  fail(uiError, { ...cancelOrigin }, "cancel recovery UI: ");
+                }
+                retain();
               }
               throw error;
             } finally {
@@ -667,7 +680,6 @@ export async function runEditingTask(
         }
       }
     }
-    origin = mainOrigin;
     await prepare(page, fixture.projectPath, mainOrigin);
     try {
       verifyEditingBackend(output, process.env.DAW_E2E_PORT, {
@@ -688,7 +700,6 @@ export async function runEditingTask(
     trial.before = readEditingState(fixture.projectPath);
     retain();
     mainOrigin = { owner: "main", phase: "action" };
-    origin = mainOrigin;
     await captureUi(page, "initiation");
     const measureAction = () =>
       profiler.measure(
@@ -706,7 +717,7 @@ export async function runEditingTask(
               route: chosen,
               intent: { kind: "action" },
             },
-            inputRecorder,
+            inputRecorderFor(page),
           );
           await captureUi(page, "input-complete");
           await expect
@@ -765,9 +776,9 @@ export async function runEditingTask(
     trial.artifacts!.push("saved.png");
     await captureUi(page, "saved");
     mainOrigin = { owner: "main", phase: "undo" };
-    origin = mainOrigin;
     if (chosen.undo === "comment-toast")
       await click(
+        page,
         page
           .locator(".comments-panel .ui-toast")
           .getByRole("button", { name: "Undo", exact: true }),
@@ -776,12 +787,14 @@ export async function runEditingTask(
     if (chosen.undo === "history") {
       if (task.viewport.width < 720)
         await click(
+          page,
           page
             .getByRole("dialog", { name: "Mix", exact: true })
             .getByRole("button", { name: "Close", exact: true }),
           "Close Mix",
         );
       await focus(
+        page,
         page.getByRole("button", { name: "Menu", exact: true }),
         "non-typing Menu",
       );
@@ -816,7 +829,7 @@ export async function runEditingTask(
       await captureUi(page, "undo-recovery");
     }
   } catch (error) {
-    const failedOrigin = origin;
+    const failedOrigin = { ...mainOrigin };
     fail(error, failedOrigin);
     await page
       .screenshot({ path: path.join(output, "failed.png"), fullPage: true })

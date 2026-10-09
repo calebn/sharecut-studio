@@ -8,6 +8,7 @@ import { editingTaskRegistry } from "../e2e/editingTaskCases";
 import { verifyEditingDistribution } from "../e2e/editingTaskEvidence";
 import {
   assessEditingTrial,
+  type EditingSummaryAttempt,
   type EditingTrial,
   summarizeEditingAttempts,
 } from "../e2e/editingTaskReport";
@@ -268,7 +269,10 @@ if (values["production-dist"]) {
     buildEnvironment: receipt.buildEnvironment,
   };
 } else {
-  const buildEnv = { ...process.env, NODE_ENV: "production" };
+  const buildEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    NODE_ENV: "production",
+  };
   delete buildEnv.VITE_SHARECUT_E2E;
   const command = ["npm", "run", "build"];
   const built = spawnSync(command[0], command.slice(1), {
@@ -393,155 +397,343 @@ const protocol = {
 const protocolJson = JSON.stringify(protocol, null, 2);
 fs.writeFileSync(path.join(output, "protocol.json"), protocolJson);
 fs.writeFileSync(path.join(output, "protocol.sha256"), hash(protocolJson));
-const attempts: {
-  task: string;
-  route: string;
-  trial: number;
-  code: number;
-  result: ReturnType<typeof assessEditingTrial> | null;
-  error: string | null;
-  loadBefore: number[];
-  loadAfter: number[];
-  durationMs?: number;
-}[] = [];
-for (const scheduled of schedule) {
-  const attempt = path.join(
-    output,
-    `${scheduled.task}-${scheduled.route}-${scheduled.trial}`,
+type Scheduled = (typeof schedule)[number];
+type RunnerOutcome =
+  | { kind: "returned"; code: number }
+  | { kind: "rejected"; error: string };
+type SemanticReceipt =
+  | {
+      kind: "assessed";
+      result: ReturnType<typeof assessEditingTrial>;
+      observedDurationMs: number | null;
+    }
+  | { kind: "unavailable"; error: string };
+type ProfileAdmission =
+  | { kind: "admitted" }
+  | { kind: "excluded"; reason: string };
+type Admission =
+  | { kind: "admitted"; durationMs: number }
+  | { kind: "rejected"; reasons: string[] };
+type FinalAttempt = Scheduled &
+  (
+    | { kind: "not-run"; reason: string }
+    | {
+        kind: "invoked";
+        runner: RunnerOutcome;
+        semantic: SemanticReceipt;
+        profile: ProfileAdmission;
+        admission: Admission;
+        loadBefore: number[];
+        loadAfter: number[];
+      }
   );
-  fs.mkdirSync(attempt);
-  fs.writeFileSync(
-    path.join(attempt, "status.json"),
-    JSON.stringify({ status: "not-run", ...scheduled }),
-  );
-  Object.assign(process.env, {
-    EDITING_REPLAY_MEDIA: replayReceipt,
-    EDITING_TASK: scheduled.task,
-    PLAYWRIGHT_JSON_OUTPUT_FILE: path.join(attempt, "playwright-report.json"),
-    EDITING_ROUTE: scheduled.route,
-    EDITING_TASK_OUT: attempt,
-    EDITING_MODE: mode,
-    EDITING_PROTOCOL_HASH: hash(protocolJson),
-    DAW_PROFILE_OUT: path.join(attempt, "profiler"),
-    PODCAST_GUI_DIST: dist,
-    PODCAST_SHARE_REGISTRY: path.join(attempt, "share-registry.sqlite"),
-    DAW_PROFILE_TRACE: values.diagnostic ? "1" : "",
-  });
-  delete process.env.DAW_E2E_PROJECT;
-  const loadBefore = os.loadavg();
-  const code = await runE2e(
-    [
-      "editing-tasks.spec.ts",
-      "--retries=0",
-      "--trace=off",
-      "--reporter=list,json",
-      `--output=${path.join(attempt, "playwright")}`,
-    ],
-    undefined,
-    undefined,
-    () => acquireE2ePortLease({ ...process.env, DAW_E2E_PORT: undefined }),
-  );
-  let result: ReturnType<typeof assessEditingTrial> | null = null;
-  let error: string | null = null;
-  let durationMs: number | undefined;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function parseProfileAdmission(raw: unknown): ProfileAdmission {
+  if (
+    !isRecord(raw) ||
+    raw.schemaVersion !== 1 ||
+    (raw.measurementVersion !== "editor-response-v1" &&
+      raw.measurementVersion !== "editor-workloads-v2")
+  )
+    return {
+      kind: "excluded",
+      reason: "Unrecognized profiler schema or measurement version",
+    };
+  if (raw.status !== "complete")
+    return { kind: "excluded", reason: "Profiler report is not complete" };
+  if (
+    !Array.isArray(raw.errors) ||
+    !raw.errors.every((error) => typeof error === "string") ||
+    raw.errors.length !== 0
+  )
+    return {
+      kind: "excluded",
+      reason: "Profiler errors must be an empty string array",
+    };
+  const build = isRecord(raw.environment) ? raw.environment.build : undefined;
+  if (
+    !isRecord(build) ||
+    build.status !== "measured" ||
+    !isRecord(build.value) ||
+    !Array.isArray(build.value.assets) ||
+    build.value.assets.length === 0
+  )
+    return {
+      kind: "excluded",
+      reason: "Served production assets not observed",
+    };
+  const paths = new Set<string>();
+  for (const asset of build.value.assets) {
+    if (
+      !isRecord(asset) ||
+      typeof asset.path !== "string" ||
+      !asset.path.startsWith("/") ||
+      typeof asset.sha256 !== "string" ||
+      !/^[a-f0-9]{64}$/.test(asset.sha256) ||
+      paths.has(asset.path)
+    )
+      return { kind: "excluded", reason: "Malformed served asset inventory" };
+    paths.add(asset.path);
+    if (
+      !Object.hasOwn(assets, asset.path) ||
+      assets[asset.path] !== asset.sha256
+    )
+      return {
+        kind: "excluded",
+        reason: `Served asset differs from admitted build ${asset.path}`,
+      };
+  }
+  return { kind: "admitted" };
+}
+function assessRetainedTrial(
+  scheduled: Scheduled,
+  attempt: string,
+): SemanticReceipt {
   try {
     const trial = JSON.parse(
       fs.readFileSync(path.join(attempt, "trial.json"), "utf8"),
     ) as EditingTrial;
-    durationMs = trial.durationMs;
-    result = assessEditingTrial(
-      tasks.find((task) => task.id === scheduled.task)!,
-      trial,
-    );
-    const profile = JSON.parse(
-      fs.readFileSync(path.join(attempt, "profiler", "report.json"), "utf8"),
-    ) as {
-      environment: {
-        build: {
-          status: string;
-          value?: { assets: { path: string; sha256: string }[] };
-        };
-      };
-    };
-    const observed = profile.environment.build;
-    if (observed.status !== "measured" || !observed.value?.assets.length)
-      throw new Error("Served production assets not observed");
-    for (const asset of observed.value.assets)
-      if (assets[asset.path] !== asset.sha256)
-        throw new Error(
-          `Served asset differs from admitted build ${asset.path}`,
-        );
-  } catch (failure) {
-    error = String(failure);
-  }
-  attempts.push({
-    ...scheduled,
-    code,
-    result,
-    error,
-    loadBefore,
-    loadAfter: os.loadavg(),
-    durationMs,
-  });
-  fs.writeFileSync(
-    path.join(output, "attempts.json"),
-    JSON.stringify(attempts, null, 2),
-  );
-}
-const routes = summarizeEditingAttempts(
-  editingTaskRegistry,
-  attempts.map((attempt) => ({
-    task: attempt.task,
-    route: attempt.route,
-    valid:
-      attempt.code === 0 && attempt.result?.status === "pass" && !attempt.error,
-    mode,
-    durationMs: attempt.durationMs,
-  })),
-);
-const summary = {
-  retainedPriorFailures: protocol.retainedPriorFailures,
-  selected: {
-    tasks: tasks.map((task) => task.id),
-    routes: [...new Set(schedule.map((row) => `${row.task}/${row.route}`))],
-  },
-  fullSupportedCoverage: {
-    complete: routes
-      .filter((row) => row.status !== "pending")
-      .every(
-        (row) => row.status === "pass" && row.valid === Number(values.trials),
+    if (trial.task !== scheduled.task || trial.route !== scheduled.route)
+      throw new Error("Retained trial identity differs from scheduled slot");
+    return {
+      kind: "assessed",
+      result: assessEditingTrial(
+        tasks.find((task) => task.id === scheduled.task)!,
+        trial,
       ),
-    total: routes.filter((row) => row.status !== "pending").length,
-    attempted: routes.filter(
-      (row) => row.status !== "pending" && row.attempted > 0,
-    ).length,
-    passed: routes.filter((row) => row.status === "pass").length,
-  },
-  selectedProofComplete:
-    attempts.length > 0 &&
-    attempts.every(
-      (attempt) =>
-        attempt.code === 0 &&
-        attempt.result?.status === "pass" &&
-        !attempt.error,
+      observedDurationMs:
+        typeof trial.durationMs === "number" ? trial.durationMs : null,
+    };
+  } catch (error) {
+    return { kind: "unavailable", error: String(error) };
+  }
+}
+function admitRetainedProfile(attempt: string): ProfileAdmission {
+  try {
+    const raw: unknown = JSON.parse(
+      fs.readFileSync(path.join(attempt, "profiler", "report.json"), "utf8"),
+    );
+    return parseProfileAdmission(raw);
+  } catch (error) {
+    return { kind: "excluded", reason: String(error) };
+  }
+}
+function qualify(
+  runner: RunnerOutcome,
+  semantic: SemanticReceipt,
+  profile: ProfileAdmission,
+): Admission {
+  const reasons: string[] = [];
+  if (runner.kind === "rejected")
+    reasons.push(`Runner rejected: ${runner.error}`);
+  else if (runner.code !== 0)
+    reasons.push(`Runner returned exit code ${runner.code}`);
+  if (semantic.kind === "unavailable")
+    reasons.push(`Semantic receipt unavailable: ${semantic.error}`);
+  else if (semantic.result.status !== "pass")
+    reasons.push(...semantic.result.reasons);
+  if (profile.kind === "excluded")
+    reasons.push(`Profile excluded: ${profile.reason}`);
+  const durationMs =
+    semantic.kind === "assessed" ? semantic.observedDurationMs : null;
+  if (durationMs === null || !Number.isFinite(durationMs) || durationMs < 0)
+    reasons.push("Elapsed duration is missing, non-finite or negative");
+  return reasons.length === 0 && durationMs !== null
+    ? { kind: "admitted", durationMs }
+    : { kind: "rejected", reasons };
+}
+function summaryRow(attempt: FinalAttempt): EditingSummaryAttempt {
+  const { task, route, trial } = attempt;
+  if (attempt.kind === "not-run")
+    return { task, route, trial, kind: "not-run", reason: attempt.reason };
+  return attempt.admission.kind === "admitted"
+    ? {
+        task,
+        route,
+        trial,
+        kind: "admitted",
+        mode,
+        durationMs: attempt.admission.durationMs,
+      }
+    : { task, route, trial, kind: "rejected", mode };
+}
+const attempts: FinalAttempt[] = schedule.map((scheduled) => ({
+  ...scheduled,
+  kind: "not-run",
+  reason: "Scheduled attempt has not been invoked",
+}));
+const reportingErrors: string[] = [];
+let stopReason: string | null = null;
+let lifetimeError: string | null = null;
+const attemptDirectory = (scheduled: Scheduled) =>
+  path.join(output, `${scheduled.task}-${scheduled.route}-${scheduled.trial}`);
+function retainReport(file: string, value: unknown): boolean {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(value, null, 2));
+    return true;
+  } catch (error) {
+    const reason = `Report retention failed ${file}: ${String(error)}`;
+    reportingErrors.push(reason);
+    stopReason ??= reason;
+    return false;
+  }
+}
+function retainStatus(attempt: FinalAttempt): void {
+  retainReport(path.join(attemptDirectory(attempt), "status.json"), {
+    ...attempt,
+    status:
+      attempt.kind === "not-run"
+        ? "not-run"
+        : attempt.admission.kind === "admitted"
+          ? "pass"
+          : "fail",
+  });
+}
+try {
+  for (const attempt of attempts) retainStatus(attempt);
+  retainReport(path.join(output, "attempts.json"), attempts);
+  for (const [index, scheduled] of schedule.entries()) {
+    if (stopReason) break;
+    const attempt = attemptDirectory(scheduled);
+    if (
+      !retainReport(path.join(attempt, "status.json"), {
+        ...scheduled,
+        status: "running",
+      })
+    )
+      break;
+    Object.assign(process.env, {
+      EDITING_REPLAY_MEDIA: replayReceipt,
+      EDITING_TASK: scheduled.task,
+      PLAYWRIGHT_JSON_OUTPUT_FILE: path.join(attempt, "playwright-report.json"),
+      EDITING_ROUTE: scheduled.route,
+      EDITING_TASK_OUT: attempt,
+      EDITING_MODE: mode,
+      EDITING_PROTOCOL_HASH: hash(protocolJson),
+      DAW_PROFILE_OUT: path.join(attempt, "profiler"),
+      PODCAST_GUI_DIST: dist,
+      PODCAST_SHARE_REGISTRY: path.join(attempt, "share-registry.sqlite"),
+      DAW_PROFILE_TRACE: values.diagnostic ? "1" : "",
+    });
+    delete process.env.DAW_E2E_PROJECT;
+    const loadBefore = os.loadavg();
+    let runner: RunnerOutcome;
+    try {
+      const code = await runE2e(
+        [
+          "editing-tasks.spec.ts",
+          "--retries=0",
+          "--trace=off",
+          "--reporter=list,json",
+          `--output=${path.join(attempt, "playwright")}`,
+        ],
+        undefined,
+        undefined,
+        () => acquireE2ePortLease({ ...process.env, DAW_E2E_PORT: undefined }),
+      );
+      runner = { kind: "returned", code };
+    } catch (error) {
+      runner = { kind: "rejected", error: String(error) };
+    }
+    const semantic = assessRetainedTrial(scheduled, attempt);
+    const profile = admitRetainedProfile(attempt);
+    const row: FinalAttempt = {
+      ...scheduled,
+      kind: "invoked",
+      runner,
+      semantic,
+      profile,
+      admission: qualify(runner, semantic, profile),
+      loadBefore,
+      loadAfter: os.loadavg(),
+    };
+    attempts[index] = row;
+    if (runner.kind === "rejected")
+      stopReason = `Stopped after runner rejection for ${scheduled.task}/${scheduled.route}/${scheduled.trial}: ${runner.error}`;
+    retainStatus(row);
+    retainReport(path.join(output, "attempts.json"), attempts);
+  }
+} catch (error) {
+  lifetimeError = String(error);
+  stopReason ??= `Stopped after CLI lifetime failure: ${lifetimeError}`;
+} finally {
+  for (const [index, attempt] of attempts.entries()) {
+    if (attempt.kind === "not-run" && stopReason)
+      attempts[index] = { ...attempt, reason: stopReason };
+  }
+  for (const attempt of attempts) retainStatus(attempt);
+  retainReport(path.join(output, "attempts.json"), attempts);
+  const routes = summarizeEditingAttempts(
+    editingTaskRegistry,
+    attempts.map(summaryRow),
+  );
+  const selectedProofComplete =
+    reportingErrors.length === 0 &&
+    lifetimeError === null &&
+    schedule.length > 0 &&
+    attempts.length === schedule.length &&
+    attempts.every((attempt, index) => {
+      const scheduled = schedule[index];
+      return (
+        attempt.task === scheduled.task &&
+        attempt.route === scheduled.route &&
+        attempt.trial === scheduled.trial &&
+        attempt.kind === "invoked" &&
+        attempt.admission.kind === "admitted"
+      );
+    });
+  const summary = {
+    retainedPriorFailures: protocol.retainedPriorFailures,
+    selected: {
+      tasks: tasks.map((task) => task.id),
+      routes: [...new Set(schedule.map((row) => `${row.task}/${row.route}`))],
+    },
+    fullSupportedCoverage: {
+      complete:
+        reportingErrors.length === 0 &&
+        lifetimeError === null &&
+        routes
+          .filter((row) => row.status !== "pending")
+          .every(
+            (row) =>
+              row.status === "pass" && row.valid === Number(values.trials),
+          ),
+      total: routes.filter((row) => row.status !== "pending").length,
+      attempted: routes.filter(
+        (row) => row.status !== "pending" && row.attempted > 0,
+      ).length,
+      passed: routes.filter((row) => row.status === "pass").length,
+    },
+    selectedProofComplete,
+    reporting: {
+      status: reportingErrors.length ? "failed" : "complete",
+      errors: reportingErrors,
+    },
+    lifetimeError,
+    timing: {
+      status: "inconclusive",
+      reason:
+        mode !== "baseline"
+          ? "Validity and diagnostic trials excluded from statistics"
+          : "Limiter and concurrent noise not independently established",
+    },
+    attempts,
+    routes,
+    pending: tasks.flatMap((task) =>
+      task.routes
+        .filter((route) => "pending" in route)
+        .map((route) => ({ task: task.id, ...route })),
     ),
-  timing: {
-    status: "inconclusive",
-    reason:
-      mode !== "baseline"
-        ? "Validity and diagnostic trials excluded from statistics"
-        : "Limiter and concurrent noise not independently established",
-  },
-  attempts,
-  routes,
-  pending: tasks.flatMap((task) =>
-    task.routes
-      .filter((route) => "pending" in route)
-      .map((route) => ({ task: task.id, ...route })),
-  ),
-};
-fs.writeFileSync(
-  path.join(output, "summary.json"),
-  JSON.stringify(summary, null, 2),
-);
-process.exitCode = summary.selectedProofComplete ? 0 : 1;
+  };
+  const retainedSummary = retainReport(
+    path.join(output, "summary.json"),
+    summary,
+  );
+  process.exitCode =
+    retainedSummary && selectedProofComplete && reportingErrors.length === 0
+      ? 0
+      : 1;
+}

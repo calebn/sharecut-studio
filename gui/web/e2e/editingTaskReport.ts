@@ -911,15 +911,19 @@ export function assessEditingTrial(
   };
 }
 
+export type EditingSummaryAttempt = {
+  task: string;
+  route: string;
+  trial: number;
+} & (
+  | { kind: "not-run"; reason: string }
+  | { kind: "rejected"; mode: EditingTrial["mode"] }
+  | { kind: "admitted"; mode: EditingTrial["mode"]; durationMs: number }
+);
+
 export function summarizeEditingAttempts(
   definitions: TaskDefinition[],
-  attempts: {
-    task: string;
-    route: string;
-    valid: boolean;
-    mode: EditingTrial["mode"];
-    durationMs?: number;
-  }[],
+  attempts: readonly EditingSummaryAttempt[],
 ) {
   return definitions.flatMap((task) =>
     task.routes.map((route) => {
@@ -932,26 +936,24 @@ export function summarizeEditingAttempts(
           attempted: 0,
           valid: 0,
           failed: 0,
+          notRun: 0,
           baselineValid: 0,
           duration: null,
         };
       const rows = attempts.filter(
         (attempt) => attempt.task === task.id && attempt.route === route.id,
       );
-      const validElapsed = (row: (typeof rows)[number]) =>
-        row.valid &&
-        typeof row.durationMs === "number" &&
-        Number.isFinite(row.durationMs) &&
-        row.durationMs >= 0;
-      const times = rows
-        .filter(
-          (row) =>
-            validElapsed(row) &&
-            row.mode === "baseline" &&
-            row.durationMs !== undefined &&
-            Number.isFinite(row.durationMs),
-        )
-        .map((row) => row.durationMs!)
+      const admitted = rows.filter(
+        (row): row is Extract<EditingSummaryAttempt, { kind: "admitted" }> =>
+          row.kind === "admitted",
+      );
+      const notRun = rows.filter(
+        (row): row is Extract<EditingSummaryAttempt, { kind: "not-run" }> =>
+          row.kind === "not-run",
+      );
+      const times = admitted
+        .filter((row) => row.mode === "baseline")
+        .map((row) => row.durationMs)
         .sort((a, b) => a - b);
       const middle = Math.floor(times.length / 2);
       const duration =
@@ -965,24 +967,27 @@ export function summarizeEditingAttempts(
               maxMs: times[times.length - 1],
             }
           : null;
+      const attempted = rows.length - notRun.length;
       return {
         task: task.id,
         route: route.id,
         status:
-          rows.length === 0
+          attempted === 0
             ? "not-run"
-            : rows.every(validElapsed)
+            : admitted.length === rows.length
               ? "pass"
               : "fail",
-        reason:
-          rows.length === 0
-            ? "No attempt retained"
+        reason: notRun.length
+          ? notRun[0].reason
+          : rows.length === 0
+            ? "No scheduled attempt"
             : times.length < 5
               ? "Fewer than five valid baseline trials"
               : "Timing inconclusive until limiter and noise evidence are admitted",
-        attempted: rows.length,
-        valid: rows.filter(validElapsed).length,
-        failed: rows.filter((row) => !validElapsed(row)).length,
+        attempted,
+        valid: admitted.length,
+        failed: rows.filter((row) => row.kind === "rejected").length,
+        notRun: notRun.length,
         baselineValid: times.length,
         duration,
       };

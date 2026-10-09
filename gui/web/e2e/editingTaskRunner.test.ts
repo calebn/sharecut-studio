@@ -19,6 +19,7 @@ const simulation = vi.hoisted(() => ({
     | { projectPath: string; workspaceDir: string }
     | Error
   )[],
+  captureWrongPage: false,
   states: new Map<string, DurableState>(),
   state: undefined as DurableState | undefined,
   history: undefined as HistoryIdentity | undefined,
@@ -53,6 +54,7 @@ vi.mock("./editingTaskInputs", () => ({
       intent: { kind: "action" | "cancel"; probe?: { id: string } };
     },
     recorder: {
+      captureUi(active: Page, stage: string): Promise<void>;
       act(
         verb: string,
         label: string,
@@ -60,6 +62,8 @@ vi.mock("./editingTaskInputs", () => ({
       ): Promise<void>;
     },
   ) => {
+    if (simulation.captureWrongPage)
+      await recorder.captureUi({} as Page, "literal unregistered-page");
     if (context.intent.kind === "cancel")
       return recorder.act(
         "key",
@@ -109,6 +113,7 @@ vi.mock("./editorProfile", () => ({
 }));
 const roots: string[] = [];
 afterEach(() => {
+  simulation.captureWrongPage = false;
   simulation.readState = undefined;
   simulation.persistState = undefined;
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true });
@@ -746,3 +751,231 @@ it.each([false, true])(
   },
   10000,
 );
+
+function cancellationFixture() {
+  const { active, task, root } = runner(null);
+  const route = task.routes[0];
+  if ("pending" in route)
+    throw new Error("Literal runner route must be supported");
+  route.cancellation = [{ id: "retention", input: { kind: "route-cancel" } }];
+  const clone = {
+    projectPath: path.join(root, "retention-clone.project.json"),
+    workspaceDir: root,
+  };
+  fs.writeFileSync(clone.projectPath, '{"clone":"literal-retention-clone"}\n');
+  simulation.states.set(clone.projectPath, task.start);
+  simulation.fixtureSequence = [simulation.fixture, clone];
+  const cancelPage = new EventEmitter();
+  const context = {
+    newPage: async () => cancelPage,
+    newCDPSession: async () => ({}),
+    close: async () => {},
+  };
+  Object.assign(cancelPage, {
+    context: () => context,
+    setViewportSize: active.setViewportSize,
+    emulateMedia: active.emulateMedia,
+    goto: active.goto,
+    evaluate: active.evaluate,
+    waitForLoadState: active.waitForLoadState,
+    locator: active.locator,
+    getByRole: active.getByRole,
+    screenshot: active.screenshot,
+    keyboard: active.keyboard,
+  });
+  Object.assign(active, {
+    context: () => ({ browser: () => ({ newContext: async () => context }) }),
+  });
+  const output = path.join(root, "out");
+  const run = () =>
+    runEditingTask(
+      active as unknown as Page,
+      {} as CDPSession,
+      {
+        outputPath: () => path.join(root, "profile.json"),
+      } as unknown as TestInfo,
+      task,
+      "literal-runner",
+      output,
+      "validity-only",
+    );
+  return { active, task, clone, cancelPage, output, run };
+}
+it("retains the completed named result before a later clone artifact copy fails", async () => {
+  const { task, output, run } = cancellationFixture();
+  const copy = fs.copyFileSync;
+  const copying = vi
+    .spyOn(fs, "copyFileSync")
+    .mockImplementation((source, target, flags) => {
+      if (
+        String(target) === path.join(output, "canceled-retention-project.json")
+      ) {
+        expect(
+          JSON.parse(fs.readFileSync(path.join(output, "trial.json"), "utf8"))
+            .cancellations,
+        ).toEqual([
+          { probe: "retention", outcome: "completed", state: task.start },
+        ]);
+        throw new Error("literal completed clone artifact unavailable");
+      }
+      return copy(source, target, flags);
+    });
+  let produced: Awaited<ReturnType<typeof runEditingTask>>;
+  try {
+    produced = await run();
+  } finally {
+    copying.mockRestore();
+  }
+  expect(produced.cancellations).toEqual([
+    { probe: "retention", outcome: "completed", state: task.start },
+  ]);
+  expect(produced.failures).toEqual([
+    {
+      origin: { owner: "cancel", phase: "cancel", probe: "retention" },
+      error: "cancel: Error: literal completed clone artifact unavailable",
+      errorName: "Error",
+    },
+  ]);
+  expect(assessEditingTrial(task, produced)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    observations: { save: "pass", cancel: "fail", undo: "pass" },
+  });
+  expect(
+    produced.journal.filter(
+      (row) => row.kind === "activation" && row.phase === "cancel",
+    ),
+  ).toEqual([
+    expect.objectContaining({
+      owner: "cancel",
+      probe: "retention",
+      outcome: "completed",
+    }),
+  ]);
+  expect(
+    produced.journal.filter(
+      (row) => row.kind === "activation" && row.phase === "action",
+    ),
+  ).toEqual([expect.objectContaining({ owner: "main", outcome: "completed" })]);
+});
+it("keeps optional failed-clone UI errors under the named probe", async () => {
+  const { task, cancelPage, run } = cancellationFixture();
+  Object.assign(cancelPage, {
+    setViewportSize: async () => {
+      throw new Error("literal clone preparation unavailable");
+    },
+    locator: () => ({
+      evaluateAll: async () => {
+        throw new Error("literal failed clone UI unavailable");
+      },
+    }),
+  });
+  const produced = await run();
+  expect(produced.cancellations).toEqual([
+    { probe: "retention", outcome: "failed", state: task.start },
+  ]);
+  expect(produced.failures).toEqual([
+    {
+      origin: { owner: "cancel", phase: "setup", probe: "retention" },
+      error: "cancel: Error: literal clone preparation unavailable",
+      errorName: "Error",
+    },
+    {
+      origin: { owner: "cancel", phase: "setup", probe: "retention" },
+      error: "cancel recovery UI: Error: literal failed clone UI unavailable",
+      errorName: "Error",
+    },
+  ]);
+  expect(assessEditingTrial(task, produced)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    observations: { save: "pass", cancel: "fail", undo: "pass" },
+  });
+});
+it("keeps a failed shared trial write global during named cancellation retention", async () => {
+  const { task, cancelPage, output, run } = cancellationFixture();
+  Object.assign(cancelPage, {
+    setViewportSize: async () => {
+      throw new Error("literal clone preparation unavailable");
+    },
+  });
+  let failedWrite = false;
+  const write = fs.writeFileSync;
+  const writing = vi
+    .spyOn(fs, "writeFileSync")
+    .mockImplementation((target, data, options) => {
+      if (
+        !failedWrite &&
+        String(target) === path.join(output, "trial.json") &&
+        typeof data === "string" &&
+        data.includes('"outcome": "failed"')
+      ) {
+        failedWrite = true;
+        throw new Error("literal shared trial retention unavailable");
+      }
+      return write(target, data, options);
+    });
+  let produced: Awaited<ReturnType<typeof runEditingTask>>;
+  try {
+    produced = await run();
+  } finally {
+    writing.mockRestore();
+  }
+  expect(failedWrite).toBe(true);
+  expect(produced.cancellations).toEqual([
+    { probe: "retention", outcome: "failed", state: null },
+  ]);
+  expect(produced.failures).toEqual([
+    {
+      origin: { owner: "cancel", phase: "setup", probe: "retention" },
+      error: "cancel: Error: literal clone preparation unavailable",
+      errorName: "Error",
+    },
+    {
+      origin: { owner: "global", blocks: "all-proofs" },
+      error:
+        "trial retention: Error: literal shared trial retention unavailable",
+      errorName: "Error",
+    },
+  ]);
+  expect(produced.after).toEqual(task.expected);
+  expect(produced.undone).toEqual(task.start);
+  expect(assessEditingTrial(task, produced)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    observations: { save: "fail", cancel: "fail", undo: "fail" },
+  });
+  expect(
+    JSON.parse(fs.readFileSync(path.join(output, "trial.json"), "utf8")),
+  ).toMatchObject({
+    failures: produced.failures,
+    cancellations: produced.cancellations,
+  });
+});
+it("records an unregistered input UI page as a shared attribution failure", async () => {
+  const { active, task, root } = runner(null);
+  simulation.captureWrongPage = true;
+  const produced = await runEditingTask(
+    active as unknown as Page,
+    {} as CDPSession,
+    {
+      outputPath: () => path.join(root, "profile.json"),
+    } as unknown as TestInfo,
+    task,
+    "literal-runner",
+    path.join(root, "out"),
+    "validity-only",
+  );
+  expect(produced.failures).toEqual([
+    {
+      origin: { owner: "global", blocks: "all-proofs" },
+      error: "Error: Editing evidence page has no registered origin",
+      errorName: "Error",
+    },
+  ]);
+  expect(assessEditingTrial(task, produced)).toMatchObject({
+    status: "fail",
+    completedWork: 0,
+    observations: { save: "fail", cancel: "not-applicable", undo: "fail" },
+  });
+});
