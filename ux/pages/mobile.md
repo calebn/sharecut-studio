@@ -137,5 +137,7 @@ More → Mix shows all tracks without opening each inspector. M and Volume save
 for hosts and editors; S affects your listening only. Other guests can use local
 M and S, while Volume shows its permission reason. Shared playback uses Full
 mix, so these local controls may not be audible in that preview. Close and
-Escape return to More. Switching modes or inspecting something else closes Mix.
+Escape return focus to the Mix control in More. Dismissing the sheet from its
+scrim does the same. Close starts with focus when Mix opens. Switching modes or
+inspecting something else closes Mix; returning to More does not reopen it.
 The timeline gutter keeps its identity-only layout. Swipe-to-mix is deferred.
