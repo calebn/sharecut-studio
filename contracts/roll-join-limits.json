@@ -1,5 +1,4 @@
 {
-  "$comment": "Signed legal roll intervals and clamped deltas. Python roll_join_limits and the client rollJoinInterval consume these literal expectations. Clip rows are [id, timeline_start, source_start, source_end, source_id]. Null source IDs play primary track media. Both outer neighbors compare to RIGHT recording; positive room uses LEFT recording duration. Unknown duration gives zero positive room. Gaps up to 0.05 seconds and overlaps count as abutting. error cases are ineligible pairs.",
   "tracks": [
     {
       "id": "host",
