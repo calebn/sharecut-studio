@@ -170,6 +170,7 @@ describe("ClipBlock waveform", () => {
           "c1",
           inMs,
           outMs,
+          { fade_in_ms: 100, fade_out_ms: 200 },
         );
       },
     );
@@ -228,6 +229,7 @@ describe("ClipBlock waveform", () => {
         "c1",
         23,
         40,
+        { fade_in_ms: 20, fade_out_ms: 40 },
       );
     });
 
@@ -269,6 +271,7 @@ describe("ClipBlock waveform", () => {
           "c1",
           11,
           0,
+          { fade_in_ms: 10, fade_out_ms: 0 },
         ),
       );
 
@@ -334,6 +337,7 @@ describe("ClipBlock waveform", () => {
           "c1",
           2000,
           0,
+          { fade_in_ms: 1998, fade_out_ms: 0 },
         ),
       );
 
@@ -432,6 +436,7 @@ describe("ClipBlock waveform", () => {
           "c1",
           1,
           0,
+          { fade_in_ms: 0, fade_out_ms: 0 },
         ),
       );
     });
@@ -485,6 +490,7 @@ describe("ClipBlock waveform", () => {
           "c1",
           21,
           0,
+          { fade_in_ms: 20, fade_out_ms: 0 },
         ),
       );
       expect(useDawStore.getState().playheadSec).toBe(0);
@@ -597,7 +603,10 @@ describe("ClipBlock waveform", () => {
       ).toBe("41 ms");
       fireEvent.keyUp(handle, { key: "ArrowRight" });
       await waitFor(() => expect(setClipFade).toHaveBeenCalledTimes(2));
-      expect(setClipFade).toHaveBeenLastCalledWith(secondPath, "c1", 41, 0);
+      expect(setClipFade).toHaveBeenLastCalledWith(secondPath, "c1", 41, 0, {
+        fade_in_ms: 40,
+        fade_out_ms: 0,
+      });
     });
 
     it("says Trim saved for a trim the host applies, and nothing when it asks first", async () => {
@@ -626,6 +635,63 @@ describe("ClipBlock waveform", () => {
         expect(container.querySelector(".trim-readout")).toBeNull(),
       );
       expect(useDawStore.getState().statusAnnouncement).toBe("");
+    });
+
+    it("keeps the captured pair through a delayed refusal and retries from restored fades", async () => {
+      let refuse!: (error: Error) => void;
+      vi.mocked(setClipFade).mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            refuse = reject;
+          }),
+      );
+      const old = { ...clip, fade_in_ms: 1 };
+      const view = renderWithKeymap(old);
+      const handle = view.container.querySelector(
+        "button.fade-corner.out",
+      ) as HTMLElement;
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowLeft" });
+      fireEvent.keyUp(handle, { key: "ArrowLeft" });
+      await waitFor(() =>
+        expect(setClipFade).toHaveBeenCalledWith(
+          "/tmp/clip-handle.project.json",
+          "c1",
+          1,
+          1,
+          { fade_in_ms: 1, fade_out_ms: 0 },
+        ),
+      );
+      act(() => useDawStore.setState({ project: projectWithClip(clip) }));
+      view.rerender(
+        <>
+          <KeymapHarness />
+          <ClipBlock {...base} clip={clip} />
+        </>,
+      );
+      await act(async () =>
+        refuse(
+          new Error(
+            "This clip changed. Nothing was saved. Adjust the fade again.",
+          ),
+        ),
+      );
+      expect(useDawStore.getState().statusAnnouncement).toContain(
+        "Adjust the fade again.",
+      );
+      expect(view.container.querySelector(".fade-readout")).toBeNull();
+      handle.focus();
+      fireEvent.keyDown(handle, { key: "ArrowLeft" });
+      fireEvent.keyUp(handle, { key: "ArrowLeft" });
+      await waitFor(() =>
+        expect(setClipFade).toHaveBeenLastCalledWith(
+          "/tmp/clip-handle.project.json",
+          "c1",
+          0,
+          1,
+          { fade_in_ms: 0, fade_out_ms: 0 },
+        ),
+      );
     });
 
     it("announces a failed keyboard write and clears its preview", async () => {
@@ -834,6 +900,7 @@ describe("ClipBlock waveform", () => {
           "c1",
           40,
           0,
+          { fade_in_ms: 0, fade_out_ms: 0 },
         ),
       );
       expect(container.querySelector(".fade-readout")).toBeNull();
@@ -849,6 +916,7 @@ describe("ClipBlock waveform", () => {
           "c1",
           2000,
           0,
+          { fade_in_ms: 0, fade_out_ms: 0 },
         ),
       );
     });
@@ -876,7 +944,13 @@ describe("ClipBlock waveform", () => {
       );
       fireEvent.pointerUp(handle, { clientX: 0, pointerId: 3 });
       await waitFor(() =>
-        expect(setClipFade).toHaveBeenCalledWith(expect.anything(), "c1", 0, 0),
+        expect(setClipFade).toHaveBeenCalledWith(
+          expect.anything(),
+          "c1",
+          0,
+          0,
+          { fade_in_ms: 40, fade_out_ms: 0 },
+        ),
       );
       expect(container.querySelector(".fade-readout")).toBeNull();
     });
@@ -895,6 +969,7 @@ describe("ClipBlock waveform", () => {
           "c1",
           500,
           1500,
+          { fade_in_ms: 0, fade_out_ms: 1500 },
         ),
       );
     });
@@ -944,6 +1019,7 @@ describe("ClipBlock waveform", () => {
           "c1",
           0,
           40,
+          { fade_in_ms: 0, fade_out_ms: 0 },
         ),
       );
     });

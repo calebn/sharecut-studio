@@ -152,6 +152,11 @@ Not the Share dialog. Guest share agents use `{base}/mcp/{token}/mcp`.
 | **Empty** | “Select a clip, edit, or word” |
 | **Out of scope** | Deep nested wizards; one panel per MCP tool name |
 
+A fade gesture based on values changed by Undo or another editor saves nothing.
+The current project shows "This clip changed. Nothing was saved. Adjust the fade
+again." Repeat the gesture against the restored values. The inspector shows the
+error inline; timeline handles and phone nudges show the same recovery in a toast.
+
 ---
 
 ## Phone — Listen

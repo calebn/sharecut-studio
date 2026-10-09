@@ -617,8 +617,8 @@ test.describe("root32 phone many points and request recovery", () => {
           await exposeControl(page, select, receipts);
           await expect(select.locator("option")).toHaveCount(4);
           await pointerControl(page, select, receipts);
-          await page.keyboard.press("End");
-          await page.keyboard.press("Enter");
+          // End/Enter did not commit this native popup on macOS Chromium.
+          await select.selectOption("responsive-last");
           await expect(select).toHaveValue("responsive-last");
           await exposeControl(
             page,

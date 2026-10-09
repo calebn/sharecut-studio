@@ -54,6 +54,114 @@ describe("host document command queue", () => {
     vi.unstubAllGlobals();
   });
 
+  it("copies the captured fade baseline before a durable wait and replays it unchanged", async () => {
+    enqueueHostCommand.mockResolvedValue({
+      persisted: true,
+      hadPredecessor: true,
+    });
+    const fetchSpy = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(
+          JSON.stringify({
+            detail:
+              "This clip changed. Nothing was saved. Adjust the fade again.",
+          }),
+          {
+            status: 409,
+            headers: { "X-Sharecut-Error-Code": "clip_fade_changed" },
+          },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const { setClipFade, submitDocumentCommand } = await import("./api");
+    const expected = { fade_in_ms: 1, fade_out_ms: 0 };
+    await setClipFade("/tmp/episode.project.json", "c1", 1, 1, expected);
+    expected.fade_in_ms = 0;
+    const command = enqueueHostCommand.mock.calls[0][1] as {
+      command_id: string;
+      client_id: string;
+      client_seq: number;
+      payload: Record<string, unknown>;
+    };
+    expect(command.payload).toEqual({
+      clip_id: "c1",
+      fade_in_ms: 1,
+      fade_out_ms: 1,
+      expected: { fade_in_ms: 1, fade_out_ms: 0 },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    await expect(
+      submitDocumentCommand(
+        "/tmp/episode.project.json",
+        "SetClipFade",
+        command.payload,
+        { ...command, replaying: true },
+      ),
+    ).rejects.toMatchObject({ code: "clip_fade_changed", status: 409 });
+    const body = JSON.parse(fetchSpy.mock.calls[0]?.[1]?.body as string) as {
+      payload: unknown;
+    };
+    expect(body.payload).toEqual({
+      clip_id: "c1",
+      fade_in_ms: 1,
+      fade_out_ms: 1,
+      expected: { fade_in_ms: 1, fade_out_ms: 0 },
+    });
+    expect(addHostConflict).toHaveBeenCalledWith(
+      "/tmp/episode.project.json",
+      expect.objectContaining({
+        reason: "This clip changed. Nothing was saved. Adjust the fade again.",
+        command: expect.objectContaining({ payload: command.payload }),
+      }),
+    );
+    expect(removeHostQueuedCommand).toHaveBeenCalledWith(
+      "/tmp/episode.project.json",
+      command.command_id,
+    );
+  });
+
+  it("retains the captured guest fade pair on refused replay", async () => {
+    const payload = {
+      clip_id: "c1",
+      fade_in_ms: 1,
+      fade_out_ms: 1,
+      expected: { fade_in_ms: 1, fade_out_ms: 0 },
+    };
+    const fetchSpy = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(JSON.stringify({ detail: "Adjust the fade again." }), {
+          status: 409,
+          headers: { "X-Sharecut-Error-Code": "clip_fade_changed" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const { submitDocumentCommand } = await import("./api");
+    await expect(
+      submitDocumentCommand("share:fade", "SetClipFade", payload, {
+        replaying: true,
+        command_id: "saved-fade",
+        client_id: "guest",
+        client_seq: 8,
+      }),
+    ).rejects.toMatchObject({ code: "clip_fade_changed", status: 409 });
+    expect(JSON.parse(fetchSpy.mock.calls[0][1]?.body as string)).toMatchObject(
+      {
+        command_id: "saved-fade",
+        client_id: "guest",
+        client_seq: 8,
+        payload,
+      },
+    );
+    expect(addConflict).toHaveBeenCalledWith(
+      "fade",
+      expect.objectContaining({
+        command: expect.objectContaining({ payload }),
+        reason: "Adjust the fade again.",
+      }),
+    );
+    expect(removeQueuedCommand).toHaveBeenCalledWith("fade", "saved-fade");
+  });
+
   it("accepts queued comment creation and patches without a false failure", async () => {
     enqueueHostCommand.mockResolvedValue({
       persisted: true,
