@@ -322,3 +322,9 @@ Wordbar timing uses the stored `(track_id, source_id, word_index)`, never a disp
 ## Exact selected ranges
 
 Selected range commands carry exact timeline occurrences and destination lanes. Do not convert their intervals through earliest-source mapping. Keep the trusted host application policy at the adapter boundary. Use one workspace mutation for the complete action.
+
+Registry backups use `SqliteShareRegistry.backup_to_new` and the narrow private
+publisher in `util/registry_backup.py`; do not add adapter-level SQLite copying or
+overwrite backups. The destination directory must already meet the platform trust
+policy. Native Windows backup tests run in `registry-backup-windows`; POSIX tests
+cannot validate NTFS security descriptors or native rename behavior.

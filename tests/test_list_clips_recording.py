@@ -1,17 +1,9 @@
-"""``list_clips`` rows say which recording a clip plays and how long it is.
-
-The DAW's trim preview (gui/web/src/edit/trimLimits.ts) mirrors ``trim_edge_limits``,
-which stops an edge at the clip's own recording, so every row carries the two facts
-that function reads: ``source_duration_sec`` and ``recording_key``, an opaque identity
-that two clips share exactly when they play the same file. It names no file, so a share
-guest, who never sees a track's ``media_path``, learns no file name from a clip row.
-"""
-
 from __future__ import annotations
 
 import hashlib
 import hmac
 import json
+import os
 import re
 
 from podcast_mcp.edits.timeline_ops import list_clips
@@ -98,11 +90,25 @@ def test_a_clip_without_a_source_plays_its_track_media() -> None:
 
 
 def test_recording_key_matches_versioned_hmac_vector() -> None:
+    vectors = {
+        "/private/tmp/rows": "7d5ee9b58073dd43",
+        "/tmp/rows": "6d1b77aceba5926a",
+        r"C:\tmp\rows": "61c3a403a5eada27",
+    }
+    for canonical, expected in vectors.items():
+        literal = f"podcast-mcp:recording-key:v1\0{canonical}\0raw/host_t1.wav".encode()
+        assert hmac.new(SECRET, literal, hashlib.sha256).hexdigest()[:16] == expected
     project = _project()
+    if os.name == "nt":
+        project.meta.workspace_dir = r"C:\tmp\rows"
     workspace = str(project.workspace_path().expanduser().resolve())
     message = f"podcast-mcp:recording-key:v1\0{workspace}\0raw/host_t1.wav".encode()
-    assert hmac.new(SECRET, message, hashlib.sha256).hexdigest()[:16] == "7d5ee9b58073dd43"
-    assert _key("own") == "rec_7d5ee9b58073dd43"
+    expected = vectors[workspace]
+    assert hmac.new(SECRET, message, hashlib.sha256).hexdigest()[:16] == expected
+    assert (
+        list_clips(project, secret=SECRET)["tracks"]["host"][0]["recording_key"]
+        == f"rec_{expected}"
+    )
 
 
 def test_a_clip_names_its_source_recording() -> None:

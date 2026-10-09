@@ -519,3 +519,13 @@ Stored duration retains fully removed lane extent, including moved media.
 orchestration for islands and silence; domain code owns geometry and validation.
 Selected segments bake staging gain, so their mix adds fader gain only. Full
 Bounce stems retain the ordinary output-gain path.
+
+### Registry backup boundary
+
+`edits/share_registry.py` owns the online SQLite snapshot and registry transaction
+recovery. Its narrow `util/registry_backup.py` publisher creates a private disk
+snapshot, then streams bytes into a new single-file backup. Platform helpers pin
+and verify POSIX directory descriptors/ACLs or Windows NTFS handles/DACLs. SQLite
+never opens a destination staging pathname. Publication is atomic no-replace on
+the destination filesystem; the helper does not manage other stores or review
+leases. See [backup/restore](share-tokens.md#backup--restore) for operator rules.
