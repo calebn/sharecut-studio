@@ -254,7 +254,7 @@ if (values["production-dist"]) {
   const buildEnv = { ...process.env, NODE_ENV: "production" };
   delete buildEnv.VITE_SHARECUT_E2E;
   const command = ["npm", "run", "build"];
-  const built = spawnSync("npm", command, {
+  const built = spawnSync(command[0], command.slice(1), {
     encoding: "utf8",
     env: buildEnv,
   });
