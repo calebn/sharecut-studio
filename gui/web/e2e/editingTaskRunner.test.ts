@@ -76,7 +76,7 @@ const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true });
 });
-function runner(failedPhase: "action" | "undo") {
+function runner(failedPhase: "action" | "undo" | null) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "editing-runner-"));
   roots.push(root);
   fs.mkdirSync(path.join(root, "raw"));
@@ -159,11 +159,13 @@ function runner(failedPhase: "action" | "undo") {
           headId: "baseline",
           entries: simulation.history!.entries,
         };
-        // Yield through the response adapter so its status precedes the native rejection.
-        await Promise.resolve();
-        await Promise.resolve();
-        status = 503;
-        rejectBody(new Error("literal native body unavailable"));
+        if (failedPhase !== null) {
+          // Yield through the response adapter so its status precedes the native rejection.
+          await Promise.resolve();
+          await Promise.resolve();
+          status = 503;
+          rejectBody(new Error("literal native body unavailable"));
+        }
       },
     },
   });
@@ -243,3 +245,87 @@ it("fails an unavailable Undo command body while preserving completed Save proof
     observations: { save: "pass", cancel: "not-applicable", undo: "fail" },
   });
 }, 10000);
+
+it.each([
+  { failedSetup: "newPage", closeFails: false },
+  { failedSetup: "newCDPSession", closeFails: false },
+  { failedSetup: "newPage", closeFails: true },
+  { failedSetup: "newCDPSession", closeFails: true },
+] as const)(
+  "closes a cancellation context after $failedSetup rejection with closeFails=$closeFails and continues main work",
+  async ({ failedSetup, closeFails }) => {
+    const { active, task, root } = runner(null);
+    const route = task.routes[0];
+    if ("pending" in route)
+      throw new Error("literal runner route must be supported");
+    route.cancellation = [{ id: "cancel", input: { kind: "route-cancel" } }];
+    let closeCount = 0;
+    const cancelPage = new EventEmitter();
+    const context = {
+      newPage: async () => {
+        if (failedSetup === "newPage")
+          throw new Error("literal cancellation page unavailable");
+        return cancelPage;
+      },
+      newCDPSession: async () => {
+        throw new Error("literal cancellation CDP unavailable");
+      },
+      close: async () => {
+        closeCount++;
+        if (closeFails)
+          throw new Error("literal cancellation context close unavailable");
+      },
+    };
+    Object.assign(cancelPage, { context: () => context });
+    Object.assign(active, {
+      context: () => ({ browser: () => ({ newContext: async () => context }) }),
+    });
+    const trial = await runEditingTask(
+      active as unknown as Page,
+      {} as CDPSession,
+      {
+        outputPath: () => path.join(root, "profile.json"),
+      } as unknown as TestInfo,
+      task,
+      "literal-runner",
+      path.join(root, "out"),
+      "validity-only",
+    );
+    expect(closeCount).toBe(1);
+    expect(trial.failures).toHaveLength(closeFails ? 2 : 1);
+    expect(trial.failures).toEqual(
+      expect.arrayContaining([
+        {
+          origin: { owner: "cancel", phase: "setup", probe: "cancel" },
+          error: expect.stringContaining(
+            failedSetup === "newPage"
+              ? "literal cancellation page unavailable"
+              : "literal cancellation CDP unavailable",
+          ),
+          errorName: "Error",
+        },
+        ...(closeFails
+          ? [
+              {
+                origin: { owner: "cancel", phase: "cancel", probe: null },
+                error:
+                  "cancel context close: Error: literal cancellation context close unavailable",
+                errorName: "Error",
+              },
+            ]
+          : []),
+      ]),
+    );
+    expect(trial.cancellations).toEqual([
+      { probe: "cancel", outcome: "failed", state: task.start },
+    ]);
+    expect(trial.after).toEqual(task.expected);
+    expect(trial.undone).toEqual(task.start);
+    expect(assessEditingTrial(task, trial)).toMatchObject({
+      status: "fail",
+      completedWork: 0,
+      observations: { save: "pass", cancel: "fail", undo: "pass" },
+    });
+  },
+  10000,
+);

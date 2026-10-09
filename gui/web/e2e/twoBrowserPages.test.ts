@@ -108,3 +108,32 @@ describe("withBrowserPages", () => {
     expect(pageFailure.contexts[1]!.close).toHaveBeenCalledOnce();
   });
 });
+
+it.each(["page", "callback", "none"] as const)(
+  "retains close failures without allowing notification failure to replace %s primary outcome",
+  async (failure) => {
+    const primary = new Error("literal primary failure");
+    const { browser } = browserHarness({
+      failClose: 0,
+      ...(failure === "page"
+        ? { failPage: { context: 0, error: primary } }
+        : {}),
+    });
+    const observed: string[] = [];
+    const operation = withBrowserPages(
+      browser as never,
+      [{}],
+      async () => {
+        if (failure === "callback") throw primary;
+        return "completed";
+      },
+      (error) => {
+        observed.push(String(error));
+        throw new Error("literal close observer failure");
+      },
+    );
+    if (failure === "none") await expect(operation).rejects.toThrow("close 0");
+    else await expect(operation).rejects.toBe(primary);
+    expect(observed).toEqual(["Error: close 0"]);
+  },
+);

@@ -11,6 +11,7 @@ import {
 import { editingTaskRegistry } from "./editingTaskCases";
 import {
   createEditingFixture,
+  readEditingHistory,
   readEditingState,
   retainEditingMedia,
   verifyEditingDistribution,
@@ -676,3 +677,106 @@ it("constructs owned fixtures with exact source paths and original provenance", 
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+it.each(["0", false, null])(
+  "rejects nonnumeric saved History cursor %s",
+  (cursor) => {
+    const dir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "editing-history-cursor-"),
+    );
+    try {
+      const file = path.join(dir, "episode.project.json");
+      const entries = [
+        { id: "baseline", label: "before trim clip edge", operation: null },
+      ];
+      fs.writeFileSync(
+        file,
+        JSON.stringify({ history: { cursor: 0, entries } }),
+      );
+      expect(readEditingHistory(file)).toEqual({
+        cursor: 0,
+        headId: "baseline",
+        entries,
+      });
+      fs.writeFileSync(file, JSON.stringify({ history: { cursor, entries } }));
+      expect(() => readEditingHistory(file)).toThrow(
+        "Malformed saved history cursor",
+      );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+it.each([
+  "gui/web/public/ignored-input.wav",
+  "gui/web/src/ignored-input.ts",
+  "src/podcast_mcp/__pycache__/server.cpython-313.pyc",
+])(
+  "rejects ignored untracked production input %s through the actual CLI before launch",
+  (inputPath) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "editing-cli-ignored-"));
+    try {
+      const web = path.join(dir, "gui/web");
+      fs.mkdirSync(web, { recursive: true });
+      const raw = path.join(dir, "tests/fixtures/aligned_dialogue/raw");
+      fs.mkdirSync(raw, { recursive: true });
+      for (const id of ["reference", "guest"])
+        fs.writeFileSync(path.join(raw, `${id}.wav`), id);
+      fs.writeFileSync(path.join(dir, ".gitignore"), `${inputPath}\n`);
+      const git = (...args: string[]) =>
+        execFileSync("git", args, { cwd: dir, encoding: "utf8" }).trim();
+      git("init", "-q");
+      git("add", ".");
+      git(
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.invalid",
+        "commit",
+        "-qm",
+        "fixture",
+      );
+      const base = git("rev-parse", "HEAD");
+      const disk = path.join(dir, inputPath);
+      fs.mkdirSync(path.dirname(disk), { recursive: true });
+      fs.writeFileSync(
+        disk,
+        inputPath.endsWith(".wav")
+          ? "RIFFliteral ignored public audio"
+          : "export const ignoredInput = 1;",
+      );
+      expect(git("check-ignore", inputPath)).toBe(inputPath);
+      const result = spawnSync(
+        process.execPath,
+        [
+          path.resolve("node_modules/vite-node/dist/cli.mjs"),
+          path.resolve("scripts/profile-editing-tasks.ts"),
+          "--app-base",
+          base,
+          "--validity-only",
+          "--trials",
+          "1",
+          "--out",
+          path.join(dir, "evidence"),
+        ],
+        { cwd: web, encoding: "utf8" },
+      );
+      expect(result.status).toBe(1);
+      if (inputPath.includes("__pycache__")) {
+        expect(result.stdout + result.stderr).toContain(
+          "e2e/editingTaskReport.ts",
+        );
+        expect(result.stdout + result.stderr).not.toContain(
+          "App source paths absent from app-base",
+        );
+      } else {
+        expect(result.stdout + result.stderr).toContain(
+          `App source paths absent from app-base ${inputPath}`,
+        );
+      }
+      expect(fs.existsSync(path.join(dir, "evidence/source.json"))).toBe(false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
