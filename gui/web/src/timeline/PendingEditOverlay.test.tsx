@@ -1202,3 +1202,106 @@ describe("PendingEditOverlayView", () => {
     await waitFor(() => expect(onReviewAction).toHaveBeenCalledTimes(2));
   });
 });
+
+function mount() {
+  const root = document.createElement("div");
+  root.className = "bottom-sheet-root";
+  const panel = document.createElement("div");
+  panel.className = "bottom-sheet bottom-sheet--compact bottom-sheet--peek";
+  const chrome = document.createElement("div");
+  chrome.className = "bottom-sheet-chrome";
+  panel.append(chrome);
+  root.append(panel);
+  document.body.append(root);
+  useDawStore
+    .getState()
+    .hydrate("/tmp/p.json", minimalProject({ pending_edits: [edit] }));
+  useDawStore.setState({
+    selection: { kind: "pending", id: edit.id, trackId: "host" },
+  });
+  const onReviewAction = vi.fn(async () => {
+    throw new ApiError("refine first", TRANSCRIPT_REFINE_REQUIRED_CODE, 409);
+  });
+  const view = render(
+    <PendingEditOverlayView
+      edits={[edit]}
+      trackId="host"
+      zoomPxPerSec={10}
+      timelineWidthPx={1000}
+      selectedId={edit.id}
+      projectPath="/tmp/p.json"
+      clipsByTrack={{}}
+      canAdjust
+      canApply
+      onSelect={vi.fn()}
+      onCommitSpan={vi.fn()}
+      onReviewAction={onReviewAction}
+    />,
+  );
+  return { root, panel, chrome, view };
+}
+async function undock(panel: HTMLElement) {
+  panel.classList.remove("bottom-sheet--compact");
+  await act(() => window.dispatchEvent(new Event("resize")));
+  await waitFor(() =>
+    expect(document.querySelector(".pending-actionbar--docked")).toBeNull(),
+  );
+}
+it("retains a waiver draft and textarea focus when the portal destination changes", async () => {
+  const { root, panel, chrome, view } = mount();
+  try {
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    const reason = await screen.findByRole("textbox", {
+      name: "Waiver reason",
+    });
+    await userEvent.type(reason, "Reviewed every flagged transcript word");
+    expect(reason).toHaveFocus();
+    await undock(panel);
+    const moved = screen.getByRole("textbox", { name: "Waiver reason" });
+
+    expect(moved).toHaveValue("Reviewed every flagged transcript word");
+    expect(moved).toHaveFocus();
+  } finally {
+    view.unmount();
+    root.remove();
+  }
+});
+it("does not steal focus from body after the user has left a review button", async () => {
+  const { root, panel, chrome, view } = mount();
+  try {
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
+    );
+    const approve = screen.getByRole("button", { name: "Approve" });
+    approve.focus();
+    approve.blur();
+    expect(document.body).toHaveFocus();
+    await undock(panel);
+
+    expect(document.body).toHaveFocus();
+  } finally {
+    view.unmount();
+    root.remove();
+  }
+});
+it("retains focus in an external control during portal destination change", async () => {
+  const { root, panel, chrome, view } = mount();
+  const outside = document.createElement("input");
+  document.body.append(outside);
+  try {
+    await waitFor(() =>
+      expect(chrome.querySelector(".pending-actionbar")).not.toBeNull(),
+    );
+    screen.getByRole("button", { name: "Approve" }).focus();
+    outside.focus();
+    await undock(panel);
+    expect(outside).toHaveFocus();
+  } finally {
+    view.unmount();
+    root.remove();
+    outside.remove();
+  }
+});
