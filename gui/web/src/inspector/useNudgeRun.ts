@@ -42,6 +42,7 @@ import {
   withinGhostClick,
 } from "../hooks/gestureConstants";
 import { useDawStore } from "../state/dawStore";
+import { ownsSavingTrim } from "../state/projectSlice";
 import { isReplayed } from "../timeline/hitRouting";
 import type { ProjectView } from "../types/project";
 import { errorMessage } from "../utils/apiError";
@@ -248,7 +249,7 @@ export function useNudgeRun() {
     }
     if (r.moved === 0) return;
     const revert = () => {
-      if (r.preview) {
+      if (!r.trimToken && r.preview) {
         revertOptimisticIfUnchanged(r.origin, r.seq, r.projectPath, r.preview);
       }
     };
@@ -256,9 +257,26 @@ export function useNudgeRun() {
       revert();
       return;
     }
+    const settle = () => {
+      if (r.trimToken)
+        useDawStore
+          .getState()
+          .changeHeldTrim({ kind: "settle", token: r.trimToken });
+    };
+    const fresh = () =>
+      !r.trimToken || ownsSavingTrim(useDawStore.getState(), r.trimToken);
     setSaving(true);
     try {
-      if (!(await saveNudge(r.projectPath, r.origin, r.field, r.value))) {
+      if (
+        !(await saveNudge(
+          r.projectPath,
+          r.origin,
+          r.field,
+          r.value,
+          fresh,
+          settle,
+        ))
+      ) {
         // The host asked first and changed nothing; its dialog speaks.
         revert();
         return;
@@ -273,6 +291,7 @@ export function useNudgeRun() {
         .getState()
         .announceStatus(`${r.name} not saved: ${errorMessage(error)}`);
     } finally {
+      settle();
       setSaving(false);
     }
   };

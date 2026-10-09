@@ -235,8 +235,12 @@ its pending drafts. Otherwise the clean reader returns null until replacement
 or hydration; it never supplies the contaminated old display as clean data.
 Releasing or unmounting a stale run saves nothing. Its pointer release click
 remains consumed even after a delay. A current release or normal selection
-unmount hands off the exact accepted preview and saves once. The existing
-pending-save rejection guard cannot replace a newer display.
+unmount freezes the exact accepted preview and saves once. The layer remains
+in its saving phase through boundary loading and command settlement. Both phases
+provide a clean editing basis. Publication retires either phase atomically.
+After boundary loading, submission requires the same saving token and document
+lifetime. Settlement removes only the matching saving layer, retaining current
+pending drafts. Undo waits through that cleanup.
 
 Fade gestures capture both saved fades and submit that pair with `SetClipFade`.
 The server refuses a stale pair before history capture, including a draft made

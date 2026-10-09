@@ -33,8 +33,12 @@ export function saveClipEdge(
   clip: ClipRow,
   change: ClipEdgeChange,
   fresh: () => boolean = () => true,
+  settled: () => void = () => {},
 ): Promise<boolean> {
-  return trackEditSave(projectPath, send(projectPath, clip, change, fresh));
+  return trackEditSave(
+    projectPath,
+    send(projectPath, clip, change, fresh).finally(settled),
+  );
 }
 
 async function send(

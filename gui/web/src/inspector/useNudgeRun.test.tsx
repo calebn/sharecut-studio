@@ -28,7 +28,11 @@ import type { TimelineComment } from "../types/project";
 
 vi.mock("../edit/nudge", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../edit/nudge")>()),
-  saveNudge: vi.fn(async () => true),
+  saveNudge: vi.fn(async () => {
+    const state = useDawStore.getState();
+    if (state.project) state.setProject(state.project);
+    return true;
+  }),
 }));
 vi.mock("../services/commandQueue", () => ({
   submitQueuedDocumentCommand: vi.fn(async () => ({})),
@@ -100,6 +104,8 @@ describe("refused trim nudges", () => {
         origin,
         field,
         9.99,
+        expect.any(Function),
+        expect.any(Function),
       );
     },
   );
@@ -141,6 +147,8 @@ describe("refused trim nudges", () => {
       origin,
       field,
       7,
+      expect.any(Function),
+      expect.any(Function),
     );
   });
 });
@@ -148,7 +156,13 @@ describe("refused trim nudges", () => {
 describe("trim nudge document lifetime", () => {
   beforeEach(() => {
     resetDocumentSeqForTests();
-    vi.mocked(saveNudge).mockReset().mockResolvedValue(true);
+    vi.mocked(saveNudge)
+      .mockReset()
+      .mockImplementation(async () => {
+        const state = useDawStore.getState();
+        if (state.project) state.setProject(state.project);
+        return true;
+      });
     vi.mocked(submitQueuedDocumentCommand).mockReset().mockResolvedValue({});
     clearRegisteredCommands();
     _resetTrackMutateChainForTests();
@@ -501,6 +515,8 @@ describe("trim nudge document lifetime", () => {
       origin,
       field,
       9.99,
+      expect.any(Function),
+      expect.any(Function),
     );
 
     vi.mocked(saveNudge).mockClear();
@@ -514,6 +530,8 @@ describe("trim nudge document lifetime", () => {
       origin,
       field,
       9.99,
+      expect.any(Function),
+      expect.any(Function),
     );
   });
 
@@ -529,6 +547,8 @@ describe("trim nudge document lifetime", () => {
       origin,
       field,
       9.99,
+      expect.any(Function),
+      expect.any(Function),
     );
   });
 

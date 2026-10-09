@@ -91,9 +91,7 @@ describe("held trim publication", () => {
         disposition: "handoff",
       }),
     ).toMatchObject({ kind: "handoff", value: 9.98, path: "/tmp/trim.json" });
-    expect(store.projectEditBasis()?.clips.tracks.host[0]?.source_end).toBe(
-      9.98,
-    );
+    expect(store.projectEditBasis()?.clips.tracks.host[0]?.source_end).toBe(10);
     expect(
       store.changeHeldTrim({
         kind: "finish",
@@ -256,25 +254,32 @@ describe("held trim publication", () => {
     expect(useDawStore.getState().project).toBe(accepted.project);
   });
 
-  it("publishes foreign comments with layer retirement in the same store notification", () => {
-    const store = useDawStore.getState();
-    const token = Symbol();
-    store.changeHeldTrim({ kind: "begin", token, target });
-    store.changeHeldTrim({ kind: "value", token, sourceSec: 9.99 });
-    const frames: Array<{
-      end: number | undefined;
-      body: string | undefined;
-      active: boolean;
-    }> = [];
-    const stop = useDawStore.subscribe((state) =>
-      frames.push({
-        end: state.project?.clips.tracks.host[0]?.source_end,
-        body: state.project?.comments[0]?.body,
-        active: state.heldTrim !== null,
-      }),
-    );
-    mergeReturnedComment(sampleComment({ body: "Fresh comment" }));
-    stop();
-    expect(frames).toEqual([{ end: 10, body: "Fresh comment", active: false }]);
-  });
+  it.each(["held", "saving"])(
+    "publishes foreign comments and retires the %s layer in one notification",
+    (phase) => {
+      const store = useDawStore.getState();
+      const token = Symbol();
+      store.changeHeldTrim({ kind: "begin", token, target });
+      store.changeHeldTrim({ kind: "value", token, sourceSec: 9.99 });
+      if (phase === "saving")
+        store.changeHeldTrim({ kind: "finish", token, disposition: "handoff" });
+      const frames: Array<{
+        end: number | undefined;
+        body: string | undefined;
+        active: boolean;
+      }> = [];
+      const stop = useDawStore.subscribe((state) =>
+        frames.push({
+          end: state.project?.clips.tracks.host[0]?.source_end,
+          body: state.project?.comments[0]?.body,
+          active: state.heldTrim !== null,
+        }),
+      );
+      mergeReturnedComment(sampleComment({ body: "Fresh comment" }));
+      stop();
+      expect(frames).toEqual([
+        { end: 10, body: "Fresh comment", active: false },
+      ]);
+    },
+  );
 });

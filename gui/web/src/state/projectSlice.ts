@@ -35,6 +35,7 @@ const HELD_TRIM_OWNER = Symbol("held trim owner");
 export type HeldTrimLayer = Readonly<{
   [HELD_TRIM_OWNER]: true;
   token: symbol;
+  phase: "held" | "saving";
   target: TrimTarget;
   lifetime: TrimLifetime;
   origin: ProjectView;
@@ -43,6 +44,7 @@ export type HeldTrimLayer = Readonly<{
 }>;
 export type HeldTrimEvent =
   | { kind: "begin"; token: symbol; target: TrimTarget }
+  | { kind: "settle"; token: symbol }
   | { kind: "value"; token: symbol; sourceSec: number }
   | { kind: "finish"; token: symbol; disposition: "discard" | "handoff" };
 export type HeldTrimResult =
@@ -79,6 +81,16 @@ function ownsLifetime(layer: HeldTrimLayer, state: DawStore): boolean {
     documentAuthority.project === lifetime.authority
   );
 }
+export function ownsSavingTrim(state: DawStore, token: symbol): boolean {
+  const layer = state.heldTrim;
+  return (
+    !!layer &&
+    layer.token === token &&
+    layer.phase === "saving" &&
+    ownsLifetime(layer, state)
+  );
+}
+
 function currentAuthorityBasis(state: DawStore): ProjectView | null {
   return documentAuthority.path === state.projectPath &&
     documentAuthority.phase.kind === "ready" &&
@@ -138,6 +150,17 @@ export const createProjectSlice: StateCreator<
       (!layer && event.kind !== "begin")
     )
       return { kind: "gone" };
+    if (event.kind === "settle") {
+      if (!layer || layer.phase !== "saving" || !ownsLifetime(layer, state))
+        return { kind: "gone" };
+      const project = overlayDocumentDrafts(layer.origin);
+      set({
+        heldTrim: null,
+        project,
+        ...zoomReclampPatch(state, sessionSecOf({ project })),
+      });
+      return { kind: "discarded" };
+    }
     if (layer && !ownsLifetime(layer, state)) {
       const project = currentAuthorityBasis(state);
       if (!project) return { kind: "awaiting-document" };
@@ -154,6 +177,7 @@ export const createProjectSlice: StateCreator<
         heldTrim: {
           [HELD_TRIM_OWNER]: true,
           token: event.token,
+          phase: "held",
           target: event.target,
           lifetime: lifetimeOf(state),
           origin: state.project,
@@ -165,6 +189,7 @@ export const createProjectSlice: StateCreator<
       return { kind: "accepted" };
     }
     if (!layer || layer.token !== event.token) return { kind: "gone" };
+    if (layer.phase !== "held") return { kind: "gone" };
     if (event.kind === "value") {
       if (event.sourceSec === layer.value) return { kind: "accepted" };
       const { trackId, clipId, edge, mode } = layer.target;
@@ -192,7 +217,7 @@ export const createProjectSlice: StateCreator<
       });
       return { kind: "discarded" };
     }
-    set({ heldTrim: null });
+    set({ heldTrim: { ...layer, phase: "saving" } });
     return {
       kind: "handoff",
       path: layer.lifetime.path,

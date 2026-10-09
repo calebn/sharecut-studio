@@ -432,6 +432,8 @@ export async function saveNudge(
   origin: ProjectView,
   field: NudgeField,
   value: number,
+  fresh: () => boolean,
+  settled: () => void,
 ): Promise<boolean> {
   switch (field.kind) {
     case "fade":
@@ -448,12 +450,18 @@ export async function saveNudge(
         );
         return true;
       }
-      return saveClipEdge(projectPath, clip, {
-        kind: "trim",
-        edge: field.edge,
-        mode: TRIM_MODE,
-        sourceSec: value,
-      });
+      return saveClipEdge(
+        projectPath,
+        clip,
+        {
+          kind: "trim",
+          edge: field.edge,
+          mode: TRIM_MODE,
+          sourceSec: value,
+        },
+        fresh,
+        settled,
+      );
     }
     case "pending": {
       const edit = pendingEdit(origin, field.editId);
