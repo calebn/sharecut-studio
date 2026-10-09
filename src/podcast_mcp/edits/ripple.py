@@ -185,6 +185,37 @@ def _shifted_edge(clip: Clip, edge: TrimEdge, delta: float) -> float:
     return _edge_sec(clip, edge) - delta if edge == "in" else _edge_sec(clip, edge) + delta
 
 
+def _follows_edge(anchor: Clip, other: Clip) -> bool:
+    """Whether ``other`` follows this edge from the lane's original geometry."""
+    return other.timeline_start >= anchor.timeline_end - _EPS or (
+        other.timeline_start > anchor.timeline_start + _EPS
+        and other.timeline_end > anchor.timeline_end + _EPS
+    )
+
+
+def _trim_edge_lane(
+    lane: Sequence[Clip], move: EdgeMove, edge: TrimEdge, delta: float, mode: EditMode
+) -> list[Clip]:
+    """Move one planned edge and translate its original whole-clip followers."""
+    anchor = next(clip for clip in lane if clip.id == move.clip_id)
+    result: list[Clip] = []
+    for clip in lane:
+        changes: dict[str, float] = {}
+        if clip.id == move.clip_id:
+            if edge == "out":
+                changes["source_end"] = move.source_sec
+            else:
+                changes["source_start"] = move.source_sec
+                if mode is EditMode.GAP:
+                    changes["timeline_start"] = (
+                        clip.timeline_start + move.source_sec - clip.source_start
+                    )
+        elif mode is EditMode.RIPPLE and _follows_edge(anchor, clip):
+            changes["timeline_start"] = clip.timeline_start + delta
+        result.append(clip.model_copy(update=changes) if changes else clip)
+    return result
+
+
 def plan_trim(
     project: EpisodeProject,
     clip_id: str,
@@ -238,21 +269,11 @@ def plan_trim(
 
 def apply_trim_geometry(project: EpisodeProject, plan: TrimPlan) -> dict[str, list[Clip]]:
     """Apply ``plan``'s clip geometry; returns the clips before for tracks that lost a span."""
-    by_id = {c.id: c for c in project.clips}
     for move in plan.moves:
-        clip = by_id[move.clip_id]
-        old_end = clip.timeline_end
-        if plan.edge == "out":
-            clip.source_end = move.source_sec
-        else:
-            moved = move.source_sec - clip.source_start
-            clip.source_start = move.source_sec
-            if plan.mode is EditMode.GAP:
-                clip.timeline_start += moved
-        if plan.mode is EditMode.RIPPLE:
-            for other in clips_for_track(project, move.track_id):
-                if other.id != clip.id and other.timeline_start >= old_end - _EPS:
-                    other.timeline_start += plan.delta
+        lane = clips_for_track(project, move.track_id)
+        set_track_clips(
+            project, move.track_id, _trim_edge_lane(lane, move, plan.edge, plan.delta, plan.mode)
+        )
     moved_tracks = {move.track_id for move in plan.moves}
     rest = [tid for tid in plan.scope if tid not in moved_tracks]
     before: dict[str, list[Clip]] = {}

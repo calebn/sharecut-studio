@@ -1,5 +1,5 @@
 {
-  "$comment": "Which tracks a ripple moves, and what a trim leaves on each. gui/web/src/edit/ripplePreview.ts rippleTrackIds mirrors edits/ripple.ripple_track_ids, and its trim preview mirrors plan_trim + apply_trim_geometry. gui/web/src/edit/ripplePreview.test.ts and tests/test_ripple_scope_contract.py both read these cases. Clips are [id, timeline_start, source_start, source_end] with an optional source_id (the recording the clip plays; absent = the track's own media, and the clip's own recording length caps how far an edge grows); lanes after a trim are [timeline_start, timeline_end, source_start, source_end] in timeline order; arrows are [from, to] seconds, the preview's downstream moves; cuts are the span a lane loses.",
+  "$comment": "Which tracks a ripple moves, and what a trim leaves on each. gui/web/src/edit/ripplePreview.ts rippleTrackIds mirrors edits/ripple.ripple_track_ids, and its trim preview mirrors plan_trim + apply_trim_geometry. gui/web/src/edit/ripplePreview.test.ts and tests/test_ripple_scope_contract.py both read these cases. Clips are [id, timeline_start, source_start, source_end] with an optional source_id (the recording the clip plays; absent = the track's own media, and the clip's own recording length caps how far an edge grows); lanes after a trim are [timeline_start, timeline_end, source_start, source_end] in timeline order; arrows are [from, to] seconds, the preview's downstream moves; cuts are spans dimmed by a shortening trim. Optional clip_ids and source_ids pin the identities of intact edge-lane followers.",
   "scope_cases": [
     {
       "name": "every dialogue track in project order",
@@ -293,7 +293,7 @@
       "trim": {"clip_id": "anchor","edge": "out","source_sec": 9.97,"mode": "ripple"},
       "lanes": {"host": [[0,9.97,0,9.97],[9.9696,19.9696,9.9996,19.9996]],"guest": [],"music": []},
       "arrows": {"host": [[9.9996,9.9696]]},
-      "cuts": {},
+      "cuts": { "guest": [9.97, 10] },
       "clip_ids": {"host": ["anchor","follower"]},
       "source_ids": {"host": ["anchor_t","follower_t"]}
     },
@@ -303,7 +303,7 @@
       "trim": {"clip_id": "anchor","edge": "out","source_sec": 9.97,"mode": "ripple"},
       "lanes": {"host": [[0,9.97,0,9.97]],"guest": [[0,9.97,0,9.97],[9.9696,19.9696,9.9996,19.9996]],"music": []},
       "arrows": {"guest": [[9.9996,9.9696]]},
-      "cuts": {},
+      "cuts": { "guest": [9.97, 10] },
       "clip_ids": {"guest": ["peer","follower"]},
       "source_ids": {"guest": ["peer_t","follower_t"]}
     },
@@ -313,7 +313,7 @@
       "trim": {"clip_id": "anchor","edge": "out","source_sec": 8,"mode": "ripple"},
       "lanes": {"host": [[0,8,0,8],[6,16,8,18]],"guest": [],"music": []},
       "arrows": {"host": [[8,6]]},
-      "cuts": {},
+      "cuts": { "guest": [8, 10] },
       "clip_ids": {"host": ["anchor","follower"]},
       "source_ids": {"host": ["anchor_t","follower_t"]}
     },
@@ -333,6 +333,16 @@
       "trim": {"clip_id": "anchor","edge": "in","source_sec": 12,"mode": "ripple"},
       "lanes": {"host": [[0,8,12,20],[7.9996,17.9996,9.9996,19.9996]],"guest": [],"music": []},
       "arrows": {"host": [[9.9996,7.9996]]},
+      "cuts": { "guest": [0, 2] },
+      "clip_ids": {"host": ["anchor","follower"]},
+      "source_ids": {"host": ["anchor_t","follower_t"]}
+    },
+    {
+      "name": "a 0.4 ms overlap follows an in-edge growth",
+      "clips": { "host": [["anchor",0,10,20,"anchor_t"],["follower",9.9996,9.9996,19.9996,"follower_t"]], "guest": [], "music": [] },
+      "trim": { "clip_id": "anchor", "edge": "in", "source_sec": 8, "mode": "ripple" },
+      "lanes": { "host": [[0,12,8,20],[11.9996,21.9996,9.9996,19.9996]], "guest": [], "music": [] },
+      "arrows": { "host": [[9.9996,11.9996]] },
       "cuts": {},
       "clip_ids": {"host": ["anchor","follower"]},
       "source_ids": {"host": ["anchor_t","follower_t"]}
@@ -343,9 +353,19 @@
       "trim": {"clip_id": "anchor","edge": "out","source_sec": 8,"mode": "ripple"},
       "lanes": {"host": [[2,12,2,12],[4,8,4,8],[4,12,4,12],[6,9,6,9],[8,10,8,10],[8,18,10,20]],"guest": [],"music": []},
       "arrows": {"host": [[10,8]]},
-      "cuts": {},
+      "cuts": { "guest": [8, 10] },
       "clip_ids": {"host": ["predecessor","anchor","equal","nested","ends-at-edge","follower"]},
       "source_ids": {"host": ["overlay_t","anchor_t","overlay_t","overlay_t","overlay_t","follower_t"]}
+    },
+    {
+      "name": "a long crossing follower keeps its source when its translated start is negative",
+      "clips": { "host": [["anchor",0,0,10,"anchor_t"],["follower",1,0,19,"follower_t"]], "guest": [], "music": [] },
+      "trim": { "clip_id": "anchor", "edge": "out", "source_sec": 8, "mode": "ripple" },
+      "lanes": { "host": [[-1,18,0,19],[0,8,0,8]], "guest": [], "music": [] },
+      "arrows": { "host": [[1,-1]] },
+      "cuts": { "guest": [8,10] },
+      "clip_ids": { "host": ["follower","anchor"] },
+      "source_ids": { "host": ["follower_t","anchor_t"] }
     },
     {
       "name": "a music trim ripples the dialogue tracks with it",
