@@ -5,6 +5,7 @@ import { trimNeighborBounds } from "../edit/trimLimits";
 import { useNudgeRun } from "../inspector/useNudgeRun";
 import { useDawStore } from "../state/dawStore";
 import { clipRow, minimalProject, sampleTrack } from "../test/fixtures";
+import type { ClipRow } from "../types/project";
 import { useClipEdgeHandles } from "./useClipEdgeHandles";
 
 vi.mock("../api", async (original) => ({
@@ -15,8 +16,6 @@ vi.mock("../edit/nudge", async (original) => ({
   ...(await original()),
   saveNudge: vi.fn(async () => true),
 }));
-
-import type { ClipRow } from "../types/project";
 
 beforeEach(() => {
   vi.clearAllMocks();
