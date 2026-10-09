@@ -174,14 +174,15 @@ export function useClipEdgeHandles(context: Context) {
   const fresh = (capture: Capture) => {
     const s = useDawStore.getState();
     const c = latest.current;
-    const lane = s.project?.clips.tracks[capture.clip.track_id] ?? [];
+    const project = s.projectEditBasis();
+    const lane = project?.clips.tracks[capture.clip.track_id] ?? [];
     const index = lane.findIndex((row) => row.id === capture.clip.id);
     const savedClip = lane[index];
-    const savedTrack = s.project?.tracks.find(
+    const savedTrack = project?.tracks.find(
       (track) => track.id === capture.clip.track_id,
     );
     const savedGeometryMatches =
-      s.project == null ||
+      (project == null && s.project == null) ||
       (savedClip != null &&
         sameGeometry(savedClip, capture.clip) &&
         savedTrack != null &&
@@ -255,7 +256,7 @@ export function useClipEdgeHandles(context: Context) {
       return;
     }
     const next = projectEdge(d, candidate);
-    const project = useDawStore.getState().project;
+    const project = useDawStore.getState().projectEditBasis();
     try {
       if (next.kind === "trim" && project) {
         trimDraft(
@@ -407,7 +408,7 @@ export function useClipEdgeHandles(context: Context) {
     // press then crosses (#1115).
     if (action.held && keyStopped.current) return { status: "ok" as const };
     keyStopped.current = false;
-    const project = s.project;
+    const project = s.projectEditBasis();
     const axis = project
       ? nudgeAxis(project, {
           kind: d.kind,

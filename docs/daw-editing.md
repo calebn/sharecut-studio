@@ -332,12 +332,12 @@ enforced-by:
 - gui/web/src/edit/ripplePreview.test.ts::keeps the follower source and audio metadata while translating it
 - gui/web/e2e/ripple-overlap-proof.spec.ts::refuses a large overlap trim on the edited lane and saves the last valid draft
 - gui/web/src/inspector/useNudgeRun.test.tsx::keeps and saves the last valid %s lane preview
-- gui/web/src/inspector/useNudgeRun.test.tsx::removes held trim through $actor and $ending while retaining the comment and pending edit
-- gui/web/src/inspector/useNudgeRun.test.tsx::queued envelope response publishes clean geometry and cancels the hold before WS
-- gui/web/src/inspector/useNudgeRun.test.tsx::a real %s writer removes trim geometry and uses a clean rollback baseline
-- gui/web/src/inspector/useNudgeRun.test.tsx::detaches a splice with delta %s while retaining a same-lane absolute move and source payloads
-- gui/web/src/state/dawStore.test.ts::rejects a second owner and stale token endings cannot remove a newer hold
-- gui/web/src/state/dawStore.test.ts::refuses a negative first or later step atomically and hands off the exact last accepted preview
+- gui/web/src/inspector/useNudgeRun.writers.test.tsx::removes held trim through $actor and $ending while retaining the comment and pending edit
+- gui/web/src/inspector/useNudgeRun.writers.test.tsx::queued envelope response publishes clean geometry and cancels the hold before WS
+- gui/web/src/inspector/useNudgeRun.writers.test.tsx::a real %s writer removes trim geometry and uses a clean rollback baseline
+- gui/web/src/inspector/useNudgeRun.writers.test.tsx::detaches a splice with delta %s while retaining a same-lane absolute move and source payloads
+- gui/web/src/state/heldTrim.test.ts::rejects a second owner and stale token endings cannot remove a newer hold
+- gui/web/src/state/heldTrim.test.ts::refuses a negative first or later step atomically and hands off the exact last accepted preview
 - gui/web/src/inspector/useNudgeRun.test.tsx::keeps an authoritative %s update through repeat and release
 - gui/web/src/inspector/useNudgeRun.test.tsx::removes only its trim preview after a local %s merge on repeat and release
 - gui/web/src/inspector/useNudgeRun.test.tsx::removes its preview after a local %s merge before delayed pointer cancel and click
@@ -381,8 +381,9 @@ their document commands (`TrimClipEdge`, `DeleteClip`, `CutRange`, `PasteSegment
   and authority where it began. Every repeat uses its clean origin. Document
   publication or hydration cancels the hold immediately, preserving supplied
   geometry, comments and pending edits. Writers read the clean editing basis
-  before transforming or capturing rollback inputs. A canceled splice removes
-  synthetic tails and restores deleted rows without reconstructing source,
+  before transforming or capturing rollback inputs. Timeline edge handles also
+  validate against that basis and refuse synthetic preview tails. A canceled
+  splice removes synthetic tails and restores deleted rows without reconstructing source,
   fade, join or mute fields. An unchanged pending mix does not cancel a hold;
   a genuine mix publication does. A current release or selection-change
   unmount hands off the exact preview and saves once. Stale tokens cannot
