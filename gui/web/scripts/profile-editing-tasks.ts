@@ -84,38 +84,46 @@ const replayReceipt = path.join(output, "replay-media.json");
 fs.writeFileSync(replayReceipt, JSON.stringify(replayMedia, null, 2));
 const appBase = git("rev-parse", `${values["app-base"]}^{commit}`);
 const driverSha = git("rev-parse", "HEAD");
+const exactProductPaths = [
+  ".agents/defaults/pipeline.yaml",
+  ".agents/defaults/transcript_glossary.yaml",
+  "contracts/timeline-zoom.json",
+  "contracts/bootstrap-assets.json",
+  "gui/web/index.html",
+  "gui/web/tsconfig.json",
+  "gui/web/tsconfig.app.json",
+  "gui/web/tsconfig.node.json",
+  "gui/web/tsconfig.e2e.json",
+  "gui/web/scripts/build-app.ts",
+  "gui/web/scripts/check-bundle-no-e2e.ts",
+  "gui/web/scripts/check-bundle-no-stories.ts",
+  "gui/web/package.json",
+  "gui/web/package-lock.json",
+  "gui/web/vite.config.ts",
+  "pyproject.toml",
+  "uv.lock",
+];
 const isProductPath = (file: string) =>
   file.startsWith("src/podcast_mcp/") ||
   file.startsWith("gui/web/src/") ||
   file.startsWith("gui/web/public/") ||
-  [
-    ".agents/defaults/pipeline.yaml",
-    ".agents/defaults/transcript_glossary.yaml",
-    "contracts/timeline-zoom.json",
-    "contracts/bootstrap-assets.json",
-    "gui/web/index.html",
-    "gui/web/tsconfig.json",
-    "gui/web/tsconfig.app.json",
-    "gui/web/tsconfig.node.json",
-    "gui/web/tsconfig.e2e.json",
-    "gui/web/scripts/build-app.ts",
-    "gui/web/scripts/check-bundle-no-e2e.ts",
-    "gui/web/scripts/check-bundle-no-stories.ts",
-    "gui/web/package.json",
-    "gui/web/package-lock.json",
-    "gui/web/vite.config.ts",
-    "pyproject.toml",
-    "uv.lock",
-  ].includes(file);
+  exactProductPaths.includes(file);
 const productPaths = git("ls-tree", "-r", "--name-only", appBase)
   .split("\n")
   .filter(isProductPath);
 const additions = [
   ...git("ls-files").split("\n"),
   ...git("ls-files", "--others", "--exclude-standard").split("\n"),
-  ...git("ls-files", "--others", "--ignored", "--exclude-standard")
-    .split("\n")
-    .filter((file) => !file.startsWith("src/podcast_mcp/")),
+  ...git(
+    "ls-files",
+    "--others",
+    "--ignored",
+    "--exclude-standard",
+    "--",
+    "gui/web/src/",
+    "gui/web/public/",
+    ...exactProductPaths,
+  ).split("\n"),
 ].filter((file) => isProductPath(file) && !productPaths.includes(file));
 if (additions.length)
   throw new Error(
