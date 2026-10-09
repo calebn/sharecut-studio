@@ -1143,3 +1143,87 @@ def test_guest_submit_without_client_seq_applies_each_command(
 
     rows = DocumentSyncService.open(minimal_project).store.commands_after(0)
     assert [r["client_seq"] for r in rows] == [-1, -2]
+
+
+def test_guest_http_listing_retry_recovers_registry_before_authorization(
+    minimal_project, sample_wav, tmp_workspace, monkeypatch
+):
+    import sqlite3
+    from contextlib import closing
+
+    from podcast_mcp.edits.share_registry import get_share_registry
+    from podcast_mcp.services.share_auth import store as identity_store
+
+    ws = _seed_premix(minimal_project, sample_wav)
+    ws.project.timeline.tracks = [
+        Track(
+            id="host",
+            label="Host",
+            role=TrackRole.DIALOGUE,
+            media=MediaAsset(path="raw/host.wav", duration_sec=60.0),
+        )
+    ]
+    ws.project.timeline.clips = [
+        Clip(id="a", track_id="host", source_start=0, source_end=5, timeline_start=0)
+    ]
+    ws.save()
+    share = _share(ws, monkeypatch, tmp_workspace, ["play", "view", "mcp"])
+    registry = get_share_registry()
+    metadata = registry.get_active(share["token"])
+    registry_path = registry.db_path
+    registry_secret_count = sqlite3.connect(registry_path)
+    try:
+        assert (
+            registry_secret_count.execute("SELECT secret FROM recording_key_secret").fetchall()
+            == []
+        )
+    finally:
+        registry_secret_count.close()
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "guest_list_clips", "arguments": {}},
+    }
+    endpoint = f"/mcp/{share['token']}/mcp"
+    with (
+        closing(identity_store.ShareIdentityStore(tmp_workspace / "identity.sqlite")) as identity,
+        TestClient(create_app()) as client,
+    ):
+        monkeypatch.setattr(identity_store, "_STORE", identity)
+        with monkeypatch.context() as scope:
+
+            def fail_entropy(size: int) -> bytes:
+                raise OSError("private entropy failure")
+
+            scope.setattr("podcast_mcp.edits.share_registry.secrets.token_bytes", fail_entropy)
+            first = client.post(endpoint, json=payload)
+        assert first.status_code == 200
+        assert first.json()["result"]["isError"] is True
+        assert "private entropy failure" not in first.text
+        with closing(sqlite3.connect(registry_path)) as observer:
+            assert (
+                observer.execute("SELECT token FROM active_shares").fetchone()[0] == share["token"]
+            )
+            assert observer.execute("SELECT secret FROM recording_key_secret").fetchall() == []
+        second = client.post(endpoint, json=payload)
+        assert second.status_code == 200
+        assert not second.json()["result"].get("isError", False)
+        text = second.json()["result"]["content"][0]["text"]
+        key = json.loads(text)["tracks"]["host"][0]["recording_key"]
+        assert re.fullmatch(r"rec_[0-9a-f]{16}", key)
+        assert ".wav" not in text and "raw/" not in text
+        assert str(ws.project.workspace_path()) not in text
+        current_metadata = get_share_registry().get_active(share["token"])
+        assert current_metadata is not None and metadata is not None
+        assert {k: v for k, v in current_metadata.items() if k != "last_used_at"} == {
+            k: v for k, v in metadata.items() if k != "last_used_at"
+        }
+        secret = get_share_registry().recording_key_secret()
+        with closing(sqlite3.connect(registry_path)) as observer:
+            assert (
+                observer.execute("SELECT secret FROM recording_key_secret").fetchone()[0] == secret
+            )
+        third = client.post(endpoint, json=payload)
+        repeated_text = third.json()["result"]["content"][0]["text"]
+        assert json.loads(repeated_text)["tracks"]["host"][0]["recording_key"] == key
