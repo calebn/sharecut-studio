@@ -165,7 +165,7 @@ const harnessFiles = Object.fromEntries(
 );
 const source = {
   harnessFiles,
-  appBase,
+  productRevision: appBase,
   driverSha,
   dirty: git("status", "--porcelain"),
   productFiles,
@@ -197,28 +197,42 @@ const backend = JSON.parse(imported.stdout.trim()) as {
 if (backend.cwd !== repo || !backend.module.startsWith(`${repo}/src/`))
   throw new Error("Backend import is outside verified app source");
 const backendSourceHash = hash(fs.readFileSync(backend.module));
+type BuildReceipt = {
+  command: string[];
+  exit: number;
+  productRevision: string;
+  buildEnvironment: {
+    nodeEnv: string | null;
+    viteSharecutE2e: string | null;
+  };
+  assets: Record<string, string>;
+};
 let dist: string;
-let build: unknown;
+let build: Omit<BuildReceipt, "assets">;
+let buildAssets: Record<string, string> | undefined;
 if (values["production-dist"]) {
   if (!values["build-receipt"] || !values["source-receipt"])
     throw new Error("Reused dist needs --build-receipt and --source-receipt");
-  const receipt = JSON.parse(
+  const parsedReceipt = JSON.parse(
     fs.readFileSync(values["build-receipt"], "utf8"),
-  ) as {
-    productRevision: string;
-    exit: number;
-    assets: Record<string, string>;
-  };
+  ) as Partial<BuildReceipt>;
   const sourceReceipt = JSON.parse(
     fs.readFileSync(values["source-receipt"], "utf8"),
   ) as { productRevision: string; productFiles: Record<string, string> };
   if (
-    receipt.productRevision !== appBase ||
-    receipt.exit !== 0 ||
+    parsedReceipt.productRevision !== appBase ||
+    parsedReceipt.exit !== 0 ||
+    !Array.isArray(parsedReceipt.command) ||
+    parsedReceipt.command.join("\0") !== "npm\0run\0build" ||
+    parsedReceipt.buildEnvironment?.nodeEnv !== "production" ||
+    parsedReceipt.buildEnvironment.viteSharecutE2e !== null ||
+    !parsedReceipt.assets ||
+    typeof parsedReceipt.assets !== "object" ||
+    Array.isArray(parsedReceipt.assets) ||
     sourceReceipt.productRevision !== appBase
   )
     throw new Error(
-      "Dist receipt does not prove successful app-base production build",
+      "Dist receipt does not prove a successful production build without E2E hooks",
     );
   for (const [file, expected] of Object.entries(sourceReceipt.productFiles))
     if (productFiles[file] !== expected)
@@ -227,12 +241,23 @@ if (values["production-dist"]) {
     if (!sourceReceipt.productFiles[file])
       throw new Error(`Build source receipt omitted ${file}`);
   dist = path.resolve(values["production-dist"]);
-  verifyEditingDistribution(dist, receipt.assets);
-  build = receipt;
+  verifyEditingDistribution(dist, parsedReceipt.assets);
+  const receipt = parsedReceipt as BuildReceipt;
+  buildAssets = receipt.assets;
+  build = {
+    command: receipt.command,
+    exit: receipt.exit,
+    productRevision: receipt.productRevision,
+    buildEnvironment: receipt.buildEnvironment,
+  };
 } else {
-  const env = { ...process.env };
-  delete env.VITE_SHARECUT_E2E;
-  const built = spawnSync("npm", ["run", "build"], { encoding: "utf8", env });
+  const buildEnv = { ...process.env, NODE_ENV: "production" };
+  delete buildEnv.VITE_SHARECUT_E2E;
+  const command = ["npm", "run", "build"];
+  const built = spawnSync("npm", command, {
+    encoding: "utf8",
+    env: buildEnv,
+  });
   fs.writeFileSync(
     path.join(output, "production-build.log"),
     built.stdout + built.stderr,
@@ -241,9 +266,13 @@ if (values["production-dist"]) {
   dist = path.join(output, "production-dist");
   fs.cpSync(path.resolve("dist"), dist, { recursive: true });
   build = {
-    command: ["npm", "run", "build"],
+    command,
     exit: built.status,
     productRevision: appBase,
+    buildEnvironment: {
+      nodeEnv: buildEnv.NODE_ENV ?? null,
+      viteSharecutE2e: buildEnv.VITE_SHARECUT_E2E ?? null,
+    },
   };
 }
 const assets: Record<string, string> = {};
@@ -265,6 +294,18 @@ function inspectAssets(directory: string) {
   }
 }
 inspectAssets(dist);
+const buildReceipt: BuildReceipt = {
+  ...build,
+  assets:
+    buildAssets ??
+    Object.fromEntries(
+      Object.entries(assets).map(([file, sha256]) => [file.slice(1), sha256]),
+    ),
+};
+fs.writeFileSync(
+  path.join(output, "build.json"),
+  JSON.stringify(buildReceipt, null, 2),
+);
 const mode = values.diagnostic
   ? "diagnostic"
   : values["validity-only"]
@@ -311,13 +352,14 @@ const protocol = {
   replayMedia,
   source,
   backend: { ...backend, sourceHash: backendSourceHash },
-  build,
+  build: buildReceipt,
   assets,
   tasks,
   schedule,
   mode,
   environment: {
     node: process.version,
+    runnerNodeEnv: process.env.NODE_ENV ?? null,
     os: `${os.platform()} ${os.release()}`,
     cores: os.cpus().length,
     cpu: os.cpus()[0]?.model,
