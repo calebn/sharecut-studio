@@ -56,7 +56,9 @@ jobs:
           npm run build
 
       - name: Build sdist and wheel
-        run: uv build --out-dir dist
+        run: |
+          uv --version
+          uv build --verbose --out-dir dist
 
       - name: Install the wheel into a clean venv
         run: |
