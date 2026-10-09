@@ -246,7 +246,7 @@ BYOK HTTP (implement as OpenAI-compatible + Anthropic; do not hardcode one vendo
 
 ### Re-evaluate these decisions at kickoff (do not assume 2026 answers)
 
-- FFmpegKit vs raw libav FFI (Kit saves CLI-string reuse; Kit’s FFmpeg version may lag desktop bootstrap).
+- FFmpegKit vs raw libav FFI (Kit saves CLI-string reuse; Kit’s FFmpeg version may lag the desktop release recipe).
 - Embedded CPython vs Swift/Rust `services/` port (DRY vs binary size / App Review).
 - whisper.cpp vs Apple/Android on-device ASR (quality vs size vs “no extra model download”).
 - Tauri mobile WebView vs a thin WKWebView/Chrome Custom host (Tauri if desktop sharing is still worth it).

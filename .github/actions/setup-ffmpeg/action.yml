@@ -33,11 +33,16 @@ runs:
       run: |
         output="$(cygpath -am "${PAYLOAD_OUTPUT:-$RUNNER_TEMP/sharecut-ffmpeg}")"
         python scripts/build_ffmpeg.py --output "$output" --source-cache "$RUNNER_TEMP/ffmpeg-sources"
-        echo "$(cygpath -w /mingw64/bin)" >> "$GITHUB_PATH"
-        echo "$(cygpath -w /usr/bin)" >> "$GITHUB_PATH"
+        echo "PODCAST_FFMPEG_TOOLCHAIN_PATH=$(cygpath -w /mingw64/bin);$(cygpath -w /usr/bin)" >> "$GITHUB_ENV"
         echo "$(cygpath -w "$output/bin")" >> "$GITHUB_PATH"
         echo "PODCAST_MCP_FFMPEG=$(cygpath -m "$output/bin/ffmpeg.exe")" >> "$GITHUB_ENV"
         echo "PODCAST_MCP_FFPROBE=$(cygpath -m "$output/bin/ffprobe.exe")" >> "$GITHUB_ENV"
+    - name: Verify downstream standard CPython
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: >-
+        python -c 'import os,sys; from pathlib import Path;
+        assert Path(sys.executable).resolve().is_relative_to(Path(os.environ["pythonLocation"]).resolve()), sys.executable'
     - name: Build native Unix payload
       if: runner.os != 'Windows'
       shell: bash

@@ -196,10 +196,30 @@ jobs:
         with:
           python-version: "3.12"
       - uses: ./.github/actions/setup-ffmpeg
+        with:
+          output: ${{ runner.temp }}/sharecut-runtime/ffmpeg
+      - name: Repeat payload verification through the sidecar builder
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          @'
+          import os
+          import runpy
+          import sys
+          from pathlib import Path
+
+          assert Path(sys.executable).resolve().is_relative_to(Path(os.environ["pythonLocation"]).resolve())
+          original_path = os.environ["PATH"]
+          sidecar = runpy.run_path("scripts/build_sidecar.py")
+          runtime = Path(os.environ["RUNNER_TEMP"]) / "sharecut-runtime"
+          for _ in range(2):
+              sidecar["ensure_ffmpeg_payload"](runtime, "x86_64-pc-windows-msvc")
+          assert os.environ["PATH"] == original_path
+          '@ | python -
       - uses: actions/upload-artifact@v7
         with:
           name: ffmpeg-native-${{ matrix.os }}
-          path: ${{ runner.temp }}/sharecut-ffmpeg
+          path: ${{ runner.temp }}/sharecut-runtime/ffmpeg
 
   ffmpeg-linux-newer-host:
     needs: ffmpeg-native-payload

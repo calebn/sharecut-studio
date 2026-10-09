@@ -74,3 +74,40 @@ def test_native_action_exports_absolute_paths_before_cwd_changes():
     for step in (windows, unix):
         assert step["run"].index("output=") < step["run"].index("--output")
         assert "PODCAST_MCP_FFMPEG=" in step["run"]
+
+
+def test_windows_toolchain_cannot_shadow_downstream_cpython():
+    action = load_github_yaml(ROOT / ".github/actions/setup-ffmpeg/action.yml")
+    windows = next(
+        step for step in action["runs"]["steps"] if step["name"] == "Build native Windows payload"
+    )
+    assert "PODCAST_FFMPEG_TOOLCHAIN_PATH=" in windows["run"]
+    exported_paths = [line for line in windows["run"].splitlines() if '>> "$GITHUB_PATH"' in line]
+    assert exported_paths == ['echo "$(cygpath -w "$output/bin")" >> "$GITHUB_PATH"']
+
+
+def test_windows_action_executes_standard_python_identity_check():
+    action = load_github_yaml(ROOT / ".github/actions/setup-ffmpeg/action.yml")
+    step = next(
+        step
+        for step in action["runs"]["steps"]
+        if step["name"] == "Verify downstream standard CPython"
+    )
+    assert step["shell"] == "pwsh"
+    assert "Path(sys.executable).resolve().is_relative_to" in step["run"]
+    assert "pythonLocation" in step["run"]
+
+
+def test_windows_native_payload_repeats_sidecar_verification():
+    workflow = load_github_yaml(ROOT / ".github/workflows/desktop.yml")
+    steps = workflow["jobs"]["ffmpeg-native-payload"]["steps"]
+    step = next(
+        step
+        for step in steps
+        if step.get("name") == "Repeat payload verification through the sidecar builder"
+    )
+    assert step["shell"] == "pwsh"
+    assert 'sidecar["ensure_ffmpeg_payload"](runtime, "x86_64-pc-windows-msvc")' in step["run"]
+    assert "for _ in range(2):" in step["run"]
+    assert 'assert os.environ["PATH"] == original_path' in step["run"]
+    assert "pythonLocation" in step["run"]
