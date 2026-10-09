@@ -1,4 +1,8 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import {
+  execFileSync,
+  type SpawnSyncReturns,
+  spawnSync,
+} from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -192,26 +196,55 @@ fs.writeFileSync(
   path.join(output, "source.json"),
   JSON.stringify(source, null, 2),
 );
-const imported = spawnSync(
-  "uv",
-  [
-    "run",
-    "python",
-    "-c",
-    "import json,os,sys,podcast_mcp.gui.server; print(json.dumps({'cwd':os.getcwd(),'executable':sys.executable,'module':podcast_mcp.gui.server.__file__}))",
-  ],
-  { cwd: repo, encoding: "utf8" },
+type ProcessResult = Pick<
+  SpawnSyncReturns<unknown>,
+  "error" | "status" | "signal" | "stdout" | "stderr"
+>;
+function successfulProcess(
+  result: ProcessResult,
+  command: readonly string[],
+  phase: "Backend import provenance" | "Production build",
+): { stdout: string; stderr: string; status: 0 } {
+  const context = `${phase} (${command.join(" ")})`;
+  if (result.error)
+    throw new Error(
+      `${context} failed: ${result.error.message}${typeof result.stderr === "string" ? `\n${result.stderr}` : ""}`,
+      { cause: result.error },
+    );
+  if (result.status !== 0 || result.signal !== null)
+    throw new Error(
+      `${context} failed with status ${result.status}, signal ${result.signal}${typeof result.stderr === "string" ? `\n${result.stderr}` : ""}`,
+    );
+  if (typeof result.stdout !== "string" || typeof result.stderr !== "string")
+    throw new Error(`${context} expected UTF8 stdout/stderr`);
+  return { stdout: result.stdout, stderr: result.stderr, status: 0 };
+}
+const importCommand =
+  "import json,os,sys,podcast_mcp.gui.server; print(json.dumps({'cwd':os.getcwd(),'executable':sys.executable,'module':podcast_mcp.gui.server.__file__}))";
+const imported = spawnSync("uv", ["run", "python", "-c", importCommand], {
+  cwd: repo,
+  encoding: "utf8",
+});
+const backendOutput = successfulProcess(
+  imported,
+  ["uv", "run", "python", "-c", importCommand],
+  "Backend import provenance",
 );
 fs.writeFileSync(
   path.join(output, "backend-import.log"),
-  imported.stdout + imported.stderr,
+  backendOutput.stdout + backendOutput.stderr,
 );
-if (imported.status !== 0) throw new Error("Backend import provenance failed");
-const backend = JSON.parse(imported.stdout.trim()) as {
-  cwd: string;
-  executable: string;
-  module: string;
-};
+const backend: unknown = JSON.parse(backendOutput.stdout.trim());
+if (
+  !isRecord(backend) ||
+  typeof backend.cwd !== "string" ||
+  backend.cwd.trim().length === 0 ||
+  typeof backend.executable !== "string" ||
+  backend.executable.trim().length === 0 ||
+  typeof backend.module !== "string" ||
+  backend.module.trim().length === 0
+)
+  throw new Error("Backend import provenance returned invalid metadata");
 if (backend.cwd !== repo || !backend.module.startsWith(`${repo}/src/`))
   throw new Error("Backend import is outside verified app source");
 const backendSourceHash = hash(fs.readFileSync(backend.module));
@@ -279,16 +312,16 @@ if (values["production-dist"]) {
     encoding: "utf8",
     env: buildEnv,
   });
+  const buildOutput = successfulProcess(built, command, "Production build");
   fs.writeFileSync(
     path.join(output, "production-build.log"),
-    built.stdout + built.stderr,
+    buildOutput.stdout + buildOutput.stderr,
   );
-  if (built.status !== 0) throw new Error("Production build failed");
   dist = path.join(output, "production-dist");
   fs.cpSync(path.resolve("dist"), dist, { recursive: true });
   build = {
     command,
-    exit: built.status,
+    exit: buildOutput.status,
     productRevision: appBase,
     buildEnvironment: {
       nodeEnv: buildEnv.NODE_ENV ?? null,
