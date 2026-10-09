@@ -436,6 +436,13 @@ rather than rendering one part file per clip and concatenating. A single
 `-filter_complex` graph trims every source range, applies per-clip fades, and
 joins them, handling every inter-segment relationship in the same graph:
 
+Full tracks and seek windows share source-aware placement in
+`engines/timeline_render.py::_render_placed_track`, regardless of how many
+recordings the clips select. It compares placement with the accumulated output
+end, so a nested clip cannot reset the placement frontier. Source removals
+and joins retain their intentional contraction. FFmpeg groups clips that select
+the same resolved recording into one input.
+
 | Relationship | Filter used |
 |--------------|-------------|
 | Abutting (gapless) clips | `concat` |

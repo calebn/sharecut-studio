@@ -61,7 +61,7 @@ function Harness({ clip }: { clip: ClipRow }) {
     </button>
   );
 }
-it("does not submit a fade on preview-only tail", async () => {
+it("refuses preview-only tails and saves a fade on the original clip", async () => {
   const origin = minimalProject({
     tracks: [sampleTrack({ id: "host" }), sampleTrack({ id: "guest" })],
     clips: {
@@ -100,7 +100,8 @@ it("does not submit a fade on preview-only tail", async () => {
   expect(
     s.projectEditBasis()!.clips.tracks.guest.some((c) => c.id === "wide:tail"),
   ).toBe(false);
-  const button = render(<Harness clip={tail} />).getByRole("button", {
+  const tailHandle = render(<Harness clip={tail} />);
+  const button = tailHandle.getByRole("button", {
     name: "Fade",
   });
   fireEvent.pointerDown(button, { pointerId: 3, clientX: 150 });
@@ -109,4 +110,18 @@ it("does not submit a fade on preview-only tail", async () => {
     fireEvent.pointerUp(button, { pointerId: 3, clientX: 155 }),
   );
   expect(setClipFade).not.toHaveBeenCalled();
+  act(() => s.setProject(origin));
+  tailHandle.unmount();
+  const original = origin.clips.tracks.guest[0]!;
+  const savedButton = render(<Harness clip={original} />).getByRole("button", {
+    name: "Fade",
+  });
+  fireEvent.pointerDown(savedButton, { pointerId: 4, clientX: 150 });
+  fireEvent.pointerMove(savedButton, { pointerId: 4, clientX: 155 });
+  await act(async () =>
+    fireEvent.pointerUp(savedButton, { pointerId: 4, clientX: 155 }),
+  );
+  expect(vi.mocked(setClipFade).mock.calls).toEqual([
+    ["/tmp/one.json", "wide", 100, 0, { fade_in_ms: 0, fade_out_ms: 0 }],
+  ]);
 });
